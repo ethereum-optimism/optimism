@@ -42,7 +42,7 @@ func init() {
 //
 // Usage: mktar -base DIR -out FILE [--exclude pattern]...
 //
-// Example: mktar -base ../packages/contracts-bedrock -out ./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst
+// Example: mktar -base ../packages/contracts-bedrock -out /tmp/contracts-artifacts.tar.zst
 //
 // The output file will be a zstd-compressed tarball of the given base directory.
 // Do not confuse this script with the ops/publish-artifacts.sh script, which is

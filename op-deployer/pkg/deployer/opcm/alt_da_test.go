@@ -21,13 +21,13 @@ func TestNewDeployAltDAScript(t *testing.T) {
 
 		// Then we deploy
 		output, err := deploySuperchain.Run(DeployAltDAInput{
-			Salt:                     common.BigToHash(big.NewInt(1)),
-			ProxyAdmin:               common.BigToAddress(big.NewInt(2)),
-			ChallengeContractOwner:   common.BigToAddress(big.NewInt(3)),
-			ChallengeWindow:          big.NewInt(4),
-			ResolveWindow:            big.NewInt(5),
-			BondSize:                 big.NewInt(6),
-			ResolverRefundPercentage: big.NewInt(7),
+			"salt":                     common.BigToHash(big.NewInt(1)),
+			"proxyAdmin":               common.BigToAddress(big.NewInt(2)),
+			"challengeContractOwner":   common.BigToAddress(big.NewInt(3)),
+			"challengeWindow":          big.NewInt(4),
+			"resolveWindow":            big.NewInt(5),
+			"bondSize":                 big.NewInt(6),
+			"resolverRefundPercentage": big.NewInt(7),
 		})
 
 		// And do some simple asserts

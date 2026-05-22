@@ -5,35 +5,25 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
-	"github.com/ethereum/go-ethereum/common"
 )
 
-type ReadSuperchainDeploymentInput struct {
-	SuperchainConfigProxy common.Address
+var readSuperchainDeploymentSpec = ScriptSpec{
+	ScriptFile:      "ReadSuperchainDeployment.s.sol",
+	ContractName:    "ReadSuperchainDeployment",
+	ForgeScriptPath: "scripts/deploy/ReadSuperchainDeployment.s.sol:ReadSuperchainDeployment",
 }
 
-type ReadSuperchainDeploymentOutput struct {
-	SuperchainConfigImpl      common.Address `abi:"superchainConfigImpl"`
-	SuperchainConfigProxy     common.Address `abi:"superchainConfigProxy"`
-	SuperchainProxyAdmin      common.Address `abi:"superchainProxyAdmin"`
-	Guardian                  common.Address `abi:"guardian"`
-	SuperchainProxyAdminOwner common.Address `abi:"superchainProxyAdminOwner"`
-}
+type ReadSuperchainDeploymentInput = ScriptInput
+type ReadSuperchainDeploymentOutput = ScriptOutput
 
-type ReadSuperchainDeploymentScript script.DeployScriptWithOutput[ReadSuperchainDeploymentInput, ReadSuperchainDeploymentOutput]
+type ReadSuperchainDeploymentScript = ScriptWithOutput
 
 func NewReadSuperchainDeploymentScript(host *script.Host) (ReadSuperchainDeploymentScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[ReadSuperchainDeploymentInput, ReadSuperchainDeploymentOutput](host, "ReadSuperchainDeployment.s.sol", "ReadSuperchainDeployment")
+	return NewScriptWithOutputFromFile(host, readSuperchainDeploymentSpec)
 }
 
 func NewReadSuperchainDeploymentForgeCaller(client *forge.Client) forge.ScriptCaller[ReadSuperchainDeploymentInput, ReadSuperchainDeploymentOutput] {
-	return forge.NewScriptCaller(
-		client,
-		"scripts/deploy/ReadSuperchainDeployment.s.sol:ReadSuperchainDeployment",
-		"runWithBytes(bytes)",
-		&forge.BytesScriptEncoder[ReadSuperchainDeploymentInput]{TypeName: "ReadSuperchainDeploymentInput"},
-		&forge.BytesScriptDecoder[ReadSuperchainDeploymentOutput]{TypeName: "ReadSuperchainDeploymentOutput"},
-	)
+	return NewScriptForgeCaller(client, readSuperchainDeploymentSpec)
 }
 
 // ReadSuperchainDeploymentViaForge reads superchain deployment addresses using Forge

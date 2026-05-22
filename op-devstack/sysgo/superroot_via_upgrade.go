@@ -10,7 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/current"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -56,15 +56,15 @@ func upgradeToSuperRoots(
 	require.NoError(err, "failed to download artifacts")
 
 	for _, l2Deployment := range migration.l2Deployments {
-		executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
+		executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, current.UpgradeOPChainInput{
 			Prank: l1PAO,
 			Opcm:  migration.opcmImpl,
-			UpgradeInputV2: &embedded.UpgradeInputV2{
+			UpgradeInputV2: &current.UpgradeInputV2{
 				SystemConfig: l2Deployment.SystemConfigProxyAddr(),
 				DisputeGameConfigs: buildSuperRootUpgradeGameConfigs(
 					absoluteCannonPrestate, absoluteCannonKonaPrestate, proposer, challenger,
 				),
-				ExtraInstructions: []embedded.ExtraInstruction{
+				ExtraInstructions: []current.ExtraInstruction{
 					{Key: "overrides.cfg.startingAnchorRoot", Data: anchorRootData},
 					{Key: "overrides.cfg.startingRespectedGameType", Data: respectedGameTypeData},
 					{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
@@ -79,24 +79,24 @@ func buildSuperRootUpgradeGameConfigs(
 	absoluteCannonKonaPrestate common.Hash,
 	proposer common.Address,
 	challenger common.Address,
-) []embedded.DisputeGameConfig {
-	return []embedded.DisputeGameConfig{
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannon},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypePermissionedCannon},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannonKona},
+) []current.DisputeGameConfig {
+	return []current.DisputeGameConfig{
+		{Enabled: false, InitBond: new(big.Int), GameType: current.GameTypeCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: current.GameTypePermissionedCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: current.GameTypeCannonKona},
 		{
-			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon,
-			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+			Enabled: true, InitBond: new(big.Int), GameType: current.GameTypeSuperPermCannon,
+			PermissionedDisputeGameConfig: &current.PermissionedDisputeGameConfig{
 				AbsolutePrestate: absoluteCannonPrestate,
 				Proposer:         proposer,
 				Challenger:       challenger,
 			},
 		},
 		{
-			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona,
-			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{AbsolutePrestate: absoluteCannonKonaPrestate},
+			Enabled: true, InitBond: new(big.Int), GameType: current.GameTypeSuperCannonKona,
+			FaultDisputeGameConfig: &current.FaultDisputeGameConfig{AbsolutePrestate: absoluteCannonKonaPrestate},
 		},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeZKDisputeGame},
+		{Enabled: false, InitBond: new(big.Int), GameType: current.GameTypeZKDisputeGame},
 	}
 }
 

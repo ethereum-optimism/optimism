@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -50,11 +49,12 @@ func testSuperchain(t *testing.T, forkRPCURL string) {
 	l1RPC := forkedL1.RPCUrl()
 
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	artifactsLocator, _ := testutil.LocalArtifacts(t)
 
 	out, err := Superchain(ctx, SuperchainConfig{
 		L1RPCUrl:         l1RPC,
 		PrivateKey:       testutil.AnvilDefaultPrivateKey,
-		ArtifactsLocator: artifacts.EmbeddedLocator,
+		ArtifactsLocator: artifactsLocator,
 		Logger:           lgr,
 
 		SuperchainProxyAdminOwner: common.Address{'S'},
@@ -68,9 +68,9 @@ func testSuperchain(t *testing.T, forkRPCURL string) {
 	require.NoError(t, err)
 
 	addresses := []common.Address{
-		out.SuperchainConfigProxy,
-		out.SuperchainConfigImpl,
-		out.SuperchainProxyAdmin,
+		out.Address("superchainConfigProxy"),
+		out.Address("superchainConfigImpl"),
+		out.Address("superchainProxyAdmin"),
 	}
 	for _, addr := range addresses {
 		require.NotEmpty(t, addr)

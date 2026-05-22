@@ -37,6 +37,10 @@ type Env struct {
 	L1RPCUrl     string
 	PrivateKey   string
 	Context      context.Context
+
+	// LegacyInputMappingDir points at contract-ref-owned static mapping files.
+	// Empty means use the repository-local v1 burn-down defaults.
+	LegacyInputMappingDir string
 }
 
 type StateWriter interface {

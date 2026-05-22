@@ -204,21 +204,21 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	}
 
 	input := opcm.DeployImplementationsInput{
-		WithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.WithdrawalDelaySeconds),
-		MinProposalSizeBytes:            new(big.Int).SetUint64(cfg.MinProposalSizeBytes),
-		ChallengePeriodSeconds:          new(big.Int).SetUint64(cfg.ChallengePeriodSeconds),
-		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(cfg.ProofMaturityDelaySeconds),
-		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
-		MipsVersion:                     new(big.Int).SetUint64(uint64(cfg.MIPSVersion)),
-		DevFeatureBitmap:                cfg.DevFeatureBitmap,
-		FaultGameV2MaxGameDepth:         new(big.Int).SetUint64(cfg.FaultGameMaxGameDepth),
-		FaultGameV2SplitDepth:           new(big.Int).SetUint64(cfg.FaultGameSplitDepth),
-		FaultGameV2ClockExtension:       new(big.Int).SetUint64(cfg.FaultGameClockExtension),
-		FaultGameV2MaxClockDuration:     new(big.Int).SetUint64(cfg.FaultGameMaxClockDuration),
-		SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
-		SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
-		L1ProxyAdminOwner:               cfg.L1ProxyAdminOwner,
-		Challenger:                      cfg.Challenger,
+		"withdrawalDelaySeconds":          new(big.Int).SetUint64(cfg.WithdrawalDelaySeconds),
+		"minProposalSizeBytes":            new(big.Int).SetUint64(cfg.MinProposalSizeBytes),
+		"challengePeriodSeconds":          new(big.Int).SetUint64(cfg.ChallengePeriodSeconds),
+		"proofMaturityDelaySeconds":       new(big.Int).SetUint64(cfg.ProofMaturityDelaySeconds),
+		"disputeGameFinalityDelaySeconds": new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
+		"mipsVersion":                     new(big.Int).SetUint64(uint64(cfg.MIPSVersion)),
+		"devFeatureBitmap":                cfg.DevFeatureBitmap,
+		"faultGameV2MaxGameDepth":         new(big.Int).SetUint64(cfg.FaultGameMaxGameDepth),
+		"faultGameV2SplitDepth":           new(big.Int).SetUint64(cfg.FaultGameSplitDepth),
+		"faultGameV2ClockExtension":       new(big.Int).SetUint64(cfg.FaultGameClockExtension),
+		"faultGameV2MaxClockDuration":     new(big.Int).SetUint64(cfg.FaultGameMaxClockDuration),
+		"superchainConfigProxy":           cfg.SuperchainConfigProxy,
+		"superchainProxyAdmin":            cfg.SuperchainProxyAdmin,
+		"l1ProxyAdminOwner":               cfg.L1ProxyAdminOwner,
+		"challenger":                      cfg.Challenger,
 	}
 
 	if cfg.UseForge {

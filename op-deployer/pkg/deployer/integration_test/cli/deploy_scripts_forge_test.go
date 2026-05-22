@@ -11,11 +11,11 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -36,12 +36,7 @@ func TestDeployScriptsForge(t *testing.T) {
 	t.Run("deploy altda with forge", func(t *testing.T) {
 		runner := NewCLITestRunnerWithNetwork(t)
 
-		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-		require.NoError(t, err)
-
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := newLocalForgeClient(t)
 
 		// Deploy AltDA using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -51,17 +46,17 @@ func TestDeployScriptsForge(t *testing.T) {
 			PrivateKey: runner.GetPrivateKey(),
 		}
 		output, err := opcm.DeployAltDAViaForge(forgeEnv, opcm.DeployAltDAInput{
-			Salt:                     common.BigToHash(big.NewInt(12345)),
-			ProxyAdmin:               superchainProxyAdminOwner,
-			ChallengeContractOwner:   challenger,
-			ChallengeWindow:          big.NewInt(3600),
-			ResolveWindow:            big.NewInt(7200),
-			BondSize:                 big.NewInt(1000000000000000000), // 1 ETH
-			ResolverRefundPercentage: big.NewInt(50),
+			"salt":                     common.BigToHash(big.NewInt(12345)),
+			"proxyAdmin":               superchainProxyAdminOwner,
+			"challengeContractOwner":   challenger,
+			"challengeWindow":          big.NewInt(3600),
+			"resolveWindow":            big.NewInt(7200),
+			"bondSize":                 big.NewInt(1000000000000000000), // 1 ETH
+			"resolverRefundPercentage": big.NewInt(50),
 		})
 		require.NoError(t, err)
-		require.NotEqual(t, common.Address{}, output.DataAvailabilityChallengeProxy)
-		require.NotEqual(t, common.Address{}, output.DataAvailabilityChallengeImpl)
+		require.NotEqual(t, common.Address{}, output.Address("dataAvailabilityChallengeProxy"))
+		require.NotEqual(t, common.Address{}, output.Address("dataAvailabilityChallengeImpl"))
 	})
 
 	t.Run("deploy alphabet vm with forge", func(t *testing.T) {
@@ -87,9 +82,9 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
+			"--superchain-config-proxy", superchainOutput.Address("superchainConfigProxy").Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
+			"--superchain-proxy-admin", superchainOutput.Address("superchainProxyAdmin").Hex(),
 			"--challenger", challenger.Hex(),
 			"--use-forge",
 		}, nil)
@@ -100,12 +95,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		err = json.Unmarshal(data, &implsOutput)
 		require.NoError(t, err)
 
-		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-		require.NoError(t, err)
-
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := newLocalForgeClient(t)
 
 		// Deploy AlphabetVM using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -115,11 +105,11 @@ func TestDeployScriptsForge(t *testing.T) {
 			PrivateKey: runner.GetPrivateKey(),
 		}
 		output, err := opcm.DeployAlphabetVMViaForge(forgeEnv, opcm.DeployAlphabetVMInput{
-			AbsolutePrestate: common.BigToHash(big.NewInt(12345)),
-			PreimageOracle:   implsOutput.PreimageOracleSingleton,
+			"absolutePrestate": common.BigToHash(big.NewInt(12345)),
+			"preimageOracle":   implsOutput.Address("preimageOracleSingleton"),
 		})
 		require.NoError(t, err)
-		require.NotEqual(t, common.Address{}, output.AlphabetVM)
+		require.NotEqual(t, common.Address{}, output.Address("alphabetVM"))
 	})
 
 	t.Run("deploy mips with forge", func(t *testing.T) {
@@ -146,9 +136,9 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
+			"--superchain-config-proxy", superchainOutput.Address("superchainConfigProxy").Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
+			"--superchain-proxy-admin", superchainOutput.Address("superchainProxyAdmin").Hex(),
 			"--challenger", challenger.Hex(),
 			"--use-forge",
 		}, nil)
@@ -159,12 +149,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		err = json.Unmarshal(data, &implsOutput)
 		require.NoError(t, err)
 
-		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-		require.NoError(t, err)
-
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := newLocalForgeClient(t)
 
 		// Deploy MIPS using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -174,11 +159,11 @@ func TestDeployScriptsForge(t *testing.T) {
 			PrivateKey: runner.GetPrivateKey(),
 		}
 		output, err := opcm.DeployMIPSViaForge(forgeEnv, opcm.DeployMIPSInput{
-			PreimageOracle: implsOutput.PreimageOracleSingleton,
-			MipsVersion:    big.NewInt(int64(standard.MIPSVersion)),
+			"preimageOracle": implsOutput.Address("preimageOracleSingleton"),
+			"mipsVersion":    big.NewInt(int64(standard.MIPSVersion)),
 		})
 		require.NoError(t, err)
-		require.NotEqual(t, common.Address{}, output.MipsSingleton)
+		require.NotEqual(t, common.Address{}, output.Address("mipsSingleton"))
 	})
 
 	t.Run("deploy dispute game with forge", func(t *testing.T) {
@@ -204,9 +189,9 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
+			"--superchain-config-proxy", superchainOutput.Address("superchainConfigProxy").Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
+			"--superchain-proxy-admin", superchainOutput.Address("superchainProxyAdmin").Hex(),
 			"--challenger", challenger.Hex(),
 			"--use-forge",
 		}, nil)
@@ -217,12 +202,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		err = json.Unmarshal(data, &implsOutput)
 		require.NoError(t, err)
 
-		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-		require.NoError(t, err)
-
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := newLocalForgeClient(t)
 
 		// Deploy DisputeGame using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -232,23 +212,23 @@ func TestDeployScriptsForge(t *testing.T) {
 			PrivateKey: runner.GetPrivateKey(),
 		}
 		output, err := opcm.DeployDisputeGameViaForge(forgeEnv, opcm.DeployDisputeGameInput{
-			Release:                  "dev",
-			GameKind:                 "FaultDisputeGame",
-			GameType:                 1,
-			AbsolutePrestate:         common.BigToHash(big.NewInt(12345)),
-			MaxGameDepth:             big.NewInt(int64(standard.DisputeMaxGameDepth)),
-			SplitDepth:               big.NewInt(int64(standard.DisputeSplitDepth)),
-			ClockExtension:           standard.DisputeClockExtension,
-			MaxClockDuration:         standard.DisputeMaxClockDuration,
-			DelayedWethProxy:         implsOutput.DelayedWETHImpl, // Use impl address as placeholder
-			AnchorStateRegistryProxy: implsOutput.AnchorStateRegistryImpl,
-			VmAddress:                implsOutput.MipsSingleton,
-			L2ChainId:                big.NewInt(420),
-			Proposer:                 shared.AddrFor(t, dk, devkeys.ProposerRole.Key(l1ChainIDBig)),
-			Challenger:               challenger,
+			"release":                  "dev",
+			"gameKind":                 "FaultDisputeGame",
+			"gameType":                 uint32(1),
+			"absolutePrestate":         common.BigToHash(big.NewInt(12345)),
+			"maxGameDepth":             big.NewInt(int64(standard.DisputeMaxGameDepth)),
+			"splitDepth":               big.NewInt(int64(standard.DisputeSplitDepth)),
+			"clockExtension":           standard.DisputeClockExtension,
+			"maxClockDuration":         standard.DisputeMaxClockDuration,
+			"delayedWethProxy":         implsOutput.Address("delayedWETHImpl"), // Use impl address as placeholder
+			"anchorStateRegistryProxy": implsOutput.Address("anchorStateRegistryImpl"),
+			"vmAddress":                implsOutput.Address("mipsSingleton"),
+			"l2ChainId":                big.NewInt(420),
+			"proposer":                 shared.AddrFor(t, dk, devkeys.ProposerRole.Key(l1ChainIDBig)),
+			"challenger":               challenger,
 		})
 		require.NoError(t, err)
-		require.NotEqual(t, common.Address{}, output.DisputeGameImpl)
+		require.NotEqual(t, common.Address{}, output.Address("disputeGameImpl"))
 	})
 
 	t.Run("read superchain deployment with forge", func(t *testing.T) {
@@ -270,12 +250,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		err = json.Unmarshal(data, &superchainOutput)
 		require.NoError(t, err)
 
-		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-		require.NoError(t, err)
-
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := newLocalForgeClient(t)
 
 		// Read superchain deployment using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -285,14 +260,21 @@ func TestDeployScriptsForge(t *testing.T) {
 			// PrivateKey not required for read-only operations
 		}
 		output, err := opcm.ReadSuperchainDeploymentViaForge(forgeEnv, opcm.ReadSuperchainDeploymentInput{
-			SuperchainConfigProxy: superchainOutput.SuperchainConfigProxy,
+			"superchainConfigProxy": superchainOutput.Address("superchainConfigProxy"),
 		})
 		require.NoError(t, err)
 
-		require.Equal(t, superchainOutput.SuperchainConfigProxy, output.SuperchainConfigProxy)
-		require.Equal(t, superchainOutput.SuperchainConfigImpl, output.SuperchainConfigImpl)
-		require.Equal(t, superchainOutput.SuperchainProxyAdmin, output.SuperchainProxyAdmin)
-		require.NotEqual(t, common.Address{}, output.Guardian)
-		require.NotEqual(t, common.Address{}, output.SuperchainProxyAdminOwner)
+		require.Equal(t, superchainOutput.Address("superchainConfigProxy"), output.Address("superchainConfigProxy"))
+		require.Equal(t, superchainOutput.Address("superchainConfigImpl"), output.Address("superchainConfigImpl"))
+		require.Equal(t, superchainOutput.Address("superchainProxyAdmin"), output.Address("superchainProxyAdmin"))
+		require.NotEqual(t, common.Address{}, output.Address("guardian"))
+		require.NotEqual(t, common.Address{}, output.Address("superchainProxyAdminOwner"))
 	})
+}
+
+func newLocalForgeClient(t *testing.T) *forge.Client {
+	_, afacts := testutil.LocalArtifacts(t)
+	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", afacts))
+	require.NoError(t, err)
+	return forgeClient
 }

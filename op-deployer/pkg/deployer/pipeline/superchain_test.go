@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -23,15 +22,11 @@ import (
 
 func TestDeploySuperchain_WithForge(t *testing.T) {
 	ctx := context.Background()
-	tmpDir := t.TempDir()
-
-	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-	require.NoError(t, err)
-
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
+	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", afacts))
+	require.NoError(t, err)
+
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	anvil, err := devnet.NewAnvil(lgr)
 	require.NoError(t, err)
@@ -92,15 +87,11 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 
 func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 	ctx := context.Background()
-	tmpDir := t.TempDir()
-
-	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-	require.NoError(t, err)
-
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
+	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", afacts))
+	require.NoError(t, err)
+
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	anvil, err := devnet.NewAnvil(lgr)
 	require.NoError(t, err)
@@ -158,20 +149,17 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 
 func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
-	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-	require.NoError(t, err)
-
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+	_, afacts := testutil.LocalArtifacts(t)
+	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", afacts))
 	require.NoError(t, err)
 
 	deploySuperchain := opcm.NewDeploySuperchainForgeCaller(forgeClient)
 
 	input := opcm.DeploySuperchainInput{
-		Guardian:                  common.BigToAddress(big.NewInt(1)),
-		SuperchainProxyAdminOwner: common.BigToAddress(big.NewInt(3)),
-		Paused:                    false,
+		"guardian":                  common.BigToAddress(big.NewInt(1)),
+		"superchainProxyAdminOwner": common.BigToAddress(big.NewInt(3)),
+		"paused":                    false,
 	}
 
 	output, recompiled, err := deploySuperchain(ctx, input)
@@ -179,7 +167,7 @@ func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {
 	require.False(t, recompiled, "script should not be recompiled")
 	require.NotNil(t, output)
 
-	require.NotEqual(t, common.Address{}, output.SuperchainProxyAdmin)
-	require.NotEqual(t, common.Address{}, output.SuperchainConfigProxy)
-	require.NotEqual(t, common.Address{}, output.SuperchainConfigImpl)
+	require.NotEqual(t, common.Address{}, output.Address("superchainProxyAdmin"))
+	require.NotEqual(t, common.Address{}, output.Address("superchainConfigProxy"))
+	require.NotEqual(t, common.Address{}, output.Address("superchainConfigImpl"))
 }

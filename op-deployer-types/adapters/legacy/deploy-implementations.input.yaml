@@ -1,0 +1,69 @@
+version: 1
+kind: legacy-input-mapping
+script:
+  artifact: DeployImplementations.s.sol/DeployImplementations.json
+  contract: DeployImplementations
+  function: run
+input:
+  withdrawalDelaySeconds:
+    coalesce:
+      - from: intent.globalDeployOverrides.faultGameWithdrawalDelay
+      - value: 302400
+    transform: bigint
+  minProposalSizeBytes:
+    coalesce:
+      - from: intent.globalDeployOverrides.preimageOracleMinProposalSize
+      - value: 126000
+    transform: bigint
+  challengePeriodSeconds:
+    coalesce:
+      - from: intent.globalDeployOverrides.preimageOracleChallengePeriod
+      - value: 86400
+    transform: bigint
+  proofMaturityDelaySeconds:
+    coalesce:
+      - from: intent.globalDeployOverrides.proofMaturityDelaySeconds
+      - value: 604800
+    transform: bigint
+  disputeGameFinalityDelaySeconds:
+    coalesce:
+      - from: intent.globalDeployOverrides.disputeGameFinalityDelaySeconds
+      - value: 302400
+    transform: bigint
+  mipsVersion:
+    coalesce:
+      - from: intent.globalDeployOverrides.mipsVersion
+      - value: 8
+    transform: bigint
+  devFeatureBitmap:
+    coalesce:
+      - from: intent.globalDeployOverrides.devFeatureBitmap
+      - value: "0x0000000000000000000000000000000000000000000000000000000000000000"
+  faultGameV2MaxGameDepth:
+    coalesce:
+      - from: intent.globalDeployOverrides.faultGameMaxDepth
+      - value: 73
+    transform: bigint
+  faultGameV2SplitDepth:
+    coalesce:
+      - from: intent.globalDeployOverrides.faultGameSplitDepth
+      - value: 30
+    transform: bigint
+  faultGameV2ClockExtension:
+    coalesce:
+      - from: intent.globalDeployOverrides.faultGameClockExtension
+      - value: 10800
+    transform: bigint
+  faultGameV2MaxClockDuration:
+    coalesce:
+      - from: intent.globalDeployOverrides.faultGameMaxClockDuration
+      - value: 302400
+    transform: bigint
+  superchainConfigProxy:
+    from: state.superchainContracts.SuperchainConfigProxy
+  superchainProxyAdmin:
+    from: state.superchainContracts.SuperchainProxyAdminImpl
+  l1ProxyAdminOwner:
+    from: state.superchainRoles.SuperchainProxyAdminOwner
+  challenger:
+    from: state.superchainRoles.Challenger

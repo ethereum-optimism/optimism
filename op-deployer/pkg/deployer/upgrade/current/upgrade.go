@@ -1,4 +1,4 @@
-package embedded
+package current
 
 import (
 	"encoding/json"
@@ -6,7 +6,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/lmittmann/w3"
@@ -226,7 +225,7 @@ func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
 }
 
 func (u *Upgrader) ArtifactsURL() string {
-	return artifacts.EmbeddedLocatorString
+	return ""
 }
 
 var DefaultUpgrader = new(Upgrader)

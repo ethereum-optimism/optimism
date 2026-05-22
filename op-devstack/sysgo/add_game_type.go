@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/current"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -117,27 +117,27 @@ func addGameTypesForRuntime(
 	cannonPrestate := PrestateForGameType(t, gameTypes.CannonGameType)
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 
-	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
+	var zkDisputeGameConfig *current.ZKDisputeGameConfig
 	if enabled[gameTypes.ZKDisputeGameType] {
 		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t)
 	}
 
 	// OPCMv2 requires all 6 game configs in order:
 	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
-	configs := []embedded.DisputeGameConfig{
+	configs := []current.DisputeGameConfig{
 		{
 			Enabled:  enabled[gameTypes.CannonGameType],
 			InitBond: initBond,
-			GameType: embedded.GameTypeCannon,
-			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+			GameType: current.GameTypeCannon,
+			FaultDisputeGameConfig: &current.FaultDisputeGameConfig{
 				AbsolutePrestate: cannonPrestate,
 			},
 		},
 		{
 			Enabled:  true, // Permissioned cannon is always enabled.
 			InitBond: initBond,
-			GameType: embedded.GameTypePermissionedCannon,
-			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+			GameType: current.GameTypePermissionedCannon,
+			PermissionedDisputeGameConfig: &current.PermissionedDisputeGameConfig{
 				AbsolutePrestate: cannonPrestate,
 				Proposer:         proposer,
 				Challenger:       challenger,
@@ -146,17 +146,17 @@ func addGameTypesForRuntime(
 		{
 			Enabled:  enabled[gameTypes.CannonKonaGameType],
 			InitBond: initBond,
-			GameType: embedded.GameTypeCannonKona,
-			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+			GameType: current.GameTypeCannonKona,
+			FaultDisputeGameConfig: &current.FaultDisputeGameConfig{
 				AbsolutePrestate: cannonKonaPrestate,
 			},
 		},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
+		{Enabled: false, InitBond: new(big.Int), GameType: current.GameTypeSuperPermCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: current.GameTypeSuperCannonKona},
 		{
 			Enabled:             enabled[gameTypes.ZKDisputeGameType],
 			InitBond:            initBond,
-			GameType:            embedded.GameTypeZKDisputeGame,
+			GameType:            current.GameTypeZKDisputeGame,
 			ZKDisputeGameConfig: zkDisputeGameConfig,
 		},
 	}
@@ -170,13 +170,13 @@ func addGameTypesForRuntime(
 	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
 	require.NoError(err, "failed to download artifacts")
 
-	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
+	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, current.UpgradeOPChainInput{
 		Prank: l1PAO,
 		Opcm:  l2Net.opcmImpl,
-		UpgradeInputV2: &embedded.UpgradeInputV2{
+		UpgradeInputV2: &current.UpgradeInputV2{
 			SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
 			DisputeGameConfigs: configs,
-			ExtraInstructions: []embedded.ExtraInstruction{
+			ExtraInstructions: []current.ExtraInstruction{
 				{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
 			},
 		},
@@ -185,8 +185,8 @@ func addGameTypesForRuntime(
 
 // ZKDisputeGameConfigForRuntime returns a ZKDisputeGameConfig for use in devstack/test environments.
 // The verifier is set to address(0) as a placeholder; real deployments must supply a valid verifier.
-func ZKDisputeGameConfigForRuntime(t devtest.CommonT) *embedded.ZKDisputeGameConfig {
-	return &embedded.ZKDisputeGameConfig{
+func ZKDisputeGameConfigForRuntime(t devtest.CommonT) *current.ZKDisputeGameConfig {
+	return &current.ZKDisputeGameConfig{
 		AbsolutePrestate:     common.Hash{},    // placeholder for devstack
 		Verifier:             common.Address{}, // address(0) — external verifier not yet wired
 		MaxChallengeDuration: 604800,           // 7 days

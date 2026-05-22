@@ -1,0 +1,59 @@
+artifact_base: packages/contracts-bedrock/forge-artifacts
+output_base: op-deployer-types/generated
+
+manifest:
+  package: opdeployertypes
+  out: op-deployer-types
+  filename: manifest.gen.go
+
+script_bindings:
+  - name: DeploySuperchain
+    artifact: DeploySuperchain.s.sol/DeploySuperchain.json
+    package: deploysuperchain
+    out: deploysuperchain
+    filename: deploy_superchain.gen.go
+  - name: DeployImplementations
+    artifact: DeployImplementations.s.sol/DeployImplementations.json
+    package: deployimplementations
+    out: deployimplementations
+    filename: deploy_implementations.gen.go
+  - name: DeployAlphabetVM
+    artifact: DeployAlphabetVM.s.sol/DeployAlphabetVM.json
+    package: deployalphabetvm
+    out: deployalphabetvm
+    filename: deploy_alphabet_vm.gen.go
+  - name: DeployAltDA
+    artifact: DeployAltDA.s.sol/DeployAltDA.json
+    package: deployaltda
+    out: deployaltda
+    filename: deploy_alt_da.gen.go
+  - name: DeployDisputeGame
+    artifact: DeployDisputeGame.s.sol/DeployDisputeGame.json
+    package: deploydisputegame
+    out: deploydisputegame
+    filename: deploy_dispute_game.gen.go
+  - name: DeployMIPS
+    artifact: DeployMIPS.s.sol/DeployMIPS.json
+    package: deploymips
+    out: deploymips
+    filename: deploy_mips_binding.gen.go
+  - name: DeployOPChain
+    artifact: DeployOPChain.s.sol/DeployOPChain.json
+    package: deployopchain
+    out: deployopchain
+    filename: deploy_op_chain.gen.go
+  - name: ReadImplementationAddresses
+    artifact: ReadImplementationAddresses.s.sol/ReadImplementationAddresses.json
+    package: readimplementationaddresses
+    out: readimplementationaddresses
+    filename: read_implementation_addresses.gen.go
+  - name: ReadSuperchainDeployment
+    artifact: ReadSuperchainDeployment.s.sol/ReadSuperchainDeployment.json
+    package: readsuperchaindeployment
+    out: readsuperchaindeployment
+    filename: read_superchain_deployment.gen.go
+  - name: L2Genesis
+    artifact: L2Genesis.s.sol/L2Genesis.json
+    package: l2genesis
+    out: l2genesis
+    filename: l2_genesis.gen.go

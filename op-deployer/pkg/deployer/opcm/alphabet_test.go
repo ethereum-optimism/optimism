@@ -18,8 +18,8 @@ func TestNewDeployAlphabetVMScript(t *testing.T) {
 
 		// Now we run the deploy script
 		output, err := deployAlphabetVM.Run(DeployAlphabetVMInput{
-			AbsolutePrestate: common.BigToHash(big.NewInt(1)),
-			PreimageOracle:   common.BigToAddress(big.NewInt(2)),
+			"absolutePrestate": common.BigToHash(big.NewInt(1)),
+			"preimageOracle":   common.BigToAddress(big.NewInt(2)),
 		})
 
 		// And do some simple asserts

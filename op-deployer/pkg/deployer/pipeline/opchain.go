@@ -2,13 +2,10 @@ package pipeline
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -29,7 +26,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	var dco opcm.DeployOPChainOutput
 	lgr.Info("deploying OP chain using local allocs", "id", chainID.Hex())
 
-	dci, err := makeDCI(intent, thisIntent, chainID, st)
+	dci, err := makeDCIWithEnv(env, intent, thisIntent, chainID, st)
 	if err != nil {
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
 	}
@@ -53,15 +50,12 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		}
 	}
 
-	readInput := opcm.ReadImplementationAddressesInput{
-		AddressManager:                    dco.AddressManager,
-		L1ERC721BridgeProxy:               dco.L1ERC721BridgeProxy,
-		SystemConfigProxy:                 dco.SystemConfigProxy,
-		OptimismMintableERC20FactoryProxy: dco.OptimismMintableERC20FactoryProxy,
-		L1StandardBridgeProxy:             dco.L1StandardBridgeProxy,
-		OptimismPortalProxy:               dco.OptimismPortalProxy,
-		DisputeGameFactoryProxy:           dco.DisputeGameFactoryProxy,
-		Opcm:                              dci.Opcm,
+	readInput, err := evaluateLegacyInputMapping(env, "read-implementation-addresses.input.yaml", opcm.StaticInputSources{
+		"deployOPChainInput":  dci,
+		"deployOPChainOutput": dco,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to build ReadImplementationAddresses input: %w", err)
 	}
 
 	var impls opcm.ReadImplementationAddressesOutput
@@ -90,100 +84,71 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 
 	st.Chains = append(st.Chains, makeChainState(chainID, impls, dco))
 
-	st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
-	st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
-	st.ImplementationsDeployment.EthLockboxImpl = impls.EthLockbox
-	st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
-	st.ImplementationsDeployment.AnchorStateRegistryImpl = impls.AnchorStateRegistry
-	st.ImplementationsDeployment.L1CrossDomainMessengerImpl = impls.L1CrossDomainMessenger
-	st.ImplementationsDeployment.L1Erc721BridgeImpl = impls.L1ERC721Bridge
-	st.ImplementationsDeployment.L1StandardBridgeImpl = impls.L1StandardBridge
-	st.ImplementationsDeployment.OptimismMintableErc20FactoryImpl = impls.OptimismMintableERC20Factory
-	st.ImplementationsDeployment.DisputeGameFactoryImpl = impls.DisputeGameFactory
-	st.ImplementationsDeployment.MipsImpl = impls.MipsSingleton
-	st.ImplementationsDeployment.PreimageOracleImpl = impls.PreimageOracleSingleton
-	st.ImplementationsDeployment.FaultDisputeGameImpl = impls.FaultDisputeGame
-	st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
-	st.ImplementationsDeployment.ZkDisputeGameImpl = impls.ZkDisputeGame
-	st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.OpcmStandardValidator
-	st.ImplementationsDeployment.SuperFaultDisputeGameImpl = impls.SuperFaultDisputeGame
-	st.ImplementationsDeployment.SuperPermissionedDisputeGameImpl = impls.SuperPermissionedDisputeGame
+	st.ImplementationsDeployment.DelayedWethImpl = impls.Address("delayedWETH")
+	st.ImplementationsDeployment.OptimismPortalImpl = impls.Address("optimismPortal")
+	st.ImplementationsDeployment.EthLockboxImpl = impls.Address("ethLockbox")
+	st.ImplementationsDeployment.SystemConfigImpl = impls.Address("systemConfig")
+	st.ImplementationsDeployment.AnchorStateRegistryImpl = impls.Address("anchorStateRegistry")
+	st.ImplementationsDeployment.L1CrossDomainMessengerImpl = impls.Address("l1CrossDomainMessenger")
+	st.ImplementationsDeployment.L1Erc721BridgeImpl = impls.Address("l1ERC721Bridge")
+	st.ImplementationsDeployment.L1StandardBridgeImpl = impls.Address("l1StandardBridge")
+	st.ImplementationsDeployment.OptimismMintableErc20FactoryImpl = impls.Address("optimismMintableERC20Factory")
+	st.ImplementationsDeployment.DisputeGameFactoryImpl = impls.Address("disputeGameFactory")
+	st.ImplementationsDeployment.MipsImpl = impls.Address("mipsSingleton")
+	st.ImplementationsDeployment.PreimageOracleImpl = impls.Address("preimageOracleSingleton")
+	st.ImplementationsDeployment.FaultDisputeGameImpl = impls.Address("faultDisputeGame")
+	st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.Address("permissionedDisputeGame")
+	st.ImplementationsDeployment.ZkDisputeGameImpl = impls.Address("zkDisputeGame")
+	st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.Address("opcmStandardValidator")
+	st.ImplementationsDeployment.SuperFaultDisputeGameImpl = impls.Address("superFaultDisputeGame")
+	st.ImplementationsDeployment.SuperPermissionedDisputeGameImpl = impls.Address("superPermissionedDisputeGame")
 
 	return nil
 }
 
 func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
-	proofParams, err := jsonutil.MergeJSON(
-		state.ChainProofParams{
-			DisputeGameType:         standard.DisputeGameType,
-			DisputeAbsolutePrestate: standard.DisputeAbsolutePrestate,
-			DisputeMaxGameDepth:     standard.DisputeMaxGameDepth,
-			DisputeSplitDepth:       standard.DisputeSplitDepth,
-			DisputeClockExtension:   standard.DisputeClockExtension,
-			DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
-		},
-		intent.GlobalDeployOverrides,
-		thisIntent.DeployOverrides,
-	)
+	return makeDCIWithEnv(nil, intent, thisIntent, chainID, st)
+}
+
+func makeDCIWithEnv(env *Env, intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
+	input, err := evaluateLegacyInputMapping(env, "deploy-op-chain.input.yaml", opcm.StaticInputSources{
+		"chain":   thisIntent,
+		"chainID": chainID,
+		"intent":  intent,
+		"state":   st,
+	})
 	if err != nil {
-		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
+		return nil, err
 	}
-
-	opcmAddr := st.ImplementationsDeployment.OpcmV2Impl
-	if opcmAddr == (common.Address{}) {
-		return opcm.DeployOPChainInput{}, fmt.Errorf("OPCM implementation is not deployed")
+	if input.Address("opcm") == (common.Address{}) {
+		return nil, fmt.Errorf("OPCM implementation is not deployed")
 	}
-
-	return opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner:       thisIntent.Roles.L1ProxyAdminOwner,
-		SystemConfigOwner:            thisIntent.Roles.SystemConfigOwner,
-		Batcher:                      thisIntent.Roles.Batcher,
-		UnsafeBlockSigner:            thisIntent.Roles.UnsafeBlockSigner,
-		Proposer:                     thisIntent.Roles.Proposer,
-		Challenger:                   thisIntent.Roles.Challenger,
-		BasefeeScalar:                standard.BasefeeScalar,
-		BlobBaseFeeScalar:            standard.BlobBaseFeeScalar,
-		L2ChainId:                    chainID.Big(),
-		Opcm:                         opcmAddr,
-		SaltMixer:                    st.Create2Salt.String(), // passing through salt generated at state initialization
-		GasLimit:                     thisIntent.GasLimit,
-		DisputeGameType:              proofParams.DisputeGameType,
-		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
-		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
-		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)
-		DisputeMaxClockDuration:      proofParams.DisputeMaxClockDuration, // 3.5 days (input in seconds)
-		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
-		OperatorFeeScalar:            thisIntent.OperatorFeeScalar,
-		OperatorFeeConstant:          thisIntent.OperatorFeeConstant,
-		SuperchainConfig:             st.SuperchainDeployment.SuperchainConfigProxy,
-		UseCustomGasToken:            thisIntent.IsCustomGasTokenEnabled(),
-	}, nil
+	return input, nil
 }
 
 func makeChainState(chainID common.Hash, impls opcm.ReadImplementationAddressesOutput, dco opcm.DeployOPChainOutput) *state.ChainState {
 	opChainContracts := addresses.OpChainContracts{}
-	opChainContracts.OpChainProxyAdminImpl = dco.OpChainProxyAdmin
-	opChainContracts.AddressManagerImpl = dco.AddressManager
-	opChainContracts.L1Erc721BridgeProxy = dco.L1ERC721BridgeProxy
-	opChainContracts.SystemConfigProxy = dco.SystemConfigProxy
-	opChainContracts.OptimismMintableErc20FactoryProxy = dco.OptimismMintableERC20FactoryProxy
-	opChainContracts.L1StandardBridgeProxy = dco.L1StandardBridgeProxy
-	opChainContracts.L1CrossDomainMessengerProxy = dco.L1CrossDomainMessengerProxy
-	opChainContracts.OptimismPortalProxy = dco.OptimismPortalProxy
-	opChainContracts.EthLockboxProxy = dco.EthLockboxProxy
-	opChainContracts.DisputeGameFactoryProxy = dco.DisputeGameFactoryProxy
-	opChainContracts.AnchorStateRegistryProxy = dco.AnchorStateRegistryProxy
-	opChainContracts.FaultDisputeGameImpl = dco.FaultDisputeGame
-	opChainContracts.PermissionedDisputeGameImpl = dco.PermissionedDisputeGame
-	opChainContracts.DelayedWethPermissionedGameProxy = dco.DelayedWETHPermissionedGameProxy
-	opChainContracts.DelayedWethPermissionlessGameProxy = dco.DelayedWETHPermissionlessGameProxy
+	opChainContracts.OpChainProxyAdminImpl = dco.Address("opChainProxyAdmin")
+	opChainContracts.AddressManagerImpl = dco.Address("addressManager")
+	opChainContracts.L1Erc721BridgeProxy = dco.Address("l1ERC721BridgeProxy")
+	opChainContracts.SystemConfigProxy = dco.Address("systemConfigProxy")
+	opChainContracts.OptimismMintableErc20FactoryProxy = dco.Address("optimismMintableERC20FactoryProxy")
+	opChainContracts.L1StandardBridgeProxy = dco.Address("l1StandardBridgeProxy")
+	opChainContracts.L1CrossDomainMessengerProxy = dco.Address("l1CrossDomainMessengerProxy")
+	opChainContracts.OptimismPortalProxy = dco.Address("optimismPortalProxy")
+	opChainContracts.EthLockboxProxy = dco.Address("ethLockboxProxy")
+	opChainContracts.DisputeGameFactoryProxy = dco.Address("disputeGameFactoryProxy")
+	opChainContracts.AnchorStateRegistryProxy = dco.Address("anchorStateRegistryProxy")
+	opChainContracts.FaultDisputeGameImpl = dco.Address("faultDisputeGame")
+	opChainContracts.PermissionedDisputeGameImpl = dco.Address("permissionedDisputeGame")
+	opChainContracts.DelayedWethPermissionedGameProxy = dco.Address("delayedWETHPermissionedGameProxy")
+	opChainContracts.DelayedWethPermissionlessGameProxy = dco.Address("delayedWETHPermissionlessGameProxy")
 
-	if (impls.PermissionedDisputeGame != common.Address{}) {
-		opChainContracts.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
+	if permissionedDisputeGame := impls.Address("permissionedDisputeGame"); permissionedDisputeGame != (common.Address{}) {
+		opChainContracts.PermissionedDisputeGameImpl = permissionedDisputeGame
 	}
-	if (impls.FaultDisputeGame != common.Address{}) {
-		opChainContracts.FaultDisputeGameImpl = impls.FaultDisputeGame
+	if faultDisputeGame := impls.Address("faultDisputeGame"); faultDisputeGame != (common.Address{}) {
+		opChainContracts.FaultDisputeGameImpl = faultDisputeGame
 	}
 
 	return &state.ChainState{

@@ -5,39 +5,26 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
-	"github.com/ethereum/go-ethereum/common"
 )
 
-// DeploySuperchainInput must mirror the Solidity DeploySuperchain.s.sol input
-// struct exactly — script ABI matching is checked at load time.
-type DeploySuperchainInput struct {
-	Guardian                  common.Address `toml:"guardian"`
-	SuperchainProxyAdminOwner common.Address `toml:"superchainProxyAdminOwner"`
-	Paused                    bool           `toml:"paused"`
+var deploySuperchainSpec = ScriptSpec{
+	ScriptFile:      "DeploySuperchain.s.sol",
+	ContractName:    "DeploySuperchain",
+	ForgeScriptPath: "scripts/deploy/DeploySuperchain.s.sol:DeploySuperchain",
 }
 
-// DeploySuperchainOutput must mirror DeploySuperchain.s.sol's output struct.
-type DeploySuperchainOutput struct {
-	SuperchainConfigImpl  common.Address `json:"superchainConfigImplAddress"`
-	SuperchainConfigProxy common.Address `json:"superchainConfigProxyAddress"`
-	SuperchainProxyAdmin  common.Address `json:"proxyAdminAddress"`
-}
+type DeploySuperchainInput = ScriptInput
+type DeploySuperchainOutput = ScriptOutput
 
-type DeploySuperchainScript script.DeployScriptWithOutput[DeploySuperchainInput, DeploySuperchainOutput]
+type DeploySuperchainScript = ScriptWithOutput
 
 // NewDeploySuperchainScript loads and validates the DeploySuperchain script contract
 func NewDeploySuperchainScript(host *script.Host) (DeploySuperchainScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeploySuperchainInput, DeploySuperchainOutput](host, "DeploySuperchain.s.sol", "DeploySuperchain")
+	return NewScriptWithOutputFromFile(host, deploySuperchainSpec)
 }
 
 func NewDeploySuperchainForgeCaller(client *forge.Client) forge.ScriptCaller[DeploySuperchainInput, DeploySuperchainOutput] {
-	return forge.NewScriptCaller(
-		client,
-		"scripts/deploy/DeploySuperchain.s.sol:DeploySuperchain",
-		"runWithBytes(bytes)",
-		&forge.BytesScriptEncoder[DeploySuperchainInput]{TypeName: "DeploySuperchainInput"},
-		&forge.BytesScriptDecoder[DeploySuperchainOutput]{TypeName: "DeploySuperchainOutput"},
-	)
+	return NewScriptForgeCaller(client, deploySuperchainSpec)
 }
 
 // DeploySuperchainViaForge deploys superchain contracts using Forge

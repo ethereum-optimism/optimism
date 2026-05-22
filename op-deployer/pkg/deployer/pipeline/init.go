@@ -144,7 +144,7 @@ func immutableErr(field string, was, is any) error {
 
 func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
 	input := opcm.ReadSuperchainDeploymentInput{
-		SuperchainConfigProxy: superchainConfigProxy,
+		"superchainConfigProxy": superchainConfigProxy,
 	}
 
 	var out opcm.ReadSuperchainDeploymentOutput
@@ -173,13 +173,13 @@ func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfig
 	}
 
 	deployment := &addresses.SuperchainContracts{
-		SuperchainProxyAdminImpl: out.SuperchainProxyAdmin,
-		SuperchainConfigProxy:    out.SuperchainConfigProxy,
-		SuperchainConfigImpl:     out.SuperchainConfigImpl,
+		SuperchainProxyAdminImpl: out.Address("superchainProxyAdmin"),
+		SuperchainConfigProxy:    out.Address("superchainConfigProxy"),
+		SuperchainConfigImpl:     out.Address("superchainConfigImpl"),
 	}
 	roles := &addresses.SuperchainRoles{
-		SuperchainProxyAdminOwner: out.SuperchainProxyAdminOwner,
-		SuperchainGuardian:        out.Guardian,
+		SuperchainProxyAdminOwner: out.Address("superchainProxyAdminOwner"),
+		SuperchainGuardian:        out.Address("guardian"),
 	}
 	return deployment, roles, nil
 }

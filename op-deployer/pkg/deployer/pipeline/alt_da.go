@@ -30,13 +30,13 @@ func DeployAltDA(env *Env, intent *state.Intent, st *state.State, chainID common
 
 	lgr.Info("deploying alt-da contracts")
 	input := opcm.DeployAltDAInput{
-		Salt:                     st.Create2Salt,
-		ProxyAdmin:               chainState.OpChainContracts.OpChainProxyAdminImpl,
-		ChallengeContractOwner:   chainIntent.Roles.L1ProxyAdminOwner,
-		ChallengeWindow:          new(big.Int).SetUint64(chainIntent.DangerousAltDAConfig.DAChallengeWindow),
-		ResolveWindow:            new(big.Int).SetUint64(chainIntent.DangerousAltDAConfig.DAResolveWindow),
-		BondSize:                 new(big.Int).SetUint64(chainIntent.DangerousAltDAConfig.DABondSize),
-		ResolverRefundPercentage: new(big.Int).SetUint64(chainIntent.DangerousAltDAConfig.DAResolverRefundPercentage),
+		"salt":                     st.Create2Salt,
+		"proxyAdmin":               chainState.OpChainContracts.OpChainProxyAdminImpl,
+		"challengeContractOwner":   chainIntent.Roles.L1ProxyAdminOwner,
+		"challengeWindow":          new(big.Int).SetUint64(chainIntent.DangerousAltDAConfig.DAChallengeWindow),
+		"resolveWindow":            new(big.Int).SetUint64(chainIntent.DangerousAltDAConfig.DAResolveWindow),
+		"bondSize":                 new(big.Int).SetUint64(chainIntent.DangerousAltDAConfig.DABondSize),
+		"resolverRefundPercentage": new(big.Int).SetUint64(chainIntent.DangerousAltDAConfig.DAResolverRefundPercentage),
 	}
 
 	var output opcm.DeployAltDAOutput
@@ -64,8 +64,8 @@ func DeployAltDA(env *Env, intent *state.Intent, st *state.State, chainID common
 		}
 	}
 
-	chainState.OpChainContracts.AltDAChallengeProxy = output.DataAvailabilityChallengeProxy
-	chainState.OpChainContracts.AltDAChallengeImpl = output.DataAvailabilityChallengeImpl
+	chainState.OpChainContracts.AltDAChallengeProxy = output.Address("dataAvailabilityChallengeProxy")
+	chainState.OpChainContracts.AltDAChallengeImpl = output.Address("dataAvailabilityChallengeImpl")
 	return nil
 }
 

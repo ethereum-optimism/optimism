@@ -170,9 +170,9 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 	}
 
 	input := opcm.DeploySuperchainInput{
-		SuperchainProxyAdminOwner: cfg.SuperchainProxyAdminOwner,
-		Guardian:                  cfg.Guardian,
-		Paused:                    cfg.Paused,
+		"superchainProxyAdminOwner": cfg.SuperchainProxyAdminOwner,
+		"guardian":                  cfg.Guardian,
+		"paused":                    cfg.Paused,
 	}
 
 	if cfg.UseForge {

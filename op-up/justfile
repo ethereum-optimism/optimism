@@ -14,7 +14,15 @@ default: op-up
 op-up: (go_build BINARY "." "-ldflags" _LDFLAGSSTRING)
 
 artifacts:
-    just ../op-deployer/copy-contract-artifacts
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd ../op-deployer
+    just build-contracts
+    mkdir -p ../artifacts/compressed
+    go run ./pkg/deployer/artifacts/cmd/mktar \
+      -base ../packages/contracts-bedrock \
+      -out ../artifacts/compressed/artifacts.tzst \
+      --exclude="*.t.sol"
 
 clean:
     rm -f {{ BINARY }}

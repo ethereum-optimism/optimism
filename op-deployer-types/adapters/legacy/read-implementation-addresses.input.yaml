@@ -1,0 +1,23 @@
+version: 1
+kind: legacy-input-mapping
+script:
+  artifact: ReadImplementationAddresses.s.sol/ReadImplementationAddresses.json
+  contract: ReadImplementationAddresses
+  function: run
+input:
+  addressManager:
+    from: deployOPChainOutput.addressManager
+  l1ERC721BridgeProxy:
+    from: deployOPChainOutput.l1ERC721BridgeProxy
+  systemConfigProxy:
+    from: deployOPChainOutput.systemConfigProxy
+  optimismMintableERC20FactoryProxy:
+    from: deployOPChainOutput.optimismMintableERC20FactoryProxy
+  l1StandardBridgeProxy:
+    from: deployOPChainOutput.l1StandardBridgeProxy
+  optimismPortalProxy:
+    from: deployOPChainOutput.optimismPortalProxy
+  disputeGameFactoryProxy:
+    from: deployOPChainOutput.disputeGameFactoryProxy
+  opcm:
+    from: deployOPChainInput.opcm

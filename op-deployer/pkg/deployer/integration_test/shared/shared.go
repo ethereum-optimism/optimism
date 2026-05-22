@@ -21,7 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/current"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum"
@@ -214,7 +214,7 @@ func runSingleOPCMUpgradeResolved(t *testing.T, host *script.Host, prank, system
 	upgradeConfigBytes, err := json.Marshal(upgradeConfig)
 	require.NoError(t, err)
 
-	err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
+	err = current.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
 	if err != nil {
 		t.Logf("OPCM %s (v%s) upgrade failed: %v", opcm.Address.Hex(), opcm.OPCMVersion.Raw, err)
 		return false
@@ -224,7 +224,7 @@ func runSingleOPCMUpgradeResolved(t *testing.T, host *script.Host, prank, system
 }
 
 // buildOPCMUpgradeConfig builds the upgrade config for the given OPCM.
-func buildOPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address) *embedded.UpgradeOPChainInput {
+func buildOPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address) *current.UpgradeOPChainInput {
 	t.Helper()
 
 	cfg := buildV2OPCMUpgradeConfig(t, prank, opcmAddr, systemConfigProxy)
@@ -232,25 +232,25 @@ func buildOPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy com
 }
 
 // buildV2OPCMUpgradeConfig builds a V2 upgrade config with dummy dispute game configs
-func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address) embedded.UpgradeOPChainInput {
+func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy common.Address) current.UpgradeOPChainInput {
 	t.Helper()
 
 	// Build dispute game configs with dummy prestates
 	// CANNON and PERMISSIONED_CANNON are the standard game types
-	disputeGameConfigs := []embedded.DisputeGameConfig{
+	disputeGameConfigs := []current.DisputeGameConfig{
 		{
 			Enabled:  true,
 			InitBond: big.NewInt(0),
-			GameType: embedded.GameTypeCannon,
-			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+			GameType: current.GameTypeCannon,
+			FaultDisputeGameConfig: &current.FaultDisputeGameConfig{
 				AbsolutePrestate: opcmregistry.DummyCannonPrestate,
 			},
 		},
 		{
 			Enabled:  true,
 			InitBond: big.NewInt(0),
-			GameType: embedded.GameTypePermissionedCannon,
-			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+			GameType: current.GameTypePermissionedCannon,
+			PermissionedDisputeGameConfig: &current.PermissionedDisputeGameConfig{
 				AbsolutePrestate: opcmregistry.DummyCannonPrestate,
 				Proposer:         common.Address{},
 				Challenger:       common.Address{},
@@ -259,25 +259,25 @@ func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy c
 		{
 			Enabled:  true,
 			InitBond: big.NewInt(0),
-			GameType: embedded.GameTypeCannonKona,
-			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+			GameType: current.GameTypeCannonKona,
+			FaultDisputeGameConfig: &current.FaultDisputeGameConfig{
 				AbsolutePrestate: opcmregistry.DummyCannonKonaPrestate,
 			},
 		},
 		{
 			Enabled:  false,
 			InitBond: big.NewInt(0),
-			GameType: embedded.GameTypeSuperPermCannon,
+			GameType: current.GameTypeSuperPermCannon,
 		},
 		{
 			Enabled:  false,
 			InitBond: big.NewInt(0),
-			GameType: embedded.GameTypeSuperCannonKona,
+			GameType: current.GameTypeSuperCannonKona,
 		},
 		{
 			Enabled:  false,
 			InitBond: big.NewInt(0),
-			GameType: embedded.GameTypeZKDisputeGame,
+			GameType: current.GameTypeZKDisputeGame,
 		},
 	}
 
@@ -286,10 +286,10 @@ func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy c
 		return disputeGameConfigs[i].GameType < disputeGameConfigs[j].GameType
 	})
 
-	return embedded.UpgradeOPChainInput{
+	return current.UpgradeOPChainInput{
 		Prank: prank,
 		Opcm:  opcmAddr,
-		UpgradeInputV2: &embedded.UpgradeInputV2{
+		UpgradeInputV2: &current.UpgradeInputV2{
 			SystemConfig:       systemConfigProxy,
 			DisputeGameConfigs: disputeGameConfigs,
 			ExtraInstructions:  nil,

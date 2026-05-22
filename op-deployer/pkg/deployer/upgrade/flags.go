@@ -2,7 +2,6 @@ package upgrade
 
 import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
-	embedded "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	v200 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
 	v300 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v3_0_0"
 	v400 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v4_0_0"
@@ -19,8 +18,9 @@ var (
 		Usage: "path to the config file",
 	}
 	OverrideArtifactsURLFlag = &cli.StringFlag{
-		Name:  "override-artifacts-url",
-		Usage: "override the artifacts URL",
+		Name:    "override-artifacts-url",
+		Usage:   "artifacts URL for upgrade scripts",
+		EnvVars: deployer.PrefixEnvVar("ARTIFACTS_LOCATOR"),
 	}
 	OutfileFlag = &cli.StringFlag{
 		Name:  "outfile",
@@ -95,16 +95,5 @@ var Commands = cli.Commands{
 			OutfileFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: UpgradeCLI(v600.DefaultUpgrader),
-	},
-	&cli.Command{
-		Name:  "embedded",
-		Usage: "upgrades a chain to version of contracts embedded in op-deployer",
-		Flags: append([]cli.Flag{
-			deployer.L1RPCURLFlag,
-			ConfigFlag,
-			OverrideArtifactsURLFlag,
-			OutfileFlag,
-		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
-		Action: UpgradeCLI(embedded.DefaultUpgrader),
 	},
 }

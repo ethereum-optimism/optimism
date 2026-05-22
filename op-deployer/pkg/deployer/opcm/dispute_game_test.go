@@ -32,20 +32,20 @@ func TestDeployDisputeGame(t *testing.T) {
 	vmAddr := deployDisputeGameScriptVM(t, host)
 
 	input := DeployDisputeGameInput{
-		Release:                  "dev",
-		VmAddress:                vmAddr,
-		GameKind:                 "PermissionedDisputeGame",
-		GameType:                 1,
-		AbsolutePrestate:         common.Hash{'A'},
-		MaxGameDepth:             big.NewInt(int64(standard.DisputeMaxGameDepth)),
-		SplitDepth:               big.NewInt(int64(standard.DisputeSplitDepth)),
-		ClockExtension:           standard.DisputeClockExtension,
-		MaxClockDuration:         standard.DisputeMaxClockDuration,
-		DelayedWethProxy:         common.Address{'D'},
-		AnchorStateRegistryProxy: common.Address{'A'},
-		L2ChainId:                big.NewInt(69),
-		Proposer:                 common.Address{'P'},
-		Challenger:               common.Address{'C'},
+		"release":                  "dev",
+		"vmAddress":                vmAddr,
+		"gameKind":                 "PermissionedDisputeGame",
+		"gameType":                 uint32(1),
+		"absolutePrestate":         common.Hash{'A'},
+		"maxGameDepth":             big.NewInt(int64(standard.DisputeMaxGameDepth)),
+		"splitDepth":               big.NewInt(int64(standard.DisputeSplitDepth)),
+		"clockExtension":           standard.DisputeClockExtension,
+		"maxClockDuration":         standard.DisputeMaxClockDuration,
+		"delayedWethProxy":         common.Address{'D'},
+		"anchorStateRegistryProxy": common.Address{'A'},
+		"l2ChainId":                big.NewInt(69),
+		"proposer":                 common.Address{'P'},
+		"challenger":               common.Address{'C'},
 	}
 
 	script, err := NewDeployDisputeGameScript(host)
@@ -54,8 +54,9 @@ func TestDeployDisputeGame(t *testing.T) {
 	output, err := script.Run(input)
 	require.NoError(t, err)
 
-	require.NotEmpty(t, output.DisputeGameImpl)
-	require.NotEmpty(t, host.GetCode(output.DisputeGameImpl))
+	disputeGameImpl := output.Address("disputeGameImpl")
+	require.NotEmpty(t, disputeGameImpl)
+	require.NotEmpty(t, host.GetCode(disputeGameImpl))
 }
 
 func deployDisputeGameScriptVM(t *testing.T, host *script.Host) common.Address {

@@ -49,21 +49,21 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 		// Now we run the deploy script
 		mipsVersion := int64(standard.MIPSVersion)
 		output, err := deployImplementations.Run(DeployImplementationsInput{
-			WithdrawalDelaySeconds:          big.NewInt(1),
-			MinProposalSizeBytes:            big.NewInt(2),
-			ChallengePeriodSeconds:          big.NewInt(3),
-			ProofMaturityDelaySeconds:       big.NewInt(4),
-			DisputeGameFinalityDelaySeconds: big.NewInt(5),
-			MipsVersion:                     big.NewInt(mipsVersion),
-			DevFeatureBitmap:                common.Hash{},
-			FaultGameV2MaxGameDepth:         big.NewInt(73),
-			FaultGameV2SplitDepth:           big.NewInt(30),
-			FaultGameV2ClockExtension:       big.NewInt(10800),
-			FaultGameV2MaxClockDuration:     big.NewInt(302400),
-			SuperchainConfigProxy:           proxyAddress,
-			SuperchainProxyAdmin:            proxyAdminAddress,
-			L1ProxyAdminOwner:               common.BigToAddress(big.NewInt(13)),
-			Challenger:                      common.BigToAddress(big.NewInt(14)),
+			"withdrawalDelaySeconds":          big.NewInt(1),
+			"minProposalSizeBytes":            big.NewInt(2),
+			"challengePeriodSeconds":          big.NewInt(3),
+			"proofMaturityDelaySeconds":       big.NewInt(4),
+			"disputeGameFinalityDelaySeconds": big.NewInt(5),
+			"mipsVersion":                     big.NewInt(mipsVersion),
+			"devFeatureBitmap":                common.Hash{},
+			"faultGameV2MaxGameDepth":         big.NewInt(73),
+			"faultGameV2SplitDepth":           big.NewInt(30),
+			"faultGameV2ClockExtension":       big.NewInt(10800),
+			"faultGameV2MaxClockDuration":     big.NewInt(302400),
+			"superchainConfigProxy":           proxyAddress,
+			"superchainProxyAdmin":            proxyAdminAddress,
+			"l1ProxyAdminOwner":               common.BigToAddress(big.NewInt(13)),
+			"challenger":                      common.BigToAddress(big.NewInt(14)),
 		})
 
 		// And do some simple asserts

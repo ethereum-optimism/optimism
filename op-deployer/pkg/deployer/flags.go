@@ -3,7 +3,6 @@ package deployer
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
@@ -43,9 +42,8 @@ var (
 	}
 	ArtifactsLocatorFlag = &cli.StringFlag{
 		Name:    ArtifactsLocatorFlagName,
-		Usage:   "Locator for artifacts.",
+		Usage:   "Locator for artifacts. Must be a file://, http://, or https:// URL.",
 		EnvVars: PrefixEnvVar("ARTIFACTS_LOCATOR"),
-		Value:   artifacts.EmbeddedLocatorString,
 	}
 	CacheDirFlag = &cli.StringFlag{
 		Name: CacheDirFlagName,

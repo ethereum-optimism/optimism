@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/current"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -43,13 +43,13 @@ func TestManageAddGameTypeV2_CLI(t *testing.T) {
 		configFile := filepath.Join(workDir, "config.json")
 
 		// Create a minimal valid config file
-		config := embedded.UpgradeOPChainInput{
+		config := current.UpgradeOPChainInput{
 			Prank: common.Address{0x01},
 			Opcm:  common.Address{0x02},
-			UpgradeInputV2: &embedded.UpgradeInputV2{
+			UpgradeInputV2: &current.UpgradeInputV2{
 				SystemConfig:       common.Address{0x03},
-				DisputeGameConfigs: []embedded.DisputeGameConfig{},
-				ExtraInstructions:  []embedded.ExtraInstruction{},
+				DisputeGameConfigs: []current.DisputeGameConfig{},
+				ExtraInstructions:  []current.ExtraInstruction{},
 			},
 		}
 		configData, err := json.Marshal(config)
@@ -134,25 +134,25 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	testProposer := common.Address{'P'}
 	testChallenger := common.Address{'C'}
 
-	testConfig := embedded.UpgradeOPChainInput{
+	testConfig := current.UpgradeOPChainInput{
 		Prank: l1ProxyAdminOwner,
 		Opcm:  opcmV2,
-		UpgradeInputV2: &embedded.UpgradeInputV2{
+		UpgradeInputV2: &current.UpgradeInputV2{
 			SystemConfig: systemConfigProxy,
-			DisputeGameConfigs: []embedded.DisputeGameConfig{
+			DisputeGameConfigs: []current.DisputeGameConfig{
 				{
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000),
-					GameType: embedded.GameTypeCannon,
-					FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+					GameType: current.GameTypeCannon,
+					FaultDisputeGameConfig: &current.FaultDisputeGameConfig{
 						AbsolutePrestate: testPrestate,
 					},
 				},
 				{
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000),
-					GameType: embedded.GameTypePermissionedCannon,
-					PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+					GameType: current.GameTypePermissionedCannon,
+					PermissionedDisputeGameConfig: &current.PermissionedDisputeGameConfig{
 						AbsolutePrestate: testPrestate,
 						Proposer:         testProposer,
 						Challenger:       testChallenger,
@@ -161,25 +161,25 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 				{
 					Enabled:  false,
 					InitBond: big.NewInt(0),
-					GameType: embedded.GameTypeCannonKona,
+					GameType: current.GameTypeCannonKona,
 				},
 				{
 					Enabled:  false,
 					InitBond: big.NewInt(0),
-					GameType: embedded.GameTypeSuperPermCannon,
+					GameType: current.GameTypeSuperPermCannon,
 				},
 				{
 					Enabled:  false,
 					InitBond: big.NewInt(0),
-					GameType: embedded.GameTypeSuperCannonKona,
+					GameType: current.GameTypeSuperCannonKona,
 				},
 				{
 					Enabled:  false,
 					InitBond: big.NewInt(0),
-					GameType: embedded.GameTypeZKDisputeGame,
+					GameType: current.GameTypeZKDisputeGame,
 				},
 			},
-			ExtraInstructions: []embedded.ExtraInstruction{
+			ExtraInstructions: []current.ExtraInstruction{
 				{
 					Key:  "PermittedProxyDeployment",
 					Data: []byte("DelayedWETH"),

@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -111,8 +110,8 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 			if tt.shouldThrowErr {
 				t.Fatal("makeDCI() succeeded unexpectedly")
 			}
-			if got.Opcm != tt.expectedOpcm {
-				t.Errorf("makeDCI() Opcm = %v, want %v", got.Opcm, tt.expectedOpcm)
+			if got.Address("opcm") != tt.expectedOpcm {
+				t.Errorf("makeDCI() Opcm = %v, want %v", got.Address("opcm"), tt.expectedOpcm)
 			}
 		})
 	}
@@ -120,15 +119,11 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 
 func TestDeployOPChain_WithForge(t *testing.T) {
 	ctx := context.Background()
-	tmpDir := t.TempDir()
-
-	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-	require.NoError(t, err)
-
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
+	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", afacts))
+	require.NoError(t, err)
+
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	anvil, err := devnet.NewAnvil(lgr)
 	require.NoError(t, err)

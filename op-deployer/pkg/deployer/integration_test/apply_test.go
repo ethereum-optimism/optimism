@@ -38,7 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/current"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/holiman/uint256"
@@ -66,9 +66,8 @@ func (d *deployerKey) String() string {
 	return "deployer-key"
 }
 
-// TestEndToEndBootstrapApply tests that a system can be fully bootstrapped and applied, both from
-// local artifacts and the default tagged artifacts. The tagged artifacts test only runs on proposal
-// or backports branches, since those are the only branches with an SLA to support tagged artifacts.
+// TestEndToEndBootstrapApply tests that a system can be fully bootstrapped and
+// applied from an explicit artifacts locator.
 func TestEndToEndBootstrapApply(t *testing.T) {
 	op_e2e.InitParallel(t)
 
@@ -107,9 +106,9 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 			DevFeatureBitmap:                common.Hash{},
-			SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
+			SuperchainConfigProxy:           bstrap.Address("superchainConfigProxy"),
 			L1ProxyAdminOwner:               superchainPAO,
-			SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,
+			SuperchainProxyAdmin:            bstrap.Address("superchainProxyAdmin"),
 			CacheDir:                        testCacheDir,
 			Logger:                          lgr,
 			Challenger:                      common.Address{'C'},
@@ -122,8 +121,10 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 		intent.SuperchainRoles = nil
-		intent.OPCMAddress = &impls.OpcmV2
-		intent.SuperchainConfigProxy = &bstrap.SuperchainConfigProxy
+		opcmAddress := impls.Address("opcmV2")
+		superchainConfigProxy := bstrap.Address("superchainConfigProxy")
+		intent.OPCMAddress = &opcmAddress
+		intent.SuperchainConfigProxy = &superchainConfigProxy
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -143,20 +144,16 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 		validateOPChainDeployment(t, cg, st, intent, false)
 	}
 
-	t.Run("default tagged artifacts", func(t *testing.T) {
-		apply(t, artifacts.DefaultL1ContractsLocator)
-	})
-
-	t.Run("local artifacts", func(t *testing.T) {
+	t.Run("explicit local artifacts", func(t *testing.T) {
 		loc, _ := testutil.LocalArtifacts(t)
 		apply(t, loc)
 	})
 }
 
 // TestEndToEndBootstrapApplyWithUpgrade tests upgrading from a previous contracts release
-// to embedded version of contracts by executing the following sequence:
+// to the local contracts version by executing the following sequence:
 //  1. create an anvil env that is a fork of op-sepolia
-//  2. bootstrap.Implementations of the latest/embedded version of contracts, which will produce a new opcm
+//  2. bootstrap.Implementations of the local contracts version, which will produce a new opcm
 //  3. call opcm.upgradeSuperchainConfig on the opcm deployed in [2] (prerequisite for opcm.upgrade)
 //  4. call opcm.upgrade on the opcm deployed in [2]
 func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
@@ -810,7 +807,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		ctx,
 		versionClient,
 		implementationsConfig.SuperchainConfigProxy,
-		impls.SuperchainConfigImpl,
+		impls.Address("superchainConfigImpl"),
 	)
 	require.NoError(t, err)
 
@@ -830,19 +827,19 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		)
 		require.NoError(t, err)
 
-		opcmAddress := impls.OpcmV2
+		opcmAddress := impls.Address("opcmV2")
 
 		// Only run the superchain config upgrade if the live superchain config is behind the freshly deployed
 		// implementation. Running the script when versions match will revert and panic the test harness.
 		if shouldUpgradeSuperchainConfig {
 			t.Run("upgrade superchain config", func(t *testing.T) {
-				upgradeConfig := embedded.UpgradeSuperchainConfigInput{
+				upgradeConfig := current.UpgradeSuperchainConfigInput{
 					Prank:            superchainProxyAdminOwner,
 					Opcm:             opcmAddress,
 					SuperchainConfig: implementationsConfig.SuperchainConfigProxy,
 				}
 
-				err = embedded.UpgradeSuperchainConfig(host, upgradeConfig)
+				err = current.UpgradeSuperchainConfig(host, upgradeConfig)
 				require.NoError(t, err, "Superchain config upgrade should succeed")
 			})
 		} else {
@@ -857,38 +854,38 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 		// Then run the OPCM V2 upgrade
 		t.Run("upgrade opcm v2", func(t *testing.T) {
-			require.NotEqual(t, common.Address{}, impls.OpcmV2, "OpcmV2 address should not be zero")
-			t.Logf("Using OpcmV2 at address: %s", impls.OpcmV2.Hex())
-			t.Logf("Using OpcmUtils at address: %s", impls.OpcmUtils.Hex())
-			t.Logf("Using OpcmContainer at address: %s", impls.OpcmContainer.Hex())
+			require.NotEqual(t, common.Address{}, impls.Address("opcmV2"), "OpcmV2 address should not be zero")
+			t.Logf("Using OpcmV2 at address: %s", impls.Address("opcmV2").Hex())
+			t.Logf("Using OpcmUtils at address: %s", impls.Address("opcmUtils").Hex())
+			t.Logf("Using OpcmContainer at address: %s", impls.Address("opcmContainer").Hex())
 
 			// Verify OPCM V2 has code deployed
-			opcmCode, err := versionClient.CodeAt(ctx, impls.OpcmV2, nil)
+			opcmCode, err := versionClient.CodeAt(ctx, impls.Address("opcmV2"), nil)
 			require.NoError(t, err)
 			require.NotEmpty(t, opcmCode, "OPCM V2 should have code deployed")
 			t.Logf("OPCM V2 code size: %d bytes", len(opcmCode))
 
 			// Verify OpcmUtils has code deployed
-			utilsCode, err := versionClient.CodeAt(ctx, impls.OpcmUtils, nil)
+			utilsCode, err := versionClient.CodeAt(ctx, impls.Address("opcmUtils"), nil)
 			require.NoError(t, err)
 			require.NotEmpty(t, utilsCode, "OpcmUtils should have code deployed")
 			t.Logf("OpcmUtils code size: %d bytes", len(utilsCode))
 
 			// Verify OpcmContainer has code deployed
-			containerCode, err := versionClient.CodeAt(ctx, impls.OpcmContainer, nil)
+			containerCode, err := versionClient.CodeAt(ctx, impls.Address("opcmContainer"), nil)
 			require.NoError(t, err)
 			require.NotEmpty(t, containerCode, "OpcmContainer should have code deployed")
 			t.Logf("OpcmContainer code size: %d bytes", len(containerCode))
 
 			// First, upgrade the superchain with V2
 			t.Run("upgrade superchain v2", func(t *testing.T) {
-				superchainUpgradeConfig := embedded.UpgradeSuperchainConfigInput{
+				superchainUpgradeConfig := current.UpgradeSuperchainConfigInput{
 					Prank:             superchainProxyAdminOwner,
-					Opcm:              impls.OpcmV2,
+					Opcm:              impls.Address("opcmV2"),
 					SuperchainConfig:  implementationsConfig.SuperchainConfigProxy,
-					ExtraInstructions: []embedded.ExtraInstruction{},
+					ExtraInstructions: []current.ExtraInstruction{},
 				}
-				err := embedded.UpgradeSuperchainConfig(host, superchainUpgradeConfig)
+				err := current.UpgradeSuperchainConfig(host, superchainUpgradeConfig)
 				if err != nil {
 					t.Logf("Superchain upgrade may have failed (could already be upgraded): %v", err)
 				} else {
@@ -905,25 +902,25 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				testProposer := common.Address{'P'}
 				testChallenger := common.Address{'C'}
 
-				upgradeConfig := embedded.UpgradeOPChainInput{
+				upgradeConfig := current.UpgradeOPChainInput{
 					Prank: superchainProxyAdminOwner,
-					Opcm:  impls.OpcmV2,
-					UpgradeInputV2: &embedded.UpgradeInputV2{
+					Opcm:  impls.Address("opcmV2"),
+					UpgradeInputV2: &current.UpgradeInputV2{
 						SystemConfig: deployer.DefaultSystemConfigProxySepolia,
-						DisputeGameConfigs: []embedded.DisputeGameConfig{
+						DisputeGameConfigs: []current.DisputeGameConfig{
 							{
 								Enabled:  true,
 								InitBond: big.NewInt(1000000000000000000),
-								GameType: embedded.GameTypeCannon,
-								FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+								GameType: current.GameTypeCannon,
+								FaultDisputeGameConfig: &current.FaultDisputeGameConfig{
 									AbsolutePrestate: testPrestate,
 								},
 							},
 							{
 								Enabled:  true,
 								InitBond: big.NewInt(1000000000000000000),
-								GameType: embedded.GameTypePermissionedCannon,
-								PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
+								GameType: current.GameTypePermissionedCannon,
+								PermissionedDisputeGameConfig: &current.PermissionedDisputeGameConfig{
 									AbsolutePrestate: testPrestate,
 									Proposer:         testProposer,
 									Challenger:       testChallenger,
@@ -932,25 +929,25 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
-								GameType: embedded.GameTypeCannonKona,
+								GameType: current.GameTypeCannonKona,
 							},
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
-								GameType: embedded.GameTypeSuperPermCannon,
+								GameType: current.GameTypeSuperPermCannon,
 							},
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
-								GameType: embedded.GameTypeSuperCannonKona,
+								GameType: current.GameTypeSuperCannonKona,
 							},
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
-								GameType: embedded.GameTypeZKDisputeGame,
+								GameType: current.GameTypeZKDisputeGame,
 							},
 						},
-						ExtraInstructions: []embedded.ExtraInstruction{
+						ExtraInstructions: []current.ExtraInstruction{
 							{
 								Key:  "PermittedProxyDeployment",
 								Data: []byte("DelayedWETH"),
@@ -1047,7 +1044,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 				require.Equal(t, expected, hex.EncodeToString(encodedData), "Encoded calldata should match expected structure")
 
-				err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
+				err = current.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
 				require.NoError(t, err, "OPCM V2 chain upgrade should succeed")
 			})
 		})

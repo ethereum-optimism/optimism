@@ -64,9 +64,9 @@ func TestCLIVerify(t *testing.T) {
 		"bootstrap", "implementations",
 		"--outfile", implsOutputFile,
 		"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-		"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
+		"--superchain-config-proxy", superchainOutput.Address("superchainConfigProxy").Hex(),
 		"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-		"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
+		"--superchain-proxy-admin", superchainOutput.Address("superchainProxyAdmin").Hex(),
 		"--challenger", challenger.Hex(),
 	}, nil)
 
@@ -84,7 +84,6 @@ func TestCLIVerify(t *testing.T) {
 			"--input-file", superchainOutputFile,
 			"--verifier", "blockscout",
 			"--verifier-url", mockServer + "/api",
-			"--artifacts-locator", "embedded",
 		}, nil)
 
 		assertVerificationSuccess(t, output)
@@ -97,7 +96,6 @@ func TestCLIVerify(t *testing.T) {
 			"--input-file", implsOutputFile,
 			"--verifier", "blockscout",
 			"--verifier-url", mockServer + "/api",
-			"--artifacts-locator", "embedded",
 		}, nil)
 
 		assertVerificationSuccess(t, output)
@@ -111,7 +109,6 @@ func TestCLIVerify(t *testing.T) {
 			"--contract-name", "superchainConfigProxyAddress",
 			"--verifier", "blockscout",
 			"--verifier-url", mockServer + "/api",
-			"--artifacts-locator", "embedded",
 		}, nil)
 
 		require.Contains(t, output, "Contract already verified")

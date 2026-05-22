@@ -49,8 +49,10 @@ func TestLocator_Marshaling(t *testing.T) {
 		{
 			name: "empty",
 			in:   "",
-			out:  nil,
-			err:  true,
+			out: &Locator{
+				URL: &url.URL{},
+			},
+			err: false,
 		},
 		{
 			name: "no scheme",
@@ -67,10 +69,8 @@ func TestLocator_Marshaling(t *testing.T) {
 		{
 			name: "embedded",
 			in:   "embedded",
-			out: &Locator{
-				URL: embeddedURL,
-			},
-			err: false,
+			out:  nil,
+			err:  true,
 		},
 	}
 	for _, tt := range tests {

@@ -5,33 +5,26 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
-	"github.com/ethereum/go-ethereum/common"
 )
 
-type DeployAlphabetVMInput struct {
-	AbsolutePrestate common.Hash
-	PreimageOracle   common.Address
+var deployAlphabetVMSpec = ScriptSpec{
+	ScriptFile:      "DeployAlphabetVM.s.sol",
+	ContractName:    "DeployAlphabetVM",
+	ForgeScriptPath: "scripts/deploy/DeployAlphabetVM.s.sol:DeployAlphabetVM",
 }
 
-type DeployAlphabetVMOutput struct {
-	AlphabetVM common.Address
-}
+type DeployAlphabetVMInput = ScriptInput
+type DeployAlphabetVMOutput = ScriptOutput
 
-type DeployAlphabetVMScript script.DeployScriptWithOutput[DeployAlphabetVMInput, DeployAlphabetVMOutput]
+type DeployAlphabetVMScript = ScriptWithOutput
 
 // NewDeployAlphabetVMScript loads and validates the DeployAlphabetVM2 script contract
 func NewDeployAlphabetVMScript(host *script.Host) (DeployAlphabetVMScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployAlphabetVMInput, DeployAlphabetVMOutput](host, "DeployAlphabetVM.s.sol", "DeployAlphabetVM")
+	return NewScriptWithOutputFromFile(host, deployAlphabetVMSpec)
 }
 
 func NewDeployAlphabetVMForgeCaller(client *forge.Client) forge.ScriptCaller[DeployAlphabetVMInput, DeployAlphabetVMOutput] {
-	return forge.NewScriptCaller(
-		client,
-		"scripts/deploy/DeployAlphabetVM.s.sol:DeployAlphabetVM",
-		"runWithBytes(bytes)",
-		&forge.BytesScriptEncoder[DeployAlphabetVMInput]{TypeName: "DeployAlphabetVMInput"},
-		&forge.BytesScriptDecoder[DeployAlphabetVMOutput]{TypeName: "DeployAlphabetVMOutput"},
-	)
+	return NewScriptForgeCaller(client, deployAlphabetVMSpec)
 }
 
 // DeployAlphabetVMViaForge deploys Alphabet VM contracts using Forge

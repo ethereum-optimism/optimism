@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -22,6 +23,7 @@ type CLITestRunner struct {
 	workDir       string
 	l1RPC         string
 	privateKeyHex string
+	artifactsURL  string
 	lgr           log.Logger
 }
 
@@ -42,9 +44,11 @@ func WithPrivateKey(pkHex string) CLITestRunnerOption {
 
 func NewCLITestRunner(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner {
 	workDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	artifactsURL := localArtifactsURL(t)
 	return &CLITestRunner{
-		workDir: workDir,
-		lgr:     testlog.Logger(t, slog.LevelDebug),
+		workDir:      workDir,
+		artifactsURL: artifactsURL,
+		lgr:          testlog.Logger(t, slog.LevelDebug),
 	}
 }
 
@@ -82,6 +86,7 @@ func NewCLITestRunnerWithNetwork(t *testing.T, opts ...CLITestRunnerOption) *CLI
 		workDir:       workDir,
 		l1RPC:         l1RPC,
 		privateKeyHex: pkHex,
+		artifactsURL:  localArtifactsURL(t),
 		lgr:           lgr,
 	}
 
@@ -123,8 +128,16 @@ func newCaptureOutputWriter() *captureOutputWriter {
 
 // Run executes a CLI command and returns the output
 func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]string) (string, error) {
-	// Set up environment variables
+	runEnv := make(map[string]string, len(env)+1)
 	for key, value := range env {
+		runEnv[key] = value
+	}
+	if _, ok := runEnv["DEPLOYER_ARTIFACTS_LOCATOR"]; !ok && r.artifactsURL != "" {
+		runEnv["DEPLOYER_ARTIFACTS_LOCATOR"] = r.artifactsURL
+	}
+
+	// Set up environment variables
+	for key, value := range runEnv {
 		os.Setenv(key, value)
 		defer os.Unsetenv(key)
 	}
@@ -162,6 +175,13 @@ func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]s
 	}
 
 	return output, nil
+}
+
+func localArtifactsURL(t *testing.T) string {
+	loc, _ := testutil.LocalArtifacts(t)
+	raw, err := loc.MarshalText()
+	require.NoError(t, err)
+	return string(raw)
 }
 
 // RunWithNetwork executes a CLI command with network parameters if available

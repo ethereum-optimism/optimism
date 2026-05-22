@@ -35,6 +35,9 @@ type Extractor interface {
 }
 
 func Download(ctx context.Context, loc *Locator, progressor ioutil.Progressor, targetDir string) (foundry.StatDirFs, error) {
+	if loc.IsZero() {
+		return nil, fmt.Errorf("artifacts locator is required")
+	}
 	if progressor == nil {
 		progressor = ioutil.NoopProgressor()
 	}
@@ -58,11 +61,6 @@ func Download(ctx context.Context, loc *Locator, progressor ioutil.Progressor, t
 			artifactsFS = os.DirFS(u.Path)
 		} else {
 			artifactsFS = os.DirFS(forgeArtifactsDir)
-		}
-	case "embedded":
-		artifactsFS, err = ExtractEmbedded(targetDir)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract embedded artifacts: %w", err)
 		}
 	default:
 		return nil, ErrUnsupportedArtifactsScheme
@@ -89,7 +87,7 @@ func downloadHTTP(ctx context.Context, u *url.URL, progressor ioutil.Progressor,
 	if strings.HasSuffix(tarballPath, ".tzst") {
 		_, err := ExtractFromFile(tmpDir, tarballPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to extract embedded artifacts: %w", err)
+			return nil, fmt.Errorf("failed to extract artifacts bundle: %w", err)
 		}
 	} else {
 		extractor := &TarballExtractor{

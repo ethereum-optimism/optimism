@@ -19,8 +19,8 @@ func TestNewDeployMIPSScript(t *testing.T) {
 
 		mipsVersion := int64(standard.MIPSVersion)
 		output, err := deploySuperchain.Run(DeployMIPSInput{
-			PreimageOracle: common.Address{'P'},
-			MipsVersion:    big.NewInt(mipsVersion),
+			"preimageOracle": common.Address{'P'},
+			"mipsVersion":    big.NewInt(mipsVersion),
 		})
 
 		require.NoError(t, err)
@@ -28,15 +28,15 @@ func TestNewDeployMIPSScript(t *testing.T) {
 
 		host2 := createTestHost(t)
 		deprecatedOutput, err := DeployMIPS(host2, DeployMIPSInput{
-			PreimageOracle: common.Address{'P'},
-			MipsVersion:    big.NewInt(mipsVersion),
+			"preimageOracle": common.Address{'P'},
+			"mipsVersion":    big.NewInt(mipsVersion),
 		})
 
 		require.NoError(t, err)
 		require.NotNil(t, deprecatedOutput)
 
-		require.Equal(t, deprecatedOutput.MipsSingleton, output.MipsSingleton)
+		require.Equal(t, deprecatedOutput.Address("mipsSingleton"), output.Address("mipsSingleton"))
 
-		require.Equal(t, host2.GetCode(deprecatedOutput.MipsSingleton), host1.GetCode(output.MipsSingleton))
+		require.Equal(t, host2.GetCode(deprecatedOutput.Address("mipsSingleton")), host1.GetCode(output.Address("mipsSingleton")))
 	})
 }

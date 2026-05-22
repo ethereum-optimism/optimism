@@ -5,34 +5,25 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func bootstrapContractAddresses() map[string]common.Address {
-	addrType := reflect.TypeOf(common.Address{})
-	structTypes := []reflect.Type{
-		reflect.TypeOf((*opcm.DeploySuperchainOutput)(nil)).Elem(),
-		reflect.TypeOf((*opcm.DeployImplementationsOutput)(nil)).Elem(),
-	}
-
 	addresses := make(map[string]common.Address)
-	index := int64(1)
-
-	for _, structType := range structTypes {
-		for i := 0; i < structType.NumField(); i++ {
-			field := structType.Field(i)
-			if field.Type == addrType {
-				addresses[field.Name] = common.BigToAddress(big.NewInt(index))
-				index++
-			}
-		}
+	names := []string{
+		"SuperchainConfigProxy",
+		"SuperchainProxyAdmin",
+		"OpcmV2",
+		"OptimismPortalImpl",
+		"SystemConfigImpl",
+	}
+	for i, name := range names {
+		addresses[name] = common.BigToAddress(big.NewInt(int64(i + 1)))
 	}
 
 	return addresses

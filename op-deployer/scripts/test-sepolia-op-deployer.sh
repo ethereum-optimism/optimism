@@ -9,6 +9,7 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ARTIFACTS_LOCATOR="${ARTIFACTS_LOCATOR:-file://$REPO_ROOT/../packages/contracts-bedrock}"
 OUTPUT_DIR="$REPO_ROOT/.deployer-output"
 OP_DEPLOYER_BASE_CMD=("go" "run" "./cmd/op-deployer")
 mkdir -p "$OUTPUT_DIR"
@@ -161,7 +162,7 @@ build_verify_cmd() {
         "--l1-rpc-url" "$L1_RPC_URL"
         "--input-file" "$input_file"
         "--verifier" "$VERIFIER_TYPE"
-        "--artifacts-locator" "embedded"
+        "--artifacts-locator" "$ARTIFACTS_LOCATOR"
     )
     if [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && [ -n "$ETHERSCAN_API_KEY" ]; then
         cmd+=("--verifier-api-key" "$ETHERSCAN_API_KEY")

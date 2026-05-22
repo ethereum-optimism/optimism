@@ -6,8 +6,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -25,9 +25,9 @@ func TestNewDeploySuperchainScript(t *testing.T) {
 
 		// Then we deploy
 		output, err := deploySuperchain.Run(DeploySuperchainInput{
-			Guardian:                  common.BigToAddress(big.NewInt(1)),
-			SuperchainProxyAdminOwner: common.BigToAddress(big.NewInt(3)),
-			Paused:                    true,
+			"guardian":                  common.BigToAddress(big.NewInt(1)),
+			"superchainProxyAdminOwner": common.BigToAddress(big.NewInt(3)),
+			"paused":                    true,
 		})
 
 		// And do some simple asserts
@@ -37,19 +37,15 @@ func TestNewDeploySuperchainScript(t *testing.T) {
 }
 
 func TestNewDeploySuperchainScriptForge(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-	require.NoError(t, err)
-
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+	_, afacts := testutil.LocalArtifacts(t)
+	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", afacts))
 	require.NoError(t, err)
 
 	deploySuperchain := NewDeploySuperchainForgeCaller(forgeClient)
 	output, recompiled, err := deploySuperchain(context.Background(), DeploySuperchainInput{
-		Guardian:                  common.BigToAddress(big.NewInt(1)),
-		SuperchainProxyAdminOwner: common.BigToAddress(big.NewInt(3)),
-		Paused:                    true,
+		"guardian":                  common.BigToAddress(big.NewInt(1)),
+		"superchainProxyAdminOwner": common.BigToAddress(big.NewInt(3)),
+		"paused":                    true,
 	})
 
 	require.NoError(t, err)

@@ -1,0 +1,79 @@
+version: 1
+kind: legacy-input-mapping
+script:
+  artifact: DeployOPChain.s.sol/DeployOPChain.json
+  contract: DeployOPChain
+  function: run
+input:
+  opChainProxyAdminOwner:
+    from: chain.roles.l1ProxyAdminOwner
+  systemConfigOwner:
+    from: chain.roles.systemConfigOwner
+  batcher:
+    from: chain.roles.batcher
+  unsafeBlockSigner:
+    from: chain.roles.unsafeBlockSigner
+  proposer:
+    from: chain.roles.proposer
+  challenger:
+    from: chain.roles.challenger
+  basefeeScalar:
+    value: 1368
+  blobBaseFeeScalar:
+    value: 801949
+  l2ChainId:
+    from: chainID
+    transform: bigint
+  opcm:
+    from: state.implementationsDeployment.OpcmV2Impl
+  saltMixer:
+    from: state.create2Salt
+    transform: string
+  gasLimit:
+    from: chain.gasLimit
+  disputeGameType:
+    coalesce:
+      - from: chain.deployOverrides.respectedGameType
+      - from: intent.globalDeployOverrides.respectedGameType
+      - value: 1
+  disputeAbsolutePrestate:
+    coalesce:
+      - from: chain.deployOverrides.faultGameAbsolutePrestate
+      - from: intent.globalDeployOverrides.faultGameAbsolutePrestate
+      - value: "0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"
+  disputeMaxGameDepth:
+    coalesce:
+      - from: chain.deployOverrides.faultGameMaxDepth
+      - from: intent.globalDeployOverrides.faultGameMaxDepth
+      - value: 73
+    transform: bigint
+  disputeSplitDepth:
+    coalesce:
+      - from: chain.deployOverrides.faultGameSplitDepth
+      - from: intent.globalDeployOverrides.faultGameSplitDepth
+      - value: 30
+    transform: bigint
+  disputeClockExtension:
+    coalesce:
+      - from: chain.deployOverrides.faultGameClockExtension
+      - from: intent.globalDeployOverrides.faultGameClockExtension
+      - value: 10800
+  disputeMaxClockDuration:
+    coalesce:
+      - from: chain.deployOverrides.faultGameMaxClockDuration
+      - from: intent.globalDeployOverrides.faultGameMaxClockDuration
+      - value: 302400
+  allowCustomDisputeParameters:
+    coalesce:
+      - from: chain.deployOverrides.dangerouslyAllowCustomDisputeParameters
+      - from: intent.globalDeployOverrides.dangerouslyAllowCustomDisputeParameters
+      - value: false
+  operatorFeeScalar:
+    from: chain.operatorFeeScalar
+  operatorFeeConstant:
+    from: chain.operatorFeeConstant
+  superchainConfig:
+    from: state.superchainContracts.SuperchainConfigProxy
+  useCustomGasToken:
+    from: chain
+    transform: isCustomGasTokenEnabled

@@ -44,6 +44,9 @@ func UpgradeCLI(upgrader Upgrader) func(*cli.Context) error {
 		if overrideArtifactsURL != "" {
 			artifactsURL = overrideArtifactsURL
 		}
+		if artifactsURL == "" {
+			return fmt.Errorf("missing required flag: %s", OverrideArtifactsURLFlag.Name)
+		}
 		artifactsLocator, err := artifacts.NewLocatorFromURL(artifactsURL)
 		if err != nil {
 			return fmt.Errorf("failed to parse artifacts URL: %w", err)

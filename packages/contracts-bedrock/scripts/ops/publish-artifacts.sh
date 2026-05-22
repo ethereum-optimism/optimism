@@ -11,7 +11,7 @@ usage() {
   echo "  --force, -f    Force upload even if artifacts already exist"
   echo "  --help, -h     Show this help message"
   echo ""
-  echo "Uses 'just build-contracts' and 'just copy-contract-artifacts' from op-deployer."
+  echo "Uses 'just build-contracts' from op-deployer, then creates an upload archive."
   exit 0
 }
 
@@ -64,19 +64,16 @@ cd "$OP_DEPLOYER_DIR"
 echoerr "> Running 'just build-contracts'..."
 just build-contracts
 
-echoerr "> Running 'just copy-contract-artifacts'..."
-just copy-contract-artifacts
-
-ARTIFACTS_TZST="./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst"
-if [ ! -f "$ARTIFACTS_TZST" ]; then
-  echoerr "> ERROR: Failed to create artifacts.tzst"
-  exit 1
-fi
-
 TEMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
-cp "$ARTIFACTS_TZST" "$TEMP_DIR/$archive_name_zst"
+ARTIFACTS_TZST="$TEMP_DIR/$archive_name_zst"
+echoerr "> Creating artifacts archive..."
+go run ./pkg/deployer/artifacts/cmd/mktar \
+  -base ../packages/contracts-bedrock \
+  -out "$ARTIFACTS_TZST" \
+  --exclude="*.t.sol"
+
 du -sh "$TEMP_DIR/$archive_name_zst" | awk '{$1=$1};1'
 echoerr "> Created .tar.zst archive"
 

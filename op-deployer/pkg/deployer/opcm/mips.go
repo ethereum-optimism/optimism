@@ -2,27 +2,25 @@ package opcm
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
-	"github.com/ethereum/go-ethereum/common"
 )
 
-type DeployMIPSInput struct {
-	PreimageOracle common.Address
-	MipsVersion    *big.Int
+var deployMIPSSpec = ScriptSpec{
+	ScriptFile:      "DeployMIPS.s.sol",
+	ContractName:    "DeployMIPS",
+	ForgeScriptPath: "scripts/deploy/DeployMIPS.s.sol:DeployMIPS",
 }
 
-type DeployMIPSOutput struct {
-	MipsSingleton common.Address
-}
+type DeployMIPSInput = ScriptInput
+type DeployMIPSOutput = ScriptOutput
 
-type DeployMIPSScript script.DeployScriptWithOutput[DeployMIPSInput, DeployMIPSOutput]
+type DeployMIPSScript = ScriptWithOutput
 
 // NewDeployMIPSScript loads and validates the DeployMIPS script contract
 func NewDeployMIPSScript(host *script.Host) (DeployMIPSScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployMIPSInput, DeployMIPSOutput](host, "DeployMIPS.s.sol", "DeployMIPS")
+	return NewScriptWithOutputFromFile(host, deployMIPSSpec)
 }
 
 func DeployMIPS(
@@ -38,13 +36,7 @@ func DeployMIPS(
 }
 
 func NewDeployMIPSForgeCaller(client *forge.Client) forge.ScriptCaller[DeployMIPSInput, DeployMIPSOutput] {
-	return forge.NewScriptCaller(
-		client,
-		"scripts/deploy/DeployMIPS.s.sol:DeployMIPS",
-		"runWithBytes(bytes)",
-		&forge.BytesScriptEncoder[DeployMIPSInput]{TypeName: "DeployMIPSInput"},
-		&forge.BytesScriptDecoder[DeployMIPSOutput]{TypeName: "DeployMIPSOutput"},
-	)
+	return NewScriptForgeCaller(client, deployMIPSSpec)
 }
 
 // DeployMIPSViaForge deploys MIPS contracts using Forge

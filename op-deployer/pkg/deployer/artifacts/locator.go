@@ -19,23 +19,20 @@ func CreateHttpLocator(contentHash string) string {
 	return fmt.Sprintf("https://storage.googleapis.com/oplabs-contract-artifacts/artifacts-v1-%s.tar.gz", contentHash)
 }
 
-const EmbeddedLocatorString = "embedded"
-
-var embeddedURL = &url.URL{
-	Scheme: EmbeddedLocatorString,
+var DefaultL1ContractsLocator = &Locator{
+	URL: &url.URL{},
 }
 
-var EmbeddedLocator = &Locator{
-	URL: embeddedURL,
+var DefaultL2ContractsLocator = &Locator{
+	URL: &url.URL{},
 }
-
-var DefaultL1ContractsLocator = EmbeddedLocator
-
-var DefaultL2ContractsLocator = EmbeddedLocator
 
 func NewLocatorFromURL(u string) (*Locator, error) {
-	if u == EmbeddedLocatorString {
-		return EmbeddedLocator, nil
+	if u == "" {
+		return nil, fmt.Errorf("artifacts locator cannot be empty")
+	}
+	if u == "embedded" {
+		return nil, errors.New("embedded artifacts are no longer supported - use a file://, http://, or https:// artifacts locator")
 	}
 
 	parsedURL, err := url.Parse(u)
@@ -78,14 +75,17 @@ func NewFileLocator(path string) (*Locator, error) {
 
 func (a *Locator) UnmarshalText(text []byte) error {
 	str := string(text)
+	if str == "" {
+		*a = Locator{URL: &url.URL{}}
+		return nil
+	}
 
 	if strings.HasPrefix(str, "tag://") {
-		return errors.New("tag:// locators are no longer supported - use embedded artifacts instead")
+		return errors.New("tag:// locators are no longer supported - use a file://, http://, or https:// artifacts locator")
 	}
 
 	if str == "embedded" {
-		*a = *EmbeddedLocator
-		return nil
+		return errors.New("embedded artifacts are no longer supported - use a file://, http://, or https:// artifacts locator")
 	}
 
 	for scheme, unmarshaler := range schemeUnmarshalerDispatch {
@@ -106,16 +106,16 @@ func (a *Locator) UnmarshalText(text []byte) error {
 }
 
 func (a *Locator) MarshalText() ([]byte, error) {
-	if a.URL.String() == embeddedURL.String() || a.URL.String() == "" {
-		return []byte("embedded"), nil
+	if a == nil || a.URL == nil || a.URL.String() == "" {
+		return []byte(""), nil
 	}
 
 	return []byte(a.URL.String()), nil
 }
 
 func (a *Locator) MarshalTOML() ([]byte, error) {
-	if a.URL.String() == embeddedURL.String() || a.URL.String() == "" {
-		return []byte(`"embedded"`), nil
+	if a == nil || a.URL == nil || a.URL.String() == "" {
+		return []byte(`""`), nil
 	}
 	return []byte(`"` + a.URL.String() + `"`), nil
 }
@@ -137,8 +137,8 @@ func (a *Locator) Equal(b *Locator) bool {
 	return string(aStr) == string(bStr)
 }
 
-func (a *Locator) IsEmbedded() bool {
-	return a.URL.String() == embeddedURL.String()
+func (a *Locator) IsZero() bool {
+	return a == nil || a.URL == nil || a.URL.String() == ""
 }
 
 func unmarshalURL(text string) (*Locator, error) {

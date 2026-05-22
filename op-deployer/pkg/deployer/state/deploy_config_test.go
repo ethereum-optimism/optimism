@@ -14,7 +14,7 @@ import (
 func TestCombineDeployConfig(t *testing.T) {
 	intent := Intent{
 		L1ChainID:          1,
-		L1ContractsLocator: artifacts.EmbeddedLocator,
+		L1ContractsLocator: artifacts.MustNewFileLocator("/tmp/contracts-bedrock"),
 	}
 	chainState := ChainState{
 		ID: common.HexToHash("0x123"),

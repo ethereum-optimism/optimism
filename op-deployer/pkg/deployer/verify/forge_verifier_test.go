@@ -53,18 +53,6 @@ func TestNewForgeVerifier_HTTPLocator(t *testing.T) {
 	require.NoError(t, err, "should successfully initialize forge verifier with HTTP locator")
 }
 
-func TestNewForgeVerifier_EmbeddedLocator(t *testing.T) {
-	ctx := context.Background()
-	loc := artifacts.EmbeddedLocator
-
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
-	artifactsFS, err := artifacts.Download(ctx, loc, nil, testCacheDir)
-	require.NoError(t, err)
-
-	_, err = createTestForgeVerifier(artifactsFS)
-	require.NoError(t, err, "should successfully initialize forge verifier with embedded locator")
-}
-
 func TestNewForgeVerifier_FileLocator(t *testing.T) {
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 

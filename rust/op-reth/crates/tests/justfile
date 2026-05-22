@@ -56,9 +56,12 @@ update-packages:
   #!/usr/bin/env bash
   set -euo pipefail
   echo "Updating contract artifacts from optimism submodule..."
-  cd "{{SOURCE_DIR}}/optimism/op-deployer" && just build-contracts copy-contract-artifacts
+  cd "{{SOURCE_DIR}}/optimism/op-deployer" && just build-contracts
   mkdir -p "{{SOURCE_DIR}}/artifacts/compressed"
-  cp "{{SOURCE_DIR}}/optimism/op-deployer/pkg/deployer/artifacts/forge-artifacts/artifacts.tzst" "{{SOURCE_DIR}}/artifacts/compressed/artifacts.tzst"
+  cd "{{SOURCE_DIR}}/optimism/op-deployer" && go run ./pkg/deployer/artifacts/cmd/mktar \
+    -base ../packages/contracts-bedrock \
+    -out "{{SOURCE_DIR}}/artifacts/compressed/artifacts.tzst" \
+    --exclude="*.t.sol"
 
 # Run E2E tests using Sysgo
 test-e2e-sysgo: build unzip-contract-artifacts build-contracts

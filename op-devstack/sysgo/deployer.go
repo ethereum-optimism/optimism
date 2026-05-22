@@ -174,8 +174,10 @@ var (
 )
 
 func WithEmbeddedContractSources() DeployerOption {
-	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
-		setContractLocators(builder, artifacts.EmbeddedLocator)
+	return func(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		contractArtifacts, err := localContractSourcesLocator("")
+		p.Require().NoError(err)
+		setContractLocators(builder, contractArtifacts)
 	}
 }
 

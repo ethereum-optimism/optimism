@@ -18,14 +18,15 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 
 	lgr.Info("deploying superchain")
 
-	input := opcm.DeploySuperchainInput{
-		SuperchainProxyAdminOwner: intent.SuperchainRoles.SuperchainProxyAdminOwner,
-		Guardian:                  intent.SuperchainRoles.SuperchainGuardian,
-		Paused:                    false,
+	input, err := evaluateLegacyInputMapping(env, "deploy-superchain.input.yaml", opcm.StaticInputSources{
+		"intent": intent,
+		"state":  st,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to build DeploySuperchain input: %w", err)
 	}
 
 	var dso opcm.DeploySuperchainOutput
-	var err error
 
 	if env.UseForge {
 		lgr.Info("using Forge for DeploySuperchain")
@@ -47,9 +48,9 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 	}
 
 	st.SuperchainDeployment = &addresses.SuperchainContracts{
-		SuperchainProxyAdminImpl: dso.SuperchainProxyAdmin,
-		SuperchainConfigProxy:    dso.SuperchainConfigProxy,
-		SuperchainConfigImpl:     dso.SuperchainConfigImpl,
+		SuperchainProxyAdminImpl: dso.Address("superchainProxyAdmin"),
+		SuperchainConfigProxy:    dso.Address("superchainConfigProxy"),
+		SuperchainConfigImpl:     dso.Address("superchainConfigImpl"),
 	}
 	st.SuperchainRoles = intent.SuperchainRoles
 

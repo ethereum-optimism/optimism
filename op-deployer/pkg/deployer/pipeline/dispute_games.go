@@ -8,7 +8,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/current"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -63,8 +63,8 @@ func deployDisputeGame(
 	switch game.VMType {
 	case state.VMTypeAlphabet:
 		input := opcm.DeployAlphabetVMInput{
-			AbsolutePrestate: game.DisputeAbsolutePrestate,
-			PreimageOracle:   st.ImplementationsDeployment.PreimageOracleImpl,
+			"absolutePrestate": game.DisputeAbsolutePrestate,
+			"preimageOracle":   st.ImplementationsDeployment.PreimageOracleImpl,
 		}
 
 		var out opcm.DeployAlphabetVMOutput
@@ -92,13 +92,13 @@ func deployDisputeGame(
 				return fmt.Errorf("failed to deploy Alphabet VM: %w", err)
 			}
 		}
-		vmAddr = out.AlphabetVM
+		vmAddr = out.Address("alphabetVM")
 	case state.VMTypeCannon, state.VMTypeCannonNext:
 		if env.UseForge {
 			lgr.Info("using Forge for DeployMIPS")
 			forgeInput := opcm.DeployMIPSInput{
-				MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
-				PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
+				"mipsVersion":    new(big.Int).SetUint64(game.VMType.MipsVersion()),
+				"preimageOracle": st.ImplementationsDeployment.PreimageOracleImpl,
 			}
 			forgeEnv := &opcm.ForgeEnv{
 				Client:     env.ForgeClient,
@@ -110,17 +110,17 @@ func deployDisputeGame(
 			if err != nil {
 				return err
 			}
-			vmAddr = forgeOut.MipsSingleton
+			vmAddr = forgeOut.Address("mipsSingleton")
 		} else {
 			input := opcm.DeployMIPSInput{
-				MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
-				PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
+				"mipsVersion":    new(big.Int).SetUint64(game.VMType.MipsVersion()),
+				"preimageOracle": st.ImplementationsDeployment.PreimageOracleImpl,
 			}
 			out, err := opcm.DeployMIPS(env.L1ScriptHost, input)
 			if err != nil {
 				return fmt.Errorf("failed to deploy MIPS VM: %w", err)
 			}
-			vmAddr = out.MipsSingleton
+			vmAddr = out.Address("mipsSingleton")
 		}
 	case state.VMTypeZK:
 		zkImpl := st.ImplementationsDeployment.ZkDisputeGameImpl
@@ -130,8 +130,8 @@ func deployDisputeGame(
 		if game.ZKDisputeGame == nil {
 			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
 		}
-		if game.DisputeGameType != uint32(embedded.GameTypeZKDisputeGame) {
-			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", embedded.GameTypeZKDisputeGame, game.DisputeGameType)
+		if game.DisputeGameType != uint32(current.GameTypeZKDisputeGame) {
+			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", current.GameTypeZKDisputeGame, game.DisputeGameType)
 		}
 		zk := game.ZKDisputeGame
 		if zk.ChallengerBond == nil || zk.ChallengerBond.ToInt().Sign() <= 0 {
@@ -190,20 +190,20 @@ func deployDisputeGame(
 	lgr.Info("deploying dispute game")
 
 	input := opcm.DeployDisputeGameInput{
-		Release:                  "dev",
-		VmAddress:                vmAddr,
-		GameKind:                 "FaultDisputeGame",
-		GameType:                 game.DisputeGameType,
-		AbsolutePrestate:         game.DisputeAbsolutePrestate,
-		MaxGameDepth:             new(big.Int).SetUint64(game.DisputeMaxGameDepth),
-		SplitDepth:               new(big.Int).SetUint64(game.DisputeSplitDepth),
-		ClockExtension:           game.DisputeClockExtension,
-		MaxClockDuration:         game.DisputeMaxClockDuration,
-		DelayedWethProxy:         thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
-		AnchorStateRegistryProxy: thisState.OpChainContracts.AnchorStateRegistryProxy,
-		L2ChainId:                new(big.Int).SetBytes(thisIntent.ID[:]),
-		Proposer:                 thisIntent.Roles.Proposer,
-		Challenger:               thisIntent.Roles.Challenger,
+		"release":                  "dev",
+		"vmAddress":                vmAddr,
+		"gameKind":                 "FaultDisputeGame",
+		"gameType":                 game.DisputeGameType,
+		"absolutePrestate":         game.DisputeAbsolutePrestate,
+		"maxGameDepth":             new(big.Int).SetUint64(game.DisputeMaxGameDepth),
+		"splitDepth":               new(big.Int).SetUint64(game.DisputeSplitDepth),
+		"clockExtension":           game.DisputeClockExtension,
+		"maxClockDuration":         game.DisputeMaxClockDuration,
+		"delayedWethProxy":         thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
+		"anchorStateRegistryProxy": thisState.OpChainContracts.AnchorStateRegistryProxy,
+		"l2ChainId":                new(big.Int).SetBytes(thisIntent.ID[:]),
+		"proposer":                 thisIntent.Roles.Proposer,
+		"challenger":               thisIntent.Roles.Challenger,
 	}
 
 	var out opcm.DeployDisputeGameOutput
@@ -227,12 +227,13 @@ func deployDisputeGame(
 			return fmt.Errorf("failed to deploy dispute game: %w", err)
 		}
 	}
-	lgr.Info("dispute game deployed", "impl", out.DisputeGameImpl)
+	disputeGameImpl := out.Address("disputeGameImpl")
+	lgr.Info("dispute game deployed", "impl", disputeGameImpl)
 
 	lgr.Info("setting dispute game impl on factory", "respected", game.MakeRespected)
 	sdgiInput := opcm.SetDisputeGameImplInput{
 		Factory:             thisState.OpChainContracts.DisputeGameFactoryProxy,
-		Impl:                out.DisputeGameImpl,
+		Impl:                disputeGameImpl,
 		GameType:            game.DisputeGameType,
 		GameArgs:            gameArgs,
 		AnchorStateRegistry: common.Address{},
@@ -250,7 +251,7 @@ func deployDisputeGame(
 	thisState.AdditionalDisputeGames = append(thisState.AdditionalDisputeGames, state.AdditionalDisputeGameState{
 		GameType:      game.DisputeGameType,
 		VMType:        game.VMType,
-		GameAddress:   out.DisputeGameImpl,
+		GameAddress:   disputeGameImpl,
 		OracleAddress: st.ImplementationsDeployment.PreimageOracleImpl,
 		VMAddress:     vmAddr,
 	})

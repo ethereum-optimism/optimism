@@ -1,0 +1,13 @@
+version: 1
+kind: legacy-input-mapping
+script:
+  artifact: DeploySuperchain.s.sol/DeploySuperchain.json
+  contract: DeploySuperchain
+  function: run
+input:
+  superchainProxyAdminOwner:
+    from: intent.superchainRoles.SuperchainProxyAdminOwner
+  guardian:
+    from: intent.superchainRoles.SuperchainGuardian
+  paused:
+    value: false

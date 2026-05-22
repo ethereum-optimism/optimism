@@ -118,9 +118,9 @@ func TestCLIBootstrap(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
+			"--superchain-config-proxy", superchainOutput.Address("superchainConfigProxy").Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(), // Use proxy admin owner as upgrade controller
-			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
+			"--superchain-proxy-admin", superchainOutput.Address("superchainProxyAdmin").Hex(),
 			"--challenger", challenger.Hex(),
 		}, nil)
 
@@ -137,20 +137,20 @@ func TestCLIBootstrap(t *testing.T) {
 		require.NoError(t, err)
 
 		// We only check specific addresses that are always set
-		require.NotEqual(t, common.Address{}, implsOutput.OpcmV2, "OpcmV2 should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.OpcmStandardValidator, "OpcmStandardValidator should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.DelayedWETHImpl, "DelayedWETHImpl should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.OptimismPortalImpl, "OptimismPortalImpl should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.ETHLockboxImpl, "ETHLockboxImpl should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.PreimageOracleSingleton, "PreimageOracleSingleton should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.MipsSingleton, "MipsSingleton should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.SystemConfigImpl, "SystemConfigImpl should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.L1CrossDomainMessengerImpl, "L1CrossDomainMessengerImpl should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.L1ERC721BridgeImpl, "L1ERC721BridgeImpl should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.L1StandardBridgeImpl, "L1StandardBridgeImpl should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.OptimismMintableERC20FactoryImpl, "OptimismMintableERC20FactoryImpl should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.DisputeGameFactoryImpl, "DisputeGameFactoryImpl should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.AnchorStateRegistryImpl, "AnchorStateRegistryImpl should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.SuperchainConfigImpl, "SuperchainConfigImpl should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("opcmV2"), "OpcmV2 should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("opcmStandardValidator"), "OpcmStandardValidator should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("delayedWETHImpl"), "DelayedWETHImpl should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("optimismPortalImpl"), "OptimismPortalImpl should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("ethLockboxImpl"), "ETHLockboxImpl should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("preimageOracleSingleton"), "PreimageOracleSingleton should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("mipsSingleton"), "MipsSingleton should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("systemConfigImpl"), "SystemConfigImpl should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("l1CrossDomainMessengerImpl"), "L1CrossDomainMessengerImpl should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("l1ERC721BridgeImpl"), "L1ERC721BridgeImpl should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("l1StandardBridgeImpl"), "L1StandardBridgeImpl should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("optimismMintableERC20FactoryImpl"), "OptimismMintableERC20FactoryImpl should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("disputeGameFactoryImpl"), "DisputeGameFactoryImpl should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("anchorStateRegistryImpl"), "AnchorStateRegistryImpl should be set")
+		require.NotEqual(t, common.Address{}, implsOutput.Address("superchainConfigImpl"), "SuperchainConfigImpl should be set")
 	})
 }

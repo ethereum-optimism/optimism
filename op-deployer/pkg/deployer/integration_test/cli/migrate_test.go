@@ -14,12 +14,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -113,10 +113,11 @@ func TestCLIMigrateV2(t *testing.T) {
 	superchainProxyAdminOwner := prank
 
 	// Deploy superchain contracts first
+	artifactsLocator, _ := testutil.LocalArtifacts(t)
 	superchainOut, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
 		L1RPCUrl:                  l1RPC,
 		PrivateKey:                pkHex,
-		ArtifactsLocator:          artifacts.EmbeddedLocator,
+		ArtifactsLocator:          artifactsLocator,
 		Logger:                    lgr,
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
 		Guardian:                  common.Address{'G'},
@@ -131,7 +132,7 @@ func TestCLIMigrateV2(t *testing.T) {
 	cfg := bootstrap.ImplementationsConfig{
 		L1RPCUrl:                        l1RPC,
 		PrivateKey:                      pkHex,
-		ArtifactsLocator:                artifacts.EmbeddedLocator,
+		ArtifactsLocator:                artifactsLocator,
 		Logger:                          lgr,
 		MIPSVersion:                     int(standard.MIPSVersion),
 		WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
@@ -140,8 +141,8 @@ func TestCLIMigrateV2(t *testing.T) {
 		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 		DevFeatureBitmap:                devFeatureBitmap,
-		SuperchainConfigProxy:           superchainOut.SuperchainConfigProxy,
-		SuperchainProxyAdmin:            superchainOut.SuperchainProxyAdmin,
+		SuperchainConfigProxy:           superchainOut.Address("superchainConfigProxy"),
+		SuperchainProxyAdmin:            superchainOut.Address("superchainProxyAdmin"),
 		L1ProxyAdminOwner:               superchainProxyAdminOwner,
 		Challenger:                      common.Address{'C'},
 		CacheDir:                        testCacheDir,
@@ -153,7 +154,7 @@ func TestCLIMigrateV2(t *testing.T) {
 
 	impls, err := bootstrap.Implementations(ctx, cfg)
 	require.NoError(t, err, "Failed to deploy implementations")
-	require.NotEqual(t, common.Address{}, impls.OpcmV2, "OPCM V2 address should be set")
+	require.NotEqual(t, common.Address{}, impls.Address("opcmV2"), "OPCM V2 address should be set")
 
 	// Set up a test chain
 	l1ChainID := uint64(11155111) // Sepolia chain ID
@@ -205,34 +206,34 @@ func TestCLIMigrateV2(t *testing.T) {
 	// Set superchain deployment addresses
 	if st.SuperchainDeployment == nil {
 		st.SuperchainDeployment = &addresses.SuperchainContracts{
-			SuperchainConfigProxy:    superchainOut.SuperchainConfigProxy,
-			SuperchainConfigImpl:     superchainOut.SuperchainConfigImpl,
-			SuperchainProxyAdminImpl: superchainOut.SuperchainProxyAdmin,
+			SuperchainConfigProxy:    superchainOut.Address("superchainConfigProxy"),
+			SuperchainConfigImpl:     superchainOut.Address("superchainConfigImpl"),
+			SuperchainProxyAdminImpl: superchainOut.Address("superchainProxyAdmin"),
 		}
 	}
 
 	// Set implementations deployment addresses
 	if st.ImplementationsDeployment == nil {
 		st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-			OpcmV2Impl:                       impls.OpcmV2,
-			OpcmContainerImpl:                impls.OpcmContainer,
-			OpcmUtilsImpl:                    impls.OpcmUtils,
-			OpcmMigratorImpl:                 impls.OpcmMigrator,
-			OptimismPortalImpl:               impls.OptimismPortalImpl,
-			DelayedWethImpl:                  impls.DelayedWETHImpl,
-			EthLockboxImpl:                   impls.ETHLockboxImpl,
-			SystemConfigImpl:                 impls.SystemConfigImpl,
-			L1CrossDomainMessengerImpl:       impls.L1CrossDomainMessengerImpl,
-			L1Erc721BridgeImpl:               impls.L1ERC721BridgeImpl,
-			L1StandardBridgeImpl:             impls.L1StandardBridgeImpl,
-			OptimismMintableErc20FactoryImpl: impls.OptimismMintableERC20FactoryImpl,
-			DisputeGameFactoryImpl:           impls.DisputeGameFactoryImpl,
-			AnchorStateRegistryImpl:          impls.AnchorStateRegistryImpl,
-			PreimageOracleImpl:               impls.PreimageOracleSingleton,
-			MipsImpl:                         impls.MipsSingleton,
-			FaultDisputeGameImpl:             impls.FaultDisputeGameImpl,
-			PermissionedDisputeGameImpl:      impls.PermissionedDisputeGameImpl,
-			OpcmStandardValidatorImpl:        impls.OpcmStandardValidator,
+			OpcmV2Impl:                       impls.Address("opcmV2"),
+			OpcmContainerImpl:                impls.Address("opcmContainer"),
+			OpcmUtilsImpl:                    impls.Address("opcmUtils"),
+			OpcmMigratorImpl:                 impls.Address("opcmMigrator"),
+			OptimismPortalImpl:               impls.Address("optimismPortalImpl"),
+			DelayedWethImpl:                  impls.Address("delayedWETHImpl"),
+			EthLockboxImpl:                   impls.Address("ethLockboxImpl"),
+			SystemConfigImpl:                 impls.Address("systemConfigImpl"),
+			L1CrossDomainMessengerImpl:       impls.Address("l1CrossDomainMessengerImpl"),
+			L1Erc721BridgeImpl:               impls.Address("l1ERC721BridgeImpl"),
+			L1StandardBridgeImpl:             impls.Address("l1StandardBridgeImpl"),
+			OptimismMintableErc20FactoryImpl: impls.Address("optimismMintableERC20FactoryImpl"),
+			DisputeGameFactoryImpl:           impls.Address("disputeGameFactoryImpl"),
+			AnchorStateRegistryImpl:          impls.Address("anchorStateRegistryImpl"),
+			PreimageOracleImpl:               impls.Address("preimageOracleSingleton"),
+			MipsImpl:                         impls.Address("mipsSingleton"),
+			FaultDisputeGameImpl:             impls.Address("faultDisputeGameImpl"),
+			PermissionedDisputeGameImpl:      impls.Address("permissionedDisputeGameImpl"),
+			OpcmStandardValidatorImpl:        impls.Address("opcmStandardValidator"),
 		}
 	}
 	require.NoError(t, pipeline.WriteState(workDir, st))
@@ -280,7 +281,7 @@ func TestCLIMigrateV2(t *testing.T) {
 		"--l1-proxy-admin-owner-address", superchainProxyAdminOwner.Hex(),
 		"--l1-rpc-url", l1RPC,
 		"--private-key", pkHex,
-		"--opcm-impl-address", impls.OpcmV2.Hex(),
+		"--opcm-impl-address", impls.Address("opcmV2").Hex(),
 		"--system-config-proxy-address", systemConfigProxy.Hex(),
 		"--dispute-game-enabled",
 		"--dispute-game-type", "0", // GameTypeCannon (0)

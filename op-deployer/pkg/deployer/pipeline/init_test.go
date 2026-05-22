@@ -69,9 +69,9 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 		require.Nil(t, st.ImplementationsDeployment)
 	})
 
-	t.Run("embedded L1 locator with standard intent types and standard roles", func(t *testing.T) {
+	t.Run("explicit L1 locator with standard intent types and standard roles", func(t *testing.T) {
 		runTest := func(configType state.IntentType) {
-			_, afacts := testutil.LocalArtifacts(t)
+			loc, afacts := testutil.LocalArtifacts(t)
 			host, err := env.DefaultForkedScriptHost(
 				ctx,
 				broadcaster.NoopBroadcaster(),
@@ -91,8 +91,8 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			intent := &state.Intent{
 				ConfigType:         configType,
 				L1ChainID:          l1ChainID,
-				L1ContractsLocator: artifacts.EmbeddedLocator,
-				L2ContractsLocator: artifacts.EmbeddedLocator,
+				L1ContractsLocator: loc,
+				L2ContractsLocator: loc,
 				OPCMAddress:        &opcmAddr,
 			}
 			st := &state.State{
@@ -135,13 +135,14 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 		runTest(state.IntentTypeStandardOverrides)
 	})
 
-	t.Run("tagged L1 locator with standard intent types and modified roles", func(t *testing.T) {
+	t.Run("explicit L1 locator with standard intent types and modified roles", func(t *testing.T) {
 		runTest := func(configType state.IntentType) {
+			loc := localArtifactsLocator(t)
 			intent := &state.Intent{
 				ConfigType:         configType,
 				L1ChainID:          l1ChainID,
-				L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
-				L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
+				L1ContractsLocator: loc,
+				L2ContractsLocator: loc,
 				SuperchainRoles: &addresses.SuperchainRoles{
 					SuperchainGuardian: common.Address{0: 99},
 				},
@@ -168,12 +169,13 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 		runTest(state.IntentTypeStandardOverrides)
 	})
 
-	t.Run("tagged locator with custom intent type", func(t *testing.T) {
+	t.Run("explicit locator with custom intent type", func(t *testing.T) {
+		loc := localArtifactsLocator(t)
 		intent := &state.Intent{
 			ConfigType:         state.IntentTypeCustom,
 			L1ChainID:          l1ChainID,
-			L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
-			L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
+			L1ContractsLocator: loc,
+			L2ContractsLocator: loc,
 			SuperchainRoles: &addresses.SuperchainRoles{
 				SuperchainGuardian: common.Address{0: 99},
 			},
@@ -285,6 +287,11 @@ func TestPopulateSuperchainState(t *testing.T) {
 		// Verify expected values match
 		require.Equal(t, superchain.SuperchainConfigAddr, dep.SuperchainConfigProxy)
 	})
+}
+
+func localArtifactsLocator(t *testing.T) *artifacts.Locator {
+	loc, _ := testutil.LocalArtifacts(t)
+	return loc
 }
 
 // TestPopulateSuperchainState_OPCMV2 validates that PopulateSuperchainState handles the OPCM v2 flow, where only a SuperchainConfigProxy
@@ -424,8 +431,8 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
-		L1ContractsLocator:    artifacts.EmbeddedLocator,
-		L2ContractsLocator:    artifacts.EmbeddedLocator,
+		L1ContractsLocator:    localArtifactsLocator(t),
+		L2ContractsLocator:    localArtifactsLocator(t),
 		SuperchainConfigProxy: &superchain.SuperchainConfigAddr,
 	}
 
@@ -484,8 +491,8 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
-		L1ContractsLocator:    artifacts.EmbeddedLocator,
-		L2ContractsLocator:    artifacts.EmbeddedLocator,
+		L1ContractsLocator:    localArtifactsLocator(t),
+		L2ContractsLocator:    localArtifactsLocator(t),
 		SuperchainConfigProxy: &superchain.SuperchainConfigAddr,
 		SuperchainRoles: &addresses.SuperchainRoles{
 			SuperchainGuardian: common.Address{0: 99},
@@ -553,8 +560,8 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
-		L1ContractsLocator:    artifacts.EmbeddedLocator,
-		L2ContractsLocator:    artifacts.EmbeddedLocator,
+		L1ContractsLocator:    localArtifactsLocator(t),
+		L2ContractsLocator:    localArtifactsLocator(t),
 		OPCMAddress:           &opcmAddr,
 		SuperchainConfigProxy: &superchain.SuperchainConfigAddr,
 	}
@@ -609,8 +616,8 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainRoles_reverts(t *testing.T) {
 	intent := &state.Intent{
 		ConfigType:         state.IntentTypeStandard,
 		L1ChainID:          l1ChainID,
-		L1ContractsLocator: artifacts.EmbeddedLocator,
-		L2ContractsLocator: artifacts.EmbeddedLocator,
+		L1ContractsLocator: localArtifactsLocator(t),
+		L2ContractsLocator: localArtifactsLocator(t),
 		OPCMAddress:        &opcmAddr,
 		SuperchainRoles: &addresses.SuperchainRoles{
 			SuperchainGuardian: common.Address{0: 99},
@@ -675,8 +682,8 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	intent := &state.Intent{
 		ConfigType:         state.IntentTypeStandard,
 		L1ChainID:          l1ChainID,
-		L1ContractsLocator: artifacts.EmbeddedLocator,
-		L2ContractsLocator: artifacts.EmbeddedLocator,
+		L1ContractsLocator: localArtifactsLocator(t),
+		L2ContractsLocator: localArtifactsLocator(t),
 		OPCMAddress:        &opcmAddr,
 	}
 
@@ -743,8 +750,8 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
 		L1ChainID:             l1ChainID,
-		L1ContractsLocator:    artifacts.EmbeddedLocator,
-		L2ContractsLocator:    artifacts.EmbeddedLocator,
+		L1ContractsLocator:    localArtifactsLocator(t),
+		L2ContractsLocator:    localArtifactsLocator(t),
 		SuperchainConfigProxy: &superchain.SuperchainConfigAddr,
 	}
 

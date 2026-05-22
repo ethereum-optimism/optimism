@@ -17,7 +17,7 @@ type Implementations struct {
 	OpcmContainer                    common.Address `json:"OPCMContainer"`
 	DelayedWETHImpl                  common.Address `json:"DelayedWETHImpl"`
 	OptimismPortalImpl               common.Address `json:"OptimismPortalImpl"`
-	ETHLockboxImpl                   common.Address `json:"ETHLockboxImpl"`
+	EthLockboxImpl                   common.Address `json:"ETHLockboxImpl"`
 	PreimageOracleSingleton          common.Address `json:"PreimageOracleSingleton"`
 	MipsSingleton                    common.Address `json:"MipsSingleton"`
 	SystemConfigImpl                 common.Address `json:"SystemConfigImpl"`
@@ -34,6 +34,35 @@ type Implementations struct {
 	SuperPermissionedDisputeGameImpl common.Address `json:"SuperPermissionedDisputeGameImpl"`
 	ZkDisputeGameImpl                common.Address `json:"ZkDisputeGameImpl"`
 	StorageSetterImpl                common.Address `json:"StorageSetterImpl"`
+}
+
+func NewImplementationsFromDeployImplementationsOutput(output opcm.DeployImplementationsOutput) Implementations {
+	return Implementations{
+		OpcmStandardValidator:            output.Address("opcmStandardValidator"),
+		OpcmUtils:                        output.Address("opcmUtils"),
+		OpcmMigrator:                     output.Address("opcmMigrator"),
+		OpcmV2:                           output.Address("opcmV2"),
+		OpcmContainer:                    output.Address("opcmContainer"),
+		DelayedWETHImpl:                  output.Address("delayedWETHImpl"),
+		OptimismPortalImpl:               output.Address("optimismPortalImpl"),
+		EthLockboxImpl:                   output.Address("ethLockboxImpl"),
+		PreimageOracleSingleton:          output.Address("preimageOracleSingleton"),
+		MipsSingleton:                    output.Address("mipsSingleton"),
+		SystemConfigImpl:                 output.Address("systemConfigImpl"),
+		L1CrossDomainMessengerImpl:       output.Address("l1CrossDomainMessengerImpl"),
+		L1ERC721BridgeImpl:               output.Address("l1ERC721BridgeImpl"),
+		L1StandardBridgeImpl:             output.Address("l1StandardBridgeImpl"),
+		OptimismMintableERC20FactoryImpl: output.Address("optimismMintableERC20FactoryImpl"),
+		DisputeGameFactoryImpl:           output.Address("disputeGameFactoryImpl"),
+		AnchorStateRegistryImpl:          output.Address("anchorStateRegistryImpl"),
+		SuperchainConfigImpl:             output.Address("superchainConfigImpl"),
+		FaultDisputeGameImpl:             output.Address("faultDisputeGameImpl"),
+		PermissionedDisputeGameImpl:      output.Address("permissionedDisputeGameImpl"),
+		SuperFaultDisputeGameImpl:        output.Address("superFaultDisputeGameImpl"),
+		SuperPermissionedDisputeGameImpl: output.Address("superPermissionedDisputeGameImpl"),
+		ZkDisputeGameImpl:                output.Address("zkDisputeGameImpl"),
+		StorageSetterImpl:                output.Address("storageSetterImpl"),
+	}
 }
 
 type SuperchainDeployment struct {
@@ -66,22 +95,22 @@ type L2OpchainDeployment struct {
 
 func NewL2OPChainDeploymentFromDeployOPChainOutput(output opcm.DeployOPChainOutput) L2OpchainDeployment {
 	return L2OpchainDeployment{
-		OpChainProxyAdmin:                 output.OpChainProxyAdmin,
-		AddressManager:                    output.AddressManager,
-		L1ERC721BridgeProxy:               output.L1ERC721BridgeProxy,
-		SystemConfigProxy:                 output.SystemConfigProxy,
-		OptimismMintableERC20FactoryProxy: output.OptimismMintableERC20FactoryProxy,
-		L1StandardBridgeProxy:             output.L1StandardBridgeProxy,
-		L1CrossDomainMessengerProxy:       output.L1CrossDomainMessengerProxy,
+		OpChainProxyAdmin:                 output.Address("opChainProxyAdmin"),
+		AddressManager:                    output.Address("addressManager"),
+		L1ERC721BridgeProxy:               output.Address("l1ERC721BridgeProxy"),
+		SystemConfigProxy:                 output.Address("systemConfigProxy"),
+		OptimismMintableERC20FactoryProxy: output.Address("optimismMintableERC20FactoryProxy"),
+		L1StandardBridgeProxy:             output.Address("l1StandardBridgeProxy"),
+		L1CrossDomainMessengerProxy:       output.Address("l1CrossDomainMessengerProxy"),
 		// Fault proof contracts below.
-		OptimismPortalProxy:                output.OptimismPortalProxy,
-		ETHLockboxProxy:                    output.EthLockboxProxy,
-		DisputeGameFactoryProxy:            output.DisputeGameFactoryProxy,
-		AnchorStateRegistryProxy:           output.AnchorStateRegistryProxy,
-		FaultDisputeGame:                   output.FaultDisputeGame,
-		PermissionedDisputeGame:            output.PermissionedDisputeGame,
-		DelayedWETHPermissionedGameProxy:   output.DelayedWETHPermissionedGameProxy,
-		DelayedWETHPermissionlessGameProxy: output.DelayedWETHPermissionlessGameProxy,
+		OptimismPortalProxy:                output.Address("optimismPortalProxy"),
+		ETHLockboxProxy:                    output.Address("ethLockboxProxy"),
+		DisputeGameFactoryProxy:            output.Address("disputeGameFactoryProxy"),
+		AnchorStateRegistryProxy:           output.Address("anchorStateRegistryProxy"),
+		FaultDisputeGame:                   output.Address("faultDisputeGame"),
+		PermissionedDisputeGame:            output.Address("permissionedDisputeGame"),
+		DelayedWETHPermissionedGameProxy:   output.Address("delayedWETHPermissionedGameProxy"),
+		DelayedWETHPermissionlessGameProxy: output.Address("delayedWETHPermissionlessGameProxy"),
 	}
 }
 

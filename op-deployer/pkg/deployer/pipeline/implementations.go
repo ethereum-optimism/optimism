@@ -2,15 +2,10 @@ package pipeline
 
 import (
 	"fmt"
-	"math/big"
-
-	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 func DeployImplementations(env *Env, intent *state.Intent, st *state.State) error {
@@ -23,44 +18,15 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 
 	lgr.Info("deploying implementations")
 
-	proofParams, err := jsonutil.MergeJSON(
-		state.SuperchainProofParams{
-			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
-			MinProposalSizeBytes:            standard.MinProposalSizeBytes,
-			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
-			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
-			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-			DisputeMaxGameDepth:             standard.DisputeMaxGameDepth,
-			DisputeSplitDepth:               standard.DisputeSplitDepth,
-			DisputeClockExtension:           standard.DisputeClockExtension,
-			DisputeMaxClockDuration:         standard.DisputeMaxClockDuration,
-			MIPSVersion:                     standard.MIPSVersion,
-			DevFeatureBitmap:                common.Hash{},
-		},
-		intent.GlobalDeployOverrides,
-	)
+	input, err := evaluateLegacyInputMapping(env, "deploy-implementations.input.yaml", opcm.StaticInputSources{
+		"intent": intent,
+		"state":  st,
+	})
 	if err != nil {
-		return fmt.Errorf("error merging proof params from overrides: %w", err)
+		return fmt.Errorf("failed to build DeployImplementations input: %w", err)
 	}
 
 	var dio opcm.DeployImplementationsOutput
-	input := opcm.DeployImplementationsInput{
-		WithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
-		MinProposalSizeBytes:            new(big.Int).SetUint64(proofParams.MinProposalSizeBytes),
-		ChallengePeriodSeconds:          new(big.Int).SetUint64(proofParams.ChallengePeriodSeconds),
-		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.ProofMaturityDelaySeconds),
-		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
-		MipsVersion:                     new(big.Int).SetUint64(proofParams.MIPSVersion),
-		DevFeatureBitmap:                proofParams.DevFeatureBitmap,
-		FaultGameV2MaxGameDepth:         new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
-		FaultGameV2SplitDepth:           new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
-		FaultGameV2ClockExtension:       new(big.Int).SetUint64(proofParams.DisputeClockExtension),
-		FaultGameV2MaxClockDuration:     new(big.Int).SetUint64(proofParams.DisputeMaxClockDuration),
-		SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxy,
-		SuperchainProxyAdmin:            st.SuperchainDeployment.SuperchainProxyAdminImpl,
-		L1ProxyAdminOwner:               st.SuperchainRoles.SuperchainProxyAdminOwner,
-		Challenger:                      st.SuperchainRoles.Challenger,
-	}
 
 	if env.UseForge {
 		lgr.Info("using Forge for DeployImplementations")
@@ -82,29 +48,29 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	}
 
 	st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-		OpcmStandardValidatorImpl:        dio.OpcmStandardValidator,
-		OpcmUtilsImpl:                    dio.OpcmUtils,
-		OpcmMigratorImpl:                 dio.OpcmMigrator,
-		OpcmV2Impl:                       dio.OpcmV2,
-		OpcmContainerImpl:                dio.OpcmContainer,
-		DelayedWethImpl:                  dio.DelayedWETHImpl,
-		OptimismPortalImpl:               dio.OptimismPortalImpl,
-		EthLockboxImpl:                   dio.ETHLockboxImpl,
-		PreimageOracleImpl:               dio.PreimageOracleSingleton,
-		MipsImpl:                         dio.MipsSingleton,
-		SystemConfigImpl:                 dio.SystemConfigImpl,
-		L1CrossDomainMessengerImpl:       dio.L1CrossDomainMessengerImpl,
-		L1Erc721BridgeImpl:               dio.L1ERC721BridgeImpl,
-		L1StandardBridgeImpl:             dio.L1StandardBridgeImpl,
-		OptimismMintableErc20FactoryImpl: dio.OptimismMintableERC20FactoryImpl,
-		DisputeGameFactoryImpl:           dio.DisputeGameFactoryImpl,
-		AnchorStateRegistryImpl:          dio.AnchorStateRegistryImpl,
-		FaultDisputeGameImpl:             dio.FaultDisputeGameImpl,
-		PermissionedDisputeGameImpl:      dio.PermissionedDisputeGameImpl,
-		ZkDisputeGameImpl:                dio.ZkDisputeGameImpl,
-		StorageSetterImpl:                dio.StorageSetterImpl,
-		SuperFaultDisputeGameImpl:        dio.SuperFaultDisputeGameImpl,
-		SuperPermissionedDisputeGameImpl: dio.SuperPermissionedDisputeGameImpl,
+		OpcmStandardValidatorImpl:        dio.Address("opcmStandardValidator"),
+		OpcmUtilsImpl:                    dio.Address("opcmUtils"),
+		OpcmMigratorImpl:                 dio.Address("opcmMigrator"),
+		OpcmV2Impl:                       dio.Address("opcmV2"),
+		OpcmContainerImpl:                dio.Address("opcmContainer"),
+		DelayedWethImpl:                  dio.Address("delayedWETHImpl"),
+		OptimismPortalImpl:               dio.Address("optimismPortalImpl"),
+		EthLockboxImpl:                   dio.Address("ethLockboxImpl"),
+		PreimageOracleImpl:               dio.Address("preimageOracleSingleton"),
+		MipsImpl:                         dio.Address("mipsSingleton"),
+		SystemConfigImpl:                 dio.Address("systemConfigImpl"),
+		L1CrossDomainMessengerImpl:       dio.Address("l1CrossDomainMessengerImpl"),
+		L1Erc721BridgeImpl:               dio.Address("l1ERC721BridgeImpl"),
+		L1StandardBridgeImpl:             dio.Address("l1StandardBridgeImpl"),
+		OptimismMintableErc20FactoryImpl: dio.Address("optimismMintableERC20FactoryImpl"),
+		DisputeGameFactoryImpl:           dio.Address("disputeGameFactoryImpl"),
+		AnchorStateRegistryImpl:          dio.Address("anchorStateRegistryImpl"),
+		FaultDisputeGameImpl:             dio.Address("faultDisputeGameImpl"),
+		PermissionedDisputeGameImpl:      dio.Address("permissionedDisputeGameImpl"),
+		ZkDisputeGameImpl:                dio.Address("zkDisputeGameImpl"),
+		StorageSetterImpl:                dio.Address("storageSetterImpl"),
+		SuperFaultDisputeGameImpl:        dio.Address("superFaultDisputeGameImpl"),
+		SuperPermissionedDisputeGameImpl: dio.Address("superPermissionedDisputeGameImpl"),
 	}
 
 	return nil

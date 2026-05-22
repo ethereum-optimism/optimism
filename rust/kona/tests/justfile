@@ -286,11 +286,14 @@ action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
 
 update-packages:
     #!/bin/bash
-    cd {{SOURCE}}/optimism/op-deployer && just build-contracts copy-contract-artifacts
-    cp {{SOURCE}}/optimism/op-deployer/pkg/deployer/artifacts/forge-artifacts/artifacts.tzst {{SOURCE}}/artifacts/compressed/artifacts.tzst
+    cd {{SOURCE}}/optimism/op-deployer && just build-contracts
+    mkdir -p {{SOURCE}}/artifacts/compressed
+    cd {{SOURCE}}/optimism/op-deployer && go run ./pkg/deployer/artifacts/cmd/mktar \
+      -base ../packages/contracts-bedrock \
+      -out {{SOURCE}}/artifacts/compressed/artifacts.tzst \
+      --exclude="*.t.sol"
 
 # Updates the pinned version of the optimism
 update-optimism:
   #!/bin/bash
   git submodule update --remote --force
-
