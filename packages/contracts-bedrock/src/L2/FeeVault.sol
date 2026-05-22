@@ -135,6 +135,8 @@ abstract contract FeeVault is ProxyAdminOwnedBase, Initializable {
     }
 
     /// @notice Updates the recipient and network to which vault fees will be withdrawn.
+    ///         This function is safer than calling `setRecipient` and `setWithdrawalNetwork` separately,
+    ///         and should be preferred if both are being updated.
     /// @param _newRecipient The new recipient address.
     /// @param _newWithdrawalNetwork The new withdrawal network.
     function setWithdrawalRoute(address _newRecipient, Types.WithdrawalNetwork _newWithdrawalNetwork) external {
