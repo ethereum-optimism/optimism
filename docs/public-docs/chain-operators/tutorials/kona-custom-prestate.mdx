@@ -1,0 +1,169 @@
+---
+title: "Generating a custom kona-client absolute prestate"
+description: "How to build a kona-client absolute prestate that embeds a chain configuration not yet in the public Superchain Registry."
+---
+
+# Overview
+
+For chains that are part of the public [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry), the standard `kona-client` absolute prestate published in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml) already embeds your chain configuration. No custom build is needed.
+
+This tutorial is for the rarer case: a partner chain whose `RollupConfig` is not yet in the public registry but which still needs to run permissionless fault proofs (`cannon-kona` game type). In that case you must build a custom `kona-client` that embeds your chain's configuration, generate the absolute prestate hash from that build, and host the resulting binary at a URL `op-challenger` can fetch.
+
+<Info>
+  Most chains are in the Superchain Registry and should use the standard prestate. Only follow this tutorial if your chain is **not yet** in the registry. Once the chain is added to the public registry, future releases will cover it via the standard prestate and you can stop maintaining a custom build.
+</Info>
+
+## Prerequisites
+
+Before starting, ensure you have:
+
+- [Docker](https://docs.docker.com/engine/install/) running
+- [`just`](https://github.com/casey/just) installed
+- Push access to a private fork of [`ethereum-optimism/optimism`](https://github.com/ethereum-optimism/optimism) — the fork is where you commit your custom chain configuration
+- Your chain's `rollup.json`, L2 genesis, and deployment artifacts (typically produced by `op-deployer`)
+
+## How kona-client picks up custom chain configurations
+
+`kona-client` reads its embedded chain registry from the [`kona-registry` crate](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry). At build time, the crate's `build.rs` can merge additional chains on top of the canonical Superchain Registry snapshot. The merge is gated by two environment variables:
+
+```bash
+KONA_CUSTOM_CONFIGS=true
+KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/your/configs
+```
+
+When set, the build script reads two files from `KONA_CUSTOM_CONFIGS_DIR`:
+
+- `chainList.json` — light-weight `Chain` entries for your custom chains
+- `configs.json` — full `ChainConfig` + `RollupConfig` entries grouped under a `Superchain` bucket
+
+The full schema and an end-to-end example are documented in the [`kona-registry` README](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry#custom-chain-configurations).
+
+The compiled `kona-client` binary embeds the merged registry via `include_str!()`, so the resulting absolute prestate hash differs from the standard one. Any honest challenger participating in your chain's dispute games will need to run this same binary.
+
+## Generating the custom prestate
+
+<Steps>
+  <Step title="Branch off a kona-node release tag in your private fork">
+    Start from the same `kona-node/v<VERSION>` tag that your chain's nodes are running. Naming convention for the branch is `kona-client/<chain-name>`:
+
+    ```bash
+    git clone https://github.com/<your-org>/optimism-private.git
+    cd optimism-private
+    git fetch upstream --tags
+    git checkout -b kona-client/<chain-name> kona-node/v<VERSION>
+    ```
+  </Step>
+
+  <Step title="Stage your chain configuration">
+    Create a directory for your custom configs and add `chainList.json` and `configs.json` matching the schema documented in the [`kona-registry` README](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry#custom-chain-configurations).
+
+    Recommended location for traceability:
+
+    ```bash
+    mkdir -p rust/kona/crates/protocol/registry/etc/custom-configs/<chain-name>
+    # add chainList.json + configs.json here
+    ```
+
+    Source the values for `configs.json` from your chain's existing artifacts:
+
+    - `genesis.*`, `block_time`, `seq_window_size`, `max_sequencer_drift`, `batch_inbox_address`, hardfork timestamps → your chain's `rollup.json`
+    - `Addresses.*` → your `op-deployer` state (`opChainDeployments[<i>]`)
+    - `Roles.*` → your `op-deployer` state's per-chain `roles` block
+
+    Cross-check each L1 contract address onchain (`cast call`) before committing.
+  </Step>
+
+  <Step title="Wire the build to use your custom-configs directory">
+    Edit `rust/justfile`'s `build-kona-prestate` recipe so it passes your custom-configs path to the docker build automatically. The minimal change:
+
+    ```diff
+       cd "{{KONA_DIR}}/docker/fpvm-prestates"
+    -  just cannon {{VARIANT}} "{{KONA_DIR}}/{{OUTPUT_DIR}}"
+    +  just cannon {{VARIANT}} "{{KONA_DIR}}/{{OUTPUT_DIR}}" \
+    +      "{{KONA_DIR}}/crates/protocol/registry/etc/custom-configs/<chain-name>"
+    ```
+
+    With this wired, the canonical `just reproducible-prestate-kona` command picks up your custom configuration without requiring environment variables at invocation time.
+  </Step>
+
+  <Step title="Commit and push to your private fork">
+    ```bash
+    git add rust/justfile \
+            rust/kona/crates/protocol/registry/etc/custom-configs/<chain-name>/
+    git commit -m "feat(kona-registry): add <chain-name> custom chain configuration"
+    git push origin kona-client/<chain-name>
+    ```
+
+    Keep the branch private until your chain is publicly announced. Once it is, the branch can be pushed to the public monorepo as part of upstreaming.
+  </Step>
+
+  <Step title="Generate the absolute prestate">
+    From the root of the monorepo on your branch:
+
+    ```bash
+    just reproducible-prestate-kona
+    jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json
+    ```
+
+    The hash printed is your chain's custom kona absolute prestate. The build also writes a hash-named gzipped binary at `rust/kona/prestate-artifacts-cannon/0x<hash>.bin.gz` — this is the file `op-challenger` needs to fetch at dispute time.
+  </Step>
+
+  <Step title="Verify reproducibility">
+    From a fresh checkout of the same branch, repeat the build and confirm the hash is bit-identical. Anyone who wants to participate as an honest challenger on your chain must be able to reproduce this hash from the same branch.
+  </Step>
+</Steps>
+
+## Deploying and configuring with the custom prestate
+
+<Steps>
+  <Step title="Host the prestate binary">
+    Upload `0x<hash>.bin.gz` to wherever you serve preimage files for `op-challenger` — typically a GCS bucket or HTTP endpoint. Files must be named by their absolute prestate hash so the challenger can resolve them on demand.
+  </Step>
+
+  <Step title="Deploy a new FaultDisputeGame implementation with the custom prestate">
+    The `absolutePrestate` constructor argument on `FaultDisputeGame` is immutable, so each new prestate requires a fresh implementation deployment. Once deployed, register it on your `DisputeGameFactory`:
+
+    ```solidity
+    DisputeGameFactory.setImplementation(GAME_TYPE_CANNON_KONA, newImpl);
+    ```
+
+    `GAME_TYPE_CANNON_KONA` is `8`.
+  </Step>
+
+  <Step title="Configure op-challenger">
+    Point `op-challenger` at your bucket and provide your chain's runtime configuration:
+
+    ```bash
+    --game-factory-address=<your-DGFProxy-address>
+    --cannon-kona-prestates-url=<bucket-base-url>
+    --cannon-kona-rollup-config=/path/to/your/rollup.json
+    --cannon-kona-l2-genesis=/path/to/your/L2-genesis.json
+    --trace-type=cannon-kona,permissioned
+    ```
+
+    The `--cannon-kona-prestates-url` is a directory URL; the challenger appends `/0x<hash>.bin.gz` automatically when a dispute references that hash. The `--cannon-kona-rollup-config` and `--cannon-kona-l2-genesis` flags supply your chain's config to `kona-client` at runtime (in addition to it being embedded in the binary).
+
+    If you're not using the standard OP Labs `op-challenger` Docker image, also set the `kona-host` binary path:
+
+    ```bash
+    --cannon-kona-server=/path/to/kona-host
+    ```
+
+    Build `kona-host` from the same release as the configured cannon-kona prestate.
+  </Step>
+</Steps>
+
+## After your chain is added to the Superchain Registry
+
+Once your chain's configuration lands in the public [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry), future `kona-client` releases will include it in the standard prestate. From that point you can:
+
+- Stop maintaining the custom branch in your private fork.
+- Switch to the standard prestate hash from `standard-prestates.toml` at the next prestate upgrade (typically a hardfork-driven event).
+- Deploy a new `FaultDisputeGame` implementation with the standard `absolutePrestate` and `setImplementation` to it.
+
+The custom-prestate branch can be removed from the private fork once no in-flight dispute games reference its absolute prestate.
+
+## Next Steps
+
+- [Upgrade 19 notice](/notices/upgrade-19) — the `cannon-kona` game type promotion and reference build commands for the standard prestate.
+- [Generating absolute prestate and preimage files](/chain-operators/tutorials/absolute-prestate) — the equivalent tutorial for `op-program` (cannon, game type 1), kept for chains still running that game type.
