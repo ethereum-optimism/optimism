@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -44,14 +45,14 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 			superchainConfigAddr = *intent.SuperchainConfigProxy
 		}
 
-		// If only an OPCM address is provided, resolve SuperchainConfigProxy from it on-chain.
+		// If only an OPCM address is provided, look up SuperchainConfigProxy from the
+		// Superchain Registry. OPCMv2 does not expose a superchainConfig() getter.
 		if superchainConfigAddr == (common.Address{}) && opcmAddr != (common.Address{}) {
-			opcmContract := opcm.NewContract(opcmAddr, env.L1Client)
-			resolved, err := opcmContract.SuperchainConfig(ctx)
+			superCfg, err := standard.SuperchainFor(intent.L1ChainID)
 			if err != nil {
-				return fmt.Errorf("error resolving SuperchainConfig from OPCM at %s: %w", opcmAddr, err)
+				return fmt.Errorf("error resolving SuperchainConfig for L1 chain %d: %w", intent.L1ChainID, err)
 			}
-			superchainConfigAddr = resolved
+			superchainConfigAddr = superCfg.SuperchainConfigAddr
 		}
 		superDeployment, superRoles, err := PopulateSuperchainState(env, opcmAddr, superchainConfigAddr)
 		if err != nil {
