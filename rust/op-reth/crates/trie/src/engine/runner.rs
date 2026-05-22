@@ -25,13 +25,8 @@ const SYNC_BACKOFF_INITIAL: Duration = Duration::from_millis(100);
 /// failure modes (e.g. provider regression that outlives our state) to ~0.1/sec.
 const SYNC_BACKOFF_MAX: Duration = Duration::from_secs(10);
 
-const fn next_sync_backoff(current: Duration) -> Duration {
-    if current.is_zero() {
-        SYNC_BACKOFF_INITIAL
-    } else {
-        let doubled = current.saturating_mul(2);
-        if doubled.as_nanos() > SYNC_BACKOFF_MAX.as_nanos() { SYNC_BACKOFF_MAX } else { doubled }
-    }
+fn next_sync_backoff(current: Duration) -> Duration {
+    current.saturating_mul(2).clamp(SYNC_BACKOFF_INITIAL, SYNC_BACKOFF_MAX)
 }
 
 /// The engine that runs on a dedicated thread, dispatching [`EngineAction`]
