@@ -36,6 +36,14 @@ var (
 // executing message.
 const DefaultLogBackfillDepth = time.Duration(depset.MessageExpiryTimeSecondsInterop) * time.Second
 
+// Interop activity state values exposed via supernode_interop_activity_state gauge.
+const (
+	InteropStateNotStarted       = 0
+	InteropStateColdStartWaiting = 1
+	InteropStateRunning          = 2
+	InteropStateHalted           = 3
+)
+
 // InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
 var InteropActivationTimestampFlag = &cli.Uint64Flag{
 	Name:    "interop.activation-timestamp",
@@ -316,12 +324,14 @@ func (i *Interop) tryInitFromVerifiedDB() {
 		i.verificationStartTimestamp = lastTS + 1
 		i.initialized.Store(true)
 		i.backfillCompleted.Store(true) // resume skips backfill
+		i.metrics.InteropActivityState.Set(InteropStateRunning)
 		i.log.Info("interop resuming from verifiedDB",
 			"verificationStartTimestamp", i.verificationStartTimestamp,
 			"activationTimestamp", i.activationTimestamp)
 		return
 	}
 	i.waitingForSync = true
+	i.metrics.InteropActivityState.Set(InteropStateColdStartWaiting)
 	i.log.Info("interop cold start; waiting for SafeDB entries on every chain",
 		"activationTimestamp", i.activationTimestamp)
 }
@@ -383,6 +393,7 @@ func (i *Interop) waitForColdStartInit() (time.Duration, error) {
 	}
 	i.waitingForSync = false
 	i.initialized.Store(true)
+	i.metrics.InteropActivityState.Set(InteropStateRunning)
 	i.log.Info("interop cold start complete",
 		"activationTimestamp", i.activationTimestamp,
 		"verificationStartTimestamp", i.verificationStartTimestamp)
@@ -428,6 +439,7 @@ func (i *Interop) progress() (time.Duration, error) {
 	if err != nil {
 		if errors.Is(err, cc.ErrHistoryUnavailable) {
 			i.metrics.ActivityErrors.WithLabelValues("interop", "history_unavailable").Inc()
+			i.metrics.InteropActivityState.Set(InteropStateHalted)
 			i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
 				"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
 			return 0, fmt.Errorf("interop halted due to unavailable history: %w", err)
