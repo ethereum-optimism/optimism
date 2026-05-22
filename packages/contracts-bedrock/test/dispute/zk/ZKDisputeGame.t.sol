@@ -225,8 +225,7 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         assertEq(game.maxProveDuration().raw(), maxProveDuration.raw());
         assertEq(address(game.disputeGameFactory()), address(disputeGameFactory));
         assertEq(game.l2SequenceNumber(), childL2SequenceNumber);
-        // l2ChainId is internal now (always zero for super games — enforced by `NoChainIdNeeded`
-        // in initialize(); see `test_initialize_l2ChainIdNonZero_reverts`).
+        // l2ChainId is internal and always 0. see `test_initialize_l2ChainIdNonZero_reverts`
         assertEq(address(game.weth()), address(delayedWeth));
         assertEq(address(game.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(game.parentIndex(), parentGameIndex);

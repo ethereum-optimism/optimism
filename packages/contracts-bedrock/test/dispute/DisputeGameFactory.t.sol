@@ -999,8 +999,7 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         assertEq(_proxy.challengerBond(), _params.challengerBond);
         assertEq(address(_proxy.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(_proxy.weth()), address(delayedWeth));
-        // Super-root games carry a zero l2ChainId in the impl-args slot.
-        assertEq(_proxy.l2ChainId(), 0);
+        // `_l2ChainId` is internal always zero for valid super games enforced by `initialize()`
 
         // Bond is held by DelayedWETH, not the game proxy itself.
         assertEq(address(_proxy).balance, 0);

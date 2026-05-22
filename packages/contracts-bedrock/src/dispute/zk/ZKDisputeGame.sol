@@ -204,7 +204,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     //              CWIA GETTERS (IMPL-ARGS, DYNAMIC OFFSETS)     //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Returns the absolute prestate commitment (ZK circuit identity) for the multi-chain super-root ZK program.
+    /// @notice Returns the absolute prestate commitment (ZK circuit identity) for the super-root ZK program.
     /// @dev `clones-with-immutable-args` argument #6
     /// @return absolutePrestate_ The absolute prestate vkey of the multi-chain super-root ZK circuit.
     function absolutePrestate() public pure returns (bytes32 absolutePrestate_) {
@@ -253,17 +253,15 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         weth_ = IDelayedWETH(payable(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 120)));
     }
 
-    /// @notice Returns the L2 chain ID.
-    /// @dev `clones-with-immutable-args` argument #13. Kept in the impl-args layout for
-    ///      backwards-compatibility with the existing factory packing. Must be zero for super
-    ///      games, enforced in `initialize()`.
-    /// @return l2ChainId_ The L2 chain ID. Always zero for super games.
-    function l2ChainId() public pure returns (uint256 l2ChainId_) {
+    /// @notice Returns the L2 chain ID slot from the impl-args.
+    /// @dev `clones-with-immutable-args` argument #13. Must be zero for super games,
+    ///       enforced in `initialize()`.
+    /// @return l2ChainId_ The L2 chain ID. Always zero for valid super games.
+    function _l2ChainId() internal pure returns (uint256 l2ChainId_) {
         l2ChainId_ = _getArgUint256(_preExtraDataByteCount() + _extraDataByteCount() + 140);
     }
 
     /// @notice Getter for the extra data.
-    /// @dev `clones-with-immutable-args` argument #5
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     ///         Layout: 4 bytes parentIndex || 1 byte version || 8 bytes timestamp || n*(32+32) bytes (chainId, root)
     /// pairs.
@@ -381,7 +379,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         }
 
         // The l2ChainId must still exist, yet zero-valued, in the game args for legacy reasons.
-        if (l2ChainId() != 0) revert NoChainIdNeeded();
+        if (_l2ChainId() != 0) revert NoChainIdNeeded();
 
         // Do not allow the game to be initialized if the root claim corresponds to a sequence number (timestamp) at
         // or before the configured starting sequence number.
