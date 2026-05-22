@@ -681,6 +681,9 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 	if !e.isEngineInitialELSyncing() {
 		fc.FinalizedBlockHash = e.FinalizedHead().Hash
 	}
+	elSyncFinalizing := false
+	var safeRef eth.L2BlockRef
+	var finalizedRef eth.L2BlockRef
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
 		offsetRef := ref
 		if target := sync.OffsetBlockNum(e.syncCfg.OffsetELSafe, e.rollupCfg.BlockTime, ref.Number, e.rollupCfg.Genesis.L2.Number); target < ref.Number {
@@ -693,22 +696,17 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		// With SupportsPostFinalizationELSync, EL sync can start even when
 		// there is already a finalized head. Never retract finalized or safe
 		// behind their prior values.
-		finalizedRef := offsetRef
+		finalizedRef = offsetRef
 		if finalizedRef.Number < e.FinalizedHead().Number {
 			finalizedRef = e.FinalizedHead()
 		}
-		safeRef := offsetRef
+		safeRef = offsetRef
 		if safeRef.Number < e.SafeL2Head().Number {
 			safeRef = e.SafeL2Head()
 		}
 		fc.SafeBlockHash = safeRef.Hash
 		fc.FinalizedBlockHash = finalizedRef.Hash
-		e.SetUnsafeHead(ref)
-		e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
-		e.SetLocalSafeHead(safeRef)
-		e.SetDeprecatedSafeHead(safeRef)
-		e.onSafeUpdate(ctx, safeRef, safeRef)
-		e.SetFinalizedHead(finalizedRef)
+		elSyncFinalizing = true
 	}
 	logFn := e.logSyncProgressMaybe()
 	defer logFn()
@@ -734,9 +732,23 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 			payload.ID(), payload.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 	}
 	fcu2Finish := time.Now()
+	if e.syncCfg.SyncMode == sync.ELSync && fcRes.PayloadStatus.Status != eth.ExecutionValid {
+		if elSyncFinalizing {
+			e.syncStatus = syncStatusStartedEL
+		}
+		e.log.Info("EL sync payload accepted as sync target, but not promoted to unsafe head",
+			"ref", ref, "status", fcRes.PayloadStatus.Status)
+		return nil
+	}
 	e.SetUnsafeHead(ref)
 	e.lastForkchoice = fc
 	e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
+	if elSyncFinalizing {
+		e.SetLocalSafeHead(safeRef)
+		e.SetDeprecatedSafeHead(safeRef)
+		e.onSafeUpdate(ctx, safeRef, safeRef)
+		e.SetFinalizedHead(finalizedRef)
+	}
 
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
 		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart),

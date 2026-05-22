@@ -162,3 +162,50 @@ func TestInsertUnsafePayload_ELSync_offsetDerived(t *testing.T) {
 		})
 	}
 }
+
+func TestInsertUnsafePayload_ELSyncSyncingDoesNotPromoteUnsafe(t *testing.T) {
+	cfg, refA0, _, _, refA3, payload := buildELSyncTipChain(t)
+
+	mockEngine := &testutils.MockEngine{}
+	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, refA0, nil)
+	mockEngine.ExpectNewPayload(payload.ExecutionPayload, nil, &eth.PayloadStatusV1{Status: eth.ExecutionSyncing}, nil)
+	mockEngine.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
+		HeadBlockHash: refA3.Hash,
+		SafeBlockHash: common.Hash{},
+	}, nil, &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}}, nil)
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg,
+		&sync.Config{SyncMode: sync.ELSync}, &testutils.MockL1Source{}, discardEmitter{}, nil)
+	ec.SyncDeriver = noopSyncDeriver{}
+
+	err := ec.InsertUnsafePayload(context.Background(), payload, refA3)
+	require.NoError(t, err)
+	require.Equal(t, eth.L2BlockRef{}, ec.unsafeHead)
+	require.Equal(t, eth.L2BlockRef{}, ec.localSafeHead)
+	require.Equal(t, eth.L2BlockRef{}, ec.FinalizedHead())
+	mockEngine.AssertExpectations(t)
+}
+
+func TestInsertUnsafePayload_ELSyncValidNewPayloadSyncingFCUDoesNotPromoteUnsafe(t *testing.T) {
+	cfg, refA0, _, _, refA3, payload := buildELSyncTipChain(t)
+
+	mockEngine := &testutils.MockEngine{}
+	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, refA0, nil)
+	mockEngine.ExpectNewPayload(payload.ExecutionPayload, nil, &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil)
+	mockEngine.ExpectForkchoiceUpdate(&eth.ForkchoiceState{
+		HeadBlockHash:      refA3.Hash,
+		SafeBlockHash:      refA3.Hash,
+		FinalizedBlockHash: refA3.Hash,
+	}, nil, &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}}, nil)
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg,
+		&sync.Config{SyncMode: sync.ELSync}, &testutils.MockL1Source{}, discardEmitter{}, nil)
+	ec.SyncDeriver = noopSyncDeriver{}
+
+	err := ec.InsertUnsafePayload(context.Background(), payload, refA3)
+	require.NoError(t, err)
+	require.Equal(t, eth.L2BlockRef{}, ec.unsafeHead)
+	require.Equal(t, eth.L2BlockRef{}, ec.localSafeHead)
+	require.Equal(t, eth.L2BlockRef{}, ec.FinalizedHead())
+	mockEngine.AssertExpectations(t)
+}
