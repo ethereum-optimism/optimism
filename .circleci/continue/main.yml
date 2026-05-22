@@ -907,12 +907,8 @@ jobs:
               TIMEOUT="45m"
             fi
             ../ops/scripts/gotestsum-split.sh --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
-            -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
+            -- -timeout=$TIMEOUT -parallel=$(nproc) ./...
           working_directory: cannon
-      - codecov/upload:
-          disable_search: true
-          files: ./cannon/coverage-64.out
-          flags: cannon-go-tests-64
       - store_test_results:
           path: ./tmp/test-results
       - store_artifacts:
@@ -1866,9 +1862,6 @@ jobs:
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
             just go-tests-fraud-proofs-ci
-      - codecov/upload:
-          disable_search: true
-          files: ./coverage.out
       - store_test_results:
           path: ./tmp/test-results
       - run:
