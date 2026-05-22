@@ -107,8 +107,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice The starting timestamp of the game.
     Timestamp public createdAt;
@@ -204,9 +204,9 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     //              CWIA GETTERS (IMPL-ARGS, DYNAMIC OFFSETS)     //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Returns the absolute prestate commitment (ZK circuit identity).
+    /// @notice Returns the absolute prestate commitment (ZK circuit identity) for the multi-chain super-root ZK program.
     /// @dev `clones-with-immutable-args` argument #6
-    /// @return absolutePrestate_ The absolute prestate commitment of the ZK circuit.
+    /// @return absolutePrestate_ The absolute prestate vkey of the multi-chain super-root ZK circuit.
     function absolutePrestate() public pure returns (bytes32 absolutePrestate_) {
         absolutePrestate_ = _getArgBytes32(_preExtraDataByteCount() + _extraDataByteCount());
     }
@@ -533,9 +533,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // INVARIANT: Cannot prove if the game is over.
         if (gameOver()) revert GameOver();
 
-        // Construct the public values for verification.
+        // Construct the public values for verification. `l2ChainId` is always 0 for super-root games,
+        // so it is omitted from the encoding.
         bytes memory publicValues =
-            abi.encode(l1Head(), startingProposal.root, rootClaim(), l2SequenceNumber(), l2ChainId(), msg.sender);
+            abi.encode(l1Head(), startingProposal.root, rootClaim(), l2SequenceNumber(), msg.sender);
 
         // Verify the proof. Reverts if the proof is invalid.
         verifier().verify(absolutePrestate(), publicValues, _proofBytes);
