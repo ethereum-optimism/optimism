@@ -11,7 +11,6 @@ import { Config } from "scripts/libraries/Config.sol";
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
 // Reuse all test logic from L2ForkUpgrade — only setUp differs
@@ -98,48 +97,14 @@ contract L2VerifyBetanetForkUpgrade_Implementations_Test is
         // Pre-capture expected implementations before any fork switch:
         // in activation mode vm.createSelectFork creates a new fork where generateScript
         // (deployed on fork 0) is not accessible.
-        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
-        address[] memory expectedImpls = new address[](predeploys.length);
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            if (!_isFeaturePredeployAndDisabled(predeploys[i])) {
-                expectedImpls[i] = _getExpectedImplementation(predeploys[i], Predeploys.getName(predeploys[i]));
-            }
-        }
+        PredeployState[] memory predeploys = _getPreUpgradePredeploys();
+        address[] memory expectedImpls = _getExpectedImpls(predeploys);
 
         // Execute bundle on forked L2
         _executeCurrentBundle();
 
         // Verify each predeploy's implementation
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            address predeploy = predeploys[i];
-
-            if (_isFeaturePredeployAndDisabled(predeploy)) {
-                continue;
-            }
-
-            // Get predeploy name
-            string memory name = Predeploys.getName(predeploy);
-
-            // Use pre-captured expected implementation (generateScript unavailable after fork switch)
-            address expectedImpl = expectedImpls[i];
-
-            // Get actual implementation from proxy
-            address actualImpl = address(uint160(uint256(vm.load(predeploy, IMPLEMENTATION_SLOT))));
-
-            // Verify implementation matches
-            assertEq(
-                actualImpl,
-                expectedImpl,
-                string.concat("Implementation mismatch for ", name, ": ", vm.toString(predeploy))
-            );
-
-            // Verify implementation has code
-            assertGt(
-                actualImpl.code.length,
-                0,
-                string.concat("Implementation has no code for ", name, ": ", vm.toString(actualImpl))
-            );
-        }
+        _verifyImplementations(predeploys, expectedImpls);
     }
 }
 
@@ -161,8 +126,8 @@ contract L2VerifyBetanetForkUpgrade_Events_Test is L2VerifyBetanetForkUpgrade_Te
         // Pre-capture everything from generateScript before any fork switch:
         // in activation mode vm.createSelectFork creates a new fork where generateScript
         // (deployed on fork 0) is not accessible.
-        (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
-        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
+        address storageSetterImpl = generateScript.findImplByName("StorageSetter");
+        PredeployState[] memory predeploys = _getPreUpgradePredeploys();
         address[] memory expectedImpls = _getExpectedImpls(predeploys);
 
         // Execute upgrade bundle
@@ -175,7 +140,7 @@ contract L2VerifyBetanetForkUpgrade_Events_Test is L2VerifyBetanetForkUpgrade_Te
         _verifyEvents(predeploys, logs, expectedImpls, storageSetterImpl);
     }
 
-    function _getLogs(address[] memory predeploys) internal returns (Vm.Log[] memory logs_) {
+    function _getLogs(PredeployState[] memory predeploys) internal returns (Vm.Log[] memory logs_) {
         bytes32[] memory topics = new bytes32[](1);
         uint256 activationBlockNumber = Config.l2ForkBlockNumber() + 1;
         topics[0] = UPGRADED_EVENT_TOPIC;
@@ -184,7 +149,8 @@ contract L2VerifyBetanetForkUpgrade_Events_Test is L2VerifyBetanetForkUpgrade_Te
         uint256 totalCount = 0;
         Vm.EthGetLogs[][] memory perDeployLogs = new Vm.EthGetLogs[][](predeploys.length);
         for (uint256 p = 0; p < predeploys.length; p++) {
-            perDeployLogs[p] = vm.eth_getLogs(activationBlockNumber, activationBlockNumber, predeploys[p], topics);
+            perDeployLogs[p] =
+                vm.eth_getLogs(activationBlockNumber, activationBlockNumber, predeploys[p].predeploy, topics);
             totalCount += perDeployLogs[p].length;
         }
         Vm.EthGetLogs[] memory ethLogs = new Vm.EthGetLogs[](totalCount);

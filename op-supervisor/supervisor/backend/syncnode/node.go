@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
@@ -284,10 +285,10 @@ func (m *ManagedNode) onResetEvent(errStr string) {
 
 func (m *ManagedNode) onUpdateLocalSafeFailed(ev superevents.UpdateLocalSafeFailedEvent) {
 	switch {
-	case errors.Is(ev.Err, types.ErrConflict):
+	case errors.Is(ev.Err, interop.ErrConflict):
 		m.log.Warn("DB indicated a conflict with this node, checking if node is inconsistent")
 		m.resetIfInconsistent()
-	case errors.Is(ev.Err, types.ErrFuture):
+	case errors.Is(ev.Err, interop.ErrFuture):
 		m.log.Warn("DB indicated this node provided an update from the future, checking if node is ahead")
 		m.resetIfAhead()
 	}
@@ -449,7 +450,7 @@ func (m *ManagedNode) resetIfInconsistent() {
 	if localSafeMatchErr == nil {
 		return
 	}
-	if errors.Is(localSafeMatchErr, types.ErrFuture) {
+	if errors.Is(localSafeMatchErr, interop.ErrFuture) {
 		m.log.Debug("node is ahead of op-supervisor local-safe data")
 		return // resetIfAhead will handle this
 	}
@@ -473,7 +474,7 @@ func (m *ManagedNode) resetIfAhead() {
 
 	// get the last local safe block
 	lastDBLocalSafe, err := m.backend.LocalSafe(ctx, m.chainID)
-	if errors.Is(err, types.ErrFuture) {
+	if errors.Is(err, interop.ErrFuture) {
 		m.log.Info("no activation block yet, initiating pre-Interop reset")
 		m.emitter.Emit(m.ctx, superevents.ResetPreInteropRequestEvent{ChainID: m.chainID})
 		return
@@ -500,7 +501,7 @@ func (m *ManagedNode) resetFullRange() {
 	internalCtx, iCancel := context.WithTimeout(m.ctx, internalTimeout)
 	defer iCancel()
 	dbLast, err := m.backend.LocalSafe(internalCtx, m.chainID)
-	if errors.Is(err, types.ErrFuture) {
+	if errors.Is(err, interop.ErrFuture) {
 		m.log.Info("no activation block yet, initiating pre-Interop reset")
 		m.emitter.Emit(m.ctx, superevents.ResetPreInteropRequestEvent{
 			ChainID: m.chainID})

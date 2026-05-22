@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
@@ -113,7 +114,7 @@ func (r *Rewinder) handleLocalDerivedEvent(ev superevents.LocalSafeUpdateEvent) 
 	// until we find a common ancestor or reach the finalized block
 	finalized, err := r.db.Finalized(ev.ChainID)
 	if err != nil {
-		if errors.Is(err, types.ErrFuture) {
+		if errors.Is(err, interop.ErrFuture) {
 			finalized = messages.BlockSeal{Number: 0}
 		} else {
 			r.log.Error("failed to get finalized block", "chain", ev.ChainID, "err", err)
@@ -131,7 +132,7 @@ func (r *Rewinder) handleLocalDerivedEvent(ev superevents.LocalSafeUpdateEvent) 
 
 		_, err := r.db.LocalDerivedToSource(ev.ChainID, target.ID())
 		if err != nil {
-			if errors.Is(err, types.ErrConflict) || errors.Is(err, types.ErrFuture) {
+			if errors.Is(err, interop.ErrConflict) || errors.Is(err, interop.ErrFuture) {
 				continue
 			}
 
@@ -176,7 +177,7 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 	finalized, err := r.db.Finalized(chainID)
 	if err != nil {
 		// If we don't have a finalized block, use the genesis block
-		if errors.Is(err, types.ErrFuture) {
+		if errors.Is(err, interop.ErrFuture) {
 			finalized, err = r.db.FindSealedBlock(chainID, 0)
 			if err != nil {
 				return fmt.Errorf("failed to get index 0 block for chain %s: %w", chainID, err)
@@ -215,7 +216,7 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 		prevSource, err := r.db.PreviousSource(chainID, currentL1)
 		if err != nil {
 			// If we hit the first block, use it as common ancestor
-			if errors.Is(err, types.ErrPreviousToFirst) {
+			if errors.Is(err, interop.ErrPreviousToFirst) {
 				// Still need to verify this block is canonical
 				remoteFirst, err := r.l1Node.L1BlockRefByNumber(context.Background(), currentL1.Number)
 				if err != nil {
@@ -238,7 +239,7 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 
 	// Rewind LocalSafe to not include data derived from the old L1 chain
 	if err := r.db.RewindLocalSafeSource(chainID, commonL1Ancestor); err != nil {
-		if errors.Is(err, types.ErrFuture) {
+		if errors.Is(err, interop.ErrFuture) {
 			r.log.Warn("Rewinding on L1 reorg, but local-safe DB does not have L1 block", "block", commonL1Ancestor, "err", err)
 		} else {
 			return fmt.Errorf("failed to rewind local-safe for chain %s: %w", chainID, err)
@@ -247,7 +248,7 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 
 	// Rewind CrossSafe to not include data derived from the old L1 chain
 	if err := r.db.RewindCrossSafeSource(chainID, commonL1Ancestor); err != nil {
-		if errors.Is(err, types.ErrFuture) {
+		if errors.Is(err, interop.ErrFuture) {
 			r.log.Warn("Rewinding on L1 reorg, but cross-safe DB does not have L1 block", "block", commonL1Ancestor, "err", err)
 		} else {
 			return fmt.Errorf("failed to rewind cross-safe for chain %s: %w", chainID, err)

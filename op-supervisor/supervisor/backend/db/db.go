@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
@@ -275,7 +276,7 @@ func (db *ChainsDB) ResumeFromLastSealedBlock() error {
 		}
 		db.logger.Info("Resuming, starting from last sealed block", "chain", chain, "head", head)
 		if err := logStore.Rewind(db.readRegistry, head); err != nil {
-			result = fmt.Errorf("%w: failed to rewind chain %s to sealed block %d", types.ErrRewindFailed, chain, head)
+			result = fmt.Errorf("%w: failed to rewind chain %s to sealed block %d", interop.ErrRewindFailed, chain, head)
 			return false
 		}
 		return true

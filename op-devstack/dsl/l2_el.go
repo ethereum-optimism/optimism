@@ -67,13 +67,30 @@ func (el *L2ELNode) BlockRefByHash(hash common.Hash) eth.L2BlockRef {
 	return block
 }
 
-func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64) CheckFunc {
+// AdvancedOption configures an AdvancedFn call.
+type AdvancedOption func(*advancedOpts)
+
+type advancedOpts struct {
+	attempts int // number of 2-second polling attempts
+}
+
+// WithTimeout overrides AdvancedFn's default polling budget. The argument is
+// the number of attempts; each attempt polls 2 seconds apart, so attempts*2
+// is the total wall-clock timeout.
+func WithTimeout(attempts int) AdvancedOption {
+	return func(o *advancedOpts) { o.attempts = attempts }
+}
+
+func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64, opts ...AdvancedOption) CheckFunc {
+	o := advancedOpts{attempts: int(block + 30)}
+	for _, opt := range opts {
+		opt(&o)
+	}
 	return func() error {
 		initial := el.BlockRefByLabel(label)
 		target := initial.Number + block
-		el.log.Info("expecting chain to advance", "chain", el.inner.ChainID(), "label", label, "target", target)
-		attempts := int(block + 3) // intentionally allow few more attempts for avoid flaking
-		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+		el.log.Info("expecting chain to advance", "chain", el.inner.ChainID(), "label", label, "target", target, "attempts", o.attempts)
+		return retry.Do0(el.ctx, o.attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
 				head := el.BlockRefByLabel(label)
 				if head.Number >= target {

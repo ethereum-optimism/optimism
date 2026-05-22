@@ -9,7 +9,7 @@ type Handle interface {
 	// updating the current range if needed.
 	DependOnSourceBlock(blockNum uint64)
 
-	// Err is a convenience method to return a types.ErrInvalidatedRead whenever the read handle is not valid
+	// Err is a convenience method to return a interop.ErrInvalidatedRead whenever the read handle is not valid
 	Err() error
 
 	// IsValid inspects the dependencies we have seen so far, and the invalidations we have seen,

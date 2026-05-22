@@ -7,11 +7,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // SyncNodesController manages a collection of active sync nodes.
@@ -67,7 +67,7 @@ func (snc *SyncNodesController) Close() error {
 // If noSubscribe, the node is not actively polled/subscribed to, and requires manual ManagedNode.PullEvents calls.
 func (snc *SyncNodesController) AttachNodeController(chainID eth.ChainID, ctrl SyncControl, noSubscribe bool) (Node, error) {
 	if !snc.depSet.HasChain(chainID) {
-		return nil, fmt.Errorf("chain %v not in dependency set: %w", chainID, types.ErrUnknownChain)
+		return nil, fmt.Errorf("chain %v not in dependency set: %w", chainID, interop.ErrUnknownChain)
 	}
 	// lazy init the controllers map for this chain
 	snc.controllers.CreateIfMissing(chainID, func() *locks.RWMap[*ManagedNode, struct{}] {

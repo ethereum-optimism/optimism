@@ -30,6 +30,8 @@ import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.s
 contract L2ContractsManager is ISemver {
     /// @notice Thrown when the upgrade function is called outside of a DELEGATECALL context.
     error L2ContractsManager_OnlyDelegatecall();
+
+    /// @notice Thrown when the fullConfig input and dev feature flags are not compatible.
     error L2ContractsManager_FeatureFlagMismatch();
 
     /// @notice The semantic version of the L2ContractsManager contract.
@@ -105,40 +107,43 @@ contract L2ContractsManager is ISemver {
     address internal immutable L2_DEV_FEATURE_FLAGS_IMPL;
 
     /// @notice Constructor for the L2ContractsManager contract.
-    /// @param _implementations The implementation struct containing the new implementation addresses for the L2
-    /// predeploys.
-    constructor(L2ContractsManagerTypes.Implementations memory _implementations) {
+    /// @dev Loads the implementation addresses for all predeploys.
+    /// @param _implementations Array of name + implementation records for all predeploys.
+    constructor(L2ContractsManagerTypes.ImplRecord[] memory _implementations) {
         // Store the address of this contract for DELEGATECALL enforcement.
         THIS_L2CM = address(this);
 
         // Utility address for upgrading initializable contracts.
-        STORAGE_SETTER_IMPL = _implementations.storageSetterImpl;
+        STORAGE_SETTER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "StorageSetter");
         // Predeploy implementations.
-        L2_CROSS_DOMAIN_MESSENGER_IMPL = _implementations.l2CrossDomainMessengerImpl;
-        GAS_PRICE_ORACLE_IMPL = _implementations.gasPriceOracleImpl;
-        L2_STANDARD_BRIDGE_IMPL = _implementations.l2StandardBridgeImpl;
-        SEQUENCER_FEE_WALLET_IMPL = _implementations.sequencerFeeWalletImpl;
-        OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL = _implementations.optimismMintableERC20FactoryImpl;
-        L2_ERC721_BRIDGE_IMPL = _implementations.l2ERC721BridgeImpl;
-        L1_BLOCK_IMPL = _implementations.l1BlockImpl;
-        L1_BLOCK_CGT_IMPL = _implementations.l1BlockCGTImpl;
-        L2_TO_L1_MESSAGE_PASSER_IMPL = _implementations.l2ToL1MessagePasserImpl;
-        L2_TO_L1_MESSAGE_PASSER_CGT_IMPL = _implementations.l2ToL1MessagePasserCGTImpl;
-        OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL = _implementations.optimismMintableERC721FactoryImpl;
-        PROXY_ADMIN_IMPL = _implementations.proxyAdminImpl;
-        BASE_FEE_VAULT_IMPL = _implementations.baseFeeVaultImpl;
-        L1_FEE_VAULT_IMPL = _implementations.l1FeeVaultImpl;
-        OPERATOR_FEE_VAULT_IMPL = _implementations.operatorFeeVaultImpl;
-        SCHEMA_REGISTRY_IMPL = _implementations.schemaRegistryImpl;
-        EAS_IMPL = _implementations.easImpl;
-        CROSS_L2_INBOX_IMPL = _implementations.crossL2InboxImpl;
-        L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL = _implementations.l2ToL2CrossDomainMessengerImpl;
-        SUPERCHAIN_ETH_BRIDGE_IMPL = _implementations.superchainETHBridgeImpl;
-        ETH_LIQUIDITY_IMPL = _implementations.ethLiquidityImpl;
-        NATIVE_ASSET_LIQUIDITY_IMPL = _implementations.nativeAssetLiquidityImpl;
-        LIQUIDITY_CONTROLLER_IMPL = _implementations.liquidityControllerImpl;
-        CONDITIONAL_DEPLOYER_IMPL = _implementations.conditionalDeployerImpl;
-        L2_DEV_FEATURE_FLAGS_IMPL = _implementations.l2DevFeatureFlagsImpl;
+        L2_CROSS_DOMAIN_MESSENGER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2CrossDomainMessenger");
+        GAS_PRICE_ORACLE_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "GasPriceOracle");
+        L2_STANDARD_BRIDGE_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2StandardBridge");
+        SEQUENCER_FEE_WALLET_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "SequencerFeeVault");
+        OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL =
+            L2ContractsManagerUtils.findImpl(_implementations, "OptimismMintableERC20Factory");
+        L2_ERC721_BRIDGE_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2ERC721Bridge");
+        L1_BLOCK_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L1Block");
+        L1_BLOCK_CGT_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L1BlockCGT");
+        L2_TO_L1_MESSAGE_PASSER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2ToL1MessagePasser");
+        L2_TO_L1_MESSAGE_PASSER_CGT_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2ToL1MessagePasserCGT");
+        OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL =
+            L2ContractsManagerUtils.findImpl(_implementations, "OptimismMintableERC721Factory");
+        PROXY_ADMIN_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2ProxyAdmin");
+        BASE_FEE_VAULT_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "BaseFeeVault");
+        L1_FEE_VAULT_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L1FeeVault");
+        OPERATOR_FEE_VAULT_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "OperatorFeeVault");
+        SCHEMA_REGISTRY_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "SchemaRegistry");
+        EAS_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "EAS");
+        CROSS_L2_INBOX_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "CrossL2Inbox");
+        L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL =
+            L2ContractsManagerUtils.findImpl(_implementations, "L2ToL2CrossDomainMessenger");
+        SUPERCHAIN_ETH_BRIDGE_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "SuperchainETHBridge");
+        ETH_LIQUIDITY_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "ETHLiquidity");
+        NATIVE_ASSET_LIQUIDITY_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "NativeAssetLiquidity");
+        LIQUIDITY_CONTROLLER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "LiquidityController");
+        CONDITIONAL_DEPLOYER_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "ConditionalDeployer");
+        L2_DEV_FEATURE_FLAGS_IMPL = L2ContractsManagerUtils.findImpl(_implementations, "L2DevFeatureFlags");
     }
 
     /// @notice Executes the upgrade for all predeploys.
@@ -419,33 +424,59 @@ contract L2ContractsManager is ISemver {
     function getImplementations()
         external
         view
-        returns (L2ContractsManagerTypes.Implementations memory implementations_)
+        returns (L2ContractsManagerTypes.ImplRecord[] memory implementations_)
     {
-        implementations_.storageSetterImpl = STORAGE_SETTER_IMPL;
-        implementations_.l2CrossDomainMessengerImpl = L2_CROSS_DOMAIN_MESSENGER_IMPL;
-        implementations_.gasPriceOracleImpl = GAS_PRICE_ORACLE_IMPL;
-        implementations_.l2StandardBridgeImpl = L2_STANDARD_BRIDGE_IMPL;
-        implementations_.sequencerFeeWalletImpl = SEQUENCER_FEE_WALLET_IMPL;
-        implementations_.optimismMintableERC20FactoryImpl = OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL;
-        implementations_.l2ERC721BridgeImpl = L2_ERC721_BRIDGE_IMPL;
-        implementations_.l1BlockImpl = L1_BLOCK_IMPL;
-        implementations_.l1BlockCGTImpl = L1_BLOCK_CGT_IMPL;
-        implementations_.l2ToL1MessagePasserImpl = L2_TO_L1_MESSAGE_PASSER_IMPL;
-        implementations_.l2ToL1MessagePasserCGTImpl = L2_TO_L1_MESSAGE_PASSER_CGT_IMPL;
-        implementations_.optimismMintableERC721FactoryImpl = OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL;
-        implementations_.proxyAdminImpl = PROXY_ADMIN_IMPL;
-        implementations_.baseFeeVaultImpl = BASE_FEE_VAULT_IMPL;
-        implementations_.l1FeeVaultImpl = L1_FEE_VAULT_IMPL;
-        implementations_.operatorFeeVaultImpl = OPERATOR_FEE_VAULT_IMPL;
-        implementations_.schemaRegistryImpl = SCHEMA_REGISTRY_IMPL;
-        implementations_.easImpl = EAS_IMPL;
-        implementations_.crossL2InboxImpl = CROSS_L2_INBOX_IMPL;
-        implementations_.l2ToL2CrossDomainMessengerImpl = L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL;
-        implementations_.superchainETHBridgeImpl = SUPERCHAIN_ETH_BRIDGE_IMPL;
-        implementations_.ethLiquidityImpl = ETH_LIQUIDITY_IMPL;
-        implementations_.nativeAssetLiquidityImpl = NATIVE_ASSET_LIQUIDITY_IMPL;
-        implementations_.liquidityControllerImpl = LIQUIDITY_CONTROLLER_IMPL;
-        implementations_.conditionalDeployerImpl = CONDITIONAL_DEPLOYER_IMPL;
-        implementations_.l2DevFeatureFlagsImpl = L2_DEV_FEATURE_FLAGS_IMPL;
+        implementations_ = new L2ContractsManagerTypes.ImplRecord[](26);
+        implementations_[0] = L2ContractsManagerTypes.ImplRecord({ name: "StorageSetter", impl: STORAGE_SETTER_IMPL });
+        implementations_[1] =
+            L2ContractsManagerTypes.ImplRecord({ name: "L2CrossDomainMessenger", impl: L2_CROSS_DOMAIN_MESSENGER_IMPL });
+        implementations_[2] =
+            L2ContractsManagerTypes.ImplRecord({ name: "GasPriceOracle", impl: GAS_PRICE_ORACLE_IMPL });
+        implementations_[3] =
+            L2ContractsManagerTypes.ImplRecord({ name: "L2StandardBridge", impl: L2_STANDARD_BRIDGE_IMPL });
+        implementations_[4] =
+            L2ContractsManagerTypes.ImplRecord({ name: "SequencerFeeVault", impl: SEQUENCER_FEE_WALLET_IMPL });
+        implementations_[5] = L2ContractsManagerTypes.ImplRecord({
+            name: "OptimismMintableERC20Factory",
+            impl: OPTIMISM_MINTABLE_ERC20_FACTORY_IMPL
+        });
+        implementations_[6] =
+            L2ContractsManagerTypes.ImplRecord({ name: "L2ERC721Bridge", impl: L2_ERC721_BRIDGE_IMPL });
+        implementations_[7] = L2ContractsManagerTypes.ImplRecord({ name: "L1Block", impl: L1_BLOCK_IMPL });
+        implementations_[8] = L2ContractsManagerTypes.ImplRecord({ name: "L1BlockCGT", impl: L1_BLOCK_CGT_IMPL });
+        implementations_[9] =
+            L2ContractsManagerTypes.ImplRecord({ name: "L2ToL1MessagePasser", impl: L2_TO_L1_MESSAGE_PASSER_IMPL });
+        implementations_[10] = L2ContractsManagerTypes.ImplRecord({
+            name: "L2ToL1MessagePasserCGT",
+            impl: L2_TO_L1_MESSAGE_PASSER_CGT_IMPL
+        });
+        implementations_[11] = L2ContractsManagerTypes.ImplRecord({
+            name: "OptimismMintableERC721Factory",
+            impl: OPTIMISM_MINTABLE_ERC721_FACTORY_IMPL
+        });
+        implementations_[12] = L2ContractsManagerTypes.ImplRecord({ name: "L2ProxyAdmin", impl: PROXY_ADMIN_IMPL });
+        implementations_[13] = L2ContractsManagerTypes.ImplRecord({ name: "BaseFeeVault", impl: BASE_FEE_VAULT_IMPL });
+        implementations_[14] = L2ContractsManagerTypes.ImplRecord({ name: "L1FeeVault", impl: L1_FEE_VAULT_IMPL });
+        implementations_[15] =
+            L2ContractsManagerTypes.ImplRecord({ name: "OperatorFeeVault", impl: OPERATOR_FEE_VAULT_IMPL });
+        implementations_[16] =
+            L2ContractsManagerTypes.ImplRecord({ name: "SchemaRegistry", impl: SCHEMA_REGISTRY_IMPL });
+        implementations_[17] = L2ContractsManagerTypes.ImplRecord({ name: "EAS", impl: EAS_IMPL });
+        implementations_[18] = L2ContractsManagerTypes.ImplRecord({ name: "CrossL2Inbox", impl: CROSS_L2_INBOX_IMPL });
+        implementations_[19] = L2ContractsManagerTypes.ImplRecord({
+            name: "L2ToL2CrossDomainMessenger",
+            impl: L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
+        });
+        implementations_[20] =
+            L2ContractsManagerTypes.ImplRecord({ name: "SuperchainETHBridge", impl: SUPERCHAIN_ETH_BRIDGE_IMPL });
+        implementations_[21] = L2ContractsManagerTypes.ImplRecord({ name: "ETHLiquidity", impl: ETH_LIQUIDITY_IMPL });
+        implementations_[22] =
+            L2ContractsManagerTypes.ImplRecord({ name: "NativeAssetLiquidity", impl: NATIVE_ASSET_LIQUIDITY_IMPL });
+        implementations_[23] =
+            L2ContractsManagerTypes.ImplRecord({ name: "LiquidityController", impl: LIQUIDITY_CONTROLLER_IMPL });
+        implementations_[24] =
+            L2ContractsManagerTypes.ImplRecord({ name: "ConditionalDeployer", impl: CONDITIONAL_DEPLOYER_IMPL });
+        implementations_[25] =
+            L2ContractsManagerTypes.ImplRecord({ name: "L2DevFeatureFlags", impl: L2_DEV_FEATURE_FLAGS_IMPL });
     }
 }

@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
@@ -23,7 +24,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/cross"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -715,7 +715,7 @@ func TestHazardSet_ExpiredMessageShortCircuitsInclusionCheck(t *testing.T) {
 
 		mockConsolidateDeps := &mockConsolidateDeps{consolidateCheckDeps: consolidateDeps}
 		mockConsolidateDeps.
-			On("Contains", mock.Anything, mock.Anything).Return(messages.BlockSeal{}, supervisortypes.ErrConflict).
+			On("Contains", mock.Anything, mock.Anything).Return(messages.BlockSeal{}, interop.ErrConflict).
 			Maybe()
 
 		linker := depset.LinkCheckFn(func(execInChain eth.ChainID, execInTimestamp uint64, initChainID eth.ChainID, initTimestamp uint64) bool {
@@ -729,7 +729,7 @@ func TestHazardSet_ExpiredMessageShortCircuitsInclusionCheck(t *testing.T) {
 			Timestamp: block2A.Time(),
 		}
 		_, err = cross.NewHazardSet(deps, linker, logger, eth.ChainIDFromBig(configA.L2ChainID), candidate)
-		require.ErrorIs(t, err, supervisortypes.ErrConflict)
+		require.ErrorIs(t, err, interop.ErrConflict)
 
 		if expectInclusionCheck {
 			mockConsolidateDeps.AssertCalled(t, "Contains", mock.Anything, mock.Anything)

@@ -4,11 +4,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -32,7 +32,7 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		chainID := eth.ChainIDFromUInt64(123)
 		usd := &mockCrossUnsafeDeps{}
 		usd.crossUnsafeFn = func(chainID eth.ChainID) (messages.BlockSeal, error) {
-			return messages.BlockSeal{}, types.ErrFuture
+			return messages.BlockSeal{}, interop.ErrFuture
 		}
 		// when a ErrFuture is returned by CrossUnsafe,
 		// no error is returned
@@ -66,7 +66,7 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		// when the parent hash of the opened block does not match the cross-unsafe block,
 		// an ErrConflict is returned
 		err := CrossUnsafeUpdate(logger, chainID, usd, linkerAny{})
-		require.ErrorIs(t, err, types.ErrConflict)
+		require.ErrorIs(t, err, interop.ErrConflict)
 	})
 	t.Run("CrossUnsafeHazards returns error", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelDebug)

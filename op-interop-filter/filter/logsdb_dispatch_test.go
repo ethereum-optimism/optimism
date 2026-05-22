@@ -14,8 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -94,22 +94,22 @@ func TestWriteFetchedBlock_WriteErrorDispatch(t *testing.T) {
 	}{
 		{
 			name:       "AddLog_ErrConflict",
-			setup:      func(f *fakeLogsDB) { f.addLogErr = fmt.Errorf("add: %w", types.ErrConflict) },
+			setup:      func(f *fakeLogsDB) { f.addLogErr = fmt.Errorf("add: %w", interop.ErrConflict) },
 			wantReason: ErrorConflict,
 		},
 		{
 			name:       "AddLog_ErrDataCorruption",
-			setup:      func(f *fakeLogsDB) { f.addLogErr = fmt.Errorf("add: %w", types.ErrDataCorruption) },
+			setup:      func(f *fakeLogsDB) { f.addLogErr = fmt.Errorf("add: %w", interop.ErrDataCorruption) },
 			wantReason: ErrorDataCorruption,
 		},
 		{
 			name:       "SealBlock_ErrConflict",
-			setup:      func(f *fakeLogsDB) { f.sealBlockErr = fmt.Errorf("seal: %w", types.ErrConflict) },
+			setup:      func(f *fakeLogsDB) { f.sealBlockErr = fmt.Errorf("seal: %w", interop.ErrConflict) },
 			wantReason: ErrorConflict,
 		},
 		{
 			name:       "SealBlock_ErrDataCorruption",
-			setup:      func(f *fakeLogsDB) { f.sealBlockErr = fmt.Errorf("seal: %w", types.ErrDataCorruption) },
+			setup:      func(f *fakeLogsDB) { f.sealBlockErr = fmt.Errorf("seal: %w", interop.ErrDataCorruption) },
 			wantReason: ErrorDataCorruption,
 		},
 	}
@@ -141,9 +141,9 @@ func TestWriteFetchedBlock_WriteErrorPassthrough(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"AddLog_ErrFuture", fmt.Errorf("add: %w", types.ErrFuture)},
-		{"AddLog_ErrSkipped", fmt.Errorf("add: %w", types.ErrSkipped)},
-		{"AddLog_ErrOutOfOrder", fmt.Errorf("add: %w", types.ErrOutOfOrder)},
+		{"AddLog_ErrFuture", fmt.Errorf("add: %w", interop.ErrFuture)},
+		{"AddLog_ErrSkipped", fmt.Errorf("add: %w", interop.ErrSkipped)},
+		{"AddLog_ErrOutOfOrder", fmt.Errorf("add: %w", interop.ErrOutOfOrder)},
 		{"AddLog_Generic", errors.New("transient i/o")},
 	}
 	for _, tc := range cases {

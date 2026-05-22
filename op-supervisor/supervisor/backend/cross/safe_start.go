@@ -3,10 +3,10 @@ package cross
 import (
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -38,7 +38,7 @@ func (d *SafeHazardDeps) IsCrossValidBlock(chainID eth.ChainID, derived eth.Bloc
 	}
 	if initSource.Number > d.inL1Source.Number {
 		return fmt.Errorf("block %s derived from %s which is not in cross-safe scope %s: %w",
-			derived, initSource, d.inL1Source, types.ErrOutOfScope)
+			derived, initSource, d.inL1Source, interop.ErrOutOfScope)
 	}
 	return nil
 }

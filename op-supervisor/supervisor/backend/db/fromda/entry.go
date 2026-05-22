@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -74,10 +75,10 @@ func (d LinkEntry) String() string {
 
 func (d *LinkEntry) decode(e Entry) error {
 	if t := e.Type(); t != SourceV0 && t != InvalidatedFromV0 {
-		return fmt.Errorf("%w: unexpected entry type: %s", types.ErrDataCorruption, e.Type())
+		return fmt.Errorf("%w: unexpected entry type: %s", interop.ErrDataCorruption, e.Type())
 	}
 	if [3]byte(e[1:4]) != ([3]byte{}) {
-		return fmt.Errorf("%w: expected empty data, to pad entry size to round number: %x", types.ErrDataCorruption, e[1:4])
+		return fmt.Errorf("%w: expected empty data, to pad entry size to round number: %x", interop.ErrDataCorruption, e[1:4])
 	}
 	d.invalidated = e.Type() == InvalidatedFromV0
 	// Format:
@@ -91,7 +92,7 @@ func (d *LinkEntry) decode(e Entry) error {
 	d.revision = types.Revision(binary.BigEndian.Uint64(e[offset : offset+8]))
 	offset += 8
 	if d.revision&(1<<63) != 0 {
-		return fmt.Errorf("%w: upper bit of revision may not be set: %b", types.ErrDataCorruption, d.revision)
+		return fmt.Errorf("%w: upper bit of revision may not be set: %b", interop.ErrDataCorruption, d.revision)
 	}
 	d.derived.Number = binary.BigEndian.Uint64(e[offset : offset+8])
 	offset += 8
@@ -132,7 +133,7 @@ func (d *LinkEntry) encode() Entry {
 
 func (d *LinkEntry) sealOrErr() (types.DerivedBlockSealPair, error) {
 	if d.invalidated {
-		return types.DerivedBlockSealPair{}, types.ErrAwaitReplacementBlock
+		return types.DerivedBlockSealPair{}, interop.ErrAwaitReplacementBlock
 	}
 	return types.DerivedBlockSealPair{
 		Source:  d.source,

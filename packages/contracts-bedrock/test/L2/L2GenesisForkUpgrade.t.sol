@@ -11,6 +11,7 @@ import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Reuse all test logic from L2ForkUpgrade — only setUp differs
 import {
@@ -18,7 +19,8 @@ import {
     L2ForkUpgrade_Versions_Test,
     L2ForkUpgrade_Initialization_Test,
     L2ForkUpgrade_Implementations_Test,
-    L2ForkUpgrade_Events_Test
+    L2ForkUpgrade_Events_Test,
+    L2ForkUpgrade_GasProfile_Test
 } from "test/L2/fork/L2ForkUpgrade.t.sol";
 
 /// @title L2GenesisForkUpgrade_TestInit
@@ -38,6 +40,9 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
         // Skip if L2CM dev feature is not enabled
         skipIfDevFeatureDisabled(DevFeatures.L2CM);
 
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Initialize scripts
         executeScript = new ExecuteNUTBundle();
         generateScript = new GenerateNUTBundle();
@@ -49,9 +54,11 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
             currentBundleTxns.push(output.txns[i]);
         }
 
-        // Capture feature flags from deploy config (genesis state)
-        commonState.isInteropEnabled =
-            DevFeatures.isDevFeatureEnabled(deploy.cfg().devFeatureBitmap(), DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        // Capture feature flags from deploy config.
+        // Interop predeploys are upgraded only when BOTH the INTEROP sys feature (useInterop) AND
+        // the OPTIMISM_PORTAL_INTEROP dev feature are enabled — mirroring the L2CM gating logic.
+        commonState.isInteropEnabled = deploy.cfg().useInterop()
+            && DevFeatures.isDevFeatureEnabled(deploy.cfg().devFeatureBitmap(), DevFeatures.OPTIMISM_PORTAL_INTEROP);
         console.log("L2GenesisForkUpgrade isInteropEnabled", commonState.isInteropEnabled);
 
         commonState.isCustomGasToken = deploy.cfg().useCustomGasToken();
@@ -111,6 +118,186 @@ contract L2GenesisForkUpgrade_Implementations_Test is
 contract L2GenesisForkUpgrade_Events_Test is L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_Events_Test {
     function setUp() public override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2GenesisForkUpgrade_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_TestInit._executeCurrentBundle();
+    }
+}
+
+/// @title L2GenesisForkUpgrade_GasProfile_Test
+/// @notice Gas profiling test for the upgrade bundle from genesis state.
+contract L2GenesisForkUpgrade_GasProfile_Test is L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_GasProfile_Test {
+    function setUp() public override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_TestInit._executeCurrentBundle();
+    }
+}
+
+// ============================================================
+// Interop variant — genesis deployed with useInterop=true
+// ============================================================
+
+/// @title L2GenesisForkUpgrade_Interop_TestInit
+/// @notice Same as L2GenesisForkUpgrade_TestInit but enables interop before genesis deployment.
+///         Calling enableInterop() before CommonTest.setUp() causes L2Genesis to run with
+///         useInterop=true, so L1Block gets the INTEROP sys feature.
+abstract contract L2GenesisForkUpgrade_Interop_TestInit is L2GenesisForkUpgrade_TestInit {
+    function setUp() public virtual override {
+        super.enableInterop();
+        L2GenesisForkUpgrade_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal virtual override {
+        L2GenesisForkUpgrade_TestInit._executeCurrentBundle();
+    }
+}
+
+/// @title L2GenesisForkUpgrade_Interop_Versions_Test
+contract L2GenesisForkUpgrade_Interop_Versions_Test is
+    L2GenesisForkUpgrade_Interop_TestInit,
+    L2ForkUpgrade_Versions_Test
+{
+    function setUp() public override(L2GenesisForkUpgrade_Interop_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_Interop_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_Interop_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_Interop_TestInit._executeCurrentBundle();
+    }
+}
+
+/// @title L2GenesisForkUpgrade_Interop_Initialization_Test
+contract L2GenesisForkUpgrade_Interop_Initialization_Test is
+    L2GenesisForkUpgrade_Interop_TestInit,
+    L2ForkUpgrade_Initialization_Test
+{
+    function setUp() public override(L2GenesisForkUpgrade_Interop_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_Interop_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_Interop_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_Interop_TestInit._executeCurrentBundle();
+    }
+}
+
+/// @title L2GenesisForkUpgrade_Interop_Implementations_Test
+contract L2GenesisForkUpgrade_Interop_Implementations_Test is
+    L2GenesisForkUpgrade_Interop_TestInit,
+    L2ForkUpgrade_Implementations_Test
+{
+    function setUp() public override(L2GenesisForkUpgrade_Interop_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_Interop_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_Interop_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_Interop_TestInit._executeCurrentBundle();
+    }
+}
+
+/// @title L2GenesisForkUpgrade_Interop_Events_Test
+contract L2GenesisForkUpgrade_Interop_Events_Test is
+    L2GenesisForkUpgrade_Interop_TestInit,
+    L2ForkUpgrade_Events_Test
+{
+    function setUp() public override(L2GenesisForkUpgrade_Interop_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_Interop_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_Interop_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_Interop_TestInit._executeCurrentBundle();
+    }
+}
+
+/// @title L2GenesisForkUpgrade_Interop_GasProfile_Test
+contract L2GenesisForkUpgrade_Interop_GasProfile_Test is
+    L2GenesisForkUpgrade_Interop_TestInit,
+    L2ForkUpgrade_GasProfile_Test
+{
+    function setUp() public override(L2GenesisForkUpgrade_Interop_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_Interop_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_Interop_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_Interop_TestInit._executeCurrentBundle();
+    }
+}
+
+// ============================================================
+// CGT variant — skips unless CUSTOM_GAS_TOKEN is active
+// ============================================================
+
+/// @title L2GenesisForkUpgrade_CGT_TestInit
+/// @notice Same as L2GenesisForkUpgrade_TestInit but restricted to Custom Gas Token networks.
+///         CGT is auto-configured from the CUSTOM_GAS_TOKEN env var inside CommonTest.setUp(),
+///         so no programmatic enable is needed.
+abstract contract L2GenesisForkUpgrade_CGT_TestInit is L2GenesisForkUpgrade_TestInit {
+    function setUp() public virtual override {
+        L2GenesisForkUpgrade_TestInit.setUp();
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+    }
+}
+
+/// @title L2GenesisForkUpgrade_CGT_Versions_Test
+contract L2GenesisForkUpgrade_CGT_Versions_Test is L2GenesisForkUpgrade_CGT_TestInit, L2ForkUpgrade_Versions_Test {
+    function setUp() public override(L2GenesisForkUpgrade_CGT_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_CGT_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_TestInit._executeCurrentBundle();
+    }
+}
+
+/// @title L2GenesisForkUpgrade_CGT_Initialization_Test
+contract L2GenesisForkUpgrade_CGT_Initialization_Test is
+    L2GenesisForkUpgrade_CGT_TestInit,
+    L2ForkUpgrade_Initialization_Test
+{
+    function setUp() public override(L2GenesisForkUpgrade_CGT_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_CGT_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_TestInit._executeCurrentBundle();
+    }
+}
+
+/// @title L2GenesisForkUpgrade_CGT_Implementations_Test
+contract L2GenesisForkUpgrade_CGT_Implementations_Test is
+    L2GenesisForkUpgrade_CGT_TestInit,
+    L2ForkUpgrade_Implementations_Test
+{
+    function setUp() public override(L2GenesisForkUpgrade_CGT_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_CGT_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_TestInit._executeCurrentBundle();
+    }
+}
+
+/// @title L2GenesisForkUpgrade_CGT_Events_Test
+contract L2GenesisForkUpgrade_CGT_Events_Test is L2GenesisForkUpgrade_CGT_TestInit, L2ForkUpgrade_Events_Test {
+    function setUp() public override(L2GenesisForkUpgrade_CGT_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_CGT_TestInit.setUp();
+    }
+
+    function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_TestInit._executeCurrentBundle();
+    }
+}
+
+/// @title L2GenesisForkUpgrade_CGT_GasProfile_Test
+contract L2GenesisForkUpgrade_CGT_GasProfile_Test is
+    L2GenesisForkUpgrade_CGT_TestInit,
+    L2ForkUpgrade_GasProfile_Test
+{
+    function setUp() public override(L2GenesisForkUpgrade_CGT_TestInit, L2ForkUpgrade_TestInit) {
+        L2GenesisForkUpgrade_CGT_TestInit.setUp();
     }
 
     function _executeCurrentBundle() internal override(L2GenesisForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {

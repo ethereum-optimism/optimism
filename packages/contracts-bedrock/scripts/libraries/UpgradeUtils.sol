@@ -21,15 +21,6 @@ import { ConditionalDeployer } from "src/L2/ConditionalDeployer.sol";
 library UpgradeUtils {
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
-    /// @notice The number of implementations deployed in every upgrade.
-    ///         Includes:
-    ///         - 1 StorageSetter
-    ///         - 17 base predeploys
-    ///         - 4 INTEROP predeploys
-    ///         - 2 CGT predeploys (NativeAssetLiquidity, LiquidityController)
-    ///         - 2 CGT variants (L1BlockCGT, L2ToL1MessagePasserCGT)
-    uint256 internal constant IMPLEMENTATION_COUNT = 26;
-
     /// @notice Gas limits for different types of upgrade transactions.
     /// @param l2cmDeployment Gas for deploying L2ContractsManager
     /// @param upgradeExecution Gas for L2ProxyAdmin.upgradePredeploys() call
@@ -38,66 +29,11 @@ library UpgradeUtils {
         uint64 upgradeExecution;
     }
 
-    /// @notice Returns the total number of transactions for the current upgrade.
-    /// @dev Total count:
-    ///      - IMPLEMENTATION_COUNT implementation deployments
-    ///      - 1 L2CM deployment
-    ///      - 1 Upgrade Predeploys call
-    function getTransactionCount() internal pure returns (uint256 txnCount_) {
-        if (IMPLEMENTATION_COUNT != 26) {
-            revert(
-                "UpgradeUtils: implementation count changed, ensure that the txnCount_ calculation is still correct."
-            );
-        }
-        txnCount_ = IMPLEMENTATION_COUNT + 2;
-    }
-
     /// @notice Returns the gas limits for all upgrade transaction types.
     /// @dev Calibration: see `_buildImplementationDeploymentConfigs` in GenerateNUTBundle.s.sol.
     /// @return Gas limits struct.
     function gasLimits() internal pure returns (GasLimits memory) {
-        return GasLimits({ l2cmDeployment: 4_944_000, upgradeExecution: 2_115_000 });
-    }
-
-    /// @notice Returns the array of predeploy names to upgrade.
-    /// @dev Exception: StorageSetter is not a predeploy, but is upgraded in L2CM too.
-    /// @return implementations_ Array of implementation names to upgrade.
-    function getImplementationsNamesToUpgrade() internal pure returns (string[] memory implementations_) {
-        implementations_ = new string[](IMPLEMENTATION_COUNT);
-
-        // StorageSetter
-        implementations_[0] = "StorageSetter";
-
-        // Base predeploys
-        implementations_[1] = "L2CrossDomainMessenger";
-        implementations_[2] = "GasPriceOracle";
-        implementations_[3] = "L2StandardBridge";
-        implementations_[4] = "SequencerFeeVault";
-        implementations_[5] = "OptimismMintableERC20Factory";
-        implementations_[6] = "L2ERC721Bridge";
-        implementations_[7] = "L1Block";
-        implementations_[8] = "L2ToL1MessagePasser";
-        implementations_[9] = "OptimismMintableERC721Factory";
-        implementations_[10] = "L2ProxyAdmin";
-        implementations_[11] = "BaseFeeVault";
-        implementations_[12] = "L1FeeVault";
-        implementations_[13] = "OperatorFeeVault";
-        implementations_[14] = "SchemaRegistry";
-        implementations_[15] = "EAS";
-        implementations_[16] = "ConditionalDeployer";
-        implementations_[17] = "L2DevFeatureFlags";
-
-        // INTEROP predeploys
-        implementations_[18] = "CrossL2Inbox";
-        implementations_[19] = "L2ToL2CrossDomainMessenger";
-        implementations_[20] = "SuperchainETHBridge";
-        implementations_[21] = "ETHLiquidity";
-
-        // CGT predeploys
-        implementations_[22] = "L1BlockCGT";
-        implementations_[23] = "L2ToL1MessagePasserCGT";
-        implementations_[24] = "LiquidityController";
-        implementations_[25] = "NativeAssetLiquidity";
+        return GasLimits({ l2cmDeployment: 8_700_000, upgradeExecution: 2_317_896 });
     }
 
     /// @notice Computes the intrinsic gas cost for a NUT bundle transaction.

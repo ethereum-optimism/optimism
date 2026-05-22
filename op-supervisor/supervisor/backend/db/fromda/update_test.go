@@ -8,8 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -48,7 +47,7 @@ func TestBadUpdates(t *testing.T) {
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(bSource, aSource.Hash), // b is before c
-					toRef(dDerived, cDerived.Hash)), types.ErrSkipped)
+					toRef(dDerived, cDerived.Hash)), interop.ErrSkipped)
 			},
 			assertFn: noChange,
 		},
@@ -58,7 +57,7 @@ func TestBadUpdates(t *testing.T) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(cSource, bSource.Hash),
 					toRef(cDerived, bDerived.Hash),
-				), types.ErrOutOfOrder)
+				), interop.ErrOutOfOrder)
 			},
 			assertFn: noChange,
 		},
@@ -82,7 +81,7 @@ func TestBadUpdates(t *testing.T) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),   // d is old, but was canonically linked like this before
 					toRef(dDerived, cDerived.Hash), // same L2 block
-				), types.ErrIneffective)
+				), interop.ErrIneffective)
 			},
 			assertFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				pair, err := db.Last()
@@ -101,7 +100,7 @@ func TestBadUpdates(t *testing.T) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dAltSource, cSource.Hash), // conflicting old block
 					toRef(dDerived, cDerived.Hash),  // same L2 block
-				), types.ErrConflict)
+				), interop.ErrConflict)
 			},
 			assertFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				pair, err := db.Last()
@@ -120,7 +119,7 @@ func TestBadUpdates(t *testing.T) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),   // old L1 block
 					toRef(eDerived, dDerived.Hash), // new L2 block
-				), types.ErrOutOfOrder)
+				), interop.ErrOutOfOrder)
 			},
 			assertFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				pair, err := db.Last()
@@ -138,7 +137,7 @@ func TestBadUpdates(t *testing.T) {
 						Number:    dSource.Number,
 						Timestamp: dSource.Timestamp,
 					}, cSource.Hash),
-					toRef(eDerived, dDerived.Hash)), types.ErrConflict)
+					toRef(eDerived, dDerived.Hash)), interop.ErrConflict)
 			},
 			assertFn: noChange,
 		},
@@ -147,7 +146,7 @@ func TestBadUpdates(t *testing.T) {
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.NoError(t, dbAddDerivedAny(db,
 					toRef(dSource, common.Hash{0x42}),
-					toRef(eDerived, dDerived.Hash)), types.ErrConflict)
+					toRef(eDerived, dDerived.Hash)), interop.ErrConflict)
 			},
 			assertFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				pair, err := db.Last()
@@ -162,7 +161,7 @@ func TestBadUpdates(t *testing.T) {
 				require.ErrorIs(t,
 					dbAddDerivedAny(db,
 						toRef(eSource, common.Hash{0x42}),
-						toRef(dDerived, cDerived.Hash)), types.ErrConflict)
+						toRef(dDerived, cDerived.Hash)), interop.ErrConflict)
 			},
 			assertFn: noChange,
 		},
@@ -171,7 +170,7 @@ func TestBadUpdates(t *testing.T) {
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.ErrorIs(t,
 					dbAddDerivedAny(db, toRef(fSource, dSource.Hash),
-						toRef(eDerived, dDerived.Hash)), types.ErrFuture)
+						toRef(eDerived, dDerived.Hash)), interop.ErrFuture)
 			},
 			assertFn: noChange,
 		},
@@ -180,7 +179,7 @@ func TestBadUpdates(t *testing.T) {
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(cSource, bSource.Hash),
-					toRef(cDerived, dDerived.Hash)), types.ErrOutOfOrder)
+					toRef(cDerived, dDerived.Hash)), interop.ErrOutOfOrder)
 			},
 			assertFn: noChange,
 		},
@@ -189,7 +188,7 @@ func TestBadUpdates(t *testing.T) {
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(bSource, aSource.Hash),
-					toRef(dDerived, cDerived.Hash)), types.ErrSkipped)
+					toRef(dDerived, cDerived.Hash)), interop.ErrSkipped)
 			},
 			assertFn: noChange,
 		},
@@ -202,7 +201,7 @@ func TestBadUpdates(t *testing.T) {
 						Hash:      common.Hash{0x42},
 						Number:    dDerived.Number,
 						Timestamp: dDerived.Timestamp,
-					}, cDerived.Hash)), types.ErrConflict)
+					}, cDerived.Hash)), interop.ErrConflict)
 			},
 			assertFn: noChange,
 		},
@@ -211,7 +210,7 @@ func TestBadUpdates(t *testing.T) {
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.NoError(t, dbAddDerivedAny(db,
 					toRef(eSource, dSource.Hash),
-					toRef(dDerived, common.Hash{0x42})), types.ErrConflict)
+					toRef(dDerived, common.Hash{0x42})), interop.ErrConflict)
 			},
 			assertFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				pair, err := db.Last()
@@ -225,7 +224,7 @@ func TestBadUpdates(t *testing.T) {
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),
-					toRef(eDerived, common.Hash{0x42})), types.ErrConflict)
+					toRef(eDerived, common.Hash{0x42})), interop.ErrConflict)
 			},
 			assertFn: noChange,
 		},
@@ -234,7 +233,7 @@ func TestBadUpdates(t *testing.T) {
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),
-					toRef(fDerived, dDerived.Hash)), types.ErrFuture)
+					toRef(fDerived, dDerived.Hash)), interop.ErrFuture)
 			},
 			assertFn: noChange,
 		},
@@ -243,7 +242,7 @@ func TestBadUpdates(t *testing.T) {
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),
-					toRef(cDerived, bDerived.Hash)), types.ErrOutOfOrder)
+					toRef(cDerived, bDerived.Hash)), interop.ErrOutOfOrder)
 			},
 			assertFn: noChange,
 		},
@@ -252,7 +251,7 @@ func TestBadUpdates(t *testing.T) {
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),
-					toRef(bDerived, aDerived.Hash)), types.ErrOutOfOrder)
+					toRef(bDerived, aDerived.Hash)), interop.ErrOutOfOrder)
 			},
 			assertFn: noChange,
 		},
@@ -262,7 +261,7 @@ func TestBadUpdates(t *testing.T) {
 				pre := m.DBDerivedEntryCount
 				require.NoError(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),
-					toRef(dDerived, cDerived.Hash)), types.ErrOutOfOrder)
+					toRef(dDerived, cDerived.Hash)), interop.ErrOutOfOrder)
 				require.Equal(t, pre, m.DBDerivedEntryCount)
 			},
 			assertFn: noChange,

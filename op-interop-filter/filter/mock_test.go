@@ -13,8 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
@@ -141,7 +141,7 @@ func (m *mockChainIngester) Contains(query messages.ContainsQuery) (messages.Blo
 
 	seal, ok := m.logs[key]
 	if !ok {
-		return messages.BlockSeal{}, types.ErrConflict
+		return messages.BlockSeal{}, interop.ErrConflict
 	}
 	return seal, nil
 }
