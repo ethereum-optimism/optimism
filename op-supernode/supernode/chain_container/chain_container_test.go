@@ -343,6 +343,24 @@ func TestChainContainer_Constructor(t *testing.T) {
 	})
 }
 
+// TestChainContainer_EngineControllerNotInitInConstructor verifies that the
+// engine controller is NOT initialized in NewChainContainer (it is deferred to
+// the Start loop so that transient EL unavailability at startup is retried).
+func TestChainContainer_EngineControllerNotInitInConstructor(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+	require.Nil(t, impl.engine, "engine should not be initialized in constructor; it is deferred to Start loop")
+}
+
 // TestChainContainer_Lifecycle tests Start/Stop behavior
 func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Parallel()
