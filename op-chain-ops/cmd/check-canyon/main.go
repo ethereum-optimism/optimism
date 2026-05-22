@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/mattn/go-isatty"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -22,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
+	"golang.org/x/term"
 )
 
 func CalcBaseFee(parent eth.BlockInfo, elasticity uint64, canyonActive bool) *big.Int {
@@ -210,7 +210,7 @@ func CheckInactivation(f func(Args, bool) error, ctx Args, forkActivated bool, v
 }
 
 func main() {
-	color := isatty.IsTerminal(os.Stderr.Fd())
+	color := term.IsTerminal(int(os.Stderr.Fd()))
 	handler := log.NewTerminalHandler(os.Stderr, color)
 	oplog.SetGlobalLogHandler(handler)
 	logger := log.NewLogger(handler)

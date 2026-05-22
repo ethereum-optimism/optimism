@@ -19,7 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/superchain"
-	"github.com/mattn/go-isatty"
+	"golang.org/x/term"
 )
 
 type FPProgramType interface {
@@ -31,7 +31,7 @@ type FPProgramType interface {
 }
 
 func main() {
-	color := isatty.IsTerminal(os.Stderr.Fd())
+	color := term.IsTerminal(int(os.Stderr.Fd()))
 	handler := log.NewTerminalHandler(os.Stderr, color)
 	oplog.SetGlobalLogHandler(handler)
 	log := log.NewLogger(handler)

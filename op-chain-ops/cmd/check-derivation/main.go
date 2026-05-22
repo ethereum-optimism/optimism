@@ -27,12 +27,12 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/term"
 )
 
 func main() {
-	color := isatty.IsTerminal(os.Stderr.Fd())
+	color := term.IsTerminal(int(os.Stderr.Fd()))
 	oplog.SetGlobalLogHandler(log.NewTerminalHandler(os.Stderr, color))
 
 	app := cli.NewApp()
