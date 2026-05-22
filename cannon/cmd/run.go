@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"runtime/pprof"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -314,7 +314,11 @@ var _ mipsevm.PreimageOracle = (*ProcessPreimageOracle)(nil)
 
 func Run(ctx *cli.Context) error {
 	if ctx.Bool(RunPProfCPU.Name) {
-		defer profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile).Stop()
+		stopProfile, err := startCPUProfile("cpu.pprof")
+		if err != nil {
+			return err
+		}
+		defer stopProfile()
 	}
 	if err := checkFlags(ctx); err != nil {
 		return err
@@ -557,6 +561,21 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 	return nil
+}
+
+func startCPUProfile(path string) (func(), error) {
+	file, err := os.Create(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CPU profile: %w", err)
+	}
+	if err := pprof.StartCPUProfile(file); err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("failed to start CPU profile: %w", err)
+	}
+	return func() {
+		pprof.StopCPUProfile()
+		_ = file.Close()
+	}, nil
 }
 
 func CreateRunCommand(action cli.ActionFunc) *cli.Command {
