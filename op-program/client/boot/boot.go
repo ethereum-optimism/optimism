@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -26,6 +27,7 @@ type BootInfo struct {
 	L2ChainConfig *params.ChainConfig
 	RollupConfig  *rollup.Config
 	L1ChainConfig *params.ChainConfig
+	DependencySet depset.DependencySet
 }
 
 type BootstrapClient struct {
@@ -46,6 +48,7 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 	var l1ChainConfig *params.ChainConfig
 	var l2ChainConfig *params.ChainConfig
 	var rollupConfig *rollup.Config
+	var dependencySet depset.DependencySet
 	if l2ChainID == CustomChainIDIndicator {
 		l2ChainConfig = new(params.ChainConfig)
 		err := json.Unmarshal(br.r.Get(L2ChainConfigLocalIndex), &l2ChainConfig)
@@ -66,6 +69,14 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 			panic(fmt.Sprintf("l1ChainConfig chain ID does not match rollup config L1 chain ID: %v != %v",
 				l1ChainConfig.ChainID, rollupConfig.L1ChainID))
 		}
+		if rollupConfig.InteropTime != nil {
+			var staticDepSet depset.StaticConfigDependencySet
+			err = json.Unmarshal(br.r.Get(DependencySetLocalIndex), &staticDepSet)
+			if err != nil {
+				panic("failed to bootstrap dependency set")
+			}
+			dependencySet = &staticDepSet
+		}
 	} else {
 		var err error
 		rollupConfig, err = chainconfig.RollupConfigByChainID(l2ChainID)
@@ -81,6 +92,12 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 		if err != nil {
 			panic(err)
 		}
+		if rollupConfig.InteropTime != nil {
+			dependencySet, err = chainconfig.DependencySetByChainID(l2ChainID)
+			if err != nil {
+				panic(err)
+			}
+		}
 	}
 
 	return &BootInfo{
@@ -92,5 +109,6 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 		L2ChainConfig:      l2ChainConfig,
 		RollupConfig:       rollupConfig,
 		L1ChainConfig:      l1ChainConfig,
+		DependencySet:      dependencySet,
 	}
 }

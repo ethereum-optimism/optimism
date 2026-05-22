@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -54,6 +55,13 @@ func WithPreInteropDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpe
 				ChainConfig: l2Eng.L2Chain().Config(),
 			},
 		}
+	}
+}
+
+// WithDependencySet sets the dependency set on the fixture inputs so the host serves it via the preimage oracle.
+func WithDependencySet(depSet *depset.StaticConfigDependencySet) FixtureInputParam {
+	return func(f *FixtureInputs) {
+		f.DependencySet = depSet
 	}
 }
 

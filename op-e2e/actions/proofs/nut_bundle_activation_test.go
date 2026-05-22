@@ -133,7 +133,7 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 			"activation-block tx %d reverted", i)
 	}
 
-	// Fork-specific post-activation assertions. Future forks register cases here.
+	// Fork-specific post-activation assertions. Interop's multi-chain case lives in [TestInteropActivation_MultiChain].
 	switch fork {
 	case forks.Karst:
 		assertKarstActivation(t, env, actHeader)
@@ -189,16 +189,8 @@ func assertKarstActivation(t actionsHelpers.StatefulTesting, env *helpers.L2Faul
 	}
 }
 
-// assertInteropActivation verifies Interop-specific state changes:
-//   - the INTEROP feature flag flips on L1Block
-//   - the four Interop predeploy proxies (CrossL2Inbox, L2ToL2CrossDomainMessenger,
-//     SuperchainETHBridge, ETHLiquidity) point at non-empty implementation
-//     contracts after activation
-//   - ETHLiquidity is funded with u128::MAX wei
-//
-// These are the externally observable effects of the pre-bundle setFeature
-// wrapper, the L2CM upgradePredeploys() call, and the post-bundle ETHLiquidity
-// funding wrapper.
+// assertInteropActivation asserts the single-chain Interop activation post-state:
+// bundle predeploy impls installed, INTEROP flag unset, ETHLiquidity unfunded.
 func assertInteropActivation(t actionsHelpers.StatefulTesting, env *helpers.L2FaultProofEnv, actHeader *types.Header) {
 	ethCl := env.Engine.EthClient()
 	postBlock := actHeader.Number
@@ -216,7 +208,7 @@ func assertInteropActivation(t actionsHelpers.StatefulTesting, env *helpers.L2Fa
 	post, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, slot, postBlock)
 	require.NoError(t, err, "read L1Block.isFeatureEnabled(INTEROP) post-activation")
 	require.Truef(t, allZero(pre), "INTEROP feature must be unset pre-activation, got %x", pre)
-	require.Equalf(t, byte(1), post[31], "INTEROP feature must be set post-activation, got %x", post)
+	require.Truef(t, allZero(post), "INTEROP feature must stay unset for single-chain activation, got %x", post)
 
 	// The four Interop predeploys have their EIP-1967 implementation slot set
 	// to a non-empty contract after the L2CM bundle's upgradePredeploys() call.
@@ -233,21 +225,21 @@ func assertInteropActivation(t actionsHelpers.StatefulTesting, env *helpers.L2Fa
 		impl, err := ethCl.StorageAt(context.Background(), p.addr, genesis.ImplementationSlot, postBlock)
 		require.NoError(t, err, "read %s impl slot post-activation", p.name)
 		implAddr := common.BytesToAddress(impl)
-		require.NotEqualf(t, common.Address{}, implAddr,
-			"%s (%s) implementation slot must be non-zero after Interop activation", p.name, p.addr)
+		require.Equal(t, common.Address{}, implAddr,
+			"%s (%s) implementation slot must remain unset after Interop activation", p.name, p.addr)
 		code, err := ethCl.CodeAt(context.Background(), implAddr, postBlock)
 		require.NoError(t, err, "read code at new %s impl", p.name)
-		require.NotEmptyf(t, code, "new %s impl %s must have code", p.name, implAddr)
+		require.Emptyf(t, code, "new %s impl %s must not have code", p.name, implAddr)
 	}
 
-	// ETHLiquidity must be funded with u128::MAX wei after activation.
+	// ETHLiquidity stays at zero balance — the post-bundle funding wrapper does
+	// not fire for single-chain activation.
 	preBalance, err := ethCl.BalanceAt(context.Background(), predeploys.ETHLiquidityAddr, preBlock)
 	require.NoError(t, err, "read ETHLiquidity balance pre-activation")
 	postBalance, err := ethCl.BalanceAt(context.Background(), predeploys.ETHLiquidityAddr, postBlock)
 	require.NoError(t, err, "read ETHLiquidity balance post-activation")
 	require.True(t, preBalance.Sign() == 0, "ETHLiquidity must have zero balance pre-activation")
-	expectedFunding := derive.InteropETHLiquidityFundingAmount()
-	require.Equal(t, expectedFunding, postBalance, "ETHLiquidity must be funded with u128::MAX post-activation")
+	require.True(t, postBalance.Sign() == 0, "ETHLiquidity must stay unfunded for single-chain activation")
 }
 
 func allZero(b []byte) bool {
