@@ -2,8 +2,8 @@ package validations
 
 import (
 	"bytes"
-
-	"github.com/olekukonko/tablewriter"
+	"fmt"
+	"strings"
 )
 
 type Output struct {
@@ -12,15 +12,10 @@ type Output struct {
 
 func (o *Output) AsMarkdown() string {
 	buf := new(bytes.Buffer)
-	table := tablewriter.NewWriter(buf)
-	table.SetHeader([]string{"Error", "Description"})
-	table.SetAutoMergeCells(true)
-	table.SetBorders(tablewriter.Border{Left: true, Top: false, Right: true, Bottom: false})
-	table.SetCenterSeparator("|")
+	writeMarkdownTableHeader(buf, "Error", "Description")
 
 	if len(o.Errors) == 0 {
-		table.Append([]string{"No errors.", "No errors."})
-		table.Render()
+		writeMarkdownTableRow(buf, "No errors.", "No errors.")
 		return buf.String()
 	}
 
@@ -29,9 +24,35 @@ func (o *Output) AsMarkdown() string {
 		if errDesc == "" {
 			errDesc = "Unknown error code, please check the implementation for more details."
 		}
-		table.Append([]string{error, errDesc})
+		writeMarkdownTableRow(buf, error, errDesc)
 	}
 
-	table.Render()
 	return buf.String()
+}
+
+func writeMarkdownTableHeader(buf *bytes.Buffer, columns ...string) {
+	writeMarkdownTableRow(buf, columns...)
+	for i := range columns {
+		if i > 0 {
+			buf.WriteString("|")
+		}
+		buf.WriteString("---")
+	}
+	buf.WriteString("\n")
+}
+
+func writeMarkdownTableRow(buf *bytes.Buffer, columns ...string) {
+	for i, column := range columns {
+		if i > 0 {
+			buf.WriteString("|")
+		}
+		fmt.Fprintf(buf, " %s ", markdownCell(column))
+	}
+	buf.WriteString("\n")
+}
+
+func markdownCell(value string) string {
+	value = strings.ReplaceAll(value, "|", "\\|")
+	value = strings.ReplaceAll(value, "\n", "<br>")
+	return value
 }
