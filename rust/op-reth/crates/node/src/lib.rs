@@ -25,6 +25,9 @@ pub use engine::OpEngineTypes;
 pub mod node;
 pub use node::*;
 
+pub mod payload_service;
+pub use payload_service::OpPayloadServiceBuilder;
+
 pub mod rpc;
 pub use rpc::OpEngineApiBuilder;
 

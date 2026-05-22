@@ -4,6 +4,7 @@ use crate::{
     OpEngineApiBuilder, OpEngineTypes,
     args::RollupArgs,
     engine::OpEngineValidator,
+    payload_service::OpPayloadServiceBuilder,
     txpool::{OpTransactionPool, OpTransactionValidator},
 };
 use alloy_primitives::Sealed;
@@ -23,9 +24,8 @@ use reth_node_api::{
 use reth_node_builder::{
     BuilderContext, DebugNode, Node, NodeAdapter, NodeComponentsBuilder,
     components::{
-        BasicPayloadServiceBuilder, ComponentsBuilder, ConsensusBuilder, ExecutorBuilder,
-        NetworkBuilder, PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
-        TxPoolBuilder,
+        ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder,
+        PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides, TxPoolBuilder,
     },
     node::{FullNodeTypes, NodeTypes},
     rpc::{
@@ -199,7 +199,7 @@ pub struct OpNode {
 pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBuilder<
     Node,
     OpPoolBuilder,
-    BasicPayloadServiceBuilder<Payload>,
+    OpPayloadServiceBuilder<Payload>,
     OpNetworkBuilder,
     OpExecutorBuilder,
     OpConsensusBuilder,
@@ -245,7 +245,7 @@ impl OpNode {
                         self.args.supervisor_safety_level,
                     ),
             )
-            .payload(BasicPayloadServiceBuilder::new(
+            .payload(OpPayloadServiceBuilder::new(
                 OpPayloadBuilder::new(compute_pending_block)
                     .with_da_config(self.da_config.clone())
                     .with_gas_limit_config(self.gas_limit_config.clone())
@@ -317,7 +317,7 @@ where
     type ComponentsBuilder = ComponentsBuilder<
         N,
         OpPoolBuilder,
-        BasicPayloadServiceBuilder<OpPayloadBuilder>,
+        OpPayloadServiceBuilder<OpPayloadBuilder>,
         OpNetworkBuilder,
         OpExecutorBuilder,
         OpConsensusBuilder,
