@@ -1,10 +1,10 @@
+import http.client
 import logging.config
+import json
 import os
 import re
 import subprocess
 import sys
-
-from github import Github
 
 REBUILD_ALL_PATTERNS = [
     r'^\.circleci/\.*',
@@ -23,6 +23,8 @@ WHITELISTED_BRANCHES = {
     'master',
     'develop'
 }
+
+GITHUB_REPO_PART_PATTERN = re.compile(r'^[A-Za-z0-9_.-]+$')
 
 LOGGING_CONFIG = {
     'version': 1,
@@ -94,19 +96,17 @@ def main():
         log.info('No GitHub access token found - likely a fork. Triggering build')
         exit_build()
 
-    g = Github(gh_token)
     try:
-        g.get_user()
-        repo = g.get_repo(os.getenv('CIRCLE_PROJECT_USERNAME') + '/' + os.getenv('CIRCLE_PROJECT_REPONAME'))
+        pr_number = int(pr_urls[0].split('/')[-1])
+        pr = fetch_pull_request(pr_number, gh_token)
+        pr_url = pr['url']
+        base_sha = pr['base']['sha']
+        head_sha = pr['head']['sha']
     except Exception:
-        log.exception('Failed to get repo from GitHub')
+        log.exception('Failed to get PR metadata from GitHub')
         exit_build()
 
-    pr = repo.get_pull(int(pr_urls[0].split('/')[-1]))
-    log.info('Found PR: %s', pr.url)
-
-    base_sha = pr.base.sha
-    head_sha = pr.head.sha
+    log.info('Found PR: %s', pr_url)
 
     diffs = git_cmd('diff --name-only {}...{}'.format(base_sha, head_sha), monorepo_path).split('\n')
     log.info('Found diff. Checking for matches...')
@@ -123,6 +123,36 @@ def main():
 
 def git_cmd(cmd, cwd):
     return subprocess.check_output(['git'] + cmd.split(' '), cwd=cwd).decode('utf-8').strip()
+
+
+def fetch_pull_request(pr_number, token):
+    owner = os.getenv('CIRCLE_PROJECT_USERNAME')
+    repo = os.getenv('CIRCLE_PROJECT_REPONAME')
+    if not owner or not repo:
+        raise RuntimeError('missing CircleCI project environment')
+    if not GITHUB_REPO_PART_PATTERN.fullmatch(owner) or not GITHUB_REPO_PART_PATTERN.fullmatch(repo):
+        raise RuntimeError('invalid CircleCI project environment')
+
+    conn = http.client.HTTPSConnection('api.github.com', timeout=30)
+    try:
+        conn.request(
+            'GET',
+            '/repos/{}/{}/pulls/{}'.format(owner, repo, pr_number),
+            headers={
+                'Accept': 'application/vnd.github+json',
+                'Authorization': 'Bearer {}'.format(token),
+                'X-GitHub-Api-Version': '2022-11-28',
+                'User-Agent': 'optimism-check-changed',
+            },
+        )
+        response = conn.getresponse()
+        body = response.read()
+    finally:
+        conn.close()
+
+    if response.status >= 400:
+        raise RuntimeError('GitHub API returned status {}'.format(response.status))
+    return json.loads(body.decode('utf-8'))
 
 
 def match_path(path, patterns):

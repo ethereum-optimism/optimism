@@ -139,7 +139,6 @@ commands:
             CHECK_CHANGED_NO_GO_DEPS: "<<parameters.no_go_deps>>"
           command: |
             cd ops/check-changed
-            pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
 
   install-solc-compilers:
