@@ -98,6 +98,10 @@ registries = []
 [sources]
 allow-git = [
   "https://github.com/paradigmxyz/reth",
+  # Temporary fork hosting paradigmxyz/reth#24428 — joins OS threads before tokio teardown to
+  # unblock the `peers_negotiate_eth_69` flake (optimism#20973). Drop together with the
+  # `[patch]` block in rust/Cargo.toml once the fix lands upstream.
+  "https://github.com/einar-oplabs/reth",
   "https://github.com/alloy-rs/alloy",
   "https://github.com/alloy-rs/hardforks",
   "https://github.com/alloy-rs/evm",
