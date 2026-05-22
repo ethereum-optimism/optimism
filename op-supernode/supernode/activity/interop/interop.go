@@ -367,8 +367,12 @@ func (i *Interop) waitForColdStartInit() (time.Duration, error) {
 	advanced, err := i.advanceColdStartInit()
 	if err != nil {
 		i.metrics.ActivityErrors.WithLabelValues("interop", "cold_start_init").Inc()
+		attempts := i.backfillAttempts.Load()
 		i.log.Warn("interop cold start step failed, will retry",
-			"err", err, "attempts", i.backfillAttempts.Load())
+			"err", err, "attempts", attempts)
+		if attempts%30 == 0 {
+			i.logColdStartProgress(attempts)
+		}
 		return errorBackoffPeriod, nil
 	}
 	if !advanced {
@@ -387,6 +391,8 @@ func (i *Interop) waitForColdStartInit() (time.Duration, error) {
 
 // logColdStartProgress queries each chain's sync status and SafeDB readiness,
 // then emits a single info-level log with per-chain derivation progress.
+// Includes L1 origin and finalized head so operators can tell whether the
+// deriver is still catching up or is at the tip waiting for new batches.
 func (i *Interop) logColdStartProgress(attempts int32) {
 	fields := []any{
 		"attempts", attempts,
@@ -405,8 +411,9 @@ func (i *Interop) logColdStartProgress(attempts int32) {
 		}
 		fields = append(fields,
 			fmt.Sprintf("chain_%s", chainID),
-			fmt.Sprintf("safedb_ready=%v unsafe=%d pending_safe=%d safe=%d",
-				safeDBReady, status.UnsafeL2.Number, status.PendingSafeL2.Number, status.SafeL2.Number))
+			fmt.Sprintf("safedb_ready=%v unsafe=%d pending_safe=%d safe=%d current_l1=%d finalized_l1=%d",
+				safeDBReady, status.UnsafeL2.Number, status.PendingSafeL2.Number, status.SafeL2.Number,
+				status.CurrentL1.Number, status.FinalizedL1.Number))
 	}
 	i.log.Info("interop cold start: waiting for SafeDB entries on all chains", fields...)
 }
@@ -432,18 +439,29 @@ func (i *Interop) progress() (time.Duration, error) {
 	if round%30 == 0 {
 		lastTS, _ := i.verifiedDB.LastTimestamp()
 		var tipTS uint64
+		fields := []any{
+			"round", round, "madeProgress", madeProgress,
+		}
 		for _, chain := range i.chains {
-			if status, err := chain.SyncStatus(i.ctx); err == nil && status.UnsafeL2.Time > tipTS {
+			status, err := chain.SyncStatus(i.ctx)
+			if err != nil {
+				continue
+			}
+			if status.UnsafeL2.Time > tipTS {
 				tipTS = status.UnsafeL2.Time
 			}
+			fields = append(fields,
+				fmt.Sprintf("chain_%s", chain.ID()),
+				fmt.Sprintf("safe=%d pending_safe=%d unsafe=%d",
+					status.SafeL2.Number, status.PendingSafeL2.Number, status.UnsafeL2.Number))
 		}
 		var behind uint64
 		if tipTS > lastTS {
 			behind = tipTS - lastTS
 		}
-		i.log.Info("interop verification progress",
-			"round", round, "madeProgress", madeProgress,
+		fields = append(fields,
 			"lastVerifiedTimestamp", lastTS, "tipTimestamp", tipTS, "behindSeconds", behind)
+		i.log.Info("interop verification progress", fields...)
 	}
 	if !madeProgress {
 		return backoffPeriod, nil
