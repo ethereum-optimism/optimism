@@ -1954,6 +1954,12 @@
               },
               "chain-operators/tutorials/absolute-prestate",
               "chain-operators/tutorials/kona-custom-prestate",
+              {
+                "group": "Archive",
+                "pages": [
+                  "chain-operators/tutorials/archive/op-program-prestate"
+                ]
+              },
               "chain-operators/tutorials/adding-derivation-attributes",
               "chain-operators/tutorials/adding-precompiles",
               "chain-operators/tutorials/dispute-games",
