@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +32,7 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 	t.Run("errFuture: is not local unsafe", func(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
 		hazards := map[eth.ChainID]messages.BlockSeal{eth.ChainIDFromUInt64(123): {Number: 0}}
-		ufcd.isCrossUnsafe = types.ErrFuture
+		ufcd.isCrossUnsafe = interop.ErrFuture
 		ufcd.isLocalUnsafe = errors.New("some error")
 		// when there is one hazard, and IsCrossUnsafe returns an ErrFuture,
 		// and IsLocalUnsafe returns an error,
@@ -43,7 +43,7 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 	t.Run("errFuture: genesis block", func(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
 		hazards := map[eth.ChainID]messages.BlockSeal{eth.ChainIDFromUInt64(123): {Number: 0}}
-		ufcd.isCrossUnsafe = types.ErrFuture
+		ufcd.isCrossUnsafe = interop.ErrFuture
 		// when there is one hazard, and IsCrossUnsafe returns an ErrFuture,
 		// BUT the hazard's block number is 0,
 		// no error is returned
@@ -53,7 +53,7 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 	t.Run("errFuture: error getting parent block", func(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
 		hazards := map[eth.ChainID]messages.BlockSeal{eth.ChainIDFromUInt64(123): {Number: 3}}
-		ufcd.isCrossUnsafe = types.ErrFuture
+		ufcd.isCrossUnsafe = interop.ErrFuture
 		ufcd.findBlockIDFn = func() (parent eth.BlockID, err error) {
 			return eth.BlockID{}, errors.New("some error")
 		}
@@ -66,7 +66,7 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 	t.Run("errFuture: parent block is not cross unsafe", func(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
 		hazards := map[eth.ChainID]messages.BlockSeal{eth.ChainIDFromUInt64(123): {Number: 3}}
-		ufcd.isCrossUnsafe = types.ErrFuture
+		ufcd.isCrossUnsafe = interop.ErrFuture
 		ufcd.findBlockIDFn = func() (parent eth.BlockID, err error) {
 			// when getting the parent block, prep isCrossSafe to be err
 			ufcd.isCrossUnsafe = errors.New("not cross unsafe!")

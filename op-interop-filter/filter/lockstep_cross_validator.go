@@ -11,8 +11,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
@@ -150,20 +150,20 @@ func validateMessageTiming(
 	// Rule 1: init must be strictly before inclusion
 	if initTimestamp >= inclusionTimestamp {
 		return fmt.Errorf("initiating message timestamp %d not before inclusion timestamp %d: %w",
-			initTimestamp, inclusionTimestamp, types.ErrConflict)
+			initTimestamp, inclusionTimestamp, interop.ErrConflict)
 	}
 
 	// Rule 2: compute expiry with overflow check
 	expiresAt := initTimestamp + messageExpiryWindow
 	if expiresAt < initTimestamp {
 		return fmt.Errorf("overflow in expiry calculation: timestamp %d + window %d: %w",
-			initTimestamp, messageExpiryWindow, types.ErrConflict)
+			initTimestamp, messageExpiryWindow, interop.ErrConflict)
 	}
 
 	// Rule 3: message must not be expired at inclusion
 	if expiresAt < inclusionTimestamp {
 		return fmt.Errorf("initiating message expired: init %d + expiry window %d = %d < inclusion %d: %w",
-			initTimestamp, messageExpiryWindow, expiresAt, inclusionTimestamp, types.ErrConflict)
+			initTimestamp, messageExpiryWindow, expiresAt, inclusionTimestamp, interop.ErrConflict)
 	}
 
 	// Rule 4: if timeout set, message must not expire before timeout deadline
@@ -171,14 +171,14 @@ func validateMessageTiming(
 		maxExecTimestamp := execTimestamp + timeout
 		if maxExecTimestamp < execTimestamp {
 			return fmt.Errorf("overflow in max exec timestamp calculation: timestamp %d + timeout %d: %w",
-				execTimestamp, timeout, types.ErrConflict)
+				execTimestamp, timeout, interop.ErrConflict)
 		}
 		if expiresAt < maxExecTimestamp {
 			return fmt.Errorf("initiating message will expire before timeout: "+
 				"init %d + expiry %d = %d < exec %d + timeout %d = %d: %w",
 				initTimestamp, messageExpiryWindow, expiresAt,
 				execTimestamp, timeout, maxExecTimestamp,
-				types.ErrConflict)
+				interop.ErrConflict)
 		}
 	}
 
@@ -195,19 +195,19 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 	minIngestedTs, ok := v.getMinIngestedTimestamp()
 	if !ok || access.Timestamp > minIngestedTs {
 		return fmt.Errorf("timestamp %d not yet ingested (min ingested: %d): %w",
-			access.Timestamp, minIngestedTs, types.ErrOutOfScope)
+			access.Timestamp, minIngestedTs, interop.ErrOutOfScope)
 	}
 
 	// Check cross-unsafe timestamp
 	if minSafety == safety.CrossUnsafe {
 		crossValidatedTs, ok := v.CrossValidatedTimestamp()
 		if !ok {
-			return fmt.Errorf("cross-validated timestamp not available: %w", types.ErrOutOfScope)
+			return fmt.Errorf("cross-validated timestamp not available: %w", interop.ErrOutOfScope)
 		}
 		if access.Timestamp > crossValidatedTs {
 			return fmt.Errorf("message at timestamp %d not yet cross-unsafe validated "+
 				"(current cross-validated timestamp: %d): %w",
-				access.Timestamp, crossValidatedTs, types.ErrOutOfScope)
+				access.Timestamp, crossValidatedTs, interop.ErrOutOfScope)
 		}
 	}
 
@@ -225,7 +225,7 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 	// Check that the log exists on the source chain
 	ingester, ok := v.chains[access.ChainID]
 	if !ok {
-		return fmt.Errorf("source chain %s: %w", access.ChainID, types.ErrUnknownChain)
+		return fmt.Errorf("source chain %s: %w", access.ChainID, interop.ErrUnknownChain)
 	}
 
 	query := messages.ContainsQuery{
@@ -244,7 +244,7 @@ func (v *LockstepCrossValidator) validateExecutingMessage(
 ) error {
 	ingester, ok := v.chains[execMsg.ChainID]
 	if !ok {
-		return fmt.Errorf("source chain %s: %w", execMsg.ChainID, types.ErrUnknownChain)
+		return fmt.Errorf("source chain %s: %w", execMsg.ChainID, interop.ErrUnknownChain)
 	}
 
 	// Validate timing constraints (no timeout for background validation)

@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // remoteExecMsg constructs a seedLog declaring an executing message that
@@ -80,7 +80,7 @@ func TestIntegration_GetExecMsgsAtTimestamp_BeforeInit_Uninitialized(t *testing.
 	si.logsDB = nil
 
 	_, err := si.GetExecMsgsAtTimestamp(1200)
-	require.ErrorIs(t, err, types.ErrUninitialized)
+	require.ErrorIs(t, err, interop.ErrUninitialized)
 }
 
 func TestIntegration_GetExecMsgsAtTimestamp_AnchorOnly_Uninitialized(t *testing.T) {
@@ -93,7 +93,7 @@ func TestIntegration_GetExecMsgsAtTimestamp_AnchorOnly_Uninitialized(t *testing.
 	})
 
 	_, err := si.GetExecMsgsAtTimestamp(1198)
-	require.ErrorIs(t, err, types.ErrUninitialized)
+	require.ErrorIs(t, err, interop.ErrUninitialized)
 }
 
 func TestIntegration_GetExecMsgsAtTimestamp_BelowEarliest_ReturnsEmpty(t *testing.T) {
@@ -158,7 +158,7 @@ func TestIntegration_GetExecMsgsAtTimestamp_NonexistentTimestamp_ReturnsEmpty(t 
 
 	// Future timestamp beyond latest also returns empty (no error).
 	msgs, err = si.GetExecMsgsAtTimestamp(9999)
-	require.False(t, errors.Is(err, types.ErrUninitialized))
+	require.False(t, errors.Is(err, interop.ErrUninitialized))
 	require.NoError(t, err)
 	require.Empty(t, msgs)
 }

@@ -13,6 +13,7 @@ import (
 	types2 "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
@@ -120,7 +121,7 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 	t.Log("started!")
 
 	_, err = b.LocalUnsafe(context.Background(), chainA)
-	require.ErrorIs(t, err, types.ErrFuture, "no data yet, need local-unsafe")
+	require.ErrorIs(t, err, interop.ErrFuture, "no data yet, need local-unsafe")
 
 	require.NoError(t, ex.Drain())
 	// The database is initialized from the genesis interop block at startup.
@@ -248,14 +249,14 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 	t.Log("started!")
 
 	_, err = b.LocalUnsafe(context.Background(), chainA)
-	require.ErrorIs(t, err, types.ErrFuture, "no data yet, need local-unsafe")
+	require.ErrorIs(t, err, interop.ErrFuture, "no data yet, need local-unsafe")
 
 	require.NoError(t, ex.Drain())
 	// The database is not initialized from non-Interop genesis
 	xunsafe, err := b.CrossUnsafe(context.Background(), chainA)
-	require.ErrorIs(t, err, types.ErrFuture, "got xunsafe %v", xunsafe)
+	require.ErrorIs(t, err, interop.ErrFuture, "got xunsafe %v", xunsafe)
 	xsafe, err := b.CrossSafe(context.Background(), chainA)
-	require.ErrorIs(t, err, types.ErrFuture, "got xsafe %v", xsafe)
+	require.ErrorIs(t, err, interop.ErrFuture, "got xsafe %v", xsafe)
 
 	// Receive unsafe block X, interop activation block, from node
 
@@ -275,7 +276,7 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 	require.Equal(t, blockX.ID(), xunsafe)
 	// cross-safe still undefined
 	_, err = b.CrossSafe(context.Background(), chainA)
-	require.ErrorIs(t, err, types.ErrFuture, err)
+	require.ErrorIs(t, err, interop.ErrFuture, err)
 
 	// Receive unsafe block Y from node
 
@@ -573,7 +574,7 @@ func TestAsyncVerifyAccessWithRPC(t *testing.T) {
 			// 3. When seal.ID() != dbBlock: Logs "DB access check result did not match" and calls RecordAccessListVerifyFailure
 
 			// Set expectations for the actual behavior observed
-			if errors.Is(stubErr, types.ErrConflict) {
+			if errors.Is(stubErr, interop.ErrConflict) {
 				// Error for checksum failure
 				mockMetrics.Mock.On("RecordAccessListVerifyFailure", chainID).Return()
 			}
@@ -601,11 +602,11 @@ func TestAsyncVerifyAccessWithRPC(t *testing.T) {
 	idB := sealB.ID()
 
 	// ErrConflict + mismatch => 2 failures (checksum + mismatch)
-	runScenario("ErrConflict_mismatch", sealA, types.ErrConflict, idB)
+	runScenario("ErrConflict_mismatch", sealA, interop.ErrConflict, idB)
 	// ErrConflict + match    => 1 failure  (checksum only)
-	runScenario("ErrConflict_match", sealA, types.ErrConflict, idA)
+	runScenario("ErrConflict_match", sealA, interop.ErrConflict, idA)
 	// Other non-conflict error + mismatch => 1 failure (mismatch only)
-	runScenario("OtherErr_mismatch", sealA, types.ErrFuture, idB)
+	runScenario("OtherErr_mismatch", sealA, interop.ErrFuture, idB)
 	// No error + match         => 0 failures
 	runScenario("NoErr_match", sealA, nil, idA)
 }
@@ -647,7 +648,7 @@ func TestFailsafeEnabled(t *testing.T) {
 
 	// Test that CheckAccessList returns ErrFailsafeEnabled when failsafe is enabled
 	err = b.CheckAccessList(context.Background(), []common.Hash{}, safety.LocalUnsafe, messages.ExecutingDescriptor{})
-	require.ErrorIs(t, err, types.ErrFailsafeEnabled, "CheckAccessList should return ErrFailsafeEnabled when failsafe is enabled")
+	require.ErrorIs(t, err, interop.ErrFailsafeEnabled, "CheckAccessList should return ErrFailsafeEnabled when failsafe is enabled")
 
 	// Test setting failsafe to false
 	err = b.SetFailsafeEnabled(context.Background(), false)

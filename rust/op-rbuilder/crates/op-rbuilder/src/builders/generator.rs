@@ -1,17 +1,15 @@
 use alloy_primitives::B256;
 use futures_util::{Future, FutureExt};
-use reth::{
-    providers::{BlockReaderIdExt, StateProviderFactory},
-    tasks::TaskSpawner,
-};
+use reth::providers::{BlockReaderIdExt, StateProviderFactory};
 use reth_basic_payload_builder::{
     BasicPayloadJobGeneratorConfig, HeaderForPayload, PayloadConfig, PrecachedState,
 };
-use reth_node_api::{NodePrimitives, PayloadBuilderAttributes, PayloadKind};
+use reth_node_api::NodePrimitives;
 use reth_payload_builder::{
-    KeepPayloadJobAlive, PayloadBuilderError, PayloadJob, PayloadJobGenerator,
+    BuildNewPayload, KeepPayloadJobAlive, PayloadBuilderError, PayloadId, PayloadJob,
+    PayloadJobGenerator,
 };
-use reth_payload_primitives::BuiltPayload;
+use reth_payload_primitives::{BuiltPayload, PayloadAttributes, PayloadKind};
 use reth_primitives_traits::HeaderTy;
 use reth_provider::CanonStateNotification;
 use reth_revm::cached::CachedReads;
@@ -26,6 +24,21 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
+pub(super) trait TaskSpawner: Clone + Send + Sync + 'static {
+    fn spawn_task<F>(&self, fut: F)
+    where
+        F: Future<Output = ()> + Send + 'static;
+}
+
+impl TaskSpawner for reth_tasks::Runtime {
+    fn spawn_task<F>(&self, fut: F)
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        std::mem::drop(reth_tasks::Runtime::spawn_task(self, fut));
+    }
+}
+
 /// A trait for building payloads that encapsulate Ethereum transactions.
 ///
 /// This trait provides the `try_build` method to construct a transaction payload
@@ -37,7 +50,7 @@ use tracing::info;
 #[async_trait::async_trait]
 pub(super) trait PayloadBuilder: Send + Sync + Clone {
     /// The payload attributes type to accept for building.
-    type Attributes: PayloadBuilderAttributes;
+    type Attributes: PayloadAttributes;
     /// The type of the built payload.
     type BuiltPayload: BuiltPayload;
 
@@ -137,7 +150,8 @@ where
     /// `engine_forkchoiceUpdatedVX`
     fn new_payload_job(
         &self,
-        attributes: <Builder as PayloadBuilder>::Attributes,
+        input: BuildNewPayload<<Builder as PayloadBuilder>::Attributes>,
+        id: PayloadId,
     ) -> Result<Self::Job, PayloadBuilderError> {
         let cancel_token = if self.ensure_only_one_payload {
             // Cancel existing payload
@@ -157,15 +171,14 @@ where
             CancellationToken::new()
         };
 
-        let parent_header = if attributes.parent().is_zero() {
-            // use latest block if parent is zero: genesis block
+        let parent_header = if input.parent_hash.is_zero() {
             self.client
                 .latest_header()?
-                .ok_or_else(|| PayloadBuilderError::MissingParentBlock(attributes.parent()))?
+                .ok_or_else(|| PayloadBuilderError::MissingParentHeader(B256::ZERO))?
         } else {
             self.client
-                .sealed_header_by_hash(attributes.parent())?
-                .ok_or_else(|| PayloadBuilderError::MissingParentBlock(attributes.parent()))?
+                .sealed_header_by_hash(input.parent_hash)?
+                .ok_or_else(|| PayloadBuilderError::MissingParentHeader(input.parent_hash))?
         };
 
         info!("Spawn block building job");
@@ -186,10 +199,10 @@ where
         // "remember" the payloads long enough to accommodate this corner-case
         // (without it we are losing blocks). Postponing the deadline for 5s
         // (not just 0.5s) because of that.
-        let deadline = job_deadline(attributes.timestamp()) + self.extra_block_deadline;
+        let deadline = job_deadline(input.attributes.timestamp()) + self.extra_block_deadline;
 
         let deadline = Box::pin(tokio::time::sleep(deadline));
-        let config = PayloadConfig::new(Arc::new(parent_header.clone()), attributes);
+        let config = PayloadConfig::new(Arc::new(parent_header.clone()), input.attributes, id);
 
         let mut job = BlockPayloadJob {
             executor: self.executor.clone(),
@@ -266,7 +279,7 @@ where
 
 impl<Tasks, Builder> PayloadJob for BlockPayloadJob<Tasks, Builder>
 where
-    Tasks: TaskSpawner + Clone + 'static,
+    Tasks: TaskSpawner + Clone + Unpin + 'static,
     Builder: PayloadBuilder + Unpin + 'static,
     Builder::Attributes: Unpin + Clone,
     Builder::BuiltPayload: Unpin + Clone,
@@ -309,7 +322,7 @@ pub(super) struct BuildArguments<Attributes, Payload: BuiltPayload> {
 /// A [PayloadJob] is a future that's being polled by the `PayloadBuilderService`
 impl<Tasks, Builder> BlockPayloadJob<Tasks, Builder>
 where
-    Tasks: TaskSpawner + Clone + 'static,
+    Tasks: TaskSpawner + Clone + Unpin + 'static,
     Builder: PayloadBuilder + Unpin + 'static,
     Builder::Attributes: Unpin + Clone,
     Builder::BuiltPayload: Unpin + Clone,
@@ -323,7 +336,7 @@ where
         let (tx, rx) = oneshot::channel();
         self.build_complete = Some(rx);
         let cached_reads = self.cached_reads.take().unwrap_or_default();
-        self.executor.spawn_blocking(Box::pin(async move {
+        self.executor.spawn_task(async move {
             let args = BuildArguments {
                 cached_reads,
                 config: payload_config,
@@ -332,14 +345,14 @@ where
 
             let result = builder.try_build(args, cell).await;
             let _ = tx.send(result);
-        }));
+        });
     }
 }
 
 /// A [PayloadJob] is a a future that's being polled by the `PayloadBuilderService`
 impl<Tasks, Builder> Future for BlockPayloadJob<Tasks, Builder>
 where
-    Tasks: TaskSpawner + Clone + 'static,
+    Tasks: TaskSpawner + Clone + Unpin + 'static,
     Builder: PayloadBuilder + Unpin + 'static,
     Builder::Attributes: Unpin + Clone,
     Builder::BuiltPayload: Unpin + Clone,
@@ -469,12 +482,11 @@ mod tests {
     use alloy_eips::eip7685::Requests;
     use alloy_primitives::U256;
     use rand::rng;
-    use reth::tasks::TokioTaskExecutor;
-    use reth_chain_state::ExecutedBlock;
-    use reth_node_api::NodePrimitives;
+    use reth::tasks::Runtime;
+    use reth_node_api::{BuiltPayloadExecutedBlock, NodePrimitives};
     use reth_optimism_payload_builder::{OpPayloadPrimitives, payload::OpPayloadBuilderAttributes};
     use reth_optimism_primitives::OpPrimitives;
-    use reth_primitives::SealedBlock;
+    use reth_primitives_traits::SealedBlock;
     use reth_provider::test_utils::MockEthProvider;
     use reth_testing_utils::generators::{BlockRangeParams, random_block_range};
     use tokio::{
@@ -590,7 +602,7 @@ mod tests {
         }
 
         /// Returns the entire execution data for the built block, if available.
-        fn executed_block(&self) -> Option<ExecutedBlock<Self::Primitives>> {
+        fn executed_block(&self) -> Option<BuiltPayloadExecutedBlock<Self::Primitives>> {
             None
         }
 
@@ -628,7 +640,7 @@ mod tests {
                 }
 
                 // Small sleep to prevent tight loop
-                std::thread::sleep(Duration::from_millis(10));
+                tokio::time::sleep(Duration::from_millis(10)).await;
             }
         }
     }
@@ -660,7 +672,7 @@ mod tests {
         let mut rng = rng();
 
         let client = MockEthProvider::default();
-        let executor = TokioTaskExecutor::default();
+        let executor = Runtime::test();
         let config = BasicPayloadJobGeneratorConfig::default();
         let builder = MockBuilder::<OpPrimitives>::new();
 
@@ -687,10 +699,16 @@ mod tests {
 
         // this is not nice but necessary
         let mut attr = OpPayloadBuilderAttributes::default();
-        attr.payload_attributes.parent = client.latest_header()?.unwrap().hash();
+        attr.parent = client.latest_header()?.unwrap().hash();
 
         {
-            let job = generator.new_payload_job(attr.clone())?;
+            let input = BuildNewPayload {
+                parent_hash: attr.parent,
+                attributes: attr.clone(),
+                cache: None,
+                trie_handle: None,
+            };
+            let job = generator.new_payload_job(input, attr.payload_id())?;
             let _ = job.await;
 
             // you need to give one second for the job to be dropped and cancelled the internal job
@@ -702,7 +720,13 @@ mod tests {
 
         {
             // job resolve triggers cancellations from the build task
-            let mut job = generator.new_payload_job(attr.clone())?;
+            let input = BuildNewPayload {
+                parent_hash: attr.parent,
+                attributes: attr.clone(),
+                cache: None,
+                trie_handle: None,
+            };
+            let mut job = generator.new_payload_job(input, attr.payload_id())?;
             let _ = job.resolve();
             let _ = job.await;
 

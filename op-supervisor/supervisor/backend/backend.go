@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -376,7 +377,7 @@ func (su *SupervisorBackend) AttachSyncNode(ctx context.Context, src syncnode.Sy
 		return nil, fmt.Errorf("failed to identify chain ID of sync source: %w", err)
 	}
 	if !su.cfgSet.HasChain(chainID) {
-		return nil, fmt.Errorf("chain %s is not part of the interop dependency set: %w", chainID, types.ErrUnknownChain)
+		return nil, fmt.Errorf("chain %s is not part of the interop dependency set: %w", chainID, interop.ErrUnknownChain)
 	}
 	err = su.AttachProcessorSource(chainID, src)
 	if err != nil {
@@ -515,7 +516,7 @@ func (su *SupervisorBackend) asyncVerifyAccessWithRPC(ctx context.Context, acc m
 	timeoutCtx, cancel := context.WithTimeout(ctx, verifyAccessWithRPCTimeout)
 	defer cancel()
 	msgBlockFromRPC, err := su.checkAccessWithRPC(timeoutCtx, acc)
-	if errors.Is(err, types.ErrConflict) {
+	if errors.Is(err, interop.ErrConflict) {
 		su.logger.Error("RPC access checksum failed", "err", err, "access", acc)
 		su.m.RecordAccessListVerifyFailure(acc.ChainID)
 	} else {
@@ -535,7 +536,7 @@ func (su *SupervisorBackend) asyncVerifyAccessWithRPC(ctx context.Context, acc m
 func (su *SupervisorBackend) checkAccessWithRPC(ctx context.Context, acc messages.Access) (eth.BlockID, error) {
 	src, ok := su.syncSources.Get(acc.ChainID)
 	if !ok {
-		return eth.BlockID{}, fmt.Errorf("%w: %v", types.ErrUnknownChain, acc.ChainID)
+		return eth.BlockID{}, fmt.Errorf("%w: %v", interop.ErrUnknownChain, acc.ChainID)
 	}
 
 	blockSeal, err := src.Contains(ctx, messages.ContainsQuery{
@@ -566,7 +567,7 @@ func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockI
 	case safety.Finalized:
 		return su.chainDBs.IsFinalized(chainID, blockID)
 	default:
-		return types.ErrConflict
+		return interop.ErrConflict
 	}
 }
 
@@ -575,7 +576,7 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 	// Check if failsafe is enabled
 	if su.isFailsafeEnabled() {
 		su.logger.Debug("Failsafe is enabled, rejecting access-list check")
-		return types.ErrFailsafeEnabled
+		return interop.ErrFailsafeEnabled
 	}
 
 	switch minSafety {
@@ -613,20 +614,20 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 		// If not specified, assume the same chain as the initiating side.
 		if !su.linker.CanExecute(execChainID, execDescr.Timestamp, acc.ChainID, acc.Timestamp) {
 			su.logger.Debug("Access-list link check failed")
-			return types.ErrConflict
+			return interop.ErrConflict
 		}
 		if execDescr.Timeout != 0 {
 			maxTimestamp := safemath.SaturatingAdd(execDescr.Timestamp, execDescr.Timeout)
 			if !su.linker.CanExecute(execChainID, maxTimestamp, acc.ChainID, acc.Timestamp) {
 				su.logger.Debug("Access-list link check at timeout time failed")
-				return types.ErrConflict
+				return interop.ErrConflict
 			}
 		}
 
 		msgBlockFromDB, err := su.checkAccessWithDB(acc)
 		if err != nil {
 			su.logger.Debug("Access-list inclusion check failed", "err", err)
-			return types.ErrConflict
+			return interop.ErrConflict
 		}
 
 		// Optional & additional, not part of the check-accesslist result. So not protected by the same read-handle.
@@ -636,7 +637,7 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 
 		if err := su.checkSafety(acc.ChainID, msgBlockFromDB, minSafety); err != nil {
 			su.logger.Debug("Access-list safety check failed", "err", err)
-			return types.ErrConflict
+			return interop.ErrConflict
 		}
 	}
 	return h.Err()
@@ -795,7 +796,7 @@ func (su *SupervisorBackend) SuperRootAtTimestamp(ctx context.Context, timestamp
 		source, err := su.chainDBs.CrossDerivedToSource(chainID, ref.ID())
 		if err != nil {
 			// Transform error to ethereum.NotFound at RPC boundary so that the challenger can detect this case
-			if errors.Is(err, types.ErrFuture) {
+			if errors.Is(err, interop.ErrFuture) {
 				err = errors.Join(err, ethereum.NotFound)
 			}
 			return eth.SuperRootResponse{}, fmt.Errorf("cross-derived-to-source failed for chain %s: %w", chainID, err)

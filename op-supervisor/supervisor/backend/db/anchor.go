@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -52,10 +53,10 @@ func (db *ChainsDB) maybeInitSafeDB(id eth.ChainID, anchor types.DerivedBlockRef
 	logger := db.logger.New("chain", id, "derived", anchor.Derived, "source", anchor.Source)
 	localDB, ok := db.localDBs.Get(id)
 	if !ok {
-		return types.ErrUnknownChain
+		return interop.ErrUnknownChain
 	}
 	first, err := localDB.First()
-	if errors.Is(err, types.ErrFuture) {
+	if errors.Is(err, interop.ErrFuture) {
 		logger.Info("local database is empty, initializing")
 		if err := db.initializedUpdateCrossSafe(id, anchor.Source, anchor.Derived); err != nil {
 			return err
@@ -71,7 +72,7 @@ func (db *ChainsDB) maybeInitSafeDB(id eth.ChainID, anchor types.DerivedBlockRef
 			return fmt.Errorf("local database (%s) does not match anchor point (%s): %w",
 				first,
 				anchor,
-				types.ErrConflict)
+				interop.ErrConflict)
 		}
 	}
 	return nil
@@ -80,7 +81,7 @@ func (db *ChainsDB) maybeInitSafeDB(id eth.ChainID, anchor types.DerivedBlockRef
 func (db *ChainsDB) maybeInitFromUnsafe(id eth.ChainID, anchor eth.BlockRef) error {
 	logger := db.logger.New("chain", id, "anchor", anchor)
 	seal, err := db.FindSealedBlock(id, anchor.Number)
-	if errors.Is(err, types.ErrFuture) {
+	if errors.Is(err, interop.ErrFuture) {
 		logger.Debug("initializing events database")
 		err := db.sealBlock(id, anchor, true)
 		if err != nil {
@@ -99,7 +100,7 @@ func (db *ChainsDB) maybeInitFromUnsafe(id eth.ChainID, anchor eth.BlockRef) err
 			return fmt.Errorf("events database (%s) does not match anchor point (%s): %w",
 				seal,
 				anchor,
-				types.ErrConflict)
+				interop.ErrConflict)
 		}
 	}
 	return nil

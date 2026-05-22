@@ -6,16 +6,16 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // These error must be considered as ErrConflict to trigger a reorg.
 var (
-	ErrCycle                  = fmt.Errorf("%w: cycle detected", types.ErrConflict)
-	ErrExecMsgHasInvalidIndex = fmt.Errorf("%w: executing message has invalid log index", types.ErrConflict)
-	ErrExecMsgUnknownChain    = fmt.Errorf("%w: executing message references unknown chain", types.ErrConflict)
+	ErrCycle                  = fmt.Errorf("%w: cycle detected", interop.ErrConflict)
+	ErrExecMsgHasInvalidIndex = fmt.Errorf("%w: executing message has invalid log index", interop.ErrConflict)
+	ErrExecMsgUnknownChain    = fmt.Errorf("%w: executing message references unknown chain", interop.ErrConflict)
 
 	errInconsistentBlockSeal = errors.New("inconsistent block seal")
 )
@@ -175,7 +175,7 @@ func buildGraph(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) (*grap
 
 			// Check if the init message exists
 			if logCount, ok := logCounts[m.ChainID]; !ok || m.LogIdx >= logCount {
-				return nil, fmt.Errorf("%w: initiating message log index out of bounds", types.ErrConflict)
+				return nil, fmt.Errorf("%w: initiating message log index out of bounds", interop.ErrConflict)
 			}
 
 			initKey := node{
@@ -190,7 +190,7 @@ func buildGraph(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) (*grap
 			// Disallow self-referencing messages
 			// This should not be possible since the executing message contains the hash of the initiating message.
 			if initKey == execKey {
-				return nil, fmt.Errorf("%w: self referential message", types.ErrConflict)
+				return nil, fmt.Errorf("%w: self referential message", interop.ErrConflict)
 			}
 
 			// Add the edge

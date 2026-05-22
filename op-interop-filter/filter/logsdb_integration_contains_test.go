@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -106,7 +106,7 @@ func TestIntegration_Contains_BeforeInit_Uninitialized(t *testing.T) {
 	si.logsDB = nil
 
 	_, err := si.Contains(messages.ContainsQuery{BlockNum: 100, Timestamp: 1200})
-	require.ErrorIs(t, err, types.ErrUninitialized)
+	require.ErrorIs(t, err, interop.ErrUninitialized)
 }
 
 func TestIntegration_Contains_FailsafeAlreadyEnabled_Rejected(t *testing.T) {

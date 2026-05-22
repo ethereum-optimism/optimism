@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -20,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -161,7 +161,7 @@ func (rs *RPCSyncNode) AnchorPoint(ctx context.Context) (types.DerivedBlockRefPa
 	// -39003 is the RPC error code op-node previously used to signal interop-inactive.
 	// op-node no longer serves this endpoint; op-supervisor is slated for removal.
 	if errors.As(err, &jsonErr) && jsonErr.ErrorCode() == -39003 {
-		return types.DerivedBlockRefPair{}, types.ErrFuture
+		return types.DerivedBlockRefPair{}, interop.ErrFuture
 	}
 	return out, err
 }
@@ -181,16 +181,16 @@ func (rs *RPCSyncNode) Contains(ctx context.Context, query messages.ContainsQuer
 
 	l2BlockRef, err := rs.L2BlockRefByNumber(ctx, query.BlockNum)
 	if err != nil {
-		return messages.BlockSeal{}, types.ErrFuture
+		return messages.BlockSeal{}, interop.ErrFuture
 	}
 	blockRef := l2BlockRef.BlockRef()
 
 	log, err := rs.getLogAtIndex(ctx, blockRef.Hash, query.LogIdx)
 	if err != nil {
-		return messages.BlockSeal{}, types.ErrConflict
+		return messages.BlockSeal{}, interop.ErrConflict
 	}
 
-	logHash := processors.LogToLogHash(log)
+	logHash := messages.LogToLogHash(log)
 	entryChecksum := messages.ChecksumArgs{
 		BlockNumber: query.BlockNum,
 		LogIndex:    query.LogIdx,
@@ -199,7 +199,7 @@ func (rs *RPCSyncNode) Contains(ctx context.Context, query messages.ContainsQuer
 		LogHash:     logHash,
 	}.Checksum()
 	if entryChecksum != query.Checksum {
-		return messages.BlockSeal{}, types.ErrConflict
+		return messages.BlockSeal{}, interop.ErrConflict
 	}
 
 	return messages.BlockSeal{

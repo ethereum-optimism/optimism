@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
@@ -40,9 +41,15 @@ func TestSupernodeResyncResumesAtActivation_PostActivation(gt *testing.T) {
 	// genesis the post-restart cold-start backfill has a real window to
 	// populate, instead of collapsing to empty against a re-recorded
 	// genesis SafeDB entry.
+	//
+	// Wait on both the CL and the EL: the CL's safety.Finalized advances
+	// in-memory before the corresponding forkchoiceUpdated is persisted by
+	// the EL, and only the EL's view is durable across the supernode wipe.
 	dsl.CheckAll(t,
 		sys.L2ACL.AdvancedFn(safety.Finalized, preRestartFinalized, 180),
 		sys.L2BCL.AdvancedFn(safety.Finalized, preRestartFinalized, 180),
+		sys.L2ELA.AdvancedFn(eth.Finalized, preRestartFinalized, dsl.WithTimeout(180)),
+		sys.L2ELB.AdvancedFn(eth.Finalized, preRestartFinalized, dsl.WithTimeout(180)),
 	)
 
 	sys.Supernode.RestartWithFreshDataDir()

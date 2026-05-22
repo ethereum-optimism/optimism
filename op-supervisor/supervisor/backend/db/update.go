@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -22,7 +23,7 @@ func (db *ChainsDB) AddLog(
 ) error {
 	logDB, ok := db.logDBs.Get(chain)
 	if !ok {
-		return fmt.Errorf("cannot AddLog: %w: %v", types.ErrUnknownChain, chain)
+		return fmt.Errorf("cannot AddLog: %w: %v", interop.ErrUnknownChain, chain)
 	}
 	return logDB.AddLog(logHash, parentBlock, logIdx, execMsg)
 }
@@ -36,10 +37,10 @@ func (db *ChainsDB) SealBlock(chain eth.ChainID, block eth.BlockRef) error {
 func (db *ChainsDB) sealBlock(chain eth.ChainID, block eth.BlockRef, mayInit bool) error {
 	logDB, ok := db.logDBs.Get(chain)
 	if !ok {
-		return fmt.Errorf("cannot SealBlock: %w: %v", types.ErrUnknownChain, chain)
+		return fmt.Errorf("cannot SealBlock: %w: %v", interop.ErrUnknownChain, chain)
 	}
 	if !mayInit && logDB.IsEmpty() {
-		return fmt.Errorf("cannot SealBlock on uninitialized database: %w", types.ErrUninitialized)
+		return fmt.Errorf("cannot SealBlock on uninitialized database: %w", interop.ErrUninitialized)
 	}
 	err := logDB.SealBlock(block.ParentHash, block.ID(), block.Time)
 	if err != nil {
@@ -58,7 +59,7 @@ func (db *ChainsDB) Rewind(chain eth.ChainID, headBlock eth.BlockID) error {
 	// Rewind the logDB
 	logDB, ok := db.logDBs.Get(chain)
 	if !ok {
-		return fmt.Errorf("cannot Rewind: %w: %s", types.ErrUnknownChain, chain)
+		return fmt.Errorf("cannot Rewind: %w: %s", interop.ErrUnknownChain, chain)
 	}
 	if err := logDB.Rewind(db.readRegistry, headBlock); err != nil {
 		return fmt.Errorf("failed to rewind to block %v: %w", headBlock, err)
@@ -66,11 +67,11 @@ func (db *ChainsDB) Rewind(chain eth.ChainID, headBlock eth.BlockID) error {
 
 	localDB, ok := db.localDBs.Get(chain)
 	if !ok {
-		return fmt.Errorf("cannot Rewind (localDB not found): %w: %s", types.ErrUnknownChain, chain)
+		return fmt.Errorf("cannot Rewind (localDB not found): %w: %s", interop.ErrUnknownChain, chain)
 	}
 	crossDB, ok := db.crossDBs.Get(chain)
 	if !ok {
-		return fmt.Errorf("cannot Rewind (crossDB not found): %w: %s", types.ErrUnknownChain, chain)
+		return fmt.Errorf("cannot Rewind (crossDB not found): %w: %s", interop.ErrUnknownChain, chain)
 	}
 
 	revision, err := crossDB.DerivedToRevision(headBlock)
@@ -108,11 +109,11 @@ func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.Blo
 	}
 	logger.Debug("Updating local safe DB")
 	if err := localDB.AddDerived(source, lastDerived, types.RevisionAny); err != nil {
-		if errors.Is(err, types.ErrIneffective) {
+		if errors.Is(err, interop.ErrIneffective) {
 			logger.Info("Node is syncing known source blocks on known latest local-safe block", "err", err)
 			return
 		}
-		if errors.Is(err, types.ErrDataCorruption) {
+		if errors.Is(err, interop.ErrDataCorruption) {
 			logger.Error("DB coruption occurred", "err", err)
 			return
 		}
@@ -139,7 +140,7 @@ func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.Blo
 func (db *ChainsDB) UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe messages.BlockSeal) error {
 	v, ok := db.crossUnsafe.Get(chain)
 	if !ok {
-		return fmt.Errorf("cannot UpdateCrossUnsafe: %w: %s", types.ErrUnknownChain, chain)
+		return fmt.Errorf("cannot UpdateCrossUnsafe: %w: %s", interop.ErrUnknownChain, chain)
 	}
 	// Cross unsafe is stateless, fine to always update to latest value.
 	// Also allows to already track it during Interop activation phase when the safe chain hasn't
@@ -156,7 +157,7 @@ func (db *ChainsDB) UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe messages.Bl
 
 func (db *ChainsDB) UpdateCrossSafe(chain eth.ChainID, l1View eth.BlockRef, lastCrossDerived eth.BlockRef) error {
 	if !db.isInitialized(chain) {
-		return fmt.Errorf("cannot UpdateCrossSafe on uninitialized database: %w", types.ErrUninitialized)
+		return fmt.Errorf("cannot UpdateCrossSafe on uninitialized database: %w", interop.ErrUninitialized)
 	}
 	return db.initializedUpdateCrossSafe(chain, l1View, lastCrossDerived)
 }
@@ -164,11 +165,11 @@ func (db *ChainsDB) UpdateCrossSafe(chain eth.ChainID, l1View eth.BlockRef, last
 func (db *ChainsDB) initializedUpdateCrossSafe(chain eth.ChainID, l1View eth.BlockRef, lastCrossDerived eth.BlockRef) error {
 	crossDB, ok := db.crossDBs.Get(chain)
 	if !ok {
-		return fmt.Errorf("cannot UpdateCrossSafe, no cross-safe DB: %w: %s", types.ErrUnknownChain, chain)
+		return fmt.Errorf("cannot UpdateCrossSafe, no cross-safe DB: %w: %s", interop.ErrUnknownChain, chain)
 	}
 	localDB, ok := db.localDBs.Get(chain)
 	if !ok {
-		return fmt.Errorf("cannot UpdateCrossSafe, no local-safe DB: %w: %s", types.ErrUnknownChain, chain)
+		return fmt.Errorf("cannot UpdateCrossSafe, no local-safe DB: %w: %s", interop.ErrUnknownChain, chain)
 	}
 	// local DB here already has the new block, incl. replacement data, to sync with the cross-db
 	revision, err := localDB.SourceToRevision(l1View.ID())
@@ -248,11 +249,11 @@ func (db *ChainsDB) InvalidateLocalSafe(chainID eth.ChainID, candidate types.Der
 	// Get databases to invalidate data in.
 	eventsDB, ok := db.logDBs.Get(chainID)
 	if !ok {
-		return fmt.Errorf("cannot find events DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
+		return fmt.Errorf("cannot find events DB of chain %s for invalidation: %w", chainID, interop.ErrUnknownChain)
 	}
 	localSafeDB, ok := db.localDBs.Get(chainID)
 	if !ok {
-		return fmt.Errorf("cannot find local-safe DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
+		return fmt.Errorf("cannot find local-safe DB of chain %s for invalidation: %w", chainID, interop.ErrUnknownChain)
 	}
 
 	// Now invalidate the local-safe data.
@@ -290,7 +291,7 @@ func (db *ChainsDB) InvalidateLocalSafe(chainID eth.ChainID, candidate types.Der
 func (db *ChainsDB) RewindLocalSafeSource(chainID eth.ChainID, source eth.BlockID) error {
 	localSafeDB, ok := db.localDBs.Get(chainID)
 	if !ok {
-		return fmt.Errorf("cannot find local-safe DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
+		return fmt.Errorf("cannot find local-safe DB of chain %s for invalidation: %w", chainID, interop.ErrUnknownChain)
 	}
 	if err := localSafeDB.RewindToSource(db.readRegistry, source); err != nil {
 		return fmt.Errorf("failed to rewind local-safe: %w", err)
@@ -305,7 +306,7 @@ func (db *ChainsDB) RewindLocalSafeSource(chainID eth.ChainID, source eth.BlockI
 func (db *ChainsDB) RewindCrossSafeSource(chainID eth.ChainID, source eth.BlockID) error {
 	crossSafeDB, ok := db.crossDBs.Get(chainID)
 	if !ok {
-		return fmt.Errorf("cannot find cross-safe DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
+		return fmt.Errorf("cannot find cross-safe DB of chain %s for invalidation: %w", chainID, interop.ErrUnknownChain)
 	}
 	if err := crossSafeDB.RewindToSource(db.readRegistry, source); err != nil {
 		return fmt.Errorf("failed to rewind cross-safe: %w", err)
@@ -316,7 +317,7 @@ func (db *ChainsDB) RewindCrossSafeSource(chainID eth.ChainID, source eth.BlockI
 func (db *ChainsDB) RewindLogs(chainID eth.ChainID, newHead messages.BlockSeal) error {
 	eventsDB, ok := db.logDBs.Get(chainID)
 	if !ok {
-		return fmt.Errorf("cannot find events DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
+		return fmt.Errorf("cannot find events DB of chain %s for invalidation: %w", chainID, interop.ErrUnknownChain)
 	}
 	if err := eventsDB.Rewind(db.readRegistry, newHead.ID()); err != nil {
 		return fmt.Errorf("failed to rewind logs of chain %s: %w", chainID, err)
@@ -333,7 +334,7 @@ func (db *ChainsDB) ResetCrossUnsafeIfNewerThan(chainID eth.ChainID, number uint
 
 	crossSafeDB, ok := db.crossDBs.Get(chainID)
 	if !ok {
-		return fmt.Errorf("cannot find cross-safe DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
+		return fmt.Errorf("cannot find cross-safe DB of chain %s for invalidation: %w", chainID, interop.ErrUnknownChain)
 	}
 	crossSafe, err := crossSafeDB.Last()
 	if err != nil {

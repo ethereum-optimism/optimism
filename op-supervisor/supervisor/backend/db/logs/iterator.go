@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -43,7 +43,7 @@ type traverseConditionalFn func(state IteratorState) error
 func (i *iterator) End() error {
 	for {
 		_, err := i.next()
-		if errors.Is(err, types.ErrFuture) {
+		if errors.Is(err, interop.ErrFuture) {
 			return nil
 		} else if err != nil {
 			return err
@@ -124,7 +124,7 @@ func (i *iterator) TraverseConditional(fn traverseConditionalFn) error {
 		}
 		if err := fn(&i.current); err != nil {
 			// don't rewind to the snapshot if the error is ErrStop
-			if errors.Is(err, types.ErrStop) {
+			if errors.Is(err, interop.ErrStop) {
 				return err
 			}
 			i.current = snapshot
@@ -139,7 +139,7 @@ func (i *iterator) next() (EntryType, error) {
 	entry, err := i.db.store.Read(index)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return 0, types.ErrFuture
+			return 0, interop.ErrFuture
 		}
 		return 0, fmt.Errorf("failed to read entry %d: %w", index, err)
 	}

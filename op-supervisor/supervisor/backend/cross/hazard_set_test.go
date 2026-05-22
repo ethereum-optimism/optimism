@@ -9,10 +9,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
@@ -81,7 +81,7 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(1, 100, 1),
 				makeBlock(1, 100, 2),
 			},
-			expectErr: types.ErrConflict,
+			expectErr: interop.ErrConflict,
 		},
 		{
 			name: "Hazards Across Multiple Chains",
@@ -114,7 +114,7 @@ func TestHazardSet_Build(t *testing.T) {
 				// Block 1 in Chain 1 is missing
 				makeBlock(2, 100, 1),
 			},
-			expectErr: types.ErrFuture,
+			expectErr: interop.ErrFuture,
 		},
 		{
 			name: "Invalid Timestamp - Future Message",
@@ -130,14 +130,14 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(0, 100, 1, makeMessage(1, 0, 1, 1)),
 				makeBlock(1, 100, 1),
 			},
-			expectErr: types.ErrFuture,
+			expectErr: interop.ErrFuture,
 		},
 		{
 			name: "Missing Block - Message References Non-existent Block",
 			blocks: []blockDef{
 				makeBlock(0, 100, 1, makeMessage(1, 100, 999, 1)), // Block 999 doesn't exist
 			},
-			expectErr: types.ErrFuture,
+			expectErr: interop.ErrFuture,
 		},
 		{
 			name: "Missing Block - Chain Break",
@@ -145,14 +145,14 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(0, 100, 1, makeMessage(1, 100, 1, 1)),
 				makeBlock(1, 100, 1, makeMessage(2, 100, 1, 1)), // Message references block in chain 2 that doesn't exist
 			},
-			expectErr: types.ErrFuture,
+			expectErr: interop.ErrFuture,
 		},
 		{
 			name: "Invalid Block Number - Zero",
 			blocks: []blockDef{
 				makeBlock(0, 100, 1, makeMessage(1, 100, 0, 1)), // Invalid block number
 			},
-			expectErr: types.ErrFuture,
+			expectErr: interop.ErrFuture,
 		},
 		{
 			name: "Recursive Hazards - Diamond Pattern",
@@ -643,7 +643,7 @@ func (m *mockHazardDeps) Contains(chain eth.ChainID, query messages.ContainsQuer
 
 	// Validate timestamp is greater than 0
 	if query.Timestamp == 0 {
-		return messages.BlockSeal{}, fmt.Errorf("failed to check if message exists: block not found: %w", types.ErrFuture)
+		return messages.BlockSeal{}, fmt.Errorf("failed to check if message exists: block not found: %w", interop.ErrFuture)
 	}
 
 	key := blockKey{
@@ -661,7 +661,7 @@ func (m *mockHazardDeps) Contains(chain eth.ChainID, query messages.ContainsQuer
 			Hash:      block.hash,
 		}, nil
 	}
-	return messages.BlockSeal{}, fmt.Errorf("failed to check if message exists: block not found: %w", types.ErrFuture)
+	return messages.BlockSeal{}, fmt.Errorf("failed to check if message exists: block not found: %w", interop.ErrFuture)
 }
 
 func (m *mockHazardDeps) IsCrossValidBlock(chainID eth.ChainID, block eth.BlockID) error {
@@ -699,7 +699,7 @@ func (m *mockHazardDeps) OpenBlock(chainID eth.ChainID, blockNum uint64) (ref et
 			Time:   block.timestamp,
 		}, uint32(len(block.messages)), msgMap, nil
 	}
-	return eth.BlockRef{}, 0, nil, types.ErrFuture
+	return eth.BlockRef{}, 0, nil, interop.ErrFuture
 }
 
 func (m *mockHazardDeps) Logger() log.Logger {

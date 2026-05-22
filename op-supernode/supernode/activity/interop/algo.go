@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -103,7 +103,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 			if err != nil {
 				// OpenBlock fails for the first block in the DB because it tries to find the parent.
 				// Handle this by checking if this is the first sealed block and using FirstSealedBlock instead.
-				if errors.Is(err, types.ErrSkipped) {
+				if errors.Is(err, interop.ErrSkipped) {
 					firstBlock, firstErr := db.FirstSealedBlock()
 					if firstErr != nil {
 						return Result{}, fmt.Errorf("chain %s: failed to open block %d and failed to get first block: %w", chainID, expectedBlock.Number, err)

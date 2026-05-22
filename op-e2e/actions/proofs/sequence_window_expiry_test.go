@@ -104,6 +104,12 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	numL1Blocks := 0
 	timeout := tp.SequencerWindowSize * 50
 
+	// Track Bob's nonce locally. RecoverMode means his txs are never included,
+	// so the on-chain nonce never advances; relying on PendingNonceAt across
+	// chain-head events has been observed to flake with "already known".
+	bobL2PoolNonce, err := env.Engine.EthClient().PendingNonceAt(t.Ctx(), env.Bob.Address())
+	require.NoError(t, err, "must read Bob's initial L2 pool nonce")
+
 	for numL1Blocks < int(timeout) {
 		for range 100 * tp.L1BlockTime / env.Sd.RollupCfg.BlockTime { // go at 100x real time
 			err := env.Sequencer.ActMaybeL2StartBlock(t)
@@ -111,7 +117,9 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 				break
 			}
 			env.Bob.L2.ActResetTxOpts(t)
+			env.Bob.L2.ActSetTxNonce(bobL2PoolNonce)(t)
 			env.Bob.L2.ActMakeTx(t)
+			bobL2PoolNonce++
 			env.Engine.ActL2IncludeTx(env.Bob.Address())(t)
 			// RecoverMode (enabled above) should prevent this
 			// transaction from being included in the block, which

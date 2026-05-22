@@ -17,8 +17,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -101,8 +101,8 @@ func TestLatestSealedBlockNum(t *testing.T) {
 				require.False(t, ok, "empty db expected")
 				require.Equal(t, eth.BlockID{}, head)
 				idx, err := db.searchCheckpoint(0, 0)
-				require.ErrorIs(t, err, types.ErrFuture, "no checkpoint in empty db")
-				require.ErrorIs(t, err, types.ErrFuture, "no checkpoint in empty db")
+				require.ErrorIs(t, err, interop.ErrFuture, "no checkpoint in empty db")
+				require.ErrorIs(t, err, interop.ErrFuture, "no checkpoint in empty db")
 				require.Zero(t, idx)
 			})
 	})
@@ -143,8 +143,8 @@ func TestLatestSealedBlockNum(t *testing.T) {
 				require.NoError(t, err)
 				require.Zero(t, idx, "anchor block as checkpoint 0")
 				_, err = db.searchCheckpoint(0, 0)
-				require.ErrorIs(t, err, types.ErrSkipped, "no checkpoint before genesis")
-				require.ErrorIs(t, err, types.ErrSkipped, "no checkpoint before genesis")
+				require.ErrorIs(t, err, interop.ErrSkipped, "no checkpoint before genesis")
+				require.ErrorIs(t, err, interop.ErrSkipped, "no checkpoint before genesis")
 
 				// Test if we can open the starting block
 				_, _, _, err = db.OpenBlock(genesis.Number)
@@ -152,7 +152,7 @@ func TestLatestSealedBlockNum(t *testing.T) {
 				// OpenBlock cannot start from the first entry, when not 0.
 				// To start at a non-zero block, index the seal of the parent-block block before it,
 				// and then that parent-hash will be available.
-				require.ErrorIs(t, err, types.ErrSkipped)
+				require.ErrorIs(t, err, interop.ErrSkipped)
 			})
 	})
 	t.Run("Block 1 case", func(t *testing.T) {
@@ -228,8 +228,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				genesis := eth.BlockID{Hash: createHash(15), Number: 0}
 				err := db.AddLog(createHash(1), genesis, 0, nil)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
 			})
 	})
 
@@ -338,8 +338,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl14 := eth.BlockID{Hash: createHash(14), Number: 14}
 				err := db.SealBlock(createHash(13), bl14, 5000)
-				require.ErrorIs(t, err, types.ErrConflict)
-				require.ErrorIs(t, err, types.ErrConflict)
+				require.ErrorIs(t, err, interop.ErrConflict)
+				require.ErrorIs(t, err, interop.ErrConflict)
 			})
 	})
 
@@ -356,8 +356,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				onto := eth.BlockID{Hash: createHash(14), Number: 14}
 				err := db.AddLog(createHash(1), onto, 0, nil)
-				require.ErrorIs(t, err, types.ErrOutOfOrder, "cannot build logs on 14 when 15 is already sealed")
-				require.ErrorIs(t, err, types.ErrOutOfOrder, "cannot build logs on 14 when 15 is already sealed")
+				require.ErrorIs(t, err, interop.ErrOutOfOrder, "cannot build logs on 14 when 15 is already sealed")
+				require.ErrorIs(t, err, interop.ErrOutOfOrder, "cannot build logs on 14 when 15 is already sealed")
 			})
 	})
 
@@ -373,8 +373,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
 				err := db.AddLog(createHash(1), bl15, 0, nil)
-				require.ErrorIs(t, err, types.ErrOutOfOrder, "already at log index 2")
-				require.ErrorIs(t, err, types.ErrOutOfOrder, "already at log index 2")
+				require.ErrorIs(t, err, interop.ErrOutOfOrder, "already at log index 2")
+				require.ErrorIs(t, err, interop.ErrOutOfOrder, "already at log index 2")
 			})
 	})
 
@@ -389,8 +389,8 @@ func TestAddLog(t *testing.T) {
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(16), Number: 16}, 0, nil)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
 			})
 	})
 
@@ -406,8 +406,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
 				err := db.AddLog(createHash(1), bl15, 1, nil)
-				require.ErrorIs(t, err, types.ErrOutOfOrder, "already at log index 2")
-				require.ErrorIs(t, err, types.ErrOutOfOrder, "already at log index 2")
+				require.ErrorIs(t, err, interop.ErrOutOfOrder, "already at log index 2")
+				require.ErrorIs(t, err, interop.ErrOutOfOrder, "already at log index 2")
 			})
 	})
 
@@ -423,8 +423,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(16), Number: 16}
 				err := db.AddLog(createHash(1), bl15, 2, nil)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
 			})
 	})
 
@@ -439,8 +439,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
 				err := db.AddLog(createHash(1), bl15, 2, nil)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
 			})
 	})
 
@@ -453,8 +453,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
 				err := db.AddLog(createHash(1), bl15, 5, nil)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
 			})
 	})
 
@@ -475,8 +475,8 @@ func TestAddLog(t *testing.T) {
 				err = db.SealBlock(bl15.Hash, bl16, 5001)
 				require.NoError(t, err)
 				err = db.AddLog(createHash(1), bl16, 1, nil)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
 			})
 	})
 
@@ -882,9 +882,9 @@ func TestGetBlockInfo(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				_, err := db.FindSealedBlock(10)
-				require.ErrorIs(t, err, types.ErrFuture)
+				require.ErrorIs(t, err, interop.ErrFuture)
 				_, err = db.FindSealedBlock(10)
-				require.ErrorIs(t, err, types.ErrFuture)
+				require.ErrorIs(t, err, interop.ErrFuture)
 			})
 	})
 
@@ -899,9 +899,9 @@ func TestGetBlockInfo(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				// if the DB starts at 11, then shouldn't find 10
 				_, err := db.FindSealedBlock(10)
-				require.ErrorIs(t, err, types.ErrSkipped)
+				require.ErrorIs(t, err, interop.ErrSkipped)
 				_, err = db.FindSealedBlock(10)
-				require.ErrorIs(t, err, types.ErrSkipped)
+				require.ErrorIs(t, err, interop.ErrSkipped)
 			})
 	})
 
@@ -958,7 +958,7 @@ func requireConflicts(t *testing.T, db *DB, blockNum uint64, logIdx uint32, time
 		LogHash:     logHash,
 	}.Query()
 	_, err := db.Contains(q)
-	require.ErrorIs(t, err, types.ErrConflict, "canonical chain must not include this log")
+	require.ErrorIs(t, err, interop.ErrConflict, "canonical chain must not include this log")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 }
 
@@ -973,7 +973,7 @@ func requireFuture(t *testing.T, db *DB, blockNum uint64, logIdx uint32, timesta
 		LogHash:     logHash,
 	}.Query()
 	_, err := db.Contains(q)
-	require.ErrorIs(t, err, types.ErrFuture, "canonical chain does not yet include this log")
+	require.ErrorIs(t, err, interop.ErrFuture, "canonical chain does not yet include this log")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 }
 
@@ -1163,12 +1163,12 @@ func TestRewind(t *testing.T) {
 		runDBTest(t, func(t *testing.T, db *DB, m *stubMetrics) {},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				inv := &reads.TestInvalidator{}
-				require.ErrorIs(t, db.Rewind(inv, createID(100)), types.ErrFuture)
+				require.ErrorIs(t, db.Rewind(inv, createID(100)), interop.ErrFuture)
 				require.False(t, inv.Invalidated)
-				require.ErrorIs(t, db.Rewind(inv, createID(100)), types.ErrFuture)
+				require.ErrorIs(t, db.Rewind(inv, createID(100)), interop.ErrFuture)
 				// Genesis is a block to, not present in an empty DB
-				require.ErrorIs(t, db.Rewind(inv, createID(0)), types.ErrFuture)
-				require.ErrorIs(t, db.Rewind(inv, createID(0)), types.ErrFuture)
+				require.ErrorIs(t, db.Rewind(inv, createID(0)), interop.ErrFuture)
+				require.ErrorIs(t, db.Rewind(inv, createID(0)), interop.ErrFuture)
 			})
 	})
 
@@ -1188,8 +1188,8 @@ func TestRewind(t *testing.T) {
 				require.NoError(t, db.AddLog(createHash(4), bl52, 0, nil))
 				// cannot rewind to a block that is not sealed yet
 				inv := &reads.TestInvalidator{}
-				require.ErrorIs(t, db.Rewind(inv, createID(53)), types.ErrFuture)
-				require.ErrorIs(t, db.Rewind(inv, createID(53)), types.ErrFuture)
+				require.ErrorIs(t, db.Rewind(inv, createID(53)), interop.ErrFuture)
+				require.ErrorIs(t, db.Rewind(inv, createID(53)), interop.ErrFuture)
 				require.False(t, inv.Invalidated)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -1379,14 +1379,14 @@ func TestRewind(t *testing.T) {
 				bl29 := eth.BlockID{Hash: createHash(29), Number: 29}
 				// 29 was deleted
 				err := db.AddLog(createHash(2), bl29, 1, nil)
-				require.ErrorIs(t, err, types.ErrOutOfOrder, "Cannot add log on removed block")
-				require.ErrorIs(t, err, types.ErrOutOfOrder, "Cannot add log on removed block")
+				require.ErrorIs(t, err, interop.ErrOutOfOrder, "Cannot add log on removed block")
+				require.ErrorIs(t, err, interop.ErrOutOfOrder, "Cannot add log on removed block")
 				// 15 is older, we have up to 16
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
 				// try to add a third log to 15
 				err = db.AddLog(createHash(10), bl15, 2, nil)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
-				require.ErrorIs(t, err, types.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
+				require.ErrorIs(t, err, interop.ErrOutOfOrder)
 				bl16 := eth.BlockID{Hash: createHash(16), Number: 16}
 				// try to add a log to 17, on top of 16
 				err = db.AddLog(createHash(42), bl16, 0, nil)

@@ -18,8 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -439,7 +439,7 @@ func TestLogsDBChainIngester_Contains(t *testing.T) {
 
 	// Contains should fail when logsDB not initialized
 	_, err := ingester.Contains(messages.ContainsQuery{})
-	require.ErrorIs(t, err, types.ErrUninitialized)
+	require.ErrorIs(t, err, interop.ErrUninitialized)
 
 	err = ingester.initLogsDB()
 	require.NoError(t, err)
@@ -459,7 +459,7 @@ func TestLogsDBChainIngester_Contains(t *testing.T) {
 		LogIdx:    99, // Doesn't exist
 		Checksum:  messages.MessageChecksum{0xFF},
 	})
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
 }
 
 func TestLogsDBChainIngester_CalculateStartingBlock_BackfillUnderflow(t *testing.T) {

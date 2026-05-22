@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
@@ -298,7 +297,7 @@ func (si *seededIngester) accessForLog(blockNum uint64, logIdx uint32) messages.
 		LogIndex:    logIdx,
 		Timestamp:   info.timestamp,
 		ChainID:     si.chainID,
-		LogHash:     processors.LogToLogHash(log),
+		LogHash:     messages.LogToLogHash(log),
 	}
 	return args.Access()
 }
