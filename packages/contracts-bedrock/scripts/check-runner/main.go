@@ -10,7 +10,7 @@
 //   - Automatic artifact preservation and restoration
 //   - Graceful shutdown on Ctrl+C (restores artifacts before exit)
 //   - Dependency-based ordering within phases
-//   - Pretty terminal output with spinners and colors
+//   - Line-oriented terminal output with colors
 //
 // Usage:
 //
@@ -41,8 +41,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/chelnak/ysmrr"
-	"github.com/chelnak/ysmrr/pkg/colors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -221,7 +219,65 @@ type CheckResult struct {
 // checkState tracks the execution state of a check during parallel runs.
 type checkState struct {
 	status  string // "pending", "queued", "running", "pass", "fail", "skipped"
-	spinner *ysmrr.Spinner
+	spinner *statusLine
+}
+
+type statusManager struct {
+	mu sync.Mutex
+}
+
+type statusLine struct {
+	manager  *statusManager
+	message  string
+	complete string
+	mu       sync.Mutex
+}
+
+func newStatusManager() *statusManager {
+	return &statusManager{}
+}
+
+func (m *statusManager) AddSpinner(message string) *statusLine {
+	return &statusLine{manager: m, message: message}
+}
+
+func (m *statusManager) Start() {}
+
+func (m *statusManager) Stop() {}
+
+func (s *statusLine) UpdateMessage(message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.message = message
+}
+
+func (s *statusLine) CompleteCharacter(complete string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.complete = complete
+}
+
+func (s *statusLine) Complete() {
+	s.print(fmt.Sprintf("%s✓%s", Green, Reset))
+}
+
+func (s *statusLine) Error() {
+	s.print(fmt.Sprintf("%s✗%s", Red, Reset))
+}
+
+func (s *statusLine) print(defaultComplete string) {
+	s.mu.Lock()
+	message := s.message
+	complete := s.complete
+	s.mu.Unlock()
+
+	if complete == "" {
+		complete = defaultComplete
+	}
+
+	s.manager.mu.Lock()
+	defer s.manager.mu.Unlock()
+	fmt.Printf("%s %s\n", complete, message)
 }
 
 // Runner orchestrates the execution of all checks.
@@ -853,9 +909,7 @@ func (r *Runner) runRetryChecksWithDependents(checkNames []string, phase *Phase)
 
 // doBuildClean runs a build without using cache (for retry-clean).
 func (r *Runner) doBuildClean(phaseName, buildCmd string) error {
-	sm := ysmrr.NewSpinnerManager(
-		ysmrr.WithSpinnerColor(colors.FgHiBlue),
-	)
+	sm := newStatusManager()
 	spinner := sm.AddSpinner(fmt.Sprintf("Clean building (%s)", buildCmd))
 	sm.Start()
 
@@ -905,9 +959,7 @@ func (r *Runner) runRetryCheck(name string) bool {
 	state := r.states[name]
 	wasSkipped := state != nil && state.status == "skipped"
 
-	sm := ysmrr.NewSpinnerManager(
-		ysmrr.WithSpinnerColor(colors.FgHiBlue),
-	)
+	sm := newStatusManager()
 	label := "(retry)"
 	if wasSkipped {
 		label = "(unblocked)"
@@ -1126,9 +1178,7 @@ func (r *Runner) doBuildWithCache(phaseName, buildCmd string) error {
 	}
 
 	// Run the build with a spinner
-	sm := ysmrr.NewSpinnerManager(
-		ysmrr.WithSpinnerColor(colors.FgHiBlue),
-	)
+	sm := newStatusManager()
 	spinner := sm.AddSpinner(fmt.Sprintf("Building (%s)", buildCmd))
 	sm.Start()
 
@@ -1291,11 +1341,9 @@ func (r *Runner) runChecksSequential(checks []Check) {
 // runChecksParallel runs checks concurrently with dependency ordering.
 // Uses a worker pool and respects check dependencies.
 func (r *Runner) runChecksParallel(checks []Check) {
-	sm := ysmrr.NewSpinnerManager(
-		ysmrr.WithSpinnerColor(colors.FgHiBlue),
-	)
+	sm := newStatusManager()
 
-	// Initialize state for each check with a spinner
+	// Initialize state for each check with a status line
 	checkNames := make([]string, len(checks))
 	for i, c := range checks {
 		checkNames[i] = c.Name
@@ -1456,7 +1504,7 @@ func (r *Runner) depsFailed(name string, checkNames []string) bool {
 	return false
 }
 
-// runCheckParallel executes a single check and updates its spinner.
+// runCheckParallel executes a single check and updates its status line.
 func (r *Runner) runCheckParallel(name string) {
 	check := r.getCheck(name)
 	if check == nil {
@@ -1501,8 +1549,7 @@ func (r *Runner) runCheckParallel(name string) {
 	}
 	r.mu.Unlock()
 
-	// Update spinner with result
-	// Note: spinner.Complete() and spinner.Error() add ✓/✗ prefix automatically
+	// Update status line with result.
 	timeStr := fmt.Sprintf("%s%.1fs%s", Dim, duration.Seconds(), Reset)
 	if result.Success {
 		spinner.UpdateMessage(fmt.Sprintf("%s %s", name, timeStr))

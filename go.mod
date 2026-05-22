@@ -12,7 +12,6 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.8.1
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
-	github.com/chelnak/ysmrr v0.6.0
 	github.com/cockroachdb/pebble v1.1.5
 	github.com/coder/websocket v1.8.13
 	github.com/consensys/gnark-crypto v0.18.1
