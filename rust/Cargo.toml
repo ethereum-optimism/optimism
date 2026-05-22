@@ -667,3 +667,12 @@ snmalloc-rs = { version = "0.3.8", features = ["build_cc"] }
 
 # K/V database
 rocksdb = { version = "0.24.0", default-features = false }
+
+# Local patch: fix for orphan `spawn_critical_os_thread` threads racing tokio teardown on
+# `#[tokio::test]` runtime drop (see optimism#20973). Branch is the upstream draft PR
+# paradigmxyz/reth#24428, based on reth `main` (one commit ahead of the rev pinned above) with
+# the `reth-tasks` fix on top. Cargo resolves the patched `reth-tasks` against the other reth
+# git deps because the workspace version is unchanged. Remove once the fix lands upstream and
+# the pin advances past it.
+[patch."https://github.com/paradigmxyz/reth"]
+reth-tasks = { git = "https://github.com/einar-oplabs/reth", rev = "90e5d8f75a4d48f5c77ef5ff57aab389ee61bafa" }
