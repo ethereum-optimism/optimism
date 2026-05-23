@@ -21,7 +21,7 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/depset"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
