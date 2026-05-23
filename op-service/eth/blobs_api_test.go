@@ -17,7 +17,7 @@ type dataJson struct {
 }
 
 // TestAPIGenesisResponse tests that json unmarshalling a json response from a
-// eth/v1/beacon/genesis beacon node call into a APIGenesisResponse object
+// eth/v1/beacon/genesis beacon node call into an APIGenesisResponse object
 // fills all existing fields with the expected values, thereby confirming that
 // APIGenesisResponse is compatible with the current beacon node API.
 // This also confirms that the [sources.L1BeaconClient] correctly parses
@@ -42,7 +42,7 @@ func TestAPIGenesisResponse(t *testing.T) {
 }
 
 // TestAPIConfigResponse tests that json unmarshalling a json response from a
-// eth/v1/config/spec beacon node call into a APIConfigResponse object
+// eth/v1/config/spec beacon node call into an APIConfigResponse object
 // fills all existing fields with the expected values, thereby confirming that
 // APIGenesisResponse is compatible with the current beacon node API.
 // This also confirms that the [sources.L1BeaconClient] correctly parses
@@ -67,7 +67,7 @@ func TestAPIConfigResponse(t *testing.T) {
 }
 
 // TestAPIGetBlobSidecarsResponse tests that json unmarshalling a json response from a
-// eth/v1/beacon/blob_sidecars/<X> beacon node call into a APIGetBlobSidecarsResponse object
+// eth/v1/beacon/blob_sidecars/<X> beacon node call into an APIGetBlobSidecarsResponse object
 // fills all existing fields with the expected values, thereby confirming that
 // APIGenesisResponse is compatible with the current beacon node API.
 // This also confirms that the [sources.L1BeaconClient] correctly parses

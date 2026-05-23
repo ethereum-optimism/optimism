@@ -120,7 +120,7 @@ func (url WsURL) WsRPC() string {
 }
 
 // WsOrHttpRPC provides optionality between
-// a websocket RPC endpoint and a HTTP RPC endpoint.
+// a WebSocket RPC endpoint and an HTTP RPC endpoint.
 // The default is the websocket endpoint.
 type WsOrHttpRPC struct {
 	WsURL   string

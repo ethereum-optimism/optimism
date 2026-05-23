@@ -30,7 +30,7 @@ var wildcardHosts = []string{"*"}
 //
 // Custom routes can also be added with AddHandler, these are registered to the underlying http.ServeMux.
 //
-// If more customization is needed, this Handler can be composed in a HTTP stack of your own.
+// If more customization is needed, this Handler can be composed in an HTTP stack of your own.
 // Use http.StripPrefix to clean the URL route prefix that this Handler is registered on (leave no prefix).
 type Handler struct {
 	appVersion     string

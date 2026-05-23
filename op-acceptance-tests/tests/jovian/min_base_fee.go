@@ -101,7 +101,7 @@ func (mbf *minBaseFeeEnv) waitForMinBaseFeeConfigChangeOnL2(t devtest.T, expecte
 		return got == expected
 	}, 2*time.Minute, 5*time.Second, "L2 min base fee in block header did not sync within timeout")
 
-	t.Require().Equal(expectedExtraData, eth.BytesMax32(actualBlockExtraData), "block header extradata doesnt match")
+	t.Require().Equal(expectedExtraData, eth.BytesMax32(actualBlockExtraData), "block header extradata doesn't match")
 }
 
 // TestMinBaseFee verifies configurable minimum base fee using devstack presets.
