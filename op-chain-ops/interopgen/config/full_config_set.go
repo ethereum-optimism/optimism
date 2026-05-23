@@ -1,4 +1,4 @@
-package depset
+package config
 
 import (
 	"context"

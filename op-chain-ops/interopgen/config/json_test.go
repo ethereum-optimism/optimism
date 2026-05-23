@@ -1,4 +1,4 @@
-package depset
+package config
 
 import (
 	"context"
@@ -7,10 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // mockHeaderClient implements headerByHashClient for testing

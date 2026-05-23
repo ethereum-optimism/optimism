@@ -5,23 +5,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 
+	interopcfg "github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/depset"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
@@ -30,8 +31,8 @@ import (
 func TestSupervisorService(t *testing.T) {
 	depSet, err := coredepset.NewStaticConfigDependencySet(make(map[eth.ChainID]*coredepset.StaticConfigDependency))
 	require.NoError(t, err)
-	rollupConfigSet := depset.StaticRollupConfigSetFromRollupConfigMap(make(map[eth.ChainID]*rollup.Config), depset.StaticTimestamp(0))
-	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, depSet)
+	rollupConfigSet := interopcfg.StaticRollupConfigSetFromRollupConfigMap(make(map[eth.ChainID]*rollup.Config), interopcfg.StaticTimestamp(0))
+	fullCfgSet, err := interopcfg.NewFullConfigSetMerged(rollupConfigSet, depSet)
 	require.NoError(t, err)
 
 	cfg := &config.Config{

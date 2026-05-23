@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	interopcfg "github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
 )
 
@@ -57,5 +57,5 @@ func TestValidateRPCConfig(t *testing.T) {
 
 func validConfig() *Config {
 	// Should be valid using only the required arguments passed in via the constructor.
-	return NewConfig("http://localhost:8545", &syncnode.CLISyncNodes{}, &depset.FullConfigSetSourceMerged{}, "./supervisor_testdir")
+	return NewConfig("http://localhost:8545", &syncnode.CLISyncNodes{}, &interopcfg.FullConfigSetSourceMerged{}, "./supervisor_testdir")
 }

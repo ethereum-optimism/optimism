@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+
+	interopcfg "github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -14,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
 )
 
@@ -213,13 +214,13 @@ func ConfigFromCLI(ctx *cli.Context, version string) (*config.Config, error) {
 		DatadirSyncEndpoint:     ctx.Path(DataDirSyncEndpointFlag.Name),
 	}
 	if ctx.IsSet(RollupConfigSetFlag.Name) {
-		c.FullConfigSetSource = &depset.FullConfigSetSourceMerged{
-			RollupConfigSetSource: &depset.JSONRollupConfigSetLoader{Path: ctx.Path(RollupConfigSetFlag.Name)},
+		c.FullConfigSetSource = &interopcfg.FullConfigSetSourceMerged{
+			RollupConfigSetSource: &interopcfg.JSONRollupConfigSetLoader{Path: ctx.Path(RollupConfigSetFlag.Name)},
 			DependencySetSource:   &coredepset.JSONDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
 		}
 	} else if ctx.IsSet(RollupConfigPathsFlag.Name) {
-		c.FullConfigSetSource = &depset.FullConfigSetSourceMerged{
-			RollupConfigSetSource: &depset.JSONRollupConfigsLoader{
+		c.FullConfigSetSource = &interopcfg.FullConfigSetSourceMerged{
+			RollupConfigSetSource: &interopcfg.JSONRollupConfigsLoader{
 				PathPattern: ctx.String(RollupConfigPathsFlag.Name),
 				L1RPCURL:    ctx.String(L1RPCFlag.Name),
 			},
@@ -227,7 +228,7 @@ func ConfigFromCLI(ctx *cli.Context, version string) (*config.Config, error) {
 		}
 	} else if ctx.IsSet(NetworkFlag.Name) {
 		networks := ctx.StringSlice(NetworkFlag.Name)
-		source, err := depset.NewRegistryFullConfigSetSource(ctx.String(L1RPCFlag.Name), networks)
+		source, err := interopcfg.NewRegistryFullConfigSetSource(ctx.String(L1RPCFlag.Name), networks)
 		if err != nil {
 			return nil, err
 		}

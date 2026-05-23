@@ -13,6 +13,7 @@ import (
 	types2 "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	interopcfg "github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	"github.com/ethereum-optimism/optimism/op-core/interop"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -25,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/metrics"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
@@ -37,22 +37,22 @@ import (
 
 const testChainIDOffset = 900
 
-func fullConfigSet(t *testing.T, size int) depset.FullConfigSetMerged {
+func fullConfigSet(t *testing.T, size int) interopcfg.FullConfigSetMerged {
 	staticDepSet := make(map[eth.ChainID]*coredepset.StaticConfigDependency, size)
-	staticRollupCfgSet := make(map[eth.ChainID]*depset.StaticRollupConfig, size)
+	staticRollupCfgSet := make(map[eth.ChainID]*interopcfg.StaticRollupConfig, size)
 	zero := uint64(0)
 	for i := 0; i < size; i++ {
 		chainID := eth.ChainIDFromUInt64(testChainIDOffset + uint64(i))
 		staticDepSet[chainID] = &coredepset.StaticConfigDependency{}
-		staticRollupCfgSet[chainID] = &depset.StaticRollupConfig{
+		staticRollupCfgSet[chainID] = &interopcfg.StaticRollupConfig{
 			InteropTime: &zero,
 			BlockTime:   2,
 		}
 	}
 	depSet, err := coredepset.NewStaticConfigDependencySet(staticDepSet)
 	require.NoError(t, err)
-	rollupCfgSet := depset.NewStaticRollupConfigSet(staticRollupCfgSet)
-	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupCfgSet, depSet)
+	rollupCfgSet := interopcfg.NewStaticRollupConfigSet(staticRollupCfgSet)
+	fullCfgSet, err := interopcfg.NewFullConfigSetMerged(rollupCfgSet, depSet)
 	require.NoError(t, err)
 	return fullCfgSet
 }
@@ -63,7 +63,7 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 	dataDir := t.TempDir()
 	chainA := eth.ChainIDFromUInt64(testChainIDOffset)
 	fullCfgSet := fullConfigSet(t, 2)
-	rollupCfgSet := fullCfgSet.RollupConfigSet.(depset.StaticRollupConfigSet)
+	rollupCfgSet := fullCfgSet.RollupConfigSet.(interopcfg.StaticRollupConfigSet)
 
 	anchor := eth.BlockRef{
 		Hash:       common.Hash{0xff},
@@ -72,7 +72,7 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 		Time:       10000,
 	}
 
-	rollupCfgSet[chainA].Genesis = depset.Genesis{
+	rollupCfgSet[chainA].Genesis = interopcfg.Genesis{
 		L2: messages.BlockSealFromRef(anchor),
 	}
 
@@ -190,7 +190,7 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 	dataDir := t.TempDir()
 	chainA := eth.ChainIDFromUInt64(testChainIDOffset)
 	fullCfgSet := fullConfigSet(t, 2)
-	rollupCfgSet := fullCfgSet.RollupConfigSet.(depset.StaticRollupConfigSet)
+	rollupCfgSet := fullCfgSet.RollupConfigSet.(interopcfg.StaticRollupConfigSet)
 
 	block0 := eth.BlockRef{
 		Hash:       common.Hash{0xff},
@@ -206,7 +206,7 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 	}
 
 	rollupCfgSet[chainA].InteropTime = &blockX.Time
-	rollupCfgSet[chainA].Genesis = depset.Genesis{
+	rollupCfgSet[chainA].Genesis = interopcfg.Genesis{
 		L2: messages.BlockSealFromRef(block0),
 	}
 

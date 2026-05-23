@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	challengerconfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -14,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/depset"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
 )
 
@@ -61,7 +61,7 @@ type FlashblocksRuntimeSupport struct {
 
 type SingleChainInteropSupport struct {
 	Migration     *interopMigrationState
-	FullConfigSet depset.FullConfigSetMerged
+	FullConfigSet config.FullConfigSetMerged
 	DependencySet coredepset.DependencySet
 }
 
@@ -134,7 +134,7 @@ type MultiChainNodeRuntime struct {
 type MultiChainRuntime struct {
 	Keys          devkeys.Keys
 	Migration     *interopMigrationState
-	FullConfigSet depset.FullConfigSetMerged
+	FullConfigSet config.FullConfigSetMerged
 	DependencySet coredepset.DependencySet
 
 	L1Network *L1Network

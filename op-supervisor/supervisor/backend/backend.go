@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
+	interopcfg "github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	"github.com/ethereum-optimism/optimism/op-core/interop"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -25,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/cross"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/sync"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/l1access"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/rewinder"
@@ -51,7 +51,7 @@ type SupervisorBackend struct {
 	sysCancel  context.CancelFunc
 
 	// cfgSet is the full config set that the backend uses to know about the chains it is indexing
-	cfgSet depset.FullConfigSet
+	cfgSet interopcfg.FullConfigSet
 
 	// linker checks if the configuration constraints of a message (check chain ID + timestamp)
 	linker coredepset.LinkChecker

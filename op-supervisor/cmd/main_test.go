@@ -12,10 +12,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	interopcfg "github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
 )
 
@@ -45,8 +45,8 @@ func TestLogLevel(t *testing.T) {
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
 	depSet := &coredepset.JSONDependencySetLoader{Path: "test-dep-set"}
-	rollupCfgSet := &depset.JSONRollupConfigSetLoader{Path: "test-rollup-set"}
-	fullCfgSet := &depset.FullConfigSetSourceMerged{RollupConfigSetSource: rollupCfgSet, DependencySetSource: depSet}
+	rollupCfgSet := &interopcfg.JSONRollupConfigSetLoader{Path: "test-rollup-set"}
+	fullCfgSet := &interopcfg.FullConfigSetSourceMerged{RollupConfigSetSource: rollupCfgSet, DependencySetSource: depSet}
 	defaultCfgTempl := config.NewConfig(ValidL1RPC, ValidL2RPCs, fullCfgSet, ValidDatadir)
 	defaultCfg := *defaultCfgTempl
 	defaultCfg.Version = Version
@@ -119,13 +119,13 @@ func TestConfig(t *testing.T) {
 
 	t.Run("DependencySetAndRollupConfigPaths", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgsExceptConfig(
-			"--dependency-set", "depset.json", "--rollup-config-paths", "test-paths"))
+			"--dependency-set", "interopcfg.json", "--rollup-config-paths", "test-paths"))
 		require.NoError(t, cfg.Check())
 	})
 
 	t.Run("DependencySetAndRollupConfigSet", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgsExceptConfig(
-			"--dependency-set", "depset.json", "--rollup-config-set", "test-set"))
+			"--dependency-set", "interopcfg.json", "--rollup-config-set", "test-set"))
 		require.NoError(t, cfg.Check())
 	})
 
@@ -133,7 +133,7 @@ func TestConfig(t *testing.T) {
 		verifyArgsInvalid(t,
 			"conflicting flags: only one of rollup-config-paths, rollup-config-set can be set",
 			addRequiredArgsExceptConfig(
-				"--dependency-set", "depset.json", "--rollup-config-set", "test-set", "--rollup-config-paths", "test-paths"))
+				"--dependency-set", "interopcfg.json", "--rollup-config-set", "test-set", "--rollup-config-paths", "test-paths"))
 	})
 }
 

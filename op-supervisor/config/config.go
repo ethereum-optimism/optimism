@@ -3,11 +3,11 @@ package config
 import (
 	"errors"
 
+	interopcfg "github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
 )
 
@@ -25,7 +25,7 @@ type Config struct {
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
 
-	FullConfigSetSource depset.FullConfigSetSource
+	FullConfigSetSource interopcfg.FullConfigSetSource
 
 	// MockRun runs the service with a mock backend
 	MockRun bool
@@ -73,7 +73,7 @@ func (c *Config) Check() error {
 
 // NewConfig creates a new config using default values whenever possible.
 // Required options with no suitable default are passed as parameters.
-func NewConfig(l1RPC string, syncSrcs syncnode.SyncNodeCollection, fullCfgSet depset.FullConfigSetSource, datadir string) *Config {
+func NewConfig(l1RPC string, syncSrcs syncnode.SyncNodeCollection, fullCfgSet interopcfg.FullConfigSetSource, datadir string) *Config {
 	return &Config{
 		LogConfig:              oplog.DefaultCLIConfig(),
 		MetricsConfig:          opmetrics.DefaultCLIConfig(),
