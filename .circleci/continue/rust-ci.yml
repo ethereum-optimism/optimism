@@ -1159,3 +1159,21 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
+
+  # Kona publish prestate artifacts - on kona-client/v* tag push
+  kona-publish-prestates-on-tag:
+    when: << pipeline.parameters.c-run_release >>
+    jobs:
+      - kona-publish-prestate-artifacts:
+          name: kona-publish-<<matrix.version>>
+          matrix:
+            parameters:
+              version: ["kona-client", "kona-client-int"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - oplabs-network-optimism-io-bucket
+          filters:
+            tags:
+              only: /^kona-client\/v.*/
+            branches:
+              ignore: /.*/
