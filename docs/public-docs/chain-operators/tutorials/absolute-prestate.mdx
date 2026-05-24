@@ -8,7 +8,7 @@ description: "Generate, verify, and configure the kona-client absolute prestate 
 The absolute prestate is the on-chain commitment to a specific build of `kona-client`. The matching preimage (a gzipped binary) is what `op-challenger` runs at dispute time. This guide is the minimal reproducer.
 
 <Info>
-  As of [Upgrade 19](/notices/upgrade-19), `CANNON_KONA` (game type `8`) is the respected game type for permissionless fault proofs. `op-program` is retained only to resolve in-flight pre-U19 `CANNON` games — see [op-program (archived)](/chain-operators/tutorials/archive/op-program-prestate). If your chain is not yet in the public Superchain Registry, follow [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate) instead.
+  As of [Upgrade 19](/notices/upgrade-19), `CANNON_KONA` (game type `8`) is the respected game type for permissionless fault proofs. If your chain is not yet in the public Superchain Registry, follow [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate) instead.
 </Info>
 
 ## Prerequisites
@@ -46,17 +46,14 @@ The absolute prestate is the on-chain commitment to a specific build of `kona-cl
 
 ## Configure op-challenger
 
-Upload the hash-named file `rust/kona/prestate-artifacts-cannon/0x<HASH>.bin.gz` (produced by the build) to a location reachable by your `op-challenger` instances, then point `op-challenger` at it:
+Upload the hash-named file `rust/kona/prestate-artifacts-cannon/0x<HASH>.bin.gz` (produced by the build) to a location reachable by your `op-challenger` instances, then add the kona-specific env vars to your existing challenger config:
 
 ```bash
--e OP_CHALLENGER_TRACE_TYPE=cannon-kona,permissioned
--e OP_CHALLENGER_CANNON_KONA_PRESTATES_URL=<HTTP_URL_PATH_TO_PRESTATES>
--e OP_CHALLENGER_CANNON_KONA_ROLLUP_CONFIG=<PATH_TO_ROLLUP_CONFIG>
--e OP_CHALLENGER_CANNON_KONA_L2_GENESIS=<PATH_TO_L2_GENESIS>
--e OP_CHALLENGER_GAME_FACTORY_ADDRESS=<YOUR_DISPUTE_GAME_FACTORY>
+OP_CHALLENGER_TRACE_TYPE=cannon-kona,permissioned
+OP_CHALLENGER_CANNON_KONA_PRESTATES_URL=<HTTP_URL_PATH_TO_PRESTATES>
 ```
 
-The challenger appends `/0x<hash>.bin.gz` to `*_PRESTATES_URL` to resolve the right binary per dispute.
+The challenger appends `/0x<hash>.bin.gz` to `*_PRESTATES_URL` to resolve the right binary per dispute. Your existing `OP_CHALLENGER_ROLLUP_CONFIG`, `OP_CHALLENGER_L2_GENESIS`, and `OP_CHALLENGER_GAME_FACTORY_ADDRESS` continue to apply unchanged.
 
 ## Next Steps
 

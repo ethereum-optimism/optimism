@@ -19,7 +19,6 @@ Before starting, ensure you have:
 
 - [Docker](https://docs.docker.com/engine/install/) running
 - [`just`](https://github.com/casey/just) installed
-- Push access to a private fork of [`ethereum-optimism/optimism`](https://github.com/ethereum-optimism/optimism) — the fork is where you commit your custom chain configuration
 - Your chain's `rollup.json`, L2 genesis, and deployment artifacts (typically produced by `op-deployer`)
 
 ## How kona-client picks up custom chain configurations
@@ -43,28 +42,157 @@ The compiled `kona-client` binary embeds the merged registry via `include_str!()
 ## Generating the custom prestate
 
 <Steps>
-  <Step title="Branch off a kona-node release tag in your private fork">
-    Start from the same `kona-node/v<VERSION>` tag that your chain's nodes are running. Naming convention for the branch is `kona-client/<chain-name>`:
+  <Step title="Check out a kona-node release tag">
+    Use the same `kona-node/v<VERSION>` tag that your chain's nodes are running. The native `KONA_CUSTOM_CONFIGS_DIR` support documented below requires **`kona-node/v1.5.2` or later**; on older tags, additional justfile patches are needed.
 
     ```bash
-    git clone https://github.com/<your-org>/optimism-private.git
-    cd optimism-private
-    git fetch upstream --tags
-    git checkout -b kona-client/<chain-name> kona-node/v<VERSION>
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    git checkout kona-node/v<VERSION>
     ```
   </Step>
 
   <Step title="Stage your chain configuration">
-    Create a directory for your custom configs and add `chainList.json` and `configs.json` matching the schema documented in the [`kona-registry` README](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry#custom-chain-configurations).
-
-    Recommended location for traceability:
+    Create a directory for your custom configs:
 
     ```bash
     mkdir -p rust/kona/crates/protocol/registry/etc/custom-configs/<chain-name>
-    # add chainList.json + configs.json here
     ```
 
-    Source the values for `configs.json` from your chain's existing artifacts:
+    Add two files inside it — `chainList.json` (lightweight chain entry) and `configs.json` (full rollup config). Replace every `<PLACEHOLDER>` with your chain's value. Notes:
+
+    - **`<CHAIN_GROUP>`**: `mainnet` if your L1 is Ethereum mainnet, `sepolia` if your L1 is Sepolia. The bucket groups chains by L1 network, not by governance — your custom-chain status is expressed via `governedByOptimism: false` and `superchainLevel: 0`.
+    - **`faultProofs.status`**: `permissionless` for chains running the `cannon-kona` game type publicly, `permissioned` for chains that only allow whitelisted challengers.
+
+    <Tabs>
+      <Tab title="chainList.json">
+        ```json
+        [
+          {
+            "name": "<YOUR_CHAIN_NAME>",
+            "identifier": "<CHAIN_GROUP>/<YOUR_CHAIN_NAME>",
+            "chainId": <YOUR_L2_CHAIN_ID>,
+            "rpc": [],
+            "explorers": [],
+            "superchainLevel": 0,
+            "governedByOptimism": false,
+            "dataAvailabilityType": "eth-da",
+            "parent": { "type": "L2", "chain": "<CHAIN_GROUP>" },
+            "faultProofs": { "status": "<permissionless | permissioned>" }
+          }
+        ]
+        ```
+      </Tab>
+      <Tab title="configs.json">
+        ```json
+        {
+          "superchains": [
+            {
+              "name": "<CHAIN_GROUP>",
+              "config": {
+                "name": "<CHAIN_GROUP_DISPLAY_NAME>",
+                "l1": {
+                  "chain_id": <L1_CHAIN_ID>,
+                  "public_rpc": "<L1_PUBLIC_RPC>",
+                  "explorer": "<L1_EXPLORER>"
+                },
+                "hardforks": {
+                  "canyon_time": 0,
+                  "delta_time": 0,
+                  "ecotone_time": 0,
+                  "fjord_time": 0,
+                  "granite_time": 0,
+                  "holocene_time": 0,
+                  "isthmus_time": 0,
+                  "jovian_time": 0
+                },
+                "superchain_config_addr": null,
+                "op_contracts_manager_proxy_addr": null
+              },
+              "chains": [
+                {
+                  "Name": "<YOUR_CHAIN_NAME>",
+                  "PublicRPC": "",
+                  "SequencerRPC": "",
+                  "Explorer": "",
+                  "SuperchainLevel": 0,
+                  "GovernedByOptimism": false,
+                  "SuperchainTime": 0,
+                  "DataAvailabilityType": "eth-da",
+                  "l2_chain_id": <YOUR_L2_CHAIN_ID>,
+                  "batch_inbox_address": "<BATCH_INBOX_ADDRESS>",
+                  "block_time": 2,
+                  "seq_window_size": 3600,
+                  "max_sequencer_drift": 600,
+                  "GasPayingToken": null,
+                  "hardfork_configuration": {
+                    "canyon_time": 0,
+                    "delta_time": 0,
+                    "ecotone_time": 0,
+                    "fjord_time": 0,
+                    "granite_time": 0,
+                    "holocene_time": 0,
+                    "isthmus_time": 0,
+                    "jovian_time": 0
+                  },
+                  "optimism": {
+                    "eip1559Elasticity": 6,
+                    "eip1559Denominator": 50,
+                    "eip1559DenominatorCanyon": 250
+                  },
+                  "alt_da": null,
+                  "genesis": {
+                    "l1": {
+                      "number": <L1_GENESIS_BLOCK>,
+                      "hash": "<L1_GENESIS_HASH>"
+                    },
+                    "l2": {
+                      "number": 0,
+                      "hash": "<L2_GENESIS_HASH>"
+                    },
+                    "l2_time": <L2_GENESIS_TIMESTAMP>,
+                    "system_config": {
+                      "batcherAddr": "<BATCHER_ADDRESS>",
+                      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                      "scalar": "<SCALAR_HEX>",
+                      "gasLimit": 60000000
+                    }
+                  },
+                  "Roles": {
+                    "SystemConfigOwner": "<SYSTEM_CONFIG_OWNER>",
+                    "ProxyAdminOwner": "<PROXY_ADMIN_OWNER>",
+                    "Guardian": "<GUARDIAN>",
+                    "Challenger": "<CHALLENGER>",
+                    "Proposer": "<PROPOSER>",
+                    "UnsafeBlockSigner": "<UNSAFE_BLOCK_SIGNER>",
+                    "BatchSubmitter": "<BATCH_SUBMITTER>"
+                  },
+                  "Addresses": {
+                    "AddressManager": "<ADDRESS_MANAGER>",
+                    "L1CrossDomainMessengerProxy": "<L1_CROSS_DOMAIN_MESSENGER_PROXY>",
+                    "L1Erc721BridgeProxy": "<L1_ERC721_BRIDGE_PROXY>",
+                    "L1StandardBridgeProxy": "<L1_STANDARD_BRIDGE_PROXY>",
+                    "L2OutputOracleProxy": "0x0000000000000000000000000000000000000000",
+                    "OptimismMintableErc20FactoryProxy": "<OPTIMISM_MINTABLE_ERC20_FACTORY_PROXY>",
+                    "OptimismPortalProxy": "<OPTIMISM_PORTAL_PROXY>",
+                    "SystemConfigProxy": "<SYSTEM_CONFIG_PROXY>",
+                    "ProxyAdmin": "<PROXY_ADMIN>",
+                    "AnchorStateRegistryProxy": "<ANCHOR_STATE_REGISTRY_PROXY>",
+                    "DelayedWethProxy": "<DELAYED_WETH_PROXY>",
+                    "DisputeGameFactoryProxy": "<DISPUTE_GAME_FACTORY_PROXY>",
+                    "FaultDisputeGame": "<FAULT_DISPUTE_GAME>",
+                    "PermissionedDisputeGame": "<PERMISSIONED_DISPUTE_GAME>"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+        ```
+      </Tab>
+    </Tabs>
+
+    Source the values from your chain's existing artifacts:
 
     - `genesis.*`, `block_time`, `seq_window_size`, `max_sequencer_drift`, `batch_inbox_address`, hardfork timestamps → your chain's `rollup.json`
     - `Addresses.*` → your `op-deployer` state (`opChainDeployments[<i>]`)
@@ -73,34 +201,11 @@ The compiled `kona-client` binary embeds the merged registry via `include_str!()
     Cross-check each L1 contract address onchain (`cast call`) before committing.
   </Step>
 
-  <Step title="Wire the build to use your custom-configs directory">
-    Edit `rust/justfile`'s `build-kona-prestate` recipe so it passes your custom-configs path to the docker build automatically. The minimal change:
-
-    ```diff
-       cd "{{KONA_DIR}}/docker/fpvm-prestates"
-    -  just cannon {{VARIANT}} "{{KONA_DIR}}/{{OUTPUT_DIR}}"
-    +  just cannon {{VARIANT}} "{{KONA_DIR}}/{{OUTPUT_DIR}}" \
-    +      "{{KONA_DIR}}/crates/protocol/registry/etc/custom-configs/<chain-name>"
-    ```
-
-    With this wired, the canonical `just reproducible-prestate-kona` command picks up your custom configuration without requiring environment variables at invocation time.
-  </Step>
-
-  <Step title="Commit and push to your private fork">
-    ```bash
-    git add rust/justfile \
-            rust/kona/crates/protocol/registry/etc/custom-configs/<chain-name>/
-    git commit -m "feat(kona-registry): add <chain-name> custom chain configuration"
-    git push origin kona-client/<chain-name>
-    ```
-
-    Keep the branch private until your chain is publicly announced. Once it is, the branch can be pushed to the public monorepo as part of upstreaming.
-  </Step>
-
   <Step title="Generate the absolute prestate">
-    From the root of the monorepo on your branch:
+    From the root of the monorepo, point `KONA_CUSTOM_CONFIGS_DIR` at the directory you created in Step 2, then run the canonical build:
 
     ```bash
+    export KONA_CUSTOM_CONFIGS_DIR="$PWD/rust/kona/crates/protocol/registry/etc/custom-configs/<chain-name>"
     just reproducible-prestate-kona
     jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json
     ```
@@ -109,7 +214,7 @@ The compiled `kona-client` binary embeds the merged registry via `include_str!()
   </Step>
 
   <Step title="Verify reproducibility">
-    From a fresh checkout of the same branch, repeat the build and confirm the hash is bit-identical. Anyone who wants to participate as an honest challenger on your chain must be able to reproduce this hash from the same branch.
+    From a fresh checkout of the same tag with the same custom-configs files in place, repeat the build and confirm the hash is bit-identical. Anyone who wants to participate as an honest challenger on your chain must be able to reproduce this hash from the same inputs.
   </Step>
 </Steps>
 
@@ -131,37 +236,16 @@ The compiled `kona-client` binary embeds the merged registry via `include_str!()
   </Step>
 
   <Step title="Configure op-challenger">
-    Point `op-challenger` at your bucket and provide your chain's runtime configuration:
+    Add the kona-specific env vars to your existing challenger config:
 
     ```bash
-    --game-factory-address=<your-DGFProxy-address>
-    --cannon-kona-prestates-url=<bucket-base-url>
-    --cannon-kona-rollup-config=/path/to/your/rollup.json
-    --cannon-kona-l2-genesis=/path/to/your/L2-genesis.json
-    --trace-type=cannon-kona,permissioned
+    OP_CHALLENGER_TRACE_TYPE=cannon-kona,permissioned
+    OP_CHALLENGER_CANNON_KONA_PRESTATES_URL=<HTTP_URL_PATH_TO_PRESTATES>
     ```
 
-    The `--cannon-kona-prestates-url` is a directory URL; the challenger appends `/0x<hash>.bin.gz` automatically when a dispute references that hash. The `--cannon-kona-rollup-config` and `--cannon-kona-l2-genesis` flags supply your chain's config to `kona-client` at runtime (in addition to it being embedded in the binary).
-
-    If you're not using the standard OP Labs `op-challenger` Docker image, also set the `kona-host` binary path:
-
-    ```bash
-    --cannon-kona-server=/path/to/kona-host
-    ```
-
-    Build `kona-host` from the same release as the configured cannon-kona prestate.
+    The challenger appends `/0x<hash>.bin.gz` to `*_PRESTATES_URL` to resolve the right binary per dispute. Your existing `OP_CHALLENGER_ROLLUP_CONFIG`, `OP_CHALLENGER_L2_GENESIS`, and `OP_CHALLENGER_GAME_FACTORY_ADDRESS` continue to apply unchanged.
   </Step>
 </Steps>
-
-## After your chain is added to the Superchain Registry
-
-Once your chain's configuration lands in the public [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry), future `kona-client` releases will include it in the standard prestate. From that point you can:
-
-- Stop maintaining the custom branch in your private fork.
-- Switch to the standard prestate hash from `standard-prestates.toml` at the next prestate upgrade (typically a hardfork-driven event).
-- Deploy a new `FaultDisputeGame` implementation with the standard `absolutePrestate` and `setImplementation` to it.
-
-The custom-prestate branch can be removed from the private fork once no in-flight dispute games reference its absolute prestate.
 
 ## Next Steps
 
