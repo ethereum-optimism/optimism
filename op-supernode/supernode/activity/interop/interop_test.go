@@ -2704,8 +2704,8 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		// Call with zero L1BlockRef — should return empty without scanning the DB
-		blockID, ts := h.interop.VerifiedBlockAtL1(h.Mock(10).id, eth.L1BlockRef{})
+		blockID, ts, err := h.interop.VerifiedBlockAtL1(h.Mock(10).id, eth.L1BlockRef{})
+		require.NoError(t, err)
 		require.Equal(t, eth.BlockID{}, blockID)
 		require.Equal(t, uint64(0), ts)
 	})
@@ -2716,7 +2716,6 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 			Build()
 
 		chainID := h.Mock(10).id
-		// Use timestamps at/above activation (1000) so VerifiedBlockAtL1 scan finds them
 		expectedL2 := eth.BlockID{Hash: common.Hash{0xaa}, Number: 1005}
 
 		for ts := uint64(1000); ts <= 1010; ts++ {
@@ -2726,30 +2725,79 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 			}
 			err := h.interop.verifiedDB.Commit(VerifiedResult{
 				Timestamp:   ts,
-				L1Inclusion: eth.BlockID{Number: ts * 10}, // L1 inclusion grows with timestamp
+				L1Inclusion: eth.BlockID{Number: ts * 10},
 				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: l2Head},
 			})
 			require.NoError(t, err)
 		}
 
-		// Query for L1 block 10059 — should match timestamp 1005 (L1Inclusion.Number=10050 <= 10059)
-		// but not timestamp 1006 (L1Inclusion.Number=10060 > 10059)
+		// L1 block 10059 matches ts=1005 (L1Inclusion=10050) but not ts=1006 (L1Inclusion=10060).
 		l1Block := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 10059, Time: 999}
-		blockID, ts := h.interop.VerifiedBlockAtL1(chainID, l1Block)
+		blockID, ts, err := h.interop.VerifiedBlockAtL1(chainID, l1Block)
+		require.NoError(t, err)
 		require.Equal(t, expectedL2, blockID)
 		require.Equal(t, uint64(1005), ts)
 	})
 
-	t.Run("empty DB returns empty", func(t *testing.T) {
+	t.Run("empty DB returns empty without error", func(t *testing.T) {
 		h := newInteropTestHarness(t).
 			WithChain(10, nil).
 			Build()
 
 		l1Block := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 1000, Time: 999}
-		blockID, ts := h.interop.VerifiedBlockAtL1(h.Mock(10).id, l1Block)
+		blockID, ts, err := h.interop.VerifiedBlockAtL1(h.Mock(10).id, l1Block)
+		require.NoError(t, err)
 		require.Equal(t, eth.BlockID{}, blockID)
 		require.Equal(t, uint64(0), ts)
 	})
+
+	t.Run("closed verifiedDB surfaces error", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, nil).
+			Build()
+
+		chainID := h.Mock(10).id
+		// LastTimestamp is cached, so the scan still enters the loop after Close.
+		for tsCommit := uint64(1000); tsCommit <= 1003; tsCommit++ {
+			err := h.interop.verifiedDB.Commit(VerifiedResult{
+				Timestamp:   tsCommit,
+				L1Inclusion: eth.BlockID{Number: 5},
+				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.Hash{byte(tsCommit)}, Number: tsCommit}},
+			})
+			require.NoError(t, err)
+		}
+
+		require.NoError(t, h.interop.verifiedDB.Close())
+
+		l1Block := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 100, Time: 999}
+		blockID, ts, err := h.interop.VerifiedBlockAtL1(chainID, l1Block)
+		require.Error(t, err)
+		require.Equal(t, eth.BlockID{}, blockID)
+		require.Equal(t, uint64(0), ts)
+	})
+}
+
+func TestLatestVerifiedL2Block_ClosedDBSurfacesError(t *testing.T) {
+	h := newInteropTestHarness(t).
+		WithChain(10, nil).
+		Build()
+
+	chainID := h.Mock(10).id
+	for tsCommit := uint64(1000); tsCommit <= 1003; tsCommit++ {
+		err := h.interop.verifiedDB.Commit(VerifiedResult{
+			Timestamp:   tsCommit,
+			L1Inclusion: eth.BlockID{Number: 5},
+			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.Hash{byte(tsCommit)}, Number: tsCommit}},
+		})
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, h.interop.verifiedDB.Close())
+
+	blockID, ts, err := h.interop.LatestVerifiedL2Block(chainID)
+	require.Error(t, err)
+	require.Equal(t, eth.BlockID{}, blockID)
+	require.Equal(t, uint64(0), ts)
 }
 
 // =============================================================================

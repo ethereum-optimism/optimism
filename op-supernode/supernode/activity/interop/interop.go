@@ -1073,65 +1073,65 @@ func (i *Interop) IsActiveAt(ts uint64) bool {
 	return ts >= i.activationTimestamp
 }
 
-// LatestVerifiedL2Block returns the latest L2 block which has been verified,
-// along with the timestamp at which it was verified.
-func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
+// LatestVerifiedL2Block returns the latest verified L2 block for chainID and
+// its timestamp. (empty, 0, nil) means nothing verified yet; a non-nil error
+// means verifiedDB could not be read.
+func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64, error) {
 	emptyBlock := eth.BlockID{}
 	ts, ok := i.verifiedDB.LastTimestamp()
 	if !ok {
-		return emptyBlock, 0
+		return emptyBlock, 0, nil
 	}
 	res, err := i.verifiedDB.Get(ts)
 	if err != nil {
-		return emptyBlock, 0
+		if errors.Is(err, ErrNotFound) {
+			return emptyBlock, 0, nil
+		}
+		return emptyBlock, 0, fmt.Errorf("LatestVerifiedL2Block: read verifiedDB at %d: %w", ts, err)
 	}
 	head, ok := res.L2Heads[chainID]
 	if !ok {
-		return emptyBlock, 0
+		return emptyBlock, 0, nil
 	}
-	return head, ts
+	return head, ts, nil
 }
 
-// VerifiedBlockAtL1 returns the verified L2 block and timestamp
-// which guarantees that the verified data at that timestamp
-// originates from or before the supplied L1 block.
-func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64) {
-	// If L1 block is empty/zero (e.g. during startup before FinalizedL1 is set),
-	// no verified result can match, so return early.
+// VerifiedBlockAtL1 returns the latest verified L2 block for chainID whose
+// L1 inclusion is at or below l1Block. (empty, 0, nil) means no match;
+// a non-nil error means verifiedDB could not be read.
+func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64, error) {
 	if l1Block == (eth.L1BlockRef{}) {
-		return eth.BlockID{}, 0
+		return eth.BlockID{}, 0, nil
 	}
 
-	// Get the last verified timestamp
 	lastTs, ok := i.verifiedDB.LastTimestamp()
 	if !ok {
-		return eth.BlockID{}, 0
+		return eth.BlockID{}, 0, nil
 	}
 
-	// Search backwards from the last timestamp to find the latest result
-	// where the L1 inclusion block is at or below the supplied L1 block number.
-	// Stop at activationTimestamp — no verified results exist before that.
+	// activationTimestamp is the floor: no verified results exist before activation.
 	lowerBound := i.activationTimestamp
 	for ts := lastTs; ts >= lowerBound && ts <= lastTs; ts-- {
 		result, err := i.verifiedDB.Get(ts)
 		if err != nil {
-			// Timestamp might not exist (due to gaps or rewinds), continue searching
-			continue
+			// Gaps and rewinds produce ErrNotFound; any other error is a
+			// real read failure and must not be treated as no-match.
+			if errors.Is(err, ErrNotFound) {
+				continue
+			}
+			return eth.BlockID{}, 0, fmt.Errorf("VerifiedBlockAtL1: read verifiedDB at %d: %w", ts, err)
 		}
 
-		// Check if this result's L1 inclusion is at or below the supplied L1 block number
 		if result.L1Inclusion.Number <= l1Block.Number {
-			// Found a finalized result, return the L2 head for this chain
 			head, ok := result.L2Heads[chainID]
 			if !ok {
-				return eth.BlockID{}, 0
+				return eth.BlockID{}, 0, nil
 			}
-			return head, ts
+			return head, ts, nil
 		}
 	}
 
-	// No verified block found
-	return eth.BlockID{}, 0
+	return eth.BlockID{}, 0, nil
 }
 
 // Reset is intentionally a no-op for interop.
