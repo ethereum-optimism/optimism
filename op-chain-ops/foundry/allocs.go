@@ -33,7 +33,7 @@ func (f *ForgeAllocs) FromState(stateDB StateDB) {
 
 // StateDB is a minimal interface to support dumping of Geth EVM state to ForgeAllocs.
 type StateDB interface {
-	DumpToCollector(c state.DumpCollector, conf *state.DumpConfig) (nextKey []byte)
+	DumpToCollector(c state.DumpCollector, conf *state.DumpConfig) (nextKey []byte, err error)
 }
 
 // Assert that the Geth StateDB implements this interface still.
