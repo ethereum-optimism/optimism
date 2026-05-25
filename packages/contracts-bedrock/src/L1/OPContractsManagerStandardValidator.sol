@@ -872,7 +872,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         // ZK dispute game validation: gated on the ZK_DISPUTE_GAME dev feature flag.
         if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _input.l2ChainID, _proxyAdmin, _overrides);
+            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _proxyAdmin, _overrides);
         } else {
             // ZK game type must not be registered when the ZK feature is not enabled.
             _errors = internalRequire(
@@ -949,7 +949,6 @@ contract OPContractsManagerStandardValidator is ISemver {
     function _assertValidZKGameArgs(
         string memory _errors,
         ISystemConfig _sysCfg,
-        uint256 _l2ChainID,
         IProxyAdmin _admin,
         ValidationOverrides memory _overrides,
         string memory _errorPrefix
@@ -960,7 +959,9 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
-        _errors = internalRequire(args.l2ChainId == _l2ChainID, string.concat(_errorPrefix, "-60"), _errors);
+        // ZK_DISPUTE_GAME is a super game: l2ChainId must be 0 in the immutable args because
+        // the chain ID is embedded in per-game extraData (super root proof), not in the factory args.
+        _errors = internalRequire(args.l2ChainId == 0, string.concat(_errorPrefix, "-60"), _errors);
         _errors = internalRequire(args.absolutePrestate != bytes32(0), string.concat(_errorPrefix, "-70"), _errors);
         _errors = internalRequire(
             args.verifier != address(0) && args.verifier.code.length > 0, string.concat(_errorPrefix, "-80"), _errors
@@ -994,7 +995,6 @@ contract OPContractsManagerStandardValidator is ISemver {
     function assertValidZKDisputeGame(
         string memory _errors,
         ISystemConfig _sysCfg,
-        uint256 _l2ChainID,
         IProxyAdmin _admin,
         ValidationOverrides memory _overrides
     )
@@ -1023,7 +1023,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             string.concat(errorPrefix, "-20"),
             _errors
         );
-        return _assertValidZKGameArgs(_errors, _sysCfg, _l2ChainID, _admin, _overrides, errorPrefix);
+        return _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, errorPrefix);
     }
 
     /// @notice Internal function to read all information from a dispute game.
