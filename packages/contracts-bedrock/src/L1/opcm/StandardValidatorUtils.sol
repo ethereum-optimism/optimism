@@ -169,6 +169,8 @@ contract StandardValidatorUtils {
         );
         _errors =
             internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0), "SCKDG-NOSHAPE", _errors);
+        // TODO: add ZKDG-NOSHAPE check here once ZK non-super mode is removed and ZK only
+        // exists as SUPER_ZK_DISPUTE_GAME. At that point ZK must never be registered in non-super mode.
         _errors = internalRequire(
             address(dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) != address(0), "PDDG-NOSHAPE", _errors
         );

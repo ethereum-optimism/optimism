@@ -99,7 +99,7 @@ library GameTypes {
     function isSuperGame(GameType _gameType) internal pure returns (bool) {
         uint32 raw = _gameType.raw();
         return raw == SUPER_CANNON.raw() || raw == SUPER_PERMISSIONED_CANNON.raw() || raw == SUPER_ASTERISC_KONA.raw()
-            || raw == SUPER_CANNON_KONA.raw();
+            || raw == SUPER_CANNON_KONA.raw() || raw == ZK_DISPUTE_GAME.raw();
     }
 }
 

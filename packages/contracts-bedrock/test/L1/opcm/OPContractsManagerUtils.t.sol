@@ -916,6 +916,7 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
 
         // Verify the CWIA layout: absolutePrestate | verifier | maxChallengeDuration | maxProveDuration |
         // challengerBond | anchorStateRegistry | delayedWETH | l2ChainId
+        // ZK_DISPUTE_GAME is a super game so l2ChainId is always 0 in the encoded args.
         bytes memory expected = abi.encodePacked(
             absolutePrestate,
             verifier,
@@ -924,7 +925,7 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
             challengerBond,
             address(anchorStateRegistry),
             address(delayedWETH),
-            l2ChainId
+            uint256(0)
         );
         assertEq(keccak256(result), keccak256(expected), "ZK game args CWIA layout mismatch");
     }

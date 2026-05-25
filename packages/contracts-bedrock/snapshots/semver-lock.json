@@ -20,11 +20,11 @@
     "sourceCodeHash": "0x0ef8461e8bc55314e61e60924465574db17bdf30bbbfe9739b52cac623bba2db"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0x22c632fd0ca1c432d8a4e9c62f7bfc776691eb2699aac2a9188d3f91fa763233",
+    "initCodeHash": "0x82314c0b32b1b169f034fa2c6fdcf029ff4b2f0343bcdc291dddbf1a3181990e",
     "sourceCodeHash": "0xa5a0bc860652e85b7a4102c458d1bb27e203141db0faa41db0fccb3ac86ae4ea"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
-    "initCodeHash": "0xf09c4037bec1e0fbf679f1250e8d21d4a208829be24e16a83711e94c9b4b1004",
+    "initCodeHash": "0x8e4c3129d8c0cb5a5c301d06cac94bab724b5b72c1268ba106c8d196ec48b959",
     "sourceCodeHash": "0x58224f9b9403ca597a9aa649757c667396838eee89db2e7553aab755dd5fba26"
   },
   "src/L1/SuperchainConfig.sol:SuperchainConfig": {
@@ -88,7 +88,7 @@
     "sourceCodeHash": "0x0a29792f3226dac84fdb44150b622a165fe65da3b678f6540acecdfe440772bb"
   },
   "src/L2/L2ProxyAdmin.sol:L2ProxyAdmin": {
-    "initCodeHash": "0x1b392652cf6009f47ed8c794c1f117ea51a626234fe419660bc273b5ad03b020",
+    "initCodeHash": "0xd9d6f7850ca2f14376b4a9c8b7693edd820803baddf42da91c0d452c207914a8",
     "sourceCodeHash": "0x43379a0ceae81d693c0fb50d3b7e8b1836e7a2cae0b7931593d2324d09e59ba3"
   },
   "src/L2/L2StandardBridge.sol:L2StandardBridge": {
