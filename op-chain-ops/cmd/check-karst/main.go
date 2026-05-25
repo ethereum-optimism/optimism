@@ -129,16 +129,42 @@ func makeCommand(name string, fn CheckAction) *cli.Command {
 }
 
 func makeAllCommand() *cli.Command {
+	flags := append(makeFlags(), EndpointL1, L1AccountKey, PortalAddress)
 	return &cli.Command{
 		Name:  "all",
-		Flags: cliapp.ProtectFlags(makeFlags()),
+		Flags: cliapp.ProtectFlags(flags),
 		Action: func(c *cli.Context) error {
 			env, err := resolveEnv(c)
 			if err != nil {
 				return err
 			}
 			defer env.close()
-			if err := karsttest.CheckAll(env.ctx, env.logger, env.l2, env.basePlan); err != nil {
+
+			l1Cl, err := ethclient.DialContext(env.ctx, c.String(EndpointL1.Name))
+			if err != nil {
+				return fmt.Errorf("dial L1: %w", err)
+			}
+			defer l1Cl.Close()
+
+			l1Key, err := crypto.HexToECDSA(strings.TrimPrefix(c.String(L1AccountKey.Name), "0x"))
+			if err != nil {
+				return fmt.Errorf("parse L1 account: %w", err)
+			}
+
+			portalHex := c.String(PortalAddress.Name)
+			if !common.IsHexAddress(portalHex) {
+				return fmt.Errorf("--portal must be a hex address, got %q", portalHex)
+			}
+
+			if err := karsttest.CheckAll(
+				env.ctx, env.logger,
+				&ethclientLatestBlockAdapter{env.l2},
+				env.basePlan,
+				common.HexToAddress(portalHex),
+				crypto.PubkeyToAddress(l1Key.PublicKey),
+				karsttest.NewBasePlan(l1Cl, l1Key),
+				eth.OneHundredthEther,
+			); err != nil {
 				return fmt.Errorf("command error: %w", err)
 			}
 			return nil
@@ -164,19 +190,12 @@ func (a *ethclientLatestBlockAdapter) InfoAndTxsByLabel(ctx context.Context, lab
 
 // makeBlockSizeCommand wires up the EIP-7934 block-size-disabled check.
 // Unlike the EVM-level checks, it polls latest blocks for one whose tx data
-// exceeds MaxBlockSize, so it gets a configurable poll interval. Callers
-// control the deadline via Ctrl+C (which cancels the interrupt-aware ctx).
+// exceeds MaxBlockSize. Callers control the deadline via Ctrl+C
+// (which cancels the interrupt-aware ctx).
 func makeBlockSizeCommand() *cli.Command {
-	pollInterval := &cli.DurationFlag{
-		Name:    "poll-interval",
-		Usage:   "How often to fetch the latest L2 block",
-		EnvVars: op_service.PrefixEnvVar(prefix, "POLL_INTERVAL"),
-		Value:   2 * time.Second,
-	}
-	flags := append(makeFlags(), pollInterval)
 	return &cli.Command{
 		Name:  "eip-7934",
-		Flags: cliapp.ProtectFlags(flags),
+		Flags: cliapp.ProtectFlags(makeFlags()),
 		Action: func(c *cli.Context) error {
 			env, err := resolveEnv(c)
 			if err != nil {
@@ -186,7 +205,7 @@ func makeBlockSizeCommand() *cli.Command {
 			if err := karsttest.CheckEIP7934BlockSizeDisabled(
 				env.ctx, env.logger,
 				&ethclientLatestBlockAdapter{env.l2},
-				c.Duration(pollInterval.Name),
+				2*time.Second,
 			); err != nil {
 				return fmt.Errorf("command error: %w", err)
 			}

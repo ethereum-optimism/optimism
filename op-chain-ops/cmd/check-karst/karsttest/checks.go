@@ -386,13 +386,13 @@ type LatestBlockFetcher interface {
 // Tx data size is a strict lower bound on RLP-encoded block size, so observing
 // txData > MaxBlockSize proves the block exceeds the limit. The check is
 // contingent on chain traffic — on a quiet chain it will block forever, so
-// it is not wired into `CheckAll`; callers control the deadline via `ctx`.
-// Returns the L2 block number where the oversized block was observed.
+// callers must bound the wait via `ctx`. Returns the L2 block number where
+// the oversized block was observed.
 func CheckEIP7934BlockSizeDisabled(
 	ctx context.Context,
 	logger log.Logger,
 	l2 LatestBlockFetcher,
-	pollInterval time.Duration,
+	blockTime time.Duration,
 ) error {
 	for {
 		info, txs, err := l2.InfoAndTxsByLabel(ctx, eth.Unsafe)
@@ -418,15 +418,29 @@ func CheckEIP7934BlockSizeDisabled(
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(pollInterval):
+		case <-time.After(blockTime):
 		}
 	}
+}
+
+type L2 interface {
+	apis.EthCode
+	apis.ReceiptFetcher
+	InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error)
 }
 
 // CheckAll runs every implemented post-Karst check in sequence. It is intended
 // for the CLI; the acceptance test invokes individual Check functions per
 // sub-test so each can run in parallel and gate its own kona-host cross-check.
-func CheckAll(ctx context.Context, logger log.Logger, l2 apis.EthCode, basePlan txplan.Option) error {
+func CheckAll(
+	ctx context.Context,
+	logger log.Logger,
+	l2 L2,
+	basePlan txplan.Option,
+	portalAddr, l1Sender common.Address,
+	l1Plan txplan.Option,
+	depositAmount eth.ETH,
+) error {
 	logger.Info("starting Karst checks")
 	if _, _, err := CheckEIP7823(ctx, logger, basePlan); err != nil {
 		return fmt.Errorf("EIP-7823: %w", err)
@@ -442,6 +456,12 @@ func CheckAll(ctx context.Context, logger log.Logger, l2 apis.EthCode, basePlan 
 	}
 	if err := CheckEIP7825(ctx, logger, basePlan); err != nil {
 		return fmt.Errorf("EIP-7825: %w", err)
+	}
+	if _, err := CheckEIP7825DepositBypass(ctx, logger, l2, portalAddr, l1Sender, l1Plan, depositAmount); err != nil {
+		return fmt.Errorf("EIP-7825-deposit: %w", err)
+	}
+	if err := CheckEIP7934BlockSizeDisabled(ctx, logger, l2, 2*time.Second); err != nil {
+		return fmt.Errorf("EIP-7934: %w", err)
 	}
 	logger.Info("completed all Karst checks successfully")
 	return nil
