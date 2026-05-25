@@ -173,11 +173,6 @@ abstract contract Setup is FeatureFlags {
         return Config.l2ForkTest();
     }
 
-    /// @notice Indicates whether a test is running against a Karst betanet L2 fork test.
-    function isL2CMActivationTest() public view returns (bool) {
-        return Config.l2CMActivationTest();
-    }
-
     /// @dev Deploys either the Deploy.s.sol or Fork.s.sol contract, by fetching the bytecode dynamically using
     ///      `vm.getDeployedCode()` and etching it into the state.
     ///      This enables us to avoid including the bytecode of those contracts in the bytecode of this contract.

@@ -45,7 +45,7 @@ contract L2VerifyBetanetForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
     }
 }
 
-/// @title L2GenesisForkUpgrade_Versions_Test
+/// @title L2VerifyBetanetForkUpgrade_Versions_Test
 /// @notice Tests that all predeploy versions were updated during the betanet activation.
 contract L2VerifyBetanetForkUpgrade_Versions_Test is
     L2VerifyBetanetForkUpgrade_TestInit,
