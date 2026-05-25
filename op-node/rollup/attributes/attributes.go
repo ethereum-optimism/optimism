@@ -242,12 +242,16 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 		blockNum := uint64(envelope.ExecutionPayload.BlockNumber)
 		denied, err := eq.superAuthority.IsDenied(blockNum, envelope.ExecutionPayload.BlockHash)
 		if err != nil {
-			eq.log.Error("Failed to check SuperAuthority denylist during consolidation, proceeding with match check",
-				"blockNumber", blockNum,
-				"blockHash", envelope.ExecutionPayload.BlockHash,
-				"err", err,
-			)
-		} else if denied {
+			// Fail closed: advancing pending-safe without the deny check
+			// risks silently promoting a denied block. Surface a temporary
+			// error so the caller retries on the next pipeline step.
+			eq.emitter.Emit(eq.ctx, rollup.EngineTemporaryErrorEvent{
+				Err: fmt.Errorf("deny-list check failed for unsafe block %s at height %d: %w",
+					envelope.ExecutionPayload.BlockHash, blockNum, err),
+			})
+			return
+		}
+		if denied {
 			eq.log.Warn("Existing unsafe block is on the deny list, requesting deposits-only replacement",
 				"blockNumber", blockNum,
 				"blockHash", envelope.ExecutionPayload.BlockHash,

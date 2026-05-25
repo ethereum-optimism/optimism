@@ -2,6 +2,7 @@ package attributes
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"math/rand" // nosemgrep
 	"testing"
@@ -395,6 +396,50 @@ func TestAttributesHandler(t *testing.T) {
 			l2.AssertExpectations(t)
 			emitter.AssertExpectations(t)
 		})
+		t.Run("deny check error emits temporary error and aborts consolidation", func(t *testing.T) {
+			// Failing closed: if SuperAuthority can't tell us whether the
+			// unsafe block is denied, we must NOT advance pending-safe via
+			// AttributesMatchBlock — that risks silently promoting a denied
+			// block. Surface EngineTemporaryErrorEvent so the caller retries.
+			logger := testlog.Logger(t, log.LevelInfo)
+			l2 := &testutils.MockL2Client{}
+			emitter := &testutils.MockEmitter{}
+			engDeriver := &MockEngineController{}
+			sa := &denyAuthority{err: errors.New("boom")}
+			ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver)
+			ah.AttachEmitter(emitter)
+			ah.SetSuperAuthority(sa)
+
+			// Use non-deposits-only attrs so the IsDepositsOnly short-circuit
+			// doesn't skip the check.
+			attrsCopy := *attrA1.Attributes
+			attrsCopy.Transactions = append([]eth.Data{}, attrA1.Attributes.Transactions...)
+			attrsCopy.Transactions = append(attrsCopy.Transactions, eth.Data{0x02, 0xff})
+			attr := &derive.AttributesWithParent{
+				Attributes:  &attrsCopy,
+				Parent:      attrA1.Parent,
+				Concluding:  true,
+				DerivedFrom: refB,
+			}
+			emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
+			engDeriver.On("RequestPendingSafeUpdate", context.Background()).Once()
+			ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attr})
+			engDeriver.AssertExpectations(t)
+			emitter.AssertExpectations(t)
+
+			// During consolidation: l2 returns the payload, deny check errors,
+			// no AttributesMatchBlock call, no TryUpdatePendingSafe — just an
+			// EngineTemporaryErrorEvent.
+			l2.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
+			emitter.ExpectOnceType("EngineTemporaryErrorEvent")
+			ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
+				PendingSafe: refA0,
+				Unsafe:      refA1,
+			})
+			engDeriver.AssertExpectations(t)
+			l2.AssertExpectations(t)
+			emitter.AssertExpectations(t)
+		})
 		t.Run("denied unsafe block + deposits-only attrs falls through to match check", func(t *testing.T) {
 			// Once derivation has produced deposits-only attributes for the
 			// denied height, we must NOT re-request another deposits-only
@@ -526,11 +571,15 @@ func TestAttributesHandler(t *testing.T) {
 // Only IsDenied is exercised — other methods return zero values.
 type denyAuthority struct {
 	denied map[uint64]common.Hash
+	err    error // if non-nil, IsDenied returns this error
 }
 
 func (d *denyAuthority) FullyVerifiedL2Head() (eth.BlockID, bool) { return eth.BlockID{}, false }
 func (d *denyAuthority) FinalizedL2Head() (eth.BlockID, bool)     { return eth.BlockID{}, false }
 func (d *denyAuthority) IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error) {
+	if d.err != nil {
+		return false, d.err
+	}
 	h, ok := d.denied[blockNumber]
 	return ok && h == payloadHash, nil
 }
