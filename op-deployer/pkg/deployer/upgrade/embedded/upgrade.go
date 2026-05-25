@@ -21,7 +21,7 @@ const (
 	GameTypeSuperPermCannon    GameType = 5
 	GameTypeCannonKona         GameType = 8
 	GameTypeSuperCannonKona    GameType = 9
-	GameTypeZKDisputeGame      GameType = 10
+	GameTypeSuperZKDisputeGame      GameType = 10
 )
 
 var (
@@ -68,7 +68,7 @@ type DisputeGameConfig struct {
 	GameType                      GameType                       `json:"gameType"`
 	FaultDisputeGameConfig        *FaultDisputeGameConfig        `json:"faultDisputeGameConfig,omitempty"`
 	PermissionedDisputeGameConfig *PermissionedDisputeGameConfig `json:"permissionedDisputeGameConfig,omitempty"`
-	ZKDisputeGameConfig           *ZKDisputeGameConfig           `json:"zkDisputeGameConfig,omitempty"`
+	SuperZKDisputeGameConfig      *SuperZKDisputeGameConfig      `json:"superZkDisputeGameConfig,omitempty"`
 }
 
 // ExtraInstruction represents an additional upgrade instruction for the upgrade on OPCM v2.
@@ -91,9 +91,9 @@ type PermissionedDisputeGameConfig struct {
 	Challenger       common.Address `json:"challenger"`
 }
 
-// ZKDisputeGameConfig represents the configuration for a ZK dispute game.
+// SuperZKDisputeGameConfig represents the configuration for a SuperZK dispute game.
 // It contains the absolute prestate, verifier address, challenge/prove durations, and challenger bond.
-type ZKDisputeGameConfig struct {
+type SuperZKDisputeGameConfig struct {
 	AbsolutePrestate     common.Hash    `json:"absolutePrestate"`
 	Verifier             common.Address `json:"verifier"`
 	MaxChallengeDuration uint64         `json:"maxChallengeDuration"`
@@ -148,28 +148,28 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 				if err != nil {
 					return nil, fmt.Errorf("failed to encode permissioned game config: %w", err)
 				}
-			case GameTypeZKDisputeGame:
-				if gameConfig.ZKDisputeGameConfig == nil {
-					return nil, fmt.Errorf("zkDisputeGameConfig is required for game type %d", gameConfig.GameType)
+			case GameTypeSuperZKDisputeGame:
+				if gameConfig.SuperZKDisputeGameConfig == nil {
+					return nil, fmt.Errorf("superZkDisputeGameConfig is required for game type %d", gameConfig.GameType)
 				}
-				zk := gameConfig.ZKDisputeGameConfig
+				zk := gameConfig.SuperZKDisputeGameConfig
 				if zk.Verifier == (common.Address{}) {
-					return nil, fmt.Errorf("ZKDisputeGameConfig.Verifier must not be zero address for game type %d", gameConfig.GameType)
+					return nil, fmt.Errorf("SuperZKDisputeGameConfig.Verifier must not be zero address for game type %d", gameConfig.GameType)
 				}
 				if zk.AbsolutePrestate == (common.Hash{}) {
-					return nil, fmt.Errorf("ZKDisputeGameConfig.AbsolutePrestate must not be zero for game type %d", gameConfig.GameType)
+					return nil, fmt.Errorf("SuperZKDisputeGameConfig.AbsolutePrestate must not be zero for game type %d", gameConfig.GameType)
 				}
 				if zk.MaxChallengeDuration == 0 {
-					return nil, fmt.Errorf("ZKDisputeGameConfig.MaxChallengeDuration must be > 0 for game type %d", gameConfig.GameType)
+					return nil, fmt.Errorf("SuperZKDisputeGameConfig.MaxChallengeDuration must be > 0 for game type %d", gameConfig.GameType)
 				}
 				if zk.MaxProveDuration == 0 {
-					return nil, fmt.Errorf("ZKDisputeGameConfig.MaxProveDuration must be > 0 for game type %d", gameConfig.GameType)
+					return nil, fmt.Errorf("SuperZKDisputeGameConfig.MaxProveDuration must be > 0 for game type %d", gameConfig.GameType)
 				}
 				if zk.ChallengerBond == nil || zk.ChallengerBond.Sign() <= 0 {
-					return nil, fmt.Errorf("ZKDisputeGameConfig.ChallengerBond must be set to a positive value for game type %d", gameConfig.GameType)
+					return nil, fmt.Errorf("SuperZKDisputeGameConfig.ChallengerBond must be set to a positive value for game type %d", gameConfig.GameType)
 				}
-				// Encode the ZK dispute game args
-				gameArgs, err = zkEncoder.EncodeArgs(gameConfig.ZKDisputeGameConfig)
+				// Encode the SuperZK dispute game args
+				gameArgs, err = zkEncoder.EncodeArgs(gameConfig.SuperZKDisputeGameConfig)
 				if err != nil {
 					return nil, fmt.Errorf("failed to encode ZK game config: %w", err)
 				}

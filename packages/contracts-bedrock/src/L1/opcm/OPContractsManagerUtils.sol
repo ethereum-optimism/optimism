@@ -386,7 +386,7 @@ contract OPContractsManagerUtils {
             return IDisputeGame(impls.superPermissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()) {
             return IDisputeGame(impls.superFaultDisputeGameImpl);
-        } else if (_gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+        } else if (_gameType.raw() == GameTypes.SUPER_ZK_DISPUTE_GAME.raw()) {
             return IDisputeGame(impls.zkDisputeGameImpl);
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
@@ -441,9 +441,9 @@ contract OPContractsManagerUtils {
                 parsedInputArgs.proposer,
                 parsedInputArgs.challenger
             );
-        } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
-            IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
-                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
+        } else if (rawGT == GameTypes.SUPER_ZK_DISPUTE_GAME.raw()) {
+            IOPContractsManagerUtils.SuperZKDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.SuperZKDisputeGameConfig));
             return abi.encodePacked(
                 parsedInputArgs.absolutePrestate,
                 parsedInputArgs.verifier,
