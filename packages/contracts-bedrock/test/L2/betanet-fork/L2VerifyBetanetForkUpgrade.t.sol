@@ -153,25 +153,16 @@ contract L2VerifyBetanetForkUpgrade_Events_Test is L2VerifyBetanetForkUpgrade_Te
                 vm.eth_getLogs(activationBlockNumber, activationBlockNumber, predeploys[p].predeploy, topics);
             totalCount += perDeployLogs[p].length;
         }
-        Vm.EthGetLogs[] memory ethLogs = new Vm.EthGetLogs[](totalCount);
+        logs_ = new Vm.Log[](totalCount);
         uint256 flatIdx = 0;
         for (uint256 p = 0; p < predeploys.length; p++) {
             for (uint256 q = 0; q < perDeployLogs[p].length; q++) {
-                ethLogs[flatIdx++] = perDeployLogs[p][q];
+                Vm.EthGetLogs memory ethLog = perDeployLogs[p][q];
+                logs_[flatIdx].topics = ethLog.topics;
+                logs_[flatIdx].data = ethLog.data;
+                logs_[flatIdx].emitter = ethLog.emitter;
+                flatIdx++;
             }
-        }
-        logs_ = _ethGetLogsToLogs(ethLogs);
-    }
-
-    /// @notice Converts RPC logs from `vm.eth_getLogs` into the shape returned by `vm.getRecordedLogs`.
-    /// @param _ethLogs The RPC logs from `vm.eth_getLogs`.
-    /// @return logs_ The logs in the shape returned by `vm.getRecordedLogs`.
-    function _ethGetLogsToLogs(Vm.EthGetLogs[] memory _ethLogs) internal pure returns (Vm.Log[] memory logs_) {
-        logs_ = new Vm.Log[](_ethLogs.length);
-        for (uint256 i = 0; i < _ethLogs.length; i++) {
-            logs_[i].topics = _ethLogs[i].topics;
-            logs_[i].data = _ethLogs[i].data;
-            logs_[i].emitter = _ethLogs[i].emitter;
         }
     }
 }
