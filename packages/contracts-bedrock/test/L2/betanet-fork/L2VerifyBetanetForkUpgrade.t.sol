@@ -201,7 +201,7 @@ contract L2VerifyBetanetForkUpgrade_ActivationBlockTxns_Test is L2VerifyBetanetF
         // The activation block also contains the L1 attributes deposit (and potentially other
         // system transactions) before the NUT bundle. Find the bundle start by matching the
         // first bundle transaction's from+to.
-        uint256 bundleStart = _findBundleStart(froms, tos, bundleTxns[0]);
+        uint256 bundleStart = _findBundleStart(froms, tos, inputs, bundleTxns[0]);
 
         assertGe(
             froms.length - bundleStart,
@@ -281,6 +281,7 @@ contract L2VerifyBetanetForkUpgrade_ActivationBlockTxns_Test is L2VerifyBetanetF
     function _findBundleStart(
         address[] memory _froms,
         address[] memory _tos,
+        bytes[] memory _inputs,
         NetworkUpgradeTxns.NetworkUpgradeTxn memory _firstBundleTxn
     )
         internal
@@ -288,7 +289,10 @@ contract L2VerifyBetanetForkUpgrade_ActivationBlockTxns_Test is L2VerifyBetanetF
         returns (uint256)
     {
         for (uint256 i = 0; i < _froms.length; i++) {
-            if (_froms[i] == _firstBundleTxn.from && _tos[i] == _firstBundleTxn.to) {
+            if (
+                _froms[i] == _firstBundleTxn.from && _tos[i] == _firstBundleTxn.to
+                    && keccak256(_inputs[i]) == keccak256(_firstBundleTxn.data)
+            ) {
                 return i;
             }
         }
