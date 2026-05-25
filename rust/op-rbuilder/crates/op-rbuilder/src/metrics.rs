@@ -139,6 +139,10 @@ pub struct OpRBuilderMetrics {
     pub reverted_tx_gas_used: Histogram,
     /// Gas used by reverted transactions in the latest block
     pub payload_reverted_tx_gas_used: Gauge,
+    /// Total SDM gas refunded by produced PostExec payloads.
+    pub sdm_refund_gas_total: Counter,
+    /// SDM gas refunded by the latest produced block.
+    pub sdm_refund_gas_per_block: Gauge,
     /// Histogram of tx simulation duration
     pub tx_simulation_duration: Histogram,
     /// Byte size of transactions
@@ -193,6 +197,11 @@ impl OpRBuilderMetrics {
             .set(num_txs_simulated_fail);
         self.bundles_reverted.record(num_bundles_reverted);
         self.payload_reverted_tx_gas_used.set(reverted_gas_used);
+    }
+
+    pub fn record_sdm_refund_gas(&self, gas_refund: u64) {
+        self.sdm_refund_gas_total.increment(gas_refund);
+        self.sdm_refund_gas_per_block.set(gas_refund as f64);
     }
 }
 
