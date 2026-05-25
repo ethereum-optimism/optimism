@@ -505,6 +505,7 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 		e.log.Info("Loaded initial local-unsafe block ref", "local_unsafe", ref)
 	}
 	var finalizedRef eth.L2BlockRef
+	finalizedJustLoaded := false
 	if e.FinalizedHead() == (eth.L2BlockRef{}) {
 		var err error
 		finalizedRef, err = e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
@@ -522,9 +523,11 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 			}
 		} else {
 			e.SetFinalizedHead(finalizedRef)
+			finalizedJustLoaded = true
 			e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
 		}
 	}
+	safeJustLoaded := false
 	if e.localSafeHead == (eth.L2BlockRef{}) {
 		ref, err := e.engine.L2BlockRefByLabel(ctx, eth.Safe)
 		if err != nil {
@@ -536,6 +539,7 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 				} else {
 					// If the engine doesn't have a safe head, then we can use the finalized head
 					e.SetLocalSafeHead(finalizedRef)
+					safeJustLoaded = true
 					e.log.Info("Loaded initial local-safe block from finalized", "local_safe", finalizedRef)
 				}
 			} else {
@@ -543,6 +547,7 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 			}
 		} else {
 			e.SetLocalSafeHead(ref)
+			safeJustLoaded = true
 			e.log.Info("Loaded initial local-safe block ref", "local_safe", ref)
 		}
 	}
@@ -555,13 +560,16 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 		e.SetCrossUnsafeHead(e.SafeL2Head()) // preserve cross-safety, don't fall back to a non-cross safety level
 		e.log.Info("Set initial cross-unsafe block ref to match cross-safe", "cross_unsafe", e.SafeL2Head())
 	}
-	// Apply deny-list cap to the values just loaded from the EL. This ensures
-	// local-safe (and finalized) are strictly below any still-canonical denied
-	// block before any FCU is issued; the downstream consolidation path then
-	// re-derives the denied block as deposits-only and reorgs unsafe.
-	// Idempotent: re-entry via tryUpdateEngineInternal is a no-op once heads
-	// are already capped.
-	if e.superAuthority != nil && e.localSafeHead != (eth.L2BlockRef{}) {
+	// Apply deny-list cap to the values just loaded from the EL in this call.
+	// This is strictly a one-shot at initial head load: subsequent calls (the
+	// common case via tryUpdateEngineInternal) MUST NOT re-cap, because by then
+	// the build-driven reorg path may have advanced localSafeHead to the
+	// replacement block while op-reth's canonical chain still briefly reports
+	// the bad block at that height — re-running the cap would roll safe back
+	// over the just-built replacement and turn the reorg into an oscillation
+	// loop. The explicit reset path (onResetEngineRequest → FindL2Heads) still
+	// applies the cap when heads are freshly read from EL labels.
+	if e.superAuthority != nil && (safeJustLoaded || finalizedJustLoaded) && e.localSafeHead != (eth.L2BlockRef{}) {
 		result := &sync.FindHeadsResult{
 			Unsafe:    e.unsafeHead,
 			Safe:      e.localSafeHead,
