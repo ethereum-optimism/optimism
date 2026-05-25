@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -102,10 +103,11 @@ func (f *fixture) expectBlockRef(blockNum uint64, hash common.Hash, l1Origin eth
 	return ref
 }
 
-// expectBlockMissing mocks BlockRefWithStatus failing for blockNum (e.g. beyond unsafe
-// head) and the SyncStatus fallback that production code makes to populate the response.
+// expectBlockMissing mocks BlockRefWithStatus returning ethereum.NotFound for blockNum
+// (beyond unsafe head) and the SyncStatus fallback that production code makes to
+// populate the response.
 func (f *fixture) expectBlockMissing(blockNum uint64) {
-	f.dr.ExpectBlockRefWithStatus(blockNum, eth.L2BlockRef{}, nil, errors.New("not found"))
+	f.dr.ExpectBlockRefWithStatus(blockNum, eth.L2BlockRef{}, nil, ethereum.NotFound)
 	f.dr.Mock.On("SyncStatus").Return(f.syncStatus)
 }
 
@@ -229,20 +231,35 @@ func TestSuperrootAPI_SafeDBDisabled_Errors(t *testing.T) {
 	require.ErrorIs(t, err, safedb.ErrNotEnabled)
 }
 
-func TestSuperrootAPI_DriverError(t *testing.T) {
-	// Driver failures (both the primary BlockRefWithStatus call and the SyncStatus
-	// fallback) surface as a single error from the RPC.
+func TestSuperrootAPI_BlockRefError_Propagates(t *testing.T) {
+	// Non-NotFound errors from BlockRefWithStatus (context deadline, EL transport,
+	// driver-loop failures) must fail the RPC rather than degrade to an empty response.
 	f := newFixture(t)
-	failing := &failingDriver{err: errors.New("drv-fail")}
-	api := NewSuperrootAPI(f.cfg, f.l2Client, failing, f.safeDB, testlog.Logger(t, log.LevelError))
+	driverErr := errors.New("driver-loop fail")
+	f.dr.ExpectBlockRefWithStatus(40, eth.L2BlockRef{}, nil, driverErr)
 
-	_, err := api.atTimestamp(context.Background(), testGenesisL2Ts+10*testBlockTime)
-	require.ErrorContains(t, err, "drv-fail")
+	_, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts+40*testBlockTime)
+	require.ErrorIs(t, err, driverErr)
+}
+
+func TestSuperrootAPI_OutputNotFound_OmitsChain(t *testing.T) {
+	// op-supernode parity: OutputV0AtBlock returning ethereum.NotFound omits the
+	// chain (Data nil, no entry); the block exists but the EL hasn't surfaced an
+	// output for it yet.
+	f := newFixture(t)
+	hash := common.Hash{0x40}
+	f.expectBlockRef(40, hash, eth.BlockID{Number: 170})
+	f.l2Client.ExpectOutputV0AtBlock(hash, (*eth.OutputV0)(nil), ethereum.NotFound)
+
+	resp, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts+40*testBlockTime)
+	require.NoError(t, err)
+	require.Nil(t, resp.Data)
+	require.Empty(t, resp.OptimisticAtTimestamp)
 }
 
 func TestSuperrootAPI_OutputClientError(t *testing.T) {
+	// Non-NotFound OutputV0AtBlock errors propagate.
 	f := newFixture(t)
-
 	hash := common.Hash{0x30}
 	f.expectBlockRef(30, hash, eth.BlockID{Number: 160})
 	f.l2Client.ExpectOutputV0AtBlock(hash, (*eth.OutputV0)(nil), errors.New("output-fail"))
@@ -250,26 +267,3 @@ func TestSuperrootAPI_OutputClientError(t *testing.T) {
 	_, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts+30*testBlockTime)
 	require.ErrorContains(t, err, "outputV0AtBlock")
 }
-
-// failingDriver returns a configured error from every driverClient method.
-type failingDriver struct {
-	err error
-}
-
-func (f *failingDriver) SyncStatus(_ context.Context) (*eth.SyncStatus, error) {
-	return nil, f.err
-}
-func (f *failingDriver) BlockRefWithStatus(_ context.Context, _ uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
-	return eth.L2BlockRef{}, nil, f.err
-}
-func (f *failingDriver) ResetDerivationPipeline(_ context.Context) error       { return f.err }
-func (f *failingDriver) StartSequencer(_ context.Context, _ common.Hash) error { return f.err }
-func (f *failingDriver) StopSequencer(_ context.Context) (common.Hash, error) {
-	return common.Hash{}, f.err
-}
-func (f *failingDriver) SequencerActive(_ context.Context) (bool, error)                      { return false, f.err }
-func (f *failingDriver) OnUnsafeL2Payload(_ context.Context, _ *eth.ExecutionPayloadEnvelope) {}
-func (f *failingDriver) OverrideLeader(_ context.Context) error                               { return f.err }
-func (f *failingDriver) ConductorEnabled(_ context.Context) (bool, error)                     { return false, f.err }
-func (f *failingDriver) SetRecoverMode(_ context.Context, _ bool) error                       { return f.err }
-

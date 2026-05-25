@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -49,11 +50,16 @@ func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.S
 	// so the LocalSafeL2 bound check below is consistent with the ref we just resolved.
 	ref, status, err := s.dr.BlockRefWithStatus(ctx, blockNum)
 	if err != nil {
-		// Block doesn't exist yet (beyond unsafe head). Mirror op-supernode: omit the
-		// chain, return sync timestamps from a separate SyncStatus call.
+		// ethereum.NotFound means the block isn't known yet (beyond unsafe head). Mirror
+		// op-supernode: omit the chain and return sync timestamps from a separate
+		// SyncStatus call. All other errors (context deadlines, EL transport, etc.)
+		// fail the RPC — silently emitting an empty response would mask real failures.
+		if !errors.Is(err, ethereum.NotFound) {
+			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("blockRefWithStatus@%d: %w", blockNum, err)
+		}
 		status, ssErr := s.dr.SyncStatus(ctx)
 		if ssErr != nil {
-			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("blockRefWithStatus@%d: %w (sync status: %v)", blockNum, err, ssErr)
+			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("syncStatus after blockRef NotFound@%d: %w", blockNum, ssErr)
 		}
 		return responseSkeleton(status, chainID), nil
 	}
@@ -70,6 +76,10 @@ func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.S
 
 	output, err := s.client.OutputV0AtBlock(ctx, ref.Hash)
 	if err != nil {
+		// op-supernode parity: omit the chain on NotFound, propagate other errors.
+		if errors.Is(err, ethereum.NotFound) {
+			return resp, nil
+		}
 		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("outputV0AtBlock@%s: %w", ref, err)
 	}
 	outputRoot := eth.OutputRoot(output)
