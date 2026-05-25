@@ -113,6 +113,30 @@ where
         }
 
         let block_num = current_tip + 1;
+
+        // Mitigation for upstream reth's mmap/ftruncate race
+        // (`https://github.com/paradigmxyz/reth/issues/24411`). Reading via
+        // `provider.recovered_block(...)` dereferences the static-file `Arc<DataReader>`
+        // mmap; if reth's engine tree is unwinding past the requested block at the same
+        // moment, the load can land on a kernel page reclaimed by `ftruncate(2)` and
+        // SIGBUS the process. We narrow the race window by refusing to read past the
+        // chain's current best block — blocks beyond it are the ones most likely to be
+        // mid-truncate. Remove once the upstream fix lands.
+        let best_block = self.state.provider.best_block_number()?;
+        if block_num > best_block {
+            // Clamp `sync_target` to the chain's best block so the runner doesn't
+            // busy-loop on `advance_sync`.
+            debug!(
+                target: "trie::engine::runner",
+                block_num,
+                best_block,
+                sync_target = self.state.sync_target,
+                "Clamping sync_target to best_block to avoid mmap/ftruncate race"
+            );
+            self.state.sync_target = best_block;
+            return Ok(());
+        }
+
         let block = self
             .state
             .provider
