@@ -1166,7 +1166,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].initBond = 0;
         runCurrentUpgradeV2(chainPAO);
         assertEq(
-            disputeGameFactory.initBonds(GameTypes.SUPER_ZK_DISPUTE_GAME), 0, "ZK init bond should be zero after disable"
+            disputeGameFactory.initBonds(GameTypes.SUPER_ZK_DISPUTE_GAME),
+            0,
+            "ZK init bond should be zero after disable"
         );
     }
 

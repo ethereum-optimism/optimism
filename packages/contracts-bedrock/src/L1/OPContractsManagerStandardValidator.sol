@@ -876,8 +876,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         } else {
             // ZK game type must not be registered when the ZK feature is not enabled.
             _errors = internalRequire(
-                address(IDisputeGameFactory(_input.sysCfg.disputeGameFactory()).gameImpls(GameTypes.SUPER_ZK_DISPUTE_GAME))
-                    == address(0),
+                address(
+                    IDisputeGameFactory(_input.sysCfg.disputeGameFactory()).gameImpls(GameTypes.SUPER_ZK_DISPUTE_GAME)
+                ) == address(0),
                 "ZKDG-NOSHAPE",
                 _errors
             );
