@@ -1,0 +1,715 @@
+---
+title: op-reth JSON-RPC API
+description: Complete reference for op-reth execution client RPC methods with OP Stack enhancements.
+---
+
+`op-reth` is the Rust execution client for the OP Stack, based on [Reth](https://github.com/paradigmxyz/reth). It implements the same Engine API and Ethereum JSON-RPC surface as `op-geth`, so it is a drop-in alternative on OP Stack chains.
+
+This page documents the JSON-RPC methods that were tested against an OP Stack devnet running `op-reth v2.2.3` (build `reth/v2.2.0-88505c7`) with the V2 (Jovian) fee model active.
+
+## Overview
+
+`op-reth` implements the standard Ethereum JSON-RPC API with the same OP Stack additions as `op-geth`. Familiar Ethereum tools (cast, web3.js, ethers, viem, …) work without modification.
+
+<Info>
+  The execution engine's RPC interface is functionally identical to [the upstream Reth RPC interface](https://reth.rs/run/run-a-node.html#rpc-namespaces). The OP-specific behavior matches `op-geth`: transaction receipts include additional L1 data-availability fee fields, and deposit transactions (type `0x7e`) carry OP-specific fields.
+</Info>
+
+## Key Differences from Ethereum
+
+While `op-reth` maintains compatibility with Ethereum's JSON-RPC API, there are important differences shared with the wider OP Stack:
+
+### Transaction Receipts
+
+User transaction receipts include additional L1 data fee information. With the **V2 (Jovian) fee model** the fields are:
+
+* **`l1GasUsed`** — Amount of L1 gas attributed to L1 data availability.
+* **`l1GasPrice`** — L1 base fee at the time of execution.
+* **`l1Fee`** — Total L1 data fee charged in wei.
+* **`l1BaseFeeScalar`** — Scalar applied to the L1 base fee component.
+* **`l1BlobBaseFee`** — L1 blob base fee at the time of execution.
+* **`l1BlobBaseFeeScalar`** — Scalar applied to the L1 blob base fee component.
+* **`daFootprintGasScalar`** — Scalar applied to the data-availability footprint.
+
+<Warning>
+  The legacy single-scalar field **`l1FeeScalar`** (used by Bedrock-era chains and still shown in older `op-geth` docs) is **not** present on V2 chains. Clients that hardcode `l1FeeScalar` need to read the new scalar fields above. The `l1GasUsed`, `l1GasPrice`, and `l1Fee` fields are unchanged.
+</Warning>
+
+### Deposit transactions
+
+OP Stack deposit transactions (`type: 0x7e`) include extra fields in both transaction and receipt responses:
+
+* On the transaction: `sourceHash`, `mint`, `depositReceiptVersion`.
+* On the receipt: `depositNonce`, `depositReceiptVersion`.
+
+### Gas Price Calculation
+
+For L2 gas prices, use the standard [`eth_gasPrice`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_gasprice) method.
+
+For L1 gas prices and end-to-end fee estimation, use the [`GasPriceOracle`](https://explorer.optimism.io/address/0x420000000000000000000000000000000000000F) predeploy or [the Optimism SDK](/app-developers/tutorials/transactions/sdk-estimate-costs).
+
+## Standard JSON-RPC Methods
+
+All examples below were verified live against `op-reth v2.2.3`.
+
+### eth_blockNumber
+
+Returns the number of the most recent block.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+      '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+      http://localhost:8545
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast block-number --rpc-url http://localhost:8545
+    ```
+  </Tab>
+</Tabs>
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": "0x1202c"
+}
+```
+
+### eth_chainId
+
+Returns the currently configured chain ID, used for signing replay-protected transactions.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0x190a85e3" }
+```
+
+### eth_syncing
+
+Returns sync status.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+<Info>
+  Unlike `op-geth`, `op-reth` always returns a **structured object** that lists each pipeline stage (`Headers`, `Bodies`, `Execution`, `MerkleExecute`, …) and their per-stage progress, even when the node is fully synced. Clients that treat any non-`false` response as "still syncing" need to compare `currentBlock` and `highestBlock` instead.
+</Info>
+
+Sample output (synced node):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "startingBlock": "0x1202c",
+    "currentBlock": "0x1202c",
+    "highestBlock": "0x1202c",
+    "stages": [
+      { "name": "Headers", "block": "0x1202c" },
+      { "name": "Bodies", "block": "0x1202c" },
+      { "name": "Execution", "block": "0x1202c" },
+      { "name": "MerkleExecute", "block": "0x1202c" },
+      { "name": "Finish", "block": "0x1202c" }
+    ]
+  }
+}
+```
+
+### eth_getBalance
+
+Returns the balance of the account at the given address.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getBalance","params":["0x4200000000000000000000000000000000000015","latest"],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0x0" }
+```
+
+### eth_getTransactionByHash
+
+Returns information about a transaction by transaction hash. Deposit transactions include `sourceHash`, `mint`, and `depositReceiptVersion`.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getTransactionByHash","params":["0x38a7db9aa2d7ec70d55ac7de90384279bdcad38ecdf68e3fcc4c6b649761daf9"],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output (deposit transaction):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "type": "0x7e",
+    "sourceHash": "0xdbad163233eb082b43df51b26625dcfbd997bcd2f0810a58a651c633516c4941",
+    "from": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
+    "to": "0x4200000000000000000000000000000000000015",
+    "mint": "0x0",
+    "value": "0x0",
+    "gas": "0xf4240",
+    "input": "0x3db6be2b…",
+    "hash": "0x38a7db9aa2d7ec70d55ac7de90384279bdcad38ecdf68e3fcc4c6b649761daf9",
+    "blockHash": "0x5bbabb299894fa2f763a0b6bbccc966b80e791aa49663b80fc9789e0f04183ea",
+    "blockNumber": "0x1202c",
+    "transactionIndex": "0x0",
+    "blockTimestamp": "0x69fda224",
+    "depositReceiptVersion": "0x1",
+    "gasPrice": "0x0",
+    "nonce": "0x1202b",
+    "r": "0x0", "s": "0x0", "v": "0x0", "yParity": "0x0"
+  }
+}
+```
+
+### eth_getTransactionReceipt
+
+Returns the receipt of a transaction by hash. Includes OP Stack–specific L1 fee fields. The example below is a deposit-tx receipt (note the `depositNonce` / `depositReceiptVersion` fields and `l1Fee = 0`); a regular user-tx receipt will carry a non-zero `l1Fee` computed from the V2 scalars.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getTransactionReceipt","params":["0x38a7db9aa2d7ec70d55ac7de90384279bdcad38ecdf68e3fcc4c6b649761daf9"],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "type": "0x7e",
+    "status": "0x1",
+    "cumulativeGasUsed": "0xb44e",
+    "logs": [],
+    "logsBloom": "0x000…",
+    "transactionHash": "0x38a7db9aa2d7ec70d55ac7de90384279bdcad38ecdf68e3fcc4c6b649761daf9",
+    "transactionIndex": "0x0",
+    "blockHash": "0x5bbabb299894fa2f763a0b6bbccc966b80e791aa49663b80fc9789e0f04183ea",
+    "blockNumber": "0x1202c",
+    "gasUsed": "0xb44e",
+    "effectiveGasPrice": "0x0",
+    "blobGasUsed": "0xabe0",
+    "from": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
+    "to": "0x4200000000000000000000000000000000000015",
+    "contractAddress": null,
+    "depositNonce": "0x1202b",
+    "depositReceiptVersion": "0x1",
+    "l1GasPrice": "0x35",
+    "l1GasUsed": "0x6e7",
+    "l1Fee": "0x0",
+    "l1BaseFeeScalar": "0x558",
+    "l1BlobBaseFee": "0x3",
+    "l1BlobBaseFeeScalar": "0xc3c9d",
+    "daFootprintGasScalar": "0x190"
+  }
+}
+```
+
+<Info>
+  Notice the OP-specific fields at the end of the receipt: `l1GasUsed`, `l1GasPrice`, `l1Fee`, plus the V2 scalars `l1BaseFeeScalar`, `l1BlobBaseFee`, `l1BlobBaseFeeScalar`, and `daFootprintGasScalar`. The Bedrock-era `l1FeeScalar` field is **not** present on V2 chains.
+</Info>
+
+### eth_call
+
+Executes a new message call immediately without creating a transaction on the blockchain. Example calls `GasPriceOracle.l1BaseFee()`.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_call","params":[{"to":"0x420000000000000000000000000000000000000F","data":"0x519b4bd3"},"latest"],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": "0x0000000000000000000000000000000000000000000000000000000000000030"
+}
+```
+
+### eth_estimateGas
+
+Generates and returns an estimate of gas needed for a transaction to complete.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_estimateGas","params":[{"from":"0x0000000000000000000000000000000000000001","to":"0x0000000000000000000000000000000000000002","value":"0x0"}],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0x52e9" }
+```
+
+<Warning>
+  `eth_estimateGas` only estimates L2 execution gas. To calculate the total transaction cost including L1 data fees, use the [Optimism SDK](/app-developers/tutorials/transactions/sdk-estimate-costs) or query the [`GasPriceOracle` predeployed contract](https://explorer.optimism.io/address/0x420000000000000000000000000000000000000F).
+</Warning>
+
+### eth_sendRawTransaction
+
+Submits a signed transaction to the network. The example payload is intentionally invalid to demonstrate the error shape.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["0xd46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f072445675058bb8eb970870f072445675"],"id":1}' \
+  http://localhost:8545
+```
+
+Sample error output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": { "code": -32602, "message": "failed to decode signed transaction" }
+}
+```
+
+A well-formed signed transaction returns the transaction hash as `result`.
+
+### eth_getBlockByNumber
+
+Returns information about a block by block number. Op-reth populates the standard post-Ecotone/Cancun fields: `withdrawalsRoot`, `blobGasUsed`, `excessBlobGas`, `parentBeaconBlockRoot`, and `requestsHash`.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["0x1b4",false],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "hash": "0x791e5f88a078641354af3c85dbd009b5658e36e1509a2262c11f8a7fc51c2883",
+    "parentHash": "0xa4d2ce03caea13be2262673a58860ac2e717a00d6cf02fee63d7ce61327c32b9",
+    "miner": "0x4200000000000000000000000000000000000011",
+    "number": "0x1b4",
+    "gasLimit": "0x3938700",
+    "gasUsed": "0xb44e",
+    "timestamp": "0x69fb6534",
+    "baseFeePerGas": "0xa787b25",
+    "withdrawalsRoot": "0x8ed4baae3a927be3dea54996b4d5899f8c01e7594bf50b17dc1e741388ce3d12",
+    "blobGasUsed": "0x0",
+    "excessBlobGas": "0x0",
+    "parentBeaconBlockRoot": "0x22096025070f565b96c8aaf633cb809ca242170c6188818cdebca9ead88756d5",
+    "requestsHash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "transactions": [ "0xd9531a51bda284c199328f058383e8376b65c311b0671056344ad3af4700787a" ],
+    "withdrawals": []
+  }
+}
+```
+
+### eth_getLogs
+
+Returns an array of all logs matching a given filter object.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getLogs","params":[{"fromBlock":"0x1","toBlock":"0x2","address":"0x8320fe7702b96808f7bbc0d4a888ed1468216cfd"}],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output (empty filter result):
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": [] }
+```
+
+## Gas Price Methods
+
+### eth_gasPrice
+
+Returns the current gas price in wei for L2 execution.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_gasPrice","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0xf433b" }
+```
+
+<Info>
+  This only returns the L2 gas price. For comprehensive transaction cost estimation including L1 data fees, use the [`GasPriceOracle` predeployed contract](https://explorer.optimism.io/address/0x420000000000000000000000000000000000000F) or [the Optimism SDK](/app-developers/tutorials/transactions/sdk-estimate-costs).
+</Info>
+
+### eth_maxPriorityFeePerGas
+
+Returns the current maximum priority fee per gas (EIP-1559).
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_maxPriorityFeePerGas","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0xf4240" }
+```
+
+### eth_feeHistory
+
+Returns historical base fee, gas-usage ratio, blob base fee, and priority-fee percentile data for fee estimation.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_feeHistory","params":["0x4","latest",[25,50,75]],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "oldestBlock": "0x12396",
+    "baseFeePerGas": ["0xfb","0xfb","0xfb","0xfb","0xfb"],
+    "gasUsedRatio": [0.0007691,0.0007691,0.0007691,0.0007691],
+    "baseFeePerBlobGas": ["0x1","0x1","0x1","0x1","0x1"],
+    "blobGasUsedRatio": [0.0,0.0,0.0,0.0],
+    "reward": [["0x0","0x0","0x0"],["0x0","0x0","0x0"],["0x0","0x0","0x0"],["0x0","0x0","0x0"]]
+  }
+}
+```
+
+## Account and State Methods
+
+### eth_getCode
+
+Returns code at a given address.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getCode","params":["0x420000000000000000000000000000000000000F","latest"],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output (truncated):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": "0x60806040526004361061005e5760003560e01c80635c60da1b…"
+}
+```
+
+### eth_getStorageAt
+
+Returns the value from a storage position at a given address.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getStorageAt","params":["0x420000000000000000000000000000000000000F","0x0","latest"],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": "0x0000000000000000000000000000000000000000000000000000000001010101"
+}
+```
+
+### eth_getTransactionCount
+
+Returns the number of transactions sent from an address (the nonce).
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"eth_getTransactionCount","params":["0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001","latest"],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0x12146" }
+```
+
+## Txpool Methods
+
+When the `txpool` namespace is enabled (`--http.api eth,net,web3,debug,txpool`), `op-reth` exposes the standard txpool inspection methods.
+
+### txpool_status
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"txpool_status","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": { "pending": "0x0", "queued": "0x0" }
+}
+```
+
+## Debug Methods
+
+`op-reth` supports the `debug_*` namespace for transaction inspection. Enable with `--http.api …,debug`.
+
+<Warning>
+  Debug methods can be resource-intensive. Most public RPC providers disable them. You'll need to run your own node with the `debug` namespace enabled to access them.
+</Warning>
+
+### debug_traceTransaction
+
+Returns the trace of a transaction, showing all internal calls and state changes. The `callTracer` is recommended for most use cases.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"debug_traceTransaction","params":["0x38a7db9aa2d7ec70d55ac7de90384279bdcad38ecdf68e3fcc4c6b649761daf9",{"tracer":"callTracer"}],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output (deposit tx that proxies into the L1Block predeploy implementation):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "from": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
+    "gas": "0xf4240",
+    "gasUsed": "0xb44e",
+    "to": "0x4200000000000000000000000000000000000015",
+    "input": "0x3db6be2b…",
+    "calls": [
+      {
+        "from": "0x4200000000000000000000000000000000000015",
+        "gas": "0xe9b56",
+        "gasUsed": "0x489b",
+        "to": "0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30015",
+        "input": "0x3db6be2b…",
+        "value": "0x0",
+        "type": "DELEGATECALL"
+      }
+    ],
+    "value": "0x0",
+    "type": "CALL"
+  }
+}
+```
+
+### debug_traceCall
+
+Traces a call without executing it on-chain.
+
+```sh
+curl -X POST -H "Content-Type: application/json" --data \
+  '{"jsonrpc":"2.0","method":"debug_traceCall","params":[{"to":"0x420000000000000000000000000000000000000F","data":"0x519b4bd3"},"latest",{"tracer":"callTracer"}],"id":1}' \
+  http://localhost:8545
+```
+
+Sample success output (call to `GasPriceOracle.l1BaseFee()`):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "from": "0x0000000000000000000000000000000000000000",
+    "gas": "0x2faf080",
+    "gasUsed": "0x8e85",
+    "to": "0x420000000000000000000000000000000000000f",
+    "input": "0x519b4bd3",
+    "output": "0x0000000000000000000000000000000000000000000000000000000000000030",
+    "calls": [
+      {
+        "from": "0x420000000000000000000000000000000000000f",
+        "to": "0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3000f",
+        "input": "0x519b4bd3",
+        "output": "0x0000000000000000000000000000000000000000000000000000000000000030",
+        "type": "DELEGATECALL",
+        "calls": [
+          {
+            "from": "0x420000000000000000000000000000000000000f",
+            "to": "0x4200000000000000000000000000000000000015",
+            "input": "0x5cf24969",
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000030",
+            "type": "STATICCALL"
+          }
+        ]
+      }
+    ],
+    "value": "0x0",
+    "type": "CALL"
+  }
+}
+```
+
+## WebSocket Support
+
+`op-reth` supports WebSocket connections for real-time event subscriptions using the `eth_subscribe` method. Default port is `8546`.
+
+### eth_subscribe
+
+Creates a subscription for specific events. Verified subscription topics include `newHeads`, `logs`, `newPendingTransactions`, and `syncing`.
+
+```js
+// Connect to WebSocket
+const ws = new WebSocket('ws://localhost:8546');
+
+// Subscribe to new block headers
+ws.send(JSON.stringify({
+  "jsonrpc": "2.0",
+  "method": "eth_subscribe",
+  "params": ["newHeads"],
+  "id": 1
+}));
+
+// Subscribe to logs
+ws.send(JSON.stringify({
+  "jsonrpc": "2.0",
+  "method": "eth_subscribe",
+  "params": [
+    "logs",
+    {
+      "address": "0x8320fe7702b96808f7bbc0d4a888ed1468216cfd",
+      "topics": ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"]
+    }
+  ],
+  "id": 2
+}));
+```
+
+Subscription acknowledgement:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "result": "0x8045a58dd94ddef0a9b0ac15ab397550" }
+```
+
+Event notification (newHeads):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "eth_subscription",
+  "params": {
+    "subscription": "0x8045a58dd94ddef0a9b0ac15ab397550",
+    "result": {
+      "hash": "0xabcc886e14fdb89b4df093032bf984e98a1704d8037a21260689d19e7bf72154",
+      "number": "0x124b2",
+      "timestamp": "0x69fdab30",
+      "baseFeePerGas": "0xfb",
+      "…": "…"
+    }
+  }
+}
+```
+
+### eth_unsubscribe
+
+Cancels an active subscription.
+
+```js
+ws.send(JSON.stringify({
+  "jsonrpc": "2.0",
+  "method": "eth_unsubscribe",
+  "params": ["0x8045a58dd94ddef0a9b0ac15ab397550"],
+  "id": 1
+}));
+```
+
+## Methods that behave differently from op-geth
+
+These calls are worth flagging for tooling that auto-detects client capability:
+
+| Method | op-geth | op-reth |
+| --- | --- | --- |
+| `rpc_modules` | Returns the namespace → version map. | **Not implemented** — returns `-32601 Method not found`. Use `web3_clientVersion` to identify the client. |
+| `eth_syncing` | Returns `false` when synced. | Always returns a structured object with per-stage progress; compare `currentBlock` and `highestBlock` to determine "synced". |
+| `trace_*` (Parity) namespace | Not exposed; `op-geth` uses `debug_*`. | Available in `op-reth`, but only when `trace` is added to `--http.api`. Not enabled by default in our compose file. |
+| Receipt L1 fee scalars | Single legacy `l1FeeScalar` field on pre-Ecotone receipts. | V2 (Jovian) fields: `l1BaseFeeScalar`, `l1BlobBaseFee`, `l1BlobBaseFeeScalar`, `daFootprintGasScalar`; `l1FeeScalar` removed. (Same on `op-geth` once V2 is active.) |
+
+## Additional Resources
+
+For a complete list of all supported JSON-RPC methods, refer to:
+
+* [op-geth JSON-RPC API](/node-operators/reference/op-geth-json-rpc) — the same Ethereum JSON-RPC surface, on the op-geth reference page. Useful for cross-referencing if you're migrating from op-geth.
+* [Reth JSON-RPC / Namespaces Documentation](https://reth.rs/run/run-a-node.html#rpc-namespaces)
+* [Geth JSON-RPC Documentation](https://geth.ethereum.org/docs/interacting-with-geth/rpc)
+* [Ethereum JSON-RPC Specification](https://ethereum.org/en/developers/docs/apis/json-rpc/)
+* [OP Stack Transaction Cost Estimation](/app-developers/tutorials/transactions/sdk-estimate-costs)
+
+## Running a Node with RPC Access
+
+To run your own `op-reth` node with full RPC access:
+
+```sh
+op-reth node \
+  --chain /config/genesis.json \
+  --datadir /data \
+  --http \
+  --http.addr 0.0.0.0 \
+  --http.port 8545 \
+  --http.api eth,net,web3,debug,txpool,trace \
+  --ws \
+  --ws.addr 0.0.0.0 \
+  --ws.port 8546 \
+  --ws.api eth,net,web3 \
+  --authrpc.addr 0.0.0.0 \
+  --authrpc.port 9551 \
+  --authrpc.jwtsecret /config/jwt.hex \
+  --rollup.sequencer-http https://<sequencer-rpc> \
+  --rollup.disable-tx-pool-gossip
+```
+
+<Warning>
+  Be cautious when exposing RPC endpoints publicly. Use authentication, rate limiting, and firewall rules to prevent abuse. The `debug` and `trace` namespaces should only be enabled for trusted clients.
+</Warning>
+
+### Test environment
+
+The samples above were generated by running each curl/websocat command against an `op-reth v2.2.3` (`reth/v2.2.0-88505c7`) node in our `u19-beta-v223` devnet (chain ID `0x190a85e3` / `420120035`), HTTP port `8555`, WS port `8556`. All listed methods returned successful (or expected-error) responses.

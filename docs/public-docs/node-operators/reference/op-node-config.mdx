@@ -4,7 +4,14 @@ description: Complete reference for all op-node command-line flags and environme
 ---
 
 This page provides detailed documentation for all available op-node configuration options, organized by functionality.
-The following options are from the `--help` in [v1.10.2](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.10.2).
+
+The options below match the `op-node v1.18.0` release (binary `v1.18.0-317746fd-2026-05-06T22:11:09Z`). 
+
+Every flag also accepts the equivalent `OP_NODE_*` environment variable shown in each entry's *Environment variable* tab.
+
+<Info>
+  **Execution-client default has shifted.** The recommended execution client for new OP Stack deployments is now [op-reth](/node-operators/reference/op-reth-config). When pairing op-node with op-reth, set `--l2.enginekind=reth` (the binary still defaults to `geth` for backward compatibility).
+</Info>
 
 ## L1 and L2 connection settings
 
@@ -12,12 +19,12 @@ Configure how op-node connects to L1 (Ethereum) and L2 (execution layer) endpoin
 
 ### l1
 
-Address of L1 User JSON-RPC endpoint to use (eth namespace required). The default value is `"http://127.0.0.1:8545"`.
+Address of L1 User JSON-RPC endpoint to use (eth namespace required)
 
 <Tabs>
   <Tab title="Syntax">`--l1=<value>`</Tab>
-  <Tab title="Example">`--l1="http://127.0.0.1:8545"`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_ETH_RPC="http://127.0.0.1:8545"`</Tab>
+  <Tab title="Default">`"http://127.0.0.1:8545"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_ETH_RPC`</Tab>
 </Tabs>
 
 ### l1.beacon
@@ -26,18 +33,7 @@ Address of L1 Beacon-node HTTP endpoint to use.
 
 <Tabs>
   <Tab title="Syntax">`--l1.beacon=<value>`</Tab>
-  <Tab title="Example">`--l1.beacon="http://127.0.0.1:3500"`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_BEACON="http://127.0.0.1:3500"`</Tab>
-</Tabs>
-
-### l1.beacon-fallbacks
-
-Addresses of L1 Beacon-API compatible HTTP fallback endpoints. Used to fetch blob sidecars not available at the l1.beacon (e.g. expired blobs).
-
-<Tabs>
-  <Tab title="Syntax">`--l1.beacon-fallbacks=<value>`</Tab>
-  <Tab title="Example">`--l1.beacon-fallbacks="http://fallback1.example.com,http://fallback2.example.com"`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_BEACON_FALLBACKS="http://fallback1.example.com,http://fallback2.example.com"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_BEACON`</Tab>
 </Tabs>
 
 ### l1.beacon-header
@@ -46,168 +42,179 @@ Optional HTTP header to add to all requests to the L1 Beacon endpoint. Format: '
 
 <Tabs>
   <Tab title="Syntax">`--l1.beacon-header=<value>`</Tab>
-  <Tab title="Example">`--l1.beacon-header="Authorization: Bearer token"`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_BEACON_HEADER="Authorization: Bearer token"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_BEACON_HEADER`</Tab>
 </Tabs>
 
 ### l1.beacon.fetch-all-sidecars
 
-If true, all sidecars are fetched and filtered locally. Workaround for buggy Beacon nodes. The default value is `false`.
+If true, all sidecars are fetched and filtered locally. Workaround for buggy Beacon nodes.
 
 <Tabs>
-  <Tab title="Syntax">`--l1.beacon.fetch-all-sidecars=<boolean>`</Tab>
-  <Tab title="Example">`--l1.beacon.fetch-all-sidecars=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_BEACON=false`</Tab>
+  <Tab title="Syntax">`--l1.beacon.fetch-all-sidecars`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_BEACON_FETCH_ALL_SIDECARS`</Tab>
 </Tabs>
 
 ### l1.beacon.ignore
 
-When false, halts `op-node` startup if the healthcheck to the Beacon-node endpoint fails. The default value is `false`.
+When false, halts op-node startup if the healthcheck to the Beacon-node endpoint fails.
 
 <Tabs>
-  <Tab title="Syntax">`--l1.beacon.ignore=<boolean>`</Tab>
-  <Tab title="Example">`--l1.beacon.ignore=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_BEACON_IGNORE=false`</Tab>
+  <Tab title="Syntax">`--l1.beacon.ignore`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_BEACON_IGNORE`</Tab>
+</Tabs>
+
+### l1.beacon.slot-duration-override
+
+Duration in seconds of an L1 slot. When set (non-zero), bypasses the beacon /eth/v1/config/spec fetch and uses this value as SECONDS_PER_SLOT. Useful for devnets where the beacon spec endpoint is unavailable (e.g. anvil).
+
+<Tabs>
+  <Tab title="Syntax">`--l1.beacon.slot-duration-override=<value>`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_BEACON_SLOT_DURATION_OVERRIDE`</Tab>
 </Tabs>
 
 ### l1.cache-size
 
-Cache size for blocks, receipts and transactions. If this flag is set to 0, 3/2 of the sequencing window size is used (usually 2400). The default value of 900 (~3h of L1 blocks) is good for (high-throughput) networks that see frequent safe head increments. On (low-throughput) networks with infrequent safe head increments, it is recommended to set this value to 0, or a value that well covers the typical span between safe head increments. Note that higher values will cause significantly increased memory usage. The default value is `900`.
+Cache size for blocks, receipts and transactions. If this flag is set to 0, 3/2 of the sequencing window size is used (usually 2400). The default value of 900 (~3h of L1 blocks) is good for (high-throughput) networks that see frequent safe head increments. On (low-throughput) networks with infrequent safe head increments, it is recommended to set this value to 0, or a value that well covers the typical span between safe head increments. Note that higher values will cause significantly increased memory usage.
 
 <Tabs>
   <Tab title="Syntax">`--l1.cache-size=<value>`</Tab>
-  <Tab title="Example">`--l1.cache-size=900`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_CACHE_SIZE=900`</Tab>
+  <Tab title="Default">`900`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_CACHE_SIZE`</Tab>
 </Tabs>
 
 ### l1.epoch-poll-interval
 
-Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative. The default value is `6m24s`.
+Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.
 
 <Tabs>
   <Tab title="Syntax">`--l1.epoch-poll-interval=<value>`</Tab>
-  <Tab title="Example">`--l1.epoch-poll-interval=6m24s`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_EPOCH_POLL_INTERVAL=6m24s`</Tab>
+  <Tab title="Default">`6m24s`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_EPOCH_POLL_INTERVAL`</Tab>
 </Tabs>
 
 ### l1.http-poll-interval
 
-Polling interval for latest-block subscription when using an HTTP RPC provider. Ignored for other types of RPC endpoints. The default value is `12s`.
+Polling interval for latest-block subscription when using an HTTP RPC provider. Ignored for other types of RPC endpoints.
 
 <Tabs>
   <Tab title="Syntax">`--l1.http-poll-interval=<value>`</Tab>
-  <Tab title="Example">`--l1.http-poll-interval=12s`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_HTTP_POLL_INTERVAL=12s`</Tab>
+  <Tab title="Default">`12s`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_HTTP_POLL_INTERVAL`</Tab>
 </Tabs>
 
 ### l1.max-concurrency
 
-Maximum number of concurrent RPC requests to make to the L1 RPC provider. The default value is `10`.
+Maximum number of concurrent RPC requests to make to the L1 RPC provider.
 
 <Tabs>
   <Tab title="Syntax">`--l1.max-concurrency=<value>`</Tab>
-  <Tab title="Example">`--l1.max-concurrency=10`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_MAX_CONCURRENCY=10`</Tab>
+  <Tab title="Default">`10`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_MAX_CONCURRENCY`</Tab>
 </Tabs>
 
 ### l1.rpc-max-batch-size
 
-Maximum number of RPC requests to bundle, e.g., during L1 blocks receipt fetching. The L1 RPC rate limit counts this as N items, but allows it to burst at once. The default value is `20`.
+Maximum number of RPC requests to bundle, e.g. during L1 blocks receipt fetching. The L1 RPC rate limit counts this as N items, but allows it to burst at once.
 
 <Tabs>
   <Tab title="Syntax">`--l1.rpc-max-batch-size=<value>`</Tab>
-  <Tab title="Example">`--l1.rpc-max-batch-size=20`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_RPC_MAX_BATCH_SIZE=20`</Tab>
+  <Tab title="Default">`20`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_RPC_MAX_BATCH_SIZE`</Tab>
 </Tabs>
 
 ### l1.rpc-rate-limit
 
-Optional self-imposed global rate-limit on L1 RPC requests, specified in requests / second. Disabled if set to 0. The default value is `0`.
+Optional self-imposed global rate-limit on L1 RPC requests, specified in requests / second. Disabled if set to 0.
 
 <Tabs>
   <Tab title="Syntax">`--l1.rpc-rate-limit=<value>`</Tab>
-  <Tab title="Example">`--l1.rpc-rate-limit=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_RPC_RATE_LIMIT=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_RPC_RATE_LIMIT`</Tab>
 </Tabs>
 
 ### l1.rpckind
 
-The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: alchemy, quicknode, infura, parity, `nethermind`, debug\_geth, erigon, basic, any, standard. The default value is `standard`.
+The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: alchemy, quicknode, infura, parity, nethermind, debug_geth, erigon, basic, any, standard
 
 <Tabs>
   <Tab title="Syntax">`--l1.rpckind=<value>`</Tab>
-  <Tab title="Example">`--l1.rpckind=standard`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_RPC_KIND=standard`</Tab>
+  <Tab title="Default">`standard`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_RPC_KIND`</Tab>
 </Tabs>
-
-<Info>
-  For details on additional values, see [RPC Receipts](https://github.com/ethereum-optimism/optimism/blob/844cc20084a2e9716631b4092ce7eca4804a8e0a/op-service/sources/receipts_rpc.go#L239-L322).
-</Info>
 
 ### l1.runtime-config-reload-interval
 
-Poll interval for reloading the runtime config, useful when config events are not being picked up. Disabled if 0 or negative. The default value is `10m0s`.
+Poll interval for reloading the runtime config, useful when config events are not being picked up. Disabled if 0 or negative.
 
 <Tabs>
   <Tab title="Syntax">`--l1.runtime-config-reload-interval=<value>`</Tab>
-  <Tab title="Example">`--l1.runtime-config-reload-interval=10m0s`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_RUNTIME_CONFIG_RELOAD_INTERVAL=10m0s`</Tab>
+  <Tab title="Default">`10m0s`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_RUNTIME_CONFIG_RELOAD_INTERVAL`</Tab>
 </Tabs>
 
 ### l1.trustrpc
 
-Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data. The default value is `false`.
-
-<Info>
-  If you're running an Erigon Ethereum execution client for your L1 provider you will need to include `--l1.trustrpc`. At the time of writing,
-  Erigon doesn't support the `eth_getProof` that we prefer to use to load L1 data for some processing in `op-node`. The trustrpc flag makes it
-  use something else that erigon supports, but the `op-node` can't verify for correctness.
-</Info>
+Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data
 
 <Tabs>
-  <Tab title="Syntax">`--l1.trustrpc=<boolean>`</Tab>
-  <Tab title="Example">`--l1.trustrpc=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L1_TRUST_RPC=false`</Tab>
+  <Tab title="Syntax">`--l1.trustrpc`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L1_TRUST_RPC`</Tab>
 </Tabs>
 
 ### l2
 
-Address of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required). This is referred to as `authrpc` by Geth and Reth.
+Address of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)
 
 <Tabs>
   <Tab title="Syntax">`--l2=<value>`</Tab>
-  <Tab title="Example">`--l2=http://127.0.0.1:8751`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L2_ENGINE_RPC=http://127.0.0.1:8751`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L2_ENGINE_RPC`</Tab>
 </Tabs>
 
 ### l2.engine-rpc-timeout
 
-L2 engine client rpc timeout. The default value is `10s`.
+L2 engine client rpc timeout
 
 <Tabs>
   <Tab title="Syntax">`--l2.engine-rpc-timeout=<value>`</Tab>
-  <Tab title="Example">`--l2.engine-rpc-timeout=10s`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L2_ENGINE_RPC_TIMEOUT=10s`</Tab>
-</Tabs>
-
-### l2.jwt-secret
-
-Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.
-
-<Tabs>
-  <Tab title="Syntax">`--l2.jwt-secret=<value>`</Tab>
-  <Tab title="Example">`--l2.jwt-secret=/path/to/jwt/secret`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L2_ENGINE_AUTH=/path/to/jwt/secret`</Tab>
+  <Tab title="Default">`10s`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L2_ENGINE_RPC_TIMEOUT`</Tab>
 </Tabs>
 
 ### l2.enginekind
 
-The kind of engine client, used to control the behavior of optimism in respect to different types of engine clients. Valid options: `geth`, `reth`, `erigon`. The default value is `geth`.
+The kind of engine client, used to control the behavior of op-node in respect to different types of engine clients. Valid options: `geth`, `reth`, `erigon`.
+
+<Tip>
+  **Set this to `reth` when pairing with op-reth.** `op-reth` is the recommended execution client for new OP Stack deployments; the binary default of `geth` is kept for backward compatibility. Setting the wrong value can cause op-node to mis-handle engine-API responses (e.g. payload-id formatting, sync hints).
+</Tip>
 
 <Tabs>
   <Tab title="Syntax">`--l2.enginekind=<value>`</Tab>
-  <Tab title="Example">`--l2.enginekind=geth`</Tab>
-  <Tab title="Environment variable">`OP_NODE_L2_ENGINE_KIND=geth`</Tab>
+  <Tab title="Default">`geth`</Tab>
+  <Tab title="Possible Values">`geth, reth, erigon`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L2_ENGINE_KIND`</Tab>
+</Tabs>
+
+### l2.follow.source
+
+Address of L2 CL RPC HTTP endpoint to follow source
+
+<Tabs>
+  <Tab title="Syntax">`--l2.follow.source=<value>`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L2_FOLLOW_SOURCE`</Tab>
+</Tabs>
+
+### l2.jwt-secret
+
+Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if the file is empty.
+
+<Tabs>
+  <Tab title="Syntax">`--l2.jwt-secret=<value>`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_L2_ENGINE_AUTH`</Tab>
 </Tabs>
 
 ## Network selection and rollup configuration
@@ -216,44 +223,20 @@ Configure which OP Stack network to connect to and manage rollup-specific settin
 
 ### network
 
-Predefined network selection. Available networks: arena-z-mainnet, arena-z-sepolia,
-automata-mainnet, base-devnet-0-sepolia-dev-0, base-mainnet, base-sepolia, bob-mainnet,
-camp-sepolia, creator-chain-testnet-sepolia, cyber-mainnet, cyber-sepolia,
-ethernity-mainnet, ethernity-sepolia, fraxtal-mainnet, funki-mainnet, funki-sepolia,
-hashkeychain-mainnet, ink-mainnet, ink-sepolia, lisk-mainnet, lisk-sepolia, lyra-mainnet,
-metal-mainnet, metal-sepolia, mint-mainnet, mode-mainnet, mode-sepolia, op-mainnet,
-op-sepolia, oplabs-devnet-0-sepolia-dev-0, orderly-mainnet, ozean-sepolia, pivotal-sepolia,
-polynomial-mainnet, race-mainnet, race-sepolia, radius_testnet-sepolia, redstone-mainnet,
-rehearsal-0-bn-0-rehearsal-0-bn, rehearsal-0-bn-1-rehearsal-0-bn, settlus-mainnet-mainnet,
-settlus-sepolia-sepolia, shape-mainnet, shape-sepolia, silent-data-mainnet-mainnet,
-snax-mainnet, soneium-mainnet, soneium-minato-sepolia, sseed-mainnet, swan-mainnet,
-swell-mainnet, tbn-mainnet, tbn-sepolia, unichain-mainnet, unichain-sepolia,
-worldchain-mainnet, worldchain-sepolia, xterio-eth-mainnet, zora-mainnet, zora-sepolia.
+Predefined network selection. Available networks: arena-z-mainnet, arena-z-sepolia, automata-mainnet, bob-mainnet, camp-sepolia, celo-sep-sepolia, creator-chain-testnet-sepolia, cyber-mainnet, cyber-sepolia, ethernity-mainnet, ethernity-sepolia, fraxtal-mainnet, funki-mainnet, funki-sepolia, hashkeychain-mainnet, ink-mainnet, ink-sepolia, lisk-mainnet, lisk-sepolia, lyra-mainnet, metal-mainnet, metal-sepolia, mint-mainnet, mode-mainnet, mode-sepolia, op-mainnet, op-sepolia, oplabs-devnet-0-sepolia-dev-0, orderly-mainnet, ozean-sepolia, pivotal-sepolia, polynomial-mainnet, race-mainnet, race-sepolia, radius_testnet-sepolia, redstone-mainnet, rehearsal-0-bn-0-rehearsal-0-bn, rehearsal-0-bn-1-rehearsal-0-bn, settlus-mainnet-mainnet, settlus-sepolia-sepolia, shape-mainnet, shape-sepolia, silent-data-mainnet-mainnet, soneium-mainnet, soneium-minato-sepolia, sseed-mainnet, swan-mainnet, swell-mainnet, tbn-mainnet, tbn-sepolia, unichain-mainnet, unichain-sepolia, worldchain-mainnet, worldchain-sepolia, xterio-eth-mainnet, zora-mainnet, zora-sepolia
 
 <Tabs>
   <Tab title="Syntax">`--network=<value>`</Tab>
-  <Tab title="Example">`--network=op-mainnet`</Tab>
-  <Tab title="Environment variable">`OP_NODE_NETWORK=op-mainnet`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_NETWORK`</Tab>
 </Tabs>
 
 ### rollup.config
 
-Rollup chain parameters.
+Rollup chain parameters
 
 <Tabs>
   <Tab title="Syntax">`--rollup.config=<value>`</Tab>
-  <Tab title="Example">`--rollup.config=[ConfigValueHere]`</Tab>
-  <Tab title="Environment variable">`OP_NODE_ROLLUP_CONFIG=[ConfigValueHere]`</Tab>
-</Tabs>
-
-### rollup.halt
-
-Opt-in option to halt on incompatible protocol version requirements of the given level (major/minor/patch/none), as signaled onchain in L1.
-
-<Tabs>
-  <Tab title="Syntax">`--rollup.halt=<value>`</Tab>
-  <Tab title="Example">`--rollup.halt=[HaltOptionHere]`</Tab>
-  <Tab title="Environment variable">`OP_NODE_ROLLUP_HALT=[HaltOptionHere]`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_ROLLUP_CONFIG`</Tab>
 </Tabs>
 
 ### rollup.l1-chain-config
@@ -262,18 +245,41 @@ Path to .json file with the chain configuration for the L1, either in the direct
 
 <Tabs>
   <Tab title="Syntax">`--rollup.l1-chain-config=<value>`</Tab>
-  <Tab title="Example">`--rollup.l1-chain-config=/path/to/l1-config.json`</Tab>
-  <Tab title="Environment variable">`OP_NODE_ROLLUP_L1_CHAIN_CONFIG=/path/to/l1-config.json`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_ROLLUP_L1_CHAIN_CONFIG`</Tab>
 </Tabs>
 
 ### syncmode
 
-Blockchain sync mode. Options are "consensus-layer" or "execution-layer". The default value is `consensus-layer`.
+Blockchain sync mode (options: consensus-layer, execution-layer)
 
 <Tabs>
   <Tab title="Syntax">`--syncmode=<value>`</Tab>
-  <Tab title="Example">`--syncmode=consensus-layer`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SYNCMODE=consensus-layer`</Tab>
+  <Tab title="Default">`consensus-layer`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SYNCMODE`</Tab>
+</Tabs>
+
+### syncmode.offset-el-safe
+
+After execution-layer sync completes, set safe and finalized heads to this duration behind the synced tip (converted to L2 blocks via rollup block time using ceiling division). Default 0 (safe/finalized stay at the tip). Set to e.g. 168h to force derivation of the most recent 7 days of blocks before they are considered safe.
+
+<Tabs>
+  <Tab title="Syntax">`--syncmode.offset-el-safe=<value>`</Tab>
+  <Tab title="Default">`0s`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SYNCMODE_OFFSET_EL_SAFE`</Tab>
+</Tabs>
+
+### syncmode.req-resp
+
+Toggles the consensus-layer Req/Res P2P sync client.
+
+<Warning>
+  **Deprecated.** Default `false` in v1.18.0. The Req/Res CL P2P sync **client** is being removed in favor of execution-layer syncing; only enable temporarily for backward compatibility. The Req/Res **server** path (controlled by `--p2p.sync.req-resp`) remains for now to support older peers but is also planned for removal. See [Deprecation of Req/Res CL P2P sync](/notices/req-resp-cl-sync-deprecation).
+</Warning>
+
+<Tabs>
+  <Tab title="Syntax">`--syncmode.req-resp`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SYNCMODE_REQ_RESP`</Tab>
 </Tabs>
 
 ## Fork overrides
@@ -282,102 +288,112 @@ Manually override fork activation timestamps for testing or custom deployments.
 
 ### override.canyon
 
-Manually specify the Canyon fork timestamp, overriding the bundled setting. The default value is `0`.
+Manually specify the canyon fork timestamp, overriding the bundled setting
 
 <Tabs>
   <Tab title="Syntax">`--override.canyon=<value>`</Tab>
-  <Tab title="Example">`--override.canyon=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_OVERRIDE_CANYON=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_OVERRIDE_CANYON`</Tab>
 </Tabs>
 
 ### override.delta
 
-Manually specify the Delta fork timestamp, overriding the bundled setting. The default value is `0`.
+Manually specify the delta fork timestamp, overriding the bundled setting
 
 <Tabs>
   <Tab title="Syntax">`--override.delta=<value>`</Tab>
-  <Tab title="Example">`--override.delta=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_OVERRIDE_DELTA=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_OVERRIDE_DELTA`</Tab>
 </Tabs>
 
 ### override.ecotone
 
-Manually specify the ecotone fork timestamp, overriding the bundled setting. The default value is `0`.
+Manually specify the ecotone fork timestamp, overriding the bundled setting
 
 <Tabs>
   <Tab title="Syntax">`--override.ecotone=<value>`</Tab>
-  <Tab title="Example">`--override.ecotone=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_OVERRIDE_ECOTONE=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_OVERRIDE_ECOTONE`</Tab>
 </Tabs>
 
 ### override.fjord
 
-Manually specify the fjord fork timestamp, overriding the bundled setting. The default value is `0`.
+Manually specify the fjord fork timestamp, overriding the bundled setting
 
 <Tabs>
   <Tab title="Syntax">`--override.fjord=<value>`</Tab>
-  <Tab title="Example">`--override.fjord=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_OVERRIDE_FJORD=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_OVERRIDE_FJORD`</Tab>
 </Tabs>
 
 ### override.granite
 
-Manually specify the granite fork timestamp, overriding the bundled setting. The default value is `0`.
+Manually specify the granite fork timestamp, overriding the bundled setting
 
 <Tabs>
   <Tab title="Syntax">`--override.granite=<value>`</Tab>
-  <Tab title="Example">`--override.granite=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_OVERRIDE_GRANITE=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_OVERRIDE_GRANITE`</Tab>
 </Tabs>
 
 ### override.holocene
 
-Manually specify the holocene fork timestamp, overriding the bundled setting. The default value is `0`.
+Manually specify the holocene fork timestamp, overriding the bundled setting
 
 <Tabs>
   <Tab title="Syntax">`--override.holocene=<value>`</Tab>
-  <Tab title="Example">`--override.holocene=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_OVERRIDE_HOLOCENE=0`</Tab>
-</Tabs>
-
-### override.isthmus
-
-Manually specify the isthmus fork timestamp, overriding the bundled setting. The default value is `0`.
-
-<Tabs>
-  <Tab title="Syntax">`--override.isthmus=<value>`</Tab>
-  <Tab title="Example">`--override.isthmus=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_OVERRIDE_ISTHMUS=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_OVERRIDE_HOLOCENE`</Tab>
 </Tabs>
 
 ### override.interop
 
-Manually specify the Interop fork timestamp, overriding the bundled setting. The default value is `0`.
+Manually specify the interop fork timestamp, overriding the bundled setting
 
 <Tabs>
   <Tab title="Syntax">`--override.interop=<value>`</Tab>
-  <Tab title="Example">`--override.interop=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_OVERRIDE_INTEROP=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_OVERRIDE_INTEROP`</Tab>
+</Tabs>
+
+### override.isthmus
+
+Manually specify the isthmus fork timestamp, overriding the bundled setting
+
+<Tabs>
+  <Tab title="Syntax">`--override.isthmus=<value>`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_OVERRIDE_ISTHMUS`</Tab>
 </Tabs>
 
 ### override.jovian
 
-Manually specify the Jovian fork timestamp, overriding the bundled setting. The default value is `0`.
+Manually specify the jovian fork timestamp, overriding the bundled setting
 
 <Tabs>
   <Tab title="Syntax">`--override.jovian=<value>`</Tab>
-  <Tab title="Example">`--override.jovian=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_OVERRIDE_JOVIAN=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_OVERRIDE_JOVIAN`</Tab>
+</Tabs>
+
+### override.karst
+
+Manually specify the karst fork timestamp, overriding the bundled setting
+
+<Tabs>
+  <Tab title="Syntax">`--override.karst=<value>`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_OVERRIDE_KARST`</Tab>
 </Tabs>
 
 ### override.pectrablobschedule
 
-Manually specify the PectraBlobSchedule fork timestamp, overriding the bundled setting. The default value is `0`.
+Manually specify the pectrablobschedule fork timestamp, overriding the bundled setting
 
 <Tabs>
   <Tab title="Syntax">`--override.pectrablobschedule=<value>`</Tab>
-  <Tab title="Example">`--override.pectrablobschedule=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_OVERRIDE_PECTRABLOBSCHEDULE=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_OVERRIDE_PECTRABLOBSCHEDULE`</Tab>
 </Tabs>
 
 ## Logging configuration
@@ -386,56 +402,56 @@ Control log output format, level, and color.
 
 ### log.color
 
-Color the log output if in terminal mode. The default value is `false`.
+Color the log output if in terminal mode
 
 <Tabs>
-  <Tab title="Syntax">`--log.color=<boolean>`</Tab>
-  <Tab title="Example">`--log.color=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_LOG_COLOR=false`</Tab>
+  <Tab title="Syntax">`--log.color`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_LOG_COLOR`</Tab>
 </Tabs>
 
 ### log.format
 
-Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty'. The default value is `text`.
+Format the log output. Supported formats: text, terminal, logfmt, logfmtms, json, jsonms
 
 <Tabs>
   <Tab title="Syntax">`--log.format=<value>`</Tab>
-  <Tab title="Example">`--log.format=text`</Tab>
-  <Tab title="Environment variable">`OP_NODE_LOG_FORMAT=text`</Tab>
+  <Tab title="Default">`text`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_LOG_FORMAT`</Tab>
 </Tabs>
 
 ### log.level
 
-The lowest log level that will be output. The default value is `info`.
+The lowest log level that will be output
 
 <Tabs>
   <Tab title="Syntax">`--log.level=<value>`</Tab>
-  <Tab title="Example">`--log.level=info`</Tab>
-  <Tab title="Environment variable">`OP_NODE_LOG_LEVEL=info`</Tab>
+  <Tab title="Default">`INFO`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_LOG_LEVEL`</Tab>
 </Tabs>
 
 ### log.pid
 
-Show pid in the log. The default value is `false`.
+Show pid in the log
 
 <Tabs>
-  <Tab title="Syntax">`--log.pid=<boolean>`</Tab>
-  <Tab title="Example">`--log.pid=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_LOG_PID=false`</Tab>
+  <Tab title="Syntax">`--log.pid`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_LOG_PID`</Tab>
 </Tabs>
 
-## Logging and RPC
+## RPC
 
 Configure RPC API endpoints and admin functionality.
 
 ### rpc.addr
 
-RPC listening address. Default is `"0.0.0.0"`.
+rpc listening address
 
 <Tabs>
   <Tab title="Syntax">`--rpc.addr=<value>`</Tab>
-  <Tab title="Example">`--rpc.addr=0.0.0.0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_RPC_ADDR=0.0.0.0`</Tab>
+  <Tab title="Default">`"0.0.0.0"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_RPC_ADDR`</Tab>
 </Tabs>
 
 ### rpc.admin-state
@@ -444,28 +460,27 @@ File path used to persist state changes made via the admin API so they persist a
 
 <Tabs>
   <Tab title="Syntax">`--rpc.admin-state=<value>`</Tab>
-  <Tab title="Example">`--rpc.admin-state=[FilePathHere]`</Tab>
-  <Tab title="Environment variable">`OP_NODE_RPC_ADMIN_STATE=[FilePathHere]`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_RPC_ADMIN_STATE`</Tab>
 </Tabs>
 
 ### rpc.enable-admin
 
-Enable the admin API (experimental). Default is `false`.
+Enable the admin API
 
 <Tabs>
-  <Tab title="Syntax">`--rpc.enable-admin=[true|false]`</Tab>
-  <Tab title="Example">`--rpc.enable-admin=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_RPC_ENABLE_ADMIN=false`</Tab>
+  <Tab title="Syntax">`--rpc.enable-admin`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_RPC_ENABLE_ADMIN`</Tab>
 </Tabs>
 
 ### rpc.port
 
-RPC listening port. Default is `9545`.
+rpc listening port
 
 <Tabs>
   <Tab title="Syntax">`--rpc.port=<value>`</Tab>
-  <Tab title="Example">`--rpc.port=9545`</Tab>
-  <Tab title="Environment variable">`OP_NODE_RPC_PORT=9545`</Tab>
+  <Tab title="Default">`9545`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_RPC_PORT`</Tab>
 </Tabs>
 
 ## Metrics and profiling
@@ -474,72 +489,71 @@ Enable observability through metrics and performance profiling.
 
 ### metrics.addr
 
-Metrics listening address. The default value is `"0.0.0.0"`.
+Metrics listening address
 
 <Tabs>
   <Tab title="Syntax">`--metrics.addr=<value>`</Tab>
-  <Tab title="Example">`--metrics.addr="0.0.0.0"`</Tab>
-  <Tab title="Environment variable">`OP_NODE_METRICS_ADDR="0.0.0.0"`</Tab>
+  <Tab title="Default">`"0.0.0.0"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_METRICS_ADDR`</Tab>
 </Tabs>
 
 ### metrics.enabled
 
-Enable the metrics server. The default value is `false`.
+Enable the metrics server
 
 <Tabs>
-  <Tab title="Syntax">`--metrics.enabled=<boolean>`</Tab>
-  <Tab title="Example">`--metrics.enabled=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_METRICS_ENABLED=false`</Tab>
+  <Tab title="Syntax">`--metrics.enabled`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_METRICS_ENABLED`</Tab>
 </Tabs>
 
 ### metrics.port
 
-Metrics listening port. The default value is `7300`.
+Metrics listening port
 
 <Tabs>
   <Tab title="Syntax">`--metrics.port=<value>`</Tab>
-  <Tab title="Example">`--metrics.port=7300`</Tab>
-  <Tab title="Environment variable">`OP_NODE_METRICS_PORT=7300`</Tab>
+  <Tab title="Default">`7300`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_METRICS_PORT`</Tab>
 </Tabs>
 
 ### pprof.addr
 
-pprof listening address. Default is `"0.0.0.0"`.
+pprof listening address
 
 <Tabs>
   <Tab title="Syntax">`--pprof.addr=<value>`</Tab>
-  <Tab title="Example">`--pprof.addr=0.0.0.0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_PPROF_ADDR=0.0.0.0`</Tab>
+  <Tab title="Default">`"0.0.0.0"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_PPROF_ADDR`</Tab>
 </Tabs>
 
 ### pprof.enabled
 
-Enable the pprof server. Default is `false`.
+Enable the pprof server
 
 <Tabs>
-  <Tab title="Syntax">`--pprof.enabled=[true|false]`</Tab>
-  <Tab title="Example">`--pprof.enabled=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_PPROF_ENABLED=false`</Tab>
+  <Tab title="Syntax">`--pprof.enabled`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_PPROF_ENABLED`</Tab>
 </Tabs>
 
 ### pprof.path
 
-pprof file path. If it is a directory, the path is \{dir}/\{profileType}.prof
+pprof file path. If it is a directory, the path is {dir}/{profileType}.prof
 
 <Tabs>
-  <Tab title="Syntax">`--pprof.path=<path>`</Tab>
-  <Tab title="Example">`--pprof.path={dir}/{profileType}.prof`</Tab>
-  <Tab title="Environment variable">`OP_NODE_PPROF_PATH={dir}/{profileType}.prof`</Tab>
+  <Tab title="Syntax">`--pprof.path=<value>`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_PPROF_PATH`</Tab>
 </Tabs>
 
 ### pprof.port
 
-pprof listening port. Default is `6060`.
+pprof listening port
 
 <Tabs>
   <Tab title="Syntax">`--pprof.port=<value>`</Tab>
-  <Tab title="Example">`--pprof.port=6060`</Tab>
-  <Tab title="Environment variable">`OP_NODE_PPROF_PORT=6060`</Tab>
+  <Tab title="Default">`6060`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_PPROF_PORT`</Tab>
 </Tabs>
 
 ### pprof.type
@@ -548,8 +562,7 @@ pprof profile type. One of cpu, heap, goroutine, threadcreate, block, mutex, all
 
 <Tabs>
   <Tab title="Syntax">`--pprof.type=<value>`</Tab>
-  <Tab title="Example">`--pprof.type=cpu`</Tab>
-  <Tab title="Environment variable">`OP_NODE_PPROF_TYPE=cpu`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_PPROF_TYPE`</Tab>
 </Tabs>
 
 ## P2P networking
@@ -558,62 +571,61 @@ Configure peer-to-peer networking, discovery, and connection management.
 
 ### p2p.advertise.ip
 
-The IP address to advertise in Discv5, put into the ENR of the node. This may also be a hostname/domain name to resolve to an IP.
+The IP address to advertise in Discv5, put into the ENR of the node. This may also be a hostname / domain name to resolve to an IP.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.advertise.ip=<value>`</Tab>
-  <Tab title="Example">`--p2p.advertise.ip=YourIPAddressOrHostnameHere`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_ADVERTISE_IP=YourIPAddressOrHostnameHere`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_ADVERTISE_IP`</Tab>
 </Tabs>
 
 ### p2p.advertise.tcp
 
-The TCP port to advertise in Discv5, put into the ENR of the node. Set to p2p.listen.tcp value if 0. The default value is `0`.
+The TCP port to advertise in Discv5, put into the ENR of the node. Set to p2p.listen.tcp value if 0.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.advertise.tcp=<value>`</Tab>
-  <Tab title="Example">`--p2p.advertise.tcp=3456`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_ADVERTISE_TCP=3456`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_ADVERTISE_TCP`</Tab>
 </Tabs>
 
 ### p2p.advertise.udp
 
-The UDP port to advertise in Discv5 as a fallback if not determined by Discv5, put into the ENR of the node. Set to p2p.listen.udp value if 0. The default value is `0`.
+The UDP port to advertise in Discv5 as fallback if not determined by Discv5, put into the ENR of the node. Set to p2p.listen.udp value if 0.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.advertise.udp=<value>`</Tab>
-  <Tab title="Example">`--p2p.advertise.udp=3457`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_ADVERTISE_UDP=3457`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_ADVERTISE_UDP`</Tab>
 </Tabs>
 
 ### p2p.ban.duration
 
-The duration that peers are banned for. The default value is `1h0m0s`.
+The duration that peers are banned for.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.ban.duration=<value>`</Tab>
-  <Tab title="Example">`--p2p.ban.duration=1h0m0s`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_PEER_BANNING_DURATION=1h0m0s`</Tab>
+  <Tab title="Default">`1h0m0s`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_PEER_BANNING_DURATION`</Tab>
 </Tabs>
 
 ### p2p.ban.peers
 
-Enables peer banning. The default value is `true`.
+Enables peer banning.
 
 <Tabs>
-  <Tab title="Syntax">`--p2p.ban.peers=<boolean>`</Tab>
-  <Tab title="Example">`--p2p.ban.peers=true`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_PEER_BANNING=true`</Tab>
+  <Tab title="Syntax">`--p2p.ban.peers`</Tab>
+  <Tab title="Default">`true`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_PEER_BANNING`</Tab>
 </Tabs>
 
 ### p2p.ban.threshold
 
-The minimum score below which peers are disconnected and banned. The default value is `-100`.
+The minimum score below which peers are disconnected and banned.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.ban.threshold=<value>`</Tab>
-  <Tab title="Example">`--p2p.ban.threshold=-100`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_PEER_BANNING_THRESHOLD=-100`</Tab>
+  <Tab title="Default">`-100`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_PEER_BANNING_THRESHOLD`</Tab>
 </Tabs>
 
 ### p2p.bootnodes
@@ -622,158 +634,156 @@ Comma-separated base64-format ENR list. Bootnodes to start discovering other nod
 
 <Tabs>
   <Tab title="Syntax">`--p2p.bootnodes=<value>`</Tab>
-  <Tab title="Example">`--p2p.bootnodes=YourBootnodesListHere`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_BOOTNODES=YourBootnodesListHere`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_BOOTNODES`</Tab>
 </Tabs>
 
 ### p2p.disable
 
-Completely disable the P2P stack. The default value is `false`.
+Completely disable the P2P stack
 
 <Tabs>
-  <Tab title="Syntax">`--p2p.disable=<boolean>`</Tab>
-  <Tab title="Example">`--p2p.disable=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_DISABLE=false`</Tab>
+  <Tab title="Syntax">`--p2p.disable`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_DISABLE`</Tab>
 </Tabs>
 
 ### p2p.discovery.path
 
-Enables persistent storage of discovered ENRs in a database to recover from a restart without bootstrapping the discovery process again. Set to 'memory' to never persist the peerstore. The default value is `opnode_discovery_db`.
+Discovered ENRs are persisted in a database to recover from a restart without having to bootstrap the discovery process again. Set to 'memory' to never persist the peerstore.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.discovery.path=<value>`</Tab>
-  <Tab title="Example">`--p2p.discovery.path=opnode_discovery_db`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_DISCOVERY_PATH=opnode_discovery_db`</Tab>
+  <Tab title="Default">`"opnode_discovery_db"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_DISCOVERY_PATH`</Tab>
 </Tabs>
 
 ### p2p.gossip.timestamp.threshold
 
-Threshold for rejecting gossip messages with payload timestamps older than this duration. The default value is `1m0s`.
+Threshold for rejecting gossip messages with payload timestamps older than this duration. Default is 60 seconds.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.gossip.timestamp.threshold=<value>`</Tab>
-  <Tab title="Example">`--p2p.gossip.timestamp.threshold=1m0s`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD=1m0s`</Tab>
+  <Tab title="Default">`1m0s`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_GOSSIP_TIMESTAMP_THRESHOLD`</Tab>
 </Tabs>
 
 ### p2p.listen.ip
 
-Specifies the IP to bind LibP2P and Discv5 to. The default value is `0.0.0.0`.
+IP to bind LibP2P and Discv5 to
 
 <Tabs>
   <Tab title="Syntax">`--p2p.listen.ip=<value>`</Tab>
-  <Tab title="Example">`--p2p.listen.ip=0.0.0.0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_LISTEN_IP=0.0.0.0`</Tab>
+  <Tab title="Default">`"0.0.0.0"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_LISTEN_IP`</Tab>
 </Tabs>
 
 ### p2p.listen.tcp
 
-Defines the TCP port to bind LibP2P to. Any available system port if set to 0. The default value is `9222`.
+TCP port to bind LibP2P to. Any available system port if set to 0.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.listen.tcp=<value>`</Tab>
-  <Tab title="Example">`--p2p.listen.tcp=9222`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_LISTEN_TCP_PORT=9222`</Tab>
+  <Tab title="Default">`9222`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_LISTEN_TCP_PORT`</Tab>
 </Tabs>
 
 ### p2p.listen.udp
 
-Sets the UDP port to bind Discv5 to. It will be the same as the TCP port if left at 0. The default value is `0`.
+UDP port to bind Discv5 to. Same as TCP port if left 0.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.listen.udp=<value>`</Tab>
-  <Tab title="Example">`--p2p.listen.udp=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_LISTEN_UDP_PORT=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_LISTEN_UDP_PORT`</Tab>
 </Tabs>
 
 ### p2p.nat
 
-Enables NAT traversal with PMP/UPNP devices to learn external IP. The default value is `false`.
+Enable NAT traversal with PMP/UPNP devices to learn external IP.
 
 <Tabs>
-  <Tab title="Syntax">`--p2p.nat=<boolean>`</Tab>
-  <Tab title="Example">`--p2p.nat=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_NAT=false`</Tab>
+  <Tab title="Syntax">`--p2p.nat`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_NAT`</Tab>
 </Tabs>
 
 ### p2p.netrestrict
 
-Specifies a comma-separated list of CIDR masks. P2P will only try to connect on these networks.
+Comma-separated list of CIDR masks. P2P will only try to connect on these networks
 
 <Tabs>
   <Tab title="Syntax">`--p2p.netrestrict=<value>`</Tab>
-  <Tab title="Example">`--p2p.netrestrict=`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_NETRESTRICT=`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_NETRESTRICT`</Tab>
 </Tabs>
 
 ### p2p.no-discovery
 
-Disables Discv5 (node discovery). The default value is `false`.
+Disable Discv5 (node discovery)
 
 <Tabs>
-  <Tab title="Syntax">`--p2p.no-discovery=<boolean>`</Tab>
-  <Tab title="Example">`--p2p.no-discovery=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_NO_DISCOVERY=false`</Tab>
+  <Tab title="Syntax">`--p2p.no-discovery`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_NO_DISCOVERY`</Tab>
 </Tabs>
 
 ### p2p.peers.grace
 
-Determines the grace period to keep a newly connected peer around, if it is not misbehaving. The default value is `30s`.
+Grace period to keep a newly connected peer around, if it is not misbehaving.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.peers.grace=<value>`</Tab>
-  <Tab title="Example">`--p2p.peers.grace=30s`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_PEERS_GRACE=30s`</Tab>
+  <Tab title="Default">`30s`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_PEERS_GRACE`</Tab>
 </Tabs>
 
 ### p2p.peers.hi
 
-Sets the high-tide peer count. The node starts pruning peer connections slowly after reaching this number. The default value is `30`.
+High-tide peer count. The node starts pruning peer connections slowly after reaching this number.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.peers.hi=<value>`</Tab>
-  <Tab title="Example">`--p2p.peers.hi=30`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_PEERS_HI=30`</Tab>
+  <Tab title="Default">`30`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_PEERS_HI`</Tab>
 </Tabs>
 
 ### p2p.peers.lo
 
-Determines the low-tide peer count. The node actively searches for new peer connections if below this amount. The default value is `20`.
+Low-tide peer count. The node actively searches for new peer connections if below this amount.
 
 <Tabs>
-  <Tab title="Syntax">`--p2p.peers.lo=<number>`</Tab>
-  <Tab title="Example">`--p2p.peers.lo=20`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_PEERS_LO=20`</Tab>
+  <Tab title="Syntax">`--p2p.peers.lo=<value>`</Tab>
+  <Tab title="Default">`20`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_PEERS_LO`</Tab>
 </Tabs>
 
 ### p2p.peerstore.path
 
-Specifies the Peerstore database location. Persisted peerstores help recover peers after restarts. Set to 'memory' to never persist the peerstore. Warning: a copy of the priv network key of the local peer will be persisted here. The default value is `"opnode_peerstore_db"`.
+Peerstore database location. Persisted peerstores help recover peers after restarts. Set to 'memory' to never persist the peerstore. Peerstore records will be pruned / expire as necessary. Warning: a copy of the priv network key of the local peer will be persisted here.
 
 <Tabs>
-  <Tab title="Syntax">`--p2p.peerstore.path=<path>`</Tab>
-  <Tab title="Example">`--p2p.peerstore.path=opnode_peerstore_db`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_PEERSTORE_PATH=opnode_peerstore_db`</Tab>
+  <Tab title="Syntax">`--p2p.peerstore.path=<value>`</Tab>
+  <Tab title="Default">`"opnode_peerstore_db"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_PEERSTORE_PATH`</Tab>
 </Tabs>
 
 ### p2p.priv.path
 
-Defines the file path for reading the hex-encoded 32-byte private key for the peer ID. Created if not already exists. Important for maintaining the same network identity after restarting. The default value is `"opnode_p2p_priv.txt"`.
+Read the hex-encoded 32-byte private key for the peer ID from this txt file. Created if not already exists.Important to persist to keep the same network identity after restarting, maintaining the previous advertised identity.
 
 <Tabs>
-  <Tab title="Syntax">`--p2p.priv.path=<file-path>`</Tab>
-  <Tab title="Example">`--p2p.priv.path=opnode_p2p_priv.txt`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_PRIV_PATH=opnode_p2p_priv.txt`</Tab>
+  <Tab title="Syntax">`--p2p.priv.path=<value>`</Tab>
+  <Tab title="Default">`"opnode_p2p_priv.txt"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_PRIV_PATH`</Tab>
 </Tabs>
 
 ### p2p.scoring
 
-Sets the peer scoring strategy for the P2P stack. Options include 'none' or 'light'. The default value is `"light"`.
+Sets the peer scoring strategy for the P2P stack. Can be one of: none or light.
 
 <Tabs>
-  <Tab title="Syntax">`--p2p.scoring=<strategy>`</Tab>
-  <Tab title="Example">`--p2p.scoring=light`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_PEER_SCORING=light`</Tab>
+  <Tab title="Syntax">`--p2p.scoring=<value>`</Tab>
+  <Tab title="Default">`"light"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_PEER_SCORING`</Tab>
 </Tabs>
 
 ### p2p.sequencer.key
@@ -782,41 +792,36 @@ Hex-encoded private key for signing off on p2p application messages as sequencer
 
 <Tabs>
   <Tab title="Syntax">`--p2p.sequencer.key=<value>`</Tab>
-  <Tab title="Example">`--p2p.sequencer.key=[YourKeyHere]`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_SEQUENCER_KEY=[YourKeyHere]`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_SEQUENCER_KEY`</Tab>
 </Tabs>
 
 ### p2p.static
 
-Comma-separated multiaddr-format(an unsigned address, containing: IP, TCP port, [PeerID](/node-operators/reference/op-node-json-rpc#opp2p_self)) peer list. Static connections to make and
-maintain, these peers will be regarded as trusted. Addresses of the local peer
-are ignored. Duplicate/Alternative addresses for the same peer all apply, but
-only a single connection per peer is maintained.
+Comma-separated multiaddr-format peer list. Static connections to make and maintain, these peers will be regarded as trusted. Addresses of the local peer are ignored. Duplicate/Alternative addresses for the same peer all apply, but only a single connection per peer is maintained.
 
 <Tabs>
   <Tab title="Syntax">`--p2p.static=<value>`</Tab>
-  <Tab title="Example">`--p2p.static=/ip4/127.0.0.1/tcp/9222/p2p/16Uiu2HAm2y6DXp6THWHCyquczNUh8gVAm4spo6hjP3Ns1dGRiAdE`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_STATIC=/ip4/127.0.0.1/tcp/9222/p2p/16Uiu2HAm2y6DXp6THWHCyquczNUh8gVAm4spo6hjP3Ns1dGRiAdE`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_STATIC`</Tab>
 </Tabs>
 
 ### p2p.sync.onlyreqtostatic
 
-Restricts `RequestL2Range` sync requests to static peers only. Useful for enforcing trusted peer sync. When enabled, non-static peers are skipped during sync. Default is `false`.
+Configure P2P to forward RequestL2Range requests to static peers only.
 
 <Tabs>
-  <Tab title="Syntax">`--p2p.sync.onlyreqtostatic=[true|false]`</Tab>
-  <Tab title="Example">`--p2p.sync.onlyreqtostatic=true`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_SYNC_ONLYREQTOSTATIC=true`</Tab>
+  <Tab title="Syntax">`--p2p.sync.onlyreqtostatic`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_SYNC_ONLYREQTOSTATIC`</Tab>
 </Tabs>
 
 ### p2p.sync.req-resp
 
-Enables P2P req-resp alternative sync method, on both server and client side. Default is `true`.
+Enables P2P req-resp sync server and client.
 
 <Tabs>
-  <Tab title="Syntax">`--p2p.sync.req-resp=[true|false]`</Tab>
-  <Tab title="Example">`--p2p.sync.req-resp=true`</Tab>
-  <Tab title="Environment variable">`OP_NODE_P2P_SYNC_REQ_RESP=true`</Tab>
+  <Tab title="Syntax">`--p2p.sync.req-resp`</Tab>
+  <Tab title="Default">`true`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_P2P_SYNC_REQ_RESP`</Tab>
 </Tabs>
 
 ## Sequencer options
@@ -825,56 +830,62 @@ Configuration for running op-node as a sequencer.
 
 ### sequencer.enabled
 
-Enable sequencing of new L2 blocks. A separate batch submitter has to be deployed to publish the data for verifiers. Default is `false`.
+Enable sequencing of new L2 blocks. A separate batch submitter has to be deployed to publish the data for verifiers.
 
 <Tabs>
-  <Tab title="Syntax">`--sequencer.enabled=[true|false]`</Tab>
-  <Tab title="Example">`--sequencer.enabled=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SEQUENCER_ENABLED=false`</Tab>
+  <Tab title="Syntax">`--sequencer.enabled`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SEQUENCER_ENABLED`</Tab>
 </Tabs>
 
 ### sequencer.l1-confs
 
-Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin. Default is `4`.
+Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin.
 
 <Tabs>
   <Tab title="Syntax">`--sequencer.l1-confs=<value>`</Tab>
-  <Tab title="Example">`--sequencer.l1-confs=4`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SEQUENCER_L1_CONFS=4`</Tab>
+  <Tab title="Default">`4`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SEQUENCER_L1_CONFS`</Tab>
 </Tabs>
-
-<Warning>
-The maximum value for `sequencer.l1-confs` cannot exceed the sequencer drift, currently set to 30 minutes (1800 seconds or 150 blocks). Setting a value higher than this limit will prevent the sequencer from producing blocks within the sequence window.
-</Warning>
 
 ### sequencer.max-safe-lag
 
-Maximum number of L2 blocks for restricting the distance between L2 safe and unsafe. Disabled if 0. Default is `0`.
+Maximum number of L2 blocks for restricting the distance between L2 safe and unsafe. Disabled if 0.
 
 <Tabs>
   <Tab title="Syntax">`--sequencer.max-safe-lag=<value>`</Tab>
-  <Tab title="Example">`--sequencer.max-safe-lag=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SEQUENCER_MAX_SAFE_LAG=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SEQUENCER_MAX_SAFE_LAG`</Tab>
 </Tabs>
 
 ### sequencer.recover
 
-Forces the sequencer to strictly prepare the next L1 origin and create empty L2 blocks. Default is `false`.
+Forces the sequencer to strictly prepare the next L1 origin and create empty L2 blocks
 
 <Tabs>
-  <Tab title="Syntax">`--sequencer.recover=[true|false]`</Tab>
-  <Tab title="Example">`--sequencer.recover=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SEQUENCER_RECOVER=false`</Tab>
+  <Tab title="Syntax">`--sequencer.recover`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SEQUENCER_RECOVER`</Tab>
+</Tabs>
+
+### sequencer.sealing-duration
+
+This is the amount of the time the sequencer allocates to sealing the block (i.e. it will fetch the payload from the execution engine this much prior to the block's timestamp). If this is `<= 0` it is automatically adjusted to 50ms.
+
+<Tabs>
+  <Tab title="Syntax">`--sequencer.sealing-duration=<value>`</Tab>
+  <Tab title="Default">`50ms`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SEQUENCER_SEALING_DURATION`</Tab>
 </Tabs>
 
 ### sequencer.stopped
 
-Initialize the sequencer in a stopped state. The sequencer can be started using the admin\_startSequencer RPC. Default is `false`.
+Initialize the sequencer in a stopped state. The sequencer can be started using the admin_startSequencer RPC
 
 <Tabs>
-  <Tab title="Syntax">`--sequencer.stopped=[true|false]`</Tab>
-  <Tab title="Example">`--sequencer.stopped=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SEQUENCER_STOPPED=false`</Tab>
+  <Tab title="Syntax">`--sequencer.stopped`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SEQUENCER_STOPPED`</Tab>
 </Tabs>
 
 ## Verifier options
@@ -883,17 +894,37 @@ Configuration for running op-node as a verifier (replica node).
 
 ### verifier.l1-confs
 
-Number of L1 blocks to keep distance from the L1 head before deriving L2 data from. Reorgs are supported, but may be slow to perform. Default is `0`.
+Number of L1 blocks to keep distance from the L1 head before deriving L2 data from. Reorgs are supported, but may be slow to perform.
 
 <Tabs>
   <Tab title="Syntax">`--verifier.l1-confs=<value>`</Tab>
-  <Tab title="Example">`--verifier.l1-confs=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_VERIFIER_L1_CONFS=0`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_VERIFIER_L1_CONFS`</Tab>
 </Tabs>
 
-<Info>
-While `verifier.l1-confs` has no strict limit, it's recommended to keep this value within 12-13 minutes (typically 10-20 blocks) for optimal performance. Exceeding this range may impact the verifier's data processing efficiency.
-</Info>
+## Finality
+
+Tune the finality derivation parameters.
+
+### finality.delay
+
+Number of L1 blocks to traverse before trying to finalize L2 blocks again. Uses default (64) if 0.
+
+<Tabs>
+  <Tab title="Syntax">`--finality.delay=<value>`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_FINALITY_DELAY`</Tab>
+</Tabs>
+
+### finality.lookback
+
+Number of L1 blocks to look back for finality verification. Uses default calculation if 0 (considers alt-DA challenge/resolve windows if applicable).
+
+<Tabs>
+  <Tab title="Syntax">`--finality.lookback=<value>`</Tab>
+  <Tab title="Default">`0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_FINALITY_LOOKBACK`</Tab>
+</Tabs>
 
 ## Conductor mode
 
@@ -901,32 +932,32 @@ Options for running op-node in conductor mode (for conductor-enabled chains).
 
 ### conductor.enabled
 
-Enable the conductor service. The default value is `false`.
+Enable the conductor service
 
 <Tabs>
-  <Tab title="Syntax">`--conductor.enabled=<boolean>`</Tab>
-  <Tab title="Example">`--conductor.enabled=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_CONDUCTOR_ENABLED=false`</Tab>
+  <Tab title="Syntax">`--conductor.enabled`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_CONDUCTOR_ENABLED`</Tab>
 </Tabs>
 
 ### conductor.rpc
 
-Conductor service rpc endpoint. The default value is `http://127.0.0.1:8547`.
+Conductor service rpc endpoint
 
 <Tabs>
   <Tab title="Syntax">`--conductor.rpc=<value>`</Tab>
-  <Tab title="Example">`--conductor.rpc=http://127.0.0.1:8547`</Tab>
-  <Tab title="Environment variable">`OP_NODE_CONDUCTOR_RPC=http://127.0.0.1:8547`</Tab>
+  <Tab title="Default">`"http://127.0.0.1:8547"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_CONDUCTOR_RPC`</Tab>
 </Tabs>
 
 ### conductor.rpc-timeout
 
-Conductor service rpc timeout. The default value is `1s`.
+Conductor service rpc timeout
 
 <Tabs>
   <Tab title="Syntax">`--conductor.rpc-timeout=<value>`</Tab>
-  <Tab title="Example">`--conductor.rpc-timeout=1s`</Tab>
-  <Tab title="Environment variable">`OP_NODE_CONDUCTOR_RPC_TIMEOUT=1s`</Tab>
+  <Tab title="Default">`1s`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_CONDUCTOR_RPC_TIMEOUT`</Tab>
 </Tabs>
 
 ## Database and state persistence
@@ -939,18 +970,7 @@ File path used to persist safe head update data. Disabled if not set.
 
 <Tabs>
   <Tab title="Syntax">`--safedb.path=<value>`</Tab>
-  <Tab title="Example">`--safedb.path=/db`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SAFEDB_PATH=/db`</Tab>
-</Tabs>
-
-### snapshotlog.file
-
-Path to the snapshot log file.
-
-<Tabs>
-  <Tab title="Syntax">`--snapshotlog.file=<value>`</Tab>
-  <Tab title="Example">`--snapshotlog.file=[FilePathHere]`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SNAPSHOT_LOG=[FilePathHere]`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SAFEDB_PATH`</Tab>
 </Tabs>
 
 ## Signer configuration
@@ -959,22 +979,20 @@ Options for configuring an external signer for P2P messages.
 
 ### signer.address
 
-Address the signer is signing requests for.
+Address the signer is signing requests for
 
 <Tabs>
   <Tab title="Syntax">`--signer.address=<value>`</Tab>
-  <Tab title="Example">`--signer.address=0x1234...`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SIGNER_ADDRESS=0x1234...`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SIGNER_ADDRESS`</Tab>
 </Tabs>
 
 ### signer.endpoint
 
-Signer endpoint the client will connect to.
+Signer endpoint the client will connect to
 
 <Tabs>
   <Tab title="Syntax">`--signer.endpoint=<value>`</Tab>
-  <Tab title="Example">`--signer.endpoint=https://signer.example.com`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SIGNER_ENDPOINT=https://signer.example.com`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SIGNER_ENDPOINT`</Tab>
 </Tabs>
 
 ### signer.header
@@ -983,133 +1001,123 @@ Headers to pass to the remote signer. Format `key=value`. Value can contain any 
 
 <Tabs>
   <Tab title="Syntax">`--signer.header=<value>`</Tab>
-  <Tab title="Example">`--signer.header="Authorization: Bearer token"`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SIGNER_HEADER="Authorization: Bearer token"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SIGNER_HEADER`</Tab>
 </Tabs>
 
 ### signer.tls.ca
 
-TLS ca cert path. The default value is `"tls/ca.crt"`.
+tls ca cert path
 
 <Tabs>
   <Tab title="Syntax">`--signer.tls.ca=<value>`</Tab>
-  <Tab title="Example">`--signer.tls.ca="tls/ca.crt"`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SIGNER_TLS_CA="tls/ca.crt"`</Tab>
+  <Tab title="Default">`"tls/ca.crt"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SIGNER_TLS_CA`</Tab>
 </Tabs>
 
 ### signer.tls.cert
 
-TLS cert path. The default value is `"tls/tls.crt"`.
+tls cert path
 
 <Tabs>
   <Tab title="Syntax">`--signer.tls.cert=<value>`</Tab>
-  <Tab title="Example">`--signer.tls.cert="tls/tls.crt"`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SIGNER_TLS_CERT="tls/tls.crt"`</Tab>
+  <Tab title="Default">`"tls/tls.crt"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SIGNER_TLS_CERT`</Tab>
 </Tabs>
 
 ### signer.tls.enabled
 
-Enable or disable TLS client authentication for the signer. The default value is `true`.
+Enable or disable TLS client authentication for the signer
 
 <Tabs>
-  <Tab title="Syntax">`--signer.tls.enabled=<boolean>`</Tab>
-  <Tab title="Example">`--signer.tls.enabled=true`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SIGNER_TLS_ENABLED=true`</Tab>
+  <Tab title="Syntax">`--signer.tls.enabled`</Tab>
+  <Tab title="Default">`true`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SIGNER_TLS_ENABLED`</Tab>
 </Tabs>
 
 ### signer.tls.key
 
-TLS key path. The default value is `"tls/tls.key"`.
+tls key
 
 <Tabs>
   <Tab title="Syntax">`--signer.tls.key=<value>`</Tab>
-  <Tab title="Example">`--signer.tls.key="tls/tls.key"`</Tab>
-  <Tab title="Environment variable">`OP_NODE_SIGNER_TLS_KEY="tls/tls.key"`</Tab>
+  <Tab title="Default">`"tls/tls.key"`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_SIGNER_TLS_KEY`</Tab>
 </Tabs>
 
 ## Alt-DA (Experimental)
 
-<Warning>
-Alt-DA Mode is a Beta feature of the MIT licensed OP Stack. While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.
-</Warning>
-
 Configuration options for Alternative Data Availability mode.
-
-### altda.enabled
-
-Enable Alt-DA mode. The default value is `false`.
-
-<Tabs>
-  <Tab title="Syntax">`--altda.enabled=<boolean>`</Tab>
-  <Tab title="Example">`--altda.enabled=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_ALTDA_ENABLED=false`</Tab>
-</Tabs>
 
 ### altda.da-server
 
-HTTP address of a DA Server.
+HTTP address of a DA Server
 
 <Tabs>
   <Tab title="Syntax">`--altda.da-server=<value>`</Tab>
-  <Tab title="Example">`--altda.da-server=http://da-server.example.com`</Tab>
-  <Tab title="Environment variable">`OP_NODE_ALTDA_DA_SERVER=http://da-server.example.com`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_ALTDA_DA_SERVER`</Tab>
 </Tabs>
 
 ### altda.da-service
 
-Use DA service type where commitments are generated by Alt-DA server. The default value is `false`.
+Use DA service type where commitments are generated by Alt-DA server
 
 <Tabs>
-  <Tab title="Syntax">`--altda.da-service=<boolean>`</Tab>
-  <Tab title="Example">`--altda.da-service=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_ALTDA_DA_SERVICE=false`</Tab>
+  <Tab title="Syntax">`--altda.da-service`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_ALTDA_DA_SERVICE`</Tab>
+</Tabs>
+
+### altda.enabled
+
+Enable Alt-DA mode Alt-DA Mode is a Beta feature of the MIT licensed OP Stack. While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.
+
+<Tabs>
+  <Tab title="Syntax">`--altda.enabled`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_ALTDA_ENABLED`</Tab>
 </Tabs>
 
 ### altda.get-timeout
 
-Timeout for get requests. 0 means no timeout. The default value is `0s`.
+Timeout for get requests. 0 means no timeout.
 
 <Tabs>
   <Tab title="Syntax">`--altda.get-timeout=<value>`</Tab>
-  <Tab title="Example">`--altda.get-timeout=0s`</Tab>
-  <Tab title="Environment variable">`OP_NODE_ALTDA_GET_TIMEOUT=0s`</Tab>
+  <Tab title="Default">`0s`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_ALTDA_GET_TIMEOUT`</Tab>
 </Tabs>
 
 ### altda.max-concurrent-da-requests
 
-Maximum number of concurrent requests to the DA server. The default value is `1`.
+Maximum number of concurrent requests to the DA server
 
 <Tabs>
   <Tab title="Syntax">`--altda.max-concurrent-da-requests=<value>`</Tab>
-  <Tab title="Example">`--altda.max-concurrent-da-requests=1`</Tab>
-  <Tab title="Environment variable">`OP_NODE_ALTDA_MAX_CONCURRENT_DA_REQUESTS=1`</Tab>
+  <Tab title="Default">`1`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_ALTDA_MAX_CONCURRENT_DA_REQUESTS`</Tab>
 </Tabs>
 
 ### altda.put-timeout
 
-Timeout for put requests. 0 means no timeout. The default value is `0s`.
+Timeout for put requests. 0 means no timeout.
 
 <Tabs>
   <Tab title="Syntax">`--altda.put-timeout=<value>`</Tab>
-  <Tab title="Example">`--altda.put-timeout=0s`</Tab>
-  <Tab title="Environment variable">`OP_NODE_ALTDA_PUT_TIMEOUT=0s`</Tab>
+  <Tab title="Default">`0s`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_ALTDA_PUT_TIMEOUT`</Tab>
 </Tabs>
 
 ### altda.verify-on-read
 
-Verify input data matches the commitments from the DA storage service. The default value is `true`.
+Verify input data matches the commitments from the DA storage service
 
 <Tabs>
-  <Tab title="Syntax">`--altda.verify-on-read=<boolean>`</Tab>
-  <Tab title="Example">`--altda.verify-on-read=true`</Tab>
-  <Tab title="Environment variable">`OP_NODE_ALTDA_VERIFY_ON_READ=true`</Tab>
+  <Tab title="Syntax">`--altda.verify-on-read`</Tab>
+  <Tab title="Default">`true`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_ALTDA_VERIFY_ON_READ`</Tab>
 </Tabs>
 
 ## Interop (Super Experimental)
-
-<Warning>
-Interop is a highly experimental feature. Use with caution in production environments.
-</Warning>
 
 Configuration options for OP Stack interop networks.
 
@@ -1119,8 +1127,7 @@ Dependency-set configuration, point at JSON file.
 
 <Tabs>
   <Tab title="Syntax">`--interop.dependency-set=<value>`</Tab>
-  <Tab title="Example">`--interop.dependency-set=/path/to/dependency-set.json`</Tab>
-  <Tab title="Environment variable">`OP_NODE_INTEROP_DEPENDENCY_SET=/path/to/dependency-set.json`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_INTEROP_DEPENDENCY_SET`</Tab>
 </Tabs>
 
 ### interop.jwt-secret
@@ -1129,28 +1136,26 @@ Interop RPC server authentication. Path to JWT secret key. Keys are 32 bytes, he
 
 <Tabs>
   <Tab title="Syntax">`--interop.jwt-secret=<value>`</Tab>
-  <Tab title="Example">`--interop.jwt-secret=/path/to/interop-jwt-secret.txt`</Tab>
-  <Tab title="Environment variable">`OP_NODE_INTEROP_JWT_SECRET=/path/to/interop-jwt-secret.txt`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_INTEROP_JWT_SECRET`</Tab>
 </Tabs>
 
 ### interop.rpc.addr
 
-Interop Websocket-only RPC listening address, for supervisor service to manage syncing of the op-node. Applies only to Interop-enabled networks. Optional, disabled if left empty. Do not enable if you do not run a supervisor service.
+Interop Websocket-only RPC listening address, for supervisor service to manage syncing of the op-node.Applies only to Interop-enabled networks. Optional, disabled if left empty. Do not enable if you do not run a supervisor service.
 
 <Tabs>
   <Tab title="Syntax">`--interop.rpc.addr=<value>`</Tab>
-  <Tab title="Example">`--interop.rpc.addr=0.0.0.0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_INTEROP_RPC_ADDR=0.0.0.0`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_INTEROP_RPC_ADDR`</Tab>
 </Tabs>
 
 ### interop.rpc.port
 
-Interop RPC listening port, to serve supervisor syncing. Applies only to Interop-enabled networks. The default value is `9645`.
+Interop RPC listening port, to serve supervisor syncing.Applies only to Interop-enabled networks.
 
 <Tabs>
   <Tab title="Syntax">`--interop.rpc.port=<value>`</Tab>
-  <Tab title="Example">`--interop.rpc.port=9645`</Tab>
-  <Tab title="Environment variable">`OP_NODE_INTEROP_RPC_PORT=9645`</Tab>
+  <Tab title="Default">`9645`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_INTEROP_RPC_PORT`</Tab>
 </Tabs>
 
 ## Experimental and miscellaneous
@@ -1159,83 +1164,41 @@ Additional experimental features and utility flags.
 
 ### experimental.sequencer-api
 
-Enables experimental test sequencer RPC functionality. The default value is `false`.
+Enables experimental test sequencer RPC functionality
+
+show help
+
+print the version
 
 <Tabs>
-  <Tab title="Syntax">`--experimental.sequencer-api=<boolean>`</Tab>
-  <Tab title="Example">`--experimental.sequencer-api=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_EXPERIMENTAL_SEQUENCER_API=false`</Tab>
+  <Tab title="Syntax">`--experimental.sequencer-api`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_EXPERIMENTAL_SEQUENCER_API`</Tab>
 </Tabs>
 
 ### fetch-withdrawal-root-from-state
 
-Read withdrawal_storage_root (aka message passer storage root) from state trie (via execution layer) instead of the block header. Restores pre-Isthmus behavior, requires an archive EL client. The default value is `false`.
+Read withdrawal_storage_root (aka message passer storage root) from state trie (via execution layer) instead of the block header. Restores pre-Isthmus behavior, requires an archive EL client.
 
 <Tabs>
-  <Tab title="Syntax">`--fetch-withdrawal-root-from-state=<boolean>`</Tab>
-  <Tab title="Example">`--fetch-withdrawal-root-from-state=false`</Tab>
-  <Tab title="Environment variable">`OP_NODE_FETCH_WITHDRAWAL_ROOT_FROM_STATE=false`</Tab>
-</Tabs>
-
-## General options
-
-Help and version information.
-
-### --help, -h
-
-Show help. The default value is `false`.
-
-<Tabs items={['Syntax', 'Example']}>
-  <Tab title="Syntax">`--help` OR `-h`</Tab>
-  <Tab title="Syntax">`--help`</Tab>
-</Tabs>
-
-### --version, -v
-
-<Info>
-  Nodes built from source do not output the correct version numbers that are reported on
-  the GitHub release page.
-</Info>
-
-Print the version. The default value is `false`.
-
-<Tabs items={['Syntax', 'Example']}>
-  <Tab title="Syntax">`--version` OR `-v`</Tab>
-  <Tab title="Syntax">`--version`</Tab>
+  <Tab title="Syntax">`--fetch-withdrawal-root-from-state`</Tab>
+  <Tab title="Default">`false`</Tab>
+  <Tab title="Environment variable">`$OP_NODE_FETCH_WITHDRAWAL_ROOT_FROM_STATE`</Tab>
 </Tabs>
 
 ## Node log levels
 
-Node log levels determine the verbosity of log messages, allowing operators to filter messages based on importance and detail. The log levels for the `op-node` (used in Optimism)
-are as follows:
+Node log levels determine the verbosity of log messages, allowing operators to filter messages based on importance and detail. The log levels for the op-node are:
 
-1.  Silent (0): No log messages are displayed. This level is rarely used as it provides
-    no feedback on the node's status.
+- **Silent (0)** — No log messages are displayed.
+- **Error (1)** — Only error messages are displayed.
+- **Warn (2)** — Error messages and warnings.
+- **Info (3)** — Default level: errors, warnings, and normal activity logs.
+- **Debug (4)** — Info-level plus additional debugging information.
+- **Detail (5)** — Most verbose, including low-level system operations.
 
-2.  Error (1): Only error messages are displayed. Use this level to focus on critical
-    issues that need immediate attention.
+To set the log level use the `--log.level` flag:
 
-3.  Warn (2): Displays error messages and warnings. This level helps to identify
-    potential problems that might not be immediately critical but require attention.
-
-4.  Info (3): Displays error messages, warnings, and normal activity logs. This is the
-    default level and provides a balanced view of the node's operations without being too
-    verbose.
-
-5.  Debug (4): All info-level messages plus additional debugging information. Use this
-    level when troubleshooting issues or developing the node software.
-
-6.  Detail (5): The most verbose level, including detailed debugging information and
-    low-level system operations. This level generates a large amount of log data and is
-    typically used only for in-depth troubleshooting.
-
-To set the log level, use the `--log.level` flag when running the `op-node` command. For
-example, to set the log level to debug:
-
-```bash
+```sh
 op-node --log.level=debug
 ```
-
-By adjusting the log level, operators can control the amount and type of information that
-gets logged, helping to manage log data volume and focus on relevant details during
-different operational scenarios.
