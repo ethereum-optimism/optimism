@@ -905,6 +905,8 @@ where
         ctx.metrics
             .payload_num_tx_gauge
             .set(info.executed_transactions.len() as f64);
+        ctx.metrics
+            .record_sdm_refund_gas(sdm_refund_gas(&info.extra.post_exec_entries));
 
         debug!(
             target: "payload_builder",
@@ -1067,6 +1069,10 @@ where
     fn take_bundle(&mut self) -> BundleState {
         State::take_bundle(self)
     }
+}
+
+fn sdm_refund_gas(entries: &[SDMGasEntry]) -> u64 {
+    entries.iter().map(|entry| entry.gas_refund).sum()
 }
 
 fn offset_post_exec_entries(

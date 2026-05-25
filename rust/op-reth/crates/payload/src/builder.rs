@@ -19,6 +19,10 @@ use reth_evm::{
     },
 };
 use reth_execution_types::BlockExecutionOutput;
+use reth_metrics::{
+    Metrics,
+    metrics::{self, Counter, Gauge},
+};
 use reth_optimism_evm::{ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction};
@@ -42,6 +46,27 @@ use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, Transac
 use revm::context::{Block, BlockEnv};
 use std::{marker::PhantomData, sync::Arc};
 use tracing::{debug, trace, warn};
+
+/// SDM/PostExec payload-builder metrics.
+#[derive(Metrics, Clone)]
+#[metrics(scope = "optimism_payload_builder")]
+struct OpPayloadBuilderMetrics {
+    /// Total SDM gas refunded by produced `PostExec` payloads.
+    sdm_refund_gas_total: Counter,
+    /// SDM gas refunded by the latest produced block.
+    sdm_refund_gas_per_block: Gauge,
+}
+
+impl OpPayloadBuilderMetrics {
+    fn record_sdm_refund_gas(&self, gas_refund: u64) {
+        self.sdm_refund_gas_total.increment(gas_refund);
+        self.sdm_refund_gas_per_block.set(gas_refund as f64);
+    }
+}
+
+fn sdm_refund_gas(entries: &[SDMGasEntry]) -> u64 {
+    entries.iter().map(|entry| entry.gas_refund).sum()
+}
 
 fn build_post_exec_recovered_tx<Tx>(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<Tx>
 where
@@ -457,9 +482,11 @@ impl<Txs> OpBuilder<'_, Txs> {
             }
         }
 
+        let mut sdm_refund_gas = 0;
         if ctx.sdm_production_enabled() {
             let block_number = builder.evm_mut().block().number().saturating_to();
             let entries = builder.executor_mut().take_post_exec_entries();
+            sdm_refund_gas = self::sdm_refund_gas(&entries);
             try_include_post_exec_tx(block_number, entries, |tx| {
                 builder.execute_transaction(tx).map(|g| g.tx_gas_used())
             })?;
@@ -472,6 +499,8 @@ impl<Txs> OpBuilder<'_, Txs> {
             block,
             block_access_list: _,
         } = builder.finish(state_provider, None)?;
+
+        OpPayloadBuilderMetrics::default().record_sdm_refund_gas(sdm_refund_gas);
 
         let sealed_block = Arc::new(block.sealed_block().clone());
         debug!(target: "payload_builder", id=%ctx.attributes().payload_id(), sealed_block_header = ?sealed_block.header(), "sealed built block");

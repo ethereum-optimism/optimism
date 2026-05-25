@@ -19,10 +19,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	gethrpc "github.com/ethereum/go-ethereum/rpc"
 )
 
 type config struct {
 	rpcURL           string
+	sequencerRPCURL  string
+	opRbuilderRPCURL string
 	privateKeyHex    string
 	mnemonic         string
 	mnemonicIndex    uint64
@@ -78,6 +81,8 @@ func parseFlags() config {
 
 	var cfg config
 	flag.StringVar(&cfg.rpcURL, "rpc", defaultRPC, "L2 execution RPC URL (or L2_RPC_URL)")
+	flag.StringVar(&cfg.sequencerRPCURL, "sequencer-rpc", firstEnv("SEQUENCER_RPC_URL", "OP_NODE_RPC_URL"), "sequencer/op-node admin RPC URL for admin_setSdmEnabled (or SEQUENCER_RPC_URL/OP_NODE_RPC_URL)")
+	flag.StringVar(&cfg.opRbuilderRPCURL, "op-rbuilder-rpc", os.Getenv("OP_RBUILDER_RPC_URL"), "op-rbuilder admin RPC URL for admin_setSdmEnabled (or OP_RBUILDER_RPC_URL)")
 	flag.StringVar(&cfg.privateKeyHex, "private-key", os.Getenv("PRIVATE_KEY"), "sender private key hex (defaults to devkeys test mnemonic)")
 	flag.StringVar(&cfg.mnemonic, "mnemonic", devkeys.TestMnemonic, "mnemonic used when -private-key is empty")
 	flag.Uint64Var(&cfg.mnemonicIndex, "mnemonic-index", 10_000, "devkeys user index used when -private-key is empty")
@@ -151,14 +156,13 @@ func run(cfg config) error {
 	}
 	log.Printf("connected rpc=%s chain_id=%s from=%s balance=%s wei", cfg.rpcURL, sender.ChainID, from, balance)
 
-	// The sequencer must be opted in to produce PostExec txs, even on an SDM-active
-	// chain. The flag is in-memory on op-rbuilder / op-reth, lost on restart; this
-	// CLI is the standard way to flip it for the devnet sequencer.
+	// The sequencer and op-rbuilder must be opted in to produce PostExec txs, even
+	// on an SDM-active chain. The flags are in-memory and lost on restart; this CLI
+	// is the standard way to flip them for the devnet sequencer.
 	if !cfg.skipSDMOptIn {
-		if err := sender.RPC.CallContext(ctx, nil, "admin_setSdmEnabled", true); err != nil {
-			return fmt.Errorf("admin_setSdmEnabled(true): %w", err)
+		if err := enableSDM(ctx, cfg, sender); err != nil {
+			return err
 		}
-		log.Printf("admin_setSdmEnabled(true) ok")
 	}
 	if balance.Sign() == 0 && cfg.fundL2 {
 		if err := fundL2(ctx, cfg, sender); err != nil {
@@ -189,6 +193,54 @@ func run(cfg config) error {
 		log.Printf("attempt %d did not validate: %v", attempt, err)
 	}
 	return fmt.Errorf("no attempt produced a validated SDM post-exec block: %w", lastErr)
+}
+
+func firstEnv(keys ...string) string {
+	for _, key := range keys {
+		if value := os.Getenv(key); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func enableSDM(ctx context.Context, cfg config, sender *sdm.TxSender) error {
+	targets := []struct {
+		name   string
+		rpcURL string
+		client *gethrpc.Client
+	}{
+		{name: "execution", rpcURL: cfg.rpcURL, client: sender.RPC},
+		{name: "sequencer", rpcURL: cfg.sequencerRPCURL},
+		{name: "op-rbuilder", rpcURL: cfg.opRbuilderRPCURL},
+	}
+
+	seen := make(map[string]struct{}, len(targets))
+	for _, target := range targets {
+		rpcURL := strings.TrimRight(target.rpcURL, "/")
+		if rpcURL == "" {
+			continue
+		}
+		if _, ok := seen[rpcURL]; ok {
+			continue
+		}
+		seen[rpcURL] = struct{}{}
+
+		client := target.client
+		if client == nil {
+			var err error
+			client, err = gethrpc.DialContext(ctx, target.rpcURL)
+			if err != nil {
+				return fmt.Errorf("dial %s SDM admin RPC %s: %w", target.name, target.rpcURL, err)
+			}
+			defer client.Close()
+		}
+		if err := client.CallContext(ctx, nil, "admin_setSdmEnabled", true); err != nil {
+			return fmt.Errorf("%s admin_setSdmEnabled(true) rpc=%s: %w", target.name, target.rpcURL, err)
+		}
+		log.Printf("admin_setSdmEnabled(true) ok target=%s rpc=%s", target.name, target.rpcURL)
+	}
+	return nil
 }
 
 func loadKey(cfg config) (*ecdsa.PrivateKey, common.Address, error) {
