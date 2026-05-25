@@ -1065,16 +1065,14 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
         bool isCGT = Config.sysFeatureCustomGasToken();
         Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
         string memory fallbackName;
-        bool found;
         for (uint256 i = 0; i < records.length; i++) {
             if (records[i].proxy != _predeploy) continue;
             if (records[i].isCustomGasToken && isCGT) return _findImplByName(records[i].name);
             if (!records[i].isVariant) {
                 fallbackName = records[i].name;
-                found = true;
             }
         }
-        if (found) return _findImplByName(fallbackName);
+        if (bytes(fallbackName).length > 0) return _findImplByName(fallbackName);
         revert("L2ContractsManager_Upgrade_Atomicity_Test: unmapped predeploy");
     }
 
