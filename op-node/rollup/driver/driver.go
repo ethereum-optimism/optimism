@@ -73,6 +73,7 @@ func NewDriver(
 	sys.Register("finalizer", finalizer)
 
 	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, ec)
+	attrHandler.SetSuperAuthority(superAuthority)
 	sys.Register("attributes-handler", attrHandler)
 
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, l1ChainConfig)

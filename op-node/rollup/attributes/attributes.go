@@ -49,6 +49,19 @@ type AttributesHandler struct {
 	sentAttributes bool
 
 	engineController EngineController
+
+	// superAuthority is consulted during consolidation: if the existing unsafe
+	// block at the height we're about to promote to safe is on the deny list,
+	// emit DepositsOnlyPayloadAttributesRequestEvent instead of letting
+	// derivation silently re-match the denied block. May be nil.
+	superAuthority rollup.SuperAuthority
+}
+
+// SetSuperAuthority attaches a SuperAuthority used to check whether existing
+// unsafe blocks are on the deny list during consolidation. Optional; if nil
+// (or never called), consolidation behaves as before.
+func (eq *AttributesHandler) SetSuperAuthority(sa rollup.SuperAuthority) {
+	eq.superAuthority = sa
 }
 
 func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2, engController EngineController) *AttributesHandler {
@@ -213,6 +226,41 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 			Err: fmt.Errorf("failed to get existing unsafe payload to compare against derived attributes from L1: %w", err),
 		})
 		return
+	}
+	// If the existing unsafe block at this height is on the deny list and the
+	// derived attributes are NOT already deposits-only, request a deposits-only
+	// rebuild. Derivation reproduces the bad block deterministically from its
+	// L1 batch, so without this guard AttributesMatchBlock would succeed and
+	// the denied block would silently advance back into the safe chain.
+	//
+	// The deposits-only guard prevents an infinite loop: once derivation has
+	// produced deposits-only attributes for this height, those attributes will
+	// no longer match the (still-canonical) denied unsafe block's transactions
+	// — AttributesMatchBlock fails below and emits BuildStartEvent, which
+	// builds the replacement block and reorgs the chain.
+	if eq.superAuthority != nil && !attributes.Attributes.IsDepositsOnly() {
+		blockNum := uint64(envelope.ExecutionPayload.BlockNumber)
+		denied, err := eq.superAuthority.IsDenied(blockNum, envelope.ExecutionPayload.BlockHash)
+		if err != nil {
+			eq.log.Error("Failed to check SuperAuthority denylist during consolidation, proceeding with match check",
+				"blockNumber", blockNum,
+				"blockHash", envelope.ExecutionPayload.BlockHash,
+				"err", err,
+			)
+		} else if denied {
+			eq.log.Warn("Existing unsafe block is on the deny list, requesting deposits-only replacement",
+				"blockNumber", blockNum,
+				"blockHash", envelope.ExecutionPayload.BlockHash,
+				"parent", attributes.Parent,
+				"derivedFrom", attributes.DerivedFrom,
+			)
+			eq.sentAttributes = true
+			eq.emitter.Emit(eq.ctx, derive.DepositsOnlyPayloadAttributesRequestEvent{
+				Parent:      attributes.Parent.ID(),
+				DerivedFrom: attributes.DerivedFrom,
+			})
+			return
+		}
 	}
 	if err := AttributesMatchBlock(eq.cfg, attributes.Attributes, onto.Hash, envelope, eq.log); err != nil {
 		eq.log.Warn("L2 reorg: existing unsafe block does not match derived attributes from L1",

@@ -485,11 +485,16 @@ func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloa
 	return status == eth.ExecutionValid
 }
 
-// initializeUnknowns is important to give the op-node EngineController engine state.
-// Pre-interop, the initial reset triggered a find-sync-start, and filled the forkchoice.
-// This still happens, but now overrides what may be initialized here.
-// Post-interop, the op-supervisor may diff the forkchoice state against the supervisor DB,
-// to determine where to perform the initial reset to.
+// initializeUnknowns gives the EngineController its initial forkchoice state by
+// reading the EL labels (unsafe/safe/finalized) for any head fields that haven't
+// already been set. Pre-interop, the initial reset still triggers FindL2Heads
+// which can lower these further. When running under a SuperAuthority (interop),
+// the deny-list cap is then applied to local-safe and finalized so that any
+// still-canonical denied block is excluded before any FCU is issued: derivation
+// will re-derive the denied block, payload_process.go's IsDenied check will
+// trigger deposits-only attributes, and consolidation will reorg the unsafe
+// chain via BuildStartEvent. Re-entry from tryUpdateEngineInternal is safe
+// because ApplyDenyCap is idempotent once heads are already at or below the cap.
 func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 	if e.unsafeHead == (eth.L2BlockRef{}) {
 		ref, err := e.engine.L2BlockRefByLabel(ctx, eth.Unsafe)
