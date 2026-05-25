@@ -89,9 +89,8 @@ func newFixture(t *testing.T) *fixture {
 	}
 }
 
-// expectBlockRef mocks a successful BlockRefWithStatus, returning ref alongside the
-// fixture's syncStatus (the production code uses that status for the response, so
-// callers don't need a separate SyncStatus expectation).
+// expectBlockRef mocks a successful BlockRefWithStatus, returning ref alongside
+// the fixture's syncStatus (no separate SyncStatus expectation needed).
 func (f *fixture) expectBlockRef(blockNum uint64, hash common.Hash, l1Origin eth.BlockID) eth.L2BlockRef {
 	ref := eth.L2BlockRef{
 		Hash:     hash,
@@ -103,9 +102,8 @@ func (f *fixture) expectBlockRef(blockNum uint64, hash common.Hash, l1Origin eth
 	return ref
 }
 
-// expectBlockMissing mocks BlockRefWithStatus returning ethereum.NotFound for blockNum
-// (beyond unsafe head) and the SyncStatus fallback that production code makes to
-// populate the response.
+// expectBlockMissing mocks the beyond-unsafe path: BlockRefWithStatus → NotFound,
+// then a SyncStatus fallback to populate the response.
 func (f *fixture) expectBlockMissing(blockNum uint64) {
 	f.dr.ExpectBlockRefWithStatus(blockNum, eth.L2BlockRef{}, nil, ethereum.NotFound)
 	f.dr.Mock.On("SyncStatus").Return(f.syncStatus)
@@ -122,21 +120,16 @@ func (f *fixture) expectOutputV0(hash common.Hash) *eth.OutputV0 {
 }
 
 func TestSuperrootAPI_PreGenesis(t *testing.T) {
-	// Pre-genesis: rollup.TargetBlockNumber errors. Surface that error directly so
-	// dispute infra (which never legitimately queries before genesis) gets a clear
-	// signal rather than a successful empty response.
+	// Pre-genesis: surface TargetBlockNumber's error rather than a silent empty response.
 	f := newFixture(t)
 
 	_, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts-1)
-	require.Error(t, err)
 	require.ErrorContains(t, err, "target block number")
 }
 
 func TestSuperrootAPI_BeyondUnsafe(t *testing.T) {
+	// Block 70 > UnsafeL2 (60): omit chain, populate sync fields via the SyncStatus fallback.
 	f := newFixture(t)
-
-	// Block 70: beyond UnsafeL2 (60). BlockRefWithStatus fails; we fall back to
-	// SyncStatus and omit the chain.
 	f.expectBlockMissing(70)
 
 	resp, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts+70*testBlockTime)
@@ -147,13 +140,9 @@ func TestSuperrootAPI_BeyondUnsafe(t *testing.T) {
 }
 
 func TestSuperrootAPI_BeyondLocalSafe_OmitsChain(t *testing.T) {
-	// op-supernode parity: blocks beyond LocalSafeL2 fail both VerifiedAt and OptimisticAt
-	// (LocalSafeBlockAtTimestamp returns ethereum.NotFound), so the chain is omitted from
-	// OptimisticAtTimestamp and Data is nil.
+	// Block 55: between LocalSafeL2 (50) and UnsafeL2 (60). op-supernode omits the
+	// chain here; we do too.
 	f := newFixture(t)
-
-	// Block 55: between LocalSafeL2 (50) and UnsafeL2 (60). BlockRefWithStatus succeeds
-	// (block exists) but blockNum > LocalSafeL2 triggers the omit path.
 	f.expectBlockRef(55, common.Hash{0x55}, eth.BlockID{Number: 180})
 
 	resp, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts+55*testBlockTime)
@@ -188,8 +177,7 @@ func TestSuperrootAPI_VerifiedHappyPath(t *testing.T) {
 }
 
 func TestSuperrootAPI_SafeDBNotFound_OmitsChain(t *testing.T) {
-	// SafeDB lag (target above latest, or DB empty) is transient; op-supernode maps it
-	// to ethereum.NotFound and omits the chain.
+	// Transient SafeDB lag: omit chain (op-supernode maps it to ethereum.NotFound).
 	f := newFixture(t)
 
 	hash := common.Hash{0x40}
@@ -204,8 +192,7 @@ func TestSuperrootAPI_SafeDBNotFound_OmitsChain(t *testing.T) {
 }
 
 func TestSuperrootAPI_SafeDBUnavailable_ReturnsError(t *testing.T) {
-	// Permanent SafeDB gap (target predates recorded history) — op-supernode bubbles
-	// ErrHistoryUnavailable to the RPC; operator must intervene.
+	// Permanent SafeDB gap: propagate. Operator must intervene.
 	f := newFixture(t)
 
 	hash := common.Hash{0x40}
@@ -218,8 +205,7 @@ func TestSuperrootAPI_SafeDBUnavailable_ReturnsError(t *testing.T) {
 }
 
 func TestSuperrootAPI_SafeDBDisabled_Errors(t *testing.T) {
-	// A node started without --safedb.path uses safedb.Disabled, whose L1AtSafeHead
-	// returns safedb.ErrNotEnabled. That error must propagate (not degrade to Data nil).
+	// Without --safedb.path, safedb.Disabled returns ErrNotEnabled; propagate it.
 	f := newFixture(t)
 	api := NewSuperrootAPI(f.cfg, f.l2Client, f.dr, safedb.Disabled, testlog.Logger(t, log.LevelError))
 
@@ -232,8 +218,7 @@ func TestSuperrootAPI_SafeDBDisabled_Errors(t *testing.T) {
 }
 
 func TestSuperrootAPI_BlockRefError_Propagates(t *testing.T) {
-	// Non-NotFound errors from BlockRefWithStatus (context deadline, EL transport,
-	// driver-loop failures) must fail the RPC rather than degrade to an empty response.
+	// Non-NotFound BlockRefWithStatus errors fail the RPC (no silent degradation).
 	f := newFixture(t)
 	driverErr := errors.New("driver-loop fail")
 	f.dr.ExpectBlockRefWithStatus(40, eth.L2BlockRef{}, nil, driverErr)
@@ -243,9 +228,7 @@ func TestSuperrootAPI_BlockRefError_Propagates(t *testing.T) {
 }
 
 func TestSuperrootAPI_OutputNotFound_OmitsChain(t *testing.T) {
-	// op-supernode parity: OutputV0AtBlock returning ethereum.NotFound omits the
-	// chain (Data nil, no entry); the block exists but the EL hasn't surfaced an
-	// output for it yet.
+	// OutputV0AtBlock → NotFound: omit chain (block known, output not yet available).
 	f := newFixture(t)
 	hash := common.Hash{0x40}
 	f.expectBlockRef(40, hash, eth.BlockID{Number: 170})

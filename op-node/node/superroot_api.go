@@ -14,10 +14,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// superrootAPI serves `superroot_atTimestamp` against op-node's single rollup chain,
-// the non-interop counterpart to op-supernode's superroot activity. Dispute infra
-// (op-challenger, op-dispute-mon) can point `--supernode-rpc` at op-node and get a
-// SuperRootAtTimestampResponse with `len(ChainIDs) == 1`.
+// superrootAPI serves `superroot_atTimestamp` for op-node's single rollup chain,
+// the non-interop counterpart to op-supernode's superroot activity. Lets dispute
+// infra point `--supernode-rpc` at op-node and get `len(ChainIDs) == 1`.
 type superrootAPI struct {
 	cfg    *rollup.Config
 	client l2EthClient
@@ -30,14 +29,12 @@ func NewSuperrootAPI(cfg *rollup.Config, client l2EthClient, dr driverClient, sa
 	return &superrootAPI{cfg: cfg, client: client, dr: dr, safeDB: safeDB, log: log}
 }
 
-// AtTimestamp serves wire method "superroot_atTimestamp" (namespace "superroot",
-// matching op-supernode so existing clients work unchanged).
+// AtTimestamp serves the "superroot_atTimestamp" wire method.
 func (s *superrootAPI) AtTimestamp(ctx context.Context, timestamp hexutil.Uint64) (eth.SuperRootAtTimestampResponse, error) {
 	return s.atTimestamp(ctx, uint64(timestamp))
 }
 
-// atTimestamp is unexported so go-ethereum's reflection-based registration doesn't
-// expose it as a separate RPC method.
+// atTimestamp is unexported so go-ethereum doesn't auto-register it as an RPC method.
 func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
 	chainID := eth.ChainIDFromBig(s.cfg.L2ChainID)
 
@@ -46,14 +43,12 @@ func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.S
 		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("target block number for timestamp %d: %w", timestamp, err)
 	}
 
-	// BlockRefWithStatus returns ref and the SyncStatus captured at the same instant,
-	// so the LocalSafeL2 bound check below is consistent with the ref we just resolved.
+	// Use BlockRefWithStatus so the LocalSafeL2 bound below sees a status consistent
+	// with the resolved ref.
 	ref, status, err := s.dr.BlockRefWithStatus(ctx, blockNum)
 	if err != nil {
-		// ethereum.NotFound means the block isn't known yet (beyond unsafe head). Mirror
-		// op-supernode: omit the chain and return sync timestamps from a separate
-		// SyncStatus call. All other errors (context deadlines, EL transport, etc.)
-		// fail the RPC — silently emitting an empty response would mask real failures.
+		// NotFound (beyond unsafe head): omit chain, populate sync fields from a
+		// fresh SyncStatus call. Other errors propagate.
 		if !errors.Is(err, ethereum.NotFound) {
 			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("blockRefWithStatus@%d: %w", blockNum, err)
 		}
@@ -66,17 +61,14 @@ func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.S
 
 	resp := responseSkeleton(status, chainID)
 
-	// op-supernode omits the chain when blockNum > LocalSafeL2: LocalSafeBlockAtTimestamp
-	// returns ethereum.NotFound, so both VerifiedAt and OptimisticAt fail. Consumers
-	// (op-challenger SuperNodeTraceProvider at step > 0) read OptimisticAtTimestamp
-	// without checking Data, so any synthetic entry here would diverge from supernode.
+	// op-supernode omits the chain past LocalSafeL2; any synthetic entry here would
+	// diverge for consumers that read OptimisticAtTimestamp without checking Data.
 	if blockNum > status.LocalSafeL2.Number {
 		return resp, nil
 	}
 
 	output, err := s.client.OutputV0AtBlock(ctx, ref.Hash)
 	if err != nil {
-		// op-supernode parity: omit the chain on NotFound, propagate other errors.
 		if errors.Is(err, ethereum.NotFound) {
 			return resp, nil
 		}
@@ -84,8 +76,8 @@ func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.S
 	}
 	outputRoot := eth.OutputRoot(output)
 
-	// L2 genesis is trivially safe at L1 block 0 (not cfg.Genesis.L1, since contracts may
-	// pre-date it). Otherwise ask SafeDB for the earliest L1 at which ref became safe.
+	// L2 genesis is trivially safe at L1 block 0 — not cfg.Genesis.L1, since
+	// contracts may pre-date it.
 	var requiredL1 eth.BlockID
 	if ref.ID() == s.cfg.Genesis.L2 {
 		requiredL1 = eth.BlockID{Number: 0}
@@ -93,9 +85,8 @@ func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.S
 		requiredL1, _, err = s.safeDB.L1AtSafeHead(ctx, ref.Number)
 	}
 	if err != nil {
-		// ErrL1AtSafeHeadNotFound is transient (SafeDB lag); op-supernode maps it to
-		// ethereum.NotFound and omits the chain. All other errors (ErrL1AtSafeHeadUnavailable,
-		// ErrNotEnabled from a disabled DB, network/IO failures) propagate.
+		// Only transient SafeDB lag (ErrL1AtSafeHeadNotFound) omits the chain;
+		// permanent gaps and disabled-DB / IO errors propagate.
 		if errors.Is(err, safedb.ErrL1AtSafeHeadNotFound) {
 			s.log.Debug("L1AtSafeHead transient, omitting chain", "err", err, "block", ref)
 			return resp, nil

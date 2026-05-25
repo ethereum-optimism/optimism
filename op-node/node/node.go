@@ -623,9 +623,7 @@ func registerAPIs(cfg *config.Config, node *OpNode, handler *oprpc.Handler) erro
 		return fmt.Errorf("failed to add Optimism API: %w", err)
 	}
 
-	// Register the superroot namespace. For non-interop chains, op-node is the
-	// canonical source of `superroot_atTimestamp` for op-challenger and op-dispute-mon.
-	// Always-on; harmless on chains that have not yet activated super-root games.
+	// `superroot_atTimestamp` for non-interop chains; always-on, harmless until games activate.
 	if err := handler.AddAPI(rpc.API{
 		Namespace: "superroot",
 		Service:   NewSuperrootAPI(&cfg.Rollup, node.l2Source.L2Client, node.l2Driver, node.safeDB, node.log),
