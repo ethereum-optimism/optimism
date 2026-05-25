@@ -3,7 +3,7 @@ DEPRECATED_TARGETS := install build build-debug \
 	build-x86_64-unknown-linux-gnu build-aarch64-unknown-linux-gnu build-x86_64-pc-windows-gnu \
 	build-release-tarballs \
 	test-unit cov-unit cov-report-html \
-	docker-build-push docker-build-push-git-sha docker-build-push-latest \
+	docker-build docker-build-push docker-build-push-git-sha docker-build-push-latest \
 	docker-build-push-nightly docker-build-push-nightly-edge-profiling docker-build-push-nightly-profiling \
 	clean profiling maxperf maxperf-no-asm \
 	fmt clippy lint-typos lint-toml lint clippy-fix fix-lint \

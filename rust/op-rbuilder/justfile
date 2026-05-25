@@ -1,3 +1,28 @@
+FEATURES := env("FEATURES", "")
+DOCKER_IMAGE_NAME := env("DOCKER_IMAGE_NAME", "op-rbuilder")
+DOCKER_IMAGE_EXTRA_TAGS := env("DOCKER_IMAGE_EXTRA_TAGS", "rbuilder")
+DOCKER_PLATFORM := env("DOCKER_PLATFORM", "linux/amd64")
+RBUILDER_BIN := env("RBUILDER_BIN", "op-rbuilder")
+
+# Build a local op-rbuilder Docker image
+[script('bash')]
+docker-image-rbuilder:
+  set -euo pipefail
+  tag_args=(--tag "{{DOCKER_IMAGE_NAME}}")
+  if [ -n "{{DOCKER_IMAGE_EXTRA_TAGS}}" ]; then
+    for tag in {{DOCKER_IMAGE_EXTRA_TAGS}}; do
+      tag_args+=(--tag "$tag")
+    done
+  fi
+  docker buildx build --load \
+    --platform "{{DOCKER_PLATFORM}}" \
+    --target rbuilder-runtime \
+    --build-arg FEATURES="{{FEATURES}}" \
+    --build-arg RBUILDER_BIN="{{RBUILDER_BIN}}" \
+    --build-context monorepo-rust=.. \
+    "${tag_args[@]}" \
+    .
+
 # Run the linters
 lint:
   cargo +nightly fmt -- --check
