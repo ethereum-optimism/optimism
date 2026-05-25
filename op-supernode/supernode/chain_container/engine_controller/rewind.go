@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -60,21 +61,25 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 	// [n-1,parent] <-- [n,target] <-- [m>n,unsafe]
 	targetBlock, err := e.blockAtTimestamp(ctx, timestamp)
 	if err != nil {
+		// If the EL does not have a block at the target height, the chain is strictly
+		// shorter than the requested rewind target — there is nothing to rewind.
+		if errors.Is(err, ethereum.NotFound) {
+			e.log.Info("rewind skipped: chain shorter than rewind target",
+				"timestamp", timestamp)
+			return nil
+		}
 		return fmt.Errorf("%w %d: %w", ErrRewindTargetBlockNotFound, timestamp, err)
 	}
 
-	// Step 0a: skip the rewind entirely if the chain is not ahead of the target. This allows
-	// callers to invoke RewindToTimestamp idempotently and avoids unnecessary payload churn
-	// when the EL is already at or before the requested height.
+	// Step 0a: skip the rewind entirely if the unsafe head already matches the target.
+	// (We cannot be strictly behind the target here — step 0 would have returned NotFound.)
 	unsafe, err := e.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRewindCurrentUnsafeFailed, err)
 	}
-	if unsafe.Number < targetBlock.Number || unsafe.Hash == targetBlock.Hash {
-		e.log.Info("rewind skipped: chain already at or before target",
-			"unsafeHead", unsafe.Number, "unsafeHash", unsafe.Hash,
-			"target", targetBlock.Number, "targetHash", targetBlock.Hash,
-			"timestamp", timestamp)
+	if unsafe.Hash == targetBlock.Hash {
+		e.log.Info("rewind skipped: unsafe head already at target",
+			"unsafeHash", unsafe.Hash, "targetHash", targetBlock.Hash, "timestamp", timestamp)
 		return nil
 	}
 

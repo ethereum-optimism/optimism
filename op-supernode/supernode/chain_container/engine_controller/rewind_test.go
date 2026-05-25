@@ -46,9 +46,6 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 		// unsafeMatchesTarget causes the mock to report the unsafe head at the target
 		// block (same hash), exercising the no-op path.
 		unsafeMatchesTarget bool
-		// unsafeBelowTarget causes the mock to report the unsafe head before the target,
-		// also exercising the no-op path.
-		unsafeBelowTarget bool
 		// canonicalReinsertBadStatus simulates the EL rejecting the re-inserted
 		// canonical payload after the synthetic FCU.
 		canonicalReinsertBadStatus bool
@@ -75,8 +72,14 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 			expectedError:       ErrNoRollupConfig,
 		},
 		{
+			name:                    "target not found is a no-op",
+			refErr:                  ethereum.NotFound,
+			expectedNewPayloadCalls: intPtr(0),
+			expectedFCUCalls:        intPtr(0),
+		},
+		{
 			name:          "reference error",
-			refErr:        ethereum.NotFound,
+			refErr:        errors.New("transient RPC error"),
 			expectedError: ErrRewindTargetBlockNotFound,
 		},
 		{
@@ -131,12 +134,6 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 		{
 			name:                    "no-op when unsafe head matches target",
 			unsafeMatchesTarget:     true,
-			expectedNewPayloadCalls: intPtr(0),
-			expectedFCUCalls:        intPtr(0),
-		},
-		{
-			name:                    "no-op when unsafe head is below target",
-			unsafeBelowTarget:       true,
 			expectedNewPayloadCalls: intPtr(0),
 			expectedFCUCalls:        intPtr(0),
 		},
@@ -227,9 +224,6 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 			}
 			if tc.unsafeMatchesTarget {
 				l2.labelOverrides[eth.Unsafe] = targetRef
-			}
-			if tc.unsafeBelowTarget {
-				l2.labelOverrides[eth.Unsafe] = eth.L2BlockRef{Number: targetBlockNum - 1, Hash: common.Hash{0xaa}}
 			}
 			if tc.canonicalReinsertBadStatus {
 				// Synthetic NewPayload (call 1) succeeds; canonical re-insert (call 2) is rejected.
