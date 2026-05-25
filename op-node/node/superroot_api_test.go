@@ -176,6 +176,23 @@ func TestSuperrootAPI_VerifiedHappyPath(t *testing.T) {
 	require.Equal(t, eth.SuperRoot(expectedSuper), resp.Data.SuperRoot)
 }
 
+func TestSuperrootAPI_VerifiedAtGenesisL2(t *testing.T) {
+	// L2 genesis is trivially safe at L1 block 0; SafeDB is not consulted.
+	f := newFixture(t)
+
+	genesisHash := f.cfg.Genesis.L2.Hash
+	f.expectBlockRef(0, genesisHash, eth.BlockID{Number: 0})
+	output := f.expectOutputV0(genesisHash)
+
+	resp, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Data)
+	require.Equal(t, eth.BlockID{Number: 0}, resp.Data.VerifiedRequiredL1)
+	require.Equal(t, eth.OutputRoot(output), resp.OptimisticAtTimestamp[f.chainID].OutputRoot)
+	require.Equal(t, eth.BlockID{Number: 0}, resp.OptimisticAtTimestamp[f.chainID].RequiredL1)
+	f.safeDB.Mock.AssertNotCalled(t, "L1AtSafeHead")
+}
+
 func TestSuperrootAPI_SafeDBNotFound_OmitsChain(t *testing.T) {
 	// Transient SafeDB lag: omit chain (op-supernode maps it to ethereum.NotFound).
 	f := newFixture(t)
