@@ -21,7 +21,7 @@ func TestWithdrawal_Karst(gt *testing.T) {
 // TestWithdrawal_KarstUpgrade is the same withdrawal flow but on a network that
 // started pre-Karst and activated Karst mid-chain via a scheduled upgrade.
 func TestWithdrawal_KarstUpgrade(gt *testing.T) {
-	offset := uint64(10)
+	offset := uint64(10) // arbitrary offset to have a few blocks before Karst
 	withdrawal.TestWithdrawalAfterUpgrade(gt, gameTypes.CannonGameType, opforks.Karst,
 		presets.WithDeployerOptions(sysgo.WithKarstAtOffset(&offset)),
 	)
