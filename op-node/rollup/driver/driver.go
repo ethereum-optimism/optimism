@@ -100,9 +100,6 @@ func NewDriver(
 		Ctx:            driverCtx,
 		StepDeriver:    schedDeriv,
 	}
-	// TODO(#16917) Remove Event System Refactor Comments
-	//  Couple SyncDeriver and EngineController for event refactoring
-	//  Couple EngDeriver and NewAttributesHandler for event refactoring
 	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver)
 	sys.Register("engine", ec)
