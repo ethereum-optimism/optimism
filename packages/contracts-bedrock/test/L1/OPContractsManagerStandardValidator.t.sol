@@ -293,7 +293,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.ZK_DISPUTE_GAME,
+                gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
                 gameArgs: hex""
             });
 
@@ -1824,7 +1824,7 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
             gameArgs: hex""
         });
 
@@ -2055,7 +2055,7 @@ contract OPContractsManagerStandardValidator_ZKDisputeGame_Test is OPContractsMa
         skipIfDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
         vm.mockCall(
             address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_ZK_DISPUTE_GAME)),
             abi.encode(address(0xdead))
         );
         assertEq("ZKDG-NOSHAPE", _validate(true));
@@ -2066,10 +2066,10 @@ contract OPContractsManagerStandardValidator_ZKDisputeGame_Test is OPContractsMa
     ///         The validator should skip ZK validation entirely and report no errors.
     function test_validate_zkFeatureEnabledNoImpl_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME);
-        // Enable the ZK feature flag in bitmap; factory still returns address(0) for ZK_DISPUTE_GAME.
+        // Enable the ZK feature flag in bitmap; factory still returns address(0) for SUPER_ZK_DISPUTE_GAME.
         // This is the exact state produced by an initial deployment with ZK disabled.
         _enableZKFeature();
-        assertEq(address(disputeGameFactory.gameImpls(GameTypes.ZK_DISPUTE_GAME)), address(0));
+        assertEq(address(disputeGameFactory.gameImpls(GameTypes.SUPER_ZK_DISPUTE_GAME)), address(0));
         assertEq("", _validate(true));
     }
 }
@@ -2132,7 +2132,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
 
             // ZK game is not deployed on mainnet. Mock it using the same ASR and WETH as CANNON
             // (same on-chain infrastructure) so _assertValidZKGameArgs passes its checks.
-            // ZK_DISPUTE_GAME is a super game: l2ChainId must be 0 in the factory args.
+            // SUPER_ZK_DISPUTE_GAME is a super game: l2ChainId must be 0 in the factory args.
             bytes memory zkArgs = abi.encodePacked(
                 bytes32(keccak256("zkPrestate")),
                 address(0xBEEF),
@@ -2145,12 +2145,12 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             );
             vm.mockCall(
                 address(dgf),
-                abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)),
+                abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_ZK_DISPUTE_GAME)),
                 abi.encode(standardValidator.zkDisputeGameImpl())
             );
             vm.mockCall(
                 address(dgf),
-                abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.ZK_DISPUTE_GAME)),
+                abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_ZK_DISPUTE_GAME)),
                 abi.encode(zkArgs)
             );
         } else {
@@ -2207,9 +2207,9 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             configs[5] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
-                gameType: GameTypes.ZK_DISPUTE_GAME,
+                gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
                 gameArgs: abi.encode(
-                    IOPContractsManagerUtils.ZKDisputeGameConfig({
+                    IOPContractsManagerUtils.SuperZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
                         verifier: IZKVerifier(address(0xBEEF)),
                         maxChallengeDuration: Duration.wrap(uint64(7 days)),
@@ -2268,7 +2268,7 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
 
     /// @notice Tests ZKDG-20 when the ZK game implementation version does not match the expected.
     function test_validate_zkDisputeGameInvalidVersion_succeeds() public {
-        address zkImpl = address(dgf.gameImpls(GameTypes.ZK_DISPUTE_GAME));
+        address zkImpl = address(dgf.gameImpls(GameTypes.SUPER_ZK_DISPUTE_GAME));
         BadVersionReturner bad = new BadVersionReturner(standardValidator, ISemver(zkImpl), "0.0.0");
         bytes32 slot = bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "zkDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
@@ -2276,44 +2276,44 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
     }
 
     /// @notice Tests ZKDG-60 when the l2ChainId encoded in the ZK game args is non-zero.
-    ///         ZK_DISPUTE_GAME is a super game: l2ChainId must be 0 in the factory args.
+    ///         SUPER_ZK_DISPUTE_GAME is a super game: l2ChainId must be 0 in the factory args.
     function test_validate_zkDisputeGameWrongChainId_succeeds() public {
-        DisputeGames.mockZKGameImplL2ChainId(dgf, GameTypes.ZK_DISPUTE_GAME, l2ChainId);
+        DisputeGames.mockZKGameImplL2ChainId(dgf, GameTypes.SUPER_ZK_DISPUTE_GAME, l2ChainId);
         assertEq("ZKDG-60", _validate(true));
     }
 
     /// @notice Tests ZKDG-70 when the absolutePrestate encoded in the ZK game args is zero.
     function test_validate_zkDisputeGameZeroAbsolutePrestate_succeeds() public {
         // absolutePrestate occupies bytes [0-31] of the packed ZK args.
-        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 0, abi.encodePacked(bytes32(0)));
+        DisputeGames.mockZKGameArg(dgf, GameTypes.SUPER_ZK_DISPUTE_GAME, 0, abi.encodePacked(bytes32(0)));
         assertEq("ZKDG-70", _validate(true));
     }
 
     /// @notice Tests ZKDG-80 when the verifier encoded in the ZK game args is the zero address.
     function test_validate_zkDisputeGameZeroVerifier_succeeds() public {
         // verifier occupies bytes [32-51] (20-byte address).
-        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 32, abi.encodePacked(address(0)));
+        DisputeGames.mockZKGameArg(dgf, GameTypes.SUPER_ZK_DISPUTE_GAME, 32, abi.encodePacked(address(0)));
         assertEq("ZKDG-80", _validate(true));
     }
 
     /// @notice Tests ZKDG-90 when the maxChallengeDuration encoded in the ZK game args is zero.
     function test_validate_zkDisputeGameZeroMaxChallengeDuration_succeeds() public {
         // maxChallengeDuration occupies bytes [52-59] (uint64).
-        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 52, abi.encodePacked(uint64(0)));
+        DisputeGames.mockZKGameArg(dgf, GameTypes.SUPER_ZK_DISPUTE_GAME, 52, abi.encodePacked(uint64(0)));
         assertEq("ZKDG-90", _validate(true));
     }
 
     /// @notice Tests ZKDG-100 when the maxProveDuration encoded in the ZK game args is zero.
     function test_validate_zkDisputeGameZeroMaxProveDuration_succeeds() public {
         // maxProveDuration occupies bytes [60-67] (uint64).
-        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 60, abi.encodePacked(uint64(0)));
+        DisputeGames.mockZKGameArg(dgf, GameTypes.SUPER_ZK_DISPUTE_GAME, 60, abi.encodePacked(uint64(0)));
         assertEq("ZKDG-100", _validate(true));
     }
 
     /// @notice Tests ZKDG-110 when the challengerBond encoded in the ZK game args is zero.
     function test_validate_zkDisputeGameZeroChallengerBond_succeeds() public {
         // challengerBond occupies bytes [68-99] (uint256).
-        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 68, abi.encodePacked(uint256(0)));
+        DisputeGames.mockZKGameArg(dgf, GameTypes.SUPER_ZK_DISPUTE_GAME, 68, abi.encodePacked(uint256(0)));
         assertEq("ZKDG-110", _validate(true));
     }
 }

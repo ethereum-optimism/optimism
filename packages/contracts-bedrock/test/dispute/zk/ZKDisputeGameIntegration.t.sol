@@ -66,7 +66,7 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
     address prover = address(0x3003);
 
     // Game parameters
-    GameType gameType = GameTypes.ZK_DISPUTE_GAME;
+    GameType gameType = GameTypes.SUPER_ZK_DISPUTE_GAME;
     Duration maxChallengeDuration = Duration.wrap(12 hours);
     Duration maxProveDuration = Duration.wrap(3 days);
     uint256 bond = 1 ether;

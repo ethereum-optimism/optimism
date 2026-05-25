@@ -246,7 +246,7 @@ library PastUpgrades {
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
             gameArgs: hex""
         });
 

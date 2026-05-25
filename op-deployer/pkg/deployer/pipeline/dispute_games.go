@@ -122,20 +122,20 @@ func deployDisputeGame(
 			}
 			vmAddr = out.MipsSingleton
 		}
-	case state.VMTypeZK:
+	case state.VMTypeSuperZK:
 		zkImpl := st.ImplementationsDeployment.ZkDisputeGameImpl
 		if zkImpl == (common.Address{}) {
 			return fmt.Errorf("ZkDisputeGameImpl is not deployed; ensure ZKDisputeGameFlag is set in devFeatureBitmap")
 		}
-		if game.ZKDisputeGame == nil {
-			return fmt.Errorf("ZKDisputeGame params must be set when VMType is ZK")
+		if game.SuperZKDisputeGame == nil {
+			return fmt.Errorf("SuperZKDisputeGame params must be set when VMType is SUPER_ZK")
 		}
-		if game.DisputeGameType != uint32(embedded.GameTypeZKDisputeGame) {
-			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", embedded.GameTypeZKDisputeGame, game.DisputeGameType)
+		if game.DisputeGameType != uint32(embedded.GameTypeSuperZKDisputeGame) {
+			return fmt.Errorf("DisputeGameType must be %d for SuperZK dispute game, got %d", embedded.GameTypeSuperZKDisputeGame, game.DisputeGameType)
 		}
-		zk := game.ZKDisputeGame
+		zk := game.SuperZKDisputeGame
 		if zk.ChallengerBond == nil || zk.ChallengerBond.ToInt().Sign() <= 0 {
-			return fmt.Errorf("ZKDisputeGame.ChallengerBond must be set to a positive value")
+			return fmt.Errorf("SuperZKDisputeGame.ChallengerBond must be set to a positive value")
 		}
 		gameArgs := gameargs.ZKGameArgs{
 			AbsolutePrestate:     zk.AbsolutePrestate,
@@ -145,7 +145,7 @@ func deployDisputeGame(
 			ChallengerBond:       zk.ChallengerBond.ToInt(),
 			AnchorStateRegistry:  thisState.OpChainContracts.AnchorStateRegistryProxy,
 			Weth:                 thisState.OpChainContracts.DelayedWethPermissionlessGameProxy,
-			L2ChainID:            new(big.Int), // ZK is a super game: chainId = 0
+			L2ChainID:            new(big.Int), // SuperZK is a super game: chainId = 0
 		}.Pack()
 		zkInput := opcm.SetDisputeGameImplInput{
 			Factory:             thisState.OpChainContracts.DisputeGameFactoryProxy,
@@ -158,7 +158,7 @@ func deployDisputeGame(
 			zkInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
 		}
 		if err := opcm.SetDisputeGameImpl(env.L1ScriptHost, zkInput); err != nil {
-			return fmt.Errorf("failed to set ZK dispute game impl: %w", err)
+			return fmt.Errorf("failed to set SuperZK dispute game impl: %w", err)
 		}
 		thisState.AdditionalDisputeGames = append(thisState.AdditionalDisputeGames, state.AdditionalDisputeGameState{
 			GameType:    game.DisputeGameType,

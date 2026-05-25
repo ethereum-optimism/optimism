@@ -593,7 +593,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         errors_ = _initialErrors;
         bool isPermissioned = _gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
             || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
-        bool isZK = _gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw();
+        bool isZK = _gameType.raw() == GameTypes.SUPER_ZK_DISPUTE_GAME.raw();
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(_gameType)));
 
@@ -638,7 +638,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         if (raw == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) return superPermissionedDisputeGameImpl;
         if (raw == GameTypes.SUPER_CANNON.raw()) return superFaultDisputeGameImpl;
         if (raw == GameTypes.SUPER_CANNON_KONA.raw()) return superFaultDisputeGameImpl;
-        if (raw == GameTypes.ZK_DISPUTE_GAME.raw()) return zkDisputeGameImpl;
+        if (raw == GameTypes.SUPER_ZK_DISPUTE_GAME.raw()) return zkDisputeGameImpl;
         return faultDisputeGameImpl;
     }
 
@@ -876,7 +876,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         } else {
             // ZK game type must not be registered when the ZK feature is not enabled.
             _errors = internalRequire(
-                address(IDisputeGameFactory(_input.sysCfg.disputeGameFactory()).gameImpls(GameTypes.ZK_DISPUTE_GAME))
+                address(IDisputeGameFactory(_input.sysCfg.disputeGameFactory()).gameImpls(GameTypes.SUPER_ZK_DISPUTE_GAME))
                     == address(0),
                 "ZKDG-NOSHAPE",
                 _errors
@@ -958,8 +958,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
-        // ZK_DISPUTE_GAME is a super game: l2ChainId must be 0 in the immutable args because
+        LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.SUPER_ZK_DISPUTE_GAME));
+        // SUPER_ZK_DISPUTE_GAME is a super game: l2ChainId must be 0 in the immutable args because
         // the chain ID is embedded in per-game extraData (super root proof), not in the factory args.
         _errors = internalRequire(args.l2ChainId == 0, string.concat(_errorPrefix, "-60"), _errors);
         _errors = internalRequire(args.absolutePrestate != bytes32(0), string.concat(_errorPrefix, "-70"), _errors);
@@ -1008,7 +1008,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         // as extension, the factory as the source of truth for deciding whether to validate the ZK game.
         // ZK is the only per-chain opt-in game type; mandatory game types fail loud in getGameImplementation()
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        if (address(_factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0)) {
+        if (address(_factory.gameImpls(GameTypes.SUPER_ZK_DISPUTE_GAME)) == address(0)) {
             return _errors;
         }
 
@@ -1016,7 +1016,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         DisputeGameImplementation memory gameImpl;
         bool failedToGetImpl;
         (gameImpl, _errors, failedToGetImpl) =
-            getGameImplementation(_errors, GameTypes.ZK_DISPUTE_GAME, _sysCfg, errorPrefix);
+            getGameImplementation(_errors, GameTypes.SUPER_ZK_DISPUTE_GAME, _sysCfg, errorPrefix);
         if (failedToGetImpl) return _errors;
         _errors = internalRequire(
             LibString.eq(getVersion(gameImpl.gameAddress), getVersion(zkDisputeGameImpl)),
@@ -1036,7 +1036,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (DisputeGameImplementation memory gameImpl_)
     {
-        if (_gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+        if (_gameType.raw() == GameTypes.SUPER_ZK_DISPUTE_GAME.raw()) {
             gameImpl_.gameAddress = address(_game);
             gameImpl_.gameType = _gameType;
             return gameImpl_;

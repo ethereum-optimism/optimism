@@ -32,7 +32,7 @@ func validBaseChainIntent() *ChainIntent {
 	}
 }
 
-func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
+func TestChainIntentCheck_SuperZKDisputeGame(t *testing.T) {
 	verifier := common.HexToAddress("0xabc")
 	prestate := common.HexToHash("0xdef")
 
@@ -44,8 +44,8 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 		{
 			name: "valid ZK game passes",
 			game: AdditionalDisputeGame{
-				VMType: VMTypeZK,
-				ZKDisputeGame: &ZKDisputeGameParams{
+				VMType: VMTypeSuperZK,
+				SuperZKDisputeGame: &SuperZKDisputeGameParams{
 					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 3600,
@@ -56,40 +56,40 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			expectErr: nil,
 		},
 		{
-			name: "nil ZKDisputeGame params fails",
+			name: "nil SuperZKDisputeGame params fails",
 			game: AdditionalDisputeGame{
-				VMType:        VMTypeZK,
-				ZKDisputeGame: nil,
+				VMType:        VMTypeSuperZK,
+				SuperZKDisputeGame: nil,
 			},
-			expectErr: ErrZKDisputeGameMissingParams,
+			expectErr: ErrSuperZKDisputeGameMissingParams,
 		},
 		{
 			name: "zero Verifier address fails",
 			game: AdditionalDisputeGame{
-				VMType: VMTypeZK,
-				ZKDisputeGame: &ZKDisputeGameParams{
+				VMType: VMTypeSuperZK,
+				SuperZKDisputeGame: &SuperZKDisputeGameParams{
 					Verifier:         common.Address{},
 					AbsolutePrestate: prestate,
 				},
 			},
-			expectErr: ErrZKDisputeGameMissingParams,
+			expectErr: ErrSuperZKDisputeGameMissingParams,
 		},
 		{
 			name: "zero AbsolutePrestate fails",
 			game: AdditionalDisputeGame{
-				VMType: VMTypeZK,
-				ZKDisputeGame: &ZKDisputeGameParams{
+				VMType: VMTypeSuperZK,
+				SuperZKDisputeGame: &SuperZKDisputeGameParams{
 					Verifier:         verifier,
 					AbsolutePrestate: common.Hash{},
 				},
 			},
-			expectErr: ErrZKDisputeGameMissingParams,
+			expectErr: ErrSuperZKDisputeGameMissingParams,
 		},
 		{
 			name: "zero MaxChallengeDuration fails",
 			game: AdditionalDisputeGame{
-				VMType: VMTypeZK,
-				ZKDisputeGame: &ZKDisputeGameParams{
+				VMType: VMTypeSuperZK,
+				SuperZKDisputeGame: &SuperZKDisputeGameParams{
 					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 0,
@@ -97,13 +97,13 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
 				},
 			},
-			expectErr: ErrZKDisputeGameMissingParams,
+			expectErr: ErrSuperZKDisputeGameMissingParams,
 		},
 		{
 			name: "zero MaxProveDuration fails",
 			game: AdditionalDisputeGame{
-				VMType: VMTypeZK,
-				ZKDisputeGame: &ZKDisputeGameParams{
+				VMType: VMTypeSuperZK,
+				SuperZKDisputeGame: &SuperZKDisputeGameParams{
 					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 3600,
@@ -111,13 +111,13 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
 				},
 			},
-			expectErr: ErrZKDisputeGameMissingParams,
+			expectErr: ErrSuperZKDisputeGameMissingParams,
 		},
 		{
 			name: "nil ChallengerBond fails",
 			game: AdditionalDisputeGame{
-				VMType: VMTypeZK,
-				ZKDisputeGame: &ZKDisputeGameParams{
+				VMType: VMTypeSuperZK,
+				SuperZKDisputeGame: &SuperZKDisputeGameParams{
 					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 3600,
@@ -125,13 +125,13 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 					ChallengerBond:       nil,
 				},
 			},
-			expectErr: ErrZKDisputeGameMissingParams,
+			expectErr: ErrSuperZKDisputeGameMissingParams,
 		},
 		{
 			name: "zero ChallengerBond fails",
 			game: AdditionalDisputeGame{
-				VMType: VMTypeZK,
-				ZKDisputeGame: &ZKDisputeGameParams{
+				VMType: VMTypeSuperZK,
+				SuperZKDisputeGame: &SuperZKDisputeGameParams{
 					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 3600,
@@ -139,7 +139,7 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 					ChallengerBond:       (*hexutil.Big)(big.NewInt(0)),
 				},
 			},
-			expectErr: ErrZKDisputeGameMissingParams,
+			expectErr: ErrSuperZKDisputeGameMissingParams,
 		},
 	}
 

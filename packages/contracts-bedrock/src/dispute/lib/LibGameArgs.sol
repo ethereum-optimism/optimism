@@ -113,7 +113,7 @@ library LibGameArgs {
     }
 
     /// @notice Decodes all fields from packed ZK game template args as produced by
-    ///         OPContractsManagerUtils._encodeGameArgs for ZK_DISPUTE_GAME.
+    ///         OPContractsManagerUtils._encodeGameArgs for SUPER_ZK_DISPUTE_GAME.
     ///         Layout (abi.encodePacked, ZK_ARGS_LENGTH bytes):
     ///           [0-31]   absolutePrestate (bytes32)
     ///           [32-51]  verifier (address)
