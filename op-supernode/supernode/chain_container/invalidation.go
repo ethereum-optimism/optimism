@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	bolt "go.etcd.io/bbolt"
 )
@@ -398,6 +400,15 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 
 	currentBlock, err := c.engine.L2BlockRefByNumber(ctx, height)
 	if err != nil {
+		// If the engine has no block at this height the chain is already strictly
+		// shorter than the invalidated block: there is nothing to rewind. The deny
+		// list entry above is durable, so any future attempt to extend the chain
+		// past this height with the denied hash will still be rejected.
+		if errors.Is(err, ethereum.NotFound) {
+			c.log.Info("invalidated block height is beyond current chain head; nothing to rewind",
+				"height", height, "payloadHash", payloadHash)
+			return false, nil
+		}
 		return false, fmt.Errorf("failed to get current block at height %d: %w", height, err)
 	}
 

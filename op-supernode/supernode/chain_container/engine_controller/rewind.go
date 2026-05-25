@@ -24,6 +24,8 @@ var (
 	ErrRewindComputeTargetsFailed       = errors.New("failed to compute rewind targets")
 	ErrRewindInsertSyntheticFailed      = errors.New("failed to insert synthetic payload")
 	ErrRewindSyntheticPayloadRejected   = errors.New("synthetic payload rejected by engine")
+	ErrRewindReinsertCanonicalFailed    = errors.New("failed to re-insert canonical payload")
+	ErrRewindCanonicalPayloadRejected   = errors.New("canonical payload rejected by engine on re-insert")
 	ErrRewindFCUSyntheticFailed         = errors.New("failed to FCU to synthetic block")
 	ErrRewindFCUTargetFailed            = errors.New("failed to FCU to target block")
 	ErrRewindVerificationFailed         = errors.New("rewind state verification failed")
@@ -32,14 +34,20 @@ var (
 	ErrRewindPayloadNotFound            = errors.New("failed to get payload for block")
 	ErrRewindOverFinalizedHead          = errors.New("cannot rewind over finalized head")
 	ErrRewindFCUHeadMismatch            = errors.New("FCU head did not converge to expected value")
+	ErrRewindCurrentUnsafeFailed        = errors.New("failed to get current unsafe block")
 )
 
 // RewindToTimestamp rewinds the L2 execution layer to the block at or before the given timestamp.
 //
-// The rewind is performed in two steps:
-//  1. Insert a synthetic block (modified fee recipient) and FCU to it, which triggers a reorg
-//     that orphans all blocks after the target.
-//  2. FCU back to the original target block, completing the rewind.
+// The rewind is performed by:
+//  1. Inserting a synthetic block (modified extra data) sharing the target's parent and FCU-ing
+//     to it. This makes the original target block non-canonical.
+//  2. Re-inserting the original target payload via engine_newPayload. This guarantees the EL
+//     still has the block available even if its pruner has discarded the non-canonical block
+//     since step 1 (op-reth, for example, will prune blocks dropped from the canonical chain).
+//  3. FCU-ing back to the target block, which restores it as the canonical head.
+//
+// If the chain is not actually ahead of the target block, the call is a no-op.
 //
 // TODO: in future, we could push the implementation into the engine itself which would reduce the
 // number of RPC calls required and remove the need for the synthetic block to be inserted.
@@ -55,12 +63,34 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 		return fmt.Errorf("%w %d: %w", ErrRewindTargetBlockNotFound, timestamp, err)
 	}
 
-	// Step 1: Insert a synthetic block (modified fee recipient) which
+	// Step 0a: skip the rewind entirely if the chain is not ahead of the target. This allows
+	// callers to invoke RewindToTimestamp idempotently and avoids unnecessary payload churn
+	// when the EL is already at or before the requested height.
+	unsafe, err := e.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrRewindCurrentUnsafeFailed, err)
+	}
+	if unsafe.Number < targetBlock.Number || unsafe.Hash == targetBlock.Hash {
+		e.log.Info("rewind skipped: chain already at or before target",
+			"unsafeHead", unsafe.Number, "unsafeHash", unsafe.Hash,
+			"target", targetBlock.Number, "targetHash", targetBlock.Hash,
+			"timestamp", timestamp)
+		return nil
+	}
+
+	// Step 0b: fetch the canonical payload at the target height once. We use it both
+	// to derive the synthetic block and to re-insert the canonical block after the reorg.
+	targetEnvelope, err := e.l2.PayloadByNumber(ctx, targetBlock.Number)
+	if err != nil || targetEnvelope == nil || targetEnvelope.ExecutionPayload == nil {
+		return fmt.Errorf("%w for block %d: %w", ErrRewindPayloadNotFound, targetBlock.Number, err)
+	}
+
+	// Step 1: Insert a synthetic block (modified extra data) which
 	// is built on the parent of the target block:
 	// [n-1,parent] <-- [n,target] <--...<-- [m>n,unsafe]
 	//
 	//                 [n,synthetic]
-	syntheticBlockHash, err := e.insertSyntheticPayload(ctx, targetBlock.Number)
+	syntheticBlockHash, err := e.insertSyntheticPayload(ctx, targetEnvelope)
 	if err != nil {
 		return err
 	}
@@ -84,7 +114,15 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 	}
 	e.log.Info("executed FCU to synthetic block", "syntheticHead", syntheticBlockHash, "safe", parentHash, "finalized", parentHash)
 
-	// Step 4: FCU to the actual target block
+	// Step 4: re-insert the canonical target payload via engine_newPayload. The previous FCU
+	// to the synthetic block made the target block non-canonical, which means the EL is free
+	// to prune it (op-reth's pruner does so eagerly). Calling NewPayload again forces the EL
+	// to re-import the block and persist it before we ask it to become the head in step 5.
+	if err := e.reinsertCanonicalPayload(ctx, targetEnvelope); err != nil {
+		return err
+	}
+
+	// Step 5: FCU to the actual target block
 	// [n-1,parent] <-- [n,target, unsafe]
 	//
 	//                  [n,synthetic]
@@ -120,16 +158,13 @@ func (e *simpleEngineController) computeRewindTargets(ctx context.Context, targe
 	return earliest(currentSafe, targetBlock), earliest(currentFinalized, targetBlock), nil
 }
 
-// insertSyntheticPayload creates and inserts a synthetic block derived from the block at the given number.
-// The synthetic block has a modified fee recipient to produce a different block hash.
+// insertSyntheticPayload derives a synthetic block from the supplied canonical envelope and
+// submits it via engine_newPayload. The synthetic block shares the canonical block's parent
+// but has modified ExtraData to produce a different block hash.
 // Returns the hash of the synthetic block.
-func (e *simpleEngineController) insertSyntheticPayload(ctx context.Context, blockNumber uint64) (common.Hash, error) {
-	envelope, err := e.l2.PayloadByNumber(ctx, blockNumber)
-	if err != nil || envelope == nil || envelope.ExecutionPayload == nil {
-		return common.Hash{}, fmt.Errorf("failed to get payload for block %d: %w, err: %w", blockNumber, ErrRewindPayloadNotFound, err)
-	}
-
-	// Deep clone the envelope and payload
+func (e *simpleEngineController) insertSyntheticPayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) (common.Hash, error) {
+	// Deep clone the envelope and payload so we can mutate fields without affecting the
+	// canonical envelope, which is reused by reinsertCanonicalPayload later in the rewind.
 	newEnvelope := *envelope
 	newPayload := *(envelope.ExecutionPayload)
 	newEnvelope.ExecutionPayload = &newPayload
@@ -150,7 +185,8 @@ func (e *simpleEngineController) insertSyntheticPayload(ctx context.Context, blo
 	syntheticHash, _ := newEnvelope.CheckBlockHash() // ignore "ok" since we know it won't match
 	newPayload.BlockHash = syntheticHash
 
-	e.log.Info("inserting synthetic payload", "blockNumber", blockNumber, "parentHash", newPayload.ParentHash, "syntheticHash", syntheticHash)
+	e.log.Info("inserting synthetic payload",
+		"blockNumber", uint64(newPayload.BlockNumber), "parentHash", newPayload.ParentHash, "syntheticHash", syntheticHash)
 	status, err := e.l2.NewPayload(ctx, &newPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("%w: %w", ErrRewindInsertSyntheticFailed, err)
@@ -161,10 +197,33 @@ func (e *simpleEngineController) insertSyntheticPayload(ctx context.Context, blo
 			validationErr = *status.ValidationError
 		}
 		return common.Hash{}, fmt.Errorf("%w: status=%s validationError=%q blockNumber=%d parentHash=%s syntheticHash=%s",
-			ErrRewindSyntheticPayloadRejected, status.Status, validationErr, blockNumber, newPayload.ParentHash, syntheticHash)
+			ErrRewindSyntheticPayloadRejected, status.Status, validationErr, uint64(newPayload.BlockNumber), newPayload.ParentHash, syntheticHash)
 	}
 
 	return syntheticHash, nil
+}
+
+// reinsertCanonicalPayload re-submits the canonical target envelope via engine_newPayload.
+// It exists to guarantee the EL has the canonical block durably stored after the synthetic
+// FCU has made it non-canonical (and therefore potentially prune-eligible) but before we
+// FCU back to it.
+func (e *simpleEngineController) reinsertCanonicalPayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
+	payload := envelope.ExecutionPayload
+	e.log.Info("re-inserting canonical payload",
+		"blockNumber", uint64(payload.BlockNumber), "hash", payload.BlockHash, "parentHash", payload.ParentHash)
+	status, err := e.l2.NewPayload(ctx, payload, envelope.ParentBeaconBlockRoot)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrRewindReinsertCanonicalFailed, err)
+	}
+	if status.Status != eth.ExecutionValid {
+		validationErr := ""
+		if status.ValidationError != nil {
+			validationErr = *status.ValidationError
+		}
+		return fmt.Errorf("%w: status=%s validationError=%q blockNumber=%d hash=%s",
+			ErrRewindCanonicalPayloadRejected, status.Status, validationErr, uint64(payload.BlockNumber), payload.BlockHash)
+	}
+	return nil
 }
 
 // verifyRewindState checks that the engine's unsafe, safe, and finalized heads match the

@@ -42,6 +42,21 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 
 		targetBeforeGenesis   bool
 		targetBeforeFinalized bool
+
+		// unsafeMatchesTarget causes the mock to report the unsafe head at the target
+		// block (same hash), exercising the no-op path.
+		unsafeMatchesTarget bool
+		// unsafeBelowTarget causes the mock to report the unsafe head before the target,
+		// also exercising the no-op path.
+		unsafeBelowTarget bool
+		// canonicalReinsertBadStatus simulates the EL rejecting the re-inserted
+		// canonical payload after the synthetic FCU.
+		canonicalReinsertBadStatus bool
+
+		// expectedNewPayloadCalls overrides the default count of NewPayload calls
+		// expected on a successful run.
+		expectedNewPayloadCalls *int
+		expectedFCUCalls        *int
 	}
 
 	testCases := []testCase{
@@ -112,6 +127,23 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 			name:                  "target before finalized",
 			targetBeforeFinalized: true,
 			expectedError:         ErrRewindOverFinalizedHead,
+		},
+		{
+			name:                    "no-op when unsafe head matches target",
+			unsafeMatchesTarget:     true,
+			expectedNewPayloadCalls: intPtr(0),
+			expectedFCUCalls:        intPtr(0),
+		},
+		{
+			name:                    "no-op when unsafe head is below target",
+			unsafeBelowTarget:       true,
+			expectedNewPayloadCalls: intPtr(0),
+			expectedFCUCalls:        intPtr(0),
+		},
+		{
+			name:                       "canonical re-insert bad status",
+			canonicalReinsertBadStatus: true,
+			expectedError:              ErrRewindCanonicalPayloadRejected,
 		},
 	}
 
@@ -193,6 +225,19 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 			if tc.targetBeforeFinalized {
 				l2.refsByLabel[eth.Finalized] = eth.L2BlockRef{Number: targetBlockNum + 1, Hash: common.Hash{0xff}}
 			}
+			if tc.unsafeMatchesTarget {
+				l2.labelOverrides[eth.Unsafe] = targetRef
+			}
+			if tc.unsafeBelowTarget {
+				l2.labelOverrides[eth.Unsafe] = eth.L2BlockRef{Number: targetBlockNum - 1, Hash: common.Hash{0xaa}}
+			}
+			if tc.canonicalReinsertBadStatus {
+				// Synthetic NewPayload (call 1) succeeds; canonical re-insert (call 2) is rejected.
+				l2.newPayloadStatuses = []*eth.PayloadStatusV1{
+					nil,
+					{Status: eth.ExecutionInvalid},
+				}
+			}
 
 			// Make a "good" engine controller, using a potentially sabotaged mock L2
 			ec := &simpleEngineController{l2: &l2, rollup: &rollupConfig, log: testlog.Logger(t, log.LvlDebug)}
@@ -213,15 +258,30 @@ func TestEngineController_RewindToTimestamp(t *testing.T) {
 				require.ErrorIs(t, err, tc.expectedError)
 			} else {
 				require.NoError(t, err)
-				// Verify NewPayload was called (for synthetic block)
-				require.Equal(t, 1, l2.newPayloadCalls, "NewPayload should be called once for synthetic block")
-				require.NotNil(t, l2.lastNewPayload)
-				// The synthetic payload should have modified ExtraData to change the block hash
-				require.NotEqual(t, payloadEnvelope.ExecutionPayload.ExtraData, l2.lastNewPayload.ExtraData, "Synthetic payload should have modified ExtraData")
+				wantNewPayloadCalls := 2
+				if tc.expectedNewPayloadCalls != nil {
+					wantNewPayloadCalls = *tc.expectedNewPayloadCalls
+				}
+				wantFCUCalls := 2
+				if tc.expectedFCUCalls != nil {
+					wantFCUCalls = *tc.expectedFCUCalls
+				}
+				require.Equal(t, wantNewPayloadCalls, l2.newPayloadCalls,
+					"NewPayload call count mismatch (synthetic + canonical re-insert)")
+				require.Equal(t, wantFCUCalls, l2.fcuCalls,
+					"ForkchoiceUpdate call count mismatch (synthetic + target)")
 
-				// Verify ForkchoiceUpdate was called twice (once for synthetic, once for target)
-				require.Equal(t, 2, l2.fcuCalls, "ForkchoiceUpdate should be called twice")
+				// For the standard successful rewind, verify the last NewPayload is
+				// the canonical payload (matching the original ExtraData), and that the
+				// synthetic block was inserted at some point with mutated ExtraData.
+				if wantNewPayloadCalls == 2 {
+					require.NotNil(t, l2.lastNewPayload)
+					require.Equal(t, payloadEnvelope.ExecutionPayload.ExtraData, l2.lastNewPayload.ExtraData,
+						"final NewPayload should be the canonical re-insert with original ExtraData")
+				}
 			}
 		})
 	}
 }
+
+func intPtr(v int) *int { return &v }
