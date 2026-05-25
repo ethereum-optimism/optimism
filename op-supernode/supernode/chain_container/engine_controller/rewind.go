@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -21,7 +20,8 @@ const (
 )
 
 var (
-	ErrRewindTargetBlockNotFound        = errors.New("failed to get target block at timestamp")
+	ErrRewindNilTarget                  = errors.New("rewind requires a non-nil target payload")
+	ErrRewindTargetMismatch             = errors.New("rewind target payload inconsistent with rollup config")
 	ErrRewindComputeTargetsFailed       = errors.New("failed to compute rewind targets")
 	ErrRewindInsertSyntheticFailed      = errors.New("failed to insert synthetic payload")
 	ErrRewindSyntheticPayloadRejected   = errors.New("synthetic payload rejected by engine")
@@ -29,91 +29,102 @@ var (
 	ErrRewindCanonicalPayloadRejected   = errors.New("canonical payload rejected by engine on re-insert")
 	ErrRewindFCUSyntheticFailed         = errors.New("failed to FCU to synthetic block")
 	ErrRewindFCUTargetFailed            = errors.New("failed to FCU to target block")
-	ErrRewindVerificationFailed         = errors.New("rewind state verification failed")
 	ErrRewindFCURejected                = errors.New("forkchoice update rejected by engine")
 	ErrRewindTimestampToBlockConversion = errors.New("failed to convert timestamp to block number")
-	ErrRewindPayloadNotFound            = errors.New("failed to get payload for block")
 	ErrRewindOverFinalizedHead          = errors.New("cannot rewind over finalized head")
 	ErrRewindFCUHeadMismatch            = errors.New("FCU head did not converge to expected value")
 	ErrRewindCurrentUnsafeFailed        = errors.New("failed to get current unsafe block")
 )
 
-// RewindToTimestamp rewinds the L2 execution layer to the block at or before the given timestamp.
+// Rewind rewinds the L2 execution layer to the supplied target block.
+//
+// The target payload is authoritative — it must be loaded from durable storage (the supernode
+// WAL operation record) by the caller. The engine controller does not consult the live EL to
+// discover the target, because after a crash mid-rewind the EL's canonical chain at the target
+// height may be a synthetic block from the previous attempt rather than the original.
 //
 // The rewind is performed by:
 //  1. Inserting a synthetic block (modified extra data) sharing the target's parent and FCU-ing
-//     to it. This makes the original target block non-canonical.
-//  2. Re-inserting the original target payload via engine_newPayload. This guarantees the EL
-//     still has the block available even if its pruner has discarded the non-canonical block
-//     since step 1 (op-reth, for example, will prune blocks dropped from the canonical chain).
-//  3. FCU-ing back to the target block, which restores it as the canonical head.
+//     to it. This makes the original target block non-canonical in the EL's view.
+//  2. Re-inserting the supplied target payload via engine_newPayload. This guarantees the EL
+//     has the block durably stored before we ask it to become the head — pruners (op-reth in
+//     particular) may have removed the block while it sat non-canonical after step 1.
+//  3. FCU-ing to the target block, which restores it as the canonical head.
 //
-// If the chain is not actually ahead of the target block, the call is a no-op.
+// If the unsafe head already matches the target hash the call is a no-op.
 //
-// TODO: in future, we could push the implementation into the engine itself which would reduce the
-// number of RPC calls required and remove the need for the synthetic block to be inserted.
-func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
+// TODO: in future, we could push the implementation into the engine itself which would reduce
+// the number of RPC calls required and remove the need for the synthetic block to be inserted.
+func (e *simpleEngineController) Rewind(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
 	if e.l2 == nil {
 		return ErrNoEngineClient
 	}
-
-	// Step 0: infer the target block:
-	// [n-1,parent] <-- [n,target] <-- [m>n,unsafe]
-	targetBlock, err := e.blockAtTimestamp(ctx, timestamp)
-	if err != nil {
-		// If the EL does not have a block at the target height, the chain is strictly
-		// shorter than the requested rewind target — there is nothing to rewind.
-		if errors.Is(err, ethereum.NotFound) {
-			e.log.Info("rewind skipped: chain shorter than rewind target",
-				"timestamp", timestamp)
-			return nil
-		}
-		return fmt.Errorf("%w %d: %w", ErrRewindTargetBlockNotFound, timestamp, err)
+	if target == nil || target.ExecutionPayload == nil {
+		return ErrRewindNilTarget
 	}
 
-	// Step 0a: skip the rewind entirely if the unsafe head already matches the target.
-	// (We cannot be strictly behind the target here — step 0 would have returned NotFound.)
+	payload := target.ExecutionPayload
+	targetNumber := uint64(payload.BlockNumber)
+	targetTime := uint64(payload.Timestamp)
+	targetHash := payload.BlockHash
+
+	// Sanity-check the WAL'd payload against the rollup config: number and timestamp must agree.
+	if e.rollup != nil {
+		expectedNumber, err := e.rollup.TargetBlockNumber(targetTime)
+		if err != nil {
+			return fmt.Errorf("%w: %w", ErrRewindTimestampToBlockConversion, err)
+		}
+		if expectedNumber != targetNumber {
+			return fmt.Errorf("%w: payload number=%d timestamp=%d (rollup expects %d at that timestamp)",
+				ErrRewindTargetMismatch, targetNumber, targetTime, expectedNumber)
+		}
+	}
+
+	targetRef := eth.L2BlockRef{
+		Hash:       targetHash,
+		Number:     targetNumber,
+		ParentHash: payload.ParentHash,
+		Time:       targetTime,
+	}
+
+	// No-op if the unsafe head already matches the target hash. After step 0 we cannot be
+	// strictly *behind* the target in a well-formed run (the WAL only records targets that
+	// were canonical when the plan was built); if we are, the safe/finalized clamp below
+	// would be wrong, so we don't allow it.
 	unsafe, err := e.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRewindCurrentUnsafeFailed, err)
 	}
-	if unsafe.Hash == targetBlock.Hash {
+	if unsafe.Hash == targetHash {
 		e.log.Info("rewind skipped: unsafe head already at target",
-			"unsafeHash", unsafe.Hash, "targetHash", targetBlock.Hash, "timestamp", timestamp)
+			"unsafeHash", unsafe.Hash, "targetHash", targetHash, "targetNumber", targetNumber)
 		return nil
 	}
 
-	// Step 0b: fetch the canonical payload at the target height once. We use it both
-	// to derive the synthetic block and to re-insert the canonical block after the reorg.
-	targetEnvelope, err := e.l2.PayloadByNumber(ctx, targetBlock.Number)
-	if err != nil || targetEnvelope == nil || targetEnvelope.ExecutionPayload == nil {
-		return fmt.Errorf("%w for block %d: %w", ErrRewindPayloadNotFound, targetBlock.Number, err)
-	}
-
-	// Step 1: Insert a synthetic block (modified extra data) which
-	// is built on the parent of the target block:
+	// Step 1: Insert a synthetic block (modified extra data) which is built on the parent of
+	// the target block:
 	// [n-1,parent] <-- [n,target] <--...<-- [m>n,unsafe]
 	//
 	//                 [n,synthetic]
-	syntheticBlockHash, err := e.insertSyntheticPayload(ctx, targetEnvelope)
+	syntheticBlockHash, err := e.insertSyntheticPayload(ctx, target)
 	if err != nil {
 		return err
 	}
 
-	// Step 2: compute rewind targets for safe and finalized heads, ensuring they do not go forwards:
-	targetSafeBlock, targetFinalizedBlock, err := e.computeRewindTargets(ctx, targetBlock)
+	// Step 2: compute rewind targets for safe and finalized heads, ensuring they do not move
+	// forward.
+	targetSafeBlock, targetFinalizedBlock, err := e.computeRewindTargets(ctx, targetRef)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRewindComputeTargetsFailed, err)
 	}
 
-	// Step 3: FCU to the synthetic block to trigger a reorg, removing the target block
-	// from the canonical chain.
-	// We use the parent hash of the target block as the safe and finalized block
-	// in the FCU since these are guaranteed to be in the canonical chain of the synthetic block.
+	// Step 3: FCU to the synthetic block to trigger a reorg, removing the target block from
+	// the canonical chain. The parent of the target block is used as safe and finalized in
+	// the FCU since it is guaranteed to be in the canonical chain of the synthetic block.
 	// [n-1,parent]   [n,target]
 	//      |\
 	//       \_______ [n,synthetic,unsafe]
-	parentHash := targetBlock.ParentHash
+	parentHash := targetRef.ParentHash
 	if err := e.forkchoiceUpdateWithRetry(ctx, syntheticBlockHash, parentHash, parentHash); err != nil {
 		return fmt.Errorf("%w: %w", ErrRewindFCUSyntheticFailed, err)
 	}
@@ -122,23 +133,19 @@ func (e *simpleEngineController) RewindToTimestamp(ctx context.Context, timestam
 	// Step 4: re-insert the canonical target payload via engine_newPayload. The previous FCU
 	// to the synthetic block made the target block non-canonical, which means the EL is free
 	// to prune it (op-reth's pruner does so eagerly). Calling NewPayload again forces the EL
-	// to re-import the block and persist it before we ask it to become the head in step 5.
-	if err := e.reinsertCanonicalPayload(ctx, targetEnvelope); err != nil {
+	// to re-import the block before we ask it to become the head in step 5.
+	if err := e.reinsertCanonicalPayload(ctx, target); err != nil {
 		return err
 	}
 
-	// Step 5: FCU to the actual target block
+	// Step 5: FCU to the actual target block.
 	// [n-1,parent] <-- [n,target, unsafe]
 	//
 	//                  [n,synthetic]
-	if err := e.forkchoiceUpdateWithRetry(ctx, targetBlock.Hash, targetSafeBlock.Hash, targetFinalizedBlock.Hash); err != nil {
+	if err := e.forkchoiceUpdateWithRetry(ctx, targetHash, targetSafeBlock.Hash, targetFinalizedBlock.Hash); err != nil {
 		return fmt.Errorf("%w: %w", ErrRewindFCUTargetFailed, err)
 	}
-	e.log.Info("executed FCU to target block", "head", targetBlock.Hash, "safe", targetSafeBlock.Hash, "finalized", targetFinalizedBlock.Hash)
-
-	// Note: forkchoiceUpdateWithRetry calls verifyRewindState with the expected
-	// arguments, so if execution reaches here, we're done and there's no error
-	// to report
+	e.log.Info("executed FCU to target block", "head", targetHash, "safe", targetSafeBlock.Hash, "finalized", targetFinalizedBlock.Hash)
 
 	return nil
 }

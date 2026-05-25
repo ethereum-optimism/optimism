@@ -93,6 +93,9 @@ type ChainContainer interface {
 	GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error)
 	// OutputV0AtBlockNumber returns the full OutputV0 for the block at the given number.
 	OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error)
+	// PayloadByHash returns the canonical execution payload envelope for the given block hash.
+	// Used by interop build paths to capture canonical payloads for WAL'd rewind operations.
+	PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error)
 	// SetResetCallback sets a callback that is invoked when the chain resets.
 	// The supernode uses this to notify activities about chain resets.
 	SetResetCallback(cb ResetCallback)
@@ -108,14 +111,17 @@ type InteropChain interface {
 	// HasDeniedAtOrAfterTimestamp returns true if any deny-list entry has
 	// DecisionTimestamp >= timestamp, without mutating the deny list.
 	HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error)
-	// RewindEngine rewinds the engine to the highest block with timestamp less than
-	// or equal to the given timestamp. invalidatedBlock is the block that triggered
-	// the rewind and is passed to reset callbacks.
-	RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error
-	// InvalidateBlock adds a block to the deny list and triggers a rewind if the
-	// chain currently uses that block at the specified height. Returns true if a
-	// rewind was triggered, false otherwise.
-	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error)
+	// RewindEngine rewinds the engine to the supplied target block. target is the canonical
+	// payload at the rewind destination, loaded from durable WAL storage by the caller —
+	// not re-derived from the live engine. invalidatedBlock is the block that triggered the
+	// rewind and is passed to reset callbacks (it is purely informational).
+	RewindEngine(ctx context.Context, target *eth.ExecutionPayloadEnvelope, invalidatedBlock eth.BlockRef) error
+	// InvalidateBlock adds a block to the deny list and triggers a rewind if the chain
+	// currently uses that block at the specified height. parentPayload is the canonical
+	// payload at height-1 (the rewind destination) loaded from durable WAL storage —
+	// callers must capture it at build time, before the rewind starts. Returns true if
+	// a rewind was triggered, false otherwise.
+	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
@@ -585,6 +591,13 @@ func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, 
 }
 
 // FetchReceipts fetches the receipts for a given block by hash.
+func (c *simpleChainContainer) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	if c.engine == nil {
+		return nil, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.PayloadByHash(ctx, hash)
+}
+
 func (c *simpleChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
 	if c.engine == nil {
 		return nil, nil, engine_controller.ErrNoEngineClient
@@ -623,6 +636,8 @@ func (c *simpleChainContainer) attachInProcRollupClient() error {
 func isCriticalRewindError(err error) bool {
 	return errors.Is(err, engine_controller.ErrNoEngineClient) ||
 		errors.Is(err, engine_controller.ErrNoRollupConfig) ||
+		errors.Is(err, engine_controller.ErrRewindNilTarget) ||
+		errors.Is(err, engine_controller.ErrRewindTargetMismatch) ||
 		errors.Is(err, engine_controller.ErrRewindComputeTargetsFailed) ||
 		errors.Is(err, engine_controller.ErrRewindTimestampToBlockConversion) ||
 		errors.Is(err, engine_controller.ErrRewindOverFinalizedHead)
@@ -630,7 +645,11 @@ func isCriticalRewindError(err error) bool {
 
 // RewindEngine is part of the InteropChain interface — callers must hold that
 // wider interface (only interop transition application does) to invoke it.
-func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
+func (c *simpleChainContainer) RewindEngine(ctx context.Context, target *eth.ExecutionPayloadEnvelope, invalidatedBlock eth.BlockRef) error {
+	if target == nil || target.ExecutionPayload == nil {
+		return engine_controller.ErrRewindNilTarget
+	}
+	timestamp := uint64(target.ExecutionPayload.Timestamp)
 	if !c.resetting.CompareAndSwap(false, true) {
 		return fmt.Errorf("reset already in progress")
 	}
@@ -664,7 +683,7 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 
 retryLoop:
 	for {
-		err = c.engine.RewindToTimestamp(ctx, timestamp)
+		err = c.engine.Rewind(ctx, target)
 		switch {
 		case errors.Is(err, context.DeadlineExceeded):
 			c.log.Error("chain_container/RewindEngine: timeout exceeded")

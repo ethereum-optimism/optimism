@@ -157,12 +157,14 @@ func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, erro
 
 // mockEngineController is a mock implementation of engine_controller.EngineController
 type mockEngineController struct {
-	rewindToTimestampCalled  int
-	rewindTimestamp          uint64
+	rewindCalls              int
+	rewindTarget             *eth.ExecutionPayloadEnvelope
 	rewindErr                error
-	rewindFunc               func(ctx context.Context, timestamp uint64) error // optional custom behavior
+	rewindFunc               func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error // optional custom behavior
 	l2BlockRefByNumberResult eth.L2BlockRef
 	l2BlockRefByNumberErr    error
+	payloadByHashResult      *eth.ExecutionPayloadEnvelope
+	payloadByHashErr         error
 }
 
 func (m *mockEngineController) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
@@ -221,13 +223,17 @@ func newMockEngineController() *mockEngineController {
 func (m *mockEngineController) SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }
-func (m *mockEngineController) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
-	m.rewindToTimestampCalled++
-	m.rewindTimestamp = timestamp
+func (m *mockEngineController) Rewind(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
+	m.rewindCalls++
+	m.rewindTarget = target
 	if m.rewindFunc != nil {
-		return m.rewindFunc(ctx, timestamp)
+		return m.rewindFunc(ctx, target)
 	}
 	return m.rewindErr
+}
+
+func (m *mockEngineController) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	return m.payloadByHashResult, m.payloadByHashErr
 }
 
 // Interface conformance assertion
@@ -628,15 +634,24 @@ func TestChainContainer_PauseResume(t *testing.T) {
 
 // TestChainContainer_RewindEngine tests the RewindEngine method
 func TestChainContainer_RewindEngine(t *testing.T) {
-	t.Run("calls RewindToTimestamp on engine controller and stops VN", func(t *testing.T) {
-		// Setup
+	makeTarget := func(timestamp uint64) *eth.ExecutionPayloadEnvelope {
+		return &eth.ExecutionPayloadEnvelope{
+			ExecutionPayload: &eth.ExecutionPayload{
+				BlockNumber: eth.Uint64Quantity(99),
+				Timestamp:   eth.Uint64Quantity(timestamp),
+				BlockHash:   common.Hash{0xaa},
+				ParentHash:  common.Hash{0xab},
+			},
+		}
+	}
+
+	t.Run("calls engine Rewind with the supplied target and stops VN", func(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockEngine := newMockEngineController()
 
 		chainID := eth.ChainIDFromUInt64(420)
 		log := createTestLogger(t)
 
-		// Create container with mocks directly injected (no Start loop needed)
 		c := &simpleChainContainer{
 			chainID: chainID,
 			log:     log,
@@ -644,55 +659,59 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 			vn:      mockVN,
 		}
 
-		// Call RewindEngine
 		ctx := context.Background()
 		rewindTimestamp := uint64(1234567890)
+		target := makeTarget(rewindTimestamp)
 		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: rewindTimestamp + 2}
-		err := c.RewindEngine(ctx, rewindTimestamp, invalidatedBlock)
+		err := c.RewindEngine(ctx, target, invalidatedBlock)
 		require.NoError(t, err)
 
-		// Verify RewindToTimestamp was called with correct timestamp
-		require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should be called once")
-		require.Equal(t, rewindTimestamp, mockEngine.rewindTimestamp, "RewindToTimestamp should be called with correct timestamp")
+		require.Equal(t, 1, mockEngine.rewindCalls, "engine.Rewind should be called once")
+		require.Same(t, target, mockEngine.rewindTarget, "engine.Rewind should receive the supplied target envelope")
 
-		// Verify the virtual node was stopped
 		mockVN.mu.Lock()
 		require.Equal(t, 1, mockVN.stopCalled, "Virtual node should be stopped once")
 		mockVN.mu.Unlock()
 
-		// Verify container state: paused should be false (resumed), allowing new VN to start
 		require.False(t, c.pause.Load(), "Container should be resumed after rewind")
 	})
 
-	t.Run("retries transient errors and eventually fails", func(t *testing.T) {
-		// Setup - transient error should be retried
+	t.Run("rejects nil target without touching the engine", func(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockEngine := newMockEngineController()
-		mockEngine.rewindErr = engine_controller.ErrRewindFCUSyntheticFailed
-
-		chainID := eth.ChainIDFromUInt64(420)
-		log := createTestLogger(t)
 
 		c := &simpleChainContainer{
-			chainID: chainID,
-			log:     log,
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
 			engine:  mockEngine,
 			vn:      mockVN,
 		}
 
-		// Call RewindEngine - should retry and eventually fail
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second) // this will prevent infinite retries
+		err := c.RewindEngine(context.Background(), nil, eth.BlockRef{})
+		require.ErrorIs(t, err, engine_controller.ErrRewindNilTarget)
+		require.Equal(t, 0, mockEngine.rewindCalls)
+	})
+
+	t.Run("retries transient errors and eventually fails", func(t *testing.T) {
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+		mockEngine.rewindErr = engine_controller.ErrRewindFCUSyntheticFailed
+
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
-		err := c.RewindEngine(ctx, 12345, invalidatedBlock)
+		err := c.RewindEngine(ctx, makeTarget(12345), invalidatedBlock)
 		require.Error(t, err)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 
-		// Verify RewindToTimestamp was called multiple times (retry attempts)
-		require.Greater(t, mockEngine.rewindToTimestampCalled, 1, "RewindToTimestamp should be retried at least once")
-
-		// Container should be resumed even after a failed rewind, so the Start() loop
-		// can detect the stop flag and exit cleanly instead of spinning forever.
+		require.Greater(t, mockEngine.rewindCalls, 1, "engine.Rewind should be retried at least once")
 		require.False(t, c.pause.Load(), "Container should be resumed (not stuck paused) after failed rewind")
 	})
 
@@ -705,71 +724,56 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 			{"ErrNoRollupConfig", engine_controller.ErrNoRollupConfig},
 			{"ErrRewindComputeTargetsFailed", engine_controller.ErrRewindComputeTargetsFailed},
 			{"ErrRewindTimestampToBlockConversion", engine_controller.ErrRewindTimestampToBlockConversion},
+			{"ErrRewindNilTarget", engine_controller.ErrRewindNilTarget},
+			{"ErrRewindTargetMismatch", engine_controller.ErrRewindTargetMismatch},
 		}
 
 		for _, tc := range criticalErrors {
 			t.Run(tc.name, func(t *testing.T) {
-				// Setup - critical error should not be retried
 				mockVN := newMockVirtualNode()
 				mockEngine := newMockEngineController()
 				mockEngine.rewindErr = tc.err
 
-				chainID := eth.ChainIDFromUInt64(420)
-				log := createTestLogger(t)
-
 				c := &simpleChainContainer{
-					chainID: chainID,
-					log:     log,
+					chainID: eth.ChainIDFromUInt64(420),
+					log:     createTestLogger(t),
 					engine:  mockEngine,
 					vn:      mockVN,
 				}
 
-				// Call RewindEngine - should fail immediately without retry
-				ctx := context.Background()
 				invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
-				err := c.RewindEngine(ctx, 12345, invalidatedBlock)
+				err := c.RewindEngine(context.Background(), makeTarget(12345), invalidatedBlock)
 				require.Error(t, err)
 				require.ErrorIs(t, err, tc.err)
-
-				// Verify RewindToTimestamp was called only once (no retry for critical errors)
-				require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be retried for critical errors")
+				require.Equal(t, 1, mockEngine.rewindCalls, "engine.Rewind should not be retried for critical errors")
 			})
 		}
 	})
 
 	t.Run("returns error when VN stop fails", func(t *testing.T) {
-		// Setup
 		mockVN := newMockVirtualNode()
 		mockVN.stopErr = context.DeadlineExceeded
 		mockEngine := newMockEngineController()
 
-		chainID := eth.ChainIDFromUInt64(420)
-		log := createTestLogger(t)
-
 		c := &simpleChainContainer{
-			chainID: chainID,
-			log:     log,
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
 			engine:  mockEngine,
 			vn:      mockVN,
 		}
 
-		// Call RewindEngine - should fail on VN stop
-		ctx := context.Background()
 		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
-		err := c.RewindEngine(ctx, 12345, invalidatedBlock)
+		err := c.RewindEngine(context.Background(), makeTarget(12345), invalidatedBlock)
 		require.Error(t, err)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
-
-		// Verify RewindToTimestamp was NOT called since VN stop failed
-		require.Equal(t, 0, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be called when VN stop fails")
+		require.Equal(t, 0, mockEngine.rewindCalls, "engine.Rewind should not be called when VN stop fails")
 	})
 
 	t.Run("succeeds after transient error on retry", func(t *testing.T) {
-		// Setup - fail first 2 attempts, succeed on 3rd
 		mockVN := newMockVirtualNode()
 		mockEngine := newMockEngineController()
 		failCount := 0
-		mockEngine.rewindFunc = func(ctx context.Context, timestamp uint64) error {
+		mockEngine.rewindFunc = func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
 			failCount++
 			if failCount < 3 {
 				return engine_controller.ErrRewindFCUTargetFailed
@@ -777,26 +781,17 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 			return nil
 		}
 
-		chainID := eth.ChainIDFromUInt64(420)
-		log := createTestLogger(t)
-
 		c := &simpleChainContainer{
-			chainID: chainID,
-			log:     log,
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
 			engine:  mockEngine,
 			vn:      mockVN,
 		}
 
-		// Call RewindEngine - should succeed after retries
-		ctx := context.Background()
 		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
-		err := c.RewindEngine(ctx, 12345, invalidatedBlock)
+		err := c.RewindEngine(context.Background(), makeTarget(12345), invalidatedBlock)
 		require.NoError(t, err)
-
-		// Verify RewindToTimestamp was called 3 times (2 failures + 1 success)
-		require.Equal(t, 3, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should be called 3 times")
-
-		// Container should be resumed after successful rewind
+		require.Equal(t, 3, mockEngine.rewindCalls, "engine.Rewind should be called 3 times (2 failures + 1 success)")
 		require.False(t, c.pause.Load(), "Container should be resumed after successful rewind")
 	})
 }

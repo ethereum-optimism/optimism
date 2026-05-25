@@ -366,9 +366,15 @@ func (d *DenyList) Close() error {
 // that wider interface (only interop transition application does) to invoke it.
 // Adds a block to the deny list and triggers a rewind if the chain currently
 // uses that block at the specified height.
+//
+// parentPayload is the canonical payload at height-1 (the rewind destination) captured
+// at build time by the caller and persisted in the WAL. The engine controller uses it
+// to drive the rewind without consulting the live EL, which protects against partial
+// reorg state left by a crash mid-rewind.
+//
 // Returns true if a rewind was triggered, false otherwise.
 // Note: Genesis block (height=0) cannot be invalidated as there is no prior block to rewind to.
-func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
+func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
 	if c.denyList == nil {
 		return false, fmt.Errorf("deny list not initialized")
 	}
@@ -376,6 +382,14 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	// Cannot invalidate genesis block - there is no prior block to rewind to
 	if height == 0 {
 		return false, fmt.Errorf("cannot invalidate genesis block (height=0)")
+	}
+
+	if parentPayload == nil || parentPayload.ExecutionPayload == nil {
+		return false, fmt.Errorf("invalidate block at height %d: %w", height, engine_controller.ErrRewindNilTarget)
+	}
+	if expectedParentNumber := height - 1; uint64(parentPayload.ExecutionPayload.BlockNumber) != expectedParentNumber {
+		return false, fmt.Errorf("invalidate block at height %d: parent payload block number %d does not match expected %d",
+			height, uint64(parentPayload.ExecutionPayload.BlockNumber), expectedParentNumber)
 	}
 
 	// Add to deny list with the output preimage fields
@@ -429,15 +443,17 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 
 	invalidatedBlock := currentBlock.BlockRef()
 
-	// Rewind to the prior block's timestamp
-	priorTimestamp, err := c.BlockNumberToTimestamp(ctx, height-1)
-	if err != nil {
-		return false, fmt.Errorf("failed to compute rewind timestamp: %w", err)
+	// Cross-check the WAL'd parent payload against what the live chain sees as the parent.
+	if invalidatedBlock.ParentHash != parentPayload.ExecutionPayload.BlockHash {
+		return false, fmt.Errorf("parent payload hash %s does not match invalidated block's parent %s",
+			parentPayload.ExecutionPayload.BlockHash, invalidatedBlock.ParentHash)
 	}
-	if err := c.RewindEngine(ctx, priorTimestamp, invalidatedBlock); err != nil {
+
+	if err := c.RewindEngine(ctx, parentPayload, invalidatedBlock); err != nil {
 		return false, fmt.Errorf("failed to rewind engine: %w", err)
 	}
 
+	priorTimestamp := uint64(parentPayload.ExecutionPayload.Timestamp)
 	c.log.Info("rewind completed after block invalidation",
 		"invalidatedHeight", height,
 		"rewindToTimestamp", priorTimestamp,
