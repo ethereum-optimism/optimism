@@ -2,8 +2,10 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -27,6 +29,19 @@ func (ev PayloadSuccessEvent) String() string {
 func (e *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEvent) {
 	if ev.DerivedFrom == ReplaceBlockSource {
 		e.log.Warn("Successfully built replacement block, resetting chain to continue now", "replacement", ev.Ref)
+		// Invariant: the replacement block we just built must not itself be on
+		// the deny list. The replacement is produced by deposits-only derivation
+		// in response to a denied payload at the same height — if the result is
+		// somehow denied too, forceReset would re-cap on the next reset and the
+		// chain would loop. Fail loudly rather than silently corrupting state.
+		if e.superAuthority != nil {
+			if denied, err := e.superAuthority.IsDenied(ev.Ref.Number, ev.Ref.Hash); err == nil && denied {
+				critErr := fmt.Errorf("replacement block %s is itself on the deny list — refusing to forceReset", ev.Ref)
+				e.log.Error("replacement block on deny list, surfacing critical error", "replacement", ev.Ref)
+				e.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: critErr}) // make the node exit, things are very wrong.
+				return
+			}
+		}
 		// Change the engine state to make the replacement block the cross-safe head of the chain,
 		// And continue syncing from there.
 		e.forceReset(ctx, ev.Ref, ev.Ref, ev.Ref, ev.Ref, e.Finalized(), false)

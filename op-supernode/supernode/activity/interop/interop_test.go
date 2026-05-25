@@ -1134,12 +1134,12 @@ func TestApplyResultCompat(t *testing.T) {
 }
 
 // =============================================================================
-// TestInvalidateBlock
+// TestRecordInvalidation
 // =============================================================================
 
-// TestInvalidateBlock verifies the invalidateBlock method correctly calls
+// TestRecordInvalidation verifies the invalidateBlock method correctly calls
 // ChainContainer.InvalidateBlock with the right parameters and handles errors.
-func TestInvalidateBlock(t *testing.T) {
+func TestRecordInvalidation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -1148,14 +1148,14 @@ func TestInvalidateBlock(t *testing.T) {
 		run   func(t *testing.T, h *interopTestHarness)
 	}{
 		{
-			name: "calls chain.InvalidateBlock with correct args",
+			name: "calls chain.RecordInvalidation with correct args",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithChain(10, nil).Build()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{})
+				err := h.interop.recordInvalidation(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{})
 				require.NoError(t, err)
 
 				require.Len(t, mock.invalidateBlockCalls, 1)
@@ -1172,7 +1172,7 @@ func TestInvalidateBlock(t *testing.T) {
 				mock := h.Mock(10)
 				unknownChain := eth.ChainIDFromUInt64(999)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(unknownChain, blockID, 0, eth.Bytes32{}, eth.Bytes32{})
+				err := h.interop.recordInvalidation(unknownChain, blockID, 0, eth.Bytes32{}, eth.Bytes32{})
 
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "not found")
@@ -1180,7 +1180,7 @@ func TestInvalidateBlock(t *testing.T) {
 			},
 		},
 		{
-			name: "returns error when chain.InvalidateBlock fails",
+			name: "returns error when chain.RecordInvalidation fails",
 			setup: func(h *interopTestHarness) *interopTestHarness {
 				return h.WithChain(10, func(m *mockChainContainer) {
 					m.invalidateBlockErr = errors.New("engine failure")
@@ -1189,7 +1189,7 @@ func TestInvalidateBlock(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{})
+				err := h.interop.recordInvalidation(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{})
 
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "engine failure")
@@ -1697,9 +1697,8 @@ type mockChainContainer struct {
 	lastRequestedTimestamp uint64
 	mu                     sync.Mutex
 
-	// InvalidateBlock tracking
+	// recordInvalidation tracking
 	invalidateBlockCalls []invalidateBlockCall
-	invalidateBlockRet   bool
 	invalidateBlockErr   error
 	pruneDeniedResult    map[uint64][]common.Hash
 	rewindEngineCalls    []uint64
@@ -1958,16 +1957,16 @@ func (m *mockChainContainer) BlockTime() uint64 {
 	}
 	return 1
 }
-func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
+func (m *mockChainContainer) RecordInvalidation(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
 	m.mu.Lock()
 	m.invalidateBlockCalls = append(m.invalidateBlockCalls, invalidateBlockCall{
 		height: height, payloadHash: payloadHash, stateRoot: stateRoot, messagePasserStorageRoot: messagePasserStorageRoot,
 	})
 	m.mu.Unlock()
 	if m.callLog != nil {
-		m.callLog.record(m.id, "InvalidateBlock")
+		m.callLog.record(m.id, "RecordInvalidation")
 	}
-	return m.invalidateBlockRet, m.invalidateBlockErr
+	return m.invalidateBlockErr
 }
 func (m *mockChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
 	if m.outputV0Override != nil {
@@ -2018,7 +2017,7 @@ func TestWAL_PreservedOnInvalidationFailure(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithChain(10, func(m *mockChainContainer) {
 			m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
-			m.invalidateBlockErr = errors.New("engine failure") // InvalidateBlock will fail
+			m.invalidateBlockErr = errors.New("engine failure") // RecordInvalidation will fail
 		}).
 		Build()
 
@@ -2759,9 +2758,10 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 // TestFreezeAllBeforeRewind verifies the freeze-all-then-resume behavior
 // introduced in applyPendingTransition for DecisionInvalidate:
 //   - All chains (not just invalidated ones) are frozen via PauseAndStopVN
-//     before any invalidateBlock call
-//   - Only non-invalidated chains are resumed after the invalidation loop
-//   - Invalidated chains are NOT resumed (RewindEngine handles that internally)
+//     before any RecordInvalidation call
+//   - After the invalidation loop, ALL chains are resumed: invalidated chains
+//     first (so their VNs restart and apply the deny-list cap before
+//     non-invalidated chains observe the post-reorg state), then the rest.
 func TestFreezeAllBeforeRewind(t *testing.T) {
 	t.Parallel()
 
@@ -2814,21 +2814,21 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 		require.Equal(t, 1, h.Mock(8453).pauseAndStopVNCalls, "chain 8453 should be frozen")
 		require.Equal(t, 1, h.Mock(42).pauseAndStopVNCalls, "chain 42 should be frozen")
 
-		// Find the index of the first InvalidateBlock call.
+		// Find the index of the first RecordInvalidation call.
 		firstInvalidateIdx := -1
 		for i, e := range entries {
-			if e.method == "InvalidateBlock" {
+			if e.method == "RecordInvalidation" {
 				firstInvalidateIdx = i
 				break
 			}
 		}
 		require.NotEqual(t, -1, firstInvalidateIdx, "should have at least one InvalidateBlock call")
 
-		// Every PauseAndStopVN must come before the first InvalidateBlock.
+		// Every PauseAndStopVN must come before the first RecordInvalidation.
 		for i, e := range entries {
 			if e.method == "PauseAndStopVN" {
 				require.Less(t, i, firstInvalidateIdx,
-					"PauseAndStopVN on chain %s (index %d) must precede first InvalidateBlock (index %d)",
+					"PauseAndStopVN on chain %s (index %d) must precede first RecordInvalidation (index %d)",
 					e.chainID, i, firstInvalidateIdx)
 			}
 		}
@@ -2879,10 +2879,33 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 		_, err = h.interop.applyPendingTransition(pending)
 		require.NoError(t, err)
 
-		// Only chain 42 (non-invalidated) should have Resume called.
-		require.Equal(t, 0, h.Mock(10).resumeCalls, "invalidated chain 10 should NOT be resumed")
-		require.Equal(t, 0, h.Mock(8453).resumeCalls, "invalidated chain 8453 should NOT be resumed")
-		require.Equal(t, 1, h.Mock(42).resumeCalls, "non-invalidated chain 42 should be resumed")
+		// Every chain — invalidated or not — should have Resume called once
+		// so its VN restarts. Invalidated chains restart so the deny-list cap
+		// fires during their reset; non-invalidated chains restart so they
+		// resume normal operation after the freeze.
+		require.Equal(t, 1, h.Mock(10).resumeCalls, "invalidated chain 10 must be resumed (cap fires on restart)")
+		require.Equal(t, 1, h.Mock(8453).resumeCalls, "invalidated chain 8453 must be resumed")
+		require.Equal(t, 1, h.Mock(42).resumeCalls, "non-invalidated chain 42 must be resumed")
+
+		// Invalidated chains must be resumed before non-invalidated ones.
+		invalidated := map[eth.ChainID]bool{chain10: true, chain8453: true}
+		entries := cl.snapshot()
+		lastInvalidatedResumeIdx := -1
+		firstNonInvalidatedResumeIdx := -1
+		for i, e := range entries {
+			if e.method != "Resume" {
+				continue
+			}
+			if invalidated[e.chainID] {
+				lastInvalidatedResumeIdx = i
+			} else if firstNonInvalidatedResumeIdx == -1 {
+				firstNonInvalidatedResumeIdx = i
+			}
+		}
+		require.NotEqual(t, -1, lastInvalidatedResumeIdx)
+		require.NotEqual(t, -1, firstNonInvalidatedResumeIdx)
+		require.Less(t, lastInvalidatedResumeIdx, firstNonInvalidatedResumeIdx,
+			"all invalidated-chain Resumes must precede non-invalidated Resumes")
 	})
 
 	t.Run("resume happens after all invalidations", func(t *testing.T) {
@@ -2925,26 +2948,26 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 
 		entries := cl.snapshot()
 
-		// Find the last InvalidateBlock index.
+		// Find the last RecordInvalidation index.
 		lastInvalidateIdx := -1
 		for i, e := range entries {
-			if e.method == "InvalidateBlock" {
+			if e.method == "RecordInvalidation" {
 				lastInvalidateIdx = i
 			}
 		}
 		require.NotEqual(t, -1, lastInvalidateIdx)
 
-		// Every Resume must come after the last InvalidateBlock.
+		// Every Resume must come after the last RecordInvalidation.
 		for i, e := range entries {
 			if e.method == "Resume" {
 				require.Greater(t, i, lastInvalidateIdx,
-					"Resume on chain %s (index %d) must follow last InvalidateBlock (index %d)",
+					"Resume on chain %s (index %d) must follow last RecordInvalidation (index %d)",
 					e.chainID, i, lastInvalidateIdx)
 			}
 		}
 	})
 
-	t.Run("single chain invalidated freezes and does not resume", func(t *testing.T) {
+	t.Run("single chain invalidated is frozen then resumed", func(t *testing.T) {
 		cl := &callLog{}
 		h := newInteropTestHarness(t).
 			WithChain(10, func(m *mockChainContainer) {
@@ -2955,7 +2978,8 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 
 		chain10 := h.Mock(10).id
 
-		// The only chain is invalidated — no chain should be resumed.
+		// The only chain is invalidated and should still be resumed so its VN
+		// restarts and applies the deny-list cap.
 		invalidResult := Result{
 			Timestamp:   1000,
 			L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
@@ -2977,11 +3001,6 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, 1, h.Mock(10).pauseAndStopVNCalls, "chain should be frozen")
-		require.Equal(t, 0, h.Mock(10).resumeCalls, "invalidated chain should NOT be resumed")
-
-		entries := cl.snapshot()
-		for _, e := range entries {
-			require.NotEqual(t, "Resume", e.method, "no Resume calls expected when all chains are invalidated")
-		}
+		require.Equal(t, 1, h.Mock(10).resumeCalls, "invalidated chain must be resumed so its VN restarts and the cap fires")
 	})
 }

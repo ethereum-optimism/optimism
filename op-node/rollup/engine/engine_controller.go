@@ -550,6 +550,40 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 		e.SetCrossUnsafeHead(e.SafeL2Head()) // preserve cross-safety, don't fall back to a non-cross safety level
 		e.log.Info("Set initial cross-unsafe block ref to match cross-safe", "cross_unsafe", e.SafeL2Head())
 	}
+	// Apply deny-list cap to the values just loaded from the EL. This ensures
+	// local-safe (and finalized) are strictly below any still-canonical denied
+	// block before any FCU is issued; the downstream consolidation path then
+	// re-derives the denied block as deposits-only and reorgs unsafe.
+	// Idempotent: re-entry via tryUpdateEngineInternal is a no-op once heads
+	// are already capped.
+	if e.superAuthority != nil && e.localSafeHead != (eth.L2BlockRef{}) {
+		result := &sync.FindHeadsResult{
+			Unsafe:    e.unsafeHead,
+			Safe:      e.localSafeHead,
+			Finalized: e.FinalizedHead(),
+		}
+		if err := sync.ApplyDenyCap(ctx, e.engine, e.superAuthority, result); err != nil {
+			return fmt.Errorf("apply deny-list cap during init: %w", err)
+		}
+		if result.Safe != e.localSafeHead {
+			e.log.Warn("Applied deny-list cap to initial local-safe head",
+				"prev_safe", e.localSafeHead, "capped_safe", result.Safe)
+			e.SetLocalSafeHead(result.Safe)
+			// deprecatedSafeHead may have just been initialised from the uncapped
+			// localSafeHead a few lines above; keep it consistent.
+			if e.deprecatedSafeHead.Number > result.Safe.Number {
+				e.SetDeprecatedSafeHead(result.Safe)
+			}
+			if e.crossUnsafeHead.Number > result.Safe.Number {
+				e.SetCrossUnsafeHead(result.Safe)
+			}
+		}
+		if result.Finalized != e.FinalizedHead() {
+			e.log.Warn("Applied deny-list cap to initial finalized head",
+				"prev_finalized", e.FinalizedHead(), "capped_finalized", result.Finalized)
+			e.SetFinalizedHead(result.Finalized)
+		}
+	}
 	return nil
 }
 
@@ -1196,7 +1230,7 @@ func (e *EngineController) AddUnsafePayload(ctx context.Context, envelope *eth.E
 
 // onResetEngineRequest handles the ResetEngineRequestEvent by finding L2 heads and performing a force reset
 func (e *EngineController) onResetEngineRequest(ctx context.Context) {
-	result, err := sync.FindL2Heads(e.ctx, e.rollupCfg, e.l1, e.engine, e.log, e.syncCfg)
+	result, err := sync.FindL2Heads(e.ctx, e.rollupCfg, e.l1, e.engine, e.log, e.syncCfg, e.superAuthority)
 	if err != nil {
 		e.emitter.Emit(ctx, rollup.ResetEvent{
 			Err: fmt.Errorf("failed to find the L2 Heads to start from: %w", err),
@@ -1217,7 +1251,7 @@ func (e *EngineController) TryInitialResetEngineForSequencer(ctx context.Context
 		return
 	}
 	e.log.Info("EngineController Unsafe head was not initialized at the start of the reset")
-	result, err := sync.FindL2Heads(e.ctx, e.rollupCfg, e.l1, e.engine, e.log, e.syncCfg)
+	result, err := sync.FindL2Heads(e.ctx, e.rollupCfg, e.l1, e.engine, e.log, e.syncCfg, e.superAuthority)
 	if err != nil {
 		e.log.Warn("Failed to find L2 Heads to start from while initial reset: %w", err)
 		// Do not emit ResetEvent because it will end propagating ForkchoiceUpdateEvent

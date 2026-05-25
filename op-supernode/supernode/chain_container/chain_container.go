@@ -99,7 +99,7 @@ type ChainContainer interface {
 }
 
 // WARNING: InteropChain exposes the reorg-triggering operations (RewindEngine,
-// InvalidateBlock) that bypass the interop WAL model when invoked outside of
+// RecordInvalidation) that bypass the interop WAL model when invoked outside of
 // interop transition application. ONLY the interop activity should accept or
 // hold a value of this interface. Every other caller must take the narrower
 // ChainContainer above so the misuse is caught at compile time.
@@ -110,12 +110,16 @@ type InteropChain interface {
 	HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error)
 	// RewindEngine rewinds the engine to the highest block with timestamp less than
 	// or equal to the given timestamp. invalidatedBlock is the block that triggered
-	// the rewind and is passed to reset callbacks.
+	// the rewind and is passed to reset callbacks. Used by the DecisionRewind path
+	// for whole-chain rewinds (not the deny-list-driven invalidation path; see
+	// RecordInvalidation).
 	RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error
-	// InvalidateBlock adds a block to the deny list and triggers a rewind if the
-	// chain currently uses that block at the specified height. Returns true if a
-	// rewind was triggered, false otherwise.
-	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error)
+	// RecordInvalidation persists a denied payload hash (and its OutputV0
+	// preimages) at the given height. The chain reorg is driven by the cap
+	// applied during the next VN reset (see SuperAuthority.CanonicalDeniedHeight
+	// and sync.ApplyDenyCap), not by this call. Callers must therefore restart
+	// the VN after RecordInvalidation completes.
+	RecordInvalidation(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode

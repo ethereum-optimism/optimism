@@ -152,6 +152,22 @@ func (c *simpleChainContainer) GetDeniedOutput(height uint64, payloadHash common
 	return c.denyList.GetOutputV0(height, payloadHash)
 }
 
+// CanonicalDeniedHeight returns the lowest deny-list-entry height that is
+// currently canonical according to the provided L2 chain probe. See the
+// rollup.SuperAuthority interface for the full contract.
+func (c *simpleChainContainer) CanonicalDeniedHeight(ctx context.Context, canonical rollup.CanonicalChain) (uint64, bool, error) {
+	if c.denyList == nil {
+		return 0, false, nil
+	}
+	return c.denyList.CanonicalDeniedHeight(ctx, func(ctx context.Context, h uint64) (common.Hash, error) {
+		ref, err := canonical.L2BlockRefByNumber(ctx, h)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		return ref.Hash, nil
+	})
+}
+
 // OutputV0AtBlockNumber returns the full OutputV0 for the block at the given number.
 func (c *simpleChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
 	if c.engine == nil {

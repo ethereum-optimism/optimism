@@ -76,7 +76,7 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 		SeqWindowSize: c.SeqWindowSize,
 	}
 	lgr := log.NewLogger(log.DiscardHandler())
-	result, err := FindL2Heads(context.Background(), cfg, chain, chain, lgr, &Config{})
+	result, err := FindL2Heads(context.Background(), cfg, chain, chain, lgr, &Config{}, nil)
 	if c.ExpectedErr != nil {
 		require.ErrorIs(t, err, c.ExpectedErr, "expected error")
 		return
@@ -464,7 +464,7 @@ func TestL2HeadsForELSyncWithOffset(t *testing.T) {
 			m := &testutils.MockL2Client{}
 			tt.stub(m)
 			syncCfg := &Config{OffsetELSafe: tt.offset}
-			result, err := L2HeadsForELSyncWithOffset(ctx, cfg, m, syncCfg, tt.tip)
+			result, err := L2HeadsForELSyncWithOffset(ctx, cfg, m, syncCfg, tt.tip, nil)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

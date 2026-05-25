@@ -1,10 +1,20 @@
 package rollup
 
 import (
+	"context"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
+
+// CanonicalChain is the minimal probe used by SuperAuthority.CanonicalDeniedHeight
+// to ask "what is the canonical block at this L2 height?". Implementations are
+// expected to return the EL's view of the canonical chain (e.g. via
+// eth_getBlockByNumber).
+type CanonicalChain interface {
+	L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error)
+}
 
 // SuperAuthority provides payload validation functionality from a supernode.
 // When running inside a supernode, this allows the engine controller to check
@@ -24,6 +34,20 @@ type SuperAuthority interface {
 	// Returns true if the payload should not be applied.
 	// The error indicates if the check could not be performed (should be logged but not fatal).
 	IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error)
+	// CanonicalDeniedHeight returns the lowest L2 block height with a deny-list
+	// entry whose payload hash matches the canonical hash at that height,
+	// walking the deny list from highest to lowest. Iteration stops at the
+	// first height where no denied entry is canonical (assuming monotone
+	// canonicality: once a denied block has been reorged out, lower entries
+	// that are parents of the still-canonical chain are also reorged out).
+	//
+	// Returns (height, true, nil) when a canonical denied entry is found.
+	// Returns (0, false, nil) when the deny list is empty or no entries are canonical.
+	//
+	// Used at reset time to cap the safe head to (height - 1) so that derivation
+	// re-derives the denied block, hits the IsDenied check, and emits
+	// deposits-only attributes that replace the block via consolidation.
+	CanonicalDeniedHeight(ctx context.Context, canonical CanonicalChain) (uint64, bool, error)
 }
 
 // SafeHeadListener is called when the safe head is updated.

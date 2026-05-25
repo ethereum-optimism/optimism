@@ -7,12 +7,9 @@ import (
 	"sync"
 	"testing"
 
-	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -293,44 +290,6 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 	}
 }
 
-// mockEngineForInvalidation implements engine_controller.EngineController for invalidation tests
-type mockEngineForInvalidation struct {
-	blockRef        eth.L2BlockRef
-	blockRefErr     error
-	rewindCalled    bool
-	rewindTimestamp uint64
-}
-
-func (m *mockEngineForInvalidation) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
-	return nil, nil
-}
-
-func (m *mockEngineForInvalidation) OutputV0ByBlockHash(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
-	return nil, nil
-}
-
-func (m *mockEngineForInvalidation) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
-	m.rewindCalled = true
-	m.rewindTimestamp = timestamp
-	return nil
-}
-
-func (m *mockEngineForInvalidation) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
-	return nil, nil, nil
-}
-
-func (m *mockEngineForInvalidation) Close() error {
-	return nil
-}
-
-func (m *mockEngineForInvalidation) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
-	return m.blockRef, m.blockRefErr
-}
-
-func (m *mockEngineForInvalidation) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
-	return eth.L2BlockRef{}, nil
-}
-
 // mockVNForInvalidation implements virtual_node.VirtualNode for invalidation tests
 type mockVNForInvalidation struct {
 	stopErr error
@@ -356,228 +315,99 @@ func (m *mockVNForInvalidation) SyncStatus(ctx context.Context) (*eth.SyncStatus
 
 var _ virtual_node.VirtualNode = (*mockVNForInvalidation)(nil)
 
-func TestInvalidateBlock(t *testing.T) {
+func TestRecordInvalidation(t *testing.T) {
 	t.Parallel()
 
-	genesisTime := uint64(1000)
-	blockTime := uint64(2)
+	stateRoot := eth.Bytes32(common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111"))
+	msgPasserRoot := eth.Bytes32(common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222"))
+	payloadHash := common.HexToHash("0xbad")
 
-	tests := []struct {
-		name             string
-		genesisBlock     uint64
-		height           uint64
-		payloadHash      common.Hash
-		currentBlockHash common.Hash
-		expectRewind     bool
-		expectRewindTs   uint64
-	}{
-		{
-			name:             "current block matches triggers rewind",
-			genesisBlock:     0,
-			height:           5,
-			payloadHash:      common.HexToHash("0xdead"),
-			currentBlockHash: common.HexToHash("0xdead"), // Same hash
-			expectRewind:     true,
-			expectRewindTs:   genesisTime + (4 * blockTime), // height-1 timestamp
-		},
-		{
-			name:             "current block differs no rewind",
-			genesisBlock:     0,
-			height:           5,
-			payloadHash:      common.HexToHash("0xdead"),
-			currentBlockHash: common.HexToHash("0xbeef"), // Different hash
-			expectRewind:     false,
-		},
-		{
-			name:             "rewind to height-1 timestamp calculated correctly",
-			genesisBlock:     0,
-			height:           10,
-			payloadHash:      common.HexToHash("0xabcd"),
-			currentBlockHash: common.HexToHash("0xabcd"),
-			expectRewind:     true,
-			expectRewindTs:   genesisTime + (9 * blockTime), // height 9
-		},
-		{
-			name:             "rewind timestamp respects nonzero genesis block number",
-			genesisBlock:     100,
-			height:           105,
-			payloadHash:      common.HexToHash("0xcafe"),
-			currentBlockHash: common.HexToHash("0xcafe"),
-			expectRewind:     true,
-			expectRewindTs:   genesisTime + (4 * blockTime), // block 104 relative to genesis block 100
-		},
-	}
-
-	// Separate test for genesis block (height=0) which should error
-	t.Run("genesis block invalidation returns error", func(t *testing.T) {
-		t.Parallel()
+	newContainer := func(t *testing.T) (*simpleChainContainer, *DenyList) {
+		t.Helper()
 		dir := t.TempDir()
-
 		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
 		require.NoError(t, err)
-		defer dl.Close()
-
-		c := &simpleChainContainer{
+		t.Cleanup(func() { dl.Close() })
+		return &simpleChainContainer{
 			denyList: dl,
 			log:      testLogger(),
-		}
+		}, dl
+	}
 
-		ctx := context.Background()
-		rewound, err := c.InvalidateBlock(ctx, 0, common.HexToHash("0xgenesis"), 0, eth.Bytes32{}, eth.Bytes32{})
+	t.Run("happy path persists deny-list entry with preimages", func(t *testing.T) {
+		t.Parallel()
+		c, dl := newContainer(t)
 
+		err := c.RecordInvalidation(context.Background(), 5, payloadHash, 100, stateRoot, msgPasserRoot)
+		require.NoError(t, err)
+
+		found, err := dl.Contains(5, payloadHash)
+		require.NoError(t, err)
+		require.True(t, found)
+
+		stored, err := dl.GetOutputV0(5, payloadHash)
+		require.NoError(t, err)
+		require.Equal(t, &eth.OutputV0{
+			StateRoot:                stateRoot,
+			MessagePasserStorageRoot: msgPasserRoot,
+			BlockHash:                payloadHash,
+		}, stored)
+	})
+
+	t.Run("genesis block (height 0) rejected", func(t *testing.T) {
+		t.Parallel()
+		c, dl := newContainer(t)
+
+		err := c.RecordInvalidation(context.Background(), 0, payloadHash, 0, stateRoot, msgPasserRoot)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "cannot invalidate genesis block")
-		require.False(t, rewound)
 
-		// Genesis hash should NOT be added to denylist
-		found, err := dl.Contains(0, common.HexToHash("0xgenesis"))
+		found, err := dl.Contains(0, payloadHash)
 		require.NoError(t, err)
-		require.False(t, found, "genesis block should not be added to denylist")
+		require.False(t, found, "genesis must not be persisted")
 	})
 
-	t.Run("missing engine returns error and persists denylist entry", func(t *testing.T) {
+	t.Run("zero state root rejected", func(t *testing.T) {
 		t.Parallel()
-		dir := t.TempDir()
+		c, dl := newContainer(t)
 
-		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
-		require.NoError(t, err)
-		defer dl.Close()
-
-		c := &simpleChainContainer{
-			denyList: dl,
-			log:      testLogger(),
-			vn:       &mockVNForInvalidation{},
-		}
-
-		hash := common.HexToHash("0xdead")
-		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{})
-
+		err := c.RecordInvalidation(context.Background(), 5, payloadHash, 0, eth.Bytes32{}, msgPasserRoot)
 		require.Error(t, err)
-		require.ErrorIs(t, err, engine_controller.ErrNoEngineClient)
-		require.False(t, rewound)
+		require.Contains(t, err.Error(), "zero state root")
 
-		found, err := dl.Contains(5, hash)
+		found, err := dl.Contains(5, payloadHash)
 		require.NoError(t, err)
-		require.True(t, found, "denylist entry must persist so rewind can retry on restart")
+		require.False(t, found, "must not persist when preimages are missing")
 	})
 
-	t.Run("L2BlockRefByNumber failure returns error and persists denylist entry", func(t *testing.T) {
+	t.Run("zero message-passer storage root rejected", func(t *testing.T) {
 		t.Parallel()
-		dir := t.TempDir()
+		c, dl := newContainer(t)
 
-		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
-		require.NoError(t, err)
-		defer dl.Close()
-
-		fetchErr := errors.New("transient RPC failure")
-		mockEng := &mockEngineForInvalidation{blockRefErr: fetchErr}
-
-		c := &simpleChainContainer{
-			denyList: dl,
-			log:      testLogger(),
-			engine:   mockEng,
-			vn:       &mockVNForInvalidation{},
-		}
-
-		hash := common.HexToHash("0xdead")
-		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{})
-
+		err := c.RecordInvalidation(context.Background(), 5, payloadHash, 0, stateRoot, eth.Bytes32{})
 		require.Error(t, err)
-		require.ErrorIs(t, err, fetchErr)
-		require.False(t, rewound)
-		require.False(t, mockEng.rewindCalled, "rewind should not be attempted when current block lookup fails")
+		require.Contains(t, err.Error(), "zero message-passer storage root")
 
-		found, err := dl.Contains(5, hash)
+		found, err := dl.Contains(5, payloadHash)
 		require.NoError(t, err)
-		require.True(t, found, "hash should be in denylist even when current block lookup fails")
+		require.False(t, found, "must not persist when preimages are missing")
 	})
 
-	t.Run("missing rollup config returns error before rewind", func(t *testing.T) {
+	t.Run("nil deny list returns error", func(t *testing.T) {
 		t.Parallel()
-		dir := t.TempDir()
-
-		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
-		require.NoError(t, err)
-		defer dl.Close()
-
-		mockEng := &mockEngineForInvalidation{
-			blockRef: eth.L2BlockRef{Hash: common.HexToHash("0xdead")},
-		}
-
-		c := &simpleChainContainer{
-			denyList: dl,
-			log:      testLogger(),
-			engine:   mockEng,
-			vn:       &mockVNForInvalidation{},
-		}
-
-		rewound, err := c.InvalidateBlock(context.Background(), 5, common.HexToHash("0xdead"), 0, eth.Bytes32{}, eth.Bytes32{})
-
+		c := &simpleChainContainer{log: testLogger()}
+		err := c.RecordInvalidation(context.Background(), 5, payloadHash, 0, stateRoot, msgPasserRoot)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "failed to compute rewind timestamp")
-		require.Contains(t, err.Error(), "rollup config not available")
-		require.False(t, rewound)
-		require.False(t, mockEng.rewindCalled, "rewind should not be attempted without rollup config")
+		require.Contains(t, err.Error(), "deny list not initialized")
 	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			dir := t.TempDir()
-
-			// Create deny list
-			dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
-			require.NoError(t, err)
-			defer dl.Close()
-
-			// Create mock engine
-			mockEng := &mockEngineForInvalidation{
-				blockRef: eth.L2BlockRef{Hash: tt.currentBlockHash},
-			}
-
-			// Create container with minimal config
-			c := &simpleChainContainer{
-				denyList: dl,
-				log:      testLogger(),
-				vncfg:    &opnodecfg.Config{},
-				vn:       &mockVNForInvalidation{},
-			}
-			c.vncfg.Rollup.Genesis.L2Time = genesisTime
-			c.vncfg.Rollup.Genesis.L2.Number = tt.genesisBlock
-			c.vncfg.Rollup.BlockTime = blockTime
-
-			c.engine = mockEng
-
-			testStateRoot := eth.Bytes32(common.HexToHash("0xstate"))
-			testMsgPasserRoot := eth.Bytes32(common.HexToHash("0xmsgpasser"))
-			testOut := &eth.OutputV0{
-				StateRoot:                testStateRoot,
-				MessagePasserStorageRoot: testMsgPasserRoot,
-				BlockHash:                tt.payloadHash,
-			}
-
-			ctx := context.Background()
-			rewound, err := c.InvalidateBlock(ctx, tt.height, tt.payloadHash, 0, testStateRoot, testMsgPasserRoot)
-			require.NoError(t, err)
-
-			// Verify rewind behavior
-			require.Equal(t, tt.expectRewind, rewound, "rewind triggered mismatch")
-
-			if tt.expectRewind {
-				require.True(t, mockEng.rewindCalled, "RewindToTimestamp should have been called")
-				require.Equal(t, tt.expectRewindTs, mockEng.rewindTimestamp, "rewind timestamp mismatch")
-			}
-
-			// Verify hash was added to denylist regardless
-			found, err := dl.Contains(tt.height, tt.payloadHash)
-			require.NoError(t, err)
-			require.True(t, found, "hash should be in denylist after InvalidateBlock")
-
-			storedOutput, err := dl.GetOutputV0(tt.height, tt.payloadHash)
-			require.NoError(t, err)
-			require.Equal(t, testOut, storedOutput, "OutputV0 should be stored in denylist after InvalidateBlock")
-		})
-	}
+	t.Run("does not depend on engine — no rewind, no engine RPC", func(t *testing.T) {
+		t.Parallel()
+		c, _ := newContainer(t)
+		// Explicitly leave c.engine and c.vn as nil. A successful call here
+		// is the regression guard: today's rewind branch required both.
+		require.NoError(t, c.RecordInvalidation(context.Background(), 7, payloadHash, 0, stateRoot, msgPasserRoot))
+	})
 }
 
 func TestGetDeniedOutput(t *testing.T) {
@@ -690,6 +520,173 @@ func TestIsDenied(t *testing.T) {
 
 func testLogger() gethlog.Logger {
 	return gethlog.New()
+}
+
+func TestDenyList_CanonicalDeniedHeight(t *testing.T) {
+	t.Parallel()
+
+	canonicalAt := func(m map[uint64]common.Hash) func(context.Context, uint64) (common.Hash, error) {
+		return func(_ context.Context, h uint64) (common.Hash, error) {
+			hash, ok := m[h]
+			if !ok {
+				return common.Hash{}, errors.New("no canonical at height")
+			}
+			return hash, nil
+		}
+	}
+
+	t.Run("empty deny list returns not found", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		dl, err := OpenDenyList(dir)
+		require.NoError(t, err)
+		defer dl.Close()
+
+		height, found, err := dl.CanonicalDeniedHeight(context.Background(), canonicalAt(map[uint64]common.Hash{}))
+		require.NoError(t, err)
+		require.False(t, found)
+		require.Zero(t, height)
+	})
+
+	t.Run("single canonical denied returns that height", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		dl, err := OpenDenyList(dir)
+		require.NoError(t, err)
+		defer dl.Close()
+
+		bad := common.HexToHash("0xbad")
+		require.NoError(t, dl.Add(100, bad, 0, eth.Bytes32{}, eth.Bytes32{}))
+
+		height, found, err := dl.CanonicalDeniedHeight(context.Background(), canonicalAt(map[uint64]common.Hash{100: bad}))
+		require.NoError(t, err)
+		require.True(t, found)
+		require.Equal(t, uint64(100), height)
+	})
+
+	t.Run("denied but not canonical returns not found", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		dl, err := OpenDenyList(dir)
+		require.NoError(t, err)
+		defer dl.Close()
+
+		bad := common.HexToHash("0xbad")
+		good := common.HexToHash("0xgood")
+		require.NoError(t, dl.Add(100, bad, 0, eth.Bytes32{}, eth.Bytes32{}))
+
+		height, found, err := dl.CanonicalDeniedHeight(context.Background(), canonicalAt(map[uint64]common.Hash{100: good}))
+		require.NoError(t, err)
+		require.False(t, found)
+		require.Zero(t, height)
+	})
+
+	t.Run("multiple denied heights all canonical returns lowest", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		dl, err := OpenDenyList(dir)
+		require.NoError(t, err)
+		defer dl.Close()
+
+		h50 := common.HexToHash("0x50bad")
+		h100 := common.HexToHash("0x100bad")
+		h150 := common.HexToHash("0x150bad")
+		require.NoError(t, dl.Add(50, h50, 0, eth.Bytes32{}, eth.Bytes32{}))
+		require.NoError(t, dl.Add(100, h100, 0, eth.Bytes32{}, eth.Bytes32{}))
+		require.NoError(t, dl.Add(150, h150, 0, eth.Bytes32{}, eth.Bytes32{}))
+
+		canon := canonicalAt(map[uint64]common.Hash{50: h50, 100: h100, 150: h150})
+		height, found, err := dl.CanonicalDeniedHeight(context.Background(), canon)
+		require.NoError(t, err)
+		require.True(t, found)
+		require.Equal(t, uint64(50), height, "lowest still-canonical denied height wins")
+	})
+
+	t.Run("highest non-canonical stops iteration (returns not found)", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		dl, err := OpenDenyList(dir)
+		require.NoError(t, err)
+		defer dl.Close()
+
+		h50 := common.HexToHash("0x50bad")
+		h150 := common.HexToHash("0x150bad")
+		require.NoError(t, dl.Add(50, h50, 0, eth.Bytes32{}, eth.Bytes32{}))
+		require.NoError(t, dl.Add(150, h150, 0, eth.Bytes32{}, eth.Bytes32{}))
+
+		// 150 is no longer canonical; 50 still is. By the monotonicity contract
+		// we stop at 150 and report not found.
+		canon := canonicalAt(map[uint64]common.Hash{50: h50, 150: common.HexToHash("0xreorged")})
+		height, found, err := dl.CanonicalDeniedHeight(context.Background(), canon)
+		require.NoError(t, err)
+		require.False(t, found)
+		require.Zero(t, height)
+	})
+
+	t.Run("highest canonical lower non-canonical returns highest", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		dl, err := OpenDenyList(dir)
+		require.NoError(t, err)
+		defer dl.Close()
+
+		h50 := common.HexToHash("0x50bad")
+		h150 := common.HexToHash("0x150bad")
+		require.NoError(t, dl.Add(50, h50, 0, eth.Bytes32{}, eth.Bytes32{}))
+		require.NoError(t, dl.Add(150, h150, 0, eth.Bytes32{}, eth.Bytes32{}))
+
+		// 150 canonical, 50 reorged out (replaced by a non-denied hash). Stop at 50,
+		// return 150 as the lowest canonical found.
+		canon := canonicalAt(map[uint64]common.Hash{50: common.HexToHash("0xnew50"), 150: h150})
+		height, found, err := dl.CanonicalDeniedHeight(context.Background(), canon)
+		require.NoError(t, err)
+		require.True(t, found)
+		require.Equal(t, uint64(150), height)
+	})
+
+	t.Run("canonical probe error stops iteration after recording prior matches", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		dl, err := OpenDenyList(dir)
+		require.NoError(t, err)
+		defer dl.Close()
+
+		h100 := common.HexToHash("0x100bad")
+		h200 := common.HexToHash("0x200bad")
+		require.NoError(t, dl.Add(100, h100, 0, eth.Bytes32{}, eth.Bytes32{}))
+		require.NoError(t, dl.Add(200, h200, 0, eth.Bytes32{}, eth.Bytes32{}))
+
+		// 200 canonical; probe for 100 fails (e.g. EL not yet at that height).
+		// We record 200 then stop on the error and return what we have.
+		probe := func(_ context.Context, h uint64) (common.Hash, error) {
+			switch h {
+			case 200:
+				return h200, nil
+			default:
+				return common.Hash{}, errors.New("EL not synced")
+			}
+		}
+		height, found, err := dl.CanonicalDeniedHeight(context.Background(), probe)
+		require.NoError(t, err)
+		require.True(t, found)
+		require.Equal(t, uint64(200), height)
+	})
+
+	t.Run("respects context cancellation", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		dl, err := OpenDenyList(dir)
+		require.NoError(t, err)
+		defer dl.Close()
+
+		require.NoError(t, dl.Add(100, common.HexToHash("0xbad"), 0, eth.Bytes32{}, eth.Bytes32{}))
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, _, err = dl.CanonicalDeniedHeight(ctx, canonicalAt(map[uint64]common.Hash{100: common.HexToHash("0xbad")}))
+		require.ErrorIs(t, err, context.Canceled)
+	})
 }
 
 // TestDenyList_ConcurrentAccess verifies the DenyList is safe for concurrent use.

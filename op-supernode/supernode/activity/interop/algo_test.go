@@ -1125,8 +1125,8 @@ func (m *algoMockChain) BlockTime() uint64 {
 	}
 	return 1
 }
-func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
-	return false, nil
+func (m *algoMockChain) RecordInvalidation(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
+	return nil
 }
 func (m *algoMockChain) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
 	out := &eth.OutputV0{}

@@ -74,7 +74,11 @@ type FindHeadsResult struct {
 // currentHeads returns the current finalized, safe and unsafe heads of the execution engine.
 // If nothing has been marked finalized yet, the finalized head defaults to the genesis block.
 // If nothing has been marked safe yet, the safe head defaults to the finalized block.
-func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHeadsResult, error) {
+//
+// When `authority` is non-nil, the deny-list cap is applied (see ApplyDenyCap)
+// before the result is returned, so callers always see a safe/finalized that is
+// strictly below any still-canonical denied block.
+func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain, authority rollup.SuperAuthority) (*FindHeadsResult, error) {
 	finalized, err := l2.L2BlockRefByLabel(ctx, eth.Finalized)
 	if errors.Is(err, ethereum.NotFound) {
 		// default to genesis if we have not finalized anything before.
@@ -95,11 +99,57 @@ func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHea
 	if err != nil {
 		return nil, fmt.Errorf("failed to find the L2 head block: %w", err)
 	}
-	return &FindHeadsResult{
+	result := &FindHeadsResult{
 		Unsafe:    unsafe,
 		Safe:      safe,
 		Finalized: finalized,
-	}, nil
+	}
+	if err := ApplyDenyCap(ctx, l2, authority, result); err != nil {
+		return nil, fmt.Errorf("failed to apply deny-list cap: %w", err)
+	}
+	return result, nil
+}
+
+// ApplyDenyCap lowers result.Safe and result.Finalized to (height - 1) when
+// the supplied authority reports a canonical denied block. Unsafe is intentionally
+// left untouched so the downstream consolidation path detects a mismatch and
+// reorgs the unsafe chain to the deposits-only replacement block.
+//
+// Idempotent: a second call on an already-capped result is a no-op. Safe to
+// call with authority == nil (returns nil without consulting the EL).
+//
+// Finalized is capped defensively. By construction (interop finalization is
+// gated on cross-chain verification having passed for every block up to it),
+// a denied block cannot have a finalized height that exceeds the cap; capping
+// finalized locally keeps the `finalized <= safe` invariant obvious to callers
+// and to the engine controller.
+func ApplyDenyCap(ctx context.Context, l2 L2Chain, authority rollup.SuperAuthority, result *FindHeadsResult) error {
+	if authority == nil || result == nil {
+		return nil
+	}
+	height, found, err := authority.CanonicalDeniedHeight(ctx, l2)
+	if err != nil {
+		return fmt.Errorf("query canonical denied height: %w", err)
+	}
+	if !found || height == 0 {
+		return nil
+	}
+	target := height - 1
+	if result.Safe.Number > target {
+		ref, err := l2.L2BlockRefByNumber(ctx, target)
+		if err != nil {
+			return fmt.Errorf("fetch deny-cap safe target at %d: %w", target, err)
+		}
+		result.Safe = ref
+	}
+	if result.Finalized.Number > target {
+		ref, err := l2.L2BlockRefByNumber(ctx, target)
+		if err != nil {
+			return fmt.Errorf("fetch deny-cap finalized target at %d: %w", target, err)
+		}
+		result.Finalized = ref
+	}
+	return nil
 }
 
 // DurationToBlocks returns ceil(offset / blockTime) as a block count.
@@ -130,7 +180,10 @@ func OffsetBlockNum(offset time.Duration, blockTime uint64, head uint64, genesis
 
 // L2HeadsForELSyncWithOffset returns the heads for an EL-sync tip: unsafe stays at tip,
 // safe and finalized retract by ceil(offset / blockTime) blocks (clamped at genesis).
-func L2HeadsForELSyncWithOffset(ctx context.Context, cfg *rollup.Config, l2 L2Chain, syncCfg *Config, tip eth.L2BlockRef) (*FindHeadsResult, error) {
+//
+// The deny-list cap (if any) is composed with the offset: whichever is lower
+// wins. Both can only lower safe/finalized, never raise them.
+func L2HeadsForELSyncWithOffset(ctx context.Context, cfg *rollup.Config, l2 L2Chain, syncCfg *Config, tip eth.L2BlockRef, authority rollup.SuperAuthority) (*FindHeadsResult, error) {
 	target := OffsetBlockNum(syncCfg.OffsetELSafe, cfg.BlockTime, tip.Number, cfg.Genesis.L2.Number)
 	derived := tip
 	if target < tip.Number {
@@ -140,7 +193,11 @@ func L2HeadsForELSyncWithOffset(ctx context.Context, cfg *rollup.Config, l2 L2Ch
 		}
 		derived = ref
 	}
-	return &FindHeadsResult{Unsafe: tip, Safe: derived, Finalized: derived}, nil
+	result := &FindHeadsResult{Unsafe: tip, Safe: derived, Finalized: derived}
+	if err := ApplyDenyCap(ctx, l2, authority, result); err != nil {
+		return nil, fmt.Errorf("failed to apply deny-list cap to EL-sync heads: %w", err)
+	}
+	return result, nil
 }
 
 // FindL2Heads walks back from `start` (the previous unsafe L2 block) and finds
@@ -156,9 +213,9 @@ func L2HeadsForELSyncWithOffset(ctx context.Context, cfg *rollup.Config, l2 L2Ch
 // Plausible: meaning that the blockhash of the L2 block's L1 origin
 // (as reported in the L1 Attributes deposit within the L2 block) is not canonical at another height in the L1 chain,
 // and the same holds for all its ancestors.
-func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain, lgr log.Logger, syncCfg *Config) (result *FindHeadsResult, err error) {
-	// Fetch current L2 forkchoice state
-	result, err = currentHeads(ctx, cfg, l2)
+func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain, lgr log.Logger, syncCfg *Config, authority rollup.SuperAuthority) (result *FindHeadsResult, err error) {
+	// Fetch current L2 forkchoice state (deny-list cap applied inside currentHeads).
+	result, err = currentHeads(ctx, cfg, l2, authority)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch current L2 forkchoice state: %w", err)
 	}
@@ -173,7 +230,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		result.Unsafe.Number > cfg.Genesis.L2.Number &&
 		result.Unsafe.L1Origin.Number > cfg.Genesis.L1.Number+(RecoverMinSeqWindows*cfg.SeqWindowSize) {
 		lgr.Warn("Attempting recovery from sync state without finality.", "head", result.Unsafe)
-		return L2HeadsForELSyncWithOffset(ctx, cfg, l2, syncCfg, result.Unsafe)
+		return L2HeadsForELSyncWithOffset(ctx, cfg, l2, syncCfg, result.Unsafe, authority)
 	}
 
 	// Check if the execution engine corrupted, and forkchoice is ahead of the remaining chain:
@@ -181,7 +238,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	if result.Unsafe.Number < result.Finalized.Number || result.Unsafe.Number < result.Safe.Number {
 		lgr.Error("Unsafe head is behind known finalized/safe blocks, execution-engine chain must have been rewound without forkchoice update. Attempting recovery now.",
 			"unsafe_head", result.Unsafe, "safe_head", result.Safe, "finalized_head", result.Finalized)
-		return L2HeadsForELSyncWithOffset(ctx, cfg, l2, syncCfg, result.Unsafe)
+		return L2HeadsForELSyncWithOffset(ctx, cfg, l2, syncCfg, result.Unsafe, authority)
 	}
 
 	// Remember original unsafe block to determine reorg depth

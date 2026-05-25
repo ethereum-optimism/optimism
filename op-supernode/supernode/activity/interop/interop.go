@@ -708,22 +708,22 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		sort.Slice(invalidations, func(i, j int) bool {
 			return invalidations[i].ChainID.Cmp(invalidations[j].ChainID) < 0
 		})
-		// Freeze ALL chains' VNs before rewinding any. Without this, a non-invalidated
-		// chain's still-running VN can observe the interop state change from onReset and
-		// issue a ForkchoiceUpdate that advances its safe head. If that chain is later
-		// invalidated (e.g. transitive invalidation across multiple rounds), its rewind
-		// will be rejected because the safe head was already advanced.
-		// This is broader than freezing only invalid chains because transitive invalidation
-		// requires multiple verification rounds — a chain valid in round N may become
-		// invalid in round N+1 after its dependency is replaced.
+		// Freeze ALL chains' VNs before recording any invalidation. Without this,
+		// a non-invalidated chain's still-running VN can read the invalidated
+		// chain's cross-chain verified state via FullyVerifiedL2Head and advance
+		// its own LocalSafeL2 onto blocks built on the now-denied state before
+		// the deny-list write completes. This is broader than freezing only the
+		// invalidated chains because transitive invalidation may produce
+		// additional invalidations in a later verification round that depend on
+		// the current ones having taken effect.
 		for chainID, chain := range i.chains {
 			if err := chain.PauseAndStopVN(i.ctx); err != nil {
-				i.log.Error("failed to freeze chain before rewind", "chainID", chainID, "err", err)
+				i.log.Error("failed to freeze chain before invalidation", "chainID", chainID, "err", err)
 			}
 		}
 		var failedAny bool
 		for _, p := range invalidations {
-			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot); err != nil {
+			if err := i.recordInvalidation(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot); err != nil {
 				i.log.Error("invalidation failed, transition preserved for retry on restart",
 					"chain", p.ChainID, "block", p.BlockID, "err", err)
 				failedAny = true
@@ -731,11 +731,20 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 				i.metrics.InteropInvalidations.WithLabelValues(p.ChainID.String()).Inc()
 			}
 		}
-		// Resume non-invalidated chains. Invalidated chains are resumed by RewindEngine.
+		// Resume invalidated chains first so their VNs restart and apply the
+		// safe-head cap (which drives the deposits-only reorg) before
+		// non-invalidated chains observe their post-reorg cross-chain state.
+		for chainID, chain := range i.chains {
+			if _, isInvalid := pending.Result.InvalidHeads[chainID]; isInvalid {
+				if err := chain.Resume(i.ctx); err != nil {
+					i.log.Error("failed to resume invalidated chain", "chainID", chainID, "err", err)
+				}
+			}
+		}
 		for chainID, chain := range i.chains {
 			if _, isInvalid := pending.Result.InvalidHeads[chainID]; !isInvalid {
 				if err := chain.Resume(i.ctx); err != nil {
-					i.log.Error("failed to resume chain after rewind", "chainID", chainID, "err", err)
+					i.log.Error("failed to resume non-invalidated chain", "chainID", chainID, "err", err)
 				}
 			}
 		}
@@ -1141,13 +1150,14 @@ func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef)
 func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock eth.BlockRef) {
 }
 
-// invalidateBlock notifies the chain container to add the block to the denylist
-// and potentially rewind if the chain is currently using that block.
-func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
+// recordInvalidation notifies the chain container to add the block to the
+// deny list. The chain reorg itself is driven by the safe-head cap that
+// op-node applies during the next VN reset (see SuperAuthority.CanonicalDeniedHeight
+// and sync.ApplyDenyCap); callers must restart the VN after this returns.
+func (i *Interop) recordInvalidation(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
 	chain, ok := i.chains[chainID]
 	if !ok {
 		return fmt.Errorf("chain %s not found", chainID)
 	}
-	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp, stateRoot, messagePasserStorageRoot)
-	return err
+	return chain.RecordInvalidation(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp, stateRoot, messagePasserStorageRoot)
 }
