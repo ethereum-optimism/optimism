@@ -65,18 +65,16 @@ func (e *simpleEngineController) Rewind(ctx context.Context, target *eth.Executi
 
 	payload := target.ExecutionPayload
 	targetNumber := uint64(payload.BlockNumber)
-	targetTime := uint64(payload.Timestamp)
 	targetHash := payload.BlockHash
 
-	// Sanity-check the WAL'd payload against the rollup config: number and timestamp must agree.
 	if e.rollup != nil {
-		expectedNumber, err := e.rollup.TargetBlockNumber(targetTime)
+		expectedNumber, err := e.rollup.TargetBlockNumber(uint64(payload.Timestamp))
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrRewindTimestampToBlockConversion, err)
 		}
 		if expectedNumber != targetNumber {
-			return fmt.Errorf("%w: payload number=%d timestamp=%d (rollup expects %d at that timestamp)",
-				ErrRewindTargetMismatch, targetNumber, targetTime, expectedNumber)
+			return fmt.Errorf("%w: payload number=%d timestamp=%d (rollup expects %d)",
+				ErrRewindTargetMismatch, targetNumber, uint64(payload.Timestamp), expectedNumber)
 		}
 	}
 
@@ -84,20 +82,20 @@ func (e *simpleEngineController) Rewind(ctx context.Context, target *eth.Executi
 		Hash:       targetHash,
 		Number:     targetNumber,
 		ParentHash: payload.ParentHash,
-		Time:       targetTime,
+		Time:       uint64(payload.Timestamp),
 	}
 
-	// No-op if the unsafe head already matches the target hash. After step 0 we cannot be
-	// strictly *behind* the target in a well-formed run (the WAL only records targets that
-	// were canonical when the plan was built); if we are, the safe/finalized clamp below
-	// would be wrong, so we don't allow it.
 	unsafe, err := e.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRewindCurrentUnsafeFailed, err)
 	}
-	if unsafe.Hash == targetHash {
-		e.log.Info("rewind skipped: unsafe head already at target",
-			"unsafeHash", unsafe.Hash, "targetHash", targetHash, "targetNumber", targetNumber)
+	// No-op if the chain is already at or behind the target. The chain state may have moved
+	// between when the WAL'd target was captured and now, so the unsafe head may legitimately
+	// be below the recorded target.
+	if unsafe.Hash == targetHash || unsafe.Number < targetNumber {
+		e.log.Info("rewind skipped: chain already at or behind target",
+			"unsafeHash", unsafe.Hash, "unsafeNumber", unsafe.Number,
+			"targetHash", targetHash, "targetNumber", targetNumber)
 		return nil
 	}
 

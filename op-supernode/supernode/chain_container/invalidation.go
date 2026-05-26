@@ -364,16 +364,11 @@ func (d *DenyList) Close() error {
 
 // InvalidateBlock is part of the InteropChain interface — callers must hold
 // that wider interface (only interop transition application does) to invoke it.
-// Adds a block to the deny list and triggers a rewind if the chain currently
-// uses that block at the specified height.
-//
-// parentPayload is the canonical payload at height-1 (the rewind destination) captured
-// at build time by the caller and persisted in the WAL. The engine controller uses it
-// to drive the rewind without consulting the live EL, which protects against partial
-// reorg state left by a crash mid-rewind.
-//
-// Returns true if a rewind was triggered, false otherwise.
-// Note: Genesis block (height=0) cannot be invalidated as there is no prior block to rewind to.
+// Adds a block to the deny list and triggers a rewind to parentPayload if the
+// chain currently uses the invalidated block (or has partial rewind state) at
+// the specified height. parentPayload is the WAL-captured canonical payload at
+// height-1. Returns true if a rewind was triggered. Genesis (height=0) cannot
+// be invalidated.
 func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
 	if c.denyList == nil {
 		return false, fmt.Errorf("deny list not initialized")
@@ -412,42 +407,29 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		return false, fmt.Errorf("cannot check current block at height %d: %w", height, engine_controller.ErrNoEngineClient)
 	}
 
+	// Only skip the rewind when the engine reports a block at this height that is not the
+	// invalidated one. A NotFound result is not safe to skip: a prior crashed attempt may
+	// have left the synthetic block at this height with no canonical entry visible by
+	// number, and we need to drive the rewind to completion.
+	var invalidatedBlock eth.BlockRef
 	currentBlock, err := c.engine.L2BlockRefByNumber(ctx, height)
-	if err != nil {
-		// If the engine has no block at this height the chain is already strictly
-		// shorter than the invalidated block: there is nothing to rewind. The deny
-		// list entry above is durable, so any future attempt to extend the chain
-		// past this height with the denied hash will still be rejected.
-		if errors.Is(err, ethereum.NotFound) {
-			c.log.Info("invalidated block height is beyond current chain head; nothing to rewind",
-				"height", height, "payloadHash", payloadHash)
+	switch {
+	case err == nil:
+		if currentBlock.Hash != payloadHash {
+			c.log.Info("current block differs from invalidated block, no rewind needed",
+				"height", height, "currentHash", currentBlock.Hash, "invalidatedHash", payloadHash)
 			return false, nil
 		}
+		invalidatedBlock = currentBlock.BlockRef()
+	case errors.Is(err, ethereum.NotFound):
+		c.log.Warn("no canonical block at invalidated height; assuming partial rewind state and retrying",
+			"height", height, "payloadHash", payloadHash)
+		invalidatedBlock = eth.BlockRef{Number: height, Hash: payloadHash}
+	default:
 		return false, fmt.Errorf("failed to get current block at height %d: %w", height, err)
 	}
 
-	// Compare the current block hash with the invalidated hash
-	if currentBlock.Hash != payloadHash {
-		c.log.Info("current block differs from invalidated block, no rewind needed",
-			"height", height,
-			"currentHash", currentBlock.Hash,
-			"invalidatedHash", payloadHash,
-		)
-		return false, nil
-	}
-
-	c.log.Warn("current block matches invalidated block, initiating rewind",
-		"height", height,
-		"hash", payloadHash,
-	)
-
-	invalidatedBlock := currentBlock.BlockRef()
-
-	// Cross-check the WAL'd parent payload against what the live chain sees as the parent.
-	if invalidatedBlock.ParentHash != parentPayload.ExecutionPayload.BlockHash {
-		return false, fmt.Errorf("parent payload hash %s does not match invalidated block's parent %s",
-			parentPayload.ExecutionPayload.BlockHash, invalidatedBlock.ParentHash)
-	}
+	c.log.Warn("initiating rewind after block invalidation", "height", height, "hash", payloadHash)
 
 	if err := c.RewindEngine(ctx, parentPayload, invalidatedBlock); err != nil {
 		return false, fmt.Errorf("failed to rewind engine: %w", err)

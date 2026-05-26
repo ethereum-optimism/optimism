@@ -682,10 +682,9 @@ func (i *Interop) buildPendingTransition(output StepOutput, obs RoundObservation
 }
 
 // captureInvalidationParentPayloads fetches, for every invalidated chain, the canonical
-// parent payload (height-1) that the rewind will restore as the new unsafe head. The
-// payloads are captured at decision time — while they are still canonical — and persisted
-// in the WAL so the apply path does not depend on the live EL still having them. Any
-// fetch failure aborts the build; the decision will be re-evaluated next round.
+// parent payload (height-1) the rewind will restore as the new unsafe head. The payloads
+// are persisted in the WAL so apply does not depend on the live EL still having them.
+// Any fetch failure aborts the build; the decision will be re-evaluated next round.
 func (i *Interop) captureInvalidationParentPayloads(invalidHeads map[eth.ChainID]InvalidHead) (map[eth.ChainID]*eth.ExecutionPayloadEnvelope, error) {
 	if len(invalidHeads) == 0 {
 		return nil, nil
@@ -699,24 +698,14 @@ func (i *Interop) captureInvalidationParentPayloads(invalidHeads map[eth.ChainID
 		if !ok {
 			return nil, fmt.Errorf("chain %s: not configured", chainID)
 		}
-		// Fetch the invalidated block by hash so we know which parent to load. Looking it up
-		// by hash (rather than by number) protects against any concurrent reorg at the
-		// invalidated height — we want the parent of the specific block the decision rejected.
 		invalidatedRef, err := chain.PayloadByHash(i.ctx, head.BlockID.Hash)
 		if err != nil {
 			return nil, fmt.Errorf("chain %s: fetch invalidated block %s: %w", chainID, head.BlockID.Hash, err)
-		}
-		if invalidatedRef == nil || invalidatedRef.ExecutionPayload == nil {
-			return nil, fmt.Errorf("chain %s: empty payload for invalidated block %s", chainID, head.BlockID.Hash)
 		}
 		parentEnvelope, err := chain.PayloadByHash(i.ctx, invalidatedRef.ExecutionPayload.ParentHash)
 		if err != nil {
 			return nil, fmt.Errorf("chain %s: fetch parent payload %s: %w",
 				chainID, invalidatedRef.ExecutionPayload.ParentHash, err)
-		}
-		if parentEnvelope == nil || parentEnvelope.ExecutionPayload == nil {
-			return nil, fmt.Errorf("chain %s: empty parent payload for invalidated block %s",
-				chainID, head.BlockID.Hash)
 		}
 		parents[chainID] = parentEnvelope
 	}
@@ -883,9 +872,8 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 	}
 	plan.TargetHeads = prevResult.L2Heads
 
-	// Capture each chain's target payload by hash while it is still canonical. Any failure
-	// here aborts the build — we never persist a rewind we can't safely complete; the
-	// decision will be re-evaluated next round.
+	// Capture each chain's target payload while it is still canonical. Any failure aborts
+	// the build; the decision will be re-evaluated next round.
 	if len(plan.TargetHeads) > 0 {
 		plan.TargetPayloads = make(map[eth.ChainID]*eth.ExecutionPayloadEnvelope, len(plan.TargetHeads))
 		for chainID, head := range plan.TargetHeads {
@@ -897,14 +885,6 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 			if err != nil {
 				return RewindPlan{}, fmt.Errorf("chain %s: fetch target payload %s for rewind to ts=%d: %w",
 					chainID, head.Hash, rewindTargetTS, err)
-			}
-			if envelope == nil || envelope.ExecutionPayload == nil {
-				return RewindPlan{}, fmt.Errorf("chain %s: empty target payload %s for rewind to ts=%d",
-					chainID, head.Hash, rewindTargetTS)
-			}
-			if envelope.ExecutionPayload.BlockHash != head.Hash {
-				return RewindPlan{}, fmt.Errorf("chain %s: target payload hash %s does not match expected %s",
-					chainID, envelope.ExecutionPayload.BlockHash, head.Hash)
 			}
 			plan.TargetPayloads[chainID] = envelope
 		}

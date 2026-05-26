@@ -529,7 +529,7 @@ func TestInvalidateBlock(t *testing.T) {
 		require.True(t, found, "hash should be in denylist even when current block lookup fails")
 	})
 
-	t.Run("L2BlockRefByNumber returns NotFound treats chain as already rewound", func(t *testing.T) {
+	t.Run("L2BlockRefByNumber returns NotFound still drives rewind to handle partial recovery", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 
@@ -550,10 +550,9 @@ func TestInvalidateBlock(t *testing.T) {
 		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{}, makeParentPayload(4, 0, common.Hash{0xaa}))
 
 		require.NoError(t, err)
-		require.False(t, rewound)
-		require.False(t, mockEng.rewindCalled, "rewind should not be attempted when the block is not present")
+		require.True(t, rewound, "rewind must be attempted: a prior crashed attempt may have left a synthetic block at this height")
+		require.True(t, mockEng.rewindCalled)
 
-		// The denylist entry must still be recorded so a future re-extension can be rejected.
 		found, err := dl.Contains(5, hash)
 		require.NoError(t, err)
 		require.True(t, found)
