@@ -775,11 +775,11 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		require.Equal(t, 0, mockEngine.rewindCalls, "engine.Rewind should not be called when VN stop fails")
 	})
 
-	t.Run("treats DeadlineExceeded from engine as transient when caller ctx still has budget", func(t *testing.T) {
-		// The engine's per-call RPC deadline (e.g. the slow synthetic FCU against op-reth)
-		// can fire while the caller's interop-transition ctx still has plenty of budget.
-		// In that case, engine.Rewind returns context.DeadlineExceeded but the wider rewind
-		// flow should retry rather than bail. See ethereum-optimism/optimism#21015.
+	t.Run("treats DeadlineExceeded from engine as transient and retries", func(t *testing.T) {
+		// The caller's ctx is the long-lived service ctx with no deadline, so a
+		// DeadlineExceeded from engine.Rewind originates from a per-call RPC deadline
+		// (e.g. a slow synthetic FCU against op-reth). The retry loop must keep going.
+		// See ethereum-optimism/optimism#21015.
 		mockVN := newMockVirtualNode()
 		mockEngine := newMockEngineController()
 		callCount := 0
@@ -807,9 +807,10 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		require.False(t, c.pause.Load(), "Container should be resumed after successful rewind")
 	})
 
-	t.Run("returns ctx.Err() when caller ctx expires during DeadlineExceeded retries", func(t *testing.T) {
-		// Once the caller's own ctx is done, the retry loop must stop — otherwise it would
-		// spin forever against a permanently-broken engine.
+	t.Run("returns ctx.Err() when caller ctx is cancelled during DeadlineExceeded retries", func(t *testing.T) {
+		// In production the caller's ctx has no deadline and is only cancelled on service
+		// shutdown. Confirm that cancellation does stop the loop — otherwise it would spin
+		// forever against a permanently-broken engine even after shutdown begins.
 		mockVN := newMockVirtualNode()
 		mockEngine := newMockEngineController()
 		mockEngine.rewindErr = context.DeadlineExceeded

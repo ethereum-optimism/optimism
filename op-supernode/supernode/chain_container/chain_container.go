@@ -702,11 +702,13 @@ retryLoop:
 			c.log.Info("chain_container/RewindEngine: executed engine rewind")
 			break retryLoop
 		default:
-			// context.DeadlineExceeded is intentionally treated as transient here:
-			// the engine's per-call RPC deadline (e.g. a slow synthetic FCU against
-			// op-reth that takes minutes) can fire while the caller's overall
-			// transition ctx still has budget. The ctx.Done() branch below stops
-			// the loop once the caller's ctx is actually done.
+			// context.DeadlineExceeded is treated as transient: the caller's ctx is
+			// the long-lived service ctx (no deadline), so a DeadlineExceeded here
+			// originates from a per-call RPC deadline inside the engine client — e.g.
+			// a slow synthetic FCU against op-reth. Keep retrying: if the EL is truly
+			// down a subsequent attempt will surface a transport error, and if it is
+			// still chewing on the rewind, waiting is the right answer. The ctx.Done()
+			// branch below stops the loop on service shutdown.
 			c.log.Error("chain_container/RewindEngine: temporary error", "err", err)
 			select {
 			case <-ctx.Done():
