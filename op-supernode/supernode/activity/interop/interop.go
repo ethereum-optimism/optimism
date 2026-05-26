@@ -881,7 +881,7 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 
 	// Capture each chain's target payload while it is still canonical. Any failure aborts
 	// the build; the decision will be re-evaluated next round.
-	if len(plan.TargetHeads) > 0 {
+	if plan.ResetAllChainsTo != nil && len(plan.TargetHeads) > 0 {
 		payloads, err := i.captureRewindPayloadsForHeads(plan.TargetHeads, rewindTargetTS)
 		if err != nil {
 			return RewindPlan{}, err
