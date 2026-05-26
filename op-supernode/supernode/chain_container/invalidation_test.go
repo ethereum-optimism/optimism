@@ -322,6 +322,10 @@ func (m *mockEngineForInvalidation) PayloadByHash(ctx context.Context, hash comm
 	return nil, nil
 }
 
+func (m *mockEngineForInvalidation) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
+
 func (m *mockEngineForInvalidation) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
 	return nil, nil, nil
 }
