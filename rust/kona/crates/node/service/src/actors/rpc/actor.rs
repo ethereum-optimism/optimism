@@ -62,7 +62,7 @@ impl<Launcher: RpcServerLauncher> NodeActor for RpcActor<Launcher> {
         if self.restarts_remaining == 0 {
             return Err(RpcActorError::ServerStopped);
         }
-        self.restarts_remaining -= 1;
+        self.restarts_remaining = self.restarts_remaining.saturating_sub(1);
 
         match self.launcher.launch(self.modules.clone()).await {
             Ok(new_handle) => {
