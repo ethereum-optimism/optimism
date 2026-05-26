@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -51,9 +52,9 @@ func TestLightSequencerSupernodeDerivesSafeChain(gt *testing.T) {
 	receiptB, err := txB.Included.Eval(t.Ctx())
 	t.Require().NoError(err, "wait for chain B sequencer tx to be mined")
 
-	targetNumber := receiptA.BlockNumber.Uint64()
-	if receiptB.BlockNumber.Uint64() > targetNumber {
-		targetNumber = receiptB.BlockNumber.Uint64()
+	targetNumber := bigs.Uint64Strict(receiptA.BlockNumber)
+	if bigs.Uint64Strict(receiptB.BlockNumber) > targetNumber {
+		targetNumber = bigs.Uint64Strict(receiptB.BlockNumber)
 	}
 	dsl.CheckAll(t,
 		sys.L2ACL.ReachedFn(safety.LocalUnsafe, targetNumber, 20),
