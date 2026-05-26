@@ -775,6 +775,62 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		require.Equal(t, 0, mockEngine.rewindCalls, "engine.Rewind should not be called when VN stop fails")
 	})
 
+	t.Run("treats DeadlineExceeded from engine as transient when caller ctx still has budget", func(t *testing.T) {
+		// The engine's per-call RPC deadline (e.g. the slow synthetic FCU against op-reth)
+		// can fire while the caller's interop-transition ctx still has plenty of budget.
+		// In that case, engine.Rewind returns context.DeadlineExceeded but the wider rewind
+		// flow should retry rather than bail. See ethereum-optimism/optimism#21015.
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+		callCount := 0
+		mockEngine.rewindFunc = func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
+			callCount++
+			if callCount < 3 {
+				return context.DeadlineExceeded
+			}
+			return nil
+		}
+
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+		err := c.RewindEngine(ctx, makeTarget(12345), invalidatedBlock)
+		require.NoError(t, err)
+		require.Equal(t, 3, mockEngine.rewindCalls, "engine.Rewind should be retried through DeadlineExceeded errors")
+		require.False(t, c.pause.Load(), "Container should be resumed after successful rewind")
+	})
+
+	t.Run("returns ctx.Err() when caller ctx expires during DeadlineExceeded retries", func(t *testing.T) {
+		// Once the caller's own ctx is done, the retry loop must stop — otherwise it would
+		// spin forever against a permanently-broken engine.
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+		mockEngine.rewindErr = context.DeadlineExceeded
+
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+		defer cancel()
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+		err := c.RewindEngine(ctx, makeTarget(12345), invalidatedBlock)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.Greater(t, mockEngine.rewindCalls, 1, "engine.Rewind should be retried at least once before ctx expires")
+		require.False(t, c.pause.Load(), "Container should be resumed (not stuck paused) after ctx expiry")
+	})
+
 	t.Run("succeeds after transient error on retry", func(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockEngine := newMockEngineController()

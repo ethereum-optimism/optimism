@@ -695,9 +695,6 @@ retryLoop:
 	for {
 		err = c.engine.Rewind(ctx, target)
 		switch {
-		case errors.Is(err, context.DeadlineExceeded):
-			c.log.Error("chain_container/RewindEngine: timeout exceeded")
-			return err
 		case isCriticalRewindError(err):
 			c.log.Error("chain_container/RewindEngine: critical error", "err", err)
 			return err
@@ -705,6 +702,11 @@ retryLoop:
 			c.log.Info("chain_container/RewindEngine: executed engine rewind")
 			break retryLoop
 		default:
+			// context.DeadlineExceeded is intentionally treated as transient here:
+			// the engine's per-call RPC deadline (e.g. a slow synthetic FCU against
+			// op-reth that takes minutes) can fire while the caller's overall
+			// transition ctx still has budget. The ctx.Done() branch below stops
+			// the loop once the caller's ctx is actually done.
 			c.log.Error("chain_container/RewindEngine: temporary error", "err", err)
 			select {
 			case <-ctx.Done():
