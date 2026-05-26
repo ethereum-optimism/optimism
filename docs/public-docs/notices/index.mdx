@@ -1,0 +1,37 @@
+---
+title: "Network Notices"
+sidebarTitle: "Overview"
+description: "Active upgrade notices, deprecations, and network change announcements for OP Stack operators."
+---
+
+{/*
+  MAINTENANCE: Keep this page in sync with the "Network Notices" group in docs.json.
+  When a notice is activated: add a card here AND add the page to docs.json nav.
+  When a notice is archived: remove its card here AND move the page to notices/archive/ in docs.json.
+*/}
+
+## Active Notices
+
+<CardGroup cols={1}>
+  <Card title="Upgrade 19" href="/notices/upgrade-19" icon="triangle-exclamation" horizontal>
+    L2 Contract Manager, Osaka on L2, Kona Respected Game Type
+  </Card>
+  <Card title="End of Support: op-geth" href="/notices/op-geth-deprecation" icon="circle-xmark" horizontal>
+    Migrate to op-reth before May 31, 2026
+  </Card>
+  <Card title="Interop Activation Prep" href="/notices/interop-prep" icon="circle-info" horizontal>
+    OP Sepolia and Unichain Sepolia interop activation preparation
+  </Card>
+  <Card title="Specialized Node Topology" href="/notices/specialized-node-topology" icon="circle-info" horizontal>
+    Guidance for Supernode and Light CL node topology
+  </Card>
+  <Card title="Stake-Based Priority Ordering" href="/notices/stake-based-priority-ordering" icon="circle-info" horizontal>
+    New transaction priority ordering mechanism for sequencers
+  </Card>
+  <Card title="ReqResp CL Sync Deprecation" href="/notices/req-resp-cl-sync-deprecation" icon="triangle-exclamation" horizontal>
+    The ReqResp consensus layer sync mechanism is deprecated
+  </Card>
+  <Card title="op-deployer Upgrade Deprecation" href="/notices/op-deployer-upgrade-deprecation" icon="triangle-exclamation" horizontal>
+    The op-deployer upgrade flow has been deprecated
+  </Card>
+</CardGroup>

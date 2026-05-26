@@ -17,7 +17,10 @@ importers:
     devDependencies:
       '@eth-optimism/actions-sdk':
         specifier: ^0.4.0
-        version: 0.4.0(ad7ce959d80d286b7fb1ea7e7b63b2ba)
+        version: 0.4.0(ac64370522dde8e902165d74ba073fcc)
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.1
       '@types/react':
         specifier: ^18.0.0
         version: 18.2.36
@@ -627,67 +630,79 @@ packages:
     resolution: {integrity: sha512-9B+taZ8DlyyqzZQnoeIvDVR/2F4EbMepXMc/NdVbkzsJbzkUjhXv/70GQJ7tdLA4YJgNP25zukcxpX2/SueNrA==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-arm@1.0.5':
     resolution: {integrity: sha512-gvcC4ACAOPRNATg/ov8/MnbxFDJqf/pDePbBnuBDcjsI8PssmjoKMAz4LtLaVi+OnSb5FK/yIOamqDwGmXW32g==}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-s390x@1.0.4':
     resolution: {integrity: sha512-u7Wz6ntiSSgGSGcjZ55im6uvTrOxSIS8/dgoVMoiGE9I6JAfU50yH5BoDlYA1tcuGS7g/QNtetJnxA6QEsCVTA==}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linux-x64@1.0.4':
     resolution: {integrity: sha512-MmWmQ3iPFZr0Iev+BAgVMb3ZyC4KeFc3jFxnNbEPas60e1cIfevbtuyf9nDGIzOaW9PdnDciJm+wFFaTlj5xYw==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-libvips-linuxmusl-arm64@1.0.4':
     resolution: {integrity: sha512-9Ti+BbTYDcsbp4wfYib8Ctm1ilkugkA/uscUn6UXK1ldpC1JjiXbLfFZtRlBhjPZ5o1NCLiDbg8fhUPKStHoTA==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-libvips-linuxmusl-x64@1.0.4':
     resolution: {integrity: sha512-viYN1KX9m+/hGkJtvYYp+CCLgnJXwiQB39damAO7WMdKWlIhmYTfHjwSbQeUK/20vY154mwezd9HflVFM1wVSw==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-linux-arm64@0.33.5':
     resolution: {integrity: sha512-JMVv+AMRyGOHtO1RFBiJy/MBsgz0x4AWrT6QoEVVTyh1E39TrCUpTRI7mx9VksGX4awWASxqCYLCV4wBZHAYxA==}
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-arm@0.33.5':
     resolution: {integrity: sha512-JTS1eldqZbJxjvKaAkxhZmBqPRGmxgu+qFKSInv8moZ2AmT5Yib3EQ1c6gp493HvrvV8QgdOXdyaIBrhvFhBMQ==}
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-s390x@0.33.5':
     resolution: {integrity: sha512-y/5PCd+mP4CA/sPDKl2961b+C9d+vPAveS33s6Z3zfASk2j5upL6fXVPZi7ztePZ5CuH+1kW8JtvxgbuXHRa4Q==}
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linux-x64@0.33.5':
     resolution: {integrity: sha512-opC+Ok5pRNAzuvq1AG0ar+1owsu842/Ab+4qvU879ippJBHvyY5n2mxF1izXqkPYlGuP/M556uh53jRLJmzTWA==}
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@img/sharp-linuxmusl-arm64@0.33.5':
     resolution: {integrity: sha512-XrHMZwGQGvJg2V/oRSUfSAfjfPxO+4DkiRh6p2AFjLQztWUuY/o8Mq0eMQVIY7HJ1CDQUJlxGGZRw1a5bqmd1g==}
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-linuxmusl-x64@0.33.5':
     resolution: {integrity: sha512-WT+d/cgqKkkKySYmqoZ8y3pxx7lx9vVejxW/W4DOFMYVSkErR+w7mf2u8m/y4+xHe7yY9DAXQMWQhpnMuFfScw==}
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@img/sharp-wasm32@0.33.5':
     resolution: {integrity: sha512-ykUW4LVGaMcU9lu9thv85CbRMAwfeadCJHRsg2GmeRa/cJxsVY9Rbd57JcMxBkKHag5U/x7TSBpScF4U8ElVzg==}
@@ -757,9 +772,11 @@ packages:
 
   '@metamask/sdk-analytics@0.0.5':
     resolution: {integrity: sha512-fDah+keS1RjSUlC8GmYXvx6Y26s3Ax1U9hGpWb6GSY5SAdmTSIqp2CvYy6yW0WgLhnYhW+6xERuD0eVqV63QIQ==}
+    deprecated: No longer maintained, superseded by @metamask/connect-analytics
 
   '@metamask/sdk-communication-layer@0.33.0':
     resolution: {integrity: sha512-d0Jvk6V+plhF/3cy+5apJG16z6rmcJOy5B86PTUgghuzkBzrN7+7Ovzpp0JBr0EUuuoFXjEqc7Y6KakQ5WXv1Q==}
+    deprecated: No longer maintained, superseded by https://docs.metamask.io/metamask-connect
     peerDependencies:
       cross-fetch: ^4.0.0
       eciesjs: '*'
@@ -769,9 +786,11 @@ packages:
 
   '@metamask/sdk-install-modal-web@0.32.1':
     resolution: {integrity: sha512-MGmAo6qSjf1tuYXhCu2EZLftq+DSt5Z7fsIKr2P+lDgdTPWgLfZB1tJKzNcwKKOdf6q9Qmmxn7lJuI/gq5LrKw==}
+    deprecated: No longer maintained, superseded by https://docs.metamask.io/metamask-connect
 
   '@metamask/sdk@0.33.0':
     resolution: {integrity: sha512-Msfv21NKU4iAMBMupxlIb0hFsqzErVLg+yaW3NStQGEGA9Z37gXfouKO21lEDb4FcMLbrqV76pgrnDLm9gy3Wg==}
+    deprecated: No longer maintained, superseded by https://docs.metamask.io/metamask-connect
 
   '@metamask/superstruct@3.2.1':
     resolution: {integrity: sha512-fLgJnDOXFmuVlB38rUN5SmU7hAFQcCjrg3Vrxz67KTY7YHFnSNEKvX4avmEBdOI0yTCxZjwMCFEqsC8k2+Wd3g==}
@@ -1399,6 +1418,9 @@ packages:
 
   '@types/node@24.10.1':
     resolution: {integrity: sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ==}
+
+  '@types/node@25.9.1':
+    resolution: {integrity: sha512-xfrlY7UD5rMJk3ZVJP8BNzS28J36YJg+xp+LPXV1TdWxr8uMH5A860QNxYDGQe/ylDSgjxE52Q9VnO7p75tJxg==}
 
   '@types/prop-types@15.7.9':
     resolution: {integrity: sha512-n1yyPsugYNSmHgxDFjicaI2+gCNjsBck8UX9kuofAKlc0h1bL+20oSF72KeNaW2DUlesbEVCFgyV2dPGTiY42g==}
@@ -2207,9 +2229,6 @@ packages:
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
 
-  immer@9.0.21:
-    resolution: {integrity: sha512-bc4NBHqOqSfRW7POMkHd51LvClaeMXpm8dx0e8oE2GORbq5aRK7Bxl4FyzVLdGtLmvLKL7BTDBG5ACQm4HWjTA==}
-
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
@@ -2977,6 +2996,9 @@ packages:
   undici-types@7.16.0:
     resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
 
+  undici-types@7.24.6:
+    resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
+
   unfetch@4.2.0:
     resolution: {integrity: sha512-F9p7yYCn6cIW9El1zi0HI6vqpeIvBsr3dSuRO6Xuppb1u5rXpCPmMvLSyECLhybr9isec8Ohl0hPekMVrEinDA==}
 
@@ -3064,6 +3086,7 @@ packages:
 
   uuid@10.0.0:
     resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   uuid@11.1.0:
@@ -3072,10 +3095,12 @@ packages:
 
   uuid@8.3.2:
     resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   uuid@9.0.1:
     resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   valibot@0.36.0:
@@ -3313,7 +3338,7 @@ snapshots:
 
   '@babel/runtime@7.28.4': {}
 
-  '@base-org/account@1.1.1(@types/react@18.2.36)(bufferutil@4.0.9)(immer@9.0.21)(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(zod@3.25.76)':
+  '@base-org/account@1.1.1(@types/react@18.2.36)(bufferutil@4.0.9)(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(zod@3.25.76)':
     dependencies:
       '@noble/hashes': 1.4.0
       clsx: 1.2.1
@@ -3322,7 +3347,7 @@ snapshots:
       ox: 0.6.9(typescript@5.3.2)(zod@3.25.76)
       preact: 10.24.2
       viem: 2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      zustand: 5.0.3(@types/react@18.2.36)(immer@9.0.21)(react@18.2.0)(use-sync-external-store@1.6.0(react@18.2.0))
+      zustand: 5.0.3(@types/react@18.2.36)(react@18.2.0)(use-sync-external-store@1.6.0(react@18.2.0))
     transitivePeerDependencies:
       - '@types/react'
       - bufferutil
@@ -3353,9 +3378,9 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@dynamic-labs-connectors/base-account-evm@4.4.2(@dynamic-labs/ethereum-core@4.44.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)))(@dynamic-labs/wallet-connector-core@4.44.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.36)(bufferutil@4.0.9)(immer@9.0.21)(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)':
+  '@dynamic-labs-connectors/base-account-evm@4.4.2(@dynamic-labs/ethereum-core@4.44.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)))(@dynamic-labs/wallet-connector-core@4.44.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.36)(bufferutil@4.0.9)(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)':
     dependencies:
-      '@base-org/account': 1.1.1(@types/react@18.2.36)(bufferutil@4.0.9)(immer@9.0.21)(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@base-org/account': 1.1.1(@types/react@18.2.36)(bufferutil@4.0.9)(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(zod@3.25.76)
       '@dynamic-labs/ethereum-core': 4.44.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))
       '@dynamic-labs/wallet-connector-core': 4.44.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       viem: 2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -3506,10 +3531,10 @@ snapshots:
       - react
       - react-dom
 
-  '@dynamic-labs/ethereum@4.44.1(@types/react@18.2.36)(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(immer@9.0.21)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)':
+  '@dynamic-labs/ethereum@4.44.1(@types/react@18.2.36)(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)':
     dependencies:
       '@coinbase/wallet-sdk': 4.3.7(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@dynamic-labs-connectors/base-account-evm': 4.4.2(@dynamic-labs/ethereum-core@4.44.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)))(@dynamic-labs/wallet-connector-core@4.44.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.36)(bufferutil@4.0.9)(immer@9.0.21)(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
+      '@dynamic-labs-connectors/base-account-evm': 4.4.2(@dynamic-labs/ethereum-core@4.44.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)))(@dynamic-labs/wallet-connector-core@4.44.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.36)(bufferutil@4.0.9)(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
       '@dynamic-labs/assert-package-version': 4.44.1
       '@dynamic-labs/embedded-wallet-evm': 4.44.1(bufferutil@4.0.9)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.2)(utf-8-validate@5.0.10)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
       '@dynamic-labs/ethereum-core': 4.44.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))
@@ -3844,11 +3869,11 @@ snapshots:
   '@esbuild/win32-x64@0.25.12':
     optional: true
 
-  '@eth-optimism/actions-sdk@0.4.0(ad7ce959d80d286b7fb1ea7e7b63b2ba)':
+  '@eth-optimism/actions-sdk@0.4.0(ac64370522dde8e902165d74ba073fcc)':
     dependencies:
       '@aave/contract-helpers': 1.36.2(bignumber.js@9.3.1)(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(reflect-metadata@0.2.2)(tslib@2.8.1)
       '@aave/math-utils': 1.36.2(bignumber.js@9.3.1)(tslib@2.8.1)
-      '@dynamic-labs/ethereum': 4.44.1(@types/react@18.2.36)(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(immer@9.0.21)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
+      '@dynamic-labs/ethereum': 4.44.1(@types/react@18.2.36)(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
       '@dynamic-labs/waas-evm': 4.44.1(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@dynamic-labs/wallet-connector-core': 4.44.1(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@eth-optimism/viem': 0.4.14(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))
@@ -3856,7 +3881,7 @@ snapshots:
       '@morpho-org/blue-sdk-viem': 3.2.0(@morpho-org/blue-sdk@4.13.1(@morpho-org/morpho-ts@2.4.5))(@morpho-org/morpho-ts@2.4.5)(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))
       '@morpho-org/morpho-ts': 2.4.5
       '@privy-io/node': 0.4.0(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))
-      '@privy-io/react-auth': 3.6.0(@types/react@18.2.36)(bufferutil@4.0.9)(immer@9.0.21)(permissionless@0.2.57(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@privy-io/react-auth': 3.6.0(@types/react@18.2.36)(bufferutil@4.0.9)(permissionless@0.2.57(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(zod@3.25.76)
       '@turnkey/core': 1.7.0(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@turnkey/http': 3.15.0
       '@turnkey/react-wallet-kit': 1.5.0(@types/react@18.2.36)(bufferutil@4.0.9)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -4748,9 +4773,9 @@ snapshots:
     optionalDependencies:
       viem: 2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)
 
-  '@privy-io/react-auth@3.6.0(@types/react@18.2.36)(bufferutil@4.0.9)(immer@9.0.21)(permissionless@0.2.57(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(zod@3.25.76)':
+  '@privy-io/react-auth@3.6.0(@types/react@18.2.36)(bufferutil@4.0.9)(permissionless@0.2.57(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(zod@3.25.76)':
     dependencies:
-      '@base-org/account': 1.1.1(@types/react@18.2.36)(bufferutil@4.0.9)(immer@9.0.21)(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(zod@3.25.76)
+      '@base-org/account': 1.1.1(@types/react@18.2.36)(bufferutil@4.0.9)(react@18.2.0)(typescript@5.3.2)(use-sync-external-store@1.6.0(react@18.2.0))(utf-8-validate@5.0.10)(zod@3.25.76)
       '@coinbase/wallet-sdk': 4.3.2
       '@floating-ui/react': 0.26.28(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@headlessui/react': 2.2.9(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -4787,7 +4812,7 @@ snapshots:
       tinycolor2: 1.6.0
       uuid: 9.0.1
       viem: 2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      zustand: 5.0.9(@types/react@18.2.36)(immer@9.0.21)(react@18.2.0)(use-sync-external-store@1.6.0(react@18.2.0))
+      zustand: 5.0.9(@types/react@18.2.36)(react@18.2.0)(use-sync-external-store@1.6.0(react@18.2.0))
     optionalDependencies:
       permissionless: 0.2.57(viem@2.41.2(bufferutil@4.0.9)(typescript@5.3.2)(utf-8-validate@5.0.10)(zod@3.25.76))
     transitivePeerDependencies:
@@ -5963,6 +5988,10 @@ snapshots:
   '@types/node@24.10.1':
     dependencies:
       undici-types: 7.16.0
+
+  '@types/node@25.9.1':
+    dependencies:
+      undici-types: 7.24.6
 
   '@types/prop-types@15.7.9': {}
 
@@ -7816,9 +7845,6 @@ snapshots:
 
   ieee754@1.2.1: {}
 
-  immer@9.0.21:
-    optional: true
-
   inherits@2.0.4: {}
 
   io-ts@2.2.22(fp-ts@2.16.11):
@@ -8640,6 +8666,8 @@ snapshots:
 
   undici-types@7.16.0: {}
 
+  undici-types@7.24.6: {}
+
   unfetch@4.2.0: {}
 
   unstorage@1.17.3(idb-keyval@6.2.2):
@@ -8871,16 +8899,14 @@ snapshots:
 
   zod@4.0.5: {}
 
-  zustand@5.0.3(@types/react@18.2.36)(immer@9.0.21)(react@18.2.0)(use-sync-external-store@1.6.0(react@18.2.0)):
+  zustand@5.0.3(@types/react@18.2.36)(react@18.2.0)(use-sync-external-store@1.6.0(react@18.2.0)):
     optionalDependencies:
       '@types/react': 18.2.36
-      immer: 9.0.21
       react: 18.2.0
       use-sync-external-store: 1.6.0(react@18.2.0)
 
-  zustand@5.0.9(@types/react@18.2.36)(immer@9.0.21)(react@18.2.0)(use-sync-external-store@1.6.0(react@18.2.0)):
+  zustand@5.0.9(@types/react@18.2.36)(react@18.2.0)(use-sync-external-store@1.6.0(react@18.2.0)):
     optionalDependencies:
       '@types/react': 18.2.36
-      immer: 9.0.21
       react: 18.2.0
       use-sync-external-store: 1.6.0(react@18.2.0)
