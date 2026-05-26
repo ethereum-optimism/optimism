@@ -1,13 +1,13 @@
 use super::{metrics::FlashblocksWsInboundMetrics, primitives::FlashblocksPayloadV1};
 use crate::FlashblocksWebsocketConfig;
-use backoff::ExponentialBackoff;
-use backoff::backoff::Backoff;
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
 use lru::LruCache;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::{
+    num::NonZeroUsize,
+    sync::{Arc, Mutex},
+};
 use tokio::{sync::mpsc, time::interval};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tokio_util::sync::CancellationToken;
@@ -213,7 +213,8 @@ impl FlashblocksReceiverService {
         cancel_token.cancel();
 
         // Only reset backoff if connection was stable for the max_interval set
-        // This prevents rapid reconnection loops when a proxy accepts and immediately drops connections
+        // This prevents rapid reconnection loops when a proxy accepts and immediately drops
+        // connections
         if connection_start.elapsed() >= backoff.max_interval {
             backoff.reset();
         }
@@ -228,8 +229,10 @@ mod tests {
     use tokio_tungstenite::{accept_async, tungstenite::Utf8Bytes};
 
     use super::*;
-    use std::net::{SocketAddr, TcpListener};
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::{
+        net::{SocketAddr, TcpListener},
+        sync::atomic::{AtomicBool, Ordering},
+    };
 
     async fn start(
         addr: SocketAddr,
@@ -245,6 +248,9 @@ mod tests {
         let (send_ping_tx, send_ping_rx) = mpsc::channel::<()>(100);
 
         let listener = TcpListener::bind(addr)?;
+        // Re-read the bound address so callers can pass `:0` and get a
+        // free OS-assigned port; the reconnection test needs the same
+        // port across the two `start()` calls.
         let addr = listener.local_addr()?;
         let url = Url::parse(&format!("ws://{addr}"))?;
 
@@ -317,14 +323,16 @@ mod tests {
     }
 
     async fn start_ping_server(
+        addr: SocketAddr,
         send_pongs: Arc<AtomicBool>,
     ) -> eyre::Result<(watch::Receiver<bool>, mpsc::Receiver<Bytes>, url::Url)> {
         let (term_tx, term_rx) = watch::channel(false);
         let (send_ping_tx, send_ping_rx) = mpsc::channel(100);
 
-        let listener = TcpListener::bind("127.0.0.1:0")?;
-        let addr = listener.local_addr()?;
-        let url = Url::parse(&format!("ws://{addr}"))?;
+        let listener = TcpListener::bind(addr)?;
+        // Re-read the bound address so callers can pass `:0` and get a free port.
+        let bound_addr = listener.local_addr()?;
+        let url = Url::parse(&format!("ws://{bound_addr}"))?;
 
         listener
             .set_nonblocking(true)
@@ -337,31 +345,44 @@ mod tests {
             loop {
                 let result = listener.accept().await;
                 match result {
-                    Ok((connection, _addr)) => match accept_async(connection).await {
-                        Ok(ws_stream) => {
-                            let (mut write, mut read) = ws_stream.split();
-                            loop {
-                                if send_pongs.load(Ordering::Relaxed) {
-                                    let msg = read.next().await;
-                                    match msg {
-                                        Some(Ok(Message::Ping(data))) => {
-                                            write.send(Message::Pong(data.clone())).await.ok();
-                                            send_ping_tx.send(data).await.expect("ping data sent");
+                    Ok((connection, _addr)) => {
+                        match accept_async(connection).await {
+                            Ok(ws_stream) => {
+                                let (_, mut read) = ws_stream.split();
+                                loop {
+                                    if send_pongs.load(Ordering::Relaxed) {
+                                        let msg = read.next().await;
+                                        match msg {
+                                            // we need to read for the library to handle pong
+                                            // messages
+                                            Some(Ok(Message::Ping(data))) => {
+                                                send_ping_tx
+                                                    .send(data)
+                                                    .await
+                                                    .expect("ping data sent");
+                                            }
+                                            Some(Ok(Message::Close(_))) | None => {
+                                                // Stream closed by the client (or drained);
+                                                // without this break the next `read.next()`
+                                                // resolves immediately and spins the runtime.
+                                                break;
+                                            }
+                                            Some(Err(_)) => {
+                                                break;
+                                            }
+                                            _ => {}
                                         }
-                                        Some(Err(_)) => {
-                                            break;
-                                        }
-                                        _ => {}
+                                    } else {
+                                        tokio::time::sleep(tokio::time::Duration::from_millis(1))
+                                            .await;
                                     }
-                                } else {
-                                    tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
                                 }
                             }
+                            Err(e) => {
+                                eprintln!("Failed to accept WebSocket connection: {}", e);
+                            }
                         }
-                        Err(e) => {
-                            eprintln!("Failed to accept WebSocket connection: {}", e);
-                        }
-                    },
+                    }
                     Err(e) => {
                         // Optionally break or continue based on error type
                         if e.kind() == std::io::ErrorKind::Interrupted {
@@ -379,7 +400,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_flashblocks_receiver_service() -> eyre::Result<()> {
-        let (term, send_msg, _, url, addr) =
+        // Bind to port 0 so the OS hands us a free port — avoids collisions
+        // when an earlier test process has not released its socket yet.
+        // Named bindings (vs `_`) keep `ping_rx` alive for the function
+        // scope: the spawned server task forwards client Pings via
+        // `send_ping_tx.send(..).expect(..)`, which panics if the
+        // receiver has been dropped (the client sends a Ping every
+        // `flashblock_builder_ws_ping_interval_ms`).
+        let (term, send_msg, _ping_rx, url, addr) =
             start("127.0.0.1:0".parse().expect("valid socket address")).await?;
 
         let (tx, mut rx) = mpsc::channel(100);
@@ -411,8 +439,9 @@ mod tests {
         // sleep for 1 second to ensure the server is dropped
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-        // start a new server with the same address
-        let (term, send_msg, _, _url, _) = start(addr).await?;
+        // start a new server with the same address; keep `ping_rx` named so
+        // the server task can forward Pings without panicking.
+        let (term, send_msg, _ping_rx, _url, _) = start(addr).await?;
         send_msg
             .send(FlashblocksPayloadV1::default())
             .await
@@ -430,8 +459,13 @@ mod tests {
         // test that if the builder is not sending any messages back, the service will send
         // ping messages to test the connection periodically
 
+        // Bind to port 0 so the OS hands us a free port — avoids collisions when
+        // an earlier test process has not released its socket yet.
+        let addr = "127.0.0.1:0"
+            .parse::<SocketAddr>()
+            .expect("valid socket address");
         let send_pongs = Arc::new(AtomicBool::new(true));
-        let (term, mut ping_rx, url) = start_ping_server(send_pongs.clone()).await?;
+        let (term, mut ping_rx, url) = start_ping_server(addr, send_pongs.clone()).await?;
         let config = FlashblocksWebsocketConfig {
             flashblock_builder_ws_initial_reconnect_ms: 100,
             flashblock_builder_ws_max_reconnect_ms: 1000,

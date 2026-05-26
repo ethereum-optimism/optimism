@@ -26,8 +26,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/sync/errgroup"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // TestInitExecMsg tests basic interop messaging
@@ -85,8 +85,8 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 	// Manually build identifier, message, accesslist for executing message
 	// Single event in tx so index is 0
 	logIdx := uint32(0)
-	payload := suptypes.LogToMessagePayload(receipt.Logs[logIdx])
-	identifier := suptypes.Identifier{
+	payload := messages.LogToMessagePayload(receipt.Logs[logIdx])
+	identifier := messages.Identifier{
 		Origin:      eventLoggerAddress,
 		BlockNumber: bigs.Uint64Strict(receipt.BlockNumber),
 		LogIndex:    logIdx,
@@ -95,12 +95,12 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 	}
 	payloadHash := crypto.Keccak256Hash(payload)
 	msgHash := eth.Bytes32(payloadHash)
-	msg := suptypes.Message{
+	msg := messages.Message{
 		Identifier: identifier, PayloadHash: payloadHash,
 	}
 	accessList := types.AccessList{{
 		Address:     predeploys.CrossL2InboxAddr,
-		StorageKeys: suptypes.EncodeAccessList([]suptypes.Access{msg.Access()}),
+		StorageKeys: messages.EncodeAccessList([]messages.Access{msg.Access()}),
 	}}
 
 	call := crossL2Inbox.ValidateMessage(identifier, msgHash)

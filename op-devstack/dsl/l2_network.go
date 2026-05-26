@@ -501,12 +501,7 @@ func (n *L2Network) DeriveData(blocks int) (channels []derive.ChannelID, channel
 				}
 
 			} else if batchType == derive.SpanBatchType {
-				spanBatch, err := derive.DeriveSpanBatch(
-					batchData,
-					rollupCfg.BlockTime,
-					rollupCfg.Genesis.L2Time,
-					rollupCfg.L2ChainID,
-				)
+				spanBatch, err := derive.DeriveSpanBatch(batchData, rollupCfg)
 				if err != nil {
 					l.Warn("Failed to decode span batch",
 						"channelID", channelID.String(),

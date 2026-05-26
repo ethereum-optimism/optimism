@@ -156,11 +156,6 @@ FROM --platform=$BUILDPLATFORM builder AS da-server-builder
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   cd op-alt-da && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE just da-server
 
-FROM --platform=$BUILDPLATFORM builder AS op-supervisor-builder
-ARG OP_SUPERVISOR_VERSION=v0.0.0
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  cd op-supervisor && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_SUPERVISOR_VERSION" just op-supervisor
-
 FROM --platform=$BUILDPLATFORM builder AS op-supernode-builder
 ARG OP_SUPERNODE_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
@@ -313,9 +308,6 @@ FROM $TARGET_BASE_IMAGE AS da-server-target
 COPY --from=da-server-builder /app/op-alt-da/bin/da-server /usr/local/bin/
 CMD ["da-server"]
 
-FROM $TARGET_BASE_IMAGE AS op-supervisor-target
-COPY --from=op-supervisor-builder /app/op-supervisor/bin/op-supervisor /usr/local/bin/
-CMD ["op-supervisor"]
 
 FROM $TARGET_BASE_IMAGE AS op-supernode-target
 COPY --from=op-supernode-builder /app/op-supernode/bin/op-supernode /usr/local/bin/

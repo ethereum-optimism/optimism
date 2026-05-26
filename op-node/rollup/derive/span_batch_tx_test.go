@@ -95,6 +95,47 @@ func TestSpanBatchTxRoundTrip(t *testing.T) {
 	}
 }
 
+func testPostExecTx() *types.Transaction {
+	return types.NewTx(&types.PostExecTx{Data: []byte{0xc2, 0x01, 0xc0}})
+}
+
+func TestSpanBatchTxPostExecConvert(t *testing.T) {
+	tx := testPostExecTx()
+	v, r, s := tx.RawSignatureValues()
+
+	sbtx, err := newSpanBatchTx(tx)
+	require.NoError(t, err)
+
+	// Deliberately pass non-canonical tx envelope fields. PostExec reconstruction
+	// must ignore them and preserve only the opaque payload bytes.
+	tx2, err := sbtx.convertToFullTx(123, 456, nil, big.NewInt(901), v, r, s)
+	require.NoError(t, err)
+
+	txEncoded, err := tx.MarshalBinary()
+	require.NoError(t, err)
+	tx2Encoded, err := tx2.MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, txEncoded, tx2Encoded)
+}
+
+func TestSpanBatchTxPostExecRoundTrip(t *testing.T) {
+	tx := testPostExecTx()
+
+	sbtx, err := newSpanBatchTx(tx)
+	require.NoError(t, err)
+
+	sbtxEncoded, err := sbtx.MarshalBinary()
+	require.NoError(t, err)
+	txEncoded, err := tx.MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, txEncoded, sbtxEncoded)
+
+	var sbtx2 spanBatchTx
+	err = sbtx2.UnmarshalBinary(sbtxEncoded)
+	require.NoError(t, err)
+	require.Equal(t, sbtx, &sbtx2)
+}
+
 type spanBatchDummyTxData struct{}
 
 func (txData *spanBatchDummyTxData) txType() byte { return types.DepositTxType }

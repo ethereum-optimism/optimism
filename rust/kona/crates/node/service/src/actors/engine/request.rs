@@ -1,5 +1,7 @@
 use alloy_rpc_types_engine::PayloadId;
-use kona_engine::{BuildTaskError, ConsolidateInput, EngineQueries, SealTaskError};
+use kona_engine::{
+    BuildTaskError, ConsolidateInput, EngineQueries, FinalizeBlockId, SealTaskError,
+};
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
@@ -41,8 +43,8 @@ pub enum EngineActorRequest {
     /// Request to consolidate using a safe L2 signal from attributes or delegated safe-block
     /// derivation
     ProcessSafeL2SignalRequest(ConsolidateInput),
-    /// Request to finalize the L2 block at the provided block number.
-    ProcessFinalizedL2BlockNumberRequest(Box<u64>),
+    /// Request to finalize the L2 block identified by the provided [`FinalizeBlockId`].
+    ProcessFinalizedL2BlockRequest(Box<FinalizeBlockId>),
     /// Request to insert the provided unsafe block.
     ProcessUnsafeL2BlockRequest(Box<OpExecutionPayloadEnvelope>),
     /// Request to reset engine forkchoice.

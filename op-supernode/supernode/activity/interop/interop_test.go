@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -2498,19 +2498,19 @@ type mockLogsDBWithState struct {
 func (m *mockLogsDBWithState) LatestSealedBlock() (eth.BlockID, bool) {
 	return m.latestBlock, m.hasBlocks
 }
-func (m *mockLogsDBWithState) FirstSealedBlock() (suptypes.BlockSeal, error) {
-	return suptypes.BlockSeal{}, nil
+func (m *mockLogsDBWithState) FirstSealedBlock() (messages.BlockSeal, error) {
+	return messages.BlockSeal{}, nil
 }
-func (m *mockLogsDBWithState) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) {
-	return suptypes.BlockSeal{}, nil
+func (m *mockLogsDBWithState) FindSealedBlock(number uint64) (messages.BlockSeal, error) {
+	return messages.BlockSeal{}, nil
 }
-func (m *mockLogsDBWithState) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*suptypes.ExecutingMessage, error) {
+func (m *mockLogsDBWithState) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error) {
 	return eth.BlockRef{}, 0, nil, nil
 }
-func (m *mockLogsDBWithState) Contains(query suptypes.ContainsQuery) (suptypes.BlockSeal, error) {
-	return suptypes.BlockSeal{}, nil
+func (m *mockLogsDBWithState) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
+	return messages.BlockSeal{}, nil
 }
-func (m *mockLogsDBWithState) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *suptypes.ExecutingMessage) error {
+func (m *mockLogsDBWithState) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error {
 	return nil
 }
 func (m *mockLogsDBWithState) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
@@ -2578,9 +2578,9 @@ func applyResultCompat(i *Interop, result Result) error {
 type mockLogsDBForInterop struct {
 	openBlockRef     eth.BlockRef
 	openBlockLogCnt  uint32
-	openBlockExecMsg map[uint32]*suptypes.ExecutingMessage
+	openBlockExecMsg map[uint32]*messages.ExecutingMessage
 	openBlockErr     error
-	containsSeal     suptypes.BlockSeal
+	containsSeal     messages.BlockSeal
 	containsErr      error
 
 	// Track calls for verification
@@ -2590,29 +2590,29 @@ type mockLogsDBForInterop struct {
 	sealCalls   int
 
 	// Configurable return value for FirstSealedBlock
-	firstSealedBlock suptypes.BlockSeal
+	firstSealedBlock messages.BlockSeal
 }
 
 func (m *mockLogsDBForInterop) LatestSealedBlock() (eth.BlockID, bool) { return eth.BlockID{}, false }
-func (m *mockLogsDBForInterop) FirstSealedBlock() (suptypes.BlockSeal, error) {
+func (m *mockLogsDBForInterop) FirstSealedBlock() (messages.BlockSeal, error) {
 	return m.firstSealedBlock, nil
 }
-func (m *mockLogsDBForInterop) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) {
-	return suptypes.BlockSeal{}, nil
+func (m *mockLogsDBForInterop) FindSealedBlock(number uint64) (messages.BlockSeal, error) {
+	return messages.BlockSeal{}, nil
 }
-func (m *mockLogsDBForInterop) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*suptypes.ExecutingMessage, error) {
+func (m *mockLogsDBForInterop) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error) {
 	if m.openBlockErr != nil {
 		return eth.BlockRef{}, 0, nil, m.openBlockErr
 	}
 	return m.openBlockRef, m.openBlockLogCnt, m.openBlockExecMsg, nil
 }
-func (m *mockLogsDBForInterop) Contains(query suptypes.ContainsQuery) (suptypes.BlockSeal, error) {
+func (m *mockLogsDBForInterop) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
 	if m.containsErr != nil {
-		return suptypes.BlockSeal{}, m.containsErr
+		return messages.BlockSeal{}, m.containsErr
 	}
 	return m.containsSeal, nil
 }
-func (m *mockLogsDBForInterop) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *suptypes.ExecutingMessage) error {
+func (m *mockLogsDBForInterop) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error {
 	m.addLogCalls++
 	return nil
 }

@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // putIntoReorg forces the ingester into ErrorReorg by ingesting a block whose
@@ -71,7 +71,7 @@ func TestIntegration_RecoverReorg_BeforeInit_Uninitialized(t *testing.T) {
 	si.logsDB = nil
 
 	_, _, err := si.RewindToFinalized(context.Background())
-	require.ErrorIs(t, err, types.ErrUninitialized)
+	require.ErrorIs(t, err, interop.ErrUninitialized)
 }
 
 func TestIntegration_RecoverReorg_FinalizedBlockNotInDB_StaysInFailsafe(t *testing.T) {
@@ -87,7 +87,7 @@ func TestIntegration_RecoverReorg_FinalizedBlockNotInDB_StaysInFailsafe(t *testi
 
 	_, _, err := bk.recoverChainReorg(context.Background(), si.chainID, si.LogsDBChainIngester)
 	require.Error(t, err)
-	require.True(t, errors.Is(err, types.ErrFuture), "expected ErrFuture, got %v", err)
+	require.True(t, errors.Is(err, interop.ErrFuture), "expected ErrFuture, got %v", err)
 	require.NotNil(t, si.Error())
 	require.Equal(t, ErrorReorg, si.Error().Reason)
 }
@@ -105,7 +105,7 @@ func TestIntegration_RecoverReorg_FinalizedHashMismatch_StaysInFailsafe(t *testi
 
 	_, _, err := bk.recoverChainReorg(context.Background(), si.chainID, si.LogsDBChainIngester)
 	require.Error(t, err)
-	require.True(t, errors.Is(err, types.ErrConflict), "expected ErrConflict, got %v", err)
+	require.True(t, errors.Is(err, interop.ErrConflict), "expected ErrConflict, got %v", err)
 	require.NotNil(t, si.Error())
 	require.Equal(t, ErrorReorg, si.Error().Reason)
 }

@@ -70,14 +70,25 @@ tester: ## Build tester (debug version)
 
 .PHONY: docker-image-rbuilder
 docker-image-rbuilder: ## Build a rbuilder Docker image
-	docker build --platform linux/amd64 --target rbuilder-runtime --build-arg FEATURES="$(FEATURES)"  . -t rbuilder
+	# The Dockerfile references the parent rust/ workspace via the named
+	# `monorepo-rust` BuildKit context to resolve sibling path deps
+	# (../op-reth/..., ../rollup-boost/..., etc.). Requires buildx.
+	docker buildx build --load \
+		--platform linux/amd64 \
+		--target rbuilder-runtime \
+		--build-arg FEATURES="$(FEATURES)" \
+		--build-context monorepo-rust=.. \
+		-t rbuilder \
+		.
 
 ##@ Dev
 
 .PHONY: lint
 lint: ## Run the linters
-	cargo +nightly fmt -- --check
-	cargo +nightly clippy --all-features -- -D warnings
+	# Pinned to the monorepo's mise.toml nightly so local `make lint`
+	# reproduces CI exactly (plain `+nightly` drifts as new lints land).
+	cargo +nightly-2026-02-20 fmt -- --check
+	cargo +nightly-2026-02-20 clippy --all-features -- -D warnings
 
 .PHONY: test
 test: ## Run the tests for rbuilder and op-rbuilder

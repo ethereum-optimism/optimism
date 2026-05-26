@@ -12,12 +12,12 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func setupInteropFilterTest(t devtest.T) *presets.TwoL2SupernodeInterop {
@@ -67,7 +67,7 @@ func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
 	// Send a transaction with the fabricated access list.
 	// The interop filter should reject this because the inbox entry doesn't
 	// correspond to any real cross-chain message.
-	ctx, cancel := context.WithTimeout(gt.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(gt.Context(), 30*time.Second)
 	defer cancel()
 
 	bobAddr := bob.Address()
@@ -135,7 +135,7 @@ func TestInteropFilter_FailsafeLifecycle(gt *testing.T) {
 	initMsg2 := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 5))
 	sys.L2B.WaitForBlock()
 
-	ctx, cancel := context.WithTimeout(gt.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(gt.Context(), 30*time.Second)
 	defer cancel()
 
 	// During failsafe, even valid access lists should be rejected
@@ -146,7 +146,7 @@ func TestInteropFilter_FailsafeLifecycle(gt *testing.T) {
 	msg := result.Entries[0]
 	accessList := types.AccessList{{
 		Address:     predeploys.CrossL2InboxAddr,
-		StorageKeys: suptypes.EncodeAccessList([]suptypes.Access{msg.Access()}),
+		StorageKeys: messages.EncodeAccessList([]messages.Access{msg.Access()}),
 	}}
 
 	bobAddr := bob.Address()

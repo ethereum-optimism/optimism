@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	faucetConfig "github.com/ethereum-optimism/optimism/op-faucet/config"
@@ -25,7 +26,6 @@ import (
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -38,7 +38,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	sequencerConfig "github.com/ethereum-optimism/optimism/op-test-sequencer/config"
 	testmetrics "github.com/ethereum-optimism/optimism/op-test-sequencer/metrics"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
@@ -507,7 +506,6 @@ func startTwoL2SharedSupernode(
 			Rollup:                          *l2Net.rollupCfg,
 			P2PSigner:                       p2pSignerSetup,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
-			InteropConfig:                   &interop.Config{},
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
 			RuntimeConfigReloadInterval:     0,
@@ -540,16 +538,14 @@ func startTwoL2SharedSupernode(
 	}
 
 	supernode := &SuperNode{
-		userRPC:          "",
-		interopEndpoint:  "",
-		interopJwtSecret: jwtSecret,
-		p:                t,
-		logger:           logger,
-		chains:           []eth.ChainID{l2ANet.ChainID(), l2BNet.ChainID()},
-		l1UserRPC:        l1EL.UserRPC(),
-		l1BeaconAddr:     l1CL.beaconHTTPAddr,
-		snCfg:            snCfg,
-		vnCfgs:           vnCfgs,
+		userRPC:      "",
+		p:            t,
+		logger:       logger,
+		chains:       []eth.ChainID{l2ANet.ChainID(), l2BNet.ChainID()},
+		l1UserRPC:    l1EL.UserRPC(),
+		l1BeaconAddr: l1CL.beaconHTTPAddr,
+		snCfg:        snCfg,
+		vnCfgs:       vnCfgs,
 	}
 	supernode.Start()
 	t.Cleanup(supernode.Stop)
@@ -562,18 +558,14 @@ func startTwoL2SharedSupernode(
 	waitForSupernodeRoute(t, logger, l2BRPC)
 
 	l2ACL := &SuperNodeProxy{
-		p:                t,
-		logger:           logger,
-		userRPC:          l2ARPC,
-		interopEndpoint:  l2ARPC,
-		interopJwtSecret: jwtSecret,
+		p:       t,
+		logger:  logger,
+		userRPC: l2ARPC,
 	}
 	l2BCL := &SuperNodeProxy{
-		p:                t,
-		logger:           logger,
-		userRPC:          l2BRPC,
-		interopEndpoint:  l2BRPC,
-		interopJwtSecret: jwtSecret,
+		p:       t,
+		logger:  logger,
+		userRPC: l2BRPC,
 	}
 
 	return supernode, l2ACL, l2BCL
@@ -625,7 +617,6 @@ func startSingleChainSharedSupernode(
 			Rollup:                          *l2Net.rollupCfg,
 			P2PSigner:                       p2pSignerSetup,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
-			InteropConfig:                   &interop.Config{},
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
 			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync, SyncModeReqResp: true},
@@ -656,15 +647,13 @@ func startSingleChainSharedSupernode(
 	}
 
 	supernode := &SuperNode{
-		userRPC:          "",
-		interopEndpoint:  "",
-		interopJwtSecret: jwtSecret,
-		p:                t,
-		logger:           logger,
-		chains:           []eth.ChainID{l2Net.ChainID()},
-		l1UserRPC:        l1EL.UserRPC(),
-		l1BeaconAddr:     l1CL.beaconHTTPAddr,
-		snCfg:            snCfg,
+		userRPC:      "",
+		p:            t,
+		logger:       logger,
+		chains:       []eth.ChainID{l2Net.ChainID()},
+		l1UserRPC:    l1EL.UserRPC(),
+		l1BeaconAddr: l1CL.beaconHTTPAddr,
+		snCfg:        snCfg,
 		vnCfgs: map[eth.ChainID]*opnodeconfig.Config{
 			l2Net.ChainID(): makeNodeCfg(),
 		},
@@ -676,11 +665,9 @@ func startSingleChainSharedSupernode(
 	waitForSupernodeRoute(t, logger, l2RPC)
 
 	return supernode, &SuperNodeProxy{
-		p:                t,
-		logger:           logger,
-		userRPC:          l2RPC,
-		interopEndpoint:  l2RPC,
-		interopJwtSecret: jwtSecret,
+		p:       t,
+		logger:  logger,
+		userRPC: l2RPC,
 	}
 }
 

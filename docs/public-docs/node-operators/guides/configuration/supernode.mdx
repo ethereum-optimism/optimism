@@ -47,6 +47,18 @@ The `--l1.beacon-archiver` alias points at the same flag and is accepted for com
 
 For options on what to point `--l1.beacon-fallbacks` at — running your own non-pruning beacon, running `blob-archiver`, or using a third-party service — see the [blob archiver guide](/node-operators/guides/management/blobs#configure-a-blob-archiver).
 
+### Configure EL retention for supernode backfill
+
+<Info>
+  The supernode reads historical block and receipt data from each chain's execution client to backfill initiating-message logs after restarts or extended downtime.
+  ELs that aggressively prune receipts will break the backfill path.
+</Info>
+
+Configure each EL to retain at least 7 days of block and receipt history.
+A full archive is not required — see the [op-reth configuration reference](/node-operators/reference/op-reth-config) for the granular `--prune.*` flags that let you keep block and receipt history without enabling transaction indexing or world-state history.
+
+If you also run op-challenger for permissionless fault proofs, the same ELs additionally need historical proofs enabled — see [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs).
+
 ### Pair op-supernode with a Light CL fleet
 
 For operators running more than a handful of nodes, the deployable pattern is to concentrate the expensive multi-chain derivation work on supernodes and run the rest of the fleet as op-node or kona-node instances in Light CL mode.
@@ -58,6 +70,17 @@ See the [specialized op-node topology notice](/notices/specialized-node-topology
 
 Set `--disable-p2p=true` on the supernode when the fleet handles unsafe-head P2P gossip on its own.
 Leave P2P enabled (the default) when the supernode is the only node in the topology.
+
+### Run an HA pool of supernodes behind a consensus-aware proxyd
+
+For production reliability, OP Labs recommends running an **HA pool of at least three op-supernode instances** and fronting them with a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-awareness) configured with the `consensus_aware_consensus_layer` routing strategy.
+Point the Light CL fleet's `--l2.follow.source` at the proxyd endpoint rather than at a single supernode.
+This hides individual supernode failures or reorgs from the Light CL fleet and lets the supernode tier roll between releases without downtime.
+
+An individual supernode going down inside the HA pool is masked by `proxyd` — Light CLs continue following the surviving instances.
+If the entire supernode tier becomes unreachable, Light CLs keep advancing the unsafe chain over P2P gossip and resume safe-head tracking automatically once the tier is restored.
+
+A single op-supernode is acceptable for evaluation, but treat it as a single point of failure for safe-head progression on every chain it hosts.
 
 ## Example configuration
 
@@ -492,6 +515,7 @@ The default value is `6060`.
 
 ## Where to go next
 
+* Read the [interop prep notice](/notices/interop-prep) for the node-operator action checklist for the OP Sepolia and Unichain Sepolia activation.
 * Read the [supernode explainer](/op-stack/interop/supernode) for what op-supernode is and why it exists.
 * Read the [specialized op-node topology notice](/notices/specialized-node-topology) for the operator-facing pattern of running Light CL fleets that follow a supernode safe source.
 * Read the [interop explainer](/op-stack/interop/explainer) for how cross-chain messaging works at the protocol level.

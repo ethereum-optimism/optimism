@@ -14,12 +14,12 @@ categories:
 is_imported_content: 'false'
 ---
 
-OP Mainnet is running a time-boxed experiment in stake-based transaction ordering. Participants who deposit OP into the `PolicyEngineStaking` contract can receive priority treatment in transaction ordering -- first via strict FIFO among eligible stakers (Phase 1), then via a stake-weighted multiplier on effective priority fees (Phase 2). The experiment will run for a **maximum of four weeks** on OP Mainnet, after which ordering will revert to standard PGA.
+OP Mainnet hosts a time-boxed experiment in stake-based transaction ordering. Participants who deposit OP into the `PolicyEngineStaking` contract can receive priority treatment in transaction ordering -- first via strict FIFO among eligible stakers (Phase 1), then via a stake-weighted multiplier on effective priority fees (Phase 2). The experiment will run for a **maximum of four weeks** on OP Mainnet, after which ordering will revert to standard PGA.
 
 This is the first stake-based transaction ordering mechanism deployed on an OP Stack chain and creates direct OP token utility beyond governance.
 
 <Warning>
-  This experiment is temporary. After four weeks, OP Mainnet will revert to standard PGA ordering regardless of outcomes. Any strategy that depends on stake-based priority should account for this hard stop.
+  This experiment runs on OP Mainnet from **May 26, 2026 (10:00 EST)** for a maximum of four weeks. After that, OP Mainnet reverts to standard PGA ordering regardless of outcomes. Any strategy that depends on stake-based priority should account for this hard stop.
 </Warning>
 
 ## What this means
@@ -66,9 +66,13 @@ The only admin power is `pause()`/`unpause()`, held by a dedicated EOA controlle
 
 Any operation that changes `effectiveStake` resets `lastUpdate` to `block.timestamp`. This is relevant for the Phase 2 time multiplier described below.
 
+### OP Mainnet deployment
+
+The contract is deployed on OP Mainnet at [`0xb5CB7a05DD1311195982A26DFC8222477f9D8179`](https://optimistic.etherscan.io/address/0xb5CB7a05DD1311195982A26DFC8222477f9D8179#code), staking the canonical OP token at [`0x4200000000000000000000000000000000000042`](https://optimistic.etherscan.io/address/0x4200000000000000000000000000000000000042#code).
+
 ### Sepolia deployment
 
-The contract is deployed on OP Sepolia at [`0xeFcb172De9aA254910A2E93E596F7F5721c17677`](https://sepolia-optimism.etherscan.io/address/0xeFcb172De9aA254910A2E93E596F7F5721c17677#code) with owner address [`0xA895C24907D872bC05B58933205dD98090C07446`](https://sepolia-optimism.etherscan.io/address/0xA895C24907D872bC05B58933205dD98090C07446) and a mock ERC20 at [`0x3d2536BC0Bc0BAdE9e836C0934419c25b2e0B58C`](https://sepolia-optimism.etherscan.io/address/0x3d2536BC0Bc0BAdE9e836C0934419c25b2e0B58C#code).
+The contract is deployed on OP Sepolia at [`0xeFcb172De9aA254910A2E93E596F7F5721c17677`](https://sepolia-optimism.etherscan.io/address/0xeFcb172De9aA254910A2E93E596F7F5721c17677#code), staking a mock ERC20 at [`0x3d2536BC0Bc0BAdE9e836C0934419c25b2e0B58C`](https://sepolia-optimism.etherscan.io/address/0x3d2536BC0Bc0BAdE9e836C0934419c25b2e0B58C#code).
 
 ## Phase 1: FIFO ordering among eligible stakers
 
@@ -181,7 +185,7 @@ The OP Mainnet experiment window is capped at four weeks total (up to 1 week Pha
 | Network | Target deployment |
 | --- | --- |
 | OP Sepolia | April 16, 2026 |
-| OP Mainnet | TBD (pending governance approval) |
+| OP Mainnet | May 26, 2026 — 10:00 EST |
 
 ### Key links
 
@@ -190,6 +194,7 @@ The OP Mainnet experiment window is capped at four weeks total (up to 1 week Pha
 | Contract source | [PolicyEngineStaking.sol](https://github.com/ethereum-optimism/optimism/pull/19192/changes#diff-dfad1cdbadfef03b98f7bbadd22222fbcc4ea2a0f3dbcc21f21c645758dffaa0R17) |
 | Audit report | [2026\_03-PolicyEngineStaking-Cantina.pdf](https://github.com/ethereum-optimism/optimism/blob/develop/docs/security-reviews/2026_03-PolicyEngineStaking-Cantina.pdf) |
 | Governance proposal | [Stake-based priority ordering experiment](https://gov.optimism.io/t/upgrade-proposal-stake-based-priority-ordering-experiment/10655) |
+| Mainnet contract | [`0xb5CB7a05DD1311195982A26DFC8222477f9D8179`](https://optimistic.etherscan.io/address/0xb5CB7a05DD1311195982A26DFC8222477f9D8179) |
 | Sepolia contract | [`0xeFcb172De9aA254910A2E93E596F7F5721c17677`](https://sepolia-optimism.etherscan.io/address/0xeFcb172De9aA254910A2E93E596F7F5721c17677) |
 
 ## Disclosures and disclaimers

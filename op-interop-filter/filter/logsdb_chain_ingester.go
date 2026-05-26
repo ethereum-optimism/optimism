@@ -21,8 +21,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // progressLogInterval is how often to log ingestion progress.
@@ -221,13 +222,13 @@ func (c *LogsDBChainIngester) ClearError() {
 }
 
 // Contains checks if a log exists in the database
-func (c *LogsDBChainIngester) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
+func (c *LogsDBChainIngester) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	if c.logsDB == nil {
 		c.log.Warn("Contains called but logs DB not initialized")
-		return types.BlockSeal{}, types.ErrUninitialized
+		return messages.BlockSeal{}, interop.ErrUninitialized
 	}
 
 	return c.logsDB.Contains(query)
@@ -296,7 +297,7 @@ func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]Includ
 
 	if c.logsDB == nil {
 		c.log.Warn("GetExecMsgsAtTimestamp called but logs DB not initialized")
-		return nil, types.ErrUninitialized
+		return nil, interop.ErrUninitialized
 	}
 
 	blockNum, err := c.rollupCfg.TargetBlockNumber(timestamp)
@@ -312,7 +313,7 @@ func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]Includ
 	if !c.earliestIngestedBlockSet.Load() {
 		// We have not yet ingested any block with log data. Backfill is in progress
 		// (or hasn't started); we must not silently report "no executing messages".
-		return nil, types.ErrUninitialized
+		return nil, interop.ErrUninitialized
 	}
 	if blockNum < c.earliestIngestedBlock.Load() {
 		return nil, nil
@@ -616,7 +617,7 @@ func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockI
 	defer c.mu.Unlock()
 
 	if c.logsDB == nil {
-		return eth.BlockID{}, 0, types.ErrUninitialized
+		return eth.BlockID{}, 0, interop.ErrUninitialized
 	}
 
 	// Recovery is intentionally fail-closed: finalized should already be in
@@ -628,7 +629,7 @@ func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockI
 	}
 	if storedSeal.Hash != targetID.Hash {
 		return eth.BlockID{}, 0, fmt.Errorf("finalized block %d hash mismatch: db has %s, chain has %s: %w",
-			targetID.Number, storedSeal.Hash, targetID.Hash, types.ErrConflict)
+			targetID.Number, storedSeal.Hash, targetID.Hash, interop.ErrConflict)
 	}
 
 	if err := c.logsDB.Rewind(targetID); err != nil {
@@ -790,11 +791,11 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 
 	logCount, err := c.processBlockLogs(blockInfo, blockID, fetched.receipts, blockNum)
 	if err != nil {
-		if errors.Is(err, types.ErrConflict) {
+		if errors.Is(err, interop.ErrConflict) {
 			c.SetError(ErrorConflict, fmt.Sprintf("database conflict at block %d", blockNum))
 			return c.Error()
 		}
-		if errors.Is(err, types.ErrDataCorruption) {
+		if errors.Is(err, interop.ErrDataCorruption) {
 			c.SetError(ErrorDataCorruption, fmt.Sprintf("data corruption at block %d: %v", blockNum, err))
 			return c.Error()
 		}
@@ -858,9 +859,9 @@ func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID 
 
 	for _, receipt := range receipts {
 		for _, l := range receipt.Logs {
-			logHash := processors.LogToLogHash(l)
+			logHash := messages.LogToLogHash(l)
 
-			execMsg, err := processors.DecodeExecutingMessageLog(l)
+			execMsg, err := messages.DecodeExecutingMessageLog(l)
 			if err != nil {
 				return 0, fmt.Errorf("invalid log %d in block %d: %w: %w", l.Index, blockNum, ErrInvalidLog, err)
 			}

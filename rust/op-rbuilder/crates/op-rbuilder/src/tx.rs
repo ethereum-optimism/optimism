@@ -1,7 +1,10 @@
 use std::{borrow::Cow, sync::Arc};
 
 use alloy_consensus::{BlobTransactionValidationError, conditional::BlockConditionalAttributes};
-use alloy_eips::{Typed2718, eip7594::BlobTransactionSidecarVariant, eip7702::SignedAuthorization};
+use alloy_eips::{
+    Typed2718, eip4844::env_settings::KzgSettings, eip7594::BlobTransactionSidecarVariant,
+    eip7702::SignedAuthorization,
+};
 use alloy_primitives::{Address, B256, Bytes, TxHash, TxKind, U256};
 use alloy_rpc_types_eth::{AccessList, erc4337::TransactionConditional};
 use reth_optimism_primitives::OpTransactionSigned;
@@ -9,8 +12,7 @@ use reth_optimism_txpool::{
     OpPooledTransaction, OpPooledTx, conditional::MaybeConditionalTransaction,
     estimated_da_size::DataAvailabilitySized, interop::MaybeInteropTransaction,
 };
-use reth_primitives::{Recovered, kzg::KzgSettings};
-use reth_primitives_traits::InMemorySize;
+use reth_primitives_traits::{InMemorySize, Recovered};
 use reth_transaction_pool::{EthBlobTransactionSidecar, EthPoolTransaction, PoolTransaction};
 
 pub trait FBPoolTransaction:
@@ -96,6 +98,10 @@ impl PoolTransaction for FBPooledTransaction {
 
     fn clone_into_consensus(&self) -> Recovered<Self::Consensus> {
         self.inner.clone_into_consensus()
+    }
+
+    fn consensus_ref(&self) -> Recovered<&Self::Consensus> {
+        self.inner.consensus_ref()
     }
 
     fn into_consensus(self) -> Recovered<Self::Consensus> {

@@ -59,6 +59,12 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         bool isCustomGasToken;
     }
 
+    /// @notice Struct to capture predeploy state for comparison.
+    struct PredeployState {
+        address predeploy;
+        string version;
+    }
+
     function setUp() public virtual override {
         super.setUp();
 
@@ -141,14 +147,50 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         if (_predeploy == Predeploys.L1_BLOCK_ATTRIBUTES) {
             // L1Block uses CGT variant on custom gas token networks
             string memory implName = commonState.isCustomGasToken ? "L1BlockCGT" : "L1Block";
-            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
+            expectedImpl_ = generateScript.findImplByName(implName);
         } else if (_predeploy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
             // L2ToL1MessagePasser uses CGT variant on custom gas token networks
             string memory implName = commonState.isCustomGasToken ? "L2ToL1MessagePasserCGT" : "L2ToL1MessagePasser";
-            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
+            expectedImpl_ = generateScript.findImplByName(implName);
         } else {
             // Standard implementation lookup
-            (expectedImpl_,,,) = generateScript.implementationConfigs(_name);
+            expectedImpl_ = generateScript.findImplByName(_name);
+        }
+    }
+
+    /// @notice Returns the active proxied predeploys with their pre-upgrade versions.
+    /// @dev Uses getUpgradeableRecords() which already filters non-proxied and deprecated records.
+    ///      Variant records (isVariant = true, e.g. L1BlockCGT) are skipped so each proxy appears
+    ///      once. Feature-gated predeploys disabled for the current chain config are also excluded.
+    ///      Disabled predeploys must be excluded before calling _getVersion: their proxy has an
+    ///      implementation slot pointing to a code namespace with no code, so the delegatecall
+    ///      returns empty bytes and Solidity's ABI decoder for `string` fails outside try/catch.
+    function _getPreUpgradePredeploys() internal view returns (PredeployState[] memory predeploys_) {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        uint256 count = 0;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].isVariant) continue;
+            if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
+            count++;
+        }
+
+        predeploys_ = new PredeployState[](count);
+        uint256 j = 0;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].isVariant) continue;
+            if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
+            predeploys_[j].predeploy = records[i].proxy;
+            predeploys_[j].version = _getVersion(records[i].proxy);
+            j++;
+        }
+    }
+
+    /// @notice Helper to get version string from a contract. Returns "0.0.0" if not available.
+    function _getVersion(address _contract) internal view returns (string memory) {
+        try ISemver(_contract).version() returns (string memory ver_) {
+            return ver_;
+        } catch {
+            return "0.0.0";
         }
     }
 }
@@ -156,12 +198,6 @@ contract L2ForkUpgrade_TestInit is CommonTest {
 /// @title L2ForkUpgrade_Versions_Test
 /// @notice Tests that all predeploy versions are updated after the L2 fork upgrade.
 contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
-    /// @notice Struct to capture predeploy state for comparison.
-    struct PredeployState {
-        address predeploy;
-        string version;
-    }
-
     /// @notice Struct to capture pre-upgrade version state for comparison.
     struct PreUpgradeVersionState {
         // Predeploy versions
@@ -192,16 +228,6 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
     function _verifyAllVersionsUpdated(PreUpgradeVersionState memory _preState) internal view {
         uint256 length = _preState.preUpgradePredeploys.length;
         for (uint256 i = 0; i < length; i++) {
-            if (_isFeaturePredeployAndDisabled(_preState.preUpgradePredeploys[i].predeploy)) {
-                console.log(
-                    "Skipping feature predeploy and disabled: ",
-                    Predeploys.getName(_preState.preUpgradePredeploys[i].predeploy)
-                );
-                console.log("isCustomGasToken: ", commonState.isCustomGasToken);
-                console.log("isInteropEnabled: ", commonState.isInteropEnabled);
-                continue;
-            }
-
             string memory newVersion = _getVersion(_preState.preUpgradePredeploys[i].predeploy);
             string memory oldVersion = _preState.preUpgradePredeploys[i].version;
             assertTrue(
@@ -215,24 +241,6 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
                     newVersion
                 )
             );
-        }
-    }
-
-    /// @notice Helper to get pre-upgrade predeploy state.
-    function _getPreUpgradePredeploys() internal view returns (PredeployState[] memory predeploys_) {
-        predeploys_ = new PredeployState[](Predeploys.getUpgradeablePredeploys().length);
-        for (uint256 i = 0; i < Predeploys.getUpgradeablePredeploys().length; i++) {
-            predeploys_[i].predeploy = Predeploys.getUpgradeablePredeploys()[i];
-            predeploys_[i].version = _getVersion(Predeploys.getUpgradeablePredeploys()[i]);
-        }
-    }
-
-    /// @notice Helper to get version string from a contract. Returns "0.0.0" if not available.
-    function _getVersion(address _contract) internal view returns (string memory) {
-        try ISemver(_contract).version() returns (string memory ver_) {
-            return ver_;
-        } catch {
-            return "0.0.0";
         }
     }
 }
@@ -639,16 +647,12 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
         // Execute upgrade
         _executeCurrentBundle();
 
-        // Get all upgradeable predeploys
-        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
+        // Get active predeploys (non-proxied and disabled feature predeploys already filtered out)
+        PredeployState[] memory predeploys = _getPreUpgradePredeploys();
 
         // Verify each predeploy's implementation
         for (uint256 i = 0; i < predeploys.length; i++) {
-            address predeploy = predeploys[i];
-
-            if (_isFeaturePredeployAndDisabled(predeploy)) {
-                continue;
-            }
+            address predeploy = predeploys[i].predeploy;
 
             // Get predeploy name
             string memory name = Predeploys.getName(predeploy);
@@ -689,7 +693,7 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
         skipIfUnoptimized();
 
         // Get StorageSetter implementation to filter out intermediate upgrade events
-        (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
+        address storageSetterImpl = generateScript.findImplByName("StorageSetter");
 
         // Start recording logs
         vm.recordLogs();
@@ -700,16 +704,12 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
         // Get all recorded logs
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
-        // Get all upgradeable predeploys
-        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
+        // Get active predeploys (non-proxied and disabled feature predeploys already filtered out)
+        PredeployState[] memory predeploys = _getPreUpgradePredeploys();
 
         // Verify each predeploy emitted the Upgraded event
         for (uint256 i = 0; i < predeploys.length; i++) {
-            address predeploy = predeploys[i];
-
-            if (_isFeaturePredeployAndDisabled(predeploy)) {
-                continue;
-            }
+            address predeploy = predeploys[i].predeploy;
 
             // Get predeploy name
             string memory name = Predeploys.getName(predeploy);

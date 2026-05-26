@@ -10,7 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -58,6 +59,7 @@ func ReqRespSyncDisabledOpts(syncMode sync.Mode) []presets.Option {
 		reqRespSyncDisabledOpt(),
 		noDiscoveryOpt(),
 		batcherStoppedOpt(),
+		presets.WithUniformL2BlockTimes(1),
 	}
 }
 
@@ -67,6 +69,7 @@ func SyncModeReqRespSyncOpts(syncMode sync.Mode) []presets.Option {
 		syncModeReqRespSyncOpt(),
 		noDiscoveryOpt(),
 		batcherStoppedOpt(),
+		presets.WithUniformL2BlockTimes(1),
 	}
 }
 
@@ -79,8 +82,8 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, advanc
 	l.Info("Confirm that the CL nodes are progressing the unsafe chain")
 	target := uint64(3)
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalUnsafe, target, 30),
-		sys.L2CLB.AdvancedFn(types.LocalUnsafe, target, 30),
+		sys.L2CL.AdvancedFn(safety.LocalUnsafe, target, 30),
+		sys.L2CLB.AdvancedFn(safety.LocalUnsafe, target, 30),
 	)
 
 	logPeerState(l, "L2CLB", sys.L2CLB)
@@ -93,7 +96,7 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, advanc
 	sys.L2CLB.WaitForPeerDisconnected(sys.L2CL)
 	sys.L2CL.WaitForPeerDisconnected(sys.L2CLB)
 
-	sys.L2CLB.WaitForStall(types.LocalUnsafe)
+	sys.L2CLB.WaitForStall(safety.LocalUnsafe)
 	ssB_before := sys.L2CLB.SyncStatus()
 
 	l.Info("L2CLB stalled", "unsafeL2", ssB_before.UnsafeL2.ID(), "safeL2", ssB_before.SafeL2.ID())
@@ -101,7 +104,7 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, advanc
 	l.Info("Wait for sequencer to advance while verifier is disconnected", "advanceBlocks", advanceBlocks)
 	// Allow generous time: advanceBlocks * ~2s block time, plus buffer for CI pressure.
 	advanceAttempts := int(advanceBlocks*2 + 30)
-	sys.L2CL.Advanced(types.LocalUnsafe, advanceBlocks, advanceAttempts)
+	sys.L2CL.Advanced(safety.LocalUnsafe, advanceBlocks, advanceAttempts)
 
 	ssA_after := sys.L2CL.SyncStatus()
 	ssB_after := sys.L2CLB.SyncStatus()
@@ -119,7 +122,7 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, advanc
 	sys.L2CL.ConnectPeer(sys.L2CLB)
 
 	l.Info("Confirm that the unsafe chain for L2CLB is not stalled")
-	sys.L2CLB.Reached(types.LocalUnsafe, ssA_after.UnsafeL2.Number, 30)
+	sys.L2CLB.Reached(safety.LocalUnsafe, ssA_after.UnsafeL2.Number, 30)
 	sys.L2ELB.Reached(eth.Unsafe, ssA_after.UnsafeL2.Number, 30)
 }
 
@@ -132,8 +135,8 @@ func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, adv
 	l.Info("Confirm that the CL nodes are progressing the unsafe chain")
 	target := uint64(3)
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalUnsafe, target, 30),
-		sys.L2CLB.AdvancedFn(types.LocalUnsafe, target, 30),
+		sys.L2CL.AdvancedFn(safety.LocalUnsafe, target, 30),
+		sys.L2CLB.AdvancedFn(safety.LocalUnsafe, target, 30),
 	)
 
 	logPeerState(l, "L2CLB", sys.L2CLB)
@@ -146,7 +149,7 @@ func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, adv
 	sys.L2CLB.WaitForPeerDisconnected(sys.L2CL)
 	sys.L2CL.WaitForPeerDisconnected(sys.L2CLB)
 
-	sys.L2CLB.WaitForStall(types.LocalUnsafe)
+	sys.L2CLB.WaitForStall(safety.LocalUnsafe)
 	ssB_before := sys.L2CLB.SyncStatus()
 
 	l.Info("L2CLB stalled", "unsafeL2", ssB_before.UnsafeL2.ID(), "safeL2", ssB_before.SafeL2.ID())
@@ -155,7 +158,7 @@ func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, adv
 
 	l.Info("Wait for sequencer to advance while verifier is stopped", "advanceBlocks", advanceBlocks)
 	advanceAttempts := int(advanceBlocks*2 + 30)
-	sys.L2CL.Advanced(types.LocalUnsafe, advanceBlocks, advanceAttempts)
+	sys.L2CL.Advanced(safety.LocalUnsafe, advanceBlocks, advanceAttempts)
 
 	sys.L2CLB.Start()
 
@@ -175,7 +178,7 @@ func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, adv
 	sys.L2CL.ConnectPeer(sys.L2CLB)
 
 	l.Info("Confirm that the unsafe chain for L2CLB is not stalled")
-	sys.L2CLB.Reached(types.LocalUnsafe, ssA_after.UnsafeL2.Number, 30)
+	sys.L2CLB.Reached(safety.LocalUnsafe, ssA_after.UnsafeL2.Number, 30)
 	sys.L2ELB.Reached(eth.Unsafe, ssA_after.UnsafeL2.Number, 30)
 }
 

@@ -25,7 +25,7 @@ import (
 
 func TestInvalidPayloadDropsHead(t *testing.T) {
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, false, &testutils.MockL1Source{}, emitter, nil)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, nil)
 
 	payload := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
 		BlockHash: common.Hash{0x01},
@@ -113,7 +113,7 @@ func TestOnUnsafePayload_EnqueueEmit(t *testing.T) {
 	cfg, _, _, payloadA1 := buildSimpleCfgAndPayload(t)
 
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, false, &testutils.MockL1Source{}, emitter, nil)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, nil)
 
 	emitter.ExpectOnce(PayloadInvalidEvent{})
 	emitter.ExpectOnce(ForkchoiceUpdateEvent{})
@@ -130,7 +130,7 @@ func TestOnForkchoiceUpdate_ProcessRetryAndPop(t *testing.T) {
 
 	emitter := &testutils.MockEmitter{}
 	mockEngine := &testutils.MockEngine{}
-	cl := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter, nil)
+	cl := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter, nil)
 
 	// queue payload A1
 	emitter.ExpectOnceType("UnsafeUpdateEvent")
@@ -159,7 +159,7 @@ func TestPeekUnsafePayload(t *testing.T) {
 	cfg, _, _, payloadA1 := buildSimpleCfgAndPayload(t)
 
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter, nil)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter, nil)
 
 	// empty -> zero
 	_, ref := ec.PeekUnsafePayload()
@@ -177,7 +177,7 @@ func TestPeekUnsafePayload(t *testing.T) {
 func TestPeekUnsafePayload_OnDeriveErrorReturnsZero(t *testing.T) {
 	// missing L1-info in txs will cause derive error
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter, nil)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter, nil)
 
 	bad := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 1, BlockHash: common.Hash{0xaa}}}
 	_ = ec.unsafePayloads.Push(bad)
@@ -187,7 +187,7 @@ func TestPeekUnsafePayload_OnDeriveErrorReturnsZero(t *testing.T) {
 
 func TestInvalidPayloadForNonHead_NoDrop(t *testing.T) {
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter, nil)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter, nil)
 
 	// Head payload (lower block number)
 	head := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
@@ -219,19 +219,17 @@ func TestInvalidPayloadForNonHead_NoDrop(t *testing.T) {
 // TestEngineController_SafeL2Head tests SafeL2Head behavior with various configurations
 func TestEngineController_SafeL2Head(t *testing.T) {
 	tests := []struct {
-		name              string
-		supervisorEnabled bool
-		setupSuperAuth    func() *mockSuperAuthority
-		setupLocalSafe    *eth.L2BlockRef
-		setupFinalized    *eth.L2BlockRef
-		setupDeprecated   *eth.L2BlockRef
-		setupEngine       func(*testutils.MockEngine)
-		expectPanic       string
-		expectResult      *eth.L2BlockRef
+		name            string
+		setupSuperAuth  func() *mockSuperAuthority
+		setupLocalSafe  *eth.L2BlockRef
+		setupFinalized  *eth.L2BlockRef
+		setupDeprecated *eth.L2BlockRef
+		setupEngine     func(*testutils.MockEngine)
+		expectPanic     string
+		expectResult    *eth.L2BlockRef
 	}{
 		{
-			name:              "with SuperAuthority returns verified block",
-			supervisorEnabled: true,
+			name: "with SuperAuthority returns verified block",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
 					fullyVerifiedL2Head: eth.BlockID{Hash: common.Hash{0xbb}, Number: 50},
@@ -245,8 +243,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50},
 		},
 		{
-			name:              "falls back to SuperAuthority finalized when SuperAuthority block is not canonical",
-			supervisorEnabled: true,
+			name: "falls back to SuperAuthority finalized when SuperAuthority block is not canonical",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
 					fullyVerifiedL2Head: eth.BlockID{Hash: common.Hash{0xbb}, Number: 50},
@@ -263,8 +260,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40},
 		},
 		{
-			name:              "with SuperAuthority empty BlockID returns genesis",
-			supervisorEnabled: true,
+			name: "with SuperAuthority empty BlockID returns genesis",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{fullyVerifiedL2Head: eth.BlockID{}}
 			},
@@ -274,22 +270,13 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			expectResult: &eth.L2BlockRef{Hash: common.Hash{0x00}, Number: 0},
 		},
 		{
-			name:              "without SuperAuthority but supervisor enabled uses deprecated",
-			supervisorEnabled: true,
-			setupSuperAuth:    func() *mockSuperAuthority { return nil },
-			setupDeprecated:   &eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 200},
-			expectResult:      &eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 200},
+			name:           "without SuperAuthority uses local safe",
+			setupSuperAuth: func() *mockSuperAuthority { return nil },
+			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 300},
+			expectResult:   &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 300},
 		},
 		{
-			name:              "without SuperAuthority and supervisor disabled uses local safe",
-			supervisorEnabled: false,
-			setupSuperAuth:    func() *mockSuperAuthority { return nil },
-			setupLocalSafe:    &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 300},
-			expectResult:      &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 300},
-		},
-		{
-			name:              "falls back to local safe when SuperAuthority block ahead of local safe",
-			supervisorEnabled: true,
+			name: "falls back to local safe when SuperAuthority block ahead of local safe",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
 					fullyVerifiedL2Head: eth.BlockID{Hash: common.Hash{0xff}, Number: 200},
@@ -299,8 +286,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			expectResult:   &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
 		},
 		{
-			name:              "falls back to SuperAuthority finalized when SuperAuthority block unknown to engine",
-			supervisorEnabled: true,
+			name: "falls back to SuperAuthority finalized when SuperAuthority block unknown to engine",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
 					fullyVerifiedL2Head: eth.BlockID{Hash: common.Hash{0x99}, Number: 50},
@@ -332,7 +318,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 					superAuthority = sa
 				}
 			}
-			ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, tt.supervisorEnabled, &testutils.MockL1Source{}, emitter, superAuthority)
+			ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuthority)
 			if tt.setupLocalSafe != nil {
 				ec.SetLocalSafeHead(*tt.setupLocalSafe)
 			}
@@ -381,7 +367,7 @@ func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
 		fullyVerifiedL2Head: verifiedRef.ID(),
 		finalizedL2Head:     finalizedRef.ID(),
 	}
-	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, true, &testutils.MockL1Source{}, emitter, mockSA)
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, mockSA)
 
 	// Set heads
 	unsafeRef := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
@@ -457,7 +443,6 @@ func TestInitializeUnknowns_SetsLocalSafeHead_Regression(t *testing.T) {
 		metrics.NoopMetrics,
 		cfg,
 		&sync.Config{},
-		false, // supervisorEnabled = false
 		&testutils.MockL1Source{},
 		emitter,
 		nil, // no superAuthority
@@ -533,7 +518,6 @@ func TestInitializeUnknowns_ELSync_FinalizedNotFound(t *testing.T) {
 		metrics.NoopMetrics,
 		cfg,
 		&sync.Config{SyncMode: sync.ELSync},
-		false,
 		&testutils.MockL1Source{},
 		emitter,
 		nil,
@@ -592,7 +576,6 @@ func TestInitializeUnknowns_CLSync_FinalizedNotFound_StillErrors(t *testing.T) {
 		metrics.NoopMetrics,
 		cfg,
 		&sync.Config{SyncMode: sync.CLSync},
-		false,
 		&testutils.MockL1Source{},
 		emitter,
 		nil,
@@ -644,7 +627,7 @@ func TestConsolidation_BatchesFCUPerL1Block(t *testing.T) {
 	emitter := &testutils.MockEmitter{}
 
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
-		metrics.NoopMetrics, cfg, &sync.Config{}, false, &testutils.MockL1Source{}, emitter, nil)
+		metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, nil)
 
 	// Initial state: unsafe chain is ahead, safe at genesis.
 	// Set all heads directly to avoid initializeUnknowns engine calls.
@@ -745,7 +728,7 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 	//   FinalizedHead() returns deprecatedFinalizedHead
 	// This lets us observe cross-safe independently from local-safe.
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
-		metrics.NoopMetrics, cfg, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, false, &testutils.MockL1Source{}, emitter, nil)
+		metrics.NoopMetrics, cfg, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, &testutils.MockL1Source{}, emitter, nil)
 
 	// Initial state: unsafe=block5, localSafe=block2, crossSafe=block2, finalized=block1
 	ec.unsafeHead = block5
@@ -808,7 +791,7 @@ func TestFollowSource_SeedsGenesisRefsFromZeroState(t *testing.T) {
 	emitter.Mock.On("Emit", mock.Anything).Maybe()
 
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
-		metrics.NoopMetrics, cfg, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, false, &testutils.MockL1Source{}, emitter, nil)
+		metrics.NoopMetrics, cfg, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, &testutils.MockL1Source{}, emitter, nil)
 	ec.unsafeHead = genesis
 
 	mockEngine.ExpectL2BlockRefByNumber(0, genesis, nil)
@@ -939,7 +922,7 @@ func TestEngineController_FinalizedHead(t *testing.T) {
 					superAuthority = sa
 				}
 			}
-			ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, false, &testutils.MockL1Source{}, emitter, superAuthority)
+			ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuthority)
 			if tt.setupLocalSafe != nil {
 				ec.SetLocalSafeHead(*tt.setupLocalSafe)
 			}
@@ -972,7 +955,7 @@ func TestEngineController_FinalizedHeadCachesSuperAuthorityResult(t *testing.T) 
 	}
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, false, &testutils.MockL1Source{}, emitter, superAuth)
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
 	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100})
 	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30}
 	ec.SetFinalizedHead(localFinalized)
@@ -998,7 +981,7 @@ func TestEngineController_FinalizedHeadDoesNotCacheLocalSafeFallback(t *testing.
 	}
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, false, &testutils.MockL1Source{}, emitter, superAuth)
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
 	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 40}
 	cachedFinalized := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30}
 	ec.SetLocalSafeHead(localSafe)
@@ -1015,7 +998,7 @@ func TestEngineController_FinalizedHeadUsesCachedSuperAuthorityFinalizedWhenAuth
 	}
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, false, &testutils.MockL1Source{}, emitter, superAuth)
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
 	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100})
 	cachedSuperAuthority := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 50}
 	ec.superAuthorityFinalizedHead = cachedSuperAuthority
@@ -1030,7 +1013,7 @@ func TestEngineController_FinalizedHeadPanicsOnCachedSuperAuthoritySameHeightCon
 	}
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, false, &testutils.MockL1Source{}, emitter, superAuth)
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
 	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100})
 	ec.superAuthorityFinalizedHead = eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 50}
 
@@ -1052,7 +1035,7 @@ func TestTryUpdateEngine_SyncingInCLModeTriggersReset(t *testing.T) {
 
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, false, &testutils.MockL1Source{}, emitter, nil)
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter, nil)
 
 	// Set up valid internal state so initializeUnknowns succeeds
 	unsafeRef := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
@@ -1101,7 +1084,7 @@ func TestTryUpdateEngine_SyncingInELSyncModeIsAccepted(t *testing.T) {
 
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.ELSync}, false, &testutils.MockL1Source{}, emitter, nil)
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.ELSync}, &testutils.MockL1Source{}, emitter, nil)
 
 	// Set up valid internal state
 	unsafeRef := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}

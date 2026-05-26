@@ -15,7 +15,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // Backend coordinates chain ingesters and handles CheckAccessList requests.
@@ -154,18 +157,18 @@ func (b *Backend) Ready() bool {
 }
 
 // supportedSafetyLevel returns true if the safety level is supported for access list checks.
-func supportedSafetyLevel(level types.SafetyLevel) bool {
-	return level == types.LocalUnsafe || level == types.CrossUnsafe
+func supportedSafetyLevel(level safety.Level) bool {
+	return level == safety.LocalUnsafe || level == safety.CrossUnsafe
 }
 
 // classifyRejectionReason categorizes an error from CheckAccessList into a rejection reason label.
 func classifyRejectionReason(err error) string {
 	switch {
-	case errors.Is(err, types.ErrFailsafeEnabled):
+	case errors.Is(err, interop.ErrFailsafeEnabled):
 		return "failsafe"
-	case errors.Is(err, types.ErrUnknownChain):
+	case errors.Is(err, interop.ErrUnknownChain):
 		return "unknown_chain"
-	case errors.Is(err, types.ErrConflict):
+	case errors.Is(err, interop.ErrConflict):
 		return "expired_message"
 	default:
 		return "invalid_executing_message"
@@ -174,7 +177,7 @@ func classifyRejectionReason(err error) string {
 
 // CheckAccessList validates the given access list entries.
 func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, execDescriptor types.ExecutingDescriptor) error {
+	minSafety safety.Level, execDescriptor messages.ExecutingDescriptor) error {
 
 	start := time.Now()
 	defer func() {
@@ -189,37 +192,37 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 	if b.FailsafeEnabled() {
 		b.metrics.RecordCheckAccessList(false)
 		b.metrics.RecordCheckAccessListRejection("failsafe")
-		return types.ErrFailsafeEnabled
+		return interop.ErrFailsafeEnabled
 	}
 
 	if !b.Ready() {
 		b.metrics.RecordCheckAccessList(false)
 		b.metrics.RecordCheckAccessListRejection("failsafe")
 		b.log.Debug("Backend not ready; rejecting access list check")
-		return types.ErrUninitialized
+		return interop.ErrUninitialized
 	}
 
 	if !supportedSafetyLevel(minSafety) {
 		b.metrics.RecordCheckAccessList(false)
 		b.metrics.RecordCheckAccessListRejection("invalid_executing_message")
 		return fmt.Errorf("unsupported safety level %s: only %s and %s are supported",
-			minSafety, types.LocalUnsafe, types.CrossUnsafe)
+			minSafety, safety.LocalUnsafe, safety.CrossUnsafe)
 	}
 
 	if _, ok := b.chains[execDescriptor.ChainID]; !ok {
 		if !b.legacyCheckAccessListFormat {
 			b.metrics.RecordCheckAccessList(false)
 			b.metrics.RecordCheckAccessListRejection("unknown_chain")
-			return fmt.Errorf("executing chain %s: %w", execDescriptor.ChainID, types.ErrUnknownChain)
+			return fmt.Errorf("executing chain %s: %w", execDescriptor.ChainID, interop.ErrUnknownChain)
 		}
 		b.log.Debug("Supporting legacy check access list format", "executing_chain", execDescriptor.ChainID)
 	}
 
 	remaining := inboxEntries
 	for len(remaining) > 0 {
-		var access types.Access
+		var access messages.Access
 		var err error
-		remaining, access, err = types.ParseAccess(remaining)
+		remaining, access, err = messages.ParseAccess(remaining)
 		if err != nil {
 			b.metrics.RecordCheckAccessList(false)
 			b.metrics.RecordCheckAccessListRejection("parse_error")
@@ -242,7 +245,7 @@ func (b *Backend) CheckAccessList(ctx context.Context, inboxEntries []common.Has
 func (b *Backend) GetBlockHashByNumber(chainID eth.ChainID, blockNum rpc.BlockNumber) (common.Hash, error) {
 	ingester, ok := b.chains[chainID]
 	if !ok {
-		return common.Hash{}, fmt.Errorf("chain %s: %w", chainID, types.ErrUnknownChain)
+		return common.Hash{}, fmt.Errorf("chain %s: %w", chainID, interop.ErrUnknownChain)
 	}
 
 	if blockNum == rpc.LatestBlockNumber {

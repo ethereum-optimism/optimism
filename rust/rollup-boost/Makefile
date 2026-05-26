@@ -28,17 +28,31 @@ build: ## Build (debug version)
 
 .PHONY: docker-image
 docker-image: ## Build a rollup-boost Docker image
-	docker build --platform linux/amd64 --build-arg FEATURES="$(FEATURES)" . -t rollup-boost
+	# The Dockerfile references the parent rust/ workspace via the named
+	# `monorepo-rust` BuildKit context to resolve sibling path deps
+	# (../op-reth/..., ../op-alloy/...). Requires buildx.
+	docker buildx build --load \
+		--platform linux/amd64 \
+		--build-arg FEATURES="$(FEATURES)" \
+		--build-context monorepo-rust=.. \
+		-t rollup-boost \
+		.
 
 ##@ Dev
 
 .PHONY: lint
 lint: ## Run the linters
-	cargo fmt -- --check
+	# Pinned to the monorepo's mise.toml nightly so local `make lint`
+	# reproduces CI exactly (plain `+nightly` drifts as new lints land).
+	cargo +nightly-2026-02-20 fmt -- --check
 	cargo clippy --features "$(FEATURES)" -- -D warnings
 
 .PHONY: test
 test: ## Run the tests for rollup-boost
+	# `test_invalid_args` shells out to `target/debug/rollup-boost` via
+	# `assert_cmd::Command::cargo_bin`, which does not build the bin — so build
+	# it up front before running the test suite.
+	cargo build --bin rollup-boost --features "$(FEATURES)"
 	cargo test --verbose --features "$(FEATURES)"
 
 .PHONY: lt
@@ -46,6 +60,6 @@ lt: lint test ## Run "lint" and "test"
 
 .PHONY: fmt
 fmt: ## Format the code
-	cargo fmt
+	cargo +nightly fmt
 	cargo fix --allow-staged
 	cargo clippy --features "$(FEATURES)" --fix --allow-staged

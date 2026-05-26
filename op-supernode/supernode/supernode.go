@@ -108,10 +108,6 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		return nil, fmt.Errorf("resolve interop activation timestamp: %w", err)
 	}
 
-	if err := checkLogBackfillRequiresInteropActivation(cfg.InteropLogBackfillDepth, interopActivationTimestamp); err != nil {
-		return nil, err
-	}
-
 	log.Info("initializing interop activity", "enabled", interopActivationTimestamp != nil)
 
 	var verifiedReader interop.VerifiedResultReader = interop.NoopVerifiedResultReader{}
@@ -158,21 +154,6 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		s.metrics = resources.NewMetricsService(log, cfg.MetricsConfig.ListenAddr, cfg.MetricsConfig.ListenPort, s.metricsFanIn)
 	}
 	return s, nil
-}
-
-// checkLogBackfillRequiresInteropActivation enforces that interop log
-// backfill can only run when an activation timestamp is known. Runs after
-// resolveInteropActivationTimestamp so a rollup-derived activation counts
-// as a valid source, not only the CLI override. config.Check() can't see
-// rollup configs and therefore can't do this check itself.
-func checkLogBackfillRequiresInteropActivation(depth time.Duration, resolved *uint64) error {
-	if depth <= 0 {
-		return nil
-	}
-	if resolved != nil {
-		return nil
-	}
-	return fmt.Errorf("interop.log-backfill-depth=%s requires an interop activation timestamp (set --interop.activation-timestamp or configure rollup InteropTime on every chain)", depth)
 }
 
 func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*uint64, error) {

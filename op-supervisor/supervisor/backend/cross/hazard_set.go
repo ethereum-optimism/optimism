@@ -6,9 +6,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 var (
@@ -16,23 +18,23 @@ var (
 )
 
 type HazardDeps interface {
-	Contains(chain eth.ChainID, query types.ContainsQuery) (types.BlockSeal, error)
+	Contains(chain eth.ChainID, query messages.ContainsQuery) (messages.BlockSeal, error)
 	IsCrossValidBlock(chainID eth.ChainID, block eth.BlockID) error
-	OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
+	OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
 }
 
 // HazardSet tracks blocks that must be checked before a candidate can be promoted
 type HazardSet struct {
-	entries map[eth.ChainID]types.BlockSeal
+	entries map[eth.ChainID]messages.BlockSeal
 }
 
 // NewHazardSet creates a new HazardSet with the given dependencies and initial block
-func NewHazardSet(deps HazardDeps, linker depset.LinkChecker, logger log.Logger, chainID eth.ChainID, block types.BlockSeal) (*HazardSet, error) {
+func NewHazardSet(deps HazardDeps, linker depset.LinkChecker, logger log.Logger, chainID eth.ChainID, block messages.BlockSeal) (*HazardSet, error) {
 	if deps == nil {
 		return nil, errHazardSetNilDeps
 	}
 	h := &HazardSet{
-		entries: make(map[eth.ChainID]types.BlockSeal),
+		entries: make(map[eth.ChainID]messages.BlockSeal),
 	}
 	logger.Debug("Building new HazardSet", "chainID", chainID, "block", block)
 	if err := h.build(deps, linker, logger, chainID, block); err != nil {
@@ -42,22 +44,22 @@ func NewHazardSet(deps HazardDeps, linker depset.LinkChecker, logger log.Logger,
 	return h, nil
 }
 
-func NewHazardSetFromEntries(entries map[eth.ChainID]types.BlockSeal) *HazardSet {
+func NewHazardSetFromEntries(entries map[eth.ChainID]messages.BlockSeal) *HazardSet {
 	return &HazardSet{entries: entries}
 }
 
 // potentialHazard represents a block that needs to be processed for hazards
 type potentialHazard struct {
 	chainID eth.ChainID
-	block   types.BlockSeal
+	block   messages.BlockSeal
 }
 
 // checkChainCanExecute verifies that a chain can execute messages at a given timestamp.
 // If there are any executing messages, then the chain must be able to execute at the timestamp.
-func (h *HazardSet) checkChainCanExecute(linker depset.LinkChecker, chainID eth.ChainID, block types.BlockSeal, execMsgs map[uint32]*types.ExecutingMessage) error {
+func (h *HazardSet) checkChainCanExecute(linker depset.LinkChecker, chainID eth.ChainID, block messages.BlockSeal, execMsgs map[uint32]*messages.ExecutingMessage) error {
 	for i, msg := range execMsgs {
 		if !linker.CanExecute(chainID, block.Timestamp, msg.ChainID, msg.Timestamp) {
-			return fmt.Errorf("executing message %d in block %s (chain %s) may not execute %s: %w", i, block, chainID, msg, types.ErrConflict)
+			return fmt.Errorf("executing message %d in block %s (chain %s) may not execute %s: %w", i, block, chainID, msg, interop.ErrConflict)
 		}
 	}
 	return nil
@@ -65,7 +67,7 @@ func (h *HazardSet) checkChainCanExecute(linker depset.LinkChecker, chainID eth.
 
 // checkMessageWithOlderTimestamp handles messages from past blocks.
 // It ensures non-cyclic ordering relative to other messages.
-func (h *HazardSet) checkMessageWithOlderTimestamp(deps HazardDeps, initChainID eth.ChainID, includedIn types.BlockSeal, candidateTimestamp uint64) error {
+func (h *HazardSet) checkMessageWithOlderTimestamp(deps HazardDeps, initChainID eth.ChainID, includedIn messages.BlockSeal, candidateTimestamp uint64) error {
 	if err := deps.IsCrossValidBlock(initChainID, includedIn.ID()); err != nil {
 		return fmt.Errorf("included in non-cross valid block %s: %w", includedIn, err)
 	}
@@ -79,11 +81,11 @@ func (h *HazardSet) checkMessageWithOlderTimestamp(deps HazardDeps, initChainID 
 // Thus check that it was included in a local-safe block, and then proceed with transitive block checks,
 // to ensure the local block we depend on is becoming cross-safe also.
 // Also returns a boolean indicating if the message already exists in the hazard set.
-func (h *HazardSet) checkMessageWithCurrentTimestamp(initChainID eth.ChainID, includedIn types.BlockSeal) (bool, error) {
+func (h *HazardSet) checkMessageWithCurrentTimestamp(initChainID eth.ChainID, includedIn messages.BlockSeal) (bool, error) {
 	existing, ok := h.entries[initChainID]
 	if ok {
 		if existing.ID() != includedIn.ID() {
-			return true, fmt.Errorf("found dependency on %s (chain %s), but already depend on %s: %w", includedIn, initChainID, existing, types.ErrConflict)
+			return true, fmt.Errorf("found dependency on %s (chain %s), but already depend on %s: %w", includedIn, initChainID, existing, interop.ErrConflict)
 		}
 	}
 	return ok, nil
@@ -96,7 +98,7 @@ func (h *HazardSet) checkMessageWithCurrentTimestamp(initChainID eth.ChainID, in
 // simply by pulling in a block of another chain,
 // which then depends on a block of the original chain,
 // all with the same timestamp, without message cycles.
-func (h *HazardSet) build(deps HazardDeps, linker depset.LinkChecker, logger log.Logger, chainID eth.ChainID, block types.BlockSeal) error {
+func (h *HazardSet) build(deps HazardDeps, linker depset.LinkChecker, logger log.Logger, chainID eth.ChainID, block messages.BlockSeal) error {
 	stack := []potentialHazard{{chainID: chainID, block: block}}
 
 	for len(stack) > 0 {
@@ -112,7 +114,7 @@ func (h *HazardSet) build(deps HazardDeps, linker depset.LinkChecker, logger log
 			return fmt.Errorf("failed to open block: %w", err)
 		}
 		if opened.ID() != candidate.ID() {
-			return fmt.Errorf("unsafe L2 DB has %s, but candidate cross-safe was %s: %w", opened, candidate, types.ErrConflict)
+			return fmt.Errorf("unsafe L2 DB has %s, but candidate cross-safe was %s: %w", opened, candidate, interop.ErrConflict)
 		}
 		// Performance & safety: check all executing messages can exist (chain ID linking, timestamp invariants) first.
 		if err := h.checkChainCanExecute(linker, destChainID, candidate, execMsgs); err != nil {
@@ -121,7 +123,7 @@ func (h *HazardSet) build(deps HazardDeps, linker depset.LinkChecker, logger log
 		// Now that we have established chains and timestamps are valid things to link, build the hazard set.
 		for _, msg := range execMsgs {
 			logger.Debug("Processing message", "chainID", destChainID, "block", candidate, "msg", msg)
-			q := types.ContainsQuery{
+			q := messages.ContainsQuery{
 				Timestamp: msg.Timestamp,
 				BlockNum:  msg.BlockNum,
 				LogIdx:    msg.LogIdx,
@@ -151,14 +153,14 @@ func (h *HazardSet) build(deps HazardDeps, linker depset.LinkChecker, logger log
 					})
 				}
 			} else {
-				return fmt.Errorf("executing message %s in %s breaks timestamp invariant: %w", msg, candidate, types.ErrConflict)
+				return fmt.Errorf("executing message %s in %s breaks timestamp invariant: %w", msg, candidate, interop.ErrConflict)
 			}
 		}
 	}
 	return nil
 }
 
-func (h *HazardSet) Entries() map[eth.ChainID]types.BlockSeal {
+func (h *HazardSet) Entries() map[eth.ChainID]messages.BlockSeal {
 	if h == nil {
 		return nil
 	}

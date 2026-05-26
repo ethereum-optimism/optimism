@@ -5,7 +5,9 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // defaultMessageExpiryWindow is the default maximum age of an initiating message
@@ -82,7 +84,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 	for chainID, expectedBlock := range blocksAtTimestamp {
 		var (
 			blockRef eth.BlockRef
-			execMsgs map[uint32]*types.ExecutingMessage
+			execMsgs map[uint32]*messages.ExecutingMessage
 			err      error
 		)
 		if frontierBlock, ok := view.block(chainID); ok {
@@ -101,7 +103,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 			if err != nil {
 				// OpenBlock fails for the first block in the DB because it tries to find the parent.
 				// Handle this by checking if this is the first sealed block and using FirstSealedBlock instead.
-				if errors.Is(err, types.ErrSkipped) {
+				if errors.Is(err, interop.ErrSkipped) {
 					firstBlock, firstErr := db.FirstSealedBlock()
 					if firstErr != nil {
 						return Result{}, fmt.Errorf("chain %s: failed to open block %d and failed to get first block: %w", chainID, expectedBlock.Number, err)
@@ -181,7 +183,7 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 //  3. The initiating message hasn't expired (timestamp + messageExpiryWindow >= executing timestamp)
 //  4. Neither the executing block nor the initiating block falls in its chain's interop
 //     activation block (interop must be active for at least one full block on both sides)
-func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTimestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage, view *frontierVerificationView) error {
+func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTimestamp uint64, logIdx uint32, execMsg *messages.ExecutingMessage, view *frontierVerificationView) error {
 	// Get the source chain's logsDB
 	sourceDB, ok := i.logsDBs[execMsg.ChainID]
 	if !ok {
@@ -221,7 +223,7 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 	}
 
 	// Build the query for the initiating message
-	query := types.ContainsQuery{
+	query := messages.ContainsQuery{
 		BlockNum:  execMsg.BlockNum,
 		LogIdx:    execMsg.LogIdx,
 		Timestamp: execMsg.Timestamp,

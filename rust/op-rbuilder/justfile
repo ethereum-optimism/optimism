@@ -1,3 +1,8 @@
+# Run the linters
+lint:
+  cargo +nightly fmt -- --check
+  cargo +nightly clippy --all-features -- -D warnings
+
 # Build and run op-rbuilder in playground mode for testing
 run-playground:
   cargo build --bin op-rbuilder -p op-rbuilder

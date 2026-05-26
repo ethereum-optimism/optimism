@@ -8,7 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
 
@@ -38,7 +39,7 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 	// L2CLB is the verifier without follow source, derivation enabled
 	// L2CLC is the verifier with CL follow source, derivation disabled
 	// All verifiers must eventually advance unsafe, safe, finalized
-	checkMatchedAll := func(lvl types.SafetyLevel) {
+	checkMatchedAll := func(lvl safety.Level) {
 		dsl.CheckAll(t,
 			sys.L2CL.ReachedFn(lvl, target, attempts),
 			sys.L2CLB.ReachedFn(lvl, target, attempts),
@@ -50,13 +51,13 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 		)
 	}
 
-	checkMatchedAll(types.LocalUnsafe)
+	checkMatchedAll(safety.LocalUnsafe)
 	logger.Info("Unsafe head advanced due to CLP2P", "target", target)
 
-	checkMatchedAll(types.LocalSafe)
+	checkMatchedAll(safety.LocalSafe)
 	logger.Info("Safe head followed source", "target", target)
 
-	checkMatchedAll(types.Finalized)
+	checkMatchedAll(safety.Finalized)
 	logger.Info("Finalized head followed source", "target", target)
 
 	attempts = 10
@@ -159,10 +160,10 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 
 	attempts := 30
 	dsl.CheckAll(t,
-		sys.L2CL.InSyncFn(sys.L2CLB, types.LocalUnsafe, attempts),
-		sys.L2CLC.InSyncFn(sys.L2CLB, types.LocalUnsafe, attempts),
-		sys.L2CL.InSyncFn(sys.L2CLB, types.LocalSafe, attempts),
-		sys.L2CLC.InSyncFn(sys.L2CLB, types.LocalSafe, attempts),
+		sys.L2CL.InSyncFn(sys.L2CLB, safety.LocalUnsafe, attempts),
+		sys.L2CLC.InSyncFn(sys.L2CLB, safety.LocalUnsafe, attempts),
+		sys.L2CL.InSyncFn(sys.L2CLB, safety.LocalSafe, attempts),
+		sys.L2CLC.InSyncFn(sys.L2CLB, safety.LocalSafe, attempts),
 	)
 }
 
@@ -188,7 +189,7 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 	target := uint64(3)
 
 	// L2CLB is the verifier without follow source, derivation enabled
-	sys.L2CLB.Advanced(types.LocalUnsafe, target, attempts)
+	sys.L2CLB.Advanced(safety.LocalUnsafe, target, attempts)
 
 	// The test's primary target is the L2CLC, with follow source and derivation disabled
 	// There is often a gap between safe and unsafe before disconnect, but the
@@ -206,24 +207,24 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 	sys.L2CL.DisconnectPeer(sys.L2CLC)
 
 	// Advance few safe blocks
-	sys.L2CLC.Advanced(types.LocalSafe, target, attempts)
-	sys.L2CLC.ReachedRef(types.LocalSafe, sys.L2CLB.HeadBlockRef(types.LocalSafe).ID(), attempts)
+	sys.L2CLC.Advanced(safety.LocalSafe, target, attempts)
+	sys.L2CLC.ReachedRef(safety.LocalSafe, sys.L2CLB.HeadBlockRef(safety.LocalSafe).ID(), attempts)
 
 	// Make sure the safe head reaches non-moving unsafe head
-	sys.L2CLC.Reached(types.LocalSafe, sys.L2CLC.UnsafeHead().BlockRef.Number, attempts)
+	sys.L2CLC.Reached(safety.LocalSafe, sys.L2CLC.UnsafeHead().BlockRef.Number, attempts)
 	// The only data source for L2CLC is the follow source.
 	// L2CLC unsafe head will only be advancing with safe head together
 	status = sys.L2CLC.SyncStatus()
 	require.Equal(status.LocalSafeL2, status.UnsafeL2)
-	sys.L2CLC.Advanced(types.LocalSafe, target, attempts)
+	sys.L2CLC.Advanced(safety.LocalSafe, target, attempts)
 
 	// Advance few safe blocks
-	sys.L2CLC.Advanced(types.LocalSafe, target, attempts)
+	sys.L2CLC.Advanced(safety.LocalSafe, target, attempts)
 
 	// Check once again that the unsafe head is moving together with safe head
 	status = sys.L2CLC.SyncStatus()
 	require.Equal(status.LocalSafeL2, status.UnsafeL2)
-	sys.L2CLC.Advanced(types.LocalSafe, target, attempts)
+	sys.L2CLC.Advanced(safety.LocalSafe, target, attempts)
 
 	// Recover CLP2P
 	logger.Info("Recover CLP2P")
@@ -235,11 +236,11 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 	// Sequencer unsafe payload will arrive to the verifier, triggering EL sync and filling in the unsafe gap
 	dsl.CheckAll(t,
 		// In sync with sequencer, with derivation disabled
-		sys.L2CLC.InSyncFn(sys.L2CL, types.LocalSafe, attempts),
-		sys.L2CLC.InSyncFn(sys.L2CL, types.LocalUnsafe, attempts),
+		sys.L2CLC.InSyncFn(sys.L2CL, safety.LocalSafe, attempts),
+		sys.L2CLC.InSyncFn(sys.L2CL, safety.LocalUnsafe, attempts),
 		// In sync with other verifier, with derivation enabled
-		sys.L2CLC.InSyncFn(sys.L2CLB, types.LocalSafe, attempts),
-		sys.L2CLC.InSyncFn(sys.L2CLB, types.LocalUnsafe, attempts),
+		sys.L2CLC.InSyncFn(sys.L2CLB, safety.LocalSafe, attempts),
+		sys.L2CLC.InSyncFn(sys.L2CLB, safety.LocalUnsafe, attempts),
 	)
 
 	t.Cleanup(func() {

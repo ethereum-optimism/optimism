@@ -252,7 +252,7 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     xargs -I {} gotestsum --format=testname \
       --junitfile=./tmp/test-results/results-$NODE_INDEX.xml \
       --jsonfile=./tmp/testlogs/log-$NODE_INDEX.json \
-      -- -count=1 -parallel=$PARALLEL -coverprofile=coverage-$NODE_INDEX.out -timeout=60m -run '^{}$' \
+      -- -count=1 -parallel=$PARALLEL -timeout=60m -run '^{}$' \
       < /tmp/tests_shard.txt
 
     # xargs calls gotestsum multiple times appending to the same jsonfile,
@@ -265,7 +265,7 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
   {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
     --junitfile=./tmp/test-results/results.xml \
     --jsonfile=./tmp/testlogs/log.json \
-    -- -count=1 -parallel=$PARALLEL -coverprofile=coverage.out -timeout=60m -run "{{test_name}}"
+    -- -count=1 -parallel=$PARALLEL -timeout=60m -run "{{test_name}}"
 
 # Run action tests for the interop client program on the native target
 action-tests-interop test_name='TestInteropFaultProofs' *args='': action-tests-build (action-tests-interop-run test_name args)

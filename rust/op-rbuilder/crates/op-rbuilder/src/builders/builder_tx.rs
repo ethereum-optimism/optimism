@@ -1,10 +1,14 @@
-use alloy_consensus::TxEip1559;
+use alloy_consensus::{TxEip1559, transaction::Recovered};
 use alloy_eips::{Encodable2718, eip7623::TOTAL_COST_FLOOR_PER_TOKEN};
-use alloy_evm::Database;
-use alloy_op_evm::OpEvm;
+use alloy_evm::{
+    Database,
+    block::{BlockExecutor as AlloyBlockExecutor, CommitChanges, TxResult},
+    rpc::TryIntoTxEnv,
+};
+use alloy_op_evm::{OpEvm, OpTx};
 use alloy_primitives::{
     Address, B256, Bytes, TxKind, U256,
-    map::{HashMap, HashSet},
+    map::{AddressMap, HashSet},
 };
 use alloy_sol_types::{ContractError, Revert, SolCall, SolError, SolInterface};
 use core::fmt::Debug;
@@ -12,35 +16,34 @@ use op_alloy_consensus::OpTypedTransaction;
 use op_alloy_rpc_types::OpTransactionRequest;
 use op_revm::{OpHaltReason, OpTransactionError};
 use reth_evm::{
-    ConfigureEvm, Evm, EvmError, InvalidTxError, eth::receipt_builder::ReceiptBuilderCtx,
+    ConfigureEvm, Evm, EvmError,
+    execute::{BlockBuilder, BlockExecutionError, BlockValidationError},
     precompiles::PrecompilesMap,
 };
 use reth_node_api::PayloadBuilderError;
-use reth_optimism_primitives::OpTransactionSigned;
-use reth_primitives::Recovered;
+use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
 use reth_provider::{ProviderError, StateProvider};
 use reth_revm::{State, database::StateProviderDatabase};
-use reth_rpc_api::eth::{EthTxEnvError, transaction::TryIntoTxEnv};
+use reth_rpc_api::eth::EthTxEnvError;
 use revm::{
     DatabaseCommit, DatabaseRef,
-    context::{
-        ContextTr,
-        result::{EVMError, ExecutionResult, ResultAndState},
-    },
+    context::result::{EVMError, ExecutionResult, ResultAndState},
     inspector::NoOpInspector,
     state::Account,
 };
 use tracing::{trace, warn};
 
 use crate::{
-    builders::context::OpPayloadBuilderCtx, primitives::reth::ExecutionInfo, tx_signer::Signer,
+    builders::context::{OpPayloadBuilderCtx, last_receipt_with_cumulative_gas},
+    primitives::reth::ExecutionInfo,
+    tx_signer::Signer,
 };
 
 #[derive(Debug, Default)]
 pub struct SimulationSuccessResult<T: SolCall> {
     pub gas_used: u64,
     pub output: T::Return,
-    pub state_changes: HashMap<Address, Account>,
+    pub state_changes: AddressMap<Account>,
 }
 
 #[derive(Debug, Clone)]
@@ -171,95 +174,99 @@ pub trait BuilderTransactions<ExtraCtx: Debug + Default = (), Extra: Debug + Def
         )
     }
 
-    fn add_builder_txs(
+    fn add_builder_txs<Builder, DB>(
         &self,
         state_provider: impl StateProvider + Clone,
         info: &mut ExecutionInfo<Extra>,
         builder_ctx: &OpPayloadBuilderCtx<ExtraCtx>,
-        db: &mut State<impl Database>,
+        builder: &mut Builder,
         top_of_block: bool,
-    ) -> Result<Vec<BuilderTransactionCtx>, BuilderTransactionError> {
-        {
-            let builder_txs = self.simulate_builder_txs_with_state_copy(
-                state_provider,
-                info,
-                builder_ctx,
-                db,
-                top_of_block,
-            )?;
+    ) -> Result<Vec<BuilderTransactionCtx>, BuilderTransactionError>
+    where
+        Builder: BlockBuilder<Primitives = reth_optimism_primitives::OpPrimitives>,
+        Builder::Executor: AlloyBlockExecutor<
+                Transaction = OpTransactionSigned,
+                Receipt = OpReceipt,
+                Evm: alloy_evm::Evm<DB: core::ops::Deref<Target = State<DB>>>,
+            >,
+        DB: Database,
+    {
+        let builder_txs = self.simulate_builder_txs_with_state_copy(
+            state_provider,
+            info,
+            builder_ctx,
+            builder.evm().db(),
+            top_of_block,
+        )?;
 
-            let mut evm = builder_ctx
-                .evm_config
-                .evm_with_env(&mut *db, builder_ctx.evm_env.clone());
+        let mut invalid = HashSet::new();
 
-            let mut invalid = HashSet::new();
-
-            for builder_tx in builder_txs.iter() {
-                if builder_tx.is_top_of_block != top_of_block {
-                    // don't commit tx if the buidler tx is not being added in the intended
-                    // position in the block
-                    continue;
-                }
-                if invalid.contains(&builder_tx.signed_tx.signer()) {
-                    warn!(target: "payload_builder", tx_hash = ?builder_tx.signed_tx.tx_hash(), "builder signer invalid as previous builder tx reverted");
-                    continue;
-                }
-
-                let ResultAndState { result, state } = match evm.transact(&builder_tx.signed_tx) {
-                    Ok(res) => res,
-                    Err(err) => {
-                        if let Some(err) = err.as_invalid_tx_err() {
-                            if err.is_nonce_too_low() {
-                                // if the nonce is too low, we can skip this transaction
-                                trace!(target: "payload_builder", %err, ?builder_tx.signed_tx, "skipping nonce too low builder transaction");
-                            } else {
-                                // if the transaction is invalid, we can skip it and all of its
-                                // descendants
-                                trace!(target: "payload_builder", %err, ?builder_tx.signed_tx, "skipping invalid builder transaction and its descendants");
-                                invalid.insert(builder_tx.signed_tx.signer());
-                            }
-
-                            continue;
-                        }
-                        // this is an error that we should treat as fatal for this attempt
-                        return Err(BuilderTransactionError::EvmExecutionError(Box::new(err)));
-                    }
-                };
-
-                if !result.is_success() {
-                    warn!(target: "payload_builder", tx_hash = ?builder_tx.signed_tx.tx_hash(), result = ?result, "builder tx reverted");
-                    invalid.insert(builder_tx.signed_tx.signer());
-                    continue;
-                }
-
-                // Add gas used by the transaction to cumulative gas used, before creating the receipt
-                let gas_used = result.gas_used();
-                info.cumulative_gas_used += gas_used;
-                info.cumulative_da_bytes_used += builder_tx.da_size;
-
-                let ctx = ReceiptBuilderCtx {
-                    tx: builder_tx.signed_tx.inner(),
-                    evm: &evm,
-                    result,
-                    state: &state,
-                    cumulative_gas_used: info.cumulative_gas_used,
-                };
-                info.receipts.push(builder_ctx.build_receipt(ctx, None));
-
-                // Commit changes
-                evm.db_mut().commit(state);
-
-                // Append sender and transaction to the respective lists
-                info.executed_senders.push(builder_tx.signed_tx.signer());
-                info.executed_transactions
-                    .push(builder_tx.signed_tx.clone().into_inner());
+        for builder_tx in builder_txs.iter() {
+            if builder_tx.is_top_of_block != top_of_block {
+                // don't commit tx if the builder tx is not being added in the intended
+                // position in the block
+                continue;
+            }
+            if invalid.contains(&builder_tx.signed_tx.signer()) {
+                warn!(target: "payload_builder", tx_hash = ?builder_tx.signed_tx.tx_hash(), "builder signer invalid as previous builder tx reverted");
+                continue;
             }
 
-            // Release the db reference by dropping evm
-            drop(evm);
+            let mut gas_used = 0;
+            let committed = match builder.execute_transaction_with_commit_condition(
+                builder_tx.signed_tx.clone(),
+                |result| {
+                    gas_used = result.result().result.tx_gas_used();
+                    if result.result().result.is_success() {
+                        CommitChanges::Yes
+                    } else {
+                        warn!(target: "payload_builder", tx_hash = ?builder_tx.signed_tx.tx_hash(), "builder tx reverted");
+                        invalid.insert(builder_tx.signed_tx.signer());
+                        CommitChanges::No
+                    }
+                },
+            ) {
+                Ok(committed) => committed,
+                Err(BlockExecutionError::Validation(BlockValidationError::InvalidTx {
+                    error,
+                    ..
+                })) => {
+                    if error.is_nonce_too_low() {
+                        // if the nonce is too low, we can skip this transaction
+                        trace!(target: "payload_builder", %error, ?builder_tx.signed_tx, "skipping nonce too low builder transaction");
+                    } else {
+                        // if the transaction is invalid, we can skip it and all of its
+                        // descendants
+                        trace!(target: "payload_builder", %error, ?builder_tx.signed_tx, "skipping invalid builder transaction and its descendants");
+                        invalid.insert(builder_tx.signed_tx.signer());
+                    }
 
-            Ok(builder_txs)
+                    continue;
+                }
+                Err(err) => {
+                    // this is an error that we should treat as fatal for this attempt
+                    return Err(BuilderTransactionError::EvmExecutionError(Box::new(err)));
+                }
+            };
+
+            if committed.is_none() {
+                continue;
+            }
+
+            info.cumulative_gas_used += gas_used;
+            info.cumulative_da_bytes_used += builder_tx.da_size;
+            info.receipts.push(
+                last_receipt_with_cumulative_gas(builder.executor(), info.cumulative_gas_used)
+                    .expect("executor must record a receipt for committed tx"),
+            );
+
+            // Append sender and transaction to the respective lists
+            info.executed_senders.push(builder_tx.signed_tx.signer());
+            info.executed_transactions
+                .push(builder_tx.signed_tx.clone().into_inner());
         }
+
+        Ok(builder_txs)
     }
 
     // Creates a copy of the state to simulate against
@@ -323,29 +330,26 @@ pub trait BuilderTransactions<ExtraCtx: Debug + Default = (), Extra: Debug + Def
         expected_logs: Vec<B256>,
         evm: &mut OpEvm<impl Database, NoOpInspector, PrecompilesMap>,
     ) -> Result<SimulationSuccessResult<T>, BuilderTransactionError> {
-        let tx_env = tx.try_into_tx_env(evm.cfg(), evm.block())?;
-        let to = tx_env.base.kind.into_to().unwrap_or_default();
+        let evm_env = alloy_evm::EvmEnv::new(evm.cfg_env().clone(), evm.block().clone());
+        let tx_env: revm::context::TxEnv = tx.as_ref().clone().try_into_tx_env(&evm_env)?;
+        let to = tx_env.kind.into_to().unwrap_or_default();
+        let op_tx = OpTx(op_revm::OpTransaction {
+            base: tx_env,
+            enveloped_tx: Some(Bytes::new()),
+            deposit: Default::default(),
+        });
 
-        let ResultAndState { result, state } = match evm.transact(tx_env) {
-            Ok(res) => res,
-            Err(err) => {
-                if err.is_invalid_tx_err() {
-                    return Err(BuilderTransactionError::InvalidTransactionError(Box::new(
-                        err,
-                    )));
-                } else {
-                    return Err(BuilderTransactionError::EvmExecutionError(Box::new(err)));
-                }
+        let ResultAndState { result, state } = evm.transact(op_tx).map_err(|err| {
+            if err.is_invalid_tx_err() {
+                BuilderTransactionError::InvalidTransactionError(Box::new(err))
+            } else {
+                BuilderTransactionError::EvmExecutionError(Box::new(err))
             }
-        };
+        })?;
+        let gas_used = result.tx_gas_used();
 
         match result {
-            ExecutionResult::Success {
-                output,
-                gas_used,
-                logs,
-                ..
-            } => {
+            ExecutionResult::Success { output, logs, .. } => {
                 let topics: HashSet<B256> = logs
                     .into_iter()
                     .flat_map(|log| log.topics().to_vec())
