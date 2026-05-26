@@ -537,7 +537,7 @@ func (m *capturingMetrics) RecordChainTip(chainID uint64, blockNum uint64)      
 func (m *capturingMetrics) RecordTipLagBlocks(chainID uint64, lag uint64)       {}
 func (m *capturingMetrics) RecordIngestionLagSeconds(chainID uint64, _ float64) {}
 func (m *capturingMetrics) RecordCheckAccessList(success bool)                  {}
-func (m *capturingMetrics) RecordCheckAccessListDuration(duration float64) {}
+func (m *capturingMetrics) RecordCheckAccessListDuration(duration float64)      {}
 func (m *capturingMetrics) RecordCheckAccessListRejection(reason string) {
 	m.locked(func() { m.rejections[reason]++ })
 }
