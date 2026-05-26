@@ -6,10 +6,18 @@ description: Learn how to configure Legacy Geth for serving historical execution
 Legacy Geth (`l2geth`) is required only for upgraded networks like OP Mainnet to serve historical execution traces from before the Bedrock upgrade.
 If you're running a node that had a chain genesis after the Bedrock upgrade, you do not need Legacy Geth.
 
+<Info>
+Legacy Geth (`l2geth`) is the pre-Bedrock OVM client and is unrelated to op-geth's deprecation. l2geth is required on OP Mainnet archive nodes regardless of which post-Bedrock execution client you run (op-reth or op-geth).
+</Info>
+
+<Info>
+If you need state proofs for post-Bedrock blocks (for example, for withdrawal proving), see the [historical proofs config](/node-operators/reference/op-reth-historical-proof-config) — that's a different feature.
+</Info>
+
 ## Historical execution vs. historical data routing
 
 Only requests for historical execution will be routed to Legacy Geth.
-Everything else will be served by `op-geth` directly.
+Everything else will be served by your execution client directly.
 The term *historical execution* refers to RPC methods that need to execute transactions prior to bedrock (not just read data from the database):
 
 *   `eth_call`
@@ -61,18 +69,35 @@ It is imperative that you specify the `USING_OVM=true` environment variable.
 Failing to specify this will cause `l2geth` to return invalid execution traces or panic at startup.
 </Warning>
 
-### 3. Configure op-geth to route to Legacy Geth
+### 3. Configure your execution client to route to Legacy Geth
 
-Update your op-geth configuration to route historical requests to Legacy Geth:
+Both op-reth and op-geth use the same `--rollup.historicalrpc` flag to route pre-Bedrock execution requests to Legacy Geth.
 
-```bash
-geth \
-  --datadir=/data/optimism \
-  --rollup.historicalrpc=http://localhost:8545 \
-  # ... other flags
-```
+<Tabs>
+  <Tab title="op-reth">
+    ```bash
+    op-reth node \
+      --datadir=/data/optimism \
+      --rollup.historicalrpc=http://localhost:8545 \
+      # ... other flags
+    ```
+  </Tab>
 
-The `--rollup.historicalrpc` flag tells op-geth where to route requests for historical execution.
+  <Tab title="op-geth">
+    <Warning>
+      **op-geth reaches end-of-support on 2026-05-31.** New deployments should use op-reth. See the [op-geth deprecation notice](/notices/op-geth-deprecation).
+    </Warning>
+
+    ```bash
+    geth \
+      --datadir=/data/optimism \
+      --rollup.historicalrpc=http://localhost:8545 \
+      # ... other flags
+    ```
+  </Tab>
+</Tabs>
+
+The `--rollup.historicalrpc` flag tells your execution client where to route requests for historical execution.
 
 ## Environment variables
 
@@ -92,7 +117,7 @@ Legacy Geth accepts the following environment variables:
 ## Historical execution vs. historical data
 
 Only requests for **historical execution** will be routed to Legacy Geth.
-Everything else will be served by op-geth directly.
+Everything else will be served by your execution client directly.
 
 ### Historical execution RPC methods
 
@@ -107,7 +132,7 @@ These methods require transaction execution and are routed to Legacy Geth for pr
 
 ### Historical data RPC methods
 
-These methods only read data from the database and are served by op-geth:
+These methods only read data from the database and are served by your execution client:
 
 - `eth_getBlockByNumber`
 - `eth_getBlockByHash`
@@ -134,8 +159,8 @@ These methods only read data from the database and are served by op-geth:
 
 **Solution**: Verify that `USING_OVM=true` is set and the data directory is complete and uncorrupted
 
-### op-geth not routing to Legacy Geth
+### Execution client not routing to Legacy Geth
 
 **Problem**: Historical execution requests are not being routed to Legacy Geth
 
-**Solution**: Check that `--rollup.historicalrpc` is set on op-geth with the correct URL to Legacy Geth
+**Solution**: Check that `--rollup.historicalrpc` is set on your execution client (op-reth or op-geth) with the correct URL to Legacy Geth
