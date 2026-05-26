@@ -329,9 +329,12 @@ func (cl *L2CLNode) ReachedRefFn(lvl safety.Level, target eth.BlockID, attempts 
 // boundary. Callers should pick targetTime as a value the head has not yet
 // reached at snapshot time (e.g. a fork activation timestamp).
 //
-// Poll interval is 100ms so a brief regression cannot slip between polls;
-// total observation window is bounded by attempts*100ms.
-func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime uint64, attempts int) CheckFunc {
+// Poll interval is 100ms so a brief regression cannot slip between polls.
+// The total wait is derived from targetTime: enough wall-clock time for the
+// head to reach targetTime plus a generous buffer that absorbs the L1 finality
+// lag (relevant for safety.Finalized) and ordinary test-runner slowness. The
+// helper also honours cl.ctx, so the surrounding test timeout still applies.
+func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime uint64) CheckFunc {
 	return func() error {
 		initial, err := cl.headBlockRef(lvl)
 		if err != nil {
@@ -343,11 +346,24 @@ func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime 
 		if initial.Time >= targetTime {
 			return fmt.Errorf("initial %s head time %d already at or past target %d; nothing to observe across the boundary", lvl, initial.Time, targetTime)
 		}
-		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "initial", initial.Number, "initial_time", initial.Time, "target_time", targetTime)
+		// Wall-clock budget: long enough for the head to reach targetTime,
+		// plus 5 minutes to absorb the L1 finality lag and slow runners.
+		now := time.Now().Unix()
+		const buffer = 5 * time.Minute
+		var remainingToTarget time.Duration
+		if int64(targetTime) > now {
+			remainingToTarget = time.Duration(int64(targetTime)-now) * time.Second
+		}
+		deadline := time.Now().Add(remainingToTarget + buffer)
+		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "initial", initial.Number, "initial_time", initial.Time, "target_time", targetTime, "deadline", deadline)
 		logger.Info("Watching head for regression until target time reached")
-		for range attempts {
+		for {
 			if cl.ctx.Err() != nil {
 				return cl.ctx.Err()
+			}
+			if time.Now().After(deadline) {
+				return fmt.Errorf("%s head did not reach target time %d before deadline %s (initial=%d)",
+					lvl, targetTime, deadline, initial.Number)
 			}
 			time.Sleep(100 * time.Millisecond) // nosemgrep: flake-sleep-in-test -- tight poll deliberately chosen so a brief FinalizedL2 regression cannot slip between observations
 			head, err := cl.headBlockRef(lvl)
@@ -365,8 +381,6 @@ func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime 
 				return nil
 			}
 		}
-		return fmt.Errorf("%s head did not reach target time %d within %d attempts (initial=%d)",
-			lvl, targetTime, attempts, initial.Number)
 	}
 }
 

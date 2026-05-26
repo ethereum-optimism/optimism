@@ -59,11 +59,8 @@ func TestFinalizedL2DoesNotRegressAcrossActivation(gt *testing.T) {
 	// +1 so the head must be strictly past activation, not merely at the
 	// activation block. Stopping at the activation block could miss the
 	// regression window that opens once LocalSafeL2 crosses the boundary.
-	// Poll interval is 100ms (see ReachedTimeWithoutRegressionFn); 6000 attempts
-	// gives a 10-minute observation window, comfortably exceeding the FakePoS
-	// L1 finality lag plus the activation delay.
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedTimeWithoutRegressionFn(safety.Finalized, *interopTimeA+1, 6000),
-		sys.L2BCL.ReachedTimeWithoutRegressionFn(safety.Finalized, *interopTimeB+1, 6000),
+		sys.L2ACL.ReachedTimeWithoutRegressionFn(safety.Finalized, *interopTimeA+1),
+		sys.L2BCL.ReachedTimeWithoutRegressionFn(safety.Finalized, *interopTimeB+1),
 	)
 }
