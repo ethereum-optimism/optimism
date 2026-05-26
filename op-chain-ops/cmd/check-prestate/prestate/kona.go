@@ -1,11 +1,9 @@
 package prestate
 
 import (
-	"encoding/base64"
-	"encoding/json"
+	"bytes"
 	"fmt"
-	"net/http"
-	"net/url"
+	"os/exec"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/registry"
@@ -53,54 +51,57 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 	return
 }
 
-// fetchSuperchainRegistryCommit returns the superchain-registry commit SHA that the
-// kona-client release identified by ref was built against, by reading the pinned
-// commit file from the optimism monorepo at that tag.
+// fetchSuperchainRegistryCommit returns the superchain-registry commit SHA that
+// the kona-client release identified by ref was built against, by reading the
+// pinned commit file from the local optimism monorepo checkout at that tag.
 //
 // Only kona-client tags that have op-core/superchain/superchain-registry-commit.txt
-// are supported (v1.5.1 and later); older tags will return a 404 error.
+// are supported (v1.5.1 and later). If the tag isn't present locally, the
+// function fetches it from origin before giving up.
 func fetchSuperchainRegistryCommit(ref string) (string, error) {
 	const path = "op-core/superchain/superchain-registry-commit.txt"
-	endpoint := "https://api.github.com/repos/ethereum-optimism/optimism/contents/" + path +
-		"?ref=" + url.QueryEscape(ref)
 
-	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err := ensureRefAvailable(ref); err != nil {
+		return "", err
+	}
+
+	stdout, stderr, err := runGit("show", fmt.Sprintf("%s:%s", ref, path))
 	if err != nil {
-		return "", fmt.Errorf("build request: %w", err)
+		return "", fmt.Errorf("git show %s:%s failed: %w (%s)", ref, path, err, strings.TrimSpace(stderr))
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("http request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to fetch superchain-registry version at %s@%s, http status: %s", path, ref, resp.Status)
-	}
-
-	var content struct {
-		Type     string `json:"type"`
-		Encoding string `json:"encoding"`
-		Content  string `json:"content"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&content); err != nil {
-		return "", fmt.Errorf("decode response: %w", err)
-	}
-	if content.Type != "file" {
-		return "", fmt.Errorf("expected a file at %s@%s, got type %q", path, ref, content.Type)
-	}
-	if content.Encoding != "base64" {
-		return "", fmt.Errorf("unexpected content encoding %q at %s@%s", content.Encoding, path, ref)
-	}
-	decoded, err := base64.StdEncoding.DecodeString(content.Content)
-	if err != nil {
-		return "", fmt.Errorf("decode base64 content at %s@%s: %w", path, ref, err)
-	}
-	sha := strings.TrimSpace(string(decoded))
+	sha := strings.TrimSpace(stdout)
 	if sha == "" {
 		return "", fmt.Errorf("empty commit SHA at %s@%s", path, ref)
 	}
 	return sha, nil
+}
+
+// ensureRefAvailable verifies that ref resolves in the local repo; if not, it
+// attempts to fetch the tag from origin.
+func ensureRefAvailable(ref string) error {
+	if refExists(ref) {
+		return nil
+	}
+	refspec := fmt.Sprintf("refs/tags/%s:refs/tags/%s", ref, ref)
+	if _, stderr, err := runGit("fetch", "--quiet", "origin", refspec); err != nil {
+		return fmt.Errorf("ref %q not found locally and git fetch origin %s failed: %w (%s)", ref, refspec, err, strings.TrimSpace(stderr))
+	}
+	if !refExists(ref) {
+		return fmt.Errorf("ref %q still not found after git fetch origin %s", ref, refspec)
+	}
+	return nil
+}
+
+func refExists(ref string) bool {
+	_, _, err := runGit("rev-parse", "--verify", "--quiet", ref+"^{commit}")
+	return err == nil
+}
+
+func runGit(args ...string) (string, string, error) {
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command("git", args...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return stdout.String(), stderr.String(), err
 }
