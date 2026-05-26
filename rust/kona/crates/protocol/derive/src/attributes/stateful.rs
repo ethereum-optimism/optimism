@@ -210,11 +210,10 @@ where
             );
             let activate_interop_contracts = dependency_set.dependencies.len() > 1;
             upgrade_transactions.append(
-                &mut Hardforks::INTEROP
-                    .txs_for_activation(activate_interop_contracts)
-                    .collect(),
+                &mut Hardforks::INTEROP.txs_for_activation(activate_interop_contracts).collect(),
             );
-            upgrade_gas += Hardforks::INTEROP.upgrade_gas_for_activation(activate_interop_contracts);
+            upgrade_gas +=
+                Hardforks::INTEROP.upgrade_gas_for_activation(activate_interop_contracts);
         }
 
         // Build and encode the L1 info transaction for the current payload.
