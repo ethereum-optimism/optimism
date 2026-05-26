@@ -31,6 +31,7 @@ Choose the consensus client that best fits your needs:
       --l1.beacon=https://ethereum-beacon-endpoint.example.com \
       --l2=http://localhost:8551 \
       --l2.jwt-secret=/path/to/jwt-secret.txt \
+      --l2.enginekind=reth \
       --network=op-mainnet \
       --rpc.addr=0.0.0.0 \
       --rpc.port=9545
@@ -41,8 +42,6 @@ Choose the consensus client that best fits your needs:
     If you're running a sequencer node, use these additional flags:
 
     ```bash
-    --rpc.addr=0.0.0.0 \
-    --rpc.port=9545 \
     --rpc.enable-admin \
     --sequencer.enabled \
     --sequencer.l1-confs=4 \
@@ -54,10 +53,14 @@ Choose the consensus client that best fits your needs:
     Use environment variables or secure key management systems in production.
     </Warning>
 
-    ### l2.enginekind 
+    ### l2.enginekind
 
-    The kind of engine client, used to control the behavior of optimism in respect to different types of engine clients. 
-    Supported values are `geth` (default) and `reth`.
+    Controls op-node's engine-API behavior to match the connected execution client. Supported values:
+
+    * `reth` — for op-reth (recommended).
+    * `geth` — current default; for op-geth (*deprecated*, see the [op-geth deprecation notice](/notices/op-geth-deprecation)).
+
+    Operators running op-reth **must** set `--l2.enginekind=reth` explicitly. The default will change in a future release.
 
     ### Complete reference
 
@@ -67,7 +70,7 @@ Choose the consensus client that best fits your needs:
   <Tab title="kona-node">
     ## kona-node configuration
 
-    [kona-node](https://github.com/op-rs/kona/tree/main/bin/node) is an experimental Rust-based implementation of the OP Stack consensus client.
+    [kona-node](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/node) is an experimental Rust-based implementation of the OP Stack consensus client.
 
     <Warning>
     kona-node is experimental and may not be production-ready. Use with caution.
@@ -85,18 +88,10 @@ Choose the consensus client that best fits your needs:
       --network=op-mainnet
     ```
 
-    ### JWT secret
-
-    Generate the JWT secret using:
-
-    ```bash
-    openssl rand -hex 32 > jwt-secret.txt
-    ```
-
     ### Additional resources
 
     For more details on kona-node configuration, see:
-    - [kona-node GitHub repository](https://github.com/op-rs/kona/tree/main/bin/node)
+    - [kona-node GitHub repository](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/node)
     - [kona documentation](https://op-rs.github.io/kona/)
   </Tab>
 </Tabs>
