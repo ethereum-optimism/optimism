@@ -314,6 +314,62 @@ func (cl *L2CLNode) ReachedRefFn(lvl safety.Level, target eth.BlockID, attempts 
 	}
 }
 
+// ReachedTimeWithoutRegressionFn watches the given safety head until its block
+// timestamp reaches targetTime, failing immediately if the head's block number
+// ever drops below its starting value during the wait.
+//
+// The initial head must be non-zero. A zero baseline makes a regression to
+// genesis indistinguishable from "head never advanced" — a `now >= before`
+// check against a baseline of 0 always passes (0 >= 0), which is the failure
+// mode that motivated this helper. Callers must wait for the head to advance
+// past genesis before invoking, e.g. via ReachedFn(lvl, 1, ...).
+//
+// The initial head's timestamp must also be strictly before targetTime,
+// otherwise the check completes immediately and observes nothing across the
+// boundary. Callers should pick targetTime as a value the head has not yet
+// reached at snapshot time (e.g. a fork activation timestamp).
+//
+// Poll interval is 100ms so a brief regression cannot slip between polls;
+// total observation window is bounded by attempts*100ms.
+func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime uint64, attempts int) CheckFunc {
+	return func() error {
+		initial, err := cl.headBlockRef(lvl)
+		if err != nil {
+			return fmt.Errorf("read initial %s head: %w", lvl, err)
+		}
+		if initial.Number == 0 {
+			return fmt.Errorf("initial %s head is at genesis; cannot detect regression below zero — wait for the head to advance past genesis before snapshotting", lvl)
+		}
+		if initial.Time >= targetTime {
+			return fmt.Errorf("initial %s head time %d already at or past target %d; nothing to observe across the boundary", lvl, initial.Time, targetTime)
+		}
+		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "initial", initial.Number, "initial_time", initial.Time, "target_time", targetTime)
+		logger.Info("Watching head for regression until target time reached")
+		for range attempts {
+			if cl.ctx.Err() != nil {
+				return cl.ctx.Err()
+			}
+			time.Sleep(100 * time.Millisecond) // nosemgrep: flake-sleep-in-test -- tight poll deliberately chosen so a brief FinalizedL2 regression cannot slip between observations
+			head, err := cl.headBlockRef(lvl)
+			if err != nil {
+				logger.Warn("SyncStatus RPC failed; will retry", "err", err)
+				continue
+			}
+			if head.Number < initial.Number {
+				return fmt.Errorf("%s head regressed: was %d (%s, t=%d), observed %d (%s, t=%d)",
+					lvl, initial.Number, initial.Hash, initial.Time, head.Number, head.Hash, head.Time)
+			}
+			logger.Info("Chain sync status", "current", head.Number, "current_time", head.Time)
+			if head.Time >= targetTime {
+				logger.Info("Head reached target time without regression", "final", head.Number, "final_time", head.Time)
+				return nil
+			}
+		}
+		return fmt.Errorf("%s head did not reach target time %d within %d attempts (initial=%d)",
+			lvl, targetTime, attempts, initial.Number)
+	}
+}
+
 // RewindedFn returns a lambda that checks the L2CL chain head with given safety level rewinded more than the delta block number
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) RewindedFn(lvl safety.Level, delta uint64, attempts int) CheckFunc {
