@@ -582,20 +582,39 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         // valid length is 4 (parentIndex) + 1 (version) + 8 (timestamp) + 64 (one pair) = 77 bytes;
         // any larger size must add full 64-byte pairs. Anything else reverts BadExtraData.
         vm.startPrank(proposer);
-        vm.deal(proposer, 2 ether);
+        vm.deal(proposer, 5 ether);
 
         // Case 1: 78-byte extraData — one byte over the 77-byte minimum, doesn't extend to a full
-        // additional pair (would need 77 + 64 = 141).
+        // additional pair (would need 77 + 64 = 141). Hits `rem % 64 != 0`.
         bytes memory tooBig = new bytes(78);
         vm.expectRevert(BadExtraData.selector);
         disputeGameFactory.create{ value: 1 ether }(gameType, rootClaim, tooBig);
 
-        // Case 2: 76-byte extraData — one byte under the 77-byte minimum.
+        // Case 2: 76-byte extraData — one byte under the 77-byte minimum. Hits `rem % 64 != 0`.
         bytes memory tooSmall = new bytes(76);
         vm.expectRevert(BadExtraData.selector);
         disputeGameFactory.create{ value: 1 ether }(gameType, rootClaim, tooSmall);
 
+        // Case 3: 13-byte extraData — header bytes only, no chain pairs. Hits `rem == 0`.
+        bytes memory noPairs = new bytes(13);
+        vm.expectRevert(BadExtraData.selector);
+        disputeGameFactory.create{ value: 1 ether }(gameType, rootClaim, noPairs);
+
+        // Case 4: 12-byte extraData — header incomplete. Hits `extraLen < 13`.
+        bytes memory headerTooShort = new bytes(12);
+        vm.expectRevert(BadExtraData.selector);
+        disputeGameFactory.create{ value: 1 ether }(gameType, rootClaim, headerTooShort);
+
         vm.stopPrank();
+    }
+
+    function test_initialize_calledDirectlyOnImpl_reverts() public {
+        // Calling initialize() directly on the impl has no CWIA-appended immutable args, so
+        // msg.data.length is just the 4-byte selector — below `preExtraDataLen` (94). Hits the
+        // `msg.data.length < preExtraDataLen` branch in `_verifyInitCallDataLength` which is
+        // unreachable through the factory.
+        vm.expectRevert(BadExtraData.selector);
+        gameImpl.initialize();
     }
 
     function test_initialize_alreadyInitialized_reverts() public {
@@ -1338,6 +1357,27 @@ contract ZKDisputeGame_CloseGame_Test is ZKDisputeGame_TestInit {
         // Unpause
         vm.prank(superchainConfig.guardian());
         superchainConfig.unpause(address(0));
+    }
+
+    function test_closeGame_setAnchorStateReverts_succeeds() public {
+        // Resolve and finalize the game.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+        vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+
+        // Force `setAnchorState` to revert. The try/catch inside `closeGame` swallows the failure
+        // and continues; `isGameProper` is independently consulted to determine bond distribution.
+        vm.mockCallRevert(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.setAnchorState, (IDisputeGame(address(game)))),
+            bytes("setAnchorState failed")
+        );
+
+        game.closeGame();
+
+        // Despite the anchor update failing, the game is still proper → NORMAL distribution.
+        assertTrue(game.bondDistributionMode() == BondDistributionMode.NORMAL);
     }
 }
 
