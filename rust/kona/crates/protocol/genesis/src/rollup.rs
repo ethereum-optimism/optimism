@@ -18,6 +18,20 @@ pub const FJORD_MAX_SEQUENCER_DRIFT: u64 = 1800;
 /// The channel timeout once the Granite hardfork is active.
 pub const GRANITE_CHANNEL_TIMEOUT: u64 = 50;
 
+/// Serialize an `alloy_chains::Chain` as a numeric chain ID, never the named
+/// variant. The default `Chain` serialization emits the named identifier for
+/// well-known chains (so e.g. chain 10200 becomes the string `"chiado"`),
+/// which op-batcher's Go decoder rejects when it queries the rollup config
+/// over JSON-RPC. Always emitting the numeric form keeps interop with the Go
+/// services intact.
+#[cfg(feature = "serde")]
+fn serialize_chain_as_u64<S>(chain: &Chain, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_u64(chain.id())
+}
+
 #[cfg(feature = "serde")]
 const fn default_granite_channel_timeout() -> u64 {
     GRANITE_CHANNEL_TIMEOUT
@@ -61,6 +75,7 @@ pub struct RollupConfig {
     /// The L1 chain ID
     pub l1_chain_id: u64,
     /// The L2 chain ID
+    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_chain_as_u64"))]
     pub l2_chain_id: Chain,
     /// Hardfork timestamps.
     #[cfg_attr(feature = "serde", serde(flatten))]
