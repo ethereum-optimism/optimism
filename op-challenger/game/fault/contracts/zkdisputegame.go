@@ -192,7 +192,7 @@ func (g *ZKDisputeGameContractLatest) GetStatus(ctx context.Context) (gameTypes.
 func (g *ZKDisputeGameContractLatest) GetGameRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error) {
 	defer g.metrics.StartContractRequest("GetGameRange")()
 	results, err := g.multiCaller.Call(ctx, rpcblock.Latest,
-		g.contract.Call(methodStartingBlockNumber),
+		g.contract.Call(methodStartingSequenceNumber),
 		g.contract.Call(methodL2SequenceNumber))
 	if err != nil {
 		retErr = fmt.Errorf("failed to retrieve game block range: %w", err)

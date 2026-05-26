@@ -138,7 +138,7 @@ func TestZKGetGameRange(t *testing.T) {
 			stubRpc, contract := setupZKDisputeGameTest(t, version)
 			expectedStart := uint64(65)
 			expectedEnd := uint64(102)
-			stubRpc.SetResponse(zkGameAddr, methodStartingBlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
+			stubRpc.SetResponse(zkGameAddr, methodStartingSequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
 			stubRpc.SetResponse(zkGameAddr, methodL2SequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
 			start, end, err := contract.GetGameRange(context.Background())
 			require.NoError(t, err)
