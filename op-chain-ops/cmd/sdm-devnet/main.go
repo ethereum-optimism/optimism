@@ -37,6 +37,8 @@ type config struct {
 	portal           string
 	fundAmount       string
 	fundGasLimit     uint64
+	flashblocksURL   string
+	txsPerFlashblock int
 	txSpacing        time.Duration
 	batchSize        int
 	slotCount        uint64
@@ -54,13 +56,14 @@ type config struct {
 }
 
 type workloadResult struct {
-	RPCURL          string                `json:"rpc_url"`
-	From            common.Address        `json:"from"`
-	Contract        common.Address        `json:"contract"`
-	Attempt         int                   `json:"attempt"`
-	SubmittedTxs    int                   `json:"submitted_txs"`
-	IncludedByBlock map[uint64]int        `json:"included_by_block"`
-	Validation      *sdm.ValidationResult `json:"validation"`
+	RPCURL          string                  `json:"rpc_url"`
+	From            common.Address          `json:"from"`
+	Contract        common.Address          `json:"contract"`
+	Attempt         int                     `json:"attempt"`
+	SubmittedTxs    int                     `json:"submitted_txs"`
+	IncludedByBlock map[uint64]int          `json:"included_by_block"`
+	Validation      *sdm.ValidationResult   `json:"validation"`
+	Flashblocks     []sdm.FlashblockSummary `json:"flashblocks,omitempty"`
 }
 
 func main() {
@@ -91,7 +94,9 @@ func parseFlags() config {
 	flag.StringVar(&cfg.portal, "portal", "", "OptimismPortalProxy address for -fund-l2")
 	flag.StringVar(&cfg.fundAmount, "fund-amount", "1000000000000000000", "wei to deposit with -fund-l2")
 	flag.Uint64Var(&cfg.fundGasLimit, "fund-gas-limit", 200_000, "L1 gas limit for OptimismPortal deposit")
-	flag.DurationVar(&cfg.txSpacing, "tx-spacing", 0, "delay between tx submissions")
+	flag.StringVar(&cfg.flashblocksURL, "flashblocks-url", os.Getenv("FLASHBLOCKS_WS_URL"), "op-rbuilder flashblocks websocket URL; enables per-flashblock tx counts")
+	flag.IntVar(&cfg.txsPerFlashblock, "txs-per-flashblock", 0, "when -flashblocks-url is set, submit this many txs after each observed flashblock to spread workload across flashblocks")
+	flag.DurationVar(&cfg.txSpacing, "tx-spacing", 0, "delay between tx submissions when not using -txs-per-flashblock")
 	flag.IntVar(&cfg.batchSize, "batch-size", 12, "number of run(uint256) txs to submit per attempt; keep below per-account txpool limits")
 	flag.Uint64Var(&cfg.slotCount, "slot-count", 20, "storage slots touched by each run(uint256) tx")
 	flag.IntVar(&cfg.minUserTxs, "min-user-txs", 2, "minimum submitted tx receipts in a block before validation")
@@ -126,6 +131,15 @@ func run(cfg config) error {
 	validationOpts := sdm.DefaultValidationOptions()
 	validationOpts.CheckReceipts = !cfg.skipReceipts
 	validationOpts.CheckReplay = !cfg.skipReplay
+
+	var flashblocks *sdm.FlashblockCollector
+	if cfg.flashblocksURL != "" && cfg.blockNum == 0 {
+		flashblocks, err = sdm.StartFlashblockCollector(ctx, cfg.flashblocksURL)
+		if err != nil {
+			return err
+		}
+		log.Printf("connected flashblocks websocket=%s", cfg.flashblocksURL)
+	}
 
 	if cfg.blockNum != 0 {
 		validation, err := sdm.ValidatePostExecBlock(ctx, sender.RPC, cfg.blockNum, validationOpts)
@@ -171,7 +185,7 @@ func run(cfg config) error {
 
 	var lastErr error
 	for attempt := 1; attempt <= cfg.attempts; attempt++ {
-		result, err := submitAttempt(ctx, cfg, sender, contract, attempt, validationOpts)
+		result, err := submitAttempt(ctx, cfg, sender, contract, attempt, validationOpts, flashblocks)
 		if err == nil {
 			return printResult(cfg, *result)
 		}
@@ -374,7 +388,7 @@ func resolveContract(ctx context.Context, cfg config, sender *sdm.TxSender) (com
 	return *receipt.ContractAddress, nil
 }
 
-func submitAttempt(ctx context.Context, cfg config, sender *sdm.TxSender, contract common.Address, attempt int, validationOpts sdm.ValidationOptions) (*workloadResult, error) {
+func submitAttempt(ctx context.Context, cfg config, sender *sdm.TxSender, contract common.Address, attempt int, validationOpts sdm.ValidationOptions, flashblocks *sdm.FlashblockCollector) (*workloadResult, error) {
 	startNonce, err := sender.Eth.PendingNonceAt(ctx, sender.From)
 	if err != nil {
 		return nil, fmt.Errorf("pending nonce: %w", err)
@@ -382,7 +396,7 @@ func submitAttempt(ctx context.Context, cfg config, sender *sdm.TxSender, contra
 	log.Printf("attempt=%d submitting %d txs contract=%s start_nonce=%d slot_count=%d", attempt, cfg.batchSize, contract, startNonce, cfg.slotCount)
 
 	calldata := sdm.EncodeRun(cfg.slotCount)
-	txs, err := submitWorkloadTxs(ctx, cfg, sender, contract, startNonce, calldata)
+	txs, err := submitWorkloadTxs(ctx, cfg, sender, contract, startNonce, calldata, flashblocks)
 	if err != nil {
 		return nil, err
 	}
@@ -423,6 +437,7 @@ func submitAttempt(ctx context.Context, cfg config, sender *sdm.TxSender, contra
 			SubmittedTxs:    len(txs),
 			IncludedByBlock: includedByBlock,
 			Validation:      validation,
+			Flashblocks:     flashblocks.WaitSummaries(ctx, blockNum, 2*time.Second),
 		}, nil
 	}
 	if len(validationErrs) > 0 {
@@ -438,8 +453,51 @@ func submitWorkloadTxs(
 	contract common.Address,
 	startNonce uint64,
 	calldata []byte,
+	flashblocks *sdm.FlashblockCollector,
 ) ([]*types.Transaction, error) {
 	txs := make([]*types.Transaction, 0, cfg.batchSize)
+	if flashblocks != nil && cfg.txsPerFlashblock > 0 {
+		latest, err := sender.Eth.BlockNumber(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("latest block before flashblock-paced submit: %w", err)
+		}
+		drained := flashblocks.DrainPending()
+		log.Printf("flashblock-paced submit enabled txs_per_flashblock=%d waiting_after_block=%d drained_pending_flashblocks=%d", cfg.txsPerFlashblock, latest, drained)
+
+		var targetBlock uint64
+		for len(txs) < cfg.batchSize {
+			fb, ok := flashblocks.WaitNext(ctx)
+			if !ok {
+				return txs, ctx.Err()
+			}
+			if fb.BlockNumber <= latest {
+				continue
+			}
+			if targetBlock == 0 {
+				if fb.Index != 0 {
+					log.Printf("skipping already-started flashblock block=%d index=%d; waiting for next block index=0", fb.BlockNumber, fb.Index)
+					latest = fb.BlockNumber
+					continue
+				}
+				targetBlock = fb.BlockNumber
+				log.Printf("flashblock-paced submit target_block=%d", targetBlock)
+			}
+			if fb.BlockNumber != targetBlock {
+				if len(txs) >= cfg.minUserTxs {
+					log.Printf("target block ended before full batch was submitted sent=%d requested=%d next_block=%d", len(txs), cfg.batchSize, fb.BlockNumber)
+					return txs, nil
+				}
+				targetBlock = fb.BlockNumber
+			}
+
+			log.Printf("submitting workload chunk after flashblock block=%d index=%d sent_before=%d", fb.BlockNumber, fb.Index, len(txs))
+			if err := sendWorkloadChunk(ctx, cfg, sender, contract, startNonce, calldata, &txs); err != nil {
+				return txs, err
+			}
+		}
+		return txs, nil
+	}
+
 	for i := 0; i < cfg.batchSize; i++ {
 		if i > 0 && cfg.txSpacing > 0 {
 			select {
@@ -455,6 +513,34 @@ func submitWorkloadTxs(
 		txs = append(txs, tx)
 	}
 	return txs, nil
+}
+
+func sendWorkloadChunk(
+	ctx context.Context,
+	cfg config,
+	sender *sdm.TxSender,
+	contract common.Address,
+	startNonce uint64,
+	calldata []byte,
+	txs *[]*types.Transaction,
+) error {
+	remaining := cfg.batchSize - len(*txs)
+	if remaining <= 0 {
+		return nil
+	}
+	chunk := cfg.txsPerFlashblock
+	if chunk <= 0 || chunk > remaining {
+		chunk = remaining
+	}
+	for i := 0; i < chunk; i++ {
+		nonce := startNonce + uint64(len(*txs))
+		tx, err := sender.SendCall(ctx, nonce, contract, calldata, cfg.gasLimit)
+		if err != nil {
+			return err
+		}
+		*txs = append(*txs, tx)
+	}
+	return nil
 }
 
 func printResult(cfg config, result workloadResult) error {
@@ -474,6 +560,11 @@ func printResult(cfg config, result workloadResult) error {
 	}
 	if v.Replay != nil {
 		log.Printf("replay raw_gas=%d canonical_gas=%d replay_refund_total=%d", v.Replay.Summary.BlockRawGasUsed, v.Replay.Summary.BlockGasUsed, v.Replay.Summary.ReplayRefundTotal)
+	}
+	log.Printf("flashblocks observed=%d", len(result.Flashblocks))
+	for _, fb := range result.Flashblocks {
+		log.Printf("flashblock block=%d index=%d txs=%d has_post_exec_tx=%t post_exec_tx_bytes=%d",
+			fb.BlockNumber, fb.Index, fb.TxCount, fb.HasPostExecTx, fb.PostExecTxBytes)
 	}
 	return nil
 }
