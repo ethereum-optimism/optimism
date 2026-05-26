@@ -291,8 +291,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     /// @param _chainId The L2 chain ID to get the output root claim for.
     /// @return outputRootClaim_ The output root claim for the specified L2 chain ID.
     function rootClaimByChainId(uint256 _chainId) public pure returns (Claim outputRootClaim_) {
-        Types.SuperRootProof memory superRootProof = Encoding.decodeSuperRootProof(superRootProof());
-        Types.OutputRootWithChainId[] memory outputRoots = superRootProof.outputRoots;
+        Types.SuperRootProof memory proof = Encoding.decodeSuperRootProof(superRootProof());
+        Types.OutputRootWithChainId[] memory outputRoots = proof.outputRoots;
 
         for (uint256 i = 0; i < outputRoots.length; i++) {
             if (outputRoots[i].chainId == _chainId) {
@@ -340,8 +340,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         if (!_verifyInitCallDataLength()) revert BadExtraData();
 
         // Revert if the super root proof in extraData does not match the root claim.
-        Types.SuperRootProof memory superRootProof = Encoding.decodeSuperRootProof(superRootProof());
-        if (Hashing.hashSuperRootProof(superRootProof) != rootClaim().raw()) revert BadExtraData();
+        Types.SuperRootProof memory proof = Encoding.decodeSuperRootProof(superRootProof());
+        if (Hashing.hashSuperRootProof(proof) != rootClaim().raw()) revert BadExtraData();
 
         // Store the factory reference for parent game lookups.
         disputeGameFactory = IDisputeGameFactory(msg.sender);
