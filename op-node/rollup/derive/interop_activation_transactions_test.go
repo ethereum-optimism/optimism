@@ -81,12 +81,12 @@ func TestUpgradeTransactionsInterop(t *testing.T) {
 	require.Len(t, txs, 28)
 
 	// First tx: StorageSetter implementation deployment (qualified intent).
-	first := UpgradeDepositSource{Intent: "interop 0: Deploy StorageSetter Implementation"}
+	first := UpgradeDepositSource{Intent: "Interop 0: Deploy StorageSetter Implementation"}
 	_, dep0 := toDepositTxn(t, txs[0])
 	require.Equal(t, first.SourceHash(), dep0.SourceHash())
 
 	// Last tx: L2ProxyAdmin upgradePredeploys.
-	last := UpgradeDepositSource{Intent: "interop 27: L2ProxyAdmin Upgrade Predeploys"}
+	last := UpgradeDepositSource{Intent: "Interop 27: L2ProxyAdmin Upgrade Predeploys"}
 	_, depLast := toDepositTxn(t, txs[len(txs)-1])
 	require.Equal(t, last.SourceHash(), depLast.SourceHash())
 
