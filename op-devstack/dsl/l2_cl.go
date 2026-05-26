@@ -352,30 +352,26 @@ func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime 
 		deadline := time.Unix(int64(targetTime), 0).Add(buffer)
 		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "initial", initial.Number, "initial_time", initial.Time, "target_time", targetTime, "deadline", deadline)
 		logger.Info("Watching head for regression until target time reached")
-		for {
-			if cl.ctx.Err() != nil {
-				return cl.ctx.Err()
-			}
-			if time.Now().After(deadline) {
-				return fmt.Errorf("%s head did not reach target time %d before deadline %s (initial=%d)",
-					lvl, targetTime, deadline, initial.Number)
-			}
-			time.Sleep(100 * time.Millisecond) // nosemgrep: flake-sleep-in-test -- tight poll deliberately chosen so a brief FinalizedL2 regression cannot slip between observations
+		// Tight 100ms poll so a brief regression cannot slip between
+		// observations. Capture any regression in regressionErr and end the
+		// wait early by returning true; the post-Eventuallyf check surfaces it.
+		var regressionErr error
+		cl.require.Eventuallyf(func() bool {
 			head, err := cl.headBlockRef(lvl)
 			if err != nil {
 				logger.Warn("SyncStatus RPC failed; will retry", "err", err)
-				continue
+				return false
 			}
 			if head.Number < initial.Number {
-				return fmt.Errorf("%s head regressed: was %d (%s, t=%d), observed %d (%s, t=%d)",
+				regressionErr = fmt.Errorf("%s head regressed: was %d (%s, t=%d), observed %d (%s, t=%d)",
 					lvl, initial.Number, initial.Hash, initial.Time, head.Number, head.Hash, head.Time)
+				return true
 			}
 			logger.Info("Chain sync status", "current", head.Number, "current_time", head.Time)
-			if head.Time >= targetTime {
-				logger.Info("Head reached target time without regression", "final", head.Number, "final_time", head.Time)
-				return nil
-			}
-		}
+			return head.Time >= targetTime
+		}, time.Until(deadline), 100*time.Millisecond,
+			"%s head did not reach target time %d (initial=%d)", lvl, targetTime, initial.Number)
+		return regressionErr
 	}
 }
 
