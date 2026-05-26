@@ -119,8 +119,7 @@ func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash common.Hash) *eth.
 }
 
 func (p *PreimageOracle) Precompile(address common.Address, input []byte, requiredGas uint64) ([]byte, bool) {
-	hintBytes := append(address.Bytes(), binary.BigEndian.AppendUint64(nil, requiredGas)...)
-	hintBytes = append(hintBytes, input...)
+	hintBytes := precompileKeyInput(address, input, requiredGas)
 	p.hint.Hint(PrecompileHintV2(hintBytes))
 	key := preimage.PrecompileKey(crypto.Keccak256Hash(hintBytes))
 	result := p.oracle.Get(key)
@@ -128,6 +127,14 @@ func (p *PreimageOracle) Precompile(address common.Address, input []byte, requir
 		panic(fmt.Sprintf("unexpected precompile oracle behavior, got result: %x", result))
 	}
 	return result[1:], result[0] == 1
+}
+
+func precompileKeyInput(address common.Address, input []byte, requiredGas uint64) []byte {
+	keyInput := make([]byte, 0, common.AddressLength+8+len(input))
+	keyInput = append(keyInput, address.Bytes()...)
+	keyInput = binary.BigEndian.AppendUint64(keyInput, requiredGas)
+	keyInput = append(keyInput, input...)
+	return keyInput
 }
 
 var RootsOfUnity *[4096]fr.Element

@@ -95,7 +95,7 @@ func (o *CachingOracle) GetBlob(ref eth.L1BlockRef, blobHash common.Hash) *eth.B
 }
 
 func (o *CachingOracle) Precompile(address common.Address, input []byte, requiredGas uint64) ([]byte, bool) {
-	cacheKey := crypto.Keccak256Hash(append(address.Bytes(), input...))
+	cacheKey := crypto.Keccak256Hash(precompileKeyInput(address, input, requiredGas))
 	if val, ok := o.pcmps.Get(cacheKey); ok {
 		return val.result, val.ok
 	}
