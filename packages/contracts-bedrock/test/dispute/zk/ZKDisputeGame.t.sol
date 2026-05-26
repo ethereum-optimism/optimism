@@ -8,8 +8,6 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
 import { Types } from "src/libraries/Types.sol";
-import { Encoding } from "src/libraries/Encoding.sol";
-import { Hashing } from "src/libraries/Hashing.sol";
 import {
     AnchorRootNotFound,
     BadExtraData,
@@ -297,8 +295,7 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
 
-        (bytes memory ed, Claim rc) =
-            _makeZKExtraDataAndClaim(parentGameIndex, uint64(1), keccak256("rootClaim"));
+        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(parentGameIndex, uint64(1), keccak256("rootClaim"));
 
         // We expect revert because timestamp (1) <= parent's sequence number.
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, rc));
@@ -487,8 +484,8 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         vm.stopPrank();
     }
 
-    /// @notice After the super-root migration, the impl-args `l2ChainId` slot must be zero. A non-zero
-    ///         value triggers the `NoChainIdNeeded` revert in `initialize()`.
+    /// @notice The impl-args `l2ChainId` slot must be zero. A non-zero value triggers the
+    ///         `ZKDisputeGame_NoChainIdNeeded` revert in `initialize()`.
     function test_initialize_l2ChainIdNonZero_reverts() public {
         // Deploy a new game impl with a non-zero l2ChainId in gameArgs.
         IZKVerifier zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
@@ -515,12 +512,13 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         disputeGameFactory.setInitBond(nonZeroChainGameType, 1 ether);
         vm.stopPrank();
 
-        (bytes memory ed, Claim rc) =
-            _makeZKExtraDataAndClaim(type(uint32).max, uint64(parentL2SequenceNumber), keccak256("non-zero-chain-claim"));
+        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(
+            type(uint32).max, uint64(parentL2SequenceNumber), keccak256("non-zero-chain-claim")
+        );
 
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        vm.expectRevert(ZKDisputeGame.NoChainIdNeeded.selector);
+        vm.expectRevert(ZKDisputeGame.ZKDisputeGame_NoChainIdNeeded.selector);
         disputeGameFactory.create{ value: 1 ether }(nonZeroChainGameType, rc, ed);
         vm.stopPrank();
     }
@@ -530,9 +528,8 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
 
-        ZKDisputeGame anchorGame = _createZKGame(
-            type(uint32).max, uint64(anchorL2SequenceNumber + 5000), keccak256("anchor-start-claim")
-        );
+        ZKDisputeGame anchorGame =
+            _createZKGame(type(uint32).max, uint64(anchorL2SequenceNumber + 5000), keccak256("anchor-start-claim"));
         vm.stopPrank();
 
         // The starting proposal should match the anchor state values.
@@ -733,9 +730,8 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
     function test_prove_parentChallengerWins_reverts() public {
         // Create a child game referencing our game as parent.
         vm.startPrank(proposer);
-        ZKDisputeGame childGame = _createZKGame(
-            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("child-claim")
-        );
+        ZKDisputeGame childGame =
+            _createZKGame(childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("child-claim"));
         vm.stopPrank();
 
         // Challenge the parent game so it resolves as CHALLENGER_WINS.
@@ -1019,9 +1015,8 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_TestInit {
         vm.startPrank(proposer);
 
         // Create a new game referencing the child game as parent.
-        ZKDisputeGame childGame = _createZKGame(
-            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("new-claim")
-        );
+        ZKDisputeGame childGame =
+            _createZKGame(childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("new-claim"));
 
         vm.stopPrank();
 

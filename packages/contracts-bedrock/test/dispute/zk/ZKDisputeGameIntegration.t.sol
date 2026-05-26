@@ -104,8 +104,7 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
 
         // ── Game A: Created from anchor, goes unchallenged ──
         uint256 seqNumA = anchorSeqNum + 1000;
-        (ZKDisputeGame gameA, Claim claimA, uint32 indexA) =
-            _createGame(keccak256("claimA"), seqNumA, type(uint32).max);
+        (ZKDisputeGame gameA, Claim claimA, uint32 indexA) = _createGame(keccak256("claimA"), seqNumA, type(uint32).max);
 
         assertEq(uint8(gameA.status()), uint8(GameStatus.IN_PROGRESS));
         assertEq(gameA.gameCreator(), proposer);
@@ -193,7 +192,8 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
         // ── Base game: established as the anchor ──
         s2_seqNumBase = anchorSeqNum + 1000;
         uint32 indexBase;
-        (s2_gameBase, s2_claimBase, indexBase) = _createGame(keccak256("anchorClaimBase"), s2_seqNumBase, type(uint32).max);
+        (s2_gameBase, s2_claimBase, indexBase) =
+            _createGame(keccak256("anchorClaimBase"), s2_seqNumBase, type(uint32).max);
 
         _resolveUnchallenged(s2_gameBase);
 

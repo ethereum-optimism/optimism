@@ -1185,10 +1185,8 @@ contract DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test is DisputeGameFac
             _makeZKExtraDataAndClaim(type(uint32).max, uint64(anchorL2SeqNum + 2000), keccak256("zkRoot2"));
 
         vm.startPrank(proposer);
-        IDisputeGame game1 =
-            disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim1, extra1);
-        IDisputeGame game2 =
-            disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim2, extra2);
+        IDisputeGame game1 = disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim1, extra1);
+        IDisputeGame game2 = disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim2, extra2);
         vm.stopPrank();
 
         uint256 latestIdx = disputeGameFactory.gameCount() - 1;
