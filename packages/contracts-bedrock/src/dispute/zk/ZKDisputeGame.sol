@@ -54,7 +54,7 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 /// @dev Derived from https://github.com/succinctlabs/op-succinct (at commit c13844a9bbc330cca69eef2538d8f8ec123e1653)
 contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     /// @dev Error to prevent passing a chainId to this dispute game.
-    error NoChainIdNeeded();
+    error ZKDisputeGame_NoChainIdNeeded();
 
     ////////////////////////////////////////////////////////////////
     //                         Enums                              //
@@ -379,7 +379,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         }
 
         // The l2ChainId must still exist, yet zero-valued, in the game args for legacy reasons.
-        if (_l2ChainId() != 0) revert NoChainIdNeeded();
+        if (_l2ChainId() != 0) revert ZKDisputeGame_NoChainIdNeeded();
 
         // Do not allow the game to be initialized if the root claim corresponds to a sequence number (timestamp) at
         // or before the configured starting sequence number.
