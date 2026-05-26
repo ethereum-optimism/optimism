@@ -1,10 +1,12 @@
 package prestate
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/registry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/types"
@@ -27,7 +29,7 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 
 	prestateTag := fmt.Sprintf("kona-client/v%s", prestateVersion)
 	log.Info("Found prestate tag", "tag", prestateTag)
-	fppCommitInfo = types.NewCommitInfo("op-rs", "kona", prestateTag, "main", "")
+	fppCommitInfo = types.NewCommitInfo("ethereum-optimism", "optimism", prestateTag, "develop", "rust/kona")
 
 	superChainRegistryCommit, err := fetchSuperchainRegistryCommit(prestateTag)
 	if err != nil {
@@ -51,9 +53,16 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 	return
 }
 
+// fetchSuperchainRegistryCommit returns the superchain-registry commit SHA that the
+// kona-client release identified by ref was built against, by reading the pinned
+// commit file from the optimism monorepo at that tag.
+//
+// Only kona-client tags that have op-core/superchain/superchain-registry-commit.txt
+// are supported (v1.5.1 and later); older tags will return a 404 error.
 func fetchSuperchainRegistryCommit(ref string) (string, error) {
-	endpoint := "https://api.github.com/repos/op-rs/kona/contents/crates/protocol/registry/superchain-registry?ref=" +
-		url.QueryEscape(ref)
+	const path = "op-core/superchain/superchain-registry-commit.txt"
+	endpoint := "https://api.github.com/repos/ethereum-optimism/optimism/contents/" + path +
+		"?ref=" + url.QueryEscape(ref)
 
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -67,21 +76,31 @@ func fetchSuperchainRegistryCommit(ref string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	// Parse error payloads from GitHub if status != 200.
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to fetch superchain-registry version, http status: %s", resp.Status)
+		return "", fmt.Errorf("failed to fetch superchain-registry version at %s@%s, http status: %s", path, ref, resp.Status)
 	}
 
-	// Success path: expect a single "submodule" content object with "sha".
 	var content struct {
-		Type string `json:"type"` // should be "submodule"
-		SHA  string `json:"sha"`
+		Type     string `json:"type"`
+		Encoding string `json:"encoding"`
+		Content  string `json:"content"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&content); err != nil {
 		return "", fmt.Errorf("decode response: %w", err)
 	}
-	if content.Type != "submodule" {
-		return "", fmt.Errorf("expected a submodule got type %q", content.Type)
+	if content.Type != "file" {
+		return "", fmt.Errorf("expected a file at %s@%s, got type %q", path, ref, content.Type)
 	}
-	return content.SHA, nil
+	if content.Encoding != "base64" {
+		return "", fmt.Errorf("unexpected content encoding %q at %s@%s", content.Encoding, path, ref)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(content.Content)
+	if err != nil {
+		return "", fmt.Errorf("decode base64 content at %s@%s: %w", path, ref, err)
+	}
+	sha := strings.TrimSpace(string(decoded))
+	if sha == "" {
+		return "", fmt.Errorf("empty commit SHA at %s@%s", path, ref)
+	}
+	return sha, nil
 }
