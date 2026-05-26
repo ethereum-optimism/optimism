@@ -10,6 +10,7 @@ import (
 	"time"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
@@ -2018,7 +2019,7 @@ func (m *mockChainContainer) PayloadByHash(ctx context.Context, hash common.Hash
 	// without requiring tests to populate payloadsByHash for every hash they touch.
 	// Tests often use common.BigToHash(timestamp) as the block hash, so derive the
 	// number and timestamp from the hash value.
-	number := hash.Big().Uint64()
+	number := bigs.Uint64Strict(hash.Big())
 	return &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
 			BlockHash:   hash,
