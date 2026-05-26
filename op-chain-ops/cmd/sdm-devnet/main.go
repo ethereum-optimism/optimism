@@ -48,6 +48,7 @@ type config struct {
 	receiptTimeout   time.Duration
 	pollInterval     time.Duration
 	skipReceipts     bool
+	skipReplay       bool
 	skipSDMOptIn     bool
 	jsonOut          bool
 }
@@ -101,6 +102,7 @@ func parseFlags() config {
 	flag.DurationVar(&cfg.receiptTimeout, "receipt-timeout", 45*time.Second, "timeout for each submitted tx receipt")
 	flag.DurationVar(&cfg.pollInterval, "poll-interval", 500*time.Millisecond, "receipt polling interval")
 	flag.BoolVar(&cfg.skipReceipts, "skip-receipts", false, "do not compare payload entries against receipt opGasRefund")
+	flag.BoolVar(&cfg.skipReplay, "skip-replay", false, "do not call debug_replaySDMBlock")
 	flag.BoolVar(&cfg.skipSDMOptIn, "skip-sdm-opt-in", false, "do not call admin_setSdmEnabled(true) before submitting workload")
 	flag.BoolVar(&cfg.jsonOut, "json", false, "print JSON result")
 	flag.Parse()
@@ -123,6 +125,7 @@ func run(cfg config) error {
 
 	validationOpts := sdm.DefaultValidationOptions()
 	validationOpts.CheckReceipts = !cfg.skipReceipts
+	validationOpts.CheckReplay = !cfg.skipReplay
 
 	if cfg.blockNum != 0 {
 		validation, err := sdm.ValidatePostExecBlock(ctx, sender.RPC, cfg.blockNum, validationOpts)
@@ -468,6 +471,9 @@ func printResult(cfg config, result workloadResult) error {
 		uint64(v.Block.Number), v.Block.Hash, v.PostExecIndex, len(v.Block.Transactions), len(v.Payload.GasRefundEntries), v.TotalPayloadRefund)
 	if result.Contract != (common.Address{}) {
 		log.Printf("workload contract=%s attempt=%d submitted_txs=%d", result.Contract, result.Attempt, result.SubmittedTxs)
+	}
+	if v.Replay != nil {
+		log.Printf("replay raw_gas=%d canonical_gas=%d replay_refund_total=%d", v.Replay.Summary.BlockRawGasUsed, v.Replay.Summary.BlockGasUsed, v.Replay.Summary.ReplayRefundTotal)
 	}
 	return nil
 }

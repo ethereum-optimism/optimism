@@ -76,14 +76,77 @@ func (r *RPCReceipt) BlockNum() uint64 {
 	return bigs.Uint64Strict((*big.Int)(r.BlockNumber))
 }
 
+type ReplaySDMRefundEvent struct {
+	ClaimingReplayTxIndex      uint64         `json:"claiming_replay_tx_index"`
+	ClaimingTxIndex            uint64         `json:"claiming_tx_index"`
+	Kind                       string         `json:"kind"`
+	Amount                     uint64         `json:"amount"`
+	Address                    common.Address `json:"address"`
+	Slot                       *common.Hash   `json:"slot"`
+	FirstWarmedByReplayTxIndex uint64         `json:"first_warmed_by_replay_tx_index"`
+	FirstWarmedByTxIndex       uint64         `json:"first_warmed_by_tx_index"`
+}
+
+type ReplaySDMTx struct {
+	TxIndex            uint64                 `json:"tx_index"`
+	ReplayTxIndex      uint64                 `json:"replay_tx_index"`
+	TxHash             common.Hash            `json:"tx_hash"`
+	TxType             uint64                 `json:"tx_type"`
+	IsDepositTx        bool                   `json:"is_deposit_tx"`
+	RawGasUsed         uint64                 `json:"raw_gas_used"`
+	CanonicalGasUsed   uint64                 `json:"canonical_gas_used"`
+	OPGasRefundReplay  uint64                 `json:"op_gas_refund_replay"`
+	OPGasRefundPayload *uint64                `json:"op_gas_refund_payload"`
+	RefundBreakdown    []ReplaySDMRefundEvent `json:"refund_breakdown"`
+	Mismatch           bool                   `json:"mismatch"`
+}
+
+type ReplaySDMMismatch struct {
+	Category string  `json:"category"`
+	BlockNum uint64  `json:"block_num"`
+	TxIndex  *uint64 `json:"tx_index"`
+	Expected *uint64 `json:"expected"`
+	Actual   *uint64 `json:"actual"`
+	Message  string  `json:"message"`
+}
+
+type ReplaySDMSummary struct {
+	BlockNum                  uint64      `json:"block_num"`
+	BlockHash                 common.Hash `json:"block_hash"`
+	TxCountTotal              int         `json:"tx_count_total"`
+	TxCountUser               int         `json:"tx_count_user"`
+	PostExecTxPresent         bool        `json:"post_exec_tx_present"`
+	PostExecPayloadEntryCount int         `json:"post_exec_payload_entry_count"`
+	BlockGasUsed              uint64      `json:"block_gas_used"`
+	BlockRawGasUsed           uint64      `json:"block_raw_gas_used"`
+	ReplayRefundTotal         uint64      `json:"replay_refund_total"`
+	PayloadRefundTotal        uint64      `json:"payload_refund_total"`
+	MismatchCount             int         `json:"mismatch_count"`
+}
+
+type ReplaySDMBlock struct {
+	BlockNum                uint64              `json:"block_num"`
+	BlockHash               common.Hash         `json:"block_hash"`
+	ParentHash              common.Hash         `json:"parent_hash"`
+	PostExecTxPresent       bool                `json:"post_exec_tx_present"`
+	PostExecTxIndex         *uint64             `json:"post_exec_tx_index"`
+	EmbeddedPayload         *PostExecPayload    `json:"embedded_payload"`
+	SynthesizedPayload      PostExecPayload     `json:"synthesized_payload"`
+	SynthesizedPayloadBytes hexutil.Bytes       `json:"synthesized_payload_bytes"`
+	Txs                     []ReplaySDMTx       `json:"txs"`
+	Mismatches              []ReplaySDMMismatch `json:"mismatches"`
+	Summary                 ReplaySDMSummary    `json:"summary"`
+}
+
 // ValidationOptions controls how ValidatePostExecBlock checks the selected block.
 type ValidationOptions struct {
 	ComparePayload bool `json:"compare_payload"`
 	CheckReceipts  bool `json:"check_receipts"`
+	CheckReplay    bool `json:"check_replay"`
 }
 
 func DefaultValidationOptions() ValidationOptions {
-	return ValidationOptions{ComparePayload: true, CheckReceipts: true}
+	return ValidationOptions{ComparePayload: true, CheckReceipts: true, CheckReplay: true}
 }
 
 type ValidationResult struct {
@@ -93,6 +156,7 @@ type ValidationResult struct {
 	Payload            *PostExecPayload  `json:"payload"`
 	ReceiptRefunds     map[uint64]uint64 `json:"receipt_refunds,omitempty"`
 	TotalPayloadRefund uint64            `json:"total_payload_refund"`
+	Replay             *ReplaySDMBlock   `json:"replay,omitempty"`
 }
 
 func GetBlockWithTxs(ctx context.Context, rpcClient Caller, blockNum uint64) (*RPCBlock, error) {
@@ -119,6 +183,25 @@ func FindPostExecTransaction(block *RPCBlock) (*RPCTransaction, int) {
 		}
 	}
 	return nil, -1
+}
+
+func ReplayBlockWithSDM(ctx context.Context, rpcClient Caller, blockNum uint64, comparePayload bool) (*ReplaySDMBlock, error) {
+	var raw json.RawMessage
+	if err := rpcClient.CallContext(ctx, &raw, "debug_replaySDMBlock",
+		fmt.Sprintf("0x%x", blockNum),
+		map[string]bool{"compare_payload": comparePayload},
+	); err != nil {
+		return nil, fmt.Errorf("debug_replaySDMBlock(%d): %w", blockNum, err)
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, fmt.Errorf("nil debug_replaySDMBlock result for block %d", blockNum)
+	}
+
+	var replay ReplaySDMBlock
+	if err := json.Unmarshal(raw, &replay); err != nil {
+		return nil, fmt.Errorf("unmarshal replay result for block %d: %w", blockNum, err)
+	}
+	return &replay, nil
 }
 
 func GetOPGasRefund(ctx context.Context, rpcClient Caller, txHash common.Hash) (uint64, bool, error) {
@@ -204,6 +287,35 @@ func ValidatePostExecBlock(ctx context.Context, rpcClient Caller, blockNum uint6
 	}
 	if !opts.CheckReceipts {
 		result.ReceiptRefunds = nil
+	}
+
+	if opts.CheckReplay {
+		replay, err := ReplayBlockWithSDM(ctx, rpcClient, blockNum, opts.ComparePayload)
+		if err != nil {
+			return nil, err
+		}
+		result.Replay = replay
+		if !replay.PostExecTxPresent {
+			return nil, fmt.Errorf("replay does not report post-exec tx for block %d", blockNum)
+		}
+		if replay.PostExecTxIndex == nil {
+			return nil, fmt.Errorf("replay does not report post-exec tx index for block %d", blockNum)
+		}
+		if *replay.PostExecTxIndex != uint64(postExecPos) {
+			return nil, fmt.Errorf("replay post-exec tx index %d, want %d", *replay.PostExecTxIndex, postExecPos)
+		}
+		if len(replay.Mismatches) > 0 {
+			return nil, fmt.Errorf("replay reported %d SDM mismatch(es): %v", len(replay.Mismatches), replay.Mismatches)
+		}
+		if replay.Summary.PostExecPayloadEntryCount != len(payload.GasRefundEntries) {
+			return nil, fmt.Errorf("replay payload entry count %d, want %d", replay.Summary.PostExecPayloadEntryCount, len(payload.GasRefundEntries))
+		}
+		if replay.Summary.ReplayRefundTotal != replay.Summary.PayloadRefundTotal {
+			return nil, fmt.Errorf("replay refund total %d, payload total %d", replay.Summary.ReplayRefundTotal, replay.Summary.PayloadRefundTotal)
+		}
+		if replay.Summary.PayloadRefundTotal != result.TotalPayloadRefund {
+			return nil, fmt.Errorf("replay payload refund total %d, decoded payload total %d", replay.Summary.PayloadRefundTotal, result.TotalPayloadRefund)
+		}
 	}
 
 	return result, nil
