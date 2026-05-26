@@ -854,7 +854,7 @@ jobs:
   kona-registry-snapshot-check:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
