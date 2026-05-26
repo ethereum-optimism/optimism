@@ -346,15 +346,10 @@ func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime 
 		if initial.Time >= targetTime {
 			return fmt.Errorf("initial %s head time %d already at or past target %d; nothing to observe across the boundary", lvl, initial.Time, targetTime)
 		}
-		// Wall-clock budget: long enough for the head to reach targetTime,
-		// plus 5 minutes to absorb the L1 finality lag and slow runners.
-		now := time.Now().Unix()
+		// Deadline is the target wall-clock time plus a 5-minute buffer that
+		// absorbs the L1 finality lag and ordinary test-runner slowness.
 		const buffer = 5 * time.Minute
-		var remainingToTarget time.Duration
-		if int64(targetTime) > now {
-			remainingToTarget = time.Duration(int64(targetTime)-now) * time.Second
-		}
-		deadline := time.Now().Add(remainingToTarget + buffer)
+		deadline := time.Unix(int64(targetTime), 0).Add(buffer)
 		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "initial", initial.Number, "initial_time", initial.Time, "target_time", targetTime, "deadline", deadline)
 		logger.Info("Watching head for regression until target time reached")
 		for {
