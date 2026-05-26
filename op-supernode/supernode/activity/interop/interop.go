@@ -907,13 +907,6 @@ func (i *Interop) captureRewindPayloadsForHeads(heads map[eth.ChainID]eth.BlockI
 			return nil, fmt.Errorf("chain %s: fetch target payload %s for rewind to ts=%d: %w",
 				chainID, head.Hash, timestamp, err)
 		}
-		if err := validateRewindPayload(chainID, envelope, head.Number, timestamp); err != nil {
-			return nil, err
-		}
-		if envelope.ExecutionPayload.BlockHash != head.Hash {
-			return nil, fmt.Errorf("chain %s: rewind payload hash mismatch: got %s, want %s",
-				chainID, envelope.ExecutionPayload.BlockHash, head.Hash)
-		}
 		payloads[chainID] = envelope
 	}
 	return payloads, nil
@@ -931,29 +924,9 @@ func (i *Interop) captureRewindPayloadsAtTimestamp(timestamp uint64) (map[eth.Ch
 			return nil, fmt.Errorf("chain %s: fetch reset target payload number %d for timestamp %d: %w",
 				chainID, number, timestamp, err)
 		}
-		if err := validateRewindPayload(chainID, envelope, number, timestamp); err != nil {
-			return nil, err
-		}
 		payloads[chainID] = envelope
 	}
 	return payloads, nil
-}
-
-func validateRewindPayload(chainID eth.ChainID, envelope *eth.ExecutionPayloadEnvelope, number uint64, timestamp uint64) error {
-	if envelope == nil || envelope.ExecutionPayload == nil {
-		return fmt.Errorf("chain %s: nil rewind target payload for block %d at timestamp %d",
-			chainID, number, timestamp)
-	}
-	payload := envelope.ExecutionPayload
-	if uint64(payload.BlockNumber) != number {
-		return fmt.Errorf("chain %s: rewind payload number mismatch: got %d, want %d",
-			chainID, uint64(payload.BlockNumber), number)
-	}
-	if uint64(payload.Timestamp) != timestamp {
-		return fmt.Errorf("chain %s: rewind payload timestamp mismatch: got %d, want %d",
-			chainID, uint64(payload.Timestamp), timestamp)
-	}
-	return nil
 }
 
 func (i *Interop) shouldResetEnginesOnRewind(timestamp uint64) (bool, error) {
