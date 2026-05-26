@@ -7,15 +7,19 @@ use crate::{
 };
 use alloy_consensus::transaction::Recovered;
 use alloy_evm::{
-    Evm, RecoveredTx,
+    RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockExecutorFor, ExecutableTx, OnStateHook, StateDB,
+        ExecutableTx, GasOutput, OnStateHook, StateDB,
     },
     precompiles::PrecompilesMap,
 };
-use alloy_op_evm::{OpBlockExecutionCtx, OpBlockExecutor, block::OpTxResult};
-use op_revm::OpContext;
+use alloy_op_evm::{
+    OpBlockExecutionCtx, OpBlockExecutor, OpEvmContext,
+    block::OpTxResult,
+    post_exec::{PostExecEvm, PostExecExecutorExt},
+};
+use op_alloy_consensus::SDMGasEntry;
 use reth_op::{OpReceipt, OpTxType, chainspec::OpChainSpec, node::OpRethReceiptBuilder};
 use revm::Inspector;
 use std::sync::Arc;
@@ -24,10 +28,16 @@ pub struct CustomBlockExecutor<Evm> {
     inner: OpBlockExecutor<Evm, OpRethReceiptBuilder, Arc<OpChainSpec>>,
 }
 
+impl<Evm> CustomBlockExecutor<Evm> {
+    pub const fn new(inner: OpBlockExecutor<Evm, OpRethReceiptBuilder, Arc<OpChainSpec>>) -> Self {
+        Self { inner }
+    }
+}
+
 impl<DB, E> BlockExecutor for CustomBlockExecutor<E>
 where
     DB: StateDB,
-    E: Evm<DB = DB, Tx = CustomTxEnv>,
+    E: PostExecEvm<DB = DB, Tx = CustomTxEnv>,
 {
     type Transaction = CustomTransaction;
     type Receipt = OpReceipt;
@@ -55,7 +65,7 @@ where
         }
     }
 
-    fn commit_transaction(&mut self, output: Self::Result) -> Result<u64, BlockExecutionError> {
+    fn commit_transaction(&mut self, output: Self::Result) -> GasOutput {
         self.inner.commit_transaction(output)
     }
 
@@ -76,11 +86,24 @@ where
     }
 }
 
+impl<E> PostExecExecutorExt for CustomBlockExecutor<E>
+where
+    E: alloy_evm::Evm,
+{
+    fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry> {
+        self.inner.take_post_exec_entries()
+    }
+}
+
 impl BlockExecutorFactory for CustomEvmConfig {
     type EvmFactory = CustomEvmFactory;
     type ExecutionCtx<'a> = CustomBlockExecutionCtx;
     type Transaction = CustomTransaction;
     type Receipt = OpReceipt;
+    type TxExecutionResult =
+        OpTxResult<<CustomEvmFactory as alloy_evm::EvmFactory>::HaltReason, OpTxType>;
+    type Executor<'a, DB: StateDB, I: Inspector<OpEvmContext<DB>>> =
+        CustomBlockExecutor<CustomEvm<DB, I, PrecompilesMap>>;
 
     fn evm_factory(&self) -> &Self::EvmFactory {
         &self.custom_evm_factory
@@ -90,10 +113,10 @@ impl BlockExecutorFactory for CustomEvmConfig {
         &'a self,
         evm: CustomEvm<DB, I, PrecompilesMap>,
         ctx: CustomBlockExecutionCtx,
-    ) -> impl BlockExecutorFor<'a, Self, DB, I>
+    ) -> Self::Executor<'a, DB, I>
     where
-        DB: StateDB + 'a,
-        I: Inspector<OpContext<DB>> + 'a,
+        DB: StateDB,
+        I: Inspector<OpEvmContext<DB>>,
     {
         CustomBlockExecutor {
             inner: OpBlockExecutor::new(

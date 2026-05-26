@@ -41,6 +41,17 @@ func (s *SyncTester) DeleteSession(sessionID string) {
 	s.t.Require().NoError(err)
 }
 
+func (s *SyncTester) ResetSession(sessionID string) {
+	err := s.inner.APIWithSession(sessionID).ResetSession(s.ctx)
+	s.t.Require().NoError(err)
+}
+
+func (s *SyncTester) ResetAllSessions() {
+	for _, id := range s.ListSessions() {
+		s.ResetSession(id)
+	}
+}
+
 func (s *SyncTester) ChainID(sessionID string) eth.ChainID {
 	chainID, err := s.inner.APIWithSession(sessionID).ChainID(s.ctx)
 	s.t.Require().NoError(err, "should be able to get chain ID from SyncTester")

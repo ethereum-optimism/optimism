@@ -427,7 +427,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_chainId",
         "type": "uint256"
       }
     ],
@@ -619,6 +619,11 @@
   {
     "inputs": [],
     "name": "AlreadyInitialized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AnchorRootNotFound",
     "type": "error"
   },
   {

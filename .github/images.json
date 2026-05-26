@@ -1,0 +1,194 @@
+{
+  "shared_paths": [
+    "docker-bake.hcl",
+    ".github/workflows/build-images.yaml",
+    ".github/images.json",
+    ".github/actions/docker-build-prep/**",
+    "ops/scripts/compute-git-versions.sh"
+  ],
+  "shared_go_paths": [
+    "go.mod",
+    "go.sum",
+    "ops/docker/op-stack-go/**",
+    "op-service/**",
+    "op-core/**",
+    "op-chain-ops/**"
+  ],
+  "images": {
+    "op-node": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-node",
+      "paths": ["op-node/**"]
+    },
+    "op-batcher": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-batcher",
+      "paths": ["op-batcher/**"]
+    },
+    "op-faucet": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-faucet",
+      "paths": ["op-faucet/**"]
+    },
+    "op-program": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-program",
+      "paths": ["op-program/**", "op-preimage/**"]
+    },
+    "op-proposer": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-proposer",
+      "paths": ["op-proposer/**"]
+    },
+    "op-challenger": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-challenger",
+      "paths": ["op-challenger/**", "op-program/**", "cannon/**", "op-preimage/**", "rust/kona/**"]
+    },
+    "op-dispute-mon": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-dispute-mon",
+      "paths": ["op-dispute-mon/**"]
+    },
+    "op-conductor": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-conductor",
+      "paths": ["op-conductor/**", "op-node/**"]
+    },
+    "da-server": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "da-server",
+      "paths": ["op-alt-da/**"]
+    },
+    "op-supernode": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-supernode",
+      "paths": ["op-supernode/**", "op-node/**"]
+    },
+    "op-test-sequencer": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-test-sequencer",
+      "paths": ["op-test-sequencer/**"]
+    },
+    "cannon": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "cannon",
+      "paths": ["cannon/**", "op-preimage/**"]
+    },
+    "op-deployer": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-deployer",
+      "paths": ["op-deployer/**", "packages/contracts-bedrock/**"]
+    },
+    "op-dripper": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-dripper",
+      "paths": ["op-dripper/**"]
+    },
+    "op-interop-mon": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-interop-mon",
+      "paths": ["op-interop-mon/**"]
+    },
+    "op-interop-filter": {
+      "type": "go",
+      "check": "go",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-interop-filter",
+      "paths": ["op-interop-filter/**"]
+    },
+    "kona-node": {
+      "type": "rust",
+      "check": "rust",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "kona-node",
+      "paths": ["rust/**"]
+    },
+    "kona-client": {
+      "type": "rust",
+      "check": "none",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "kona-client",
+      "paths": ["rust/**"]
+    },
+    "kona-host": {
+      "type": "rust",
+      "check": "rust",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "kona-host",
+      "paths": ["rust/**"]
+    },
+    "op-reth": {
+      "type": "rust",
+      "check": "rust",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-reth",
+      "paths": ["rust/**"]
+    },
+    "cannon-builder": {
+      "type": "rust",
+      "check": "none",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "cannon-builder",
+      "paths": ["rust/kona/docker/cannon/**"]
+    },
+    "ci-base-clang": {
+      "check": "none",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "ci-base-clang",
+      "paths": ["ops/docker/ci-base-clang/**"]
+    }
+  }
+}

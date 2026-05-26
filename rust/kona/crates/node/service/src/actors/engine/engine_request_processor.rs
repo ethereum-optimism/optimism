@@ -4,7 +4,7 @@ use crate::{
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
     BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, FinalizeTask, InsertTask, SealTask,
+    EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask, InsertTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -33,8 +33,8 @@ pub enum EngineProcessingRequest {
     Build(Box<BuildRequest>),
     /// Request to process a Safe signal, which can be derived attributes or delegated block info.
     ProcessSafeL2Signal(ConsolidateInput),
-    /// Request to process the finalized L2 block with the provided block number.
-    ProcessFinalizedL2BlockNumber(Box<u64>),
+    /// Request to process the finalized L2 block identified by the provided [`FinalizeBlockId`].
+    ProcessFinalizedL2Block(Box<FinalizeBlockId>),
     /// Request to process a received unsafe L2 block.
     ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
     /// Request to reset the forkchoice.
@@ -261,14 +261,12 @@ where
                         )));
                         self.engine.enqueue(task);
                     }
-                    EngineProcessingRequest::ProcessFinalizedL2BlockNumber(
-                        finalized_l2_block_number,
-                    ) => {
-                        // Finalize the L2 block at the provided block number.
+                    EngineProcessingRequest::ProcessFinalizedL2Block(finalized_l2_block_id) => {
+                        // Finalize the L2 block identified by the provided [`FinalizeBlockId`].
                         let task = EngineTask::Finalize(Box::new(FinalizeTask::new(
                             self.client.clone(),
                             self.rollup.clone(),
-                            *finalized_l2_block_number,
+                            *finalized_l2_block_id,
                         )));
                         self.engine.enqueue(task);
                     }

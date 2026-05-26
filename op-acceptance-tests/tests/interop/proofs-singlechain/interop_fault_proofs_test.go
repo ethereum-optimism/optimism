@@ -10,6 +10,6 @@ import (
 
 func TestInteropSingleChainFaultProofs(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainInteropSupernodeProofs(t, presets.WithChallengerCannonKonaEnabled())
+	sys := presets.NewSingleChainInterop(t)
 	sfp.RunSingleChainSuperFaultProofSmokeTest(t, sys)
 }

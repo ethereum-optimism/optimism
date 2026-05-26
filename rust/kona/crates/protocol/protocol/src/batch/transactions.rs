@@ -185,7 +185,7 @@ impl SpanBatchTransactions {
         let mut gases = Vec::with_capacity(self.total_block_tx_count as usize);
         for _ in 0..self.total_block_tx_count {
             let (gas, remaining) = unsigned_varint::decode::u64(r)
-                .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::TxNonces))?;
+                .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::TxGases))?;
             gases.push(gas);
             *r = remaining;
         }
@@ -404,6 +404,13 @@ mod tests {
             result,
             Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))
         );
+    }
+
+    #[test]
+    fn test_decode_tx_gases_truncated() {
+        let mut txs = SpanBatchTransactions { total_block_tx_count: 1, ..Default::default() };
+        let result = txs.decode_tx_gases(&mut [].as_slice());
+        assert_eq!(result, Err(SpanBatchError::Decoding(SpanDecodingError::TxGases)));
     }
 
     #[test]

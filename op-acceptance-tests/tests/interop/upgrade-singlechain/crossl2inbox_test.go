@@ -16,7 +16,6 @@ import (
 )
 
 func TestPostInbox(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	offset := uint64(30)
 	sys := presets.NewSingleChainInterop(t, presets.WithDeployerOptions(

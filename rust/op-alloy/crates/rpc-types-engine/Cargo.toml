@@ -2,7 +2,7 @@
 name = "op-alloy-rpc-types-engine"
 description = "Optimism RPC types for the `engine` namespace"
 
-version = "0.24.0"
+version = "2.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -41,8 +41,6 @@ arbitrary = { workspace = true, features = ["derive"], optional = true }
 # hashing
 sha2.workspace = true
 
-derive_more = { workspace = true, features = ["as_ref", "deref_mut"] }
-
 [dev-dependencies]
 arbtest.workspace = true
 serde_json.workspace = true
@@ -63,7 +61,6 @@ std = [
 	"alloy-eips/std",
 	"alloy-rlp/std",
 	"alloy-serde?/std",
-	"derive_more/std",
 	"serde?/std",
 	"sha2/std",
 	"thiserror/std"

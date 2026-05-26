@@ -147,13 +147,11 @@ See [this document](./op-e2e/README.md)
 #### Running contract static analysis
 
 We perform static analysis with [`slither`](https://github.com/crytic/slither).
-You must have Python 3.x installed to run `slither`.
-To run `slither` locally, do:
+Slither is pinned in `mise.toml`. To run it locally, do:
 
 ```bash
 cd packages/contracts-bedrock
-pip3 install slither-analyzer
-just slither
+mise exec -- slither . --config-file test/slither/slither.config.json
 ```
 
 ## Labels

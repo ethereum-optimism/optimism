@@ -25,12 +25,14 @@ src_validation = [
     "test/dispute/lib/LibGameId.t.sol",    # Tests library utilities
     "test/libraries/DeployUtils.t.sol",    # Tests library utilities - no direct src counterpart
     "test/setup/DeployVariations.t.sol",   # Tests deployment variations
+    "test/setup/PastNUTBundles.t.sol",     # Tests a test-only library (test/setup/PastNUTBundles.sol)
     "test/universal/BenchmarkTest.t.sol",  # Performance benchmarking tests
     "test/universal/ExtendedPause.t.sol",  # Tests extended functionality
     "test/vendor/Initializable.t.sol",     # Tests external vendor code
     "test/vendor/InitializableOZv5.t.sol", # Tests external vendor code
     "test/L2/fork/L2ForkUpgrade.t.sol",    # Tests L2 fork upgrade workflow
     "test/L2/L2GenesisForkUpgrade.t.sol",  # Tests L2 genesis fork upgrade workflow
+    "test/dispute/zk/ZKDisputeGameIntegration.t.sol", # Integration tests for ZK dispute game lifecycle
 ]
 
 # PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:
@@ -77,11 +79,12 @@ contract_name_validation = [
 # - Fixing misspelled function names in test contracts
 # - Restructuring tests to match actual function signatures
 function_name_validation = [
-    "test/L1/ProxyAdminOwnedBase.t.sol",     # Tests internal functions not in ABI
-    "test/L1/SystemConfig.t.sol",            # Tests internal functions not in ABI
-    "test/safe/SafeSigners.t.sol",           # Function name validation issues
-    "test/libraries/Predeploys.t.sol",       # Function 'uncategorizedInterop' doesn't exist in library
-    "test/libraries/TransientContext.t.sol", # Function 'reentrantAware' doesn't exist in library
+    "test/L1/ProxyAdminOwnedBase.t.sol",                       # Tests internal functions not in ABI
+    "test/L1/SystemConfig.t.sol",                              # Tests internal functions not in ABI
+    "test/L1/opcm/OPContractsManagerMigrationValidator.t.sol",  # Tests organized by validation section, not by function
+    "test/safe/SafeSigners.t.sol",                             # Function name validation issues
+    "test/libraries/Predeploys.t.sol",                         # Function 'uncategorizedInterop' doesn't exist in library
+    "test/libraries/TransientContext.t.sol",                   # Function 'reentrantAware' doesn't exist in library
 ]
 
 [excluded_tests]

@@ -7,7 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -67,7 +68,7 @@ func TestP2PMinimal(gt *testing.T) {
 	konaNodeId := secondNode.PeerInfo().PeerID
 
 	// Wait for a few blocks to be produced.
-	dsl.CheckAll(t, secondNode.ReachedFn(types.LocalUnsafe, 40, 80), firstNode.ReachedFn(types.LocalUnsafe, 40, 80))
+	dsl.CheckAll(t, secondNode.ReachedFn(safety.LocalUnsafe, 40, 80), firstNode.ReachedFn(safety.LocalUnsafe, 40, 80))
 
 	// Check that the nodes are connected to each other.
 	arePeers(t, &firstNode, konaNodeId)

@@ -37,8 +37,7 @@ func simpleInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiCh
 		SingleChainInterop: SingleChainInterop{
 			Log:              t.Logger(),
 			T:                t,
-			timeTravel:       nil,
-			Supervisor:       nil,
+			timeTravel:       runtime.TimeTravel,
 			SuperRoots:       dsl.NewSupernodeWithTestControl(supernodeFrontend, runtime.Supernode),
 			TestSequencer:    dsl.NewTestSequencer(testSequencer),
 			L1Network:        twoL2.L1Network,
@@ -132,8 +131,7 @@ func singleChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.Mu
 	out := &SingleChainInterop{
 		Log:              t.Logger(),
 		T:                t,
-		timeTravel:       nil,
-		Supervisor:       nil,
+		timeTravel:       runtime.TimeTravel,
 		SuperRoots:       dsl.NewSupernodeWithTestControl(supernodeFrontend, runtime.Supernode),
 		TestSequencer:    dsl.NewTestSequencer(testSequencer),
 		L1Network:        dsl.NewL1Network(l1Network, l1ELDSL, l1CLDSL),

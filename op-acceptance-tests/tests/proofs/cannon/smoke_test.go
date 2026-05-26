@@ -24,8 +24,6 @@ func TestSmoke(gt *testing.T) {
 	_, err = gameargs.Parse(gameArgs)
 	require.NoError(err, "Permissionless game args invalid")
 
-	permissionedGame := dgf.GameImpl(gameTypes.PermissionedGameType)
-	require.NotEmpty(permissionedGame.Address, "permissioned game impl must be set")
-	cannonGame := dgf.GameImpl(gameTypes.CannonGameType)
-	require.NotEmpty(cannonGame.Address, "cannon game impl must be set")
+	dgf.VerifyGameImplPresent(gameTypes.PermissionedGameType)
+	dgf.VerifyGameImplPresent(gameTypes.CannonGameType)
 }

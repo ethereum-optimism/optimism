@@ -6,7 +6,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // TestSyncAfterInitialELSync tests that blocks received out of order would be processed in order when running in CL sync mode. Note that this is not going to happen when running in EL sync mode, which relies on healthy ELP2P, something that is disabled in this test.
@@ -27,13 +28,13 @@ func TestSyncAfterInitialELSync(gt *testing.T) {
 	sys := newGapCLP2PSystem(t)
 	require := t.Require()
 
-	sys.L2CL.Advanced(types.LocalUnsafe, 7, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, 7, 30)
 
 	// batcher down so safe not advanced
-	require.Zero(sys.L2CL.HeadBlockRef(types.LocalSafe).Number)
-	require.Zero(sys.L2CLB.HeadBlockRef(types.LocalSafe).Number)
+	require.Zero(sys.L2CL.HeadBlockRef(safety.LocalSafe).Number)
+	require.Zero(sys.L2CLB.HeadBlockRef(safety.LocalSafe).Number)
 
-	startNum := sys.L2CLB.HeadBlockRef(types.LocalUnsafe).Number
+	startNum := sys.L2CLB.HeadBlockRef(safety.LocalUnsafe).Number
 
 	// Finish EL sync by supplying the first block
 	// EL Sync finished because underlying EL has states to validate the payload for block startNum+1

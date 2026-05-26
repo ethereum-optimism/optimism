@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
@@ -39,12 +38,9 @@ type SuperchainConfig struct {
 
 	privateKeyECDSA *ecdsa.PrivateKey
 
-	SuperchainProxyAdminOwner  common.Address
-	ProtocolVersionsOwner      common.Address
-	Guardian                   common.Address
-	Paused                     bool
-	RequiredProtocolVersion    params.ProtocolVersion
-	RecommendedProtocolVersion params.ProtocolVersion
+	SuperchainProxyAdminOwner common.Address
+	Guardian                  common.Address
+	Paused                    bool
 }
 
 func (c *SuperchainConfig) Check() error {
@@ -74,10 +70,6 @@ func (c *SuperchainConfig) Check() error {
 		return fmt.Errorf("superchain proxy admin owner must be specified")
 	}
 
-	if c.ProtocolVersionsOwner == (common.Address{}) {
-		return fmt.Errorf("protocol versions owner must be specified")
-	}
-
 	if c.Guardian == (common.Address{}) {
 		return fmt.Errorf("guardian must be specified")
 	}
@@ -99,11 +91,8 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	}
 
 	superchainProxyAdminOwner := common.HexToAddress(cliCtx.String(SuperchainProxyAdminOwnerFlagName))
-	protocolVersionsOwner := common.HexToAddress(cliCtx.String(ProtocolVersionsOwnerFlagName))
 	guardian := common.HexToAddress(cliCtx.String(GuardianFlagName))
 	paused := cliCtx.Bool(PausedFlagName)
-	requiredVersionStr := cliCtx.String(RequiredProtocolVersionFlagName)
-	recommendedVersionStr := cliCtx.String(RecommendedProtocolVersionFlagName)
 	outfile := cliCtx.String(OutfileFlagName)
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 	useForge := cliCtx.Bool(deployer.UseForgeFlagName)
@@ -115,26 +104,8 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		CacheDir:                  cacheDir,
 		UseForge:                  useForge,
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
-		ProtocolVersionsOwner:     protocolVersionsOwner,
 		Guardian:                  guardian,
 		Paused:                    paused,
-	}
-
-	// Default to op-geth params.OPStackSupport if not specified for required and recommended protocolversions
-	if requiredVersionStr != "" {
-		if err := cfg.RequiredProtocolVersion.UnmarshalText([]byte(requiredVersionStr)); err != nil {
-			return fmt.Errorf("failed to parse required protocol version: %w", err)
-		}
-	} else {
-		cfg.RequiredProtocolVersion = params.OPStackSupport
-	}
-
-	if recommendedVersionStr != "" {
-		if err := cfg.RecommendedProtocolVersion.UnmarshalText([]byte(recommendedVersionStr)); err != nil {
-			return fmt.Errorf("failed to parse recommended protocol version: %w", err)
-		}
-	} else {
-		cfg.RecommendedProtocolVersion = params.OPStackSupport
 	}
 
 	ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
@@ -199,12 +170,9 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 	}
 
 	input := opcm.DeploySuperchainInput{
-		SuperchainProxyAdminOwner:  cfg.SuperchainProxyAdminOwner,
-		ProtocolVersionsOwner:      cfg.ProtocolVersionsOwner,
-		Guardian:                   cfg.Guardian,
-		Paused:                     cfg.Paused,
-		RequiredProtocolVersion:    cfg.RequiredProtocolVersion,
-		RecommendedProtocolVersion: cfg.RecommendedProtocolVersion,
+		SuperchainProxyAdminOwner: cfg.SuperchainProxyAdminOwner,
+		Guardian:                  cfg.Guardian,
+		Paused:                    cfg.Paused,
 	}
 
 	if cfg.UseForge {

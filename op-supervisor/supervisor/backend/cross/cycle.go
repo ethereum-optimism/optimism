@@ -6,14 +6,16 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // These error must be considered as ErrConflict to trigger a reorg.
 var (
-	ErrCycle                  = fmt.Errorf("%w: cycle detected", types.ErrConflict)
-	ErrExecMsgHasInvalidIndex = fmt.Errorf("%w: executing message has invalid log index", types.ErrConflict)
-	ErrExecMsgUnknownChain    = fmt.Errorf("%w: executing message references unknown chain", types.ErrConflict)
+	ErrCycle                  = fmt.Errorf("%w: cycle detected", interop.ErrConflict)
+	ErrExecMsgHasInvalidIndex = fmt.Errorf("%w: executing message has invalid log index", interop.ErrConflict)
+	ErrExecMsgUnknownChain    = fmt.Errorf("%w: executing message references unknown chain", interop.ErrConflict)
 
 	errInconsistentBlockSeal = errors.New("inconsistent block seal")
 )
@@ -21,7 +23,7 @@ var (
 // CycleCheckDeps is an interface for checking cyclical dependencies between logs.
 type CycleCheckDeps interface {
 	// OpenBlock returns log data for the requested block, to be used for cycle checking.
-	OpenBlock(chainID eth.ChainID, blockNum uint64) (block eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
+	OpenBlock(chainID eth.ChainID, blockNum uint64) (block eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
 }
 
 // node represents a log entry in the dependency graph.
@@ -86,11 +88,11 @@ func HazardCycleChecks(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet)
 // - map of chain index to map of log index to executing message (nil if doesn't exist or ignored)
 func gatherLogs(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) (
 	map[eth.ChainID]uint32,
-	map[eth.ChainID]map[uint32]*types.ExecutingMessage,
+	map[eth.ChainID]map[uint32]*messages.ExecutingMessage,
 	error,
 ) {
 	logCounts := make(map[eth.ChainID]uint32)
-	execMsgs := make(map[eth.ChainID]map[uint32]*types.ExecutingMessage)
+	execMsgs := make(map[eth.ChainID]map[uint32]*messages.ExecutingMessage)
 
 	for hazardChainID, hazardBlock := range hazards.Entries() {
 		bl, logCount, msgs, err := d.OpenBlock(hazardChainID, hazardBlock.Number)
@@ -114,7 +116,7 @@ func gatherLogs(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) (
 
 		if len(msgs) > 0 {
 			if _, exists := execMsgs[hazardChainID]; !exists {
-				execMsgs[hazardChainID] = make(map[uint32]*types.ExecutingMessage)
+				execMsgs[hazardChainID] = make(map[uint32]*messages.ExecutingMessage)
 			}
 		}
 		for logIdx, msg := range msgs {
@@ -173,7 +175,7 @@ func buildGraph(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) (*grap
 
 			// Check if the init message exists
 			if logCount, ok := logCounts[m.ChainID]; !ok || m.LogIdx >= logCount {
-				return nil, fmt.Errorf("%w: initiating message log index out of bounds", types.ErrConflict)
+				return nil, fmt.Errorf("%w: initiating message log index out of bounds", interop.ErrConflict)
 			}
 
 			initKey := node{
@@ -188,7 +190,7 @@ func buildGraph(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) (*grap
 			// Disallow self-referencing messages
 			// This should not be possible since the executing message contains the hash of the initiating message.
 			if initKey == execKey {
-				return nil, fmt.Errorf("%w: self referential message", types.ErrConflict)
+				return nil, fmt.Errorf("%w: self referential message", interop.ErrConflict)
 			}
 
 			// Add the edge
@@ -241,7 +243,7 @@ func checkGraph(g *graph) error {
 	}
 }
 
-func blockSealMatchesRef(seal types.BlockSeal, ref eth.BlockRef) bool {
+func blockSealMatchesRef(seal messages.BlockSeal, ref eth.BlockRef) bool {
 	return seal.Number == ref.Number && seal.Hash == ref.Hash
 }
 

@@ -7,6 +7,9 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
@@ -21,8 +24,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/cross"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -187,13 +188,13 @@ var (
 )
 
 func TestDeriveBlockForConsolidateStep(t *testing.T) {
-	createExecMessage := func(initIncludedIn uint64, config *staticConfigSource, initChainID eth.ChainID) supervisortypes.Message {
+	createExecMessage := func(initIncludedIn uint64, config *staticConfigSource, initChainID eth.ChainID) messages.Message {
 		rollupCfg, err := config.RollupConfig(initChainID)
 		if err != nil {
 			panic(err)
 		}
-		exec := supervisortypes.Message{
-			Identifier: supervisortypes.Identifier{
+		exec := messages.Message{
+			Identifier: messages.Identifier{
 				Origin:      initiatingMessageOrigin,
 				BlockNumber: initIncludedIn,
 				LogIndex:    0,
@@ -597,7 +598,7 @@ func createOutput(blockHash common.Hash) *eth.OutputV0 {
 	return &eth.OutputV0{BlockHash: blockHash}
 }
 
-func convertExecutingMessageToLog(t *testing.T, msg supervisortypes.Message) *gethTypes.Log {
+func convertExecutingMessageToLog(t *testing.T, msg messages.Message) *gethTypes.Log {
 	id := msg.Identifier
 	data := make([]byte, 0, 32*5)
 	data = append(data, make([]byte, 12)...)
@@ -613,7 +614,7 @@ func convertExecutingMessageToLog(t *testing.T, msg supervisortypes.Message) *ge
 	require.Equal(t, len(data), 32*5)
 	return &gethTypes.Log{
 		Address: params.InteropCrossL2InboxAddress,
-		Topics:  []common.Hash{supervisortypes.ExecutingMessageEventTopic, msg.PayloadHash},
+		Topics:  []common.Hash{messages.ExecutingMessageEventTopic, msg.PayloadHash},
 		Data:    data,
 	}
 }
@@ -677,8 +678,8 @@ func TestHazardSet_ExpiredMessageShortCircuitsInclusionCheck(t *testing.T) {
 		initLog := &gethTypes.Log{Address: initiatingMessageOrigin, Topics: []common.Hash{initiatingMessageTopic}}
 		block1A, _ := createBlock(rng, configA, 1, gethTypes.Receipts{{Logs: []*gethTypes.Log{initLog}}})
 
-		exec := supervisortypes.Message{
-			Identifier: supervisortypes.Identifier{
+		exec := messages.Message{
+			Identifier: messages.Identifier{
 				Origin:      initiatingMessageOrigin,
 				BlockNumber: 1,
 				Timestamp:   block1A.Time(),
@@ -714,7 +715,7 @@ func TestHazardSet_ExpiredMessageShortCircuitsInclusionCheck(t *testing.T) {
 
 		mockConsolidateDeps := &mockConsolidateDeps{consolidateCheckDeps: consolidateDeps}
 		mockConsolidateDeps.
-			On("Contains", mock.Anything, mock.Anything).Return(supervisortypes.BlockSeal{}, supervisortypes.ErrConflict).
+			On("Contains", mock.Anything, mock.Anything).Return(messages.BlockSeal{}, interop.ErrConflict).
 			Maybe()
 
 		linker := depset.LinkCheckFn(func(execInChain eth.ChainID, execInTimestamp uint64, initChainID eth.ChainID, initTimestamp uint64) bool {
@@ -722,13 +723,13 @@ func TestHazardSet_ExpiredMessageShortCircuitsInclusionCheck(t *testing.T) {
 			return initTimestamp+window >= execInTimestamp
 		})
 		deps := &cross.UnsafeHazardDeps{UnsafeStartDeps: mockConsolidateDeps}
-		candidate := supervisortypes.BlockSeal{
+		candidate := messages.BlockSeal{
 			Hash:      block2A.Hash(),
 			Number:    block2A.NumberU64(),
 			Timestamp: block2A.Time(),
 		}
 		_, err = cross.NewHazardSet(deps, linker, logger, eth.ChainIDFromBig(configA.L2ChainID), candidate)
-		require.ErrorIs(t, err, supervisortypes.ErrConflict)
+		require.ErrorIs(t, err, interop.ErrConflict)
 
 		if expectInclusionCheck {
 			mockConsolidateDeps.AssertCalled(t, "Contains", mock.Anything, mock.Anything)
@@ -809,9 +810,9 @@ type mockConsolidateDeps struct {
 	*consolidateCheckDeps
 }
 
-func (m *mockConsolidateDeps) Contains(chainID eth.ChainID, query supervisortypes.ContainsQuery) (supervisortypes.BlockSeal, error) {
+func (m *mockConsolidateDeps) Contains(chainID eth.ChainID, query messages.ContainsQuery) (messages.BlockSeal, error) {
 	out := m.Mock.Called(chainID, query)
-	return out.Get(0).(supervisortypes.BlockSeal), out.Error(1)
+	return out.Get(0).(messages.BlockSeal), out.Error(1)
 }
 
 func verifyResult(t *testing.T, logger log.Logger, tasks *stubTasks, configSource *staticConfigSource, l2PreimageOracle *test.StubBlockOracle, agreedPrestate common.Hash, gameTimestamp uint64, expectedClaim common.Hash) {

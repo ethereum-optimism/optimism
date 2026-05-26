@@ -24,7 +24,8 @@ use primitives::CustomNodePrimitives;
 use reth_node_api::FullNodeTypes;
 use reth_node_builder::{
     Node, NodeAdapter, NodeTypes,
-    components::{BasicPayloadServiceBuilder, ComponentsBuilder},
+    components::{BasicPayloadServiceBuilder, ComponentsBuilder, NodeComponentsBuilder},
+    rpc::BasicEngineValidatorBuilder,
 };
 use reth_op::{
     node::{
@@ -43,7 +44,7 @@ pub mod pool;
 pub mod primitives;
 pub mod rpc;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CustomNode {
     inner: OpNode,
 }
@@ -69,10 +70,11 @@ where
     >;
 
     type AddOns = OpAddOns<
-        NodeAdapter<N>,
+        NodeAdapter<N, <Self::ComponentsBuilder as NodeComponentsBuilder<N>>::Components>,
         OpEthApiBuilder<CustomRpcTypes>,
         CustomEngineValidatorBuilder,
         CustomEngineApiBuilder,
+        BasicEngineValidatorBuilder<CustomEngineValidatorBuilder>,
     >;
 
     fn components_builder(&self) -> Self::ComponentsBuilder {

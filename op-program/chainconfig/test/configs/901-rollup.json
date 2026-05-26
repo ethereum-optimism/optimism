@@ -29,7 +29,6 @@
   "fjord_time": 0,
   "batch_inbox_address": "0xff00000000000000000000000000000000000901",
   "deposit_contract_address": "0x55bdfb0bfef1070c457124920546359426153833",
-  "l1_system_config_address": "0x3649f526889a918af0a5498706db29e81bc91e0c",
-  "protocol_versions_address": "0x0000000000000000000000000000000000000000"
+  "l1_system_config_address": "0x3649f526889a918af0a5498706db29e81bc91e0c"
 }
 

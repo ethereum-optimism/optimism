@@ -111,7 +111,6 @@ rules:
       exclude:
         - /packages/contracts-bedrock/test
         - /packages/contracts-bedrock/scripts
-        - /ops/ai-eng/contracts-test-maintenance/prompt/prompt.md
 
   - id: sol-style-input-arg-fmt
     languages: [solidity]
@@ -449,8 +448,6 @@ rules:
         - /packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
         - /packages/contracts-bedrock/src/dispute/zk/ZKDisputeGame.sol
         - /packages/contracts-bedrock/src/dispute/zk/OptimisticZkGame.sol
-        # ProtocolVersions is being deprecated.
-        - /packages/contracts-bedrock/src/L1/ProtocolVersions.sol
         # DataAvailabilityChallenge is a beta/non-standard contract.
         - /packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
 

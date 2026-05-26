@@ -10,6 +10,7 @@ use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, Signal,
     SignalReceiver, StepResult,
 };
+use kona_engine::FinalizeBlockId;
 use kona_protocol::OpAttributesWithParent;
 use thiserror::Error;
 use tokio::{select, sync::mpsc};
@@ -189,8 +190,10 @@ where
                 // Attempt to finalize the block. If successful, notify engine.
                 if let Some(l2_block_number) = self.finalizer.try_finalize_next(*finalized_l1_block)
                 {
+                    // Local L1-finality: the engine's own canonical chain is the authoritative
+                    // source at this height, so finalize by number.
                     self.engine_client
-                        .send_finalized_l2_block(l2_block_number)
+                        .send_finalized_l2_block(FinalizeBlockId::ByNumber(l2_block_number))
                         .await
                         .map_err(|e| DerivationError::Sender(Box::new(e)))?;
                 }

@@ -29,6 +29,9 @@ var (
 	// sysGenesisDeployer is used as tx.origin/msg.sender on system genesis script calls.
 	// At the end we verify none of the deployed contracts persist (there may be temporary ones, to insert bytecode).
 	sysGenesisDeployer = common.Address(crypto.Keccak256([]byte("System genesis deployer"))[12:])
+
+	// defaultInitBond matches Deploy.s.sol DEFAULT_INIT_BOND (0.08 ether).
+	defaultInitBond = big.NewInt(8e16)
 )
 
 func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, cfg *WorldConfig) (*WorldDeployment, *WorldOutput, error) {
@@ -175,12 +178,9 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 	l1Host.SetTxOrigin(superCfg.Deployer)
 
 	superDeployment, err := opcmScripts.DeploySuperchain.Run(opcm.DeploySuperchainInput{
-		SuperchainProxyAdminOwner:  superCfg.ProxyAdminOwner,
-		ProtocolVersionsOwner:      superCfg.ProtocolVersionsOwner,
-		Guardian:                   superCfg.SuperchainConfigGuardian,
-		Paused:                     superCfg.Paused,
-		RequiredProtocolVersion:    superCfg.RequiredProtocolVersion,
-		RecommendedProtocolVersion: superCfg.RecommendedProtocolVersion,
+		SuperchainProxyAdminOwner: superCfg.ProxyAdminOwner,
+		Guardian:                  superCfg.SuperchainConfigGuardian,
+		Paused:                    superCfg.Paused,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Superchain contracts: %w", err)
@@ -200,7 +200,6 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		FaultGameV2MaxClockDuration:     big.NewInt(302400),
 		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
-		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
 		L1ProxyAdminOwner:               superCfg.ProxyAdminOwner,
 		Challenger:                      superCfg.Challenger,
 	})
@@ -213,8 +212,6 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 	return &SuperchainDeployment{
 		Implementations:       Implementations(implementationsDeployment),
 		ProxyAdmin:            superDeployment.SuperchainProxyAdmin,
-		ProtocolVersions:      superDeployment.ProtocolVersionsImpl,
-		ProtocolVersionsProxy: superDeployment.ProtocolVersionsProxy,
 		SuperchainConfig:      superDeployment.SuperchainConfigImpl,
 		SuperchainConfigProxy: superDeployment.SuperchainConfigProxy,
 	}, nil
@@ -289,7 +286,6 @@ func MigrateInterop(
 
 	const (
 		GameTypeCannon          = uint32(0)
-		GameTypeSuperCannon     = uint32(4)
 		GameTypeSuperCannonKona = uint32(9)
 	)
 
@@ -301,19 +297,13 @@ func MigrateInterop(
 			DisputeGameConfigs: []manage.DisputeGameConfig{
 				{
 					Enabled:  true,
-					InitBond: big.NewInt(0),
+					InitBond: new(big.Int).Set(defaultInitBond),
 					GameType: GameTypeCannon,
 					GameArgs: cannonGameArgs,
 				},
 				{
 					Enabled:  true,
-					InitBond: big.NewInt(0),
-					GameType: GameTypeSuperCannon,
-					GameArgs: cannonGameArgs,
-				},
-				{
-					Enabled:  true,
-					InitBond: big.NewInt(0),
+					InitBond: new(big.Int).Set(defaultInitBond),
 					GameType: GameTypeSuperCannonKona,
 					GameArgs: cannonKonaGameArgs,
 				},
@@ -322,7 +312,7 @@ func MigrateInterop(
 				Root:             startingAnchorRoot,
 				L2SequenceNumber: big.NewInt(int64(l1GenesisTimestamp)),
 			},
-			StartingRespectedGameType: GameTypeSuperCannon,
+			StartingRespectedGameType: GameTypeSuperCannonKona,
 		},
 	}
 	output, err := manage.Migrate(l1Host, imi)
@@ -369,8 +359,8 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
-		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet), // TODO(#19102): add support for L2CM
-		UseInterop:                               multichainDepSet,
+		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset), cfg.UseL2CM),
+		UseInterop:                               multichainDepSet && interopAtGenesis(cfg.L2GenesisInteropTimeOffset),
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}
@@ -378,13 +368,21 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 	return nil
 }
 
-// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the L2 genesis based on the multichain deployment set.
-// If the multichain deployment set is true, the dev feature bitmap will be the OptimismPortalInteropDevFlag.
-func devFeatureBitmapForL2Genesis(multichainDepSet bool) common.Hash {
-	// TODO(#19102): add support for L2CM
+// interopAtGenesis returns true if the Interop fork is scheduled to activate at genesis.
+// Using a nil offset means Interop is not scheduled at all.
+func interopAtGenesis(interopOffset *hexutil.Uint64) bool {
+	return interopOffset != nil && *interopOffset == 0
+}
+
+// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the Interop and L2CM flags.
+// TODO(#20084): drop useL2CM and the L2CMFlag branch once DevFeatures are removed.
+func devFeatureBitmapForL2Genesis(enableInterop, useL2CM bool) common.Hash {
 	var bitmap common.Hash
-	if multichainDepSet {
+	if enableInterop {
 		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.OptimismPortalInteropFlag)
+	}
+	if useL2CM {
+		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.L2CMFlag)
 	}
 	return bitmap
 }

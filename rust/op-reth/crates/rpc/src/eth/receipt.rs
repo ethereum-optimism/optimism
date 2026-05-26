@@ -4,7 +4,7 @@ use crate::{OpEthApi, OpEthApiError, eth::RpcNodeCore};
 use alloy_consensus::{BlockHeader, Receipt, ReceiptWithBloom, TxReceipt};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_rpc_types_eth::{Log, TransactionReceipt};
-use op_alloy_consensus::{OpReceipt, OpTransaction};
+use op_alloy_consensus::{OpReceipt, OpTransaction, parse_post_exec_payload_from_transactions};
 use op_alloy_rpc_types::{L1BlockInfo, OpTransactionReceipt, OpTransactionReceiptFields};
 use op_revm::estimate_tx_compressed_size;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
@@ -32,12 +32,21 @@ where
 #[derive(Debug, Clone)]
 pub struct OpReceiptConverter<Provider> {
     provider: Provider,
+    /// Whether SDM is explicitly enabled for integration tests.
+    sdm_enabled: bool,
 }
 
 impl<Provider> OpReceiptConverter<Provider> {
     /// Creates a new [`OpReceiptConverter`].
     pub const fn new(provider: Provider) -> Self {
-        Self { provider }
+        Self { provider, sdm_enabled: false }
+    }
+
+    /// Configures the temporary SDM integration-test override.
+    #[must_use]
+    pub const fn with_sdm_enabled(mut self, sdm_enabled: bool) -> Self {
+        self.sdm_enabled = sdm_enabled;
+        self
     }
 }
 
@@ -86,11 +95,12 @@ where
         };
 
         let mut receipts = Vec::with_capacity(inputs.len());
-        let post_exec_payload = block
-            .body()
-            .transactions()
-            .iter()
-            .find_map(|tx| tx.as_post_exec().map(|tx| &tx.inner().payload));
+        let post_exec_payload = parse_post_exec_payload_from_transactions(
+            block.body().transactions(),
+            block.header().number(),
+            self.sdm_enabled,
+        )?
+        .map(|parsed| parsed.payload);
 
         for input in inputs {
             // We must clear this cache as different L2 transactions can have different
@@ -547,7 +557,8 @@ mod test {
         let converter = OpReceiptConverter::new(reth_storage_api::noop::NoopProvider::<
             _,
             OpPrimitives,
-        >::new(OP_MAINNET.clone()));
+        >::new(OP_MAINNET.clone()))
+        .with_sdm_enabled(true);
         let receipts =
             <OpReceiptConverter<_> as ReceiptConverter<OpPrimitives>>::convert_receipts_with_block(
                 &converter,

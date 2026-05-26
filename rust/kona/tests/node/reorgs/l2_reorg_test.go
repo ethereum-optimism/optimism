@@ -8,7 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 	"github.com/stretchr/testify/require"
@@ -32,7 +33,7 @@ func TestL2Reorg(gt *testing.T) {
 
 	// Wait for the nodes to advance a little bit
 	for _, node := range out.L2CLNodes() {
-		advancedFnsPreReorg = append(advancedFnsPreReorg, node.AdvancedFn(types.LocalUnsafe, 20, 40))
+		advancedFnsPreReorg = append(advancedFnsPreReorg, node.AdvancedFn(safety.LocalUnsafe, 20, 40))
 	}
 
 	dsl.CheckAll(t, advancedFnsPreReorg...)
@@ -42,7 +43,7 @@ func TestL2Reorg(gt *testing.T) {
 	advancedFnsReorgedBlocks := make([]dsl.CheckFunc, 0, len(out.L2CLNodes()))
 	// Wait for the nodes to advance a little bit more ahead the unsafe head
 	for _, node := range out.L2CLNodes() {
-		advancedFnsReorgedBlocks = append(advancedFnsReorgedBlocks, node.AdvancedFn(types.LocalUnsafe, NUM_BLOCKS_TO_REORG, 2*NUM_BLOCKS_TO_REORG))
+		advancedFnsReorgedBlocks = append(advancedFnsReorgedBlocks, node.AdvancedFn(safety.LocalUnsafe, NUM_BLOCKS_TO_REORG, 2*NUM_BLOCKS_TO_REORG))
 	}
 	dsl.CheckAll(t, advancedFnsReorgedBlocks...)
 
@@ -56,7 +57,7 @@ func TestL2Reorg(gt *testing.T) {
 
 	// Ensure that all the nodes still advance even after the reorg
 	for _, node := range out.L2CLNodes() {
-		checksPostReorg = append(checksPostReorg, node.AdvancedFn(types.LocalUnsafe, 20, 40))
+		checksPostReorg = append(checksPostReorg, node.AdvancedFn(safety.LocalUnsafe, 20, 40))
 	}
 
 	reorgFun := func() error {
@@ -133,7 +134,7 @@ func TestL2Reorg(gt *testing.T) {
 
 	// Ensure the current unsafe head is ahead of the reorg head
 	for _, node := range out.L2CLNodes() {
-		require.Greater(t, node.HeadBlockRef(types.LocalUnsafe).Number, unsafeHead.Number)
+		require.Greater(t, node.HeadBlockRef(safety.LocalUnsafe).Number, unsafeHead.Number)
 	}
 
 	// Ensure that bob has the funds

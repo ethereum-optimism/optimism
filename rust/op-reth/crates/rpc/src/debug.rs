@@ -6,13 +6,14 @@ use crate::{
 };
 use alloy_consensus::BlockHeader;
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_primitives::B256;
+use alloy_primitives::{B256, Sealed};
 use alloy_rlp::Encodable;
 use alloy_rpc_types_debug::ExecutionWitness;
 use async_trait::async_trait;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::RpcResult;
 use jsonrpsee_types::error::ErrorObject;
+use op_alloy_consensus::TxPostExec;
 use reth_basic_payload_builder::PayloadConfig;
 use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_node_api::{BuildNextEnv, NodePrimitives, PayloadBuilderError};
@@ -21,7 +22,9 @@ use reth_optimism_payload_builder::{
     OpAttributes, OpPayloadPrimitives,
     builder::{OpBuilder, OpPayloadBuilderCtx},
 };
-use reth_optimism_trie::{OpProofsStorage, OpProofsStore, api::OpProofsProviderRO};
+use reth_optimism_trie::{
+    OpProofsStorage, OpProofsStorageError, OpProofsStore, api::OpProofsProviderRO,
+};
 use reth_optimism_txpool::OpPooledTransaction as OpPooledTx2;
 use reth_payload_util::NoopPayloadTransactions;
 use reth_primitives_traits::{SealedHeader, TxTy};
@@ -172,7 +175,8 @@ where
     P: OpProofsStore + Clone + 'static,
     Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>, RpcPayloadAttributes: Send>,
     N: OpPayloadPrimitives,
-    EvmConfig: ConfigureEvm<
+    N::SignedTx: From<Sealed<TxPostExec>>,
+    EvmConfig: reth_optimism_evm::ConfigurePostExecEvm<
             Primitives = N,
             NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, Provider::ChainSpec>,
         > + 'static,
@@ -278,7 +282,7 @@ where
 
                 let _ = block_executor
                     .execute_with_state_closure(&block, |statedb: &State<_>| {
-                        witness_record.record_executed_state(statedb);
+                        witness_record.record_executed_state(statedb, Default::default());
                     })
                     .map_err(EthApiError::from)?;
 
@@ -286,7 +290,7 @@ where
                     witness_record;
 
                 let state = state_provider
-                    .witness(Default::default(), hashed_state)
+                    .witness(Default::default(), hashed_state, Default::default())
                     .map_err(EthApiError::from)?;
                 let mut exec_witness =
                     ExecutionWitness { state, codes, keys, ..Default::default() };
@@ -318,16 +322,16 @@ where
     async fn proofs_sync_status(&self) -> RpcResult<ProofsSyncStatus> {
         let provider_ro =
             self.inner.storage.provider_ro().map_err(|err| internal_rpc_err(err.to_string()))?;
-        let earliest = provider_ro
-            .get_earliest_block_number()
-            .map_err(|err| internal_rpc_err(err.to_string()))?;
-        let latest = provider_ro
-            .get_latest_block_number()
-            .map_err(|err| internal_rpc_err(err.to_string()))?;
 
-        Ok(ProofsSyncStatus {
-            earliest: earliest.map(|(block_number, _)| block_number),
-            latest: latest.map(|(block_number, _)| block_number),
-        })
+        match provider_ro.get_proof_window() {
+            Ok(window) => Ok(ProofsSyncStatus {
+                earliest: Some(window.earliest.number),
+                latest: Some(window.latest.number),
+            }),
+            Err(OpProofsStorageError::NoBlocksFound) => {
+                Ok(ProofsSyncStatus { earliest: None, latest: None })
+            }
+            Err(err) => Err(internal_rpc_err(err.to_string())),
+        }
     }
 }

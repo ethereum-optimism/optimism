@@ -106,7 +106,7 @@ func (r *RollupBoostNode) Start() {
 	r.sub = NewSubProcess(r.p, stdOut, stdErr)
 
 	execPath, err := rustbin.Spec{
-		SrcDir:  "rollup-boost",
+		SrcDir:  "rust/rollup-boost",
 		Package: "rollup-boost",
 		Binary:  "rollup-boost",
 	}.EnsureExists(r.p.Ctx(), r.p.Logger())

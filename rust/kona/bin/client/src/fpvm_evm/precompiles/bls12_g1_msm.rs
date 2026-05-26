@@ -10,7 +10,7 @@ use crate::fpvm_evm::precompiles::utils::precompile_run;
 use alloc::string::ToString;
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use revm::precompile::{
-    PrecompileError, PrecompileOutput, PrecompileResult, bls12_381,
+    EthPrecompileOutput, EthPrecompileResult, PrecompileHalt, bls12_381,
     bls12_381_const::{DISCOUNT_TABLE_G1_MSM, G1_MSM_BASE_GAS_FEE, G1_MSM_INPUT_LENGTH},
     bls12_381_utils::msm_required_gas,
 };
@@ -29,13 +29,13 @@ pub(crate) fn fpvm_bls12_g1_msm<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
 {
     if input.len() > BLS12_MAX_G1_MSM_SIZE_ISTHMUS {
-        return Err(PrecompileError::Other(
+        return Err(PrecompileHalt::Other(
             alloc::format!("G1MSM input length must be at most {BLS12_MAX_G1_MSM_SIZE_ISTHMUS}")
                 .into(),
         ));
@@ -43,7 +43,7 @@ where
 
     let input_len = input.len();
     if input_len == 0 || !input_len.is_multiple_of(G1_MSM_INPUT_LENGTH) {
-        return Err(PrecompileError::Other(
+        return Err(PrecompileHalt::Other(
             alloc::format!(
                 "G1MSM input length should be multiple of {G1_MSM_INPUT_LENGTH}, was {input_len}"
             )
@@ -54,7 +54,7 @@ where
     let k = input_len / G1_MSM_INPUT_LENGTH;
     let required_gas = msm_required_gas(k, &DISCOUNT_TABLE_G1_MSM, G1_MSM_BASE_GAS_FEE);
     if required_gas > gas_limit {
-        return Err(PrecompileError::OutOfGas);
+        return Err(PrecompileHalt::OutOfGas);
     }
 
     let precompile = bls12_381::g1_msm::PRECOMPILE;
@@ -64,9 +64,9 @@ where
         oracle_reader,
         &[precompile.address().as_slice(), &required_gas.to_be_bytes(), input]
     })
-    .map_err(|e| PrecompileError::Other(e.to_string().into()))?;
+    .map_err(|e| PrecompileHalt::Other(e.to_string().into()))?;
 
-    Ok(PrecompileOutput::new(required_gas, result_data.into()))
+    Ok(EthPrecompileOutput::new(required_gas, result_data.into()))
 }
 
 /// Performs an FPVM-accelerated `bls12` g1 msm check precompile call after the Jovian Hardfork.
@@ -75,13 +75,13 @@ pub(crate) fn fpvm_bls12_g1_msm_jovian<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
 {
     if input.len() > BLS12_MAX_G1_MSM_SIZE_JOVIAN {
-        return Err(PrecompileError::Other(
+        return Err(PrecompileHalt::Other(
             alloc::format!("G1MSM input length must be at most {BLS12_MAX_G1_MSM_SIZE_JOVIAN}")
                 .into(),
         ));
@@ -136,7 +136,7 @@ mod test {
                 oracle_reader,
             )
             .unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::Other(_)));
+            assert!(matches!(accelerated_result, PrecompileHalt::Other(_)));
         })
         .await;
     }
@@ -146,7 +146,7 @@ mod test {
         test_accelerated_precompile(|hint_writer, oracle_reader| {
             let accelerated_result =
                 fpvm_bls12_g1_msm(&[], u64::MAX, hint_writer, oracle_reader).unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::Other(_)));
+            assert!(matches!(accelerated_result, PrecompileHalt::Other(_)));
         })
         .await;
     }
@@ -161,7 +161,7 @@ mod test {
                 oracle_reader,
             )
             .unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::Other(_)));
+            assert!(matches!(accelerated_result, PrecompileHalt::Other(_)));
         })
         .await;
     }
@@ -172,7 +172,7 @@ mod test {
             let accelerated_result =
                 fpvm_bls12_g1_msm(&[0u8; G1_MSM_INPUT_LENGTH], 0, hint_writer, oracle_reader)
                     .unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::OutOfGas));
+            assert!(matches!(accelerated_result, PrecompileHalt::OutOfGas));
         })
         .await;
     }
@@ -202,7 +202,7 @@ mod test {
             let input = [0u8; INPUT_SIZE];
             let accelerated_result =
                 fpvm_bls12_g1_msm_jovian(&input, u64::MAX, hint_writer, oracle_reader).unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::Other(_)));
+            assert!(matches!(accelerated_result, PrecompileHalt::Other(_)));
         })
         .await;
     }

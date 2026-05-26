@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,12 +25,9 @@ func TestNewDeploySuperchainScript(t *testing.T) {
 
 		// Then we deploy
 		output, err := deploySuperchain.Run(DeploySuperchainInput{
-			Guardian:                   common.BigToAddress(big.NewInt(1)),
-			ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
-			SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
-			Paused:                     true,
-			RecommendedProtocolVersion: params.ProtocolVersion{1},
-			RequiredProtocolVersion:    params.ProtocolVersion{2},
+			Guardian:                  common.BigToAddress(big.NewInt(1)),
+			SuperchainProxyAdminOwner: common.BigToAddress(big.NewInt(3)),
+			Paused:                    true,
 		})
 
 		// And do some simple asserts
@@ -51,12 +47,9 @@ func TestNewDeploySuperchainScriptForge(t *testing.T) {
 
 	deploySuperchain := NewDeploySuperchainForgeCaller(forgeClient)
 	output, recompiled, err := deploySuperchain(context.Background(), DeploySuperchainInput{
-		Guardian:                   common.BigToAddress(big.NewInt(1)),
-		ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
-		SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
-		Paused:                     true,
-		RecommendedProtocolVersion: params.ProtocolVersion{1},
-		RequiredProtocolVersion:    params.ProtocolVersion{2},
+		Guardian:                  common.BigToAddress(big.NewInt(1)),
+		SuperchainProxyAdminOwner: common.BigToAddress(big.NewInt(3)),
+		Paused:                    true,
 	})
 
 	require.NoError(t, err)

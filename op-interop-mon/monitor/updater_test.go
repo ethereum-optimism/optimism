@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -42,7 +42,7 @@ func setupTestUpdater(t *testing.T) (*RPCUpdater, *mockClient) {
 func TestUpdaterJobExpiration(t *testing.T) {
 	tests := []struct {
 		name           string
-		initiatingInfo *supervisortypes.Identifier
+		initiatingInfo *messages.Identifier
 		executingInfo  eth.BlockID
 		initExpiry     eth.NumberAndHash
 		execExpiry     eth.NumberAndHash
@@ -52,7 +52,7 @@ func TestUpdaterJobExpiration(t *testing.T) {
 	}{
 		{
 			name: "job should expire - both blocks finalized and metrics counted",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 			},
@@ -67,7 +67,7 @@ func TestUpdaterJobExpiration(t *testing.T) {
 		},
 		{
 			name: "job should not expire - initiating block not finalized",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 			},
@@ -82,7 +82,7 @@ func TestUpdaterJobExpiration(t *testing.T) {
 		},
 		{
 			name: "job should not expire - executing block not finalized",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 			},
@@ -97,7 +97,7 @@ func TestUpdaterJobExpiration(t *testing.T) {
 		},
 		{
 			name: "job should not expire - never evaluated",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 			},
@@ -112,7 +112,7 @@ func TestUpdaterJobExpiration(t *testing.T) {
 		},
 		{
 			name: "job should not expire - metrics not counted",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 			},
@@ -166,7 +166,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 		Index: 0,
 		Data:  []byte{0x01, 0x02, 0x03},
 	}
-	validHash := crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(validLog))
+	validHash := crypto.Keccak256Hash(messages.LogToMessagePayload(validLog))
 
 	invalidLog := &ethtypes.Log{
 		Index: 0,
@@ -175,7 +175,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		initiatingInfo *supervisortypes.Identifier
+		initiatingInfo *messages.Identifier
 		executingInfo  eth.BlockID
 		receipts       ethtypes.Receipts
 		expectedHash   common.Hash
@@ -183,7 +183,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 	}{
 		{
 			name: "valid log found and hash matches",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 				LogIndex:    0,
@@ -201,7 +201,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 		},
 		{
 			name: "log not found - index out of bounds",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 				LogIndex:    1, // Log index 1 doesn't exist in receipts
@@ -219,7 +219,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 		},
 		{
 			name: "log hash mismatch",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 				LogIndex:    0,
@@ -237,7 +237,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 		},
 		{
 			name: "empty receipts",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 				LogIndex:    0,
@@ -251,7 +251,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 		},
 		{
 			name: "fetch receipts error",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 				LogIndex:    0,

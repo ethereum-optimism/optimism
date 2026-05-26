@@ -43,7 +43,6 @@ type SuperchainConfigurator interface {
 	WithSuperchainConfigProxy(address common.Address) SuperchainConfigurator
 	WithProxyAdminOwner(address common.Address) SuperchainConfigurator
 	WithGuardian(address common.Address) SuperchainConfigurator
-	WithProtocolVersionsOwner(address common.Address) SuperchainConfigurator
 	WithChallenger(address common.Address) SuperchainConfigurator
 }
 
@@ -62,6 +61,7 @@ type L2Configurator interface {
 	L2HardforkConfigurator
 	WithPrefundedAccount(addr common.Address, amount uint256.Int) L2Configurator
 	WithDAFootprintGasScalar(scalar uint16)
+	WithGasLimit(v uint64)
 }
 
 type ContractsConfigurator interface {
@@ -141,7 +141,6 @@ func WithDevkeyL1Roles(t require.TestingT, dk devkeys.Keys, configurator L2Confi
 func WithDevkeySuperRoles(t require.TestingT, dk devkeys.Keys, l1ID eth.ChainID, configurator SuperchainConfigurator) {
 	addrFor := RoleToAddrProvider(t, dk, l1ID)
 	configurator.WithGuardian(addrFor(devkeys.SuperchainConfigGuardianKey))
-	configurator.WithProtocolVersionsOwner(addrFor(devkeys.SuperchainDeployerKey))
 	configurator.WithProxyAdminOwner(addrFor(devkeys.L1ProxyAdminOwnerRole))
 	configurator.WithChallenger(addrFor(devkeys.ChallengerRole))
 }
@@ -275,11 +274,6 @@ func (c *superchainConfigurator) WithProxyAdminOwner(address common.Address) Sup
 
 func (c *superchainConfigurator) WithGuardian(address common.Address) SuperchainConfigurator {
 	c.builder.intent.SuperchainRoles.SuperchainGuardian = address
-	return c
-}
-
-func (c *superchainConfigurator) WithProtocolVersionsOwner(address common.Address) SuperchainConfigurator {
-	c.builder.intent.SuperchainRoles.ProtocolVersionsOwner = address
 	return c
 }
 
@@ -543,6 +537,10 @@ func (c *l2Configurator) initL2DevGenesisParams() *state.L2DevGenesisParams {
 func (c *l2Configurator) WithPrefundedAccount(addr common.Address, amount uint256.Int) L2Configurator {
 	c.initL2DevGenesisParams().Prefund[addr] = (*hexutil.U256)(&amount)
 	return c
+}
+
+func (c *l2Configurator) WithGasLimit(v uint64) {
+	c.builder.intent.Chains[c.chainIndex].GasLimit = v
 }
 
 func (c *l2Configurator) WithAdditionalDisputeGames(games []state.AdditionalDisputeGame) {

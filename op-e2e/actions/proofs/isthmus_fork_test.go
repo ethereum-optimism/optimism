@@ -38,11 +38,11 @@ var (
 
 var zeroHex64 = hexutil.Uint64(0)
 
-// Test_ProgramAction_IsthmusActivationAtGenesis tests the Isthmus activation at genesis.
+// TestIsthmusActivationAtGenesis tests the Isthmus activation at genesis.
 // It verifies that the Isthmus is active at genesis and that the genesis block
 // has the correct withdrawals root and requests hash. It runs the fault proof
 // program.
-func Test_ProgramAction_IsthmusActivationAtGenesis(gt *testing.T) {
+func TestIsthmusActivationAtGenesis(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 
 	matrix.AddDefaultTestCases(
@@ -108,13 +108,13 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 	env.RunFaultProofProgramFromGenesis(t, safeBlock.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
-// Test_ProgramAction_IsthmusWithdrawalsRoot tests the withdrawals root in the header:
+// TestIsthmusWithdrawalsRoot tests the withdrawals root in the header:
 // - post canyon but pre Isthmus
 // - post Isthmus
 // We do not include pre canyon behaviour (nil withdrawals root) since Canyon does not support Cancun L1.
 // It does this by activating the relevant forks at genesis.
 // It runs the fault proof program.
-func Test_ProgramAction_IsthmusWithdrawalsRoot(gt *testing.T) {
+func TestIsthmusWithdrawalsRoot(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 
 	matrix.AddDefaultTestCases(
@@ -163,7 +163,7 @@ func testWithdrawalsRoot(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.RunFaultProofProgramFromGenesis(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
-// Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus tests the withdrawals root
+// TestWithdrawalsRootBeforeAtAndAfterIsthmus tests the withdrawals root
 // - before isthmus
 // - at isthmus
 // - after isthmus
@@ -171,7 +171,7 @@ func testWithdrawalsRoot(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 // It verifies that the withdrawals root is set correctly in the header
 // and that the withdrawal transaction is included in the block.
 // It runs the fault proof program.
-func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
+func TestWithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 
 	type testCase struct {
 		name              string
@@ -298,7 +298,7 @@ func checkContractVersion(gt *testing.T, client *ethclient.Client, addr common.A
 	require.Equal(gt, expectedVersion, version)
 }
 
-func Test_ProgramAction_IsthmusNetworkUpgradeTransactions(gt *testing.T) {
+func TestIsthmusNetworkUpgradeTransactions(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 
 	matrix.AddDefaultTestCases(

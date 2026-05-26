@@ -11,6 +11,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/lmittmann/w3"
+	w3eth "github.com/lmittmann/w3/module/eth"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
@@ -20,17 +31,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/lmittmann/w3"
-	w3eth "github.com/lmittmann/w3/module/eth"
 )
 
 // V2 structs for OPCM >= 7.0.0 (using IOPContractsManagerMigrator interface)
@@ -147,26 +147,6 @@ func awaitSuperrootTime(t devtest.T, cls ...L2CLNode) uint64 {
 	return superrootTime
 }
 
-func getSupervisorSuperRoot(t devtest.T, supervisor Supervisor, timestamp uint64) eth.Bytes32 {
-	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.UserRPC())
-	t.Require().NoError(err)
-
-	ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
-	err = wait.For(ctx, time.Second, func() (bool, error) {
-		status, err := client.SyncStatus(ctx)
-		if err != nil {
-			return false, err
-		}
-		return timestamp < status.MinSyncedL1.Time, nil
-	})
-	cancel()
-	t.Require().NoError(err, "waiting for supervisor to sync failed")
-
-	super, err := client.SuperRootAtTimestamp(t.Ctx(), hexutil.Uint64(timestamp))
-	t.Require().NoError(err, "super root at timestamp failed")
-	return super.SuperRoot
-}
-
 func getSupernodeSuperRoot(t devtest.T, supernode *SuperNode, timestamp uint64) eth.Bytes32 {
 	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), supernode.UserRPC())
 	t.Require().NoError(err)
@@ -197,6 +177,29 @@ func migrateSuperRoots(
 	l1EL L1ELNode,
 	superRoot eth.Bytes32,
 	superrootTime uint64,
+	primaryL2 eth.ChainID,
+) common.Address {
+	return migrateSuperRootsWithProposal(
+		t,
+		keys,
+		migration,
+		l1ChainID,
+		l1EL,
+		Proposal{
+			Root:             common.Hash(superRoot),
+			L2SequenceNumber: new(big.Int).SetUint64(superrootTime),
+		},
+		primaryL2,
+	)
+}
+
+func migrateSuperRootsWithProposal(
+	t devtest.T,
+	keys devkeys.Keys,
+	migration *interopMigrationState,
+	l1ChainID eth.ChainID,
+	l1EL L1ELNode,
+	startingAnchorRoot Proposal,
 	primaryL2 eth.ChainID,
 ) common.Address {
 	require := t.Require()
@@ -244,35 +247,25 @@ func migrateSuperRoots(
 		DisputeGameConfigs: []DisputeGameConfigV2{
 			{
 				Enabled:  true,
-				InitBond: big.NewInt(0),
-				GameType: superCannonGameType,
-				GameArgs: absoluteCannonPrestate[:],
-			},
-			{
-				Enabled:  true,
-				InitBond: big.NewInt(0),
+				InitBond: new(big.Int).Set(defaultInitBond),
 				GameType: superPermissionedCannonGameType,
 				GameArgs: permGameArgs,
 			},
 			{
 				Enabled:  true,
-				InitBond: big.NewInt(0),
+				InitBond: new(big.Int).Set(defaultInitBond),
 				GameType: superCannonKonaGameType,
 				GameArgs: absoluteCannonKonaPrestate[:],
 			},
 		},
-		StartingAnchorRoot: Proposal{
-			Root:             common.Hash(superRoot),
-			L2SequenceNumber: big.NewInt(int64(superrootTime)),
-		},
-		StartingRespectedGameType: superCannonGameType,
+		StartingAnchorRoot:        startingAnchorRoot,
+		StartingRespectedGameType: superCannonKonaGameType,
 	}
 	migrateCall := contract.Call("migrate", migrateInputV2)
 	migrateCallData, err := migrateCall.Pack()
 	require.NoError(err)
 
-	l1PAOKey, err := keys.Secret(devkeys.ChainOperatorKeys(l1ChainID.ToBig())(devkeys.L1ProxyAdminOwnerRole))
-	require.NoError(err, "must have configured L1 proxy admin owner")
+	_, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
 	t.Log("Executing OPCM migration via SetCode delegatecall")
 	delegateCallWithSetCode(t, l1PAOKey, client, migration.opcmImpl, migrateCallData)
@@ -320,7 +313,6 @@ func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
 }
 
 const (
-	superCannonGameType             = 4
 	superPermissionedCannonGameType = 5
 	superCannonKonaGameType         = 9
 )
@@ -347,7 +339,7 @@ func getDisputeGameFactory(t devtest.CommonT, client *w3.Client, portal common.A
 
 func getSuperGameImpl(t devtest.CommonT, client *w3.Client, dgf common.Address) common.Address {
 	var addr common.Address
-	err := client.Call(w3eth.CallFunc(dgf, gameImplsFn, uint32(superCannonGameType)).Returns(&addr))
+	err := client.Call(w3eth.CallFunc(dgf, gameImplsFn, uint32(superCannonKonaGameType)).Returns(&addr))
 	t.Require().NoError(err)
 	return addr
 }

@@ -74,8 +74,16 @@ impl ExecutionPayload for CustomExecutionData {
         self.inner.payload.as_v1().gas_used
     }
 
+    fn gas_limit(&self) -> u64 {
+        self.inner.payload.as_v1().gas_limit
+    }
+
     fn transaction_count(&self) -> usize {
         self.inner.payload.as_v1().transactions.len()
+    }
+
+    fn slot_number(&self) -> Option<u64> {
+        None
     }
 }
 
@@ -172,6 +180,17 @@ impl From<CustomBuiltPayload>
     }
 }
 
+impl From<OpBuiltPayload<CustomNodePrimitives>> for CustomExecutionData {
+    fn from(value: OpBuiltPayload<CustomNodePrimitives>) -> Self {
+        let block = value.into_sealed_block();
+        let extension = block.header().extension;
+        let block_hash = block.hash();
+        let block = block.into_block().map_header(|header| header.inner);
+        let (payload, sidecar) = OpExecutionPayload::from_block_unchecked(block_hash, &block);
+        Self { inner: OpExecutionData { payload, sidecar }, extension }
+    }
+}
+
 impl PayloadTypes for CustomPayloadTypes {
     type ExecutionData = CustomExecutionData;
     type BuiltPayload = OpBuiltPayload<CustomNodePrimitives>;
@@ -181,6 +200,7 @@ impl PayloadTypes for CustomPayloadTypes {
         block: SealedBlock<
             <<Self::BuiltPayload as BuiltPayload>::Primitives as NodePrimitives>::Block,
         >,
+        _bal: Option<alloy_primitives::Bytes>,
     ) -> Self::ExecutionData {
         let extension = block.header().extension;
         let block_hash = block.hash();

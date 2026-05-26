@@ -75,28 +75,13 @@ func NewSuperRootMigrator(logger log.Logger, rpcEndpoints []string, targetTimest
 	return migrator, nil
 }
 
-func NewSuperRootMigratorWithClients(logger log.Logger, clients map[string]*ethclient.Client, targetTimestamp *uint64) (*SuperRootMigrator, error) {
-	if len(clients) == 0 {
-		return nil, errors.New("must provide at least one client")
-	}
-	migrator := &SuperRootMigrator{
-		log:             logger,
-		ethClients:      clients,
-		chainSettings:   make(map[string]*ChainSettings),
-		TargetTimestamp: targetTimestamp,
-	}
-	return migrator, nil
-}
-
 // Run executes the main logic of the super root migrator within the given context.
 func (m *SuperRootMigrator) Run(ctx context.Context) (common.Hash, error) {
-	if m.ethClients == nil {
-		clients, err := dialClients(ctx, m.rpcEndpoints)
-		if err != nil {
-			return common.Hash{}, err
-		}
-		m.ethClients = clients
+	clients, err := dialClients(ctx, m.rpcEndpoints)
+	if err != nil {
+		return common.Hash{}, err
 	}
+	m.ethClients = clients
 	// Use the provided context for all operations
 	if err := m.initClientsAndFetchIDs(ctx); err != nil {
 		return common.Hash{}, fmt.Errorf("failed to initialize clients: %w", err)

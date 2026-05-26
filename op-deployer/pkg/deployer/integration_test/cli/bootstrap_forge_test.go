@@ -30,7 +30,6 @@ func TestCLIBootstrapForge(t *testing.T) {
 
 	// Get addresses for required roles
 	superchainProxyAdminOwner := shared.AddrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainIDBig))
-	protocolVersionsOwner := shared.AddrFor(t, dk, devkeys.SuperchainDeployerKey.Key(l1ChainIDBig))
 	guardian := shared.AddrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainIDBig))
 	challenger := shared.AddrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainIDBig))
 
@@ -45,7 +44,6 @@ func TestCLIBootstrapForge(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--use-forge",
 		}, nil)
@@ -74,7 +72,6 @@ func TestCLIBootstrapForge(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--use-forge",
 		}, nil)
@@ -94,7 +91,6 @@ func TestCLIBootstrapForge(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--protocol-versions-proxy", superchainOutput.ProtocolVersionsProxy.Hex(),
 			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
@@ -130,7 +126,6 @@ func TestCLIBootstrapForge(t *testing.T) {
 		require.NotEqual(t, common.Address{}, implsOutput.DisputeGameFactoryImpl, "DisputeGameFactoryImpl should be set")
 		require.NotEqual(t, common.Address{}, implsOutput.AnchorStateRegistryImpl, "AnchorStateRegistryImpl should be set")
 		require.NotEqual(t, common.Address{}, implsOutput.SuperchainConfigImpl, "SuperchainConfigImpl should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.ProtocolVersionsImpl, "ProtocolVersionsImpl should be set")
 	})
 
 	t.Run("bootstrap end-to-end with forge", func(t *testing.T) {
@@ -143,7 +138,6 @@ func TestCLIBootstrapForge(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--use-forge",
 		}, nil)
@@ -160,7 +154,6 @@ func TestCLIBootstrapForge(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--protocol-versions-proxy", superchainOutput.ProtocolVersionsProxy.Hex(),
 			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),

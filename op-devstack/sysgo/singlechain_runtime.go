@@ -117,7 +117,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	var l2Challenger *L2Challenger
 	if spec.StartChallenger {
-		l2Challenger = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL, cfg.EnableCannonKonaForChall)
+		l2Challenger = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL)
 	}
 
 	applyMinimalGameTypeOptions(t, keys, world.L1Network, world.L2Network, l1EL, cfg.AddedGameTypes, cfg.RespectedGameTypes)
@@ -162,6 +162,21 @@ func NewMinimalRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRunt
 		StartBatcher:    true,
 		StartProposer:   true,
 		StartChallenger: true,
+	})
+}
+
+// NewMinimalNoFaultProofsRuntimeWithConfig returns a minimal single-chain
+// runtime without the proposer or challenger. It is intended for tests that
+// only exercise the sequencer + batcher + derivation loop and do not need
+// fault proofs. Skipping the challenger also avoids requiring cannon prestate
+// artifacts, which are expensive to build locally.
+func NewMinimalNoFaultProofsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
+		BuildWorld:      newDefaultSingleChainWorld,
+		StartPrimary:    startDefaultSingleChainPrimary,
+		StartBatcher:    true,
+		StartProposer:   false,
+		StartChallenger: false,
 	})
 }
 
@@ -320,7 +335,6 @@ func startMinimalChallenger(
 	l1CL *L1CLNode,
 	l2EL L2ELNode,
 	l2CL L2CLNode,
-	enableCannonKona bool,
 ) *L2Challenger {
 	require := t.Require()
 	challengerSecret, err := keys.Secret(devkeys.ChallengerRole.Key(l2Net.ChainID().ToBig()))
@@ -338,14 +352,8 @@ func startMinimalChallenger(
 		sharedchallenger.WithCannonGameType(),
 		sharedchallenger.WithPermissionedGameType(),
 		sharedchallenger.WithFastGames(),
-	}
-	if enableCannonKona {
-		t.Log("Enabling cannon-kona for challenger")
-		options = append(options,
-			sharedchallenger.WithCannonKonaConfig(rollupCfgs, l1Net.genesis, l2Geneses),
-			sharedchallenger.WithCannonKonaGameType(),
-			sharedchallenger.WithExperimentalWitnessEndpoint(),
-		)
+		sharedchallenger.WithCannonKonaConfig(rollupCfgs, l1Net.genesis, l2Geneses),
+		sharedchallenger.WithCannonKonaGameType(),
 	}
 	cfg, err := sharedchallenger.NewPreInteropChallengerConfig(
 		t.Ctx(),

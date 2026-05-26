@@ -3,6 +3,7 @@ package prefetcher
 import (
 	"context"
 	"errors"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -33,26 +34,28 @@ func TestRetryingL1Source(t *testing.T) {
 		&types.Receipt{},
 	}
 
-	t.Run("InfoByHash Success", func(t *testing.T) {
+	hdr := &types.Header{Number: big.NewInt(int64(info.NumberU64())), Time: info.Time()}
+
+	t.Run("HeaderByHash Success", func(t *testing.T) {
 		source, mock := createL1Source(t)
 		defer mock.AssertExpectations(t)
-		mock.ExpectInfoByHash(hash, info, nil)
+		mock.ExpectHeaderByHash(hash, hdr, nil)
 
-		result, err := source.InfoByHash(ctx, hash)
+		result, err := source.HeaderByHash(ctx, hash)
 		require.NoError(t, err)
-		require.Equal(t, info, result)
+		require.Equal(t, hdr, result)
 	})
 
-	t.Run("InfoByHash Error", func(t *testing.T) {
+	t.Run("HeaderByHash Error", func(t *testing.T) {
 		source, mock := createL1Source(t)
 		defer mock.AssertExpectations(t)
 		expectedErr := errors.New("boom")
-		mock.ExpectInfoByHash(hash, wrongInfo, expectedErr)
-		mock.ExpectInfoByHash(hash, info, nil)
+		mock.ExpectHeaderByHash(hash, nil, expectedErr)
+		mock.ExpectHeaderByHash(hash, hdr, nil)
 
-		result, err := source.InfoByHash(ctx, hash)
+		result, err := source.HeaderByHash(ctx, hash)
 		require.NoError(t, err)
-		require.Equal(t, info, result)
+		require.Equal(t, hdr, result)
 	})
 
 	t.Run("InfoAndTxsByHash Success", func(t *testing.T) {
@@ -178,8 +181,7 @@ func TestRetryingL2Source(t *testing.T) {
 	hash := common.Hash{0xab}
 	blockNum := uint64(14982)
 	info := &testutils.MockBlockInfo{InfoHash: hash, InfoNum: blockNum}
-	// The mock really doesn't like returning nil for a eth.BlockInfo so return a value we expect to be ignored instead
-	wrongInfo := &testutils.MockBlockInfo{InfoHash: common.Hash{0x99}}
+	hdr := &types.Header{Number: big.NewInt(int64(blockNum))}
 	txs := types.Transactions{
 		&types.Transaction{},
 	}
@@ -190,27 +192,27 @@ func TestRetryingL2Source(t *testing.T) {
 	output := &eth.OutputV0{}
 	wrongOutput := &eth.OutputV0{BlockHash: common.Hash{0x99}}
 
-	t.Run("InfoAndTxsByHash Success", func(t *testing.T) {
+	t.Run("HeaderAndTxsByHash Success", func(t *testing.T) {
 		source, mock := createL2Source(t)
 		defer mock.AssertExpectations(t)
-		mock.ExpectInfoAndTxsByHash(hash, info, txs, nil)
+		mock.ExpectHeaderAndTxsByHash(hash, hdr, txs, nil)
 
-		actualInfo, actualTxs, err := source.InfoAndTxsByHash(ctx, hash)
+		actualHdr, actualTxs, err := source.HeaderAndTxsByHash(ctx, hash)
 		require.NoError(t, err)
-		require.Equal(t, info, actualInfo)
+		require.Equal(t, hdr, actualHdr)
 		require.Equal(t, txs, actualTxs)
 	})
 
-	t.Run("InfoAndTxsByHash Error", func(t *testing.T) {
+	t.Run("HeaderAndTxsByHash Error", func(t *testing.T) {
 		source, mock := createL2Source(t)
 		defer mock.AssertExpectations(t)
 		expectedErr := errors.New("boom")
-		mock.ExpectInfoAndTxsByHash(hash, wrongInfo, nil, expectedErr)
-		mock.ExpectInfoAndTxsByHash(hash, info, txs, nil)
+		mock.ExpectHeaderAndTxsByHash(hash, nil, nil, expectedErr)
+		mock.ExpectHeaderAndTxsByHash(hash, hdr, txs, nil)
 
-		actualInfo, actualTxs, err := source.InfoAndTxsByHash(ctx, hash)
+		actualHdr, actualTxs, err := source.HeaderAndTxsByHash(ctx, hash)
 		require.NoError(t, err)
-		require.Equal(t, info, actualInfo)
+		require.Equal(t, hdr, actualHdr)
 		require.Equal(t, txs, actualTxs)
 	})
 
@@ -346,9 +348,9 @@ func (m *MockL2Source) GetProof(ctx context.Context, address common.Address, sto
 	return out[0].(*eth.AccountResult), *out[1].(*error)
 }
 
-func (m *MockL2Source) InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error) {
-	out := m.Mock.MethodCalled("InfoAndTxsByHash", blockHash)
-	return out[0].(eth.BlockInfo), out[1].(types.Transactions), *out[2].(*error)
+func (m *MockL2Source) HeaderAndTxsByHash(ctx context.Context, blockHash common.Hash) (*types.Header, types.Transactions, error) {
+	out := m.Mock.MethodCalled("HeaderAndTxsByHash", blockHash)
+	return out[0].(*types.Header), out[1].(types.Transactions), *out[2].(*error)
 }
 
 func (m *MockL2Source) NodeByHash(ctx context.Context, hash common.Hash) ([]byte, error) {
@@ -376,8 +378,8 @@ func (m *MockL2Source) OutputByNumber(ctx context.Context, blockNum uint64) (eth
 	return out[0].(eth.Output), *out[1].(*error)
 }
 
-func (m *MockL2Source) ExpectInfoAndTxsByHash(blockHash common.Hash, info eth.BlockInfo, txs types.Transactions, err error) {
-	m.Mock.On("InfoAndTxsByHash", blockHash).Once().Return(info, txs, &err)
+func (m *MockL2Source) ExpectHeaderAndTxsByHash(blockHash common.Hash, header *types.Header, txs types.Transactions, err error) {
+	m.Mock.On("HeaderAndTxsByHash", blockHash).Once().Return(header, txs, &err)
 }
 
 func (m *MockL2Source) ExpectNodeByHash(hash common.Hash, node []byte, err error) {

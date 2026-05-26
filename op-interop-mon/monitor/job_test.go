@@ -6,8 +6,8 @@ import (
 	"encoding/binary"
 	"math/big"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -87,7 +87,7 @@ func TestJobFromLog(t *testing.T) {
 				BlockHash:   blockHash,
 				BlockNumber: blockNumber,
 				Topics: []common.Hash{
-					supervisortypes.ExecutingMessageEventTopic,
+					messages.ExecutingMessageEventTopic,
 					payloadHash,
 				},
 				Data: data[:],
@@ -98,7 +98,7 @@ func TestJobFromLog(t *testing.T) {
 				executingChain:   eth.ChainIDFromBig(executingChainID),
 				executingBlock:   eth.BlockID{Hash: blockHash, Number: blockNumber},
 				executingPayload: payloadHash,
-				initiating: &supervisortypes.Identifier{
+				initiating: &messages.Identifier{
 					Origin:      address,
 					BlockNumber: blockNumber,
 					LogIndex:    logIndex,
@@ -145,7 +145,7 @@ func TestJobId(t *testing.T) {
 			Hash:   common.Hash{},
 			Number: executingBlockNumber,
 		},
-		initiating: &supervisortypes.Identifier{
+		initiating: &messages.Identifier{
 			Origin:      common.Address{},
 			BlockNumber: initiatingBlockNumber,
 			LogIndex:    logIndex,

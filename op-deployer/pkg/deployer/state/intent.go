@@ -224,14 +224,9 @@ func GetStandardSuperchainRoles(l1ChainId uint64) (*addresses.SuperchainRoles, e
 	if err != nil {
 		return nil, fmt.Errorf("error getting guardian address: %w", err)
 	}
-	protocolVersionsOwner, err := standard.ProtocolVersionsOwner(l1ChainId)
-	if err != nil {
-		return nil, fmt.Errorf("error getting protocol versions owner: %w", err)
-	}
 
 	superchainRoles := &addresses.SuperchainRoles{
 		SuperchainProxyAdminOwner: proxyAdminOwner,
-		ProtocolVersionsOwner:     protocolVersionsOwner,
 		SuperchainGuardian:        guardian,
 	}
 

@@ -1,0 +1,553 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_sysCfg",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IDisputeGameFactory",
+        "name": "_dgf",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_asr",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_admin",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_anchorStateRegistryImpl",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "_errorPrefix",
+        "type": "string"
+      }
+    ],
+    "name": "assertValidAnchorStateRegistry",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_sysCfg",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IDelayedWETH",
+        "name": "_weth",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_admin",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_l1PAOMultisig",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_delayedWETHImpl",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_withdrawalDelaySeconds",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_errorPrefix",
+        "type": "string"
+      }
+    ],
+    "name": "assertValidDelayedWETH",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "errors",
+            "type": "string"
+          },
+          {
+            "internalType": "contract ISystemConfig",
+            "name": "sysCfg",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "gameAddress",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "maxGameDepth",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "splitDepth",
+                "type": "uint256"
+              },
+              {
+                "internalType": "Duration",
+                "name": "maxClockDuration",
+                "type": "uint64"
+              },
+              {
+                "internalType": "Duration",
+                "name": "clockExtension",
+                "type": "uint64"
+              },
+              {
+                "internalType": "GameType",
+                "name": "gameType",
+                "type": "uint32"
+              },
+              {
+                "internalType": "uint256",
+                "name": "l2SequenceNumber",
+                "type": "uint256"
+              },
+              {
+                "internalType": "Claim",
+                "name": "absolutePrestate",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "contract IBigStepper",
+                "name": "vm",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IAnchorStateRegistry",
+                "name": "asr",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IDelayedWETH",
+                "name": "weth",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "l2ChainId",
+                "type": "uint256"
+              },
+              {
+                "internalType": "address",
+                "name": "challenger",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "proposer",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct DisputeGameImplementation",
+            "name": "game",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "absolutePrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2ChainID",
+            "type": "uint256"
+          },
+          {
+            "internalType": "contract IProxyAdmin",
+            "name": "admin",
+            "type": "address"
+          },
+          {
+            "internalType": "GameType",
+            "name": "gameType",
+            "type": "uint32"
+          },
+          {
+            "internalType": "string",
+            "name": "errorPrefix",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct DisputeGameValidationArgs",
+        "name": "_args",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "expectedGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "mipsImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "delayedWETHImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "anchorStateRegistryImpl",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct DisputeGameImpls",
+        "name": "_impls",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "l1PAOMultisig",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "withdrawalDelaySeconds",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct DisputeGameConfig",
+        "name": "_cfg",
+        "type": "tuple"
+      }
+    ],
+    "name": "assertValidDisputeGame",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "errors_",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_sysCfg",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_admin",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_impl",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_l1PAOMultisig",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidDisputeGameFactory",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract IMIPS64",
+        "name": "_mips",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_mipsImpl",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "_errorPrefix",
+        "type": "string"
+      }
+    ],
+    "name": "assertValidMipsVm",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_sysCfg",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidNonSuperRootDisputeGames",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_sysCfg",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_admin",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_impl",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidOptimismMintableERC20Factory",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_sysCfg",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_admin",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_impl",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidOptimismPortal",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract IPreimageOracle",
+        "name": "_oracle",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "_errorPrefix",
+        "type": "string"
+      }
+    ],
+    "name": "assertValidPreimageOracle",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_admin",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_l1PAOMultisig",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidProxyAdmin",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_sysCfg",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidSuperRootDisputeGames",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      },
+      {
+        "internalType": "contract ISuperchainConfig",
+        "name": "_superchainConfig",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidSuperchainConfig",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

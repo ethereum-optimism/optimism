@@ -65,6 +65,12 @@ type GossipSetupConfigurables interface {
 
 type GossipRuntimeConfig interface {
 	P2PSequencerAddress() common.Address
+	// PreviousP2PSequencerAddress returns the previous signer address during a grace period
+	// after a signer rotation. Returns zero address if no grace period is active.
+	PreviousP2PSequencerAddress() common.Address
+	// ConfirmCurrentSigner signals that a block from the current signer has been verified,
+	// ending the grace period for the previous signer.
+	ConfirmCurrentSigner()
 }
 
 //go:generate mockery --name GossipMetricer
@@ -443,23 +449,42 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 }
 
 func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signature eth.Bytes65, payloadBytes []byte) pubsub.ValidationResult {
-	authCtx := &opsigner.OPStackP2PBlockAuthV1{
-		Allowed: runCfg.P2PSequencerAddress(),
-		Chain:   eth.ChainIDFromBig(cfg.L2ChainID),
-	}
-	if authCtx.Allowed == (common.Address{}) {
-		log.Warn("no configured p2p sequencer address, ignoring gossiped block", "peer", id, "addr", authCtx.Allowed)
+	currentAddr := runCfg.P2PSequencerAddress()
+	chain := eth.ChainIDFromBig(cfg.L2ChainID)
+
+	if currentAddr == (common.Address{}) {
+		log.Warn("no configured p2p sequencer address, ignoring gossiped block", "peer", id)
 		return pubsub.ValidationIgnore
 	}
+
 	block := opsigner.SignedP2PBlock{
 		Raw:       payloadBytes,
 		Signature: signature,
 	}
-	if err := block.VerifySignature(authCtx); err != nil {
-		log.Warn("invalid block signature", "err", err, "peer", id)
-		return pubsub.ValidationReject
+
+	authCtx := &opsigner.OPStackP2PBlockAuthV1{Allowed: currentAddr, Chain: chain}
+	currentErr := block.VerifySignature(authCtx)
+	if currentErr == nil {
+		runCfg.ConfirmCurrentSigner()
+		return pubsub.ValidationAccept
 	}
-	return pubsub.ValidationAccept
+
+	// Current signer didn't match — try previous signer during grace period
+	var prevErr error
+	if prevAddr := runCfg.PreviousP2PSequencerAddress(); prevAddr != (common.Address{}) {
+		prevAuthCtx := &opsigner.OPStackP2PBlockAuthV1{Allowed: prevAddr, Chain: chain}
+		prevErr = block.VerifySignature(prevAuthCtx)
+		if prevErr == nil {
+			log.Info("accepted block from previous signer during grace period", "peer", id, "previous_signer", prevAddr)
+			return pubsub.ValidationAccept
+		}
+	}
+
+	// Neither the current nor previous signer verified the block.
+	// Log both errors so operators can distinguish between malformed signatures
+	// and legitimate signer-rotation mismatches.
+	log.Warn("invalid block signature", "peer", id, "current_err", currentErr, "previous_err", prevErr)
+	return pubsub.ValidationReject
 }
 
 type GossipIn interface {

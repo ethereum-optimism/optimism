@@ -29,7 +29,7 @@ impl TrieHinter for NoopTrieHinter {
         Ok(())
     }
 
-    fn hint_account_proof(&self, _address: Address, _block_number: u64) -> Result<(), Self::Error> {
+    fn hint_account_proof(&self, _address: Address, _block_hash: B256) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -37,7 +37,7 @@ impl TrieHinter for NoopTrieHinter {
         &self,
         _address: Address,
         _slot: U256,
-        _block_number: u64,
+        _block_hash: B256,
     ) -> Result<(), Self::Error> {
         Ok(())
     }

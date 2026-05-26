@@ -96,12 +96,15 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitStateCommandOp<C> {
             ));
         }
 
+        // Commit the RW provider before `init_from_state_dump`: that call opens its own
+        // RW transaction via `provider_factory`, and MDBX permits only one writer at a time —
+        // holding `provider_rw` here would deadlock the inner txn.
+        provider_rw.commit()?;
+
         info!(target: "reth::cli", "Initiating state dump");
 
         let reader = BufReader::new(reth_fs_util::open(self.init_state.state)?);
-        let hash = init_from_state_dump(reader, &provider_rw, config.stages.etl)?;
-
-        provider_rw.commit()?;
+        let hash = init_from_state_dump(reader, &provider_factory, config.stages.etl)?;
 
         info!(target: "reth::cli", hash = ?hash, "Genesis block written");
         Ok(())

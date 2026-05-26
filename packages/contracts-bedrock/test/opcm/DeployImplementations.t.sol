@@ -14,7 +14,6 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 
@@ -32,16 +31,14 @@ contract DeployImplementations_Test is Test, FeatureFlags {
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
     ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfigProxy"));
-    IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
     address l1ProxyAdminOwner = makeAddr("l1ProxyAdminOwner");
     address challenger = makeAddr("challenger");
 
     function setUp() public virtual {
         resolveFeaturesFromEnv();
-        // We'll need to store some code on these two addresses so that the deployment script checks pass
+        // We'll need to store some code on this address so that the deployment script checks pass
         vm.etch(address(superchainConfigProxy), hex"01");
-        vm.etch(address(protocolVersionsProxy), hex"01");
 
         deployImplementations = new DeployImplementations();
     }
@@ -240,7 +237,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             _faultGameV2ClockExtension, // faultGameV2ClockExtension (bounded)
             _faultGameV2MaxClockDuration, // faultGameV2MaxClockDuration (bounded)
             superchainConfigProxy,
-            protocolVersionsProxy,
             superchainProxyAdmin,
             l1ProxyAdminOwner,
             challenger
@@ -450,11 +446,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         deployImplementations.run(input);
 
         input = defaultInput();
-        input.protocolVersionsProxy = IProtocolVersions(address(0));
-        vm.expectRevert("DeployImplementations: protocolVersionsProxy not set");
-        deployImplementations.run(input);
-
-        input = defaultInput();
         input.superchainProxyAdmin = IProxyAdmin(address(0));
         vm.expectRevert("DeployImplementations: superchainProxyAdmin not set");
         deployImplementations.run(input);
@@ -539,7 +530,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             10800, // faultGameV2ClockExtension
             302400, // faultGameV2MaxClockDuration
             superchainConfigProxy,
-            protocolVersionsProxy,
             superchainProxyAdmin,
             l1ProxyAdminOwner,
             challenger

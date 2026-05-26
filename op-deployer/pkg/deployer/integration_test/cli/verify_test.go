@@ -31,7 +31,6 @@ func TestCLIVerify(t *testing.T) {
 	require.NoError(t, err)
 
 	superchainProxyAdminOwner := shared.AddrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainIDBig))
-	protocolVersionsOwner := shared.AddrFor(t, dk, devkeys.SuperchainDeployerKey.Key(l1ChainIDBig))
 	guardian := shared.AddrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainIDBig))
 	challenger := shared.AddrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainIDBig))
 
@@ -49,7 +48,6 @@ func TestCLIVerify(t *testing.T) {
 		"bootstrap", "superchain",
 		"--outfile", superchainOutputFile,
 		"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-		"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 		"--guardian", guardian.Hex(),
 	}, nil)
 
@@ -66,7 +64,6 @@ func TestCLIVerify(t *testing.T) {
 		"bootstrap", "implementations",
 		"--outfile", implsOutputFile,
 		"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-		"--protocol-versions-proxy", superchainOutput.ProtocolVersionsProxy.Hex(),
 		"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
 		"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 		"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
@@ -129,7 +126,6 @@ func TestCLIVerify(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", autoVerifyOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--verify",
 			"--verifier", "blockscout",
@@ -139,7 +135,7 @@ func TestCLIVerify(t *testing.T) {
 		require.Contains(t, output, "Starting automatic contract verification")
 		require.Contains(t, output, "Verification Summary")
 		require.Contains(t, output, "verified=0")
-		require.Contains(t, output, "skipped=5")
+		require.Contains(t, output, "skipped=3")
 		require.Contains(t, output, "failed=0")
 	})
 

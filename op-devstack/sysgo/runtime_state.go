@@ -1,12 +1,20 @@
 package sysgo
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	challengerconfig "github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
 )
 
@@ -53,9 +61,8 @@ type FlashblocksRuntimeSupport struct {
 
 type SingleChainInteropSupport struct {
 	Migration     *interopMigrationState
-	FullConfigSet depset.FullConfigSetMerged
-	DependencySet depset.DependencySet
-	Supervisor    Supervisor
+	FullConfigSet config.FullConfigSetMerged
+	DependencySet coredepset.DependencySet
 }
 
 type SingleChainRuntime struct {
@@ -86,6 +93,34 @@ type SingleChainRuntime struct {
 	P2PEnabled  bool
 }
 
+func (r *SingleChainRuntime) VMConfig(t devtest.T, dir string) *vm.Config {
+	konaHostPath, err := rustbin.Spec{
+		SrcDir:  "rust/kona",
+		Package: "kona-host",
+		Binary:  "kona-host",
+	}.EnsureExists(t.Ctx(), t.Logger())
+	t.Require().NoError(err, "locate/build kona-host")
+
+	rollupCfgPath := filepath.Join(dir, "rollup.json")
+	rollupBytes, err := json.Marshal(r.L2Network.RollupConfig())
+	t.Require().NoError(err, "marshal rollup config")
+	t.Require().NoError(os.WriteFile(rollupCfgPath, rollupBytes, 0o644), "write rollup config")
+
+	l1GenesisPath := filepath.Join(dir, "l1-genesis.json")
+	l1GenesisBytes, err := json.Marshal(r.L1Network.Genesis())
+	t.Require().NoError(err, "marshal l1 genesis")
+	t.Require().NoError(os.WriteFile(l1GenesisPath, l1GenesisBytes, 0o644), "write l1 genesis")
+
+	return &vm.Config{
+		L1:                r.L1EL.UserRPC(),
+		L1Beacon:          r.L1CL.BeaconHTTPAddr(),
+		L2s:               []string{r.L2EL.UserRPC()},
+		RollupConfigPaths: []string{rollupCfgPath},
+		L1GenesisPath:     l1GenesisPath,
+		Server:            konaHostPath,
+	}
+}
+
 type MultiChainNodeRuntime struct {
 	Name      string
 	Network   *L2Network
@@ -99,8 +134,8 @@ type MultiChainNodeRuntime struct {
 type MultiChainRuntime struct {
 	Keys          devkeys.Keys
 	Migration     *interopMigrationState
-	FullConfigSet depset.FullConfigSetMerged
-	DependencySet depset.DependencySet
+	FullConfigSet config.FullConfigSetMerged
+	DependencySet coredepset.DependencySet
 
 	L1Network *L1Network
 	L1EL      *L1Geth
@@ -108,9 +143,7 @@ type MultiChainRuntime struct {
 
 	Chains map[string]*MultiChainNodeRuntime
 
-	PrimarySupervisor   Supervisor
-	SecondarySupervisor Supervisor
-	Supernode           *SuperNode
+	Supernode *SuperNode
 
 	FaucetService      *faucet.Service
 	TimeTravel         *clock.AdvancingClock

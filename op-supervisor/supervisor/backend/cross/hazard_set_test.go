@@ -9,10 +9,12 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type linkerAny struct{}
@@ -38,7 +40,7 @@ func TestHazardSet_Build(t *testing.T) {
 			blocks: []blockDef{
 				makeBlock(0, 100, 1),
 			},
-			expected: map[eth.ChainID]types.BlockSeal{},
+			expected: map[eth.ChainID]messages.BlockSeal{},
 		},
 		{
 			name: "Single Dependency",
@@ -46,7 +48,7 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(0, 100, 1, makeMessage(1, 100, 1, 1)),
 				makeBlock(1, 100, 1), // Referenced block from chain 1
 			},
-			expected: map[eth.ChainID]types.BlockSeal{
+			expected: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
 			},
 		},
@@ -56,7 +58,7 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(0, 100, 1, makeMessage(1, 100, 1, 1), makeMessage(1, 100, 1, 2)),
 				makeBlock(1, 100, 1),
 			},
-			expected: map[eth.ChainID]types.BlockSeal{
+			expected: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
 			},
 		},
@@ -67,7 +69,7 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(1, 100, 1),
 				makeBlock(2, 100, 1),
 			},
-			expected: map[eth.ChainID]types.BlockSeal{
+			expected: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
 				eth.ChainIDFromUInt64(2): makeBlockSeal(1, 100, 2),
 			},
@@ -79,7 +81,7 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(1, 100, 1),
 				makeBlock(1, 100, 2),
 			},
-			expectErr: types.ErrConflict,
+			expectErr: interop.ErrConflict,
 		},
 		{
 			name: "Hazards Across Multiple Chains",
@@ -88,7 +90,7 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(1, 100, 1),
 				makeBlock(2, 100, 1),
 			},
-			expected: map[eth.ChainID]types.BlockSeal{
+			expected: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
 				eth.ChainIDFromUInt64(2): makeBlockSeal(1, 100, 2),
 			},
@@ -100,7 +102,7 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(1, 100, 1, makeMessage(2, 100, 1, 1)),
 				makeBlock(2, 100, 1),
 			},
-			expected: map[eth.ChainID]types.BlockSeal{
+			expected: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
 				eth.ChainIDFromUInt64(2): makeBlockSeal(1, 100, 2),
 			},
@@ -112,7 +114,7 @@ func TestHazardSet_Build(t *testing.T) {
 				// Block 1 in Chain 1 is missing
 				makeBlock(2, 100, 1),
 			},
-			expectErr: types.ErrFuture,
+			expectErr: interop.ErrFuture,
 		},
 		{
 			name: "Invalid Timestamp - Future Message",
@@ -128,14 +130,14 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(0, 100, 1, makeMessage(1, 0, 1, 1)),
 				makeBlock(1, 100, 1),
 			},
-			expectErr: types.ErrFuture,
+			expectErr: interop.ErrFuture,
 		},
 		{
 			name: "Missing Block - Message References Non-existent Block",
 			blocks: []blockDef{
 				makeBlock(0, 100, 1, makeMessage(1, 100, 999, 1)), // Block 999 doesn't exist
 			},
-			expectErr: types.ErrFuture,
+			expectErr: interop.ErrFuture,
 		},
 		{
 			name: "Missing Block - Chain Break",
@@ -143,14 +145,14 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(0, 100, 1, makeMessage(1, 100, 1, 1)),
 				makeBlock(1, 100, 1, makeMessage(2, 100, 1, 1)), // Message references block in chain 2 that doesn't exist
 			},
-			expectErr: types.ErrFuture,
+			expectErr: interop.ErrFuture,
 		},
 		{
 			name: "Invalid Block Number - Zero",
 			blocks: []blockDef{
 				makeBlock(0, 100, 1, makeMessage(1, 100, 0, 1)), // Invalid block number
 			},
-			expectErr: types.ErrFuture,
+			expectErr: interop.ErrFuture,
 		},
 		{
 			name: "Recursive Hazards - Diamond Pattern",
@@ -160,7 +162,7 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(2, 100, 1, makeMessage(3, 100, 1, 1)),
 				makeBlock(3, 100, 1),
 			},
-			expected: map[eth.ChainID]types.BlockSeal{
+			expected: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
 				eth.ChainIDFromUInt64(2): makeBlockSeal(1, 100, 2),
 				eth.ChainIDFromUInt64(3): makeBlockSeal(1, 100, 3),
@@ -182,7 +184,7 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(3, 100, 1),
 				makeBlock(4, 100, 1),
 			},
-			expected: map[eth.ChainID]types.BlockSeal{
+			expected: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
 				eth.ChainIDFromUInt64(2): makeBlockSeal(1, 100, 2),
 				eth.ChainIDFromUInt64(3): makeBlockSeal(1, 100, 3),
@@ -198,7 +200,7 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(2, 100, 1, makeMessage(3, 100, 1, 1)),
 				makeBlock(3, 100, 1),
 			},
-			expected: map[eth.ChainID]types.BlockSeal{
+			expected: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
 				eth.ChainIDFromUInt64(2): makeBlockSeal(1, 100, 2),
 				eth.ChainIDFromUInt64(3): makeBlockSeal(1, 100, 3),
@@ -220,7 +222,7 @@ func TestHazardSet_Build(t *testing.T) {
 				t.Fatal("test case must have at least one block")
 			}
 			firstBlock := tc.blocks[0]
-			seal := types.BlockSeal{
+			seal := messages.BlockSeal{
 				Number:    firstBlock.number,
 				Timestamp: firstBlock.timestamp,
 				Hash:      firstBlock.hash,
@@ -276,10 +278,10 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 			}
 
 			// Convert messages to the expected format
-			messages := make([]*types.ExecutingMessage, 0, len(block.msgs))
+			msgs := make([]*messages.ExecutingMessage, 0, len(block.msgs))
 			for _, msg := range block.msgs {
 				chainID := eth.ChainIDFromUInt64(uint64(msg.Chain))
-				messages = append(messages, &types.ExecutingMessage{
+				msgs = append(msgs, &messages.ExecutingMessage{
 					ChainID:   chainID,
 					BlockNum:  msg.BlockNum,
 					LogIdx:    msg.LogIndex,
@@ -298,7 +300,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 				number:    block.num,
 				timestamp: timestamp,
 				hash:      makeBlockHash(block.chain, block.num),
-				messages:  messages,
+				messages:  msgs,
 			}
 		}
 		return blockMap
@@ -309,7 +311,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 		name            string
 		blocks          []testBlockDef
 		verifyBlockFn   func(chainID eth.ChainID, block eth.BlockID) error
-		expectedHazards map[eth.ChainID]types.BlockSeal
+		expectedHazards map[eth.ChainID]messages.BlockSeal
 		expectedErr     error
 	}{
 		{
@@ -339,7 +341,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					timestamp: 100,
 				},
 			},
-			expectedHazards: map[eth.ChainID]types.BlockSeal{
+			expectedHazards: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): {
 					Hash:      makeBlockHash(eth.ChainIDFromUInt64(1), 5),
 					Number:    5,
@@ -377,7 +379,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					timestamp: 100,
 				},
 			},
-			expectedHazards: map[eth.ChainID]types.BlockSeal{
+			expectedHazards: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): {
 					Hash:      makeBlockHash(eth.ChainIDFromUInt64(1), 5),
 					Number:    5,
@@ -427,7 +429,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					timestamp: 100,
 				},
 			},
-			expectedHazards: map[eth.ChainID]types.BlockSeal{
+			expectedHazards: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): {
 					Hash:      makeBlockHash(eth.ChainIDFromUInt64(1), 5),
 					Number:    5,
@@ -521,7 +523,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					timestamp: 100,
 				},
 			},
-			expectedHazards: map[eth.ChainID]types.BlockSeal{
+			expectedHazards: map[eth.ChainID]messages.BlockSeal{
 				eth.ChainIDFromUInt64(1): {
 					Hash:      makeBlockHash(eth.ChainIDFromUInt64(1), 5),
 					Number:    5,
@@ -600,7 +602,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 
 			// Create the HazardSet for the first block (candidate block)
 			firstBlock := tc.blocks[0]
-			candidateSeal := types.BlockSeal{
+			candidateSeal := messages.BlockSeal{
 				Hash:      makeBlockHash(firstBlock.chain, firstBlock.num),
 				Number:    firstBlock.num,
 				Timestamp: firstBlock.timestamp,
@@ -628,20 +630,20 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 // mockHazardDeps implements HazardDeps for testing
 type mockHazardDeps struct {
 	logger        log.Logger
-	containsFn    func(chain eth.ChainID, query types.ContainsQuery) (types.BlockSeal, error)
+	containsFn    func(chain eth.ChainID, query messages.ContainsQuery) (messages.BlockSeal, error)
 	verifyBlockFn func(chainID eth.ChainID, block eth.BlockID) error
-	openBlockFn   func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
+	openBlockFn   func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
 	blockMap      map[blockKey]blockDef
 }
 
-func (m *mockHazardDeps) Contains(chain eth.ChainID, query types.ContainsQuery) (types.BlockSeal, error) {
+func (m *mockHazardDeps) Contains(chain eth.ChainID, query messages.ContainsQuery) (messages.BlockSeal, error) {
 	if m.containsFn != nil {
 		return m.containsFn(chain, query)
 	}
 
 	// Validate timestamp is greater than 0
 	if query.Timestamp == 0 {
-		return types.BlockSeal{}, fmt.Errorf("failed to check if message exists: block not found: %w", types.ErrFuture)
+		return messages.BlockSeal{}, fmt.Errorf("failed to check if message exists: block not found: %w", interop.ErrFuture)
 	}
 
 	key := blockKey{
@@ -651,15 +653,15 @@ func (m *mockHazardDeps) Contains(chain eth.ChainID, query types.ContainsQuery) 
 	if block, ok := m.blockMap[key]; ok {
 		// Check timestamp invariant
 		if query.Timestamp > block.timestamp {
-			return types.BlockSeal{}, fmt.Errorf("message timestamp %d breaks timestamp invariant with block timestamp %d", query.Timestamp, block.timestamp)
+			return messages.BlockSeal{}, fmt.Errorf("message timestamp %d breaks timestamp invariant with block timestamp %d", query.Timestamp, block.timestamp)
 		}
-		return types.BlockSeal{
+		return messages.BlockSeal{
 			Number:    block.number,
 			Timestamp: block.timestamp,
 			Hash:      block.hash,
 		}, nil
 	}
-	return types.BlockSeal{}, fmt.Errorf("failed to check if message exists: block not found: %w", types.ErrFuture)
+	return messages.BlockSeal{}, fmt.Errorf("failed to check if message exists: block not found: %w", interop.ErrFuture)
 }
 
 func (m *mockHazardDeps) IsCrossValidBlock(chainID eth.ChainID, block eth.BlockID) error {
@@ -676,7 +678,7 @@ func (m *mockHazardDeps) IsCrossValidBlock(chainID eth.ChainID, block eth.BlockI
 	return fmt.Errorf("block %s is not cross-valid", block)
 }
 
-func (m *mockHazardDeps) OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
+func (m *mockHazardDeps) OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error) {
 	if m.openBlockFn != nil {
 		return m.openBlockFn(chainID, blockNum)
 	}
@@ -686,7 +688,7 @@ func (m *mockHazardDeps) OpenBlock(chainID eth.ChainID, blockNum uint64) (ref et
 	}
 	if block, ok := m.blockMap[key]; ok {
 		// Convert messages slice to map
-		msgMap := make(map[uint32]*types.ExecutingMessage)
+		msgMap := make(map[uint32]*messages.ExecutingMessage)
 		for i, msg := range block.messages {
 			msgMap[uint32(i)] = msg
 		}
@@ -697,27 +699,27 @@ func (m *mockHazardDeps) OpenBlock(chainID eth.ChainID, blockNum uint64) (ref et
 			Time:   block.timestamp,
 		}, uint32(len(block.messages)), msgMap, nil
 	}
-	return eth.BlockRef{}, 0, nil, types.ErrFuture
+	return eth.BlockRef{}, 0, nil, interop.ErrFuture
 }
 
 func (m *mockHazardDeps) Logger() log.Logger {
 	return m.logger
 }
 
-func makeBlock(chainTestAlias uint8, timestamp, number uint64, messages ...*types.ExecutingMessage) blockDef {
+func makeBlock(chainTestAlias uint8, timestamp, number uint64, msgs ...*messages.ExecutingMessage) blockDef {
 	chainID := eth.ChainIDFromUInt64(uint64(chainTestAlias))
 	return blockDef{
 		number:    number,
 		timestamp: timestamp,
 		chain:     chainID,
 		hash:      common.Hash{byte(chainTestAlias), byte(number)}, // Deterministic hash based on chain and number
-		messages:  messages,
+		messages:  msgs,
 	}
 }
 
-func makeMessage(chainTestAlias uint8, timestamp, blockNum uint64, logIdx uint32) *types.ExecutingMessage {
+func makeMessage(chainTestAlias uint8, timestamp, blockNum uint64, logIdx uint32) *messages.ExecutingMessage {
 	chainID := eth.ChainIDFromUInt64(uint64(chainTestAlias))
-	return &types.ExecutingMessage{
+	return &messages.ExecutingMessage{
 		ChainID:   chainID,
 		BlockNum:  blockNum,
 		Timestamp: timestamp,
@@ -725,8 +727,8 @@ func makeMessage(chainTestAlias uint8, timestamp, blockNum uint64, logIdx uint32
 	}
 }
 
-func makeBlockSeal(number, timestamp uint64, chainTestAlias uint8) types.BlockSeal {
-	return types.BlockSeal{
+func makeBlockSeal(number, timestamp uint64, chainTestAlias uint8) messages.BlockSeal {
+	return messages.BlockSeal{
 		Number:    number,
 		Timestamp: timestamp,
 		Hash:      common.Hash{byte(chainTestAlias), byte(number)}, // Match block hash generation
@@ -736,7 +738,7 @@ func makeBlockSeal(number, timestamp uint64, chainTestAlias uint8) types.BlockSe
 type testVector struct {
 	name          string
 	blocks        []blockDef
-	expected      map[eth.ChainID]types.BlockSeal
+	expected      map[eth.ChainID]messages.BlockSeal
 	expectErr     error
 	verifyBlockFn func(chainID eth.ChainID, block eth.BlockID) error
 }
@@ -746,7 +748,7 @@ type blockDef struct {
 	timestamp uint64
 	hash      common.Hash
 	chain     eth.ChainID
-	messages  []*types.ExecutingMessage
+	messages  []*messages.ExecutingMessage
 }
 
 func newMockHazardDeps(t *testing.T, tc testVector) *mockHazardDeps {

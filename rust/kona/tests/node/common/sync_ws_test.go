@@ -8,7 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -31,8 +32,8 @@ func TestSyncUnsafeBecomesSafe(gt *testing.T) {
 	// Ensure that all the nodes advance the unsafe and safe head
 	advancedFns := make([]dsl.CheckFunc, 0, len(nodes))
 	for _, node := range nodes {
-		advancedFns = append(advancedFns, node.AdvancedFn(types.LocalSafe, 20, 80))
-		advancedFns = append(advancedFns, node.AdvancedFn(types.LocalUnsafe, 20, 80))
+		advancedFns = append(advancedFns, node.AdvancedFn(safety.LocalSafe, 20, 80))
+		advancedFns = append(advancedFns, node.AdvancedFn(safety.LocalUnsafe, 20, 80))
 	}
 	dsl.CheckAll(t, advancedFns...)
 
@@ -85,7 +86,7 @@ func TestSyncUnsafe(gt *testing.T) {
 	// Ensure that all the nodes advance the unsafe head
 	advancedFns := make([]dsl.CheckFunc, 0, len(nodes))
 	for _, node := range nodes {
-		advancedFns = append(advancedFns, node.AdvancedFn(types.LocalUnsafe, 20, 80))
+		advancedFns = append(advancedFns, node.AdvancedFn(safety.LocalUnsafe, 20, 80))
 	}
 	dsl.CheckAll(t, advancedFns...)
 
@@ -103,7 +104,7 @@ func TestSyncUnsafe(gt *testing.T) {
 			for _, block := range output {
 				for _, node := range nodes {
 					otherCLNode := node.Escape().Name()
-					otherCLSyncStatus := node.ChainSyncStatus(out.L2Chain.ChainID(), types.LocalUnsafe)
+					otherCLSyncStatus := node.ChainSyncStatus(out.L2Chain.ChainID(), safety.LocalUnsafe)
 
 					if otherCLSyncStatus.Number < block.Number {
 						t.Log("✗ peer too far behind!", otherCLNode, block.Number, otherCLSyncStatus.Number)
@@ -136,7 +137,7 @@ func TestSyncSafe(gt *testing.T) {
 	// Ensure that all the nodes advance the safe head
 	advancedFns := make([]dsl.CheckFunc, 0, len(nodes))
 	for _, node := range nodes {
-		advancedFns = append(advancedFns, node.AdvancedFn(types.LocalSafe, 20, 80))
+		advancedFns = append(advancedFns, node.AdvancedFn(safety.LocalSafe, 20, 80))
 	}
 	dsl.CheckAll(t, advancedFns...)
 
@@ -155,7 +156,7 @@ func TestSyncSafe(gt *testing.T) {
 			for _, block := range output {
 				for _, node := range nodes {
 					otherCLNode := node.Escape().Name()
-					otherCLSyncStatus := node.ChainSyncStatus(out.L2Chain.ChainID(), types.LocalSafe)
+					otherCLSyncStatus := node.ChainSyncStatus(out.L2Chain.ChainID(), safety.LocalSafe)
 
 					if otherCLSyncStatus.Number < block.Number {
 						t.Log("✗ peer too far behind!", otherCLNode, block.Number, otherCLSyncStatus.Number)
@@ -202,7 +203,7 @@ func TestSyncFinalized(gt *testing.T) {
 			for _, block := range output {
 				for _, node := range nodes {
 					otherCLNode := node.Escape().Name()
-					otherCLSyncStatus := node.ChainSyncStatus(out.L2Chain.ChainID(), types.Finalized)
+					otherCLSyncStatus := node.ChainSyncStatus(out.L2Chain.ChainID(), safety.Finalized)
 
 					if otherCLSyncStatus.Number < block.Number {
 						t.Log("✗ peer too far behind!", otherCLNode, block.Number, otherCLSyncStatus.Number)

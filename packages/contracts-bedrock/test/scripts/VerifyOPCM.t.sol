@@ -95,6 +95,10 @@ contract VerifyOPCM_Harness is VerifyOPCM {
     function setValidatorGetterCheck(string memory _getter, string memory _check) public {
         validatorGetterChecks[_getter] = _check;
     }
+
+    function isReady() public view returns (bool) {
+        return ready;
+    }
 }
 
 /// @title VerifyOPCM_TestInit
@@ -142,6 +146,10 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
             || DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
     }
+
+    function zkDisputeGameEnabled() internal view returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.ZK_DISPUTE_GAME);
+    }
 }
 
 /// @title VerifyOPCM_Run_Test
@@ -153,7 +161,11 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that the script succeeds when no changes are introduced.
     function test_run_succeeds() public {
-        skipIfUnoptimized();
+        // Coverage instrumentation would break the bytecode comparison because the artifact
+        // on disk is not instrumented. The optimizer setting does not matter: both the
+        // deployed code and the artifact come from the same local compile, so they move
+        // together under any Foundry profile.
+        skipIfCoverage();
 
         // Run the script.
         harness.run(address(opcm), true);
@@ -174,9 +186,28 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
                     continue;
                 }
 
+                // TODO: Remove this skip once ZK dispute game is no longer behind a feature flag
+                if (_isZKDisputeGameContractRef(ref)) {
+                    continue;
+                }
+
                 harness.runSingle(ref.name, ref.addr, true);
             }
         }
+    }
+
+    /// @notice Tests that runSingle lazily initializes script state on a fresh instance.
+    function test_runSingle_withoutExplicitSetUp_succeeds() public {
+        // See test_run_succeeds for why this is coverage-only, not unoptimized-wide.
+        skipIfCoverage();
+
+        VerifyOPCM_Harness freshHarness = new VerifyOPCM_Harness();
+        assertFalse(freshHarness.isReady(), "fresh harness should start uninitialized");
+
+        IMIPS64 mipsImpl = IMIPS64(opcm.implementations().mipsImpl);
+        freshHarness.runSingle("PreimageOracle", address(mipsImpl.oracle()), true);
+
+        assertTrue(freshHarness.isReady(), "runSingle should initialize script state");
     }
 
     function test_run_bitmapNotEmptyOnMainnet_reverts(bytes32 _devFeatureBitmap) public {
@@ -205,7 +236,8 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     ///         variables of implementation contracts. Fuzzing is too slow here, randomness is good
     ///         enough.
     function test_run_implementationDifferentInsideImmutable_succeeds() public {
-        skipIfUnoptimized();
+        // See test_run_succeeds for why this is coverage-only, not unoptimized-wide.
+        skipIfCoverage();
 
         // Skip security value checks since this test deliberately corrupts immutable values.
         harness.setSkipSecurityValueChecks(true);
@@ -221,6 +253,11 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
             // Skip super dispute games when feature disabled
             if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
+                continue;
+            }
+
+            // Skip ZK dispute game when feature disabled
+            if (_isZKDisputeGameContractRef(ref) && !zkDisputeGameEnabled()) {
                 continue;
             }
 
@@ -272,7 +309,8 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     ///         implementation contracts that are not inside immutable references. Fuzzing is too
     ///         slow here, randomness is good enough.
     function test_run_implementationDifferentOutsideImmutable_reverts() public {
-        skipIfUnoptimized();
+        // See test_run_succeeds for why this is coverage-only, not unoptimized-wide.
+        skipIfCoverage();
 
         // Skip security value checks since corrupted bytecode may break contract queries.
         harness.setSkipSecurityValueChecks(true);
@@ -288,6 +326,11 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
             // Skip super dispute games when feature disabled
             if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
+                continue;
+            }
+
+            // Skip ZK dispute game when feature disabled
+            if (_isZKDisputeGameContractRef(ref) && !zkDisputeGameEnabled()) {
                 continue;
             }
 
@@ -504,6 +547,10 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     function _isSuperDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
         return LibString.eq(ref.name, "SuperFaultDisputeGame") || LibString.eq(ref.name, "SuperPermissionedDisputeGame");
+    }
+
+    function _isZKDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
+        return LibString.eq(ref.name, "ZKDisputeGame");
     }
 
     /// @notice Utility function to mock the first OPCM component's contractsContainer address.

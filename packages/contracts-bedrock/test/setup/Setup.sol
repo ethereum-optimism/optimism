@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { console2 as console } from "forge-std/console2.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { Vm, VmSafe } from "forge-std/Vm.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
@@ -36,7 +36,6 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDataAvailabilityChallenge } from "interfaces/L1/IDataAvailabilityChallenge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
-import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -127,7 +126,6 @@ abstract contract Setup is FeatureFlags {
     IAddressManager addressManager;
     IL1ERC721Bridge l1ERC721Bridge;
     IOptimismMintableERC20Factory l1OptimismMintableERC20Factory;
-    IProtocolVersions protocolVersions;
     ISuperchainConfig superchainConfig;
     IDataAvailabilityChallenge dataAvailabilityChallenge;
     IOPContractsManagerV2 opcmV2;
@@ -240,6 +238,18 @@ abstract contract Setup is FeatureFlags {
     ///      bytecode verification tests, and any test sensitive to compiler output.
     function skipIfUnoptimized() public {
         if (Config.isUnoptimized()) {
+            vm.skip(true);
+        }
+    }
+
+    /// @dev Skips tests only under coverage mode, where Foundry injects instrumentation
+    ///      opcodes that change deployed bytecode relative to the compiled artifact.
+    ///      Prefer this over skipIfUnoptimized() for tests that compare locally-compiled
+    ///      bytecode to locally-compiled artifacts: both sides move together across
+    ///      optimized/unoptimized profiles, but coverage instrumentation breaks the
+    ///      comparison because the artifact on disk is not instrumented.
+    function skipIfCoverage() public {
+        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
             vm.skip(true);
         }
     }
@@ -362,14 +372,10 @@ abstract contract Setup is FeatureFlags {
 
         optimismPortal2 = IOptimismPortal(artifacts.mustGetAddress("OptimismPortalProxy"));
 
-        // Only skip ETHLockbox assignment if we're in a fork test with non-upgraded fork
-        // TODO(#14691): Remove this check once Upgrade 15 is deployed on Mainnet.
-        if (!isL1ForkTest() || deploy.cfg().useUpgradedFork()) {
-            // Here we use getAddress instead of mustGetAddress because some chains might not have
-            // the ETHLockbox proxy. Chains that don't have the ETHLockbox proxy will just return
-            // address(0) and cause a revert if we use mustGetAddress.
-            ethLockbox = IETHLockbox(artifacts.getAddress("ETHLockboxProxy"));
-        }
+        // Here we use getAddress instead of mustGetAddress because some chains might not have
+        // the ETHLockbox proxy. Chains that don't have the ETHLockbox proxy will just return
+        // address(0) and cause a revert if we use mustGetAddress.
+        ethLockbox = IETHLockbox(artifacts.getAddress("ETHLockboxProxy"));
 
         systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = IL1StandardBridge(artifacts.mustGetAddress("L1StandardBridgeProxy"));
@@ -381,7 +387,6 @@ abstract contract Setup is FeatureFlags {
         l1ERC721Bridge = IL1ERC721Bridge(artifacts.mustGetAddress("L1ERC721BridgeProxy"));
         l1OptimismMintableERC20Factory =
             IOptimismMintableERC20Factory(artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy"));
-        protocolVersions = IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy"));
         superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
         anchorStateRegistry = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
         disputeGameFactory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
@@ -490,30 +495,25 @@ abstract contract Setup is FeatureFlags {
         vm.label(_addr, Preinstalls.getName(_addr));
     }
 
+    /// @notice Labels all predeploys with their name.
+    /// @dev Iterates over all predeploy records and labels the proxy with the name.
     function _labelPredeploys() internal {
-        labelPredeploy(Predeploys.L2_STANDARD_BRIDGE);
-        labelPredeploy(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-        labelPredeploy(Predeploys.L2_TO_L1_MESSAGE_PASSER);
-        labelPredeploy(Predeploys.SEQUENCER_FEE_WALLET);
-        labelPredeploy(Predeploys.L2_ERC721_BRIDGE);
-        labelPredeploy(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
-        labelPredeploy(Predeploys.PROXY_ADMIN);
-        labelPredeploy(Predeploys.BASE_FEE_VAULT);
-        labelPredeploy(Predeploys.L1_FEE_VAULT);
-        labelPredeploy(Predeploys.OPERATOR_FEE_VAULT);
-        labelPredeploy(Predeploys.L1_BLOCK_ATTRIBUTES);
-        labelPredeploy(Predeploys.GAS_PRICE_ORACLE);
-        labelPredeploy(Predeploys.LEGACY_MESSAGE_PASSER);
-        labelPredeploy(Predeploys.GOVERNANCE_TOKEN);
-        labelPredeploy(Predeploys.EAS);
-        labelPredeploy(Predeploys.SCHEMA_REGISTRY);
-        labelPredeploy(Predeploys.WETH);
-        labelPredeploy(Predeploys.SUPERCHAIN_ETH_BRIDGE);
-        labelPredeploy(Predeploys.ETH_LIQUIDITY);
-        labelPredeploy(Predeploys.NATIVE_ASSET_LIQUIDITY);
-        labelPredeploy(Predeploys.LIQUIDITY_CONTROLLER);
-        labelPredeploy(Predeploys.CONDITIONAL_DEPLOYER);
-        labelPredeploy(Predeploys.L2_DEV_FEATURE_FLAGS);
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            // TODO: Remove this once the deprecated predeploys are removed.
+            // if (records[i].isDeprecated) continue;
+
+            // Default to normal for CGT variants
+            if (records[i].proxy == Predeploys.L1_BLOCK_NUMBER) {
+                vm.label(records[i].proxy, "L1Block");
+                continue;
+            }
+            if (records[i].proxy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
+                vm.label(records[i].proxy, "L2ToL1MessagePasser");
+                continue;
+            }
+            vm.label(records[i].proxy, records[i].name);
+        }
     }
 
     function _labelPreinstalls() internal {

@@ -1,17 +1,36 @@
 //! Support for optimism specific witness RPCs.
 
-use alloy_primitives::B256;
+use alloy_primitives::{B256, Sealed};
 use alloy_rpc_types_debug::ExecutionWitness;
+use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{RpcResult, async_trait};
+use op_alloy_consensus::TxPostExec;
 use reth_chainspec::ChainSpecProvider;
-use reth_evm::ConfigureEvm;
 use reth_node_api::{BuildNextEnv, NodePrimitives};
+use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{OpAttributes, OpPayloadBuilder, OpPayloadPrimitives};
 use reth_optimism_txpool::OpPooledTx;
 use reth_primitives_traits::{SealedHeader, TxTy};
-pub use reth_rpc_api::DebugExecutionWitnessApiServer;
 use reth_rpc_server_types::{ToRpcResult, result::internal_rpc_err};
+
+/// Trait for the `debug_executePayload` endpoint, which re-executes a payload and returns the
+/// resulting execution witness.
+///
+/// Vendored from `reth_rpc_api::DebugExecutionWitnessApi`, which was removed upstream in
+/// paradigmxyz/reth#24284.
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "debug"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "debug"))]
+pub trait DebugExecutionWitnessApi<Attributes> {
+    /// Re-executes a payload built on top of the given parent block and returns the resulting
+    /// execution witness.
+    #[method(name = "executePayload")]
+    async fn execute_payload(
+        &self,
+        parent_block_hash: B256,
+        attributes: Attributes,
+    ) -> RpcResult<ExecutionWitness>;
+}
 use reth_storage_api::{
     BlockReaderIdExt, NodePrimitivesProvider, StateProviderFactory,
     errors::{ProviderError, ProviderResult},
@@ -41,7 +60,7 @@ impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConf
 
 impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
 where
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigurePostExecEvm,
     Provider: NodePrimitivesProvider<Primitives: NodePrimitives<BlockHeader = Provider::Header>>
         + BlockReaderIdExt,
 {
@@ -70,7 +89,8 @@ where
         + ChainSpecProvider<ChainSpec: OpHardforks>
         + Clone
         + 'static,
-    EvmConfig: ConfigureEvm<
+    <Provider::Primitives as NodePrimitives>::SignedTx: From<Sealed<TxPostExec>>,
+    EvmConfig: ConfigurePostExecEvm<
             Primitives = Provider::Primitives,
             NextBlockEnvCtx: BuildNextEnv<Attrs, Provider::Header, Provider::ChainSpec>,
         > + 'static,

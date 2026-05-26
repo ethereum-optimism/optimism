@@ -12,7 +12,6 @@ import (
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/cmd/interop"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/networks"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
@@ -63,7 +62,6 @@ func main() {
 			Name:        "networks",
 			Subcommands: networks.Subcommands,
 		},
-		interop.InteropCmd,
 	}
 
 	ctx := ctxinterrupt.WithSignalWaiterMain(context.Background())
@@ -94,7 +92,7 @@ func RollupNodeMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.
 		cfg.Rollup.LogDescription(log, chaincfg.L2ChainIDToNetworkDisplayName)
 	}
 
-	n, err := node.New(ctx.Context, cfg, log, VersionWithMeta, m, nil)
+	n, err := node.New(ctx.Context, cfg, log, version.Version, m, nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create the rollup node: %w", err)
 	}

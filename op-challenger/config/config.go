@@ -75,10 +75,9 @@ type Config struct {
 
 	GameTypes []gameTypes.GameType // Type of games supported
 
-	RollupRpc    string   // L2 Rollup RPC Url
-	SuperRPC     string   // L2 RPC URL for super roots
-	UseSuperNode bool     // Temporary: True to use op-supernode APIs, false for op-supervisor APIs
-	L2Rpcs       []string // L2 RPC Url
+	RollupRpc string   // L2 Rollup RPC Url
+	SuperRPC  string   // L2 RPC URL for op-supernode super roots
+	L2Rpcs    []string // L2 RPC Url
 
 	// Specific to the cannon trace provider
 	Cannon                            vm.Config
@@ -243,18 +242,6 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.GameTypeEnabled(gameTypes.SuperCannonGameType) || c.GameTypeEnabled(gameTypes.SuperPermissionedGameType) {
-		if c.SuperRPC == "" {
-			return ErrMissingSuperRpc
-		}
-
-		if len(c.Cannon.Networks) == 0 && c.Cannon.DepsetConfigPath == "" {
-			return ErrMissingDepsetConfig
-		}
-		if err := c.validateBaseCannonOptions(); err != nil {
-			return err
-		}
-	}
 	if c.GameTypeEnabled(gameTypes.CannonGameType) || c.GameTypeEnabled(gameTypes.PermissionedGameType) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
@@ -263,7 +250,7 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) {
+	if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) || c.GameTypeEnabled(gameTypes.SuperPermissionedGameType) {
 		if c.SuperRPC == "" {
 			return ErrMissingSuperRpc
 		}

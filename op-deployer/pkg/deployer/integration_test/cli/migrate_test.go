@@ -25,7 +25,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -115,17 +114,14 @@ func TestCLIMigrateV2(t *testing.T) {
 
 	// Deploy superchain contracts first
 	superchainOut, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
-		L1RPCUrl:                   l1RPC,
-		PrivateKey:                 pkHex,
-		ArtifactsLocator:           artifacts.EmbeddedLocator,
-		Logger:                     lgr,
-		SuperchainProxyAdminOwner:  superchainProxyAdminOwner,
-		ProtocolVersionsOwner:      common.Address{'P'},
-		Guardian:                   common.Address{'G'},
-		Paused:                     false,
-		RequiredProtocolVersion:    params.ProtocolVersionV0{Major: 1}.Encode(),
-		RecommendedProtocolVersion: params.ProtocolVersionV0{Major: 2}.Encode(),
-		CacheDir:                   testCacheDir,
+		L1RPCUrl:                  l1RPC,
+		PrivateKey:                pkHex,
+		ArtifactsLocator:          artifacts.EmbeddedLocator,
+		Logger:                    lgr,
+		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
+		Guardian:                  common.Address{'G'},
+		Paused:                    false,
+		CacheDir:                  testCacheDir,
 	})
 	require.NoError(t, err, "Failed to deploy superchain contracts")
 
@@ -145,7 +141,6 @@ func TestCLIMigrateV2(t *testing.T) {
 		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 		DevFeatureBitmap:                devFeatureBitmap,
 		SuperchainConfigProxy:           superchainOut.SuperchainConfigProxy,
-		ProtocolVersionsProxy:           superchainOut.ProtocolVersionsProxy,
 		SuperchainProxyAdmin:            superchainOut.SuperchainProxyAdmin,
 		L1ProxyAdminOwner:               superchainProxyAdminOwner,
 		Challenger:                      common.Address{'C'},
@@ -181,7 +176,6 @@ func TestCLIMigrateV2(t *testing.T) {
 	l1ChainIDBig := big.NewInt(int64(l1ChainID))
 	intent.SuperchainRoles.SuperchainProxyAdminOwner = superchainProxyAdminOwner
 	intent.SuperchainRoles.SuperchainGuardian = shared.AddrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainIDBig))
-	intent.SuperchainRoles.ProtocolVersionsOwner = superchainProxyAdminOwner
 	intent.SuperchainRoles.Challenger = shared.AddrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainIDBig))
 
 	for _, chain := range intent.Chains {
@@ -213,8 +207,6 @@ func TestCLIMigrateV2(t *testing.T) {
 		st.SuperchainDeployment = &addresses.SuperchainContracts{
 			SuperchainConfigProxy:    superchainOut.SuperchainConfigProxy,
 			SuperchainConfigImpl:     superchainOut.SuperchainConfigImpl,
-			ProtocolVersionsProxy:    superchainOut.ProtocolVersionsProxy,
-			ProtocolVersionsImpl:     superchainOut.ProtocolVersionsImpl,
 			SuperchainProxyAdminImpl: superchainOut.SuperchainProxyAdmin,
 		}
 	}
@@ -280,9 +272,8 @@ func TestCLIMigrateV2(t *testing.T) {
 
 	systemConfigProxy := st.Chains[0].SystemConfigProxy
 
-	// Run migrate-v2 command
-	// Note: dispute-game-type should be 0 (Cannon), not 4 (SuperCannon)
-	// Game type 4 is only for starting-respected-game-type
+	// Run migrate-v2 command. SUPER_CANNON (4) is retired; SUPER_CANNON_KONA (9)
+	// is the canonical permissionless super-root respected game type.
 	migrateOutput := runner.ExpectSuccessWithNetwork(t, []string{
 		"manage",
 		"migrate",
@@ -292,11 +283,11 @@ func TestCLIMigrateV2(t *testing.T) {
 		"--opcm-impl-address", impls.OpcmV2.Hex(),
 		"--system-config-proxy-address", systemConfigProxy.Hex(),
 		"--dispute-game-enabled",
-		"--dispute-game-type", "0", // GameTypeCannon (0), not SuperCannon (4)
+		"--dispute-game-type", "0", // GameTypeCannon (0)
 		"--dispute-absolute-prestate", "0x0000000000000000000000000000000000000000000000000000000000000abc",
 		"--starting-anchor-root", "0x0000000000000000000000000000000000000000000000000000000000000def",
 		"--starting-anchor-l2-sequence-number", "1",
-		"--starting-respected-game-type", "5", // GameTypeSuperPermissionedCannon (5)
+		"--starting-respected-game-type", "9", // GameTypeSuperCannonKona (9)
 		"--initial-bond", "1000000000000000000",
 	}, nil)
 

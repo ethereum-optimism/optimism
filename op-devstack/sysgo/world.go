@@ -4,11 +4,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 func newWorldBuilder(t devtest.T, keys devkeys.Keys) *worldBuilder {
@@ -39,7 +40,7 @@ func applyConfigDeployerOptions(t devtest.T, keys devkeys.Keys, builder intentbu
 	}
 }
 
-func buildSingleChainWorldWithInterop(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*L1Network, *L2Network, depset.DependencySet, depset.FullConfigSetMerged) {
+func buildSingleChainWorldWithInterop(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*L1Network, *L2Network, coredepset.DependencySet, config.FullConfigSetMerged) {
 	_, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInteropAndState(t, keys, interopAtGenesis, localContractArtifactsPath, deployerOpts...)
 	return l1Net, l2Net, depSet, fullCfgSet
 }
@@ -65,7 +66,7 @@ func newInteropMigrationState(wb *worldBuilder) *interopMigrationState {
 	return state
 }
 
-func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, depset.DependencySet, depset.FullConfigSetMerged) {
+func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, coredepset.DependencySet, config.FullConfigSetMerged) {
 	wb := newWorldBuilder(t, keys)
 	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
 	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)
@@ -97,59 +98,9 @@ func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, in
 		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
 		keys:       keys,
 	}
-	var depSet depset.DependencySet
+	var depSet coredepset.DependencySet
 	if wb.outFullCfgSet.DependencySet != nil {
 		depSet = wb.outFullCfgSet.DependencySet
 	}
 	return newInteropMigrationState(wb), l1Net, l2Net, depSet, wb.outFullCfgSet
-}
-
-func buildTwoL2WorldWithState(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, *L2Network, depset.FullConfigSetMerged) {
-	wb := newWorldBuilder(t, keys)
-	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
-	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)
-	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
-	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2BID, wb.builder)
-	if interopAtGenesis {
-		applyConfigInteropAtGenesis(wb.builder)
-	}
-	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
-	wb.Build()
-
-	l1ID := eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID)
-	l1Net := &L1Network{
-		name:      "l1",
-		chainID:   l1ID,
-		genesis:   wb.outL1Genesis,
-		blockTime: 6,
-	}
-
-	l2ANet, ok := wb.outL2Genesis[DefaultL2AID]
-	t.Require().True(ok, "missing L2A genesis")
-	l2BNet, ok := wb.outL2Genesis[DefaultL2BID]
-	t.Require().True(ok, "missing L2B genesis")
-
-	l2A := &L2Network{
-		name:       "l2a",
-		chainID:    DefaultL2AID,
-		l1ChainID:  l1ID,
-		genesis:    l2ANet,
-		rollupCfg:  wb.outL2RollupCfg[DefaultL2AID],
-		deployment: wb.outL2Deployment[DefaultL2AID],
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
-		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
-		keys:       keys,
-	}
-	l2B := &L2Network{
-		name:       "l2b",
-		chainID:    DefaultL2BID,
-		l1ChainID:  l1ID,
-		genesis:    l2BNet,
-		rollupCfg:  wb.outL2RollupCfg[DefaultL2BID],
-		deployment: wb.outL2Deployment[DefaultL2BID],
-		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
-		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
-		keys:       keys,
-	}
-	return newInteropMigrationState(wb), l1Net, l2A, l2B, wb.outFullCfgSet
 }

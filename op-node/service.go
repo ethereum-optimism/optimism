@@ -9,11 +9,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/superchain"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
@@ -22,7 +23,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -32,7 +32,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
@@ -51,14 +50,9 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		return nil, err
 	}
 
-	depSet, err := NewDependencySetFromCLI(ctx)
+	depSet, err := NewDependencySetFromCLI(ctx, eth.ChainIDFromBig(rollupConfig.L2ChainID))
 	if err != nil {
 		return nil, err
-	}
-
-	if !ctx.Bool(flags.RollupLoadProtocolVersions.Name) {
-		log.Info("Not opted in to ProtocolVersions signal loading, disabling ProtocolVersions contract now.")
-		rollupConfig.ProtocolVersionsAddress = common.Address{}
 	}
 
 	configPersistence := NewConfigPersistence(ctx)
@@ -87,11 +81,6 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		return nil, fmt.Errorf("failed to create the sync config: %w", err)
 	}
 
-	haltOption := ctx.String(flags.RollupHalt.Name)
-	if haltOption == "none" {
-		haltOption = ""
-	}
-
 	if ctx.IsSet(flags.HeartbeatEnabledFlag.Name) ||
 		ctx.IsSet(flags.HeartbeatMonikerFlag.Name) ||
 		ctx.IsSet(flags.HeartbeatURLFlag.Name) {
@@ -106,7 +95,6 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		DependencySet:               depSet,
 		Driver:                      *driverConfig,
 		Beacon:                      NewBeaconEndpointConfig(ctx),
-		InteropConfig:               NewSupervisorEndpointConfig(ctx),
 		RPC:                         rpc.ReadCLIConfig(ctx),
 		Metrics:                     opmetrics.ReadCLIConfig(ctx),
 		Pprof:                       oppprof.ReadCLIConfig(ctx),
@@ -118,7 +106,6 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		SafeDBPath:                  ctx.String(flags.SafeDBPath.Name),
 		Sync:                        *syncConfig,
 		L2FollowSource:              NewL2FollowSourceConfig(ctx),
-		RollupHalt:                  haltOption,
 
 		ConductorEnabled: ctx.Bool(flags.ConductorEnabledFlag.Name),
 		ConductorRpc: func(context.Context) (string, error) {
@@ -149,21 +136,14 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 	return cfg, nil
 }
 
-func NewSupervisorEndpointConfig(ctx cliiface.Context) *interop.Config {
-	return &interop.Config{
-		RPCAddr:          ctx.String(flags.InteropRPCAddr.Name),
-		RPCPort:          ctx.Int(flags.InteropRPCPort.Name),
-		RPCJwtSecretPath: ctx.String(flags.InteropJWTSecret.Name),
-	}
-}
-
 func NewBeaconEndpointConfig(ctx cliiface.Context) config.L1BeaconEndpointSetup {
 	return &config.L1BeaconEndpointConfig{
-		BeaconAddr:             ctx.String(flags.BeaconAddr.Name),
-		BeaconHeader:           ctx.String(flags.BeaconHeader.Name),
-		BeaconFallbackAddrs:    ctx.StringSlice(flags.BeaconFallbackAddrs.Name),
-		BeaconCheckIgnore:      ctx.Bool(flags.BeaconCheckIgnore.Name),
-		BeaconFetchAllSidecars: ctx.Bool(flags.BeaconFetchAllSidecars.Name),
+		BeaconAddr:                 ctx.String(flags.BeaconAddr.Name),
+		BeaconHeader:               ctx.String(flags.BeaconHeader.Name),
+		BeaconFallbackAddrs:        ctx.StringSlice(flags.BeaconFallbackAddrs.Name),
+		BeaconCheckIgnore:          ctx.Bool(flags.BeaconCheckIgnore.Name),
+		BeaconFetchAllSidecars:     ctx.Bool(flags.BeaconFetchAllSidecars.Name),
+		BeaconSlotDurationOverride: ctx.Uint64(flags.BeaconSlotDurationOverride.Name),
 	}
 }
 
@@ -274,12 +254,7 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	defer file.Close()
 
 	var rollupConfig rollup.Config
-	dec := json.NewDecoder(file)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&rollupConfig); err != nil {
-		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
-	}
-	return &rollupConfig, nil
+	return &rollupConfig, rollupConfig.ParseRollupConfig(file)
 }
 
 func applyOverrides(ctx cliiface.Context, rollupConfig *rollup.Config) {
@@ -337,12 +312,22 @@ func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.Chai
 	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
 }
 
-func NewDependencySetFromCLI(cli cliiface.Context) (depset.DependencySet, error) {
-	if !cli.IsSet(flags.InteropDependencySet.Name) {
-		return nil, nil
+// NewDependencySetFromCLI returns the dep set from --interop.dependency-set if
+// set, otherwise from the superchain-registry. An unknown chain yields
+// (nil, nil); config.Check then errors iff InteropTime is set.
+func NewDependencySetFromCLI(cli cliiface.Context, chainID eth.ChainID) (depset.DependencySet, error) {
+	if cli.IsSet(flags.InteropDependencySet.Name) {
+		loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}
+		return loader.LoadDependencySet()
 	}
-	loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}
-	return loader.LoadDependencySet()
+	ds, err := depset.FromRegistry(chainID)
+	if err != nil {
+		if errors.Is(err, superchain.ErrUnknownChain) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("load dependency set from superchain-registry: %w", err)
+	}
+	return ds, nil
 }
 
 func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {

@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"slices"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -472,7 +474,33 @@ func TestCreateTx(t *testing.T) {
 			bond := big.NewInt(49284294829)
 			stubRpc.SetResponse(factoryAddr, methodInitBonds, rpcblock.Latest, []interface{}{gameType}, []interface{}{bond})
 			stubRpc.SetResponse(factoryAddr, methodCreateGame, rpcblock.Latest, []interface{}{gameType, outputRoot, l2BlockNum}, nil)
-			tx, err := factory.CreateTx(context.Background(), gameType, outputRoot, uint64(456))
+			tx, err := factory.CreateTx(context.Background(), gameType, outputRoot, uint64(456), uint64(0))
+			require.NoError(t, err)
+			stubRpc.VerifyTxCandidate(tx)
+			require.NotNil(t, tx.Value)
+			require.Truef(t, bond.Cmp(tx.Value) == 0, "Expected bond %v but was %v", bond, tx.Value)
+		})
+	}
+}
+
+func TestCreateTxSuperGame(t *testing.T) {
+	for _, version := range factoryVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
+			gameType := uint32(gameTypes.SuperCannonKonaGameType)
+			outputRoot := common.Hash{0x01}
+			l2BlockNum := uint64(456)
+			l2ChainID := uint64(11155420)
+			extraData := make([]byte, 1+8+32+32)
+			extraData[0] = 0x01
+			binary.BigEndian.PutUint64(extraData[1:9], l2BlockNum)
+			copy(extraData[9:41], common.BigToHash(new(big.Int).SetUint64(l2ChainID)).Bytes())
+			copy(extraData[41:], outputRoot.Bytes())
+			rootClaim := crypto.Keccak256Hash(extraData)
+			bond := big.NewInt(49284294829)
+			stubRpc.SetResponse(factoryAddr, methodInitBonds, rpcblock.Latest, []interface{}{gameType}, []interface{}{bond})
+			stubRpc.SetResponse(factoryAddr, methodCreateGame, rpcblock.Latest, []interface{}{gameType, rootClaim, extraData}, nil)
+			tx, err := factory.CreateTx(context.Background(), gameType, outputRoot, l2BlockNum, l2ChainID)
 			require.NoError(t, err)
 			stubRpc.VerifyTxCandidate(tx)
 			require.NotNil(t, tx.Value)

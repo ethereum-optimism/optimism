@@ -53,7 +53,7 @@ Then run the image, for example:
 ```bash
 # Run with all required flags
 docker run -d --name op-challenger \
-  -e OP_CHALLENGER_TRACE_TYPE=permissioned,cannon \
+  -e OP_CHALLENGER_GAME_TYPES=permissioned,cannon \
   -e OP_CHALLENGER_PRESTATES_URL=<YOUR_PRESTATES_URL> \
   -e OP_CHALLENGER_L1_ETH_RPC=<YOUR_L1_RPC_URL> \
   -e OP_CHALLENGER_GAME_FACTORY_ADDRESS=<YOUR_DISPUTE_GAME_FACTORY> \
@@ -71,7 +71,7 @@ Replace `<YOUR_PRESTATES_URL>` with your actual prestates URL.
 If your deployment requires building from source, you can alternatively use:
 
 ```bash
-git clone https://github.com/ethereum-optimism/optimism -b op-challenger/v1.3.3 --recurse-submodules
+git clone https://github.com/ethereum-optimism/optimism -b op-challenger/<latest_version> --recurse-submodules
 cd optimism
 make op-challenger
 ```
@@ -90,18 +90,18 @@ Even if your chain is not included in the [superchain-registry](/op-stack/protoc
 - `genesis-l2.json` - Your L2 genesis file
 ```
 
-### Enable cannon trace type
+### Enable cannon game type
 
 Configure `op-challenger` to support both permissioned and permissionless games by setting:
 
 ```bash
---trace-type permissioned,cannon
+--game-types permissioned,cannon
 ```
 
 Or by setting the environment variable:
 
 ```
-OP_CHALLENGER_TRACE_TYPE=permissioned,cannon
+OP_CHALLENGER_GAME_TYPES=permissioned,cannon
 ```
 
 ### Configure prestates access
@@ -112,14 +112,11 @@ Replace the `--cannon-prestate` flag with `--prestates-url`, which points to a s
 --prestates-url <URL_TO_PRESTATES_DIRECTORY>
 ```
 
-The URL can use `http`, `https`, or `file` protocols. Each prestate should be named as `<PRESTATE_HASH>.json` or `<PRESTATE_HASH>.bin.gz`.
+The URL can use `http`, `https`, or `file` protocols. Each prestate should be named as `<PRESTATE_HASH>.bin.gz`.
 
 ### Building required prestates for chains not in the superchain-registry
 
-You'll need to deploy two new dispute game contracts with the new absolute prestate:
-
-1.  `FaultDisputeGame`
-2.  `PermissionedDisputeGame`
+You'll need a new absolute prestate to register with the `FaultDisputeGame` and `PermissionedDisputeGame` (see [Section 2](#2-deploy-and-configure-smart-contracts-using-opcm)).
 
 <Info>
   The initial prestate used for permissioned games doesn't include the necessary chain configuration for the Fault Proof System. The assumption is that the chain operator, the single permissioned actor, will not challenge their own games. So the absolute prestate on the initial `PermissionedDisputeGame` will never be used.

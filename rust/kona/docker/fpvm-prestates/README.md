@@ -6,23 +6,24 @@ Cannon is built from the local monorepo source.
 
 ## Usage
 
-### `kona-client` + `cannon` prestate artifacts
+### Build all reproducible `kona-client` + `cannon` prestate artifacts
 
 ```sh
-# Produce the prestate artifacts for `kona-client` running on `cannon` (built from local monorepo source)
-just cannon <kona|kona-int>
+# From the monorepo root
+just reproducible-prestate-kona
 ```
 
-### `kona-client` + `cannon` prestate artifacts with custom output directory
+This builds both supported variants:
 
-```sh
-just cannon <kona|kona-int> <artifacts_output_dir>
-```
+- `kona-client` into `rust/kona/prestate-artifacts-cannon`
+- `kona-client-int` into `rust/kona/prestate-artifacts-cannon-interop`
 
-### `kona-client` + `cannon` prestate artifacts for custom chains
+### Build reproducible prestate artifacts for custom chains
 
 To create a reproducible kona-client prestate build that supports custom or devnet chain configurations that are not in the superchain-registry:
 
 ```sh
-just cannon <kona|kona-int> <artifacts_output_dir> <custom_config_dir>
+cd rust
+KONA_CUSTOM_CONFIGS_DIR=<custom_config_dir> \
+  just build-kona-reproducible-prestate-variant <kona-client|kona-client-int> <artifacts_output_dir>
 ```

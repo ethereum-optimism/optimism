@@ -200,13 +200,15 @@ func NewBurst(blockTime time.Duration, opts ...AIMDOption) *Burst {
 // encountered.
 func (b *Burst) Run(t devtest.T, spammer Spammer) {
 	ctx, cancel := context.WithCancel(t.Ctx())
-	defer cancel()
 	t = t.WithCtx(ctx)
 
 	aimd := setupAIMD(t, b.blockTime, b.opts...)
 
 	var wg sync.WaitGroup
-	defer wg.Wait()
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
 	for range aimd.Ready() {
 		wg.Add(1)
 		go func() {
@@ -270,7 +272,11 @@ func (s *Steady) Run(t devtest.T, spammer Spammer) {
 					if errors.Is(err, t.Ctx().Err()) {
 						return
 					}
-					t.Require().NoError(err)
+					// A transient sampling failure (e.g. dial timeout under load) is
+					// not a test failure. Log and try again next tick; leave the AIMD
+					// state unchanged so the current RPS is preserved.
+					t.Logger().Warn("Steady sampler failed to read unsafe head", "err", err)
+					continue
 				}
 				gasTarget := unsafe.GasLimit() / s.elasticityMultiplier
 				// Apply backpressure when we meet or exceed the gas target.

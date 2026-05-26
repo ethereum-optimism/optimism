@@ -8,11 +8,10 @@ import (
 	"runtime"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -83,8 +82,7 @@ func setRespectedGameTypeForRuntime(
 }
 
 // addGameTypesForRuntime uses OPCMv2.upgrade to configure dispute game types.
-// The V2 upgrade requires exactly 3 game configs (CANNON, PERMISSIONED_CANNON, CANNON_KONA)
-// in that order. Game types in enabledGameTypes are enabled; the rest are disabled.
+// Game types in enabledGameTypes are enabled; the rest are disabled.
 func addGameTypesForRuntime(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -103,30 +101,52 @@ func addGameTypesForRuntime(
 	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
 
+	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
+
 	chainOps := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
-
-	l1PAO, err := keys.Address(chainOps(devkeys.L1ProxyAdminOwnerRole))
-	require.NoError(err, "failed to get l1 proxy admin owner address")
-
 	proposer, err := keys.Address(chainOps(devkeys.ProposerRole))
 	require.NoError(err, "failed to get proposer address")
-
 	challenger, err := keys.Address(chainOps(devkeys.ChallengerRole))
 	require.NoError(err, "failed to get challenger address")
 
-	// Build enabled set for quick lookup.
 	enabled := make(map[gameTypes.GameType]bool)
 	for _, gt := range enabledGameTypes {
 		enabled[gt] = true
 	}
-
 	initBond := eth.GWei(80_000_000).ToBig() // 0.08 ETH
 
-	// OPCMv2 requires all 7 game configs in order:
-	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_CANNON, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
 	cannonPrestate := PrestateForGameType(t, gameTypes.CannonGameType)
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 
+	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
+	if enabled[gameTypes.ZKDisputeGameType] {
+		// Deploy ZKMockVerifier so the verifier address has deployed code, satisfying the
+		// on-chain ZKDG-80 check (verifier.code.length > 0). ZK proofs are never verified
+		// in devstack — the smoke test only checks game registration.
+		_, filename, _, ok := runtime.Caller(0)
+		require.Truef(ok, "failed to get caller filename for ZKMockVerifier path")
+		monorepoDir, mErr := op_service.FindMonorepoRoot(filename)
+		require.NoError(mErr, "failed to find monorepo root for ZKMockVerifier")
+		artifactPath := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts", "ZKMockVerifier.sol", "ZKMockVerifier.json")
+		zkArtifact, aErr := foundry.ReadArtifact(artifactPath)
+		require.NoError(aErr, "failed to read ZKMockVerifier artifact")
+		deployTx := txplan.NewPlannedTx(
+			txplan.WithChainID(client),
+			txplan.WithPrivateKey(l1PAOKey),
+			txplan.WithPendingNonce(client),
+			txplan.WithAgainstLatestBlockEthClient(client),
+			txplan.WithData(zkArtifact.Bytecode.Object),
+			txplan.WithEstimator(client, true),
+			txplan.WithRetrySubmission(client, 5, retry.Exponential()),
+			txplan.WithRetryInclusion(client, 5, retry.Exponential()),
+		)
+		receipt, rErr := deployTx.Included.Eval(t.Ctx())
+		require.NoError(rErr, "failed to deploy ZKMockVerifier")
+		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t, receipt.ContractAddress)
+	}
+
+	// OPCMv2 requires all 6 game configs in order:
+	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
 	configs := []embedded.DisputeGameConfig{
 		{
 			Enabled:  enabled[gameTypes.CannonGameType],
@@ -154,28 +174,15 @@ func addGameTypesForRuntime(
 				AbsolutePrestate: cannonKonaPrestate,
 			},
 		},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
 		{
-			Enabled:  false,
-			InitBond: new(big.Int),
-			GameType: embedded.GameTypeSuperCannon,
-		},
-		{
-			Enabled:  false,
-			InitBond: new(big.Int),
-			GameType: embedded.GameTypeSuperPermCannon,
-		},
-		{
-			Enabled:  false,
-			InitBond: new(big.Int),
-			GameType: embedded.GameTypeSuperCannonKona,
-		},
-		{
-			Enabled:  false,
-			InitBond: new(big.Int),
-			GameType: embedded.GameTypeZKDisputeGame,
+			Enabled:             enabled[gameTypes.ZKDisputeGameType],
+			InitBond:            initBond,
+			GameType:            embedded.GameTypeZKDisputeGame,
+			ZKDisputeGameConfig: zkDisputeGameConfig,
 		},
 	}
-
 	// Zero out init bond for disabled games.
 	for i := range configs {
 		if !configs[i].Enabled {
@@ -183,49 +190,33 @@ func addGameTypesForRuntime(
 		}
 	}
 
-	upgradeInput := embedded.UpgradeOPChainInput{
+	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
+	require.NoError(err, "failed to download artifacts")
+
+	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
 		Prank: l1PAO,
 		Opcm:  l2Net.opcmImpl,
 		UpgradeInputV2: &embedded.UpgradeInputV2{
 			SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
 			DisputeGameConfigs: configs,
 			ExtraInstructions: []embedded.ExtraInstruction{
-				{
-					Key:  "PermittedProxyDeployment",
-					Data: []byte("DelayedWETH"),
-				},
+				{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
 			},
 		},
+	})
+}
+
+// ZKDisputeGameConfigForRuntime returns a ZKDisputeGameConfig for use in devstack/test environments.
+// verifier must be a deployed contract address (code.length > 0); use deployMockZKVerifier for devstack.
+// AbsolutePrestate is a fixed dummy hash — ZK proofs are never verified in devstack.
+func ZKDisputeGameConfigForRuntime(t devtest.CommonT, verifier common.Address) *embedded.ZKDisputeGameConfig {
+	return &embedded.ZKDisputeGameConfig{
+		AbsolutePrestate:     common.Hash{0x01}, // dummy for devstack, not validated at claim time
+		Verifier:             verifier,
+		MaxChallengeDuration: 604800, // 7 days
+		MaxProveDuration:     259200, // 3 days
+		ChallengerBond:       eth.GWei(80_000_000).ToBig(),
 	}
-
-	// Run UpgradeOPChain.s.sol via a forked script host to produce calldata.
-	loc := LocalArtifacts(t)
-	artifactsFS, err := artifacts.Download(t.Ctx(), loc, ioutil.NoopProgressor(), t.TempDir())
-	require.NoError(err, "failed to download artifacts")
-
-	bcaster := new(broadcaster.CalldataBroadcaster)
-	host, err := env.DefaultForkedScriptHost(
-		t.Ctx(),
-		bcaster,
-		t.Logger(),
-		common.Address{'D'},
-		artifactsFS,
-		rpcClient,
-	)
-	require.NoError(err, "failed to create script host")
-
-	err = embedded.Upgrade(host, upgradeInput)
-	require.NoError(err, "failed to run upgrade script for add game types")
-
-	calldata, err := bcaster.Dump()
-	require.NoError(err, "failed to dump calldata")
-	require.Len(calldata, 1, "calldata must contain one entry")
-
-	l1PAOKey, err := keys.Secret(chainOps(devkeys.L1ProxyAdminOwnerRole))
-	require.NoError(err, "failed to get l1 proxy admin owner key")
-
-	t.Log("Executing opcmV2.upgrade via SetCode delegatecall")
-	delegateCallWithSetCode(t, l1PAOKey, client, l2Net.opcmImpl, calldata[0].Data)
 }
 
 func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.Hash {

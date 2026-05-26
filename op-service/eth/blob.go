@@ -91,7 +91,7 @@ func VerifyBlobProof(blob *Blob, commitment kzg4844.Commitment, proof kzg4844.Pr
 // of the data.
 func (b *Blob) FromData(data Data) error {
 	if len(data) > MaxBlobDataSize {
-		return fmt.Errorf("%w: len=%v", ErrBlobInputTooLarge, data)
+		return fmt.Errorf("%w: len=%d", ErrBlobInputTooLarge, len(data))
 	}
 	b.Clear()
 

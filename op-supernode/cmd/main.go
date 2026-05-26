@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -139,6 +138,9 @@ func createVirtualNodeConfigs(cliCtx *cli.Context, cfg *config.CLIConfig, l log.
 		}
 		vnCfgs[eth.ChainIDFromUInt64(chainID)] = cfg
 	}
+	if err := applySupernodeDependencySet(cfg, vnCfgs); err != nil {
+		return nil, err
+	}
 	return vnCfgs, nil
 }
 
@@ -152,30 +154,4 @@ func warnSupernodeOwnedFlags(vcli *flags.VirtualCLI, chainID uint64, l log.Logge
 				"flag", name, "chain", chainID)
 		}
 	}
-}
-
-func withNoP2P(vcli *flags.VirtualCLI) error {
-	vcli.WithBoolOverride(opnodeflags.DisableP2PName, true)
-	vcli.WithStringOverride(opnodeflags.P2PPrivPathName, "")
-	vcli.WithStringOverride(opnodeflags.PeerstorePathName, "")
-	vcli.WithStringOverride(opnodeflags.DiscoveryPathName, "")
-	vcli.WithUintOverride(opnodeflags.ListenTCPPortName, 0)
-	vcli.WithUintOverride(opnodeflags.ListenUDPPortName, 0)
-	return nil
-}
-
-func withNamespacedP2P(vcli *flags.VirtualCLI, datadir string, namespace string) error {
-	// Configure per-VN P2P using namespaced DataDir and dynamic ports
-	p2pDir := filepath.Join(datadir, namespace, "p2p")
-	// Ensure per-VN p2p directory exists for key and databases
-	if err := os.MkdirAll(p2pDir, 0o700); err != nil {
-		return fmt.Errorf("failed creating p2p dir for chain %s: %w", namespace, err)
-	}
-	vcli.WithStringOverride(opnodeflags.P2PPrivPathName, filepath.Join(p2pDir, "opnode_p2p_priv.txt"))
-	vcli.WithStringOverride(opnodeflags.PeerstorePathName, filepath.Join(p2pDir, "peerstore_db"))
-	vcli.WithStringOverride(opnodeflags.DiscoveryPathName, filepath.Join(p2pDir, "discovery_db"))
-	// Force dynamic TCP/UDP listen ports to avoid collisions
-	vcli.WithUintOverride(opnodeflags.ListenTCPPortName, 0)
-	vcli.WithUintOverride(opnodeflags.ListenUDPPortName, 0)
-	return nil
 }

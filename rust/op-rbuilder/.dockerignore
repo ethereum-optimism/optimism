@@ -1,0 +1,14 @@
+/cargo
+/data
+/mev-test-contract/cache
+/mev-test-contract/out
+/target
+/scripts/benchmark-results.*
+/test/
+/integration_logs
+Dockerfile
+
+# editors
+.code
+.idea
+.vscode

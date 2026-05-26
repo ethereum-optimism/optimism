@@ -35,8 +35,8 @@ pub use eip1559::{
     decode_jovian_extra_data, encode_holocene_extra_data, encode_jovian_extra_data,
 };
 
-pub mod sdm;
-pub use sdm::*;
+pub mod post_exec;
+pub use post_exec::*;
 
 mod source;
 pub use source::*;
@@ -45,6 +45,9 @@ mod block;
 pub use block::OpBlock;
 
 pub mod interop;
+
+pub mod nuts;
+pub use nuts::{NetworkUpgradeTransaction, NutBundle, NutBundleError};
 
 pub mod predeploys;
 pub use predeploys::L2_TO_L1_MESSAGE_PASSER_ADDRESS;

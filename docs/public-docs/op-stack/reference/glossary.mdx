@@ -34,9 +34,9 @@ reality the block time is variable as some time slots might be skipped. Pre-merg
 
 ### Delegation
 
-Refers to the process of assigning the voting power of your tokens to a designated community member, known as a delegate. 
-Delegates are individuals who have volunteered to actively participate in the governance of the Optimism Token House. 
-By delegating your voting power, you enable these delegates to vote on governance matters on your behalf, while you retain full ownership of your tokens and the freedom to use them as you wish. 
+Refers to the process of assigning the voting power of your tokens to a designated community member, known as a delegate.
+Delegates are individuals who have volunteered to actively participate in the governance of the Optimism Token House.
+By delegating your voting power, you enable these delegates to vote on governance matters on your behalf, while you retain full ownership of your tokens and the freedom to use them as you wish.
 You can also change your chosen delegate at any time, allowing for flexibility in how your voting power is represented in the governance process.
 
 ### EOA or externally owned account
@@ -53,8 +53,8 @@ at the request of the L1 consensus layer. On L2, the executed blocks are freshly
 
 ### Optimism collective
 
-The Optimism Collective is a band of people, projects, and companies working together to build a better economy for everyone, 
-united by a mutually beneficial pact to adhere to the axiom of impact=profit — the principle that positive impact to the collective should be rewarded with profit to the individual. 
+The Optimism Collective is a band of people, projects, and companies working together to build a better economy for everyone,
+united by a mutually beneficial pact to adhere to the axiom of impact=profit — the principle that positive impact to the collective should be rewarded with profit to the individual.
 New model of digital democratic governance optimized to drive rapid and sustained growth of a decentralized ecosystem.
 
 
@@ -269,7 +269,7 @@ It also submits [output roots](#l2-output-root) to L1.
 
 Range of L1 blocks from which a [sequencing epoch](#sequencing-epoch) can be derived.
 A sequencing window whose first L1 block has number `N` contains [batcher transactions](#batcher-transaction) for epoch
-`N`. The window contains blocks `(N, N + SWS)` where `SWS` is the sequencer window size. 
+`N`. The window contains blocks `(N, N + SWS)` where `SWS` is the sequencer window size.
 The current default `SWS` is 3600 epochs.
 Additionally, the first block in the window defines the [depositing transactions](#depositing-transaction) which determine the
 [deposits](#deposit) to be included in the first L2 block of the epoch.
@@ -283,6 +283,31 @@ sequencing window. Epochs can have variable size, subject to some constraints.
 ### OP Stack interop cluster
 
 The network of OP Stack chains connected by native interoperability. Not yet live. Chains that are part of the OP Stack ecosystem share security and a common development stack (the OP Stack). The interop cluster specifically refers to the subset of chains connected by the OP Stack interoperability layer.
+
+### Dependency set
+
+The set of chains that a given chain accepts initiating messages from. A chain's local block cannot become safe until every initiating message it depends on has also been derived from L1. The *transitive* dependency set extends this to the dependencies of those chains, and so on. The [OP Stack interop cluster](#op-stack-interop-cluster) is configured as a fully-connected dependency set: every chain in the set has every other chain in its dependency set.
+
+### Supernode
+
+A component that runs the consensus layer of every chain in a [dependency set](#dependency-set) together as in-memory [virtual nodes](#virtual-node) inside one binary. The supernode shares the L1 client, L1 beacon client, JSON-RPC surface, and metrics across chains, and verifies that every cross-chain message a chain depends on has been reproduced from L1 before promoting blocks to "safe". It connects to an execution client for each chain using the engine API. Often referred to as `op-supernode` after the binary name. See the [supernode explainer](/op-stack/interop/supernode) for the architecture.
+
+### Chain container
+
+The [supernode](#supernode)'s wrapper around a single chain. A chain container hosts one [virtual node](#virtual-node), drives that chain's execution engine via an engine controller, and exposes a stable interface the rest of the supernode uses to derive blocks, fetch receipts, and answer output-root queries.
+
+### Virtual node
+
+A consensus-layer node hosted in-process inside a [supernode](#supernode), rather than as a separate operating-system process. Today the only virtual node implementation is op-node itself, hosted as a library.
+
+### Super root
+
+A commitment over verified L2 blocks across a [dependency set](#dependency-set) at a given timestamp. Produced by the supernode's `superroot_atTimestamp` RPC and consumed by the fault proof system as the input it needs to generate an interop-aware proof.
+
+### Light CL
+
+A mode of operation for the consensus layer (op-node or kona-node) that turns off local L1-to-L2 derivation and mirrors safe and finalized state from a trusted external source over the `optimism_syncStatus` RPC. A light CL still advances the unsafe chain over P2P. Pairs with a [supernode](#supernode) acting as the safe source for a fleet of light CLs.
+Learn more at the [Light Node Topology Notice Page](0xE69104DD872222E1Bd7C1adD47588F8C62ed64C0).
 
 ### Shared L1 Bridge
 

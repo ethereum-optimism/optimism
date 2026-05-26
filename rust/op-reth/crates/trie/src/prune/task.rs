@@ -7,37 +7,34 @@ use tokio::{
 };
 use tracing::info;
 
-const PRUNE_BATCH_SIZE: u64 = 200;
-
 /// Periodic pruner task: constructs the pruner and runs it every interval.
 #[derive(Debug)]
-pub struct OpProofStoragePrunerTask<P, H> {
-    pruner: OpProofStoragePruner<P, H>,
+pub struct OpProofStoragePrunerTask<S, H> {
+    pruner: OpProofStoragePruner<S, H>,
     min_block_interval: u64,
     task_run_interval: Duration,
 }
 
-impl<P, H> OpProofStoragePrunerTask<P, H>
+impl<S, H> OpProofStoragePrunerTask<S, H>
 where
-    P: OpProofsStore,
+    S: OpProofsStore,
     H: BlockHashReader,
 {
     /// Initialize a new [`OpProofStoragePrunerTask`]
     pub fn new(
-        provider: P,
+        store: S,
         hash_reader: H,
         min_block_interval: u64,
         task_run_interval: Duration,
     ) -> Self {
-        let pruner =
-            OpProofStoragePruner::new(provider, hash_reader, min_block_interval, PRUNE_BATCH_SIZE);
+        let pruner = OpProofStoragePruner::new(store, hash_reader, min_block_interval);
         Self { pruner, min_block_interval, task_run_interval }
     }
 
     /// Run forever (until `cancel`), executing one prune pass per `task_run_interval`.
     pub async fn run(self, mut signal: GracefulShutdown) {
         info!(
-            target: "trie::pruner_task",
+            target: "trie::prune::task",
             min_block_interval = self.min_block_interval,
             interval_secs = self.task_run_interval.as_secs(),
             "Starting pruner task"
@@ -50,7 +47,7 @@ where
         loop {
             tokio::select! {
                 _ = &mut signal => {
-                    info!(target: "trie::pruner_task", "Pruner task cancelled; exiting");
+                    info!(target: "trie::prune::task", "Pruner task cancelled; exiting");
                     break;
                 }
                 _ = interval.tick() => {
@@ -59,6 +56,6 @@ where
             }
         }
 
-        info!(target: "trie::pruner_task", "Pruner task stopped");
+        info!(target: "trie::prune::task", "Pruner task stopped");
     }
 }

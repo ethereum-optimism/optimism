@@ -30,12 +30,8 @@ func TestPreinteropFaultProofs_UnsafeProposal(gt *testing.T) {
 
 func TestPreinteropFaultProofs_VariedBlockTimes(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// TODO(#19828): endTimestamp may align with a no-op transition for the slower chain,
-	// causing kona to skip the L1 data sufficiency check.
-	t.MarkFlaky("ethereum-optimism/optimism#19828")
 	sys := presets.NewSimpleInteropIsthmusSuper(
 		t,
-		presets.WithChallengerCannonKonaEnabled(),
 		presets.WithL2BlockTimes(map[eth.ChainID]uint64{
 			sysgo.DefaultL2AID: 1,
 			sysgo.DefaultL2BID: 2,
@@ -46,12 +42,8 @@ func TestPreinteropFaultProofs_VariedBlockTimes(gt *testing.T) {
 
 func TestPreinteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// TODO(#19828): endTimestamp may align with a no-op transition for the slower chain,
-	// causing kona to skip the L1 data sufficiency check.
-	t.MarkFlaky("ethereum-optimism/optimism#19828")
 	sys := presets.NewSimpleInteropIsthmusSuper(
 		t,
-		presets.WithChallengerCannonKonaEnabled(),
 		presets.WithL2BlockTimes(map[eth.ChainID]uint64{
 			sysgo.DefaultL2AID: 2,
 			sysgo.DefaultL2BID: 1,

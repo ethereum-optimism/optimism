@@ -3,6 +3,7 @@
 use crate::fpvm_evm::FpvmOpEvmFactory;
 use alloc::sync::Arc;
 use alloy_consensus::Sealed;
+use alloy_op_evm::post_exec::PostExecEvmFactoryAdapter;
 use alloy_primitives::B256;
 use core::fmt::Debug;
 use kona_derive::{EthereumDataSource, PipelineErrorKind};
@@ -128,7 +129,8 @@ where
     })?;
     l2_provider.set_cursor(cursor.clone());
 
-    let evm_factory = FpvmOpEvmFactory::new(hint_client, oracle_client);
+    let evm_factory =
+        PostExecEvmFactoryAdapter::new(FpvmOpEvmFactory::new(hint_client, oracle_client));
     let da_provider =
         EthereumDataSource::new_from_parts(l1_provider.clone(), beacon, &rollup_config);
     let pipeline = OraclePipeline::new(
@@ -139,6 +141,10 @@ where
         da_provider,
         l1_provider.clone(),
         l2_provider.clone(),
+        // Single-chain fault proof: no interop dependency set. If this chain
+        // ever schedules interop, the StatefulAttributesBuilder constructor
+        // will panic.
+        None,
     )
     .await?;
 
@@ -199,6 +205,12 @@ where
     caching_oracle
         .get_exact(PreimageKey::new_keccak256(*agreed_l2_output_root), output_preimage.as_mut())
         .await?;
+
+    if output_preimage[..32] != [0u8; 32] {
+        return Err(OracleProviderError::UnknownOutputVersion(B256::from_slice(
+            &output_preimage[..32],
+        )));
+    }
 
     output_preimage[96..128].try_into().map_err(OracleProviderError::SliceConversion)
 }

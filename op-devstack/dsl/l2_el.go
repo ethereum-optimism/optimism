@@ -13,9 +13,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -65,13 +67,30 @@ func (el *L2ELNode) BlockRefByHash(hash common.Hash) eth.L2BlockRef {
 	return block
 }
 
-func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64) CheckFunc {
+// AdvancedOption configures an AdvancedFn call.
+type AdvancedOption func(*advancedOpts)
+
+type advancedOpts struct {
+	attempts int // number of 2-second polling attempts
+}
+
+// WithTimeout overrides AdvancedFn's default polling budget. The argument is
+// the number of attempts; each attempt polls 2 seconds apart, so attempts*2
+// is the total wall-clock timeout.
+func WithTimeout(attempts int) AdvancedOption {
+	return func(o *advancedOpts) { o.attempts = attempts }
+}
+
+func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64, opts ...AdvancedOption) CheckFunc {
+	o := advancedOpts{attempts: int(block + 30)}
+	for _, opt := range opts {
+		opt(&o)
+	}
 	return func() error {
 		initial := el.BlockRefByLabel(label)
 		target := initial.Number + block
-		el.log.Info("expecting chain to advance", "chain", el.inner.ChainID(), "label", label, "target", target)
-		attempts := int(block + 3) // intentionally allow few more attempts for avoid flaking
-		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+		el.log.Info("expecting chain to advance", "chain", el.inner.ChainID(), "label", label, "target", target, "attempts", o.attempts)
+		return retry.Do0(el.ctx, o.attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
 				head := el.BlockRefByLabel(label)
 				if head.Number >= target {
@@ -89,7 +108,9 @@ func (el *L2ELNode) NotAdvancedFn(label eth.BlockLabel, attempts int) CheckFunc 
 		el.log.Info("expecting chain not to advance", "chain", el.inner.ChainID(), "label", label)
 		initial := el.BlockRefByLabel(label)
 		for range attempts {
-			time.Sleep(2 * time.Second)
+			if err := clock.SystemClock.SleepCtx(el.ctx, 2*time.Second); err != nil { // nosemgrep: flake-sleep-in-test -- asserting absence of progress; no chain event to wait on
+				return err
+			}
 			head := el.BlockRefByLabel(label)
 			el.log.Info("chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", initial.Number)
 			if head.Hash == initial.Hash {
@@ -445,20 +466,29 @@ func (el *L2ELNode) FinishedELSync(refNode *L2ELNode, unsafe, safe, finalized ui
 	}))
 }
 
-func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl suptypes.SafetyLevel) eth.BlockID {
+func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl safety.Level) eth.BlockID {
 	el.require.Equal(chainID, el.inner.ChainID(), "chain ID mismatch")
 	var blockRef eth.L2BlockRef
 	switch lvl {
-	case suptypes.Finalized:
+	case safety.Finalized:
 		blockRef = el.BlockRefByLabel(eth.Finalized)
-	case suptypes.CrossSafe, suptypes.LocalSafe:
+	case safety.CrossSafe, safety.LocalSafe:
 		blockRef = el.BlockRefByLabel(eth.Safe)
-	case suptypes.CrossUnsafe, suptypes.LocalUnsafe:
+	case safety.CrossUnsafe, safety.LocalUnsafe:
 		blockRef = el.BlockRefByLabel(eth.Unsafe)
 	default:
 		el.require.NoError(errors.New("invalid safety level"))
 	}
 	return blockRef.ID()
+}
+
+func (el *L2ELNode) ChainBlockID(chainID eth.ChainID, number uint64) (eth.BlockID, error) {
+	el.require.Equal(chainID, el.inner.ChainID(), "chain ID mismatch")
+	ref, err := el.inner.L2EthClient().L2BlockRefByNumber(el.ctx, number)
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	return ref.ID(), nil
 }
 
 // WaitForReceipt waits for a transaction receipt to be available, retrying until found or timeout.
@@ -476,16 +506,24 @@ func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
 	return receipt
 }
 
-func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) CheckFunc {
+func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
 	return MatchedFn(el, refNode, el.log, el.ctx, lvl, el.ChainID(), attempts)
 }
 
-func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) {
+func (el *L2ELNode) InSyncFn(other SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
+	return InSyncFn(el, other, el.log, el.ctx, lvl, el.ChainID(), attempts)
+}
+
+func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl safety.Level, attempts int) {
 	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
 }
 
+func (el *L2ELNode) InSync(other SyncStatusProvider, lvl safety.Level, attempts int) {
+	el.require.NoError(el.InSyncFn(other, lvl, attempts)())
+}
+
 func (el *L2ELNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {
-	el.Matched(refNode, suptypes.LocalUnsafe, attempts)
+	el.Matched(refNode, safety.LocalUnsafe, attempts)
 }
 
 // WaitForPendingNonceMatchFn returns a lambda that waits for the pending nonce of an account to match the provided reference nonce

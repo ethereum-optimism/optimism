@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum/go-ethereum/params"
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
@@ -33,6 +32,7 @@ type Metricer interface {
 	SetDerivationIdle(status bool)
 	SetSequencerState(active bool)
 	RecordPipelineReset()
+	RecordFollowSourceRequest(result string)
 	RecordSequencingError()
 	RecordPublishingError()
 	RecordDerivationError()
@@ -71,7 +71,6 @@ type Metricer interface {
 	RecordIPUnban()
 	RecordDial(allow bool)
 	RecordAccept(allow bool)
-	ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion)
 }
 
 // Metrics tracks all the metrics for the op-node.
@@ -84,7 +83,8 @@ type Metrics struct {
 	L1SourceCache *metrics.CacheMetrics
 	L2SourceCache *metrics.CacheMetrics
 
-	L2FollowSourceCache *metrics.CacheMetrics
+	L2FollowSourceCache  *metrics.CacheMetrics
+	FollowSourceRequests *prometheus.CounterVec
 
 	DerivationIdle prometheus.Gauge
 
@@ -145,12 +145,6 @@ type Metrics struct {
 
 	ChannelInputBytes prometheus.Counter
 
-	// Protocol version reporting
-	// Delta = params.ProtocolVersionComparison
-	ProtocolVersionDelta *prometheus.GaugeVec
-	// ProtocolVersions is pseudo-metric to report the exact protocol version info
-	ProtocolVersions *prometheus.GaugeVec
-
 	registry *prometheus.Registry
 	factory  metrics.Factory
 }
@@ -195,6 +189,11 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 		L2SourceCache: metrics.NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
 
 		L2FollowSourceCache: metrics.NewCacheMetrics(factory, ns, "l2_follow_source_cache", "L2 Follow source cache"),
+		FollowSourceRequests: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "follow_source_requests_total",
+			Help:      "Count of follow source requests by result",
+		}, []string{"result"}),
 
 		DerivationIdle: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -384,24 +383,6 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Help:      "Number of sequencer block sealing jobs",
 		}),
 
-		ProtocolVersionDelta: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "protocol_version_delta",
-			Help:      "Difference between local and global protocol version, and execution-engine, per type of version",
-		}, []string{
-			"type",
-		}),
-		ProtocolVersions: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "protocol_versions",
-			Help:      "Pseudo-metric tracking recommended and required protocol version info",
-		}, []string{
-			"local",
-			"engine",
-			"recommended",
-			"required",
-		}),
-
 		AltDAMetrics: altda.MakeMetrics(ns, factory),
 
 		registry: registry,
@@ -498,6 +479,10 @@ func (m *Metrics) RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.B
 	m.SequencerInconsistentL1Origin.Record()
 	m.RecordRef("l1_origin", "inconsistent_from", from.Number, 0, from.Hash)
 	m.RecordRef("l1_origin", "inconsistent_to", to.Number, 0, to.Hash)
+}
+
+func (m *Metrics) RecordFollowSourceRequest(result string) {
+	m.FollowSourceRequests.WithLabelValues(result).Inc()
 }
 
 func (m *Metrics) RecordSequencerReset() {
@@ -640,13 +625,6 @@ func (m *Metrics) RecordAccept(allow bool) {
 		m.Accepts.WithLabelValues("false").Inc()
 	}
 }
-func (m *Metrics) ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion) {
-	m.ProtocolVersionDelta.WithLabelValues("local_recommended").Set(float64(local.Compare(recommended)))
-	m.ProtocolVersionDelta.WithLabelValues("local_required").Set(float64(local.Compare(required)))
-	m.ProtocolVersionDelta.WithLabelValues("engine_recommended").Set(float64(engine.Compare(recommended)))
-	m.ProtocolVersionDelta.WithLabelValues("engine_required").Set(float64(engine.Compare(required)))
-	m.ProtocolVersions.WithLabelValues(local.String(), engine.String(), recommended.String(), required.String()).Set(1)
-}
 
 type noopMetricer struct {
 	metrics.NoopRPCMetrics
@@ -668,6 +646,9 @@ func (m *noopMetricer) SetSequencerState(active bool) {
 }
 
 func (n *noopMetricer) RecordPipelineReset() {
+}
+
+func (n *noopMetricer) RecordFollowSourceRequest(result string) {
 }
 
 func (n *noopMetricer) RecordSequencingError() {
@@ -771,6 +752,4 @@ func (n *noopMetricer) RecordDial(allow bool) {
 }
 
 func (n *noopMetricer) RecordAccept(allow bool) {
-}
-func (n *noopMetricer) ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion) {
 }

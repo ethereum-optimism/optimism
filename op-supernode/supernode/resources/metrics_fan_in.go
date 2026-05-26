@@ -21,6 +21,7 @@ type MetricsFanIn struct {
 	mu           sync.RWMutex
 	numGatherers int
 	gm           map[string]prometheus.Gatherer // keyed by decimal chain ID
+	extra        []prometheus.Gatherer          // additional gatherers (e.g. supernode-level metrics)
 	handler      http.Handler
 }
 
@@ -32,16 +33,31 @@ func NewMetricsFanIn(numGatherers int) *MetricsFanIn {
 		handler:      promhttp.HandlerFor(emptyRegistry, promhttp.HandlerOpts{})}
 }
 
+// AddGatherer registers an additional prometheus.Gatherer (e.g. SupernodeMetrics)
+// to be served alongside per-chain metrics. Nil gatherers are ignored.
+func (r *MetricsFanIn) AddGatherer(g prometheus.Gatherer) {
+	if g == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.extra = append(r.extra, g)
+	r.rebuildHandlerLocked()
+}
+
 func (r *MetricsFanIn) SetMetricsRegistry(key string, g prometheus.Gatherer) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.gm[key] = g
+	r.rebuildHandlerLocked()
+}
 
-	gs := make(prometheus.Gatherers, 0, r.numGatherers)
+func (r *MetricsFanIn) rebuildHandlerLocked() {
+	gs := make(prometheus.Gatherers, 0, r.numGatherers+len(r.extra))
 	for _, gr := range r.gm {
 		gs = append(gs, gr)
 	}
-
+	gs = append(gs, r.extra...)
 	r.handler = promhttp.HandlerFor(gs, promhttp.HandlerOpts{})
 }
 
