@@ -314,26 +314,10 @@ func (cl *L2CLNode) ReachedRefFn(lvl safety.Level, target eth.BlockID, attempts 
 	}
 }
 
-// ReachedTimeWithoutRegressionFn watches the given safety head until its block
-// timestamp reaches targetTime, failing immediately if the head's block number
-// ever drops below its starting value during the wait.
-//
-// The initial head must be non-zero. A zero baseline makes a regression to
-// genesis indistinguishable from "head never advanced" — a `now >= before`
-// check against a baseline of 0 always passes (0 >= 0), which is the failure
-// mode that motivated this helper. Callers must wait for the head to advance
-// past genesis before invoking, e.g. via ReachedFn(lvl, 1, ...).
-//
-// The initial head's timestamp must also be strictly before targetTime,
-// otherwise the check completes immediately and observes nothing across the
-// boundary. Callers should pick targetTime as a value the head has not yet
-// reached at snapshot time (e.g. a fork activation timestamp).
-//
-// Poll interval is 100ms so a brief regression cannot slip between polls.
-// The total wait is derived from targetTime: enough wall-clock time for the
-// head to reach targetTime plus a generous buffer that absorbs the L1 finality
-// lag (relevant for safety.Finalized) and ordinary test-runner slowness. The
-// helper also honours cl.ctx, so the surrounding test timeout still applies.
+// ReachedTimeWithoutRegressionFn waits for the head's block timestamp to reach
+// targetTime, failing on any regression. Requires a non-zero baseline behind
+// targetTime so a regression to genesis isn't vacuous (0 >= 0). Polls every
+// 100ms; deadline is targetTime + 5min.
 func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime uint64) CheckFunc {
 	return func() error {
 		initial, err := cl.headBlockRef(lvl)
@@ -346,15 +330,11 @@ func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime 
 		if initial.Time >= targetTime {
 			return fmt.Errorf("initial %s head time %d already at or past target %d; nothing to observe across the boundary", lvl, initial.Time, targetTime)
 		}
-		// Deadline is the target wall-clock time plus a 5-minute buffer that
-		// absorbs the L1 finality lag and ordinary test-runner slowness.
 		const buffer = 5 * time.Minute
 		deadline := time.Unix(int64(targetTime), 0).Add(buffer)
 		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "initial", initial.Number, "initial_time", initial.Time, "target_time", targetTime, "deadline", deadline)
 		logger.Info("Watching head for regression until target time reached")
-		// Tight 100ms poll so a brief regression cannot slip between
-		// observations. Capture any regression in regressionErr and end the
-		// wait early by returning true; the post-Eventuallyf check surfaces it.
+		// End the wait early on regression by returning true; surfaced below.
 		var regressionErr error
 		cl.require.Eventuallyf(func() bool {
 			head, err := cl.headBlockRef(lvl)

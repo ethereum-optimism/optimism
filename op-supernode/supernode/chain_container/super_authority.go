@@ -71,9 +71,11 @@ func (c *simpleChainContainer) FinalizedL2Head() (eth.BlockID, bool) {
 		return eth.BlockID{}, true
 	}
 
-	// FinalizedL2 <= LocalSafeL2; if local-safe is pre-activation, so is finalized.
-	if c.allVerifiersPreActivationAt(ss.LocalSafeL2.Time) {
-		c.log.Debug("FinalizedL2Head: all verifiers pre-activation, signaling local-finalized fallback", "localSafeTime", ss.LocalSafeL2.Time)
+	// While FinalizedL2 is pre-activation, no verifier yet has authority over
+	// finalization. Gating on LocalSafeL2 stops firing once it crosses
+	// activation, regressing FinalizedL2 to genesis (#20365).
+	if c.allVerifiersPreActivationAt(ss.FinalizedL2.Time) {
+		c.log.Debug("FinalizedL2Head: all verifiers pre-activation, signaling local-finalized fallback", "finalizedL2Time", ss.FinalizedL2.Time)
 		return eth.BlockID{}, true
 	}
 
