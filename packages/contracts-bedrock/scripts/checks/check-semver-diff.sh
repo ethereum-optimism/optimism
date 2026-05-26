@@ -101,9 +101,9 @@ if ! git rev-parse --verify --quiet "$UPSTREAM_REF" > /dev/null; then
 fi
 
 changed_files="$temp_dir/changed_files.txt"
-git diff "$UPSTREAM_REF"...HEAD --name-only > "$changed_files"
-git diff --name-only >> "$changed_files"
-git diff --cached --name-only >> "$changed_files"
+git diff --relative "$UPSTREAM_REF"...HEAD --name-only > "$changed_files"
+git diff --relative --name-only >> "$changed_files"
+git diff --relative --cached --name-only >> "$changed_files"
 
 if ! grep -qx "$SEMVER_LOCK" "$changed_files"; then
   echo "No changes detected in semver-lock.json"
