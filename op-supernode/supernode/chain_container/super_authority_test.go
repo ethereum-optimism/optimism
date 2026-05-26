@@ -494,6 +494,7 @@ func TestChainContainer_FinalizedL2Head_PostActivation_EmptyVerifierNoFallback(t
 	setSyncStatus(t, cc, &eth.SyncStatus{
 		FinalizedL1: eth.L1BlockRef{Number: 400},
 		LocalSafeL2: eth.L2BlockRef{Number: 600, Hash: [32]byte{0xdd}, Time: 1500},
+		FinalizedL2: eth.L2BlockRef{Number: 550, Hash: [32]byte{0xee}, Time: 1400},
 	})
 
 	verifier := &mockVerificationActivityForSuperAuthority{
@@ -515,6 +516,7 @@ func TestChainContainer_FinalizedL2Head_PostActivation_FinalizedBlockReturned(t 
 	setSyncStatus(t, cc, &eth.SyncStatus{
 		FinalizedL1: eth.L1BlockRef{Number: 400},
 		LocalSafeL2: eth.L2BlockRef{Number: 600, Hash: [32]byte{0xdd}, Time: 1500},
+		FinalizedL2: eth.L2BlockRef{Number: 550, Hash: [32]byte{0xee}, Time: 1400},
 	})
 
 	finalizedBlock := eth.BlockID{Hash: [32]byte{0x22}, Number: 100}
@@ -550,6 +552,30 @@ func TestChainContainer_FinalizedL2Head_AllPreActivation_FallsBackToLocalFinaliz
 	require.True(t, useLocalFinalized, "all-pre-activation should signal fallback to local-finalized")
 }
 
+// TestChainContainer_FinalizedL2Head_FinalizedPreActivationButLocalSafePost
+// covers #20365: once LocalSafeL2 has crossed activation but FinalizedL2 is
+// still pre-activation, the verifier has nothing to say about finalization
+// yet and the fallback to local-finalized must remain active.
+func TestChainContainer_FinalizedL2Head_FinalizedPreActivationButLocalSafePost(t *testing.T) {
+	t.Parallel()
+
+	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
+	setSyncStatus(t, cc, &eth.SyncStatus{
+		FinalizedL1: eth.L1BlockRef{Number: 400},
+		LocalSafeL2: eth.L2BlockRef{Number: 600, Hash: [32]byte{0xdd}, Time: 1500},
+		FinalizedL2: eth.L2BlockRef{Number: 100, Hash: [32]byte{0xaa}, Time: 999},
+	})
+
+	verifier := &mockVerificationActivityForSuperAuthority{
+		isActiveAtFn: preActivationFn(1000),
+	}
+	cc.verifiers = []activity.VerificationActivity{verifier}
+
+	result, useLocalFinalized := cc.FinalizedL2Head()
+	require.Equal(t, eth.BlockID{}, result)
+	require.True(t, useLocalFinalized, "pre-activation FinalizedL2 must keep the local-finalized fallback active")
+}
+
 func TestChainContainer_FinalizedL2Head_VerifierError_SignalsLocalFinalizedFallback(t *testing.T) {
 	t.Parallel()
 
@@ -557,6 +583,7 @@ func TestChainContainer_FinalizedL2Head_VerifierError_SignalsLocalFinalizedFallb
 	setSyncStatus(t, cc, &eth.SyncStatus{
 		FinalizedL1: eth.L1BlockRef{Number: 400},
 		LocalSafeL2: eth.L2BlockRef{Number: 600, Hash: [32]byte{0xdd}, Time: 1500},
+		FinalizedL2: eth.L2BlockRef{Number: 550, Hash: [32]byte{0xee}, Time: 1400},
 	})
 
 	verifier := &mockVerificationActivityForSuperAuthority{
