@@ -10695,6 +10695,15 @@ dependencies = [
 [[package]]
 name = "reth-metrics"
 version = "2.2.0"
+source = "git+https://github.com/einar-oplabs/reth?rev=1dc6e58c48afaed5433ed4eae1cf4e9ad78e86b1#1dc6e58c48afaed5433ed4eae1cf4e9ad78e86b1"
+dependencies = [
+ "metrics",
+ "metrics-derive",
+]
+
+[[package]]
+name = "reth-metrics"
+version = "2.2.0"
 source = "git+https://github.com/paradigmxyz/reth?rev=81c026181e96ef33a823f3ef4d2a28940e9fa4fe#81c026181e96ef33a823f3ef4d2a28940e9fa4fe"
 dependencies = [
  "futures",
@@ -10703,15 +10712,6 @@ dependencies = [
  "reth-primitives-traits",
  "tokio",
  "tokio-util",
-]
-
-[[package]]
-name = "reth-metrics"
-version = "2.2.0"
-source = "git+https://github.com/einar-oplabs/reth?rev=90e5d8f75a4d48f5c77ef5ff57aab389ee61bafa#90e5d8f75a4d48f5c77ef5ff57aab389ee61bafa"
-dependencies = [
- "metrics",
- "metrics-derive",
 ]
 
 [[package]]
@@ -12470,7 +12470,7 @@ dependencies = [
 [[package]]
 name = "reth-tasks"
 version = "2.2.0"
-source = "git+https://github.com/einar-oplabs/reth?rev=90e5d8f75a4d48f5c77ef5ff57aab389ee61bafa#90e5d8f75a4d48f5c77ef5ff57aab389ee61bafa"
+source = "git+https://github.com/einar-oplabs/reth?rev=1dc6e58c48afaed5433ed4eae1cf4e9ad78e86b1#1dc6e58c48afaed5433ed4eae1cf4e9ad78e86b1"
 dependencies = [
  "crossbeam-utils",
  "dashmap",
@@ -12480,7 +12480,7 @@ dependencies = [
  "parking_lot",
  "pin-project",
  "rayon",
- "reth-metrics 2.2.0 (git+https://github.com/einar-oplabs/reth?rev=90e5d8f75a4d48f5c77ef5ff57aab389ee61bafa)",
+ "reth-metrics 2.2.0 (git+https://github.com/einar-oplabs/reth?rev=1dc6e58c48afaed5433ed4eae1cf4e9ad78e86b1)",
  "thiserror 2.0.18",
  "thread-priority",
  "tokio",
