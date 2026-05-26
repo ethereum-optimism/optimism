@@ -96,6 +96,9 @@ type ChainContainer interface {
 	// PayloadByHash returns the canonical execution payload envelope for the given block hash.
 	// Used by interop build paths to capture canonical payloads for WAL'd rewind operations.
 	PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error)
+	// PayloadByNumber returns the canonical execution payload envelope for the given block number.
+	// Used by interop build paths when the rewind target is below the verified frontier.
+	PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error)
 	// SetResetCallback sets a callback that is invoked when the chain resets.
 	// The supernode uses this to notify activities about chain resets.
 	SetResetCallback(cb ResetCallback)
@@ -596,6 +599,13 @@ func (c *simpleChainContainer) PayloadByHash(ctx context.Context, hash common.Ha
 		return nil, engine_controller.ErrNoEngineClient
 	}
 	return c.engine.PayloadByHash(ctx, hash)
+}
+
+func (c *simpleChainContainer) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	if c.engine == nil {
+		return nil, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.PayloadByNumber(ctx, number)
 }
 
 func (c *simpleChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {

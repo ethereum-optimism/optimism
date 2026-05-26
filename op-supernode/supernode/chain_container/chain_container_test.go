@@ -165,6 +165,8 @@ type mockEngineController struct {
 	l2BlockRefByNumberErr    error
 	payloadByHashResult      *eth.ExecutionPayloadEnvelope
 	payloadByHashErr         error
+	payloadByNumberResult    *eth.ExecutionPayloadEnvelope
+	payloadByNumberErr       error
 }
 
 func (m *mockEngineController) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
@@ -234,6 +236,10 @@ func (m *mockEngineController) Rewind(ctx context.Context, target *eth.Execution
 
 func (m *mockEngineController) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
 	return m.payloadByHashResult, m.payloadByHashErr
+}
+
+func (m *mockEngineController) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return m.payloadByNumberResult, m.payloadByNumberErr
 }
 
 // Interface conformance assertion

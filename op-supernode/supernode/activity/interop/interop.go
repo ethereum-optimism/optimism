@@ -862,6 +862,13 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		return RewindPlan{}, err
 	}
 	if lastTS <= first {
+		if plan.ResetAllChainsTo != nil {
+			payloads, err := i.captureRewindPayloadsAtTimestamp(*plan.ResetAllChainsTo)
+			if err != nil {
+				return RewindPlan{}, fmt.Errorf("capture reset target payloads at %d: %w", *plan.ResetAllChainsTo, err)
+			}
+			plan.TargetPayloads = payloads
+		}
 		return plan, nil
 	}
 
@@ -875,22 +882,78 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 	// Capture each chain's target payload while it is still canonical. Any failure aborts
 	// the build; the decision will be re-evaluated next round.
 	if len(plan.TargetHeads) > 0 {
-		plan.TargetPayloads = make(map[eth.ChainID]*eth.ExecutionPayloadEnvelope, len(plan.TargetHeads))
-		for chainID, head := range plan.TargetHeads {
-			chain, ok := i.chains[chainID]
-			if !ok {
-				return RewindPlan{}, fmt.Errorf("chain %s referenced in target heads but not configured", chainID)
-			}
-			envelope, err := chain.PayloadByHash(i.ctx, head.Hash)
-			if err != nil {
-				return RewindPlan{}, fmt.Errorf("chain %s: fetch target payload %s for rewind to ts=%d: %w",
-					chainID, head.Hash, rewindTargetTS, err)
-			}
-			plan.TargetPayloads[chainID] = envelope
+		payloads, err := i.captureRewindPayloadsForHeads(plan.TargetHeads, rewindTargetTS)
+		if err != nil {
+			return RewindPlan{}, err
 		}
+		plan.TargetPayloads = payloads
 	}
 
 	return plan, nil
+}
+
+func (i *Interop) captureRewindPayloadsForHeads(heads map[eth.ChainID]eth.BlockID, timestamp uint64) (map[eth.ChainID]*eth.ExecutionPayloadEnvelope, error) {
+	if len(heads) == 0 {
+		return nil, nil
+	}
+	payloads := make(map[eth.ChainID]*eth.ExecutionPayloadEnvelope, len(heads))
+	for chainID, head := range heads {
+		chain, ok := i.chains[chainID]
+		if !ok {
+			return nil, fmt.Errorf("chain %s referenced in target heads but not configured", chainID)
+		}
+		envelope, err := chain.PayloadByHash(i.ctx, head.Hash)
+		if err != nil {
+			return nil, fmt.Errorf("chain %s: fetch target payload %s for rewind to ts=%d: %w",
+				chainID, head.Hash, timestamp, err)
+		}
+		if err := validateRewindPayload(chainID, envelope, head.Number, timestamp); err != nil {
+			return nil, err
+		}
+		if envelope.ExecutionPayload.BlockHash != head.Hash {
+			return nil, fmt.Errorf("chain %s: rewind payload hash mismatch: got %s, want %s",
+				chainID, envelope.ExecutionPayload.BlockHash, head.Hash)
+		}
+		payloads[chainID] = envelope
+	}
+	return payloads, nil
+}
+
+func (i *Interop) captureRewindPayloadsAtTimestamp(timestamp uint64) (map[eth.ChainID]*eth.ExecutionPayloadEnvelope, error) {
+	payloads := make(map[eth.ChainID]*eth.ExecutionPayloadEnvelope, len(i.chains))
+	for chainID, chain := range i.chains {
+		number, err := chain.TimestampToBlockNumber(i.ctx, timestamp)
+		if err != nil {
+			return nil, fmt.Errorf("chain %s: compute rewind target number for timestamp %d: %w", chainID, timestamp, err)
+		}
+		envelope, err := chain.PayloadByNumber(i.ctx, number)
+		if err != nil {
+			return nil, fmt.Errorf("chain %s: fetch reset target payload number %d for timestamp %d: %w",
+				chainID, number, timestamp, err)
+		}
+		if err := validateRewindPayload(chainID, envelope, number, timestamp); err != nil {
+			return nil, err
+		}
+		payloads[chainID] = envelope
+	}
+	return payloads, nil
+}
+
+func validateRewindPayload(chainID eth.ChainID, envelope *eth.ExecutionPayloadEnvelope, number uint64, timestamp uint64) error {
+	if envelope == nil || envelope.ExecutionPayload == nil {
+		return fmt.Errorf("chain %s: nil rewind target payload for block %d at timestamp %d",
+			chainID, number, timestamp)
+	}
+	payload := envelope.ExecutionPayload
+	if uint64(payload.BlockNumber) != number {
+		return fmt.Errorf("chain %s: rewind payload number mismatch: got %d, want %d",
+			chainID, uint64(payload.BlockNumber), number)
+	}
+	if uint64(payload.Timestamp) != timestamp {
+		return fmt.Errorf("chain %s: rewind payload timestamp mismatch: got %d, want %d",
+			chainID, uint64(payload.Timestamp), timestamp)
+	}
+	return nil
 }
 
 func (i *Interop) shouldResetEnginesOnRewind(timestamp uint64) (bool, error) {

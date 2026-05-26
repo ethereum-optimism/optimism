@@ -1128,6 +1128,15 @@ func (m *algoMockChain) PayloadByHash(ctx context.Context, hash common.Hash) (*e
 	}
 	return nil, nil
 }
+func (m *algoMockChain) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: eth.Uint64Quantity(number),
+			Timestamp:   eth.Uint64Quantity(number),
+			BlockHash:   common.BigToHash(new(big.Int).SetUint64(number)),
+		},
+	}, nil
+}
 func (m *algoMockChain) BlockTime() uint64 {
 	if m.blockTimeOverride > 0 {
 		return m.blockTimeOverride

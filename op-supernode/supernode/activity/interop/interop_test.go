@@ -10,6 +10,7 @@ import (
 	"time"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
@@ -1747,6 +1748,8 @@ type mockChainContainer struct {
 	payloadsByHash        map[common.Hash]*eth.ExecutionPayloadEnvelope
 	payloadByHashErr      error
 	payloadByHashOverride func(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error)
+	payloadsByNumber      map[uint64]*eth.ExecutionPayloadEnvelope
+	payloadByNumberErr    error
 
 	// OptimisticAt fields
 	optimisticL2    eth.BlockID
@@ -2013,13 +2016,31 @@ func (m *mockChainContainer) PayloadByHash(ctx context.Context, hash common.Hash
 		return nil, m.payloadByHashErr
 	}
 	// Default synthesized payload — satisfies the build path's structural checks
-	// (non-nil envelope, BlockHash matches request) without requiring tests to
-	// populate payloadsByHash for every hash they touch. Tests that need a specific
-	// envelope can set payloadsByHash or payloadByHashOverride.
+	// without requiring tests to populate payloadsByHash for every hash they touch.
+	// Tests often use common.BigToHash(timestamp) as the block hash, so derive the
+	// number and timestamp from the hash value.
+	number := bigs.Uint64Strict(hash.Big())
 	return &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
-			BlockHash:  hash,
-			ParentHash: hash, // self-loop is fine for tests that don't inspect parent
+			BlockHash:   hash,
+			ParentHash:  hash, // self-loop is fine for tests that don't inspect parent
+			BlockNumber: eth.Uint64Quantity(number),
+			Timestamp:   eth.Uint64Quantity(number),
+		},
+	}, nil
+}
+func (m *mockChainContainer) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	if env, ok := m.payloadsByNumber[number]; ok {
+		return env, nil
+	}
+	if m.payloadByNumberErr != nil {
+		return nil, m.payloadByNumberErr
+	}
+	return &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: eth.Uint64Quantity(number),
+			Timestamp:   eth.Uint64Quantity(number),
+			BlockHash:   common.BigToHash(new(big.Int).SetUint64(number)),
 		},
 	}, nil
 }
@@ -2552,6 +2573,44 @@ func TestRewindAccepted(t *testing.T) {
 
 		// logsDB should be cleared (no previous frontier to rewind to)
 		require.True(t, trackingDB.clearCalled > 0, "logsDB should be cleared when rewinding to empty")
+	})
+
+	t.Run("full rewind captures reset payloads before clearing verified frontier", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.pruneDeniedResult = map[uint64][]common.Hash{
+					1000: {common.HexToHash("0xdenied")},
+				}
+			}).
+			Build()
+
+		mock := h.Mock(10)
+		chainID := mock.id
+
+		require.NoError(t, h.commitVerified(VerifiedResult{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 50},
+			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Number: 1000, Hash: common.BigToHash(big.NewInt(1000))}},
+		}))
+
+		trackingDB := &mockLogsDBWithState{
+			latestBlock: eth.BlockID{Number: 1000},
+			hasBlocks:   true,
+		}
+		h.interop.logsDBs[chainID] = trackingDB
+
+		plan, err := h.interop.buildRewindPlan(1000)
+		require.NoError(t, err)
+		require.NotNil(t, plan.ResetAllChainsTo)
+		require.Equal(t, uint64(999), *plan.ResetAllChainsTo)
+		require.NotNil(t, plan.TargetPayloads[chainID])
+		require.Equal(t, uint64(999), uint64(plan.TargetPayloads[chainID].ExecutionPayload.Timestamp))
+
+		err = h.interop.applyRewindPlan(plan)
+		require.NoError(t, err)
+		require.True(t, trackingDB.clearCalled > 0, "logsDB should be cleared when rewinding to empty")
+		require.Equal(t, []uint64{999}, mock.rewindEngineCalls)
+		require.Same(t, plan.TargetPayloads[chainID], mock.lastRewindEngineTarget)
 	})
 }
 

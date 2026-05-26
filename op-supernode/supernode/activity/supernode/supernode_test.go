@@ -87,6 +87,10 @@ func (m *mockCC) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.Exec
 	return nil, nil
 }
 
+func (m *mockCC) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
+
 func (m *mockCC) ID() eth.ChainID {
 	return eth.ChainIDFromUInt64(10)
 }
