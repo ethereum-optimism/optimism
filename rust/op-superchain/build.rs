@@ -23,9 +23,19 @@ fn main() {
     let submodule = match resolve_submodule() {
         Some(path) => path,
         None => {
-            // Crates.io fallback: trust the committed `gen/` tree. `cargo:rerun`
-            // declarations below tie the build to anything we'd regenerate.
-            announce_gen_inputs(&gen_dir);
+            // crates.io fallback: the `.crate` ships pre-built `gen/` via
+            // `package.include`, so we trust it as-is. In a fresh monorepo
+            // checkout without `just source`, gen/ is also absent — fail
+            // loudly so the dev runs the init recipe.
+            if gen_dir.join("chainList.json").exists() {
+                announce_gen_inputs(&gen_dir);
+            } else {
+                panic!(
+                    "op-superchain: no submodule at `{SUBMODULE_REL}` and no committed `gen/` tree. \
+                     Run `just source` (from the monorepo root) to initialise the superchain-registry \
+                     submodule, then re-run cargo build."
+                );
+            }
             return;
         }
     };
