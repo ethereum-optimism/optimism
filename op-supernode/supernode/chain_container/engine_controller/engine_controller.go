@@ -3,7 +3,6 @@ package engine_controller
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -28,8 +27,16 @@ type EngineController interface {
 	// hash. Returns ethereum.NotFound if the EL no longer has the block at
 	// that hash on its canonical chain.
 	OutputV0ByBlockHash(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error)
-	// RewindToTimestamp rewinds the L2 execution layer to block at or before the given timestamp.
-	RewindToTimestamp(ctx context.Context, timestamp uint64) error
+	// PayloadByHash returns the execution payload envelope for the given block hash. Used by
+	// build paths to capture the canonical target payload before recording a rewind operation
+	// in the WAL.
+	PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error)
+	// PayloadByNumber returns the canonical execution payload envelope for the given block number.
+	PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error)
+	// Rewind rewinds the L2 execution layer to the supplied target block. The target payload
+	// must come from durable storage (the supernode WAL) — the engine controller does not
+	// consult the live EL to discover the target.
+	Rewind(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error
 	// FetchReceipts fetches the receipts for a given block by hash.
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 	// Close releases any underlying RPC resources.
@@ -83,22 +90,6 @@ var (
 	ErrNoEngineClient = errors.New("engine client not initialized")
 	ErrNoRollupConfig = errors.New("rollup config not available")
 )
-
-func (e *simpleEngineController) blockNumberAtTimestamp(ts uint64) (uint64, error) {
-	if e.rollup == nil {
-		return 0, ErrNoRollupConfig
-	}
-	// Compute the target block directly from rollup config
-	return e.rollup.TargetBlockNumber(ts)
-}
-
-func (e *simpleEngineController) blockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
-	num, err := e.blockNumberAtTimestamp(ts)
-	if err != nil {
-		return eth.L2BlockRef{}, fmt.Errorf("failed to convert timestamp to block number: %w :%w ", err, ErrRewindTimestampToBlockConversion)
-	}
-	return e.l2.L2BlockRefByNumber(ctx, num)
-}
 
 // BlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
 // clamped to the head of the specified label. Must return ethereum.NotFound if no block is available at the timestamp.
@@ -183,6 +174,20 @@ func (e *simpleEngineController) OutputV0ByBlockHash(ctx context.Context, blockH
 		}, nil
 	}
 	return e.l2.OutputV0AtBlock(ctx, blockHash)
+}
+
+func (e *simpleEngineController) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	if e.l2 == nil {
+		return nil, ErrNoEngineClient
+	}
+	return e.l2.PayloadByHash(ctx, hash)
+}
+
+func (e *simpleEngineController) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	if e.l2 == nil {
+		return nil, ErrNoEngineClient
+	}
+	return e.l2.PayloadByNumber(ctx, number)
 }
 
 func (e *simpleEngineController) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {

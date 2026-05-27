@@ -3,10 +3,10 @@ use crate::actors::network::mocks::builder::TestNetworkBuilder;
 #[tokio::test(flavor = "multi_thread")]
 async fn test_p2p_network_conn() -> anyhow::Result<()> {
     let mut builder = TestNetworkBuilder::new();
-    let network_1 = builder.build(vec![]);
+    let network_1 = builder.build(vec![]).await;
     let enr_1 = network_1.peer_enr().await?;
 
-    let network_2 = builder.build(vec![enr_1]);
+    let network_2 = builder.build(vec![enr_1]).await;
 
     network_2.is_connected_to_with_retries(&network_1).await?;
 
@@ -24,7 +24,7 @@ async fn test_large_network_conn() -> anyhow::Result<()> {
     let (mut networks, mut bootnodes) = (vec![], vec![]);
 
     for _ in 0..NETWORKS {
-        let network = builder.build(bootnodes.clone());
+        let network = builder.build(bootnodes.clone()).await;
         let enr = network.peer_enr().await?;
         networks.push(network);
         bootnodes.push(enr);

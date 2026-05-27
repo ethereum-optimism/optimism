@@ -6,6 +6,7 @@
 !cannon/
 !op-core/
 !op-alt-da/
+!op-chain-ops/interopgen/config/
 !op-node/
 !op-preimage/
 !op-program/

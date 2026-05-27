@@ -3,27 +3,28 @@
 //! [NodeActor]: super::NodeActor
 
 mod traits;
-pub use traits::{CancellableContext, NodeActor};
+pub use traits::NodeActor;
 
 mod engine;
 pub use engine::{
     BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
-    EngineConfig, EngineDerivationClient, EngineError, EngineProcessingRequest, EngineProcessor,
-    EngineRequestReceiver, EngineRpcProcessor, EngineRpcRequest, EngineRpcRequestReceiver,
+    EngineConfig, EngineDerivationClient, EngineError, EngineRpcActor, EngineRpcRequest,
     QueuedEngineDerivationClient, ResetRequest, SealRequest,
 };
 
-mod rpc;
+pub(crate) mod rpc;
 pub use rpc::{
-    QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RpcActor, RpcActorError, RpcContext,
+    JsonrpseeServerLauncher, QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RpcActor,
+    RpcActorError, RpcServerHandle, RpcServerLauncher,
 };
 
 mod derivation;
 pub use derivation::{
     DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationClientError,
     DerivationClientResult, DerivationDelegateClient, DerivationDelegateClientError,
-    DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
-    DerivationStateTransitionError, DerivationStateUpdate, QueuedDerivationEngineClient,
+    DerivationDelegateProvider, DerivationEngineClient, DerivationError, DerivationState,
+    DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate,
+    QueuedDerivationEngineClient,
 };
 
 mod l1_watcher;
@@ -35,7 +36,7 @@ pub use l1_watcher::{
 mod network;
 pub use network::{
     NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
-    NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler, NetworkInboundData,
+    NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
     QueuedNetworkEngineClient, QueuedUnsafePayloadGossipClient, UnsafePayloadGossipClient,
     UnsafePayloadGossipClientError,
 };

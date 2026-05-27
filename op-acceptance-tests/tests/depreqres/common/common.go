@@ -59,6 +59,7 @@ func ReqRespSyncDisabledOpts(syncMode sync.Mode) []presets.Option {
 		reqRespSyncDisabledOpt(),
 		noDiscoveryOpt(),
 		batcherStoppedOpt(),
+		presets.WithUniformL2BlockTimes(1),
 	}
 }
 
@@ -68,6 +69,7 @@ func SyncModeReqRespSyncOpts(syncMode sync.Mode) []presets.Option {
 		syncModeReqRespSyncOpt(),
 		noDiscoveryOpt(),
 		batcherStoppedOpt(),
+		presets.WithUniformL2BlockTimes(1),
 	}
 }
 

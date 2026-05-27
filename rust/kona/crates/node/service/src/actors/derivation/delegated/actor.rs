@@ -1,14 +1,14 @@
 use crate::{
-    CancellableContext, DerivationActorRequest, DerivationEngineClient, NodeActor,
-    actors::derivation::{DerivationDelegateClient, DerivationError},
+    DerivationActorRequest, DerivationEngineClient, NodeActor,
+    actors::derivation::{DerivationDelegateProvider, DerivationError},
 };
 use alloy_primitives::BlockHash;
 use async_trait::async_trait;
+use kona_derive::ChainProvider;
+use kona_engine::FinalizeBlockId;
 use kona_protocol::{L2BlockInfo, SyncStatus};
-use kona_providers_alloy::AlloyChainProvider;
 use thiserror::Error;
 use tokio::{select, sync::mpsc, time};
-use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
 /// The [`NodeActor`] for the delegate derivation sub-routine.
 ///
@@ -20,78 +20,97 @@ use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 /// Once validated, the actor sends the derived safe and finalized L2 info
 /// to the [`NodeActor`] responsible for the execution sub-routine.
 #[derive(Debug)]
-pub struct DelegateDerivationActor<DerivationEngineClient_>
+pub struct DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient,
+    DelegateProvider: DerivationDelegateProvider,
+    L1Provider: ChainProvider,
 {
-    /// The cancellation token, shared between all tasks.
-    cancellation_token: CancellationToken,
     /// The channel on which all inbound requests are received by the [`DelegateDerivationActor`].
     inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
 
     /// Derivation delegate provider.
-    derivation_delegate_provider: DerivationDelegateClient,
+    derivation_delegate_provider: DelegateProvider,
     /// L1 provider for validating L1 info for derivation delegation.
-    l1_provider: AlloyChainProvider,
+    l1_provider: L1Provider,
 
     /// The engine's L2 safe head, according to updates from the Engine.
     engine_l2_safe_head: L2BlockInfo,
     /// Whether the engine sync has completed. This will only ever go from false -> true.
     has_engine_sync_completed: bool,
+    /// Ticker driving periodic polls of the derivation delegate provider.
+    delegated_derivation_ticker: time::Interval,
 }
 
-impl<DerivationEngineClient_> CancellableContext
-    for DelegateDerivationActor<DerivationEngineClient_>
+impl<DerivationEngineClient_, DelegateProvider, L1Provider>
+    DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
 where
-    DerivationEngineClient_: DerivationEngineClient,
-{
-    fn cancelled(&self) -> WaitForCancellationFuture<'_> {
-        self.cancellation_token.cancelled()
-    }
-}
-
-impl<DerivationEngineClient_> DelegateDerivationActor<DerivationEngineClient_>
-where
-    DerivationEngineClient_: DerivationEngineClient,
+    DerivationEngineClient_: DerivationEngineClient + 'static,
+    DelegateProvider: DerivationDelegateProvider + 'static,
+    L1Provider: ChainProvider + 'static,
 {
     /// Creates a new instance of the [`DelegateDerivationActor`].
     pub fn new(
         engine_client: DerivationEngineClient_,
-        cancellation_token: CancellationToken,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
-        derivation_delegate_provider: DerivationDelegateClient,
-        l1_provider: AlloyChainProvider,
+        derivation_delegate_provider: DelegateProvider,
+        l1_provider: L1Provider,
     ) -> Self {
+        let mut delegated_derivation_ticker =
+            time::interval(Self::DERIVATION_DELEGATE_POLL_INTERVAL);
+        delegated_derivation_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
         Self {
-            cancellation_token,
             inbound_request_rx,
             engine_client,
             derivation_delegate_provider,
             l1_provider,
             engine_l2_safe_head: L2BlockInfo::default(),
             has_engine_sync_completed: false,
+            delegated_derivation_ticker,
         }
     }
 }
 
 #[async_trait]
-impl<DerivationEngineClient_> NodeActor for DelegateDerivationActor<DerivationEngineClient_>
+impl<DerivationEngineClient_, DelegateProvider, L1Provider> NodeActor
+    for DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
+    DelegateProvider: DerivationDelegateProvider + 'static,
+    L1Provider: ChainProvider + Send + 'static,
 {
     type Error = DerivationError;
-    type StartData = ();
 
-    async fn start(mut self, _: Self::StartData) -> Result<(), Self::Error> {
-        self.start_delegate_derivation().await
+    async fn step(&mut self) -> Result<(), Self::Error> {
+        select! {
+            biased;
+
+            req = self.inbound_request_rx.recv() => {
+                let request = req.ok_or_else(|| {
+                    error!(
+                        target: "derivation",
+                        "DerivationActor inbound request receiver closed unexpectedly",
+                    );
+                    DerivationError::RequestReceiveFailed
+                })?;
+                self.handle_derivation_delegation_actor_request(request).await
+            }
+            _ = self.delegated_derivation_ticker.tick(),
+            if self.has_engine_sync_completed => {
+                self.fetch_and_apply_delegate_safe_head().await
+            }
+        }
     }
 }
 
-impl<DerivationEngineClient_> DelegateDerivationActor<DerivationEngineClient_>
+impl<DerivationEngineClient_, DelegateProvider, L1Provider>
+    DelegateDerivationActor<DerivationEngineClient_, DelegateProvider, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
+    DelegateProvider: DerivationDelegateProvider + 'static,
+    L1Provider: ChainProvider + 'static,
 {
     /// Hardcoded poll interval for Derivation Delegation
     const DERIVATION_DELEGATE_POLL_INTERVAL: std::time::Duration =
@@ -104,8 +123,6 @@ where
         l1_block_number: u64,
         expected_hash: BlockHash,
     ) -> Result<(), DerivationDelegationError> {
-        use kona_derive::ChainProvider;
-
         let block = self
             .l1_provider
             .block_info_by_number(l1_block_number)
@@ -172,8 +189,13 @@ where
             .await
             .map_err(|e| DerivationError::Sender(Box::new(e)))?;
 
+        // Delegated polling supplies `(number, hash)`. Carry the hash through so the engine
+        // finalizes the specific block we were asked to, not whatever it happens to have at the
+        // same height.
         self.engine_client
-            .send_finalized_l2_block(sync_status.finalized_l2.block_info.number)
+            .send_finalized_l2_block(FinalizeBlockId::ByHash(
+                sync_status.finalized_l2.block_info.id(),
+            ))
             .await
             .map_err(|e| DerivationError::Sender(Box::new(e)))?;
 
@@ -185,39 +207,6 @@ where
         );
 
         Ok(())
-    }
-
-    async fn start_delegate_derivation(mut self) -> Result<(), DerivationError> {
-        info!(target: "derivation", "Starting derivation with delegation");
-        let mut delegated_derivation_ticker =
-            time::interval(Self::DERIVATION_DELEGATE_POLL_INTERVAL);
-        delegated_derivation_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
-        loop {
-            select! {
-                biased;
-
-                _ = self.cancellation_token.cancelled() => {
-                    info!(
-                        target: "derivation",
-                        "Received shutdown signal. Exiting derivation task."
-                    );
-                    return Ok(());
-                }
-                req = self.inbound_request_rx.recv() => {
-                    let Some(request_type) = req else {
-                        error!(target: "derivation", "DerivationActor inbound request receiver closed unexpectedly");
-                        self.cancellation_token.cancel();
-                        return Err(DerivationError::RequestReceiveFailed);
-                    };
-
-                    self.handle_derivation_delegation_actor_request(request_type).await?;
-                }
-                _ = delegated_derivation_ticker.tick(),
-                if self.has_engine_sync_completed => {
-                    self.fetch_and_apply_delegate_safe_head().await?;
-                }
-            }
-        }
     }
 
     async fn handle_derivation_delegation_actor_request(

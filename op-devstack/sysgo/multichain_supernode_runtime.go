@@ -82,6 +82,24 @@ func NewTwoL2SupernodeInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64,
 	return base
 }
 
+func NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
+	base, activationTime := newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t, true, delaySeconds, cfg, false)
+	chainA := base.Chains["l2a"]
+	chainB := base.Chains["l2b"]
+	t.Require().NotNil(chainA, "missing l2a supernode chain")
+	t.Require().NotNil(chainB, "missing l2b supernode chain")
+	attachTestSequencerToRuntime(t, base, "test-sequencer-2l2-light-cl")
+
+	t.Logger().Info("configured supernode interop runtime with light CL sequencers",
+		"genesis_time", chainA.Network.rollupCfg.Genesis.L2Time,
+		"activation_time", activationTime,
+		"delay_seconds", delaySeconds,
+	)
+
+	base.DelaySeconds = delaySeconds
+	return base
+}
+
 func NewTwoL2SupernodeFollowL2RuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
 	runtime := NewTwoL2SupernodeInteropRuntimeWithConfig(t, delaySeconds, cfg)
 	addMultiChainFollowL2Node(t, runtime, "l2a", "follower")
@@ -205,6 +223,10 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 }
 
 func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySeconds uint64, cfg PresetConfig) (*MultiChainRuntime, uint64) {
+	return newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t, enableInterop, delaySeconds, cfg, true)
+}
+
+func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInterop bool, delaySeconds uint64, cfg PresetConfig, supernodeSequencerEnabled bool) (*MultiChainRuntime, uint64) {
 	require := t.Require()
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
@@ -278,7 +300,14 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		require.NoError(err, "failed to override message expiry window")
 	}
 
-	supernode, l2ACL, l2BCL := startTwoL2SharedSupernode(
+	var runtimeDepSet depset.DependencySet
+	if depSet != nil {
+		runtimeDepSet = depSet
+	} else {
+		runtimeDepSet = wb.outFullCfgSet.DependencySet
+	}
+
+	supernode, supernodeL2ACL, supernodeL2BCL := startTwoL2SharedSupernode(
 		t,
 		l1Net,
 		l1EL,
@@ -291,27 +320,44 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		interopActivationTimestamp,
 		cfg.InteropLogBackfillDepth,
 		jwtSecret,
+		supernodeSequencerEnabled,
 	)
 
+	var l2ACL L2CLNode = supernodeL2ACL
+	var l2BCL L2CLNode = supernodeL2BCL
+	if !supernodeSequencerEnabled {
+		l2ACL = startL2CLNode(t, keys, l1Net, l2ANet, l1EL, l1CL, l2AEL, jwtSecret, l2CLNodeStartConfig{
+			Key:           "sequencer",
+			IsSequencer:   true,
+			NoDiscovery:   true,
+			EnableReqResp: true,
+			UseReqResp:    true,
+			DependencySet: runtimeDepSet,
+			L2CLOptions:   cfg.GlobalL2CLOptions,
+		})
+		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, l2BEL, jwtSecret, l2CLNodeStartConfig{
+			Key:           "sequencer",
+			IsSequencer:   true,
+			NoDiscovery:   true,
+			EnableReqResp: true,
+			UseReqResp:    true,
+			DependencySet: runtimeDepSet,
+			L2CLOptions:   cfg.GlobalL2CLOptions,
+		})
+		connectL2CLPeers(t, t.Logger(), l2ACL, supernodeL2ACL)
+		connectL2CLPeers(t, t.Logger(), l2BCL, supernodeL2BCL)
+	}
+
 	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, l2AEL, cfg.BatcherOptions...)
-	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, l2ACL)
+	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, supernodeL2ACL)
 	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, l2BCL, l2BEL, cfg.BatcherOptions...)
-	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, l2BCL)
+	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, supernodeL2BCL)
 
 	faucetService := startFaucetsForRPCs(t, keys, map[eth.ChainID]string{
 		l1Net.ChainID():  l1EL.UserRPC(),
 		l2ANet.ChainID(): l2AEL.UserRPC(),
 		l2BNet.ChainID(): l2BEL.UserRPC(),
 	})
-
-	// Use the potentially-overridden depSet (e.g. with custom message expiry window)
-	// if available; otherwise fall back to the original from the world builder.
-	var runtimeDepSet depset.DependencySet
-	if depSet != nil {
-		runtimeDepSet = depSet
-	} else {
-		runtimeDepSet = wb.outFullCfgSet.DependencySet
-	}
 
 	// Wait for interop filter readiness now that the supernode and batchers are running.
 	// The filter needs blocks to be produced before its chain ingesters can backfill.
@@ -328,20 +374,22 @@ func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySe
 		L1CL:          l1CL,
 		Chains: map[string]*MultiChainNodeRuntime{
 			"l2a": {
-				Name:     "l2a",
-				Network:  l2ANet,
-				EL:       l2AEL,
-				CL:       l2ACL,
-				Batcher:  l2ABatcher,
-				Proposer: l2AProposer,
+				Name:        "l2a",
+				Network:     l2ANet,
+				EL:          l2AEL,
+				CL:          l2ACL,
+				SupernodeCL: supernodeL2ACL,
+				Batcher:     l2ABatcher,
+				Proposer:    l2AProposer,
 			},
 			"l2b": {
-				Name:     "l2b",
-				Network:  l2BNet,
-				EL:       l2BEL,
-				CL:       l2BCL,
-				Batcher:  l2BBatcher,
-				Proposer: l2BProposer,
+				Name:        "l2b",
+				Network:     l2BNet,
+				EL:          l2BEL,
+				CL:          l2BCL,
+				SupernodeCL: supernodeL2BCL,
+				Batcher:     l2BBatcher,
+				Proposer:    l2BProposer,
 			},
 		},
 		Supernode:     supernode,
@@ -470,19 +518,24 @@ func startTwoL2SharedSupernode(
 	interopActivationTimestamp *uint64,
 	interopLogBackfillDepth time.Duration,
 	jwtSecret [32]byte,
+	sequencerEnabled bool,
 ) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
 	makeNodeCfg := func(l2Net *L2Network, l2EL L2ELNode) *opnodeconfig.Config {
-		p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
-		require.NoError(err, "need p2p key for supernode virtual sequencer")
+		var sequencerP2PKeyHex string
+		if sequencerEnabled {
+			p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
+			require.NoError(err, "need p2p key for supernode virtual sequencer")
+			sequencerP2PKeyHex = hex.EncodeToString(crypto.FromECDSA(p2pKey))
+		}
 		p2pConfig, p2pSignerSetup := newDevstackP2PConfig(
 			t,
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
 			true,
-			hex.EncodeToString(crypto.FromECDSA(p2pKey)),
+			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{
 			L1: &opnodeconfig.L1EndpointConfig{
@@ -502,7 +555,7 @@ func startTwoL2SharedSupernode(
 			},
 			DependencySet:                   depSet,
 			Beacon:                          &opnodeconfig.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
-			Driver:                          driver.Config{SequencerEnabled: true, SequencerConfDepth: 2},
+			Driver:                          driver.Config{SequencerEnabled: sequencerEnabled, SequencerConfDepth: 2},
 			Rollup:                          *l2Net.rollupCfg,
 			P2PSigner:                       p2pSignerSetup,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},

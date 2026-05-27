@@ -26,6 +26,7 @@ type EngineController interface {
 	TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
 	RequestForkchoiceUpdate(ctx context.Context)
 	RequestPendingSafeUpdate(ctx context.Context)
+	IsEngineInitialELSyncing() bool
 }
 
 type L2 interface {
@@ -203,6 +204,17 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 	envelope, err := eq.l2.PayloadByNumber(ctx, attributes.Parent.Number+1)
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
+			if eq.engineController.IsEngineInitialELSyncing() {
+				// The EL has accepted a future EL-sync target but hasn't filled in
+				// pending_safe+1 yet. Resetting now would issue a forkchoice update
+				// that re-targets the EL away from its sync target and prevents EL
+				// sync from ever completing. Stall consolidation and retry once
+				// the EL catches up.
+				eq.emitter.Emit(eq.ctx, rollup.EngineTemporaryErrorEvent{
+					Err: fmt.Errorf("waiting for EL sync to fill in block %d for consolidation: %w", attributes.Parent.Number+1, err),
+				})
+				return
+			}
 			// engine may have restarted, or inconsistent safe head. We need to reset
 			eq.emitter.Emit(eq.ctx, rollup.ResetEvent{
 				Err: fmt.Errorf("expected engine was synced and had unsafe block to reconcile, but cannot find the block: %w", err),

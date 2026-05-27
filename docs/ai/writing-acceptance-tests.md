@@ -159,6 +159,8 @@ bob.WaitForBalance(expected)
 
 If the DSL lacks a wait for the condition you care about, add one — don't sprinkle `time.Sleep` into the test. If a test only passes on rerun, it is broken, not "flaky"; treat the retry as a missing post-condition somewhere upstream and find it.
 
+For the catalogue of recurring flake patterns observed in CI — with the static lint rules that catch them and the reviewer checklist for the ones that lint can't — see [flake-prevention.md](flake-prevention.md).
+
 ## No Test-Only Branches in Production Code
 
 Production code paths and test code paths must be the same paths. The only acceptable variation points are explicit, observable seams — preset selection, DSL-injected doubles, launch flags read once at startup.
