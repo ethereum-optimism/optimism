@@ -57,7 +57,7 @@ pub struct SnapshotInitOutcome {
 
 /// Builds the one-time trie-state snapshot.
 #[derive(Debug, Constructor)]
-pub struct SnapshotInitJob<P, S: crate::OpProofsSnapshotStore + Send> {
+pub struct SnapshotInitJob<P, S: crate::OpProofsBackfillStore + Send> {
     /// Reth DB provider (used to look up the target block's hash + header).
     provider: P,
     /// Op-reth proofs storage that owns the snapshot tables.
@@ -67,7 +67,7 @@ pub struct SnapshotInitJob<P, S: crate::OpProofsSnapshotStore + Send> {
 impl<P, S> SnapshotInitJob<P, S>
 where
     P: HeaderProvider + BlockHashReader + Send,
-    S: crate::OpProofsSnapshotStore + Send,
+    S: crate::OpProofsBackfillStore + Send,
 {
     /// Build a snapshot at `target_block`, validating against the reth header.
     ///

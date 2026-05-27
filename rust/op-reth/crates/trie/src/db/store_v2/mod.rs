@@ -19,7 +19,6 @@ mod provider_rw;
 mod read;
 mod snapshot_init;
 mod snapshot_read;
-mod snapshot_write;
 mod write;
 
 pub use cursor::{
@@ -36,7 +35,7 @@ mod tests;
 use super::Tables;
 use crate::{
     OpProofsStorageError, OpProofsStorageResult,
-    api::{OpProofsSnapshotStore, OpProofsStore},
+    api::{OpProofsBackfillStore, OpProofsStore},
 };
 use reth_db::{
     Database, DatabaseEnv, DatabaseError,
@@ -70,7 +69,6 @@ impl OpProofsStore for MdbxProofsStorageV2 {
     type ProviderRO<'a> = Arc<MdbxProofsProviderV2<<DatabaseEnv as Database>::TX>>;
     type ProviderRw<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
     type Initializer<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
-    type BackfillProvider<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
 
     fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
         Ok(Arc::new(MdbxProofsProviderV2::new(self.env.tx()?)))
@@ -83,23 +81,19 @@ impl OpProofsStore for MdbxProofsStorageV2 {
     fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
         Ok(MdbxProofsProviderV2::new(self.env.tx_mut()?))
     }
+}
+
+impl OpProofsBackfillStore for MdbxProofsStorageV2 {
+    type BackfillProvider<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
+    type SnapshotProviderRO<'a> = Arc<MdbxProofsProviderV2<<DatabaseEnv as Database>::TX>>;
+    type SnapshotInitializer<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
 
     fn backfill_provider<'a>(&'a self) -> OpProofsStorageResult<Self::BackfillProvider<'a>> {
         Ok(MdbxProofsProviderV2::new(self.env.tx_mut()?))
     }
-}
-
-impl OpProofsSnapshotStore for MdbxProofsStorageV2 {
-    type SnapshotProviderRO<'a> = Arc<MdbxProofsProviderV2<<DatabaseEnv as Database>::TX>>;
-    type SnapshotProviderRw<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
-    type SnapshotInitializer<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
 
     fn snapshot_provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::SnapshotProviderRO<'a>> {
         Ok(Arc::new(MdbxProofsProviderV2::new(self.env.tx()?)))
-    }
-
-    fn snapshot_provider_rw<'a>(&'a self) -> OpProofsStorageResult<Self::SnapshotProviderRw<'a>> {
-        Ok(MdbxProofsProviderV2::new(self.env.tx_mut()?))
     }
 
     fn snapshot_initialization_provider<'a>(

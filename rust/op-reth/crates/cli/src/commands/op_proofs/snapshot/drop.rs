@@ -8,7 +8,7 @@ use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::ProofsStorageVersion;
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
-    OpProofsSnapshotProviderRW, OpProofsSnapshotStore, db::MdbxProofsStorageV2,
+    OpProofsBackfillProvider, OpProofsBackfillStore, db::MdbxProofsStorageV2,
 };
 use std::{path::PathBuf, sync::Arc};
 use tracing::info;
@@ -58,9 +58,9 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> SnapshotDropCommand<C> {
                 let storage = MdbxProofsStorageV2::new(&self.storage_path)
                     .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorageV2: {e}"))?;
 
-                let sp = storage.snapshot_provider_rw()?;
+                let sp = storage.backfill_provider()?;
                 sp.clear_snapshot()?;
-                OpProofsSnapshotProviderRW::commit(sp)?;
+                OpProofsBackfillProvider::commit(sp)?;
 
                 info!(target: "reth::cli", "Snapshot dropped");
                 Ok(())

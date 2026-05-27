@@ -46,7 +46,7 @@ impl Decode for SnapshotMetaKey {
 /// trustworthy ([`Self::Building`]), or it's done and reflects that block
 /// exactly ([`Self::Ready`]). If a snapshot ever falls out of sync it is
 /// dropped via
-/// [`OpProofsSnapshotProviderRW::clear_snapshot`](crate::api::OpProofsSnapshotProviderRW::clear_snapshot),
+/// [`OpProofsBackfillProvider::clear_snapshot`](crate::api::OpProofsBackfillProvider::clear_snapshot),
 /// not left around in a third state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]

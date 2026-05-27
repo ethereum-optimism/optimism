@@ -4,7 +4,7 @@ use super::MdbxProofsProviderV2;
 use crate::{
     BlockStateDiff, OpProofsStorageError,
     api::{
-        OpProofsSnapshotInitProvider, OpProofsSnapshotProviderRO, OpProofsSnapshotProviderRW,
+        OpProofsBackfillProvider, OpProofsSnapshotInitProvider, OpProofsSnapshotProviderRO,
         SnapshotInitStatus,
     },
     db::{
@@ -254,7 +254,7 @@ fn read_snapshot_anchor_errors_when_not_started() {
     }
 }
 
-// ========================== snapshot_write.rs tests ==========================
+// ===================== snapshot RW (in backfill.rs) tests =====================
 
 #[test]
 fn write_clear_snapshot_wipes_tables() {
@@ -283,7 +283,7 @@ fn write_clear_snapshot_wipes_tables() {
     {
         let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
         provider.clear_snapshot().expect("clear");
-        OpProofsSnapshotProviderRW::commit(provider).expect("commit");
+        OpProofsBackfillProvider::commit(provider).expect("commit");
     }
 
     let tx = db.tx().expect("ro");
@@ -326,7 +326,7 @@ fn write_update_snapshot_applies_diff_and_advances_anchor() {
         assert_eq!(counts.storage_trie_updates_written_total, 1);
         assert_eq!(counts.hashed_accounts_written_total, 0);
         assert_eq!(counts.hashed_storages_written_total, 0);
-        OpProofsSnapshotProviderRW::commit(provider).expect("commit");
+        OpProofsBackfillProvider::commit(provider).expect("commit");
     }
 
     let tx = db.tx().expect("ro");
@@ -379,7 +379,7 @@ fn write_update_snapshot_handles_removals() {
             sorted_post_state: HashedPostStateSorted::default(),
         };
         provider.update_snapshot(new_anchor, &diff).expect("update");
-        OpProofsSnapshotProviderRW::commit(provider).expect("commit");
+        OpProofsBackfillProvider::commit(provider).expect("commit");
     }
 
     let tx = db.tx().expect("ro");

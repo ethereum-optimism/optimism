@@ -8,7 +8,7 @@ use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::ProofsStorageVersion;
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
-    BackfillJob, OpProofsProviderRO, OpProofsSnapshotStore, db::MdbxProofsStorageV2,
+    BackfillJob, OpProofsBackfillStore, OpProofsProviderRO, db::MdbxProofsStorageV2,
 };
 use reth_provider::{
     BlockHashReader, BlockNumReader, ChangeSetReader, DBProvider, DatabaseProviderFactory,
@@ -103,7 +103,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
             + StorageSettingsCache
             + Send
             + Sync,
-        S: OpProofsSnapshotStore + Clone + Send,
+        S: OpProofsBackfillStore + Clone + Send,
     {
         let window = storage.provider_ro()?.get_proof_window()?;
         info!(
