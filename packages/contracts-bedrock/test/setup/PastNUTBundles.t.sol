@@ -324,6 +324,7 @@ contract PastNUTBundles_applyPastBundles_Test is PastNUTBundles_TestInit {
         entries[1] = PastNUTBundles.NUTBundle({ fork: "interop", path: INTEROP_BUNDLE_PATH });
 
         vm.mockCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), "");
+        vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)), 0);
         vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (interopTxns)), 1);
 
         PastNUTBundles.applyPastBundles(karstTxns, script, entries);
