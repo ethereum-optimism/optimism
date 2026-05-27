@@ -247,13 +247,13 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 					"super_authority_safe", head.Block, "source", head.Source, "err", err)
 				return e.floorCrossSafe("el-unknown")
 			}
-			canonical, err := e.engine.L2BlockRefByNumber(e.ctx, br.Number)
+			ok, canonical, err := e.isCanonical(br)
 			if err != nil {
 				e.log.Warn("cannot verify super authority safe head canonicality",
 					"super_authority_safe", br, "source", head.Source, "err", err)
 				return e.floorCrossSafe("canonicality-lookup-failed")
 			}
-			if canonical.Hash != br.Hash {
+			if !ok {
 				e.log.Warn("super authority safe head non-canonical (reorg signal)",
 					"super_authority_safe", br, "canonical", canonical, "source", head.Source)
 				return e.floorCrossSafe("non-canonical")
@@ -302,20 +302,36 @@ func (e *EngineController) useSuperAuthoritySafeCache() (eth.L2BlockRef, bool) {
 		e.superAuthoritySafeHead = eth.L2BlockRef{}
 		return eth.L2BlockRef{}, false
 	}
-	canonical, err := e.engine.L2BlockRefByNumber(e.ctx, cached.Number)
+	ok, canonical, err := e.isCanonical(cached)
 	if err != nil {
 		e.log.Warn("cannot validate cached cross-safe canonicality; clearing cache",
 			"cached", cached, "err", err)
 		e.superAuthoritySafeHead = eth.L2BlockRef{}
 		return eth.L2BlockRef{}, false
 	}
-	if canonical.Hash != cached.Hash {
+	if !ok {
 		e.log.Info("cached cross-safe non-canonical (reorg); clearing cache",
 			"cached", cached, "canonical", canonical)
 		e.superAuthoritySafeHead = eth.L2BlockRef{}
 		return eth.L2BlockRef{}, false
 	}
 	return cached, true
+}
+
+// isCanonical reports whether `target` still matches the EL's canonical chain
+// at its number. Three outcomes:
+//   - ok=true,  canonical=target,           err=nil  → canonical.
+//   - ok=false, canonical=different block,  err=nil  → non-canonical (reorg).
+//   - ok=false, canonical=zero,             err≠nil  → lookup failed.
+//
+// The returned canonical block is exposed so callers can log the divergence on
+// reorg without a second lookup.
+func (e *EngineController) isCanonical(target eth.L2BlockRef) (ok bool, canonical eth.L2BlockRef, err error) {
+	canonical, err = e.engine.L2BlockRefByNumber(e.ctx, target.Number)
+	if err != nil {
+		return false, eth.L2BlockRef{}, err
+	}
+	return canonical.Hash == target.Hash, canonical, nil
 }
 
 // FinalizedHead returns the finalized L2 head, with the same tri-state contract
