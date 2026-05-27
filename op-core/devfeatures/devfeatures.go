@@ -7,6 +7,18 @@ import (
 )
 
 // Development feature flag constants.
+//
+// IMPORTANT: each value here MUST be byte-for-byte identical to the matching constant in
+// packages/contracts-bedrock/src/libraries/DevFeatures.sol. These values are independent
+// literals. No compile-time check keeps them in sync. A mismatch silently diverges Go and Solidity
+// behavior.
+//
+// When adding a dev feature, update:
+// - packages/contracts-bedrock/scripts/libraries/Config.sol
+// - packages/contracts-bedrock/test/setup/FeatureFlags.sol
+// - .circleci/continue/main.yml (&features_matrix)
+//
+// Use packages/contracts-bedrock/src/libraries/DevFeatures.sol as the full checklist.
 var (
 	// OptimismPortalInteropFlag enables interop features in OptimismPortal2.
 	OptimismPortalInteropFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
