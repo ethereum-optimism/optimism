@@ -41,8 +41,7 @@ const maxUnsafePayloadsMemory = 500 * 1024 * 1024
 // the L2 chain backwards until it finds a plausible unsafe head,
 // and find an L2 safe block that is guaranteed to still be from the L1 chain.
 // This event is not used in interop.
-type ResetEngineRequestEvent struct {
-}
+type ResetEngineRequestEvent struct{}
 
 func (ev ResetEngineRequestEvent) String() string {
 	return "reset-engine-request"
@@ -126,8 +125,6 @@ type EngineController struct {
 	localFinalizedHead eth.L2BlockRef
 	// Last successfully materialized superAuthority finalized head,
 	// used as a fallback when the authority or EL is temporarily unavailable.
-	// Finalized blocks cannot reorg, so this cache does not require
-	// canonicality re-validation before use.
 	superAuthorityFinalizedHead eth.L2BlockRef
 	// The unsafe head to roll back to,
 	// after the pendingSafeHead fails to become safe.
@@ -201,33 +198,35 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 // SafeL2Head returns the safe L2 head. With a SuperAuthority registered, the
 // result is bounded by local-safe and validated against the EL where
 // applicable. On a transient verifier read failure or any reorg signal, the
-// cross-safe fallback is consulted.
+// cross-safe fallback is used.
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
-	if e.superAuthority != nil {
-		head, ok := e.superAuthority.FullyVerifiedL2Head(e.ctx)
-		if !ok {
-			return e.crossSafeFallback("HoldPrevious")
-		}
-		switch head.Source {
-		case rollup.VerifierHeadPreActivation:
+	if e.superAuthority == nil {
+		if e.syncCfg.FollowSourceEnabled() {
+			return e.deprecatedSafeHead
+		} else {
 			return e.localSafeHead
-		case rollup.VerifierHeadAnchor:
-			return e.resolveAnchorAsSafe(head.Timestamp)
-		case rollup.VerifierHeadVerified:
-			return e.resolveVerifiedAsSafe(head.Block)
-		default:
-			panic(fmt.Errorf("unhandled VerifierHeadSource: %v", head.Source))
 		}
-	} else if e.syncCfg.FollowSourceEnabled() {
-		return e.deprecatedSafeHead
-	} else {
+	}
+	head, ok := e.superAuthority.FullyVerifiedL2Head(e.ctx)
+	if !ok {
+		return e.crossSafeFallback("HoldPrevious")
+	}
+	switch head.Source {
+	case rollup.VerifierHeadPreActivation:
 		return e.localSafeHead
+	case rollup.VerifierHeadAnchor:
+		return e.resolveAnchorAsSafe(head.Timestamp)
+	case rollup.VerifierHeadVerified:
+		return e.resolveVerifiedAsSafe(head.Block)
+	default:
+		panic(fmt.Errorf("unhandled VerifierHeadSource: %v", head.Source))
 	}
 }
 
 // resolveVerifiedAsSafe handles the Verified branch of SafeL2Head.
 func (e *EngineController) resolveVerifiedAsSafe(block eth.BlockID) eth.L2BlockRef {
 	if block.Number > e.localSafeHead.Number {
+		e.log.Warn("super authority safe head ahead of local safe head, using local safe", "super_authority_safe", block, "local_safe", e.localSafeHead)
 		return e.localSafeHead
 	}
 	br, err := e.engine.L2BlockRefByHash(e.ctx, block.Hash)
@@ -236,13 +235,11 @@ func (e *EngineController) resolveVerifiedAsSafe(block eth.BlockID) eth.L2BlockR
 			"super_authority_safe", block, "err", err)
 		return e.crossSafeFallback("el-unknown")
 	}
-	canonical, canonicalRef, err := e.isCanonical(br)
-	if err != nil {
+	if canonical, canonicalRef, err := e.isCanonical(br); err != nil {
 		e.log.Warn("cannot verify super authority safe head canonicality",
 			"super_authority_safe", br, "err", err)
 		return e.crossSafeFallback("canonicality-lookup-failed")
-	}
-	if !canonical {
+	} else if !canonical {
 		e.log.Warn("super authority safe head non-canonical (reorg signal)",
 			"super_authority_safe", br, "canonical", canonicalRef)
 		return e.crossSafeFallback("non-canonical")
@@ -265,6 +262,7 @@ func (e *EngineController) resolveAnchorAsSafe(ts uint64) eth.L2BlockRef {
 		return e.crossSafeFallback("anchor-lookup-failed")
 	}
 	if br.Number > e.localSafeHead.Number {
+		// Local safe hasn't reached the anchor block for the validator, so use local safe head.
 		return e.localSafeHead
 	}
 	return br
@@ -301,29 +299,30 @@ func (e *EngineController) isCanonical(target eth.L2BlockRef) (ok bool, canonica
 // successful resolution and is trusted without re-validation — finalized
 // blocks cannot reorg.
 func (e *EngineController) FinalizedHead() eth.L2BlockRef {
-	if e.superAuthority != nil {
-		head, ok := e.superAuthority.FinalizedL2Head(e.ctx)
-		if !ok {
-			if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
-				return e.superAuthorityFinalizedHead
-			}
-			e.log.Error("super authority finalized HoldPrevious with no cache; returning zero")
-			return eth.L2BlockRef{}
-		}
-		switch head.Source {
-		case rollup.VerifierHeadPreActivation:
+	if e.superAuthority == nil {
+		if e.syncCfg.FollowSourceEnabled() {
+			return e.deprecatedFinalizedHead
+		} else {
 			return e.localFinalizedHead
-		case rollup.VerifierHeadAnchor:
-			return e.resolveAnchorAsFinalized(head.Timestamp)
-		case rollup.VerifierHeadVerified:
-			return e.resolveVerifiedAsFinalized(head.Block)
-		default:
-			panic(fmt.Errorf("unhandled VerifierHeadSource: %v", head.Source))
 		}
-	} else if e.syncCfg.FollowSourceEnabled() {
-		return e.deprecatedFinalizedHead
-	} else {
+	}
+	head, ok := e.superAuthority.FinalizedL2Head(e.ctx)
+	if !ok {
+		if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
+			return e.superAuthorityFinalizedHead
+		}
+		e.log.Error("super authority finalized HoldPrevious with no cache; returning zero")
+		return eth.L2BlockRef{}
+	}
+	switch head.Source {
+	case rollup.VerifierHeadPreActivation:
 		return e.localFinalizedHead
+	case rollup.VerifierHeadAnchor:
+		return e.resolveAnchorAsFinalized(head.Timestamp)
+	case rollup.VerifierHeadVerified:
+		return e.resolveVerifiedAsFinalized(head.Block)
+	default:
+		panic(fmt.Errorf("unhandled VerifierHeadSource: %v", head.Source))
 	}
 }
 
@@ -1075,6 +1074,7 @@ func (e *EngineController) PromoteFinalized(ctx context.Context, ref eth.L2Block
 	defer e.mu.Unlock()
 	e.promoteFinalized(ctx, ref)
 }
+
 func (e *EngineController) promoteFinalized(ctx context.Context, ref eth.L2BlockRef) {
 	if ref.Number < e.FinalizedHead().Number {
 		e.log.Error("Cannot rewind finality,", "ref", ref, "finalized", e.FinalizedHead())
