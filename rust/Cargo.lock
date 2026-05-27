@@ -5955,6 +5955,7 @@ dependencies = [
  "arbitrary",
  "derive_more",
  "op-revm",
+ "op-superchain",
  "rand 0.9.4",
  "serde",
  "serde_json",
