@@ -51,29 +51,30 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 	return
 }
 
-// fetchSuperchainRegistryCommit returns the superchain-registry commit SHA that
-// the kona-client release identified by ref was built against, by reading the
-// pinned commit file from the local optimism monorepo checkout at that tag.
+// fetchSuperchainRegistryCommit returns the superchain-registry commit SHA
+// that the kona-client release identified by ref was built against, by
+// reading the superchain-registry submodule's pointer from the monorepo tree
+// at that tag. If the tag isn't present locally, the function fetches it
+// from origin before giving up.
 //
-// Only kona-client tags that have op-core/superchain/superchain-registry-commit.txt
-// are supported (v1.5.1 and later). If the tag isn't present locally, the
-// function fetches it from origin before giving up.
+// Supported for kona-client v1.5.1 and later (when the submodule was added).
 func fetchSuperchainRegistryCommit(ref string) (string, error) {
-	const path = "op-core/superchain/superchain-registry-commit.txt"
+	const submodulePath = "packages/contracts-bedrock/lib/superchain-registry"
 
 	if err := ensureRefAvailable(ref); err != nil {
 		return "", err
 	}
 
-	stdout, stderr, err := runGit("show", fmt.Sprintf("%s:%s", ref, path))
+	stdout, stderr, err := runGit("ls-tree", ref, submodulePath)
 	if err != nil {
-		return "", fmt.Errorf("git show %s:%s failed: %w (%s)", ref, path, err, strings.TrimSpace(stderr))
+		return "", fmt.Errorf("git ls-tree %s %s failed: %w (%s)", ref, submodulePath, err, strings.TrimSpace(stderr))
 	}
-	sha := strings.TrimSpace(stdout)
-	if sha == "" {
-		return "", fmt.Errorf("empty commit SHA at %s@%s", path, ref)
+	// `git ls-tree` prints submodule pointers as: `160000 commit <sha>\t<path>`.
+	fields := strings.Fields(strings.TrimSpace(stdout))
+	if len(fields) < 3 || fields[1] != "commit" {
+		return "", fmt.Errorf("unexpected `git ls-tree` output for submodule %s at ref %s: %q", submodulePath, ref, stdout)
 	}
-	return sha, nil
+	return fields[2], nil
 }
 
 // ensureRefAvailable verifies that ref resolves in the local repo; if not, it

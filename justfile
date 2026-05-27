@@ -18,12 +18,13 @@ ALL_TEST_PACKAGES := TEST_PKGS + " " + RPC_TEST_PKGS + " " + FRAUD_PROOF_TEST_PK
 help:
   @just --list
 
-# Builds op-core/superchain/superchain-configs.zip from the pinned commit in
-# op-core/superchain/superchain-registry-commit.txt. The zip is gitignored;
-# this recipe is the way to (re)materialise it for builds and tests. Skips work
-# if the existing zip already pins the same commit.
+# Refreshes the two committed copies of `superchain-configs.zip` (one for the
+# Rust side at `rust/op-superchain/data/`, one for the Go side at
+# `op-core/superchain/`) from the `packages/contracts-bedrock/lib/superchain-registry`
+# submodule. Idempotent against an unchanged submodule.
 sync-superchain:
-  bash op-core/superchain/sync-superchain.sh
+  git submodule update --init --depth 1 -- packages/contracts-bedrock/lib/superchain-registry
+  cargo run --release --manifest-path rust/Cargo.toml -p op-superchain --features regenerate --bin regenerate
 
 # Builds Go components and contracts-bedrock.
 build: build-go build-contracts

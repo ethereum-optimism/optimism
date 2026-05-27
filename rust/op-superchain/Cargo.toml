@@ -1,0 +1,40 @@
+[package]
+name = "op-superchain"
+description = "Producer + readers for the OP Stack's committed superchain-registry zip."
+version = "0.1.0"
+
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# `regenerate` gates the binary's heavier dependencies (toml parser) so
+# downstream crates.io consumers that only need the runtime read helpers
+# don't pull them.
+default = []
+regenerate = ["dep:toml"]
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "regenerate"
+path = "src/bin/regenerate.rs"
+required-features = ["regenerate"]
+
+[dependencies]
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+zstd = "0.13"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "1"
+
+# Optional, only pulled in by the `regenerate` binary build.
+toml = { version = "0.8", default-features = false, features = ["parse"], optional = true }

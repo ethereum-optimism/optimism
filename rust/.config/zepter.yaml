@@ -18,8 +18,11 @@ workflows:
         # Ignore the case that `A` is outside of the workspace. Otherwise it will report errors in external dependencies that we have no influence on.
         "--left-side-outside-workspace=ignore",
         # Only check normal dependencies.
-        # Propagating to dev-dependencies leads to compilation issues.
-        "--dep-kinds=normal:check,dev:ignore",
+        # - dev-dependencies: propagating to them leads to compilation issues.
+        # - build-dependencies: cargo's feature syntax (`dep/feature`) can't
+        #   propagate to build-deps from a runtime feature; they're a separate
+        #   compilation graph.
+        "--dep-kinds=normal:check,dev:ignore,build:ignore",
         "--show-path",
         "--quiet",
       ]

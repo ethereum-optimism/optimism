@@ -37,8 +37,9 @@ serde = { workspace = true, optional = true }
 serde_json.workspace = true
 
 # io
-tar-no-std = { workspace = true, optional = true }
-miniz_oxide = { workspace = true, features = ["with-alloc"], optional = true }
+# Runtime zstd decoder for genesis files (with the dictionary shipped by
+# op-superchain in the embedded zip).
+zstd = { version = "0.13", optional = true }
 
 # misc
 derive_more.workspace = true
@@ -46,13 +47,21 @@ paste = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 op-alloy-consensus.workspace = true
 
+[build-dependencies]
+op-superchain = { workspace = true }
+serde_json.workspace = true
+toml = { workspace = true, features = ["parse", "serde"] }
+
 [dev-dependencies]
 reth-chainspec = { workspace = true, features = ["test-utils"] }
 alloy-op-hardforks.workspace = true
 
 [features]
 default = ["std"]
-superchain-configs = ["miniz_oxide", "paste", "tar-no-std", "thiserror", "thiserror", "dep:serde"]
+# `superchain-configs` ships per-chain genesis + config bytes generated at
+# build.rs time from the op-superchain zip. Decompression uses the std `zstd`
+# crate, so the feature requires `std`.
+superchain-configs = ["std", "paste", "thiserror", "dep:serde", "dep:zstd"]
 std = [
     "alloy-chains/std",
     "alloy-genesis/std",
@@ -69,7 +78,6 @@ std = [
     "reth-network-peers/std",
     "serde_json/std",
     "serde?/std",
-    "miniz_oxide?/std",
     "thiserror?/std",
     "op-alloy-consensus/std",
 ]
@@ -79,7 +87,6 @@ serde = [
     "alloy-eips/serde",
     "alloy-hardforks/serde",
     "alloy-primitives/serde",
-    "miniz_oxide?/serde",
     "op-alloy-rpc-types/serde",
     "reth-ethereum-forks/serde",
     "reth-optimism-forks/serde",

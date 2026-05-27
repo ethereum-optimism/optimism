@@ -1636,14 +1636,11 @@ jobs:
           command: |
             just check-op-geth-version
 
-  # Builds op-core/superchain/superchain-configs.zip from the pinned commit and
-  # makes it available to downstream Go-build jobs via persist_to_workspace.
-  # The zip itself is gitignored; this job is the only place it gets built in CI.
-  #
-  # Always rebuilds — no cache. The script is fast (depth-1 SR clone + zip
-  # ~10s) and most of the job's wall-clock is mise restore anyway. Always
-  # rebuilding gives strong consistency (every run validates the committed
-  # .sha256 against a freshly-built zip) without cache-key complexity.
+  # `op-core/superchain/superchain-configs.zip` is gitignored. The canonical
+  # bytes are committed at `rust/op-superchain/data/superchain-configs.zip`;
+  # this job copies them into place for downstream Go-build jobs that attach
+  # the workspace instead of re-checking out git. Drift detection (canonical
+  # zip vs submodule) lives in the rust-ci `kona-registry-snapshot-check`.
   prep-superchain:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -1653,17 +1650,8 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
-          name: build superchain bundle
-          command: just sync-superchain
-      - run:
-          # Catches non-deterministic builds and stale .sha256 commits: if the
-          # rebuilt zip differs from what was approved in review, the .sha256
-          # file written by sync-superchain.sh will diverge from the committed
-          # one and this fails. The init.go runtime checks (SHA256 of embedded
-          # zip, COMMIT entry, op-geth cross-commit) run as part of go-tests
-          # downstream — no need to repeat them here.
-          name: verify rebuilt bundle matches committed .sha256
-          command: git diff --exit-code op-core/superchain/superchain-configs.zip.sha256
+          name: stage Go-side superchain zip from canonical Rust copy
+          command: cp rust/op-superchain/data/superchain-configs.zip op-core/superchain/superchain-configs.zip
       - persist_to_workspace:
           root: .
           paths:
@@ -1995,8 +1983,11 @@ jobs:
           command: |
             mkdir -p /tmp/prestate-debug
 
-            # chainList.json from the checkout (baked into the binary via include_str!)
-            cp rust/kona/crates/protocol/registry/etc/chainList.json /tmp/prestate-debug/chainList.json
+            # chainList.json from the committed op-superchain zip (the bytes
+            # baked into the kona-client binary at build time).
+            python3 -c "import zipfile, shutil; \
+              z = zipfile.ZipFile('rust/op-superchain/data/superchain-configs.zip'); \
+              shutil.copyfileobj(z.open('chainList.json'), open('/tmp/prestate-debug/chainList.json', 'wb'))"
 
             # The kona-client ELF binaries (for offline inspection with strings/objdump)
             cp rust/kona/prestate-artifacts-cannon/kona-client-elf /tmp/prestate-debug/kona-client-elf-cannon 2>/dev/null || true

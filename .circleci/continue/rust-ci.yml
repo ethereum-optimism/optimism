@@ -845,12 +845,13 @@ jobs:
           command: |
             lychee --config ./lychee.toml --cache-exclude-status 429 '**/README.md' || true
 
-  # Verifies that the committed `etc/{chainList,configs,depsets}.json` snapshots
-  # in `kona-registry` match what `KONA_BIND=true cargo build -p kona-registry`
-  # would regenerate from the current `superchain-registry` submodule. Catches
-  # drift between submodule and snapshot — i.e. someone bumped the submodule
-  # without refreshing the snapshots, or hand-edited the snapshots, or refreshed
-  # only some of the three coupled files.
+  # Verifies that the two committed superchain-configs zips (the canonical
+  # `rust/op-superchain/data/superchain-configs.zip` and the Go-embedded
+  # `op-core/superchain/superchain-configs.zip`) match what
+  # `cargo run -p op-superchain --features regenerate --bin regenerate`
+  # would produce from the current `superchain-registry` submodule. Catches
+  # drift between the submodule pointer and the artifacts on disk, plus any
+  # non-determinism in the producer.
   kona-registry-snapshot-check:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
@@ -865,26 +866,22 @@ jobs:
               packages/contracts-bedrock/lib/superchain-registry
       - rust-prepare-and-restore-cache: &kona-registry-snapshot-cache
           directory: rust
-          prefix: rust-kona-registry-snapshot
+          prefix: rust-superchain-zip
       - run:
-          name: Regenerate kona-registry snapshots
-          working_directory: rust/kona
-          environment:
-            KONA_BIND: "true"
-          command: cargo build -p kona-registry
+          name: Regenerate committed superchain-configs zips
+          working_directory: rust
+          command: cargo run --release -p op-superchain --features regenerate --bin regenerate
       - run:
-          name: Assert committed snapshots match regenerated output
+          name: Assert canonical committed zip matches regenerated output
           command: |
-            if ! git diff --exit-code -- \
-                rust/kona/crates/protocol/registry/etc/; then
+            if ! git diff --exit-code -- rust/op-superchain/data/superchain-configs.zip; then
               echo
-              echo "kona-registry etc/ snapshots are out of sync with the"
-              echo "superchain-registry submodule. Run:"
+              echo "rust/op-superchain/data/superchain-configs.zip is out of sync"
+              echo "with the superchain-registry submodule. Run:"
               echo
-              echo "  KONA_BIND=true cargo build -p kona-registry"
+              echo "  just sync-superchain"
               echo
-              echo "from rust/kona and commit the resulting changes to"
-              echo "rust/kona/crates/protocol/registry/etc/."
+              echo "and commit the resulting changes."
               exit 1
             fi
       - rust-save-build-cache: *kona-registry-snapshot-cache
