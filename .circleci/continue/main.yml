@@ -1986,8 +1986,9 @@ jobs:
           command: |
             mkdir -p /tmp/prestate-debug
 
-            # chainList.json from the checkout (baked into the binary via include_str!)
-            cp rust/kona/crates/protocol/registry/etc/chainList.json /tmp/prestate-debug/chainList.json
+            # chainList.json from the checkout (baked into the binary via include_str!).
+            # Sourced from op-superchain/gen/ since kona-registry consumes it from there.
+            cp rust/op-superchain/gen/chainList.json /tmp/prestate-debug/chainList.json
 
             # The kona-client ELF binaries (for offline inspection with strings/objdump)
             cp rust/kona/prestate-artifacts-cannon/kona-client-elf /tmp/prestate-debug/kona-client-elf-cannon 2>/dev/null || true
