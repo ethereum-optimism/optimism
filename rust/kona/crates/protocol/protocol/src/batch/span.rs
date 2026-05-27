@@ -490,15 +490,15 @@ impl SpanBatch {
 
             // Check that the transactions are not empty and do not contain any deposits.
             for (i, tx) in batch.transactions.iter().enumerate() {
-                if tx.is_empty() {
+                let Some(tx_type) = tx.as_ref().first().copied() else {
                     warn!(
                         target: "batch_span",
                         "transaction data must not be empty, but found empty tx, tx_index: {}",
                         i
                     );
                     return BatchValidity::Drop(BatchDropReason::EmptyTransaction);
-                }
-                if tx.as_ref().first() == Some(&(OpTxType::Deposit as u8)) {
+                };
+                if tx_type == OpTxType::Deposit as u8 {
                     warn!(
                         target: "batch_span",
                         "sequencers may not embed any deposits into batch data, but found tx that has one, tx_index: {}",
@@ -506,13 +506,13 @@ impl SpanBatch {
                     );
                     return BatchValidity::Drop(BatchDropReason::DepositTransaction);
                 }
-
-                // If isthmus is not active yet and the transaction is a 7702, drop the batch.
-                if !cfg.is_isthmus_active(batch.timestamp) &&
-                    tx.as_ref().first() == Some(&(OpTxType::Eip7702 as u8))
-                {
+                if !cfg.is_isthmus_active(batch.timestamp) && tx_type == OpTxType::Eip7702 as u8 {
                     warn!(target: "batch_span", "EIP-7702 transactions are not supported pre-isthmus. tx_index: {}", i);
                     return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
+                }
+                if !cfg.is_sdm_active(batch.timestamp) && tx_type == OpTxType::PostExec as u8 {
+                    warn!(target: "batch_span", "PostExec transactions are not supported pre-SDM. tx_index: {}", i);
+                    return BatchValidity::Drop(BatchDropReason::PostExecPreSDM);
                 }
             }
         }
