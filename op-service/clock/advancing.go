@@ -28,9 +28,10 @@ type AdvancingClock struct {
 }
 
 // pendingAction is one scheduled event. advTimer / advTicker wrap it to
-// adapt the differing Timer / Ticker Stop signatures.
+// adapt the differing Timer / Ticker Stop signatures. All mutable fields
+// are guarded by the owning AdvancingClock's mu; ch and callback are
+// immutable after construction.
 type pendingAction struct {
-	mu       sync.Mutex
 	clock    *AdvancingClock
 	due      time.Time
 	period   time.Duration // zero for one-shot, non-zero for ticker
@@ -233,14 +234,10 @@ func (c *AdvancingClock) run() {
 		var nextDue time.Time
 		hasPending := false
 		for _, a := range c.pending {
-			a.mu.Lock()
-			stopped := a.stopped
-			due := a.due
-			a.mu.Unlock()
-			if stopped {
+			if a.stopped {
 				continue
 			}
-			nextDue = due
+			nextDue = a.due
 			hasPending = true
 			break
 		}
@@ -280,14 +277,10 @@ func (c *AdvancingClock) fireDue() {
 		c.mu.Lock()
 		var due *pendingAction
 		for _, a := range c.pending {
-			a.mu.Lock()
-			stopped := a.stopped
-			aDue := a.due
-			a.mu.Unlock()
-			if stopped {
+			if a.stopped {
 				continue
 			}
-			if aDue.After(now) {
+			if a.due.After(now) {
 				break
 			}
 			due = a
@@ -299,59 +292,56 @@ func (c *AdvancingClock) fireDue() {
 			return
 		}
 		c.removeLocked(due)
+		rearm := c.fireLocked(due, now)
+		if rearm {
+			c.insertLocked(due)
+		}
 		c.mu.Unlock()
 
-		rearm := due.fire(now)
-		if rearm {
-			c.mu.Lock()
-			c.insertLocked(due)
-			c.mu.Unlock()
-		}
+		c.deliver(due, now)
 	}
 }
 
 func (c *AdvancingClock) purgeStoppedLocked() {
 	kept := c.pending[:0]
 	for _, a := range c.pending {
-		a.mu.Lock()
-		stopped := a.stopped
-		a.mu.Unlock()
-		if !stopped {
+		if !a.stopped {
 			kept = append(kept, a)
 		}
 	}
 	c.pending = kept
 }
 
-// fire delivers one event. Returns true if the action should be re-armed (ticker).
-func (a *pendingAction) fire(now time.Time) bool {
-	a.mu.Lock()
+// fireLocked updates action state for firing. Returns true if the action
+// should be re-armed (ticker). Caller must hold c.mu.
+func (c *AdvancingClock) fireLocked(a *pendingAction, now time.Time) bool {
 	if a.stopped {
-		a.mu.Unlock()
 		return false
 	}
-	period := a.period
-	ch := a.ch
-	cb := a.callback
 	a.run = true
-	if period > 0 {
-		a.due = now.Add(period)
+	if a.period > 0 {
+		a.due = now.Add(a.period)
+		return true
 	}
-	a.mu.Unlock()
+	return false
+}
 
-	if ch != nil {
+// deliver sends the event to the channel and/or invokes the callback.
+// Called without holding c.mu so a slow consumer or callback cannot stall
+// the scheduler.
+func (c *AdvancingClock) deliver(a *pendingAction, now time.Time) {
+	if a.ch != nil {
 		// Non-blocking send: matches stdlib time.Ticker semantics.
 		select {
-		case ch <- now:
+		case a.ch <- now:
 		default:
 		}
 	}
-	if cb != nil {
+	if a.callback != nil {
 		// Run on its own goroutine so a slow callback cannot stall the
 		// scheduler. Matches stdlib time.AfterFunc semantics.
-		go cb()
+		go a.callback()
 	}
-	return period > 0
 }
 
 type advTimer struct {
@@ -382,17 +372,19 @@ func (t *advTicker) Reset(d time.Duration) {
 }
 
 func (a *pendingAction) stopExternal() bool {
-	a.mu.Lock()
+	c := a.clock
+	c.mu.Lock()
 	wasActive := !a.stopped && !a.run
 	a.stopped = true
-	a.mu.Unlock()
-	a.clock.signal()
+	c.mu.Unlock()
+	c.signal()
 	return wasActive
 }
 
 func (a *pendingAction) reset(d time.Duration) bool {
-	due := a.clock.Now().Add(d)
-	a.mu.Lock()
+	c := a.clock
+	c.mu.Lock()
+	due := c.wallClock.Now().Add(c.offset).Add(d)
 	wasActive := !a.stopped && !a.run
 	a.stopped = false
 	a.run = false
@@ -400,13 +392,10 @@ func (a *pendingAction) reset(d time.Duration) bool {
 	if a.period > 0 {
 		a.period = d
 	}
-	a.mu.Unlock()
-
-	a.clock.mu.Lock()
-	a.clock.removeLocked(a)
-	a.clock.insertLocked(a)
-	a.clock.mu.Unlock()
-	a.clock.signal()
+	c.removeLocked(a)
+	c.insertLocked(a)
+	c.mu.Unlock()
+	c.signal()
 	return wasActive
 }
 
