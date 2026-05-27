@@ -1228,7 +1228,11 @@
     },
     {
       "source": "/operators/node-operators/tutorials/node-from-source",
-      "destination": "/node-operators/tutorials/node-from-source"
+      "destination": "/node-operators/tutorials/run-node-from-source"
+    },
+    {
+      "source": "/node-operators/tutorials/node-from-source",
+      "destination": "/node-operators/tutorials/run-node-from-source"
     },
     {
       "source": "/operators/node-operators/tutorials/run-node-from-source",
@@ -2061,7 +2065,6 @@
             "group": "Tutorials",
             "pages": [
               "node-operators/tutorials/node-from-docker",
-              "node-operators/tutorials/node-from-source",
               "node-operators/tutorials/run-node-from-source",
               "node-operators/tutorials/reth-historical-proofs"
             ]
