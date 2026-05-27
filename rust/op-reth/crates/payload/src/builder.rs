@@ -725,7 +725,7 @@ where
     pub fn sdm_production_enabled(&self) -> bool {
         let protocol_active =
             self.chain_spec.is_interop_active_at_timestamp(self.attributes().timestamp());
-        protocol_active && self.builder_config.sdm_desired_enabled.enabled()
+        protocol_active && self.builder_config.sdm_post_exec_opt_in.enabled()
     }
 
     /// Returns the unique id for this payload job.

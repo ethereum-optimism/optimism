@@ -143,6 +143,11 @@ pub struct OpRBuilderMetrics {
     pub sdm_refund_gas_total: Counter,
     /// SDM gas refunded by the latest produced block.
     pub sdm_refund_gas_per_block: Gauge,
+    /// Histogram of duration spent replaying flashblock txs into a canonical block to attach
+    /// the PostExec tx. Cost is O(N) per invocation in tx count, and the function is invoked
+    /// once per flashblock when SDM PostExec production is active — so cumulative per-block
+    /// cost grows ~O(N²). Useful for tracking the perf impact of the SDM PostExec path.
+    pub sdm_canonical_replay_duration: Histogram,
     /// Histogram of tx simulation duration
     pub tx_simulation_duration: Histogram,
     /// Byte size of transactions

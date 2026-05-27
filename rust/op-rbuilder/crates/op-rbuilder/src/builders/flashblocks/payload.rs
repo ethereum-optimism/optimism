@@ -3,7 +3,7 @@ use crate::{
     builders::{
         BuilderConfig,
         builder_tx::BuilderTransactions,
-        context::{OpPayloadBuilderCtx, PostExecBuilder},
+        context::{BlockBuilderStateDbExt, OpPayloadBuilderCtx, compute_post_exec_mode},
         flashblocks::{best_txs::BestFlashblocksTxs, config::FlashBlocksConfigExt},
         generator::{BlockCell, BuildArguments, PayloadBuilder},
     },
@@ -249,6 +249,7 @@ where
         >,
         cancel: CancellationToken,
         extra_ctx: FlashblocksExtraCtx,
+        post_exec_mode: PostExecMode,
     ) -> eyre::Result<OpPayloadBuilderCtx<FlashblocksExtraCtx>> {
         let chain_spec = self.client.chain_spec();
         let timestamp = config.attributes.timestamp();
@@ -299,7 +300,7 @@ where
             extra_ctx,
             max_gas_per_txn: self.config.max_gas_per_txn,
             address_gas_limiter: self.address_gas_limiter.clone(),
-            sdm_desired_enabled: self.config.sdm_desired_enabled.clone(),
+            post_exec_mode,
         })
     }
 
@@ -339,6 +340,13 @@ where
 
         let timestamp = config.attributes.timestamp();
         let disable_state_root = self.config.specific.disable_state_root;
+        // Snapshot the post-exec mode once for the whole payload so the fallback ctx, the
+        // per-flashblock ctx, and the canonical replay all observe the same decision.
+        let post_exec_mode = compute_post_exec_mode(
+            &self.evm_config,
+            timestamp,
+            &self.config.sdm_post_exec_opt_in,
+        );
         let ctx = self
             .get_op_payload_builder_ctx(
                 config.clone(),
@@ -348,6 +356,7 @@ where
                     disable_state_root,
                     ..Default::default()
                 },
+                post_exec_mode.clone(),
             )
             .map_err(|e| PayloadBuilderError::Other(e.into()))?;
 
@@ -386,12 +395,14 @@ where
                 );
             };
 
-            let canonical_execution = if matches!(ctx.post_exec_mode(), PostExecMode::Produce) {
+            let calculate_state_root = !disable_state_root || ctx.attributes().no_tx_pool;
+            let canonical_execution = if matches!(ctx.post_exec_mode, PostExecMode::Produce) {
                 let replay_state_provider = self.client.state_by_block_hash(ctx.parent().hash())?;
                 Some(replay_canonical_post_exec_execution(
                     &ctx,
                     replay_state_provider,
                     &info,
+                    calculate_state_root,
                 )?)
             } else {
                 None
@@ -404,7 +415,7 @@ where
                 builder.state_db_mut(),
                 &ctx,
                 &mut info,
-                !disable_state_root || ctx.attributes().no_tx_pool, // need to calculate state root for CL sync
+                calculate_state_root, // need to calculate state root for CL sync
                 canonical_execution,
             )?;
             info.extra.post_exec_entries = post_exec_entries;
@@ -507,7 +518,7 @@ where
 
         let mut fb_cancel = block_cancel.child_token();
         let mut ctx = self
-            .get_op_payload_builder_ctx(config, fb_cancel.clone(), extra_ctx)
+            .get_op_payload_builder_ctx(config, fb_cancel.clone(), extra_ctx, post_exec_mode)
             .map_err(|e| PayloadBuilderError::Other(e.into()))?;
 
         // Create best_transaction iterator
@@ -641,7 +652,7 @@ where
         &self,
         ctx: &OpPayloadBuilderCtx<FlashblocksExtraCtx>,
         info: &mut ExecutionInfo<FlashblocksExecutionInfo>,
-        builder: &mut PostExecBuilder<Builder>,
+        builder: &mut Builder,
         state_provider: impl reth::providers::StateProvider + Clone,
         best_txs: &mut NextBestFlashblocksTxs<Pool>,
         block_cancel: &CancellationToken,
@@ -777,8 +788,16 @@ where
             error!(target: "payload_builder", "Error simulating builder txs: {}", e);
         };
 
-        let canonical_execution = matches!(ctx.post_exec_mode(), PostExecMode::Produce)
-            .then(|| replay_canonical_post_exec_execution(ctx, state_provider.clone(), info))
+        let calculate_state_root = !ctx.extra_ctx.disable_state_root || ctx.attributes().no_tx_pool;
+        let canonical_execution = matches!(ctx.post_exec_mode, PostExecMode::Produce)
+            .then(|| {
+                replay_canonical_post_exec_execution(
+                    ctx,
+                    state_provider.clone(),
+                    info,
+                    calculate_state_root,
+                )
+            })
             .transpose()?;
         let post_exec_entries = canonical_execution.as_ref().map_or_else(
             || current_post_exec_entries(info, builder, post_exec_index_offset),
@@ -786,10 +805,10 @@ where
         );
         let total_block_built_duration = Instant::now();
         let build_result = build_block(
-            builder.state_db_mut::<DB>(),
+            builder.state_db_mut(),
             ctx,
             info,
-            !ctx.extra_ctx.disable_state_root || ctx.attributes().no_tx_pool,
+            calculate_state_root,
             canonical_execution,
         );
         let total_block_built_duration = total_block_built_duration.elapsed();
@@ -1092,7 +1111,7 @@ fn offset_post_exec_entries(
 
 fn current_post_exec_entries<Builder>(
     info: &ExecutionInfo<FlashblocksExecutionInfo>,
-    builder: &PostExecBuilder<Builder>,
+    builder: &Builder,
     tx_index_offset: u64,
 ) -> Vec<SDMGasEntry>
 where
@@ -1110,10 +1129,12 @@ fn replay_canonical_post_exec_execution<ExtraCtx>(
     ctx: &OpPayloadBuilderCtx<ExtraCtx>,
     state_provider: impl reth::providers::StateProvider,
     info: &ExecutionInfo<FlashblocksExecutionInfo>,
+    calculate_state_root: bool,
 ) -> Result<CanonicalPostExecExecution, PayloadBuilderError>
 where
     ExtraCtx: std::fmt::Debug + Default,
 {
+    let replay_start = Instant::now();
     let db = StateProviderDatabase::new(&state_provider);
     let mut replay_state = State::builder()
         .with_database(db)
@@ -1140,14 +1161,24 @@ where
         ))?;
     }
 
+    // Mirror `build_block`'s `calculate_state_root` gate: when the operator has disabled state
+    // root computation, pass a zero precomputed root so the canonical materialization doesn't
+    // silently re-enable it. The materialized block's `state_root` (and therefore its
+    // `block_hash`) will be zero — matching what the legacy non-canonical path emits.
+    let precomputed_state_root =
+        (!calculate_state_root).then(|| (B256::ZERO, TrieUpdates::default()));
     let BlockBuilderOutcome {
         execution_result,
         hashed_state,
         trie_updates,
         block,
         block_access_list: _,
-    } = replay_builder.finish(&state_provider, None)?;
+    } = replay_builder.finish(&state_provider, precomputed_state_root)?;
     let bundle = replay_state.take_bundle();
+
+    ctx.metrics
+        .sdm_canonical_replay_duration
+        .record(replay_start.elapsed());
 
     Ok(CanonicalPostExecExecution {
         execution_result,
@@ -1167,7 +1198,7 @@ fn build_current_post_exec_tx<ExtraCtx>(
 where
     ExtraCtx: std::fmt::Debug + Default,
 {
-    if !matches!(ctx.post_exec_mode(), PostExecMode::Produce) || entries.is_empty() {
+    if !matches!(ctx.post_exec_mode, PostExecMode::Produce) || entries.is_empty() {
         return None;
     }
 
@@ -1182,15 +1213,13 @@ fn execute_pre_steps<'a, DB, ExtraCtx>(
     ctx: &'a OpPayloadBuilderCtx<ExtraCtx>,
 ) -> Result<
     (
-        PostExecBuilder<
-            impl reth_evm::execute::BlockBuilder<
-                Primitives = reth_optimism_primitives::OpPrimitives,
-                Executor: PostExecExecutorExt
-                              + AlloyBlockExecutor<
-                    Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
-                >,
-            > + 'a,
-        >,
+        impl reth_evm::execute::BlockBuilder<
+            Primitives = reth_optimism_primitives::OpPrimitives,
+            Executor: PostExecExecutorExt
+                          + AlloyBlockExecutor<
+                Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
+            >,
+        > + 'a,
         ExecutionInfo<FlashblocksExecutionInfo>,
     ),
     PayloadBuilderError,

@@ -11,7 +11,7 @@
 use alloy_hardforks::ForkCondition;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use reth_optimism_forks::{OpHardfork, OpHardforks};
-use reth_optimism_payload_builder::config::SdmDesiredEnabled;
+use reth_optimism_payload_builder::config::SdmPostExecOptIn;
 use serde::{Deserialize, Serialize};
 use std::{
     sync::Arc,
@@ -50,16 +50,16 @@ pub trait SdmAdminApi {
 /// to evaluate the protocol gate for status queries.
 #[derive(Debug, Clone)]
 pub struct OpSdmAdminApi<ChainSpec> {
-    desired_enabled: SdmDesiredEnabled,
+    opt_in: SdmPostExecOptIn,
     chain_spec: Arc<ChainSpec>,
 }
 
 impl<ChainSpec> OpSdmAdminApi<ChainSpec> {
-    /// Construct a handler that mutates `desired_enabled` and reads the protocol gate from
-    /// `chain_spec`. The shared `SdmDesiredEnabled` should also be threaded into the payload
-    /// builder's `OpBuilderConfig` so writes here take effect on the next produced block.
-    pub const fn new(desired_enabled: SdmDesiredEnabled, chain_spec: Arc<ChainSpec>) -> Self {
-        Self { desired_enabled, chain_spec }
+    /// Construct a handler that mutates `opt_in` and reads the protocol gate from `chain_spec`.
+    /// The shared `SdmPostExecOptIn` should also be threaded into the payload builder's
+    /// `OpBuilderConfig` so writes here take effect on the next produced block.
+    pub const fn new(opt_in: SdmPostExecOptIn, chain_spec: Arc<ChainSpec>) -> Self {
+        Self { opt_in, chain_spec }
     }
 }
 
@@ -68,13 +68,13 @@ where
     ChainSpec: OpHardforks + Send + Sync + 'static,
 {
     fn set_sdm_enabled(&self, enabled: bool) -> RpcResult<()> {
-        self.desired_enabled.set_enabled(enabled);
+        self.opt_in.set_enabled(enabled);
         Ok(())
     }
 
     fn sdm_status(&self, query_timestamp: Option<u64>) -> RpcResult<SdmStatus> {
         let timestamp = query_timestamp.unwrap_or_else(current_unix_timestamp);
-        let desired_enabled = self.desired_enabled.enabled();
+        let desired_enabled = self.opt_in.enabled();
         let protocol_active = self.chain_spec.is_interop_active_at_timestamp(timestamp);
         let activation_time = match self.chain_spec.op_fork_activation(OpHardfork::Interop) {
             ForkCondition::Timestamp(t) => Some(t),

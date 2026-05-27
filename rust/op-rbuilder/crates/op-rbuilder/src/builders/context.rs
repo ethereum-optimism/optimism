@@ -48,7 +48,7 @@ use crate::{
     gas_limiter::AddressGasLimiter,
     metrics::OpRBuilderMetrics,
     primitives::reth::{ExecutionInfo, TxnExecutionResult},
-    sdm_admin::SdmDesiredEnabledFlag,
+    sdm_admin::SdmPostExecOptInFlag,
     traits::PayloadTxsBounds,
     tx::MaybeRevertingTransaction,
     tx_signer::Signer,
@@ -66,66 +66,47 @@ where
     Some(receipt)
 }
 
-pub(super) struct PostExecBuilder<B> {
-    inner: B,
-}
-
-impl<B> PostExecBuilder<B> {
-    pub(super) fn new(inner: B) -> Self {
-        Self { inner }
+/// Adds `state_db_mut` to any `BlockBuilder` whose EVM database derefs to a `State<DB>`.
+///
+/// PostExec materialization needs raw access to the underlying `State<DB>` (to merge transitions
+/// and take the bundle), but the `BlockBuilder` trait only exposes the executor/EVM. Rather than
+/// wrap every builder in a delegation struct, this trait provides the accessor as a blanket impl.
+pub(super) trait BlockBuilderStateDbExt<DB>: BlockBuilder
+where
+    Self::Executor: AlloyBlockExecutor<Evm: AlloyEvm<DB: DerefMut<Target = State<DB>>>>,
+    DB: Database,
+{
+    fn state_db_mut(&mut self) -> &mut State<DB> {
+        self.evm_mut().db_mut().deref_mut()
     }
 }
 
-impl<B> BlockBuilder for PostExecBuilder<B>
+impl<B, DB> BlockBuilderStateDbExt<DB> for B
 where
     B: BlockBuilder,
+    B::Executor: AlloyBlockExecutor<Evm: AlloyEvm<DB: DerefMut<Target = State<DB>>>>,
+    DB: Database,
 {
-    type Primitives = B::Primitives;
-    type Executor = B::Executor;
-
-    fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
-        self.inner.apply_pre_execution_changes()
-    }
-
-    fn execute_transaction_with_commit_condition(
-        &mut self,
-        tx: impl reth_evm::execute::ExecutorTx<Self::Executor>,
-        f: impl FnOnce(&<Self::Executor as AlloyBlockExecutor>::Result) -> CommitChanges,
-    ) -> Result<Option<alloy_evm::block::GasOutput>, BlockExecutionError> {
-        self.inner.execute_transaction_with_commit_condition(tx, f)
-    }
-
-    fn finish(
-        self,
-        state_provider: impl reth_provider::StateProvider,
-        state_root_precomputed: Option<(alloy_primitives::B256, reth_trie::updates::TrieUpdates)>,
-    ) -> Result<reth_evm::execute::BlockBuilderOutcome<Self::Primitives>, BlockExecutionError> {
-        self.inner.finish(state_provider, state_root_precomputed)
-    }
-
-    fn executor_mut(&mut self) -> &mut Self::Executor {
-        self.inner.executor_mut()
-    }
-
-    fn executor(&self) -> &Self::Executor {
-        self.inner.executor()
-    }
-
-    fn into_executor(self) -> Self::Executor {
-        self.inner.into_executor()
-    }
 }
 
-impl<B> PostExecBuilder<B>
-where
-    B: BlockBuilder,
-{
-    pub(super) fn state_db_mut<DB>(&mut self) -> &mut State<DB>
-    where
-        B::Executor: AlloyBlockExecutor<Evm: AlloyEvm<DB: DerefMut<Target = State<DB>>>>,
-        DB: Database,
-    {
-        self.inner.evm_mut().db_mut().deref_mut()
+/// Snapshot the post-exec mode for an upcoming build.
+///
+/// Two gates must agree: the protocol gate (chain spec Interop at the given timestamp) and the
+/// operator gate (admin RPC). Either being false yields [`PostExecMode::Disabled`].
+///
+/// Called once per `OpPayloadBuilderCtx` construction so every builder/replay run for the same
+/// payload sees the same decision, even if the admin RPC flips the operator opt-in mid-block.
+pub(super) fn compute_post_exec_mode(
+    evm_config: &OpEvmConfig,
+    timestamp: u64,
+    opt_in: &SdmPostExecOptInFlag,
+) -> PostExecMode {
+    let protocol_active = evm_config.is_sdm_active_at_timestamp(timestamp);
+    let operator_opted_in = opt_in.load(Ordering::Acquire);
+    if protocol_active && operator_opted_in {
+        PostExecMode::Produce
+    } else {
+        PostExecMode::Disabled
     }
 }
 
@@ -158,9 +139,11 @@ pub struct OpPayloadBuilderCtx<ExtraCtx: Debug + Default = ()> {
     pub max_gas_per_txn: Option<u64>,
     /// Rate limiting based on gas. This is an optional feature.
     pub address_gas_limiter: AddressGasLimiter,
-    /// Local operator opt-in for SDM PostExec production. ANDed with the chain-spec
-    /// Interop gate in [`Self::post_exec_mode`].
-    pub sdm_desired_enabled: SdmDesiredEnabledFlag,
+    /// Snapshot of the post-exec mode for this build. Captured once per `OpPayloadBuilderCtx`
+    /// construction (see [`compute_post_exec_mode`]) so every builder created from this ctx —
+    /// fallback block, each flashblock, canonical replay — observes the same decision even if
+    /// the admin RPC flips the operator opt-in mid-block.
+    pub post_exec_mode: PostExecMode,
 }
 
 impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
@@ -326,39 +309,20 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
 }
 
 impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
-    /// Returns the post-exec mode for the current payload.
-    ///
-    /// Two gates must agree: the protocol gate (chain spec Interop at this block's
-    /// timestamp) and the operator gate (`sdm_desired_enabled`, mutated via
-    /// `admin_setSdmEnabled`). Either being false disables production.
-    pub fn post_exec_mode(&self) -> PostExecMode {
-        let protocol_active = self
-            .evm_config
-            .is_sdm_active_at_timestamp(self.attributes().timestamp());
-        let operator_opted_in = self.sdm_desired_enabled.load(Ordering::Acquire);
-        if protocol_active && operator_opted_in {
-            PostExecMode::Produce
-        } else {
-            PostExecMode::Disabled
-        }
-    }
-
     /// Returns a post-exec-aware block builder for the next block in the payload.
     pub(super) fn block_builder_for_next_block<'a, DB: Database + 'a>(
         &'a self,
         db: &'a mut State<DB>,
     ) -> Result<
-        PostExecBuilder<
-            impl BlockBuilder<
-                Primitives = reth_optimism_primitives::OpPrimitives,
-                Executor: PostExecExecutorExt
-                              + AlloyBlockExecutor<
-                    Transaction = OpTransactionSigned,
-                    Receipt = OpReceipt,
-                    Evm: AlloyEvm<DB: DerefMut<Target = State<DB>>>,
-                >,
-            > + 'a,
-        >,
+        impl BlockBuilder<
+            Primitives = reth_optimism_primitives::OpPrimitives,
+            Executor: PostExecExecutorExt
+                          + AlloyBlockExecutor<
+                Transaction = OpTransactionSigned,
+                Receipt = OpReceipt,
+                Evm: AlloyEvm<DB: DerefMut<Target = State<DB>>>,
+            >,
+        > + 'a,
         PayloadBuilderError,
     > {
         self.evm_config
@@ -366,9 +330,8 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
                 db,
                 self.parent(),
                 self.block_env_attributes.clone(),
-                self.post_exec_mode(),
+                self.post_exec_mode.clone(),
             )
-            .map(PostExecBuilder::new)
             .map_err(PayloadBuilderError::other)
     }
 

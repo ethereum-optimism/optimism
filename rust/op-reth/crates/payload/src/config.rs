@@ -13,13 +13,13 @@ pub struct OpBuilderConfig {
     /// Gas limit configuration for the OP builder.
     pub gas_limit_config: OpGasLimitConfig,
     /// Local SDM `PostExec` production opt-in. Shared with the admin RPC.
-    pub sdm_desired_enabled: SdmDesiredEnabled,
+    pub sdm_post_exec_opt_in: SdmPostExecOptIn,
 }
 
 impl OpBuilderConfig {
     /// Creates a new OP builder configuration with the given data availability configuration.
     pub fn new(da_config: OpDAConfig, gas_limit_config: OpGasLimitConfig) -> Self {
-        Self { da_config, gas_limit_config, sdm_desired_enabled: SdmDesiredEnabled::default() }
+        Self { da_config, gas_limit_config, sdm_post_exec_opt_in: SdmPostExecOptIn::default() }
     }
 
     /// Returns the Data Availability configuration for the OP builder, if it has configured
@@ -34,11 +34,11 @@ impl OpBuilderConfig {
 /// `false` on construction. The admin RPC writes; the payload builder reads. The protocol gate
 /// (chain spec Interop activation) is checked separately; both must be true to actually produce.
 #[derive(Debug, Clone, Default)]
-pub struct SdmDesiredEnabled {
+pub struct SdmPostExecOptIn {
     inner: Arc<AtomicBool>,
 }
 
-impl SdmDesiredEnabled {
+impl SdmPostExecOptIn {
     /// Returns the current opt-in state.
     pub fn enabled(&self) -> bool {
         self.inner.load(Ordering::Acquire)

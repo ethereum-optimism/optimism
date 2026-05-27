@@ -41,7 +41,7 @@ use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     OpBuiltPayload, OpExecData, OpPayloadBuilderAttributes, OpPayloadPrimitives,
     builder::OpPayloadTransactions,
-    config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig, SdmDesiredEnabled},
+    config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig, SdmPostExecOptIn},
 };
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
 use reth_optimism_rpc::{
@@ -218,7 +218,7 @@ pub struct OpNode {
     pub gas_limit_config: OpGasLimitConfig,
     /// Local operator opt-in for SDM `PostExec` production. Shared (via Arc clones) between the
     /// payload builder and the `admin_setSdmEnabled` RPC handler.
-    pub sdm_desired_enabled: SdmDesiredEnabled,
+    pub sdm_post_exec_opt_in: SdmPostExecOptIn,
 }
 
 /// A [`ComponentsBuilder`] with its generic arguments set to a stack of Optimism specific builders.
@@ -238,7 +238,7 @@ impl OpNode {
             args,
             da_config: OpDAConfig::default(),
             gas_limit_config: OpGasLimitConfig::default(),
-            sdm_desired_enabled: SdmDesiredEnabled::default(),
+            sdm_post_exec_opt_in: SdmPostExecOptIn::default(),
         }
     }
 
@@ -273,7 +273,7 @@ impl OpNode {
                 OpPayloadBuilder::new(compute_pending_block)
                     .with_da_config(self.da_config.clone())
                     .with_gas_limit_config(self.gas_limit_config.clone())
-                    .with_sdm_desired_enabled(self.sdm_desired_enabled.clone()),
+                    .with_sdm_post_exec_opt_in(self.sdm_post_exec_opt_in.clone()),
             ))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
@@ -286,7 +286,7 @@ impl OpNode {
             .with_sequencer_headers(self.args.sequencer_headers.clone())
             .with_da_config(self.da_config.clone())
             .with_gas_limit_config(self.gas_limit_config.clone())
-            .with_sdm_desired_enabled(self.sdm_desired_enabled.clone())
+            .with_sdm_post_exec_opt_in(self.sdm_post_exec_opt_in.clone())
             .with_enable_tx_conditional(self.args.enable_tx_conditional)
             .with_min_suggested_priority_fee(self.args.min_suggested_priority_fee)
             .with_historical_rpc(self.args.historical_rpc.clone())
@@ -409,7 +409,7 @@ pub struct OpAddOns<
     /// Gas limit configuration for the OP builder.
     pub gas_limit_config: OpGasLimitConfig,
     /// Shared SDM operator opt-in flag; mutated by the `admin_setSdmEnabled` RPC.
-    pub sdm_desired_enabled: SdmDesiredEnabled,
+    pub sdm_post_exec_opt_in: SdmPostExecOptIn,
     /// Sequencer client, configured to forward submitted transactions to sequencer of given OP
     /// network.
     pub sequencer_url: Option<String>,
@@ -435,7 +435,7 @@ where
         rpc_add_ons: RpcAddOns<N, EthB, PVB, EB, EVB, RpcMiddleware>,
         da_config: OpDAConfig,
         gas_limit_config: OpGasLimitConfig,
-        sdm_desired_enabled: SdmDesiredEnabled,
+        sdm_post_exec_opt_in: SdmPostExecOptIn,
         sequencer_url: Option<String>,
         sequencer_headers: Vec<String>,
         historical_rpc: Option<String>,
@@ -446,7 +446,7 @@ where
             rpc_add_ons,
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             sequencer_url,
             sequencer_headers,
             historical_rpc,
@@ -498,7 +498,7 @@ where
             rpc_add_ons,
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             sequencer_url,
             sequencer_headers,
             historical_rpc,
@@ -510,7 +510,7 @@ where
             rpc_add_ons.with_engine_api(engine_api_builder),
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             sequencer_url,
             sequencer_headers,
             historical_rpc,
@@ -528,7 +528,7 @@ where
             rpc_add_ons,
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             sequencer_url,
             sequencer_headers,
             enable_tx_conditional,
@@ -540,7 +540,7 @@ where
             rpc_add_ons.with_payload_validator(payload_validator_builder),
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             sequencer_url,
             sequencer_headers,
             historical_rpc,
@@ -558,7 +558,7 @@ where
             rpc_add_ons,
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             sequencer_url,
             sequencer_headers,
             enable_tx_conditional,
@@ -570,7 +570,7 @@ where
             rpc_add_ons.with_engine_validator(engine_validator_builder),
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             sequencer_url,
             sequencer_headers,
             historical_rpc,
@@ -591,7 +591,7 @@ where
             rpc_add_ons,
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             sequencer_url,
             sequencer_headers,
             enable_tx_conditional,
@@ -603,7 +603,7 @@ where
             rpc_add_ons.with_rpc_middleware(rpc_middleware),
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             sequencer_url,
             sequencer_headers,
             historical_rpc,
@@ -668,7 +668,7 @@ where
             rpc_add_ons,
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             sequencer_url,
             sequencer_headers,
             enable_tx_conditional,
@@ -717,7 +717,7 @@ where
         let miner_ext = OpMinerExtApi::new(da_config, gas_limit_config);
 
         let sdm_admin_ext = reth_optimism_rpc::sdm_admin::OpSdmAdminApi::new(
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             ctx.node.provider().chain_spec(),
         );
 
@@ -858,7 +858,7 @@ pub struct OpAddOnsBuilder<NetworkT, RpcMiddleware = Identity> {
     /// Gas limit configuration for the OP builder.
     gas_limit_config: Option<OpGasLimitConfig>,
     /// Shared SDM operator opt-in flag for the payload builder and admin RPC.
-    sdm_desired_enabled: Option<SdmDesiredEnabled>,
+    sdm_post_exec_opt_in: Option<SdmPostExecOptIn>,
     /// Enable transaction conditionals.
     enable_tx_conditional: bool,
     /// Marker for network types.
@@ -883,7 +883,7 @@ impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
             historical_rpc: None,
             da_config: None,
             gas_limit_config: None,
-            sdm_desired_enabled: None,
+            sdm_post_exec_opt_in: None,
             enable_tx_conditional: false,
             min_suggested_priority_fee: 1_000_000,
             _nt: PhantomData,
@@ -921,8 +921,8 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
     }
 
     /// Provide the shared SDM operator opt-in flag.
-    pub fn with_sdm_desired_enabled(mut self, sdm_desired_enabled: SdmDesiredEnabled) -> Self {
-        self.sdm_desired_enabled = Some(sdm_desired_enabled);
+    pub fn with_sdm_post_exec_opt_in(mut self, sdm_post_exec_opt_in: SdmPostExecOptIn) -> Self {
+        self.sdm_post_exec_opt_in = Some(sdm_post_exec_opt_in);
         self
     }
 
@@ -960,7 +960,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             historical_rpc,
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             enable_tx_conditional,
             min_suggested_priority_fee,
             tokio_runtime,
@@ -975,7 +975,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             historical_rpc,
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             enable_tx_conditional,
             min_suggested_priority_fee,
             _nt,
@@ -1016,7 +1016,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             sequencer_headers,
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
             enable_tx_conditional,
             min_suggested_priority_fee,
             historical_rpc,
@@ -1044,7 +1044,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             .with_tokio_runtime(tokio_runtime),
             da_config.unwrap_or_default(),
             gas_limit_config.unwrap_or_default(),
-            sdm_desired_enabled.unwrap_or_default(),
+            sdm_post_exec_opt_in.unwrap_or_default(),
             sequencer_url,
             sequencer_headers,
             historical_rpc,
@@ -1292,7 +1292,7 @@ pub struct OpPayloadBuilder<Txs = ()> {
     /// This is used to configure gas limit related constraints for the payload builder.
     pub gas_limit_config: OpGasLimitConfig,
     /// Operator opt-in flag for SDM `PostExec` production. Shared with the admin RPC.
-    pub sdm_desired_enabled: SdmDesiredEnabled,
+    pub sdm_post_exec_opt_in: SdmPostExecOptIn,
 }
 
 impl OpPayloadBuilder {
@@ -1304,7 +1304,7 @@ impl OpPayloadBuilder {
             best_transactions: (),
             da_config: OpDAConfig::default(),
             gas_limit_config: OpGasLimitConfig::default(),
-            sdm_desired_enabled: SdmDesiredEnabled::default(),
+            sdm_post_exec_opt_in: SdmPostExecOptIn::default(),
         }
     }
 
@@ -1321,8 +1321,8 @@ impl OpPayloadBuilder {
     }
 
     /// Provide the shared SDM operator opt-in flag.
-    pub fn with_sdm_desired_enabled(mut self, sdm_desired_enabled: SdmDesiredEnabled) -> Self {
-        self.sdm_desired_enabled = sdm_desired_enabled;
+    pub fn with_sdm_post_exec_opt_in(mut self, sdm_post_exec_opt_in: SdmPostExecOptIn) -> Self {
+        self.sdm_post_exec_opt_in = sdm_post_exec_opt_in;
         self
     }
 }
@@ -1332,14 +1332,14 @@ impl<Txs> OpPayloadBuilder<Txs> {
     /// payload.
     pub fn with_transactions<T>(self, best_transactions: T) -> OpPayloadBuilder<T> {
         let Self {
-            compute_pending_block, da_config, gas_limit_config, sdm_desired_enabled, ..
+            compute_pending_block, da_config, gas_limit_config, sdm_post_exec_opt_in, ..
         } = self;
         OpPayloadBuilder {
             compute_pending_block,
             best_transactions,
             da_config,
             gas_limit_config,
-            sdm_desired_enabled,
+            sdm_post_exec_opt_in,
         }
     }
 }
@@ -1389,7 +1389,7 @@ where
             OpBuilderConfig {
                 da_config: self.da_config.clone(),
                 gas_limit_config: self.gas_limit_config.clone(),
-                sdm_desired_enabled: self.sdm_desired_enabled.clone(),
+                sdm_post_exec_opt_in: self.sdm_post_exec_opt_in.clone(),
             },
         )
         .with_transactions(self.best_transactions.clone())

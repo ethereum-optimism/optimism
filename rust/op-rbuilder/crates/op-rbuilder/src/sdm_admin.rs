@@ -25,7 +25,7 @@ use std::{
 
 /// Shared "operator wants to produce PostExec" flag. Cloned into both the RPC
 /// handler (writer) and every payload-builder ctx (reader).
-pub type SdmDesiredEnabledFlag = Arc<AtomicBool>;
+pub type SdmPostExecOptInFlag = Arc<AtomicBool>;
 
 /// Status snapshot returned by `admin_sdmStatus`.
 ///
@@ -61,29 +61,26 @@ pub trait SdmAdminApi {
 
 #[derive(Clone)]
 pub struct SdmAdminExt {
-    desired_enabled: SdmDesiredEnabledFlag,
+    opt_in: SdmPostExecOptInFlag,
     chain_spec: Arc<OpChainSpec>,
 }
 
 impl SdmAdminExt {
-    pub fn new(desired_enabled: SdmDesiredEnabledFlag, chain_spec: Arc<OpChainSpec>) -> Self {
-        Self {
-            desired_enabled,
-            chain_spec,
-        }
+    pub fn new(opt_in: SdmPostExecOptInFlag, chain_spec: Arc<OpChainSpec>) -> Self {
+        Self { opt_in, chain_spec }
     }
 }
 
 impl SdmAdminApiServer for SdmAdminExt {
     fn set_sdm_enabled(&self, enabled: bool) -> RpcResult<()> {
-        self.desired_enabled.store(enabled, Ordering::Release);
+        self.opt_in.store(enabled, Ordering::Release);
         gauge!("op_rbuilder_flags_sdm_enabled").set(enabled as i32);
         Ok(())
     }
 
     fn sdm_status(&self, query_timestamp: Option<u64>) -> RpcResult<SdmStatus> {
         let timestamp = query_timestamp.unwrap_or_else(current_unix_timestamp);
-        let desired = self.desired_enabled.load(Ordering::Acquire);
+        let desired = self.opt_in.load(Ordering::Acquire);
         let protocol_active = self.chain_spec.is_interop_active_at_timestamp(timestamp);
         let activation_time = match self.chain_spec.op_fork_activation(OpHardfork::Interop) {
             ForkCondition::Timestamp(t) => Some(t),
