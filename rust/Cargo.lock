@@ -11228,6 +11228,7 @@ dependencies = [
  "miniz_oxide 0.9.1",
  "op-alloy-consensus",
  "op-alloy-rpc-types",
+ "op-superchain",
  "paste",
  "reth-chainspec",
  "reth-ethereum-forks",
@@ -11237,7 +11238,6 @@ dependencies = [
  "reth-primitives-traits",
  "serde",
  "serde_json",
- "tar-no-std",
  "thiserror 2.0.18",
 ]
 
@@ -14289,17 +14289,6 @@ dependencies = [
  "filetime",
  "libc",
  "xattr",
-]
-
-[[package]]
-name = "tar-no-std"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "715f9a4586706a61c571cb5ee1c3ac2bbb2cf63e15bce772307b95befef5f5ee"
-dependencies = [
- "bitflags 2.11.1",
- "log",
- "num-traits",
 ]
 
 [[package]]
