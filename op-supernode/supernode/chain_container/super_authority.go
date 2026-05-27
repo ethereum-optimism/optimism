@@ -6,16 +6,18 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 // FullyVerifiedL2Head reports the cross-verified safe L2 head.
 //
-// The verifier contributes either the verified tip or an Anchor with the
-// pre-activation cap timestamp (returned by the verifier when it has no entry
-// for this chain). A not-yet-active verifier returns PreActivation. The caller
-// decides whether to resolve Anchor timestamps or fall back more conservatively.
+// The verifier contributes either the verified tip or no entry. If the verifier
+// is active but has no entry for this chain, SuperAuthority contributes an
+// Anchor at the pre-activation cap timestamp. A not-yet-active verifier returns
+// PreActivation. The caller decides whether to resolve Anchor timestamps or
+// fall back more conservatively.
 func (c *simpleChainContainer) FullyVerifiedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {
 	v := c.registeredVerifier()
 	if v == nil {
@@ -27,7 +29,8 @@ func (c *simpleChainContainer) FullyVerifiedL2Head(ctx context.Context) (rollup.
 		return rollup.VerifierHead{Source: rollup.VerifierHeadPreActivation}, true
 	}
 
-	head, err := c.verifierContribution(v.LatestVerifiedL2Block(c.chainID))
+	block, ts, err := v.LatestVerifiedL2Block(c.chainID)
+	head, err := c.verifierContribution(v, block, ts, err)
 	if err != nil {
 		c.log.Warn("FullyVerifiedL2Head: verifier read failed, holding previous",
 			"verifier", v.Name(), "err", err)
@@ -53,7 +56,8 @@ func (c *simpleChainContainer) FinalizedL2Head(ctx context.Context) (rollup.Veri
 		return rollup.VerifierHead{Source: rollup.VerifierHeadPreActivation}, true
 	}
 
-	head, err := c.verifierContribution(v.VerifiedBlockAtL1(c.chainID, ss.FinalizedL1))
+	block, ts, err := v.VerifiedBlockAtL1(c.chainID, ss.FinalizedL1)
+	head, err := c.verifierContribution(v, block, ts, err)
 	if err != nil {
 		c.log.Warn("FinalizedL2Head: verifier read failed, holding previous",
 			"verifier", v.Name(), "err", err)
@@ -63,16 +67,23 @@ func (c *simpleChainContainer) FinalizedL2Head(ctx context.Context) (rollup.Veri
 }
 
 // verifierContribution classifies a verifier's (block, ts) return:
-//   - empty block -> Anchor (ts is the pre-activation cap).
+//   - empty block -> Anchor (activationTimestamp - 1).
 //   - non-empty block -> Verified tip.
-func (c *simpleChainContainer) verifierContribution(bID eth.BlockID, ts uint64, err error) (rollup.VerifierHead, error) {
+func (c *simpleChainContainer) verifierContribution(v activity.VerificationActivity, bID eth.BlockID, ts uint64, err error) (rollup.VerifierHead, error) {
 	if err != nil {
 		return rollup.VerifierHead{}, err
 	}
 	if (bID == eth.BlockID{}) {
-		return rollup.VerifierHead{Source: rollup.VerifierHeadAnchor, Timestamp: ts}, nil
+		return rollup.VerifierHead{Source: rollup.VerifierHeadAnchor, Timestamp: activationCap(v.ActivationTimestamp())}, nil
 	}
 	return rollup.VerifierHead{Source: rollup.VerifierHeadVerified, Block: bID, Timestamp: ts}, nil
+}
+
+func activationCap(activationTimestamp uint64) uint64 {
+	if activationTimestamp == 0 {
+		return 0
+	}
+	return activationTimestamp - 1
 }
 
 func (c *simpleChainContainer) localSafeTimestamp(ctx context.Context) (uint64, bool) {

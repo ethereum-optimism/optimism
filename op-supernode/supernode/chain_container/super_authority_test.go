@@ -42,7 +42,7 @@ func (m *mockVerificationActivityForSuperAuthority) LatestVerifiedL2Block(chainI
 		return eth.BlockID{}, 0, m.latestVerifiedErr
 	}
 	if m.latestVerifiedBlock == (eth.BlockID{}) {
-		return eth.BlockID{}, m.activationCap(), nil
+		return eth.BlockID{}, 0, nil
 	}
 	return m.latestVerifiedBlock, m.latestVerifiedTS, nil
 }
@@ -52,15 +52,12 @@ func (m *mockVerificationActivityForSuperAuthority) VerifiedBlockAtL1(chainID et
 		return eth.BlockID{}, 0, m.latestFinalizedErr
 	}
 	if m.latestFinalizedBlock == (eth.BlockID{}) {
-		return eth.BlockID{}, m.activationCap(), nil
+		return eth.BlockID{}, 0, nil
 	}
 	return m.latestFinalizedBlock, m.latestFinalizedTS, nil
 }
-func (m *mockVerificationActivityForSuperAuthority) activationCap() uint64 {
-	if m.activationTimestamp == 0 {
-		return 0
-	}
-	return m.activationTimestamp - 1
+func (m *mockVerificationActivityForSuperAuthority) ActivationTimestamp() uint64 {
+	return m.activationTimestamp
 }
 func (m *mockVerificationActivityForSuperAuthority) IsActiveAt(ts uint64) bool {
 	if m.isActiveAtFn != nil {

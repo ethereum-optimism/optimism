@@ -2838,8 +2838,7 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 		blockID, ts, err := h.interop.VerifiedBlockAtL1(h.Mock(10).id, eth.L1BlockRef{})
 		require.NoError(t, err)
 		require.Equal(t, eth.BlockID{}, blockID)
-		// Empty result returns the pre-activation cap (activationTimestamp-1).
-		require.Equal(t, h.interop.activationTimestamp-1, ts)
+		require.Equal(t, uint64(0), ts)
 	})
 
 	t.Run("non-zero l1Block finds matching entry", func(t *testing.T) {
@@ -2880,8 +2879,7 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 		blockID, ts, err := h.interop.VerifiedBlockAtL1(h.Mock(10).id, l1Block)
 		require.NoError(t, err)
 		require.Equal(t, eth.BlockID{}, blockID)
-		// Empty DB returns the pre-activation cap (activationTimestamp-1).
-		require.Equal(t, h.interop.activationTimestamp-1, ts)
+		require.Equal(t, uint64(0), ts)
 	})
 
 	t.Run("closed verifiedDB surfaces error", func(t *testing.T) {
