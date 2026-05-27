@@ -7,17 +7,18 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 // FullyVerifiedL2Head reports the cross-verified safe L2 head.
 //
-// With no verifiers, returns PreActivation. Per verifier active at the current
-// local-safe timestamp, contribute either the verified tip or an activation
-// anchor; take the oldest contribution across active verifiers. Not-yet-active
-// verifiers are skipped — their anchor block doesn't exist on this chain yet.
+// Per active verifier, contribute either the verified tip or an Anchor with
+// the pre-activation cap timestamp (returned by the verifier when it has no
+// entry for this chain). Take the oldest contribution. Not-yet-active
+// verifiers are skipped. The caller (engine_controller) resolves Anchor
+// timestamps to canonical L2 blocks.
+//
 // Panics if two active verifiers report distinct Verified tips at the same
 // timestamp.
 func (c *simpleChainContainer) FullyVerifiedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {
@@ -27,27 +28,20 @@ func (c *simpleChainContainer) FullyVerifiedL2Head(ctx context.Context) (rollup.
 
 	localTS, localTSOk := c.localSafeTimestamp(ctx)
 
-	oldestTimestamp := uint64(math.MaxUint64)
-	oldest := rollup.VerifierHead{}
+	oldest := rollup.VerifierHead{Timestamp: math.MaxUint64}
 	contributed := 0
 	for _, v := range c.verifiers {
 		if localTSOk && !v.IsActiveAt(localTS) {
 			continue
 		}
-		contribution, ts, err := c.verifierSafeContribution(ctx, v)
+		contribution, err := c.verifierContribution(v.LatestVerifiedL2Block(c.chainID))
 		if err != nil {
 			c.log.Warn("FullyVerifiedL2Head: verifier read failed, holding previous",
 				"verifier", v.Name(), "err", err)
 			return rollup.VerifierHead{}, false
 		}
 		contributed++
-		if ts < oldestTimestamp ||
-			(ts == oldestTimestamp && contribution.Source == rollup.VerifierHeadAnchor && oldest.Source == rollup.VerifierHeadVerified) {
-			oldestTimestamp = ts
-			oldest = contribution
-		} else if ts == oldestTimestamp && contribution.Block != oldest.Block && oldest.Source == rollup.VerifierHeadVerified && contribution.Source == rollup.VerifierHeadVerified {
-			panic("verifiers disagree on block hash for same timestamp")
-		}
+		oldest = pickOldest(oldest, contribution)
 	}
 	if contributed == 0 {
 		return rollup.VerifierHead{Source: rollup.VerifierHeadPreActivation}, true
@@ -55,9 +49,7 @@ func (c *simpleChainContainer) FullyVerifiedL2Head(ctx context.Context) (rollup.
 	return oldest, true
 }
 
-// FinalizedL2Head is the finalized analogue of FullyVerifiedL2Head. Per-verifier
-// contribution comes from VerifiedBlockAtL1(chainID, ss.FinalizedL1); empty
-// results yield the activation anchor; read errors return HoldPrevious.
+// FinalizedL2Head is the finalized analogue of FullyVerifiedL2Head.
 func (c *simpleChainContainer) FinalizedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {
 	if len(c.verifiers) == 0 {
 		return rollup.VerifierHead{Source: rollup.VerifierHeadPreActivation}, true
@@ -69,27 +61,20 @@ func (c *simpleChainContainer) FinalizedL2Head(ctx context.Context) (rollup.Veri
 		return rollup.VerifierHead{}, false
 	}
 
-	oldestTimestamp := uint64(math.MaxUint64)
-	oldest := rollup.VerifierHead{}
+	oldest := rollup.VerifierHead{Timestamp: math.MaxUint64}
 	contributed := 0
 	for _, v := range c.verifiers {
 		if !v.IsActiveAt(ss.LocalSafeL2.Time) {
 			continue
 		}
-		contribution, ts, err := c.verifierFinalizedContribution(ctx, v, ss.FinalizedL1)
+		contribution, err := c.verifierContribution(v.VerifiedBlockAtL1(c.chainID, ss.FinalizedL1))
 		if err != nil {
 			c.log.Warn("FinalizedL2Head: verifier read failed, holding previous",
 				"verifier", v.Name(), "err", err)
 			return rollup.VerifierHead{}, false
 		}
 		contributed++
-		if ts < oldestTimestamp ||
-			(ts == oldestTimestamp && contribution.Source == rollup.VerifierHeadAnchor && oldest.Source == rollup.VerifierHeadVerified) {
-			oldestTimestamp = ts
-			oldest = contribution
-		} else if ts == oldestTimestamp && contribution.Block != oldest.Block && oldest.Source == rollup.VerifierHeadVerified && contribution.Source == rollup.VerifierHeadVerified {
-			panic("verifiers disagree on block hash for same timestamp")
-		}
+		oldest = pickOldest(oldest, contribution)
 	}
 	if contributed == 0 {
 		return rollup.VerifierHead{Source: rollup.VerifierHeadPreActivation}, true
@@ -97,49 +82,36 @@ func (c *simpleChainContainer) FinalizedL2Head(ctx context.Context) (rollup.Veri
 	return oldest, true
 }
 
-// verifierSafeContribution: verified tip if present, otherwise activation anchor.
-// Caller must filter inactive verifiers — anchor lookup assumes the verifier is active.
-func (c *simpleChainContainer) verifierSafeContribution(ctx context.Context, v activity.VerificationActivity) (rollup.VerifierHead, uint64, error) {
-	bId, ts, err := v.LatestVerifiedL2Block(c.chainID)
+// verifierContribution classifies a verifier's (block, ts) return:
+//   - empty block → Anchor (caller resolves the canonical L2 block at ts).
+//   - non-empty block → Verified tip.
+func (c *simpleChainContainer) verifierContribution(bId eth.BlockID, ts uint64, err error) (rollup.VerifierHead, error) {
 	if err != nil {
-		return rollup.VerifierHead{}, 0, err
+		return rollup.VerifierHead{}, err
 	}
-	if (bId == eth.BlockID{}) || ts == 0 {
-		return c.anchorContribution(ctx, v)
+	if (bId == eth.BlockID{}) {
+		return rollup.VerifierHead{Source: rollup.VerifierHeadAnchor, Timestamp: ts}, nil
 	}
-	return rollup.VerifierHead{Source: rollup.VerifierHeadVerified, Block: bId}, ts, nil
+	return rollup.VerifierHead{Source: rollup.VerifierHeadVerified, Block: bId, Timestamp: ts}, nil
 }
 
-func (c *simpleChainContainer) verifierFinalizedContribution(ctx context.Context, v activity.VerificationActivity, finalizedL1 eth.L1BlockRef) (rollup.VerifierHead, uint64, error) {
-	bId, ts, err := v.VerifiedBlockAtL1(c.chainID, finalizedL1)
-	if err != nil {
-		return rollup.VerifierHead{}, 0, err
+// pickOldest returns the older of two contributions. Ties break toward Anchor
+// (more conservative). Panics if two Verified tips disagree at the same timestamp.
+func pickOldest(a, b rollup.VerifierHead) rollup.VerifierHead {
+	if b.Timestamp < a.Timestamp {
+		return b
 	}
-	if (bId == eth.BlockID{}) || ts == 0 {
-		return c.anchorContribution(ctx, v)
+	if b.Timestamp > a.Timestamp {
+		return a
 	}
-	return rollup.VerifierHead{Source: rollup.VerifierHeadVerified, Block: bId}, ts, nil
-}
-
-// anchorContribution resolves the L2 block at `verifier.ActivationTimestamp() - 1`
-// on this chain. Engine-not-ready or RPC failure becomes HoldPrevious upstream.
-func (c *simpleChainContainer) anchorContribution(ctx context.Context, v activity.VerificationActivity) (rollup.VerifierHead, uint64, error) {
-	if c.engine == nil {
-		return rollup.VerifierHead{}, 0, engine_controller.ErrNoEngineClient
+	// Equal timestamps.
+	if a.Source == rollup.VerifierHeadVerified && b.Source == rollup.VerifierHeadVerified && a.Block != b.Block {
+		panic("verifiers disagree on block hash for same timestamp")
 	}
-	activeTS := v.ActivationTimestamp()
-	if activeTS == 0 {
-		return rollup.VerifierHead{Source: rollup.VerifierHeadAnchor}, 0, nil
+	if b.Source == rollup.VerifierHeadAnchor && a.Source == rollup.VerifierHeadVerified {
+		return b
 	}
-	num, err := c.vncfg.Rollup.TargetBlockNumber(activeTS - 1)
-	if err != nil {
-		return rollup.VerifierHead{}, 0, fmt.Errorf("compute anchor block number for activation %d: %w", activeTS, err)
-	}
-	ref, err := c.engine.L2BlockRefByNumber(ctx, num)
-	if err != nil {
-		return rollup.VerifierHead{}, 0, fmt.Errorf("resolve anchor block %d: %w", num, err)
-	}
-	return rollup.VerifierHead{Source: rollup.VerifierHeadAnchor, Block: ref.ID()}, activeTS - 1, nil
+	return a
 }
 
 func (c *simpleChainContainer) localSafeTimestamp(ctx context.Context) (uint64, bool) {

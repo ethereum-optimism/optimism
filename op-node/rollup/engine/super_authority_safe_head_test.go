@@ -28,24 +28,28 @@ import (
 // returns the verifier's contribution. SafeL2Head must never return the L2
 // genesis block when local-safe and local-finalized are non-zero.
 func TestSafeL2Head_EmptyVerifier_DoesNotDropToGenesis(t *testing.T) {
-	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
+	// Realistic shape: local-safe has crossed activation. With BlockTime=2 and
+	// genesis at time 0, timestamp 999 maps to block 499. Local-safe must be
+	// at or past the anchor block (otherwise the chain hasn't crossed
+	// activation and the PreActivation path would have fired upstream).
+	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 600}
 	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
-	anchorBlock := eth.BlockID{Hash: common.Hash{0xa1}, Number: 80}
+
+	cfg := &rollup.Config{BlockTime: 2}
+	anchorRef := eth.L2BlockRef{Hash: common.Hash{0xa1}, Number: 499}
 
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
 	sa := &mockSuperAuthority{
-		// Empty-verifier post-activation case under the new contract: the
-		// supernode contributes its activation anchor as a concrete block.
-		fullyVerifiedL2Head:       anchorBlock,
 		fullyVerifiedL2HeadSource: rollup.VerifierHeadAnchor,
+		fullyVerifiedTimestamp:    999,
 	}
 	ec := NewEngineController(
 		context.Background(),
 		mockEngine,
 		testlog.Logger(t, 0),
 		metrics.NoopMetrics,
-		&rollup.Config{},
+		cfg,
 		&sync.Config{},
 		&testutils.MockL1Source{},
 		emitter,
@@ -54,19 +58,16 @@ func TestSafeL2Head_EmptyVerifier_DoesNotDropToGenesis(t *testing.T) {
 	ec.SetLocalSafeHead(localSafe)
 	ec.SetFinalizedHead(localFinalized)
 
-	// Anchor block 80 is bounded above by local-safe 100, so we expect the EL
-	// canonicality lookups to be exercised.
-	anchorRef := eth.L2BlockRef{Hash: anchorBlock.Hash, Number: anchorBlock.Number}
-	mockEngine.ExpectL2BlockRefByHash(anchorBlock.Hash, anchorRef, nil)
-	mockEngine.ExpectL2BlockRefByNumber(anchorBlock.Number, anchorRef, nil)
+	mockEngine.ExpectL2BlockRefByNumber(uint64(499), anchorRef, nil)
 
 	got := ec.SafeL2Head()
 	require.NotEqual(t, uint64(0), got.Number,
 		"SafeL2Head must not drop to genesis when local-safe (%d) and local-finalized (%d) are non-zero. "+
 			"Pre-fix, empty verifier returned (BlockID{}, false) and SafeL2Head fetched L2BlockRefByNumber(0). "+
-			"Post-fix, Anchor source carries a concrete activation-anchor block (ethereum-optimism/optimism#20944).",
+			"Post-fix, Anchor source carries the pre-activation cap timestamp and the engine controller "+
+			"resolves the canonical L2 block at that timestamp (ethereum-optimism/optimism#20944).",
 		localSafe.Number, localFinalized.Number)
-	require.Equal(t, anchorRef, got, "SafeL2Head must return the anchor block when verifier is active but empty")
+	require.Equal(t, anchorRef, got, "SafeL2Head must return the canonical anchor block at the cap timestamp")
 }
 
 // TestSafeL2Head_VerifierError_FloorsAtFinalized exercises bug A and the

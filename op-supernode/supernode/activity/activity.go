@@ -52,22 +52,16 @@ type VerificationActivity interface {
 	// data at or before that timestamp as safe without consulting this activity.
 	IsActiveAt(ts uint64) bool
 
-	// ActivationTimestamp returns the L2 timestamp at which this verification
-	// activity becomes active. Blocks with timestamp < ActivationTimestamp() are
-	// pre-activation and are verified by consensus alone. Used by the
-	// SuperAuthority to compute the per-(chain, verifier) activation-anchor
-	// block when the verifier is active but has no verified-DB entry for the
-	// chain (e.g. the chain hasn't joined the depset yet).
-	ActivationTimestamp() uint64
-
-	// LatestVerifiedL2Block returns the latest verified L2 block and its
-	// timestamp. (empty, 0, nil) means nothing verified yet; a non-nil error
-	// means the verifier is transiently unavailable.
+	// LatestVerifiedL2Block returns the latest verified L2 block.
+	// (block, ts, nil) — verified tip at ts.
+	// (empty, ts, nil) — no verified entry; ts is the pre-activation cap the
+	//   caller should resolve to a canonical L2 block. ts==0 means no cap.
+	// (empty, 0, err) — verifier is transiently unavailable.
 	LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64, error)
 
 	// VerifiedBlockAtL1 returns the latest verified L2 block whose data was
-	// derived from or before the supplied L1 block. (empty, 0, nil) means no
-	// such entry yet; a non-nil error means the verifier is transiently
-	// unavailable.
+	// derived from or before the supplied L1 block. Return shape matches
+	// LatestVerifiedL2Block: an empty BlockID with non-zero ts is a cap, not a
+	// failure.
 	VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64, error)
 }

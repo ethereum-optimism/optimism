@@ -206,10 +206,10 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 }
 
 // SafeL2Head returns the safe L2 head. With a SuperAuthority registered, the
-// result is bounded by local-safe, validated against the EL for canonicality,
-// and cached. On a transient verifier read failure or any reorg signal
-// (EL-unknown, non-canonical), the canonicality-checked cache is consulted
-// first, then FinalizedHead — never local-safe, never below finalized.
+// result is bounded by local-safe, validated against the EL where applicable,
+// and cached. On a transient verifier read failure or any reorg signal, the
+// canonicality-checked cache is consulted first, then FinalizedHead — never
+// local-safe, never below finalized.
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	if e.superAuthority != nil {
 		head, ok := e.superAuthority.FullyVerifiedL2Head(e.ctx)
@@ -219,33 +219,10 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 		switch head.Source {
 		case rollup.VerifierHeadPreActivation:
 			return e.localSafeHead
-		case rollup.VerifierHeadAnchor, rollup.VerifierHeadVerified:
-			if (head.Block == eth.BlockID{}) {
-				e.log.Warn("super authority returned zero block with non-pre-activation source", "source", head.Source)
-				return e.floorCrossSafe("zero-block")
-			}
-			if head.Block.Number > e.localSafeHead.Number {
-				return e.localSafeHead
-			}
-			br, err := e.engine.L2BlockRefByHash(e.ctx, head.Block.Hash)
-			if err != nil {
-				e.log.Warn("super authority safe head unknown to engine (reorg signal)",
-					"super_authority_safe", head.Block, "source", head.Source, "err", err)
-				return e.floorCrossSafe("el-unknown")
-			}
-			canonical, canonicalCheck, err := e.isCanonical(br)
-			if err != nil {
-				e.log.Warn("cannot verify super authority safe head canonicality",
-					"super_authority_safe", br, "source", head.Source, "err", err)
-				return e.floorCrossSafe("canonicality-lookup-failed")
-			}
-			if !canonical {
-				e.log.Warn("super authority safe head non-canonical (reorg signal)",
-					"super_authority_safe", br, "canonical", canonicalCheck, "source", head.Source)
-				return e.floorCrossSafe("non-canonical")
-			}
-			e.superAuthoritySafeHead = br
-			return br
+		case rollup.VerifierHeadAnchor:
+			return e.resolveAnchorAsSafe(head.Timestamp)
+		case rollup.VerifierHeadVerified:
+			return e.resolveVerifiedAsSafe(head.Block)
 		default:
 			panic(fmt.Errorf("unhandled VerifierHeadSource: %v", head.Source))
 		}
@@ -254,6 +231,53 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	} else {
 		return e.localSafeHead
 	}
+}
+
+// resolveVerifiedAsSafe handles the Verified branch of SafeL2Head.
+func (e *EngineController) resolveVerifiedAsSafe(block eth.BlockID) eth.L2BlockRef {
+	if block.Number > e.localSafeHead.Number {
+		return e.localSafeHead
+	}
+	br, err := e.engine.L2BlockRefByHash(e.ctx, block.Hash)
+	if err != nil {
+		e.log.Warn("super authority safe head unknown to engine (reorg signal)",
+			"super_authority_safe", block, "err", err)
+		return e.floorCrossSafe("el-unknown")
+	}
+	canonical, canonicalRef, err := e.isCanonical(br)
+	if err != nil {
+		e.log.Warn("cannot verify super authority safe head canonicality",
+			"super_authority_safe", br, "err", err)
+		return e.floorCrossSafe("canonicality-lookup-failed")
+	}
+	if !canonical {
+		e.log.Warn("super authority safe head non-canonical (reorg signal)",
+			"super_authority_safe", br, "canonical", canonicalRef)
+		return e.floorCrossSafe("non-canonical")
+	}
+	e.superAuthoritySafeHead = br
+	return br
+}
+
+// resolveAnchorAsSafe handles the Anchor branch of SafeL2Head: resolve the
+// canonical L2 block at the supplied pre-activation cap timestamp. The block
+// is canonical by construction (looked up by number); no second check needed.
+func (e *EngineController) resolveAnchorAsSafe(ts uint64) eth.L2BlockRef {
+	num, err := e.rollupCfg.TargetBlockNumber(ts)
+	if err != nil {
+		e.log.Warn("cannot compute anchor block number", "ts", ts, "err", err)
+		return e.floorCrossSafe("anchor-target-block-number")
+	}
+	br, err := e.engine.L2BlockRefByNumber(e.ctx, num)
+	if err != nil {
+		e.log.Warn("cannot resolve anchor block", "ts", ts, "num", num, "err", err)
+		return e.floorCrossSafe("anchor-lookup-failed")
+	}
+	if br.Number > e.localSafeHead.Number {
+		return e.localSafeHead
+	}
+	e.superAuthoritySafeHead = br
+	return br
 }
 
 // floorCrossSafe is the cross-safe fallback path. It tries the cached
@@ -338,45 +362,10 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 		switch head.Source {
 		case rollup.VerifierHeadPreActivation:
 			return e.localFinalizedHead
-		case rollup.VerifierHeadAnchor, rollup.VerifierHeadVerified:
-			if (head.Block == eth.BlockID{}) {
-				if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
-					return e.superAuthorityFinalizedHead
-				}
-				e.log.Warn("super authority returned zero finalized block; no cache; returning zero", "source", head.Source)
-				return eth.L2BlockRef{}
-			}
-			if head.Block.Number > e.localFinalizedHead.Number {
-				return e.localFinalizedHead
-			}
-			if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
-				if head.Block == e.superAuthorityFinalizedHead.ID() {
-					return e.superAuthorityFinalizedHead
-				}
-				if head.Block.Number < e.superAuthorityFinalizedHead.Number {
-					e.log.Warn("super authority finalized behind cached; using cache",
-						"super_authority_finalized", head.Block, "source", head.Source,
-						"cached_super_authority_finalized", e.superAuthorityFinalizedHead)
-					return e.superAuthorityFinalizedHead
-				}
-				if head.Block.Number == e.superAuthorityFinalizedHead.Number {
-					panic("superAuthority finalized head conflicts with cached superAuthority finalized head at same height")
-				}
-			}
-			br, err := e.engine.L2BlockRefByHash(e.ctx, head.Block.Hash)
-			if err != nil {
-				if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
-					e.log.Warn("super authority finalized unknown to engine; using cache",
-						"super_authority_finalized", head.Block, "source", head.Source,
-						"cached_super_authority_finalized", e.superAuthorityFinalizedHead, "err", err)
-					return e.superAuthorityFinalizedHead
-				}
-				e.log.Warn("super authority finalized unknown to engine and no cache available",
-					"super_authority_finalized", head.Block, "source", head.Source, "err", err)
-				return eth.L2BlockRef{}
-			}
-			e.superAuthorityFinalizedHead = br
-			return br
+		case rollup.VerifierHeadAnchor:
+			return e.resolveAnchorAsFinalized(head.Timestamp)
+		case rollup.VerifierHeadVerified:
+			return e.resolveVerifiedAsFinalized(head.Block)
 		default:
 			panic(fmt.Errorf("unhandled VerifierHeadSource: %v", head.Source))
 		}
@@ -385,6 +374,66 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 	} else {
 		return e.localFinalizedHead
 	}
+}
+
+// resolveVerifiedAsFinalized handles the Verified branch of FinalizedHead.
+func (e *EngineController) resolveVerifiedAsFinalized(block eth.BlockID) eth.L2BlockRef {
+	if block.Number > e.localFinalizedHead.Number {
+		return e.localFinalizedHead
+	}
+	if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
+		if block == e.superAuthorityFinalizedHead.ID() {
+			return e.superAuthorityFinalizedHead
+		}
+		if block.Number < e.superAuthorityFinalizedHead.Number {
+			e.log.Warn("super authority finalized behind cached; using cache",
+				"super_authority_finalized", block,
+				"cached_super_authority_finalized", e.superAuthorityFinalizedHead)
+			return e.superAuthorityFinalizedHead
+		}
+		if block.Number == e.superAuthorityFinalizedHead.Number {
+			panic("superAuthority finalized head conflicts with cached superAuthority finalized head at same height")
+		}
+	}
+	br, err := e.engine.L2BlockRefByHash(e.ctx, block.Hash)
+	if err != nil {
+		if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
+			e.log.Warn("super authority finalized unknown to engine; using cache",
+				"super_authority_finalized", block,
+				"cached_super_authority_finalized", e.superAuthorityFinalizedHead, "err", err)
+			return e.superAuthorityFinalizedHead
+		}
+		e.log.Warn("super authority finalized unknown to engine and no cache available",
+			"super_authority_finalized", block, "err", err)
+		return eth.L2BlockRef{}
+	}
+	e.superAuthorityFinalizedHead = br
+	return br
+}
+
+// resolveAnchorAsFinalized handles the Anchor branch of FinalizedHead.
+func (e *EngineController) resolveAnchorAsFinalized(ts uint64) eth.L2BlockRef {
+	num, err := e.rollupCfg.TargetBlockNumber(ts)
+	if err != nil {
+		e.log.Warn("cannot compute finalized anchor block number", "ts", ts, "err", err)
+		if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
+			return e.superAuthorityFinalizedHead
+		}
+		return eth.L2BlockRef{}
+	}
+	br, err := e.engine.L2BlockRefByNumber(e.ctx, num)
+	if err != nil {
+		e.log.Warn("cannot resolve finalized anchor block", "ts", ts, "num", num, "err", err)
+		if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
+			return e.superAuthorityFinalizedHead
+		}
+		return eth.L2BlockRef{}
+	}
+	if br.Number > e.localFinalizedHead.Number {
+		return e.localFinalizedHead
+	}
+	e.superAuthorityFinalizedHead = br
+	return br
 }
 
 func (e *EngineController) UnsafeL2Head() eth.L2BlockRef {

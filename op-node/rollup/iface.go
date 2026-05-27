@@ -39,10 +39,15 @@ func (s VerifierHeadSource) String() string {
 }
 
 // VerifierHead is the result of a SuperAuthority head query.
-// Block is zero when Source == VerifierHeadPreActivation.
+//   - Source == PreActivation: Block and Timestamp are zero; caller uses local.
+//   - Source == Verified:      Block is the verified tip; Timestamp is its L2 time.
+//   - Source == Anchor:        Block is zero; Timestamp is the pre-activation cap
+//     (`activationTimestamp - 1`); caller resolves the canonical L2 block at that
+//     timestamp itself.
 type VerifierHead struct {
-	Block  eth.BlockID
-	Source VerifierHeadSource
+	Block     eth.BlockID
+	Timestamp uint64
+	Source    VerifierHeadSource
 }
 
 // SuperAuthority is the cross-chain attestation surface a supernode exposes to

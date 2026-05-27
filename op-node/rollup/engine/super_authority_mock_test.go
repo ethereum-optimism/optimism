@@ -14,10 +14,12 @@ import (
 // without explicit setup get the happy-path (ok=true).
 type mockSuperAuthority struct {
 	fullyVerifiedL2Head       eth.BlockID
+	fullyVerifiedTimestamp    uint64
 	fullyVerifiedL2HeadSource rollup.VerifierHeadSource
 	holdPreviousVerified      bool
 
 	finalizedL2Head       eth.BlockID
+	finalizedTimestamp    uint64
 	finalizedL2HeadSource rollup.VerifierHeadSource
 	holdPreviousFinalized bool
 
@@ -47,11 +49,19 @@ func (m *mockSuperAuthority) IsDenied(blockNumber uint64, payloadHash common.Has
 }
 
 func (m *mockSuperAuthority) FullyVerifiedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {
-	return rollup.VerifierHead{Block: m.fullyVerifiedL2Head, Source: m.fullyVerifiedL2HeadSource}, !m.holdPreviousVerified
+	return rollup.VerifierHead{
+		Block:     m.fullyVerifiedL2Head,
+		Timestamp: m.fullyVerifiedTimestamp,
+		Source:    m.fullyVerifiedL2HeadSource,
+	}, !m.holdPreviousVerified
 }
 
 func (m *mockSuperAuthority) FinalizedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {
-	return rollup.VerifierHead{Block: m.finalizedL2Head, Source: m.finalizedL2HeadSource}, !m.holdPreviousFinalized
+	return rollup.VerifierHead{
+		Block:     m.finalizedL2Head,
+		Timestamp: m.finalizedTimestamp,
+		Source:    m.finalizedL2HeadSource,
+	}, !m.holdPreviousFinalized
 }
 
 var _ rollup.SuperAuthority = (*mockSuperAuthority)(nil)
