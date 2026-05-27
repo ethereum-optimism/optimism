@@ -112,6 +112,14 @@ func TestFlashblocksSDMMaterializesPostExecBlock(gt *testing.T) {
 	observedByBlock := make(map[uint64]observedSdmFlashblock)
 	includedByBlock := make(map[uint64][]flashblocksIncludedTx)
 	var targetBlockNum uint64
+	// candidate is a block that satisfies the "2+ workload receipts AND an observed
+	// post_exec_tx flashblock" criteria. We don't commit it as targetBlockNum until we
+	// see a flashblock for a later block, which is op-rbuilder's de-facto seal signal —
+	// flashblock payloads carry no explicit "is_final" flag, and post_exec_tx accumulates
+	// entries with every new flashblock for the same block. Committing the candidate
+	// earlier risks comparing the final materialized block against an in-progress
+	// flashblock snapshot.
+	var candidate uint64
 	var postReceiptTimer *time.Timer
 	var postReceiptDeadline <-chan time.Time
 	defer func() {
@@ -120,26 +128,41 @@ func TestFlashblocksSDMMaterializesPostExecBlock(gt *testing.T) {
 		}
 	}()
 
+	tryMarkCandidate := func(blockNum uint64) {
+		if candidate != 0 {
+			return
+		}
+		if len(includedByBlock[blockNum]) < 2 {
+			return
+		}
+		if _, ok := observedByBlock[blockNum]; !ok {
+			return
+		}
+		candidate = blockNum
+	}
+
 	for targetBlockNum == 0 {
 		select {
 		case fb, ok := <-fbClient.Next():
 			t.Require().True(ok, "flashblock client closed before observing SDM post_exec_tx")
 			t.Require().NotNil(fb)
+			blockNum := uint64(fb.Metadata.BlockNumber)
+			if candidate != 0 && blockNum > candidate {
+				targetBlockNum = candidate
+				continue
+			}
 			if fb.Diff.PostExecTx == nil {
 				continue
 			}
 			t.Require().False(flashblockTransactionsContainPostExec(fb),
 				"SDM post-exec tx must be carried in diff.post_exec_tx, not diff.transactions")
 			payload, raw := decodeFlashblockPostExecTx(t, fb)
-			blockNum := uint64(fb.Metadata.BlockNumber)
 			observedByBlock[blockNum] = observedSdmFlashblock{
 				index:      uint64(fb.Index),
 				postExecTx: raw,
 				payload:    payload,
 			}
-			if len(includedByBlock[blockNum]) >= 2 {
-				targetBlockNum = blockNum
-			}
+			tryMarkCandidate(blockNum)
 		case result, ok := <-receiptCh:
 			if !ok {
 				receiptCh = nil
@@ -155,12 +178,12 @@ func TestFlashblocksSDMMaterializesPostExecBlock(gt *testing.T) {
 				receipt:  result.receipt,
 				blockNum: blockNum,
 			})
-			if len(includedByBlock[blockNum]) >= 2 {
-				if _, ok := observedByBlock[blockNum]; ok {
-					targetBlockNum = blockNum
-				}
-			}
+			tryMarkCandidate(blockNum)
 		case <-postReceiptDeadline:
+			if candidate != 0 {
+				targetBlockNum = candidate
+				continue
+			}
 			t.Require().Fail("post-receipt wait expired", "all workload receipts arrived but no matching SDM flashblock post_exec_tx was observed")
 		case <-t.Ctx().Done():
 			t.Require().NoError(t.Ctx().Err(), "never found a multi-tx workload block with SDM flashblock post_exec_tx")
