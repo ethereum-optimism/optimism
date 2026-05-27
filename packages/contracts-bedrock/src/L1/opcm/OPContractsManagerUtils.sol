@@ -357,6 +357,19 @@ contract OPContractsManagerUtils {
 
         // Upgrade to the implementation and call the initializer.
         _proxyAdmin.upgradeAndCall(payable(address(_target)), _implementation, _data);
+
+        // The check above only inspects the proxy's state before the upgrade, so it cannot catch a
+        // v5-style implementation whose initializer writes the ERC-7201 slot during upgradeAndCall.
+        // Re-point at StorageSetter to read what the initializer wrote and revert the whole upgrade
+        // if v5 state is now present, which keeps an unsupported implementation from being installed.
+        _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
+        if (IStorageSetter(_target).getBytes32(OZ_V5_INITIALIZABLE_SLOT) != bytes32(0)) {
+            revert OPContractsManagerUtils_OZv5InitializableUnsupported();
+        }
+
+        // No v5 state was written, so restore the real implementation. A plain upgrade (not
+        // upgradeAndCall) leaves the initializer state from above intact and does not re-run it.
+        _proxyAdmin.upgrade(payable(_target), _implementation);
     }
 
     /// @notice Returns the implementations for the contracts.
