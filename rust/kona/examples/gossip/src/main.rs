@@ -33,7 +33,6 @@ use std::{
     time::Duration,
 };
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 use tracing::error;
 use tracing_subscriber::EnvFilter;
 
@@ -106,36 +105,58 @@ impl GossipCommand {
             LocalNode::new(secret_key, IpAddr::V4(disc_ip), self.disc_port, self.disc_port);
 
         let (unsafe_blocks_tx, mut unsafe_blocks_rx) = mpsc::channel(1024);
-        let (_, network) = NetworkActor::new(
+        let (signer_tx, signer_rx) = mpsc::channel(16);
+        let (p2p_rpc_tx, p2p_rpc_rx) = mpsc::channel(1024);
+        let (admin_rpc_tx, admin_rpc_rx) = mpsc::channel(1024);
+        let (gossip_payload_tx, gossip_payload_rx) = mpsc::channel(256);
+        // This example only consumes inbound gossip blocks; the other channels exist solely to
+        // satisfy NetworkActor::new and are held to keep them open.
+        let _unused_senders = (signer_tx, p2p_rpc_tx, admin_rpc_tx, gossip_payload_tx);
+
+        let network_config: kona_node_service::NetworkBuilder = NetworkConfig {
+            discovery_address: disc_addr,
+            gossip_address: gossip_addr,
+            unsafe_block_signer: signer,
+            discovery_config: discv5::ConfigBuilder::new(discv5::ListenConfig::Ipv4 {
+                ip: disc_ip,
+                port: self.disc_port,
+            })
+            .build(),
+            discovery_interval: Duration::from_secs(self.interval),
+            discovery_randomize: None,
+            keypair: Keypair::generate_secp256k1(),
+            gossip_config: Default::default(),
+            scoring: Default::default(),
+            topic_scoring: Default::default(),
+            monitor_peers: Default::default(),
+            bootstore: None,
+            gater_config: Default::default(),
+            bootnodes: Default::default(),
+            rollup_config: rollup_config.clone(),
+            gossip_signer: None,
+            enr_update: true,
+        }
+        .into();
+
+        let handler = network_config.build()?.start().await?;
+
+        let mut network = NetworkActor::new(
             ForwardingNetworkEngineClient { block_tx: unsafe_blocks_tx },
-            CancellationToken::new(),
-            NetworkConfig {
-                discovery_address: disc_addr,
-                gossip_address: gossip_addr,
-                unsafe_block_signer: signer,
-                discovery_config: discv5::ConfigBuilder::new(discv5::ListenConfig::Ipv4 {
-                    ip: disc_ip,
-                    port: self.disc_port,
-                })
-                .build(),
-                discovery_interval: Duration::from_secs(self.interval),
-                discovery_randomize: None,
-                keypair: Keypair::generate_secp256k1(),
-                gossip_config: Default::default(),
-                scoring: Default::default(),
-                topic_scoring: Default::default(),
-                monitor_peers: Default::default(),
-                bootstore: None,
-                gater_config: Default::default(),
-                bootnodes: Default::default(),
-                rollup_config: rollup_config.clone(),
-                gossip_signer: None,
-                enr_update: true,
-            }
-            .into(),
+            handler,
+            signer_rx,
+            p2p_rpc_rx,
+            admin_rpc_rx,
+            gossip_payload_rx,
         );
 
-        network.start(()).await?;
+        tokio::spawn(async move {
+            loop {
+                if let Err(e) = network.step().await {
+                    error!(target: "gossip", "Network actor error: {e:?}");
+                    return;
+                }
+            }
+        });
 
         tracing::info!(target: "gossip", "Gossip driver started, receiving blocks.");
         loop {

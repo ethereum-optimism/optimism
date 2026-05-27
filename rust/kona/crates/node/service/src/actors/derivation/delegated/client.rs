@@ -1,5 +1,6 @@
 //! Client for polling Derivation Delegate sync status.
 
+use async_trait::async_trait;
 use jsonrpsee::{
     core::ClientError,
     http_client::{HttpClient, HttpClientBuilder},
@@ -29,6 +30,16 @@ pub enum DerivationDelegateClientError {
     HttpClientBuild(String),
 }
 
+/// Polls sync status from an external OP Stack CL node acting as the derivation delegate.
+///
+/// Abstracted as a trait so [`DelegateDerivationActor`](super::DelegateDerivationActor) can be
+/// constructed with a mock in tests instead of a live HTTP client.
+#[async_trait]
+pub trait DerivationDelegateProvider: Send + Sync {
+    /// Fetches the current sync status from the derivation delegate.
+    async fn fetch_sync_status(&self) -> Result<SyncStatus, DerivationDelegateClientError>;
+}
+
 /// Client for fetching sync status from an external OP Stack CL node.
 #[derive(Debug, Clone)]
 pub struct DerivationDelegateClient {
@@ -46,11 +57,12 @@ impl DerivationDelegateClient {
 
         Ok(Self { derivation_client })
     }
+}
 
-    /// Fetches the current sync status from the Derivation Delegate.
-    ///
+#[async_trait]
+impl DerivationDelegateProvider for DerivationDelegateClient {
     /// Calls `optimism_syncStatus` RPC method.
-    pub async fn fetch_sync_status(&self) -> Result<SyncStatus, DerivationDelegateClientError> {
+    async fn fetch_sync_status(&self) -> Result<SyncStatus, DerivationDelegateClientError> {
         Ok(self.derivation_client.op_sync_status().await?)
     }
 }

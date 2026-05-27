@@ -2,6 +2,7 @@ package chain_container
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -15,8 +16,10 @@ import (
 type mockVerificationActivityForSuperAuthority struct {
 	latestVerifiedBlock  eth.BlockID
 	latestVerifiedTS     uint64
+	latestVerifiedErr    error
 	latestFinalizedBlock eth.BlockID
 	latestFinalizedTS    uint64
+	latestFinalizedErr   error
 	// isActiveAtFn drives IsActiveAt for pre-activation fallback tests.
 	// When nil, IsActiveAt returns true (active for all timestamps), matching
 	// the default "always-active" semantics the existing tests assume.
@@ -32,12 +35,12 @@ func (m *mockVerificationActivityForSuperAuthority) CurrentL1() eth.BlockID {
 func (m *mockVerificationActivityForSuperAuthority) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	return false, nil
 }
-func (m *mockVerificationActivityForSuperAuthority) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64) {
-	return m.latestVerifiedBlock, m.latestVerifiedTS
+func (m *mockVerificationActivityForSuperAuthority) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64, error) {
+	return m.latestVerifiedBlock, m.latestVerifiedTS, m.latestVerifiedErr
 }
 func (m *mockVerificationActivityForSuperAuthority) Reset(eth.ChainID, uint64, eth.BlockRef) {}
-func (m *mockVerificationActivityForSuperAuthority) VerifiedBlockAtL1(chainID eth.ChainID, l1BlockRef eth.L1BlockRef) (eth.BlockID, uint64) {
-	return m.latestFinalizedBlock, m.latestFinalizedTS
+func (m *mockVerificationActivityForSuperAuthority) VerifiedBlockAtL1(chainID eth.ChainID, l1BlockRef eth.L1BlockRef) (eth.BlockID, uint64, error) {
+	return m.latestFinalizedBlock, m.latestFinalizedTS, m.latestFinalizedErr
 }
 func (m *mockVerificationActivityForSuperAuthority) IsActiveAt(ts uint64) bool {
 	if m.isActiveAtFn != nil {
@@ -545,4 +548,43 @@ func TestChainContainer_FinalizedL2Head_AllPreActivation_FallsBackToLocalFinaliz
 	result, useLocalFinalized := cc.FinalizedL2Head()
 	require.Equal(t, eth.BlockID{}, result)
 	require.True(t, useLocalFinalized, "all-pre-activation should signal fallback to local-finalized")
+}
+
+func TestChainContainer_FinalizedL2Head_VerifierError_SignalsLocalFinalizedFallback(t *testing.T) {
+	t.Parallel()
+
+	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
+	setSyncStatus(t, cc, &eth.SyncStatus{
+		FinalizedL1: eth.L1BlockRef{Number: 400},
+		LocalSafeL2: eth.L2BlockRef{Number: 600, Hash: [32]byte{0xdd}, Time: 1500},
+	})
+
+	verifier := &mockVerificationActivityForSuperAuthority{
+		isActiveAtFn:       preActivationFn(1000),
+		latestFinalizedErr: errors.New("database not open"),
+	}
+	cc.verifiers = []activity.VerificationActivity{verifier}
+
+	result, useLocalFinalized := cc.FinalizedL2Head()
+	require.Equal(t, eth.BlockID{}, result)
+	require.True(t, useLocalFinalized)
+}
+
+func TestChainContainer_FullyVerifiedL2Head_VerifierError_SignalsLocalSafeFallback(t *testing.T) {
+	t.Parallel()
+
+	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
+	setSyncStatus(t, cc, &eth.SyncStatus{
+		LocalSafeL2: eth.L2BlockRef{Number: 600, Hash: [32]byte{0xbb}, Time: 1500},
+	})
+
+	verifier := &mockVerificationActivityForSuperAuthority{
+		isActiveAtFn:      preActivationFn(1000),
+		latestVerifiedErr: errors.New("database not open"),
+	}
+	cc.verifiers = []activity.VerificationActivity{verifier}
+
+	result, useLocalSafe := cc.FullyVerifiedL2Head()
+	require.Equal(t, eth.BlockID{}, result)
+	require.True(t, useLocalSafe)
 }

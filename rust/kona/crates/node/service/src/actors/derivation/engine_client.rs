@@ -40,7 +40,7 @@ impl DerivationEngineClient for QueuedDerivationEngineClient {
 
         info!(target: "derivation", "Sending reset request to engine.");
         self.engine_actor_request_tx
-            .send(EngineActorRequest::ResetRequest(Box::new(ResetRequest { result_tx })))
+            .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx })))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
 
@@ -57,7 +57,7 @@ impl DerivationEngineClient for QueuedDerivationEngineClient {
     async fn send_finalized_l2_block(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
         trace!(target: "derivation", ?block_id, "Sending finalized L2 block id to engine.");
         self.engine_actor_request_tx
-            .send(EngineActorRequest::ProcessFinalizedL2BlockRequest(Box::new(block_id)))
+            .send(EngineActorRequest::ProcessFinalizedL2Block(Box::new(block_id)))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
 
@@ -67,7 +67,7 @@ impl DerivationEngineClient for QueuedDerivationEngineClient {
     async fn send_safe_l2_signal(&self, signal: ConsolidateInput) -> EngineClientResult<()> {
         trace!(target: "derivation", ?signal, "Sending safe L2 signal info to engine.");
         self.engine_actor_request_tx
-            .send(EngineActorRequest::ProcessSafeL2SignalRequest(signal))
+            .send(EngineActorRequest::ProcessSafeL2Signal(signal))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
 

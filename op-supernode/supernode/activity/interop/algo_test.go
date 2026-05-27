@@ -1070,6 +1070,7 @@ type algoMockChain struct {
 	optimisticAtErr   error
 	blockHashes       map[uint64]common.Hash
 	blockTimeOverride uint64
+	payloadsByHash    map[common.Hash]*eth.ExecutionPayloadEnvelope
 }
 
 func (m *algoMockChain) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
@@ -1116,8 +1117,25 @@ func (m *algoMockChain) SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 func (m *algoMockChain) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
 	return ts, nil
 }
-func (m *algoMockChain) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
+func (m *algoMockChain) RewindEngine(ctx context.Context, target *eth.ExecutionPayloadEnvelope, invalidatedBlock eth.BlockRef) error {
 	return nil
+}
+func (m *algoMockChain) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	if m.payloadsByHash != nil {
+		if env, ok := m.payloadsByHash[hash]; ok {
+			return env, nil
+		}
+	}
+	return nil, nil
+}
+func (m *algoMockChain) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: eth.Uint64Quantity(number),
+			Timestamp:   eth.Uint64Quantity(number),
+			BlockHash:   common.BigToHash(new(big.Int).SetUint64(number)),
+		},
+	}, nil
 }
 func (m *algoMockChain) BlockTime() uint64 {
 	if m.blockTimeOverride > 0 {
@@ -1125,7 +1143,7 @@ func (m *algoMockChain) BlockTime() uint64 {
 	}
 	return 1
 }
-func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
+func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
 	return false, nil
 }
 func (m *algoMockChain) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
