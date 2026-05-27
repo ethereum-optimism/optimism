@@ -1,0 +1,50 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0xcB97C9224Af16C95b8D8959A2752eF1832EB8BA9",
+    "L1StandardBridgeProxy": "0x788De2B0Dd35808a05eAFf7aAf5578B21E0dd9A7",
+    "OptimismPortalProxy": "0x923B28e0037A799A1e60368e60c92dFfba982162",
+    "SystemConfigProxy": "0x5C72CE6EA707037bC476dA8f4f969bC1f8abc78b"
+  },
+  "batch_inbox_addr": "0xFF000000000000000000000B0000000000016481",
+  "block_time": 2,
+  "chain_id": 16481,
+  "data_availability_type": "eth-da",
+  "explorer": "https://sepolia.pivotalscan.org/",
+  "genesis": {
+    "l1": {
+      "hash": "0x416fb0d9f67e3b0e9701c6bfcb03a13732ddb397158fa8c2ed6e53a33c10995c",
+      "number": 6548454
+    },
+    "l2": {
+      "hash": "0xac7379723e9ff584c00e1cbeb20e76c36dbc98dc8bf2146d1df317b7b6636b91",
+      "number": 0
+    },
+    "l2_time": 1724315616,
+    "system_config": {
+      "batcherAddress": "0xc122b4d47644BBD7A98E41Dd242D20054A11f720",
+      "gasLimit": 30000000,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0
+  },
+  "max_sequencer_drift": 600,
+  "name": "Pivotal Sepolia",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://sepolia.pivotalprotocol.com/",
+  "roles": {
+    "ProxyAdminOwner": "0x1D60661F40ACC64E38fcAdE8979D22a9B9278E6E"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://sepolia.pivotalprotocol.com/",
+  "superchain_level": 1
+}

@@ -1,0 +1,54 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x657c1b0e31FFc69A02B207Be20699bDFF938c7E7",
+    "L1StandardBridgeProxy": "0x8b0576E39F1233679109F9b40cFcC2a7E0901Ede",
+    "OptimismPortalProxy": "0x2c2150aa5c75A24fB93d4fD2F2a895D618054f07",
+    "SystemConfigProxy": "0x525a2744134805516a45B8abb6Aa0aA1dA3809F6"
+  },
+  "batch_inbox_addr": "0x8612014a343089F1ddBACfD42baf4Afbf9133593",
+  "block_time": 2,
+  "chain_id": 5330,
+  "data_availability_type": "eth-da",
+  "explorer": "https://explorer.superseed.xyz",
+  "genesis": {
+    "l1": {
+      "hash": "0x32566bf75b83734e532a687ad0c1d0b884e544815498401696ca5a49df238cf2",
+      "number": 20737477
+    },
+    "l2": {
+      "hash": "0x0e5eb156fd2ea921d57ee4921191a2a46ebe3a11854ee7a63a5c6c580aa99219",
+      "number": 0
+    },
+    "l2_time": 1726179683,
+    "system_config": {
+      "batcherAddress": "0xa9B074B27DE97f492F8F07fD7C213400E4ca5391",
+      "gasLimit": 30000000,
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0,
+    "fjord_time": 0,
+    "granite_time": 1726185601,
+    "holocene_time": 1736445601,
+    "isthmus_time": 1746806401
+  },
+  "max_sequencer_drift": 600,
+  "name": "Superseed",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://mainnet.superseed.xyz",
+  "roles": {
+    "ProxyAdminOwner": "0x4a4962275DF8C60a80d3a25faEc5AA7De116A746"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://mainnet.superseed.xyz",
+  "superchain_level": 1
+}

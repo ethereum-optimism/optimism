@@ -1,0 +1,57 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0xB3Ad2c38E6e0640d7ce6aA952AB3A60E81bf7a01",
+    "L1StandardBridgeProxy": "0x5f5a404A5edabcDD80DB05E8e54A78c9EBF000C2",
+    "OptimismPortalProxy": "0x65ea1489741A5D72fFdD8e6485B216bBdcC15Af3",
+    "SystemConfigProxy": "0x4Ca9608Fef202216bc21D543798ec854539bAAd3"
+  },
+  "batch_inbox_addr": "0x00Ca81E019a5312d404aE7fe8367D30DE4c11365",
+  "block_time": 2,
+  "chain_id": 1946,
+  "data_availability_type": "eth-da",
+  "explorer": "https://soneium-minato.blockscout.com/",
+  "genesis": {
+    "l1": {
+      "hash": "0x87e648e8d219737526cbcbc03dc914256d4f8e13ae13dc0a2ad377d831cd6473",
+      "number": 6465975
+    },
+    "l2": {
+      "hash": "0x7ec49d93fa8f47c00e98cc5965cd3903a8faa9238743d2eba0e0550ab4c45c43",
+      "number": 0
+    },
+    "l2_time": 1723194336,
+    "system_config": {
+      "batcherAddress": "0xF0AB0441c8f4B89b561aE685B98c6aD5175e0CAB",
+      "gasLimit": 30000000,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    }
+  },
+  "governed_by_optimism": true,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0,
+    "fjord_time": 1730106000,
+    "granite_time": 1730106000,
+    "holocene_time": 1734685200,
+    "isthmus_time": 1744905600,
+    "jovian_time": 1763568001,
+    "pectra_blob_schedule_time": 1742486400
+  },
+  "max_sequencer_drift": 1800,
+  "name": "Soneium Testnet Minato",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://rpc.minato.soneium.org",
+  "roles": {
+    "ProxyAdminOwner": "0x1Eb2fFc903729a0F03966B917003800b145F56E2"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://rpc.minato.soneium.org",
+  "superchain_level": 1,
+  "superchain_time": 1734685200
+}

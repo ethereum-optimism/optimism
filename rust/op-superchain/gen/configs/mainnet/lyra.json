@@ -1,0 +1,54 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x87DAFf495b5F6c4f79CEeAAF85f1Ef3df3B30d21",
+    "L1StandardBridgeProxy": "0x61E44dC0dae6888B5a301887732217d5725B0bFf",
+    "OptimismPortalProxy": "0x85eA9c11cf3D4786027F7FD08F4406b15777e5f8",
+    "SystemConfigProxy": "0x0e4C4CDd01ceCB01070E9Fdfe7600871e4ae996e"
+  },
+  "batch_inbox_addr": "0x5f7f7f6DB967F0ef10BdA0678964DBA185d16c50",
+  "block_time": 2,
+  "chain_id": 957,
+  "data_availability_type": "alt-da",
+  "explorer": "https://explorer.lyra.finance",
+  "genesis": {
+    "l1": {
+      "hash": "0x00b06b23108483a0b6af8ff726b5ed3f508b7986f72c12679b10d72c05839716",
+      "number": 18574841
+    },
+    "l2": {
+      "hash": "0x047f535b3da7ad4f96d353b5a439740b7591413daee0e2f27dd3aabb24581af2",
+      "number": 0
+    },
+    "l2_time": 1700021615,
+    "system_config": {
+      "batcherAddress": "0x14e4E97bDc195d399Ad8E7FC14451C279FE04c8e",
+      "gasLimit": 30000000,
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 1704992401,
+    "delta_time": 1708560000,
+    "ecotone_time": 1710374401,
+    "fjord_time": 1720627201,
+    "granite_time": 1726070401,
+    "holocene_time": 1736445601,
+    "isthmus_time": 1746806401
+  },
+  "max_sequencer_drift": 600,
+  "name": "Lyra Chain",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://rpc.lyra.finance",
+  "roles": {
+    "ProxyAdminOwner": "0x4a4962275DF8C60a80d3a25faEc5AA7De116A746"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://rpc.lyra.finance",
+  "superchain_level": 0
+}

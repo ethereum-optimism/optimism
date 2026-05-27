@@ -1,0 +1,53 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x017D15a6854CCAaa89c63d1A9fea8da45Ced97Cf",
+    "L1StandardBridgeProxy": "0x1Fe9c3b11Ed334fC049aE9a92Ec290aA69C39267",
+    "OptimismPortalProxy": "0x55585368857DcC7E0F89475d28963977DB0b1Ee1",
+    "SystemConfigProxy": "0x7f73514A7eC19f3F51E3c607D536560818dF4205"
+  },
+  "batch_inbox_addr": "0x00b18C246d9b94634a54DcC2A2d258a048ab2227",
+  "block_time": 1,
+  "chain_id": 5373,
+  "data_availability_type": "eth-da",
+  "explorer": "sepolia.settlus.network",
+  "genesis": {
+    "l1": {
+      "hash": "0xd8c9f415fe06484e7713d1e08144a4d1b37e064813b6f3ca45c9d9a29a1f13db",
+      "number": 7456555
+    },
+    "l2": {
+      "hash": "0xa055eed3718c2ed1f04692c707b7045a804505b5e5184a37143514ba9d14281e",
+      "number": 0
+    },
+    "l2_time": 1736459256,
+    "system_config": {
+      "batcherAddress": "0x26A1bABee918f55bfdDB002066C63678147B03A2",
+      "gasLimit": 60000000,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "scalar": "0x010000000000000000000000000000000000000000000000000c5fc500000558"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0,
+    "fjord_time": 0,
+    "granite_time": 0,
+    "holocene_time": 0
+  },
+  "max_sequencer_drift": 1800,
+  "name": "Settlus Sepolia",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://settlus-septestnet.g.alchemy.com/public",
+  "roles": {
+    "ProxyAdminOwner": "0x945185C01fb641bA3E63a9bdF66575e35a407837"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://settlus-sep-testnet-sequencer.g.alchemy.com/",
+  "superchain_level": 0
+}

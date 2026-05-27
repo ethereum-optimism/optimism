@@ -1,0 +1,54 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0xC8BF04A73704051E5E274F1B43B1F2F153Db2136",
+    "L1StandardBridgeProxy": "0xe07eA0436100918F157DF35D01dCE5c11b16D1F1",
+    "OptimismPortalProxy": "0x91493a61ab83b62943E6dCAa5475Dd330704Cc84",
+    "SystemConfigProxy": "0x886B187C3D293B1449A3A0F23Ca9e2269E0f2664"
+  },
+  "batch_inbox_addr": "0x08aA34cC843CeEBcC88A627F18430294aA9780be",
+  "block_time": 2,
+  "chain_id": 291,
+  "data_availability_type": "alt-da",
+  "explorer": "https://explorer.orderly.network",
+  "genesis": {
+    "l1": {
+      "hash": "0x787d5dd296d63bc6e7a4158d4f109e1260740ee115f5ed5124b35dece1fa3968",
+      "number": 18292529
+    },
+    "l2": {
+      "hash": "0xe53c94ddd42714239429bd132ba2fa080c7e5cc7dca816ec6e482ec0418e6d7f",
+      "number": 0
+    },
+    "l2_time": 1696608227,
+    "system_config": {
+      "batcherAddress": "0xf8dB8Aba597fF36cCD16fECfbb1B816B3236E9b8",
+      "gasLimit": 30000000,
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 1704992401,
+    "delta_time": 1708560000,
+    "ecotone_time": 1710374401,
+    "fjord_time": 1720627201,
+    "granite_time": 1726070401,
+    "holocene_time": 1736445601,
+    "isthmus_time": 1746806401
+  },
+  "max_sequencer_drift": 600,
+  "name": "Orderly Mainnet",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://rpc.orderly.network",
+  "roles": {
+    "ProxyAdminOwner": "0x4a4962275DF8C60a80d3a25faEc5AA7De116A746"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://rpc.orderly.network",
+  "superchain_level": 0
+}

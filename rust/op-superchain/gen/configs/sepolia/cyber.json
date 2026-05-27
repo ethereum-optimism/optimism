@@ -1,0 +1,51 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x99f0f9B0E7B16B10042E0935CE34F2fCebBE13C1",
+    "L1StandardBridgeProxy": "0xAA1bD6D4d8cFD37330a917bc678CB38BEFAf44E6",
+    "OptimismPortalProxy": "0x06C9Cadb0346c8E142fb8299cEF3EB5120d4c9b6",
+    "SystemConfigProxy": "0x43b838Aa237B27c4fC953E591594CEBb1CA2817F"
+  },
+  "batch_inbox_addr": "0xFf00000000000000000000000000000000042069",
+  "block_time": 10,
+  "chain_id": 111557560,
+  "data_availability_type": "eth-da",
+  "explorer": "https://testnet.cyberscan.co/",
+  "genesis": {
+    "l1": {
+      "hash": "0x0ad7012996ee943369fe592424821845ab115e43a9bc5d4e17bf9493869f98e3",
+      "number": 5488109
+    },
+    "l2": {
+      "hash": "0xd61aa9a43cba806375bec108aba488f00cf784a53a6e5164bc3ef9eb8b169eaf",
+      "number": 0
+    },
+    "l2_time": 1710470112,
+    "system_config": {
+      "batcherAddress": "0x90BB84339856530192CD002533cd7f1290Fc5142",
+      "gasLimit": 30000000,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000834",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0,
+    "pectra_blob_schedule_time": 1744696800
+  },
+  "max_sequencer_drift": 600,
+  "name": "Cyber Testnet",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 10
+  },
+  "public_rpc": "https://rpc.testnet.cyber.co",
+  "roles": {
+    "ProxyAdminOwner": "0x642A102cD63f039930f99b4657f41Fd4AD7699d6"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://cyber.alt.technology/",
+  "superchain_level": 0
+}

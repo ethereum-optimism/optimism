@@ -1,0 +1,56 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x8Ec1111f67Dad6b6A93B3F42DfBC92D81c98449A",
+    "L1StandardBridgeProxy": "0xd7DF54b3989855eb66497301a4aAEc33Dbb3F8DE",
+    "OptimismPortalProxy": "0xFf6EBa109271fe6d4237EeeD4bAb1dD9A77dD1A4",
+    "SystemConfigProxy": "0x166F9406e79A656f12F05247fb8F5DfA6155bCBF"
+  },
+  "batch_inbox_addr": "0xFf00000000000000000000000000000000484752",
+  "block_time": 2,
+  "chain_id": 4801,
+  "data_availability_type": "eth-da",
+  "explorer": "https://worldchain-sepolia.explorer.alchemy.com/",
+  "genesis": {
+    "l1": {
+      "hash": "0xd220bbdf24df6d1611f4ece1d08c64feae914ce6299ab2806c864e30a5289201",
+      "number": 6278018
+    },
+    "l2": {
+      "hash": "0xf1deb67ee953f94d8545d2647918687fa8ba1f30fa6103771f11b7c483984070",
+      "number": 0
+    },
+    "l2_time": 1720547424,
+    "system_config": {
+      "batcherAddress": "0x0f3ff4731D7a10B89ED79AD1Fd97844d7F66B96d",
+      "gasLimit": 100000000,
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0,
+    "fjord_time": 1721739600,
+    "granite_time": 1726570800,
+    "holocene_time": 1737633600,
+    "isthmus_time": 1761825600,
+    "jovian_time": 1777161600,
+    "pectra_blob_schedule_time": 1742486400
+  },
+  "max_sequencer_drift": 1800,
+  "name": "World Chain Sepolia Testnet",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 10
+  },
+  "public_rpc": "https://worldchain-sepolia.g.alchemy.com/public",
+  "roles": {
+    "ProxyAdminOwner": "0x945185C01fb641bA3E63a9bdF66575e35a407837"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://worldchain-sepolia-sequencer.g.alchemy.com",
+  "superchain_level": 0
+}

@@ -1,0 +1,55 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0xFbAC162162f4009Bb007C6DeBC36B1dAC10aF683",
+    "L1StandardBridgeProxy": "0x9C4955b92F34148dbcfDCD82e9c9eCe5CF2badfe",
+    "OptimismPortalProxy": "0xc5c5D157928BDBD2ACf6d0777626b6C75a9EAEDC",
+    "SystemConfigProxy": "0x89E31965D844a309231B1f17759Ccaf1b7c09861"
+  },
+  "batch_inbox_addr": "0xff00000000000000000000000000000000042220",
+  "block_time": 1,
+  "chain_id": 42220,
+  "data_availability_type": "alt-da",
+  "explorer": "https://celoscan.io/",
+  "gas_paying_token": "0x057898f3C43F129a17517B9056D23851F124b19f",
+  "genesis": {
+    "l1": {
+      "hash": "0xe499ec12e12fc2c94e6714a94f2640dbc748ff6c26fd3f420b25264a3d90066f",
+      "number": 22128103
+    },
+    "l2": {
+      "hash": "0x7586014e20c69b3fa7c9070baf1a7edd95833db57853126f32593b455da2e5c5",
+      "number": 31056500
+    },
+    "l2_time": 1742957258,
+    "system_config": {
+      "batcherAddress": "0x0cd08c7f7A96AA9635f761b49216B9eA74C5cA60",
+      "gasLimit": 30000000,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "scalar": "0x0100000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0,
+    "fjord_time": 0,
+    "granite_time": 0,
+    "holocene_time": 1752073200,
+    "isthmus_time": 1752073200
+  },
+  "max_sequencer_drift": 2892,
+  "name": "Celo",
+  "optimism": {
+    "eip1559_denominator": 400,
+    "eip1559_denominator_canyon": 400,
+    "eip1559_elasticity": 5
+  },
+  "public_rpc": "https://forno.celo.org",
+  "roles": {
+    "ProxyAdminOwner": "0x4092A77bAF58fef0309452cEaCb09221e556E112"
+  },
+  "seq_window_size": 7200,
+  "sequencer_rpc": "https://cel2-sequencer.celo.org/",
+  "superchain_level": 0
+}

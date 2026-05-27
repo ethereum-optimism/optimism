@@ -1,0 +1,53 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x04Ec030f362CE5A0b5Fe2d4B4219f287C2EBDE50",
+    "L1StandardBridgeProxy": "0x2171E6d3B7964fA9654Ce41dA8a8fFAff2Cc70be",
+    "OptimismPortalProxy": "0xe7Aa79B59CAc06F9706D896a047fEb9d3BDA8bD3",
+    "SystemConfigProxy": "0x43F8DeFe3E9286D152E91BB16a248808E7247198"
+  },
+  "batch_inbox_addr": "0x0004cb44C80b6Fbf8ceb1d80AF688C9f7C0b2aB5",
+  "block_time": 2,
+  "chain_id": 177,
+  "data_availability_type": "eth-da",
+  "explorer": "https://explorer.hsk.xyz",
+  "gas_paying_token": "0xE7C6BF469e97eEB0bFB74C8dbFF5BD47D4C1C98a",
+  "genesis": {
+    "l1": {
+      "hash": "0x0b4540b35529055a65950aef56df1a8fe22144f453f3bbc521a1248a8edbf761",
+      "number": 21414667
+    },
+    "l2": {
+      "hash": "0xa96aea946b763641b616ce0c69f37e61d9cd0abd709ef13a6b833e67b76de208",
+      "number": 0
+    },
+    "l2_time": 1734347135,
+    "system_config": {
+      "batcherAddress": "0x9391791f7CB74F8BFDA65edc0749efd964311b55",
+      "gasLimit": 30000000,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "scalar": "0x010000000000000000000000000000000000000000000000ffffffff01312d00"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0,
+    "fjord_time": 0,
+    "granite_time": 0
+  },
+  "max_sequencer_drift": 1800,
+  "name": "HashKey Chain",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://mainnet.hsk.xyz",
+  "roles": {
+    "ProxyAdminOwner": "0x441F31C4cdf772558D4EA31f3114de59aE145E7c"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://hashkeychain-mainnet.alt.technology",
+  "superchain_level": 0
+}

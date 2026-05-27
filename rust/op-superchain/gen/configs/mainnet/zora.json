@@ -1,0 +1,56 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0xB0F15106fa1e473Ddb39790f197275BC979Aa37e",
+    "L1StandardBridgeProxy": "0x3e2Ea9B92B7E48A52296fD261dc26fd995284631",
+    "OptimismPortalProxy": "0x1a0ad011913A150f69f6A19DF447A0CfD9551054",
+    "SystemConfigProxy": "0xA3cAB0126d5F504B071b81a3e8A2BBBF17930d86"
+  },
+  "batch_inbox_addr": "0x6F54Ca6F6EdE96662024Ffd61BFd18f3f4e34DFf",
+  "block_time": 2,
+  "chain_id": 7777777,
+  "data_availability_type": "eth-da",
+  "explorer": "https://explorer.zora.energy",
+  "genesis": {
+    "l1": {
+      "hash": "0xbdbd2847f7aa5f7cd1bd4c9f904057f4ba0b498c7e380199c01d240e3a41a84f",
+      "number": 17473923
+    },
+    "l2": {
+      "hash": "0x47555a45a1af8d4728ca337a1e48375a83919b1ea16591e070a07388b7364e29",
+      "number": 0
+    },
+    "l2_time": 1686693839,
+    "system_config": {
+      "batcherAddress": "0x625726c858dBF78c0125436C943Bf4b4bE9d9033",
+      "gasLimit": 30000000,
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    }
+  },
+  "governed_by_optimism": true,
+  "hardforks": {
+    "canyon_time": 1704992401,
+    "delta_time": 1708560000,
+    "ecotone_time": 1710374401,
+    "fjord_time": 1720627201,
+    "granite_time": 1726070401,
+    "holocene_time": 1736445601,
+    "isthmus_time": 1746806401,
+    "jovian_time": 1764691201
+  },
+  "max_sequencer_drift": 600,
+  "name": "Zora",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://rpc.zora.energy",
+  "roles": {
+    "ProxyAdminOwner": "0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://rpc.zora.energy",
+  "superchain_level": 1,
+  "superchain_time": 0
+}

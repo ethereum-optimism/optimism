@@ -1,0 +1,51 @@
+{
+  "addresses": {
+    "L1StandardBridgeProxy": "0x34C0bD5877A5Ee7099D0f5688D65F4bB9158BDE2",
+    "OptimismPortalProxy": "0x36cb65c1967A0Fb0EEE11569C51C2f2aA1Ca6f6D",
+    "SystemConfigProxy": "0x34a9f273cbD847d49c3De015FC26c3E66825f8b2"
+  },
+  "batch_inbox_addr": "0xfF000000000000000000000000000000000420fC",
+  "block_time": 2,
+  "chain_id": 252,
+  "data_availability_type": "alt-da",
+  "explorer": "https://fraxscan.com",
+  "genesis": {
+    "l1": {
+      "hash": "0x728dfc57386f6c2a646e03b7346f567b3117b7f487c6f590392abd1509248053",
+      "number": 19135251
+    },
+    "l2": {
+      "hash": "0x521982bd54239dc71269eefb58601762cc15cfb2978e0becb46af7962ed6bfaa",
+      "number": 0
+    },
+    "l2_time": 1706810711,
+    "system_config": {
+      "batcherAddress": "0x6017f75108f251a488B045A7ce2a7C15b179d1f2",
+      "gasLimit": 30000000,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000834",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 1717002001,
+    "ecotone_time": 1717009201,
+    "fjord_time": 1733947201,
+    "granite_time": 1738958401
+  },
+  "max_sequencer_drift": 600,
+  "name": "Fraxtal",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 10
+  },
+  "public_rpc": "https://rpc.frax.com",
+  "roles": {
+    "ProxyAdminOwner": "0xe0d7755252873c4eF5788f7f45764E0e17610508"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://rpc.frax.com",
+  "superchain_level": 0
+}

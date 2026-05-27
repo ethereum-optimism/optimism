@@ -1,0 +1,56 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x512A3d2c7a43BD9261d2B8E8C9c70D4bd4D503C0",
+    "L1StandardBridgeProxy": "0xeb9bf100225c214Efc3E7C651ebbaDcF85177607",
+    "OptimismPortalProxy": "0x88e529A6ccd302c948689Cd5156C83D4614FAE92",
+    "SystemConfigProxy": "0x7A8Ed66B319911A0F3E7288BDdAB30d9c0C875c3"
+  },
+  "batch_inbox_addr": "0x008dC74CecC9dedA8595B2Fe210cE5979F0BfA8e",
+  "block_time": 2,
+  "chain_id": 1868,
+  "data_availability_type": "eth-da",
+  "explorer": "https://soneium.blockscout.com/",
+  "genesis": {
+    "l1": {
+      "hash": "0x68b4ad05c3dafc2613853d26cf39f0e1716e986f879207440f187b56c12cb4d6",
+      "number": 21314185
+    },
+    "l2": {
+      "hash": "0x295d22d269634c7d0055b33b887519362d0b31899e97109d1789a8a168de1b21",
+      "number": 0
+    },
+    "l2_time": 1733134751,
+    "system_config": {
+      "batcherAddress": "0x6776BE80dBAda6A02B5F2095cF13734ac303B8d1",
+      "gasLimit": 60000000,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "scalar": "0x010000000000000000000000000000000000000000000000000c5fc500000558"
+    }
+  },
+  "governed_by_optimism": true,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0,
+    "fjord_time": 0,
+    "granite_time": 0,
+    "holocene_time": 1738573200,
+    "isthmus_time": 1746806401,
+    "jovian_time": 1764691201
+  },
+  "max_sequencer_drift": 600,
+  "name": "Soneium",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://rpc.soneium.org",
+  "roles": {
+    "ProxyAdminOwner": "0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://rpc.soneium.org",
+  "superchain_level": 1,
+  "superchain_time": 1738573200
+}

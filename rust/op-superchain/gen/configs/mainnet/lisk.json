@@ -1,0 +1,56 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x0CF7D3706a27CCE2017aEB11E8a9c8b5388c282C",
+    "L1StandardBridgeProxy": "0x2658723Bf70c7667De6B25F99fcce13A16D25d08",
+    "OptimismPortalProxy": "0x26dB93F8b8b4f7016240af62F7730979d353f9A7",
+    "SystemConfigProxy": "0x05f23282FFDCA8286E4738C1aF79079f3d843750"
+  },
+  "batch_inbox_addr": "0xFf00000000000000000000000000000000001135",
+  "block_time": 2,
+  "chain_id": 1135,
+  "data_availability_type": "eth-da",
+  "explorer": "https://blockscout.lisk.com",
+  "genesis": {
+    "l1": {
+      "hash": "0xd580bdbd001908860f225c16ddaa08ada64471a68435694760c111253d97ffce",
+      "number": 19788720
+    },
+    "l2": {
+      "hash": "0x5a693d1d8ee27b8e62868d0349af430a2d2e173c8c8988e7b0c9ef91893cbf00",
+      "number": 0
+    },
+    "l2_time": 1714728791,
+    "system_config": {
+      "batcherAddress": "0xa6Ea2f3299b63c53143c993d2d5E60A69Cd6Fe24",
+      "gasLimit": 30000000,
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 1704992401,
+    "delta_time": 1708560000,
+    "ecotone_time": 1710374401,
+    "fjord_time": 1720627201,
+    "granite_time": 1726070401,
+    "holocene_time": 1736445601,
+    "isthmus_time": 1746806401,
+    "jovian_time": 1764691201
+  },
+  "max_sequencer_drift": 600,
+  "name": "Lisk",
+  "optimism": {
+    "eip1559_denominator": 1000,
+    "eip1559_denominator_canyon": 1000,
+    "eip1559_elasticity": 20
+  },
+  "public_rpc": "https://rpc.api.lisk.com",
+  "roles": {
+    "ProxyAdminOwner": "0xECd4150ABbb1EBff13f74e42Fb43C3d78B4E0b45"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://rpc.api.lisk.com",
+  "superchain_level": 1,
+  "superchain_time": 0
+}

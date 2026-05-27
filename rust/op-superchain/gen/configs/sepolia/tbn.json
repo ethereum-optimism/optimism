@@ -1,0 +1,53 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x096b38bDC80B5BF5B5Fb4e1A75Ae38BDa520474A",
+    "L1StandardBridgeProxy": "0x3B78C3B41b3e3fC6bdf0bD3060C9E2471401C098",
+    "OptimismPortalProxy": "0xFBEd910ca54F013bfeA67Bd4DC836263bdd0b46C",
+    "SystemConfigProxy": "0x1a6D0312FaaaCa2BF818660F164450176C6205C9"
+  },
+  "batch_inbox_addr": "0xFf00000000000000000000000000000000042069",
+  "block_time": 2,
+  "chain_id": 625,
+  "data_availability_type": "eth-da",
+  "explorer": "https://explorer.sepolia.thebinaryholdings.com",
+  "gas_paying_token": "0x46d878bf7BF62Ec542953CB89Ac0bF58d991181e",
+  "genesis": {
+    "l1": {
+      "hash": "0x8d457519705ad17cf812d7cd4cfe5726eca8249f9e5f40a1d19992b07c2521ce",
+      "number": 6092340
+    },
+    "l2": {
+      "hash": "0xf1c38d92222758e1ea0c9c7ae1f7f2dfd0e3e747609f1c2d5a41ecfc5e84aba9",
+      "number": 0
+    },
+    "l2_time": 1718195040,
+    "system_config": {
+      "batcherAddress": "0x9CF89F8cB7cC94C579426f967d9517cd2e9adf29",
+      "gasLimit": 30000000,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "scalar": "0x010000000000000000000000000000000000000000000000000c5fc500000558"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0,
+    "fjord_time": 1723204838,
+    "granite_time": 1723545055
+  },
+  "max_sequencer_drift": 600,
+  "name": "Binary Sepolia",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://rpc.testnet.thebinaryholdings.com",
+  "roles": {
+    "ProxyAdminOwner": "0x5A11a7a6ca68819C601A4136BFbDFBa26D5f043e"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://sequencer.rpc.bnry.testnet.zeeve.net",
+  "superchain_level": 0
+}

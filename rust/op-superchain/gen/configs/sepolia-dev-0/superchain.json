@@ -1,0 +1,21 @@
+{
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 1706634000,
+    "fjord_time": 1715961600,
+    "granite_time": 1723046400,
+    "holocene_time": 1731682800,
+    "isthmus_time": 1744300800,
+    "jovian_time": 1762185600,
+    "pectra_blob_schedule_time": 1741687200
+  },
+  "l1": {
+    "chain_id": 11155111,
+    "explorer": "https://eth-sepolia.blockscout.com",
+    "public_rpc": "https://ethereum-sepolia-rpc.publicnode.com"
+  },
+  "name": "Sepolia Dev 0",
+  "protocol_versions_addr": "0x252CbE9517F731C618961D890D534183822dcC8d",
+  "superchain_config_addr": "0x02d91Cf852423640d93920BE0CAdceC0E7A00FA7"
+}

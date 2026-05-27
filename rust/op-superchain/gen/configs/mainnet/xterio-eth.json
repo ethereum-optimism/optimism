@@ -1,0 +1,56 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x443164F044D8840479234e00E7aD5bb06b85fC78",
+    "L1StandardBridgeProxy": "0x2AD84AbD52050956AcC9c490D024b821A59e3FB6",
+    "OptimismPortalProxy": "0xBC2bEDA4ce7A1f40aa458322A33B44081b2F545A",
+    "SystemConfigProxy": "0x6E99cdE188DAAFeEcb6eD8AC28B98dE4c8eE5D6C"
+  },
+  "alt_da": {
+    "da_challenge_contract_address": "0x16193e14197c10109F3e81b938153A04A2a00190",
+    "da_challenge_window": 3600,
+    "da_commitment_type": "KeccakCommitment",
+    "da_resolve_window": 3600
+  },
+  "batch_inbox_addr": "0xfF00000000000000000000000000000000293b30",
+  "block_time": 2,
+  "chain_id": 2702128,
+  "data_availability_type": "alt-da",
+  "explorer": "https://eth.xterscan.io/",
+  "genesis": {
+    "l1": {
+      "hash": "0x813c7b630e1d98a36dc26653406746f020b4f699381c2dbccaf51ef6dfd29ac2",
+      "number": 19938395
+    },
+    "l2": {
+      "hash": "0xb99fa3b9c265fe5364ed7ee2aca78535aaffd04e7b21f40383ed19a1c6d1d63b",
+      "number": 0
+    },
+    "l2_time": 1716537431,
+    "system_config": {
+      "batcherAddress": "0x7d6251D49A102a330CfB46d132982781620700Cb",
+      "gasLimit": 30000000,
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000b4",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0
+  },
+  "max_sequencer_drift": 600,
+  "name": "Xterio Chain (ETH)",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://xterio-eth.alt.technology/",
+  "roles": {
+    "ProxyAdminOwner": "0xfF75Bd7672b79f2562fAf98D488bbb3Db1cD1574"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://xterio-eth.alt.technology/",
+  "superchain_level": 0
+}

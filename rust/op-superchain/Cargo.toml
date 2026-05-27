@@ -1,0 +1,37 @@
+[package]
+name = "op-superchain"
+description = "Type-free producer of compile-time superchain-registry artifacts."
+version = "0.1.0"
+
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# `std` is a no-op marker for downstream feature unification — the runtime API
+# itself uses only `core` primitives.
+std = []
+
+# Runtime has zero deps -- the crate exposes only `&'static str` / `&'static [u8]`
+# constants and a `match`-based lookup function. Compatible with alloc-only/no_std
+# consumers (kona-registry on cannon/asterisc).
+[dependencies]
+
+[dev-dependencies]
+serde_json = "1"
+
+# Build-only deps. None of these enter the compiled binary of downstream crates.
+[build-dependencies]
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+zstd = { version = "0.13", default-features = false }
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }

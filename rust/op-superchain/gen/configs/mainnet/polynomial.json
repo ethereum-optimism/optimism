@@ -1,0 +1,54 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0xe9394679d0f0676E4a2dE99F8ed6B4aCb16c5f0f",
+    "L1StandardBridgeProxy": "0x3Be64BF2b9C2dE637067C7AAb6baE5EDf9fEBA55",
+    "OptimismPortalProxy": "0x034cbb620d1e0e4C2E29845229bEAc57083b04eC",
+    "SystemConfigProxy": "0x58b51fb9FeeD00DD846f91D265Eba3cdd855A413"
+  },
+  "batch_inbox_addr": "0x0bd57e83B5E0f9eCD84d559bB58e1EcFEEdD2565",
+  "block_time": 2,
+  "chain_id": 8008,
+  "data_availability_type": "eth-da",
+  "explorer": "https://polynomialscan.io",
+  "genesis": {
+    "l1": {
+      "hash": "0xc6d18992ff6e4c9e4798d34a7b97423a7ec276e9f2bbecfd4bb69ccdd49f516a",
+      "number": 20062729
+    },
+    "l2": {
+      "hash": "0x1b5e76ad2f290fb6fa2c60755d8c52942dbefedab76d01091e24080d5c129fd0",
+      "number": 0
+    },
+    "l2_time": 1718038175,
+    "system_config": {
+      "batcherAddress": "0x67a44CE38627F46F20b1293960559eD85Dd194F1",
+      "gasLimit": 30000000,
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0,
+    "fjord_time": 1720627201,
+    "granite_time": 1726070401,
+    "holocene_time": 1736445601,
+    "isthmus_time": 1746806401
+  },
+  "max_sequencer_drift": 600,
+  "name": "Polynomial",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://rpc.polynomial.fi",
+  "roles": {
+    "ProxyAdminOwner": "0x4a4962275DF8C60a80d3a25faEc5AA7De116A746"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://rpc.polynomial.fi",
+  "superchain_level": 1
+}

@@ -55,6 +55,9 @@ members = [
 
   # Revm execution-environment integration tests
   "revm-ee-tests/",
+
+  # OP Superchain producer (compile-time superchain-registry artifacts).
+  "op-superchain/",
 ]
 default-members = [
   "kona/bin/host",

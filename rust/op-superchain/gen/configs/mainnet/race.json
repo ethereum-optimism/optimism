@@ -1,0 +1,49 @@
+{
+  "addresses": {
+    "L1StandardBridgeProxy": "0x680969A6c58183987c8126ca4DE6b59C6540Cd2a",
+    "OptimismPortalProxy": "0x0485Ca8A73682B3D3f5ae98cdca1E5b512E728e9",
+    "SystemConfigProxy": "0xCf6A32dB8b3313b3d439CE6909511c2c3415fa32"
+  },
+  "batch_inbox_addr": "0xFF00000000000000000000000000000000006805",
+  "block_time": 2,
+  "chain_id": 6805,
+  "data_availability_type": "eth-da",
+  "explorer": "https://racescan.io/",
+  "genesis": {
+    "l1": {
+      "hash": "0xb6fd41e6c3515172c36d3912046264475eaad84c2c56e99d74f4abd1a75b63c9",
+      "number": 20260129
+    },
+    "l2": {
+      "hash": "0xa864791943836c37b40ea688f3853f2198afb683a3e168d48bfa76c9896e3e65",
+      "number": 0
+    },
+    "l2_time": 1720421591,
+    "system_config": {
+      "batcherAddress": "0x8CDa8351236199AF7532baD53D683Ddd9B275d89",
+      "gasLimit": 30000000,
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0
+  },
+  "max_sequencer_drift": 600,
+  "name": "RACE Mainnet",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://racemainnet.io",
+  "roles": {
+    "ProxyAdminOwner": "0x5A669B2193718F189b0576c0cdcedfEd6f40F9Ea"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://racemainnet.io",
+  "superchain_level": 0
+}

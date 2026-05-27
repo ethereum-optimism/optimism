@@ -1,0 +1,57 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x7Bb634B42373A87712Da14064deD13Db8b8b14f4",
+    "L1StandardBridgeProxy": "0xbC5C679879B2965296756CD959C3C739769995E2",
+    "OptimismPortalProxy": "0x320e1580effF37E008F1C92700d1eBa47c1B23fD",
+    "SystemConfigProxy": "0x15cd4f6e0CE3B4832B33cB9c6f6Fe6fc246754c2"
+  },
+  "batch_inbox_addr": "0xcDDaE6148dA1E003C230E4527f9baEdc8a204e7E",
+  "block_time": 2,
+  "chain_id": 919,
+  "data_availability_type": "eth-da",
+  "explorer": "https://sepolia.explorer.mode.network",
+  "genesis": {
+    "l1": {
+      "hash": "0x4370cafe528a1b8f2aaffc578094731daf69ff82fd9edc30d2d842d3763f3410",
+      "number": 3778382
+    },
+    "l2": {
+      "hash": "0x13c352562289a88ed33087a51b6b6c859a27709c8555c9def7cb9757c043acad",
+      "number": 0
+    },
+    "l2_time": 1687867932,
+    "system_config": {
+      "batcherAddress": "0x4e6BD53883107B063c502dDd49F9600Dc51b3DDc",
+      "gasLimit": 30000000,
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    }
+  },
+  "governed_by_optimism": true,
+  "hardforks": {
+    "canyon_time": 1703203200,
+    "delta_time": 1703203200,
+    "ecotone_time": 1708534800,
+    "fjord_time": 1716998400,
+    "granite_time": 1723478400,
+    "holocene_time": 1732633200,
+    "isthmus_time": 1744905600,
+    "jovian_time": 1763568001,
+    "pectra_blob_schedule_time": 1742486400
+  },
+  "max_sequencer_drift": 600,
+  "name": "Mode Testnet",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://sepolia.mode.network",
+  "roles": {
+    "ProxyAdminOwner": "0x1Eb2fFc903729a0F03966B917003800b145F56E2"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://sepolia.mode.network",
+  "superchain_level": 1,
+  "superchain_time": 1703203200
+}

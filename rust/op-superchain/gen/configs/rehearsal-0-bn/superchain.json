@@ -1,0 +1,14 @@
+{
+  "hardforks": {
+    "interop_time": 1749150000
+  },
+  "l1": {
+    "chain_id": 11155111,
+    "explorer": "",
+    "public_rpc": "https://ci-sepolia-l1-archive.optimism.io"
+  },
+  "name": "rehearsal-0-bn",
+  "op_contracts_manager_addr": "0x0fcD165e2531C934a186e3a412D58Daa241E0Ad0",
+  "protocol_versions_addr": "0x72B9c5a159B0dEE8331a268791aa432619693c06",
+  "superchain_config_addr": "0x672F11f34b7bE67C13A6FCba819c339bc3B0a585"
+}

@@ -1,0 +1,56 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x2F12d621a16e2d3285929C9996f478508951dFe4",
+    "L1StandardBridgeProxy": "0x81014F44b0a345033bB2b3B21C7a1A308B35fEeA",
+    "OptimismPortalProxy": "0x0bd48f6B86a26D3a217d0Fa6FfE2B491B956A7a2",
+    "SystemConfigProxy": "0xc407398d063f942feBbcC6F80a156b47F3f1BDA6"
+  },
+  "batch_inbox_addr": "0xFf00000000000000000000000000000000000130",
+  "block_time": 1,
+  "chain_id": 130,
+  "data_availability_type": "eth-da",
+  "explorer": "https://explorer.unichain.org",
+  "genesis": {
+    "l1": {
+      "hash": "0x8c799ed21bd97471f76ba48ea54b30f8169c7e4e4a22acfba06951b571e0f4b6",
+      "number": 21116363
+    },
+    "l2": {
+      "hash": "0x3425162ddf41a0a1f0106d67b71828c9a9577e6ddeb94e4f33d2cde1fdc3befe",
+      "number": 0
+    },
+    "l2_time": 1730748359,
+    "system_config": {
+      "batcherAddress": "0x2F60A5184c63ca94f82a27100643DbAbe4F3f7Fd",
+      "gasLimit": 30000000,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "scalar": "0x010000000000000000000000000000000000000000000000000dbba0000007d0"
+    }
+  },
+  "governed_by_optimism": true,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0,
+    "fjord_time": 0,
+    "granite_time": 0,
+    "holocene_time": 1736445601,
+    "isthmus_time": 1746806401,
+    "jovian_time": 1764691201
+  },
+  "max_sequencer_drift": 600,
+  "name": "Unichain",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://mainnet.unichain.org",
+  "roles": {
+    "ProxyAdminOwner": "0x6d5B183F538ABB8572F5cD17109c617b994D5833"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://mainnet-sequencer.unichain.org",
+  "superchain_level": 1,
+  "superchain_time": 0
+}

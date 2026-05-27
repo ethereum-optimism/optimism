@@ -1,0 +1,57 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x9AA3890a87E6BD2CB85Dad1A5D8B0A9D669e658a",
+    "L1StandardBridgeProxy": "0x1Fb30e446eA791cd1f011675E5F3f5311b70faF5",
+    "OptimismPortalProxy": "0xe3d90F21490686Ec7eF37BE788E02dfC12787264",
+    "SystemConfigProxy": "0xF54791059df4a12BA461b881B4080Ae81a1d0AC0"
+  },
+  "batch_inbox_addr": "0xff00000000000000000000000000000000004202",
+  "block_time": 2,
+  "chain_id": 4202,
+  "data_availability_type": "eth-da",
+  "explorer": "https://sepolia-blockscout.lisk.com",
+  "genesis": {
+    "l1": {
+      "hash": "0x7d9d6dcec39efe182119f41b1bd2aa7b35b82e43927522afea86d210a4eace4b",
+      "number": 5089851
+    },
+    "l2": {
+      "hash": "0xead3e6ddd08ae7e27fd952b74ceb468ba889047ac96b351dd13bd55e5faf3372",
+      "number": 0
+    },
+    "l2_time": 1705312992,
+    "system_config": {
+      "batcherAddress": "0x246E119a5BcC2875161b23E4e602e25cEcE96E37",
+      "gasLimit": 30000000,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000834",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 1705312994,
+    "delta_time": 1705312994,
+    "ecotone_time": 1708534800,
+    "fjord_time": 1716998400,
+    "granite_time": 1723478400,
+    "holocene_time": 1732633200,
+    "isthmus_time": 1744905600,
+    "jovian_time": 1763568001,
+    "pectra_blob_schedule_time": 1742486400
+  },
+  "max_sequencer_drift": 600,
+  "name": "Lisk Sepolia Testnet",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 10
+  },
+  "public_rpc": "https://rpc.sepolia-api.lisk.com",
+  "roles": {
+    "ProxyAdminOwner": "0x465874903125F26316c730aE84862606a3326cA5"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://rpc.sepolia-api.lisk.com",
+  "superchain_level": 1,
+  "superchain_time": 1708534800
+}

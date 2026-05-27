@@ -1,0 +1,57 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x860e626c700AF381133D9f4aF31412A2d1DB3D5d",
+    "L1StandardBridgeProxy": "0x33f60714BbD74d62b66D79213C348614DE51901C",
+    "OptimismPortalProxy": "0x5c1d29C6c9C8b0800692acC95D700bcb4966A1d7",
+    "SystemConfigProxy": "0x05C993e60179f28bF649a2Bb5b00b5F4283bD525"
+  },
+  "batch_inbox_addr": "0x004De1914F4f17aC234f5A5Bc8a4072a231d44BF",
+  "block_time": 1,
+  "chain_id": 763373,
+  "data_availability_type": "eth-da",
+  "explorer": "https://explorer-sepolia.inkonchain.com",
+  "genesis": {
+    "l1": {
+      "hash": "0x5fb818b4d3ba100eeb3347c508bca24752ee88f235120e108bd9ee5d1b2ae50b",
+      "number": 6880819
+    },
+    "l2": {
+      "hash": "0xe5fd5cf0be56af58ad5751b401410d6b7a09d830fa459789746a3d0dd1c79834",
+      "number": 0
+    },
+    "l2_time": 1729003296,
+    "system_config": {
+      "batcherAddress": "0x21e57C21530Bc33F12Ba96C9dDC135488365002F",
+      "gasLimit": 30000000,
+      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "scalar": "0x010000000000000000000000000000000000000000000000000c5fc500000558"
+    }
+  },
+  "governed_by_optimism": true,
+  "hardforks": {
+    "canyon_time": 1699981200,
+    "delta_time": 1703203200,
+    "ecotone_time": 1708534800,
+    "fjord_time": 1716998400,
+    "granite_time": 1723478400,
+    "holocene_time": 1732633200,
+    "isthmus_time": 1744905600,
+    "jovian_time": 1763568001,
+    "pectra_blob_schedule_time": 1742486400
+  },
+  "max_sequencer_drift": 600,
+  "name": "Ink Sepolia",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://rpc-gel-sepolia.inkonchain.com",
+  "roles": {
+    "ProxyAdminOwner": "0x1Eb2fFc903729a0F03966B917003800b145F56E2"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://rpc-gel-sepolia.inkonchain.com",
+  "superchain_level": 1,
+  "superchain_time": 0
+}

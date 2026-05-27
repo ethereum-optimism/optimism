@@ -1,0 +1,57 @@
+{
+  "addresses": {
+    "DisputeGameFactoryProxy": "0x156670e48F72cB23EAadd8b51e398c678AB651aF",
+    "L1StandardBridgeProxy": "0x78558fd5C8DC65D10753f004Bfc4cFA8E199C668",
+    "OptimismPortalProxy": "0x1Cb215554f36f518791B2e7359a73c96bFcadf69",
+    "SystemConfigProxy": "0x978e8311A5A710ef6413abA3A6b89092ce4a58f5"
+  },
+  "batch_inbox_addr": "0xFA5c2402828228a8Dd700bA1E71f5E1128876Fa8",
+  "block_time": 2,
+  "chain_id": 66665,
+  "data_availability_type": "eth-da",
+  "explorer": "https://explorer.creatorchain.io",
+  "genesis": {
+    "l1": {
+      "hash": "0xe84d982c811eafc34801b0fdab8249739495ada50d119a58128aae583a801529",
+      "number": 6576576
+    },
+    "l2": {
+      "hash": "0x218eeee63576977ed59d751a04ef53ac7ecf6c053331a6f10672c38d211957ed",
+      "number": 0
+    },
+    "l2_time": 1724698536,
+    "system_config": {
+      "batcherAddress": "0xa488310ab2F8Aa3294903930023BCab5880cB1BA",
+      "gasLimit": 30000000,
+      "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
+      "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0"
+    }
+  },
+  "governed_by_optimism": false,
+  "hardforks": {
+    "canyon_time": 0,
+    "delta_time": 0,
+    "ecotone_time": 0,
+    "fjord_time": 0,
+    "granite_time": 1723478400,
+    "holocene_time": 1732633200,
+    "isthmus_time": 1744905600,
+    "jovian_time": 1763568001,
+    "pectra_blob_schedule_time": 1742486400
+  },
+  "max_sequencer_drift": 600,
+  "name": "Creator Chain Testnet",
+  "optimism": {
+    "eip1559_denominator": 50,
+    "eip1559_denominator_canyon": 250,
+    "eip1559_elasticity": 6
+  },
+  "public_rpc": "https://rpc.creatorchain.io",
+  "roles": {
+    "ProxyAdminOwner": "0x34478c2eB9018d5A6487BF0440838Cd4238e8cf2"
+  },
+  "seq_window_size": 3600,
+  "sequencer_rpc": "https://rpc.creatorchain.io",
+  "superchain_level": 0,
+  "superchain_time": 0
+}
