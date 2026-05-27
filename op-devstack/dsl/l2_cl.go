@@ -318,6 +318,10 @@ func (cl *L2CLNode) ReachedRefFn(lvl safety.Level, target eth.BlockID, attempts 
 // targetTime, failing on any regression. Requires a non-zero baseline behind
 // targetTime so a regression to genesis isn't vacuous (0 >= 0). Polls every
 // 100ms; deadline is targetTime + 5min.
+//
+// Uses an explicit ticker/deadline loop and returns errors through the
+// CheckFunc contract. require.Eventuallyf would call FailNow inside the
+// dsl.CheckAll worker goroutine, which is not safe.
 func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime uint64) CheckFunc {
 	return func() error {
 		initial, err := cl.headBlockRef(lvl)
@@ -334,24 +338,33 @@ func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime 
 		deadline := time.Unix(int64(targetTime), 0).Add(buffer)
 		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "initial", initial.Number, "initial_time", initial.Time, "target_time", targetTime, "deadline", deadline)
 		logger.Info("Watching head for regression until target time reached")
-		// End the wait early on regression by returning true; surfaced below.
-		var regressionErr error
-		cl.require.Eventuallyf(func() bool {
+
+		ctx, cancel := context.WithDeadline(cl.ctx, deadline)
+		defer cancel()
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
 			head, err := cl.headBlockRef(lvl)
 			if err != nil {
 				logger.Warn("SyncStatus RPC failed; will retry", "err", err)
-				return false
+			} else {
+				if head.Number < initial.Number {
+					return fmt.Errorf("%s head regressed: was %d (%s, t=%d), observed %d (%s, t=%d)",
+						lvl, initial.Number, initial.Hash, initial.Time, head.Number, head.Hash, head.Time)
+				}
+				if head.Time >= targetTime {
+					return nil
+				}
+				logger.Info("Chain sync status", "current", head.Number, "current_time", head.Time)
 			}
-			if head.Number < initial.Number {
-				regressionErr = fmt.Errorf("%s head regressed: was %d (%s, t=%d), observed %d (%s, t=%d)",
-					lvl, initial.Number, initial.Hash, initial.Time, head.Number, head.Hash, head.Time)
-				return true
+
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("%s head did not reach target time %d (initial=%d): %w", lvl, targetTime, initial.Number, ctx.Err())
+			case <-ticker.C:
 			}
-			logger.Info("Chain sync status", "current", head.Number, "current_time", head.Time)
-			return head.Time >= targetTime
-		}, time.Until(deadline), 100*time.Millisecond,
-			"%s head did not reach target time %d (initial=%d)", lvl, targetTime, initial.Number)
-		return regressionErr
+		}
 	}
 }
 
