@@ -88,6 +88,49 @@ pub trait EngineClient: OpEngineApi<Optimism, Http<HyperAuthClient>> + Send + Sy
     ) -> Result<Option<L2BlockInfo>, EngineClientError>;
 }
 
+/// Read-only subset of [`EngineClient`] used by the engine RPC actor.
+///
+/// Exposes only the methods required to serve [`crate::EngineQueries`] — fetching an L2 block by
+/// label, and reading the L2-to-L1 message-passer storage hash. The engine RPC actor handles
+/// queries only and must not have any way to call state-mutating Engine API methods; constraining
+/// it to this trait prevents that at the type system level.
+#[async_trait]
+pub trait EngineRpcClient: Send + Sync {
+    /// Fetches the [`Block<Transaction>`] for the given [`BlockNumberOrTag`].
+    async fn l2_block_by_label(
+        &self,
+        numtag: BlockNumberOrTag,
+    ) -> Result<Option<Block<Transaction>>, EngineClientError>;
+
+    /// Returns the storage hash of `address` at the given block, used to compute the L2-to-L1
+    /// message-passer storage root pre-Isthmus. This is a narrower projection of `get_proof`'s
+    /// `storage_hash` field; callers needing the full account proof should not be using this
+    /// trait.
+    async fn get_storage_hash(
+        &self,
+        address: Address,
+        block: BlockId,
+    ) -> Result<B256, RpcError<TransportErrorKind>>;
+}
+
+#[async_trait]
+impl<T: EngineClient + ?Sized> EngineRpcClient for T {
+    async fn l2_block_by_label(
+        &self,
+        numtag: BlockNumberOrTag,
+    ) -> Result<Option<Block<Transaction>>, EngineClientError> {
+        EngineClient::l2_block_by_label(self, numtag).await
+    }
+
+    async fn get_storage_hash(
+        &self,
+        address: Address,
+        block: BlockId,
+    ) -> Result<B256, RpcError<TransportErrorKind>> {
+        Ok(self.get_proof(address, Default::default()).block_id(block).await?.storage_hash)
+    }
+}
+
 /// An Engine API client that provides authenticated HTTP communication with an execution layer.
 ///
 /// The [`OpEngineClient`] handles JWT authentication and manages connections to both L1 and L2

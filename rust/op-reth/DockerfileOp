@@ -35,11 +35,9 @@ RUN cargo auditable build --profile $BUILD_PROFILE --features "$FEATURES" --bin 
 RUN ls -la /app/target/$BUILD_PROFILE/op-reth
 RUN cp /app/target/$BUILD_PROFILE/op-reth /app/op-reth
 
-FROM ubuntu AS runtime
+FROM chainguard/wolfi-base:latest AS runtime
 
-RUN apt-get update && \
-    apt-get install -y ca-certificates libssl-dev pkg-config strace && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ca-certificates openssl libstdc++ strace
 
 WORKDIR /app
 COPY --from=builder /app/op-reth /usr/local/bin/

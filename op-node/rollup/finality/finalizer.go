@@ -172,8 +172,6 @@ func (ev TryFinalizeEvent) String() string {
 }
 
 func (fi *Finalizer) OnEvent(ctx context.Context, ev event.Event) bool {
-	// TODO(#16917) Remove Event System Refactor Comments
-	//  FinalizeL1Event is removed and OnL1Finalized is synchronously called at L1Handler
 	switch x := ev.(type) {
 	case engine.SafeDerivedEvent:
 		fi.onDerivedSafeBlock(x.Safe, x.Source)

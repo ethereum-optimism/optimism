@@ -341,8 +341,6 @@ func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, et
 		return nil, nil, nil, errors.New("l2 driver must be initialized")
 	}
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
-		// TODO(#16917) Remove Event System Refactor Comments
-		//  L1UnsafeEvent fan out is updated to procedural method calls
 		if node.cfg.Tracer != nil {
 			node.cfg.Tracer.OnNewL1Head(ctx, sig)
 		}
@@ -354,8 +352,6 @@ func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, et
 		node.l2Driver.StatusTracker.OnL1Safe(sig)
 	}
 	onL1Finalized := func(ctx context.Context, sig eth.L1BlockRef) {
-		// TODO(#16917) Remove Event System Refactor Comments
-		//  FinalizeL1Event fan out is updated to procedural method calls
 		node.l2Driver.StatusTracker.OnL1Finalized(sig)
 		node.l2Driver.Finalizer.OnL1Finalized(sig)
 		node.l2Driver.SyncDeriver.OnL1Finalized(ctx)

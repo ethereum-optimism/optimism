@@ -11,25 +11,19 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// FullyVerifiedL2Head returns the fully verified L2 head block identifier.
-// The second return value indicates whether the caller should fall back to local-safe.
-// Returns (empty, true) when no verifiers are registered, or when every
-// registered verifier reports it is not yet active at the current local-safe
-// L2 timestamp (i.e. interop is scheduled but not yet activated).
-// Returns (empty, false) when verifiers are registered, at least one is active,
-// but none has verified anything yet.
-// Panics if verifiers disagree on the block hash for the same timestamp.
+// FullyVerifiedL2Head returns the oldest fully-verified L2 head across all
+// verifiers. The bool is true to signal use-local-safe (no verifiers, all
+// pre-activation, or transient verifier error); false carries the verifier
+// result (block, or empty when verifiers are operational but have nothing
+// verified yet). Panics if verifiers disagree at the same timestamp.
 func (c *simpleChainContainer) FullyVerifiedL2Head() (eth.BlockID, bool) {
-	// If no verifiers registered, signal fallback to local-safe
 	if len(c.verifiers) == 0 {
 		c.log.Debug("FullyVerifiedL2Head: no verifiers registered, signaling local-safe fallback")
 		return eth.BlockID{}, true
 	}
 
-	// If every registered verifier is still pre-activation at the current
-	// local-safe timestamp, fall back to local-safe. Pre-activation L2 content
-	// is verified by consensus alone; gating it on an interop verifier that
-	// has not started yet would stall the head at genesis (see #20191).
+	// Pre-activation L2 content is verified by consensus alone; gating it on
+	// a not-yet-active interop verifier would stall the head at genesis (#20191).
 	if activeTS, ok := c.localSafeTimestamp(); ok && c.allVerifiersPreActivationAt(activeTS) {
 		c.log.Debug("FullyVerifiedL2Head: all verifiers pre-activation, signaling local-safe fallback", "localSafeTime", activeTS)
 		return eth.BlockID{}, true
@@ -38,9 +32,12 @@ func (c *simpleChainContainer) FullyVerifiedL2Head() (eth.BlockID, bool) {
 	timestamp := uint64(math.MaxUint64)
 	oldestVerifiedBlock := eth.BlockID{}
 	for _, v := range c.verifiers {
-		bId, ts := v.LatestVerifiedL2Block(c.chainID)
-		// If any verifier returns empty, return empty but don't signal fallback
-		// The verifier exists but hasn't verified anything yet
+		bId, ts, err := v.LatestVerifiedL2Block(c.chainID)
+		if err != nil {
+			c.log.Warn("FullyVerifiedL2Head: verifier read failed, signaling local-safe fallback",
+				"verifier", v.Name(), "err", err)
+			return eth.BlockID{}, true
+		}
 		if (bId == eth.BlockID{} || ts == 0) {
 			c.log.Debug("FullyVerifiedL2Head: verifier returned empty, returning empty without fallback", "verifier", v.Name())
 			return eth.BlockID{}, false
@@ -57,17 +54,12 @@ func (c *simpleChainContainer) FullyVerifiedL2Head() (eth.BlockID, bool) {
 	return oldestVerifiedBlock, false
 }
 
-// FinalizedL2Head returns the finalized L2 head block identifier.
-// The second return value indicates whether the caller should fall back to local-finalized.
-// Returns (empty, true) when no verifiers are registered, or when every
-// registered verifier reports it is not yet active at the current local-safe
-// L2 timestamp (i.e. interop is scheduled but not yet activated; FinalizedL2
-// <= LocalSafeL2, so if local-safe is pre-activation, so is finalized).
-// Returns (empty, false) when verifiers are registered, at least one is active,
-// but none has finalized anything yet.
-// Panics if verifiers disagree on the block hash for the same timestamp.
+// FinalizedL2Head returns the oldest finalized L2 head across all verifiers.
+// The bool is true to signal use-local-finalized (no verifiers, all
+// pre-activation, sync status unavailable, or transient verifier error);
+// false carries the verifier result. Panics if verifiers disagree at the
+// same timestamp.
 func (c *simpleChainContainer) FinalizedL2Head() (eth.BlockID, bool) {
-	// If no verifiers registered, signal fallback to local-finalized
 	if len(c.verifiers) == 0 {
 		c.log.Debug("FinalizedL2Head: no verifiers registered, signaling local-finalized fallback")
 		return eth.BlockID{}, true
@@ -79,9 +71,7 @@ func (c *simpleChainContainer) FinalizedL2Head() (eth.BlockID, bool) {
 		return eth.BlockID{}, true
 	}
 
-	// If every registered verifier is still pre-activation at the current
-	// local-safe timestamp, fall back to local-finalized. See #20191 and the
-	// matching guard in FullyVerifiedL2Head.
+	// FinalizedL2 <= LocalSafeL2; if local-safe is pre-activation, so is finalized.
 	if c.allVerifiersPreActivationAt(ss.LocalSafeL2.Time) {
 		c.log.Debug("FinalizedL2Head: all verifiers pre-activation, signaling local-finalized fallback", "localSafeTime", ss.LocalSafeL2.Time)
 		return eth.BlockID{}, true
@@ -90,9 +80,12 @@ func (c *simpleChainContainer) FinalizedL2Head() (eth.BlockID, bool) {
 	timestamp := uint64(math.MaxUint64)
 	oldestFinalizedBlock := eth.BlockID{}
 	for _, v := range c.verifiers {
-		bId, ts := v.VerifiedBlockAtL1(c.chainID, ss.FinalizedL1)
-		// If any verifier returns empty, return empty but don't signal fallback
-		// The verifier exists but hasn't finalized anything yet
+		bId, ts, err := v.VerifiedBlockAtL1(c.chainID, ss.FinalizedL1)
+		if err != nil {
+			c.log.Warn("FinalizedL2Head: verifier read failed, signaling local-finalized fallback",
+				"verifier", v.Name(), "err", err)
+			return eth.BlockID{}, true
+		}
 		if (bId == eth.BlockID{} || ts == 0) {
 			c.log.Debug("FinalizedL2Head: verifier returned empty, returning empty without fallback", "verifier", v.Name())
 			return eth.BlockID{}, false

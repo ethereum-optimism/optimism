@@ -201,8 +201,6 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	// Once we pass the previous safe head and we have seen enough canonical L1 origins to fill a sequence window worth of data,
 	// then we return the last L2 block of the epoch before that as safe head.
 	// Each loop iteration we traverse a single L2 block, and we check if the L1 origins are consistent.
-	// TODO(#16141): maybe check inside here not to go over Interop activation, this should be handled by supervisor
-	// Fine to keep unsafe chain. Safe chain should be capped to stay pre-Interop.
 	for {
 		// Fetch L1 information if we never had it, or if we do not have it for the current origin.
 		// Optimization: as soon as we have a previous L1 block, try to traverse L1 by hash instead of by number, to fill the cache.

@@ -173,6 +173,8 @@ func (fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2Block
 
 func (fakeEngController) RequestPendingSafeUpdate(ctx context.Context) {}
 
+func (fakeEngController) IsEngineInitialELSyncing() bool { return false }
+
 // TestSequencer_StartStop runs through start/stop state back and forth to test state changes.
 func TestSequencer_StartStop(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
@@ -186,7 +188,6 @@ func TestSequencer_StartStop(t *testing.T) {
 	deps.conductor.leader = true
 
 	testCtx := context.Background()
-	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	require.NoError(t, seq.Init(testCtx, false))
 	emitter.AssertExpectations(t)
 	require.False(t, deps.conductor.closed, "conductor is ready")
@@ -276,7 +277,6 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	deps.conductor.leader = true
 
 	testCtx := context.Background()
-	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	require.NoError(t, seq.Init(testCtx, false))
 	emitter.AssertExpectations(t)
 	require.False(t, deps.conductor.closed, "conductor is ready")
@@ -486,13 +486,11 @@ func TestSequencerBuild(t *testing.T) {
 
 	testCtx := context.Background()
 	// Init will request a forkchoice update
-	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	require.NoError(t, seq.Init(testCtx, true))
 	emitter.AssertExpectations(t)
 	require.True(t, seq.Active(), "started in active mode")
 
 	// It will request a forkchoice update, it needs the head before being able to build on top of it
-	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	seq.OnEvent(context.Background(), SequencerActionEvent{})
 	emitter.AssertExpectations(t)
 

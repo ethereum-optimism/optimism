@@ -857,9 +857,6 @@ func (e *EngineController) localSafeIsFullySafe(timestamp uint64) bool {
 func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	// TODO(#16917) Remove Event System Refactor Comments
-	//  PromoteUnsafeEvent, PromotePendingSafeEvent, PromoteLocalSafeEvent fan out is updated to procedural
-	//  PromoteSafeEvent fan out is updated to procedural PromoteSafe method call
 	switch x := ev.(type) {
 	case UnsafeUpdateEvent:
 		if e.localSafeIsFullySafe(x.Ref.Time) {

@@ -1,10 +1,7 @@
 //! [`NodeActor`] implementation for an L1 chain watcher that polls for L1 block updates over HTTP
 //! RPC.
 
-use crate::{
-    NodeActor,
-    actors::{CancellableContext, l1_watcher::error::L1WatcherActorError},
-};
+use crate::{NodeActor, actors::l1_watcher::error::L1WatcherActorError};
 use alloy_eips::BlockId;
 use alloy_primitives::Address;
 use alloy_provider::Provider;
@@ -21,7 +18,6 @@ use tokio::{
         watch,
     },
 };
-use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 
 use super::L1WatcherDerivationClient;
 
@@ -46,8 +42,6 @@ where
     derivation_client: L1WatcherDerivationClient_,
     /// The block signer sender.
     block_signer_sender: mpsc::Sender<Address>,
-    /// The cancellation token, shared between all tasks.
-    cancellation: CancellationToken,
     /// A stream over the latest head.
     head_stream: BlockStream,
     /// A stream over the finalized block accepted as canonical.
@@ -69,7 +63,6 @@ where
         l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
         derivation_client: L1WatcherDerivationClient_,
         signer: mpsc::Sender<Address>,
-        cancellation: CancellationToken,
         head_stream: BlockStream,
         finalized_stream: BlockStream,
     ) -> Self {
@@ -80,7 +73,6 @@ where
             latest_head: l1_head_updates_tx,
             derivation_client,
             block_signer_sender: signer,
-            cancellation,
             head_stream,
             finalized_stream,
         }
@@ -96,72 +88,59 @@ where
     L1WatcherDerivationClient_: L1WatcherDerivationClient + 'static,
 {
     type Error = L1WatcherActorError<BlockInfo>;
-    type StartData = ();
 
-    /// Start the main processing loop.
-    async fn start(mut self, _: Self::StartData) -> Result<(), Self::Error> {
-        let cancel = self.cancellation.clone();
-        let latest_head = self.latest_head.subscribe();
+    async fn step(&mut self) -> Result<(), Self::Error> {
+        select! {
+            new_head = self.head_stream.next() => match new_head {
+                None => {
+                    Err(L1WatcherActorError::StreamEnded)
+                }
+                Some(head_block_info) => {
+                    // Send the head update event to all consumers.
+                    self.latest_head.send_replace(Some(head_block_info));
+                    self.derivation_client.send_new_l1_head(head_block_info).await.map_err(|e| {
+                        warn!(target: "l1_watcher", "Error sending l1 head update to derivation actor: {e}");
+                        L1WatcherActorError::DerivationClientError(e)
+                    })?;
 
-        loop {
-            select! {
-                _ = cancel.cancelled() => {
-                    // Exit the task on cancellation.
-                    info!(
-                        target: "l1_watcher",
-                        "Received shutdown signal. Exiting L1 watcher task."
-                    );
-
-                    return Ok(());
-                },
-                new_head = self.head_stream.next() => match new_head {
-                    None => {
-                        return Err(L1WatcherActorError::StreamEnded);
-                    }
-                    Some(head_block_info) => {
-                        // Send the head update event to all consumers.
-                        self.latest_head.send_replace(Some(head_block_info));
-                        self.derivation_client.send_new_l1_head(head_block_info).await.map_err(|e| {
-                            warn!(target: "l1_watcher", "Error sending l1 head update to derivation actor: {e}");
-                            L1WatcherActorError::DerivationClientError(e)
-                        })?;
-
-                        // For each log, attempt to construct a [`SystemConfigLog`].
-                        // Build the [`SystemConfigUpdate`] from the log.
-                        // If the update is an Unsafe block signer update, send the address
-                        // to the block signer sender.
-                        let filter_address =  self.rollup_config.l1_system_config_address;
-                        let logs = self.l1_provider .get_logs(&alloy_rpc_types_eth::Filter::new().address(filter_address).select(head_block_info.hash)).await?;
-                        let ecotone_active = self.rollup_config.is_ecotone_active(head_block_info.timestamp);
-                        for log in logs {
-                            let sys_cfg_log = SystemConfigLog::new(log.into(), ecotone_active);
-                            if let Ok(SystemConfigUpdate::UnsafeBlockSigner(UnsafeBlockSignerUpdate { unsafe_block_signer })) = sys_cfg_log.build() {
-                                info!(
+                    // For each log, attempt to construct a [`SystemConfigLog`].
+                    // Build the [`SystemConfigUpdate`] from the log.
+                    // If the update is an Unsafe block signer update, send the address
+                    // to the block signer sender.
+                    let filter_address =  self.rollup_config.l1_system_config_address;
+                    let logs = self.l1_provider .get_logs(&alloy_rpc_types_eth::Filter::new().address(filter_address).select(head_block_info.hash)).await?;
+                    let ecotone_active = self.rollup_config.is_ecotone_active(head_block_info.timestamp);
+                    for log in logs {
+                        let sys_cfg_log = SystemConfigLog::new(log.into(), ecotone_active);
+                        if let Ok(SystemConfigUpdate::UnsafeBlockSigner(UnsafeBlockSignerUpdate { unsafe_block_signer })) = sys_cfg_log.build() {
+                            info!(
+                                target: "l1_watcher",
+                                "Unsafe block signer update: {unsafe_block_signer}"
+                            );
+                            if let Err(e) = self.block_signer_sender.send(unsafe_block_signer).await {
+                                error!(
                                     target: "l1_watcher",
-                                    "Unsafe block signer update: {unsafe_block_signer}"
+                                    "Error sending unsafe block signer update: {e}"
                                 );
-                                if let Err(e) = self.block_signer_sender.send(unsafe_block_signer).await {
-                                    error!(
-                                        target: "l1_watcher",
-                                        "Error sending unsafe block signer update: {e}"
-                                    );
-                                }
                             }
                         }
-                    },
-                },
-                new_finalized = self.finalized_stream.next() => match new_finalized {
-                    None => {
-                        return Err(L1WatcherActorError::StreamEnded);
                     }
-                    Some(finalized_block_info) => {
-                        self.derivation_client.send_finalized_l1_block(finalized_block_info).await.map_err(|e| {
-                            warn!(target: "l1_watcher", "Error sending finalized l1 block update to derivation actor: {e}");
-                            L1WatcherActorError::DerivationClientError(e)
-                        })?;
-                    }
+                    Ok(())
                 },
-                inbound_query = self.inbound_queries.recv() => match inbound_query {
+            },
+            new_finalized = self.finalized_stream.next() => match new_finalized {
+                None => {
+                    Err(L1WatcherActorError::StreamEnded)
+                }
+                Some(finalized_block_info) => {
+                    self.derivation_client.send_finalized_l1_block(finalized_block_info).await.map_err(|e| {
+                        warn!(target: "l1_watcher", "Error sending finalized l1 block update to derivation actor: {e}");
+                        L1WatcherActorError::DerivationClientError(e)
+                    })?;
+                    Ok(())
+                }
+            },
+            inbound_query = self.inbound_queries.recv() => match inbound_query {
                 Some(query) => {
                     match query {
                         L1WatcherQueries::Config(sender) => {
@@ -170,7 +149,7 @@ where
                             }
                         }
                         L1WatcherQueries::L1State(sender) => {
-                            let current_l1 = *latest_head.borrow();
+                            let current_l1 = *self.latest_head.borrow();
 
                             let head_l1 = match self.l1_provider.get_block(BlockId::latest()).await {
                                     Ok(block) => block,
@@ -204,25 +183,13 @@ where
                             }
                         }
                     }
+                    Ok(())
                 },
                 None => {
                     error!(target: "l1_watcher", "L1 watcher query channel closed unexpectedly, exiting query processor task.");
-                    return Err(L1WatcherActorError::StreamEnded)
+                    Err(L1WatcherActorError::StreamEnded)
                 }
             }
-            }
         }
-    }
-}
-
-impl<BlockStream, L1Provider, L1WatcherDerivationClient_> CancellableContext
-    for L1WatcherActor<BlockStream, L1Provider, L1WatcherDerivationClient_>
-where
-    BlockStream: Stream<Item = BlockInfo> + Unpin + Send + 'static,
-    L1Provider: Provider,
-    L1WatcherDerivationClient_: L1WatcherDerivationClient + 'static,
-{
-    fn cancelled(&self) -> WaitForCancellationFuture<'_> {
-        self.cancellation.cancelled()
     }
 }

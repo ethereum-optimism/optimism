@@ -12,7 +12,7 @@ use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OutputRoot, Predeploys};
 use tokio::sync::oneshot::Sender;
 
-use crate::{EngineClient, EngineClientError, EngineState};
+use crate::{EngineClientError, EngineRpcClient, EngineState};
 
 /// Channel sender for submitting [`EngineQueries`] to the engine.
 pub type EngineQuerySender = tokio::sync::mpsc::Sender<EngineQueries>;
@@ -67,11 +67,11 @@ pub enum EngineQueriesError {
 
 impl EngineQueries {
     /// Handles the engine query request.
-    pub async fn handle<EngineClient_: EngineClient>(
+    pub async fn handle<EngineRpcClient_: EngineRpcClient + ?Sized>(
         self,
         state_recv: &tokio::sync::watch::Receiver<EngineState>,
         queue_length_recv: &tokio::sync::watch::Receiver<usize>,
-        client: &Arc<EngineClient_>,
+        client: &Arc<EngineRpcClient_>,
         rollup_config: &Arc<RollupConfig>,
     ) -> Result<(), EngineQueriesError> {
         let state = *state_recv.borrow();
@@ -107,12 +107,9 @@ impl EngineQueries {
                             .ok_or(EngineQueriesError::NoWithdrawalsRoot)?
                     } else {
                         // Fetch the storage root for the L2 head block.
-                        let l2_to_l1_message_passer = client
-                            .get_proof(Predeploys::L2_TO_L1_MESSAGE_PASSER, Default::default())
-                            .block_id(block.into())
-                            .await?;
-
-                        l2_to_l1_message_passer.storage_hash
+                        client
+                            .get_storage_hash(Predeploys::L2_TO_L1_MESSAGE_PASSER, block.into())
+                            .await?
                     };
 
                 let output_response_v0 = OutputRoot::from_parts(
