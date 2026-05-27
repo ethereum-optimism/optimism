@@ -52,6 +52,14 @@ type VerificationActivity interface {
 	// data at or before that timestamp as safe without consulting this activity.
 	IsActiveAt(ts uint64) bool
 
+	// ActivationTimestamp returns the L2 timestamp at which this verification
+	// activity becomes active. Blocks with timestamp < ActivationTimestamp() are
+	// pre-activation and are verified by consensus alone. Used by the
+	// SuperAuthority to compute the per-(chain, verifier) activation-anchor
+	// block when the verifier is active but has no verified-DB entry for the
+	// chain (e.g. the chain hasn't joined the depset yet).
+	ActivationTimestamp() uint64
+
 	// LatestVerifiedL2Block returns the latest verified L2 block and its
 	// timestamp. (empty, 0, nil) means nothing verified yet; a non-nil error
 	// means the verifier is transiently unavailable.

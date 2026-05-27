@@ -170,7 +170,9 @@ type simpleChainContainer struct {
 // Interface conformance assertions
 var _ ChainContainer = (*simpleChainContainer)(nil)
 var _ InteropChain = (*simpleChainContainer)(nil)
-var _ rollup.SuperAuthority = (*simpleChainContainer)(nil)
+
+// rollup.SuperAuthority conformance is asserted in super_authority.go alongside
+// the method definitions.
 
 func NewChainContainer(
 	chainID eth.ChainID,

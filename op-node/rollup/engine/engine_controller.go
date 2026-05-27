@@ -197,48 +197,65 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 }
 
 // SafeL2Head returns the safe L2 head.
-// If the super authority is enabled, it returns the fully verified L2 head
-// else it returns the local safe L2 head.
+//
+// With a SuperAuthority registered: consume the tri-state result. On
+// HoldPrevious (verifier read error), floor at FinalizedHead — never advance,
+// never fall back to local-safe. On PreActivation, use local-safe. On Anchor or
+// Verified, bound by local-safe and validate canonicality; EL-unknown or
+// non-canonical results are unambiguous reorg signals (the verifier cannot be
+// ahead of the EL otherwise) and degrade to FinalizedHead — never below.
+// Cross-safe is not cached because cross-safe can reorg.
+//
+// Without a SuperAuthority: existing behavior unchanged.
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	if e.superAuthority != nil {
-		fvshid, useLocalSafe := e.superAuthority.FullyVerifiedL2Head()
-		// If SuperAuthority signals to use local-safe (e.g., no verifiers or pre-interop)
-		if useLocalSafe {
-			e.log.Debug("super authority signaled to use local-safe fallback")
-			return e.localSafeHead
+		head, status := e.superAuthority.FullyVerifiedL2Head()
+		if status == rollup.VerifierHeadHoldPrevious {
+			finalized := e.FinalizedHead()
+			e.log.Debug("super authority HoldPrevious, flooring at finalized", "finalized", finalized)
+			return finalized
 		}
-		// SuperAuthority provided a cross-verified safe head
-		if (fvshid == eth.BlockID{}) {
-			// Fallback to genesis block (safe by consensus) if possible
-			br, err := e.engine.L2BlockRefByNumber(e.ctx, 0)
+		switch head.Source {
+		case rollup.VerifierHeadPreActivation:
+			return e.localSafeHead
+		case rollup.VerifierHeadAnchor, rollup.VerifierHeadVerified:
+			if (head.Block == eth.BlockID{}) {
+				// Reachable only when an anchor lookup couldn't return a concrete
+				// block (e.g. verifier with no activation timestamp configured).
+				// Treat as engine-not-ready and floor at finalized.
+				finalized := e.FinalizedHead()
+				e.log.Warn("super authority returned zero block with non-pre-activation source; flooring at finalized",
+					"source", head.Source, "finalized", finalized)
+				return finalized
+			}
+			if head.Block.Number > e.localSafeHead.Number {
+				e.log.Debug("super authority head ahead of local safe; using local safe", "head", head.Block, "source", head.Source)
+				return e.localSafeHead
+			}
+			br, err := e.engine.L2BlockRefByHash(e.ctx, head.Block.Hash)
 			if err != nil {
-				e.log.Warn("cannot get genesis block from engine")
-				return eth.L2BlockRef{}
+				finalized := e.FinalizedHead()
+				e.log.Warn("super authority safe head unknown to engine (reorg signal); flooring at finalized",
+					"super_authority_safe", head.Block, "source", head.Source, "finalized", finalized, "err", err)
+				return finalized
+			}
+			canonical, err := e.engine.L2BlockRefByNumber(e.ctx, br.Number)
+			if err != nil {
+				finalized := e.FinalizedHead()
+				e.log.Warn("cannot verify super authority safe head canonicality; flooring at finalized",
+					"super_authority_safe", br, "source", head.Source, "finalized", finalized, "err", err)
+				return finalized
+			}
+			if canonical.Hash != br.Hash {
+				finalized := e.FinalizedHead()
+				e.log.Warn("super authority safe head non-canonical (reorg signal); flooring at finalized",
+					"super_authority_safe", br, "canonical", canonical, "source", head.Source, "finalized", finalized)
+				return finalized
 			}
 			return br
+		default:
+			panic(fmt.Errorf("unhandled VerifierHeadSource: %v", head.Source))
 		}
-		if fvshid.Number > e.localSafeHead.Number {
-			e.log.Debug("super authority fully verified l2 head is ahead of local safe head, using local safe head as SafeL2Head")
-			return e.localSafeHead
-		}
-		br, err := e.engine.L2BlockRefByHash(e.ctx, fvshid.Hash)
-		if err != nil {
-			finalized := e.FinalizedHead()
-			e.log.Warn("superAuthority safe head is not known to the engine, using finalized head", "super_authority_safe", fvshid, "finalized", finalized, "err", err)
-			return finalized
-		}
-		canonical, err := e.engine.L2BlockRefByNumber(e.ctx, br.Number)
-		if err != nil {
-			finalized := e.FinalizedHead()
-			e.log.Warn("cannot verify superAuthority safe head canonicality, using finalized head", "super_authority_safe", br, "finalized", finalized, "err", err)
-			return finalized
-		}
-		if canonical.Hash != br.Hash {
-			finalized := e.FinalizedHead()
-			e.log.Warn("superAuthority safe head is not canonical, using finalized head", "super_authority_safe", br, "canonical", canonical, "finalized", finalized)
-			return finalized
-		}
-		return br
 	} else if e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedSafeHead
 	} else {
@@ -246,52 +263,69 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	}
 }
 
+// FinalizedHead returns the finalized L2 head, with the same tri-state contract
+// as SafeL2Head plus a cache (superAuthorityFinalizedHead). Finalized blocks
+// cannot reorg, so caching the last successful resolution is safe and is used
+// to (a) hold across HoldPrevious and (b) preserve monotonicity across
+// transient EL hash-lookup failures and stale super-authority reports.
 func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 	if e.superAuthority != nil {
-		f, useLocalFinalized := e.superAuthority.FinalizedL2Head()
-		if useLocalFinalized {
-			// No verifiers registered, fall back to local finalized
-			e.log.Debug("super authority has no verifiers, using local finalized head")
-			return e.localFinalizedHead
-		}
-		if (f == eth.BlockID{}) {
-			// Fallback to genesis block (final by consensus) if possible
-			br, err := e.engine.L2BlockRefByNumber(e.ctx, 0)
-			if err != nil {
-				e.log.Warn("cannot get genesis block from engine")
-				return eth.L2BlockRef{}
-			}
-			return br
-		}
-		if f.Number > e.localSafeHead.Number {
-			e.log.Debug("super authority finalized l2 head is ahead of local safe head, using local safe head as FinalizedHead")
-			return e.localSafeHead
-		}
-		if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
-			if f == e.superAuthorityFinalizedHead.ID() {
-				return e.superAuthorityFinalizedHead
-			}
-			if f.Number < e.superAuthorityFinalizedHead.Number {
-				// SuperAuthority finality is expected to be monotonic. A lower
-				// finalized head means the authority is reporting stale state.
-				e.log.Warn("superAuthority finalized head is behind cached superAuthority finalized head, using cached superAuthority finalized head", "super_authority_finalized", f, "cached_super_authority_finalized", e.superAuthorityFinalizedHead)
-				return e.superAuthorityFinalizedHead
-			}
-			if f.Number == e.superAuthorityFinalizedHead.Number {
-				panic("superAuthority finalized head conflicts with cached superAuthority finalized head at same height")
-			}
-		}
-		br, err := e.engine.L2BlockRefByHash(e.ctx, f.Hash)
-		if err != nil {
+		head, status := e.superAuthority.FinalizedL2Head()
+		if status == rollup.VerifierHeadHoldPrevious {
 			if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
-				e.log.Warn("superAuthority finalized head is not known to the engine, using cached superAuthority finalized head", "super_authority_finalized", f, "cached_super_authority_finalized", e.superAuthorityFinalizedHead, "err", err)
+				e.log.Debug("super authority finalized HoldPrevious; using cached super authority finalized",
+					"cached_super_authority_finalized", e.superAuthorityFinalizedHead)
 				return e.superAuthorityFinalizedHead
 			}
-			e.log.Warn("superAuthority finalized head is not known to the engine and no cached superAuthority finalized head is available", "super_authority_finalized", f, "err", err)
+			e.log.Debug("super authority finalized HoldPrevious with no cache; returning zero")
 			return eth.L2BlockRef{}
 		}
-		e.superAuthorityFinalizedHead = br
-		return br
+		switch head.Source {
+		case rollup.VerifierHeadPreActivation:
+			return e.localFinalizedHead
+		case rollup.VerifierHeadAnchor, rollup.VerifierHeadVerified:
+			if (head.Block == eth.BlockID{}) {
+				if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
+					return e.superAuthorityFinalizedHead
+				}
+				e.log.Warn("super authority returned zero finalized block; no cache; returning zero", "source", head.Source)
+				return eth.L2BlockRef{}
+			}
+			if head.Block.Number > e.localSafeHead.Number {
+				e.log.Debug("super authority finalized ahead of local safe; using local safe as ceiling", "head", head.Block, "source", head.Source)
+				return e.localSafeHead
+			}
+			if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
+				if head.Block == e.superAuthorityFinalizedHead.ID() {
+					return e.superAuthorityFinalizedHead
+				}
+				if head.Block.Number < e.superAuthorityFinalizedHead.Number {
+					e.log.Warn("super authority finalized behind cached; using cache",
+						"super_authority_finalized", head.Block, "source", head.Source,
+						"cached_super_authority_finalized", e.superAuthorityFinalizedHead)
+					return e.superAuthorityFinalizedHead
+				}
+				if head.Block.Number == e.superAuthorityFinalizedHead.Number {
+					panic("superAuthority finalized head conflicts with cached superAuthority finalized head at same height")
+				}
+			}
+			br, err := e.engine.L2BlockRefByHash(e.ctx, head.Block.Hash)
+			if err != nil {
+				if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
+					e.log.Warn("super authority finalized unknown to engine; using cache",
+						"super_authority_finalized", head.Block, "source", head.Source,
+						"cached_super_authority_finalized", e.superAuthorityFinalizedHead, "err", err)
+					return e.superAuthorityFinalizedHead
+				}
+				e.log.Warn("super authority finalized unknown to engine and no cache available",
+					"super_authority_finalized", head.Block, "source", head.Source, "err", err)
+				return eth.L2BlockRef{}
+			}
+			e.superAuthorityFinalizedHead = br
+			return br
+		default:
+			panic(fmt.Errorf("unhandled VerifierHeadSource: %v", head.Source))
+		}
 	} else if e.syncCfg.FollowSourceEnabled() {
 		return e.deprecatedFinalizedHead
 	} else {

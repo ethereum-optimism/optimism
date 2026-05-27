@@ -1191,6 +1191,14 @@ func (i *Interop) IsActiveAt(ts uint64) bool {
 	return ts >= i.activationTimestamp
 }
 
+// ActivationTimestamp returns the immutable protocol-defined interop activation
+// timestamp for this verifier. Used by the SuperAuthority to compute the
+// per-(chain, verifier) activation-anchor block and by RPC surfaces that expose
+// the configured activation point.
+func (i *Interop) ActivationTimestamp() uint64 {
+	return i.activationTimestamp
+}
+
 // LatestVerifiedL2Block returns the latest verified L2 block for chainID and
 // its timestamp. (empty, 0, nil) means nothing verified yet; a non-nil error
 // means verifiedDB could not be read.

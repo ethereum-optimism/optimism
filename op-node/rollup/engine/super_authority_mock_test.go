@@ -8,12 +8,22 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// mockSuperAuthority implements SuperAuthority for testing.
+// mockSuperAuthority implements rollup.SuperAuthority for testing.
+//
+// Helper fields fullyVerifiedL2Head / finalizedL2Head and the *Source fields
+// carry the head returned by the tri-state contract methods. *Status carries
+// the VerifierHeadStatus (defaults to VerifierHeadOk).
 type mockSuperAuthority struct {
-	fullyVerifiedL2Head eth.BlockID
-	finalizedL2Head     eth.BlockID
-	deniedBlocks        map[uint64]common.Hash
-	shouldError         bool
+	fullyVerifiedL2Head       eth.BlockID
+	fullyVerifiedL2HeadSource rollup.VerifierHeadSource
+	fullyVerifiedStatus       rollup.VerifierHeadStatus
+
+	finalizedL2Head       eth.BlockID
+	finalizedL2HeadSource rollup.VerifierHeadSource
+	finalizedStatus       rollup.VerifierHeadStatus
+
+	deniedBlocks map[uint64]common.Hash
+	shouldError  bool
 }
 
 func newMockSuperAuthority() *mockSuperAuthority {
@@ -37,12 +47,12 @@ func (m *mockSuperAuthority) IsDenied(blockNumber uint64, payloadHash common.Has
 	return false, nil
 }
 
-func (m *mockSuperAuthority) FullyVerifiedL2Head() (eth.BlockID, bool) {
-	return m.fullyVerifiedL2Head, false
+func (m *mockSuperAuthority) FullyVerifiedL2Head() (rollup.VerifierHead, rollup.VerifierHeadStatus) {
+	return rollup.VerifierHead{Block: m.fullyVerifiedL2Head, Source: m.fullyVerifiedL2HeadSource}, m.fullyVerifiedStatus
 }
 
-func (m *mockSuperAuthority) FinalizedL2Head() (eth.BlockID, bool) {
-	return m.finalizedL2Head, false
+func (m *mockSuperAuthority) FinalizedL2Head() (rollup.VerifierHead, rollup.VerifierHeadStatus) {
+	return rollup.VerifierHead{Block: m.finalizedL2Head, Source: m.finalizedL2HeadSource}, m.finalizedStatus
 }
 
 var _ rollup.SuperAuthority = (*mockSuperAuthority)(nil)
