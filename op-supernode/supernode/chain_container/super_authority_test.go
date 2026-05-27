@@ -20,6 +20,7 @@ type mockVerificationActivityForSuperAuthority struct {
 	latestFinalizedBlock eth.BlockID
 	latestFinalizedTS    uint64
 	latestFinalizedErr   error
+	currentL1            eth.BlockID
 	// isActiveAtFn drives IsActiveAt for pre-activation fallback tests.
 	// When nil, IsActiveAt returns true (active for all timestamps), matching
 	// the default "always-active" semantics the existing tests assume.
@@ -30,7 +31,7 @@ func (m *mockVerificationActivityForSuperAuthority) Start(ctx context.Context) e
 func (m *mockVerificationActivityForSuperAuthority) Stop(ctx context.Context) error  { return nil }
 func (m *mockVerificationActivityForSuperAuthority) Name() string                    { return "mock" }
 func (m *mockVerificationActivityForSuperAuthority) CurrentL1() eth.BlockID {
-	return eth.BlockID{}
+	return m.currentL1
 }
 func (m *mockVerificationActivityForSuperAuthority) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	return false, nil
@@ -54,114 +55,59 @@ var _ activity.VerificationActivity = (*mockVerificationActivityForSuperAuthorit
 // newTestChainContainer creates a simpleChainContainer for testing with a test logger
 func newTestChainContainer(t *testing.T, chainID eth.ChainID) *simpleChainContainer {
 	return &simpleChainContainer{
-		chainID:   chainID,
-		verifiers: []activity.VerificationActivity{},
-		log:       testlog.Logger(t, log.LevelDebug),
-		vn:        &mockVirtualNode{},
+		chainID: chainID,
+		log:     testlog.Logger(t, log.LevelDebug),
+		vn:      &mockVirtualNode{},
 	}
 }
 
-// TestChainContainer_FullyVerifiedL2Head_MultipleVerifiers tests that FullyVerifiedL2Head
-// returns the block with the minimum (oldest) timestamp across all verifiers
-func TestChainContainer_FullyVerifiedL2Head_MultipleVerifiers(t *testing.T) {
+// TestChainContainer_RegisterVerifier_RejectsSecondVerifier pins the contract
+// that the chain container supports only one verifier.
+func TestChainContainer_RegisterVerifier_RejectsSecondVerifier(t *testing.T) {
 	t.Parallel()
 
-	chainID := eth.ChainIDFromUInt64(420)
-	cc := newTestChainContainer(t, chainID)
+	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{})
 
-	// Setup three verifiers with different timestamps
-	verifier1 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
-		latestVerifiedTS:    1000, // oldest
-	}
-	verifier2 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{2}, Number: 200},
-		latestVerifiedTS:    2000, // middle
-	}
-	verifier3 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{3}, Number: 300},
-		latestVerifiedTS:    3000, // newest
-	}
-
-	cc.verifiers = []activity.VerificationActivity{verifier1, verifier2, verifier3}
-
-	// Should return the block with minimum timestamp (verifier1)
-	result, useLocalSafe := cc.FullyVerifiedL2Head()
-	require.Equal(t, verifier1.latestVerifiedBlock, result, "should return oldest verified block")
-	require.False(t, useLocalSafe, "should not signal fallback when verifiers have verified blocks")
-}
-
-// TestChainContainer_FullyVerifiedL2Head_NoVerifiers tests that FullyVerifiedL2Head
-// returns an empty BlockID and signals fallback when there are no verification activities
-func TestChainContainer_FullyVerifiedL2Head_NoVerifiers(t *testing.T) {
-	t.Parallel()
-
-	chainID := eth.ChainIDFromUInt64(420)
-	cc := newTestChainContainer(t, chainID)
-
-	result, useLocalSafe := cc.FullyVerifiedL2Head()
-	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID with no verifiers")
-	require.True(t, useLocalSafe, "should signal fallback to local-safe when no verifiers registered")
-}
-
-// TestChainContainer_FullyVerifiedL2Head_OneUnverified tests that FullyVerifiedL2Head
-// returns an empty BlockID without signaling fallback if any verifier returns an unverified state
-func TestChainContainer_FullyVerifiedL2Head_OneUnverified(t *testing.T) {
-	t.Parallel()
-
-	chainID := eth.ChainIDFromUInt64(420)
-	cc := newTestChainContainer(t, chainID)
-
-	// Setup verifiers where one is unverified (empty BlockID)
-	verifier1 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
-		latestVerifiedTS:    1000,
-	}
-	verifier2 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{}, // unverified
-		latestVerifiedTS:    0,             // zero timestamp
-	}
-	verifier3 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{3}, Number: 300},
-		latestVerifiedTS:    3000,
-	}
-
-	cc.verifiers = []activity.VerificationActivity{verifier1, verifier2, verifier3}
-
-	// Should return empty BlockID (conservative approach) but NOT signal fallback
-	result, useLocalSafe := cc.FullyVerifiedL2Head()
-	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID when any verifier is unverified")
-	require.False(t, useLocalSafe, "should not signal fallback when verifiers exist but are unverified")
-}
-
-// TestChainContainer_FullyVerifiedL2Head_SameTimestamp tests that FullyVerifiedL2Head
-// panics when multiple verifiers report the same timestamp but different block hashes
-func TestChainContainer_FullyVerifiedL2Head_SameTimestamp(t *testing.T) {
-	t.Parallel()
-
-	chainID := eth.ChainIDFromUInt64(420)
-	cc := newTestChainContainer(t, chainID)
-
-	// Setup verifiers with same timestamp but different block hashes
-	verifier1 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
-		latestVerifiedTS:    1000,
-	}
-	verifier2 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{2}, Number: 100},
-		latestVerifiedTS:    1000, // same timestamp, different hash
-	}
-
-	cc.verifiers = []activity.VerificationActivity{verifier1, verifier2}
-
-	// Should panic because verifiers disagree on block hash for same timestamp
 	require.Panics(t, func() {
-		_, _ = cc.FullyVerifiedL2Head()
-	}, "should panic when verifiers disagree on block hash for same timestamp")
+		cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{})
+	})
 }
 
-// TestChainContainer_FullyVerifiedL2Head_SingleVerifier tests the simple case
-// with just one verification activity
+// TestChainContainer_VerifierCurrentL1_ReturnsRegisteredVerifier verifies the
+// single-verifier projection of VerifierCurrentL1: (zero, false) when none
+// registered, the verifier's L1 plus true once a verifier is registered.
+func TestChainContainer_VerifierCurrentL1_ReturnsRegisteredVerifier(t *testing.T) {
+	t.Parallel()
+
+	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
+	l1, ok := cc.VerifierCurrentL1()
+	require.False(t, ok)
+	require.Equal(t, eth.BlockID{}, l1)
+
+	currentL1 := eth.BlockID{Hash: [32]byte{0xaa}, Number: 10}
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{currentL1: currentL1})
+
+	l1, ok = cc.VerifierCurrentL1()
+	require.True(t, ok)
+	require.Equal(t, currentL1, l1)
+}
+
+// TestChainContainer_FullyVerifiedL2Head_NoVerifier tests that FullyVerifiedL2Head
+// returns an empty BlockID and signals fallback when no verifier is registered
+func TestChainContainer_FullyVerifiedL2Head_NoVerifier(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	cc := newTestChainContainer(t, chainID)
+
+	result, useLocalSafe := cc.FullyVerifiedL2Head()
+	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID with no verifier")
+	require.True(t, useLocalSafe, "should signal fallback to local-safe when no verifier registered")
+}
+
+// TestChainContainer_FullyVerifiedL2Head_SingleVerifier tests the happy path
+// where a single verifier reports a verified block.
 func TestChainContainer_FullyVerifiedL2Head_SingleVerifier(t *testing.T) {
 	t.Parallel()
 
@@ -172,114 +118,47 @@ func TestChainContainer_FullyVerifiedL2Head_SingleVerifier(t *testing.T) {
 		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
 		latestVerifiedTS:    1000,
 	}
-
-	cc.verifiers = []activity.VerificationActivity{verifier}
-
-	result, useLocalSafe := cc.FullyVerifiedL2Head()
-	require.Equal(t, verifier.latestVerifiedBlock, result, "should return the single verifier's block")
-	require.False(t, useLocalSafe, "should not signal fallback when verifier has verified blocks")
-}
-
-// TestChainContainer_FullyVerifiedL2Head_AllUnverified tests that an empty BlockID
-// is returned without signaling fallback when all verifiers are unverified
-func TestChainContainer_FullyVerifiedL2Head_AllUnverified(t *testing.T) {
-	t.Parallel()
-
-	chainID := eth.ChainIDFromUInt64(420)
-	cc := newTestChainContainer(t, chainID)
-
-	// All verifiers unverified
-	verifier1 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{},
-		latestVerifiedTS:    0,
-	}
-	verifier2 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{},
-		latestVerifiedTS:    0,
-	}
-
-	cc.verifiers = []activity.VerificationActivity{verifier1, verifier2}
+	cc.RegisterVerifier(verifier)
 
 	result, useLocalSafe := cc.FullyVerifiedL2Head()
-	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID when all verifiers are unverified")
-	require.False(t, useLocalSafe, "should not signal fallback when verifiers exist but are unverified")
+	require.Equal(t, verifier.latestVerifiedBlock, result, "should return the verifier's block")
+	require.False(t, useLocalSafe, "should not signal fallback when verifier has a verified block")
 }
 
-// TestChainContainer_FinalizedL2Head_MultipleVerifiers tests that FinalizedL2Head
-// returns the block with the minimum (oldest) timestamp across all verifiers
-func TestChainContainer_FinalizedL2Head_MultipleVerifiers(t *testing.T) {
+// TestChainContainer_FullyVerifiedL2Head_Unverified tests that an empty BlockID
+// is returned without signaling fallback when the verifier is operational but
+// has nothing verified yet.
+func TestChainContainer_FullyVerifiedL2Head_Unverified(t *testing.T) {
 	t.Parallel()
 
 	chainID := eth.ChainIDFromUInt64(420)
 	cc := newTestChainContainer(t, chainID)
 
-	// Setup three verifiers with different timestamps
-	verifier1 := &mockVerificationActivityForSuperAuthority{
-		latestFinalizedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
-		latestFinalizedTS:    1000, // oldest
-	}
-	verifier2 := &mockVerificationActivityForSuperAuthority{
-		latestFinalizedBlock: eth.BlockID{Hash: [32]byte{2}, Number: 200},
-		latestFinalizedTS:    2000, // middle
-	}
-	verifier3 := &mockVerificationActivityForSuperAuthority{
-		latestFinalizedBlock: eth.BlockID{Hash: [32]byte{3}, Number: 300},
-		latestFinalizedTS:    3000, // newest
-	}
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{
+		latestVerifiedBlock: eth.BlockID{},
+		latestVerifiedTS:    0,
+	})
 
-	cc.verifiers = []activity.VerificationActivity{verifier1, verifier2, verifier3}
-
-	// Should return the block with minimum timestamp (verifier1)
-	result, useLocalFinalized := cc.FinalizedL2Head()
-	require.Equal(t, verifier1.latestFinalizedBlock, result, "should return oldest finalized block")
-	require.False(t, useLocalFinalized, "should not signal fallback when verifiers have finalized blocks")
+	result, useLocalSafe := cc.FullyVerifiedL2Head()
+	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID when verifier is unverified")
+	require.False(t, useLocalSafe, "should not signal fallback when verifier exists but is unverified")
 }
 
-// TestChainContainer_FinalizedL2Head_NoVerifiers tests that FinalizedL2Head
-// returns an empty BlockID and signals fallback when there are no verification activities
-func TestChainContainer_FinalizedL2Head_NoVerifiers(t *testing.T) {
+// TestChainContainer_FinalizedL2Head_NoVerifier tests that FinalizedL2Head
+// returns an empty BlockID and signals fallback when no verifier is registered
+func TestChainContainer_FinalizedL2Head_NoVerifier(t *testing.T) {
 	t.Parallel()
 
 	chainID := eth.ChainIDFromUInt64(420)
 	cc := newTestChainContainer(t, chainID)
 
 	result, useLocalFinalized := cc.FinalizedL2Head()
-	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID with no verifiers")
-	require.True(t, useLocalFinalized, "should signal fallback to local-finalized when no verifiers registered")
+	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID with no verifier")
+	require.True(t, useLocalFinalized, "should signal fallback to local-finalized when no verifier registered")
 }
 
-// TestChainContainer_FinalizedL2Head_OneUnfinalized tests that FinalizedL2Head
-// returns an empty BlockID without signaling fallback if any verifier returns an unfinalized state
-func TestChainContainer_FinalizedL2Head_OneUnfinalized(t *testing.T) {
-	t.Parallel()
-
-	chainID := eth.ChainIDFromUInt64(420)
-	cc := newTestChainContainer(t, chainID)
-
-	// Setup verifiers where one is unfinalized (empty BlockID)
-	verifier1 := &mockVerificationActivityForSuperAuthority{
-		latestFinalizedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
-		latestFinalizedTS:    1000,
-	}
-	verifier2 := &mockVerificationActivityForSuperAuthority{
-		latestFinalizedBlock: eth.BlockID{}, // unfinalized
-		latestFinalizedTS:    0,             // zero timestamp
-	}
-	verifier3 := &mockVerificationActivityForSuperAuthority{
-		latestFinalizedBlock: eth.BlockID{Hash: [32]byte{3}, Number: 300},
-		latestFinalizedTS:    3000,
-	}
-
-	cc.verifiers = []activity.VerificationActivity{verifier1, verifier2, verifier3}
-
-	// Should return empty BlockID (conservative approach) but NOT signal fallback
-	result, useLocalFinalized := cc.FinalizedL2Head()
-	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID when any verifier is unfinalized")
-	require.False(t, useLocalFinalized, "should not signal fallback when verifiers exist but are unfinalized")
-}
-
-// TestChainContainer_FinalizedL2Head_SingleVerifier tests the simple case
-// with just one verification activity
+// TestChainContainer_FinalizedL2Head_SingleVerifier tests the happy path
+// where a single verifier reports a finalized block.
 func TestChainContainer_FinalizedL2Head_SingleVerifier(t *testing.T) {
 	t.Parallel()
 
@@ -290,44 +169,37 @@ func TestChainContainer_FinalizedL2Head_SingleVerifier(t *testing.T) {
 		latestFinalizedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
 		latestFinalizedTS:    1000,
 	}
-
-	cc.verifiers = []activity.VerificationActivity{verifier}
+	cc.RegisterVerifier(verifier)
 
 	result, useLocalFinalized := cc.FinalizedL2Head()
-	require.Equal(t, verifier.latestFinalizedBlock, result, "should return the single verifier's block")
-	require.False(t, useLocalFinalized, "should not signal fallback when verifier has finalized blocks")
+	require.Equal(t, verifier.latestFinalizedBlock, result, "should return the verifier's block")
+	require.False(t, useLocalFinalized, "should not signal fallback when verifier has a finalized block")
 }
 
-// TestChainContainer_FinalizedL2Head_AllUnfinalized tests that an empty BlockID
-// is returned without signaling fallback when all verifiers are unfinalized
-func TestChainContainer_FinalizedL2Head_AllUnfinalized(t *testing.T) {
+// TestChainContainer_FinalizedL2Head_Unfinalized tests that an empty BlockID
+// is returned without signaling fallback when the verifier is operational but
+// has nothing finalized yet.
+func TestChainContainer_FinalizedL2Head_Unfinalized(t *testing.T) {
 	t.Parallel()
 
 	chainID := eth.ChainIDFromUInt64(420)
 	cc := newTestChainContainer(t, chainID)
 
-	// All verifiers unfinalized
-	verifier1 := &mockVerificationActivityForSuperAuthority{
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{
 		latestFinalizedBlock: eth.BlockID{},
 		latestFinalizedTS:    0,
-	}
-	verifier2 := &mockVerificationActivityForSuperAuthority{
-		latestFinalizedBlock: eth.BlockID{},
-		latestFinalizedTS:    0,
-	}
-
-	cc.verifiers = []activity.VerificationActivity{verifier1, verifier2}
+	})
 
 	result, useLocalFinalized := cc.FinalizedL2Head()
-	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID when all verifiers are unfinalized")
-	require.False(t, useLocalFinalized, "should not signal fallback when verifiers exist but are unfinalized")
+	require.Equal(t, eth.BlockID{}, result, "should return empty BlockID when verifier is unfinalized")
+	require.False(t, useLocalFinalized, "should not signal fallback when verifier exists but is unfinalized")
 }
 
 // =============================================================================
 // Pre-activation fallback tests (issue #20191)
 // =============================================================================
 //
-// These tests pin the contract that when every registered verifier reports
+// These tests pin the contract that when the registered verifier reports
 // IsActiveAt(ss.LocalSafeL2.Time) == false (i.e. the supernode has interop
 // scheduled but the L1-derived local-safe head has not yet crossed the
 // activation timestamp), super_authority falls back to local-safe /
@@ -353,8 +225,8 @@ func preActivationFn(activationTS uint64) func(ts uint64) bool {
 }
 
 // TestChainContainer_FullyVerifiedL2Head_PreActivation_FallsBackToLocalSafe
-// (case B1a) verifies that a single verifier reporting pre-activation for the
-// current LocalSafeL2 timestamp causes a fallback to local-safe.
+// verifies that a verifier reporting pre-activation for the current LocalSafeL2
+// timestamp causes a fallback to local-safe.
 func TestChainContainer_FullyVerifiedL2Head_PreActivation_FallsBackToLocalSafe(t *testing.T) {
 	t.Parallel()
 
@@ -363,10 +235,9 @@ func TestChainContainer_FullyVerifiedL2Head_PreActivation_FallsBackToLocalSafe(t
 		LocalSafeL2: eth.L2BlockRef{Number: 50, Hash: [32]byte{0xaa}, Time: 999},
 	})
 
-	verifier := &mockVerificationActivityForSuperAuthority{
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{
 		isActiveAtFn: preActivationFn(1000),
-	}
-	cc.verifiers = []activity.VerificationActivity{verifier}
+	})
 
 	result, useLocalSafe := cc.FullyVerifiedL2Head()
 	require.Equal(t, eth.BlockID{}, result, "pre-activation should return empty BlockID")
@@ -374,9 +245,9 @@ func TestChainContainer_FullyVerifiedL2Head_PreActivation_FallsBackToLocalSafe(t
 }
 
 // TestChainContainer_FullyVerifiedL2Head_PostActivation_EmptyVerifierNoFallback
-// (case B1b) verifies that once activation has been reached, the existing
-// "verifier present but nothing verified yet" behavior is preserved: no
-// fallback even though the verifier returns empty.
+// verifies that once activation has been reached, the existing "verifier
+// present but nothing verified yet" behavior is preserved: no fallback even
+// though the verifier returns empty.
 func TestChainContainer_FullyVerifiedL2Head_PostActivation_EmptyVerifierNoFallback(t *testing.T) {
 	t.Parallel()
 
@@ -385,10 +256,9 @@ func TestChainContainer_FullyVerifiedL2Head_PostActivation_EmptyVerifierNoFallba
 		LocalSafeL2: eth.L2BlockRef{Number: 600, Hash: [32]byte{0xbb}, Time: 1500},
 	})
 
-	verifier := &mockVerificationActivityForSuperAuthority{
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{
 		isActiveAtFn: preActivationFn(1000),
-	}
-	cc.verifiers = []activity.VerificationActivity{verifier}
+	})
 
 	result, useLocalSafe := cc.FullyVerifiedL2Head()
 	require.Equal(t, eth.BlockID{}, result, "post-activation empty verifier returns empty")
@@ -396,8 +266,8 @@ func TestChainContainer_FullyVerifiedL2Head_PostActivation_EmptyVerifierNoFallba
 }
 
 // TestChainContainer_FullyVerifiedL2Head_PostActivation_VerifiedBlockReturned
-// (case B1c) verifies that the existing "happy path" of returning the
-// verifier's LatestVerifiedL2Block is preserved after activation.
+// verifies that the existing "happy path" of returning the verifier's
+// LatestVerifiedL2Block is preserved after activation.
 func TestChainContainer_FullyVerifiedL2Head_PostActivation_VerifiedBlockReturned(t *testing.T) {
 	t.Parallel()
 
@@ -407,65 +277,19 @@ func TestChainContainer_FullyVerifiedL2Head_PostActivation_VerifiedBlockReturned
 	})
 
 	verifiedBlock := eth.BlockID{Hash: [32]byte{0x11}, Number: 100}
-	verifier := &mockVerificationActivityForSuperAuthority{
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{
 		latestVerifiedBlock: verifiedBlock,
 		latestVerifiedTS:    1500,
 		isActiveAtFn:        preActivationFn(1000),
-	}
-	cc.verifiers = []activity.VerificationActivity{verifier}
+	})
 
 	result, useLocalSafe := cc.FullyVerifiedL2Head()
 	require.Equal(t, verifiedBlock, result, "post-activation should return verified block")
 	require.False(t, useLocalSafe, "post-activation with a verified block must not signal fallback")
 }
 
-// TestChainContainer_FullyVerifiedL2Head_AllPreActivation_FallsBackToLocalSafe
-// (case B1d) verifies the multi-verifier case: when every verifier reports
-// pre-activation, fall back to local-safe.
-func TestChainContainer_FullyVerifiedL2Head_AllPreActivation_FallsBackToLocalSafe(t *testing.T) {
-	t.Parallel()
-
-	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
-	setSyncStatus(t, cc, &eth.SyncStatus{
-		LocalSafeL2: eth.L2BlockRef{Number: 50, Hash: [32]byte{0xaa}, Time: 999},
-	})
-
-	verifier1 := &mockVerificationActivityForSuperAuthority{isActiveAtFn: preActivationFn(1000)}
-	verifier2 := &mockVerificationActivityForSuperAuthority{isActiveAtFn: preActivationFn(2000)}
-	cc.verifiers = []activity.VerificationActivity{verifier1, verifier2}
-
-	result, useLocalSafe := cc.FullyVerifiedL2Head()
-	require.Equal(t, eth.BlockID{}, result, "all-pre-activation should return empty BlockID")
-	require.True(t, useLocalSafe, "all-pre-activation should signal fallback to local-safe")
-}
-
-// TestChainContainer_FullyVerifiedL2Head_MixedActiveAndPreActivation_NoFallback
-// (case B1e) verifies that a partial pre-activation state does NOT force
-// fallback: if at least one verifier is active but unverified, the existing
-// conservative behavior (empty, false) holds.
-func TestChainContainer_FullyVerifiedL2Head_MixedActiveAndPreActivation_NoFallback(t *testing.T) {
-	t.Parallel()
-
-	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
-	setSyncStatus(t, cc, &eth.SyncStatus{
-		LocalSafeL2: eth.L2BlockRef{Number: 600, Hash: [32]byte{0xbb}, Time: 1500},
-	})
-
-	active := &mockVerificationActivityForSuperAuthority{
-		isActiveAtFn: preActivationFn(1000), // active at 1500
-	}
-	preAct := &mockVerificationActivityForSuperAuthority{
-		isActiveAtFn: preActivationFn(2000), // still pre-activation at 1500
-	}
-	cc.verifiers = []activity.VerificationActivity{active, preAct}
-
-	result, useLocalSafe := cc.FullyVerifiedL2Head()
-	require.Equal(t, eth.BlockID{}, result, "mixed case should return empty BlockID")
-	require.False(t, useLocalSafe, "mixed case must not signal fallback; at least one verifier is active and unverified")
-}
-
 // TestChainContainer_FinalizedL2Head_PreActivation_FallsBackToLocalFinalized
-// (case B2a) mirrors B1a for the finalized head.
+// mirrors the FullyVerified pre-activation case for the finalized head.
 func TestChainContainer_FinalizedL2Head_PreActivation_FallsBackToLocalFinalized(t *testing.T) {
 	t.Parallel()
 
@@ -475,18 +299,17 @@ func TestChainContainer_FinalizedL2Head_PreActivation_FallsBackToLocalFinalized(
 		LocalSafeL2: eth.L2BlockRef{Number: 50, Hash: [32]byte{0xcc}, Time: 999},
 	})
 
-	verifier := &mockVerificationActivityForSuperAuthority{
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{
 		isActiveAtFn: preActivationFn(1000),
-	}
-	cc.verifiers = []activity.VerificationActivity{verifier}
+	})
 
 	result, useLocalFinalized := cc.FinalizedL2Head()
 	require.Equal(t, eth.BlockID{}, result, "pre-activation should return empty BlockID")
 	require.True(t, useLocalFinalized, "pre-activation should signal fallback to local-finalized")
 }
 
-// TestChainContainer_FinalizedL2Head_PostActivation_EmptyVerifierNoFallback
-// (case B2b) — post-activation, verifier empty → empty, no fallback (unchanged).
+// TestChainContainer_FinalizedL2Head_PostActivation_EmptyVerifierNoFallback —
+// post-activation, verifier empty → empty, no fallback (unchanged).
 func TestChainContainer_FinalizedL2Head_PostActivation_EmptyVerifierNoFallback(t *testing.T) {
 	t.Parallel()
 
@@ -496,18 +319,17 @@ func TestChainContainer_FinalizedL2Head_PostActivation_EmptyVerifierNoFallback(t
 		LocalSafeL2: eth.L2BlockRef{Number: 600, Hash: [32]byte{0xdd}, Time: 1500},
 	})
 
-	verifier := &mockVerificationActivityForSuperAuthority{
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{
 		isActiveAtFn: preActivationFn(1000),
-	}
-	cc.verifiers = []activity.VerificationActivity{verifier}
+	})
 
 	result, useLocalFinalized := cc.FinalizedL2Head()
 	require.Equal(t, eth.BlockID{}, result)
 	require.False(t, useLocalFinalized, "post-activation empty verifier must not signal fallback")
 }
 
-// TestChainContainer_FinalizedL2Head_PostActivation_FinalizedBlockReturned
-// (case B2c) — post-activation, verifier has a finalized block → returned (unchanged).
+// TestChainContainer_FinalizedL2Head_PostActivation_FinalizedBlockReturned —
+// post-activation, verifier has a finalized block → returned (unchanged).
 func TestChainContainer_FinalizedL2Head_PostActivation_FinalizedBlockReturned(t *testing.T) {
 	t.Parallel()
 
@@ -518,36 +340,15 @@ func TestChainContainer_FinalizedL2Head_PostActivation_FinalizedBlockReturned(t 
 	})
 
 	finalizedBlock := eth.BlockID{Hash: [32]byte{0x22}, Number: 100}
-	verifier := &mockVerificationActivityForSuperAuthority{
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{
 		latestFinalizedBlock: finalizedBlock,
 		latestFinalizedTS:    1500,
 		isActiveAtFn:         preActivationFn(1000),
-	}
-	cc.verifiers = []activity.VerificationActivity{verifier}
+	})
 
 	result, useLocalFinalized := cc.FinalizedL2Head()
 	require.Equal(t, finalizedBlock, result, "post-activation should return finalized block")
 	require.False(t, useLocalFinalized)
-}
-
-// TestChainContainer_FinalizedL2Head_AllPreActivation_FallsBackToLocalFinalized
-// (case B2d) — multi-verifier all-pre-activation fallback.
-func TestChainContainer_FinalizedL2Head_AllPreActivation_FallsBackToLocalFinalized(t *testing.T) {
-	t.Parallel()
-
-	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
-	setSyncStatus(t, cc, &eth.SyncStatus{
-		FinalizedL1: eth.L1BlockRef{Number: 40},
-		LocalSafeL2: eth.L2BlockRef{Number: 50, Hash: [32]byte{0xcc}, Time: 999},
-	})
-
-	verifier1 := &mockVerificationActivityForSuperAuthority{isActiveAtFn: preActivationFn(1000)}
-	verifier2 := &mockVerificationActivityForSuperAuthority{isActiveAtFn: preActivationFn(2000)}
-	cc.verifiers = []activity.VerificationActivity{verifier1, verifier2}
-
-	result, useLocalFinalized := cc.FinalizedL2Head()
-	require.Equal(t, eth.BlockID{}, result)
-	require.True(t, useLocalFinalized, "all-pre-activation should signal fallback to local-finalized")
 }
 
 func TestChainContainer_FinalizedL2Head_VerifierError_SignalsLocalFinalizedFallback(t *testing.T) {
@@ -559,11 +360,10 @@ func TestChainContainer_FinalizedL2Head_VerifierError_SignalsLocalFinalizedFallb
 		LocalSafeL2: eth.L2BlockRef{Number: 600, Hash: [32]byte{0xdd}, Time: 1500},
 	})
 
-	verifier := &mockVerificationActivityForSuperAuthority{
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{
 		isActiveAtFn:       preActivationFn(1000),
 		latestFinalizedErr: errors.New("database not open"),
-	}
-	cc.verifiers = []activity.VerificationActivity{verifier}
+	})
 
 	result, useLocalFinalized := cc.FinalizedL2Head()
 	require.Equal(t, eth.BlockID{}, result)
@@ -578,11 +378,10 @@ func TestChainContainer_FullyVerifiedL2Head_VerifierError_SignalsLocalSafeFallba
 		LocalSafeL2: eth.L2BlockRef{Number: 600, Hash: [32]byte{0xbb}, Time: 1500},
 	})
 
-	verifier := &mockVerificationActivityForSuperAuthority{
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{
 		isActiveAtFn:      preActivationFn(1000),
 		latestVerifiedErr: errors.New("database not open"),
-	}
-	cc.verifiers = []activity.VerificationActivity{verifier}
+	})
 
 	result, useLocalSafe := cc.FullyVerifiedL2Head()
 	require.Equal(t, eth.BlockID{}, result)

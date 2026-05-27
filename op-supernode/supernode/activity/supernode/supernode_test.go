@@ -16,8 +16,8 @@ import (
 )
 
 type mockCC struct {
-	status      *eth.SyncStatus
-	verifierL1s []eth.BlockID
+	status     *eth.SyncStatus
+	verifierL1 *eth.BlockID
 
 	verifiedErr   error
 	outputErr     error
@@ -34,8 +34,11 @@ func (m *mockCC) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
 }
 
 func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {}
-func (m *mockCC) VerifierCurrentL1s() []eth.BlockID {
-	return m.verifierL1s
+func (m *mockCC) VerifierCurrentL1() (eth.BlockID, bool) {
+	if m.verifierL1 == nil {
+		return eth.BlockID{}, false
+	}
+	return *m.verifierL1, true
 }
 
 func (m *mockCC) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
@@ -205,18 +208,13 @@ func TestSupernode_SyncStatus_UsesMinimumVerifierCurrentL1(t *testing.T) {
 			status: &eth.SyncStatus{
 				CurrentL1: eth.L1BlockRef{Number: 200, Hash: common.Hash{0x11}},
 			},
-			verifierL1s: []eth.BlockID{
-				{Number: 150, Hash: common.Hash{0x33}},
-				{Number: 175, Hash: common.Hash{0x44}},
-			},
+			verifierL1: &eth.BlockID{Number: 150, Hash: common.Hash{0x33}},
 		},
 		eth.ChainIDFromUInt64(11): &mockCC{
 			status: &eth.SyncStatus{
 				CurrentL1: eth.L1BlockRef{Number: 180, Hash: common.Hash{0x22}},
 			},
-			verifierL1s: []eth.BlockID{
-				{Number: 190, Hash: common.Hash{0x55}},
-			},
+			verifierL1: &eth.BlockID{Number: 190, Hash: common.Hash{0x55}},
 		},
 	}
 	s := New(gethlog.New(), chains)
