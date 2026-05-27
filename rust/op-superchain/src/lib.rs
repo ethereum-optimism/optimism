@@ -18,7 +18,7 @@
 //! submodule is present, `build.rs` regenerates `gen/` from the submodule on
 //! every build; CI's drift gate catches stale snapshots.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
 #![doc(issue_tracker_base_url = "https://github.com/ethereum-optimism/optimism/issues/")]
 
 /// Verbatim `chainList.json` from the superchain-registry submodule.

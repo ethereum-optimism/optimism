@@ -78,6 +78,8 @@ COPY rust/op-revm/ /app/rust/op-revm/
 # dependencies. We need their Cargo.toml files so the workspace resolves.
 COPY rust/op-reth/ /app/rust/op-reth/
 COPY rust/revm-ee-tests/ /app/rust/revm-ee-tests/
+# op-superchain ships the kona-registry compile-time superchain bytes.
+COPY rust/op-superchain/ /app/rust/op-superchain/
 
 # kona-hardforks build.rs walks ancestors of CARGO_MANIFEST_DIR for
 # op-core/nuts/bundles. Stage the bundles at /app/op-core so the walk

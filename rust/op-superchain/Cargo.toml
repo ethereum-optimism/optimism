@@ -14,11 +14,8 @@ exclude.workspace = true
 [lints]
 workspace = true
 
-[features]
-default = []
-# `std` is a no-op marker for downstream feature unification — the runtime API
-# itself uses only `core` primitives.
-std = []
+# No features. The runtime API uses only `core` primitives, so `std`/`no_std`
+# unification flows naturally without a feature gate.
 
 # Runtime has zero deps -- the crate exposes only `&'static str` / `&'static [u8]`
 # constants and a `match`-based lookup function. Compatible with alloc-only/no_std

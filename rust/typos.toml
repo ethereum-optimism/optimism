@@ -6,6 +6,7 @@ extend-exclude = [
     "kona/docker/recipes/kona-node-dev/kona-node/bootstores",
     "docs/docs/dist/",
     "*.min.js",
+    "*.json.zz",
     "op-alloy/CHANGELOG.md",
     "op-revm/CHANGELOG.md",
     "op-reth/crates/storage/libmdbx-rs/mdbx-sys/libmdbx",
