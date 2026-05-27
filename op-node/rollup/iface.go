@@ -17,8 +17,8 @@ const (
 	// current local-safe timestamp. Caller uses local-safe / local-finalized.
 	VerifierHeadPreActivation VerifierHeadSource = iota
 	// VerifierHeadAnchor: at least one active verifier has no verified-DB entry
-	// for this chain yet. Block is the per-(chain, verifier) activation-anchor:
-	// the L2 block at `verifier.ActivationTimestamp() - 1`.
+	// for this chain yet. Timestamp is the pre-activation cap:
+	// `verifier.ActivationTimestamp() - 1`.
 	VerifierHeadAnchor
 	// VerifierHeadVerified: Block is the oldest verified tip across active verifiers.
 	VerifierHeadVerified
@@ -42,8 +42,7 @@ func (s VerifierHeadSource) String() string {
 //   - Source == PreActivation: Block and Timestamp are zero; caller uses local.
 //   - Source == Verified:      Block is the verified tip; Timestamp is its L2 time.
 //   - Source == Anchor:        Block is zero; Timestamp is the pre-activation cap
-//     (`activationTimestamp - 1`); caller resolves the canonical L2 block at that
-//     timestamp itself.
+//     (`activationTimestamp - 1`); caller decides how conservatively to apply it.
 type VerifierHead struct {
 	Block     eth.BlockID
 	Timestamp uint64

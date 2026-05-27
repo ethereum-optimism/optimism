@@ -16,8 +16,8 @@ import (
 // Per active verifier, contribute either the verified tip or an Anchor with
 // the pre-activation cap timestamp (returned by the verifier when it has no
 // entry for this chain). Take the oldest contribution. Not-yet-active
-// verifiers are skipped. The caller (engine_controller) resolves Anchor
-// timestamps to canonical L2 blocks.
+// verifiers are skipped. The caller decides whether to resolve Anchor timestamps
+// or fall back more conservatively.
 //
 // Panics if two active verifiers report distinct Verified tips at the same
 // timestamp.
@@ -83,7 +83,7 @@ func (c *simpleChainContainer) FinalizedL2Head(ctx context.Context) (rollup.Veri
 }
 
 // verifierContribution classifies a verifier's (block, ts) return:
-//   - empty block → Anchor (caller resolves the canonical L2 block at ts).
+//   - empty block → Anchor (ts is the pre-activation cap).
 //   - non-empty block → Verified tip.
 func (c *simpleChainContainer) verifierContribution(bId eth.BlockID, ts uint64, err error) (rollup.VerifierHead, error) {
 	if err != nil {

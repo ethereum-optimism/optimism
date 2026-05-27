@@ -129,13 +129,6 @@ type EngineController struct {
 	// Finalized blocks cannot reorg, so this cache does not require
 	// canonicality re-validation before use.
 	superAuthorityFinalizedHead eth.L2BlockRef
-	// Last successfully materialized superAuthority safe (cross-safe) head,
-	// used as a fallback when the authority returns HoldPrevious or the fresh
-	// result fails canonicality / EL lookup. Cross-safe CAN reorg, so the
-	// cache MUST be re-validated against the EL via L2BlockRefByNumber before
-	// use (see useSuperAuthoritySafeCache). If the cached block is no longer
-	// canonical, the cache is cleared and the caller floors at FinalizedHead.
-	superAuthoritySafeHead eth.L2BlockRef
 	// The unsafe head to roll back to,
 	// after the pendingSafeHead fails to become safe.
 	// This is changing in the Holocene fork.
@@ -207,20 +200,23 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 
 // SafeL2Head returns the safe L2 head. With a SuperAuthority registered, the
 // result is bounded by local-safe, validated against the EL where applicable,
-// and cached. On a transient verifier read failure or any reorg signal, the
-// canonicality-checked cache is consulted first, then FinalizedHead — never
-// local-safe, never below finalized.
+// and on a transient verifier read failure or any reorg signal falls back to
+// FinalizedHead — never local-safe, never below finalized.
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	if e.superAuthority != nil {
 		head, ok := e.superAuthority.FullyVerifiedL2Head(e.ctx)
 		if !ok {
-			return e.floorCrossSafe("HoldPrevious")
+			finalized := e.FinalizedHead()
+			e.log.Debug("super authority safe head unavailable; using finalized", "finalized", finalized)
+			return finalized
 		}
 		switch head.Source {
 		case rollup.VerifierHeadPreActivation:
 			return e.localSafeHead
 		case rollup.VerifierHeadAnchor:
-			return e.resolveAnchorAsSafe(head.Timestamp)
+			finalized := e.FinalizedHead()
+			e.log.Debug("super authority safe head anchored; using finalized", "anchor_time", head.Timestamp, "finalized", finalized)
+			return finalized
 		case rollup.VerifierHeadVerified:
 			return e.resolveVerifiedAsSafe(head.Block)
 		default:
@@ -238,110 +234,20 @@ func (e *EngineController) resolveVerifiedAsSafe(block eth.BlockID) eth.L2BlockR
 	if block.Number > e.localSafeHead.Number {
 		return e.localSafeHead
 	}
-	br, err := e.engine.L2BlockRefByHash(e.ctx, block.Hash)
+	br, err := e.engine.L2BlockRefByNumber(e.ctx, block.Number)
 	if err != nil {
-		e.log.Warn("super authority safe head unknown to engine (reorg signal)",
-			"super_authority_safe", block, "err", err)
-		return e.floorCrossSafe("el-unknown")
-	}
-	canonical, canonicalRef, err := e.isCanonical(br)
-	if err != nil {
+		finalized := e.FinalizedHead()
 		e.log.Warn("cannot verify super authority safe head canonicality",
-			"super_authority_safe", br, "err", err)
-		return e.floorCrossSafe("canonicality-lookup-failed")
+			"super_authority_safe", block, "finalized", finalized, "err", err)
+		return finalized
 	}
-	if !canonical {
+	if br.Hash != block.Hash {
+		finalized := e.FinalizedHead()
 		e.log.Warn("super authority safe head non-canonical (reorg signal)",
-			"super_authority_safe", br, "canonical", canonicalRef)
-		return e.floorCrossSafe("non-canonical")
+			"super_authority_safe", block, "canonical", br, "finalized", finalized)
+		return finalized
 	}
-	e.superAuthoritySafeHead = br
 	return br
-}
-
-// resolveAnchorAsSafe handles the Anchor branch of SafeL2Head: resolve the
-// canonical L2 block at the supplied pre-activation cap timestamp. The block
-// is canonical by construction (looked up by number); no second check needed.
-func (e *EngineController) resolveAnchorAsSafe(ts uint64) eth.L2BlockRef {
-	num, err := e.rollupCfg.TargetBlockNumber(ts)
-	if err != nil {
-		e.log.Warn("cannot compute anchor block number", "ts", ts, "err", err)
-		return e.floorCrossSafe("anchor-target-block-number")
-	}
-	br, err := e.engine.L2BlockRefByNumber(e.ctx, num)
-	if err != nil {
-		e.log.Warn("cannot resolve anchor block", "ts", ts, "num", num, "err", err)
-		return e.floorCrossSafe("anchor-lookup-failed")
-	}
-	if br.Number > e.localSafeHead.Number {
-		return e.localSafeHead
-	}
-	e.superAuthoritySafeHead = br
-	return br
-}
-
-// floorCrossSafe is the cross-safe fallback path. It tries the cached
-// superAuthoritySafeHead first — re-validating its canonicality against the
-// EL — and falls back to FinalizedHead if the cache is empty, non-canonical,
-// or unavailable. A non-canonical cache is cleared so we don't keep paying the
-// validation cost.
-func (e *EngineController) floorCrossSafe(reason string) eth.L2BlockRef {
-	if cached, ok := e.useSuperAuthoritySafeCache(); ok {
-		e.log.Debug("cross-safe fallback using canonicality-validated cache", "reason", reason, "cached", cached)
-		return cached
-	}
-	finalized := e.FinalizedHead()
-	e.log.Debug("cross-safe fallback flooring at finalized", "reason", reason, "finalized", finalized)
-	return finalized
-}
-
-// useSuperAuthoritySafeCache returns the cached cross-safe head if it is still
-// canonical on the EL and still within local-safe. Otherwise clears the cache
-// and returns false. Cross-safe can reorg, so the cache must be re-validated
-// before each use — we never blindly return a cached cross-safe value.
-func (e *EngineController) useSuperAuthoritySafeCache() (eth.L2BlockRef, bool) {
-	cached := e.superAuthoritySafeHead
-	if cached == (eth.L2BlockRef{}) {
-		return eth.L2BlockRef{}, false
-	}
-	if cached.Number > e.localSafeHead.Number {
-		// Local-safe regressed (or cache is otherwise stale relative to current
-		// derivation state). Stop trusting the cache.
-		e.log.Info("cached cross-safe ahead of local-safe; clearing cache",
-			"cached", cached, "local_safe", e.localSafeHead)
-		e.superAuthoritySafeHead = eth.L2BlockRef{}
-		return eth.L2BlockRef{}, false
-	}
-	ok, canonical, err := e.isCanonical(cached)
-	if err != nil {
-		e.log.Warn("cannot validate cached cross-safe canonicality; clearing cache",
-			"cached", cached, "err", err)
-		e.superAuthoritySafeHead = eth.L2BlockRef{}
-		return eth.L2BlockRef{}, false
-	}
-	if !ok {
-		e.log.Info("cached cross-safe non-canonical (reorg); clearing cache",
-			"cached", cached, "canonical", canonical)
-		e.superAuthoritySafeHead = eth.L2BlockRef{}
-		return eth.L2BlockRef{}, false
-	}
-	return cached, true
-}
-
-// isCanonical reports whether `target` still matches the EL's canonical chain
-// at its number. Three outcomes:
-//   - ok=true,  canonical=target,           err=nil  → canonical.
-//   - ok=false, canonical=different block,  err=nil  → non-canonical (reorg).
-//   - ok=false, canonical=zero,             err≠nil  → lookup failed.
-//
-// The returned canonical block is exposed so callers can log the divergence on
-// reorg without a second lookup.
-func (e *EngineController) isCanonical(target eth.L2BlockRef) (ok bool, canonical eth.L2BlockRef, err error) {
-	canonical, err = e.engine.L2BlockRefByNumber(e.ctx, target.Number)
-	if err != nil {
-		return false, eth.L2BlockRef{}, err
-	}
-	return canonical.Hash == target.Hash, canonical, nil
 }
 
 // FinalizedHead returns the finalized L2 head, bounded by local-finalized
@@ -431,6 +337,20 @@ func (e *EngineController) resolveAnchorAsFinalized(ts uint64) eth.L2BlockRef {
 	}
 	if br.Number > e.localFinalizedHead.Number {
 		return e.localFinalizedHead
+	}
+	if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
+		if br.ID() == e.superAuthorityFinalizedHead.ID() {
+			return e.superAuthorityFinalizedHead
+		}
+		if br.Number < e.superAuthorityFinalizedHead.Number {
+			e.log.Warn("super authority finalized anchor behind cached; using cache",
+				"super_authority_finalized_anchor", br,
+				"cached_super_authority_finalized", e.superAuthorityFinalizedHead)
+			return e.superAuthorityFinalizedHead
+		}
+		if br.Number == e.superAuthorityFinalizedHead.Number {
+			panic("superAuthority finalized anchor conflicts with cached superAuthority finalized head at same height")
+		}
 	}
 	e.superAuthorityFinalizedHead = br
 	return br

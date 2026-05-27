@@ -238,7 +238,6 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			},
 			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
 			setupEngine: func(m *testutils.MockEngine) {
-				m.ExpectL2BlockRefByHash(common.Hash{0xbb}, eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}, nil)
 				m.ExpectL2BlockRefByNumber(50, eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}, nil)
 			},
 			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50},
@@ -256,7 +255,6 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
 			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
 			setupEngine: func(m *testutils.MockEngine) {
-				m.ExpectL2BlockRefByHash(common.Hash{0xbb}, eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}, nil)
 				m.ExpectL2BlockRefByNumber(50, eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}, nil)
 				m.ExpectL2BlockRefByHash(common.Hash{0xee}, eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40}, nil)
 			},
@@ -308,7 +306,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
 			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
 			setupEngine: func(m *testutils.MockEngine) {
-				m.ExpectL2BlockRefByHash(common.Hash{0x99}, eth.L2BlockRef{}, errors.New("block not found"))
+				m.ExpectL2BlockRefByNumber(50, eth.L2BlockRef{}, errors.New("block not found"))
 				m.ExpectL2BlockRefByHash(common.Hash{0xee}, eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40}, nil)
 			},
 			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40},
@@ -1050,6 +1048,49 @@ func TestEngineController_FinalizedHeadUsesCachedSuperAuthorityFinalizedWhenAuth
 	ec.SetFinalizedHead(eth.L2BlockRef{Hash: common.Hash{0xff}, Number: 60})
 	cachedSuperAuthority := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 50}
 	ec.superAuthorityFinalizedHead = cachedSuperAuthority
+
+	require.Equal(t, cachedSuperAuthority, ec.FinalizedHead())
+	require.Equal(t, cachedSuperAuthority, ec.superAuthorityFinalizedHead)
+}
+
+func TestEngineController_FinalizedHeadPanicsOnCachedSuperAuthorityAnchorSameHeightConflict(t *testing.T) {
+	superAuth := &mockSuperAuthority{
+		finalizedL2HeadSource: rollup.VerifierHeadAnchor,
+		finalizedTimestamp:    100,
+	}
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	cfg := &rollup.Config{BlockTime: 2}
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
+	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100})
+	ec.SetFinalizedHead(eth.L2BlockRef{Hash: common.Hash{0xff}, Number: 80})
+	cachedSuperAuthority := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 50}
+	ec.superAuthorityFinalizedHead = cachedSuperAuthority
+
+	anchorRef := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
+	mockEngine.ExpectL2BlockRefByNumber(50, anchorRef, nil)
+
+	require.PanicsWithValue(t, "superAuthority finalized anchor conflicts with cached superAuthority finalized head at same height", func() {
+		ec.FinalizedHead()
+	})
+}
+
+func TestEngineController_FinalizedHeadUsesCachedSuperAuthorityFinalizedWhenAnchorBehindCache(t *testing.T) {
+	superAuth := &mockSuperAuthority{
+		finalizedL2HeadSource: rollup.VerifierHeadAnchor,
+		finalizedTimestamp:    100,
+	}
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	cfg := &rollup.Config{BlockTime: 2}
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
+	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100})
+	ec.SetFinalizedHead(eth.L2BlockRef{Hash: common.Hash{0xff}, Number: 80})
+	cachedSuperAuthority := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 60}
+	ec.superAuthorityFinalizedHead = cachedSuperAuthority
+
+	anchorRef := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
+	mockEngine.ExpectL2BlockRefByNumber(50, anchorRef, nil)
 
 	require.Equal(t, cachedSuperAuthority, ec.FinalizedHead())
 	require.Equal(t, cachedSuperAuthority, ec.superAuthorityFinalizedHead)

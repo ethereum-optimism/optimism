@@ -171,13 +171,12 @@ func TestChainContainer_FullyVerifiedL2Head_VerifiersDisagreeAtSameTimestamp_Pan
 // =============================================================================
 
 // Under the new contract, a verifier that is active but has no verified-DB
-// entry for this chain contributes its activation-anchor block, NOT an empty
-// BlockID. This was bug B: post-activation empty verifiers caused SafeL2Head
-// to drop to genesis.
+// entry for this chain contributes its activation-anchor timestamp, NOT an
+// empty BlockID. This was bug B: post-activation empty verifiers caused
+// SafeL2Head to drop to genesis.
 
-// Chain_container no longer resolves anchor blocks — it returns the cap
-// timestamp via VerifierHead.Timestamp and the engine controller does the
-// L2BlockRefByNumber lookup. These tests pin the timestamp pass-through.
+// Chain_container does not resolve anchor blocks — it returns the cap timestamp
+// via VerifierHead.Timestamp. These tests pin the timestamp pass-through.
 
 func TestChainContainer_FullyVerifiedL2Head_PostActivation_EmptyVerifierContributesAnchor(t *testing.T) {
 	t.Parallel()

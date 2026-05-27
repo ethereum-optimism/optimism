@@ -2838,8 +2838,7 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 		blockID, ts, err := h.interop.VerifiedBlockAtL1(h.Mock(10).id, eth.L1BlockRef{})
 		require.NoError(t, err)
 		require.Equal(t, eth.BlockID{}, blockID)
-		// Empty result returns the pre-activation cap (activationTimestamp-1)
-		// so the caller can resolve the canonical L2 anchor block.
+		// Empty result returns the pre-activation cap (activationTimestamp-1).
 		require.Equal(t, h.interop.activationTimestamp-1, ts)
 	})
 

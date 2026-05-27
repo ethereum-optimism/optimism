@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-// TestSafeL2Head_EmptyVerifier_DoesNotDropToGenesis exercises bug B.
+// TestSafeL2Head_EmptyVerifier_FloorsAtFinalized exercises bug B.
 //
 // Under the previous boolean contract, an active verifier with no entries for
 // this chain returned (BlockID{}, false), and engine_controller.SafeL2Head
@@ -23,21 +23,14 @@ import (
 // dropped cross-safe to genesis once the chain hadn't yet been covered by the
 // verifier's depset — see ethereum-optimism/optimism#20944.
 //
-// Under the tri-state contract, that scenario surfaces as Source = Anchor with
-// a concrete activation-anchor block. SafeL2Head bounds by local-safe and
-// returns the verifier's contribution. SafeL2Head must never return the L2
-// genesis block when local-safe and local-finalized are non-zero.
-func TestSafeL2Head_EmptyVerifier_DoesNotDropToGenesis(t *testing.T) {
-	// Realistic shape: local-safe has crossed activation. With BlockTime=2 and
-	// genesis at time 0, timestamp 999 maps to block 499. Local-safe must be
-	// at or past the anchor block (otherwise the chain hasn't crossed
-	// activation and the PreActivation path would have fired upstream).
+// Under the tri-state contract, that scenario surfaces as Source = Anchor.
+// SafeL2Head handles the anchor conservatively by flooring at FinalizedHead,
+// never local-safe and never a synthetic genesis lookup.
+func TestSafeL2Head_EmptyVerifier_FloorsAtFinalized(t *testing.T) {
 	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 600}
 	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
 
 	cfg := &rollup.Config{BlockTime: 2}
-	anchorRef := eth.L2BlockRef{Hash: common.Hash{0xa1}, Number: 499}
-
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
 	sa := &mockSuperAuthority{
@@ -58,16 +51,13 @@ func TestSafeL2Head_EmptyVerifier_DoesNotDropToGenesis(t *testing.T) {
 	ec.SetLocalSafeHead(localSafe)
 	ec.SetFinalizedHead(localFinalized)
 
-	mockEngine.ExpectL2BlockRefByNumber(uint64(499), anchorRef, nil)
-
 	got := ec.SafeL2Head()
 	require.NotEqual(t, uint64(0), got.Number,
 		"SafeL2Head must not drop to genesis when local-safe (%d) and local-finalized (%d) are non-zero. "+
 			"Pre-fix, empty verifier returned (BlockID{}, false) and SafeL2Head fetched L2BlockRefByNumber(0). "+
-			"Post-fix, Anchor source carries the pre-activation cap timestamp and the engine controller "+
-			"resolves the canonical L2 block at that timestamp (ethereum-optimism/optimism#20944).",
+			"Post-fix, Anchor source floors at FinalizedHead (ethereum-optimism/optimism#20944).",
 		localSafe.Number, localFinalized.Number)
-	require.Equal(t, anchorRef, got, "SafeL2Head must return the canonical anchor block at the cap timestamp")
+	require.Equal(t, localFinalized, got, "SafeL2Head must floor at FinalizedHead for anchor results")
 }
 
 // TestSafeL2Head_VerifierError_FloorsAtFinalized exercises bug A and the
@@ -112,12 +102,10 @@ func TestSafeL2Head_VerifierError_FloorsAtFinalized(t *testing.T) {
 		"SafeL2Head must floor at localFinalizedHead on verifier error (HoldPrevious semantics).")
 }
 
-// TestSafeL2Head_HoldPrevious_UsesCanonicalCache verifies the cross-safe
-// cache: on HoldPrevious, return the previously-resolved cross-safe head if
-// it is still canonical on the EL, rather than dropping all the way to
-// FinalizedHead. Preserves cross-safe progress across transient verifier
-// outages.
-func TestSafeL2Head_HoldPrevious_UsesCanonicalCache(t *testing.T) {
+// TestSafeL2Head_HoldPrevious_UsesFinalized verifies the simplified
+// conservative fallback: on HoldPrevious, return FinalizedHead rather than
+// trying to preserve the previous cross-safe head with an extra cache.
+func TestSafeL2Head_HoldPrevious_UsesFinalized(t *testing.T) {
 	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
 	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
 	verifiedBlock := eth.BlockID{Hash: common.Hash{0xcc}, Number: 80}
@@ -128,8 +116,7 @@ func TestSafeL2Head_HoldPrevious_UsesCanonicalCache(t *testing.T) {
 	sa := &mockSuperAuthority{
 		fullyVerifiedL2Head:       verifiedBlock,
 		fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
-		// Finalized stays PreActivation so the floor would resolve to
-		// localFinalized — distinguishable from the cache hit at block 80.
+		// Finalized stays PreActivation so the floor resolves to localFinalized.
 		finalizedL2HeadSource: rollup.VerifierHeadPreActivation,
 	}
 	ec := NewEngineController(
@@ -146,65 +133,16 @@ func TestSafeL2Head_HoldPrevious_UsesCanonicalCache(t *testing.T) {
 	ec.SetLocalSafeHead(localSafe)
 	ec.SetFinalizedHead(localFinalized)
 
-	// First call: verified path populates the cache.
-	mockEngine.ExpectL2BlockRefByHash(verifiedBlock.Hash, verifiedRef, nil)
+	// First call: verified path returns cross-safe.
 	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number, verifiedRef, nil)
 	got := ec.SafeL2Head()
 	require.Equal(t, verifiedRef, got, "first call should resolve via the Verified path")
 
-	// Verifier now returns HoldPrevious; cache canonicality re-validates and is
-	// returned in preference to flooring at finalized.
+	// Verifier now returns HoldPrevious; the simplified path falls back to
+	// finalized directly, without introducing a separate cross-safe cache.
 	sa.holdPreviousVerified = true
-	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number, verifiedRef, nil)
 	got = ec.SafeL2Head()
-	require.Equal(t, verifiedRef, got,
-		"HoldPrevious must return the canonicality-validated cache, not drop to localFinalized")
-}
-
-// TestSafeL2Head_HoldPrevious_NonCanonicalCache_FloorsAtFinalized verifies
-// that the cross-safe cache is cleared when the cached block is no longer
-// canonical (reorg), and the caller then floors at FinalizedHead.
-func TestSafeL2Head_HoldPrevious_NonCanonicalCache_FloorsAtFinalized(t *testing.T) {
-	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
-	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
-	verifiedBlock := eth.BlockID{Hash: common.Hash{0xcc}, Number: 80}
-	verifiedRef := eth.L2BlockRef{Hash: verifiedBlock.Hash, Number: verifiedBlock.Number}
-
-	mockEngine := &testutils.MockEngine{}
-	emitter := &testutils.MockEmitter{}
-	sa := &mockSuperAuthority{
-		fullyVerifiedL2Head:       verifiedBlock,
-		fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
-		finalizedL2HeadSource:     rollup.VerifierHeadPreActivation,
-	}
-	ec := NewEngineController(
-		context.Background(),
-		mockEngine,
-		testlog.Logger(t, 0),
-		metrics.NoopMetrics,
-		&rollup.Config{},
-		&sync.Config{},
-		&testutils.MockL1Source{},
-		emitter,
-		sa,
-	)
-	ec.SetLocalSafeHead(localSafe)
-	ec.SetFinalizedHead(localFinalized)
-
-	// First call: verified path populates the cache.
-	mockEngine.ExpectL2BlockRefByHash(verifiedBlock.Hash, verifiedRef, nil)
-	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number, verifiedRef, nil)
-	_ = ec.SafeL2Head()
-	require.Equal(t, verifiedRef, ec.superAuthoritySafeHead, "cache must be populated after successful resolution")
-
-	// Simulate a reorg: the EL now reports a different canonical block at the
-	// cached number. HoldPrevious must clear the cache and floor at finalized.
-	sa.holdPreviousVerified = true
-	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number,
-		eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: verifiedBlock.Number}, nil)
-	got := ec.SafeL2Head()
-	require.Equal(t, localFinalized, got, "non-canonical cache must clear and floor at finalized")
-	require.Equal(t, eth.L2BlockRef{}, ec.superAuthoritySafeHead, "cache must be cleared after non-canonical reorg")
+	require.Equal(t, localFinalized, got, "HoldPrevious must fall back to FinalizedHead")
 }
 
 // TestFinalizedHead_HoldPrevious_NoCache_ReturnsZero documents the
