@@ -13,14 +13,14 @@ import (
 type VerifierHeadSource uint8
 
 const (
-	// VerifierHeadPreActivation: every registered verifier is inactive at the
+	// VerifierHeadPreActivation: the registered verifier is inactive at the
 	// current local-safe timestamp. Caller uses local-safe / local-finalized.
 	VerifierHeadPreActivation VerifierHeadSource = iota
-	// VerifierHeadAnchor: at least one active verifier has no verified-DB entry
+	// VerifierHeadAnchor: the active verifier has no verified-DB entry
 	// for this chain yet. Timestamp is the pre-activation cap:
 	// `verifier.ActivationTimestamp() - 1`.
 	VerifierHeadAnchor
-	// VerifierHeadVerified: Block is the oldest verified tip across active verifiers.
+	// VerifierHeadVerified: Block is the verified tip.
 	VerifierHeadVerified
 )
 

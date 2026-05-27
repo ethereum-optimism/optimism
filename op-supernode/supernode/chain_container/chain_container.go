@@ -71,8 +71,7 @@ type ChainContainer interface {
 	OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error)
 	RegisterVerifier(v activity.VerificationActivity)
-	// VerifierCurrentL1s returns the CurrentL1 from each registered verifier.
-	// This allows callers to determine the minimum L1 block that all verifiers have processed.
+	// VerifierCurrentL1s returns the CurrentL1 from the registered verifier, if any.
 	VerifierCurrentL1s() []eth.BlockID
 	// FetchReceipts fetches the receipts for a given block by hash.
 	// Returns block info and receipts, or an error if the block or receipts cannot be fetched.
@@ -161,10 +160,10 @@ type simpleChainContainer struct {
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	metrics            *resources.SupernodeMetrics
 
-	// verifiersMu guards writes and reads of the verifiers slice.
-	verifiersMu sync.RWMutex
-	verifiers   []activity.VerificationActivity
-	onReset     ResetCallback // Called when chain resets to notify activities
+	// verifierMu guards writes and reads of the verifier.
+	verifierMu sync.RWMutex
+	verifier   activity.VerificationActivity
+	onReset    ResetCallback // Called when chain resets to notify activities
 }
 
 // Interface conformance assertions
@@ -224,22 +223,30 @@ func (c *simpleChainContainer) ID() eth.ChainID {
 	return c.chainID
 }
 
-// RegisterVerifier adds a verification activity to this chain container.
+// RegisterVerifier adds the verification activity to this chain container.
 // This allows late binding when activities and chains have circular dependencies.
+// The chain container supports a single verifier activity.
 func (c *simpleChainContainer) RegisterVerifier(v activity.VerificationActivity) {
-	c.verifiersMu.Lock()
-	defer c.verifiersMu.Unlock()
-	c.verifiers = append(c.verifiers, v)
+	c.verifierMu.Lock()
+	defer c.verifierMu.Unlock()
+	if c.verifier != nil {
+		panic("chain container supports only one verifier")
+	}
+	c.verifier = v
 }
 
 func (c *simpleChainContainer) VerifierCurrentL1s() []eth.BlockID {
-	c.verifiersMu.RLock()
-	defer c.verifiersMu.RUnlock()
-	result := make([]eth.BlockID, len(c.verifiers))
-	for i, v := range c.verifiers {
-		result[i] = v.CurrentL1()
+	v := c.registeredVerifier()
+	if v == nil {
+		return nil
 	}
-	return result
+	return []eth.BlockID{v.CurrentL1()}
+}
+
+func (c *simpleChainContainer) registeredVerifier() activity.VerificationActivity {
+	c.verifierMu.RLock()
+	defer c.verifierMu.RUnlock()
+	return c.verifier
 }
 
 // defaultVirtualNodeFactory is the default factory that creates a real VirtualNode

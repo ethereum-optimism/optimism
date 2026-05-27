@@ -22,6 +22,7 @@ type mockVerificationActivityForSuperAuthority struct {
 	latestFinalizedTS    uint64
 	latestFinalizedErr   error
 	activationTimestamp  uint64
+	currentL1            eth.BlockID
 	// isActiveAtFn drives IsActiveAt. When nil, IsActiveAt returns true for any
 	// timestamp >= activationTimestamp (matching the production semantics).
 	isActiveAtFn func(ts uint64) bool
@@ -31,7 +32,7 @@ func (m *mockVerificationActivityForSuperAuthority) Start(ctx context.Context) e
 func (m *mockVerificationActivityForSuperAuthority) Stop(ctx context.Context) error  { return nil }
 func (m *mockVerificationActivityForSuperAuthority) Name() string                    { return "mock" }
 func (m *mockVerificationActivityForSuperAuthority) CurrentL1() eth.BlockID {
-	return eth.BlockID{}
+	return m.currentL1
 }
 func (m *mockVerificationActivityForSuperAuthority) VerifiedAtTimestamp(ts uint64) (bool, error) {
 	return false, nil
@@ -76,10 +77,9 @@ var _ activity.VerificationActivity = (*mockVerificationActivityForSuperAuthorit
 // to install both.
 func newTestChainContainer(t *testing.T, chainID eth.ChainID) *simpleChainContainer {
 	return &simpleChainContainer{
-		chainID:   chainID,
-		verifiers: []activity.VerificationActivity{},
-		log:       testlog.Logger(t, log.LevelDebug),
-		vn:        &mockVirtualNode{},
+		chainID: chainID,
+		log:     testlog.Logger(t, log.LevelDebug),
+		vn:      &mockVirtualNode{},
 	}
 }
 
@@ -91,32 +91,27 @@ func setSyncStatus(t *testing.T, cc *simpleChainContainer, ss *eth.SyncStatus) {
 	mvn.syncStatusOverride = func() (*eth.SyncStatus, error) { return ss, nil }
 }
 
-// =============================================================================
-// FullyVerifiedL2Head — happy paths
-// =============================================================================
-
-func TestChainContainer_FullyVerifiedL2Head_MultipleVerifiers_OldestWins(t *testing.T) {
+func TestChainContainer_RegisterVerifier_RejectsSecondVerifier(t *testing.T) {
 	t.Parallel()
 
 	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
-	v1 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
-		latestVerifiedTS:    1000, // oldest
-	}
-	v2 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{2}, Number: 200},
-		latestVerifiedTS:    2000,
-	}
-	v3 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{3}, Number: 300},
-		latestVerifiedTS:    3000,
-	}
-	cc.verifiers = []activity.VerificationActivity{v1, v2, v3}
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{})
 
-	head, ok := cc.FullyVerifiedL2Head(t.Context())
-	require.True(t, ok)
-	require.Equal(t, rollup.VerifierHeadVerified, head.Source)
-	require.Equal(t, v1.latestVerifiedBlock, head.Block, "should return oldest verified block")
+	require.Panics(t, func() {
+		cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{})
+	})
+}
+
+func TestChainContainer_VerifierCurrentL1s_ReturnsRegisteredVerifier(t *testing.T) {
+	t.Parallel()
+
+	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
+	require.Nil(t, cc.VerifierCurrentL1s())
+
+	currentL1 := eth.BlockID{Hash: [32]byte{0xaa}, Number: 10}
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{currentL1: currentL1})
+
+	require.Equal(t, []eth.BlockID{currentL1}, cc.VerifierCurrentL1s())
 }
 
 func TestChainContainer_FullyVerifiedL2Head_NoVerifiers_ReturnsPreActivation(t *testing.T) {
@@ -127,7 +122,7 @@ func TestChainContainer_FullyVerifiedL2Head_NoVerifiers_ReturnsPreActivation(t *
 	head, ok := cc.FullyVerifiedL2Head(t.Context())
 	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadPreActivation, head.Source,
-		"no verifiers registered → PreActivation; caller uses local-safe")
+		"no verifier registered -> PreActivation; caller uses local-safe")
 	require.Equal(t, eth.BlockID{}, head.Block)
 }
 
@@ -139,31 +134,12 @@ func TestChainContainer_FullyVerifiedL2Head_SingleVerifier(t *testing.T) {
 		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
 		latestVerifiedTS:    1000,
 	}
-	cc.verifiers = []activity.VerificationActivity{v}
+	cc.RegisterVerifier(v)
 
 	head, ok := cc.FullyVerifiedL2Head(t.Context())
 	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadVerified, head.Source)
 	require.Equal(t, v.latestVerifiedBlock, head.Block)
-}
-
-func TestChainContainer_FullyVerifiedL2Head_VerifiersDisagreeAtSameTimestamp_Panics(t *testing.T) {
-	t.Parallel()
-
-	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
-	v1 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
-		latestVerifiedTS:    1000,
-	}
-	v2 := &mockVerificationActivityForSuperAuthority{
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{2}, Number: 100},
-		latestVerifiedTS:    1000, // same TS, different hash → consensus violation
-	}
-	cc.verifiers = []activity.VerificationActivity{v1, v2}
-
-	require.Panics(t, func() {
-		_, _ = cc.FullyVerifiedL2Head(t.Context())
-	})
 }
 
 // =============================================================================
@@ -172,7 +148,7 @@ func TestChainContainer_FullyVerifiedL2Head_VerifiersDisagreeAtSameTimestamp_Pan
 
 // Under the new contract, a verifier that is active but has no verified-DB
 // entry for this chain contributes its activation-anchor timestamp, NOT an
-// empty BlockID. This was bug B: post-activation empty verifiers caused
+// empty BlockID. This was bug B: a post-activation empty verifier caused
 // SafeL2Head to drop to genesis.
 
 // Chain_container does not resolve anchor blocks — it returns the cap timestamp
@@ -187,7 +163,7 @@ func TestChainContainer_FullyVerifiedL2Head_PostActivation_EmptyVerifierContribu
 	})
 
 	v := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
-	cc.verifiers = []activity.VerificationActivity{v}
+	cc.RegisterVerifier(v)
 
 	head, ok := cc.FullyVerifiedL2Head(t.Context())
 	require.True(t, ok)
@@ -196,79 +172,6 @@ func TestChainContainer_FullyVerifiedL2Head_PostActivation_EmptyVerifierContribu
 	require.Equal(t, eth.BlockID{}, head.Block, "anchor contribution carries no block")
 	require.Equal(t, uint64(999), head.Timestamp,
 		"anchor timestamp is activationTimestamp - 1; engine_controller resolves to a block")
-}
-
-func TestChainContainer_FullyVerifiedL2Head_AllUnverified_ContributeAnchors(t *testing.T) {
-	t.Parallel()
-
-	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
-	setSyncStatus(t, cc, &eth.SyncStatus{
-		LocalSafeL2: eth.L2BlockRef{Number: 600, Time: 3000},
-	})
-
-	v1 := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
-	v2 := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
-	cc.verifiers = []activity.VerificationActivity{v1, v2}
-
-	head, ok := cc.FullyVerifiedL2Head(t.Context())
-	require.True(t, ok)
-	require.Equal(t, rollup.VerifierHeadAnchor, head.Source)
-	require.Equal(t, uint64(999), head.Timestamp)
-}
-
-func TestChainContainer_FullyVerifiedL2Head_MixedAnchorAndVerified_OldestWins(t *testing.T) {
-	t.Parallel()
-
-	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
-	setSyncStatus(t, cc, &eth.SyncStatus{
-		LocalSafeL2: eth.L2BlockRef{Number: 1000, Time: 3000},
-	})
-
-	// v1: empty → contributes anchor at TS 999 (older).
-	v1 := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
-	// v2: has a verified tip at TS 2500 (newer).
-	v2 := &mockVerificationActivityForSuperAuthority{
-		activationTimestamp: 1000,
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{0xbb}, Number: 750},
-		latestVerifiedTS:    2500,
-	}
-	cc.verifiers = []activity.VerificationActivity{v1, v2}
-
-	head, ok := cc.FullyVerifiedL2Head(t.Context())
-	require.True(t, ok)
-	require.Equal(t, rollup.VerifierHeadAnchor, head.Source,
-		"v1's anchor at TS 999 is the oldest contribution")
-	require.Equal(t, uint64(999), head.Timestamp)
-}
-
-func TestChainContainer_FullyVerifiedL2Head_OneEmptyOneVerified_AnchorOlder(t *testing.T) {
-	t.Parallel()
-
-	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
-	setSyncStatus(t, cc, &eth.SyncStatus{
-		LocalSafeL2: eth.L2BlockRef{Number: 1000, Time: 3000},
-	})
-
-	v1 := &mockVerificationActivityForSuperAuthority{
-		activationTimestamp: 1000,
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
-		latestVerifiedTS:    2000,
-	}
-	v2 := &mockVerificationActivityForSuperAuthority{
-		activationTimestamp: 1000, // empty → anchor at TS 999
-	}
-	v3 := &mockVerificationActivityForSuperAuthority{
-		activationTimestamp: 1000,
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{3}, Number: 300},
-		latestVerifiedTS:    3000,
-	}
-	cc.verifiers = []activity.VerificationActivity{v1, v2, v3}
-
-	head, ok := cc.FullyVerifiedL2Head(t.Context())
-	require.True(t, ok)
-	require.Equal(t, rollup.VerifierHeadAnchor, head.Source,
-		"v2's anchor at TS 999 is the oldest contribution")
-	require.Equal(t, uint64(999), head.Timestamp)
 }
 
 // =============================================================================
@@ -284,56 +187,13 @@ func TestChainContainer_FullyVerifiedL2Head_PreActivation_ReturnsPreActivationSo
 	})
 
 	v := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
-	cc.verifiers = []activity.VerificationActivity{v}
+	cc.RegisterVerifier(v)
 
 	head, ok := cc.FullyVerifiedL2Head(t.Context())
 	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadPreActivation, head.Source,
-		"pre-activation → caller uses local-safe (Source=PreActivation)")
+		"pre-activation -> caller uses local-safe (Source=PreActivation)")
 	require.Equal(t, eth.BlockID{}, head.Block)
-}
-
-func TestChainContainer_FullyVerifiedL2Head_AllPreActivation_ReturnsPreActivationSource(t *testing.T) {
-	t.Parallel()
-
-	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
-	setSyncStatus(t, cc, &eth.SyncStatus{
-		LocalSafeL2: eth.L2BlockRef{Number: 50, Hash: [32]byte{0xaa}, Time: 999},
-	})
-
-	v1 := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
-	v2 := &mockVerificationActivityForSuperAuthority{activationTimestamp: 2000}
-	cc.verifiers = []activity.VerificationActivity{v1, v2}
-
-	head, ok := cc.FullyVerifiedL2Head(t.Context())
-	require.True(t, ok)
-	require.Equal(t, rollup.VerifierHeadPreActivation, head.Source)
-}
-
-func TestChainContainer_FullyVerifiedL2Head_MixedActiveAndPreActivation_SkipsInactive(t *testing.T) {
-	t.Parallel()
-
-	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
-	setSyncStatus(t, cc, &eth.SyncStatus{
-		LocalSafeL2: eth.L2BlockRef{Number: 600, Hash: [32]byte{0xbb}, Time: 1500},
-	})
-
-	// active: has a verified tip
-	active := &mockVerificationActivityForSuperAuthority{
-		activationTimestamp: 1000,
-		latestVerifiedBlock: eth.BlockID{Hash: [32]byte{0x11}, Number: 250},
-		latestVerifiedTS:    1500,
-	}
-	// preAct: not yet active — must be skipped, must NOT try to resolve an anchor
-	// for a block that doesn't exist on this chain yet.
-	preAct := &mockVerificationActivityForSuperAuthority{activationTimestamp: 2000}
-	cc.verifiers = []activity.VerificationActivity{active, preAct}
-
-	head, ok := cc.FullyVerifiedL2Head(t.Context())
-	require.True(t, ok,
-		"not-yet-active verifier must be skipped, not surface as HoldPrevious")
-	require.Equal(t, rollup.VerifierHeadVerified, head.Source)
-	require.Equal(t, active.latestVerifiedBlock, head.Block)
 }
 
 // =============================================================================
@@ -352,49 +212,13 @@ func TestChainContainer_FullyVerifiedL2Head_VerifierError_ReturnsHoldPrevious(t 
 		activationTimestamp: 1000,
 		latestVerifiedErr:   errors.New("database not open"),
 	}
-	cc.verifiers = []activity.VerificationActivity{v}
+	cc.RegisterVerifier(v)
 
 	head, ok := cc.FullyVerifiedL2Head(t.Context())
 	require.False(t, ok,
 		"verifier read error must surface as HoldPrevious so the caller floors at finalized, "+
 			"NOT use local-safe (that was the bug)")
 	require.Equal(t, eth.BlockID{}, head.Block)
-}
-
-// =============================================================================
-// FinalizedL2Head — same shape as FullyVerifiedL2Head
-// =============================================================================
-
-func TestChainContainer_FinalizedL2Head_MultipleVerifiers_OldestWins(t *testing.T) {
-	t.Parallel()
-
-	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
-	setSyncStatus(t, cc, &eth.SyncStatus{
-		FinalizedL1: eth.L1BlockRef{Number: 400},
-		LocalSafeL2: eth.L2BlockRef{Number: 600, Time: 1500},
-	})
-
-	v1 := &mockVerificationActivityForSuperAuthority{
-		activationTimestamp:  1000,
-		latestFinalizedBlock: eth.BlockID{Hash: [32]byte{1}, Number: 100},
-		latestFinalizedTS:    1000, // oldest
-	}
-	v2 := &mockVerificationActivityForSuperAuthority{
-		activationTimestamp:  1000,
-		latestFinalizedBlock: eth.BlockID{Hash: [32]byte{2}, Number: 200},
-		latestFinalizedTS:    2000,
-	}
-	v3 := &mockVerificationActivityForSuperAuthority{
-		activationTimestamp:  1000,
-		latestFinalizedBlock: eth.BlockID{Hash: [32]byte{3}, Number: 300},
-		latestFinalizedTS:    3000,
-	}
-	cc.verifiers = []activity.VerificationActivity{v1, v2, v3}
-
-	head, ok := cc.FinalizedL2Head(t.Context())
-	require.True(t, ok)
-	require.Equal(t, rollup.VerifierHeadVerified, head.Source)
-	require.Equal(t, v1.latestFinalizedBlock, head.Block)
 }
 
 func TestChainContainer_FinalizedL2Head_NoVerifiers_ReturnsPreActivation(t *testing.T) {
@@ -417,7 +241,7 @@ func TestChainContainer_FinalizedL2Head_PostActivation_EmptyVerifierContributesA
 	})
 
 	v := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
-	cc.verifiers = []activity.VerificationActivity{v}
+	cc.RegisterVerifier(v)
 
 	head, ok := cc.FinalizedL2Head(t.Context())
 	require.True(t, ok)
@@ -437,25 +261,7 @@ func TestChainContainer_FinalizedL2Head_PreActivation_ReturnsPreActivationSource
 	})
 
 	v := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
-	cc.verifiers = []activity.VerificationActivity{v}
-
-	head, ok := cc.FinalizedL2Head(t.Context())
-	require.True(t, ok)
-	require.Equal(t, rollup.VerifierHeadPreActivation, head.Source)
-}
-
-func TestChainContainer_FinalizedL2Head_AllPreActivation_ReturnsPreActivationSource(t *testing.T) {
-	t.Parallel()
-
-	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
-	setSyncStatus(t, cc, &eth.SyncStatus{
-		FinalizedL1: eth.L1BlockRef{Number: 40},
-		LocalSafeL2: eth.L2BlockRef{Number: 50, Time: 999},
-	})
-
-	v1 := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
-	v2 := &mockVerificationActivityForSuperAuthority{activationTimestamp: 2000}
-	cc.verifiers = []activity.VerificationActivity{v1, v2}
+	cc.RegisterVerifier(v)
 
 	head, ok := cc.FinalizedL2Head(t.Context())
 	require.True(t, ok)
@@ -475,7 +281,7 @@ func TestChainContainer_FinalizedL2Head_VerifierError_ReturnsHoldPrevious(t *tes
 		activationTimestamp: 1000,
 		latestFinalizedErr:  errors.New("database not open"),
 	}
-	cc.verifiers = []activity.VerificationActivity{v}
+	cc.RegisterVerifier(v)
 
 	head, ok := cc.FinalizedL2Head(t.Context())
 	require.False(t, ok,
@@ -495,7 +301,7 @@ func TestChainContainer_FinalizedL2Head_SyncStatusError_ReturnsHoldPrevious(t *t
 	}
 
 	v := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
-	cc.verifiers = []activity.VerificationActivity{v}
+	cc.RegisterVerifier(v)
 
 	head, ok := cc.FinalizedL2Head(t.Context())
 	require.False(t, ok)
