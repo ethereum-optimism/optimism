@@ -295,7 +295,7 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
 
     /// @notice Fuzz over every timestamp in `[0, parentL2SequenceNumber]`. All must revert with
     ///         `UnexpectedRootClaim` because the new claim must be strictly above the parent's
-    ///         sequence number. 
+    ///         sequence number.
     function testFuzz_initialize_timestampAtOrBeforeParent_reverts(uint64 _timestamp) public {
         _timestamp = uint64(bound(_timestamp, 0, parentL2SequenceNumber));
 
