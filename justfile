@@ -21,8 +21,13 @@ help:
 # Builds op-core/superchain/superchain-configs.zip from the superchain-registry
 # submodule at packages/contracts-bedrock/lib/superchain-registry. The zip is
 # gitignored; this recipe is the way to (re)materialise it for builds and tests.
-# Skips work if the existing zip already pins the same submodule HEAD.
+# Skips work if the existing zip already pins the same submodule HEAD. Auto-
+# initialises the submodule only if its directory is empty — won't disturb a
+# developer's checkout that has the submodule at a different commit.
 sync-superchain:
+  @if [ ! -e packages/contracts-bedrock/lib/superchain-registry/superchain ]; then \
+    git submodule update --init --depth 1 -- packages/contracts-bedrock/lib/superchain-registry; \
+  fi
   go run ./op-core/superchain/cmd/sync-superchain
 
 # Builds Go components and contracts-bedrock.

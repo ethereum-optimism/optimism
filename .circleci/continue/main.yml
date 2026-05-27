@@ -1650,12 +1650,9 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
-          # The blobless checkout doesn't fetch submodules. sync-superchain
-          # reads the superchain-registry directly from this path, so init it
-          # at the pinned pointer (depth 1 — we only need HEAD).
-          name: init superchain-registry submodule
-          command: git submodule update --init --depth 1 -- packages/contracts-bedrock/lib/superchain-registry
-      - run:
+          # The blobless checkout doesn't fetch submodules. The sync-superchain
+          # recipe auto-inits the superchain-registry submodule (depth-1) when
+          # missing, so we don't need an explicit step here.
           name: build superchain bundle
           command: just sync-superchain
       - persist_to_workspace:
