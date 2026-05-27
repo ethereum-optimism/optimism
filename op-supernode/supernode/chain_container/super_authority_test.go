@@ -117,8 +117,8 @@ func TestChainContainer_FullyVerifiedL2Head_MultipleVerifiers_OldestWins(t *test
 	}
 	cc.verifiers = []activity.VerificationActivity{v1, v2, v3}
 
-	head, status := cc.FullyVerifiedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FullyVerifiedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadVerified, head.Source)
 	require.Equal(t, v1.latestVerifiedBlock, head.Block, "should return oldest verified block")
 }
@@ -128,8 +128,8 @@ func TestChainContainer_FullyVerifiedL2Head_NoVerifiers_ReturnsPreActivation(t *
 
 	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
 
-	head, status := cc.FullyVerifiedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FullyVerifiedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadPreActivation, head.Source,
 		"no verifiers registered → PreActivation; caller uses local-safe")
 	require.Equal(t, eth.BlockID{}, head.Block)
@@ -145,8 +145,8 @@ func TestChainContainer_FullyVerifiedL2Head_SingleVerifier(t *testing.T) {
 	}
 	cc.verifiers = []activity.VerificationActivity{v}
 
-	head, status := cc.FullyVerifiedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FullyVerifiedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadVerified, head.Source)
 	require.Equal(t, v.latestVerifiedBlock, head.Block)
 }
@@ -166,7 +166,7 @@ func TestChainContainer_FullyVerifiedL2Head_VerifiersDisagreeAtSameTimestamp_Pan
 	cc.verifiers = []activity.VerificationActivity{v1, v2}
 
 	require.Panics(t, func() {
-		_, _ = cc.FullyVerifiedL2Head()
+		_, _ = cc.FullyVerifiedL2Head(t.Context())
 	})
 }
 
@@ -198,8 +198,8 @@ func TestChainContainer_FullyVerifiedL2Head_PostActivation_EmptyVerifierContribu
 	anchorBlock := eth.L2BlockRef{Hash: [32]byte{0xa1}, Number: 499, Time: 999}
 	eng.l2BlockRefByNumberResult = anchorBlock
 
-	head, status := cc.FullyVerifiedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FullyVerifiedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadAnchor, head.Source,
 		"empty verifier post-activation must contribute its activation anchor, not empty")
 	require.Equal(t, anchorBlock.ID(), head.Block,
@@ -221,8 +221,8 @@ func TestChainContainer_FullyVerifiedL2Head_AllUnverified_ContributeAnchors(t *t
 	anchorBlock := eth.L2BlockRef{Hash: [32]byte{0xa1}, Number: 499, Time: 999}
 	eng.l2BlockRefByNumberResult = anchorBlock
 
-	head, status := cc.FullyVerifiedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FullyVerifiedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadAnchor, head.Source)
 	require.Equal(t, anchorBlock.ID(), head.Block)
 }
@@ -248,8 +248,8 @@ func TestChainContainer_FullyVerifiedL2Head_MixedAnchorAndVerified_OldestWins(t 
 	anchorBlock := eth.L2BlockRef{Hash: [32]byte{0xa1}, Number: 499, Time: 999}
 	eng.l2BlockRefByNumberResult = anchorBlock
 
-	head, status := cc.FullyVerifiedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FullyVerifiedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadAnchor, head.Source,
 		"oldest contribution is v1's anchor at TS 999; v2's verified tip at TS 2500 is newer")
 	require.Equal(t, anchorBlock.ID(), head.Block)
@@ -281,8 +281,8 @@ func TestChainContainer_FullyVerifiedL2Head_OneEmptyOneVerified_AnchorOlder(t *t
 	anchorBlock := eth.L2BlockRef{Hash: [32]byte{0xa1}, Number: 499, Time: 999}
 	eng.l2BlockRefByNumberResult = anchorBlock
 
-	head, status := cc.FullyVerifiedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FullyVerifiedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadAnchor, head.Source,
 		"v2's anchor at TS 999 is the oldest contribution")
 	require.Equal(t, anchorBlock.ID(), head.Block)
@@ -303,8 +303,8 @@ func TestChainContainer_FullyVerifiedL2Head_PreActivation_ReturnsPreActivationSo
 	v := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
 	cc.verifiers = []activity.VerificationActivity{v}
 
-	head, status := cc.FullyVerifiedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FullyVerifiedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadPreActivation, head.Source,
 		"pre-activation → caller uses local-safe (Source=PreActivation)")
 	require.Equal(t, eth.BlockID{}, head.Block)
@@ -322,8 +322,8 @@ func TestChainContainer_FullyVerifiedL2Head_AllPreActivation_ReturnsPreActivatio
 	v2 := &mockVerificationActivityForSuperAuthority{activationTimestamp: 2000}
 	cc.verifiers = []activity.VerificationActivity{v1, v2}
 
-	head, status := cc.FullyVerifiedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FullyVerifiedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadPreActivation, head.Source)
 }
 
@@ -346,8 +346,8 @@ func TestChainContainer_FullyVerifiedL2Head_MixedActiveAndPreActivation_SkipsIna
 	preAct := &mockVerificationActivityForSuperAuthority{activationTimestamp: 2000}
 	cc.verifiers = []activity.VerificationActivity{active, preAct}
 
-	head, status := cc.FullyVerifiedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status,
+	head, ok := cc.FullyVerifiedL2Head(t.Context())
+	require.True(t, ok,
 		"not-yet-active verifier must be skipped, not surface as HoldPrevious")
 	require.Equal(t, rollup.VerifierHeadVerified, head.Source)
 	require.Equal(t, active.latestVerifiedBlock, head.Block)
@@ -371,8 +371,8 @@ func TestChainContainer_FullyVerifiedL2Head_VerifierError_ReturnsHoldPrevious(t 
 	}
 	cc.verifiers = []activity.VerificationActivity{v}
 
-	head, status := cc.FullyVerifiedL2Head()
-	require.Equal(t, rollup.VerifierHeadHoldPrevious, status,
+	head, ok := cc.FullyVerifiedL2Head(t.Context())
+	require.False(t, ok,
 		"verifier read error must surface as HoldPrevious so the caller floors at finalized, "+
 			"NOT use local-safe (that was the bug)")
 	require.Equal(t, eth.BlockID{}, head.Block)
@@ -408,8 +408,8 @@ func TestChainContainer_FinalizedL2Head_MultipleVerifiers_OldestWins(t *testing.
 	}
 	cc.verifiers = []activity.VerificationActivity{v1, v2, v3}
 
-	head, status := cc.FinalizedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FinalizedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadVerified, head.Source)
 	require.Equal(t, v1.latestFinalizedBlock, head.Block)
 }
@@ -419,8 +419,8 @@ func TestChainContainer_FinalizedL2Head_NoVerifiers_ReturnsPreActivation(t *test
 
 	cc := newTestChainContainer(t, eth.ChainIDFromUInt64(420))
 
-	head, status := cc.FinalizedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FinalizedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadPreActivation, head.Source)
 }
 
@@ -439,8 +439,8 @@ func TestChainContainer_FinalizedL2Head_PostActivation_EmptyVerifierContributesA
 	anchorBlock := eth.L2BlockRef{Hash: [32]byte{0xa1}, Number: 499, Time: 999}
 	eng.l2BlockRefByNumberResult = anchorBlock
 
-	head, status := cc.FinalizedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FinalizedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadAnchor, head.Source,
 		"empty verifier post-activation contributes anchor (fixes the safeDB-to-genesis bug, #20944)")
 	require.Equal(t, anchorBlock.ID(), head.Block)
@@ -458,8 +458,8 @@ func TestChainContainer_FinalizedL2Head_PreActivation_ReturnsPreActivationSource
 	v := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
 	cc.verifiers = []activity.VerificationActivity{v}
 
-	head, status := cc.FinalizedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FinalizedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadPreActivation, head.Source)
 }
 
@@ -476,8 +476,8 @@ func TestChainContainer_FinalizedL2Head_AllPreActivation_ReturnsPreActivationSou
 	v2 := &mockVerificationActivityForSuperAuthority{activationTimestamp: 2000}
 	cc.verifiers = []activity.VerificationActivity{v1, v2}
 
-	head, status := cc.FinalizedL2Head()
-	require.Equal(t, rollup.VerifierHeadOk, status)
+	head, ok := cc.FinalizedL2Head(t.Context())
+	require.True(t, ok)
 	require.Equal(t, rollup.VerifierHeadPreActivation, head.Source)
 }
 
@@ -496,8 +496,8 @@ func TestChainContainer_FinalizedL2Head_VerifierError_ReturnsHoldPrevious(t *tes
 	}
 	cc.verifiers = []activity.VerificationActivity{v}
 
-	head, status := cc.FinalizedL2Head()
-	require.Equal(t, rollup.VerifierHeadHoldPrevious, status,
+	head, ok := cc.FinalizedL2Head(t.Context())
+	require.False(t, ok,
 		"verifier read error must surface as HoldPrevious, NOT use local-finalized")
 	require.Equal(t, eth.BlockID{}, head.Block)
 }
@@ -516,7 +516,7 @@ func TestChainContainer_FinalizedL2Head_SyncStatusError_ReturnsHoldPrevious(t *t
 	v := &mockVerificationActivityForSuperAuthority{activationTimestamp: 1000}
 	cc.verifiers = []activity.VerificationActivity{v}
 
-	head, status := cc.FinalizedL2Head()
-	require.Equal(t, rollup.VerifierHeadHoldPrevious, status)
+	head, ok := cc.FinalizedL2Head(t.Context())
+	require.False(t, ok)
 	require.Equal(t, eth.BlockID{}, head.Block)
 }

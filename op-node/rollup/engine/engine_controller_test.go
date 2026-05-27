@@ -254,7 +254,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 				}
 			},
 			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
-			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30},
+			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0xbb}, eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}, nil)
 				m.ExpectL2BlockRefByNumber(50, eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}, nil)
@@ -306,7 +306,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 				}
 			},
 			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
-			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30},
+			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0x99}, eth.L2BlockRef{}, errors.New("block not found"))
 				m.ExpectL2BlockRefByHash(common.Hash{0xee}, eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40}, nil)
@@ -317,7 +317,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			name: "HoldPrevious floors at finalized, never local-safe",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
-					fullyVerifiedStatus:   rollup.VerifierHeadHoldPrevious,
+					holdPreviousVerified:  true,
 					finalizedL2HeadSource: rollup.VerifierHeadPreActivation,
 				}
 			},
@@ -859,7 +859,7 @@ func TestEngineController_FinalizedHead(t *testing.T) {
 				}
 			},
 			setupLocalSafe:  &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
-			setupLocalFinal: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 30},
+			setupLocalFinal: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 50},
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0xbb}, eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}, nil)
 			},
@@ -880,16 +880,18 @@ func TestEngineController_FinalizedHead(t *testing.T) {
 			expectResult:    &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
 		},
 		{
-			name: "with SuperAuthority ahead of local safe uses local safe",
+			// Super authority cannot finalize a block that isn't locally finalized:
+			// authority=50, localFinalized=30 → clamp to localFinalized.
+			name: "SuperAuthority finalized ahead of local-finalized uses local-finalized",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
 					finalizedL2Head:       eth.BlockID{Hash: common.Hash{0xbb}, Number: 50},
 					finalizedL2HeadSource: rollup.VerifierHeadVerified,
 				}
 			},
-			setupLocalSafe:  &eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 40},
+			setupLocalSafe:  &eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 100},
 			setupLocalFinal: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30},
-			expectResult:    &eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 40},
+			expectResult:    &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30},
 		},
 		{
 			name:           "without SuperAuthority returns zero value",
@@ -903,7 +905,7 @@ func TestEngineController_FinalizedHead(t *testing.T) {
 			name: "HoldPrevious with no cache returns zero",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
-					finalizedStatus: rollup.VerifierHeadHoldPrevious,
+					holdPreviousFinalized: true,
 				}
 			},
 			expectResult: &eth.L2BlockRef{},
@@ -917,7 +919,7 @@ func TestEngineController_FinalizedHead(t *testing.T) {
 				}
 			},
 			setupLocalSafe:  &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
-			setupLocalFinal: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30},
+			setupLocalFinal: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 50},
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0x99}, eth.L2BlockRef{}, errors.New("block not found"))
 			},
@@ -932,7 +934,7 @@ func TestEngineController_FinalizedHead(t *testing.T) {
 				}
 			},
 			setupLocalSafe:  &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
-			setupLocalFinal: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30},
+			setupLocalFinal: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 60},
 			setupSACache:    &eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 50},
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0x99}, eth.L2BlockRef{}, errors.New("block not found"))
@@ -992,7 +994,9 @@ func TestEngineController_FinalizedHeadCachesSuperAuthorityResult(t *testing.T) 
 	emitter := &testutils.MockEmitter{}
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
 	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100})
-	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30}
+	// localFinalized must be >= the SuperAuthority finalized values (50, 60)
+	// since FinalizedHead is now bounded by local-finalized.
+	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 60}
 	ec.SetFinalizedHead(localFinalized)
 
 	finalizedRef := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
@@ -1011,7 +1015,11 @@ func TestEngineController_FinalizedHeadCachesSuperAuthorityResult(t *testing.T) 
 	require.Equal(t, finalizedRef, ec.superAuthorityFinalizedHead)
 }
 
-func TestEngineController_FinalizedHeadDoesNotCacheLocalSafeFallback(t *testing.T) {
+// FinalizedHead is bounded by local-finalized (the super authority cannot
+// finalize a block that isn't locally final). When the authority reports a
+// finalized block ahead of local-finalized, the local-finalized head wins and
+// the super-authority cache stays empty.
+func TestEngineController_FinalizedHeadAheadOfLocalFinalUsesLocalFinal(t *testing.T) {
 	superAuth := &mockSuperAuthority{
 		finalizedL2Head:       eth.BlockID{Hash: common.Hash{0xbb}, Number: 50},
 		finalizedL2HeadSource: rollup.VerifierHeadVerified,
@@ -1019,14 +1027,15 @@ func TestEngineController_FinalizedHeadDoesNotCacheLocalSafeFallback(t *testing.
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
-	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 40}
-	cachedFinalized := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30}
+	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
+	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30}
 	ec.SetLocalSafeHead(localSafe)
-	ec.SetFinalizedHead(cachedFinalized)
+	ec.SetFinalizedHead(localFinalized)
 
-	require.Equal(t, localSafe, ec.FinalizedHead())
-	require.Equal(t, cachedFinalized, ec.localFinalizedHead)
-	require.Equal(t, eth.L2BlockRef{}, ec.superAuthorityFinalizedHead)
+	require.Equal(t, localFinalized, ec.FinalizedHead())
+	require.Equal(t, localFinalized, ec.localFinalizedHead)
+	require.Equal(t, eth.L2BlockRef{}, ec.superAuthorityFinalizedHead,
+		"cache must not be populated when the SuperAuthority result is clamped to local-finalized")
 }
 
 func TestEngineController_FinalizedHeadUsesCachedSuperAuthorityFinalizedWhenAuthorityRegresses(t *testing.T) {
@@ -1038,6 +1047,7 @@ func TestEngineController_FinalizedHeadUsesCachedSuperAuthorityFinalizedWhenAuth
 	emitter := &testutils.MockEmitter{}
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
 	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100})
+	ec.SetFinalizedHead(eth.L2BlockRef{Hash: common.Hash{0xff}, Number: 60})
 	cachedSuperAuthority := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 50}
 	ec.superAuthorityFinalizedHead = cachedSuperAuthority
 
@@ -1054,6 +1064,7 @@ func TestEngineController_FinalizedHeadPanicsOnCachedSuperAuthoritySameHeightCon
 	emitter := &testutils.MockEmitter{}
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
 	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100})
+	ec.SetFinalizedHead(eth.L2BlockRef{Hash: common.Hash{0xff}, Number: 60})
 	ec.superAuthorityFinalizedHead = eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 50}
 
 	require.PanicsWithValue(t, "superAuthority finalized head conflicts with cached superAuthority finalized head at same height", func() {

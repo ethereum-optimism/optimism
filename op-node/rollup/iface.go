@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -12,24 +13,18 @@ import (
 type VerifierHeadSource uint8
 
 const (
-	// VerifierHeadPreActivation signals that every registered verifier is still
-	// inactive at the current local-safe timestamp. The caller should use its
-	// local-safe / local-finalized head — pre-activation content is verified by
-	// consensus alone.
+	// VerifierHeadPreActivation: every registered verifier is inactive at the
+	// current local-safe timestamp. Caller uses local-safe / local-finalized.
 	VerifierHeadPreActivation VerifierHeadSource = iota
-	// VerifierHeadAnchor signals that at least one active verifier has no
-	// verified-DB entry that includes this chain yet (the chain hasn't joined
-	// the verifier's depset, or the verifier just started). The Block field
-	// carries the per-(chain, verifier) activation-anchor block — the L2 block
-	// at timestamp `verifier.ActivationTimestamp() - 1`.
+	// VerifierHeadAnchor: at least one active verifier has no verified-DB entry
+	// for this chain yet. Block is the per-(chain, verifier) activation-anchor:
+	// the L2 block at `verifier.ActivationTimestamp() - 1`.
 	VerifierHeadAnchor
-	// VerifierHeadVerified signals the head is the verifier's verified tip for
-	// this chain. The Block field carries that tip.
+	// VerifierHeadVerified: Block is the oldest verified tip across active verifiers.
 	VerifierHeadVerified
 )
 
-// String implements fmt.Stringer. The exhaustive switch is the structural gate
-// that forces new VerifierHeadSource variants to update every consumer.
+// Exhaustive — adding a variant requires updating every consumer's switch.
 func (s VerifierHeadSource) String() string {
 	switch s {
 	case VerifierHeadPreActivation:
@@ -43,66 +38,29 @@ func (s VerifierHeadSource) String() string {
 	}
 }
 
-// VerifierHeadStatus classifies whether a SuperAuthority call produced a usable
-// answer or signalled a transient read failure.
-type VerifierHeadStatus uint8
-
-const (
-	// VerifierHeadOk signals the returned VerifierHead is valid and should be
-	// honored. The caller still bounds the result by its own local-safe head
-	// and validates EL canonicality.
-	VerifierHeadOk VerifierHeadStatus = iota
-	// VerifierHeadHoldPrevious signals a transient verifier read failure. The
-	// caller must not advance the head and must not fall back to local-safe;
-	// floor at FinalizedHead instead.
-	VerifierHeadHoldPrevious
-)
-
-// String implements fmt.Stringer.
-func (s VerifierHeadStatus) String() string {
-	switch s {
-	case VerifierHeadOk:
-		return "ok"
-	case VerifierHeadHoldPrevious:
-		return "hold-previous"
-	default:
-		return fmt.Sprintf("unknown(%d)", uint8(s))
-	}
-}
-
-// VerifierHead is the tri-state head reported by the SuperAuthority.
+// VerifierHead is the result of a SuperAuthority head query.
 // Block is zero when Source == VerifierHeadPreActivation.
 type VerifierHead struct {
 	Block  eth.BlockID
 	Source VerifierHeadSource
 }
 
-// SuperAuthority provides cross-verified safe / finalized head reporting and
-// payload deny-list checks from a supernode. When running inside a supernode,
-// this is what the engine controller consults to decide what to publish as
-// SafeL2Head / FinalizedHead and whether to apply a payload.
+// SuperAuthority is the cross-chain attestation surface a supernode exposes to
+// op-node: cross-verified safe / finalized head reporting and payload deny-list
+// checks. Returned heads are consumed by the engine controller to choose what
+// to publish as SafeL2Head / FinalizedHead and whether to apply a payload.
 type SuperAuthority interface {
-	// FullyVerifiedL2Head returns the cross-verified safe L2 head, as a tri-state.
-	//
-	// On VerifierHeadOk:
-	//   - Source == VerifierHeadPreActivation: caller uses local-safe.
-	//   - Source == VerifierHeadAnchor: Block is the activation-anchor block,
-	//     contributed by at least one active verifier with no entry for this chain.
-	//   - Source == VerifierHeadVerified: Block is the oldest verified tip across
-	//     active verifiers.
-	// On VerifierHeadHoldPrevious: a verifier read failed; the caller must hold
-	// the previous value and floor at FinalizedHead — never advance, never fall
-	// back to local-safe.
-	FullyVerifiedL2Head() (VerifierHead, VerifierHeadStatus)
+	// FullyVerifiedL2Head returns the cross-verified safe L2 head.
+	// `ok=false` signals a transient read failure — caller must hold the
+	// previous value (floored at FinalizedHead), never fall back to local-safe.
+	FullyVerifiedL2Head(ctx context.Context) (head VerifierHead, ok bool)
 
-	// FinalizedL2Head returns the cross-verified finalized L2 head, as a tri-state
-	// with the same semantics as FullyVerifiedL2Head. The finalized head is
-	// caller-cacheable because finalized blocks cannot reorg.
-	FinalizedL2Head() (VerifierHead, VerifierHeadStatus)
+	// FinalizedL2Head is the finalized analogue of FullyVerifiedL2Head.
+	// Finalized blocks cannot reorg, so the caller may cache the result.
+	FinalizedL2Head(ctx context.Context) (head VerifierHead, ok bool)
 
-	// IsDenied checks if a payload hash is denied at the given block number.
-	// Returns true if the payload should not be applied.
-	// The error indicates if the check could not be performed (should be logged but not fatal).
+	// IsDenied reports whether a payload hash is denied at the given block
+	// number. Errors are logged but not fatal.
 	IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error)
 }
 

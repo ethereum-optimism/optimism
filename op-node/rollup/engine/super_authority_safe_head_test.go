@@ -39,7 +39,6 @@ func TestSafeL2Head_EmptyVerifier_DoesNotDropToGenesis(t *testing.T) {
 		// supernode contributes its activation anchor as a concrete block.
 		fullyVerifiedL2Head:       anchorBlock,
 		fullyVerifiedL2HeadSource: rollup.VerifierHeadAnchor,
-		fullyVerifiedStatus:       rollup.VerifierHeadOk,
 	}
 	ec := NewEngineController(
 		context.Background(),
@@ -85,11 +84,10 @@ func TestSafeL2Head_VerifierError_FloorsAtFinalized(t *testing.T) {
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
 	sa := &mockSuperAuthority{
-		fullyVerifiedStatus: rollup.VerifierHeadHoldPrevious,
+		holdPreviousVerified: true,
 		// FinalizedHead is also consulted; configure it to PreActivation so the
 		// floor resolves to localFinalizedHead.
 		finalizedL2HeadSource: rollup.VerifierHeadPreActivation,
-		finalizedStatus:       rollup.VerifierHeadOk,
 	}
 	ec := NewEngineController(
 		context.Background(),
@@ -129,11 +127,9 @@ func TestSafeL2Head_HoldPrevious_UsesCanonicalCache(t *testing.T) {
 	sa := &mockSuperAuthority{
 		fullyVerifiedL2Head:       verifiedBlock,
 		fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
-		fullyVerifiedStatus:       rollup.VerifierHeadOk,
 		// Finalized stays PreActivation so the floor would resolve to
 		// localFinalized — distinguishable from the cache hit at block 80.
 		finalizedL2HeadSource: rollup.VerifierHeadPreActivation,
-		finalizedStatus:       rollup.VerifierHeadOk,
 	}
 	ec := NewEngineController(
 		context.Background(),
@@ -157,7 +153,7 @@ func TestSafeL2Head_HoldPrevious_UsesCanonicalCache(t *testing.T) {
 
 	// Verifier now returns HoldPrevious; cache canonicality re-validates and is
 	// returned in preference to flooring at finalized.
-	sa.fullyVerifiedStatus = rollup.VerifierHeadHoldPrevious
+	sa.holdPreviousVerified = true
 	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number, verifiedRef, nil)
 	got = ec.SafeL2Head()
 	require.Equal(t, verifiedRef, got,
@@ -178,9 +174,7 @@ func TestSafeL2Head_HoldPrevious_NonCanonicalCache_FloorsAtFinalized(t *testing.
 	sa := &mockSuperAuthority{
 		fullyVerifiedL2Head:       verifiedBlock,
 		fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
-		fullyVerifiedStatus:       rollup.VerifierHeadOk,
 		finalizedL2HeadSource:     rollup.VerifierHeadPreActivation,
-		finalizedStatus:           rollup.VerifierHeadOk,
 	}
 	ec := NewEngineController(
 		context.Background(),
@@ -204,7 +198,7 @@ func TestSafeL2Head_HoldPrevious_NonCanonicalCache_FloorsAtFinalized(t *testing.
 
 	// Simulate a reorg: the EL now reports a different canonical block at the
 	// cached number. HoldPrevious must clear the cache and floor at finalized.
-	sa.fullyVerifiedStatus = rollup.VerifierHeadHoldPrevious
+	sa.holdPreviousVerified = true
 	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number,
 		eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: verifiedBlock.Number}, nil)
 	got := ec.SafeL2Head()
@@ -222,7 +216,7 @@ func TestFinalizedHead_HoldPrevious_NoCache_ReturnsZero(t *testing.T) {
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
 	sa := &mockSuperAuthority{
-		finalizedStatus: rollup.VerifierHeadHoldPrevious,
+		holdPreviousFinalized: true,
 	}
 	ec := NewEngineController(
 		context.Background(),

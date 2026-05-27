@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -9,18 +10,16 @@ import (
 )
 
 // mockSuperAuthority implements rollup.SuperAuthority for testing.
-//
-// Helper fields fullyVerifiedL2Head / finalizedL2Head and the *Source fields
-// carry the head returned by the tri-state contract methods. *Status carries
-// the VerifierHeadStatus (defaults to VerifierHeadOk).
+// holdPrevious{Verified,Finalized} default to false so struct-literal tests
+// without explicit setup get the happy-path (ok=true).
 type mockSuperAuthority struct {
 	fullyVerifiedL2Head       eth.BlockID
 	fullyVerifiedL2HeadSource rollup.VerifierHeadSource
-	fullyVerifiedStatus       rollup.VerifierHeadStatus
+	holdPreviousVerified      bool
 
 	finalizedL2Head       eth.BlockID
 	finalizedL2HeadSource rollup.VerifierHeadSource
-	finalizedStatus       rollup.VerifierHeadStatus
+	holdPreviousFinalized bool
 
 	deniedBlocks map[uint64]common.Hash
 	shouldError  bool
@@ -47,12 +46,12 @@ func (m *mockSuperAuthority) IsDenied(blockNumber uint64, payloadHash common.Has
 	return false, nil
 }
 
-func (m *mockSuperAuthority) FullyVerifiedL2Head() (rollup.VerifierHead, rollup.VerifierHeadStatus) {
-	return rollup.VerifierHead{Block: m.fullyVerifiedL2Head, Source: m.fullyVerifiedL2HeadSource}, m.fullyVerifiedStatus
+func (m *mockSuperAuthority) FullyVerifiedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {
+	return rollup.VerifierHead{Block: m.fullyVerifiedL2Head, Source: m.fullyVerifiedL2HeadSource}, !m.holdPreviousVerified
 }
 
-func (m *mockSuperAuthority) FinalizedL2Head() (rollup.VerifierHead, rollup.VerifierHeadStatus) {
-	return rollup.VerifierHead{Block: m.finalizedL2Head, Source: m.finalizedL2HeadSource}, m.finalizedStatus
+func (m *mockSuperAuthority) FinalizedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {
+	return rollup.VerifierHead{Block: m.finalizedL2Head, Source: m.finalizedL2HeadSource}, !m.holdPreviousFinalized
 }
 
 var _ rollup.SuperAuthority = (*mockSuperAuthority)(nil)

@@ -205,26 +205,15 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 	}
 }
 
-// SafeL2Head returns the safe L2 head.
-//
-// With a SuperAuthority registered: consume the tri-state result. On
-// HoldPrevious (verifier read error), use the cached cross-safe head if it is
-// still canonical, otherwise floor at FinalizedHead — never advance, never
-// fall back to local-safe. On PreActivation, use local-safe. On Anchor or
-// Verified, bound by local-safe and validate canonicality; EL-unknown or
-// non-canonical results are unambiguous reorg signals (the verifier cannot be
-// ahead of the EL otherwise) and degrade to the canonicality-checked cache,
-// then to FinalizedHead — never below.
-//
-// The cross-safe cache (superAuthoritySafeHead) is updated on every successful
-// canonical resolution. Because cross-safe can reorg, the cache is
-// re-validated against the EL before each use; on reorg it is cleared.
-//
-// Without a SuperAuthority: existing behavior unchanged.
+// SafeL2Head returns the safe L2 head. With a SuperAuthority registered, the
+// result is bounded by local-safe, validated against the EL for canonicality,
+// and cached. On a transient verifier read failure or any reorg signal
+// (EL-unknown, non-canonical), the canonicality-checked cache is consulted
+// first, then FinalizedHead — never local-safe, never below finalized.
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	if e.superAuthority != nil {
-		head, status := e.superAuthority.FullyVerifiedL2Head()
-		if status == rollup.VerifierHeadHoldPrevious {
+		head, ok := e.superAuthority.FullyVerifiedL2Head(e.ctx)
+		if !ok {
 			return e.floorCrossSafe("HoldPrevious")
 		}
 		switch head.Source {
@@ -232,13 +221,10 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 			return e.localSafeHead
 		case rollup.VerifierHeadAnchor, rollup.VerifierHeadVerified:
 			if (head.Block == eth.BlockID{}) {
-				// Reachable only when an anchor lookup couldn't return a concrete
-				// block (e.g. verifier with no activation timestamp configured).
 				e.log.Warn("super authority returned zero block with non-pre-activation source", "source", head.Source)
 				return e.floorCrossSafe("zero-block")
 			}
 			if head.Block.Number > e.localSafeHead.Number {
-				e.log.Debug("super authority head ahead of local safe; using local safe", "head", head.Block, "source", head.Source)
 				return e.localSafeHead
 			}
 			br, err := e.engine.L2BlockRefByHash(e.ctx, head.Block.Hash)
@@ -247,15 +233,15 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 					"super_authority_safe", head.Block, "source", head.Source, "err", err)
 				return e.floorCrossSafe("el-unknown")
 			}
-			ok, canonical, err := e.isCanonical(br)
+			canonical, canonicalCheck, err := e.isCanonical(br)
 			if err != nil {
 				e.log.Warn("cannot verify super authority safe head canonicality",
 					"super_authority_safe", br, "source", head.Source, "err", err)
 				return e.floorCrossSafe("canonicality-lookup-failed")
 			}
-			if !ok {
+			if !canonical {
 				e.log.Warn("super authority safe head non-canonical (reorg signal)",
-					"super_authority_safe", br, "canonical", canonical, "source", head.Source)
+					"super_authority_safe", br, "canonical", canonicalCheck, "source", head.Source)
 				return e.floorCrossSafe("non-canonical")
 			}
 			e.superAuthoritySafeHead = br
@@ -334,21 +320,19 @@ func (e *EngineController) isCanonical(target eth.L2BlockRef) (ok bool, canonica
 	return canonical.Hash == target.Hash, canonical, nil
 }
 
-// FinalizedHead returns the finalized L2 head, with the same tri-state contract
-// as SafeL2Head plus a cache (superAuthorityFinalizedHead). Finalized blocks
-// cannot reorg, so caching the last successful resolution is safe and is used
-// to (a) hold across HoldPrevious and (b) preserve monotonicity across
-// transient EL hash-lookup failures and stale super-authority reports.
+// FinalizedHead returns the finalized L2 head, bounded by local-finalized
+// (the SuperAuthority can delay finalization but cannot finalize a block the
+// node hasn't locally finalized). superAuthorityFinalizedHead caches the last
+// successful resolution and is trusted without re-validation — finalized
+// blocks cannot reorg.
 func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 	if e.superAuthority != nil {
-		head, status := e.superAuthority.FinalizedL2Head()
-		if status == rollup.VerifierHeadHoldPrevious {
+		head, ok := e.superAuthority.FinalizedL2Head(e.ctx)
+		if !ok {
 			if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
-				e.log.Debug("super authority finalized HoldPrevious; using cached super authority finalized",
-					"cached_super_authority_finalized", e.superAuthorityFinalizedHead)
 				return e.superAuthorityFinalizedHead
 			}
-			e.log.Debug("super authority finalized HoldPrevious with no cache; returning zero")
+			e.log.Error("super authority finalized HoldPrevious with no cache; returning zero")
 			return eth.L2BlockRef{}
 		}
 		switch head.Source {
@@ -362,9 +346,8 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 				e.log.Warn("super authority returned zero finalized block; no cache; returning zero", "source", head.Source)
 				return eth.L2BlockRef{}
 			}
-			if head.Block.Number > e.localSafeHead.Number {
-				e.log.Debug("super authority finalized ahead of local safe; using local safe as ceiling", "head", head.Block, "source", head.Source)
-				return e.localSafeHead
+			if head.Block.Number > e.localFinalizedHead.Number {
+				return e.localFinalizedHead
 			}
 			if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
 				if head.Block == e.superAuthorityFinalizedHead.ID() {
