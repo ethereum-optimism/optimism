@@ -22,14 +22,13 @@ pub struct Registry {
 impl Registry {
     /// Read the chain list.
     pub fn read_chain_list() -> ChainList {
-        let chain_list = include_str!("../etc/chainList.json");
-        serde_json::from_str(chain_list).expect("Failed to read chain list")
+        serde_json::from_str(crate::inputs::CHAIN_LIST_JSON).expect("Failed to read chain list")
     }
 
     /// Read superchain configs.
     pub fn read_superchain_configs() -> Superchains {
-        let superchain_configs = include_str!("../etc/configs.json");
-        serde_json::from_str(superchain_configs).expect("Failed to read superchain configs")
+        serde_json::from_str(crate::inputs::SUPERCHAINS_JSON)
+            .expect("Failed to read superchain configs")
     }
 
     /// Initialize the superchain configurations from the chain list.

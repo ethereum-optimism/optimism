@@ -6458,6 +6458,7 @@ dependencies = [
  "alloy-primitives",
  "kona-genesis",
  "lazy_static",
+ "op-superchain",
  "serde",
  "serde_json",
  "tabled",

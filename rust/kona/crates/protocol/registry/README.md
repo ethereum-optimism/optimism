@@ -34,7 +34,7 @@ users can extend that snapshot at build time. This is useful when you need bespo
 partner networks that are not yet part of the public registry but still want to rely on the crate's
 lazy statics.
 
-1. Produce JSON files that follow the same schema as the generated artifacts in `etc/`:
+1. Produce JSON files that follow the same schema as the artifacts shipped by `op-superchain`:
    - `chainList.json` containing additional [`Chain`][chains] entries.
    - `configs.json` containing [`Superchain`][superchains] structures with matching `ChainConfig`s and
      `RollupConfig`s for the new chain ids.
@@ -45,9 +45,10 @@ lazy statics.
    export KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/custom-configs
    cargo build -p kona-registry
    ```
-3. The build script merges the custom files into the generated `etc/chainList.json` and
-   `etc/configs.json` before compiling the crate. Attempting to override existing chain ids will
-   result in build failures.
+3. The build script re-walks the `superchain-registry` submodule for its base inputs, merges the
+   custom files on top into the build's `OUT_DIR`, and embeds the merged outputs at compile time
+   (via a `cfg(kona_custom_configs)` switch in `inputs.rs`). Attempting to override existing chain
+   ids will result in build failures.
 
 Both JSON files must stay in lockstep: every chain listed in `configs.json` must also appear in
 `chainList.json`, and chain identifiers must map to a single chain id. The build script validates

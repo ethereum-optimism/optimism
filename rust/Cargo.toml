@@ -285,6 +285,9 @@ kona-cli = { path = "kona/crates/utilities/cli", version = "0.3.2", default-feat
 kona-serde = { path = "kona/crates/utilities/serde", version = "0.2.2", default-features = false }
 kona-macros = { path = "kona/crates/utilities/macros", version = "0.1.2", default-features = false }
 
+# ==================== OP SUPERCHAIN PRODUCER ====================
+op-superchain = { path = "op-superchain/", version = "0.1.0", default-features = false }
+
 # ==================== OP-RETH INTERNAL CRATES ====================
 op-reth = { path = "op-reth/bin/" }
 reth-optimism-chainspec = { path = "op-reth/crates/chainspec/", default-features = false }

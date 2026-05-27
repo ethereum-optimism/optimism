@@ -17,6 +17,7 @@ workspace = true
 [dependencies]
 # Workspace
 kona-genesis = { workspace = true, features = ["serde"] }
+op-superchain = { workspace = true }
 
 # Alloy
 alloy-primitives = { workspace = true, features = ["map"] }

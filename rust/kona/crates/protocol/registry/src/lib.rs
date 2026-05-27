@@ -21,6 +21,8 @@ pub use kona_genesis::{
 pub mod superchain;
 pub use superchain::Registry;
 
+mod inputs;
+
 /// L1 chain configurations.
 pub mod l1;
 pub use l1::L1Config;
@@ -50,9 +52,8 @@ lazy_static::lazy_static! {
     /// [`DependencySet`]; chains in disjoint clusters map to **different** values.
     /// Cross-cluster proofs must be rejected by the consumer (see `BootInfo::load`).
     pub static ref DEPENDENCY_SETS: HashMap<u64, DependencySet> = {
-        let raw = include_str!("../etc/depsets.json");
-        let depsets: Vec<DependencySet> = serde_json::from_str(raw)
-            .expect("parse embedded etc/depsets.json");
+        let depsets: Vec<DependencySet> = serde_json::from_str(inputs::DEPSETS_JSON)
+            .expect("parse embedded depsets.json");
         let mut by_chain: HashMap<u64, DependencySet> = HashMap::default();
         for ds in depsets {
             for chain_id in ds.dependencies.keys().copied() {
