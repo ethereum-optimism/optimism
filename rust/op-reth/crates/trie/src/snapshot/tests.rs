@@ -14,9 +14,8 @@
 
 use super::{SnapshotError, SnapshotInitJob};
 use crate::{
-    MdbxProofsStorageV2, OpProofsProviderRO, OpProofsSnapshotInitProvider,
-    OpProofsSnapshotProviderRO, OpProofsSnapshotProviderRW, OpProofsSnapshotStore, OpProofsStore,
-    SnapshotInitStatus,
+    MdbxProofsStorageV2, OpProofsBackfillProvider, OpProofsBackfillStore, OpProofsProviderRO,
+    OpProofsSnapshotInitProvider, OpProofsSnapshotProviderRO, OpProofsStore, SnapshotInitStatus,
     test_utils::{
         build_chain_and_initialize_storage, build_chain_with_storage_writes_and_initialize_storage,
     },
@@ -201,9 +200,9 @@ fn snapshot_init_clear_then_rebuild_succeeds() {
     // Drop the snapshot — status reverts to NotStarted as far as the init
     // anchor is concerned.
     {
-        let sp = storage.snapshot_provider_rw().expect("rw");
+        let sp = storage.backfill_provider().expect("rw");
         sp.clear_snapshot().expect("clear");
-        OpProofsSnapshotProviderRW::commit(sp).expect("commit");
+        OpProofsBackfillProvider::commit(sp).expect("commit");
     }
 
     // Second run must succeed (no SnapshotAlreadyExists) and produce a fresh

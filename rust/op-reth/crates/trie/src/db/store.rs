@@ -4,8 +4,8 @@ use crate::{
     OpProofsStorageError::NoBlocksFound,
     OpProofsStorageResult,
     api::{
-        InitialStateAnchor, InitialStateStatus, OpProofsBackfillProvider, OpProofsInitProvider,
-        OpProofsProviderRO, OpProofsProviderRw, OpProofsStore, ProofWindowRange, WriteCounts,
+        InitialStateAnchor, InitialStateStatus, OpProofsInitProvider, OpProofsProviderRO,
+        OpProofsProviderRw, OpProofsStore, ProofWindowRange, WriteCounts,
     },
     db::{
         MdbxAccountCursor, MdbxStorageCursor, MdbxTrieCursor,
@@ -963,28 +963,10 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsInitProvider
     }
 }
 
-impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsBackfillProvider
-    for MdbxProofsProvider<TX>
-{
-    fn prepend_block(
-        &self,
-        _block_ref: BlockWithParent,
-        _diff: BlockStateDiff,
-    ) -> OpProofsStorageResult<WriteCounts> {
-        todo!("OpProofsBackfillProvider::prepend_block for MdbxProofsProvider")
-    }
-
-    fn commit(self) -> OpProofsStorageResult<()> {
-        self.tx.commit()?;
-        Ok(())
-    }
-}
-
 impl OpProofsStore for MdbxProofsStorage {
     type ProviderRO<'a> = Arc<MdbxProofsProvider<<DatabaseEnv as Database>::TX>>;
     type ProviderRw<'a> = MdbxProofsProvider<<DatabaseEnv as Database>::TXMut>;
     type Initializer<'a> = MdbxProofsProvider<<DatabaseEnv as Database>::TXMut>;
-    type BackfillProvider<'a> = MdbxProofsProvider<<DatabaseEnv as Database>::TXMut>;
 
     fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
         Ok(Arc::new(MdbxProofsProvider::new(self.env.tx()?)))
@@ -995,10 +977,6 @@ impl OpProofsStore for MdbxProofsStorage {
     }
 
     fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
-        Ok(MdbxProofsProvider::new(self.env.tx_mut()?))
-    }
-
-    fn backfill_provider<'a>(&'a self) -> OpProofsStorageResult<Self::BackfillProvider<'a>> {
         Ok(MdbxProofsProvider::new(self.env.tx_mut()?))
     }
 }

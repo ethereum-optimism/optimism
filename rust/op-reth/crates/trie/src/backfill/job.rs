@@ -2,7 +2,7 @@
 
 use super::{changesets::compute_block_backfill_diff, error::BackfillError};
 use crate::{
-    BlockStateDiff, OpProofsBackfillProvider, OpProofsProviderRO, OpProofsStore,
+    BlockStateDiff, OpProofsBackfillProvider, OpProofsBackfillStore, OpProofsProviderRO,
     proof::DatabaseStateRoot,
 };
 use alloy_eips::{NumHash, eip1898::BlockWithParent};
@@ -71,7 +71,7 @@ impl PhaseTimings {
 
 /// Backfill job for proofs storage.
 #[derive(Debug, Constructor)]
-pub struct BackfillJob<P, S: OpProofsStore + Send> {
+pub struct BackfillJob<P, S: OpProofsBackfillStore + Send> {
     provider: P,
     storage: S,
 }
@@ -87,7 +87,7 @@ where
         + HeaderProvider
         + StorageSettingsCache
         + Send,
-    S: OpProofsStore + Send,
+    S: OpProofsBackfillStore + Send,
 {
     /// Backfill proofs data down to `target_earliest_block`.
     ///
@@ -166,7 +166,7 @@ where
 
         let bp = Arc::new(self.storage.backfill_provider()?);
         let (_, prepend) = timed(|| bp.prepend_block(block_ref, diff))?;
-        let validate = self.validate_state_root(Arc::clone(&bp), block_number)?;
+        let validate = self.validate_state_root(&bp, block_number)?;
         let bp = Arc::into_inner(bp)
             .expect("validate_state_root must release its Arc clone before returning");
         let (_, commit) = timed(|| bp.commit())?;
@@ -215,7 +215,7 @@ where
     /// own uncommitted writes) and comparing to the reth header.
     fn validate_state_root<BP>(
         &self,
-        bp: Arc<BP>,
+        bp: &Arc<BP>,
         block_number: BlockNumber,
     ) -> Result<Duration, BackfillError>
     where
@@ -227,8 +227,11 @@ where
                 .header_by_number(block_number - 1)?
                 .ok_or_else(|| ProviderError::HeaderNotFound((block_number - 1).into()))?
                 .state_root();
-            let computed_root =
-                StateRoot::overlay_root(bp, block_number - 1, HashedPostState::default())?;
+            let computed_root = StateRoot::overlay_root(
+                Arc::clone(bp),
+                block_number - 1,
+                HashedPostState::default(),
+            )?;
             if computed_root != expected_root {
                 return Err(BackfillError::StateRootMismatch {
                     block_number,
