@@ -113,6 +113,105 @@ func TestSafeL2Head_VerifierError_FloorsAtFinalized(t *testing.T) {
 		"SafeL2Head must floor at localFinalizedHead on verifier error (HoldPrevious semantics).")
 }
 
+// TestSafeL2Head_HoldPrevious_UsesCanonicalCache verifies the cross-safe
+// cache: on HoldPrevious, return the previously-resolved cross-safe head if
+// it is still canonical on the EL, rather than dropping all the way to
+// FinalizedHead. Preserves cross-safe progress across transient verifier
+// outages.
+func TestSafeL2Head_HoldPrevious_UsesCanonicalCache(t *testing.T) {
+	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
+	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
+	verifiedBlock := eth.BlockID{Hash: common.Hash{0xcc}, Number: 80}
+	verifiedRef := eth.L2BlockRef{Hash: verifiedBlock.Hash, Number: verifiedBlock.Number}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	sa := &mockSuperAuthority{
+		fullyVerifiedL2Head:       verifiedBlock,
+		fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
+		fullyVerifiedStatus:       rollup.VerifierHeadOk,
+		// Finalized stays PreActivation so the floor would resolve to
+		// localFinalized — distinguishable from the cache hit at block 80.
+		finalizedL2HeadSource: rollup.VerifierHeadPreActivation,
+		finalizedStatus:       rollup.VerifierHeadOk,
+	}
+	ec := NewEngineController(
+		context.Background(),
+		mockEngine,
+		testlog.Logger(t, 0),
+		metrics.NoopMetrics,
+		&rollup.Config{},
+		&sync.Config{},
+		&testutils.MockL1Source{},
+		emitter,
+		sa,
+	)
+	ec.SetLocalSafeHead(localSafe)
+	ec.SetFinalizedHead(localFinalized)
+
+	// First call: verified path populates the cache.
+	mockEngine.ExpectL2BlockRefByHash(verifiedBlock.Hash, verifiedRef, nil)
+	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number, verifiedRef, nil)
+	got := ec.SafeL2Head()
+	require.Equal(t, verifiedRef, got, "first call should resolve via the Verified path")
+
+	// Verifier now returns HoldPrevious; cache canonicality re-validates and is
+	// returned in preference to flooring at finalized.
+	sa.fullyVerifiedStatus = rollup.VerifierHeadHoldPrevious
+	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number, verifiedRef, nil)
+	got = ec.SafeL2Head()
+	require.Equal(t, verifiedRef, got,
+		"HoldPrevious must return the canonicality-validated cache, not drop to localFinalized")
+}
+
+// TestSafeL2Head_HoldPrevious_NonCanonicalCache_FloorsAtFinalized verifies
+// that the cross-safe cache is cleared when the cached block is no longer
+// canonical (reorg), and the caller then floors at FinalizedHead.
+func TestSafeL2Head_HoldPrevious_NonCanonicalCache_FloorsAtFinalized(t *testing.T) {
+	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
+	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
+	verifiedBlock := eth.BlockID{Hash: common.Hash{0xcc}, Number: 80}
+	verifiedRef := eth.L2BlockRef{Hash: verifiedBlock.Hash, Number: verifiedBlock.Number}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	sa := &mockSuperAuthority{
+		fullyVerifiedL2Head:       verifiedBlock,
+		fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
+		fullyVerifiedStatus:       rollup.VerifierHeadOk,
+		finalizedL2HeadSource:     rollup.VerifierHeadPreActivation,
+		finalizedStatus:           rollup.VerifierHeadOk,
+	}
+	ec := NewEngineController(
+		context.Background(),
+		mockEngine,
+		testlog.Logger(t, 0),
+		metrics.NoopMetrics,
+		&rollup.Config{},
+		&sync.Config{},
+		&testutils.MockL1Source{},
+		emitter,
+		sa,
+	)
+	ec.SetLocalSafeHead(localSafe)
+	ec.SetFinalizedHead(localFinalized)
+
+	// First call: verified path populates the cache.
+	mockEngine.ExpectL2BlockRefByHash(verifiedBlock.Hash, verifiedRef, nil)
+	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number, verifiedRef, nil)
+	_ = ec.SafeL2Head()
+	require.Equal(t, verifiedRef, ec.superAuthoritySafeHead, "cache must be populated after successful resolution")
+
+	// Simulate a reorg: the EL now reports a different canonical block at the
+	// cached number. HoldPrevious must clear the cache and floor at finalized.
+	sa.fullyVerifiedStatus = rollup.VerifierHeadHoldPrevious
+	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number,
+		eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: verifiedBlock.Number}, nil)
+	got := ec.SafeL2Head()
+	require.Equal(t, localFinalized, got, "non-canonical cache must clear and floor at finalized")
+	require.Equal(t, eth.L2BlockRef{}, ec.superAuthoritySafeHead, "cache must be cleared after non-canonical reorg")
+}
+
 // TestFinalizedHead_HoldPrevious_NoCache_ReturnsZero documents the
 // error-after-startup trace: verifier errors on the first call, no cached
 // super-authority finalized head yet, localSafeHead and localFinalizedHead are

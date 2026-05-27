@@ -126,7 +126,16 @@ type EngineController struct {
 	localFinalizedHead eth.L2BlockRef
 	// Last successfully materialized superAuthority finalized head,
 	// used as a fallback when the authority or EL is temporarily unavailable.
+	// Finalized blocks cannot reorg, so this cache does not require
+	// canonicality re-validation before use.
 	superAuthorityFinalizedHead eth.L2BlockRef
+	// Last successfully materialized superAuthority safe (cross-safe) head,
+	// used as a fallback when the authority returns HoldPrevious or the fresh
+	// result fails canonicality / EL lookup. Cross-safe CAN reorg, so the
+	// cache MUST be re-validated against the EL via L2BlockRefByNumber before
+	// use (see useSuperAuthoritySafeCache). If the cached block is no longer
+	// canonical, the cache is cleared and the caller floors at FinalizedHead.
+	superAuthoritySafeHead eth.L2BlockRef
 	// The unsafe head to roll back to,
 	// after the pendingSafeHead fails to become safe.
 	// This is changing in the Holocene fork.
@@ -199,21 +208,24 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 // SafeL2Head returns the safe L2 head.
 //
 // With a SuperAuthority registered: consume the tri-state result. On
-// HoldPrevious (verifier read error), floor at FinalizedHead — never advance,
-// never fall back to local-safe. On PreActivation, use local-safe. On Anchor or
+// HoldPrevious (verifier read error), use the cached cross-safe head if it is
+// still canonical, otherwise floor at FinalizedHead — never advance, never
+// fall back to local-safe. On PreActivation, use local-safe. On Anchor or
 // Verified, bound by local-safe and validate canonicality; EL-unknown or
 // non-canonical results are unambiguous reorg signals (the verifier cannot be
-// ahead of the EL otherwise) and degrade to FinalizedHead — never below.
-// Cross-safe is not cached because cross-safe can reorg.
+// ahead of the EL otherwise) and degrade to the canonicality-checked cache,
+// then to FinalizedHead — never below.
+//
+// The cross-safe cache (superAuthoritySafeHead) is updated on every successful
+// canonical resolution. Because cross-safe can reorg, the cache is
+// re-validated against the EL before each use; on reorg it is cleared.
 //
 // Without a SuperAuthority: existing behavior unchanged.
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	if e.superAuthority != nil {
 		head, status := e.superAuthority.FullyVerifiedL2Head()
 		if status == rollup.VerifierHeadHoldPrevious {
-			finalized := e.FinalizedHead()
-			e.log.Debug("super authority HoldPrevious, flooring at finalized", "finalized", finalized)
-			return finalized
+			return e.floorCrossSafe("HoldPrevious")
 		}
 		switch head.Source {
 		case rollup.VerifierHeadPreActivation:
@@ -222,11 +234,8 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 			if (head.Block == eth.BlockID{}) {
 				// Reachable only when an anchor lookup couldn't return a concrete
 				// block (e.g. verifier with no activation timestamp configured).
-				// Treat as engine-not-ready and floor at finalized.
-				finalized := e.FinalizedHead()
-				e.log.Warn("super authority returned zero block with non-pre-activation source; flooring at finalized",
-					"source", head.Source, "finalized", finalized)
-				return finalized
+				e.log.Warn("super authority returned zero block with non-pre-activation source", "source", head.Source)
+				return e.floorCrossSafe("zero-block")
 			}
 			if head.Block.Number > e.localSafeHead.Number {
 				e.log.Debug("super authority head ahead of local safe; using local safe", "head", head.Block, "source", head.Source)
@@ -234,24 +243,22 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 			}
 			br, err := e.engine.L2BlockRefByHash(e.ctx, head.Block.Hash)
 			if err != nil {
-				finalized := e.FinalizedHead()
-				e.log.Warn("super authority safe head unknown to engine (reorg signal); flooring at finalized",
-					"super_authority_safe", head.Block, "source", head.Source, "finalized", finalized, "err", err)
-				return finalized
+				e.log.Warn("super authority safe head unknown to engine (reorg signal)",
+					"super_authority_safe", head.Block, "source", head.Source, "err", err)
+				return e.floorCrossSafe("el-unknown")
 			}
 			canonical, err := e.engine.L2BlockRefByNumber(e.ctx, br.Number)
 			if err != nil {
-				finalized := e.FinalizedHead()
-				e.log.Warn("cannot verify super authority safe head canonicality; flooring at finalized",
-					"super_authority_safe", br, "source", head.Source, "finalized", finalized, "err", err)
-				return finalized
+				e.log.Warn("cannot verify super authority safe head canonicality",
+					"super_authority_safe", br, "source", head.Source, "err", err)
+				return e.floorCrossSafe("canonicality-lookup-failed")
 			}
 			if canonical.Hash != br.Hash {
-				finalized := e.FinalizedHead()
-				e.log.Warn("super authority safe head non-canonical (reorg signal); flooring at finalized",
-					"super_authority_safe", br, "canonical", canonical, "source", head.Source, "finalized", finalized)
-				return finalized
+				e.log.Warn("super authority safe head non-canonical (reorg signal)",
+					"super_authority_safe", br, "canonical", canonical, "source", head.Source)
+				return e.floorCrossSafe("non-canonical")
 			}
+			e.superAuthoritySafeHead = br
 			return br
 		default:
 			panic(fmt.Errorf("unhandled VerifierHeadSource: %v", head.Source))
@@ -261,6 +268,54 @@ func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	} else {
 		return e.localSafeHead
 	}
+}
+
+// floorCrossSafe is the cross-safe fallback path. It tries the cached
+// superAuthoritySafeHead first — re-validating its canonicality against the
+// EL — and falls back to FinalizedHead if the cache is empty, non-canonical,
+// or unavailable. A non-canonical cache is cleared so we don't keep paying the
+// validation cost.
+func (e *EngineController) floorCrossSafe(reason string) eth.L2BlockRef {
+	if cached, ok := e.useSuperAuthoritySafeCache(); ok {
+		e.log.Debug("cross-safe fallback using canonicality-validated cache", "reason", reason, "cached", cached)
+		return cached
+	}
+	finalized := e.FinalizedHead()
+	e.log.Debug("cross-safe fallback flooring at finalized", "reason", reason, "finalized", finalized)
+	return finalized
+}
+
+// useSuperAuthoritySafeCache returns the cached cross-safe head if it is still
+// canonical on the EL and still within local-safe. Otherwise clears the cache
+// and returns false. Cross-safe can reorg, so the cache must be re-validated
+// before each use — we never blindly return a cached cross-safe value.
+func (e *EngineController) useSuperAuthoritySafeCache() (eth.L2BlockRef, bool) {
+	cached := e.superAuthoritySafeHead
+	if cached == (eth.L2BlockRef{}) {
+		return eth.L2BlockRef{}, false
+	}
+	if cached.Number > e.localSafeHead.Number {
+		// Local-safe regressed (or cache is otherwise stale relative to current
+		// derivation state). Stop trusting the cache.
+		e.log.Info("cached cross-safe ahead of local-safe; clearing cache",
+			"cached", cached, "local_safe", e.localSafeHead)
+		e.superAuthoritySafeHead = eth.L2BlockRef{}
+		return eth.L2BlockRef{}, false
+	}
+	canonical, err := e.engine.L2BlockRefByNumber(e.ctx, cached.Number)
+	if err != nil {
+		e.log.Warn("cannot validate cached cross-safe canonicality; clearing cache",
+			"cached", cached, "err", err)
+		e.superAuthoritySafeHead = eth.L2BlockRef{}
+		return eth.L2BlockRef{}, false
+	}
+	if canonical.Hash != cached.Hash {
+		e.log.Info("cached cross-safe non-canonical (reorg); clearing cache",
+			"cached", cached, "canonical", canonical)
+		e.superAuthoritySafeHead = eth.L2BlockRef{}
+		return eth.L2BlockRef{}, false
+	}
+	return cached, true
 }
 
 // FinalizedHead returns the finalized L2 head, with the same tri-state contract
