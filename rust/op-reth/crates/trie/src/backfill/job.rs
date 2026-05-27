@@ -2,10 +2,10 @@
 
 use super::{changesets::compute_block_backfill_diff, error::BackfillError};
 use crate::{
-    BlockStateDiff, OpProofsBackfillProvider, OpProofsHashedAccountCursorFactory,
-    OpProofsProviderRO, OpProofsSnapshotInitProvider, OpProofsSnapshotProviderRO,
-    OpProofsSnapshotProviderRW, OpProofsSnapshotStore, OpProofsStore, OpProofsTrieCursorFactory,
-    SnapshotInitJob, SnapshotInitStatus, SnapshotTrieCursorFactory, proof::DatabaseStateRoot,
+    BlockStateDiff, OpProofsBackfillProvider, OpProofsBackfillStore,
+    OpProofsHashedAccountCursorFactory, OpProofsProviderRO, OpProofsSnapshotInitProvider,
+    OpProofsSnapshotProviderRO, OpProofsTrieCursorFactory, SnapshotInitJob, SnapshotInitStatus,
+    SnapshotTrieCursorFactory, proof::DatabaseStateRoot,
 };
 use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
 use alloy_primitives::BlockNumber;
@@ -73,7 +73,7 @@ impl PhaseTimings {
 
 /// Backfill job for proofs storage.
 #[derive(Debug, Constructor)]
-pub struct BackfillJob<P, S: OpProofsStore + Send> {
+pub struct BackfillJob<P, S: OpProofsBackfillStore + Send> {
     provider: P,
     storage: S,
 }
@@ -89,7 +89,7 @@ where
         + HeaderProvider
         + StorageSettingsCache
         + Send,
-    S: OpProofsStore + Send,
+    S: OpProofsBackfillStore + Send,
 {
     /// Backfill proofs data down to `target_earliest_block`.
     ///
@@ -281,7 +281,7 @@ where
         + StorageSettingsCache
         + Send
         + Sync,
-    S: OpProofsSnapshotStore + Clone + Send,
+    S: OpProofsBackfillStore + Clone + Send,
 {
     /// Backfill using a `Ready` snapshot to accelerate per-block reads.
     ///
@@ -377,7 +377,7 @@ where
         // Step 4: commit (consumes the sole remaining Arc clone).
         let bp = Arc::into_inner(bp)
             .expect("validate_state_root_with_snapshot must release its Arc clone");
-        let (_, commit) = timed(|| OpProofsSnapshotProviderRW::commit(bp))?;
+        let (_, commit) = timed(|| OpProofsBackfillProvider::commit(bp))?;
 
         Ok(PhaseTimings { compute, prepend, validate, commit })
     }

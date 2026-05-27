@@ -5,8 +5,8 @@
 
 use super::{BackfillError, BackfillJob};
 use crate::{
-    BlockStateDiff, OpProofsSnapshotInitProvider, OpProofsSnapshotProviderRO,
-    OpProofsSnapshotStore, OpProofsStorageError, OpProofsStore, RethTrieStorageLayout,
+    BlockStateDiff, OpProofsBackfillStore, OpProofsSnapshotInitProvider,
+    OpProofsSnapshotProviderRO, OpProofsStorageError, OpProofsStore, RethTrieStorageLayout,
     SnapshotInitJob, SnapshotInitStatus,
     api::{OpProofsProviderRO, OpProofsProviderRw},
     initialize::InitializationJob,

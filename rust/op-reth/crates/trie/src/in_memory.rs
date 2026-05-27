@@ -3,9 +3,8 @@
 use crate::{
     BlockStateDiff, OpProofsStorageError, OpProofsStorageResult, OpProofsStore,
     api::{
-        InitialStateAnchor, InitialStateStatus, OpProofsBackfillProvider, OpProofsInitProvider,
-        OpProofsProviderRO, OpProofsProviderRw, OpProofsSnapshotProviderRO,
-        OpProofsSnapshotProviderRW, ProofWindowRange, WriteCounts,
+        InitialStateAnchor, InitialStateStatus, OpProofsInitProvider, OpProofsProviderRO,
+        OpProofsProviderRw, ProofWindowRange, WriteCounts,
     },
     db::{HashedStorageKey, StorageTrieKey},
 };
@@ -499,7 +498,6 @@ impl OpProofsStore for InMemoryProofsStorage {
     type ProviderRO<'a> = InMemoryProofsProvider;
     type ProviderRw<'a> = InMemoryProofsProvider;
     type Initializer<'a> = InMemoryProofsProvider;
-    type BackfillProvider<'a> = InMemoryProofsProvider;
 
     fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
         Ok(InMemoryProofsProvider { inner: self.inner.clone() })
@@ -510,10 +508,6 @@ impl OpProofsStore for InMemoryProofsStorage {
     }
 
     fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>> {
-        Ok(InMemoryProofsProvider { inner: self.inner.clone() })
-    }
-
-    fn backfill_provider<'a>(&'a self) -> OpProofsStorageResult<Self::BackfillProvider<'a>> {
         Ok(InMemoryProofsProvider { inner: self.inner.clone() })
     }
 }
@@ -903,62 +897,6 @@ impl OpProofsInitProvider for InMemoryProofsProvider {
 
     fn commit(self) -> OpProofsStorageResult<()> {
         Ok(())
-    }
-}
-
-impl OpProofsSnapshotProviderRO for InMemoryProofsProvider {
-    type SnapshotAccountTrieCursor<'tx>
-        = InMemoryTrieCursor
-    where
-        Self: 'tx;
-    type SnapshotStorageTrieCursor<'tx>
-        = InMemoryTrieCursor
-    where
-        Self: 'tx;
-
-    fn snapshot_anchor(&self) -> OpProofsStorageResult<BlockNumHash> {
-        unimplemented!("Not supported in Inmemory storage")
-    }
-
-    fn snapshot_account_trie_cursor<'tx>(
-        &self,
-    ) -> OpProofsStorageResult<Self::SnapshotAccountTrieCursor<'tx>> {
-        unimplemented!("Not supported in Inmemory storage")
-    }
-
-    fn snapshot_storage_trie_cursor<'tx>(
-        &self,
-        _hashed_address: B256,
-    ) -> OpProofsStorageResult<Self::SnapshotStorageTrieCursor<'tx>> {
-        unimplemented!("Not supported in Inmemory storage")
-    }
-}
-
-impl OpProofsSnapshotProviderRW for InMemoryProofsProvider {
-    fn clear_snapshot(&self) -> OpProofsStorageResult<()> {
-        unimplemented!("Not supported in Inmemory storage")
-    }
-
-    fn update_snapshot(
-        &self,
-        _new_anchor: BlockNumHash,
-        _trie_updates: &TrieUpdatesSorted,
-    ) -> OpProofsStorageResult<u64> {
-        unimplemented!("Not supported in Inmemory storage")
-    }
-
-    fn commit(self) -> OpProofsStorageResult<()> {
-        unimplemented!("Not supported in Inmemory storage")
-    }
-}
-
-impl OpProofsBackfillProvider for InMemoryProofsProvider {
-    fn prepend_block(
-        &self,
-        _block_ref: BlockWithParent,
-        _diff: BlockStateDiff,
-    ) -> OpProofsStorageResult<WriteCounts> {
-        unimplemented!("Not supported in Inmemory storage")
     }
 }
 
