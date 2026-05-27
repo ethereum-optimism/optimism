@@ -1191,40 +1191,61 @@ func (i *Interop) IsActiveAt(ts uint64) bool {
 	return ts >= i.activationTimestamp
 }
 
-// LatestVerifiedL2Block returns the latest verified L2 block for chainID and
-// its timestamp. (empty, 0, nil) means nothing verified yet; a non-nil error
-// means verifiedDB could not be read.
+// ActivationTimestamp returns the immutable protocol-defined interop activation
+// timestamp for this verifier. Used by the SuperAuthority to compute the
+// per-(chain, verifier) activation-anchor block and by RPC surfaces that expose
+// the configured activation point.
+func (i *Interop) ActivationTimestamp() uint64 {
+	return i.activationTimestamp
+}
+
+// activationCap is the L2 timestamp the verifier reports as a cap when it has
+// no verified entry for the caller's chain. The caller resolves the canonical
+// L2 block at this timestamp (the pre-activation anchor). Returns 0 when no
+// activation timestamp is configured — caller treats that as "no contribution".
+func (i *Interop) activationCap() uint64 {
+	if i.activationTimestamp == 0 {
+		return 0
+	}
+	return i.activationTimestamp - 1
+}
+
+// LatestVerifiedL2Block returns the latest verified L2 block for chainID.
+// (empty, capTimestamp, nil) means nothing verified — capTimestamp is the
+// pre-activation anchor (`activationTimestamp - 1`) for the caller to resolve.
+// A non-nil error means verifiedDB could not be read.
 func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64, error) {
 	emptyBlock := eth.BlockID{}
 	ts, ok := i.verifiedDB.LastTimestamp()
 	if !ok {
-		return emptyBlock, 0, nil
+		return emptyBlock, i.activationCap(), nil
 	}
 	res, err := i.verifiedDB.Get(ts)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			return emptyBlock, 0, nil
+			return emptyBlock, i.activationCap(), nil
 		}
 		return emptyBlock, 0, fmt.Errorf("LatestVerifiedL2Block: read verifiedDB at %d: %w", ts, err)
 	}
 	head, ok := res.L2Heads[chainID]
 	if !ok {
-		return emptyBlock, 0, nil
+		return emptyBlock, i.activationCap(), nil
 	}
 	return head, ts, nil
 }
 
 // VerifiedBlockAtL1 returns the latest verified L2 block for chainID whose
-// L1 inclusion is at or below l1Block. (empty, 0, nil) means no match;
-// a non-nil error means verifiedDB could not be read.
+// L1 inclusion is at or below l1Block. (empty, capTimestamp, nil) means no
+// match — capTimestamp is the pre-activation anchor for the caller to resolve.
+// A non-nil error means verifiedDB could not be read.
 func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64, error) {
 	if l1Block == (eth.L1BlockRef{}) {
-		return eth.BlockID{}, 0, nil
+		return eth.BlockID{}, i.activationCap(), nil
 	}
 
 	lastTs, ok := i.verifiedDB.LastTimestamp()
 	if !ok {
-		return eth.BlockID{}, 0, nil
+		return eth.BlockID{}, i.activationCap(), nil
 	}
 
 	// activationTimestamp is the floor: no verified results exist before activation.
@@ -1243,13 +1264,13 @@ func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef)
 		if result.L1Inclusion.Number <= l1Block.Number {
 			head, ok := result.L2Heads[chainID]
 			if !ok {
-				return eth.BlockID{}, 0, nil
+				return eth.BlockID{}, i.activationCap(), nil
 			}
 			return head, ts, nil
 		}
 	}
 
-	return eth.BlockID{}, 0, nil
+	return eth.BlockID{}, i.activationCap(), nil
 }
 
 // Reset is intentionally a no-op for interop.

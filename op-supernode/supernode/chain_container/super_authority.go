@@ -10,83 +10,77 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// FullyVerifiedL2Head returns the fully-verified L2 head from the registered
-// verifier. The bool is true to signal use-local-safe (no verifier registered,
-// pre-activation, or transient verifier error); false carries the verifier
-// result (block, or empty when the verifier is operational but has nothing
-// verified yet).
-func (c *simpleChainContainer) FullyVerifiedL2Head() (eth.BlockID, bool) {
+// FullyVerifiedL2Head reports the cross-verified safe L2 head.
+//
+// With a single registered verifier:
+//   - No verifier registered → PreActivation; caller uses local-safe.
+//   - Verifier not yet active at local-safe time → PreActivation.
+//   - Verifier read error → HoldPrevious (ok=false).
+//   - Verifier has no entry for this chain → Anchor with cap timestamp
+//     (`activationTimestamp - 1`); engine controller resolves to a canonical
+//     block.
+//   - Verifier has a verified tip → Verified.
+func (c *simpleChainContainer) FullyVerifiedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {
 	v := c.registeredVerifier()
 	if v == nil {
-		c.log.Debug("FullyVerifiedL2Head: no verifier registered, signaling local-safe fallback")
-		return eth.BlockID{}, true
+		return rollup.VerifierHead{Source: rollup.VerifierHeadPreActivation}, true
 	}
 
-	// Pre-activation L2 content is verified by consensus alone; gating it on
-	// a not-yet-active interop verifier would stall the head at genesis (#20191).
-	if activeTS, ok := c.localSafeTimestamp(); ok && !v.IsActiveAt(activeTS) {
-		c.log.Debug("FullyVerifiedL2Head: verifier pre-activation, signaling local-safe fallback", "localSafeTime", activeTS)
-		return eth.BlockID{}, true
+	if activeTS, ok := c.localSafeTimestamp(ctx); ok && !v.IsActiveAt(activeTS) {
+		return rollup.VerifierHead{Source: rollup.VerifierHeadPreActivation}, true
 	}
 
-	bId, ts, err := v.LatestVerifiedL2Block(c.chainID)
+	contribution, err := c.verifierContribution(v.LatestVerifiedL2Block(c.chainID))
 	if err != nil {
-		c.log.Warn("FullyVerifiedL2Head: verifier read failed, signaling local-safe fallback",
+		c.log.Warn("FullyVerifiedL2Head: verifier read failed, holding previous",
 			"verifier", v.Name(), "err", err)
-		return eth.BlockID{}, true
+		return rollup.VerifierHead{}, false
 	}
-	if (bId == eth.BlockID{} || ts == 0) {
-		c.log.Debug("FullyVerifiedL2Head: verifier returned empty, returning empty without fallback", "verifier", v.Name())
-		return eth.BlockID{}, false
-	}
-
-	c.log.Debug("FullyVerifiedL2Head: returning verified block", "block", bId, "timestamp", ts)
-	return bId, false
+	return contribution, true
 }
 
-// FinalizedL2Head returns the finalized L2 head from the registered verifier.
-// The bool is true to signal use-local-finalized (no verifier registered,
-// pre-activation, sync status unavailable, or transient verifier error);
-// false carries the verifier result.
-func (c *simpleChainContainer) FinalizedL2Head() (eth.BlockID, bool) {
+// FinalizedL2Head is the finalized analogue of FullyVerifiedL2Head.
+func (c *simpleChainContainer) FinalizedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {
 	v := c.registeredVerifier()
 	if v == nil {
-		c.log.Debug("FinalizedL2Head: no verifier registered, signaling local-finalized fallback")
-		return eth.BlockID{}, true
+		return rollup.VerifierHead{Source: rollup.VerifierHeadPreActivation}, true
 	}
 
-	ss, err := c.SyncStatus(context.Background())
+	ss, err := c.SyncStatus(ctx)
 	if err != nil {
-		c.log.Error("FinalizedL2Head: failed to get sync status", "err", err)
-		return eth.BlockID{}, true
+		c.log.Warn("FinalizedL2Head: failed to get sync status, holding previous", "err", err)
+		return rollup.VerifierHead{}, false
 	}
 
 	// FinalizedL2 <= LocalSafeL2; if local-safe is pre-activation, so is finalized.
 	if !v.IsActiveAt(ss.LocalSafeL2.Time) {
-		c.log.Debug("FinalizedL2Head: verifier pre-activation, signaling local-finalized fallback", "localSafeTime", ss.LocalSafeL2.Time)
-		return eth.BlockID{}, true
+		return rollup.VerifierHead{Source: rollup.VerifierHeadPreActivation}, true
 	}
 
-	bId, ts, err := v.VerifiedBlockAtL1(c.chainID, ss.FinalizedL1)
+	contribution, err := c.verifierContribution(v.VerifiedBlockAtL1(c.chainID, ss.FinalizedL1))
 	if err != nil {
-		c.log.Warn("FinalizedL2Head: verifier read failed, signaling local-finalized fallback",
+		c.log.Warn("FinalizedL2Head: verifier read failed, holding previous",
 			"verifier", v.Name(), "err", err)
-		return eth.BlockID{}, true
+		return rollup.VerifierHead{}, false
 	}
-	if (bId == eth.BlockID{} || ts == 0) {
-		c.log.Debug("FinalizedL2Head: verifier returned empty, returning empty without fallback", "verifier", v.Name())
-		return eth.BlockID{}, false
-	}
-
-	c.log.Debug("FinalizedL2Head: returning finalized block", "block", bId, "timestamp", ts)
-	return bId, false
+	return contribution, true
 }
 
-// localSafeTimestamp returns the timestamp of the current local-safe L2 head.
-// The bool is false if SyncStatus is unavailable, in which case callers should
-// not attempt the pre-activation short-circuit.
-func (c *simpleChainContainer) localSafeTimestamp() (uint64, bool) {
-	ss, err := c.SyncStatus(context.Background())
+// verifierContribution classifies a verifier's (block, ts) return:
+//   - empty block → Anchor (caller resolves the canonical L2 block at ts).
+//   - non-empty block → Verified tip.
+func (c *simpleChainContainer) verifierContribution(bId eth.BlockID, ts uint64, err error) (rollup.VerifierHead, error) {
+	if err != nil {
+		return rollup.VerifierHead{}, err
+	}
+	if (bId == eth.BlockID{}) {
+		return rollup.VerifierHead{Source: rollup.VerifierHeadAnchor, Timestamp: ts}, nil
+	}
+	return rollup.VerifierHead{Source: rollup.VerifierHeadVerified, Block: bId, Timestamp: ts}, nil
+}
+
+func (c *simpleChainContainer) localSafeTimestamp(ctx context.Context) (uint64, bool) {
+	ss, err := c.SyncStatus(ctx)
 	if err != nil {
 		c.log.Warn("localSafeTimestamp: failed to get sync status", "err", err)
 		return 0, false
@@ -118,5 +112,4 @@ func (c *simpleChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2Bloc
 	return c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
 }
 
-// Interface satisfaction static check
 var _ rollup.SuperAuthority = (*simpleChainContainer)(nil)
