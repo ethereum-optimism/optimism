@@ -105,12 +105,8 @@ func processFile(file string) (*SemverLockResult, []error) {
 		return nil, nil
 	}
 
-	// Forge emits artifacts from additional_compiler_profiles with profile suffixes
-	// such as Contract.dispute.json. The source file's primary artifact remains
-	// unsuffixed as Contract.json: default-profile contracts use default settings
-	// there, and directly restricted contracts use their restricted settings there.
-	// Ignore suffixed duplicate dependency artifacts so they cannot overwrite the
-	// semver-lock entry for the same source:contract key.
+	// Only canonical Contract.json artifacts should contribute to semver-lock.
+	// Profile-suffixed duplicates like Contract.dispute.json are ignored.
 	if filepath.Base(file) != contractName+".json" {
 		return nil, nil
 	}
