@@ -1,7 +1,5 @@
 use alloy_rpc_types_engine::PayloadId;
-use kona_engine::{
-    BuildTaskError, ConsolidateInput, EngineQueries, FinalizeBlockId, SealTaskError,
-};
+use kona_engine::{BuildTaskError, EngineQueries, SealTaskError};
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
@@ -33,26 +31,6 @@ pub enum EngineClientError {
     /// An error occurred performing the reset.
     #[error("An error occurred performing the reset: {0}.")]
     ResetForkchoiceError(String),
-}
-
-/// Inbound requests that the [`crate::EngineActor`] can process.
-#[derive(Debug)]
-pub enum EngineActorRequest {
-    /// Request to build.
-    BuildRequest(Box<BuildRequest>),
-    /// Request to consolidate using a safe L2 signal from attributes or delegated safe-block
-    /// derivation
-    ProcessSafeL2SignalRequest(ConsolidateInput),
-    /// Request to finalize the L2 block identified by the provided [`FinalizeBlockId`].
-    ProcessFinalizedL2BlockRequest(Box<FinalizeBlockId>),
-    /// Request to insert the provided unsafe block.
-    ProcessUnsafeL2BlockRequest(Box<OpExecutionPayloadEnvelope>),
-    /// Request to reset engine forkchoice.
-    ResetRequest(Box<ResetRequest>),
-    /// Request for the engine to process the provided RPC request.
-    RpcRequest(Box<EngineRpcRequest>),
-    /// Request to seal the block with the provided details.
-    SealRequest(Box<SealRequest>),
 }
 
 /// RPC Request for the engine to handle.

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -309,10 +310,20 @@ func (m *mockEngineForInvalidation) OutputV0ByBlockHash(ctx context.Context, blo
 	return nil, nil
 }
 
-func (m *mockEngineForInvalidation) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
+func (m *mockEngineForInvalidation) Rewind(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
 	m.rewindCalled = true
-	m.rewindTimestamp = timestamp
+	if target != nil && target.ExecutionPayload != nil {
+		m.rewindTimestamp = uint64(target.ExecutionPayload.Timestamp)
+	}
 	return nil
+}
+
+func (m *mockEngineForInvalidation) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
+
+func (m *mockEngineForInvalidation) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
 }
 
 func (m *mockEngineForInvalidation) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
@@ -361,6 +372,16 @@ func TestInvalidateBlock(t *testing.T) {
 
 	genesisTime := uint64(1000)
 	blockTime := uint64(2)
+
+	makeParentPayload := func(parentNum, parentTime uint64, parentHash common.Hash) *eth.ExecutionPayloadEnvelope {
+		return &eth.ExecutionPayloadEnvelope{
+			ExecutionPayload: &eth.ExecutionPayload{
+				BlockNumber: eth.Uint64Quantity(parentNum),
+				Timestamp:   eth.Uint64Quantity(parentTime),
+				BlockHash:   parentHash,
+			},
+		}
+	}
 
 	tests := []struct {
 		name             string
@@ -423,7 +444,7 @@ func TestInvalidateBlock(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		rewound, err := c.InvalidateBlock(ctx, 0, common.HexToHash("0xgenesis"), 0, eth.Bytes32{}, eth.Bytes32{})
+		rewound, err := c.InvalidateBlock(ctx, 0, common.HexToHash("0xgenesis"), 0, eth.Bytes32{}, eth.Bytes32{}, makeParentPayload(0, 0, common.Hash{}))
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "cannot invalidate genesis block")
@@ -450,7 +471,7 @@ func TestInvalidateBlock(t *testing.T) {
 		}
 
 		hash := common.HexToHash("0xdead")
-		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{})
+		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{}, makeParentPayload(4, 0, common.Hash{0xaa}))
 
 		require.Error(t, err)
 		require.ErrorIs(t, err, engine_controller.ErrNoEngineClient)
@@ -459,6 +480,26 @@ func TestInvalidateBlock(t *testing.T) {
 		found, err := dl.Contains(5, hash)
 		require.NoError(t, err)
 		require.True(t, found, "denylist entry must persist so rewind can retry on restart")
+	})
+
+	t.Run("nil parent payload returns error", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+		require.NoError(t, err)
+		defer dl.Close()
+
+		c := &simpleChainContainer{
+			denyList: dl,
+			log:      testLogger(),
+			engine:   &mockEngineForInvalidation{},
+			vn:       &mockVNForInvalidation{},
+		}
+
+		hash := common.HexToHash("0xdead")
+		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{}, nil)
+		require.ErrorIs(t, err, engine_controller.ErrRewindNilTarget)
+		require.False(t, rewound)
 	})
 
 	t.Run("L2BlockRefByNumber failure returns error and persists denylist entry", func(t *testing.T) {
@@ -480,7 +521,7 @@ func TestInvalidateBlock(t *testing.T) {
 		}
 
 		hash := common.HexToHash("0xdead")
-		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{})
+		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{}, makeParentPayload(4, 0, common.Hash{0xaa}))
 
 		require.Error(t, err)
 		require.ErrorIs(t, err, fetchErr)
@@ -492,7 +533,36 @@ func TestInvalidateBlock(t *testing.T) {
 		require.True(t, found, "hash should be in denylist even when current block lookup fails")
 	})
 
-	t.Run("missing rollup config returns error before rewind", func(t *testing.T) {
+	t.Run("L2BlockRefByNumber returns NotFound still drives rewind to handle partial recovery", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+		require.NoError(t, err)
+		defer dl.Close()
+
+		mockEng := &mockEngineForInvalidation{blockRefErr: ethereum.NotFound}
+
+		c := &simpleChainContainer{
+			denyList: dl,
+			log:      testLogger(),
+			engine:   mockEng,
+			vn:       &mockVNForInvalidation{},
+		}
+
+		hash := common.HexToHash("0xdead")
+		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{}, makeParentPayload(4, 0, common.Hash{0xaa}))
+
+		require.NoError(t, err)
+		require.True(t, rewound, "rewind must be attempted: a prior crashed attempt may have left a synthetic block at this height")
+		require.True(t, mockEng.rewindCalled)
+
+		found, err := dl.Contains(5, hash)
+		require.NoError(t, err)
+		require.True(t, found)
+	})
+
+	t.Run("parent payload number mismatch returns error", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 
@@ -511,13 +581,13 @@ func TestInvalidateBlock(t *testing.T) {
 			vn:       &mockVNForInvalidation{},
 		}
 
-		rewound, err := c.InvalidateBlock(context.Background(), 5, common.HexToHash("0xdead"), 0, eth.Bytes32{}, eth.Bytes32{})
-
+		// parent payload claims block number 99 but height=5 expects parent at 4
+		rewound, err := c.InvalidateBlock(context.Background(), 5, common.HexToHash("0xdead"), 0,
+			eth.Bytes32{}, eth.Bytes32{}, makeParentPayload(99, 0, common.Hash{0xaa}))
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "failed to compute rewind timestamp")
-		require.Contains(t, err.Error(), "rollup config not available")
+		require.Contains(t, err.Error(), "parent payload block number")
 		require.False(t, rewound)
-		require.False(t, mockEng.rewindCalled, "rewind should not be attempted without rollup config")
+		require.False(t, mockEng.rewindCalled, "rewind should not be attempted with a mismatched parent payload")
 	})
 
 	for _, tt := range tests {
@@ -530,9 +600,10 @@ func TestInvalidateBlock(t *testing.T) {
 			require.NoError(t, err)
 			defer dl.Close()
 
-			// Create mock engine
+			parentHash := common.Hash{0x01, byte(tt.height)}
+			// Create mock engine — set ParentHash on the BlockRef so it matches the parent payload.
 			mockEng := &mockEngineForInvalidation{
-				blockRef: eth.L2BlockRef{Hash: tt.currentBlockHash},
+				blockRef: eth.L2BlockRef{Hash: tt.currentBlockHash, ParentHash: parentHash},
 			}
 
 			// Create container with minimal config
@@ -556,8 +627,9 @@ func TestInvalidateBlock(t *testing.T) {
 				BlockHash:                tt.payloadHash,
 			}
 
+			parentPayload := makeParentPayload(tt.height-1, tt.expectRewindTs, parentHash)
 			ctx := context.Background()
-			rewound, err := c.InvalidateBlock(ctx, tt.height, tt.payloadHash, 0, testStateRoot, testMsgPasserRoot)
+			rewound, err := c.InvalidateBlock(ctx, tt.height, tt.payloadHash, 0, testStateRoot, testMsgPasserRoot, parentPayload)
 			require.NoError(t, err)
 
 			// Verify rewind behavior

@@ -159,10 +159,11 @@ type mockL2 struct {
 	payloadsByNumber map[uint64]*eth.ExecutionPayloadEnvelope
 
 	// NewPayload tracking
-	newPayloadCalls  int
-	newPayloadStatus *eth.PayloadStatusV1
-	newPayloadErr    error
-	lastNewPayload   *eth.ExecutionPayload
+	newPayloadCalls    int
+	newPayloadStatus   *eth.PayloadStatusV1
+	newPayloadStatuses []*eth.PayloadStatusV1 // per-call status overrides; entry i is used for the i-th call (1-indexed) when present and non-nil
+	newPayloadErr      error
+	lastNewPayload     *eth.ExecutionPayload
 
 	// ForkchoiceUpdate tracking
 	fcuCalls     int
@@ -257,6 +258,9 @@ func (m *mockL2) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, 
 	m.lastNewPayload = payload
 	if m.newPayloadErr != nil {
 		return nil, m.newPayloadErr
+	}
+	if idx := m.newPayloadCalls - 1; idx < len(m.newPayloadStatuses) && m.newPayloadStatuses[idx] != nil {
+		return m.newPayloadStatuses[idx], nil
 	}
 	if m.newPayloadStatus != nil {
 		return m.newPayloadStatus, nil

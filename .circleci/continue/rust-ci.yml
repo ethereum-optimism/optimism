@@ -845,6 +845,50 @@ jobs:
           command: |
             lychee --config ./lychee.toml --cache-exclude-status 429 '**/README.md' || true
 
+  # Verifies that the committed `etc/{chainList,configs,depsets}.json` snapshots
+  # in `kona-registry` match what `KONA_BIND=true cargo build -p kona-registry`
+  # would regenerate from the current `superchain-registry` submodule. Catches
+  # drift between submodule and snapshot — i.e. someone bumped the submodule
+  # without refreshing the snapshots, or hand-edited the snapshots, or refreshed
+  # only some of the three coupled files.
+  kona-registry-snapshot-check:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Initialize superchain-registry submodule
+          command: |
+            git submodule update --init --depth=1 \
+              packages/contracts-bedrock/lib/superchain-registry
+      - rust-prepare-and-restore-cache: &kona-registry-snapshot-cache
+          directory: rust
+          prefix: rust-kona-registry-snapshot
+      - run:
+          name: Regenerate kona-registry snapshots
+          working_directory: rust/kona
+          environment:
+            KONA_BIND: "true"
+          command: cargo build -p kona-registry
+      - run:
+          name: Assert committed snapshots match regenerated output
+          command: |
+            if ! git diff --exit-code -- \
+                rust/kona/crates/protocol/registry/etc/; then
+              echo
+              echo "kona-registry etc/ snapshots are out of sync with the"
+              echo "superchain-registry submodule. Run:"
+              echo
+              echo "  KONA_BIND=true cargo build -p kona-registry"
+              echo
+              echo "from rust/kona and commit the resulting changes to"
+              echo "rust/kona/crates/protocol/registry/etc/."
+              exit 1
+            fi
+      - rust-save-build-cache: *kona-registry-snapshot-cache
+
   # Kona Publish Prestate Artifacts
   kona-publish-prestate-artifacts:
     parameters:
@@ -1074,6 +1118,9 @@ workflows:
             cargo test --workspace --verbose --no-default-features
           context: *rust-ci-context
 
+      - kona-registry-snapshot-check:
+          context: *rust-ci-context
+
       # -----------------------------------------------------------------------
       # Required gate — fans in on required Rust CI jobs
       # -----------------------------------------------------------------------
@@ -1101,6 +1148,7 @@ workflows:
             - kona-host-client-offline-cannon: terminal
             - op-rbuilder-checks: terminal
             - rollup-boost-checks: terminal
+            - kona-registry-snapshot-check: terminal
           context:
             - circleci-api-token
   # =====================================
@@ -1129,11 +1177,15 @@ workflows:
           target: "cannon-client"
           context: *rust-ci-context
 
+      - kona-registry-snapshot-check:
+          context: *rust-ci-context
+
       - required-rust-ci:
           requires:
             - rust-tests: terminal
             - op-reth-integration-tests: terminal
             - kona-build-fpvm-cannon-client: terminal
+            - kona-registry-snapshot-check: terminal
           context:
             - circleci-api-token
 
