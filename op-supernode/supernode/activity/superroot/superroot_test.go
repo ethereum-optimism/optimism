@@ -212,10 +212,10 @@ func TestSuperroot_AtTimestamp_VerifierL1ReducesCurrentL1(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
-			optL2:       eth.BlockID{Number: 100, Hash: common.HexToHash("0x01")},
-			optL1:       eth.BlockID{Number: 1000},
-			status:      &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
-			verifierL1:  &eth.BlockID{Number: 1500},
+			optL2:      eth.BlockID{Number: 100, Hash: common.HexToHash("0x01")},
+			optL1:      eth.BlockID{Number: 1000},
+			status:     &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
+			verifierL1: &eth.BlockID{Number: 1500},
 		},
 	}
 	s := newSuperroot(chains, preInteropReader())
@@ -228,10 +228,10 @@ func TestSuperroot_AtTimestamp_VerifierL1HigherThanDerivationDoesNotIncrease(t *
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
-			optL2:       eth.BlockID{Number: 100, Hash: common.HexToHash("0x01")},
-			optL1:       eth.BlockID{Number: 1000},
-			status:      &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
-			verifierL1:  &eth.BlockID{Number: 3000},
+			optL2:      eth.BlockID{Number: 100, Hash: common.HexToHash("0x01")},
+			optL1:      eth.BlockID{Number: 1000},
+			status:     &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
+			verifierL1: &eth.BlockID{Number: 3000},
 		},
 	}
 	s := newSuperroot(chains, preInteropReader())
