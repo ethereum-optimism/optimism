@@ -2,7 +2,7 @@
 
 use super::{changesets::compute_block_backfill_diff, error::BackfillError};
 use crate::{
-    BlockStateDiff, OpProofsBackfillProvider, OpProofsProviderRO, OpProofsStore,
+    BlockStateDiff, OpProofsBackfillProvider, OpProofsBackfillStore, OpProofsProviderRO,
     proof::DatabaseStateRoot,
 };
 use alloy_eips::{NumHash, eip1898::BlockWithParent};
@@ -71,7 +71,7 @@ impl PhaseTimings {
 
 /// Backfill job for proofs storage.
 #[derive(Debug, Constructor)]
-pub struct BackfillJob<P, S: OpProofsStore + Send> {
+pub struct BackfillJob<P, S: OpProofsBackfillStore + Send> {
     provider: P,
     storage: S,
 }
@@ -87,7 +87,7 @@ where
         + HeaderProvider
         + StorageSettingsCache
         + Send,
-    S: OpProofsStore + Send,
+    S: OpProofsBackfillStore + Send,
 {
     /// Backfill proofs data down to `target_earliest_block`.
     ///

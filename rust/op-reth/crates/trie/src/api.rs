@@ -228,11 +228,6 @@ pub trait OpProofsStore: Send + Sync + Debug {
     where
         Self: 'a;
 
-    /// The backfill provider type created by the factory.
-    type BackfillProvider<'a>: OpProofsBackfillProvider + 'a
-    where
-        Self: 'a;
-
     /// Create a read-only provider for interacting with the proofs storage.
     fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>>;
 
@@ -241,6 +236,16 @@ pub trait OpProofsStore: Send + Sync + Debug {
 
     /// Create an initialization provider for interacting with the proofs storage.
     fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>>;
+}
+
+/// Factory extension for stores that support backfill — extending the
+/// `earliest` block of the proof window backward.
+#[auto_impl(Arc)]
+pub trait OpProofsBackfillStore: OpProofsStore {
+    /// The backfill provider type created by the factory.
+    type BackfillProvider<'a>: OpProofsBackfillProvider + 'a
+    where
+        Self: 'a;
 
     /// Create a backfill provider for prepend-style writes that extend the window backward.
     fn backfill_provider<'a>(&'a self) -> OpProofsStorageResult<Self::BackfillProvider<'a>>;

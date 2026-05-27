@@ -1534,7 +1534,6 @@ mod tests {
         type ProviderRw<'a> = <MdbxProofsStorage as OpProofsStore>::ProviderRw<'a>;
         type Initializer<'a> =
             RecordingInitProvider<<MdbxProofsStorage as OpProofsStore>::Initializer<'a>>;
-        type BackfillProvider<'a> = <MdbxProofsStorage as OpProofsStore>::BackfillProvider<'a>;
 
         fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
             self.inner.provider_ro()
@@ -1550,10 +1549,6 @@ mod tests {
                 hashed_storage_addresses: self.hashed_storage_addresses.clone(),
                 storage_branch_addresses: self.storage_branch_addresses.clone(),
             })
-        }
-
-        fn backfill_provider<'a>(&'a self) -> OpProofsStorageResult<Self::BackfillProvider<'a>> {
-            self.inner.backfill_provider()
         }
     }
 

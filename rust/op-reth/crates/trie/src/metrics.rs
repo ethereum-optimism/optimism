@@ -3,8 +3,8 @@
 use crate::{
     BlockStateDiff, OpProofsStorageResult, OpProofsStore,
     api::{
-        InitialStateAnchor, OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw,
-        ProofWindowRange, WriteCounts,
+        InitialStateAnchor, OpProofsBackfillStore, OpProofsInitProvider, OpProofsProviderRO,
+        OpProofsProviderRw, ProofWindowRange, WriteCounts,
     },
     cursor,
 };
@@ -336,11 +336,6 @@ where
     where
         Self: 'a;
 
-    type BackfillProvider<'a>
-        = S::BackfillProvider<'a>
-    where
-        Self: 'a;
-
     fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
         Ok(OpProofsProviderROWithMetrics::new(self.storage.provider_ro()?, self.metrics.clone()))
     }
@@ -355,6 +350,16 @@ where
             self.metrics.clone(),
         ))
     }
+}
+
+impl<S> OpProofsBackfillStore for OpProofsStoreWithMetrics<S>
+where
+    S: OpProofsBackfillStore,
+{
+    type BackfillProvider<'a>
+        = S::BackfillProvider<'a>
+    where
+        Self: 'a;
 
     fn backfill_provider<'a>(&'a self) -> OpProofsStorageResult<Self::BackfillProvider<'a>> {
         self.storage.backfill_provider()
