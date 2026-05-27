@@ -91,6 +91,12 @@ commands:
     description: "Prepare the Rust environment for the build."
     steps:
       - rust-setup-env
+      - run:
+          # op-superchain's build.rs walks this submodule to regenerate its
+          # gitignored gen/ tree. Init it shallowly so every Rust build has
+          # the data available; idempotent when already populated.
+          name: Initialize superchain-registry submodule
+          command: git submodule update --init --depth 1 -- packages/contracts-bedrock/lib/superchain-registry
       - when:
           condition: << parameters.needs_clang >>
           steps:
