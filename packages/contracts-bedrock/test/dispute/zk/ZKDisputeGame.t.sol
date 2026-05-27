@@ -59,11 +59,15 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
     Duration maxChallengeDuration = Duration.wrap(12 hours);
     Duration maxProveDuration = Duration.wrap(3 days);
 
-    // Per-chain output roots packed into each game's SuperRootProof. These are the values
-    // `rootClaimByChainId(l2ChainId)` will return — distinct from `rootClaim()`, which is the
-    // hash of the encoded super root proof.
+    // Per-chain output roots packed into each game's SuperRootProof.
+    // Parent game only uses one output root for a single chain.
+    // Child game uses multiple output roots for multiple chains.
     bytes32 parentOutputRoot = keccak256("parent-output-root");
     bytes32 childOutputRoot = keccak256("child-output-root");
+
+    // The child game's multi-chain super root pairs (populated in setUp). The `l2ChainId` pair
+    // carries `childOutputRoot` while the others test the `rootClaimByChainId` implementation.
+    Types.OutputRootWithChainId[] internal childPairs;
 
     // Game rootClaims, computed in setUp() once the per-chain pairs are known.
     Claim parentRootClaim;
@@ -117,6 +121,7 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
         vm.warp(block.timestamp + 1000);
 
         // Create parent game (uses uint32.max to indicate first game in chain).
+        // The parent only uses one output root for a single chain.
         parentGame = _createZKGame(type(uint32).max, uint64(parentL2SequenceNumber), parentOutputRoot);
         parentRootClaim = parentGame.rootClaim();
 
@@ -131,7 +136,12 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
         // Create the child game before claiming parent credit, because claimCredit triggers
         // closeGame() which advances the anchor to parentL2SequenceNumber. After that, the
         // parent's seq num would equal the anchor, violating the "strictly above" invariant.
-        game = _createZKGame(parentGameIndex, uint64(childL2SequenceNumber), childOutputRoot);
+        // The child carries a multi-chain super root so all the tests check for multi-root validity.
+        // In practice, the absolute prestate would also change here to match the new ZK program.
+        childPairs.push(Types.OutputRootWithChainId({ chainId: 10, root: keccak256("op-mainnet") }));
+        childPairs.push(Types.OutputRootWithChainId({ chainId: l2ChainId, root: childOutputRoot }));
+        childPairs.push(Types.OutputRootWithChainId({ chainId: 130, root: keccak256("unichain") }));
+        game = _createZKGame(parentGameIndex, uint64(childL2SequenceNumber), childPairs);
         rootClaim = game.rootClaim();
 
         // Record actual index of child game.
@@ -147,8 +157,8 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
         _game.claimCredit(_recipient); // Phase 2: withdraw
     }
 
-    /// @notice Build the SuperRootProof for a single chain, derive its rootClaim, and create the
-    ///         ZK dispute game via `disputeGameFactory.create`. Returns the deployed game.
+    /// @notice Single-chain variant of `_createZKGame` — delegates to the multi-chain variant with
+    ///         a one-pair set bound to the fixture's `l2ChainId`.
     function _createZKGame(
         uint32 _parentIndex,
         uint64 _timestamp,
@@ -157,15 +167,13 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
         internal
         returns (ZKDisputeGame game_)
     {
-        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(_parentIndex, _timestamp, _outputRoot);
-        game_ = ZKDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: disputeGameFactory.initBonds(gameType) }(gameType, rc, ed))
-            )
-        );
+        Types.OutputRootWithChainId[] memory pairs = new Types.OutputRootWithChainId[](1);
+        pairs[0] = Types.OutputRootWithChainId({ chainId: l2ChainId, root: _outputRoot });
+        game_ = _createZKGame(_parentIndex, _timestamp, pairs);
     }
 
-    /// @notice Multi-chain variant of `_createZKGame` — caller supplies the full pair set.
+    /// @notice Build the SuperRootProof from `_pairs`, derive its rootClaim, and create the ZK
+    ///         dispute game via `disputeGameFactory.create`. Returns the deployed game.
     function _createZKGame(
         uint32 _parentIndex,
         uint64 _timestamp,
@@ -178,25 +186,6 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
         game_ = ZKDisputeGame(
             payable(
                 address(disputeGameFactory.create{ value: disputeGameFactory.initBonds(gameType) }(gameType, rc, ed))
-            )
-        );
-    }
-
-    /// @notice As above but for an arbitrary GameType — used by tests that register a second impl
-    ///         (different verifier, different chainId slot, etc.).
-    function _createZKGameOfType(
-        GameType _gameType,
-        uint32 _parentIndex,
-        uint64 _timestamp,
-        bytes32 _outputRoot
-    )
-        internal
-        returns (ZKDisputeGame game_)
-    {
-        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(_parentIndex, _timestamp, _outputRoot);
-        game_ = ZKDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: disputeGameFactory.initBonds(_gameType) }(_gameType, rc, ed))
             )
         );
     }
@@ -231,16 +220,17 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         assertTrue(address(game.verifier()) != address(0));
         assertEq(game.challengerBond(), 1 ether);
         assertTrue(game.l1Head().raw() != bytes32(0));
-        // rootClaimByChainId scans the SuperRootProof pairs and returns the per-chain output root.
-        // Our setUp puts (l2ChainId, childOutputRoot) into the pair set.
-        assertEq(game.rootClaimByChainId(l2ChainId).raw(), childOutputRoot);
+        // Check all chains in the SuperRootProof return their packed output roots.
+        for (uint256 i; i < childPairs.length; i++) {
+            assertEq(game.rootClaimByChainId(childPairs[i].chainId).raw(), childPairs[i].root);
+        }
 
         // The game was created while its game type was respected.
         assertTrue(game.wasRespectedGameTypeWhenCreated());
 
-        // extraData layout: 4 byte parentIndex + 1 byte version + 8 byte timestamp + 1 pair (64B) = 77 bytes.
+        // extraData layout: 4 byte parentIndex + 1 byte version + 8 byte timestamp + 3 pairs (3*64B) = 205 bytes.
         bytes memory extra = game.extraData();
-        assertEq(extra.length, 77);
+        assertEq(extra.length, 205);
 
         // The parent's sequence number (timestamp).
         assertEq(game.startingSequenceNumber(), parentL2SequenceNumber);
@@ -303,11 +293,9 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         vm.stopPrank();
     }
 
-    /// @notice Fuzz over every timestamp in `[0, parentL2SequenceNumber]`; all must revert with
+    /// @notice Fuzz over every timestamp in `[0, parentL2SequenceNumber]`. All must revert with
     ///         `UnexpectedRootClaim` because the new claim must be strictly above the parent's
-    ///         sequence number. Replaces the legacy `blockNumberTooLarge` fuzz, which tested a
-    ///         uint256→uint64 overflow path that no longer exists (extraData stores l2SequenceNumber
-    ///         as a real `uint64`).
+    ///         sequence number. 
     function testFuzz_initialize_timestampAtOrBeforeParent_reverts(uint64 _timestamp) public {
         _timestamp = uint64(bound(_timestamp, 0, parentL2SequenceNumber));
 
@@ -837,8 +825,16 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
 
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        ZKDisputeGame rejectGame = _createZKGameOfType(
-            rejectGameType, type(uint32).max, uint64(parentL2SequenceNumber), keccak256("reject-claim")
+        (bytes memory ed, Claim rc) =
+            _makeZKExtraDataAndClaim(type(uint32).max, uint64(parentL2SequenceNumber), keccak256("reject-claim"));
+        ZKDisputeGame rejectGame = ZKDisputeGame(
+            payable(
+                address(
+                    disputeGameFactory.create{ value: disputeGameFactory.initBonds(rejectGameType) }(
+                        rejectGameType, rc, ed
+                    )
+                )
+            )
         );
         vm.stopPrank();
 
@@ -1465,34 +1461,12 @@ contract ZKDisputeGame_RootClaim_Test is ZKDisputeGame_TestInit {
     /// @notice Tests that rootClaimByChainId reverts when called with a chain ID that is not
     ///         present in the SuperRootProof's pair list.
     function testFuzz_rootClaimByChainId_wrongChainId_reverts(uint256 _chainId) public {
-        vm.assume(_chainId != l2ChainId);
+        // Exclude every chain present in the default child super root (see setUp).
+        for (uint256 i; i < childPairs.length; i++) {
+            vm.assume(_chainId != childPairs[i].chainId);
+        }
         vm.expectRevert(UnknownChainId.selector);
         game.rootClaimByChainId(_chainId);
-    }
-
-    /// @notice Tests that a SuperRootProof packed with multiple chain pairs returns the correct
-    ///         per-chain output root for each chain id, and reverts on a chain id not in the set.
-    function test_rootClaimByChainId_multipleChains_succeeds() public {
-        // Build a 3-chain SuperRootProof.
-        Types.OutputRootWithChainId[] memory pairs = new Types.OutputRootWithChainId[](3);
-        pairs[0] = Types.OutputRootWithChainId({ chainId: 10, root: keccak256("op-mainnet") });
-        pairs[1] = Types.OutputRootWithChainId({ chainId: 130, root: keccak256("unichain") });
-        pairs[2] = Types.OutputRootWithChainId({ chainId: l2ChainId, root: keccak256("local") });
-
-        vm.startPrank(proposer);
-        vm.deal(proposer, 1 ether);
-        ZKDisputeGame multiChainGame =
-            _createZKGame(childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), pairs);
-        vm.stopPrank();
-
-        // Each chain id resolves to its packed output root.
-        assertEq(multiChainGame.rootClaimByChainId(10).raw(), keccak256("op-mainnet"));
-        assertEq(multiChainGame.rootClaimByChainId(130).raw(), keccak256("unichain"));
-        assertEq(multiChainGame.rootClaimByChainId(l2ChainId).raw(), keccak256("local"));
-
-        // A chain id not in the set reverts.
-        vm.expectRevert(UnknownChainId.selector);
-        multiChainGame.rootClaimByChainId(999);
     }
 
     /// @notice Tests that the contract's hash-binding invariant rejects mismatched extraData ↔

@@ -79,12 +79,12 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice The `ClaimData` struct represents the data associated with a Claim.
     struct ClaimData {
-        uint32 parentIndex; // 4 bytes  \
-        ProposalStatus status; // 1 byte    |-- slot 1 (25 bytes)
-        address challenger; // 20 bytes /
-        address prover; // 20 bytes \
-        Timestamp deadline; // 8 bytes  /-- slot 2 (28 bytes)
-        Claim claim; // 32 bytes --- slot 3
+        uint32 parentIndex; // 4 bytes
+        ProposalStatus status; // 1 byte |-- slot 1 (25 bytes)
+        address challenger; // 20 bytes
+        address prover; // 20 bytes
+        Timestamp deadline; // 8 bytes  |-- slot 2 (28 bytes)
+        Claim claim; // 32 bytes |-- slot 3
     }
 
     ////////////////////////////////////////////////////////////////
