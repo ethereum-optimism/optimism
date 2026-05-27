@@ -464,6 +464,10 @@ impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {
     }
 }
 
+// Counterpart to `OpPayloadTypes::block_to_payload`. The two are intentionally
+// parallel: this path receives the BAL via the payload's own field once OP
+// gains BAL support, while `block_to_payload` receives it as a separate arg.
+// See the comment on `OpPayloadTypes::block_to_payload` in `lib.rs`.
 impl<T, N> From<OpBuiltPayload<N>> for OpExecData
 where
     T: SignedTransaction,
