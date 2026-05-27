@@ -10,6 +10,7 @@ import (
 	"time"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
@@ -132,6 +133,36 @@ func (h *interopTestHarness) Chains() map[eth.ChainID]cc.InteropChain {
 // Mock returns the mock for a given chain ID.
 func (h *interopTestHarness) Mock(id uint64) *mockChainContainer {
 	return h.mocks[eth.ChainIDFromUInt64(id)]
+}
+
+// commitVerified commits a VerifiedResult to the verifiedDB and additionally registers a
+// canonical payload on each referenced chain's mock keyed by the verified head's hash.
+// The new rewind data model requires the build path to fetch each chain's canonical payload
+// by hash from the chain at decision time; routing all test commits through this helper
+// keeps tests concise and lets the synthesized envelopes carry the expected timestamp.
+func (h *interopTestHarness) commitVerified(vr VerifiedResult) error {
+	if err := h.interop.verifiedDB.Commit(vr); err != nil {
+		return err
+	}
+	for chainID, blockID := range vr.L2Heads {
+		mock := h.mocks[chainID]
+		if mock == nil {
+			continue
+		}
+		mock.mu.Lock()
+		if mock.payloadsByHash == nil {
+			mock.payloadsByHash = map[common.Hash]*eth.ExecutionPayloadEnvelope{}
+		}
+		mock.payloadsByHash[blockID.Hash] = &eth.ExecutionPayloadEnvelope{
+			ExecutionPayload: &eth.ExecutionPayload{
+				BlockHash:   blockID.Hash,
+				BlockNumber: eth.Uint64Quantity(blockID.Number),
+				Timestamp:   eth.Uint64Quantity(vr.Timestamp),
+			},
+		}
+		mock.mu.Unlock()
+	}
+	return nil
 }
 
 // =============================================================================
@@ -1137,6 +1168,14 @@ func TestApplyResultCompat(t *testing.T) {
 // TestInvalidateBlock
 // =============================================================================
 
+func dummyParentPayload(invalid eth.BlockID) *eth.ExecutionPayloadEnvelope {
+	return &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: eth.Uint64Quantity(invalid.Number - 1),
+		},
+	}
+}
+
 // TestInvalidateBlock verifies the invalidateBlock method correctly calls
 // ChainContainer.InvalidateBlock with the right parameters and handles errors.
 func TestInvalidateBlock(t *testing.T) {
@@ -1155,7 +1194,7 @@ func TestInvalidateBlock(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{})
+				err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
 				require.NoError(t, err)
 
 				require.Len(t, mock.invalidateBlockCalls, 1)
@@ -1172,7 +1211,7 @@ func TestInvalidateBlock(t *testing.T) {
 				mock := h.Mock(10)
 				unknownChain := eth.ChainIDFromUInt64(999)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(unknownChain, blockID, 0, eth.Bytes32{}, eth.Bytes32{})
+				err := h.interop.invalidateBlock(unknownChain, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
 
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "not found")
@@ -1189,7 +1228,7 @@ func TestInvalidateBlock(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{})
+				err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
 
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "engine failure")
@@ -1698,12 +1737,19 @@ type mockChainContainer struct {
 	mu                     sync.Mutex
 
 	// InvalidateBlock tracking
-	invalidateBlockCalls []invalidateBlockCall
-	invalidateBlockRet   bool
-	invalidateBlockErr   error
-	pruneDeniedResult    map[uint64][]common.Hash
-	rewindEngineCalls    []uint64
-	rewindEngineErr      error
+	invalidateBlockCalls   []invalidateBlockCall
+	invalidateBlockRet     bool
+	invalidateBlockErr     error
+	pruneDeniedResult      map[uint64][]common.Hash
+	rewindEngineCalls      []uint64
+	rewindEngineErr        error
+	lastRewindEngineTarget *eth.ExecutionPayloadEnvelope
+
+	payloadsByHash        map[common.Hash]*eth.ExecutionPayloadEnvelope
+	payloadByHashErr      error
+	payloadByHashOverride func(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error)
+	payloadsByNumber      map[uint64]*eth.ExecutionPayloadEnvelope
+	payloadByNumberErr    error
 
 	// OptimisticAt fields
 	optimisticL2    eth.BlockID
@@ -1764,6 +1810,7 @@ type invalidateBlockCall struct {
 	payloadHash              common.Hash
 	stateRoot                eth.Bytes32
 	messagePasserStorageRoot eth.Bytes32
+	parentPayload            *eth.ExecutionPayloadEnvelope
 }
 
 func newMockChainContainer(id uint64) *mockChainContainer {
@@ -1946,11 +1993,56 @@ func (m *mockChainContainer) TimestampToBlockNumber(ctx context.Context, ts uint
 	}
 	return ts, nil
 }
-func (m *mockChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
+func (m *mockChainContainer) RewindEngine(ctx context.Context, target *eth.ExecutionPayloadEnvelope, invalidatedBlock eth.BlockRef) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.rewindEngineCalls = append(m.rewindEngineCalls, timestamp)
+	var ts uint64
+	if target != nil && target.ExecutionPayload != nil {
+		ts = uint64(target.ExecutionPayload.Timestamp)
+	}
+	m.rewindEngineCalls = append(m.rewindEngineCalls, ts)
+	m.lastRewindEngineTarget = target
 	return m.rewindEngineErr
+}
+
+func (m *mockChainContainer) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	if m.payloadByHashOverride != nil {
+		return m.payloadByHashOverride(ctx, hash)
+	}
+	if env, ok := m.payloadsByHash[hash]; ok {
+		return env, nil
+	}
+	if m.payloadByHashErr != nil {
+		return nil, m.payloadByHashErr
+	}
+	// Default synthesized payload — satisfies the build path's structural checks
+	// without requiring tests to populate payloadsByHash for every hash they touch.
+	// Tests often use common.BigToHash(timestamp) as the block hash, so derive the
+	// number and timestamp from the hash value.
+	number := bigs.Uint64Strict(hash.Big())
+	return &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockHash:   hash,
+			ParentHash:  hash, // self-loop is fine for tests that don't inspect parent
+			BlockNumber: eth.Uint64Quantity(number),
+			Timestamp:   eth.Uint64Quantity(number),
+		},
+	}, nil
+}
+func (m *mockChainContainer) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	if env, ok := m.payloadsByNumber[number]; ok {
+		return env, nil
+	}
+	if m.payloadByNumberErr != nil {
+		return nil, m.payloadByNumberErr
+	}
+	return &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: eth.Uint64Quantity(number),
+			Timestamp:   eth.Uint64Quantity(number),
+			BlockHash:   common.BigToHash(new(big.Int).SetUint64(number)),
+		},
+	}, nil
 }
 func (m *mockChainContainer) BlockTime() uint64 {
 	if m.blockTimeOverride > 0 {
@@ -1958,10 +2050,11 @@ func (m *mockChainContainer) BlockTime() uint64 {
 	}
 	return 1
 }
-func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
+func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
 	m.mu.Lock()
 	m.invalidateBlockCalls = append(m.invalidateBlockCalls, invalidateBlockCall{
 		height: height, payloadHash: payloadHash, stateRoot: stateRoot, messagePasserStorageRoot: messagePasserStorageRoot,
+		parentPayload: parentPayload,
 	})
 	m.mu.Unlock()
 	if m.callLog != nil {
@@ -2113,12 +2206,12 @@ func TestPendingTransition_RecoverRewindPreservedOnFailure(t *testing.T) {
 
 	mock := h.Mock(10)
 
-	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+	require.NoError(t, h.commitVerified(VerifiedResult{
 		Timestamp:   1000,
 		L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
 		L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 100, Hash: common.HexToHash("0x1")}},
 	}))
-	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+	require.NoError(t, h.commitVerified(VerifiedResult{
 		Timestamp:   1001,
 		L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
 		L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 101, Hash: common.HexToHash("0x2")}},
@@ -2161,7 +2254,7 @@ func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
 	mockA := h.Mock(10)
 	mockB := h.Mock(8453)
 
-	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+	require.NoError(t, h.commitVerified(VerifiedResult{
 		Timestamp:   1000,
 		L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
 		L2Heads: map[eth.ChainID]eth.BlockID{
@@ -2169,7 +2262,7 @@ func TestPendingTransition_RewindReplaysAfterFailure(t *testing.T) {
 			mockB.id: {Number: 200, Hash: common.HexToHash("0xb1")},
 		},
 	}))
-	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+	require.NoError(t, h.commitVerified(VerifiedResult{
 		Timestamp:   1001,
 		L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
 		L2Heads: map[eth.ChainID]eth.BlockID{
@@ -2228,7 +2321,7 @@ func TestPendingTransition_RecoverRewindReportsAllFailures(t *testing.T) {
 	mockA := h.Mock(10)
 	mockB := h.Mock(8453)
 
-	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+	require.NoError(t, h.commitVerified(VerifiedResult{
 		Timestamp:   1000,
 		L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
 		L2Heads: map[eth.ChainID]eth.BlockID{
@@ -2236,7 +2329,7 @@ func TestPendingTransition_RecoverRewindReportsAllFailures(t *testing.T) {
 			mockB.id: {Number: 200, Hash: common.HexToHash("0x2")},
 		},
 	}))
-	require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+	require.NoError(t, h.commitVerified(VerifiedResult{
 		Timestamp:   1001,
 		L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
 		L2Heads: map[eth.ChainID]eth.BlockID{
@@ -2276,7 +2369,7 @@ func TestPendingTransition_RecoverAdvanceAfterCommitClearsPendingTransition(t *t
 		Decision: DecisionAdvance,
 		Result:   &result,
 	}))
-	require.NoError(t, h.interop.verifiedDB.Commit(result.ToVerifiedResult()))
+	require.NoError(t, h.commitVerified(result.ToVerifiedResult()))
 
 	madeProgress, err := h.interop.progressAndRecord()
 	require.NoError(t, err)
@@ -2303,7 +2396,7 @@ func TestL1CanonicalityCheckErrorPropagates(t *testing.T) {
 	mock := h.Mock(10)
 
 	// Commit a verified result so observeRound has a LastVerified to check
-	err := h.interop.verifiedDB.Commit(VerifiedResult{
+	err := h.commitVerified(VerifiedResult{
 		Timestamp:   1000,
 		L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1")},
 		L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 100, Hash: common.HexToHash("0x1")}},
@@ -2342,13 +2435,13 @@ func TestRewindAccepted(t *testing.T) {
 		}
 
 		// Commit two verified results: T=1000 and T=1001
-		err := h.interop.verifiedDB.Commit(VerifiedResult{
+		err := h.commitVerified(VerifiedResult{
 			Timestamp:   1000,
 			L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Number: 100, Hash: common.HexToHash("0x1")}},
 		})
 		require.NoError(t, err)
-		err = h.interop.verifiedDB.Commit(VerifiedResult{
+		err = h.commitVerified(VerifiedResult{
 			Timestamp:   1001,
 			L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Number: 101, Hash: common.HexToHash("0x2")}},
@@ -2397,7 +2490,7 @@ func TestRewindAccepted(t *testing.T) {
 		mockA := h.Mock(10)
 		mockB := h.Mock(8453)
 
-		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+		require.NoError(t, h.commitVerified(VerifiedResult{
 			Timestamp:   1000,
 			L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
 			L2Heads: map[eth.ChainID]eth.BlockID{
@@ -2405,7 +2498,7 @@ func TestRewindAccepted(t *testing.T) {
 				mockB.id: {Number: 200, Hash: common.HexToHash("0xb1")},
 			},
 		}))
-		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+		require.NoError(t, h.commitVerified(VerifiedResult{
 			Timestamp:   1001,
 			L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
 			L2Heads: map[eth.ChainID]eth.BlockID{
@@ -2435,12 +2528,12 @@ func TestRewindAccepted(t *testing.T) {
 			Build()
 
 		mock := h.Mock(10)
-		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+		require.NoError(t, h.commitVerified(VerifiedResult{
 			Timestamp:   1000,
 			L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
 			L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 100, Hash: common.HexToHash("0xa1")}},
 		}))
-		require.NoError(t, h.interop.verifiedDB.Commit(VerifiedResult{
+		require.NoError(t, h.commitVerified(VerifiedResult{
 			Timestamp:   1001,
 			L1Inclusion: eth.BlockID{Number: 51, Hash: common.HexToHash("0xL1b")},
 			L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 101, Hash: common.HexToHash("0xa2")}},
@@ -2459,7 +2552,7 @@ func TestRewindAccepted(t *testing.T) {
 		chainID := h.Mock(10).id
 
 		// Commit one result at activation timestamp
-		err := h.interop.verifiedDB.Commit(VerifiedResult{
+		err := h.commitVerified(VerifiedResult{
 			Timestamp:   1000,
 			L1Inclusion: eth.BlockID{Number: 50},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Number: 100}},
@@ -2480,6 +2573,44 @@ func TestRewindAccepted(t *testing.T) {
 
 		// logsDB should be cleared (no previous frontier to rewind to)
 		require.True(t, trackingDB.clearCalled > 0, "logsDB should be cleared when rewinding to empty")
+	})
+
+	t.Run("full rewind captures reset payloads before clearing verified frontier", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.pruneDeniedResult = map[uint64][]common.Hash{
+					1000: {common.HexToHash("0xdenied")},
+				}
+			}).
+			Build()
+
+		mock := h.Mock(10)
+		chainID := mock.id
+
+		require.NoError(t, h.commitVerified(VerifiedResult{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 50},
+			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Number: 1000, Hash: common.BigToHash(big.NewInt(1000))}},
+		}))
+
+		trackingDB := &mockLogsDBWithState{
+			latestBlock: eth.BlockID{Number: 1000},
+			hasBlocks:   true,
+		}
+		h.interop.logsDBs[chainID] = trackingDB
+
+		plan, err := h.interop.buildRewindPlan(1000)
+		require.NoError(t, err)
+		require.NotNil(t, plan.ResetAllChainsTo)
+		require.Equal(t, uint64(999), *plan.ResetAllChainsTo)
+		require.NotNil(t, plan.TargetPayloads[chainID])
+		require.Equal(t, uint64(999), uint64(plan.TargetPayloads[chainID].ExecutionPayload.Timestamp))
+
+		err = h.interop.applyRewindPlan(plan)
+		require.NoError(t, err)
+		require.True(t, trackingDB.clearCalled > 0, "logsDB should be cleared when rewinding to empty")
+		require.Equal(t, []uint64{999}, mock.rewindEngineCalls)
+		require.Same(t, plan.TargetPayloads[chainID], mock.lastRewindEngineTarget)
 	})
 }
 
@@ -2660,7 +2791,7 @@ func TestResetIsNoOp(t *testing.T) {
 		Build()
 
 	mock := h.Mock(10)
-	err := h.interop.verifiedDB.Commit(VerifiedResult{
+	err := h.commitVerified(VerifiedResult{
 		Timestamp:   1000,
 		L1Inclusion: eth.BlockID{Number: 50},
 		L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 100}},
@@ -2696,7 +2827,7 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 
 		// Commit some verified results so the DB is non-empty
 		for ts := uint64(100); ts <= 110; ts++ {
-			err := h.interop.verifiedDB.Commit(VerifiedResult{
+			err := h.commitVerified(VerifiedResult{
 				Timestamp:   ts,
 				L1Inclusion: eth.BlockID{Number: ts + 1000},
 				L2Heads:     map[eth.ChainID]eth.BlockID{h.Mock(10).id: {Number: ts}},
@@ -2723,7 +2854,7 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 			if ts == 1005 {
 				l2Head = expectedL2
 			}
-			err := h.interop.verifiedDB.Commit(VerifiedResult{
+			err := h.commitVerified(VerifiedResult{
 				Timestamp:   ts,
 				L1Inclusion: eth.BlockID{Number: ts * 10},
 				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: l2Head},
@@ -2759,7 +2890,7 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 		chainID := h.Mock(10).id
 		// LastTimestamp is cached, so the scan still enters the loop after Close.
 		for tsCommit := uint64(1000); tsCommit <= 1003; tsCommit++ {
-			err := h.interop.verifiedDB.Commit(VerifiedResult{
+			err := h.commitVerified(VerifiedResult{
 				Timestamp:   tsCommit,
 				L1Inclusion: eth.BlockID{Number: 5},
 				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.Hash{byte(tsCommit)}, Number: tsCommit}},
@@ -2784,7 +2915,7 @@ func TestLatestVerifiedL2Block_ClosedDBSurfacesError(t *testing.T) {
 
 	chainID := h.Mock(10).id
 	for tsCommit := uint64(1000); tsCommit <= 1003; tsCommit++ {
-		err := h.interop.verifiedDB.Commit(VerifiedResult{
+		err := h.commitVerified(VerifiedResult{
 			Timestamp:   tsCommit,
 			L1Inclusion: eth.BlockID{Number: 5},
 			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.Hash{byte(tsCommit)}, Number: tsCommit}},

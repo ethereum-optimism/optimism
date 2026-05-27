@@ -650,11 +650,22 @@ func (i *Interop) newInvalidHead(chainID eth.ChainID, blockID eth.BlockID) (Inva
 
 func (i *Interop) buildPendingTransition(output StepOutput, obs RoundObservation) (PendingTransition, error) {
 	switch output.Decision {
-	case DecisionAdvance, DecisionInvalidate:
+	case DecisionAdvance:
 		result := output.Result
 		return PendingTransition{
 			Decision: output.Decision,
 			Result:   &result,
+		}, nil
+	case DecisionInvalidate:
+		result := output.Result
+		parentPayloads, err := i.captureInvalidationParentPayloads(result.InvalidHeads)
+		if err != nil {
+			return PendingTransition{}, fmt.Errorf("capture invalidation parent payloads: %w", err)
+		}
+		return PendingTransition{
+			Decision:                   output.Decision,
+			Result:                     &result,
+			InvalidationParentPayloads: parentPayloads,
 		}, nil
 	case DecisionRewind:
 		rewindPlan, err := i.buildRewindPlan(*obs.LastVerifiedTS)
@@ -668,6 +679,37 @@ func (i *Interop) buildPendingTransition(output StepOutput, obs RoundObservation
 	default:
 		return PendingTransition{}, fmt.Errorf("unsupported transition decision: %v", output.Decision)
 	}
+}
+
+// captureInvalidationParentPayloads fetches, for every invalidated chain, the canonical
+// parent payload (height-1) the rewind will restore as the new unsafe head. The payloads
+// are persisted in the WAL so apply does not depend on the live EL still having them.
+// Any fetch failure aborts the build; the decision will be re-evaluated next round.
+func (i *Interop) captureInvalidationParentPayloads(invalidHeads map[eth.ChainID]InvalidHead) (map[eth.ChainID]*eth.ExecutionPayloadEnvelope, error) {
+	if len(invalidHeads) == 0 {
+		return nil, nil
+	}
+	parents := make(map[eth.ChainID]*eth.ExecutionPayloadEnvelope, len(invalidHeads))
+	for chainID, head := range invalidHeads {
+		if head.BlockID.Number == 0 {
+			return nil, fmt.Errorf("chain %s: cannot invalidate genesis block (height=0)", chainID)
+		}
+		chain, ok := i.chains[chainID]
+		if !ok {
+			return nil, fmt.Errorf("chain %s: not configured", chainID)
+		}
+		invalidatedRef, err := chain.PayloadByHash(i.ctx, head.BlockID.Hash)
+		if err != nil {
+			return nil, fmt.Errorf("chain %s: fetch invalidated block %s: %w", chainID, head.BlockID.Hash, err)
+		}
+		parentEnvelope, err := chain.PayloadByHash(i.ctx, invalidatedRef.ExecutionPayload.ParentHash)
+		if err != nil {
+			return nil, fmt.Errorf("chain %s: fetch parent payload %s: %w",
+				chainID, invalidatedRef.ExecutionPayload.ParentHash, err)
+		}
+		parents[chainID] = parentEnvelope
+	}
+	return parents, nil
 }
 
 func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error) {
@@ -723,7 +765,17 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		}
 		var failedAny bool
 		for _, p := range invalidations {
-			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot); err != nil {
+			parentPayload, ok := pending.InvalidationParentPayloads[p.ChainID]
+			if !ok || parentPayload == nil {
+				// Build path guarantees a parent payload for every invalidated chain.
+				// Missing here means a malformed (older-format / corrupted) WAL record —
+				// surface and preserve the transition for operator intervention.
+				i.log.Error("invalidation parent payload missing from WAL — invalidation cannot proceed",
+					"chain", p.ChainID, "block", p.BlockID)
+				failedAny = true
+				continue
+			}
+			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot, parentPayload); err != nil {
 				i.log.Error("invalidation failed, transition preserved for retry on restart",
 					"chain", p.ChainID, "block", p.BlockID, "err", err)
 				failedAny = true
@@ -810,6 +862,13 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		return RewindPlan{}, err
 	}
 	if lastTS <= first {
+		if plan.ResetAllChainsTo != nil {
+			payloads, err := i.captureRewindPayloadsAtTimestamp(*plan.ResetAllChainsTo)
+			if err != nil {
+				return RewindPlan{}, fmt.Errorf("capture reset target payloads at %d: %w", *plan.ResetAllChainsTo, err)
+			}
+			plan.TargetPayloads = payloads
+		}
 		return plan, nil
 	}
 
@@ -819,7 +878,55 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 		return RewindPlan{}, fmt.Errorf("read previous verified result at %d: %w", rewindTargetTS, err)
 	}
 	plan.TargetHeads = prevResult.L2Heads
+
+	// Capture each chain's target payload while it is still canonical. Any failure aborts
+	// the build; the decision will be re-evaluated next round.
+	if plan.ResetAllChainsTo != nil && len(plan.TargetHeads) > 0 {
+		payloads, err := i.captureRewindPayloadsForHeads(plan.TargetHeads, rewindTargetTS)
+		if err != nil {
+			return RewindPlan{}, err
+		}
+		plan.TargetPayloads = payloads
+	}
+
 	return plan, nil
+}
+
+func (i *Interop) captureRewindPayloadsForHeads(heads map[eth.ChainID]eth.BlockID, timestamp uint64) (map[eth.ChainID]*eth.ExecutionPayloadEnvelope, error) {
+	if len(heads) == 0 {
+		return nil, nil
+	}
+	payloads := make(map[eth.ChainID]*eth.ExecutionPayloadEnvelope, len(heads))
+	for chainID, head := range heads {
+		chain, ok := i.chains[chainID]
+		if !ok {
+			return nil, fmt.Errorf("chain %s referenced in target heads but not configured", chainID)
+		}
+		envelope, err := chain.PayloadByHash(i.ctx, head.Hash)
+		if err != nil {
+			return nil, fmt.Errorf("chain %s: fetch target payload %s for rewind to ts=%d: %w",
+				chainID, head.Hash, timestamp, err)
+		}
+		payloads[chainID] = envelope
+	}
+	return payloads, nil
+}
+
+func (i *Interop) captureRewindPayloadsAtTimestamp(timestamp uint64) (map[eth.ChainID]*eth.ExecutionPayloadEnvelope, error) {
+	payloads := make(map[eth.ChainID]*eth.ExecutionPayloadEnvelope, len(i.chains))
+	for chainID, chain := range i.chains {
+		number, err := chain.TimestampToBlockNumber(i.ctx, timestamp)
+		if err != nil {
+			return nil, fmt.Errorf("chain %s: compute rewind target number for timestamp %d: %w", chainID, timestamp, err)
+		}
+		envelope, err := chain.PayloadByNumber(i.ctx, number)
+		if err != nil {
+			return nil, fmt.Errorf("chain %s: fetch reset target payload number %d for timestamp %d: %w",
+				chainID, number, timestamp, err)
+		}
+		payloads[chainID] = envelope
+	}
+	return payloads, nil
 }
 
 func (i *Interop) shouldResetEnginesOnRewind(timestamp uint64) (bool, error) {
@@ -907,9 +1014,20 @@ func (i *Interop) resetChainEnginesIfNeeded(plan RewindPlan, sortedChainIDs []et
 		return
 	}
 	for _, chainID := range sortedChainIDs {
+		target, ok := plan.TargetPayloads[chainID]
+		if !ok {
+			// The build path guarantees a TargetPayloads entry for every chain in TargetHeads.
+			// If we get here, the WAL record is malformed (older format or corruption) — surface
+			// it rather than re-deriving from the live EL, which could pick up a stale synthetic
+			// block from a prior crashed attempt.
+			recordErr(fmt.Errorf("chain %s: missing target payload in WAL'd rewind plan (rewindToTimestamp=%d)",
+				chainID, *plan.ResetAllChainsTo))
+			continue
+		}
 		i.log.Warn("rewinding chain engine after pruning deny-list entries",
-			"chain", chainID, "rewindToTimestamp", *plan.ResetAllChainsTo)
-		if err := i.chains[chainID].RewindEngine(i.ctx, *plan.ResetAllChainsTo, eth.BlockRef{}); err != nil {
+			"chain", chainID, "rewindToTimestamp", *plan.ResetAllChainsTo,
+			"targetHash", target.ExecutionPayload.BlockHash)
+		if err := i.chains[chainID].RewindEngine(i.ctx, target, eth.BlockRef{}); err != nil {
 			i.log.Error("failed to reset chain engine after pruning deny-list entries", "chain", chainID, "err", err)
 			recordErr(fmt.Errorf("chain %s: reset chain engine after pruning deny-list entries: %w", chainID, err))
 		}
@@ -1142,12 +1260,13 @@ func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock 
 }
 
 // invalidateBlock notifies the chain container to add the block to the denylist
-// and potentially rewind if the chain is currently using that block.
-func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) error {
+// and potentially rewind if the chain is currently using that block. parentPayload
+// is the canonical payload at the rewind destination (height-1), captured from the WAL.
+func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) error {
 	chain, ok := i.chains[chainID]
 	if !ok {
 		return fmt.Errorf("chain %s not found", chainID)
 	}
-	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp, stateRoot, messagePasserStorageRoot)
+	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp, stateRoot, messagePasserStorageRoot, parentPayload)
 	return err
 }

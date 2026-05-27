@@ -4,31 +4,37 @@
 /// if any of them fail. The type of the error in the [`NodeActor`](crate::NodeActor)s is erased to
 /// avoid having to specify a common error type between actors.
 ///
-/// Actors are passed in as optional arguments, in case a given actor is not needed.
+/// Actors are passed in as `Option<actor>`. Each actor's [`step`](crate::NodeActor::step) method is
+/// called in a loop, with external cancellation via the provided
+/// [`CancellationToken`](tokio_util::sync::CancellationToken).
 ///
 /// This macro also handles OS shutdown signals (SIGTERM, SIGINT) and triggers graceful shutdown
 /// when received.
 macro_rules! spawn_and_wait {
-    ($cancellation:expr, actors = [$($actor:expr$(,)?)*]) => {
+    ($cancellation:expr, actors = [$($actor:expr),* $(,)?]) => {
         let mut task_handles = tokio::task::JoinSet::new();
 
-        // Check if the actor is present, and spawn it if it is.
         $(
-            if let Some((actor, context)) = $actor {
+            if let Some(mut actor) = $actor {
                 let cancellation = $cancellation.clone();
                 task_handles.spawn(async move {
-                    // This guard ensures that the cancellation token is cancelled when the actor is
-                    // dropped. This ensures that the actor is properly shut down.
-                    // Note the underscore prefix: this is to signal that we don't use the guard anywhere, but
-                    // *the compiler shouldn't optimize it away*.
-                    // Note that using a simple `_` would not work here because it gets optimized away in
-                    // release mode.
-                    let _guard = cancellation.drop_guard();
-
-                    if let Err(e) = actor.start(context).await {
-                        return Err(format!("{e:?}"));
+                    // This guard ensures that the cancellation token is cancelled when the actor
+                    // task exits for any reason. This ensures peer actors observe shutdown on
+                    // their next macro-level `select!`.
+                    // Note the underscore prefix: this is to signal that we don't use the guard
+                    // anywhere, but *the compiler shouldn't optimize it away*. Note that using a
+                    // simple `_` would not work here because it gets optimized away in release
+                    // mode.
+                    let _guard = cancellation.clone().drop_guard();
+                    loop {
+                        tokio::select! {
+                            biased;
+                            _ = cancellation.cancelled() => return Ok(()),
+                            result = actor.step() => {
+                                result.map_err(|e| format!("{e:?}"))?;
+                            }
+                        }
                     }
-                    Ok(())
                 });
             }
         )*
