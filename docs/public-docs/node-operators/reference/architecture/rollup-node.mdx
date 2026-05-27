@@ -26,7 +26,7 @@ These are the two fundamental components of an OP Stack rollup node:
 Now, you are ready to build your OP Stack rollup node. You have two options for this:
 
   *   **Option 1:** Follow the [Running a Node with Docker](/node-operators/tutorials/node-from-docker) tutorial, which gets your OP Stack rollup node up and running without having to build it from source.
-  *   **Option 2:** Follow the [Building a Node from Source](/node-operators/tutorials/node-from-source) tutorial, if you need to use a specific architecture or want to inspect the source code of your OP Stack rollup node.
+  *   **Option 2:** Follow the [Building and running an OP Stack node from source](/node-operators/tutorials/run-node-from-source) tutorial, if you need to use a specific architecture or want to inspect the source code of your OP Stack rollup node.
 
 
   </Step></Steps>
@@ -61,12 +61,7 @@ Now, you will run your node and set your node debugging log level for more granu
   <Step title="Run Your Node From Source">
 You will now run your node from source for your OP Stack network. Here are your options.
 
-  <Info>
-    The tutorial [Building a Node from Source](/node-operators/tutorials/node-from-source) is a **pre-requisite** to running your node from source and must be completed first.
-  </Info>
-
-  *   **Option 1:** Follow the [Running an OP Sepolia Node from Source](/node-operators/tutorials/run-node-from-source) tutorial.
-  *   **Option 2:** Follow the [Running an OP Mainnet Node from Source](/node-operators/tutorials/run-node-from-source) tutorial, if you plan to run a full node or archive node.
+  *   Follow the [Building and running an OP Stack node from source](/node-operators/tutorials/run-node-from-source) tutorial, which covers both building and running on OP Sepolia or OP Mainnet (full or archive node).
 
   </Step>
 
@@ -120,11 +115,11 @@ It is important to regularly monitor your node, and you can optionally configure
   Head over to GitHub to [suggest a new tutorial](https://github.com/ethereum-optimism/optimism/issues/new?assignees=\&labels=tutorial%2Cdocumentation%2Ccommunity-request\&projects=\&template=suggest_tutorial.yaml\&title=%5BTUTORIAL%5D+Add+PR+title).
 </Info>
 
-| Tutorial Name                                                           | Description                                            | Difficulty Level |
-| ----------------------------------------------------------------------- | ------------------------------------------------------ | ---------------- |
-| [Running a node with docker](/node-operators/tutorials/node-from-docker)                | Learn how to run a node with Docker.                   | 🟢 Easy          |
-| [Building an OP Stack node from source](/node-operators/tutorials/node-from-source)    | Learn how to compile node components from source code. | 🟢 Easy          |
-| [Running an OP Stack node from source](/node-operators/tutorials/run-node-from-source) | Learn how to run an OP Stack node from source code.   | 🟡 Medium        |
+| Tutorial Name                                                           | Description                                                  | Difficulty Level |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------ | ---------------- |
+| [Running a node with docker](/node-operators/tutorials/node-from-docker)                | Learn how to run a node with Docker.                         | 🟢 Easy          |
+| [Building and running an OP Stack node from source](/node-operators/tutorials/run-node-from-source) | Compile and run op-node + op-reth (or Nethermind) from source. | 🟡 Medium        |
+| [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs) | Configure op-reth's proofs-history store for permissionless withdrawal proving. | 🟠 Advanced      |
 
 ## Next steps
 
