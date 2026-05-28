@@ -623,6 +623,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         return _errors;
     }
 
+    /// @notice Internal function to get the game implementation and decode game args for a given game type.
+    ///        Returns a boolean indicating whether the retrieval and decoding of the game implementation failed
     function getGameImplementation(
         string memory _initialErrors,
         GameType _gameType,
@@ -658,6 +660,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         return (gameImpl_, errors_, failed_);
     }
 
+    /// @notice Internal function to get the game implementation and decode game args for a super permissioned game.
+    ///        Returns a boolean indicating whether the length check failed, since this is used as a guard
     function getSuperPermissionedGameImplementation(
         string memory _initialErrors,
         ISystemConfig _sysCfg,
