@@ -270,7 +270,6 @@ func (e *simpleEngineController) verifyRewindState(ctx context.Context, targetUn
 // forkchoiceUpdateWithRetry sends a forkchoice update and then verifies that the engine state
 // matches the expected values. If the state hasn't converged (e.g. due to an execution layer
 // race condition like reth#23205), it sleeps and retries the FCU up to maxFCUAttempts.
-// TODO(#19772): track whether this workaround is going to be permanent or temporary.
 func (e *simpleEngineController) forkchoiceUpdateWithRetry(ctx context.Context, head, safe, finalized common.Hash) error {
 	for attempt := 1; attempt <= maxFCUAttempts; attempt++ {
 		if err := e.forkchoiceUpdate(ctx, head, safe, finalized); err != nil {
