@@ -1039,11 +1039,14 @@ func TestEngineController_FinalizedHeadAheadOfLocalFinalUsesLocalFinal(t *testin
 }
 
 func TestEngineController_FinalizedHeadUsesCachedSuperAuthorityFinalizedWhenAuthorityRegresses(t *testing.T) {
+	authorityBlock := eth.BlockID{Hash: common.Hash{0xbb}, Number: 40}
+	authorityRef := eth.L2BlockRef{Hash: authorityBlock.Hash, Number: authorityBlock.Number}
 	superAuth := &mockSuperAuthority{
-		finalizedL2Head:       eth.BlockID{Hash: common.Hash{0xbb}, Number: 40},
+		finalizedL2Head:       authorityBlock,
 		finalizedL2HeadSource: rollup.VerifierHeadVerified,
 	}
 	mockEngine := &testutils.MockEngine{}
+	mockEngine.ExpectL2BlockRefByHash(authorityBlock.Hash, authorityRef, nil)
 	emitter := &testutils.MockEmitter{}
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
 	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100})
@@ -1056,11 +1059,14 @@ func TestEngineController_FinalizedHeadUsesCachedSuperAuthorityFinalizedWhenAuth
 }
 
 func TestEngineController_FinalizedHeadPanicsOnCachedSuperAuthoritySameHeightConflict(t *testing.T) {
+	authorityBlock := eth.BlockID{Hash: common.Hash{0xbb}, Number: 50}
+	authorityRef := eth.L2BlockRef{Hash: authorityBlock.Hash, Number: authorityBlock.Number}
 	superAuth := &mockSuperAuthority{
-		finalizedL2Head:       eth.BlockID{Hash: common.Hash{0xbb}, Number: 50},
+		finalizedL2Head:       authorityBlock,
 		finalizedL2HeadSource: rollup.VerifierHeadVerified,
 	}
 	mockEngine := &testutils.MockEngine{}
+	mockEngine.ExpectL2BlockRefByHash(authorityBlock.Hash, authorityRef, nil)
 	emitter := &testutils.MockEmitter{}
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
 	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100})
@@ -1070,6 +1076,33 @@ func TestEngineController_FinalizedHeadPanicsOnCachedSuperAuthoritySameHeightCon
 	require.PanicsWithValue(t, "superAuthority finalized head conflicts with cached superAuthority finalized head at same height", func() {
 		ec.FinalizedHead()
 	})
+}
+
+// TestEngineController_FinalizedHeadAnchorDoesNotRegressCache locks in the
+// monotonicity guarantee for the Anchor branch: once a Verified result has
+// populated the cache, a subsequent Anchor result behind the cache must not
+// regress it.
+func TestEngineController_FinalizedHeadAnchorDoesNotRegressCache(t *testing.T) {
+	cfg := &rollup.Config{BlockTime: 2}
+	// Anchor cap timestamp 999 → block 499 with BlockTime=2.
+	anchorRef := eth.L2BlockRef{Hash: common.Hash{0xa1}, Number: 499}
+	cached := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 1000}
+	superAuth := &mockSuperAuthority{
+		finalizedL2HeadSource: rollup.VerifierHeadAnchor,
+		finalizedTimestamp:    999,
+	}
+	mockEngine := &testutils.MockEngine{}
+	mockEngine.ExpectL2BlockRefByNumber(uint64(499), anchorRef, nil)
+	emitter := &testutils.MockEmitter{}
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
+	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 2000})
+	ec.SetFinalizedHead(eth.L2BlockRef{Hash: common.Hash{0xff}, Number: 1500})
+	ec.superAuthorityFinalizedHead = cached
+
+	require.Equal(t, cached, ec.FinalizedHead(),
+		"Anchor result behind the cache must not regress FinalizedHead")
+	require.Equal(t, cached, ec.superAuthorityFinalizedHead,
+		"cache must not be overwritten with a regressing Anchor result")
 }
 
 // TestTryUpdateEngine_SyncingInCLModeTriggersReset tests that when the EL returns SYNCING

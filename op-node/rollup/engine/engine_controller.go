@@ -331,20 +331,6 @@ func (e *EngineController) resolveVerifiedAsFinalized(block eth.BlockID) eth.L2B
 	if block.Number > e.localFinalizedHead.Number {
 		return e.localFinalizedHead
 	}
-	if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
-		if block == e.superAuthorityFinalizedHead.ID() {
-			return e.superAuthorityFinalizedHead
-		}
-		if block.Number < e.superAuthorityFinalizedHead.Number {
-			e.log.Warn("super authority finalized behind cached; using cache",
-				"super_authority_finalized", block,
-				"cached_super_authority_finalized", e.superAuthorityFinalizedHead)
-			return e.superAuthorityFinalizedHead
-		}
-		if block.Number == e.superAuthorityFinalizedHead.Number {
-			panic("superAuthority finalized head conflicts with cached superAuthority finalized head at same height")
-		}
-	}
 	br, err := e.engine.L2BlockRefByHash(e.ctx, block.Hash)
 	if err != nil {
 		if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
@@ -357,8 +343,7 @@ func (e *EngineController) resolveVerifiedAsFinalized(block eth.BlockID) eth.L2B
 			"super_authority_finalized", block, "err", err)
 		return eth.L2BlockRef{}
 	}
-	e.superAuthorityFinalizedHead = br
-	return br
+	return e.applyFinalizedHeadCacheChecks(br, "verified")
 }
 
 // resolveAnchorAsFinalized handles the Anchor branch of FinalizedHead.
@@ -371,6 +356,9 @@ func (e *EngineController) resolveAnchorAsFinalized(ts uint64) eth.L2BlockRef {
 		}
 		return eth.L2BlockRef{}
 	}
+	if num > e.localFinalizedHead.Number {
+		return e.localFinalizedHead
+	}
 	br, err := e.engine.L2BlockRefByNumber(e.ctx, num)
 	if err != nil {
 		e.log.Warn("cannot resolve finalized anchor block", "ts", ts, "num", num, "err", err)
@@ -379,8 +367,31 @@ func (e *EngineController) resolveAnchorAsFinalized(ts uint64) eth.L2BlockRef {
 		}
 		return eth.L2BlockRef{}
 	}
+	return e.applyFinalizedHeadCacheChecks(br, "anchor")
+}
+
+// applyFinalizedHeadCacheChecks validates a freshly resolved SuperAuthority
+// finalized head against localFinalizedHead and superAuthorityFinalizedHead,
+// returns the head to publish, and updates the cache when the head advances.
+// Finalized is monotonic by contract: we never let either branch (verified or
+// anchor) regress a previously cached value, and we panic on same-height
+// different-hash conflicts.
+func (e *EngineController) applyFinalizedHeadCacheChecks(br eth.L2BlockRef, source string) eth.L2BlockRef {
 	if br.Number > e.localFinalizedHead.Number {
 		return e.localFinalizedHead
+	}
+	if cached := e.superAuthorityFinalizedHead; cached != (eth.L2BlockRef{}) {
+		if br.ID() == cached.ID() {
+			return cached
+		}
+		if br.Number < cached.Number {
+			e.log.Warn("super authority finalized behind cached; using cache",
+				"source", source, "super_authority_finalized", br, "cached_super_authority_finalized", cached)
+			return cached
+		}
+		if br.Number == cached.Number {
+			panic("superAuthority finalized head conflicts with cached superAuthority finalized head at same height")
+		}
 	}
 	e.superAuthorityFinalizedHead = br
 	return br
