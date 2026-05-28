@@ -675,4 +675,4 @@ rocksdb = { version = "0.24.0", default-features = false }
 # git deps because the workspace version is unchanged. Remove once the fix lands upstream and
 # the pin advances past it.
 [patch."https://github.com/paradigmxyz/reth"]
-reth-tasks = { git = "https://github.com/einar-oplabs/reth", rev = "f4f2a75d8410bb1dfc1c67fecd8525f26b219aa5" }
+reth-tasks = { git = "https://github.com/einar-oplabs/reth", rev = "82d97a60e071754c450e2411459341ed20192b26" }
