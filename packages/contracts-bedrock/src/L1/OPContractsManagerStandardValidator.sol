@@ -538,10 +538,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         );
 
         // Challenger is specific to legacy permissioned dispute game contracts.
-        if (_gameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
-            address _challenger = expectedChallenger(_overrides);
-            _errors = internalRequire(gameImpl.challenger == _challenger, string.concat(_errorPrefix, "-130"), _errors);
-        }
+        address _challenger = expectedChallenger(_overrides);
+        _errors = internalRequire(gameImpl.challenger == _challenger, string.concat(_errorPrefix, "-130"), _errors);
         _errors = internalRequire(gameImpl.proposer == _proposer, string.concat(_errorPrefix, "-140"), _errors);
 
         return _errors;
