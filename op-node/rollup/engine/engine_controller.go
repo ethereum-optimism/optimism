@@ -329,6 +329,8 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 // resolveVerifiedAsFinalized handles the Verified branch of FinalizedHead.
 func (e *EngineController) resolveVerifiedAsFinalized(block eth.BlockID) eth.L2BlockRef {
 	if block.Number > e.localFinalizedHead.Number {
+		e.log.Warn("super authority finalized a block ahead of local finalized; using local finalized",
+			"super_authority_finalized", block, "local_finalized", e.localFinalizedHead)
 		return e.localFinalizedHead
 	}
 	br, err := e.engine.L2BlockRefByHash(e.ctx, block.Hash)
@@ -357,6 +359,8 @@ func (e *EngineController) resolveAnchorAsFinalized(ts uint64) eth.L2BlockRef {
 		return eth.L2BlockRef{}
 	}
 	if num > e.localFinalizedHead.Number {
+		e.log.Warn("super authority finalized a block ahead of local finalized; using local finalized",
+			"super_authority_finalized", num, "local_finalized", e.localFinalizedHead)
 		return e.localFinalizedHead
 	}
 	br, err := e.engine.L2BlockRefByNumber(e.ctx, num)
@@ -377,9 +381,6 @@ func (e *EngineController) resolveAnchorAsFinalized(ts uint64) eth.L2BlockRef {
 // anchor) regress a previously cached value, and we panic on same-height
 // different-hash conflicts.
 func (e *EngineController) applyFinalizedHeadCacheChecks(br eth.L2BlockRef, source string) eth.L2BlockRef {
-	if br.Number > e.localFinalizedHead.Number {
-		return e.localFinalizedHead
-	}
 	if cached := e.superAuthorityFinalizedHead; cached != (eth.L2BlockRef{}) {
 		if br.ID() == cached.ID() {
 			return cached
