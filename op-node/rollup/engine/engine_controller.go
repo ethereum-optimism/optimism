@@ -195,18 +195,48 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 	}
 }
 
-// SafeL2Head returns the safe L2 head. With a SuperAuthority registered, the
-// result is bounded by local-safe and validated against the EL where
-// applicable. On a transient verifier read failure or any reorg signal, the
-// cross-safe fallback is used.
+// Head layers
+//
+// Three distinct layers feed the engine forkchoice. The public accessors
+// (SafeL2Head, FinalizedHead) return the PUBLISHED head and must not be
+// confused with the lower layers:
+//
+//   - local:     what THIS node derived/verified from L1 for its own chain
+//                (localSafeHead, localFinalizedHead). Never gated on other chains.
+//   - cross:     what the SuperAuthority (interop verifier) attests across the
+//                dependency set. Bounded by the slowest chain, and may be
+//                temporarily unavailable (e.g. cold start) — in which case we
+//                hold the previous value rather than regress.
+//   - published: what we send the EL via forkchoice — a reconciliation of the
+//                local and cross layers under the EL invariants. This is what
+//                SafeL2Head / FinalizedHead return.
+//
+// When no SuperAuthority is configured (standalone op-node) the cross layer
+// does not exist, so the published head collapses to the local (or, in
+// FollowSource mode, the source-followed) head.
+
+// SafeL2Head returns the published safe head sent to the engine.
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	if e.superAuthority == nil {
-		if e.syncCfg.FollowSourceEnabled() {
-			return e.deprecatedSafeHead
-		} else {
-			return e.localSafeHead
-		}
+		return e.standaloneSafeHead()
 	}
+	return e.crossSafeHead()
+}
+
+// standaloneSafeHead is the published safe head when no SuperAuthority is
+// configured: the source-followed head in FollowSource mode, else local-safe.
+func (e *EngineController) standaloneSafeHead() eth.L2BlockRef {
+	if e.syncCfg.FollowSourceEnabled() {
+		return e.deprecatedSafeHead
+	}
+	return e.localSafeHead
+}
+
+// crossSafeHead resolves the published safe head from the SuperAuthority's
+// cross-safe view: bounded by local-safe and validated against the EL. On a
+// transient verifier read failure or any reorg signal it holds the previous
+// value via crossSafeFallback.
+func (e *EngineController) crossSafeHead() eth.L2BlockRef {
 	head, ok := e.superAuthority.FullyVerifiedL2Head(e.ctx)
 	if !ok {
 		return e.crossSafeFallback("HoldPrevious")
@@ -293,19 +323,31 @@ func (e *EngineController) isCanonical(target eth.L2BlockRef) (ok bool, canonica
 	return canonical.Hash == target.Hash, canonical, nil
 }
 
-// FinalizedHead returns the finalized L2 head, bounded by local-finalized
-// (the SuperAuthority can delay finalization but cannot finalize a block the
-// node hasn't locally finalized). superAuthorityFinalizedHead caches the last
-// successful resolution and is trusted without re-validation — finalized
-// blocks cannot reorg.
+// FinalizedHead returns the published finalized head sent to the engine. It is
+// bounded by local-finalized: the SuperAuthority can delay finalization but
+// cannot finalize a block this node has not locally finalized.
 func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 	if e.superAuthority == nil {
-		if e.syncCfg.FollowSourceEnabled() {
-			return e.deprecatedFinalizedHead
-		} else {
-			return e.localFinalizedHead
-		}
+		return e.standaloneFinalizedHead()
 	}
+	return e.crossFinalizedHead()
+}
+
+// standaloneFinalizedHead is the published finalized head when no SuperAuthority
+// is configured: the source-followed head in FollowSource mode, else
+// local-finalized.
+func (e *EngineController) standaloneFinalizedHead() eth.L2BlockRef {
+	if e.syncCfg.FollowSourceEnabled() {
+		return e.deprecatedFinalizedHead
+	}
+	return e.localFinalizedHead
+}
+
+// crossFinalizedHead resolves the published finalized head from the
+// SuperAuthority. When the authority can't be read it holds the last cached
+// value (superAuthorityFinalizedHead); finalized blocks cannot reorg, so the
+// cache is trusted without re-validation.
+func (e *EngineController) crossFinalizedHead() eth.L2BlockRef {
 	head, ok := e.superAuthority.FinalizedL2Head(e.ctx)
 	if !ok {
 		if e.superAuthorityFinalizedHead != (eth.L2BlockRef{}) {
