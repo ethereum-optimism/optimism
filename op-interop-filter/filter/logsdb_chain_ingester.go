@@ -477,6 +477,21 @@ func (c *LogsDBChainIngester) runIngestion() {
 			continue
 		}
 
+		// Record chain tip and lag metrics
+		chainIDUint64, _ := c.chainID.Uint64()
+		c.metrics.RecordChainTip(chainIDUint64, head.NumberU64())
+		if nextBlock > 0 {
+			ingestedHead := nextBlock - 1
+			if head.NumberU64() > ingestedHead {
+				c.metrics.RecordTipLagBlocks(chainIDUint64, head.NumberU64()-ingestedHead)
+			} else {
+				c.metrics.RecordTipLagBlocks(chainIDUint64, 0)
+			}
+			if ts, ok := c.LatestTimestamp(); ok {
+				c.metrics.RecordIngestionLagSeconds(chainIDUint64, clock.SystemClock.Since(time.Unix(int64(ts), 0)).Seconds())
+			}
+		}
+
 		// Reorg detection: if head moved behind our progress, check hash
 		if head.NumberU64() < nextBlock {
 			c.log.Info("Chain head is behind ingestion progress, waiting for node to catch up",

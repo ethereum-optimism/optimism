@@ -1882,7 +1882,7 @@ func (m *mockChainContainer) PauseAndStopVN(ctx context.Context) error {
 	return m.pauseAndStopVNErr
 }
 func (m *mockChainContainer) RegisterVerifier(v activity.VerificationActivity) {}
-func (m *mockChainContainer) VerifierCurrentL1s() []eth.BlockID                { return nil }
+func (m *mockChainContainer) VerifierCurrentL1() (eth.BlockID, bool)           { return eth.BlockID{}, false }
 func (m *mockChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	// Simulate slow chains. Sleep is outside the lock so it doesn't block other
 	// concurrent mock operations during tests.
@@ -2838,7 +2838,9 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 		blockID, ts, err := h.interop.VerifiedBlockAtL1(h.Mock(10).id, eth.L1BlockRef{})
 		require.NoError(t, err)
 		require.Equal(t, eth.BlockID{}, blockID)
-		require.Equal(t, uint64(0), ts)
+		// Empty result returns the pre-activation cap (activationTimestamp-1)
+		// so the caller can resolve the canonical L2 anchor block.
+		require.Equal(t, h.interop.activationTimestamp-1, ts)
 	})
 
 	t.Run("non-zero l1Block finds matching entry", func(t *testing.T) {
@@ -2879,7 +2881,8 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 		blockID, ts, err := h.interop.VerifiedBlockAtL1(h.Mock(10).id, l1Block)
 		require.NoError(t, err)
 		require.Equal(t, eth.BlockID{}, blockID)
-		require.Equal(t, uint64(0), ts)
+		// Empty DB returns the pre-activation cap (activationTimestamp-1).
+		require.Equal(t, h.interop.activationTimestamp-1, ts)
 	})
 
 	t.Run("closed verifiedDB surfaces error", func(t *testing.T) {

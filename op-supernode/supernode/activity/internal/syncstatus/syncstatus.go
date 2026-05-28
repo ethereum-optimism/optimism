@@ -35,14 +35,14 @@ func Aggregate(ctx context.Context, log gethlog.Logger, chains map[eth.ChainID]c
 		}
 		statuses[chainID] = *status
 
-		// Get current L1s — the minimum L1 block that all derivation pipelines and verifiers have processed.
+		// Get current L1s — the minimum L1 block that all derivation pipelines and the verifier have processed.
 		// This informs callers that the chains' local views have considered at least up to this L1 block.
 		currentL1 := status.CurrentL1.ID()
 		if currentL1.Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
 			minCurrentL1 = currentL1
 		}
-		// Also consider the L1 progress of any registered verifiers.
-		for _, verifierL1 := range chain.VerifierCurrentL1s() {
+		// Also consider the L1 progress of the registered verifier, if any.
+		if verifierL1, ok := chain.VerifierCurrentL1(); ok {
 			if verifierL1.Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
 				minCurrentL1 = verifierL1
 			}

@@ -15,10 +15,12 @@ import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Types } from "src/libraries/Types.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -96,9 +98,20 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     }
 
     /// @notice Executes the current generated NUT bundle with any fork-specific wrappers.
+    ///         No-op when the bundle has already been applied to the forked chain.
     function _executeCurrentBundle() internal virtual {
+        if (_isCurrentBundleAlreadyApplied()) return;
         PastNUTBundles.ForkWrappers memory w = PastNUTBundles.wrappersForFork(currentFork);
         PastNUTBundles.executeWithWrappers(executeScript, w.pre, _currentBundleTxns(), w.post);
+    }
+
+    /// @notice Returns true when the current bundle has already been applied to the forked chain.
+    ///         Uses two checks: ConditionalDeployer exists (Karst ran) and this bundle's
+    ///         L2ContractsManager was deployed at its expected address.
+    function _isCurrentBundleAlreadyApplied() internal view returns (bool) {
+        if (Predeploys.CONDITIONAL_DEPLOYER.code.length == 0) return false;
+        address l2cm = PastNUTBundles.extractL2CM(_currentBundleTxns(), Constants.CURRENT_BUNDLE_PATH);
+        return l2cm.code.length > 0;
     }
 
     /// @notice Copies the cached current bundle transactions from storage to memory.
@@ -107,6 +120,21 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         txns_ = new NetworkUpgradeTxns.NetworkUpgradeTxn[](len);
         for (uint256 i = 0; i < len; i++) {
             txns_[i] = currentBundleTxns[i];
+        }
+    }
+
+    /// @notice Returns the expected implementation addresses for a list of predeploys.
+    /// @param _predeploys The list of predeploys.
+    /// @return expectedImpls_ The expected implementation addresses.
+    function _getExpectedImpls(PredeployState[] memory _predeploys)
+        internal
+        view
+        returns (address[] memory expectedImpls_)
+    {
+        expectedImpls_ = new address[](_predeploys.length);
+        for (uint256 i = 0; i < _predeploys.length; i++) {
+            address predeploy = _predeploys[i].predeploy;
+            expectedImpls_[i] = _getExpectedImplementation(predeploy, Predeploys.getName(predeploy));
         }
     }
 
@@ -640,25 +668,39 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
     bytes32 internal constant IMPLEMENTATION_SLOT = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
 
     /// @notice Tests that all predeploy implementations match expected addresses and have code.
-    function test_l2ForkUpgrade_implementationsMatch_succeeds() public {
+    function test_l2ForkUpgrade_implementationsMatch_succeeds() public virtual {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
-        // Execute upgrade
+        // Get StorageSetter implementation to filter out intermediate upgrade events
+        address storageSetterImpl = generateScript.findImplByName("StorageSetter");
+
+        // Execute bundle on forked L2
         _executeCurrentBundle();
 
         // Get active predeploys (non-proxied and disabled feature predeploys already filtered out)
         PredeployState[] memory predeploys = _getPreUpgradePredeploys();
+        address[] memory expectedImpls = _getExpectedImpls(predeploys);
 
         // Verify each predeploy's implementation
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            address predeploy = predeploys[i].predeploy;
+        _verifyImplementations(predeploys, expectedImpls);
+    }
+
+    function _verifyImplementations(
+        PredeployState[] memory _predeploys,
+        address[] memory _expectedImpls
+    )
+        internal
+        view
+    {
+        for (uint256 i = 0; i < _predeploys.length; i++) {
+            address predeploy = _predeploys[i].predeploy;
 
             // Get predeploy name
             string memory name = Predeploys.getName(predeploy);
 
             // Get expected implementation from config
-            address expectedImpl = _getExpectedImplementation(predeploy, name);
+            address expectedImpl = _expectedImpls[i];
 
             // Get actual implementation from proxy
             address actualImpl = address(uint160(uint256(vm.load(predeploy, IMPLEMENTATION_SLOT))));
@@ -688,12 +730,19 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
     bytes32 internal constant UPGRADED_EVENT_TOPIC = 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b;
 
     /// @notice Tests that all predeploy proxies emit the Upgraded event with correct implementation.
-    function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public {
+    function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public virtual {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
         // Get StorageSetter implementation to filter out intermediate upgrade events
         address storageSetterImpl = generateScript.findImplByName("StorageSetter");
+
+        // Skip when the bundle is already applied: Upgraded events are historical and cannot be
+        // replayed via vm.recordLogs()
+        if (_isCurrentBundleAlreadyApplied()) {
+            vm.skip(true);
+            return;
+        }
 
         // Start recording logs
         vm.recordLogs();
@@ -704,12 +753,29 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
         // Get all recorded logs
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
-        // Get active predeploys (non-proxied and disabled feature predeploys already filtered out)
+        // Get all upgradeable predeploys
         PredeployState[] memory predeploys = _getPreUpgradePredeploys();
+        address[] memory expectedImpls = _getExpectedImpls(predeploys);
 
         // Verify each predeploy emitted the Upgraded event
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            address predeploy = predeploys[i].predeploy;
+        _verifyEvents(predeploys, logs, expectedImpls, storageSetterImpl);
+    }
+
+    function _verifyEvents(
+        PredeployState[] memory _predeploys,
+        Vm.Log[] memory _logs,
+        address[] memory _expectedImpls,
+        address _storageSetterImpl
+    )
+        internal
+        view
+    {
+        for (uint256 i = 0; i < _predeploys.length; i++) {
+            address predeploy = _predeploys[i].predeploy;
+
+            if (_isFeaturePredeployAndDisabled(predeploy)) {
+                continue;
+            }
 
             // Get predeploy name
             string memory name = Predeploys.getName(predeploy);
@@ -719,17 +785,17 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 
             // Find the Upgraded event for this predeploy (skip StorageSetter events)
             bool foundEvent = false;
-            for (uint256 j = 0; j < logs.length; j++) {
+            for (uint256 j = 0; j < _logs.length; j++) {
                 // Check if this log is an Upgraded event from the current predeploy
                 if (
-                    logs[j].emitter == predeploy && logs[j].topics.length > 0
-                        && logs[j].topics[0] == UPGRADED_EVENT_TOPIC
+                    _logs[j].emitter == predeploy && _logs[j].topics.length > 0
+                        && _logs[j].topics[0] == UPGRADED_EVENT_TOPIC
                 ) {
                     // Decode the implementation address from the event
-                    address emittedImpl = address(uint160(uint256(logs[j].topics[1])));
+                    address emittedImpl = address(uint160(uint256(_logs[j].topics[1])));
 
                     // Skip StorageSetter upgrade events (intermediate step for initializable contracts)
-                    if (emittedImpl == storageSetterImpl) {
+                    if (emittedImpl == _storageSetterImpl) {
                         continue;
                     }
 
@@ -980,5 +1046,23 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
 
         _logReportSummary(totalGasUsed, totalGasLimit);
         _logAdjustments(measurements);
+    }
+}
+
+/// @title L2ForkUpgrade_DeterministicDeploymentProxy_Test
+/// @notice Sanity check that the forked L2 has the deterministic deployment proxy preinstall.
+contract L2ForkUpgrade_DeterministicDeploymentProxy_Test is CommonTest {
+    function setUp() public virtual override {
+        super.setUp();
+        skipIfNotL2ForkTest("L2ForkUpgrade: deterministic deployer test requires L2 fork");
+    }
+
+    /// @notice Arachnid's proxy must be deployed at the canonical address on forked L2 state.
+    function test_l2ForkUpgrade_deterministicDeploymentProxyExistence_succeeds() external view {
+        address proxy = Preinstalls.DeterministicDeploymentProxy;
+        assertNotEq(proxy.code.length, 0, "DeterministicDeploymentProxy must have code");
+        assertEq(
+            proxy.code, Preinstalls.DeterministicDeploymentProxyCode, "unexpected DeterministicDeploymentProxy bytecode"
+        );
     }
 }

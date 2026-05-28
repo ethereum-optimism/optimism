@@ -227,6 +227,30 @@ test-l2-fork-upgrade *ARGS:
 test-l2-fork-upgrade-rerun *ARGS:
   just test-l2-fork-upgrade {{ARGS}} --rerun -vvvv
 
+# Prepares the environment for L2CM activation (betanet fork) tests.
+# Env Vars:
+# - L2_FORK_RPC_URL must be set to a post-Karst betanet L2 RPC URL.
+# - L2_BLOCK_BEFORE_FORK must be set to the block right before the fork
+# - L2_FORK_BLOCK_NUMBER optional: pin to a block after the activation block (defaults to latest).
+prepare-l2cm-activation-env *ARGS:
+  #!/bin/bash
+  set -euo pipefail
+  export L2_FORK_TEST=true
+  export L2CM_ACTIVATION_TEST=true
+  export DEV_FEATURE__L2CM=true
+  export FOUNDRY_FORK_RETRIES=10
+  export FOUNDRY_FORK_RETRY_BACKOFF=1000
+  {{ARGS}} \
+  --match-path "test/L2/betanet-fork/**"
+
+# Runs L2CM activation (betanet fork) tests.
+# Usage: L2_FORK_RPC_URL=<url> L2_BLOCK_BEFORE_FORK=<block> just test-l2cm-activation-test [ARGS]
+test-l2cm-activation-test *ARGS:
+  just prepare-l2cm-activation-env "just test {{ARGS}}"
+
+test-l2cm-activation-test-rerun *ARGS:
+  just test-l2cm-activation-test {{ARGS}} --rerun -vvvv
+
 ########################################################
 #                        DEPLOY                        #
 ########################################################

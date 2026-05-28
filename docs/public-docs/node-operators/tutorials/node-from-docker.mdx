@@ -1,133 +1,232 @@
 ---
 title: Running a Node With Docker
-description: Learn how to run a node using Docker.
+description: Run an OP Stack node (op-reth + op-node) using the official Docker images and docker-compose.
 ---
 
-Using [Docker](https://docs.docker.com/engine/install/) is an easy way to run an OP Mainnet node.
-This tutorial will walk you through the process of using [`simple-optimism-node`](https://github.com/smartcontracts/simple-optimism-node) to run an OP Mainnet or OP Sepolia node using Docker.
-`simple-optimism-node` also provides useful tools like a monitoring dashboard and health checking software.
-Although less flexible than [running a node from source](/node-operators/tutorials/node-from-source) or building your own Docker setup, this is a great way to quickly get started with OP Mainnet.
+<Warning>
+  **op-geth reaches end-of-support on 2026-05-31 and will not support the L1 Glamsterdam hardfork.** This tutorial runs op-reth (the primary supported execution client) via Docker. See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the full migration plan.
+</Warning>
 
-<Info>
-  By default, `simple-optimism-node` uses `op-geth` as the execution client. Support for `Nethermind` as an alternative execution client is also available.
-</Info>
+This tutorial runs an OP Stack node using the **official op-reth and op-node Docker images** in a single `docker-compose.yml`. No source build required.
 
-## What's included
-
-`simple-optimism-node` includes all the basic components to run an OP Mainnet or OP Sepolia node.
-It also includes several additional services to monitor the health of your node and the health of the network you're connected to.
-See the [What's Included](https://github.com/smartcontracts/simple-optimism-node#whats-included) section of the `simple-optimism-node` README for more details.
+<Warning>
+  **OP Mainnet requires a one-time pre-Bedrock state import.** OP Sepolia does not. If you point this tutorial at OP Mainnet on a fresh datadir, op-reth will fail at startup with `Op-mainnet has been launched without importing the pre-Bedrock state`. Before running OP Mainnet, follow the [op-reth sync-op-mainnet guide](https://reth.rs/run/sync-op-mainnet.html) to either restore from a [pre-synced snapshot](https://datadirs.optimism.io/) or run the minimal-bootstrap import. OP Sepolia bootstraps via snap sync with no extra steps — start there if you're just testing the setup.
+</Warning>
 
 ## Dependencies
 
 *   [Docker](https://docs.docker.com/engine/install/)
-*   [Docker Compose](https://docs.docker.com/compose/install/)
+*   [Docker Compose](https://docs.docker.com/compose/install/) (v2)
+*   **An L1 execution RPC endpoint** (Ethereum mainnet for OP Mainnet, or Ethereum Sepolia for OP Sepolia).
+*   **An L1 Beacon API endpoint** for the same L1 chain. Needed by op-node to fetch blob data post-Ecotone.
 
-## Setup
-
-Clone the `simple-optimism-node` repository to get started.
-
-```bash
-git clone https://github.com/smartcontracts/simple-optimism-node.git
-cd simple-optimism-node
-```
-
-## Configuration
-
-Configuration for `simple-optimism-node` is handled through environment variables inside of an `.env` file.
+## Quick start
 
 <Steps>
-  <Step title="Step-by-Step Guide to Creating an .env File">
-The repository includes a sample environment variable file located at `.env.example` that you can copy and modify to get started. Make a copy of this file and name it `.env`.
-
-  ```bash
-  cp .env.example .env
-  ```
-
+  <Step title="Create a working directory">
+    ```bash
+    mkdir op-stack-node && cd op-stack-node
+    ```
   </Step>
 
-  <Step title="How to Configure the .env File for Your Node">
-Open the `.env` file in your favorite text editor. Set the variables inside of the `REQUIRED (BEDROCK)` section of the file according to the guide below:
+  <Step title="Generate the JWT secret">
+    Both containers share a JWT secret over a bind mount:
 
-  **NETWORK_NAME** - Choose which Optimism network layer you want to operate on:
+    ```bash
+    openssl rand -hex 32 > jwt.txt
+    ```
+  </Step>
 
-  *   `op-mainnet` - OP Mainnet
-  *   `op-sepolia` - OP Sepolia (Testnet)
-  *   `base-mainnet` - Base Mainnet
-  *   `base-sepolia` - Base Sepolia (Testnet)
+  <Step title="Create the .env file">
+    Configure your network and L1 endpoints. Pick **one** network block (Sepolia or Mainnet) and fill in your L1 RPC + Beacon URLs:
 
-  **NODE_TYPE** - Choose the type of node you want to run:
+    ```bash
+    cat > .env <<'EOF'
+    # --- Network: OP Sepolia (default) ---
+    OP_RETH_CHAIN=optimism_sepolia
+    OP_NODE_NETWORK=op-sepolia
+    OP_RETH_SEQUENCER=https://sepolia-sequencer.optimism.io
 
-  *   `full` (Full node) - A Full node contains a few recent blocks without historical states.
-  *   `archive` (Archive node) - An Archive node stores the complete history of the blockchain, including historical states.
+    # --- Network: OP Mainnet (uncomment to use instead) ---
+    # OP_RETH_CHAIN=optimism
+    # OP_NODE_NETWORK=op-mainnet
+    # OP_RETH_SEQUENCER=https://mainnet-sequencer.optimism.io
 
-  **EXECUTION_CLIENT** - Choose which execution client to use:
+    # --- L1 endpoints (required) ---
+    L1_RPC_URL=https://your-l1-rpc-endpoint
+    L1_RPC_KIND=basic
+    L1_BEACON_URL=https://your-l1-beacon-endpoint
+    EOF
+    ```
 
-  *   `op-geth` - The original execution client for OP Stack (default if not specified)
-  *   `nethermind` - Alternative high-performance execution client written in C#
+    `L1_RPC_KIND` valid values: `alchemy`, `quicknode`, `infura`, `parity`, `nethermind`, `debug_geth`, `erigon`, `basic`, `any`. Use `basic` if unsure.
 
-  **OP_NODE__RPC_ENDPOINT** - Specify the endpoint for the RPC of Layer 1 (e.g., Ethereum mainnet). For instance, you can use the free plan of Alchemy for the Ethereum mainnet.
+    <Info>
+      `OP_RETH_CHAIN` and `OP_NODE_NETWORK` accept any [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) chain (e.g. `unichain` / `unichain-mainnet`, `soneium` / `soneium-mainnet`). For each chain, point `L1_RPC_URL` / `L1_BEACON_URL` at the corresponding L1 (Ethereum Mainnet or Sepolia) and update `OP_RETH_SEQUENCER` to that chain's sequencer endpoint.
+    </Info>
+  </Step>
 
-  **OP_NODE__L1_BEACON** - Specify the beacon endpoint of Layer 1. You can use [QuickNode for the beacon endpoint](https://www.quicknode.com). For example: `https://xxx-xxx-xxx.quiknode.pro/db55a3908ba7e4e5756319ffd71ec270b09a7dce`.
+  <Step title="Create docker-compose.yml">
+    ```yaml
+    services:
+      op-reth:
+        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth:v2.2.5
+        container_name: op-reth
+        ports:
+          - "8545:8545"          # JSON-RPC HTTP
+          - "8546:8546"          # JSON-RPC WebSocket
+          - "9001:9001"          # Prometheus metrics
+          - "30303:30303"        # P2P TCP
+          - "30303:30303/udp"    # P2P UDP
+        volumes:
+          - ./reth-data:/data
+          - ./jwt.txt:/jwt.txt:ro
+        command:
+          - node
+          - --chain=${OP_RETH_CHAIN}
+          - --datadir=/data
+          - --http
+          - --http.addr=0.0.0.0
+          - --http.port=8545
+          - --ws
+          - --ws.addr=0.0.0.0
+          - --ws.port=8546
+          - --authrpc.addr=0.0.0.0
+          - --authrpc.port=8551
+          - --authrpc.jwtsecret=/jwt.txt
+          - --rollup.sequencer=${OP_RETH_SEQUENCER}
+          - --metrics=0.0.0.0:9001
+        restart: unless-stopped
 
-  **OP_NODE__RPC_TYPE** - Specify the service provider for the RPC endpoint you've chosen in the previous step. The available options are:
+      op-node:
+        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.18.2
+        container_name: op-node
+        depends_on:
+          - op-reth
+        ports:
+          - "9545:7000"          # JSON-RPC HTTP (host 9545 → container 7000; macOS uses 7000 for AirPlay)
+          - "7300:7300"          # Prometheus metrics
+          - "9222:9222"          # P2P TCP
+          - "9222:9222/udp"      # P2P UDP
+        volumes:
+          - ./jwt.txt:/jwt.txt:ro
+        command:
+          - op-node
+          - --l1=${L1_RPC_URL}
+          - --l1.rpckind=${L1_RPC_KIND}
+          - --l1.beacon=${L1_BEACON_URL}
+          - --l2=ws://op-reth:8551
+          - --l2.jwt-secret=/jwt.txt
+          - --network=${OP_NODE_NETWORK}
+          - --syncmode=execution-layer
+          - --l2.enginekind=reth
+          - --rpc.addr=0.0.0.0
+          - --rpc.port=7000
+          - --metrics.enabled
+          - --metrics.addr=0.0.0.0
+          - --metrics.port=7300
+        restart: unless-stopped
+    ```
 
-  *   `alchemy` - Alchemy
-  *   `quicknode` - Quicknode (ETH only)
-  *   `erigon` - Erigon
-  *   `basic` - Other providers
+    The op-reth datadir is bind-mounted from `./reth-data` on the host so you can inspect / restore from a snapshot directly (see [Bootstrap from a snapshot](#bootstrap-from-a-snapshot) below).
 
-  **HEALTHCHECK__REFERENCE_RPC_PROVIDER** - Specify the public RPC endpoint for Layer 2 network you want to operate on for healthcheck. For instance:
+    Image tags shown are the latest as of writing. For the current tags, see the [op-reth releases](https://github.com/ethereum-optimism/optimism/releases?q=op-reth) and [op-node releases](https://github.com/ethereum-optimism/optimism/releases?q=op-node).
+  </Step>
 
-  *   **OP Mainnet** - [https://mainnet.optimism.io](https://mainnet.optimism.io)
-  *   **OP Sepolia** - [https://sepolia.optimism.io](https://sepolia.optimism.io)
-  *   **Base Mainnet** - [https://mainnet.base.org](https://mainnet.base.org)
-  *   **Base Sepolia** - [https://sepolia.base.org](https://sepolia.base.org)
+  <Step title="Start the node">
+    ```bash
+    docker compose up -d
+    ```
 
+    Follow logs with:
 
-  </Step></Steps>
+    ```bash
+    docker compose logs -f
+    ```
+  </Step>
+</Steps>
 
-## Run the node
+## Verification
 
-Once you've configured your `.env` file, you can run the node using Docker Compose.
-The following command will start the node in the background.
+Check the node is alive and advancing:
 
 ```bash
-docker compose up -d --build
+curl -s -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+  http://localhost:8545
 ```
 
-The node will start with the execution client you specified in your `.env` file. If you didn't specify an execution client, `op-geth` will be used by default.
+Expected: `{"jsonrpc":"2.0","id":1,"result":"0x..."}` with the current block in hex. Run again after a minute — the number should increase as sync progresses.
 
-## Upgrade the node
-
-Pull the latest updates from GitHub, Docker Hub and rebuild the container.
+For op-node sync status (unsafe, safe, and finalized heads in one call):
 
 ```bash
-git pull
-docker compose pull
-docker compose up -d --build --force-recreate
+curl -s -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"optimism_syncStatus","params":[],"id":1}' \
+  http://localhost:9545 | jq .
 ```
 
-## Operating the node
+<Info>
+  During the initial EL-driven sync (`--syncmode=execution-layer`), `unsafe_l2` tracks the tip via libp2p gossip while `safe_l2` and `finalized_l2` stay at 0. This is expected — op-node defers L1 derivation until op-reth finishes its staged sync. Once the EL catches up, derivation begins and the safe/finalized heads start advancing.
+</Info>
 
-You can use Docker Compose to interact with the node and manage the various containers that you started.
-Refer to the [Operating the Node](https://github.com/smartcontracts/simple-optimism-node#operating-the-node) section of the `simple-optimism-node` README for more information.
+You can also tail op-node logs directly:
 
-## Checking node status
-
-`simple-optimism-node` includes a monitoring dashboard that you can use to check the status of your node.
-You can access the dashboard by visiting `http://localhost:3000` in your browser.
-Refer to the [Grafana dashboard](https://github.com/smartcontracts/simple-optimism-node#grafana-dashboard) section of the `simple-optimism-node` README for more information.
-
-Another way to check the node syncing progress is to run `./progress.sh`, which will print output showing the number of blocks per second and the estimated time until synchronization is completed.
-
-```
-./progress.sh
+```bash
+docker compose logs op-node | grep -E "Sync progress|Finished EL sync"
 ```
 
-```
-Chain ID: 10
-Please wait
-Blocks per minute: ...
-Hours until sync completed: ...
-```
+## Bootstrap from a snapshot
+
+Syncing from scratch is fine for OP Sepolia (~30–50 GB, hours) but slow for OP Mainnet (~700 GB, days). For Mainnet — or anytime you'd rather skip the initial sync — bootstrap op-reth from a pre-synced snapshot.
+
+<Info>
+  For OP Mainnet, a snapshot also handles the pre-Bedrock state requirement (see the warning at the top of this page) in one step.
+</Info>
+
+<Steps>
+  <Step title="Stop the containers">
+    ```bash
+    docker compose down
+    rm -rf reth-data       # only if you previously synced and want to start clean
+    ```
+  </Step>
+
+  <Step title="Download a snapshot">
+    Browse [datadirs.optimism.io](https://datadirs.optimism.io/) for the snapshot matching your network and pick a recent file. Then download and verify the SHA256:
+
+    ```bash
+    curl -fLO https://datadirs.optimism.io/<snapshot-file>.tar.zst
+
+    # Verify checksum against the value on the index page
+    sha256sum <snapshot-file>.tar.zst   # Linux
+    shasum -a 256 <snapshot-file>.tar.zst   # macOS
+    ```
+  </Step>
+
+  <Step title="Extract into the datadir">
+    The bind-mounted directory is `./reth-data` (relative to your `docker-compose.yml`):
+
+    ```bash
+    mkdir -p reth-data
+    tar -I zstd -xvf <snapshot-file>.tar.zst -C reth-data --strip-components=1
+    ```
+
+    `--strip-components=1` removes the top-level wrapping directory inside the tarball. Run `tar -tf <snapshot-file>.tar.zst | head -3` first to confirm — if files are already at the archive root, omit `--strip-components`.
+  </Step>
+
+  <Step title="Start the node">
+    ```bash
+    docker compose up -d
+    docker compose logs -f op-reth
+    ```
+
+    op-reth will recognize the existing datadir on startup and pick up from the snapshot's tip — `latest_block` should be the snapshot's height, not 0. It will then catch up from that tip to current (minutes for Sepolia, hours for Mainnet, depending on snapshot age).
+  </Step>
+</Steps>
+
+## Next steps
+
+*   [Node Metrics and Monitoring Guide](/node-operators/guides/monitoring/metrics) — wire up Prometheus/Grafana against the metrics port.
+*   [Node Troubleshooting Guide](/node-operators/guides/troubleshooting) — if you run into problems.
+*   [Building and running an OP Stack node from source](/node-operators/tutorials/run-node-from-source) — if you need a custom build or want to inspect the source.
