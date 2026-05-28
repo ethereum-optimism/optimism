@@ -54,7 +54,7 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
     address prover = address(0x789);
 
     // Fixed parameters.
-    GameType gameType = GameTypes.SUPER_ZK_DISPUTE_GAME;
+    GameType gameType = GameTypes.ZK_DISPUTE_GAME;
     Duration maxChallengeDuration = Duration.wrap(12 hours);
     Duration maxProveDuration = Duration.wrap(3 days);
     Claim rootClaim = Claim.wrap(keccak256("rootClaim"));

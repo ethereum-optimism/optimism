@@ -185,11 +185,11 @@ contract DeployOPChain is Script {
             gameArgs: bytes("")
         });
 
-        // Config 5: SUPER_ZK_DISPUTE_GAME (disabled for initial deployment)
+        // Config 5: ZK_DISPUTE_GAME (disabled for initial deployment)
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
             gameArgs: bytes("")
         });
 

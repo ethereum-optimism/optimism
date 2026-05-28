@@ -702,7 +702,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         validGameTypes[2] = GameTypes.CANNON_KONA;
         validGameTypes[3] = GameTypes.SUPER_PERMISSIONED_CANNON;
         validGameTypes[4] = GameTypes.SUPER_CANNON_KONA;
-        validGameTypes[5] = GameTypes.SUPER_ZK_DISPUTE_GAME;
+        validGameTypes[5] = GameTypes.ZK_DISPUTE_GAME;
 
         // We must have a config for each valid game type.
         if (_cfg.disputeGameConfigs.length != validGameTypes.length) {
@@ -739,7 +739,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
             // ZK_DISPUTE_GAME can only be enabled when the dev flag is on (upgrade path).
             if (
-                validGameTypes[i].raw() == GameTypes.SUPER_ZK_DISPUTE_GAME.raw() && _cfg.disputeGameConfigs[i].enabled
+                validGameTypes[i].raw() == GameTypes.ZK_DISPUTE_GAME.raw() && _cfg.disputeGameConfigs[i].enabled
                     && !isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)
             ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();

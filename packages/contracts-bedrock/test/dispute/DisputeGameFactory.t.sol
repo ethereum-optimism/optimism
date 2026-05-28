@@ -325,7 +325,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         // Deploy game implementation (no constructor args)
         gameImpl_ = address(new ZKDisputeGame());
 
-        GameType zkGameType = GameTypes.SUPER_ZK_DISPUTE_GAME;
+        GameType zkGameType = GameTypes.ZK_DISPUTE_GAME;
 
         // Encode the gameArgs for CWIA (tightly packed)
         bytes memory gameArgs = abi.encodePacked(
@@ -899,13 +899,13 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         vm.deal(proposer, _params.challengerBond);
 
         vm.expectEmit(false, true, true, false);
-        emit DisputeGameCreated(address(0), GameTypes.SUPER_ZK_DISPUTE_GAME, rootClaim_);
+        emit DisputeGameCreated(address(0), GameTypes.ZK_DISPUTE_GAME, rootClaim_);
         vm.prank(proposer);
         proxy_ = ZKDisputeGame(
             payable(
                 address(
                     disputeGameFactory.create{ value: _params.challengerBond }(
-                        GameTypes.SUPER_ZK_DISPUTE_GAME, rootClaim_, extraData_
+                        GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_
                     )
                 )
             )
@@ -926,7 +926,7 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
 
         // Verify factory mappings and list.
         (IDisputeGame storedGame, Timestamp storedTs) =
-            disputeGameFactory.games(GameTypes.SUPER_ZK_DISPUTE_GAME, _proxy.rootClaim(), extraData_);
+            disputeGameFactory.games(GameTypes.ZK_DISPUTE_GAME, _proxy.rootClaim(), extraData_);
         assertEq(address(storedGame), address(_proxy));
         assertEq(storedTs.raw(), block.timestamp);
 
@@ -945,7 +945,7 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         view
     {
         // Verify CWIA getters — confirms gameArgs were forwarded correctly without re-encoding.
-        assertEq(GameType.unwrap(_proxy.gameType()), GameType.unwrap(GameTypes.SUPER_ZK_DISPUTE_GAME));
+        assertEq(GameType.unwrap(_proxy.gameType()), GameType.unwrap(GameTypes.ZK_DISPUTE_GAME));
         assertEq(_proxy.gameCreator(), _proposer);
         assertEq(_proxy.l1Head().raw(), blockhash(block.number - 1));
         assertEq(_proxy.parentIndex(), type(uint32).max);
@@ -1014,7 +1014,7 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
         vm.deal(proposer, _wrongBond);
         vm.prank(proposer);
         vm.expectRevert(IncorrectBondAmount.selector);
-        disputeGameFactory.create{ value: _wrongBond }(GameTypes.SUPER_ZK_DISPUTE_GAME, rootClaim_, extraData_);
+        disputeGameFactory.create{ value: _wrongBond }(GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_);
     }
 
     /// @notice Tests that creating a ZKDisputeGame without a registered implementation reverts.
@@ -1022,8 +1022,8 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
         (Claim rootClaim_, bytes memory extraData_) = _zkCreateParams();
 
         // ZK_DISPUTE_GAME implementation is not registered — factory must revert.
-        vm.expectRevert(abi.encodeWithSelector(NoImplementation.selector, GameTypes.SUPER_ZK_DISPUTE_GAME));
-        disputeGameFactory.create{ value: 1 ether }(GameTypes.SUPER_ZK_DISPUTE_GAME, rootClaim_, extraData_);
+        vm.expectRevert(abi.encodeWithSelector(NoImplementation.selector, GameTypes.ZK_DISPUTE_GAME));
+        disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_);
     }
 
     /// @notice Tests that creating a duplicate ZKDisputeGame (same UUID) reverts.
@@ -1036,11 +1036,11 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
         // so any external call in the argument list would consume the prank prematurely.
         Claim rc = proxy.rootClaim();
         bytes memory ed = proxy.extraData();
-        Hash uuid = disputeGameFactory.getGameUUID(GameTypes.SUPER_ZK_DISPUTE_GAME, rc, ed);
+        Hash uuid = disputeGameFactory.getGameUUID(GameTypes.ZK_DISPUTE_GAME, rc, ed);
 
         vm.expectRevert(abi.encodeWithSelector(GameAlreadyExists.selector, uuid));
         vm.prank(proposer);
-        disputeGameFactory.create{ value: 1 ether }(GameTypes.SUPER_ZK_DISPUTE_GAME, rc, ed);
+        disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rc, ed);
     }
 }
 
@@ -1072,15 +1072,15 @@ contract DisputeGameFactory_SetImplementation_ZkDisputeGame_Test is DisputeGameF
         );
 
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));
-        emit ImplementationSet(zkImpl, GameTypes.SUPER_ZK_DISPUTE_GAME);
+        emit ImplementationSet(zkImpl, GameTypes.ZK_DISPUTE_GAME);
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));
-        emit ImplementationArgsSet(GameTypes.SUPER_ZK_DISPUTE_GAME, args);
+        emit ImplementationArgsSet(GameTypes.ZK_DISPUTE_GAME, args);
 
         vm.prank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(GameTypes.SUPER_ZK_DISPUTE_GAME, IDisputeGame(zkImpl), args);
+        disputeGameFactory.setImplementation(GameTypes.ZK_DISPUTE_GAME, IDisputeGame(zkImpl), args);
 
-        assertEq(address(disputeGameFactory.gameImpls(GameTypes.SUPER_ZK_DISPUTE_GAME)), zkImpl);
-        assertEq(disputeGameFactory.gameArgs(GameTypes.SUPER_ZK_DISPUTE_GAME), args);
+        assertEq(address(disputeGameFactory.gameImpls(GameTypes.ZK_DISPUTE_GAME)), zkImpl);
+        assertEq(disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME), args);
     }
 
     /// @notice Tests that setImplementation reverts when called by a non-owner.
@@ -1092,7 +1092,7 @@ contract DisputeGameFactory_SetImplementation_ZkDisputeGame_Test is DisputeGameF
 
         vm.prank(_caller);
         vm.expectRevert("Ownable: caller is not the owner");
-        disputeGameFactory.setImplementation(GameTypes.SUPER_ZK_DISPUTE_GAME, IDisputeGame(zkImpl), args);
+        disputeGameFactory.setImplementation(GameTypes.ZK_DISPUTE_GAME, IDisputeGame(zkImpl), args);
     }
 }
 
@@ -1102,16 +1102,16 @@ contract DisputeGameFactory_SetInitBond_ZkDisputeGame_Test is DisputeGameFactory
     /// @notice Tests that setInitBond properly sets and updates the bond for ZK_DISPUTE_GAME.
     function testFuzz_setInitBond_succeeds(uint256 _bond1, uint256 _bond2) public {
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));
-        emit InitBondUpdated(GameTypes.SUPER_ZK_DISPUTE_GAME, _bond1);
+        emit InitBondUpdated(GameTypes.ZK_DISPUTE_GAME, _bond1);
 
-        disputeGameFactory.setInitBond(GameTypes.SUPER_ZK_DISPUTE_GAME, _bond1);
-        assertEq(disputeGameFactory.initBonds(GameTypes.SUPER_ZK_DISPUTE_GAME), _bond1);
+        disputeGameFactory.setInitBond(GameTypes.ZK_DISPUTE_GAME, _bond1);
+        assertEq(disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), _bond1);
 
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));
-        emit InitBondUpdated(GameTypes.SUPER_ZK_DISPUTE_GAME, _bond2);
+        emit InitBondUpdated(GameTypes.ZK_DISPUTE_GAME, _bond2);
 
-        disputeGameFactory.setInitBond(GameTypes.SUPER_ZK_DISPUTE_GAME, _bond2);
-        assertEq(disputeGameFactory.initBonds(GameTypes.SUPER_ZK_DISPUTE_GAME), _bond2);
+        disputeGameFactory.setInitBond(GameTypes.ZK_DISPUTE_GAME, _bond2);
+        assertEq(disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), _bond2);
     }
 
     /// @notice Tests that setInitBond reverts when called by a non-owner.
@@ -1120,7 +1120,7 @@ contract DisputeGameFactory_SetInitBond_ZkDisputeGame_Test is DisputeGameFactory
 
         vm.prank(_caller);
         vm.expectRevert("Ownable: caller is not the owner");
-        disputeGameFactory.setInitBond(GameTypes.SUPER_ZK_DISPUTE_GAME, _bond);
+        disputeGameFactory.setInitBond(GameTypes.ZK_DISPUTE_GAME, _bond);
     }
 }
 
@@ -1140,10 +1140,10 @@ contract DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test is DisputeGameFac
 
         vm.startPrank(proposer);
         IDisputeGame game1 = disputeGameFactory.create{ value: 1 ether }(
-            GameTypes.SUPER_ZK_DISPUTE_GAME, rootClaim1, abi.encodePacked(anchorL2SeqNum + 1000, type(uint32).max)
+            GameTypes.ZK_DISPUTE_GAME, rootClaim1, abi.encodePacked(anchorL2SeqNum + 1000, type(uint32).max)
         );
         IDisputeGame game2 = disputeGameFactory.create{ value: 1 ether }(
-            GameTypes.SUPER_ZK_DISPUTE_GAME, rootClaim2, abi.encodePacked(anchorL2SeqNum + 2000, type(uint32).max)
+            GameTypes.ZK_DISPUTE_GAME, rootClaim2, abi.encodePacked(anchorL2SeqNum + 2000, type(uint32).max)
         );
         vm.stopPrank();
 
@@ -1151,7 +1151,7 @@ contract DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test is DisputeGameFac
 
         // Find the 2 most recent ZK games.
         IDisputeGameFactory.GameSearchResult[] memory results =
-            disputeGameFactory.findLatestGames(GameTypes.SUPER_ZK_DISPUTE_GAME, latestIdx, 2);
+            disputeGameFactory.findLatestGames(GameTypes.ZK_DISPUTE_GAME, latestIdx, 2);
 
         assertEq(results.length, 2);
         assertEq(results[0].rootClaim.raw(), rootClaim2.raw());

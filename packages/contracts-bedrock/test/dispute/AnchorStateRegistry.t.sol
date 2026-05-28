@@ -1408,8 +1408,7 @@ abstract contract AnchorStateRegistry_ZkDisputeGame_TestInit is AnchorStateRegis
         vm.warp(block.timestamp + 1000);
 
         vm.prank(proposer);
-        zkGameProxy =
-            disputeGameFactory.create{ value: 1 ether }(GameTypes.SUPER_ZK_DISPUTE_GAME, rootClaim_, extraData_);
+        zkGameProxy = disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_);
     }
 
     /// @notice Mocks the ZK game as a valid, resolved, finalized game.

@@ -177,14 +177,14 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			shouldPass:    false,
 		},
 		{
-			name: "ZK_DISPUTE_GAME requires SuperZKDisputeGameConfig",
+			name: "ZK_DISPUTE_GAME requires ZKDisputeGameConfig",
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
 				InitBond: big.NewInt(1000),
-				GameType: GameTypeSuperZKDisputeGame,
-				// Missing SuperZKDisputeGameConfig
+				GameType: GameTypeZKDisputeGame,
+				// Missing ZKDisputeGameConfig
 			},
-			errorContains: fmt.Sprintf("superZkDisputeGameConfig is required for game type %d", GameTypeSuperZKDisputeGame),
+			errorContains: fmt.Sprintf("zkDisputeGameConfig is required for game type %d", GameTypeZKDisputeGame),
 			shouldPass:    false,
 		},
 		{
@@ -192,8 +192,8 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
 				InitBond: big.NewInt(1000),
-				GameType: GameTypeSuperZKDisputeGame,
-				SuperZKDisputeGameConfig: &SuperZKDisputeGameConfig{
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
 					Verifier:             common.Address{}, // zero
 					MaxChallengeDuration: 3600,
@@ -209,8 +209,8 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
 				InitBond: big.NewInt(1000),
-				GameType: GameTypeSuperZKDisputeGame,
-				SuperZKDisputeGameConfig: &SuperZKDisputeGameConfig{
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.Hash{}, // zero
 					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
 					MaxChallengeDuration: 3600,
@@ -226,8 +226,8 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
 				InitBond: big.NewInt(1000),
-				GameType: GameTypeSuperZKDisputeGame,
-				SuperZKDisputeGameConfig: &SuperZKDisputeGameConfig{
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
 					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
 					MaxChallengeDuration: 0, // zero
@@ -243,8 +243,8 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
 				InitBond: big.NewInt(1000),
-				GameType: GameTypeSuperZKDisputeGame,
-				SuperZKDisputeGameConfig: &SuperZKDisputeGameConfig{
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
 					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
 					MaxChallengeDuration: 3600,
@@ -260,8 +260,8 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
 				InitBond: big.NewInt(1000),
-				GameType: GameTypeSuperZKDisputeGame,
-				SuperZKDisputeGameConfig: &SuperZKDisputeGameConfig{
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
 					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
 					MaxChallengeDuration: 3600,
@@ -277,8 +277,8 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
 				InitBond: big.NewInt(1000),
-				GameType: GameTypeSuperZKDisputeGame,
-				SuperZKDisputeGameConfig: &SuperZKDisputeGameConfig{
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
 					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
 					MaxChallengeDuration: 3600,
@@ -338,12 +338,12 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			shouldPass: true,
 		},
 		{
-			name: "ZK_DISPUTE_GAME with correct SuperZKDisputeGameConfig",
+			name: "ZK_DISPUTE_GAME with correct ZKDisputeGameConfig",
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
 				InitBond: big.NewInt(1000),
-				GameType: GameTypeSuperZKDisputeGame,
-				SuperZKDisputeGameConfig: &SuperZKDisputeGameConfig{
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
 					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
 					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
 					MaxChallengeDuration: 3600,
@@ -457,8 +457,8 @@ func TestEncodedUpgradeInputV2_DisabledGames(t *testing.T) {
 				{
 					Enabled:  false,
 					InitBond: big.NewInt(0),
-					GameType: GameTypeSuperZKDisputeGame,
-					// No SuperZKDisputeGameConfig needed when disabled
+					GameType: GameTypeZKDisputeGame,
+					// No ZKDisputeGameConfig needed when disabled
 				},
 			},
 			description: "Disabled ZK game should encode successfully with no config",
@@ -594,7 +594,7 @@ func TestEncodedUpgradeInputV2_GameArgsEncoding(t *testing.T) {
 		require.Equal(t, expected, hex.EncodeToString(data))
 	})
 
-	t.Run("SuperZKDisputeGameConfig encodes correctly", func(t *testing.T) {
+	t.Run("ZKDisputeGameConfig encodes correctly", func(t *testing.T) {
 		absolutePrestate := common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
 		verifier := common.HexToAddress("0x3333333333333333333333333333333333333333")
 		// maxChallengeDuration = 3600 = 0xe10
@@ -611,8 +611,8 @@ func TestEncodedUpgradeInputV2_GameArgsEncoding(t *testing.T) {
 					{
 						Enabled:  true,
 						InitBond: big.NewInt(1000),
-						GameType: GameTypeSuperZKDisputeGame,
-						SuperZKDisputeGameConfig: &SuperZKDisputeGameConfig{
+						GameType: GameTypeZKDisputeGame,
+						ZKDisputeGameConfig: &ZKDisputeGameConfig{
 							AbsolutePrestate:     absolutePrestate,
 							Verifier:             verifier,
 							MaxChallengeDuration: 3600,

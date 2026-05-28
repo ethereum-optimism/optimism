@@ -176,7 +176,7 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 				{
 					Enabled:  false,
 					InitBond: big.NewInt(0),
-					GameType: embedded.GameTypeSuperZKDisputeGame,
+					GameType: embedded.GameTypeZKDisputeGame,
 				},
 			},
 			ExtraInstructions: []embedded.ExtraInstruction{

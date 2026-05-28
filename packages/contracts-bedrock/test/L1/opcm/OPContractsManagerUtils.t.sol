@@ -870,7 +870,7 @@ contract OPContractsManagerUtils_GetGameImpl_Test is OPContractsManagerUtils_Tes
     /// @notice Tests that getGameImpl returns the ZK dispute game implementation.
     function test_getGameImpl_zkDisputeGame_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-        address impl = address(utils.getGameImpl(GameTypes.SUPER_ZK_DISPUTE_GAME));
+        address impl = address(utils.getGameImpl(GameTypes.ZK_DISPUTE_GAME));
         assertEq(impl, makeAddr("zkDisputeGameImpl"), "ZK game impl address mismatch");
         assertTrue(impl != address(0), "ZK game impl should not be zero");
     }
@@ -900,9 +900,9 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
         IOPContractsManagerUtils.DisputeGameConfig memory cfg = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0,
-            gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
             gameArgs: abi.encode(
-                IOPContractsManagerUtils.SuperZKDisputeGameConfig({
+                IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: absolutePrestate,
                     verifier: verifier,
                     maxChallengeDuration: maxChallengeDuration,

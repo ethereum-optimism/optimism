@@ -316,7 +316,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
+                gameType: GameTypes.ZK_DISPUTE_GAME,
                 gameArgs: hex""
             });
 
@@ -387,7 +387,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
+                gameType: GameTypes.ZK_DISPUTE_GAME,
                 gameArgs: hex""
             });
 

@@ -947,7 +947,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
-								GameType: embedded.GameTypeSuperZKDisputeGame,
+								GameType: embedded.GameTypeZKDisputeGame,
 							},
 						},
 						ExtraInstructions: []embedded.ExtraInstruction{
@@ -978,7 +978,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				//   [2] CannonKona: enabled=false, initBond=0, gameType=8, gameArgs=empty
 				//   [3] SuperPermCannon: enabled=false, initBond=0, gameType=5, gameArgs=empty
 				//   [4] SuperCannonKona: enabled=false, initBond=0, gameType=9, gameArgs=empty
-				//   [5] SuperZKDisputeGame: enabled=false, initBond=0, gameType=10, gameArgs=empty
+				//   [5] ZKDisputeGame: enabled=false, initBond=0, gameType=10, gameArgs=empty
 				// - ExtraInstructions[]: 1 instruction
 				//   [0] key="PermittedProxyDeployment", data="DelayedWETH"
 				expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
@@ -1026,10 +1026,10 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					"0000000000000000000000000000000000000000000000000000000000000009" + // gameType=9 (SuperCannonKona)
 					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
 					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
-					// DisputeGameConfigs[5] - SuperZKDisputeGame (disabled)
+					// DisputeGameConfigs[5] - ZKDisputeGame (disabled)
 					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
 					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
-					"000000000000000000000000000000000000000000000000000000000000000a" + // gameType=10 (SuperZKDisputeGame)
+					"000000000000000000000000000000000000000000000000000000000000000a" + // gameType=10 (ZKDisputeGame)
 					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
 					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
 					// ExtraInstructions array

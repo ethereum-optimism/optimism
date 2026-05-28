@@ -47,7 +47,7 @@ func TestShouldDeployAdditionalDisputeGames(t *testing.T) {
 		},
 		{
 			name:     "super_zk_game_in_intent_empty_state",
-			intent:   &state.ChainIntent{AdditionalDisputeGames: []state.AdditionalDisputeGame{{VMType: state.VMTypeSuperZK}}},
+			intent:   &state.ChainIntent{AdditionalDisputeGames: []state.AdditionalDisputeGame{{VMType: state.VMTypeZK}}},
 			st:       &state.ChainState{},
 			expected: true,
 		},
@@ -61,7 +61,7 @@ func TestShouldDeployAdditionalDisputeGames(t *testing.T) {
 	}
 }
 
-func TestDeployDisputeGame_SuperZK_ZeroImpl(t *testing.T) {
+func TestDeployDisputeGame_ZK_ZeroImpl(t *testing.T) {
 	lgr := testlog.Logger(t, slog.LevelInfo)
 
 	env := &Env{Logger: lgr}
@@ -71,8 +71,8 @@ func TestDeployDisputeGame_SuperZK_ZeroImpl(t *testing.T) {
 		},
 	}
 	game := state.AdditionalDisputeGame{
-		VMType: state.VMTypeSuperZK,
-		SuperZKDisputeGame: &state.SuperZKDisputeGameParams{
+		VMType: state.VMTypeZK,
+		ZKDisputeGame: &state.ZKDisputeGameParams{
 			Verifier:         common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			AbsolutePrestate: common.HexToHash("0xdeadbeef"),
 			ChallengerBond:   (*hexutil.Big)(big.NewInt(1e18)),
@@ -83,7 +83,7 @@ func TestDeployDisputeGame_SuperZK_ZeroImpl(t *testing.T) {
 	require.ErrorContains(t, err, "ZkDisputeGameImpl is not deployed")
 }
 
-func TestDeployDisputeGame_SuperZK_NilParams(t *testing.T) {
+func TestDeployDisputeGame_ZK_NilParams(t *testing.T) {
 	lgr := testlog.Logger(t, slog.LevelInfo)
 
 	env := &Env{Logger: lgr}
@@ -93,15 +93,15 @@ func TestDeployDisputeGame_SuperZK_NilParams(t *testing.T) {
 		},
 	}
 	game := state.AdditionalDisputeGame{
-		VMType:        state.VMTypeSuperZK,
-		SuperZKDisputeGame: nil, // params not set
+		VMType:        state.VMTypeZK,
+		ZKDisputeGame: nil, // params not set
 	}
 
 	err := deployDisputeGame(env, st, &state.ChainIntent{}, &state.ChainState{}, game)
-	require.ErrorContains(t, err, "SuperZKDisputeGame params must be set")
+	require.ErrorContains(t, err, "ZKDisputeGame params must be set")
 }
 
-func TestDeployDisputeGame_SuperZK_WrongDisputeGameType(t *testing.T) {
+func TestDeployDisputeGame_ZK_WrongDisputeGameType(t *testing.T) {
 	lgr := testlog.Logger(t, slog.LevelInfo)
 
 	env := &Env{Logger: lgr}
@@ -111,16 +111,16 @@ func TestDeployDisputeGame_SuperZK_WrongDisputeGameType(t *testing.T) {
 		},
 	}
 	game := state.AdditionalDisputeGame{
-		VMType:           state.VMTypeSuperZK,
-		SuperZKDisputeGame:    &state.SuperZKDisputeGameParams{},
-		ChainProofParams: state.ChainProofParams{DisputeGameType: 0}, // wrong — must be GameTypeSuperZKDisputeGame (10)
+		VMType:           state.VMTypeZK,
+		ZKDisputeGame:    &state.ZKDisputeGameParams{},
+		ChainProofParams: state.ChainProofParams{DisputeGameType: 0}, // wrong — must be GameTypeZKDisputeGame (10)
 	}
 
 	err := deployDisputeGame(env, st, &state.ChainIntent{}, &state.ChainState{}, game)
 	require.ErrorContains(t, err, "DisputeGameType must be")
 }
 
-func TestDeployDisputeGame_SuperZK_NilChallengerBond(t *testing.T) {
+func TestDeployDisputeGame_ZK_NilChallengerBond(t *testing.T) {
 	lgr := testlog.Logger(t, slog.LevelInfo)
 
 	env := &Env{Logger: lgr}
@@ -130,8 +130,8 @@ func TestDeployDisputeGame_SuperZK_NilChallengerBond(t *testing.T) {
 		},
 	}
 	game := state.AdditionalDisputeGame{
-		VMType: state.VMTypeSuperZK,
-		SuperZKDisputeGame: &state.SuperZKDisputeGameParams{
+		VMType: state.VMTypeZK,
+		ZKDisputeGame: &state.ZKDisputeGameParams{
 			ChallengerBond: nil,
 		},
 		ChainProofParams: state.ChainProofParams{DisputeGameType: 10},
@@ -141,7 +141,7 @@ func TestDeployDisputeGame_SuperZK_NilChallengerBond(t *testing.T) {
 	require.ErrorContains(t, err, "ChallengerBond must be set")
 }
 
-func TestDeployDisputeGame_SuperZK_ZeroChallengerBond(t *testing.T) {
+func TestDeployDisputeGame_ZK_ZeroChallengerBond(t *testing.T) {
 	lgr := testlog.Logger(t, slog.LevelInfo)
 
 	env := &Env{Logger: lgr}
@@ -151,8 +151,8 @@ func TestDeployDisputeGame_SuperZK_ZeroChallengerBond(t *testing.T) {
 		},
 	}
 	game := state.AdditionalDisputeGame{
-		VMType: state.VMTypeSuperZK,
-		SuperZKDisputeGame: &state.SuperZKDisputeGameParams{
+		VMType: state.VMTypeZK,
+		ZKDisputeGame: &state.ZKDisputeGameParams{
 			ChallengerBond: (*hexutil.Big)(big.NewInt(0)),
 		},
 		ChainProofParams: state.ChainProofParams{DisputeGameType: 10},

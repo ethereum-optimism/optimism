@@ -35,8 +35,8 @@ interface IOPContractsManagerUtils {
         address challenger;
     }
 
-    /// @notice Configuration struct for the SuperZKDisputeGame.
-    struct SuperZKDisputeGameConfig {
+    /// @notice Configuration struct for the ZKDisputeGame.
+    struct ZKDisputeGameConfig {
         Claim absolutePrestate;
         IZKVerifier verifier;
         Duration maxChallengeDuration;

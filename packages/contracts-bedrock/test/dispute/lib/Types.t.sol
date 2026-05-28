@@ -10,9 +10,9 @@ import { GameTypes } from "src/dispute/lib/Types.sol";
 /// @title Types_IsSuperGame_Test
 /// @notice Unit tests for the GameTypes.isSuperGame() function.
 contract Types_IsSuperGame_Test is Test {
-    /// @notice Tests that SUPER_ZK_DISPUTE_GAME is recognized as a super game.
-    function test_isSuperGame_superZkDisputeGame_succeeds() public pure {
-        assertTrue(GameTypes.isSuperGame(GameTypes.SUPER_ZK_DISPUTE_GAME), "SUPER_ZK_DISPUTE_GAME must be a super game");
+    /// @notice Tests that ZK_DISPUTE_GAME is recognized as a super game.
+    function test_isSuperGame_zkDisputeGame_succeeds() public pure {
+        assertTrue(GameTypes.isSuperGame(GameTypes.ZK_DISPUTE_GAME), "ZK_DISPUTE_GAME must be a super game");
     }
 
     /// @notice Tests that non-super game types are not recognized as super games.
@@ -32,6 +32,6 @@ contract Types_IsSuperGame_Test is Test {
         );
         assertTrue(GameTypes.isSuperGame(GameTypes.SUPER_ASTERISC_KONA), "SUPER_ASTERISC_KONA must be a super game");
         assertTrue(GameTypes.isSuperGame(GameTypes.SUPER_CANNON_KONA), "SUPER_CANNON_KONA must be a super game");
-        assertTrue(GameTypes.isSuperGame(GameTypes.SUPER_ZK_DISPUTE_GAME), "SUPER_ZK_DISPUTE_GAME must be a super game");
+        assertTrue(GameTypes.isSuperGame(GameTypes.ZK_DISPUTE_GAME), "ZK_DISPUTE_GAME must be a super game");
     }
 }

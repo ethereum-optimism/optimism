@@ -275,7 +275,7 @@ abstract contract Setup is FeatureFlags {
 
         string memory delayedWETHVersion = ISemver(_delayedWETHImpl).version();
         GameType[4] memory gameTypes =
-            [GameTypes.CANNON, GameTypes.PERMISSIONED_CANNON, GameTypes.CANNON_KONA, GameTypes.SUPER_ZK_DISPUTE_GAME];
+            [GameTypes.CANNON, GameTypes.PERMISSIONED_CANNON, GameTypes.CANNON_KONA, GameTypes.ZK_DISPUTE_GAME];
         for (uint256 i = 0; i < gameTypes.length; i++) {
             IDelayedWETH delayedWETHProxy = DisputeGames.getGameImplDelayedWeth(_dgf, gameTypes[i]);
             if (address(delayedWETHProxy) != address(0)) {

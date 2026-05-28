@@ -311,9 +311,9 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
+                gameType: GameTypes.ZK_DISPUTE_GAME,
                 gameArgs: abi.encode(
-                    IOPContractsManagerUtils.SuperZKDisputeGameConfig({
+                    IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(0)),
                         verifier: IZKVerifier(address(0)),
                         maxChallengeDuration: Duration.wrap(0),
@@ -1034,7 +1034,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
-            IOPContractsManagerUtils.SuperZKDisputeGameConfig({
+            IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
                 verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
@@ -1046,11 +1046,11 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
 
         assertEq(
-            address(disputeGameFactory.gameImpls(GameTypes.SUPER_ZK_DISPUTE_GAME)),
+            address(disputeGameFactory.gameImpls(GameTypes.ZK_DISPUTE_GAME)),
             zkImpl,
             "ZK game impl not registered in factory"
         );
-        assertEq(disputeGameFactory.initBonds(GameTypes.SUPER_ZK_DISPUTE_GAME), 1 ether, "ZK init bond not set");
+        assertEq(disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), 1 ether, "ZK init bond not set");
     }
 
     /// @notice Tests that enabling the ZK dispute game encodes l2ChainId=0 in the factory game
@@ -1062,7 +1062,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
-            IOPContractsManagerUtils.SuperZKDisputeGameConfig({
+            IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
                 verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
@@ -1076,7 +1076,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // l2ChainId is the last 32 bytes of the ZK CWIA args layout:
         // absolutePrestate(32) + verifier(20) + maxChallengeDuration(8) + maxProveDuration(8)
         // + challengerBond(32) + anchorStateRegistry(20) + delayedWETH(20) + l2ChainId(32)
-        bytes memory args = disputeGameFactory.gameArgs(GameTypes.SUPER_ZK_DISPUTE_GAME);
+        bytes memory args = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
         uint256 l2ChainIdFromArgs;
         assembly {
             l2ChainIdFromArgs := mload(add(add(args, 0x20), sub(mload(args), 32)))
@@ -1111,7 +1111,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
-            IOPContractsManagerUtils.SuperZKDisputeGameConfig({
+            IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate v1"))),
                 verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
@@ -1120,7 +1120,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             })
         );
         runCurrentUpgradeV2(chainPAO);
-        bytes memory argsV1 = disputeGameFactory.gameArgs(GameTypes.SUPER_ZK_DISPUTE_GAME);
+        bytes memory argsV1 = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
 
         // Etch code to the dummy ZK verifier address
         // so that the code length check passes in the StandardValidator.
@@ -1128,7 +1128,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
         // Rotate to new prestate and verifier.
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
-            IOPContractsManagerUtils.SuperZKDisputeGameConfig({
+            IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate v2"))),
                 verifier: IZKVerifier(address(0xDEAD)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
@@ -1137,7 +1137,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             })
         );
         runCurrentUpgradeV2(chainPAO);
-        bytes memory argsV2 = disputeGameFactory.gameArgs(GameTypes.SUPER_ZK_DISPUTE_GAME);
+        bytes memory argsV2 = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
 
         assertTrue(keccak256(argsV1) != keccak256(argsV2), "ZK game args should have changed after rotation");
     }
@@ -1150,7 +1150,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
-            IOPContractsManagerUtils.SuperZKDisputeGameConfig({
+            IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
                 verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
@@ -1159,16 +1159,14 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             })
         );
         runCurrentUpgradeV2(chainPAO);
-        assertEq(disputeGameFactory.initBonds(GameTypes.SUPER_ZK_DISPUTE_GAME), 1 ether, "ZK init bond should be set");
+        assertEq(disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), 1 ether, "ZK init bond should be set");
 
         // Now disable ZK game.
         v2UpgradeInput.disputeGameConfigs[5].enabled = false;
         v2UpgradeInput.disputeGameConfigs[5].initBond = 0;
         runCurrentUpgradeV2(chainPAO);
         assertEq(
-            disputeGameFactory.initBonds(GameTypes.SUPER_ZK_DISPUTE_GAME),
-            0,
-            "ZK init bond should be zero after disable"
+            disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), 0, "ZK init bond should be zero after disable"
         );
     }
 
@@ -1307,9 +1305,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
+                gameType: GameTypes.ZK_DISPUTE_GAME,
                 gameArgs: abi.encode(
-                    IOPContractsManagerUtils.SuperZKDisputeGameConfig({
+                    IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(0)),
                         verifier: IZKVerifier(address(0)),
                         maxChallengeDuration: Duration.wrap(0),
@@ -1819,9 +1817,9 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
+                gameType: GameTypes.ZK_DISPUTE_GAME,
                 gameArgs: abi.encode(
-                    IOPContractsManagerUtils.SuperZKDisputeGameConfig({
+                    IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(0)),
                         verifier: IZKVerifier(address(0)),
                         maxChallengeDuration: Duration.wrap(0),
@@ -2133,9 +2131,9 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
             gameArgs: abi.encode(
-                IOPContractsManagerUtils.SuperZKDisputeGameConfig({
+                IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(0)),
                     verifier: IZKVerifier(address(0)),
                     maxChallengeDuration: Duration.wrap(0),
@@ -2266,7 +2264,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _assertGameIsEmpty(_disputeGameFactory, GameTypes.SUPER_PERMISSIONED_CANNON, "SUPER_PERMISSIONED_CANNON");
         _assertGameIsEmpty(_disputeGameFactory, GameTypes.CANNON_KONA, "CANNON_KONA");
         _assertGameIsEmpty(_disputeGameFactory, GameTypes.SUPER_CANNON_KONA, "SUPER_CANNON_KONA");
-        _assertGameIsEmpty(_disputeGameFactory, GameTypes.SUPER_ZK_DISPUTE_GAME, "SUPER_ZK_DISPUTE_GAME");
+        _assertGameIsEmpty(_disputeGameFactory, GameTypes.ZK_DISPUTE_GAME, "ZK_DISPUTE_GAME");
     }
 
     /// @notice Helper function to assert a game is empty.
@@ -2694,9 +2692,9 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
         baseConfig.disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_ZK_DISPUTE_GAME,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
             gameArgs: abi.encode(
-                IOPContractsManagerUtils.SuperZKDisputeGameConfig({
+                IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(0)),
                     verifier: IZKVerifier(address(0)),
                     maxChallengeDuration: Duration.wrap(0),

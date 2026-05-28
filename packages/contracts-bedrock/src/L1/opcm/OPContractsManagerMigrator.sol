@@ -377,7 +377,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         existingDGF.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(0)), hex"");
-        existingDGF.setImplementation(GameTypes.SUPER_ZK_DISPUTE_GAME, IDisputeGame(address(0)), hex"");
+        existingDGF.setImplementation(GameTypes.ZK_DISPUTE_GAME, IDisputeGame(address(0)), hex"");
 
         // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
         portal.migrateToSharedDisputeGame(_newLockbox, _newASR);

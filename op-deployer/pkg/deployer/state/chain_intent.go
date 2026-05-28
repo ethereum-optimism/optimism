@@ -18,7 +18,7 @@ const (
 	VMTypeAlphabet   = "ALPHABET"
 	VMTypeCannon     = "CANNON"      // Corresponds to the currently released Cannon StateVersion. See: https://github.com/ethereum-optimism/optimism/blob/4c05241bc534ae5837007c32995fc62f3dd059b6/cannon/mipsevm/versions/version.go
 	VMTypeCannonNext = "CANNON-NEXT" // Corresponds to the next in-development Cannon StateVersion. See: https://github.com/ethereum-optimism/optimism/blob/4c05241bc534ae5837007c32995fc62f3dd059b6/cannon/mipsevm/versions/version.go
-	VMTypeSuperZK    = "SUPER_ZK"    // SuperZK dispute game — uses a ZK verifier instead of a MIPS VM, with super-root semantics.
+	VMTypeZK    = "ZK"    // ZK dispute game — uses a ZK verifier instead of a MIPS VM, with super-root semantics.
 )
 
 func (v VMType) MipsVersion() uint64 {
@@ -47,12 +47,12 @@ type AdditionalDisputeGame struct {
 	ChainProofParams
 	VMType        VMType
 	MakeRespected bool
-	// SuperZKDisputeGame holds SuperZK-specific configuration. Only used when VMType == VMTypeSuperZK.
-	SuperZKDisputeGame *SuperZKDisputeGameParams `json:"superZkDisputeGame,omitempty" toml:"superZkDisputeGame,omitempty"`
+	// ZKDisputeGame holds ZK-specific configuration. Only used when VMType == VMTypeZK.
+	ZKDisputeGame *ZKDisputeGameParams `json:"zkDisputeGame,omitempty" toml:"zkDisputeGame,omitempty"`
 }
 
-// SuperZKDisputeGameParams holds the configuration for a SuperZK dispute game in the upgrade pipeline.
-type SuperZKDisputeGameParams struct {
+// ZKDisputeGameParams holds the configuration for a ZK dispute game in the upgrade pipeline.
+type ZKDisputeGameParams struct {
 	Verifier             common.Address `json:"verifier" toml:"verifier"`
 	AbsolutePrestate     common.Hash    `json:"absolutePrestate" toml:"absolutePrestate"`
 	MaxChallengeDuration uint64         `json:"maxChallengeDuration" toml:"maxChallengeDuration"`
@@ -113,7 +113,7 @@ var ErrGasLimitZeroValue = fmt.Errorf("chain has a gas limit set to zero value")
 var ErrNonStandardValue = fmt.Errorf("chain contains non-standard config value")
 var ErrEip1559ZeroValue = fmt.Errorf("eip1559 param is set to zero value")
 var ErrIncompatibleValue = fmt.Errorf("chain contains incompatible config value")
-var ErrSuperZKDisputeGameMissingParams = fmt.Errorf("SuperZK dispute game is missing required params")
+var ErrZKDisputeGameMissingParams = fmt.Errorf("ZK dispute game is missing required params")
 
 func (c *ChainIntent) Check() error {
 	if c.ID == emptyHash {
@@ -167,24 +167,24 @@ func (c *ChainIntent) Check() error {
 	}
 
 	for _, game := range c.AdditionalDisputeGames {
-		if game.VMType == VMTypeSuperZK {
-			if game.SuperZKDisputeGame == nil {
-				return fmt.Errorf("%w: superZkDisputeGame config must be set when VMType is SUPER_ZK, chainId=%s", ErrSuperZKDisputeGameMissingParams, c.ID)
+		if game.VMType == VMTypeZK {
+			if game.ZKDisputeGame == nil {
+				return fmt.Errorf("%w: zkDisputeGame config must be set when VMType is ZK, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
 			}
-			if game.SuperZKDisputeGame.Verifier == (common.Address{}) {
-				return fmt.Errorf("%w: Verifier must not be zero address, chainId=%s", ErrSuperZKDisputeGameMissingParams, c.ID)
+			if game.ZKDisputeGame.Verifier == (common.Address{}) {
+				return fmt.Errorf("%w: Verifier must not be zero address, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
 			}
-			if game.SuperZKDisputeGame.AbsolutePrestate == (common.Hash{}) {
-				return fmt.Errorf("%w: AbsolutePrestate must not be zero, chainId=%s", ErrSuperZKDisputeGameMissingParams, c.ID)
+			if game.ZKDisputeGame.AbsolutePrestate == (common.Hash{}) {
+				return fmt.Errorf("%w: AbsolutePrestate must not be zero, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
 			}
-			if game.SuperZKDisputeGame.MaxChallengeDuration == 0 {
-				return fmt.Errorf("%w: MaxChallengeDuration must be > 0, chainId=%s", ErrSuperZKDisputeGameMissingParams, c.ID)
+			if game.ZKDisputeGame.MaxChallengeDuration == 0 {
+				return fmt.Errorf("%w: MaxChallengeDuration must be > 0, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
 			}
-			if game.SuperZKDisputeGame.MaxProveDuration == 0 {
-				return fmt.Errorf("%w: MaxProveDuration must be > 0, chainId=%s", ErrSuperZKDisputeGameMissingParams, c.ID)
+			if game.ZKDisputeGame.MaxProveDuration == 0 {
+				return fmt.Errorf("%w: MaxProveDuration must be > 0, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
 			}
-			if game.SuperZKDisputeGame.ChallengerBond == nil || game.SuperZKDisputeGame.ChallengerBond.ToInt().Sign() <= 0 {
-				return fmt.Errorf("%w: ChallengerBond must be set to a positive value, chainId=%s", ErrSuperZKDisputeGameMissingParams, c.ID)
+			if game.ZKDisputeGame.ChallengerBond == nil || game.ZKDisputeGame.ChallengerBond.ToInt().Sign() <= 0 {
+				return fmt.Errorf("%w: ChallengerBond must be set to a positive value, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
 			}
 		}
 	}
