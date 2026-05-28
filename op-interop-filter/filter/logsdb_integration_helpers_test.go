@@ -72,7 +72,6 @@ type seedSpec struct {
 	BackfillDuration time.Duration
 	PollInterval     time.Duration
 	FetchConcurrency int
-	NoSealAnchor     bool // omit sealParentBlock; used by init tests
 	NoIngest         bool // omit per-block ingest; used by init tests
 }
 
@@ -114,9 +113,6 @@ func newSeededIngester(t *testing.T, spec seedSpec) *seededIngester {
 		}
 	})
 
-	if !spec.NoSealAnchor {
-		require.NoError(t, si.sealParentBlock(spec.AnchorNumber), "sealParentBlock")
-	}
 	if !spec.NoIngest {
 		for _, b := range spec.Blocks {
 			require.NoErrorf(t, si.ingestBlock(b.Num), "ingestBlock %d", b.Num)
@@ -372,9 +368,9 @@ func reopenSeededIngester(t *testing.T, prev *seededIngester) *seededIngester {
 		}
 	})
 
-	latest, ok := si.logsDB.LatestSealedBlock()
+	_, ok := si.logsDB.LatestSealedBlock()
 	require.True(t, ok, "reopened DB has no sealed blocks")
-	require.NoError(t, si.findAndSetEarliestBlock(latest.Number+1))
+	require.NoError(t, si.findAndSetEarliestBlock())
 	return si
 }
 

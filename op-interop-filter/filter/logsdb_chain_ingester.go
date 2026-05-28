@@ -341,22 +341,9 @@ func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]Includ
 }
 
 // findAndSetEarliestBlock determines the earliest queryable block on resume.
-//
-// The first sealed block is the anchor checkpoint (sealed without log data).
-// The earliest block that can be opened for queries is the block immediately
-// after it. nextBlock is the next block ingestion will attempt (i.e.
-// latestSealed+1) and is used to distinguish two states:
-//
-//   - nextBlock == first+1: the DB contains only the anchor. No blocks with
-//     log data have been ingested yet. We leave earliestIngestedBlockSet false
-//     and let the first successful ingestBlock set it, exactly as in the
-//     fresh-start path.
-//   - nextBlock > first+1: at least one block past the anchor has been sealed,
-//     which under normal operation also means it has log data. We verify with
-//     OpenBlock(first+1); if that fails the DB is in an unexpected state and
-//     we refuse to start rather than serve potentially incorrect query
-//     results.
-func (c *LogsDBChainIngester) findAndSetEarliestBlock(nextBlock uint64) error {
+// The first sealed block is the earliest block with log data — it is sealed
+// directly with its receipts, not as a separate anchor checkpoint.
+func (c *LogsDBChainIngester) findAndSetEarliestBlock() error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -364,22 +351,10 @@ func (c *LogsDBChainIngester) findAndSetEarliestBlock(nextBlock uint64) error {
 	if err != nil {
 		return fmt.Errorf("failed to find first sealed block in DB: %w", err)
 	}
-	earliest := first.Number + 1
 
-	if nextBlock == earliest {
-		c.log.Info("DB contains only anchor block; deferring earliest-block tracking to first ingestion",
-			"anchor", first.Number)
-		return nil
-	}
-
-	if _, _, _, err := c.logsDB.OpenBlock(earliest); err != nil {
-		return fmt.Errorf("DB has sealed blocks past anchor %d but earliest %d cannot be opened: %w",
-			first.Number, earliest, err)
-	}
-
-	c.earliestIngestedBlock.Store(earliest)
+	c.earliestIngestedBlock.Store(first.Number)
 	c.earliestIngestedBlockSet.Store(true)
-	c.log.Info("Found earliest block in DB", "block", earliest, "anchor", first.Number)
+	c.log.Info("Found earliest block in DB", "block", first.Number)
 	return nil
 }
 
@@ -566,17 +541,12 @@ func (c *LogsDBChainIngester) initIngestion() (uint64, error) {
 		c.log.Info("Resuming from existing DB", "lastSealed", latestSealed.Number, "resumeFrom", nextBlock)
 
 		if !c.earliestIngestedBlockSet.Load() {
-			if err := c.findAndSetEarliestBlock(nextBlock); err != nil {
+			if err := c.findAndSetEarliestBlock(); err != nil {
 				return 0, fmt.Errorf("failed to determine earliest ingested block: %w", err)
 			}
 		}
 
 		return nextBlock, nil
-	}
-
-	// Fresh start: seal parent block as anchor
-	if err := c.sealParentBlock(startingBlock - 1); err != nil {
-		return 0, fmt.Errorf("failed to seal parent block: %w", err)
 	}
 
 	c.log.Info("Starting fresh ingestion",
@@ -655,32 +625,6 @@ func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockI
 	c.pendingRewindResumeFromSet = true
 	c.log.Info("Rewound logs DB to finalized", "block", targetID.Number, "hash", targetID.Hash)
 	return targetID, targetInfo.Time(), nil
-}
-
-func (c *LogsDBChainIngester) sealParentBlock(blockNum uint64) error {
-	c.log.Info("Sealing parent block as starting point", "block", blockNum)
-
-	blockInfo, err := c.ethClient.InfoByNumber(c.ctx, blockNum)
-	if err != nil {
-		return fmt.Errorf("failed to get block info: %w", err)
-	}
-
-	blockID := eth.BlockID{Hash: blockInfo.Hash(), Number: blockInfo.NumberU64()}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	parentHash := blockInfo.ParentHash()
-	if err := c.logsDB.SealBlock(parentHash, blockID, blockInfo.Time()); err != nil {
-		return fmt.Errorf("failed to seal block: %w", err)
-	}
-
-	// Note: We don't set earliestIngestedBlock here because the parent block is just
-	// an anchor checkpoint. earliestIngestedBlock will be set in ingestBlock when
-	// the first block with actual log data is ingested.
-
-	c.log.Info("Sealed parent block", "block", blockNum, "hash", blockID.Hash)
-	return nil
 }
 
 func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
