@@ -405,7 +405,7 @@ contract Deploy is Deployer {
         });
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
-            initBond: DEFAULT_INIT_BOND,
+            initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: cfg.l2OutputOracleProposer() })
