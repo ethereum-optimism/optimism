@@ -2876,6 +2876,7 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 		h := newInteropTestHarness(t).
 			WithChain(10, nil).
 			Build()
+		h.interop.backfillCompleted.Store(true)
 
 		l1Block := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 1000, Time: 999}
 		blockID, ts, err := h.interop.VerifiedBlockAtL1(h.Mock(10).id, l1Block)
@@ -2883,6 +2884,18 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 		require.Equal(t, eth.BlockID{}, blockID)
 		// Empty DB returns the pre-activation cap (activationTimestamp-1).
 		require.Equal(t, h.interop.activationTimestamp-1, ts)
+	})
+
+	t.Run("empty DB before cold-start backfill returns not started", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, nil).
+			Build()
+
+		l1Block := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 1000, Time: 999}
+		blockID, ts, err := h.interop.VerifiedBlockAtL1(h.Mock(10).id, l1Block)
+		require.ErrorIs(t, err, ErrNotStarted)
+		require.Equal(t, eth.BlockID{}, blockID)
+		require.Equal(t, uint64(0), ts)
 	})
 
 	t.Run("closed verifiedDB surfaces error", func(t *testing.T) {
@@ -2930,6 +2943,17 @@ func TestLatestVerifiedL2Block_ClosedDBSurfacesError(t *testing.T) {
 
 	blockID, ts, err := h.interop.LatestVerifiedL2Block(chainID)
 	require.Error(t, err)
+	require.Equal(t, eth.BlockID{}, blockID)
+	require.Equal(t, uint64(0), ts)
+}
+
+func TestLatestVerifiedL2Block_EmptyDBBeforeColdStartBackfillReturnsNotStarted(t *testing.T) {
+	h := newInteropTestHarness(t).
+		WithChain(10, nil).
+		Build()
+
+	blockID, ts, err := h.interop.LatestVerifiedL2Block(h.Mock(10).id)
+	require.ErrorIs(t, err, ErrNotStarted)
 	require.Equal(t, eth.BlockID{}, blockID)
 	require.Equal(t, uint64(0), ts)
 }

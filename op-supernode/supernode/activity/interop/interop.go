@@ -1213,11 +1213,17 @@ func (i *Interop) activationCap() uint64 {
 // LatestVerifiedL2Block returns the latest verified L2 block for chainID.
 // (empty, capTimestamp, nil) means nothing verified — capTimestamp is the
 // pre-activation anchor (`activationTimestamp - 1`) for the caller to resolve.
-// A non-nil error means verifiedDB could not be read.
+// ErrNotStarted means cold-start backfill has not completed yet (the empty DB
+// must NOT be reported as an anchor, or the resolver would advance cross-safe to
+// an anchor during backfill).
+// Other non-nil errors mean verifiedDB could not be read.
 func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64, error) {
 	emptyBlock := eth.BlockID{}
 	ts, ok := i.verifiedDB.LastTimestamp()
 	if !ok {
+		if !i.backfillCompleted.Load() {
+			return emptyBlock, 0, ErrNotStarted
+		}
 		return emptyBlock, i.activationCap(), nil
 	}
 	res, err := i.verifiedDB.Get(ts)
@@ -1237,8 +1243,12 @@ func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint6
 // VerifiedBlockAtL1 returns the latest verified L2 block for chainID whose
 // L1 inclusion is at or below l1Block. (empty, capTimestamp, nil) means no
 // match — capTimestamp is the pre-activation anchor for the caller to resolve.
-// A non-nil error means verifiedDB could not be read.
+// ErrNotStarted means cold-start backfill has not completed yet.
+// Other non-nil errors mean verifiedDB could not be read.
 func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64, error) {
+	if _, ok := i.verifiedDB.LastTimestamp(); !ok && !i.backfillCompleted.Load() {
+		return eth.BlockID{}, 0, ErrNotStarted
+	}
 	if l1Block == (eth.L1BlockRef{}) {
 		return eth.BlockID{}, i.activationCap(), nil
 	}

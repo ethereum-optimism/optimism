@@ -70,24 +70,23 @@ func TestSafeL2Head_EmptyVerifier_DoesNotDropToGenesis(t *testing.T) {
 	require.Equal(t, anchorRef, got, "SafeL2Head must return the canonical anchor block at the cap timestamp")
 }
 
-// TestSafeL2Head_VerifierError_FloorsAtFinalized exercises bug A and the
-// verifier-error portion of bug D.
+// TestSafeL2Head_VerifierError_HoldsCachedCrossSafe exercises bug A and the
+// verifier-error portion of bug D under the resolver contract.
 //
 // Under the previous boolean contract, a verifier read error returned
-// (BlockID{}, true) which engine_controller.SafeL2Head interpreted as
-// "fall back to local-safe", advancing cross-safe past verification. Under the
-// tri-state contract, errors surface as VerifierHeadHoldPrevious and the caller
-// floors at FinalizedHead — never below.
-func TestSafeL2Head_VerifierError_FloorsAtFinalized(t *testing.T) {
+// (BlockID{}, true) which SafeL2Head interpreted as "fall back to local-safe",
+// advancing cross-safe past verification. Under the resolver contract, errors
+// surface as ok=false (HoldPrevious) and the resolver holds the PREVIOUS cached
+// cross-safe — never local-safe, never a finalized floor.
+func TestSafeL2Head_VerifierError_HoldsCachedCrossSafe(t *testing.T) {
 	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
 	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
+	cachedCrossSafe := eth.L2BlockRef{Hash: common.Hash{0x77}, Number: 70}
 
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
 	sa := &mockSuperAuthority{
-		holdPreviousVerified: true,
-		// FinalizedHead is also consulted; configure it to PreActivation so the
-		// floor resolves to localFinalizedHead.
+		holdPreviousVerified:  true,
 		finalizedL2HeadSource: rollup.VerifierHeadPreActivation,
 	}
 	ec := NewEngineController(
@@ -103,13 +102,13 @@ func TestSafeL2Head_VerifierError_FloorsAtFinalized(t *testing.T) {
 	)
 	ec.SetLocalSafeHead(localSafe)
 	ec.SetFinalizedHead(localFinalized)
+	ec.SetCrossSafeHead(cachedCrossSafe)
 
 	got := ec.SafeL2Head()
 	require.NotEqual(t, localSafe, got,
-		"SafeL2Head must not return localSafeHead on verifier error; "+
-			"the previous (BlockID{}, true) signal advanced cross-safe past verification (bug A).")
-	require.Equal(t, localFinalized, got,
-		"SafeL2Head must floor at localFinalizedHead on verifier error (HoldPrevious semantics).")
+		"SafeL2Head must not return localSafeHead on verifier error (bug A).")
+	require.Equal(t, cachedCrossSafe, got,
+		"SafeL2Head must hold the cached cross-safe on verifier error (HoldPrevious semantics).")
 }
 
 // TestFinalizedHead_HoldPrevious_NoCache_ReturnsZero documents the
@@ -142,4 +141,48 @@ func TestFinalizedHead_HoldPrevious_NoCache_ReturnsZero(t *testing.T) {
 		"FinalizedHead on cold-start HoldPrevious must return zero L2BlockRef, not garbage")
 	require.Equal(t, common.Hash{}, got.Hash,
 		"resulting ForkchoiceUpdate sends a zero finalized hash, preserving the EL's own label")
+}
+
+// TestPromoteFinalized_WithSuperAuthorityDoesNotPublishLocalFinalityAheadOfSafe
+// is the local-finality gating property (fix 0a2d/d725): under a SuperAuthority
+// the L1-derived finalizer advances localFinalizedHead UNCONDITIONALLY (so cross
+// finality is never pinned at genesis), but the PUBLISHED finalized head remains
+// the resolver's output — it must never run ahead of the cross-safe head.
+func TestPromoteFinalized_WithSuperAuthorityDoesNotPublishLocalFinalityAheadOfSafe(t *testing.T) {
+	oldPublished := eth.L2BlockRef{Hash: common.Hash{0x99}, Number: 99}
+	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 12_374}
+	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 12_105}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	sa := &mockSuperAuthority{
+		fullyVerifiedL2Head:       eth.BlockID{Hash: oldPublished.Hash, Number: oldPublished.Number},
+		fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
+		holdPreviousFinalized:     true,
+	}
+	ec := NewEngineController(
+		context.Background(),
+		mockEngine,
+		testlog.Logger(t, 0),
+		metrics.NoopMetrics,
+		&rollup.Config{},
+		&sync.Config{},
+		&testutils.MockL1Source{},
+		emitter,
+		sa,
+	)
+	ec.SetLocalSafeHead(localSafe)
+	ec.SetFinalizedHead(oldPublished)
+	ec.superAuthorityFinalizedHead = oldPublished
+
+	mockEngine.ExpectL2BlockRefByHash(oldPublished.Hash, oldPublished, nil)
+	mockEngine.ExpectL2BlockRefByNumber(oldPublished.Number, oldPublished, nil)
+
+	ec.PromoteFinalized(context.Background(), localFinalized)
+
+	require.Equal(t, localFinalized, ec.localFinalizedHead,
+		"local finality should still advance and bound future super-authority finality")
+	require.Equal(t, oldPublished, ec.crossFinalizedHead,
+		"published/FCU finality must remain at the super-authority finalized head")
+	mockEngine.AssertExpectations(t)
 }

@@ -244,23 +244,25 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50},
 		},
 		{
-			name: "floors at finalized when SuperAuthority block is not canonical (reorg signal)",
+			// New contract (resolver): a non-canonical verified safe is a reorg
+			// signal that holds the PREVIOUS cached cross-safe — it never floors
+			// at finalized and never advances to local-safe.
+			name: "holds cached cross-safe when SuperAuthority block is not canonical (reorg signal)",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
 					fullyVerifiedL2Head:       eth.BlockID{Hash: common.Hash{0xbb}, Number: 50},
 					fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
-					finalizedL2Head:           eth.BlockID{Hash: common.Hash{0xee}, Number: 40},
-					finalizedL2HeadSource:     rollup.VerifierHeadVerified,
+					finalizedL2HeadSource:     rollup.VerifierHeadPreActivation,
 				}
 			},
-			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
-			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
+			setupLocalSafe:  &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+			setupFinalized:  &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
+			setupDeprecated: &eth.L2BlockRef{Hash: common.Hash{0x77}, Number: 45},
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0xbb}, eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}, nil)
 				m.ExpectL2BlockRefByNumber(50, eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 50}, nil)
-				m.ExpectL2BlockRefByHash(common.Hash{0xee}, eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40}, nil)
 			},
-			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40},
+			expectResult: &eth.L2BlockRef{Hash: common.Hash{0x77}, Number: 45},
 		},
 		{
 			// Pre-fix this asserted "empty BlockID → genesis" (bug B). Under the
@@ -296,34 +298,38 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 			expectResult:   &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
 		},
 		{
-			name: "floors at finalized when SuperAuthority block unknown to engine (reorg signal)",
+			// New contract: a verified safe unknown to the engine is a reorg
+			// signal that holds the PREVIOUS cached cross-safe.
+			name: "holds cached cross-safe when SuperAuthority block unknown to engine (reorg signal)",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
 					fullyVerifiedL2Head:       eth.BlockID{Hash: common.Hash{0x99}, Number: 50},
 					fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
-					finalizedL2Head:           eth.BlockID{Hash: common.Hash{0xee}, Number: 40},
-					finalizedL2HeadSource:     rollup.VerifierHeadVerified,
+					finalizedL2HeadSource:     rollup.VerifierHeadPreActivation,
 				}
 			},
-			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
-			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
+			setupLocalSafe:  &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+			setupFinalized:  &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 40},
+			setupDeprecated: &eth.L2BlockRef{Hash: common.Hash{0x77}, Number: 45},
 			setupEngine: func(m *testutils.MockEngine) {
 				m.ExpectL2BlockRefByHash(common.Hash{0x99}, eth.L2BlockRef{}, errors.New("block not found"))
-				m.ExpectL2BlockRefByHash(common.Hash{0xee}, eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40}, nil)
 			},
-			expectResult: &eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 40},
+			expectResult: &eth.L2BlockRef{Hash: common.Hash{0x77}, Number: 45},
 		},
 		{
-			name: "HoldPrevious floors at finalized, never local-safe",
+			// New contract: HoldPrevious uses the cached cross-safe, never
+			// local-safe and never a finalized floor.
+			name: "HoldPrevious holds cached cross-safe, never local-safe",
 			setupSuperAuth: func() *mockSuperAuthority {
 				return &mockSuperAuthority{
 					holdPreviousVerified:  true,
 					finalizedL2HeadSource: rollup.VerifierHeadPreActivation,
 				}
 			},
-			setupLocalSafe: &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
-			setupFinalized: &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30},
-			expectResult:   &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30},
+			setupLocalSafe:  &eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100},
+			setupFinalized:  &eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 30},
+			setupDeprecated: &eth.L2BlockRef{Hash: common.Hash{0x77}, Number: 60},
+			expectResult:    &eth.L2BlockRef{Hash: common.Hash{0x77}, Number: 60},
 		},
 	}
 
@@ -350,7 +356,7 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 				ec.SetFinalizedHead(*tt.setupFinalized)
 			}
 			if tt.setupDeprecated != nil {
-				ec.SetDeprecatedSafeHead(*tt.setupDeprecated)
+				ec.SetCrossSafeHead(*tt.setupDeprecated)
 			}
 
 			if tt.setupEngine != nil {
@@ -405,13 +411,14 @@ func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
 
 	// Mock initializeUnknowns calls
 	mockEngine.ExpectL2BlockRefByLabel(eth.Unsafe, unsafeRef, nil)
-	// SafeL2Head is called multiple times during initialization and forkchoice - be generous
-	for i := 0; i < 10; i++ {
+	// SafeL2Head/FinalizedHead both run the coupled resolver, which gathers the
+	// safe (verified) and finalized signals on every call - be generous.
+	for i := 0; i < 40; i++ {
 		mockEngine.ExpectL2BlockRefByHash(verifiedRef.Hash, verifiedRef, nil)
 		mockEngine.ExpectL2BlockRefByNumber(verifiedRef.Number, verifiedRef, nil)
 	}
-	// FinalizedHead is also called and will look up the finalized block by hash
-	for i := 0; i < 10; i++ {
+	// The finalized signal looks up the finalized block by hash.
+	for i := 0; i < 40; i++ {
 		mockEngine.ExpectL2BlockRefByHash(finalizedRef.Hash, finalizedRef, nil)
 	}
 	mockEngine.ExpectL2BlockRefByLabel(eth.Safe, localSafeRef, nil)
@@ -433,6 +440,51 @@ func TestEngineController_ForkchoiceUpdateUsesSuperAuthority(t *testing.T) {
 	// Trigger forkchoice update (fires because lastForkchoice differs from current state)
 	err := ec.tryUpdateEngineInternal(context.Background())
 	require.NoError(t, err)
+}
+
+// TestEngineController_SuperAuthorityHoldPreviousPreservesEngineFinalizedOnStartup
+// is the cold-start preservation property (fix d1bb): on startup the verifier
+// HoldPrevious's (empty verified DB) but the EL has a persisted finalized head.
+// initializeUnknowns seeds the resolver caches from the EL labels so the FCU
+// publishes the persisted safe/finalized instead of regressing to zero.
+func TestEngineController_SuperAuthorityHoldPreviousPreservesEngineFinalizedOnStartup(t *testing.T) {
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L2Time: 1000,
+		},
+		BlockTime: 2,
+	}
+
+	unsafeRef := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 300}
+	safeRef := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 200}
+	finalizedRef := eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 150}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	mockSA := &mockSuperAuthority{
+		holdPreviousVerified:  true,
+		holdPreviousFinalized: true,
+	}
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, mockSA)
+
+	mockEngine.ExpectL2BlockRefByLabel(eth.Unsafe, unsafeRef, nil)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, finalizedRef, nil)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Safe, safeRef, nil)
+
+	emitter.ExpectOnceType("ForkchoiceUpdateEvent")
+	expectedFC := eth.ForkchoiceState{
+		HeadBlockHash:      unsafeRef.Hash,
+		SafeBlockHash:      safeRef.Hash,
+		FinalizedBlockHash: finalizedRef.Hash,
+	}
+	mockEngine.ExpectForkchoiceUpdate(&expectedFC, nil, &eth.ForkchoiceUpdatedResult{
+		PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
+	}, nil)
+
+	err := ec.tryUpdateEngineInternal(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, safeRef, ec.crossSafeHead)
+	require.Equal(t, finalizedRef, ec.superAuthorityFinalizedHead)
 }
 
 // TestInitializeUnknowns_SetsLocalSafeHead_Regression is a regression test for a bug
@@ -476,7 +528,7 @@ func TestInitializeUnknowns_SetsLocalSafeHead_Regression(t *testing.T) {
 
 	// Verify initial state is zero (simulating fresh CL start)
 	require.Equal(t, eth.L2BlockRef{}, ec.localSafeHead, "localSafeHead should start as zero")
-	require.Equal(t, eth.L2BlockRef{}, ec.deprecatedSafeHead, "deprecatedSafeHead should start as zero")
+	require.Equal(t, eth.L2BlockRef{}, ec.crossSafeHead, "deprecatedSafeHead should start as zero")
 
 	// Mock EL returning persisted state (simulating restart with existing EL data)
 	mockEngine.ExpectL2BlockRefByLabel(eth.Unsafe, unsafeRef, nil)
@@ -508,7 +560,7 @@ func TestInitializeUnknowns_SetsLocalSafeHead_Regression(t *testing.T) {
 		"SafeL2Head() must return the initialized localSafeHead")
 
 	// Verify deprecatedSafeHead is also set (for backward compatibility)
-	require.Equal(t, safeRef, ec.deprecatedSafeHead,
+	require.Equal(t, safeRef, ec.crossSafeHead,
 		"deprecatedSafeHead should also be set to match localSafeHead")
 
 	mockEngine.AssertExpectations(t)
@@ -659,10 +711,10 @@ func TestConsolidation_BatchesFCUPerL1Block(t *testing.T) {
 	// Set all heads directly to avoid initializeUnknowns engine calls.
 	ec.unsafeHead = block3
 	ec.localSafeHead = genesis
-	ec.deprecatedSafeHead = genesis
+	ec.crossSafeHead = genesis
 	ec.pendingSafeHead = genesis
 	ec.localFinalizedHead = genesis
-	ec.deprecatedFinalizedHead = genesis
+	ec.crossFinalizedHead = genesis
 
 	// Allow any emitted events
 	emitter.Mock.On("Emit", mock.Anything).Maybe()
@@ -682,7 +734,7 @@ func TestConsolidation_BatchesFCUPerL1Block(t *testing.T) {
 	mockEngine.AssertExpectations(t)
 
 	// Verify cross-safe advanced correctly despite no FCU
-	require.Equal(t, block3.Hash, ec.deprecatedSafeHead.Hash, "cross-safe should advance per-block")
+	require.Equal(t, block3.Hash, ec.crossSafeHead.Hash, "cross-safe should advance per-block")
 	require.Equal(t, block3.Hash, ec.localSafeHead.Hash, "local-safe should advance per-block")
 
 	// Now simulate DeriverL1StatusEvent (L1 origin transition).
@@ -759,8 +811,8 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 	// Initial state: unsafe=block5, localSafe=block2, crossSafe=block2, finalized=block1
 	ec.unsafeHead = block5
 	ec.SetLocalSafeHead(block2)
-	ec.SetDeprecatedSafeHead(block2) // deprecatedSafeHead = block2
-	ec.SetFinalizedHead(block1)      // deprecatedFinalizedHead = block1
+	ec.SetCrossSafeHead(block2) // deprecatedSafeHead = block2
+	ec.SetFinalizedHead(block1) // deprecatedFinalizedHead = block1
 	// Set lastForkchoice to match initial state so setup doesn't trigger FCU
 	ec.lastForkchoice = eth.ForkchoiceState{
 		HeadBlockHash:      block5.Hash,
@@ -791,11 +843,11 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 
 	// Assert the final head state
 	require.Equal(t, block5, ec.localSafeHead, "localSafeHead should be updated to block5")
-	require.Equal(t, block4, ec.deprecatedSafeHead, "deprecatedSafeHead (cross-safe) should be updated to block4")
-	require.Equal(t, block3, ec.deprecatedFinalizedHead, "deprecatedFinalizedHead (cross-finalized) should be updated to block3")
+	require.Equal(t, block4, ec.crossSafeHead, "deprecatedSafeHead (cross-safe) should be updated to block4")
+	require.Equal(t, block3, ec.crossFinalizedHead, "deprecatedFinalizedHead (cross-finalized) should be updated to block3")
 
 	// Assert the invariant: cross-safe <= local-safe
-	require.LessOrEqual(t, ec.deprecatedSafeHead.Number, ec.localSafeHead.Number,
+	require.LessOrEqual(t, ec.crossSafeHead.Number, ec.localSafeHead.Number,
 		"invariant: cross-safe (deprecatedSafeHead) must not exceed local-safe")
 }
 
@@ -833,8 +885,8 @@ func TestFollowSource_SeedsGenesisRefsFromZeroState(t *testing.T) {
 	ec.FollowSource(genesis, genesis, genesis)
 
 	require.Equal(t, genesis, ec.localSafeHead)
-	require.Equal(t, genesis, ec.deprecatedSafeHead)
-	require.Equal(t, genesis, ec.deprecatedFinalizedHead)
+	require.Equal(t, genesis, ec.crossSafeHead)
+	require.Equal(t, genesis, ec.crossFinalizedHead)
 	mockEngine.AssertExpectations(t)
 }
 
@@ -1058,7 +1110,11 @@ func TestEngineController_FinalizedHeadUsesCachedSuperAuthorityFinalizedWhenAuth
 	require.Equal(t, cachedSuperAuthority, ec.superAuthorityFinalizedHead)
 }
 
-func TestEngineController_FinalizedHeadPanicsOnCachedSuperAuthoritySameHeightConflict(t *testing.T) {
+// New contract: a freshly resolved finalized head that conflicts with the cache
+// at the same height/different hash is inconsistent state. The resolver returns
+// an error (instead of panicking) and the engine controller HOLDS the previous
+// cached cross heads rather than publishing inconsistent state.
+func TestEngineController_FinalizedHeadHoldsCacheOnSameHeightConflict(t *testing.T) {
 	authorityBlock := eth.BlockID{Hash: common.Hash{0xbb}, Number: 50}
 	authorityRef := eth.L2BlockRef{Hash: authorityBlock.Hash, Number: authorityBlock.Number}
 	superAuth := &mockSuperAuthority{
@@ -1071,11 +1127,12 @@ func TestEngineController_FinalizedHeadPanicsOnCachedSuperAuthoritySameHeightCon
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, superAuth)
 	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100})
 	ec.SetFinalizedHead(eth.L2BlockRef{Hash: common.Hash{0xff}, Number: 60})
-	ec.superAuthorityFinalizedHead = eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 50}
+	cached := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 50}
+	ec.superAuthorityFinalizedHead = cached
 
-	require.PanicsWithValue(t, "superAuthority finalized head conflicts with cached superAuthority finalized head at same height", func() {
-		ec.FinalizedHead()
-	})
+	require.Equal(t, cached, ec.FinalizedHead(),
+		"on a same-height/different-hash conflict the resolver errors and the cache is held")
+	require.Equal(t, cached, ec.superAuthorityFinalizedHead)
 }
 
 // TestEngineController_FinalizedHeadAnchorDoesNotRegressCache locks in the
