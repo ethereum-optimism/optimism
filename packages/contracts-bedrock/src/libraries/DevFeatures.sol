@@ -9,6 +9,24 @@ pragma solidity ^0.8.0;
 ///         0x0000000000000000000000000000000000000000000000000000000000000100
 ///         etc.
 ///         We'll expand to using all available bits if we need more than 64 concurrent features.
+/// @dev ADDING A NEW DEV FEATURE:
+///      A dev feature is wired through several files. There is no compile-time link between them.
+///      Update every item below.
+///
+///        1. Add the new feature bit in this file. Do not reuse a retired value unless the reuse is
+///           intentional and reviewed.
+///        2. Add the matching Go flag in `op-core/devfeatures/devfeatures.go`. The Go value MUST
+///           match the Solidity value byte-for-byte.
+///        3. Add the env var reader in `packages/contracts-bedrock/scripts/libraries/Config.sol`.
+///        4. Wire the env var into the dev feature bitmap in
+///           `packages/contracts-bedrock/test/setup/FeatureFlags.sol`. Add the feature name there too.
+///        5. Add CI coverage in `.circleci/continue/main.yml` under the `&features_matrix` anchor.
+///           Add combination rows when this feature interacts with another feature. Document
+///           intentionally unsupported combinations near the matrix. Do not register dev features in
+///           `setup-features.system_features.default`.
+///
+///      For the parallel SYSTEM feature checklist, see
+///      packages/contracts-bedrock/src/libraries/Features.sol.
 library DevFeatures {
     /// @notice The feature that enables the Interop migration functions on the OptimismPortal2 contract.
     bytes32 public constant OPTIMISM_PORTAL_INTEROP =

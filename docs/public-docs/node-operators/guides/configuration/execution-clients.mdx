@@ -1,71 +1,25 @@
 ---
 title: Execution client configuration
-description: Learn how to configure execution clients (op-geth, op-reth, Nethermind) for your OP Stack node.
+description: Configure op-reth as your OP Stack execution client. op-geth support ends 2026-05-31.
 ---
 
-The execution client provides the EVM execution environment and processes transactions.
-This guide covers configuration for the most popular execution client implementations.
+The execution client provides the EVM runtime and transaction processing for your OP Stack node.
+
+<Warning>
+  **op-geth reaches end-of-support on 2026-05-31 and will not support the L1 Glamsterdam hardfork.** Chains still running op-geth at activation will not follow the canonical chain. Migrate to op-reth — see the [op-geth deprecation notice](/notices/op-geth-deprecation).
+</Warning>
 
 <Info>
-Always run your execution client and consensus client in a one-to-one configuration.
-Don't run multiple execution client instances behind one consensus client, or vice versa.
+  Always run your execution client and consensus client in a 1:1 configuration. Don't run multiple execution clients behind one consensus client, or vice versa.
 </Info>
 
 ## Execution clients
 
-Choose the execution client that best fits your needs:
-
 <Tabs>
-  <Tab title="op-geth">
-    ## op-geth configuration
-
-    [op-geth](https://github.com/ethereum-optimism/op-geth) is a minimal fork of go-ethereum optimized for the OP Stack.
-
-    <Info>
-    Although the Docker image is called `op-geth`, the actual binary is still named `geth` to minimize differences from go-ethereum.
-    See the [op-geth diff viewer](https://op-geth.optimism.io/?utm_source=op-docs&utm_medium=docs) for details.
-    </Info>
-
-    ### Minimal configuration
-
-    Minimumal configuration for op-geth:
-
-    ```bash
-    geth \
-      --datadir=/data/optimism \
-      --http \
-      --http.addr=0.0.0.0 \
-      --http.port=8545 \
-      --http.api=eth,net,web3 \
-      --authrpc.jwtsecret=/path/to/jwt-secret.txt \
-      --op-network=op-mainnet \
-      --rollup.sequencerhttp=https://mainnet-sequencer.optimism.io/ \
-      --rollup.disabletxpoolgossip 
-    ```
-
-    This will utilize primarily the default settings i.e. snap sync mode, no WebSocket server, no metrics, etc.
-
-    ### OP Stack specific flags
-
-    - `--rollup.sequencerhttp`: HTTP endpoint of the sequencer for transaction submission
-    - `--rollup.disabletxpoolgossip`: Disables transaction pool gossip (recommended for replica nodes)
-    - `--rollup.historicalrpc`: Enables historical RPC endpoint for upgraded networks (OP Mainnet pre-bedrock archive nodes)
-
-    This file must be identical for both op-geth and your consensus client.
-
-    ### Complete reference
-
-    For all available configuration options, see the [op-geth configuration reference](/node-operators/reference/op-geth-config).
-  </Tab>
-
   <Tab title="op-reth">
-    ## op-reth configuration
-
-    [op-reth](https://github.com/paradigmxyz/reth) is a Rust-based execution client optimized for performance.
+    [op-reth](https://github.com/paradigmxyz/reth) is a Rust-based execution client and the primary supported path for OP Stack nodes going forward.
 
     ### Minimal configuration
-
-    Minimum required flags for op-reth:
 
     ```bash
     op-reth node \
@@ -77,34 +31,21 @@ Choose the execution client that best fits your needs:
       --authrpc.jwtsecret /path/to/jwt.hex
     ```
 
+    ### Historical proofs
+
+    Permissionless chains need ~28 days of historical state for withdrawal proving. Follow the [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs) tutorial to set up the `--proofs-history` (v2) store on op-reth v2.2.3 or later.
+
     ### Complete reference
 
-    For all available configuration options, see the [op-reth configuration reference](/node-operators/reference/op-reth-config).
-    If you are using the `op-rs` fork for historical proofs, see the [historical proof configuration](/node-operators/reference/op-reth-historical-proof-config).
-
-    ### Additional resources
-
-    For more details on op-reth configuration:
-    - [op-reth documentation](https://reth.rs/run/opstack)
-    - [op-reth configuration documentation](https://reth.rs/run/configuration)
+    - [op-reth configuration reference](/node-operators/reference/op-reth-config)
+    - [op-reth historical proof configuration](/node-operators/reference/op-reth-historical-proof-config)
+    - [reth.rs documentation](https://reth.rs/run/opstack)
   </Tab>
 
   <Tab title="Nethermind">
-    ## Nethermind configuration
-
-    [Nethermind](https://github.com/NethermindEth/nethermind) is a .NET-based execution client with enterprise features.
-
-    ### Installation
-
-    Download Nethermind from the [releases page](https://github.com/NethermindEth/nethermind/releases) or build from source.
-
-    ### Initialization
-
-    Nethermind uses a configuration file approach. Create a configuration file or use command-line flags.
+    [Nethermind](https://github.com/NethermindEth/nethermind) is a .NET-based alternative execution client.
 
     ### Minimal configuration
-
-    Minimum required flags for Nethermind:
 
     ```bash
     nethermind \
@@ -115,18 +56,58 @@ Choose the execution client that best fits your needs:
 
     ### Additional resources
 
-    For more details on Nethermind configuration:
-    - [Nethermind documentation](https://docs.nethermind.io/get-started/running-node/l2-networks)
+    - [Nethermind OP Stack documentation](https://docs.nethermind.io/get-started/running-node/l2-networks)
     - [Nethermind configuration reference](https://docs.nethermind.io/fundamentals/configuration)
   </Tab>
 </Tabs>
 
 ## JWT secret
 
-To communicate with consensus client and enable the Engine API, you'll also need to generate a JWT secret file and enable the execution client's authenticated RPC endpoint.
-To generate the JWT secret file:
+The execution client and consensus client communicate over the Engine API using a shared JWT secret:
 
 ```bash
 openssl rand -hex 32 > jwt-secret.txt
 ```
 
+This file must be identical for both your execution client and your consensus client.
+
+## op-geth (legacy — end of support 2026-05-31)
+
+<Warning>
+  op-geth support ends on **2026-05-31** and **will not support the Glamsterdam hardfork**. For new deployments, use op-reth (above). See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the migration plan.
+</Warning>
+
+<Accordion title="op-geth configuration (legacy)">
+  [op-geth](https://github.com/ethereum-optimism/op-geth) is a minimal fork of go-ethereum optimized for the OP Stack.
+
+  <Info>
+    Although the Docker image is called `op-geth`, the actual binary is still named `geth` to minimize differences from go-ethereum. See the [op-geth diff viewer](https://op-geth.optimism.io/?utm_source=op-docs&utm_medium=docs) for details.
+  </Info>
+
+  ### Minimal configuration
+
+  ```bash
+  geth \
+    --datadir=/data/optimism \
+    --http \
+    --http.addr=0.0.0.0 \
+    --http.port=8545 \
+    --http.api=eth,net,web3 \
+    --authrpc.jwtsecret=/path/to/jwt-secret.txt \
+    --op-network=op-mainnet \
+    --rollup.sequencerhttp=https://mainnet-sequencer.optimism.io/ \
+    --rollup.disabletxpoolgossip
+  ```
+
+  Defaults: snap sync mode, no WebSocket server, no metrics.
+
+  ### OP Stack specific flags
+
+  - `--rollup.sequencerhttp`: HTTP endpoint of the sequencer for transaction submission
+  - `--rollup.disabletxpoolgossip`: Disables transaction pool gossip (for replica nodes)
+  - `--rollup.historicalrpc`: Enables historical RPC endpoint for upgraded networks (OP Mainnet pre-bedrock archive nodes)
+
+  ### Complete reference
+
+  For all available configuration options, see the [op-geth configuration reference](/node-operators/reference/op-geth-config).
+</Accordion>
