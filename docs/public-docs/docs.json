@@ -2089,12 +2089,6 @@
               "node-operators/reference/op-reth-historical-proof-config",
               "node-operators/reference/consensus-layer-sync"
             ]
-          },
-          {
-            "group": "Archive",
-            "pages": [
-              "node-operators/guides/configuration/legacy-geth"
-            ]
           }
         ]
       },
@@ -2355,6 +2349,12 @@
               "op-mainnet/network-information/op-addresses",
               "op-mainnet/network-information/snapshots",
               "op-mainnet/network-information/transaction-finality"
+            ]
+          },
+          {
+            "group": "Historical Execution",
+            "pages": [
+              "node-operators/guides/configuration/legacy-geth"
             ]
           }
         ]
