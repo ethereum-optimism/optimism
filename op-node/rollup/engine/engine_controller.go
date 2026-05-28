@@ -281,11 +281,11 @@ func (e *EngineController) resolveAnchorAsSafe(ts uint64) eth.L2BlockRef {
 // doesn't drop cross-safe to FinalizedHead), and otherwise floors at
 // FinalizedHead — never local-safe, never below finalized.
 func (e *EngineController) crossSafeFallback(reason string) eth.L2BlockRef {
-	if cached, ok := e.crossSafeCache.Get(e.ctx, e.engine, e.localSafeHead); ok {
+	finalized := e.FinalizedHead()
+	if cached, ok := e.crossSafeCache.Get(e.ctx, e.engine, e.localSafeHead); ok && cached.Number >= finalized.Number {
 		e.log.Debug("cross-safe fallback using cache", "reason", reason, "cached", cached)
 		return cached
 	}
-	finalized := e.FinalizedHead()
 	e.log.Debug("cross-safe fallback flooring at finalized", "reason", reason, "finalized", finalized)
 	return finalized
 }
@@ -1152,6 +1152,7 @@ func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUns
 	}
 
 	ForceEngineReset(e, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
+	e.crossSafeCache.Store(crossSafe)
 
 	if e.pipelineResetter != nil {
 		e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
