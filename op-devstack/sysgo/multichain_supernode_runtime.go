@@ -188,7 +188,12 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 		require.NoError(overrideErr, "failed to override message expiry window")
 	}
 
-	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopAtGenesis)
+	var interopActivationTimestamp *uint64
+	if interopAtGenesis {
+		ts := l2Net.rollupCfg.Genesis.L2Time
+		interopActivationTimestamp = &ts
+	}
+	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopActivationTimestamp, true, nodeSync.CLSync)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
 	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
 
@@ -633,20 +638,26 @@ func startSingleChainSharedSupernode(
 	l2EL L2ELNode,
 	depSet *depset.StaticConfigDependencySet,
 	jwtSecret [32]byte,
-	interopAtGenesis bool,
+	interopActivationTimestamp *uint64,
+	sequencerEnabled bool,
+	verifierSyncMode nodeSync.Mode,
 ) (*SuperNode, *SuperNodeProxy) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
 	makeNodeCfg := func() *opnodeconfig.Config {
-		p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
-		require.NoError(err, "need p2p key for supernode virtual sequencer")
+		var sequencerP2PKeyHex string
+		if sequencerEnabled {
+			p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
+			require.NoError(err, "need p2p key for supernode virtual sequencer")
+			sequencerP2PKeyHex = hex.EncodeToString(crypto.FromECDSA(p2pKey))
+		}
 		p2pConfig, p2pSignerSetup := newDevstackP2PConfig(
 			t,
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
 			true,
-			hex.EncodeToString(crypto.FromECDSA(p2pKey)),
+			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{
 			L1: &opnodeconfig.L1EndpointConfig{
@@ -666,13 +677,13 @@ func startSingleChainSharedSupernode(
 			},
 			DependencySet:                   depSet,
 			Beacon:                          &opnodeconfig.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
-			Driver:                          driver.Config{SequencerEnabled: true, SequencerConfDepth: 2},
+			Driver:                          driver.Config{SequencerEnabled: sequencerEnabled, SequencerConfDepth: 2},
 			Rollup:                          *l2Net.rollupCfg,
 			P2PSigner:                       p2pSignerSetup,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
-			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync, SyncModeReqResp: true},
+			Sync:                            nodeSync.Config{SyncMode: verifierSyncMode, SyncModeReqResp: true},
 			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
@@ -681,12 +692,6 @@ func startSingleChainSharedSupernode(
 		}
 		require.NoError(cfg.Check(), "invalid supernode op-node config for chain %s", l2Net.ChainID())
 		return cfg
-	}
-
-	var interopActivationTimestamp *uint64
-	if interopAtGenesis {
-		ts := l2Net.rollupCfg.Genesis.L2Time
-		interopActivationTimestamp = &ts
 	}
 
 	snCfg := &snconfig.CLIConfig{

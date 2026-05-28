@@ -69,11 +69,18 @@ func (c *simpleChainContainer) FinalizedL2Head(ctx context.Context) (rollup.Veri
 // verifierContribution classifies a verifier's (block, ts) return:
 //   - empty block → Anchor (caller resolves the canonical L2 block at ts).
 //   - non-empty block → Verified tip.
+//
+// Anchor timestamps are clamped up to L2 genesis: the verifier's raw cap is
+// activationTimestamp - 1, which is pre-genesis when interop activates at
+// genesis and has no resolvable block downstream.
 func (c *simpleChainContainer) verifierContribution(bId eth.BlockID, ts uint64, err error) (rollup.VerifierHead, error) {
 	if err != nil {
 		return rollup.VerifierHead{}, err
 	}
 	if (bId == eth.BlockID{}) {
+		if genesisTs := c.vncfg.Rollup.Genesis.L2Time; ts < genesisTs {
+			ts = genesisTs
+		}
 		return rollup.VerifierHead{Source: rollup.VerifierHeadAnchor, Timestamp: ts}, nil
 	}
 	return rollup.VerifierHead{Source: rollup.VerifierHeadVerified, Block: bId, Timestamp: ts}, nil

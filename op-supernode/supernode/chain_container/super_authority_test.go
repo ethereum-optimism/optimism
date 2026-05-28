@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -73,10 +74,17 @@ var _ activity.VerificationActivity = (*mockVerificationActivityForSuperAuthorit
 
 // newTestChainContainer creates a simpleChainContainer for testing with a test logger
 func newTestChainContainer(t *testing.T, chainID eth.ChainID) *simpleChainContainer {
+	return newTestChainContainerWithGenesis(t, chainID, 0)
+}
+
+func newTestChainContainerWithGenesis(t *testing.T, chainID eth.ChainID, l2GenesisTime uint64) *simpleChainContainer {
+	cfg := &opnodecfg.Config{}
+	cfg.Rollup.Genesis.L2Time = l2GenesisTime
 	return &simpleChainContainer{
 		chainID: chainID,
 		log:     testlog.Logger(t, log.LevelDebug),
 		vn:      &mockVirtualNode{},
+		vncfg:   cfg,
 	}
 }
 
@@ -178,6 +186,30 @@ func TestChainContainer_FullyVerifiedL2Head_PostActivation_EmptyVerifierContribu
 	require.Equal(t, eth.BlockID{}, head.Block, "anchor contribution carries no block")
 	require.Equal(t, uint64(999), head.Timestamp,
 		"anchor timestamp is activationTimestamp - 1; engine_controller resolves to a block")
+}
+
+// When interop activates at genesis the verifier's raw cap is pre-genesis;
+// the super-authority must clamp the anchor timestamp up to L2 genesis so the
+// engine controller can resolve a canonical block.
+func TestChainContainer_FullyVerifiedL2Head_ActivationAtGenesis_ClampsAnchorToGenesis(t *testing.T) {
+	t.Parallel()
+
+	const genesisL2Time = uint64(1_700_000_000)
+	const activationTime = genesisL2Time // interop activates at genesis
+
+	cc := newTestChainContainerWithGenesis(t, eth.ChainIDFromUInt64(420), genesisL2Time)
+	setSyncStatus(t, cc, &eth.SyncStatus{
+		LocalSafeL2: eth.L2BlockRef{Number: 5, Hash: [32]byte{0xbb}, Time: genesisL2Time + 10},
+	})
+
+	cc.RegisterVerifier(&mockVerificationActivityForSuperAuthority{activationTimestamp: activationTime})
+
+	head, ok := cc.FullyVerifiedL2Head(t.Context())
+	require.True(t, ok)
+	require.Equal(t, rollup.VerifierHeadAnchor, head.Source)
+	require.Equal(t, eth.BlockID{}, head.Block)
+	require.Equal(t, genesisL2Time, head.Timestamp,
+		"anchor cap must clamp to L2 genesis (raw cap %d is pre-genesis)", activationTime-1)
 }
 
 // =============================================================================

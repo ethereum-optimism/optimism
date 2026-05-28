@@ -183,6 +183,21 @@ func (s *Supernode) RestartWithFreshDataDir() {
 	s.require.NoError(err, "failed to restart supernode with fresh data dir")
 }
 
+// Stop halts the supernode while preserving its data directory and RPC
+// address. Requires NewSupernodeWithTestControl.
+func (s *Supernode) Stop() {
+	s.require.NotNil(s.testControl, "Stop requires test control; use NewSupernodeWithTestControl")
+	s.log.Info("stopping supernode")
+	s.testControl.Stop()
+}
+
+// Start brings the supernode back up after Stop. Requires NewSupernodeWithTestControl.
+func (s *Supernode) Start() {
+	s.require.NotNil(s.testControl, "Start requires test control; use NewSupernodeWithTestControl")
+	s.log.Info("starting supernode")
+	s.testControl.Start()
+}
+
 // BackfillAttempts returns the number of log-backfill attempts since the
 // running interop activity's most recent (re)start.
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
