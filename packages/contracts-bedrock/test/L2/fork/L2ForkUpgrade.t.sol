@@ -781,7 +781,7 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             string memory name = Predeploys.getName(predeploy);
 
             // Get expected implementation from config
-            address expectedImpl = _getExpectedImplementation(predeploy, name);
+            address expectedImpl = _expectedImpls[i];
 
             // Find the Upgraded event for this predeploy (skip StorageSetter events)
             bool foundEvent = false;

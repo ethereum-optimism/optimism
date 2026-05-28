@@ -187,7 +187,7 @@ contract L2VerifyBetanetForkUpgrade_ActivationBlockTxns_Test is L2VerifyBetanetF
         uint256 activationBlock = Config.l2ForkBlockNumber() + 1;
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory bundleTxns = _currentBundleTxns();
 
-        string memory blockHex = string.concat("0x", LibString.toHexStringNoPrefix(activationBlock));
+        string memory blockHex = LibString.toMinimalHexString(activationBlock);
         string memory rpcUrl = Config.l2ForkRpcUrl();
 
         // vm.rpc ABI-encodes block objects; use FFI (cast) to fetch JSON for parseJson.
