@@ -655,7 +655,7 @@ func TestDeriveSpanBatchSDMGate(t *testing.T) {
 		Genesis:     rollup.Genesis{L2Time: genesisTime},
 		BlockTime:   blockTime,
 		L2ChainID:   chainID,
-		InteropTime: &sdmTime,
+		LagoonTime: &sdmTime,
 	}
 	derived, err := DeriveSpanBatch(bd, enabled)
 	require.NoError(t, err)
