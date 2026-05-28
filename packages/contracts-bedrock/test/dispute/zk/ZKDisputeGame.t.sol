@@ -8,6 +8,7 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
 import { Types } from "src/libraries/Types.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 import {
     AnchorRootNotFound,
     BadExtraData,
@@ -1473,7 +1474,7 @@ contract ZKDisputeGame_RootClaim_Test is ZKDisputeGame_TestInit {
     ///         rootClaim pairs.
     function test_initialize_rootClaimMismatch_reverts() public {
         // Build valid extraData but pair it with the wrong rootClaim (any unrelated hash).
-        (bytes memory ed, /* Claim ignored */ ) = _makeZKExtraDataAndClaim(
+        (bytes memory ed, /* Claim */ ) = _makeZKExtraDataAndClaim(
             childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("genuine")
         );
         Claim wrongRootClaim = Claim.wrap(keccak256("not-the-binding-hash"));
@@ -1485,14 +1486,27 @@ contract ZKDisputeGame_RootClaim_Test is ZKDisputeGame_TestInit {
         vm.stopPrank();
     }
 
-    /// @notice Verifies the helper `superRootProof()` returns exactly the bytes that were packed
-    ///         after the 4-byte parentIndex header.
+    /// @notice Verifies that `superRootProof()` returns exactly the bytes packed after the 4-byte
+    ///         parentIndex header and that those bytes decode to a well-formed `SuperRootProof`
+    ///         whose fields match what setUp packed.
     function test_superRootProof_returnsExpectedBytes_succeeds() public view {
         bytes memory full = game.extraData();
-        bytes memory proofPortion = game.superRootProof();
-        assertEq(proofPortion.length, full.length - 4);
-        for (uint256 i = 0; i < proofPortion.length; i++) {
-            assertEq(proofPortion[i], full[i + 4]);
+        bytes memory proofBytes = game.superRootProof();
+
+        // `superRootProof()` returns extraData[4:].
+        assertEq(proofBytes.length, full.length - 4);
+        for (uint256 i = 0; i < proofBytes.length; i++) {
+            assertEq(proofBytes[i], full[i + 4]);
+        }
+
+        // The returned bytes decode to a SuperRootProof matching the values setUp packed.
+        Types.SuperRootProof memory decoded = Encoding.decodeSuperRootProof(proofBytes);
+        assertEq(decoded.version, bytes1(0x01));
+        assertEq(decoded.timestamp, uint64(childL2SequenceNumber));
+        assertEq(decoded.outputRoots.length, childPairs.length);
+        for (uint256 i = 0; i < childPairs.length; i++) {
+            assertEq(decoded.outputRoots[i].chainId, childPairs[i].chainId);
+            assertEq(decoded.outputRoots[i].root, childPairs[i].root);
         }
     }
 }

@@ -452,7 +452,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         return rem % 64 == 0;
     }
 
-    /// @notice Returns the byte count of the extra data in the initialize() call.
+    /// @notice Returns the byte count of the extra data in a contract call.
     /// @dev    Precondition: msg.data has a valid length.
     function _extraDataByteCount() internal pure returns (uint256) {
         // The CWIA runtime appends the immutable args and a 2-byte length suffix to every forwarded

@@ -895,7 +895,7 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
         uint256 challengerBond = 1 ether;
         IAnchorStateRegistry anchorStateRegistry = IAnchorStateRegistry(makeAddr("anchorStateRegistry"));
         IDelayedWETH delayedWETH = IDelayedWETH(payable(makeAddr("delayedWETH")));
-        uint256 l2ChainId = 42;
+        uint256 l2ChainId = 0; // l2chainid is always 0 for super games
 
         IOPContractsManagerUtils.DisputeGameConfig memory cfg = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
