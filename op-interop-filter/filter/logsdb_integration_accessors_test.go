@@ -1,9 +1,10 @@
 package filter
 
 import (
+	"testing"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestIntegration_BlockHashAt_KnownBlock(t *testing.T) {

@@ -1,11 +1,12 @@
 package filter
 
 import (
+	"testing"
+
 	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestIntegration_Contains_HappyPath_AccessListAccepted(t *testing.T) {
