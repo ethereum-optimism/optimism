@@ -36,6 +36,7 @@ type Metricer interface {
 	RecordSequencingError()
 	RecordPublishingError()
 	RecordDerivationError()
+	RecordSuperAuthorityForkchoiceConflict()
 	RecordEmittedEvent(eventName string, emitter string)
 	RecordProcessedEvent(eventName string, deriver string, duration time.Duration)
 	RecordEventsRateLimited()
@@ -94,6 +95,13 @@ type Metrics struct {
 	SequencingErrors *metrics.Event
 	PublishingErrors *metrics.Event
 	SequencerActive  prometheus.Gauge
+
+	// SuperAuthorityForkchoiceConflicts counts resolver-conflict/error events on
+	// the SuperAuthority forkchoice path. A genuine consensus split (a freshly
+	// resolved head conflicting with cached/published state, or a finalized
+	// rewind) increments this. Non-fatal: the node holds the previous published
+	// heads, but the counter ensures the event is observable.
+	SuperAuthorityForkchoiceConflicts *metrics.Event
 
 	*event.EventMetricsTracker
 
@@ -206,6 +214,8 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 		DerivationErrors: metrics.NewEvent(factory, ns, "", "derivation_errors", "derivation errors"),
 		SequencingErrors: metrics.NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
 		PublishingErrors: metrics.NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
+
+		SuperAuthorityForkchoiceConflicts: metrics.NewEvent(factory, ns, "", "super_authority_forkchoice_conflicts", "super authority forkchoice resolver conflicts / finalized-rewind holds"),
 		SequencerActive: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "sequencer_active",
@@ -451,6 +461,10 @@ func (m *Metrics) RecordDerivationError() {
 	m.DerivationErrors.Record()
 }
 
+func (m *Metrics) RecordSuperAuthorityForkchoiceConflict() {
+	m.SuperAuthorityForkchoiceConflicts.Record()
+}
+
 func (m *Metrics) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
 	m.UnsafePayloads.Record()
 	m.RecordRef("l2", "received_payload", uint64(payload.ExecutionPayload.BlockNumber), uint64(payload.ExecutionPayload.Timestamp), payload.ExecutionPayload.BlockHash)
@@ -658,6 +672,9 @@ func (n *noopMetricer) RecordPublishingError() {
 }
 
 func (n *noopMetricer) RecordDerivationError() {
+}
+
+func (n *noopMetricer) RecordSuperAuthorityForkchoiceConflict() {
 }
 
 func (n *noopMetricer) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {

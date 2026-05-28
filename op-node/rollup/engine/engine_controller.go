@@ -123,24 +123,44 @@ type EngineController struct {
 	// verified by the superAuthority.
 	// Only to be used as a FinalizedHead when there is no superAuthority
 	localFinalizedHead eth.L2BlockRef
-	// Last successfully materialized superAuthority finalized head,
-	// used as a fallback when the authority or EL is temporarily unavailable.
-	superAuthorityFinalizedHead eth.L2BlockRef
 	// The unsafe head to roll back to,
 	// after the pendingSafeHead fails to become safe.
 	// This is changing in the Holocene fork.
 	backupUnsafeHead eth.L2BlockRef
 
-	// crossSafeHead is the cross-verified safe head. It is critical cross state:
-	//   - With a SuperAuthority it is the resolver's cached/published cross-safe
-	//     head (see superauthority_forkchoice.go).
-	//   - Without a SuperAuthority it is the supervisor-supplied cross-safe head
-	//     ("safe" in RPC terms) and the FollowSource published safe head.
-	crossSafeHead eth.L2BlockRef
-	// crossFinalizedHead is the cross-verified finalized head published to the
-	// engine. With a SuperAuthority it is the resolver's published finalized
-	// head; without one it is the FollowSource published finalized head.
-	crossFinalizedHead eth.L2BlockRef
+	// Deprecated: Derived from L1 and cross-verified to have cross-safe dependencies.
+	// FOR USE BY SUPERVISOR AND FollowSource ONLY: standaloneSafeHead reads this,
+	// and supervisor/FollowSource pathways write it. The SuperAuthority resolver
+	// must NOT touch this field — it uses superAuthoritySafeHead.
+	deprecatedSafeHead eth.L2BlockRef
+	// Deprecated: Derived from finalized L1 data.
+	// FOR USE BY SUPERVISOR AND FollowSource ONLY: standaloneFinalizedHead reads
+	// this, and supervisor/FollowSource pathways write it. The SuperAuthority
+	// resolver must NOT touch this field — it uses superAuthorityFinalizedHead /
+	// superAuthorityPublished{Safe,Finalized}Head.
+	deprecatedFinalizedHead eth.L2BlockRef
+
+	// superAuthoritySafeHead is the resolver's hold-previous cache for the SAFE
+	// head: the highest authoritatively-resolved cross-safe head we have adopted.
+	// Used ONLY on the SuperAuthority resolution path (see
+	// superauthority_forkchoice.go); never read/written by FollowSource or
+	// supervisor paths.
+	superAuthoritySafeHead eth.L2BlockRef
+	// superAuthorityFinalizedHead is the resolver's hold-previous cache for the
+	// FINALIZED head, used as a fallback when the authority or EL is temporarily
+	// unavailable. SuperAuthority resolution path only.
+	superAuthorityFinalizedHead eth.L2BlockRef
+
+	// superAuthorityPublishedSafeHead / superAuthorityPublishedFinalizedHead are
+	// the last MUTUALLY-CONSISTENT pair actually published to the engine under a
+	// SuperAuthority (refreshSuperAuthorityPublished). They uphold the FCU-level
+	// invariants — published finalized never rewinds below the last published
+	// finalized, and published finalized <= published safe — which the per-call
+	// resolver cache alone does not guarantee across a sequence of resolves.
+	// SafeL2Head/FinalizedHead return these so external callers see the same
+	// snapshot the FCU used. SuperAuthority path only.
+	superAuthorityPublishedSafeHead      eth.L2BlockRef
+	superAuthorityPublishedFinalizedHead eth.L2BlockRef
 
 	// lastForkchoice is the forkchoice state last communicated to the engine
 	// via tryUpdateEngineInternal. Used to avoid sending duplicate FCU calls.
@@ -220,18 +240,24 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 // FollowSource mode, the source-followed) head.
 
 // SafeL2Head returns the published safe head sent to the engine.
+//
+// Under a SuperAuthority this returns the last PUBLISHED pair (see
+// refreshSuperAuthorityPublished) without triggering a resolve, so within one
+// FCU cycle every reader sees the same snapshot and there is no per-call EL RPC
+// amplification. The FCU path refreshes the published pair once at the top of
+// the cycle.
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
 	if e.superAuthority == nil {
 		return e.standaloneSafeHead()
 	}
-	return e.resolveSuperAuthorityHeads().safe
+	return e.superAuthorityPublishedSafeHead
 }
 
 // standaloneSafeHead is the published safe head when no SuperAuthority is
 // configured: the source-followed head in FollowSource mode, else local-safe.
 func (e *EngineController) standaloneSafeHead() eth.L2BlockRef {
 	if e.syncCfg.FollowSourceEnabled() {
-		return e.crossSafeHead
+		return e.deprecatedSafeHead
 	}
 	return e.localSafeHead
 }
@@ -239,11 +265,13 @@ func (e *EngineController) standaloneSafeHead() eth.L2BlockRef {
 // FinalizedHead returns the published finalized head sent to the engine. It is
 // bounded by local-finalized: the SuperAuthority can delay finalization but
 // cannot finalize a block this node has not locally finalized.
+//
+// Under a SuperAuthority this returns the last PUBLISHED pair (see SafeL2Head).
 func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 	if e.superAuthority == nil {
 		return e.standaloneFinalizedHead()
 	}
-	return e.resolveSuperAuthorityHeads().finalized
+	return e.superAuthorityPublishedFinalizedHead
 }
 
 // standaloneFinalizedHead is the published finalized head when no SuperAuthority
@@ -251,21 +279,24 @@ func (e *EngineController) FinalizedHead() eth.L2BlockRef {
 // local-finalized.
 func (e *EngineController) standaloneFinalizedHead() eth.L2BlockRef {
 	if e.syncCfg.FollowSourceEnabled() {
-		return e.crossFinalizedHead
+		return e.deprecatedFinalizedHead
 	}
 	return e.localFinalizedHead
 }
 
 // resolveSuperAuthorityHeads gathers the SuperAuthority's safe and finalized
 // signals into concrete candidates and resolves them TOGETHER through the pure
-// resolver, which owns every cross invariant (hold-previous, never-rewind,
-// finalized <= safe). The resolved cache values are persisted so a later
-// transient verifier/EL failure can hold the previous result.
+// resolver, which owns the per-resolve cross invariants (hold-previous,
+// never-rewind a single cache, finalized <= safe within one resolve). The
+// resolved per-head cache values are persisted so a later transient verifier/EL
+// failure can hold the previous result.
 //
 // On a genuinely inconsistent state (e.g. a freshly resolved head conflicting
-// with the cache at the same height) the resolver returns an error; we surface
-// it as a critical error and hold the previous cached heads rather than publish
-// inconsistent state.
+// with the cache at the same height) the resolver returns an error; we record a
+// conflict metric and hold the previous PUBLISHED consistent pair (re-applying
+// the finalized<=safe clamp) rather than publish a raw cache pair that could
+// violate the invariant. This is a side-effecting resolve and must be called
+// ONLY from refreshSuperAuthorityPublished, once per FCU cycle.
 func (e *EngineController) resolveSuperAuthorityHeads() crossHeads {
 	r := &superAuthorityForkchoice{log: e.log, rollupCfg: e.rollupCfg, engine: e.engine}
 
@@ -276,15 +307,78 @@ func (e *EngineController) resolveSuperAuthorityHeads() crossHeads {
 	finalizedCand := r.gatherFinalized(e.ctx, finalizedHead, finalizedOK, e.localFinalizedHead)
 
 	resolved, newCachedSafe, newCachedFinalized, err := resolveCrossHeads(
-		safeCand, finalizedCand, e.crossSafeHead, e.superAuthorityFinalizedHead)
+		safeCand, finalizedCand, e.superAuthoritySafeHead, e.superAuthorityFinalizedHead)
 	if err != nil {
 		e.log.Error("super authority forkchoice resolution failed; holding previous cross heads", "err", err)
-		return crossHeads{safe: e.crossSafeHead, finalized: e.superAuthorityFinalizedHead}
+		e.metrics.RecordSuperAuthorityForkchoiceConflict()
+		// Fallback: hold the last PUBLISHED consistent pair (never the raw per-head
+		// caches, which may have finalized ahead of safe). Re-apply the
+		// finalized<=safe clamp defensively.
+		return crossHeads{
+			safe:      e.superAuthorityPublishedSafeHead,
+			finalized: e.superAuthorityPublishedFinalizedHead,
+		}.clampFinalizedToSafe()
 	}
 
-	e.crossSafeHead = newCachedSafe
+	e.superAuthoritySafeHead = newCachedSafe
 	e.superAuthorityFinalizedHead = newCachedFinalized
 	return resolved
+}
+
+// refreshSuperAuthorityPublished resolves the coupled safe/finalized pair ONCE
+// and updates the published pair (superAuthorityPublished{Safe,Finalized}Head)
+// that SafeL2Head/FinalizedHead return. It enforces the FCU-level invariants
+// that the per-resolve cache cannot guarantee on its own across successive
+// resolves:
+//
+//   - published finalized must never rewind below the last published finalized;
+//   - published finalized <= published safe.
+//
+// If applying finalized<=safe would force finalized below the last published
+// finalized (i.e. resolved safe < last published finalized), that is genuinely
+// inconsistent state: we hold the last published pair and emit an error +
+// conflict metric rather than publishing a rewind. No-op when no SuperAuthority
+// is configured.
+func (e *EngineController) refreshSuperAuthorityPublished() {
+	if e.superAuthority == nil {
+		return
+	}
+	resolved := e.resolveSuperAuthorityHeads()
+	safe, finalized, ok := e.reconcilePublished(resolved)
+	if !ok {
+		return
+	}
+	e.superAuthorityPublishedSafeHead = safe
+	e.superAuthorityPublishedFinalizedHead = finalized
+}
+
+// reconcilePublished applies the FCU-level monotonicity and coupling guards to a
+// freshly resolved pair against the last published pair. It returns the pair to
+// publish and ok=false (hold the last published pair) when the resolved state
+// would force a finalized rewind, which is genuinely inconsistent.
+func (e *EngineController) reconcilePublished(resolved crossHeads) (safe, finalized eth.L2BlockRef, ok bool) {
+	lastFinalized := e.superAuthorityPublishedFinalizedHead
+	resolved = resolved.clampFinalizedToSafe()
+
+	// Published finalized must not rewind below the last published finalized.
+	if resolved.finalized.Number < lastFinalized.Number {
+		// If safe is behind the last published finalized (or unknown), bumping
+		// finalized back up to lastFinalized would publish finalized > safe. That
+		// is genuinely inconsistent state — hold the last published pair and
+		// surface it rather than publish a rewind or an invalid pair.
+		if resolved.safe == (eth.L2BlockRef{}) || resolved.safe.Number < lastFinalized.Number {
+			e.log.Error("super authority resolved safe is behind last published finalized; holding published heads",
+				"resolved_safe", resolved.safe, "resolved_finalized", resolved.finalized,
+				"published_finalized", lastFinalized)
+			e.metrics.RecordSuperAuthorityForkchoiceConflict()
+			return eth.L2BlockRef{}, eth.L2BlockRef{}, false
+		}
+		// Otherwise the resolver legitimately held a higher finalized in its
+		// cache (safe >= lastFinalized); never rewind the published finalized
+		// below it.
+		resolved.finalized = lastFinalized
+	}
+	return resolved.safe, resolved.finalized, true
 }
 
 func (e *EngineController) UnsafeL2Head() eth.L2BlockRef {
@@ -330,11 +424,14 @@ func (e *EngineController) isEngineInitialELSyncing() bool {
 		e.syncStatus == syncStatusFinishedELButNotFinalized
 }
 
-// SetFinalizedHead implements LocalEngineControl.
+// SetFinalizedHead implements LocalEngineControl. It sets local-finalized and
+// the deprecated FollowSource/supervisor published-finalized head. Under a
+// SuperAuthority the published finalized head is owned by the resolver
+// (refreshSuperAuthorityPublished), not by this setter.
 func (e *EngineController) SetFinalizedHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_finalized", r)
 	e.localFinalizedHead = r
-	e.crossFinalizedHead = r
+	e.deprecatedFinalizedHead = r
 }
 
 // SetPendingSafeL2Head implements LocalEngineControl.
@@ -349,12 +446,14 @@ func (e *EngineController) SetLocalSafeHead(r eth.L2BlockRef) {
 	e.localSafeHead = r
 }
 
-// SetCrossSafeHead sets the cross-verified safe head ("safe" in RPC terms).
-// Used by supervisor and FollowSource pathways; with a SuperAuthority it also
-// seeds the resolver's cross-safe cache.
-func (e *EngineController) SetCrossSafeHead(r eth.L2BlockRef) {
+// SetDeprecatedSafeHead sets the cross-safe head ("safe" in RPC terms).
+//
+// Deprecated: This is only used by supervisor and FollowSource pathways. The
+// SuperAuthority resolution path does not touch this field (it uses
+// superAuthoritySafeHead / superAuthorityPublishedSafeHead).
+func (e *EngineController) SetDeprecatedSafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_safe", r)
-	e.crossSafeHead = r
+	e.deprecatedSafeHead = r // TODO Supervisor-only code path
 }
 
 // SetUnsafeHead sets the local-unsafe head.
@@ -505,11 +604,13 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 			}
 		} else {
 			e.SetFinalizedHead(finalizedRef)
-			// Seed the resolver's cross-finalized cache so a verifier cold start
-			// (empty verified DB -> HoldPrevious) preserves the EL's persisted
-			// finalized head instead of regressing to zero.
+			// Seed the resolver's cross-finalized cache and the published
+			// finalized head so a verifier cold start (empty verified DB ->
+			// HoldPrevious) preserves the EL's persisted finalized head instead of
+			// regressing to zero.
 			if e.superAuthority != nil && e.superAuthorityFinalizedHead == (eth.L2BlockRef{}) {
 				e.superAuthorityFinalizedHead = finalizedRef
+				e.superAuthorityPublishedFinalizedHead = finalizedRef
 			}
 			e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
 		}
@@ -535,11 +636,18 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 			e.log.Info("Loaded initial local-safe block ref", "local_safe", ref)
 		}
 	}
-	if e.crossSafeHead == (eth.L2BlockRef{}) {
-		// Seed cross-safe to match local-safe (supervisor pathways and the
-		// SuperAuthority resolver's cross-safe cache start from local-safe).
-		e.SetCrossSafeHead(e.localSafeHead)
+	if e.deprecatedSafeHead == (eth.L2BlockRef{}) {
+		// Seed cross-safe to match local-safe (supervisor and FollowSource
+		// pathways start from local-safe).
+		e.SetDeprecatedSafeHead(e.localSafeHead)
 		e.log.Info("Set initial cross-safe block ref to match local-safe", "cross_safe", e.localSafeHead)
+	}
+	if e.superAuthority != nil && e.superAuthoritySafeHead == (eth.L2BlockRef{}) {
+		// Seed the SuperAuthority resolver's safe cache and published safe head
+		// from local-safe so a verifier cold start preserves the EL's persisted
+		// safe head instead of regressing to zero.
+		e.superAuthoritySafeHead = e.localSafeHead
+		e.superAuthorityPublishedSafeHead = e.localSafeHead
 	}
 	if e.crossUnsafeHead == (eth.L2BlockRef{}) {
 		e.SetCrossUnsafeHead(e.SafeL2Head()) // preserve cross-safety, don't fall back to a non-cross safety level
@@ -552,6 +660,10 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 	if err := e.initializeUnknowns(ctx); err != nil {
 		return derive.NewTemporaryError(fmt.Errorf("cannot update engine until engine forkchoice is initialized: %w", err))
 	}
+	// Resolve the coupled SuperAuthority safe/finalized pair ONCE per FCU cycle;
+	// every SafeL2Head/FinalizedHead read below then returns this single
+	// consistent snapshot. No-op without a SuperAuthority.
+	e.refreshSuperAuthorityPublished()
 	if e.unsafeHead.Number < e.FinalizedHead().Number {
 		err := fmt.Errorf("invalid forkchoice state, unsafe head %s is behind finalized head %s", e.unsafeHead, e.FinalizedHead())
 		e.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
@@ -667,6 +779,10 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 	}
 	newPayloadFinish := time.Now()
 
+	// Resolve the coupled SuperAuthority safe/finalized pair ONCE so the FCU
+	// below uses a single consistent snapshot. No-op without a SuperAuthority.
+	e.refreshSuperAuthorityPublished()
+
 	// Mark the new payload as valid
 	fc := eth.ForkchoiceState{
 		HeadBlockHash: envelope.ExecutionPayload.BlockHash,
@@ -701,9 +817,26 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		e.SetUnsafeHead(ref)
 		e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
 		e.SetLocalSafeHead(safeRef)
-		e.SetCrossSafeHead(safeRef)
+		e.SetDeprecatedSafeHead(safeRef)
 		e.onSafeUpdate(ctx, safeRef, safeRef)
 		e.SetFinalizedHead(finalizedRef)
+		// Under a SuperAuthority the EL-sync-completion heads above were sent to
+		// the engine directly (bypassing the resolver). Advance the resolver and
+		// published caches so the next refresh cannot rewind below them.
+		if e.superAuthority != nil {
+			if safeRef.Number >= e.superAuthoritySafeHead.Number {
+				e.superAuthoritySafeHead = safeRef
+			}
+			if safeRef.Number >= e.superAuthorityPublishedSafeHead.Number {
+				e.superAuthorityPublishedSafeHead = safeRef
+			}
+			if finalizedRef.Number >= e.superAuthorityFinalizedHead.Number {
+				e.superAuthorityFinalizedHead = finalizedRef
+			}
+			if finalizedRef.Number >= e.superAuthorityPublishedFinalizedHead.Number {
+				e.superAuthorityPublishedFinalizedHead = finalizedRef
+			}
+		}
 	}
 	logFn := e.logSyncProgressMaybe()
 	defer logFn()
@@ -966,7 +1099,7 @@ func (e *EngineController) tryUpdateUnsafe(ctx context.Context, ref eth.L2BlockR
 // or the next SyncStep).
 func (e *EngineController) PromoteSafe(ctx context.Context, ref eth.L2BlockRef, source eth.L1BlockRef) {
 	e.log.Debug("Updating safe", "safe", ref, "unsafe", e.unsafeHead)
-	e.SetCrossSafeHead(ref)
+	e.SetDeprecatedSafeHead(ref)
 	// Finalizer can pick up this safe cross-block now
 	e.emitter.Emit(ctx, SafeDerivedEvent{Safe: ref, Source: source})
 	e.onSafeUpdate(ctx, e.SafeL2Head(), e.localSafeHead)
@@ -1019,32 +1152,18 @@ func (e *EngineController) promoteLocalFinalizedWithSuperAuthority(ctx context.C
 	}
 
 	// Publish only what the resolver decides (bounded by safe, held on verifier
-	// unavailability). Resolve the coupled pair ONCE. e.crossFinalizedHead
-	// tracks the last published value.
-	heads := e.resolveSuperAuthorityHeads()
-	published := heads.finalized
-	if published == (eth.L2BlockRef{}) {
-		return
-	}
-	if published.Number > heads.safe.Number {
-		e.log.Error("Super authority finalized must be safe before it can be published", "finalized", published, "safe", heads.safe)
-		return
-	}
-	if published.Number < e.crossFinalizedHead.Number {
-		e.log.Error("Cannot rewind published finality,", "finalized", published, "published_finalized", e.crossFinalizedHead)
-		return
-	}
-	if published.ID() == e.crossFinalizedHead.ID() {
-		return
-	}
-	if published.Number == e.crossFinalizedHead.Number {
-		e.log.Error("super authority finalized head conflicts with published finalized head at same height",
-			"finalized", published, "published_finalized", e.crossFinalizedHead)
+	// unavailability). refreshSuperAuthorityPublished resolves the coupled pair
+	// ONCE and applies the FCU-level monotonicity + coupling guards (published
+	// finalized never rewinds below the last published finalized, and finalized
+	// <= safe). The published heads are the single source of truth.
+	prevPublishedFinalized := e.superAuthorityPublishedFinalizedHead
+	e.refreshSuperAuthorityPublished()
+	published := e.superAuthorityPublishedFinalizedHead
+	if published == (eth.L2BlockRef{}) || published.ID() == prevPublishedFinalized.ID() {
 		return
 	}
 
 	e.metrics.RecordL2Ref("l2_finalized", published)
-	e.crossFinalizedHead = published
 	e.emitter.Emit(ctx, FinalizedUpdateEvent{Ref: published})
 	e.tryUpdateEngine(ctx)
 }
@@ -1086,6 +1205,16 @@ func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUns
 	}
 
 	ForceEngineReset(e, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
+
+	// Under a SuperAuthority, re-seed the resolver and published caches from the
+	// reset values so SafeL2Head/FinalizedHead do not return a stale published
+	// pair from before the reset. The subsequent tryUpdateEngine re-resolves.
+	if e.superAuthority != nil {
+		e.superAuthoritySafeHead = crossSafe
+		e.superAuthorityFinalizedHead = finalized
+		e.superAuthorityPublishedSafeHead = crossSafe
+		e.superAuthorityPublishedFinalizedHead = finalized
+	}
 
 	if e.pipelineResetter != nil {
 		e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
@@ -1338,7 +1467,7 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 		e.tryUpdateLocalSafe(e.ctx, eLocalSafeRef, true, eth.L1BlockRef{})
 		// Inject external cross-safe. Must happen before promoteFinalized
 		// (which rejects finalized > SafeL2Head).
-		if eth.L2BlockRefAdvances(e.crossSafeHead, eSafeBlockRef) {
+		if eth.L2BlockRefAdvances(e.deprecatedSafeHead, eSafeBlockRef) {
 			e.PromoteSafe(e.ctx, eSafeBlockRef, eth.L1BlockRef{})
 		}
 		// Directly update the Engine Controller state, bypassing finalizer

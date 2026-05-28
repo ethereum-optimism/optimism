@@ -356,11 +356,20 @@ func TestEngineController_SafeL2Head(t *testing.T) {
 				ec.SetFinalizedHead(*tt.setupFinalized)
 			}
 			if tt.setupDeprecated != nil {
-				ec.SetCrossSafeHead(*tt.setupDeprecated)
+				// Seed the SuperAuthority resolver's safe cache (and the published
+				// safe head, the resolver's hold-previous source).
+				ec.superAuthoritySafeHead = *tt.setupDeprecated
+				ec.superAuthorityPublishedSafeHead = *tt.setupDeprecated
 			}
 
 			if tt.setupEngine != nil {
 				tt.setupEngine(mockEngine)
+			}
+
+			// SafeL2Head returns the last published pair; resolve once first so the
+			// SuperAuthority path reflects the current verifier+EL signals.
+			if superAuthority != nil {
+				ec.refreshSuperAuthorityPublished()
 			}
 
 			if tt.expectPanic != "" {
@@ -483,8 +492,10 @@ func TestEngineController_SuperAuthorityHoldPreviousPreservesEngineFinalizedOnSt
 
 	err := ec.tryUpdateEngineInternal(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, safeRef, ec.crossSafeHead)
+	require.Equal(t, safeRef, ec.superAuthoritySafeHead)
 	require.Equal(t, finalizedRef, ec.superAuthorityFinalizedHead)
+	require.Equal(t, safeRef, ec.superAuthorityPublishedSafeHead)
+	require.Equal(t, finalizedRef, ec.superAuthorityPublishedFinalizedHead)
 }
 
 // TestInitializeUnknowns_SetsLocalSafeHead_Regression is a regression test for a bug
@@ -528,7 +539,7 @@ func TestInitializeUnknowns_SetsLocalSafeHead_Regression(t *testing.T) {
 
 	// Verify initial state is zero (simulating fresh CL start)
 	require.Equal(t, eth.L2BlockRef{}, ec.localSafeHead, "localSafeHead should start as zero")
-	require.Equal(t, eth.L2BlockRef{}, ec.crossSafeHead, "deprecatedSafeHead should start as zero")
+	require.Equal(t, eth.L2BlockRef{}, ec.deprecatedSafeHead, "deprecatedSafeHead should start as zero")
 
 	// Mock EL returning persisted state (simulating restart with existing EL data)
 	mockEngine.ExpectL2BlockRefByLabel(eth.Unsafe, unsafeRef, nil)
@@ -560,7 +571,7 @@ func TestInitializeUnknowns_SetsLocalSafeHead_Regression(t *testing.T) {
 		"SafeL2Head() must return the initialized localSafeHead")
 
 	// Verify deprecatedSafeHead is also set (for backward compatibility)
-	require.Equal(t, safeRef, ec.crossSafeHead,
+	require.Equal(t, safeRef, ec.deprecatedSafeHead,
 		"deprecatedSafeHead should also be set to match localSafeHead")
 
 	mockEngine.AssertExpectations(t)
@@ -711,10 +722,10 @@ func TestConsolidation_BatchesFCUPerL1Block(t *testing.T) {
 	// Set all heads directly to avoid initializeUnknowns engine calls.
 	ec.unsafeHead = block3
 	ec.localSafeHead = genesis
-	ec.crossSafeHead = genesis
+	ec.deprecatedSafeHead = genesis
 	ec.pendingSafeHead = genesis
 	ec.localFinalizedHead = genesis
-	ec.crossFinalizedHead = genesis
+	ec.deprecatedFinalizedHead = genesis
 
 	// Allow any emitted events
 	emitter.Mock.On("Emit", mock.Anything).Maybe()
@@ -734,7 +745,7 @@ func TestConsolidation_BatchesFCUPerL1Block(t *testing.T) {
 	mockEngine.AssertExpectations(t)
 
 	// Verify cross-safe advanced correctly despite no FCU
-	require.Equal(t, block3.Hash, ec.crossSafeHead.Hash, "cross-safe should advance per-block")
+	require.Equal(t, block3.Hash, ec.deprecatedSafeHead.Hash, "cross-safe should advance per-block")
 	require.Equal(t, block3.Hash, ec.localSafeHead.Hash, "local-safe should advance per-block")
 
 	// Now simulate DeriverL1StatusEvent (L1 origin transition).
@@ -811,8 +822,8 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 	// Initial state: unsafe=block5, localSafe=block2, crossSafe=block2, finalized=block1
 	ec.unsafeHead = block5
 	ec.SetLocalSafeHead(block2)
-	ec.SetCrossSafeHead(block2) // deprecatedSafeHead = block2
-	ec.SetFinalizedHead(block1) // deprecatedFinalizedHead = block1
+	ec.SetDeprecatedSafeHead(block2) // deprecatedSafeHead = block2
+	ec.SetFinalizedHead(block1)      // deprecatedFinalizedHead = block1
 	// Set lastForkchoice to match initial state so setup doesn't trigger FCU
 	ec.lastForkchoice = eth.ForkchoiceState{
 		HeadBlockHash:      block5.Hash,
@@ -843,11 +854,11 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 
 	// Assert the final head state
 	require.Equal(t, block5, ec.localSafeHead, "localSafeHead should be updated to block5")
-	require.Equal(t, block4, ec.crossSafeHead, "deprecatedSafeHead (cross-safe) should be updated to block4")
-	require.Equal(t, block3, ec.crossFinalizedHead, "deprecatedFinalizedHead (cross-finalized) should be updated to block3")
+	require.Equal(t, block4, ec.deprecatedSafeHead, "deprecatedSafeHead (cross-safe) should be updated to block4")
+	require.Equal(t, block3, ec.deprecatedFinalizedHead, "deprecatedFinalizedHead (cross-finalized) should be updated to block3")
 
 	// Assert the invariant: cross-safe <= local-safe
-	require.LessOrEqual(t, ec.crossSafeHead.Number, ec.localSafeHead.Number,
+	require.LessOrEqual(t, ec.deprecatedSafeHead.Number, ec.localSafeHead.Number,
 		"invariant: cross-safe (deprecatedSafeHead) must not exceed local-safe")
 }
 
@@ -885,8 +896,8 @@ func TestFollowSource_SeedsGenesisRefsFromZeroState(t *testing.T) {
 	ec.FollowSource(genesis, genesis, genesis)
 
 	require.Equal(t, genesis, ec.localSafeHead)
-	require.Equal(t, genesis, ec.crossSafeHead)
-	require.Equal(t, genesis, ec.crossFinalizedHead)
+	require.Equal(t, genesis, ec.deprecatedSafeHead)
+	require.Equal(t, genesis, ec.deprecatedFinalizedHead)
 	mockEngine.AssertExpectations(t)
 }
 
@@ -1019,10 +1030,17 @@ func TestEngineController_FinalizedHead(t *testing.T) {
 			}
 			if tt.setupSACache != nil {
 				ec.superAuthorityFinalizedHead = *tt.setupSACache
+				ec.superAuthorityPublishedFinalizedHead = *tt.setupSACache
 			}
 
 			if tt.setupEngine != nil {
 				tt.setupEngine(mockEngine)
+			}
+
+			// FinalizedHead returns the last published pair; resolve once first so
+			// the SuperAuthority path reflects the current verifier+EL signals.
+			if superAuthority != nil {
+				ec.refreshSuperAuthorityPublished()
 			}
 
 			if tt.expectPanic != "" {
@@ -1054,6 +1072,7 @@ func TestEngineController_FinalizedHeadCachesSuperAuthorityResult(t *testing.T) 
 	finalizedRef := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
 	mockEngine.ExpectL2BlockRefByHash(common.Hash{0xbb}, finalizedRef, nil)
 
+	ec.refreshSuperAuthorityPublished()
 	require.Equal(t, finalizedRef, ec.FinalizedHead())
 	require.Equal(t, localFinalized, ec.localFinalizedHead)
 	require.Equal(t, finalizedRef, ec.superAuthorityFinalizedHead)
@@ -1062,6 +1081,7 @@ func TestEngineController_FinalizedHeadCachesSuperAuthorityResult(t *testing.T) 
 	superAuth.finalizedL2HeadSource = rollup.VerifierHeadVerified
 	mockEngine.ExpectL2BlockRefByHash(common.Hash{0xcc}, eth.L2BlockRef{}, errors.New("temporary EL error"))
 
+	ec.refreshSuperAuthorityPublished()
 	require.Equal(t, finalizedRef, ec.FinalizedHead())
 	require.Equal(t, localFinalized, ec.localFinalizedHead)
 	require.Equal(t, finalizedRef, ec.superAuthorityFinalizedHead)
@@ -1069,8 +1089,9 @@ func TestEngineController_FinalizedHeadCachesSuperAuthorityResult(t *testing.T) 
 
 // FinalizedHead is bounded by local-finalized (the super authority cannot
 // finalize a block that isn't locally final). When the authority reports a
-// finalized block ahead of local-finalized, the local-finalized head wins and
-// the super-authority cache stays empty.
+// finalized block ahead of local-finalized, the local-finalized head wins.
+// The resolver records the published (clamped-to-local) head in the cache so a
+// subsequent hold-previous cannot rewind below it (Fix 5: use-local cache gap).
 func TestEngineController_FinalizedHeadAheadOfLocalFinalUsesLocalFinal(t *testing.T) {
 	superAuth := &mockSuperAuthority{
 		finalizedL2Head:       eth.BlockID{Hash: common.Hash{0xbb}, Number: 50},
@@ -1084,10 +1105,11 @@ func TestEngineController_FinalizedHeadAheadOfLocalFinalUsesLocalFinal(t *testin
 	ec.SetLocalSafeHead(localSafe)
 	ec.SetFinalizedHead(localFinalized)
 
+	ec.refreshSuperAuthorityPublished()
 	require.Equal(t, localFinalized, ec.FinalizedHead())
 	require.Equal(t, localFinalized, ec.localFinalizedHead)
-	require.Equal(t, eth.L2BlockRef{}, ec.superAuthorityFinalizedHead,
-		"cache must not be populated when the SuperAuthority result is clamped to local-finalized")
+	require.Equal(t, localFinalized, ec.superAuthorityFinalizedHead,
+		"resolver records the published clamped-to-local head so hold-previous cannot rewind below it")
 }
 
 func TestEngineController_FinalizedHeadUsesCachedSuperAuthorityFinalizedWhenAuthorityRegresses(t *testing.T) {
@@ -1105,7 +1127,9 @@ func TestEngineController_FinalizedHeadUsesCachedSuperAuthorityFinalizedWhenAuth
 	ec.SetFinalizedHead(eth.L2BlockRef{Hash: common.Hash{0xff}, Number: 60})
 	cachedSuperAuthority := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 50}
 	ec.superAuthorityFinalizedHead = cachedSuperAuthority
+	ec.superAuthorityPublishedFinalizedHead = cachedSuperAuthority
 
+	ec.refreshSuperAuthorityPublished()
 	require.Equal(t, cachedSuperAuthority, ec.FinalizedHead())
 	require.Equal(t, cachedSuperAuthority, ec.superAuthorityFinalizedHead)
 }
@@ -1129,9 +1153,11 @@ func TestEngineController_FinalizedHeadHoldsCacheOnSameHeightConflict(t *testing
 	ec.SetFinalizedHead(eth.L2BlockRef{Hash: common.Hash{0xff}, Number: 60})
 	cached := eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 50}
 	ec.superAuthorityFinalizedHead = cached
+	ec.superAuthorityPublishedFinalizedHead = cached
 
+	ec.refreshSuperAuthorityPublished()
 	require.Equal(t, cached, ec.FinalizedHead(),
-		"on a same-height/different-hash conflict the resolver errors and the cache is held")
+		"on a same-height/different-hash conflict the resolver errors and the published pair is held")
 	require.Equal(t, cached, ec.superAuthorityFinalizedHead)
 }
 
@@ -1155,7 +1181,9 @@ func TestEngineController_FinalizedHeadAnchorDoesNotRegressCache(t *testing.T) {
 	ec.SetLocalSafeHead(eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 2000})
 	ec.SetFinalizedHead(eth.L2BlockRef{Hash: common.Hash{0xff}, Number: 1500})
 	ec.superAuthorityFinalizedHead = cached
+	ec.superAuthorityPublishedFinalizedHead = cached
 
+	ec.refreshSuperAuthorityPublished()
 	require.Equal(t, cached, ec.FinalizedHead(),
 		"Anchor result behind the cache must not regress FinalizedHead")
 	require.Equal(t, cached, ec.superAuthorityFinalizedHead,

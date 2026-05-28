@@ -60,6 +60,7 @@ func TestSafeL2Head_EmptyVerifier_DoesNotDropToGenesis(t *testing.T) {
 
 	mockEngine.ExpectL2BlockRefByNumber(uint64(499), anchorRef, nil)
 
+	ec.refreshSuperAuthorityPublished()
 	got := ec.SafeL2Head()
 	require.NotEqual(t, uint64(0), got.Number,
 		"SafeL2Head must not drop to genesis when local-safe (%d) and local-finalized (%d) are non-zero. "+
@@ -102,8 +103,11 @@ func TestSafeL2Head_VerifierError_HoldsCachedCrossSafe(t *testing.T) {
 	)
 	ec.SetLocalSafeHead(localSafe)
 	ec.SetFinalizedHead(localFinalized)
-	ec.SetCrossSafeHead(cachedCrossSafe)
+	// Seed the SuperAuthority resolver's safe cache + published safe head.
+	ec.superAuthoritySafeHead = cachedCrossSafe
+	ec.superAuthorityPublishedSafeHead = cachedCrossSafe
 
+	ec.refreshSuperAuthorityPublished()
 	got := ec.SafeL2Head()
 	require.NotEqual(t, localSafe, got,
 		"SafeL2Head must not return localSafeHead on verifier error (bug A).")
@@ -136,6 +140,7 @@ func TestFinalizedHead_HoldPrevious_NoCache_ReturnsZero(t *testing.T) {
 	)
 	// localSafeHead / localFinalizedHead deliberately left as zero.
 
+	ec.refreshSuperAuthorityPublished()
 	got := ec.FinalizedHead()
 	require.Equal(t, eth.L2BlockRef{}, got,
 		"FinalizedHead on cold-start HoldPrevious must return zero L2BlockRef, not garbage")
@@ -174,6 +179,10 @@ func TestPromoteFinalized_WithSuperAuthorityDoesNotPublishLocalFinalityAheadOfSa
 	ec.SetLocalSafeHead(localSafe)
 	ec.SetFinalizedHead(oldPublished)
 	ec.superAuthorityFinalizedHead = oldPublished
+	ec.superAuthorityPublishedFinalizedHead = oldPublished
+	// Seed the safe cache/published so the held safe is the verified tip.
+	ec.superAuthoritySafeHead = oldPublished
+	ec.superAuthorityPublishedSafeHead = oldPublished
 
 	mockEngine.ExpectL2BlockRefByHash(oldPublished.Hash, oldPublished, nil)
 	mockEngine.ExpectL2BlockRefByNumber(oldPublished.Number, oldPublished, nil)
@@ -182,7 +191,7 @@ func TestPromoteFinalized_WithSuperAuthorityDoesNotPublishLocalFinalityAheadOfSa
 
 	require.Equal(t, localFinalized, ec.localFinalizedHead,
 		"local finality should still advance and bound future super-authority finality")
-	require.Equal(t, oldPublished, ec.crossFinalizedHead,
+	require.Equal(t, oldPublished, ec.superAuthorityPublishedFinalizedHead,
 		"published/FCU finality must remain at the super-authority finalized head")
 	mockEngine.AssertExpectations(t)
 }

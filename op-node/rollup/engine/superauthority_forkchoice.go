@@ -226,20 +226,35 @@ func resolveCrossHeads(safeCand, finalizedCand headCandidate, cachedSafe, cached
 	// down to safe rather than publishing finalized > safe. We do not raise the
 	// cache here — the clamp is a per-publish bound, not a regression of what
 	// the verifier proved.
-	if safe != (eth.L2BlockRef{}) && finalized.Number > safe.Number {
-		finalized = safe
-	}
+	//
+	// NOTE: this clamp is intentionally only a per-resolve bound. The
+	// FCU-level monotonicity guard (published finalized never rewinds below the
+	// last published finalized) lives in EngineController.reconcilePublished,
+	// because it depends on the last PUBLISHED pair, which the pure resolver
+	// does not see. Both layers re-apply the clamp so the published pair is
+	// consistent even on the error/hold-previous fallback.
+	return crossHeads{safe: safe, finalized: finalized}.clampFinalizedToSafe(), newCachedSafe, newCachedFinalized, nil
+}
 
-	return crossHeads{safe: safe, finalized: finalized}, newCachedSafe, newCachedFinalized, nil
+// clampFinalizedToSafe returns h with finalized clamped down to safe so the
+// finalized <= safe invariant always holds. A zero safe leaves finalized
+// untouched (there is nothing to clamp against). Used by both the pure resolver
+// and the error/hold-previous fallback so neither can emit finalized > safe.
+func (h crossHeads) clampFinalizedToSafe() crossHeads {
+	if h.safe != (eth.L2BlockRef{}) && h.finalized.Number > h.safe.Number {
+		h.finalized = h.safe
+	}
+	return h
 }
 
 // resolveOne reconciles a single candidate against its cache, returning the head
 // to publish and the cache value to persist.
 //
-// The cache records the highest AUTHORITATIVELY-resolved cross head we have
-// adopted (a verified tip, or an anchor while pre-verification). It is NOT
-// updated for "use local" (the local head is published but not a cross fact)
-// nor for "hold previous" (the cache is reused verbatim).
+// The cache tracks the last PUBLISHED cross head so that a later "hold previous"
+// returns the value we actually published rather than a stale/zero cache. It is
+// updated for "use local" (recording the published local head) and for verified/
+// anchor adoptions. It is NOT raised on "hold previous" (the cache is reused
+// verbatim).
 func resolveOne(cand headCandidate, cached eth.L2BlockRef, monotonic bool) (head, newCached eth.L2BlockRef, err error) {
 	switch cand.kind {
 	case crossHoldPrevious:
@@ -248,12 +263,14 @@ func resolveOne(cand headCandidate, cached eth.L2BlockRef, monotonic bool) (head
 
 	case crossUseLocal:
 		// Pre-activation / clamp-to-local: publish the local head but never
-		// rewind a non-zero cross cache below it, and never record local as a
-		// cross fact (leave the cache unchanged).
+		// rewind a non-zero cross cache below it. Record the published head in
+		// the cache so a subsequent hold-previous cannot rewind below what we
+		// just published (the use-local -> hold-previous gap). For finalized
+		// (monotonic) only advance the cache, never lower it.
 		if cached != (eth.L2BlockRef{}) && cand.ref.Number < cached.Number {
 			return cached, cached, nil
 		}
-		return cand.ref, cached, nil
+		return cand.ref, cand.ref, nil
 
 	case crossAnchor:
 		// Anchor is a WEAK pre-verification signal: it must not rewind a

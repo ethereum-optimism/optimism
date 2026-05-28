@@ -57,8 +57,9 @@ type VerifierHead struct {
 // to publish as SafeL2Head / FinalizedHead and whether to apply a payload.
 type SuperAuthority interface {
 	// FullyVerifiedL2Head returns the cross-verified safe L2 head.
-	// `ok=false` signals a transient read failure — caller must hold the
-	// previous value (floored at FinalizedHead), never fall back to local-safe.
+	// `ok=false` signals a transient read failure (HoldPrevious) — the caller
+	// holds the previous cached cross value verbatim, never falling back to
+	// local-safe and never flooring at the finalized head.
 	FullyVerifiedL2Head(ctx context.Context) (head VerifierHead, ok bool)
 
 	// FinalizedL2Head is the finalized analogue of FullyVerifiedL2Head.

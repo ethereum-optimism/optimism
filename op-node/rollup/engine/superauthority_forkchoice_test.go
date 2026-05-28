@@ -42,7 +42,8 @@ func TestResolveCrossHeads(t *testing.T) {
 			finalizedCand: headCandidate{kind: crossUseLocal, ref: ref(0, 0)},
 			wantSafe:      ref(44643, 0xaa),
 			wantFinalized: ref(0, 0),
-			// safe verified adopts and caches; finalized use-local does not cache.
+			// safe verified adopts and caches; finalized use-local records the
+			// published head, which here is zero (local-finalized is genesis).
 			wantCachedSafe:      ref(44643, 0xaa),
 			wantCachedFinalized: ref(0, 0),
 		},
@@ -100,14 +101,16 @@ func TestResolveCrossHeads(t *testing.T) {
 			// Verified safe behind a startup-seeded cache IS adopted (lowered):
 			// the cache was seeded from local-safe and the verifier reports the
 			// true, lower cross-safe.
-			name:                "verified safe behind startup-seeded cache is adopted",
-			safeCand:            headCandidate{kind: crossVerified, ref: ref(80, 0xbb)},
-			finalizedCand:       headCandidate{kind: crossUseLocal, ref: ref(50, 0xcc)},
-			cachedSafe:          ref(120, 0xaa), // seeded from local-safe at startup
-			wantSafe:            ref(80, 0xbb),
-			wantFinalized:       ref(50, 0xcc),
-			wantCachedSafe:      ref(80, 0xbb),
-			wantCachedFinalized: ref(0, 0),
+			name:           "verified safe behind startup-seeded cache is adopted",
+			safeCand:       headCandidate{kind: crossVerified, ref: ref(80, 0xbb)},
+			finalizedCand:  headCandidate{kind: crossUseLocal, ref: ref(50, 0xcc)},
+			cachedSafe:     ref(120, 0xaa), // seeded from local-safe at startup
+			wantSafe:       ref(80, 0xbb),
+			wantFinalized:  ref(50, 0xcc),
+			wantCachedSafe: ref(80, 0xbb),
+			// use-local now records the published head in the cache (Fix 5) so a
+			// subsequent hold-previous cannot rewind below it.
+			wantCachedFinalized: ref(50, 0xcc),
 		},
 		{
 			// Verified finalized behind cache holds the cache (finalized cannot
@@ -120,6 +123,21 @@ func TestResolveCrossHeads(t *testing.T) {
 			wantFinalized:       ref(50, 0xdd),
 			wantCachedSafe:      ref(100, 0xaa),
 			wantCachedFinalized: ref(50, 0xdd),
+		},
+		{
+			// Fix 5: use-local records the published head in the cache, so a
+			// subsequent resolve that holds-previous returns that head rather than
+			// a stale/zero cache. This row is the SECOND resolve (the cache here is
+			// what the prior use-local resolve persisted).
+			name:                "use-local-then-hold-previous: hold-previous returns cached use-local head",
+			safeCand:            headCandidate{kind: crossHoldPrevious},
+			finalizedCand:       headCandidate{kind: crossHoldPrevious},
+			cachedSafe:          ref(100, 0xaa), // persisted by a prior use-local resolve
+			cachedFinalized:     ref(30, 0xdd),  // persisted by a prior use-local resolve
+			wantSafe:            ref(100, 0xaa),
+			wantFinalized:       ref(30, 0xdd),
+			wantCachedSafe:      ref(100, 0xaa),
+			wantCachedFinalized: ref(30, 0xdd),
 		},
 		{
 			// Same-height/different-hash conflict against the cache is genuinely
