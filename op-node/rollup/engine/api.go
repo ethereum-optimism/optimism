@@ -34,6 +34,12 @@ func (e *EngineController) OpenBlock(ctx context.Context, parent eth.BlockID, at
 		return eth.PayloadInfo{}, fmt.Errorf("failed to initialize forkchoice pre-state: %w", err)
 	}
 
+	// Refresh the published SuperAuthority safe/finalized pair so the FCU we build
+	// below uses a freshly-resolved snapshot rather than a stale cache (e.g. the
+	// startup-seeded head just installed by initializeUnknowns). Held under e.mu;
+	// no-op without a SuperAuthority. Mirrors tryUpdateEngineInternal.
+	e.refreshSuperAuthorityPublished()
+
 	fc := eth.ForkchoiceState{
 		HeadBlockHash:      parent.Hash,
 		SafeBlockHash:      e.SafeL2Head().Hash,

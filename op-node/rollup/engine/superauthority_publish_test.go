@@ -200,6 +200,71 @@ func TestSuperAuthorityPublished_ConflictRecordsMetric(t *testing.T) {
 	require.Equal(t, cached, ec.FinalizedHead(), "published finalized held on conflict")
 }
 
+// P1 regression: the build/sequencer FCU path (OpenBlock -> startPayload) must
+// refresh the published SuperAuthority pair before reading SafeL2Head /
+// FinalizedHead, so the ForkchoiceState sent to the engine uses the FRESH
+// resolved head and not a stale published snapshot (e.g. the startup-seeded head
+// from initializeUnknowns). Before the fix these accessors were cache-only and
+// OpenBlock did not refresh, so it could send a stale/local-only head.
+func TestSuperAuthorityPublished_OpenBlockUsesFreshHeadNotStaleSnapshot(t *testing.T) {
+	mockEngine := &testutils.MockEngine{}
+	sa := &mockSuperAuthority{}
+	ec, _ := newSAController(t, mockEngine, sa)
+
+	// Seed every head non-zero so initializeUnknowns makes no EL label calls and
+	// does not re-seed the SuperAuthority fields.
+	parent := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 200}
+	localSafe := eth.L2BlockRef{Hash: common.Hash{0xa5}, Number: 200}
+	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xc0}, Number: 100}
+	ec.SetUnsafeHead(parent)
+	ec.SetLocalSafeHead(localSafe)
+	ec.SetFinalizedHead(localFinalized)
+	ec.SetDeprecatedSafeHead(localSafe)
+	ec.SetCrossUnsafeHead(localSafe)
+
+	// STALE published snapshot: an earlier resolve published safe 150 / finalized
+	// 100. If the build path read this cache-only it would send safe 0xb0.
+	stalePublishedSafe := eth.L2BlockRef{Hash: common.Hash{0xb0}, Number: 150}
+	ec.superAuthoritySafeHead = stalePublishedSafe
+	ec.superAuthorityPublishedSafeHead = stalePublishedSafe
+	ec.superAuthorityFinalizedHead = localFinalized
+	ec.superAuthorityPublishedFinalizedHead = localFinalized
+
+	// The verifier now reports a NEWER verified safe tip (180, fresh hash); the
+	// finalized verifier holds-previous (keeps published finalized 100).
+	freshSafe := eth.L2BlockRef{Hash: common.Hash{0xb1}, Number: 180}
+	sa.fullyVerifiedL2Head = freshSafe.ID()
+	sa.fullyVerifiedL2HeadSource = rollup.VerifierHeadVerified
+	sa.holdPreviousFinalized = true
+
+	// EL lookups for OpenBlock + the refresh's gatherVerified (hash + canonicality).
+	mockEngine.ExpectL2BlockRefByHash(parent.Hash, parent, nil) // OpenBlock parent check
+	mockEngine.ExpectL2BlockRefByHash(freshSafe.Hash, freshSafe, nil)
+	mockEngine.ExpectL2BlockRefByNumber(freshSafe.Number, freshSafe, nil)
+
+	// The FCU sent to the engine MUST use the FRESH safe head (0xb1), not the
+	// stale snapshot (0xb0). The mock matches on the exact serialized state, so a
+	// stale head would fail to match.
+	expectedFC := eth.ForkchoiceState{
+		HeadBlockHash:      parent.Hash,
+		SafeBlockHash:      freshSafe.Hash,
+		FinalizedBlockHash: localFinalized.Hash,
+	}
+	payloadID := eth.PayloadID{1, 2, 3, 4, 5, 6, 7, 8}
+	attrs := &eth.PayloadAttributes{Timestamp: eth.Uint64Quantity(parent.Time + 2)}
+	mockEngine.ExpectForkchoiceUpdate(&expectedFC, attrs,
+		&eth.ForkchoiceUpdatedResult{
+			PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
+			PayloadID:     &payloadID,
+		}, nil)
+
+	info, err := ec.OpenBlock(context.Background(), parent.ID(), attrs)
+	require.NoError(t, err)
+	require.Equal(t, payloadID, info.ID)
+	require.Equal(t, freshSafe, ec.SafeL2Head(), "published safe refreshed to the fresh verified tip")
+	mockEngine.AssertExpectations(t)
+}
+
 // countingMetricer wraps NoopMetrics and counts SuperAuthority conflict events.
 type countingMetricer struct {
 	metrics.Metricer

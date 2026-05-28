@@ -140,14 +140,29 @@ func TestResolveCrossHeads(t *testing.T) {
 			wantCachedFinalized: ref(30, 0xdd),
 		},
 		{
-			// Same-height/different-hash conflict against the cache is genuinely
-			// inconsistent state: error.
-			name:            "same-height conflict against cache errors",
-			safeCand:        headCandidate{kind: crossVerified, ref: ref(50, 0xbb)},
-			finalizedCand:   headCandidate{kind: crossHoldPrevious},
-			cachedSafe:      ref(50, 0xcc),
+			// Finalized (monotonic) same-height/different-hash against the cache is
+			// genuinely inconsistent state — finalized cannot reorg: error.
+			name:            "monotonic finalized same-height conflict against cache errors",
+			safeCand:        headCandidate{kind: crossVerified, ref: ref(50, 0xaa)},
+			finalizedCand:   headCandidate{kind: crossVerified, ref: ref(40, 0xbb)},
+			cachedSafe:      ref(50, 0xaa),
 			cachedFinalized: ref(40, 0xdd),
 			wantErr:         true,
+		},
+		{
+			// Safe (non-monotonic) same-height/different-hash against the cache is a
+			// legitimate same-height reorg. gatherVerified already re-confirmed the
+			// candidate is canonical, so it is adopted (published and cached), not
+			// errored.
+			name:                "non-monotonic safe same-height reorg adopts candidate",
+			safeCand:            headCandidate{kind: crossVerified, ref: ref(50, 0xbb)},
+			finalizedCand:       headCandidate{kind: crossHoldPrevious},
+			cachedSafe:          ref(50, 0xcc),
+			cachedFinalized:     ref(40, 0xdd),
+			wantSafe:            ref(50, 0xbb),
+			wantFinalized:       ref(40, 0xdd),
+			wantCachedSafe:      ref(50, 0xbb),
+			wantCachedFinalized: ref(40, 0xdd),
 		},
 	}
 

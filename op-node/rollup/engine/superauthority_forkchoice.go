@@ -284,7 +284,16 @@ func resolveOne(cand headCandidate, cached eth.L2BlockRef, monotonic bool) (head
 				return cached, cached, nil
 			}
 			if cand.ref.Number == cached.Number {
-				return eth.L2BlockRef{}, eth.L2BlockRef{}, errCrossHeadConflict
+				// A same-height/different-hash candidate is a reorg at the cached
+				// height. For finalized (monotonic) this is impossible — finalized
+				// cannot reorg — so it is genuinely inconsistent state: error. For
+				// safe (non-monotonic) it is a legitimate same-height reorg:
+				// gatherVerified already re-confirmed the candidate is canonical
+				// (checkCanonical=true), so adopt it (fall through to the adopt
+				// below).
+				if monotonic {
+					return eth.L2BlockRef{}, eth.L2BlockRef{}, errCrossHeadConflict
+				}
 			}
 			if monotonic && cand.ref.Number < cached.Number {
 				// Finalized cannot reorg: a verified tip behind the cache is a

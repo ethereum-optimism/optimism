@@ -29,6 +29,12 @@ func (e *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent)
 			"pending_safe", e.pendingSafeHead, "attributes_parent", ev.Attributes.Parent)
 	}
 
+	// Refresh the published SuperAuthority safe/finalized pair so the FCU we build
+	// below uses a freshly-resolved snapshot rather than a stale cache (e.g. the
+	// startup-seeded head from initializeUnknowns). Held under e.mu via OnEvent;
+	// no-op without a SuperAuthority. Mirrors tryUpdateEngineInternal.
+	e.refreshSuperAuthorityPublished()
+
 	fcEvent := ForkchoiceUpdateEvent{
 		UnsafeL2Head:    ev.Attributes.Parent,
 		SafeL2Head:      e.SafeL2Head(),
