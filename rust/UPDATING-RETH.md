@@ -2,7 +2,7 @@
 
 The Rust workspace pins ~70 `reth-*` crates from `paradigmxyz/reth` to a single
 git rev in [`rust/Cargo.toml`](Cargo.toml). This guide describes how to bump
-that rev safely.
+that rev safely and keep the shared `revm`/`alloy` versions in sync with it.
 
 ## When to update
 
@@ -32,7 +32,31 @@ main's CI actually validated.
    sed -i 's/rev = "<OLD_REV>"/rev = "<NEW_REV>"/g' Cargo.toml
    ```
 
-3. Refresh `Cargo.lock`. `cargo update -p reth` does **not** work — there is no
+3. Sync shared dependency versions to the new rev's pins. reth and the OP Stack
+   share the `revm`/`revm-*`, `alloy-*` (core and main), and `alloy-eip7928`
+   crate families. reth pins them in its own workspace `Cargo.toml`; ours must
+   declare the same versions so we build against the same types reth's APIs
+   expose. Read reth's pins at the new rev and update the matching lines in
+   `rust/Cargo.toml`:
+
+   ```bash
+   # from a reth checkout at the new rev:
+   git show <NEW_REV>:Cargo.toml | grep -E '^(revm|alloy-)'
+   ```
+
+   Bump only these crates.io ecosystem crates. Leave the OP-internal path
+   crates (`op-revm`, `op-alloy*`, `alloy-op-evm`, `alloy-op-hardforks`) alone —
+   they live in-tree under `rust/`, not on crates.io.
+
+   **Easy to miss:** cargo may have *already* floated these up in `Cargo.lock`
+   when you bumped the rev — our declared versions are caret ranges (`"2.0.4"`
+   admits `2.0.5`) and reth's higher pin wins unification. So the lock can be
+   correct while the declared versions silently lag, and this step's
+   `Cargo.lock` diff is often empty. Update the declared versions anyway: it
+   keeps the manifest honest about what we actually build against and signals
+   the sync to downstream consumers (e.g. Hardhat tracking `op-revm`).
+
+4. Refresh `Cargo.lock`. `cargo update -p reth` does **not** work — there is no
    top-level crate literally named `reth` in the dep graph; the workspace
    depends on `reth-*` subcrates. Pass any real reth subcrate; cargo cascades
    to every git dep sharing the same source:
@@ -41,7 +65,7 @@ main's CI actually validated.
    mise exec -- cargo update reth-chainspec
    ```
 
-4. Compile and adapt:
+5. Compile and adapt:
 
    ```bash
    mise exec -- cargo check --workspace --tests
@@ -51,7 +75,7 @@ main's CI actually validated.
    breakages in advance — let the compiler walk the dep graph. Each pass
    surfaces the next crate's errors.
 
-5. Build, format, and test before pushing:
+6. Build, format, and test before pushing:
 
    ```bash
    mise exec -- cargo build -p op-reth

@@ -356,6 +356,13 @@ func startL2CLNode(
 	require.NoError(err, "failed to load p2p config")
 	p2pConfig.NoDiscovery = cfg.NoDiscovery
 	p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
+	// Devstack chain timestamps are synthetic: genesis is set in the past and the
+	// chain may lag many seconds behind wallclock during startup (or many minutes
+	// during long tests like dispute games). The production-default 60s gossip
+	// "too old" check then rejects otherwise-valid TestSequencer-produced blocks
+	// — surfacing as "validation failed" out of ts.Next at startup. Match the
+	// multichain devstack (see newDevstackP2PConfig) by loosening to 1 hour.
+	p2pConfig.GossipTimestampThreshold = time.Hour
 
 	nodeCfg := &config.Config{
 		L1: &config.L1EndpointConfig{
