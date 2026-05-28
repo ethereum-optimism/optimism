@@ -596,6 +596,11 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
+        require(
+            _gameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw(),
+            "OPContractsManagerStandardValidator: SPDG is not permissionless"
+        );
+
         // Collect game implementation parameters
         DisputeGameImplementation memory gameImpl;
         bool failedToGetImpl = false;

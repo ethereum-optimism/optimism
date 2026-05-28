@@ -1997,6 +1997,16 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
         assertEq("SPDG-ANCHORP-10,SPDG-ANCHORP-20", _validate(true));
     }
 
+    /// @notice Tests SPDG-120 when SUPER_PERMISSIONED_CANNON's anchor root is zero.
+    function test_validate_superPermissionedDisputeGameZeroAnchorRoot_succeeds() public {
+        address spdgASR = DisputeGames.superPermissionedGameAnchorStateRegistry(dgf);
+        vm.mockCall(
+            spdgASR, abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()), abi.encode(bytes32(0), uint256(0))
+        );
+
+        assertEq("SPDG-120,SCKDG-120", _validate(true));
+    }
+
     /// @notice Tests SPDG-140 when SUPER_PERMISSIONED_CANNON proposer is invalid.
     function test_validate_superPermissionedDisputeGameInvalidProposer_succeeds() public {
         DisputeGames.mockSuperPermissionedGameProposer(dgf, address(0xbad));

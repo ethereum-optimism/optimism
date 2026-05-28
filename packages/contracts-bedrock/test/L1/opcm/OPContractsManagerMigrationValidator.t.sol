@@ -33,6 +33,14 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
+/// @title BadSemver
+/// @notice Minimal version stub used to make an expected implementation version mismatch.
+contract BadSemver {
+    function version() external pure returns (string memory) {
+        return "0.0.0-bad";
+    }
+}
+
 /// @title OPContractsManagerMigrationValidator_TestInit
 /// @notice Base contract for MigrationValidator tests. Uses real opcmV2.deploy() + migrate()
 ///         to set up post-migration state, matching the pattern in OPContractsManagerV2_Migrate_Test.
@@ -397,6 +405,18 @@ contract OPContractsManagerMigrationValidator_DGFShape_Test is OPContractsManage
 /// @title OPContractsManagerMigrationValidator_SPDG_Test
 /// @notice Negative tests for MIG-SPDG-* error codes (Super Permissioned Dispute Game).
 contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMigrationValidator_TestInit {
+    /// @notice MIG-SPDG-20: SPDG implementation version doesn't match expected.
+    function test_validate_spdg20WrongVersion_succeeds() public {
+        BadSemver bad = new BadSemver();
+        vm.mockCall(
+            address(standardValidator),
+            abi.encodeCall(IOPContractsManagerStandardValidator.superPermissionedDisputeGameImpl, ()),
+            abi.encode(address(bad))
+        );
+
+        assertEq("MIG-SPDG-20", _validateMigration(true));
+    }
+
     /// @notice MIG-SPDG-GARGS-10: Invalid game args length for SPDG.
     function test_validate_spdgGargs10InvalidArgsLength_succeeds() public {
         vm.mockCall(
