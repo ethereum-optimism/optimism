@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/superutil"
-	"github.com/ethereum/go-ethereum/superchain"
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"

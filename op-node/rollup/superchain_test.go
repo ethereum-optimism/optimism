@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/superchain"
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/stretchr/testify/require"
 )
 

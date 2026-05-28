@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/registry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/superchain"
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 )
 
 type KonaPrestate struct {
