@@ -2,29 +2,40 @@
 
 # Usage: ./fetch_superchain_config.sh
 # Switch to the same directory as the script and run it.
-# This will checkout the latest superchain registry commit and create three files.
+#
+# Reads from the superchain-registry submodule at
+# packages/contracts-bedrock/lib/superchain-registry. Produces:
 # - superchain-configs.tar: A tar archive containing all superchain configs
 # - ../src/superchain/chain_specs.rs: A Rust file containing all chain specs
-
+#
+# The submodule's recorded commit is the canonical pin. To bump the registry:
+#   1. cd packages/contracts-bedrock/lib/superchain-registry && git checkout <new>
+#   2. cd back and run `just sync-superchain`
+#   3. commit the submodule pointer along with the regenerated tar + chain_specs.rs
+#
 # Requires:
 # - MacOS: brew install qpdf zstd yq
 
-SCRIPT_DIR=$(pwd)
+set -euo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/../../../../.." && pwd)
+SUBMODULE_PATH="$REPO_ROOT/packages/contracts-bedrock/lib/superchain-registry"
+
+if [[ ! -e "$SUBMODULE_PATH/.git" ]]; then
+  echo "[fetch_superchain_config] superchain-registry submodule not initialized at $SUBMODULE_PATH" >&2
+  echo "[fetch_superchain_config] run: git submodule update --init --depth 1 packages/contracts-bedrock/lib/superchain-registry" >&2
+  exit 1
+fi
+
 TEMP_DIR=$(mktemp -d)
-
-# Clone the repository and go to the directory
-git clone --depth 1 https://github.com/ethereum-optimism/superchain-registry.git "$TEMP_DIR"
-# shellcheck disable=SC2164
-cd "$TEMP_DIR"
-
-
-DICT_FILE="$TEMP_DIR/superchain/extra/dictionary"
+DICT_FILE="$SUBMODULE_PATH/superchain/extra/dictionary"
 TARGET_PATH="$TEMP_DIR/result"
 GENESIS_TARGET_PATH="$TARGET_PATH/genesis"
 CONFIGS_TARGET_PATH="$TARGET_PATH/configs"
 
-GENESIS_SRC_DIR="$TEMP_DIR/superchain/extra/genesis"
-CONFIGS_SRC_DIR="$TEMP_DIR/superchain/configs"
+GENESIS_SRC_DIR="$SUBMODULE_PATH/superchain/extra/genesis"
+CONFIGS_SRC_DIR="$SUBMODULE_PATH/superchain/configs"
 mkdir -p "$GENESIS_TARGET_PATH"
 mkdir -p "$CONFIGS_TARGET_PATH"
 
@@ -70,12 +81,8 @@ find "$GENESIS_SRC_DIR" -type f -name "*.json.zst" | while read -r file; do
 
 done
 
-# Save revision
-git rev-parse HEAD > "$TARGET_PATH/superchain_registry_commit"
-git rev-parse HEAD > "$SCRIPT_DIR/superchain_registry_commit"
-
 # Copy the LICENSE file
-cp "$TEMP_DIR/LICENSE" "$TARGET_PATH/LICENSE"
+cp "$SUBMODULE_PATH/LICENSE" "$TARGET_PATH/LICENSE"
 
 # Set the modification time of all files to 1980-01-01 to ensure the archive is deterministic
 find "$TARGET_PATH" -exec touch -t 198001010000.00 {} +
@@ -91,7 +98,7 @@ mv superchain-configs.tar "$SCRIPT_DIR"
 
 echo "Get chain name and identifiers from chainList.json"
 # shellcheck disable=SC2002
-JSON_DATA=$(cat "$TEMP_DIR/chainList.json" | jq -r 'sort_by(.parent.chain, .identifier | split("/")[1])')
+JSON_DATA=$(cat "$SUBMODULE_PATH/chainList.json" | jq -r 'sort_by(.parent.chain, .identifier | split("/")[1])')
 
 # Extract network and chain names
 PARENT_CHAINS=$(echo "$JSON_DATA" | jq -r '.[].parent.chain')
@@ -133,8 +140,6 @@ echo -e "create_superchain_specs!(\n${ENUM_RS});" \
   >> "$SCRIPT_DIR/../src/superchain/chain_specs.rs"
 
 # Clean up
-# shellcheck disable=SC2164
-cd "$TEMP_DIR/../"
 rm -rf "$TEMP_DIR"
 
 echo "Done."

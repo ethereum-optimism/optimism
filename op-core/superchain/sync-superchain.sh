@@ -1,16 +1,32 @@
 #!/usr/bin/env bash
 
-# This script is used to sync superchain configs in the registry with op-core/superchain.
+# Builds op-core/superchain/superchain-configs.zip from the superchain-registry
+# submodule at packages/contracts-bedrock/lib/superchain-registry.
 #
-# The resulting zip is gitignored. Run this script before building the Go workspace.
-# Skips work if the on-disk zip already matches the pinned commit.
+# The submodule's recorded commit is the canonical pin. To bump the registry:
+#   1. cd packages/contracts-bedrock/lib/superchain-registry && git checkout <new>
+#   2. cd back and run `just sync-superchain`
+#   3. commit the submodule pointer
+#
+# The zip is gitignored. CI rebuilds it on every job that needs it.
+#
+# Skips work if the on-disk zip already pins the same commit as the submodule.
 
 set -euo pipefail
 
 # Constants
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-REGISTRY_COMMIT=$(cat "$SCRIPT_DIR/superchain-registry-commit.txt")
+REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
+SUBMODULE_PATH="$REPO_ROOT/packages/contracts-bedrock/lib/superchain-registry"
 ZIP="$SCRIPT_DIR/superchain-configs.zip"
+
+if [[ ! -e "$SUBMODULE_PATH/.git" ]]; then
+  echo "[sync-superchain] superchain-registry submodule not initialized at $SUBMODULE_PATH" >&2
+  echo "[sync-superchain] run: git submodule update --init --depth 1 packages/contracts-bedrock/lib/superchain-registry" >&2
+  exit 1
+fi
+
+REGISTRY_COMMIT=$(git -C "$SUBMODULE_PATH" rev-parse HEAD)
 
 # Short-circuit: if the existing zip already pins the same commit, do nothing.
 #
@@ -20,8 +36,7 @@ ZIP="$SCRIPT_DIR/superchain-configs.zip"
 #
 #     rm op-core/superchain/superchain-configs.zip && just sync-superchain
 #
-# CI is the safety net for un-rebuilt script changes — it always rebuilds
-# (cache key includes the script's hash) and fails on a .sha256 diff.
+# CI always rebuilds from scratch, so script changes can't escape there.
 if [[ -f "$ZIP" ]]; then
   existing=$(unzip -p "$ZIP" COMMIT 2>/dev/null | tr -d '[:space:]' || true)
   if [[ "$existing" == "$REGISTRY_COMMIT" ]]; then
@@ -30,21 +45,12 @@ if [[ -f "$ZIP" ]]; then
   fi
 fi
 
-repodir=$(mktemp -d)
 workdir=$(mktemp -d)
 
-# Clone the registry
-echo "Cloning SR..."
-cd "$repodir"
-git clone --no-checkout --depth 1 --shallow-submodules https://github.com/ethereum-optimism/superchain-registry.git
-cd "$repodir/superchain-registry"
-git fetch --depth 1 origin "$REGISTRY_COMMIT"
-git checkout "$REGISTRY_COMMIT"
-
-echo "Copying configs..."
-cp -r superchain/configs "$workdir/configs"
-cp -r superchain/extra/genesis "$workdir/genesis"
-cp -r superchain/extra/dictionary "$workdir/dictionary"
+echo "Copying configs from submodule at $REGISTRY_COMMIT..."
+cp -r "$SUBMODULE_PATH/superchain/configs" "$workdir/configs"
+cp -r "$SUBMODULE_PATH/superchain/extra/genesis" "$workdir/genesis"
+cp -r "$SUBMODULE_PATH/superchain/extra/dictionary" "$workdir/dictionary"
 
 cd "$workdir"
 echo "Using $workdir as workdir..."
@@ -122,16 +128,7 @@ echo -n "$files" | xargs zip -9 -oX --quiet superchain-configs.zip
 zipinfo superchain-configs.zip
 mv superchain-configs.zip "$SCRIPT_DIR/superchain-configs.zip"
 
-# Persist the bundle's SHA256 alongside it. The hash is committed to git
-# (the zip itself isn't); this gives strong consistency: any drift between
-# what a developer/CI builds and what was approved in review surfaces as a
-# .sha256 diff.
-sha256sum "$SCRIPT_DIR/superchain-configs.zip" \
-  | awk '{print $1 "  superchain-configs.zip"}' \
-  > "$SCRIPT_DIR/superchain-configs.zip.sha256"
-
 echo "Cleaning up..."
-rm -rf "$repodir"
 rm -rf "$workdir"
 
 echo "Done."

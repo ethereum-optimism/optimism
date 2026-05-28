@@ -18,12 +18,13 @@ ALL_TEST_PACKAGES := TEST_PKGS + " " + RPC_TEST_PKGS + " " + FRAUD_PROOF_TEST_PK
 help:
   @just --list
 
-# Builds op-core/superchain/superchain-configs.zip from the pinned commit in
-# op-core/superchain/superchain-registry-commit.txt. The zip is gitignored;
-# this recipe is the way to (re)materialise it for builds and tests. Skips work
-# if the existing zip already pins the same commit.
+# Regenerates the superchain bundles embedded in Go and Rust binaries from the
+# superchain-registry submodule. The submodule's recorded commit is the
+# canonical pin: bump the submodule, then run this target.
 sync-superchain:
+  just -f rust/kona/crates/protocol/registry/justfile bind
   bash op-core/superchain/sync-superchain.sh
+  bash rust/op-reth/crates/chainspec/res/fetch_superchain_config.sh
 
 # Builds Go components and contracts-bedrock.
 build: build-go build-contracts

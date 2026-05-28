@@ -53,27 +53,26 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 
 // fetchSuperchainRegistryCommit returns the superchain-registry commit SHA that
 // the kona-client release identified by ref was built against, by reading the
-// pinned commit file from the local optimism monorepo checkout at that tag.
-//
-// Only kona-client tags that have op-core/superchain/superchain-registry-commit.txt
-// are supported (v1.5.1 and later). If the tag isn't present locally, the
-// function fetches it from origin before giving up.
+// packages/contracts-bedrock/lib/superchain-registry submodule pointer recorded
+// in the tag's tree. If the tag isn't present locally, the function fetches it
+// from origin before giving up.
 func fetchSuperchainRegistryCommit(ref string) (string, error) {
-	const path = "op-core/superchain/superchain-registry-commit.txt"
-
 	if err := ensureRefAvailable(ref); err != nil {
 		return "", err
 	}
 
-	stdout, stderr, err := runGit("show", fmt.Sprintf("%s:%s", ref, path))
+	const submodulePath = "packages/contracts-bedrock/lib/superchain-registry"
+	stdout, stderr, err := runGit("ls-tree", ref, submodulePath)
 	if err != nil {
-		return "", fmt.Errorf("git show %s:%s failed: %w (%s)", ref, path, err, strings.TrimSpace(stderr))
+		return "", fmt.Errorf("git ls-tree %s %s failed: %w (%s)", ref, submodulePath, err, strings.TrimSpace(stderr))
 	}
-	sha := strings.TrimSpace(stdout)
-	if sha == "" {
-		return "", fmt.Errorf("empty commit SHA at %s@%s", path, ref)
+	// `git ls-tree` returns: "<mode> <type> <sha>\t<path>". For a submodule the
+	// type is "commit" and the sha is the pinned commit.
+	fields := strings.Fields(stdout)
+	if len(fields) < 3 || fields[1] != "commit" {
+		return "", fmt.Errorf("unexpected ls-tree output for %s at %s: %q", submodulePath, ref, strings.TrimSpace(stdout))
 	}
-	return sha, nil
+	return fields[2], nil
 }
 
 // ensureRefAvailable verifies that ref resolves in the local repo; if not, it

@@ -460,8 +460,11 @@ superchain registry, zipped into `superchain-configs.zip`) and provides `GetChai
 - `op-service/superutil/chain_config.go` – `superchain.GetChain` + `params.LoadChainConfig`
 
 The embedded data is synced from the `ethereum-optimism/superchain-registry` git repo via
-`sync-superchain.sh`, which clones the registry at a pinned commit (`superchain-registry-commit.txt`)
-and zips the configs. op-geth does **not** depend on `superchain-registry` as a Go module; the
+`sync-superchain.sh`, which zips the configs at a pinned commit. (Historically op-geth and
+this monorepo each kept a text-file pin alongside the script; the monorepo copy under
+`op-core/superchain/` has since moved to reading the commit from the
+`packages/contracts-bedrock/lib/superchain-registry` submodule, while op-geth retains its
+own internal pin.) op-geth does **not** depend on `superchain-registry` as a Go module; the
 data is embedded as a raw binary blob at compile time via `//go:embed`.
 
 ### Proposed decoupling
