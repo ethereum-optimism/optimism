@@ -44,6 +44,9 @@ func TestInteropActivation_MultiChain(gt *testing.T) {
 }
 
 func testInteropActivation_MultiChain(gt *testing.T, testCfg *helpers.TestCfg[forks.Name]) {
+	// kona-host single auto-synthesises a one-chain depset; remove once it accepts a caller-supplied one.
+	helpers.SkipIfKona(gt)
+
 	t := actionsHelpers.NewDefaultTesting(gt)
 
 	interopOffset := uint64(4)
