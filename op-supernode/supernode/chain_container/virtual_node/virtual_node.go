@@ -89,7 +89,7 @@ func generateVirtualNodeID() string {
 func NewVirtualNode(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) *simpleVirtualNode {
 	vnID := generateVirtualNodeID()
 	l := log.New("chain_id", cfg.Rollup.L2ChainID.String(), "vn_id", vnID)
-	return &simpleVirtualNode{
+	vn := &simpleVirtualNode{
 		vnID:             vnID,
 		cfg:              cfg,
 		log:              l,
@@ -97,6 +97,8 @@ func NewVirtualNode(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rol
 		appVersion:       appVersion,
 		innerNodeFactory: defaultInnerNodeFactory,
 	}
+	vn.setState(VNStateNotStarted)
+	return vn
 }
 
 func (v *simpleVirtualNode) Start(ctx context.Context) error {
