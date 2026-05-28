@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -106,10 +105,11 @@ func (c *simpleChainContainer) GetDeniedOutput(height uint64, payloadHash common
 
 // OutputV0AtBlockNumber returns the full OutputV0 for the block at the given number.
 func (c *simpleChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
-	if c.engine == nil {
-		return nil, engine_controller.ErrNoEngineClient
+	eng, err := c.ensureEngineController(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
+	return eng.OutputV0AtBlockNumber(ctx, l2BlockNum)
 }
 
 var _ rollup.SuperAuthority = (*simpleChainContainer)(nil)

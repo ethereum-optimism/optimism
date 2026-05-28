@@ -128,6 +128,7 @@ type InteropChain interface {
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
+type engineControllerFactory func(ctx context.Context, log gethlog.Logger, vncfg *opnodecfg.Config) (engine_controller.EngineController, error)
 
 // ResetCallback is called when the chain container resets due to an invalidated block.
 // The supernode uses this to notify activities about the reset.
@@ -144,6 +145,7 @@ type simpleChainContainer struct {
 	vn                 virtual_node.VirtualNode
 	vncfg              *opnodecfg.Config
 	cfg                config.CLIConfig
+	engineMu           sync.Mutex
 	engine             engine_controller.EngineController
 	denyList           *DenyList
 	pause              atomic.Bool
@@ -157,7 +159,8 @@ type simpleChainContainer struct {
 	setHandler         func(chainID string, h http.Handler)    // Set the RPC handler on the router for the chain
 	addMetricsRegistry func(key string, g prometheus.Gatherer) // Set the metrics registry on the global metrics server
 	appVersion         string
-	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
+	virtualNodeFactory virtualNodeFactory // Factory function to create virtual node (for testing)
+	engineFactory      engineControllerFactory
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	metrics            *resources.SupernodeMetrics
 
@@ -200,6 +203,7 @@ func NewChainContainer(
 		addMetricsRegistry: addMetricsRegistry,
 		appVersion:         virtualNodeVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
+		engineFactory:      engine_controller.NewEngineControllerFromConfig,
 		metrics:            metrics,
 	}
 	vncfg.SafeDBPath = c.subPath("safe_db")
@@ -327,16 +331,12 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 			break
 		}
 
-		// Initialize engine controller if not yet connected (retries on each VN restart)
-		if c.engine == nil && c.vncfg.L2 != nil {
-			setupCtx, setupCancel := context.WithTimeout(ctx, 10*time.Second)
-			engLog := c.log.New("chain_id", c.chainID.String(), "component", "engine_controller")
-			if eng, engErr := engine_controller.NewEngineControllerFromConfig(setupCtx, engLog, c.vncfg); engErr != nil {
-				c.log.Error("failed to setup engine controller", "err", engErr)
-			} else {
-				c.engine = eng
-			}
-			setupCancel()
+		// Initialize engine controller before starting the virtual node when
+		// possible. Callers also retry lazily via ensureEngineController, since
+		// vn.Start may keep running after this early setup misses a not-yet-ready
+		// EL auth RPC.
+		if _, engErr := c.ensureEngineController(ctx); engErr != nil && !errors.Is(engErr, engine_controller.ErrNoEngineClient) {
+			c.log.Error("failed to setup engine controller", "err", engErr)
 		}
 
 		// start the virtual node
@@ -390,9 +390,12 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 	}
 
 	// Close engine controller RPC resources
+	c.engineMu.Lock()
 	if c.engine != nil {
 		_ = c.engine.Close()
+		c.engine = nil
 	}
+	c.engineMu.Unlock()
 
 	// Close deny list database
 	if c.denyList != nil {
@@ -419,11 +422,36 @@ func (c *simpleChainContainer) Resume(ctx context.Context) error {
 	return nil
 }
 
-func (c *simpleChainContainer) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
-	if c.engine == nil {
-		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
+func (c *simpleChainContainer) ensureEngineController(ctx context.Context) (engine_controller.EngineController, error) {
+	c.engineMu.Lock()
+	defer c.engineMu.Unlock()
+
+	if c.engine != nil {
+		return c.engine, nil
 	}
-	return c.engine.L2BlockRefByLabel(ctx, eth.Finalized)
+	if c.vncfg == nil || c.vncfg.L2 == nil {
+		return nil, engine_controller.ErrNoEngineClient
+	}
+
+	setupCtx, setupCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer setupCancel()
+
+	engLog := c.log.New("chain_id", c.chainID.String(), "component", "engine_controller")
+	eng, err := c.engineFactory(setupCtx, engLog, c.vncfg)
+	if err != nil {
+		return nil, fmt.Errorf("setup engine controller: %w", err)
+	}
+	c.engine = eng
+	c.log.Info("setup engine controller")
+	return eng, nil
+}
+
+func (c *simpleChainContainer) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
+	eng, err := c.ensureEngineController(ctx)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	return eng.L2BlockRefByLabel(ctx, eth.Finalized)
 }
 
 func (c *simpleChainContainer) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
@@ -476,8 +504,9 @@ func (c *simpleChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint
 // LocalSafeBlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
 // if the block at that timestamp is local safe.
 func (c *simpleChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
-	if c.engine == nil {
-		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
+	eng, err := c.ensureEngineController(ctx)
+	if err != nil {
+		return eth.L2BlockRef{}, err
 	}
 
 	// Compute the target block directly from rollup config
@@ -496,7 +525,7 @@ func (c *simpleChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts
 		return eth.L2BlockRef{}, ethereum.NotFound
 	}
 
-	return c.engine.L2BlockRefByNumber(ctx, num)
+	return eng.L2BlockRefByNumber(ctx, num)
 }
 
 // SyncStatus returns the in-process op-node sync status for this chain.
@@ -516,10 +545,11 @@ func (c *simpleChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus,
 }
 
 func (c *simpleChainContainer) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
-	if c.engine == nil {
-		return eth.Bytes32{}, engine_controller.ErrNoEngineClient
+	eng, err := c.ensureEngineController(ctx)
+	if err != nil {
+		return eth.Bytes32{}, err
 	}
-	out, err := c.engine.OutputV0ByBlockHash(ctx, blockHash)
+	out, err := eng.OutputV0ByBlockHash(ctx, blockHash)
 	if err != nil {
 		return eth.Bytes32{}, err
 	}
@@ -605,24 +635,27 @@ func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, 
 
 // FetchReceipts fetches the receipts for a given block by hash.
 func (c *simpleChainContainer) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
-	if c.engine == nil {
-		return nil, engine_controller.ErrNoEngineClient
+	eng, err := c.ensureEngineController(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return c.engine.PayloadByHash(ctx, hash)
+	return eng.PayloadByHash(ctx, hash)
 }
 
 func (c *simpleChainContainer) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
-	if c.engine == nil {
-		return nil, engine_controller.ErrNoEngineClient
+	eng, err := c.ensureEngineController(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return c.engine.PayloadByNumber(ctx, number)
+	return eng.PayloadByNumber(ctx, number)
 }
 
 func (c *simpleChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
-	if c.engine == nil {
-		return nil, nil, engine_controller.ErrNoEngineClient
+	eng, err := c.ensureEngineController(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
-	return c.engine.FetchReceipts(ctx, blockID.Hash)
+	return eng.FetchReceipts(ctx, blockID.Hash)
 }
 
 // BlockTime returns the block time in seconds for this chain from the rollup config.
@@ -679,12 +712,13 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, target *eth.Exe
 	if vn == nil {
 		return fmt.Errorf("virtual node not initialized")
 	}
-	if c.engine == nil {
-		return fmt.Errorf("engine not initialized")
+	eng, err := c.ensureEngineController(ctx)
+	if err != nil {
+		return fmt.Errorf("engine not initialized: %w", err)
 	}
 
 	// Pause the container to stop it restarting the vn when we kill it
-	err := c.Pause(ctx)
+	err = c.Pause(ctx)
 	if err != nil {
 		return err
 	}
@@ -703,7 +737,7 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, target *eth.Exe
 
 retryLoop:
 	for {
-		err = c.engine.Rewind(ctx, target)
+		err = eng.Rewind(ctx, target)
 		switch {
 		case isCriticalRewindError(err):
 			c.log.Error("chain_container/RewindEngine: critical error", "err", err)

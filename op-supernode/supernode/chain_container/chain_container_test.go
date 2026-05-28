@@ -1331,6 +1331,56 @@ func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
 	}
 }
 
+func TestChainContainer_LocalSafeBlockAtTimestamp_RetriesEngineSetup(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	vncfg := createTestVNConfig()
+	vncfg.L2 = &opnodecfg.L2EndpointConfig{L2EngineAddr: "unused"}
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.BlockTime = 2
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+
+	mockVN := newMockVirtualNode()
+	mockVN.safeHeadL2 = eth.BlockID{Number: 10}
+	impl.vn = mockVN
+
+	mockEngine := &mockEngineController{
+		l2BlockRefByNumberResult: eth.L2BlockRef{Hash: common.Hash{0x11}, Number: 5, Time: 1010},
+	}
+
+	setupErr := errors.New("temporary engine setup failure")
+	var calls int
+	impl.engineFactory = func(ctx context.Context, log gethlog.Logger, vncfg *opnodecfg.Config) (engine_controller.EngineController, error) {
+		calls++
+		if calls == 1 {
+			return nil, setupErr
+		}
+		return mockEngine, nil
+	}
+
+	_, err := container.LocalSafeBlockAtTimestamp(context.Background(), 1010)
+	require.ErrorIs(t, err, setupErr)
+	require.Equal(t, 1, calls)
+
+	ref, err := container.LocalSafeBlockAtTimestamp(context.Background(), 1010)
+	require.NoError(t, err)
+	require.Equal(t, mockEngine.l2BlockRefByNumberResult, ref)
+	require.Equal(t, 2, calls)
+
+	ref, err = container.LocalSafeBlockAtTimestamp(context.Background(), 1010)
+	require.NoError(t, err)
+	require.Equal(t, mockEngine.l2BlockRefByNumberResult, ref)
+	require.Equal(t, 2, calls, "initialized engine should be reused")
+}
+
 func TestChainContainer_OptimisticOutputAtTimestamp_ReturnsDeniedOutput(t *testing.T) {
 	t.Parallel()
 

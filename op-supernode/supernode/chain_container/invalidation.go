@@ -403,8 +403,9 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 
 	// Errors here propagate so the caller preserves the pending transition for
 	// retry on restart; the deny list entry above is already durable.
-	if c.engine == nil {
-		return false, fmt.Errorf("cannot check current block at height %d: %w", height, engine_controller.ErrNoEngineClient)
+	eng, err := c.ensureEngineController(ctx)
+	if err != nil {
+		return false, fmt.Errorf("cannot check current block at height %d: %w", height, err)
 	}
 
 	// Only skip the rewind when the engine reports a block at this height that is not the
@@ -412,7 +413,7 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	// have left the synthetic block at this height with no canonical entry visible by
 	// number, and we need to drive the rewind to completion.
 	var invalidatedBlock eth.BlockRef
-	currentBlock, err := c.engine.L2BlockRefByNumber(ctx, height)
+	currentBlock, err := eng.L2BlockRefByNumber(ctx, height)
 	switch {
 	case err == nil:
 		if currentBlock.Hash != payloadHash {
