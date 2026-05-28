@@ -399,6 +399,10 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 
 func (c *simpleChainContainer) Stop(ctx context.Context) error {
 	c.stop.Store(true)
+	if c.rpcRouter != nil {
+		defer c.rpcRouter.RemoveHandler(c.chainID.String())
+	}
+
 	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -427,9 +431,6 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 
 	select {
 	case <-c.stopped:
-		if c.rpcRouter != nil {
-			c.rpcRouter.RemoveHandler(c.chainID.String())
-		}
 		return nil
 	case <-stopCtx.Done():
 		return stopCtx.Err()
