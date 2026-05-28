@@ -652,8 +652,8 @@ contract OPContractsManagerMigrationValidator_SharedDGF_Test is OPContractsManag
 
 /// @title OPContractsManagerMigrationValidator_SharedASR_Test
 /// @notice Negative tests covering shared AnchorStateRegistry invariants. The shared ASR is
-///         reachable from both super games' `assertValidDisputeGame` drill-downs, so each
-///         broken ASR field surfaces under both `MIG-SPDG-ANCHORP-*` and `MIG-SCKDG-ANCHORP-*`.
+///         reachable from both super game validation paths, so each broken ASR field surfaces
+///         under both `MIG-SPDG-ANCHORP-*` and `MIG-SCKDG-ANCHORP-*`.
 contract OPContractsManagerMigrationValidator_SharedASR_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice MIG-{SPDG,SCKDG}-ANCHORP-10: ASR version doesn't match impl version.
     function test_validate_sharedAnchorp10WrongVersion_succeeds() public {

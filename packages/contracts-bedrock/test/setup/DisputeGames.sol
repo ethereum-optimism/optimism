@@ -233,6 +233,18 @@ library DisputeGames {
         );
     }
 
+    function mockSuperPermissionedGameASR(IDisputeGameFactory _dgf, address _asr) internal {
+        bytes memory gameArgsData = _dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs = LibGameArgs.decodeSuperPermissioned(gameArgsData);
+        gameArgs.anchorStateRegistry = _asr;
+
+        vm.mockCall(
+            address(_dgf),
+            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(LibGameArgs.encodeSuperPermissioned(gameArgs))
+        );
+    }
+
     function _getGameArgs(
         IDisputeGameFactory _dgf,
         GameType _gameType

@@ -13,7 +13,10 @@ import {
     DisputeGameImplementation,
     DisputeGameValidationArgs,
     DisputeGameImpls,
-    DisputeGameConfig
+    DisputeGameConfig,
+    SuperPermissionedDisputeGameImplementation,
+    SuperPermissionedDisputeGameImpls,
+    SuperPermissionedDisputeGameValidationArgs
 } from "src/L1/opcm/StandardValidatorUtils.sol";
 
 // Interfaces
@@ -43,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 2.10.0
-    string public constant version = "2.10.0";
+    /// @custom:semver 2.10.1
+    string public constant version = "2.10.1";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -506,6 +509,10 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
+        if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+            return assertValidSuperPermissionedDisputeGame(_errors, _sysCfg, _admin, _proposer, _errorPrefix);
+        }
+
         // Collect game implementation parameters
         DisputeGameImplementation memory gameImpl;
         bool failedToGetImpl = false;
@@ -536,6 +543,40 @@ contract OPContractsManagerStandardValidator is ISemver {
             _errors = internalRequire(gameImpl.challenger == _challenger, string.concat(_errorPrefix, "-130"), _errors);
         }
         _errors = internalRequire(gameImpl.proposer == _proposer, string.concat(_errorPrefix, "-140"), _errors);
+
+        return _errors;
+    }
+
+    /// @notice Asserts that the SuperPermissionedDisputeGame contract is valid.
+    function assertValidSuperPermissionedDisputeGame(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin,
+        address _proposer,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        SuperPermissionedDisputeGameImplementation memory gameImpl;
+        bool failedToGetImpl = false;
+        (gameImpl, _errors, failedToGetImpl) = getSuperPermissionedGameImplementation(_errors, _sysCfg, _errorPrefix);
+        if (failedToGetImpl) {
+            return _errors;
+        }
+
+        _errors = standardValidatorUtils.assertValidSuperPermissionedDisputeGame(
+            SuperPermissionedDisputeGameValidationArgs({
+                errors: _errors,
+                sysCfg: _sysCfg,
+                game: gameImpl,
+                admin: _admin,
+                expectedProposer: _proposer,
+                errorPrefix: _errorPrefix
+            }),
+            _buildSuperPermissionedDisputeGameImpls()
+        );
 
         return _errors;
     }
@@ -617,6 +658,44 @@ contract OPContractsManagerStandardValidator is ISemver {
         return (gameImpl_, errors_, failed_);
     }
 
+    function getSuperPermissionedGameImplementation(
+        string memory _initialErrors,
+        ISystemConfig _sysCfg,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (SuperPermissionedDisputeGameImplementation memory gameImpl_, string memory errors_, bool failed_)
+    {
+        errors_ = _initialErrors;
+        IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        address gameAddress = address(_factory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON));
+
+        if (gameAddress == address(0)) {
+            errors_ = internalRequire(false, string.concat(_errorPrefix, "-10"), errors_);
+            failed_ = true;
+            return (gameImpl_, errors_, failed_);
+        }
+
+        bytes memory gameArgsBytes = _factory.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
+        bool lenCheckFailed;
+        (errors_, lenCheckFailed) =
+            assertGameArgsLength(errors_, gameArgsBytes, GameTypes.SUPER_PERMISSIONED_CANNON, _errorPrefix);
+        if (lenCheckFailed) {
+            failed_ = true;
+            return (gameImpl_, errors_, failed_);
+        }
+
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs = LibGameArgs.decodeSuperPermissioned(gameArgsBytes);
+        gameImpl_ = SuperPermissionedDisputeGameImplementation({
+            gameAddress: gameAddress,
+            asr: IAnchorStateRegistry(gameArgs.anchorStateRegistry),
+            proposer: gameArgs.proposer
+        });
+
+        return (gameImpl_, errors_, failed_);
+    }
+
     /// @notice Asserts that a DisputeGame contract is valid. Delegates to the shared utility.
     function assertValidDisputeGame(
         DisputeGameValidationArgs memory _args,
@@ -647,6 +726,18 @@ contract OPContractsManagerStandardValidator is ISemver {
             expectedGameImpl: expectedGameImpl(_gameType),
             mipsImpl: mipsImpl,
             delayedWETHImpl: delayedWETHImpl,
+            anchorStateRegistryImpl: anchorStateRegistryImpl
+        });
+    }
+
+    /// @notice Builds the SPDG implementation references from this validator's storage.
+    function _buildSuperPermissionedDisputeGameImpls()
+        internal
+        view
+        returns (SuperPermissionedDisputeGameImpls memory)
+    {
+        return SuperPermissionedDisputeGameImpls({
+            expectedGameImpl: superPermissionedDisputeGameImpl,
             anchorStateRegistryImpl: anchorStateRegistryImpl
         });
     }
@@ -1042,17 +1133,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         if (_gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
             gameImpl_.gameAddress = address(_game);
             gameImpl_.gameType = _gameType;
-            return gameImpl_;
-        }
-
-        if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
-            LibGameArgs.SuperPermissionedGameArgs memory superPermissionedGameArgs =
-                LibGameArgs.decodeSuperPermissioned(_gameArgsBytes);
-            gameImpl_.gameAddress = address(_game);
-            gameImpl_.gameType = _gameType;
-            gameImpl_.l2ChainId = 0;
-            gameImpl_.asr = IAnchorStateRegistry(superPermissionedGameArgs.anchorStateRegistry);
-            gameImpl_.proposer = superPermissionedGameArgs.proposer;
             return gameImpl_;
         }
 

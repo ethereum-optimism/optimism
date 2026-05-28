@@ -1966,6 +1966,37 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
         assertEq("SPDG-20", _validate(true));
     }
 
+    /// @notice Tests SPDG-GARGS-10 when SUPER_PERMISSIONED_CANNON game args are invalid.
+    function test_validate_superPermissionedDisputeGameInvalidGameArgs_succeeds() public {
+        vm.mockCall(
+            address(dgf),
+            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(hex"123456")
+        );
+
+        assertEq("SPDG-GARGS-10", _validate(true));
+    }
+
+    /// @notice Tests SPDG-ANCHORP-* when SUPER_PERMISSIONED_CANNON's simplified ASR arg is invalid.
+    function test_validate_superPermissionedDisputeGameInvalidASR_succeeds() public {
+        address badASR = address(0xbad);
+        DisputeGames.mockSuperPermissionedGameASR(dgf, badASR);
+
+        vm.mockCall(badASR, abi.encodeCall(IStaticERC1967Proxy.implementation, ()), abi.encode(address(0xdeadbeef)));
+        vm.mockCall(badASR, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        vm.mockCall(
+            badASR,
+            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
+            abi.encode(Hash.wrap(bytes32(uint256(0x123))), uint256(123))
+        );
+        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(dgf));
+        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
+        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
+
+        assertEq("SPDG-ANCHORP-10,SPDG-ANCHORP-20", _validate(true));
+    }
+
     /// @notice Tests SPDG-140 when SUPER_PERMISSIONED_CANNON proposer is invalid.
     function test_validate_superPermissionedDisputeGameInvalidProposer_succeeds() public {
         DisputeGames.mockSuperPermissionedGameProposer(dgf, address(0xbad));
