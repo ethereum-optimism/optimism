@@ -138,6 +138,88 @@ pub trait OpProofsProviderRO: Send + Sync + Debug {
     fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff>;
 }
 
+/// Blanket [`OpProofsProviderRO`] for shared references.
+impl<'a, T: OpProofsProviderRO + 'a> OpProofsProviderRO for &'a T {
+    type StorageTrieCursor<'tx>
+        = T::StorageTrieCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+    type AccountTrieCursor<'tx>
+        = T::AccountTrieCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+    type StorageCursor<'tx>
+        = T::StorageCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+    type AccountHashedCursor<'tx>
+        = T::AccountHashedCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+
+    fn get_earliest_block(&self) -> OpProofsStorageResult<NumHash> {
+        T::get_earliest_block(self)
+    }
+
+    fn get_latest_block(&self) -> OpProofsStorageResult<NumHash> {
+        T::get_latest_block(self)
+    }
+
+    fn get_proof_window(&self) -> OpProofsStorageResult<ProofWindowRange> {
+        T::get_proof_window(self)
+    }
+
+    fn storage_trie_cursor<'tx>(
+        &self,
+        hashed_address: B256,
+        max_block_number: u64,
+    ) -> OpProofsStorageResult<Self::StorageTrieCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::storage_trie_cursor(self, hashed_address, max_block_number)
+    }
+
+    fn account_trie_cursor<'tx>(
+        &self,
+        max_block_number: u64,
+    ) -> OpProofsStorageResult<Self::AccountTrieCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::account_trie_cursor(self, max_block_number)
+    }
+
+    fn storage_hashed_cursor<'tx>(
+        &self,
+        hashed_address: B256,
+        max_block_number: u64,
+    ) -> OpProofsStorageResult<Self::StorageCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::storage_hashed_cursor(self, hashed_address, max_block_number)
+    }
+
+    fn account_hashed_cursor<'tx>(
+        &self,
+        max_block_number: u64,
+    ) -> OpProofsStorageResult<Self::AccountHashedCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::account_hashed_cursor(self, max_block_number)
+    }
+
+    fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
+        T::fetch_trie_updates(self, block_number)
+    }
+}
+
 /// Provider for writing to the proofs storage within a transaction.
 pub trait OpProofsProviderRw: OpProofsProviderRO {
     /// Store trie updates for a block.

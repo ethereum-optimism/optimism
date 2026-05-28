@@ -15,10 +15,7 @@ use reth_provider::{
 };
 use reth_trie::StateRoot;
 use reth_trie_common::HashedPostState;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 use tracing::info;
 
 /// How often to emit a progress line during a long backfill, measured in
@@ -164,11 +161,9 @@ where
         let block_ref = self.resolve_block_ref(block_number)?;
         let (diff, compute) = self.compute_diff(block_number)?;
 
-        let bp = Arc::new(self.storage.backfill_provider()?);
+        let bp = self.storage.backfill_provider()?;
         let (_, prepend) = timed(|| bp.prepend_block(block_ref, diff))?;
         let validate = self.validate_state_root(&bp, block_number)?;
-        let bp = Arc::into_inner(bp)
-            .expect("validate_state_root must release its Arc clone before returning");
         let (_, commit) = timed(|| bp.commit())?;
 
         Ok(PhaseTimings { compute, prepend, validate, commit })
@@ -215,7 +210,7 @@ where
     /// own uncommitted writes) and comparing to the reth header.
     fn validate_state_root<BP>(
         &self,
-        bp: &Arc<BP>,
+        bp: &BP,
         block_number: BlockNumber,
     ) -> Result<Duration, BackfillError>
     where
@@ -227,11 +222,8 @@ where
                 .header_by_number(block_number - 1)?
                 .ok_or_else(|| ProviderError::HeaderNotFound((block_number - 1).into()))?
                 .state_root();
-            let computed_root = StateRoot::overlay_root(
-                Arc::clone(bp),
-                block_number - 1,
-                HashedPostState::default(),
-            )?;
+            let computed_root =
+                StateRoot::overlay_root(bp, block_number - 1, HashedPostState::default())?;
             if computed_root != expected_root {
                 return Err(BackfillError::StateRootMismatch {
                     block_number,

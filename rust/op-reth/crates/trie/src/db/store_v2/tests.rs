@@ -7,6 +7,7 @@ use reth_db::{
     BlockNumberList, Database, DatabaseEnv,
     cursor::{DbCursorRW, DbDupCursorRO},
     mdbx::{DatabaseArguments, init_db_for},
+    models::sharded_key::ShardedKey,
     transaction::{DbTx, DbTxMut},
 };
 use reth_trie::{
@@ -25,9 +26,10 @@ use crate::{
         ProofWindowKey, V2ProofWindow,
         models::{
             AccountTrieShardedKey, BlockNumberHashedAddress, HashedAccountBeforeTx,
-            HashedAccountShardedKey, StorageTrieShardedKey, V2AccountTrieChangeSets,
-            V2AccountsTrie, V2AccountsTrieHistory, V2HashedAccountChangeSets, V2HashedAccounts,
-            V2HashedAccountsHistory, V2HashedStorageChangeSets, V2HashedStorages,
+            HashedAccountShardedKey, HashedStorageShardedKey, StorageTrieShardedKey,
+            V2AccountTrieChangeSets, V2AccountsTrie, V2AccountsTrieHistory,
+            V2HashedAccountChangeSets, V2HashedAccounts, V2HashedAccountsHistory,
+            V2HashedStorageChangeSets, V2HashedStorages, V2HashedStoragesHistory,
             V2StorageTrieChangeSets, V2StoragesTrie, V2StoragesTrieHistory,
         },
     },
@@ -383,6 +385,20 @@ fn store_block(db: &DatabaseEnv, block_ref: BlockWithParent, diff: BlockStateDif
 fn make_nonce_diff(addr: B256, nonce: u64) -> BlockStateDiff {
     let mut post_state = HashedPostState::default();
     post_state.accounts.insert(addr, Some(Account { nonce, ..Default::default() }));
+    BlockStateDiff {
+        sorted_trie_updates: TrieUpdates::default().into_sorted(),
+        sorted_post_state: post_state.into_sorted(),
+    }
+}
+
+/// Create a diff that touches one account *and* one storage slot — used by
+/// shard-overflow tests where both history bitmaps must grow per block.
+fn make_account_and_storage_diff(addr: B256, slot: B256, n: u64) -> BlockStateDiff {
+    let mut post_state = HashedPostState::default();
+    post_state.accounts.insert(addr, Some(Account { nonce: n, ..Default::default() }));
+    let mut storage = HashedStorage::default();
+    storage.storage.insert(slot, U256::from(n));
+    post_state.storages.insert(addr, storage);
     BlockStateDiff {
         sorted_trie_updates: TrieUpdates::default().into_sorted(),
         sorted_post_state: post_state.into_sorted(),
@@ -2148,4 +2164,136 @@ fn prepend_block_descending_chain_accumulates_history() {
     let shard_key = HashedAccountShardedKey::new(addr, u64::MAX);
     let (_, bitmap) = cur.seek_exact(shard_key).expect("seek").expect("exists");
     assert_eq!(bitmap.iter().collect::<Vec<_>>(), vec![1, 2, 3]);
+}
+
+/// End-to-end backfill of `NUM_OF_INDICES_IN_SHARD + 1` blocks through the
+/// real `prepend_block` machinery, verifying the history-shard overflow path.
+///
+/// The first 2000 prepends fill the sentinel shard exactly to capacity; the
+/// 2001st must spawn a fresh singleton at the new block's key and leave the
+/// full sentinel untouched. Each block's diff touches both an account and a
+/// storage slot so both history bitmaps grow together.
+#[test]
+fn prepend_block_overflows_history_shard_after_filling_sentinel() {
+    use super::NUM_OF_INDICES_IN_SHARD;
+
+    let db = setup_db();
+    let addr = B256::from([0xCD; 32]);
+    let slot = B256::from([0x55; 32]);
+
+    // Deterministic block hashes: encode block number as a 32-byte big-endian value.
+    let hash = |n: u64| B256::from(U256::from(n));
+
+    const ANCHOR_BLOCK: u64 = 4000;
+    // 2000 prepends move earliest from 4000 down to 2000 (prepending 4000..=2001).
+    let last_filled_block = ANCHOR_BLOCK + 1 - NUM_OF_INDICES_IN_SHARD as u64; // 2001
+    let overflow_block = last_filled_block - 1; // 2000
+
+    // Init proof window at (4000, hash(4000)). `prepend_block` doesn't read
+    // current-state tables, so seeding `addr`/`slot` there isn't necessary.
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        provider
+            .set_initial_state_anchor(BlockNumHash::new(ANCHOR_BLOCK, hash(ANCHOR_BLOCK)))
+            .expect("anchor");
+        provider.commit_initial_state().expect("commit init");
+        OpProofsInitProvider::commit(provider).expect("commit");
+    }
+
+    // Backfill descending: each block writes a diff touching `addr` and
+    // `(addr, slot)`, growing both history bitmaps in lock-step.
+    for block_num in (last_filled_block..=ANCHOR_BLOCK).rev() {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let block_ref = make_block_ref(block_num, hash(block_num), hash(block_num - 1));
+        let diff = make_account_and_storage_diff(addr, slot, block_num);
+        provider.prepend_block(block_ref, diff).expect("prepend");
+        OpProofsBackfillProvider::commit(provider).expect("commit");
+    }
+
+    // After NUM_OF_INDICES_IN_SHARD prepends both history sentinels hold the
+    // full range in a single row each — no overflow yet.
+    let expected_filled: Vec<u64> = (last_filled_block..=ANCHOR_BLOCK).collect();
+    {
+        let tx = db.tx().expect("ro");
+        let mut acc_cur = tx.cursor_read::<V2HashedAccountsHistory>().expect("acc cur");
+        let (key, list) = acc_cur
+            .seek(HashedAccountShardedKey::new(addr, 0))
+            .expect("seek acc")
+            .expect("acc sentinel exists");
+        assert_eq!(key, HashedAccountShardedKey::new(addr, u64::MAX));
+        assert_eq!(list.iter().collect::<Vec<_>>(), expected_filled);
+        assert!(acc_cur.next().expect("next").is_none(), "single acc shard before overflow");
+
+        let mut stor_cur = tx.cursor_read::<V2HashedStoragesHistory>().expect("stor cur");
+        let stor_seek =
+            HashedStorageShardedKey { hashed_address: addr, sharded_key: ShardedKey::new(slot, 0) };
+        let (key, list) = stor_cur.seek(stor_seek).expect("seek stor").expect("stor sentinel");
+        assert_eq!(
+            key,
+            HashedStorageShardedKey {
+                hashed_address: addr,
+                sharded_key: ShardedKey::new(slot, u64::MAX),
+            }
+        );
+        assert_eq!(list.iter().collect::<Vec<_>>(), expected_filled);
+        assert!(stor_cur.next().expect("next").is_none(), "single stor shard before overflow");
+    }
+
+    // One more prepend pushes past `NUM_OF_INDICES_IN_SHARD` — the sentinel is
+    // full, so this must spawn a fresh singleton rather than rewrite it.
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let block_ref =
+            make_block_ref(overflow_block, hash(overflow_block), hash(overflow_block - 1));
+        let diff = make_account_and_storage_diff(addr, slot, overflow_block);
+        provider.prepend_block(block_ref, diff).expect("prepend overflow");
+        OpProofsBackfillProvider::commit(provider).expect("commit");
+    }
+
+    // Two shards in each history table now: singleton at the new block, plus
+    // the untouched sentinel still holding `NUM_OF_INDICES_IN_SHARD` entries.
+    {
+        let tx = db.tx().expect("ro");
+        let mut acc_cur = tx.cursor_read::<V2HashedAccountsHistory>().expect("acc cur");
+        let (singleton_key, singleton) = acc_cur
+            .seek(HashedAccountShardedKey::new(addr, 0))
+            .expect("seek acc lo")
+            .expect("acc singleton exists");
+        assert_eq!(singleton_key, HashedAccountShardedKey::new(addr, overflow_block));
+        assert_eq!(singleton.iter().collect::<Vec<_>>(), vec![overflow_block]);
+
+        let (sentinel_key, sentinel) =
+            acc_cur.next().expect("acc next").expect("acc sentinel exists");
+        assert_eq!(sentinel_key, HashedAccountShardedKey::new(addr, u64::MAX));
+        assert_eq!(sentinel.iter().collect::<Vec<_>>(), expected_filled);
+
+        assert!(acc_cur.next().expect("acc next2").is_none(), "exactly two acc shards");
+
+        let mut stor_cur = tx.cursor_read::<V2HashedStoragesHistory>().expect("stor cur");
+        let stor_seek =
+            HashedStorageShardedKey { hashed_address: addr, sharded_key: ShardedKey::new(slot, 0) };
+        let (singleton_key, singleton) =
+            stor_cur.seek(stor_seek).expect("seek stor lo").expect("stor singleton exists");
+        assert_eq!(
+            singleton_key,
+            HashedStorageShardedKey {
+                hashed_address: addr,
+                sharded_key: ShardedKey::new(slot, overflow_block),
+            }
+        );
+        assert_eq!(singleton.iter().collect::<Vec<_>>(), vec![overflow_block]);
+
+        let (sentinel_key, sentinel) =
+            stor_cur.next().expect("stor next").expect("stor sentinel exists");
+        assert_eq!(
+            sentinel_key,
+            HashedStorageShardedKey {
+                hashed_address: addr,
+                sharded_key: ShardedKey::new(slot, u64::MAX),
+            }
+        );
+        assert_eq!(sentinel.iter().collect::<Vec<_>>(), expected_filled);
+
+        assert!(stor_cur.next().expect("stor next2").is_none(), "exactly two stor shards");
+    }
 }
