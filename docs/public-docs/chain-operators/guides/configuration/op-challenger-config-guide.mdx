@@ -235,7 +235,7 @@ Check that you have properly installed the challenger component:
           </Info>
 
       <Warning>
-        **Never restore the SafeDB from a snapshot.** The SafeDB records the safe head as derived from L1, and a snapshot may not reflect the actual on-chain derivation state. If the SafeDB is out of sync with L1, `op-challenger` will act on an incorrect safe head and may incorrectly attack valid outputs. `op-challenger` cannot detect this condition — the data it receives appears normal. If you suspect the SafeDB was restored from a snapshot or is otherwise corrupted, delete it and resync: `op-node` will populate the SafeDB going forward from the current EL head. Resyncing from an EL snapshot no older than 30 days via consensus sync is sufficient — dispute games only look back 28 days, so 30 days of safe head history covers all active games.
+        **Never restore the SafeDB from a snapshot.** The SafeDB records the safe head as derived from L1, and a snapshot may not reflect the actual on-chain derivation state. If the SafeDB is out of sync with L1, `op-challenger` will act on an incorrect safe head and may incorrectly attack valid outputs. `op-challenger` cannot detect this condition — the data it receives appears normal. If you suspect the SafeDB was restored from a snapshot or is otherwise corrupted, delete it and resync via consensus sync from a snapshot that is at least 30 days old — `op-node` does not backfill the SafeDB, so it will only populate it going forward from that point. A 30-day-old snapshot provides enough history to cover the 28-day dispute game window.
       </Warning>
   
   2.  Ensuring Historical Data Availability:
@@ -456,7 +456,7 @@ The Docker setup provides a containerized environment for running the challenger
           </Info>
 
       <Warning>
-        **Never restore the SafeDB from a snapshot.** The SafeDB records the safe head as derived from L1, and a snapshot may not reflect the actual on-chain derivation state. If the SafeDB is out of sync with L1, `op-challenger` will act on an incorrect safe head and may incorrectly attack valid outputs. `op-challenger` cannot detect this condition — the data it receives appears normal. If you suspect the SafeDB was restored from a snapshot or is otherwise corrupted, delete it and resync: `op-node` will populate the SafeDB going forward from the current EL head. Resyncing from an EL snapshot no older than 30 days via consensus sync is sufficient — dispute games only look back 28 days, so 30 days of safe head history covers all active games.
+        **Never restore the SafeDB from a snapshot.** The SafeDB records the safe head as derived from L1, and a snapshot may not reflect the actual on-chain derivation state. If the SafeDB is out of sync with L1, `op-challenger` will act on an incorrect safe head and may incorrectly attack valid outputs. `op-challenger` cannot detect this condition — the data it receives appears normal. If you suspect the SafeDB was restored from a snapshot or is otherwise corrupted, delete it and resync via consensus sync from a snapshot that is at least 30 days old — `op-node` does not backfill the SafeDB, so it will only populate it going forward from that point. A 30-day-old snapshot provides enough history to cover the 28-day dispute game window.
       </Warning>
   
   2.  Ensuring Historical Data Availability:
