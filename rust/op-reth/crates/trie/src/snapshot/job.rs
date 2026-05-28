@@ -416,6 +416,14 @@ where
     Ok(out)
 }
 
+impl CompletionEstimatable for StorageTrieKey {
+    /// Address dominates ordering, so progress along the storage-trie scan
+    /// tracks the hashed address.
+    fn estimate_progress(&self) -> f64 {
+        self.hashed_address.estimate_progress()
+    }
+}
+
 /// Emit an `info!` line with chunk count, cumulative count, progress %, and ETA.
 ///
 /// Modeled on the loop in [`crate::initialize::InitializationJob`]: `last_key`'s
