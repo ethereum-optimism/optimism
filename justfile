@@ -469,8 +469,18 @@ release-notes component from='latest' to='latest-rc' mode='':
                 --include-path "rust/alloy-op*/**/*"
             )
             ;;
+        op-deployer)
+            include_path_args=(
+                --include-path "op-deployer/**/*"
+            )
+            ;;
+        op-contracts)
+            include_path_args=(
+                --include-path "packages/contracts-bedrock/**/*"
+            )
+            ;;
         *)
-            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-reth, kona-*; is {{ component }}"
+            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-reth, op-deployer, op-contracts, kona-*; is {{ component }}"
             exit 1
             ;;
     esac
