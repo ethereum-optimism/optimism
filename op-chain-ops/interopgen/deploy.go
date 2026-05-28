@@ -369,9 +369,9 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 }
 
 // lagoonAtGenesis returns true if the Lagoon (interop activation) fork is scheduled at genesis.
-// Using a nil offset means Interop is not scheduled at all.
-func lagoonAtGenesis(interopOffset *hexutil.Uint64) bool {
-	return interopOffset != nil && *interopOffset == 0
+// Using a nil offset means Lagoon (and thus interop) is not scheduled at all.
+func lagoonAtGenesis(lagoonOffset *hexutil.Uint64) bool {
+	return lagoonOffset != nil && *lagoonOffset == 0
 }
 
 // devFeatureBitmapForL2Genesis returns the dev feature bitmap for the Interop and L2CM flags.

@@ -5,14 +5,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/safemath"
 )
 
-// ActivationConfig answers per-chain interop activation queries.
+// ActivationConfig answers per-chain Lagoon (interop) activation queries.
 // It is satisfied by the rollup config set kept alongside the dependency set.
+// Method names retain the "Interop" concept since interop is the protocol-level
+// feature that Lagoon activates; the fork itself is named Lagoon.
 type ActivationConfig interface {
-	// IsInterop returns true if the Interop hardfork is active for the given chain at the given timestamp.
+	// IsInterop returns true if the Lagoon hardfork (which activates interop) is
+	// active for the given chain at the given timestamp.
 	// It panics if the chain is not part of the rollup config set.
 	IsInterop(chainID eth.ChainID, ts uint64) bool
 
-	// IsInteropActivationBlock returns true if the given timestamp is for an Interop activation block.
+	// IsInteropActivationBlock returns true if the given timestamp is for a
+	// Lagoon activation block (the block at which interop becomes active).
 	// It panics if the chain is not part of the rollup config set.
 	IsInteropActivationBlock(chainID eth.ChainID, ts uint64) bool
 }
