@@ -2352,7 +2352,7 @@
             ]
           },
           {
-            "group": "Historical Execution",
+            "group": "Pre-Bedrock History",
             "pages": [
               "node-operators/guides/configuration/legacy-geth"
             ]
