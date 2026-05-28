@@ -2000,9 +2000,7 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
     /// @notice Tests SPDG-120 when SUPER_PERMISSIONED_CANNON's anchor root is zero.
     function test_validate_superPermissionedDisputeGameZeroAnchorRoot_succeeds() public {
         address spdgASR = DisputeGames.superPermissionedGameAnchorStateRegistry(dgf);
-        vm.mockCall(
-            spdgASR, abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()), abi.encode(bytes32(0), uint256(0))
-        );
+        vm.mockCall(spdgASR, abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()), abi.encode(bytes32(0), uint256(0)));
 
         assertEq("SPDG-120,SCKDG-120", _validate(true));
     }
