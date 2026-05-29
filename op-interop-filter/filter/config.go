@@ -35,6 +35,7 @@ type Config struct {
 	Version                     string
 	PollInterval                time.Duration // Interval for polling new blocks (default: 2s)
 	ValidationInterval          time.Duration // Interval for cross-chain validation (default: 500ms)
+	FailsafeLogInterval         time.Duration // Interval for re-logging the active failsafe reason (default: 1m)
 	ReorgRecoveryEnabled        bool          // If true, automatically rewinds reorg-triggered failsafe to finalized
 	Passthrough                 bool          // If true, all transactions pass through without filtering
 	LegacyCheckAccessListFormat bool          // If true, allows access list requests that omit executing chainID
@@ -70,6 +71,9 @@ func (c *Config) Check() error {
 	}
 	if c.ValidationInterval <= 0 {
 		result = errors.Join(result, errors.New("validation-interval must be positive"))
+	}
+	if c.FailsafeLogInterval <= 0 {
+		result = errors.Join(result, errors.New("failsafe-log-interval must be positive"))
 	}
 	if c.RPCConcurrency <= 0 {
 		result = errors.Join(result, errors.New("rpc-concurrency must be positive"))
@@ -108,6 +112,10 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 	if validationInterval <= 0 {
 		return nil, fmt.Errorf("validation-interval must be positive, got %s", validationInterval)
 	}
+	failsafeLogInterval := ctx.Duration(flags.FailsafeLogIntervalFlag.Name)
+	if failsafeLogInterval <= 0 {
+		return nil, fmt.Errorf("failsafe-log-interval must be positive, got %s", failsafeLogInterval)
+	}
 	rpcConcurrency := ctx.Int(flags.RPCConcurrencyFlag.Name)
 	if rpcConcurrency <= 0 {
 		return nil, fmt.Errorf("rpc-concurrency must be positive, got %d", rpcConcurrency)
@@ -144,6 +152,7 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		Version:                     version,
 		PollInterval:                pollInterval,
 		ValidationInterval:          validationInterval,
+		FailsafeLogInterval:         failsafeLogInterval,
 		ReorgRecoveryEnabled:        ctx.Bool(flags.ReorgRecoveryEnabledFlag.Name),
 		Passthrough:                 ctx.Bool(flags.DangerouslyEnablePassthroughFlag.Name),
 		LegacyCheckAccessListFormat: ctx.Bool(flags.SupportLegacyCheckAccessListFormatFlag.Name),

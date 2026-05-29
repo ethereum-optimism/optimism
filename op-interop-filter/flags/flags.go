@@ -109,6 +109,12 @@ var (
 		Usage:   "Automatically resolve reorg-triggered failsafe by rewinding logs DBs to finalized.",
 		EnvVars: prefixEnvVars("REORG_RECOVERY_ENABLED"),
 	}
+	FailsafeLogIntervalFlag = &cli.DurationFlag{
+		Name:    "failsafe-log-interval",
+		Usage:   "Interval at which the active failsafe reason is re-logged while failsafe is enabled (e.g., 1m, 30s)",
+		EnvVars: prefixEnvVars("FAILSAFE_LOG_INTERVAL"),
+		Value:   time.Minute,
+	}
 	RPCConcurrencyFlag = &cli.IntFlag{
 		Name:    "rpc-concurrency",
 		Usage:   "Maximum number of concurrent RPC requests per chain",
@@ -151,6 +157,7 @@ var optionalFlags = []cli.Flag{
 	PollIntervalFlag,
 	ValidationIntervalFlag,
 	ReorgRecoveryEnabledFlag,
+	FailsafeLogIntervalFlag,
 	RPCConcurrencyFlag,
 	FetchConcurrencyFlag,
 	SupportLegacyCheckAccessListFormatFlag,

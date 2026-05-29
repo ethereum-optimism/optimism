@@ -232,6 +232,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 		LegacyCheckAccessListFormat: cfg.LegacyCheckAccessListFormat,
 
 		ReorgRecoveryEnabled: cfg.ReorgRecoveryEnabled,
+		FailsafeLogInterval:  cfg.FailsafeLogInterval,
 	})
 
 	s.log.Info("Created backend", "chains", len(chains))

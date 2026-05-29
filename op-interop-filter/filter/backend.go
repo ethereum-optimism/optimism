@@ -54,8 +54,10 @@ type Backend struct {
 	reorgRecoveryEnabled bool
 	reorgRecoveryWg      sync.WaitGroup
 
-	// failsafeWg tracks the periodic failsafe-heartbeat goroutine.
-	failsafeWg sync.WaitGroup
+	// failsafeLogInterval is how often the active failsafe reason is re-logged
+	// while failsafe is enabled. failsafeWg tracks that heartbeat goroutine.
+	failsafeLogInterval time.Duration
+	failsafeWg          sync.WaitGroup
 }
 
 // BackendParams contains parameters for creating a Backend.
@@ -68,6 +70,7 @@ type BackendParams struct {
 	LegacyCheckAccessListFormat bool
 
 	ReorgRecoveryEnabled bool
+	FailsafeLogInterval  time.Duration
 }
 
 // Failsafe reason labels that are not chain-ingester errors. Chain errors use
@@ -78,9 +81,10 @@ const (
 	failsafeReasonNone            = "none"
 )
 
-// failsafeHeartbeatInterval is how often the backend re-logs the active failsafe
-// reason while failsafe remains on, so the reason stays visible in recent logs.
-const failsafeHeartbeatInterval = time.Minute
+// defaultFailsafeLogInterval is the fallback heartbeat interval used when
+// BackendParams.FailsafeLogInterval is unset (e.g. in tests). Production wires
+// the --failsafe-log-interval flag (also defaulting to 1m).
+const defaultFailsafeLogInterval = time.Minute
 
 // allFailsafeReasons is the full set of reason labels the failsafe_reason_active
 // gauge can emit. Every refresh sets all of them so a cleared reason drops back
@@ -116,6 +120,10 @@ func NewBackend(parentCtx context.Context, params BackendParams) *Backend {
 		ctx:                         ctx,
 		cancel:                      cancel,
 		reorgRecoveryEnabled:        params.ReorgRecoveryEnabled,
+		failsafeLogInterval:         params.FailsafeLogInterval,
+	}
+	if b.failsafeLogInterval <= 0 {
+		b.failsafeLogInterval = defaultFailsafeLogInterval
 	}
 
 	// Initialize so the first benign refresh (state == off) does not log a
@@ -306,7 +314,7 @@ func failsafeReasonDetail(manual bool, chainErrs map[eth.ChainID]*IngesterError,
 func (b *Backend) runFailsafeHeartbeat(ctx context.Context) {
 	defer b.failsafeWg.Done()
 
-	ticker := time.NewTicker(failsafeHeartbeatInterval)
+	ticker := time.NewTicker(b.failsafeLogInterval)
 	defer ticker.Stop()
 
 	for {

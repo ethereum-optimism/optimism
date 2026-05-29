@@ -275,3 +275,21 @@ func TestBackend_FailsafeHeartbeat_LogsReasonWhileActive(t *testing.T) {
 	require.Nil(t, logs.FindLog(testlog.NewMessageFilter(heartbeatMsg)),
 		"heartbeat must stop once failsafe clears")
 }
+
+func TestBackend_FailsafeLogInterval_Configured(t *testing.T) {
+	newBackend := func(interval time.Duration) *Backend {
+		return NewBackend(context.Background(), BackendParams{
+			Logger:              testlog.Logger(t, log.LevelError),
+			Metrics:             metrics.NoopMetrics,
+			Chains:              map[eth.ChainID]ChainIngester{},
+			CrossValidator:      &mockCrossValidator{},
+			FailsafeLogInterval: interval,
+		})
+	}
+
+	// Configured interval is honored.
+	require.Equal(t, 15*time.Second, newBackend(15*time.Second).failsafeLogInterval)
+
+	// Unset (zero) falls back to the default — guards against time.NewTicker(0) panicking.
+	require.Equal(t, defaultFailsafeLogInterval, newBackend(0).failsafeLogInterval)
+}
