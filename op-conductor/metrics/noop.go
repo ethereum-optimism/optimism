@@ -18,3 +18,7 @@ func (*NoopMetricsImpl) RecordHealthCheck(success bool, err error)              
 func (*NoopMetricsImpl) RecordLoopExecutionTime(duration float64)                        {}
 func (*NoopMetricsImpl) RecordRollupBoostConnectionAttempts(success bool, source string) {}
 func (*NoopMetricsImpl) RecordWebSocketClientCount(count int)                            {}
+func (*NoopMetricsImpl) RecordReorgObserved()                                            {}
+func (*NoopMetricsImpl) RecordReorgCommitted()                                           {}
+func (*NoopMetricsImpl) RecordReorgNumberMismatch()                                      {}
+func (*NoopMetricsImpl) RecordReorgFetchFailure()                                        {}

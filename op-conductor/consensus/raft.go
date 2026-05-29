@@ -61,6 +61,12 @@ type RaftConsensusConfig struct {
 	TrailingLogs       uint64
 	HeartbeatTimeout   time.Duration
 	LeaderLeaseTimeout time.Duration
+
+	// AllowNonMonotonicUnsafeHead bypasses the FSM forward-only unsafe-head guard
+	// (last-write-wins) so a reorg can move the recorded head backward. Must be
+	// fleet-uniform across the cluster (see plan Risk 1). Sourced from the
+	// --reorg-recovery.enabled flag.
+	AllowNonMonotonicUnsafeHead bool
 }
 
 // checkTCPPortOpen attempts to connect to the specified address and returns an error if the connection fails.
@@ -140,7 +146,7 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 	}
 	log.Info("Raft server network transport is up", "addr", transport.LocalAddr())
 
-	fsm := NewUnsafeHeadTracker(log)
+	fsm := NewUnsafeHeadTracker(log, cfg.AllowNonMonotonicUnsafeHead)
 
 	r, err := raft.NewRaft(rc, fsm, logStore, stableStore, snapshotStore, transport)
 	if err != nil {

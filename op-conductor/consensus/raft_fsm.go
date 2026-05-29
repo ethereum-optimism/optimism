@@ -19,11 +19,18 @@ type unsafeHeadTracker struct {
 	log        log.Logger
 	mtx        sync.RWMutex
 	unsafeHead *eth.ExecutionPayloadEnvelope
+	// allowNonMonotonic bypasses the forward-only guard in Apply (last-write-wins),
+	// letting a reorg move the recorded unsafe head backward. It is set once at
+	// construction from the fleet-uniform --reorg-recovery.enabled flag. Because Apply
+	// is deterministic, every node in the cluster MUST share this value or the FSM
+	// diverges (see plan Risk 1).
+	allowNonMonotonic bool
 }
 
-func NewUnsafeHeadTracker(log log.Logger) *unsafeHeadTracker {
+func NewUnsafeHeadTracker(log log.Logger, allowNonMonotonic bool) *unsafeHeadTracker {
 	return &unsafeHeadTracker{
-		log: log,
+		log:               log,
+		allowNonMonotonic: allowNonMonotonic,
 	}
 }
 
@@ -45,8 +52,17 @@ func (t *unsafeHeadTracker) Apply(l *raft.Log) interface{} {
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
 	t.log.Debug("applying new unsafe head", "number", uint64(data.ExecutionPayload.BlockNumber), "hash", data.ExecutionPayload.BlockHash.Hex())
-	if t.unsafeHead == nil || t.unsafeHead.ExecutionPayload.BlockNumber < data.ExecutionPayload.BlockNumber {
-		t.unsafeHead = data
+	if t.allowNonMonotonic {
+		if t.unsafeHead != nil && data.ExecutionPayload.BlockNumber < t.unsafeHead.ExecutionPayload.BlockNumber {
+			t.log.Info("recording non-monotonic unsafe head (reorg)",
+				"old", t.unsafeHead.ExecutionPayload.BlockHash.Hex(),
+				"old_number", uint64(t.unsafeHead.ExecutionPayload.BlockNumber),
+				"new", data.ExecutionPayload.BlockHash.Hex(),
+				"new_number", uint64(data.ExecutionPayload.BlockNumber))
+		}
+		t.unsafeHead = data // unconditional — last-write-wins
+	} else if t.unsafeHead == nil || t.unsafeHead.ExecutionPayload.BlockNumber < data.ExecutionPayload.BlockNumber {
+		t.unsafeHead = data // forward-only guard (existing behavior)
 	}
 
 	return nil
