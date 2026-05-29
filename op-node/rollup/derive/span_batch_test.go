@@ -652,9 +652,9 @@ func TestDeriveSpanBatchSDMGate(t *testing.T) {
 
 	sdmTime := blockTS
 	enabled := &rollup.Config{
-		Genesis:     rollup.Genesis{L2Time: genesisTime},
-		BlockTime:   blockTime,
-		L2ChainID:   chainID,
+		Genesis:    rollup.Genesis{L2Time: genesisTime},
+		BlockTime:  blockTime,
+		L2ChainID:  chainID,
 		LagoonTime: &sdmTime,
 	}
 	derived, err := DeriveSpanBatch(bd, enabled)

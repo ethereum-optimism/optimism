@@ -75,7 +75,15 @@ pub struct HardForkConfig {
     /// `lagoon_time` sets the activation time for the Lagoon network upgrade.
     /// Active if `lagoon_time` != None && L2 block timestamp >= `Some(lagoon_time)`, inactive
     /// otherwise.
-    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    ///
+    /// The serde tag accepts the legacy `interop_time` key to mirror the superchain-registry
+    /// TOML schema, which still uses the pre-rename name. Serialization always emits
+    /// `lagoon_time`. This matches the Go-side carveout on
+    /// `superchain.HardforkConfig.InteropTime`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(skip_serializing_if = "Option::is_none", alias = "interop_time")
+    )]
     pub lagoon_time: Option<u64>,
 }
 
