@@ -55,6 +55,40 @@ func TestIntegration_Backend_IngesterErrorTripsFailsafe(t *testing.T) {
 	bk.requireRejection(executingChain(), inclusionTs, "failsafe", bk.sourceAccess(100, 0))
 }
 
+func TestIntegration_Backend_MultipleFailsafeReasons_Reflected(t *testing.T) {
+	t.Parallel()
+
+	bk := twoChainBackend(t, 1)
+	require.False(t, bk.metrics.failsafeMetric(), "metric starts off")
+
+	// Three concurrent reasons: manual override + two chains erroring with
+	// different reasons.
+	bk.SetFailsafeEnabled(true)
+	bk.ingesters[eth.ChainIDFromUInt64(901)].SetError(ErrorReorg, "forced")
+	bk.ingesters[eth.ChainIDFromUInt64(902)].SetError(ErrorConflict, "forced")
+
+	require.True(t, bk.metrics.failsafeMetric())
+	require.True(t, bk.metrics.failsafeReasonActive(failsafeReasonManual))
+	require.True(t, bk.metrics.failsafeReasonActive(ErrorReorg.String()))
+	require.True(t, bk.metrics.failsafeReasonActive(ErrorConflict.String()))
+	require.False(t, bk.metrics.failsafeReasonActive(failsafeReasonCrossValidation))
+
+	// Clearing the reorg chain drops only the reorg reason; the rest remain.
+	bk.ingesters[eth.ChainIDFromUInt64(901)].ClearError()
+	require.True(t, bk.metrics.failsafeMetric())
+	require.False(t, bk.metrics.failsafeReasonActive(ErrorReorg.String()),
+		"reorg reason must drop once no chain holds it")
+	require.True(t, bk.metrics.failsafeReasonActive(ErrorConflict.String()))
+	require.True(t, bk.metrics.failsafeReasonActive(failsafeReasonManual))
+
+	// Clearing the last chain error and the manual override drops everything.
+	bk.ingesters[eth.ChainIDFromUInt64(902)].ClearError()
+	bk.SetFailsafeEnabled(false)
+	require.False(t, bk.metrics.failsafeMetric())
+	require.False(t, bk.metrics.failsafeReasonActive(failsafeReasonManual))
+	require.False(t, bk.metrics.failsafeReasonActive(ErrorConflict.String()))
+}
+
 func TestIntegration_Backend_RPCSetFailsafe_UpdatesMetric(t *testing.T) {
 	t.Parallel()
 

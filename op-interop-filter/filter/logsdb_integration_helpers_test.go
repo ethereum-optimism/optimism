@@ -487,23 +487,24 @@ func (sb *seededBackend) requireAccepted(execChain eth.ChainID, execTs uint64, a
 // =============================================================================
 
 type capturingMetrics struct {
-	mu             sync.Mutex
-	rejections     map[string]int
-	reorgs         map[uint64]int
-	blockSealed    map[uint64]int64
-	logsAdded      map[uint64]int64
-	chainHead      map[uint64]uint64
-	failsafeGauge  bool
-	failsafeWrites int
+	mu              sync.Mutex
+	rejections      map[string]int
+	reorgs          map[uint64]int
+	blockSealed     map[uint64]int64
+	logsAdded       map[uint64]int64
+	chainHead       map[uint64]uint64
+	failsafeGauge   bool
+	failsafeReasons map[string]bool
 }
 
 func newCapturingMetrics() *capturingMetrics {
 	return &capturingMetrics{
-		rejections:  map[string]int{},
-		reorgs:      map[uint64]int{},
-		blockSealed: map[uint64]int64{},
-		logsAdded:   map[uint64]int64{},
-		chainHead:   map[uint64]uint64{},
+		rejections:      map[string]int{},
+		reorgs:          map[uint64]int{},
+		blockSealed:     map[uint64]int64{},
+		logsAdded:       map[uint64]int64{},
+		chainHead:       map[uint64]uint64{},
+		failsafeReasons: map[string]bool{},
 	}
 }
 
@@ -528,10 +529,11 @@ func (m *capturingMetrics) sealedCount(chainID uint64) int64 {
 func (m *capturingMetrics) RecordInfo(version string) {}
 func (m *capturingMetrics) RecordUp()                 {}
 func (m *capturingMetrics) RecordFailsafeEnabled(enabled bool) {
-	m.locked(func() {
-		m.failsafeGauge = enabled
-		m.failsafeWrites++
-	})
+	m.locked(func() { m.failsafeGauge = enabled })
+}
+
+func (m *capturingMetrics) RecordFailsafeReason(reason string, active bool) {
+	m.locked(func() { m.failsafeReasons[reason] = active })
 }
 
 // failsafeMetric returns the last value passed to RecordFailsafeEnabled.
@@ -539,6 +541,13 @@ func (m *capturingMetrics) failsafeMetric() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.failsafeGauge
+}
+
+// failsafeReasonActive returns the last value recorded for the given reason.
+func (m *capturingMetrics) failsafeReasonActive(reason string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.failsafeReasons[reason]
 }
 func (m *capturingMetrics) RecordChainHead(chainID uint64, blockNum uint64) {
 	m.locked(func() { m.chainHead[chainID] = blockNum })
