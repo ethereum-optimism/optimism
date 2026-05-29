@@ -27,8 +27,7 @@ const ETH_LIQUIDITY_FUND_GAS: u64 = 50_000;
 const ETH_LIQUIDITY_FUND_AMOUNT: u128 = u128::MAX;
 
 /// `bytes32` representation of the INTEROP feature constant (right-padded ASCII).
-const INTEROP_FEATURE: [u8; 32] =
-    *b"INTEROP\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+const INTEROP_FEATURE: [u8; 32] = *b"INTEROP\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 
 /// The Interop hardfork.
 #[derive(Debug, Default, Clone, Copy)]
