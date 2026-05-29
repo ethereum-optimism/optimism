@@ -26,11 +26,9 @@ func TestInteropSetFeatureTx(t *testing.T) {
 
 	// Calldata: setFeature(bytes32) selector + "INTEROP" right-padded to 32 bytes.
 	require.Len(t, dep.Data(), 4+32)
-	require.Equal(t, byte('I'), dep.Data()[4])
-	require.Equal(t, byte('P'), dep.Data()[10])
-	for _, b := range dep.Data()[11 : 4+32] {
-		require.Equal(t, byte(0), b, "INTEROP must be right-padded with zeros")
-	}
+	var expectedFeature [32]byte
+	copy(expectedFeature[:], "INTEROP")
+	require.Equal(t, expectedFeature[:], dep.Data()[4:])
 }
 
 func TestInteropETHLiquidityFundingTx(t *testing.T) {

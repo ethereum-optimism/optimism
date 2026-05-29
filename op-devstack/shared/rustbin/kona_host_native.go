@@ -33,12 +33,6 @@ func RunKonaNative(t require.TestingT, logger log.Logger, vmConfig *vm.Config, d
 		logErr(logpipe.ParseRustStructuredLogs(line))
 	}))
 
-	// var exitErr *exec.ExitError
-	// if runErr := cmd.Run(); errors.As(runErr, &exitErr) && exitErr.ExitCode() == 1 {
-	// 	return false
-	// }
-	// require.NoError(t, err)
-	// return true
 	var exitErr *exec.ExitError
 	runErr := cmd.Run()
 	if errors.As(runErr, &exitErr) && exitErr.ExitCode() == 1 {

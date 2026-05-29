@@ -23,18 +23,12 @@ const DEPOSITOR_ACCOUNT: Address = address!("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdD
 const SET_FEATURE_GAS: u64 = 100_000;
 /// Gas limit for the post-bundle `ETHLiquidity` funding wrapper tx.
 const ETH_LIQUIDITY_FUND_GAS: u64 = 50_000;
+/// Bootstrap mint and value for the post-bundle `ETHLiquidity` funding deposit.
+const ETH_LIQUIDITY_FUND_AMOUNT: u128 = u128::MAX;
 
 /// `bytes32` representation of the INTEROP feature constant (right-padded ASCII).
-const INTEROP_FEATURE: [u8; 32] = {
-    let mut buf = [0u8; 32];
-    let bytes = b"INTEROP";
-    let mut i = 0;
-    while i < bytes.len() {
-        buf[i] = bytes[i];
-        i += 1;
-    }
-    buf
-};
+const INTEROP_FEATURE: [u8; 32] =
+    *b"INTEROP\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 
 /// The Interop hardfork.
 #[derive(Debug, Default, Clone, Copy)]
@@ -65,7 +59,6 @@ impl Interop {
     /// Returns the post-bundle `ETHLiquidity` funding deposit.
     fn eth_liquidity_funding_tx() -> TxDeposit {
         let selector = Bytes::copy_from_slice(&keccak256(b"fund()")[..4]);
-        let amount: u128 = u128::MAX;
 
         let source =
             UpgradeDepositSource { intent: String::from("Interop post: ETHLiquidity Funding") };
@@ -73,8 +66,8 @@ impl Interop {
             source_hash: source.source_hash(),
             from: DEPOSITOR_ACCOUNT,
             to: TxKind::Call(Predeploys::ETH_LIQUIDITY),
-            mint: amount,
-            value: U256::from(amount),
+            mint: ETH_LIQUIDITY_FUND_AMOUNT,
+            value: U256::from(ETH_LIQUIDITY_FUND_AMOUNT),
             gas_limit: ETH_LIQUIDITY_FUND_GAS,
             is_system_transaction: false,
             input: selector,
