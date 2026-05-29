@@ -210,8 +210,30 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 	sys.L2CLC.Advanced(safety.LocalSafe, target, attempts)
 	sys.L2CLC.ReachedRef(safety.LocalSafe, sys.L2CLB.HeadBlockRef(safety.LocalSafe).ID(), attempts)
 
-	// Make sure the safe head reaches non-moving unsafe head
-	sys.L2CLC.Reached(safety.LocalSafe, sys.L2CLC.UnsafeHead().BlockRef.Number, attempts)
+	// Wait for L2CLC's local-safe to catch up to its (now non-moving)
+	// unsafe head via the follow source.
+	//
+	// Before disconnect, CLP2P pushed L2CLC's unsafe head ahead of its
+	// follow-source-driven local-safe head; the size of that gap depends on
+	// how far the sequencer's tip is ahead of L2CLB's local-safe at the
+	// instant we disconnect (i.e. on L1 block production and batcher
+	// latency up to that moment). After disconnect L2CLC has no CLP2P and
+	// no derivation, so its unsafe head freezes at that high-water mark
+	// and only advances once follow-source sees L2CLB's local-safe catch
+	// up to it (op-node/rollup/engine/engine_controller.go FollowSource:
+	// tryUpdateUnsafe is only called when eLocalSafeRef > unsafeHead).
+	// Local-safe then advances tick-by-tick toward L2CLB's local-safe
+	// (op-node/rollup/driver/driver.go upstream-sync ticker, fires every
+	// 2*BlockTime), which is itself bounded by L1 block production and
+	// batch submission.
+	//
+	// On a CI runner under load the initial gap can comfortably exceed
+	// the previous 20-attempt * 2s = 40s budget (see #20718). Bound this
+	// convergence wait by stall detection instead of total wall time:
+	// succeed as soon as local-safe.Number == unsafe.Number (the real
+	// property under test), and only fail if local-safe stops advancing
+	// for stallTimeout (which would indicate follow-source is broken).
+	waitFollowSourceLocalSafeReachesUnsafe(t, sys.L2CLC, 5*time.Minute, 30*time.Second)
 	// The only data source for L2CLC is the follow source.
 	// L2CLC unsafe head will only be advancing with safe head together
 	status = sys.L2CLC.SyncStatus()
@@ -249,4 +271,58 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 		sys.L2CLC.ConnectPeer(sys.L2CL)
 		sys.L2CL.ConnectPeer(sys.L2CLC)
 	})
+}
+
+// waitFollowSourceLocalSafeReachesUnsafe polls cl's sync status and waits for
+// local-safe.Number to reach unsafe.Number.
+//
+// The previous shape — snapshot unsafe once, then retry.Do0(LocalSafe.Reached,
+// snapshot, 20) with a fixed 2s strategy — has no way to distinguish "still
+// making progress, just slow" from "stuck". Under CI load the post-disconnect
+// unsafe/local-safe gap can be larger than 40s of local-safe progression can
+// close, producing the flake in #20718 ("expected head to advance: local-safe",
+// 20 attempts, ~55s).
+//
+// maxWait bounds total wall time. stallTimeout is the longest local-safe is
+// allowed to sit at the same value before we declare follow-source stuck —
+// re-armed each time local-safe advances. Unsafe is re-read on every iteration
+// so a (correctly) live unsafe head doesn't matter; the check is against the
+// current observed unsafe value.
+func waitFollowSourceLocalSafeReachesUnsafe(t devtest.T, cl *dsl.L2CLNode, maxWait, stallTimeout time.Duration) {
+	require := t.Require()
+	logger := t.Logger()
+	logger.Info("Waiting for follow-source local-safe to reach unsafe",
+		"max_wait", maxWait, "stall_timeout", stallTimeout)
+
+	deadline := time.Now().Add(maxWait)
+	lastLocalSafe := uint64(0)
+	lastProgress := time.Now()
+
+	for {
+		status := cl.SyncStatus()
+		if status.LocalSafeL2.Number == status.UnsafeL2.Number {
+			logger.Info("Follow-source local-safe reached unsafe",
+				"local_safe", status.LocalSafeL2.Number, "unsafe", status.UnsafeL2.Number)
+			return
+		}
+
+		now := time.Now()
+		if status.LocalSafeL2.Number > lastLocalSafe {
+			lastLocalSafe = status.LocalSafeL2.Number
+			lastProgress = now
+		}
+		stalledFor := now.Sub(lastProgress)
+		logger.Info("Follow-source convergence pending",
+			"local_safe", status.LocalSafeL2.Number, "unsafe", status.UnsafeL2.Number,
+			"stalled_for", stalledFor)
+
+		require.LessOrEqualf(stalledFor, stallTimeout,
+			"follow-source local-safe stuck at %d while unsafe is %d",
+			status.LocalSafeL2.Number, status.UnsafeL2.Number)
+		require.Truef(now.Before(deadline),
+			"follow-source local-safe did not reach unsafe within %s (local_safe=%d, unsafe=%d)",
+			maxWait, status.LocalSafeL2.Number, status.UnsafeL2.Number)
+
+		time.Sleep(2 * time.Second) // nosemgrep: flake-sleep-in-test -- polling sync status with stall and deadline bounds
+	}
 }
