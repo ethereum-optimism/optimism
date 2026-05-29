@@ -63,8 +63,6 @@ The supernode operates at the consensus layer (CL): it verifies that a block's c
 op-interop-filter works at transaction-admission time instead: it is the separate service the execution layer consults to decide whether an interop transaction may enter the pool in the first place.
 A chain operator running an interop chain runs both.
 
-The default `--message-expiry-window` of 7 days matches op-supervisor's default, so an operator migrating off op-supervisor for transaction validation does not need to retune that knob.
-
 ## Failsafe behavior
 
 op-interop-filter has a *failsafe* that, while active, rejects every `interop_checkAccessList` request with `ErrFailsafeEnabled`.
@@ -102,7 +100,7 @@ The full flag set is defined in [`op-interop-filter/flags/flags.go`](https://git
 | --- | --- | --- |
 | `--data-dir` | (temporary directory) | Directory for the LogsDB. Use a persistent path in production so backfill state survives restarts. |
 | `--backfill-duration` | `24h` | How far back to backfill on startup. |
-| `--message-expiry-window` | `168h` (7 days) | Messages older than this window are treated as expired. Matches op-supervisor's default. |
+| `--message-expiry-window` | `168h` (7 days) | Messages older than this window are treated as expired. |
 | `--poll-interval` | `2s` | How often to poll L2 RPCs for new blocks. |
 | `--reorg-recovery-enabled` | off | If set, the filter automatically clears reorg-triggered failsafe by rewinding to finalized. |
 | `--admin.rpc.addr` | (disabled) | Bind address for the JWT-protected admin RPC. When set, `--admin.jwt-secret` is also required. |
