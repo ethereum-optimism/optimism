@@ -110,6 +110,12 @@ func (s *TwoL2SupernodeInterop) L2UserRPCURLs() []string {
 	return []string{s.L2ELA.Escape().UserRPC(), s.L2ELB.Escape().UserRPC()}
 }
 
+type TwoL2SupernodeInteropWithConductors struct {
+	*TwoL2SupernodeInterop
+
+	ConductorSets map[eth.ChainID]dsl.ConductorSet
+}
+
 // AdvanceTime advances the time-travel clock if enabled.
 func (s *TwoL2SupernodeInterop) AdvanceTime(amount time.Duration) {
 	s.T.Require().NotNil(s.timeTravel, "attempting to advance time on incompatible system")
@@ -189,6 +195,13 @@ func NewTwoL2SupernodeLightSequencerInterop(t devtest.T, delaySeconds uint64, op
 		sysgo.SkipOnOpGeth(t, "interop filter is only supported with op-reth")
 	}
 	return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
+}
+
+func NewTwoL2SupernodeInteropWithConductors(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInteropWithConductors {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewTwoL2SupernodeInteropWithConductors", opts, twoL2SupernodeInteropWithConductorsPresetSupportedOptionKinds)
+	out := twoL2SupernodeInteropWithConductorsFromRuntime(t, sysgo.NewTwoL2SupernodeInteropWithConductorsRuntimeWithConfig(t, delaySeconds, presetCfg))
+	presetOpts.applyPreset(out)
+	return out
 }
 
 // =============================================================================

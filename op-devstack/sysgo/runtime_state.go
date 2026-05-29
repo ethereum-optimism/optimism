@@ -142,6 +142,7 @@ type MultiChainNodeRuntime struct {
 	Batcher     *L2Batcher
 	Proposer    *L2Proposer
 	Followers   map[string]*SingleChainNodeRuntime
+	Conductors  map[string]*Conductor
 }
 
 type MultiChainRuntime struct {

@@ -1,7 +1,12 @@
 package dsl
 
 import (
+	"bufio"
 	"context"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
@@ -110,6 +115,57 @@ func (c *Conductor) IsLeader() bool {
 	c.require.NoError(err, "Failed to check if conductor is leader")
 	c.log.Info("Checked if conductor is leader", "leader", leader)
 	return leader
+}
+
+// ScrapeCounter fetches the conductor's Prometheus metrics endpoint and returns the
+// value of the named counter (e.g. "op_conductor_reorgs_committed_count"). Returns 0
+// when the metric is absent, which is the correct reading for a counter that has never
+// been incremented.
+func (c *Conductor) ScrapeCounter(name string) float64 {
+	endpoint := c.inner.MetricsEndpoint()
+	c.require.NotEmpty(endpoint, "conductor %s does not expose a metrics endpoint", c.inner.Name())
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	value, err := retry.Do(ctx, 3, retry.Fixed(250*time.Millisecond), func() (float64, error) {
+		return scrapeCounter(ctx, endpoint, name)
+	})
+	c.require.NoErrorf(err, "failed to scrape metric %s from conductor %s", name, c.inner.Name())
+	return value
+}
+
+func scrapeCounter(ctx context.Context, endpoint string, name string) (float64, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return 0, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+	scanner := bufio.NewScanner(strings.NewReader(string(body)))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// Prometheus exposition: "<metric>[{labels}] <value>". The reorg counters are
+		// label-less, so an exact name prefix followed by a space is sufficient.
+		if !strings.HasPrefix(line, name+" ") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		return strconv.ParseFloat(fields[len(fields)-1], 64)
+	}
+	// Metric not yet emitted — a never-incremented counter reads as 0.
+	return 0, nil
 }
 
 func (c *Conductor) TransferLeadershipTo(targetLeaderInfo consensus.ServerInfo) {

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -241,27 +242,51 @@ func connectL2CLPeers(t devtest.T, logger log.Logger, l2CL1, l2CL2 L2CLNode) {
 	require := t.Require()
 	ctx := t.Ctx()
 
-	p := getP2PClientsAndPeers(ctx, logger, require, l2CL1, l2CL2)
+	err := retry.Do0(ctx, 6, retry.Exponential(), func() error {
+		p2pClient1, err := GetP2PClient(ctx, logger, l2CL1)
+		if err != nil {
+			return err
+		}
+		p2pClient2, err := GetP2PClient(ctx, logger, l2CL2)
+		if err != nil {
+			return err
+		}
+		peerInfo1, err := GetPeerInfo(ctx, p2pClient1)
+		if err != nil {
+			return err
+		}
+		peerInfo2, err := GetPeerInfo(ctx, p2pClient2)
+		if err != nil {
+			return err
+		}
+		if len(peerInfo1.Addresses) == 0 || len(peerInfo2.Addresses) == 0 {
+			return fmt.Errorf("malformed peer info")
+		}
 
-	connectPeer := func(p2pClient *sources.P2PClient, multiAddress string) {
-		err := retry.Do0(ctx, 6, retry.Exponential(), func() error {
-			return p2pClient.ConnectPeer(ctx, multiAddress)
-		})
-		require.NoError(err, "failed to connect L2CL peer")
-	}
+		if err := p2pClient1.ConnectPeer(ctx, peerInfo2.Addresses[0]); err != nil {
+			return fmt.Errorf("connect cl1 to cl2: %w", err)
+		}
+		if err := p2pClient2.ConnectPeer(ctx, peerInfo1.Addresses[0]); err != nil {
+			return fmt.Errorf("connect cl2 to cl1: %w", err)
+		}
 
-	connectPeer(p.client1, p.peerInfo2.Addresses[0])
-	connectPeer(p.client2, p.peerInfo1.Addresses[0])
-
-	peerDump1, err := GetPeers(ctx, p.client1)
-	require.NoError(err)
-	peerDump2, err := GetPeers(ctx, p.client2)
-	require.NoError(err)
-
-	_, ok1 := peerDump1.Peers[p.peerInfo2.PeerID.String()]
-	require.True(ok1, "peer register invalid (cl1 missing cl2)")
-	_, ok2 := peerDump2.Peers[p.peerInfo1.PeerID.String()]
-	require.True(ok2, "peer register invalid (cl2 missing cl1)")
+		peerDump1, err := GetPeers(ctx, p2pClient1)
+		if err != nil {
+			return err
+		}
+		peerDump2, err := GetPeers(ctx, p2pClient2)
+		if err != nil {
+			return err
+		}
+		if _, ok := peerDump1.Peers[peerInfo2.PeerID.String()]; !ok {
+			return fmt.Errorf("peer register invalid (cl1 missing cl2)")
+		}
+		if _, ok := peerDump2.Peers[peerInfo1.PeerID.String()]; !ok {
+			return fmt.Errorf("peer register invalid (cl2 missing cl1)")
+		}
+		return nil
+	})
+	require.NoError(err, "failed to connect L2CL peer")
 }
 
 func startSequencerCL(
@@ -292,6 +317,8 @@ type l2CLNodeStartConfig struct {
 	// SequencerStopped starts the sequencer in the stopped state (it must be
 	// activated later via the StartSequencer RPC). Only meaningful when IsSequencer.
 	SequencerStopped bool
+
+	ConductorRPCEndpoint *atomic.Value
 }
 
 func startL2CLNode(
@@ -438,6 +465,9 @@ func startL2CLNode(
 		AltDA:                           altda.CLIConfig{},
 		IgnoreMissingPectraBlobSchedule: false,
 		ExperimentalOPStackAPI:          true,
+	}
+	if startCfg.ConductorRPCEndpoint != nil {
+		configureOpNodeConfigForConductor(nodeCfg, startCfg.ConductorRPCEndpoint)
 	}
 	l2CL := &OpNode{
 		name:     startCfg.Key,

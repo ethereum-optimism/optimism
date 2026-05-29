@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -83,7 +84,7 @@ func NewTwoL2SupernodeInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64,
 }
 
 func NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
-	base, activationTime := newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t, true, delaySeconds, cfg, false)
+	base, activationTime := newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t, true, delaySeconds, cfg, false, false)
 	chainA := base.Chains["l2a"]
 	chainB := base.Chains["l2b"]
 	t.Require().NotNil(chainA, "missing l2a supernode chain")
@@ -91,6 +92,26 @@ func NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t devtest.T, delayS
 	attachTestSequencerToRuntime(t, base, "test-sequencer-2l2-light-cl")
 
 	t.Logger().Info("configured supernode interop runtime with light CL sequencers",
+		"genesis_time", chainA.Network.rollupCfg.Genesis.L2Time,
+		"activation_time", activationTime,
+		"delay_seconds", delaySeconds,
+	)
+
+	base.DelaySeconds = delaySeconds
+	return base
+}
+
+func NewTwoL2SupernodeInteropWithConductorsRuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
+	base, activationTime := newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t, true, delaySeconds, cfg, false, true)
+	chainA := base.Chains["l2a"]
+	chainB := base.Chains["l2b"]
+	t.Require().NotNil(chainA, "missing l2a supernode chain")
+	t.Require().NotNil(chainB, "missing l2b supernode chain")
+	t.Require().NotNil(chainA.Conductors, "missing l2a conductors")
+	t.Require().NotNil(chainB.Conductors, "missing l2b conductors")
+	attachTestSequencerToRuntime(t, base, "test-sequencer-2l2")
+
+	t.Logger().Info("configured supernode interop runtime with conductors",
 		"genesis_time", chainA.Network.rollupCfg.Genesis.L2Time,
 		"activation_time", activationTime,
 		"delay_seconds", delaySeconds,
@@ -228,10 +249,10 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 }
 
 func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySeconds uint64, cfg PresetConfig) (*MultiChainRuntime, uint64) {
-	return newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t, enableInterop, delaySeconds, cfg, true)
+	return newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t, enableInterop, delaySeconds, cfg, true, false)
 }
 
-func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInterop bool, delaySeconds uint64, cfg PresetConfig, supernodeSequencerEnabled bool) (*MultiChainRuntime, uint64) {
+func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInterop bool, delaySeconds uint64, cfg PresetConfig, supernodeSequencerEnabled bool, enableConductors bool) (*MultiChainRuntime, uint64) {
 	require := t.Require()
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
@@ -312,6 +333,14 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		runtimeDepSet = wb.outFullCfgSet.DependencySet
 	}
 
+	var conductorEndpoints map[eth.ChainID]*atomic.Value
+	if enableConductors {
+		conductorEndpoints = map[eth.ChainID]*atomic.Value{
+			l2ANet.ChainID(): newConductorRPCEndpoint(),
+			l2BNet.ChainID(): newConductorRPCEndpoint(),
+		}
+	}
+
 	supernode, supernodeL2ACL, supernodeL2BCL := startTwoL2SharedSupernode(
 		t,
 		l1Net,
@@ -327,15 +356,50 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		jwtSecret,
 		supernodeSequencerEnabled || cfg.SupernodeVNSequencerForBootstrap,
 	)
-
 	var l2ACL L2CLNode = supernodeL2ACL
 	var l2BCL L2CLNode = supernodeL2BCL
 	// supernode VN ELs (always distinct identity from any follow-mode sequencer EL).
 	supernodeL2AEL, supernodeL2BEL := l2AEL, l2BEL
 	// sequencer ELs default to the supernode ELs in virtual-sequencer mode;
-	// in light-sequencer mode each follow-mode sequencer gets its own EL.
+	// in follow-mode (conductor or light-sequencer) each sequencer gets its own EL.
 	seqL2AEL, seqL2BEL := l2AEL, l2BEL
-	if !supernodeSequencerEnabled {
+
+	var l2AConductors map[string]*Conductor
+	var l2BConductors map[string]*Conductor
+	var l2AFollowers map[string]*SingleChainNodeRuntime
+	var l2BFollowers map[string]*SingleChainNodeRuntime
+	if enableConductors {
+		// Production-faithful topology: the conductor-controlled follow-mode
+		// sequencer runs its own EL, distinct from the supernode VN's EL, joined
+		// only by L1 and P2P. This lets it reorg onto the supernode's
+		// invalid-message replacement via EL sync (see startConductorControlledSequencerCL).
+		seqL2AEL = startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0))
+		seqL2BEL = startSequencerEL(t, l2BNet, jwtPath, jwtSecret, NewELNodeIdentity(0))
+
+		conductorCfg := conductorConfigFromPreset(cfg)
+		var conductorNodeDepSet depset.DependencySet
+		if depSet != nil {
+			conductorNodeDepSet = depSet
+		} else {
+			conductorNodeDepSet = wb.outFullCfgSet.DependencySet
+		}
+		l2ACL = startConductorControlledSequencerCL(t, keys, l1Net, l1EL, l1CL, l2ANet, seqL2AEL, "sequencer", supernodeL2ACL, conductorNodeDepSet, jwtSecret, conductorEndpoints[l2ANet.ChainID()])
+		l2BCL = startConductorControlledSequencerCL(t, keys, l1Net, l1EL, l1CL, l2BNet, seqL2BEL, "sequencer", supernodeL2BCL, conductorNodeDepSet, jwtSecret, conductorEndpoints[l2BNet.ChainID()])
+
+		l2AFollowers = startConductorHealthPeers(t, keys, l1Net, l1EL, l1CL, l2ANet, seqL2AEL, l2ACL, conductorNodeDepSet, conductorCfg.HealthCheck.MinPeerCount)
+		l2BFollowers = startConductorHealthPeers(t, keys, l1Net, l1EL, l1CL, l2BNet, seqL2BEL, l2BCL, conductorNodeDepSet, conductorCfg.HealthCheck.MinPeerCount)
+
+		// Build a 3-conductor raft cluster per chain (one bootstrap leader on the
+		// primary sequencer CL + two conductor-controlled candidates), so leader-transfer
+		// and cluster-wide convergence scenarios are exercisable.
+		l2AConductors = startConductorClusterForChain(t, keys, l1Net, l1EL, l1CL, l2ANet, seqL2AEL, l2ACL, supernodeL2ACL, conductorNodeDepSet, jwtSecret, conductorEndpoints[l2ANet.ChainID()], conductorCfg, 2, l2AFollowers)
+		l2BConductors = startConductorClusterForChain(t, keys, l1Net, l1EL, l1CL, l2BNet, seqL2BEL, l2BCL, supernodeL2BCL, conductorNodeDepSet, jwtSecret, conductorEndpoints[l2BNet.ChainID()], conductorCfg, 2, l2BFollowers)
+
+		// EL P2P: block bodies sync between each sequencer EL and its paired
+		// supernode EL (required for the ELSync follow path).
+		connectL2ELPeers(t, t.Logger(), supernodeL2AEL.UserRPC(), seqL2AEL.UserRPC(), false)
+		connectL2ELPeers(t, t.Logger(), supernodeL2BEL.UserRPC(), seqL2BEL.UserRPC(), false)
+	} else if !supernodeSequencerEnabled {
 		// Production-faithful topology: each follow-mode sequencer runs its own
 		// EL, distinct from the supernode VN's EL, joined only by L1 and P2P.
 		seqL2AEL = startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0))
@@ -361,7 +425,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			L2CLOptions:      cfg.GlobalL2CLOptions,
 			SequencerStopped: lightSeqStopped,
 			// Follow-mode sequencers reorg onto the supernode's invalid-message
-			// replacement via EL sync.
+			// replacement via EL sync; req-resp CL sync is being deprecated.
 			SyncMode: nodeSync.ELSync,
 		})
 		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, seqL2BEL, jwtSecret, l2CLNodeStartConfig{
@@ -431,6 +495,8 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 				SupernodeEL: supernodeL2AEL,
 				Batcher:     l2ABatcher,
 				Proposer:    l2AProposer,
+				Followers:   l2AFollowers,
+				Conductors:  l2AConductors,
 			},
 			"l2b": {
 				Name:        "l2b",
@@ -441,6 +507,8 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 				SupernodeEL: supernodeL2BEL,
 				Batcher:     l2BBatcher,
 				Proposer:    l2BProposer,
+				Followers:   l2BFollowers,
+				Conductors:  l2BConductors,
 			},
 		},
 		Supernode:     supernode,
@@ -527,35 +595,177 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 	t.Require().NotNil(chain, "missing %s runtime chain", chainKey)
 	t.Require().NotNil(chain.CL, "%s runtime chain missing CL follow source", chainKey)
 
-	jwtPath := chain.EL.JWTPath()
-	jwtSecret := readJWTSecretFromPath(t, jwtPath)
-	l2EL := startL2ELForKey(t, chain.Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
-	l2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, chain.Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
-		Key:            name,
-		IsSequencer:    false,
-		NoDiscovery:    true,
-		EnableReqResp:  false,
-		UseReqResp:     false,
-		L2FollowSource: chain.CL.UserRPC(),
-		DependencySet:  runtime.DependencySet,
-		// Follow nodes catch up to their follow source via EL sync.
-		SyncMode: nodeSync.ELSync,
-	})
-
-	connectL2ELPeers(t, t.Logger(), chain.EL.UserRPC(), l2EL.UserRPC(), false)
-	connectL2CLPeers(t, t.Logger(), chain.CL, l2CL)
-
-	node := &SingleChainNodeRuntime{
-		Name:        name,
-		IsSequencer: false,
-		EL:          l2EL,
-		CL:          l2CL,
-	}
+	node := startMultiChainFollowL2Node(t, runtime.Keys, runtime.L1Network, runtime.L1EL, runtime.L1CL, chain.Network, chain.EL, chain.CL, runtime.DependencySet, name)
 	if chain.Followers == nil {
 		chain.Followers = make(map[string]*SingleChainNodeRuntime)
 	}
 	chain.Followers[name] = node
 	return node
+}
+
+func startConductorHealthPeers(
+	t devtest.T,
+	keys devkeys.Keys,
+	l1Net *L1Network,
+	l1EL L1ELNode,
+	l1CL *L1CLNode,
+	l2Net *L2Network,
+	l2EL L2ELNode,
+	l2CL L2CLNode,
+	dependencySet depset.DependencySet,
+	peerCount uint64,
+) map[string]*SingleChainNodeRuntime {
+	followers := make(map[string]*SingleChainNodeRuntime)
+	for i := uint64(1); i <= peerCount; i++ {
+		name := fmt.Sprintf("conductor-health-peer-%d", i)
+		node := startMultiChainFollowL2Node(t, keys, l1Net, l1EL, l1CL, l2Net, l2EL, l2CL, dependencySet, name)
+		followers[node.Name] = node
+	}
+	return followers
+}
+
+func startConductorControlledSequencerCL(
+	t devtest.T,
+	keys devkeys.Keys,
+	l1Net *L1Network,
+	l1EL L1ELNode,
+	l1CL *L1CLNode,
+	l2Net *L2Network,
+	l2EL L2ELNode,
+	key string,
+	followSource L2CLNode,
+	dependencySet depset.DependencySet,
+	jwtSecret [32]byte,
+	conductorRPCEndpoint *atomic.Value,
+) *OpNode {
+	sequencerCL := startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
+		Key:           key,
+		IsSequencer:   true,
+		NoDiscovery:   true,
+		EnableReqResp: true,
+		UseReqResp:    false,
+		// Conductor-controlled follow-mode sequencers reorg onto the supernode's
+		// invalid-message replacement via EL sync; req-resp CL sync is being deprecated.
+		SyncMode:             nodeSync.ELSync,
+		L2FollowSource:       followSource.UserRPC(),
+		DependencySet:        dependencySet,
+		ConductorRPCEndpoint: conductorRPCEndpoint,
+	})
+	connectL2CLPeers(t, t.Logger(), followSource, sequencerCL)
+	return sequencerCL
+}
+
+// startConductorClusterForChain builds a multi-conductor raft cluster for a single
+// supernode-interop chain. It starts a bootstrap conductor on the primary sequencer CL,
+// then memberCount additional conductor-controlled sequencer candidates — each with its
+// own EL, CL, and conductor — and joins them as voters via startConductorCluster (which
+// also resumes every conductor and waits for the cluster to converge). Every conductor
+// shares conductorCfg, so reorg-recovery is enabled fleet-uniformly when requested. The
+// candidate node runtimes are recorded in followers (when non-nil). Returns the conductor
+// set keyed by conductor name ("sequencer" for the bootstrap leader candidate).
+func startConductorClusterForChain(
+	t devtest.T,
+	keys devkeys.Keys,
+	l1Net *L1Network,
+	l1EL L1ELNode,
+	l1CL *L1CLNode,
+	l2Net *L2Network,
+	l2EL L2ELNode,
+	primarySequencerCL L2CLNode,
+	supernodeCL L2CLNode,
+	dependencySet depset.DependencySet,
+	jwtSecret [32]byte,
+	primaryConductorEndpoint *atomic.Value,
+	conductorCfg conductorNodeConfig,
+	memberCount int,
+	followers map[string]*SingleChainNodeRuntime,
+) map[string]*Conductor {
+	bootstrap := startConductorForRPC(
+		t,
+		"sequencer",
+		l2Net,
+		primarySequencerCL.UserRPC(),
+		l2EL.UserRPC(),
+		true,
+		false,
+		primaryConductorEndpoint,
+		conductorCfg,
+	)
+	conductors := map[string]*Conductor{"sequencer": bootstrap}
+	members := make([]*Conductor, 0, memberCount)
+	jwtPath := l2EL.JWTPath()
+	for i := 1; i <= memberCount; i++ {
+		name := fmt.Sprintf("candidate-%d", i)
+		// startL2ELForKey respects DEVSTACK_L2EL_KIND, so candidates run op-reth (with the
+		// reth namespace, needed for reorg-recovery subscriptions) rather than the op-geth
+		// that startL2ELNode hardcodes. This keeps the conductor fleet EL-uniform.
+		candidateEL := startL2ELForKey(t, l2Net, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
+		connectL2ELPeers(t, t.Logger(), l2EL.UserRPC(), candidateEL.UserRPC(), false)
+		candidateEndpoint := newConductorRPCEndpoint()
+		candidateCL := startConductorControlledSequencerCL(t, keys, l1Net, l1EL, l1CL, l2Net, candidateEL, name, supernodeCL, dependencySet, jwtSecret, candidateEndpoint)
+		candidateConductor := startConductorForRPC(
+			t,
+			name,
+			l2Net,
+			candidateCL.UserRPC(),
+			candidateEL.UserRPC(),
+			false,
+			true,
+			candidateEndpoint,
+			conductorCfg,
+		)
+		conductors[name] = candidateConductor
+		members = append(members, candidateConductor)
+		if followers != nil {
+			followers[name] = &SingleChainNodeRuntime{
+				Name:        name,
+				IsSequencer: true,
+				EL:          candidateEL,
+				CL:          candidateCL,
+			}
+		}
+	}
+	startConductorCluster(t, bootstrap, members)
+	return conductors
+}
+
+func startMultiChainFollowL2Node(
+	t devtest.T,
+	keys devkeys.Keys,
+	l1Net *L1Network,
+	l1EL L1ELNode,
+	l1CL *L1CLNode,
+	l2Net *L2Network,
+	l2EL L2ELNode,
+	l2CL L2CLNode,
+	dependencySet depset.DependencySet,
+	name string,
+) *SingleChainNodeRuntime {
+	jwtPath := l2EL.JWTPath()
+	jwtSecret := readJWTSecretFromPath(t, jwtPath)
+	followerEL := startL2ELForKey(t, l2Net, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
+	followerCL := startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, followerEL, jwtSecret, l2CLNodeStartConfig{
+		Key:            name,
+		IsSequencer:    false,
+		NoDiscovery:    true,
+		EnableReqResp:  false,
+		UseReqResp:     false,
+		L2FollowSource: l2CL.UserRPC(),
+		DependencySet:  dependencySet,
+		// Follow nodes catch up to their follow source via EL sync;
+		// req-resp CL sync is being deprecated.
+		SyncMode: nodeSync.ELSync,
+	})
+
+	connectL2ELPeers(t, t.Logger(), l2EL.UserRPC(), followerEL.UserRPC(), false)
+	connectL2CLPeers(t, t.Logger(), l2CL, followerCL)
+
+	return &SingleChainNodeRuntime{
+		Name:        name,
+		IsSequencer: false,
+		EL:          followerEL,
+		CL:          followerCL,
+	}
 }
 
 func startTwoL2SharedSupernode(

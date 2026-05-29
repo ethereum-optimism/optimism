@@ -4,6 +4,7 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -52,6 +53,13 @@ type PresetConfig struct {
 	// sequencers stopped, so the VN can bootstrap the chain the light sequencers EL-sync
 	// from before a test hands off sequencing to them.
 	SupernodeVNSequencerForBootstrap bool
+	// ConductorHealthCheck overrides the default slow conductor health check
+	// intervals for tests that intentionally exercise health transitions.
+	ConductorHealthCheck *opconductor.HealthCheckConfig
+	// ConductorReorgRecoveryEnabled turns on op-conductor's reorg-recovery mode
+	// (the fleet-uniform --reorg-recovery.enabled flag plus the op-reth WS
+	// subscription) on every conductor in the preset. op-reth only.
+	ConductorReorgRecoveryEnabled bool
 }
 
 func NewPresetConfig() PresetConfig {

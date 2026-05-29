@@ -4,6 +4,7 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -296,6 +297,57 @@ func WithInteropFilter() Option {
 			cfg.UseInteropFilter = true
 		},
 	}
+}
+
+func WithConductorHealthCheck(interval, unsafeInterval, safeInterval uint64) Option {
+	return option{
+		kinds: optionKindConductor,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			minPeerCount := uint64(1)
+			if cfg.ConductorHealthCheck != nil {
+				minPeerCount = cfg.ConductorHealthCheck.MinPeerCount
+			}
+			cfg.ConductorHealthCheck = &opconductor.HealthCheckConfig{
+				Interval:       interval,
+				UnsafeInterval: unsafeInterval,
+				SafeInterval:   safeInterval,
+				MinPeerCount:   minPeerCount,
+			}
+		},
+	}
+}
+
+func WithConductorHealthCheckMinPeerCount(minPeerCount uint64) Option {
+	return option{
+		kinds: optionKindConductor,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			ensureConductorHealthCheck(cfg).MinPeerCount = minPeerCount
+		},
+	}
+}
+
+// WithConductorReorgRecovery enables op-conductor's reorg-recovery mode on every
+// conductor in the preset (the fleet-uniform `--reorg-recovery.enabled` flag plus
+// the op-reth WebSocket subscription). Only effective with op-reth ELs.
+func WithConductorReorgRecovery() Option {
+	return option{
+		kinds: optionKindConductor,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.ConductorReorgRecoveryEnabled = true
+		},
+	}
+}
+
+func ensureConductorHealthCheck(cfg *sysgo.PresetConfig) *opconductor.HealthCheckConfig {
+	if cfg.ConductorHealthCheck == nil {
+		cfg.ConductorHealthCheck = &opconductor.HealthCheckConfig{
+			Interval:       3600,
+			UnsafeInterval: 3600,
+			SafeInterval:   3600,
+			MinPeerCount:   1,
+		}
+	}
+	return cfg.ConductorHealthCheck
 }
 
 func WithRequireInteropNotAtGenesis() Option {

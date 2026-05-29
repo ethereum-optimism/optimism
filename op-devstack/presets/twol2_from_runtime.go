@@ -1,9 +1,13 @@
 package presets
 
 import (
+	"sort"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type twoL2RuntimeComponents struct {
@@ -175,6 +179,66 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 	preset.FunderA = dsl.NewFunder(preset.Wallet, preset.FaucetA, preset.L2ELA)
 	preset.FunderB = dsl.NewFunder(preset.Wallet, preset.FaucetB, preset.L2ELB)
 	return preset
+}
+
+// supernodeELFrontend returns an EL frontend for the supernode VN's EL. When
+// the supernode shares the chain's primary EL (virtual-sequencer presets) it
+// reuses the already-built sequencer EL frontend; when the supernode has its
+// own EL (light-sequencer presets, production topology) it builds a dedicated
+// frontend so the supernode CL is attached to the EL it actually drives.
+func supernodeELFrontend(t devtest.T, chain *sysgo.MultiChainNodeRuntime, seqELFrontend *l2ELFrontend) *l2ELFrontend {
+	if chain.SupernodeEL == nil || chain.SupernodeEL == chain.EL {
+		return seqELFrontend
+	}
+	return newL2ELFrontend(
+		t,
+		"supernode",
+		chain.Network.ChainID(),
+		chain.SupernodeEL.UserRPC(),
+		chain.SupernodeEL.EngineRPC(),
+		chain.SupernodeEL.JWTPath(),
+		chain.Network.RollupConfig(),
+		chain.SupernodeEL,
+	)
+}
+
+func twoL2SupernodeInteropWithConductorsFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *TwoL2SupernodeInteropWithConductors {
+	base := twoL2SupernodeInteropFromRuntime(t, runtime)
+	chainA := runtime.Chains["l2a"]
+	chainB := runtime.Chains["l2b"]
+	t.Require().NotNil(chainA, "missing l2a supernode chain")
+	t.Require().NotNil(chainB, "missing l2b supernode chain")
+	t.Require().NotNil(chainA.Conductors, "missing l2a conductors")
+	t.Require().NotNil(chainB.Conductors, "missing l2b conductors")
+
+	conductorSets := map[eth.ChainID]dsl.ConductorSet{
+		chainA.Network.ChainID(): addConductorsToL2Network(t, base.L2A, chainA.Network.ChainID(), chainA.Conductors),
+		chainB.Network.ChainID(): addConductorsToL2Network(t, base.L2B, chainB.Network.ChainID(), chainB.Conductors),
+	}
+	return &TwoL2SupernodeInteropWithConductors{
+		TwoL2SupernodeInterop: base,
+		ConductorSets:         conductorSets,
+	}
+}
+
+func addConductorsToL2Network(t devtest.T, l2 *dsl.L2Network, chainID eth.ChainID, conductors map[string]*sysgo.Conductor) dsl.ConductorSet {
+	names := make([]string, 0, len(conductors))
+	for name := range conductors {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	frontends := make([]stack.Conductor, 0, len(names))
+	l2Net, ok := l2.Escape().(*presetL2Network)
+	t.Require().True(ok, "expected preset L2 network")
+	for _, name := range names {
+		conductor := conductors[name]
+		t.Require().NotNil(conductor, "missing conductor %s", name)
+		frontend := newConductorFrontend(t, name, chainID, conductor.HTTPEndpoint(), conductor.MetricsEndpoint())
+		l2Net.AddConductor(frontend)
+		frontends = append(frontends, frontend)
+	}
+	return dsl.NewConductorSet(frontends)
 }
 
 func twoL2SupernodeFollowL2FromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *TwoL2SupernodeFollowL2 {

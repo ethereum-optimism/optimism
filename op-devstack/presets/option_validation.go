@@ -35,6 +35,7 @@ const (
 	optionKindInteropActivationDelay
 	optionKindInteropAtGenesis
 	optionKindSupernodeVNSequencerForBootstrap
+	optionKindConductor
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -60,7 +61,8 @@ const allOptionKinds = optionKindDeployer |
 	optionKindSupernodeVerifierSyncMode |
 	optionKindInteropActivationDelay |
 	optionKindInteropAtGenesis |
-	optionKindSupernodeVNSequencerForBootstrap
+	optionKindSupernodeVNSequencerForBootstrap |
+	optionKindConductor
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -90,6 +92,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindInteropActivationDelay, label: "interop activation delay"},
 	{kind: optionKindInteropAtGenesis, label: "interop at genesis"},
 	{kind: optionKindSupernodeVNSequencerForBootstrap, label: "supernode VN sequencer for bootstrap"},
+	{kind: optionKindConductor, label: "conductor options"},
 }
 
 func (k optionKinds) String() string {
@@ -136,7 +139,7 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindAfterBuild |
 	optionKindProofValidation
 
-const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds
+const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds | optionKindConductor
 
 const simpleWithSyncTesterPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
 	optionKindGlobalSyncTesterEL
@@ -178,6 +181,9 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindInteropFilter |
 	optionKindPreGenesisSuperGame |
 	optionKindSupernodeVNSequencerForBootstrap
+
+const twoL2SupernodeInteropWithConductorsPresetSupportedOptionKinds = twoL2SupernodeInteropPresetSupportedOptionKinds |
+	optionKindConductor
 
 const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindOPRBuilder |
