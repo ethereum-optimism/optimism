@@ -1,6 +1,6 @@
-//! Optimism supervisor metrics
+//! Optimism interop txpool metrics.
 
-use crate::supervisor::InteropTxValidatorError;
+use crate::interop_filter::InteropTxValidatorError;
 use op_alloy_rpc_types::SuperchainDAError;
 use reth_metrics::{
     Metrics,
@@ -8,12 +8,12 @@ use reth_metrics::{
 };
 use std::time::Duration;
 
-/// Optimism supervisor metrics
+/// Optimism interop txpool metrics.
 #[derive(Metrics, Clone)]
-#[metrics(scope = "optimism_transaction_pool.supervisor")]
-pub struct SupervisorMetrics {
-    /// How long it takes to query the supervisor in the Optimism transaction pool
-    pub(crate) supervisor_query_latency: Histogram,
+#[metrics(scope = "optimism_transaction_pool.interop")]
+pub struct InteropMetrics {
+    /// How long it takes to query the interop filter in the Optimism transaction pool.
+    pub(crate) interop_query_latency: Histogram,
 
     /// Counter for the number of times data was skipped
     pub(crate) skipped_data_count: Counter,
@@ -39,11 +39,11 @@ pub struct SupervisorMetrics {
     pub(crate) data_corruption_count: Counter,
 }
 
-impl SupervisorMetrics {
-    /// Records the duration of supervisor queries
+impl InteropMetrics {
+    /// Records the duration of interop filter queries.
     #[inline]
-    pub fn record_supervisor_query(&self, duration: Duration) {
-        self.supervisor_query_latency.record(duration.as_secs_f64());
+    pub fn record_interop_query(&self, duration: Duration) {
+        self.interop_query_latency.record(duration.as_secs_f64());
     }
 
     /// Increments the metrics for the given error

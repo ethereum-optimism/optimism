@@ -122,16 +122,16 @@ func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [
 	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
 }
 
-// startSupernodeELWithSupervisorURL starts an L2 EL node with --rollup.supervisor-http
+// startSupernodeELWithInteropURL starts an L2 EL node with --rollup.interop-http
 // pointing at the given URL. Used by supernode interop presets to connect ELs
 // to the interop filter for tx pool validation.
-func startSupernodeELWithSupervisorURL(
+func startSupernodeELWithInteropURL(
 	t devtest.T,
 	l2Net *L2Network,
 	key string,
 	jwtPath string,
 	jwtSecret [32]byte,
-	supervisorURL string,
+	interopURL string,
 ) L2ELNode {
 	switch devstackL2ELKind() {
 	case MixedL2ELOpGeth:
@@ -143,15 +143,15 @@ func startSupernodeELWithSupervisorURL(
 			l2Net:         l2Net,
 			jwtPath:       jwtPath,
 			jwtSecret:     jwtSecret,
-			supervisorRPC: supervisorURL,
+			supervisorRPC: interopURL,
 			cfg:           cfg,
 		}
 		l2EL.Start()
 		t.Cleanup(l2EL.Stop)
 		return l2EL
 	default: // op-reth
-		return startMixedOpRethNodeWithSupervisorURL(
-			t, l2Net, key, jwtPath, jwtSecret, nil, supervisorURL, "v1")
+		return startMixedOpRethNodeWithInteropURL(
+			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, "v1")
 	}
 }
 
@@ -257,8 +257,8 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		filterRPC := "http://" + filterProxy.Addr()
 
 		// Start ELs with filter proxy URL
-		l2AEL = startSupernodeELWithSupervisorURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC)
-		l2BEL = startSupernodeELWithSupervisorURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC)
+		l2AEL = startSupernodeELWithInteropURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC)
+		l2BEL = startSupernodeELWithInteropURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC)
 
 		// Build rollup config map from L2 networks (Go structs, no file I/O)
 		rollupConfigs := map[eth.ChainID]*rollup.Config{
@@ -274,7 +274,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		// Connect proxy to the filter's actual RPC endpoint
 		filterProxy.SetUpstream(ProxyAddr(require, interopFilter.HTTPEndpoint()))
 	} else {
-		// No interop filter — ELs start without supervisor/filter URL (existing behavior)
+		// No interop filter — ELs start without an interop filter URL (existing behavior)
 		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
 		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
 	}

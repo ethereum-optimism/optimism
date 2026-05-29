@@ -1,11 +1,11 @@
-use crate::supervisor::InteropTxValidatorError;
+use crate::interop_filter::InteropTxValidatorError;
 use reth_transaction_pool::error::PoolTransactionError;
 use std::any::Any;
 
 /// Wrapper for [`InteropTxValidatorError`] to implement [`PoolTransactionError`] for it.
 #[derive(thiserror::Error, Debug)]
 pub enum InvalidCrossTx {
-    /// Errors produced by supervisor validation
+    /// Errors produced by interop filter validation.
     #[error(transparent)]
     ValidationError(#[from] InteropTxValidatorError),
     /// Error cause by cross chain tx during not active interop hardfork

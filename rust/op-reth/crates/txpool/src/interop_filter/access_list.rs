@@ -15,7 +15,7 @@
 // NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
 // DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-use crate::supervisor::CROSS_L2_INBOX_ADDRESS;
+use crate::interop_filter::CROSS_L2_INBOX_ADDRESS;
 use alloy_eips::eip2930::AccessListItem;
 use alloy_primitives::B256;
 
@@ -32,7 +32,7 @@ pub fn parse_access_list_items_to_inbox_entries<'a>(
 /// Max 3 inbox entries can exist per [`AccessListItem`] that points to [`CROSS_L2_INBOX_ADDRESS`].
 ///
 /// Returns `Vec::new()` if [`AccessListItem`] address doesn't point to [`CROSS_L2_INBOX_ADDRESS`].
-// Access-list spec: <https://github.com/ethereum-optimism/specs/blob/main/specs/interop/supervisor.md#access-list-contents>
+// Access-list contents follow the interop checkAccessList RPC format.
 fn parse_access_list_item_to_inbox_entries(
     access_list_item: &AccessListItem,
 ) -> Option<impl Iterator<Item = &B256>> {

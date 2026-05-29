@@ -56,7 +56,7 @@ var (
 		Name:    "message-expiry-window",
 		Usage:   "Message expiry window duration (e.g., 168h for 7 days). Messages older than this are considered expired.",
 		EnvVars: prefixEnvVars("MESSAGE_EXPIRY_WINDOW"),
-		Value:   168 * time.Hour, // 7 days default, matching op-supervisor
+		Value:   168 * time.Hour, // 7 days default for interop message expiry
 	}
 	JWTSecretFlag = &cli.StringFlag{
 		Name: "admin.jwt-secret",

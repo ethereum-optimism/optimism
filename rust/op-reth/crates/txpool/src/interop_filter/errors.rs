@@ -5,7 +5,7 @@ use op_alloy_rpc_types::SuperchainDAError;
 /// Failures occurring during validation of inbox entries.
 #[derive(thiserror::Error, Debug)]
 pub enum InteropTxValidatorError {
-    /// Inbox entry validation against the Supervisor took longer than allowed.
+    /// Inbox entry validation against the interop filter took longer than allowed.
     #[error("inbox entry validation timed out, timeout: {0} secs")]
     Timeout(u64),
 
@@ -14,7 +14,7 @@ pub enum InteropTxValidatorError {
     InvalidEntry(#[from] SuperchainDAError),
 
     /// Catch-all variant.
-    #[error("supervisor server error: {0}")]
+    #[error("interop filter server error: {0}")]
     Other(Box<dyn error::Error + Send + Sync>),
 }
 
@@ -28,7 +28,7 @@ impl InteropTxValidatorError {
     }
 
     /// This function will parse the error code to determine if it matches
-    /// one of the known Supervisor errors, and return the corresponding
+    /// one of the known interop filter errors, and return the corresponding
     /// error variant. Otherwise, it returns a generic [`Other`](Self::Other) error.
     pub fn from_json_rpc<E>(err: RpcError<E>) -> Self
     where

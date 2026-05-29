@@ -412,23 +412,23 @@ func startMixedOpRethNode(
 	return node
 }
 
-// startMixedOpRethNodeWithSupervisorURL builds and starts an OpReth node
-// with --rollup.supervisor-http pointing at the given URL.
-func startMixedOpRethNodeWithSupervisorURL(
+// startMixedOpRethNodeWithInteropURL builds and starts an OpReth node
+// with --rollup.interop-http pointing at the given URL.
+func startMixedOpRethNodeWithInteropURL(
 	t devtest.T,
 	l2Net *L2Network,
 	key string,
 	jwtPath string,
 	jwtSecret [32]byte,
 	metricsRegistrar L2MetricsRegistrar,
-	supervisorURL string,
+	interopURL string,
 	storageVersion string,
 	opts ...OpRethOption,
 ) *OpReth {
-	opts = append(opts, OpRethWithSupervisorURL(supervisorURL))
+	opts = append(opts, OpRethWithInteropURL(interopURL))
 	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar, storageVersion, opts...)
-	t.Logger().Info("Starting op-reth with supervisor URL",
-		"name", key, "chain", l2Net.ChainID(), "supervisorURL", supervisorURL)
+	t.Logger().Info("Starting op-reth with interop filter URL",
+		"name", key, "chain", l2Net.ChainID(), "interopURL", interopURL)
 	node.Start()
 	t.Cleanup(node.Stop)
 	t.Logger().Info("op-reth is ready", "name", key, "chain", l2Net.ChainID(), "userRPC", node.userRPC, "authRPC", node.authRPC)
