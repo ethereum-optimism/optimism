@@ -187,6 +187,11 @@ func (v *simpleVirtualNode) Stop(ctx context.Context) error {
 		return nil // Already stopped or not started
 	}
 
+	// Keep this setState before the cancel() below; do not reorder them.
+	// The per-chain RPC route gate reads this state to decide readiness, and it
+	// must observe VNStateStopped ("not ready") before the run context starts
+	// unwinding. If the cancel ran first, a request could still be routed to a
+	// chain handler that is already tearing down.
 	v.setState(VNStateStopped)
 
 	// Cancel the run context to trigger shutdown

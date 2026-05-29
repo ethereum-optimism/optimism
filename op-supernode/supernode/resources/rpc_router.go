@@ -69,9 +69,6 @@ func (r *Router) Close() error {
 // getOrCreateRouteLocked returns the chain route, creating it if necessary.
 // Callers must hold r.mu for writes.
 func (r *Router) getOrCreateRouteLocked(chainID string) *chainRoute {
-	if r.routes == nil {
-		r.routes = make(map[string]*chainRoute)
-	}
 	route := r.routes[chainID]
 	if route == nil {
 		route = &chainRoute{}
