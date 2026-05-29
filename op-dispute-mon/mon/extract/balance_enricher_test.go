@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
@@ -35,5 +36,16 @@ func TestBalanceEnricher(t *testing.T) {
 		require.Equal(t, game.WETHContract, caller.balanceAddr)
 		require.Equal(t, game.ETHCollateral, caller.balance)
 		require.Equal(t, game.WETHDelay, caller.delayDuration)
+	})
+
+	t.Run("SkipSuperPermissioned", func(t *testing.T) {
+		enricher := NewBalanceEnricher()
+		caller := &mockGameCaller{balanceErr: errors.New("nope")}
+		game := &types.EnrichedGameData{
+			GameMetadata: gameTypes.GameMetadata{GameType: uint32(gameTypes.SuperPermissionedGameType)},
+		}
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
+		require.NoError(t, err)
+		require.Nil(t, game.ETHCollateral)
 	})
 }

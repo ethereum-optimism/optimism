@@ -125,7 +125,9 @@ func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *foreca
 	var forecastStatus types.GameStatus
 	// Games that have their block number challenged are won
 	// by the challenger since the counter is proven on-chain.
-	if game.BlockNumberChallenged {
+	if types.GameType(game.GameType) == types.SuperPermissionedGameType {
+		forecastStatus = types.GameStatusDefenderWon
+	} else if game.BlockNumberChallenged {
 		f.logger.Debug("Found game with challenged block number",
 			"game", game.Proxy, "l2SequenceNumber", game.L2SequenceNumber, "agreement", agreement)
 		// If the block number is challenged the challenger will always win

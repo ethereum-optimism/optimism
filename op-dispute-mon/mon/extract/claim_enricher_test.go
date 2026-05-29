@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/stretchr/testify/require"
@@ -34,6 +35,17 @@ func TestClaimEnricherError(t *testing.T) {
 	}
 	err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
 	require.ErrorIs(t, err, expectedErr)
+}
+
+func TestClaimEnricherSkipsSuperPermissioned(t *testing.T) {
+	caller := &mockGameCaller{resolvedErr: errors.New("boom")}
+	enricher := NewClaimEnricher()
+	game := &types.EnrichedGameData{
+		GameMetadata: gameTypes.GameMetadata{GameType: uint32(gameTypes.SuperPermissionedGameType)},
+	}
+	err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
+	require.NoError(t, err)
+	require.Zero(t, caller.resolvedCalls)
 }
 
 func claimsWithResolvedSubgames(caller *mockGameCaller, resolved ...bool) []types.EnrichedClaim {
