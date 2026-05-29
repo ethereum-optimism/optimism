@@ -90,6 +90,13 @@ func (c *APIClient) CommitUnsafePayload(ctx context.Context, payload *eth.Execut
 	return c.c.CallContext(ctx, nil, prefixRPC("commitUnsafePayload"), payload)
 }
 
+// LatestUnsafePayload implements API.
+func (c *APIClient) LatestUnsafePayload(ctx context.Context) (*eth.ExecutionPayloadEnvelope, error) {
+	var payload *eth.ExecutionPayloadEnvelope
+	err := c.c.CallContext(ctx, &payload, prefixRPC("latestUnsafePayload"))
+	return payload, err
+}
+
 // Leader implements API.
 func (c *APIClient) Leader(ctx context.Context) (bool, error) {
 	var leader bool

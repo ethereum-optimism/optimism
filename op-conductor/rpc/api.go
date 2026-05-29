@@ -62,6 +62,11 @@ type API interface {
 	Active(ctx context.Context) (bool, error)
 	// CommitUnsafePayload commits an unsafe payload (latest head) to the consensus layer.
 	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
+	// LatestUnsafePayload returns the latest unsafe payload recorded in the consensus
+	// layer. NOTE: when reorg-recovery is enabled (--reorg-recovery.enabled), this value
+	// is non-monotonic — it can move backward on a reorg — so callers must not assume the
+	// recorded unsafe head only ever advances.
+	LatestUnsafePayload(ctx context.Context) (*eth.ExecutionPayloadEnvelope, error)
 }
 
 // ExecutionProxyAPI defines the methods proxied to the execution 'eth_' rpc backend
