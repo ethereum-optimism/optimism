@@ -494,8 +494,12 @@ func (s *OpConductorTestSuite) TestStartSequencerConsensusBehindNodeFailsSafe() 
 		InfoNum:  5,
 		InfoHash: [32]byte{2, 3, 4},
 	}
-	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
-	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
+	// No call-count caps: the fail-safe makes startSequencer return an error, so the
+	// control loop re-queues and retries the catch-up, reading these heads again. The
+	// fail-safe is proven by the PostUnsafePayload/StartSequencer AssertNotCalled below,
+	// which hold no matter how many times the loop retries.
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil)
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil)
 
 	s.updateLeaderStatusAndExecuteAction(true)
 
