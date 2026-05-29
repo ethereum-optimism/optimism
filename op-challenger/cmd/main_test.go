@@ -108,16 +108,13 @@ func TestL1Beacon(t *testing.T) {
 }
 
 func TestSuperNodeRpc(t *testing.T) {
-	t.Run("RequiredForSuperPermissioned", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag supernode-rpc is required", addRequiredArgsExcept(gameTypes.SuperPermissionedGameType, "--supernode-rpc"))
-	})
 	t.Run("RequiredForSuperCannonKona", func(t *testing.T) {
 		verifyArgsInvalid(t, "flag supernode-rpc is required", addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--supernode-rpc"))
 	})
 
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonKonaGameType {
 			continue
 		}
 
@@ -125,12 +122,6 @@ func TestSuperNodeRpc(t *testing.T) {
 			configForArgs(t, addRequiredArgsExcept(gameType, "--supernode-rpc"))
 		})
 	}
-
-	t.Run("Valid-SuperPermissioned", func(t *testing.T) {
-		url := "http://localhost/super"
-		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperPermissionedGameType, "--supernode-rpc", "--supernode-rpc", url))
-		require.Equal(t, url, cfg.SuperRPC)
-	})
 
 	t.Run("Valid-SuperCannonKona", func(t *testing.T) {
 		url := "http://localhost/super"
@@ -156,6 +147,9 @@ func TestGameTypes(t *testing.T) {
 
 	t.Run("Invalid", func(t *testing.T) {
 		verifyArgsInvalid(t, "unknown game type: \"foo\"", addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-types", "--game-types=foo"))
+	})
+	t.Run("SuperPermissionedUnsupported", func(t *testing.T) {
+		verifyArgsInvalid(t, "unknown game type: \"super-permissioned\"", addRequiredArgsExcept(gameTypes.AlphabetGameType, "--game-types", "--game-types=super-permissioned"))
 	})
 
 	// Check we provide an alias for --trace-type to preserve backwards compatibility
@@ -479,7 +473,7 @@ func TestCannonCustomConfigArgs(t *testing.T) {
 }
 
 func TestSuperCannonKonaCustomConfigArgs(t *testing.T) {
-	for _, gameType := range []gameTypes.GameType{gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType} {
+	for _, gameType := range []gameTypes.GameType{gameTypes.SuperCannonKonaGameType} {
 		gameType := gameType
 
 		t.Run(fmt.Sprintf("TestRequireEitherCannonKonaNetworkOrRollupAndGenesisAndDepset-%v", gameType), func(t *testing.T) {
@@ -705,7 +699,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 }
 
 func TestCannonKonaRequiredArgs(t *testing.T) {
-	for _, gameType := range []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType} {
+	for _, gameType := range []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType} {
 		gameType := gameType
 		t.Run(fmt.Sprintf("TestCannonKonaServer-%v", gameType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
@@ -769,7 +763,7 @@ func TestCannonKonaRequiredArgs(t *testing.T) {
 
 func TestDepsetConfig(t *testing.T) {
 	for _, gameType := range gameTypes.SupportedGameTypes {
-		if gameType == gameTypes.SuperCannonKonaGameType || gameType == gameTypes.SuperPermissionedGameType {
+		if gameType == gameTypes.SuperCannonKonaGameType {
 			t.Run("Required-"+gameType.String(), func(t *testing.T) {
 				verifyArgsInvalid(t,
 					"flag network or rollup-config/cannon-kona-rollup-config, l2-genesis/cannon-kona-l2-genesis and depset-config/cannon-kona-depset-config is required",
@@ -803,7 +797,7 @@ func TestRollupRpc(t *testing.T) {
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
 
-		if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonKonaGameType {
 			t.Run(fmt.Sprintf("NotRequiredFor-%v", gameType), func(t *testing.T) {
 				configForArgs(t, addRequiredArgsExcept(gameType, "--rollup-rpc"))
 			})
@@ -986,7 +980,7 @@ func requiredArgs(gameType gameTypes.GameType) map[string]string {
 		addRequiredCannonArgs(args)
 	case gameTypes.CannonKonaGameType:
 		addRequiredCannonKonaArgs(args)
-	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
+	case gameTypes.SuperCannonKonaGameType:
 		addRequiredSuperCannonKonaArgs(args)
 	case gameTypes.ZKDisputeGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType:
 		addRequiredOutputRootArgs(args)

@@ -195,13 +195,6 @@ func WithSuperCannonKonaGameType() Option {
 	}
 }
 
-func WithSuperPermissionedGameType() Option {
-	return func(_ context.Context, c *config.Config) error {
-		c.GameTypes = append(c.GameTypes, gameTypes.SuperPermissionedGameType)
-		return nil
-	}
-}
-
 func WithFastGames() Option {
 	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.FastGameType)

@@ -37,7 +37,6 @@ var SupportedGameTypes = []GameType{
 	PermissionedGameType,
 	FastGameType,
 	SuperCannonKonaGameType,
-	SuperPermissionedGameType,
 	ZKDisputeGameType,
 }
 
