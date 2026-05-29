@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
@@ -65,6 +66,20 @@ func (c *Conductor) FetchLeader() *consensus.ServerInfo {
 	c.log.Info("Fetched leader information",
 		"leaderInfo", leaderInfo)
 	return leaderInfo
+}
+
+// FetchLatestUnsafePayload returns the latest unsafe payload recorded in the
+// conductor's consensus layer. With reorg-recovery enabled this value is
+// non-monotonic (it can move backward on a reorg).
+func (c *Conductor) FetchLatestUnsafePayload() *eth.ExecutionPayloadEnvelope {
+	c.log.Debug("Fetching latest unsafe payload")
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	payload, err := retry.Do(ctx, 2, retry.Fixed(500*time.Millisecond), func() (*eth.ExecutionPayloadEnvelope, error) {
+		return c.inner.RpcAPI().LatestUnsafePayload(ctx)
+	})
+	c.require.NoError(err, "Failed to fetch latest unsafe payload")
+	return payload
 }
 
 func (c *Conductor) FetchSequencerHealthy() bool {

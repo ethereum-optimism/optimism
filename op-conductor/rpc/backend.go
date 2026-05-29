@@ -28,6 +28,7 @@ type conductor interface {
 	TransferLeader(ctx context.Context) error
 	TransferLeaderToServer(ctx context.Context, id string, addr string) error
 	CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
+	LatestUnsafePayload(ctx context.Context) (*eth.ExecutionPayloadEnvelope, error)
 	ClusterMembership(ctx context.Context) (*consensus.ClusterMembership, error)
 }
 
@@ -97,6 +98,11 @@ func (api *APIBackend) DemoteVoter(ctx context.Context, id string, version uint6
 // CommitUnsafePayload implements API.
 func (api *APIBackend) CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return api.con.CommitUnsafePayload(ctx, payload)
+}
+
+// LatestUnsafePayload implements API.
+func (api *APIBackend) LatestUnsafePayload(ctx context.Context) (*eth.ExecutionPayloadEnvelope, error) {
+	return api.con.LatestUnsafePayload(ctx)
 }
 
 // Leader implements API, returns true if current conductor is leader of the cluster.
