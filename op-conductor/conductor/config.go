@@ -105,6 +105,17 @@ type Config struct {
 
 	// RoundRobinLeaderTransfer enables deterministic round-robin leader transfer.
 	RoundRobinLeaderTransfer bool
+
+	// ReorgRecoveryEnabled gates the entire reth reorg-recovery behavior change.
+	// When true, the FSM forward-only unsafe-head guard is bypassed (last-write-wins)
+	// and op-conductor subscribes to op-reth reorg notifications via ExecutionWSURL.
+	// This flag changes Raft FSM apply semantics and MUST be set identically on every
+	// conductor in the cluster (all-on or all-off). Defaults OFF (byte-for-byte today).
+	ReorgRecoveryEnabled bool
+
+	// ExecutionWSURL is the WebSocket URL for the execution layer (op-reth) reorg
+	// subscription. Required when ReorgRecoveryEnabled is true.
+	ExecutionWSURL string
 }
 
 // Check validates the CLIConfig.
@@ -132,6 +143,9 @@ func (c *Config) Check() error {
 	}
 	if c.RollupBoostNextEnabled && c.RollupBoostNextHealthcheckURL == "" {
 		return fmt.Errorf("missing rollup-boost next healthcheck URL")
+	}
+	if c.ReorgRecoveryEnabled && c.ExecutionWSURL == "" {
+		return fmt.Errorf("reorg-recovery enabled but missing execution WS URL (--execution.ws-url)")
 	}
 	if err := c.HealthCheck.Check(); err != nil {
 		return fmt.Errorf("invalid health check config: %w", err)
@@ -214,6 +228,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RPC:                 oprpc.ReadCLIConfig(ctx),
 		// RoundRobinLeaderTransfer enables deterministic round-robin leader transfer.
 		RoundRobinLeaderTransfer: ctx.Bool(flags.RoundRobinLeaderTransfer.Name),
+		ReorgRecoveryEnabled:     ctx.Bool(flags.ReorgRecoveryEnabled.Name),
+		ExecutionWSURL:           ctx.String(flags.ExecutionWSURL.Name),
 	}, nil
 }
 

@@ -60,6 +60,7 @@ func testSetMaxDASize(t *testing.T, compliantSequencer bool, sequencerDown bool)
 		&clientmocks.SequencerControl{}, // not used in this test
 		&consensusmocks.Consensus{},     // not used in this test
 		&healthmocks.HealthMonitor{},    // not used in this test
+		nil,                             // elClient not used in this test
 	)
 	require.NoError(t, err)
 
