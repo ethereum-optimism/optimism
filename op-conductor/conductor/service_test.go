@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/chainevents"
 	clientmocks "github.com/ethereum-optimism/optimism/op-conductor/client/mocks"
 	consensusmocks "github.com/ethereum-optimism/optimism/op-conductor/consensus/mocks"
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
@@ -504,6 +505,103 @@ func (s *OpConductorTestSuite) TestStartSequencerConsensusBehindNodeFailsSafe() 
 	s.False(s.conductor.seqActive.Load())
 	s.ctrl.AssertNotCalled(s.T(), "PostUnsafePayload", mock.Anything, mock.Anything)
 	s.ctrl.AssertNotCalled(s.T(), "StartSequencer", mock.Anything, mock.Anything)
+}
+
+// mockELClient is a hand-rolled ELClient for handleReorgEvent tests.
+type mockELClient struct {
+	head                eth.BlockInfo
+	headErr             error
+	payload             *eth.ExecutionPayloadEnvelope
+	payloadErr          error
+	infoByLabelCalls    int
+	payloadByHashCalls  int
+	payloadByHashArgHsh common.Hash
+}
+
+func (m *mockELClient) InfoByLabel(_ context.Context, _ eth.BlockLabel) (eth.BlockInfo, error) {
+	m.infoByLabelCalls++
+	return m.head, m.headErr
+}
+
+func (m *mockELClient) PayloadByHash(_ context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	m.payloadByHashCalls++
+	m.payloadByHashArgHsh = hash
+	return m.payload, m.payloadErr
+}
+
+func reorgTestPayload(number uint64, hash common.Hash) *eth.ExecutionPayloadEnvelope {
+	return &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: hexutil.Uint64(number),
+			BlockHash:   hash,
+		},
+	}
+}
+
+// TestHandleReorgEventCommitsELHead: as leader, the handler reads the EL head and
+// commits the fetched payload via CommitUnsafePayload.
+func (s *OpConductorTestSuite) TestHandleReorgEventCommitsELHead() {
+	headHash := common.HexToHash("0xabc")
+	payload := reorgTestPayload(5, headHash)
+	el := &mockELClient{head: &testutils.MockBlockInfo{InfoNum: 5, InfoHash: headHash}, payload: payload}
+	s.conductor.elClient = el
+	s.conductor.leaderOverride.Store(true) // force leader without a cons.Leader expectation
+
+	s.cons.EXPECT().CommitUnsafePayload(payload).Return(nil).Times(1)
+
+	s.conductor.handleReorgEvent(s.ctx, chainevents.ReorgEvent{NewTipNumber: 5, HasNewTip: true})
+
+	s.Equal(1, el.infoByLabelCalls)
+	s.Equal(1, el.payloadByHashCalls)
+	s.Equal(headHash, el.payloadByHashArgHsh, "must fetch the EL head hash, not a notified hash")
+	s.cons.AssertNumberOfCalls(s.T(), "CommitUnsafePayload", 1)
+}
+
+// TestHandleReorgEventNonLeaderNoCommit: a non-leader observes but never commits.
+func (s *OpConductorTestSuite) TestHandleReorgEventNonLeaderNoCommit() {
+	el := &mockELClient{head: &testutils.MockBlockInfo{InfoNum: 5, InfoHash: common.HexToHash("0xabc")}}
+	s.conductor.elClient = el
+	s.conductor.leaderOverride.Store(false)
+	s.cons.EXPECT().Leader().Return(false).Times(1)
+
+	s.conductor.handleReorgEvent(s.ctx, chainevents.ReorgEvent{NewTipNumber: 5, HasNewTip: true})
+
+	s.Equal(0, el.infoByLabelCalls, "non-leader must not read the EL")
+	s.Equal(0, el.payloadByHashCalls)
+	s.cons.AssertNotCalled(s.T(), "CommitUnsafePayload", mock.Anything)
+}
+
+// TestHandleReorgEventInfoByLabelErrorNoCommit: an EL head-read failure aborts before
+// fetching or committing.
+func (s *OpConductorTestSuite) TestHandleReorgEventInfoByLabelErrorNoCommit() {
+	el := &mockELClient{headErr: errors.New("el down")}
+	s.conductor.elClient = el
+	s.conductor.leaderOverride.Store(true)
+
+	s.conductor.handleReorgEvent(s.ctx, chainevents.ReorgEvent{NewTipNumber: 5, HasNewTip: true})
+
+	s.Equal(1, el.infoByLabelCalls)
+	s.Equal(0, el.payloadByHashCalls, "must not fetch a payload when the head read failed")
+	s.cons.AssertNotCalled(s.T(), "CommitUnsafePayload", mock.Anything)
+}
+
+// TestHandleReorgEventNumberMismatchStillCommits: when the EL head number differs from
+// the notification tip (the label-lag race diagnostic), the handler still commits the
+// EL head — reorgs can recur at the same height, so we never skip.
+func (s *OpConductorTestSuite) TestHandleReorgEventNumberMismatchStillCommits() {
+	headHash := common.HexToHash("0xdef")
+	payload := reorgTestPayload(4, headHash)
+	el := &mockELClient{head: &testutils.MockBlockInfo{InfoNum: 4, InfoHash: headHash}, payload: payload}
+	s.conductor.elClient = el
+	s.conductor.leaderOverride.Store(true)
+
+	s.cons.EXPECT().CommitUnsafePayload(payload).Return(nil).Times(1)
+
+	// Notification says tip 5, EL head is 4 — mismatch, but we still commit the EL head.
+	s.conductor.handleReorgEvent(s.ctx, chainevents.ReorgEvent{NewTipNumber: 5, HasNewTip: true})
+
+	s.Equal(1, el.payloadByHashCalls)
+	s.cons.AssertNumberOfCalls(s.T(), "CommitUnsafePayload", 1)
 }
 
 // In this test, we have a follower that is healthy and not sequencing, we send a unhealthy update to it and expect it to stay as follower and not start sequencing.
