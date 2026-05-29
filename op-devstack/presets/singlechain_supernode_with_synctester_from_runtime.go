@@ -109,5 +109,6 @@ func singleSupernodeWithSyncTesterFromRuntime(t devtest.T, runtime *sysgo.MultiC
 		DelaySeconds:          runtime.DelaySeconds,
 	}
 	preset.SupernodeCL.ManagePeer(preset.L2CL)
+	preset.Supernode.ManageVN(preset.SupernodeCL)
 	return preset
 }

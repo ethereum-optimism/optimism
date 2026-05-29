@@ -141,7 +141,18 @@ const minimalWithConductorsPresetSupportedOptionKinds = optionKindDeployer |
 const simpleWithSyncTesterPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
 	optionKindGlobalSyncTesterEL
 
-const singleSupernodeWithSyncTesterPresetSupportedOptionKinds = simpleWithSyncTesterPresetSupportedOptionKinds |
+// singleSupernodeWithSyncTesterPresetSupportedOptionKinds covers exactly what
+// the runtime in singlechain_supernode_synctester_variant.go actually wires.
+// Proposer / game-type / proof-validation options are intentionally excluded:
+// this preset has no proposer and no dispute game surface, so accepting them
+// would be a silent no-op footgun.
+const singleSupernodeWithSyncTesterPresetSupportedOptionKinds = optionKindDeployer |
+	optionKindBatcher |
+	optionKindGlobalL2CL |
+	optionKindGlobalSyncTesterEL |
+	optionKindL1EL |
+	optionKindTimeTravel |
+	optionKindAfterBuild |
 	optionKindSupernodeVerifierSyncMode |
 	optionKindInteropActivationDelay
 
