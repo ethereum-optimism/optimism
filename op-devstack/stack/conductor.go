@@ -10,4 +10,8 @@ type Conductor interface {
 	ChainID() eth.ChainID
 
 	RpcAPI() conductorRpc.API
+
+	// MetricsEndpoint returns the conductor's HTTP metrics endpoint, or "" if metrics
+	// are not exposed.
+	MetricsEndpoint() string
 }

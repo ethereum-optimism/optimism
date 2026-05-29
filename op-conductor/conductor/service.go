@@ -619,6 +619,15 @@ func (oc *OpConductor) HTTPEndpoint() string {
 	return fmt.Sprintf("http://%s", oc.rpcServer.Endpoint())
 }
 
+// MetricsEndpoint returns the HTTP metrics endpoint, or "" if the metrics server
+// is not running.
+func (oc *OpConductor) MetricsEndpoint() string {
+	if oc.metricsServer == nil {
+		return ""
+	}
+	return oc.metricsServer.HTTPEndpoint()
+}
+
 func (oc *OpConductor) OverrideLeader(override bool) {
 	oc.leaderOverride.Store(override)
 }

@@ -447,18 +447,20 @@ func (r *supernodeFrontend) QueryAPI() apis.SupernodeQueryAPI {
 
 type conductorFrontend struct {
 	presetCommon
-	chainID eth.ChainID
-	api     conductorRpc.API
+	chainID         eth.ChainID
+	api             conductorRpc.API
+	metricsEndpoint string
 }
 
 var _ stack.Conductor = (*conductorFrontend)(nil)
 
-func newPresetConductor(t devtest.T, name string, chainID eth.ChainID, rpcCl *gethrpc.Client) *conductorFrontend {
+func newPresetConductor(t devtest.T, name string, chainID eth.ChainID, rpcCl *gethrpc.Client, metricsEndpoint string) *conductorFrontend {
 	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
 	return &conductorFrontend{
-		presetCommon: newPresetCommon(t, name),
-		chainID:      chainID,
-		api:          conductorRpc.NewAPIClient(rpcCl),
+		presetCommon:    newPresetCommon(t, name),
+		chainID:         chainID,
+		api:             conductorRpc.NewAPIClient(rpcCl),
+		metricsEndpoint: metricsEndpoint,
 	}
 }
 
@@ -468,6 +470,10 @@ func (r *conductorFrontend) ChainID() eth.ChainID {
 
 func (r *conductorFrontend) RpcAPI() conductorRpc.API {
 	return r.api
+}
+
+func (r *conductorFrontend) MetricsEndpoint() string {
+	return r.metricsEndpoint
 }
 
 type faucetFrontend struct {
