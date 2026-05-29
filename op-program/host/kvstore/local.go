@@ -60,8 +60,8 @@ func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
 		}
 		return json.Marshal(s.config.Rollups[0])
 	case dependencySetKey:
-		if s.config.DependencySet == nil {
-			return nil, errors.New("host is not configured with a dependency set")
+		if !s.config.InteropEnabled {
+			return nil, errors.New("host is not configured to serve dependencySet local keys")
 		}
 		return json.Marshal(s.config.DependencySet)
 	case l1ChainConfigKey:

@@ -133,7 +133,7 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 			"activation-block tx %d reverted", i)
 	}
 
-	// Fork-specific post-activation assertions. Interop's multi-chain case lives in [TestInteropActivation_MultiChain].
+	// Fork-specific post-activation assertions.
 	switch fork {
 	case forks.Karst:
 		assertKarstActivation(t, env, actHeader)
@@ -149,6 +149,16 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	l2SafeHead := env.Sequencer.L2Safe()
 	require.Equal(t, bigs.Uint64Strict(actHeader.Number), l2SafeHead.Number,
 		"safe head must be exactly the %s activation block", fork)
+
+	// Skip the fault-proof step for Interop until the depset wiring lands in
+	// op-program and kona-host single (tracked in
+	// https://github.com/ethereum-optimism/optimism/issues/21114, item 4).
+	// The activation transition itself is covered by
+	// TestInteropFaultProofs_ActivationBoundary in op-acceptance-tests via
+	// kona-host super.
+	if fork == forks.Interop {
+		return
+	}
 
 	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 }

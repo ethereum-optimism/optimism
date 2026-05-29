@@ -23,7 +23,7 @@ func RunPreInteropProgram(
 		logger,
 		bootInfo.RollupConfig,
 		bootInfo.L1ChainConfig,
-		bootInfo.DependencySet,
+		nil, // No dependency set pre-interop
 		bootInfo.L2ChainConfig,
 		bootInfo.L1Head,
 		bootInfo.L2OutputRoot,

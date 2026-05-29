@@ -46,21 +46,6 @@ type L2FaultProofEnv struct {
 type DeployConfigOverride func(*genesis.DeployConfig)
 
 func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eutils.TestParams, batcherCfg *helpers.BatcherCfg, deployConfigOverrides ...DeployConfigOverride) *L2FaultProofEnv {
-	return newL2FaultProofEnv(t, testCfg, tp, batcherCfg, nil, nil, deployConfigOverrides...)
-}
-
-// PostSetupHook runs after [e2eutils.Setup] and before the L2 engine is started, so callers may mutate
-// genesis state (for example, seeding predeploy storage slots) that needs to be in place at block 0.
-type PostSetupHook func(sd *e2eutils.SetupData)
-
-// NewL2FaultProofEnvWithDepSet is [NewL2FaultProofEnv] with a caller-supplied depset overriding the single-chain default,
-// plus an optional [PostSetupHook] for genesis-state mutations the engine must observe at startup.
-func NewL2FaultProofEnvWithDepSet[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eutils.TestParams, batcherCfg *helpers.BatcherCfg, depSet depset.DependencySet, postSetup PostSetupHook, deployConfigOverrides ...DeployConfigOverride) *L2FaultProofEnv {
-	require.NotNil(t, depSet, "NewL2FaultProofEnvWithDepSet requires a non-nil depset; use NewL2FaultProofEnv for the default")
-	return newL2FaultProofEnv(t, testCfg, tp, batcherCfg, depSet, postSetup, deployConfigOverrides...)
-}
-
-func newL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eutils.TestParams, batcherCfg *helpers.BatcherCfg, customDepSet depset.DependencySet, postSetup PostSetupHook, deployConfigOverrides ...DeployConfigOverride) *L2FaultProofEnv {
 	log, logs := testlog.CaptureLogger(t, log.LevelDebug)
 
 	dp := NewDeployParams(t, tp, func(dp *e2eutils.DeployParams) {
@@ -81,11 +66,6 @@ func newL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	}
 
 	sd := e2eutils.Setup(t, dp, genesisAlloc)
-	if postSetup != nil {
-		postSetup(sd)
-		// Re-derive the rollup config's L2 genesis hash from the mutated L2Cfg
-		sd.RollupCfg.Genesis.L2.Hash = sd.L2Cfg.ToBlock().Hash()
-	}
 
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 
@@ -97,10 +77,9 @@ func newL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	l2EngineCl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	switch {
-	case customDepSet != nil:
-		sd.DependencySet = customDepSet
-	case sd.RollupCfg.InteropTime != nil && sd.DependencySet == nil:
+	// Synthesise a one-chain depset when interop is scheduled; the sequencer's
+	// FetchingAttributesBuilder constructor panics otherwise.
+	if sd.RollupCfg.InteropTime != nil && sd.DependencySet == nil {
 		defaultDepSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 			eth.ChainIDFromBig(sd.RollupCfg.L2ChainID): {},
 		})
@@ -200,9 +179,6 @@ func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, f
 	for l2ClaimBlockNum <= finalL2BlockNum { // l2ClaimBlockNum = 0, finalL2BlockNum = 0 is a valid case
 		defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
 		combinedParams := []FixtureInputParam{defaultParam}
-		if depSet, ok := env.Sd.DependencySet.(*depset.StaticConfigDependencySet); ok {
-			combinedParams = append(combinedParams, WithDependencySet(depSet))
-		}
 		combinedParams = append(combinedParams, fixtureInputParams...)
 		RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)
 		l2ClaimBlockNum++
@@ -213,9 +189,6 @@ func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, f
 func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
 	combinedParams := []FixtureInputParam{defaultParam}
-	if depSet, ok := env.Sd.DependencySet.(*depset.StaticConfigDependencySet); ok {
-		combinedParams = append(combinedParams, WithDependencySet(depSet))
-	}
 	combinedParams = append(combinedParams, fixtureInputParams...)
 	RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)
 }
@@ -268,7 +241,6 @@ func NewOpProgramCfg(
 
 	dfault := config.NewConfig(rollupConfigs, l2chainConfigs, l1chainConfig, fi.L1Head, fi.L2Head, fi.L2OutputRoot, fi.L2Claim, fi.L2BlockNumber)
 	dfault.L2ChainID = boot.CustomChainIDIndicator
-	dfault.DependencySet = fi.DependencySet
 	return dfault
 }
 

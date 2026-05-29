@@ -1,7 +1,7 @@
 //! Single-chain fault proof program entrypoint.
 
 use crate::fpvm_evm::FpvmOpEvmFactory;
-use alloc::{collections::BTreeMap, sync::Arc};
+use alloc::sync::Arc;
 use alloy_consensus::Sealed;
 use alloy_op_evm::post_exec::PostExecEvmFactoryAdapter;
 use alloy_primitives::B256;
@@ -9,7 +9,6 @@ use core::fmt::Debug;
 use kona_derive::{EthereumDataSource, PipelineErrorKind};
 use kona_driver::{Driver, DriverError};
 use kona_executor::{ExecutorError, TrieDBProvider};
-use kona_interop::{ChainDependency, DependencySet};
 use kona_preimage::{CommsClient, HintWriterClient, PreimageKey, PreimageOracleClient};
 use kona_proof::{
     BootInfo, CachingOracle, HintType,
@@ -134,13 +133,6 @@ where
         PostExecEvmFactoryAdapter::new(FpvmOpEvmFactory::new(hint_client, oracle_client));
     let da_provider =
         EthereumDataSource::new_from_parts(l1_provider.clone(), beacon, &rollup_config);
-    // Single-chain depset = the chain itself; matches op-node's single-chain branch.
-    let dependency_set = rollup_config.hardforks.interop_time.map(|_| {
-        Arc::new(DependencySet {
-            dependencies: BTreeMap::from([(rollup_config.l2_chain_id.id(), ChainDependency {})]),
-            override_message_expiry_window: None,
-        })
-    });
     let pipeline = OraclePipeline::new(
         rollup_config.clone(),
         l1_config.into(),
@@ -149,7 +141,10 @@ where
         da_provider,
         l1_provider.clone(),
         l2_provider.clone(),
-        dependency_set,
+        // Single-chain fault proof: no interop dependency set. If this chain
+        // ever schedules interop, the StatefulAttributesBuilder constructor
+        // will panic.
+        None,
     )
     .await?;
 
