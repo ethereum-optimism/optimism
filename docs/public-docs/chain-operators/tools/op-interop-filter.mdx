@@ -17,8 +17,6 @@ audit-source:
   op-interop-filter is the service chain operators will run to validate interop transactions for the execution layer, and the interfaces described here may continue to evolve as the rollout progresses.
 </Info>
 
-# OP Interop Filter
-
 *op-interop-filter* is a lightweight service that validates interop executing messages so that an execution layer (EL) client — op-reth — can reject invalid cross-chain transactions before they reach the sequencer's transaction pool.
 
 It is the service a chain operator runs to answer the `interop_checkAccessList` RPC that the EL calls on every interop transaction.
