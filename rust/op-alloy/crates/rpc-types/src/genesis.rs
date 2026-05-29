@@ -52,7 +52,10 @@ pub struct OpGenesisInfo {
     pub holocene_time: Option<u64>,
     /// isthmus hardfork timestamp
     pub isthmus_time: Option<u64>,
-    /// interop hardfork timestamp
+    /// lagoon hardfork timestamp (formerly "interop"). Accepts the legacy `interopTime` key
+    /// in genesis JSON because op-geth's `params.ChainConfig.InteropTime` is still serialized
+    /// as `interopTime`. Mirrors the Go-side carveout.
+    #[serde(alias = "interopTime")]
     pub lagoon_time: Option<u64>,
     /// jovian hardfork timestamp
     pub jovian_time: Option<u64>,
