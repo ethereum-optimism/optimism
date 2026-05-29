@@ -48,7 +48,7 @@ type SequencerStateListener interface {
 }
 
 type SequencerSdmListener interface {
-	SetSdmEnabled(enabled bool) error
+	SetSdmPostExecOptIn(enabled bool) error
 }
 
 type AsyncGossiper interface {
@@ -101,9 +101,9 @@ type Sequencer struct {
 
 	recoverMode atomic.Bool
 
-	// sdmDesiredEnabled identifies whether the operator wants local SDM/PostExec sequencing enabled.
+	// sdmPostExecOptIn identifies whether the operator wants local SDM/PostExec sequencing enabled.
 	// The effective value is computed per block using the payload timestamp and rollup config.
-	sdmDesiredEnabled atomic.Bool
+	sdmPostExecOptIn atomic.Bool
 
 	// active identifies whether the sequencer is running.
 	// This is an atomic value, so it can be read without locking the whole sequencer.
@@ -762,14 +762,10 @@ func (d *Sequencer) forceStart() error {
 	return nil
 }
 
-func (d *Sequencer) SetSdmDesiredEnabled(enabled bool) {
-	d.sdmDesiredEnabled.Store(enabled)
-}
-
-func (d *Sequencer) SetSdmEnabled(ctx context.Context, enabled bool) error {
-	d.SetSdmDesiredEnabled(enabled)
+func (d *Sequencer) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
+	d.sdmPostExecOptIn.Store(enabled)
 	if d.sdmListener != nil {
-		if err := d.sdmListener.SetSdmEnabled(enabled); err != nil {
+		if err := d.sdmListener.SetSdmPostExecOptIn(enabled); err != nil {
 			return fmt.Errorf("failed to notify SDM-state listener of state change: %w", err)
 		}
 	}
@@ -777,12 +773,12 @@ func (d *Sequencer) SetSdmEnabled(ctx context.Context, enabled bool) error {
 }
 
 func (d *Sequencer) SdmStatus(ctx context.Context, nextBlockTimestamp uint64) (apis.SdmStatus, error) {
-	desired := d.sdmDesiredEnabled.Load()
+	optIn := d.sdmPostExecOptIn.Load()
 	protocolActive := d.rollupCfg.IsSDM(nextBlockTimestamp)
 	return apis.SdmStatus{
-		DesiredEnabled: desired,
+		PostExecOptIn:  optIn,
 		ProtocolActive: protocolActive,
-		Effective:      desired && protocolActive,
+		Effective:      optIn && protocolActive,
 		ActivationTime: d.rollupCfg.InteropTime,
 	}, nil
 }

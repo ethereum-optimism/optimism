@@ -4,7 +4,7 @@
 //! carry a PostExec tx — that's a consensus rule shared by every node. This module
 //! adds an orthogonal *operator* gate: even on an SDM-active chain, the local
 //! builder produces PostExec txs only when the operator has explicitly opted in
-//! via [`admin_setSdmEnabled`]. Both gates must be true.
+//! via [`admin_setSdmPostExecOptIn`]. Both gates must be true.
 //!
 //! State is in-memory and starts disabled on every process boot; persistence is
 //! deliberately out of scope.
@@ -34,8 +34,8 @@ pub type SdmPostExecOptInFlag = Arc<AtomicBool>;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SdmStatus {
-    /// Whether the operator has opted in via `admin_setSdmEnabled`.
-    pub desired_enabled: bool,
+    /// Whether the operator has opted in via `admin_setSdmPostExecOptIn`.
+    pub post_exec_opt_in: bool,
     /// Whether SDM is active per the chain spec at `query_timestamp`.
     pub protocol_active: bool,
     /// AND of the above — the actual decision the builder will make for a block
@@ -49,8 +49,8 @@ pub struct SdmStatus {
 #[cfg_attr(test, rpc(server, client, namespace = "admin"))]
 pub trait SdmAdminApi {
     /// Toggle local PostExec production. Starts disabled on process boot.
-    #[method(name = "setSdmEnabled")]
-    fn set_sdm_enabled(&self, enabled: bool) -> RpcResult<()>;
+    #[method(name = "setSdmPostExecOptIn")]
+    fn set_sdm_post_exec_opt_in(&self, enabled: bool) -> RpcResult<()>;
 
     /// Report the local opt-in flag, the chain-spec gate at `query_timestamp`,
     /// and the AND. If `query_timestamp` is omitted, uses the current wall-clock
@@ -72,7 +72,7 @@ impl SdmAdminExt {
 }
 
 impl SdmAdminApiServer for SdmAdminExt {
-    fn set_sdm_enabled(&self, enabled: bool) -> RpcResult<()> {
+    fn set_sdm_post_exec_opt_in(&self, enabled: bool) -> RpcResult<()> {
         self.opt_in.store(enabled, Ordering::Release);
         gauge!("op_rbuilder_flags_sdm_enabled").set(enabled as i32);
         Ok(())
@@ -80,16 +80,16 @@ impl SdmAdminApiServer for SdmAdminExt {
 
     fn sdm_status(&self, query_timestamp: Option<u64>) -> RpcResult<SdmStatus> {
         let timestamp = query_timestamp.unwrap_or_else(current_unix_timestamp);
-        let desired = self.opt_in.load(Ordering::Acquire);
+        let opt_in = self.opt_in.load(Ordering::Acquire);
         let protocol_active = self.chain_spec.is_interop_active_at_timestamp(timestamp);
         let activation_time = match self.chain_spec.op_fork_activation(OpHardfork::Interop) {
             ForkCondition::Timestamp(t) => Some(t),
             _ => None,
         };
         Ok(SdmStatus {
-            desired_enabled: desired,
+            post_exec_opt_in: opt_in,
             protocol_active,
-            effective: desired && protocol_active,
+            effective: opt_in && protocol_active,
             activation_time,
         })
     }

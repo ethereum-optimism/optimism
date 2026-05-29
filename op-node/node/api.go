@@ -36,7 +36,7 @@ type driverClient interface {
 	StartSequencer(ctx context.Context, blockHash common.Hash) error
 	StopSequencer(context.Context) (common.Hash, error)
 	SequencerActive(context.Context) (bool, error)
-	SetSdmEnabled(ctx context.Context, enabled bool) error
+	SetSdmPostExecOptIn(ctx context.Context, enabled bool) error
 	SdmStatus(ctx context.Context) (apis.SdmStatus, error)
 	OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope)
 	OverrideLeader(ctx context.Context) error
@@ -84,8 +84,8 @@ func (n *adminAPI) SequencerActive(ctx context.Context) (bool, error) {
 	return n.dr.SequencerActive(ctx)
 }
 
-func (n *adminAPI) SetSdmEnabled(ctx context.Context, enabled bool) error {
-	return n.dr.SetSdmEnabled(ctx, enabled)
+func (n *adminAPI) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
+	return n.dr.SetSdmPostExecOptIn(ctx, enabled)
 }
 
 func (n *adminAPI) SdmStatus(ctx context.Context) (apis.SdmStatus, error) {

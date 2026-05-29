@@ -217,7 +217,7 @@ pub struct OpNode {
     /// batcher via the `miner_` api)
     pub gas_limit_config: OpGasLimitConfig,
     /// Local operator opt-in for SDM `PostExec` production. Shared (via Arc clones) between the
-    /// payload builder and the `admin_setSdmEnabled` RPC handler.
+    /// payload builder and the `admin_setSdmPostExecOptIn` RPC handler.
     pub sdm_post_exec_opt_in: SdmPostExecOptIn,
 }
 
@@ -408,7 +408,7 @@ pub struct OpAddOns<
     pub da_config: OpDAConfig,
     /// Gas limit configuration for the OP builder.
     pub gas_limit_config: OpGasLimitConfig,
-    /// Shared SDM operator opt-in flag; mutated by the `admin_setSdmEnabled` RPC.
+    /// Shared SDM operator opt-in flag; mutated by the `admin_setSdmPostExecOptIn` RPC.
     pub sdm_post_exec_opt_in: SdmPostExecOptIn,
     /// Sequencer client, configured to forward submitted transactions to sequencer of given OP
     /// network.

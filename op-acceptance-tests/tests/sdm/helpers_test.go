@@ -68,12 +68,12 @@ var (
 )
 
 // setSDMEnabled toggles the local SDM PostExec production opt-in on an L2 EL via the
-// admin_setSdmEnabled RPC. SDM is disabled by default on every process boot; tests that
+// admin_setSdmPostExecOptIn RPC. SDM is disabled by default on every process boot; tests that
 // expect PostExec txs to flow must opt in explicitly on the sequencer's EL.
 func setSDMEnabled(t devtest.T, l2EL *dsl.L2ELNode, enabled bool) {
 	rpcClient := l2EL.Escape().L2EthClient().RPC()
-	err := rpcClient.CallContext(t.Ctx(), nil, "admin_setSdmEnabled", enabled)
-	t.Require().NoError(err, "admin_setSdmEnabled(%v) RPC failed", enabled)
+	err := rpcClient.CallContext(t.Ctx(), nil, "admin_setSdmPostExecOptIn", enabled)
+	t.Require().NoError(err, "admin_setSdmPostExecOptIn(%v) RPC failed", enabled)
 }
 
 // verifyOpReth checks the L2 execution layer client is op-reth by calling

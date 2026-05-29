@@ -81,8 +81,8 @@ func (r *RollupClient) SequencerActive(ctx context.Context) (bool, error) {
 	return result, err
 }
 
-func (r *RollupClient) SetSdmEnabled(ctx context.Context, enabled bool) error {
-	return r.rpc.CallContext(ctx, nil, "admin_setSdmEnabled", enabled)
+func (r *RollupClient) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
+	return r.rpc.CallContext(ctx, nil, "admin_setSdmPostExecOptIn", enabled)
 }
 
 func (r *RollupClient) SdmStatus(ctx context.Context) (apis.SdmStatus, error) {

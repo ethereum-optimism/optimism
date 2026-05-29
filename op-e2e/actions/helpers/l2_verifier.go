@@ -248,7 +248,7 @@ func (s *l2VerifierBackend) SequencerActive(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-func (s *l2VerifierBackend) SetSdmEnabled(ctx context.Context, enabled bool) error {
+func (s *l2VerifierBackend) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
 	return errors.New("SDM sequencing unsupported")
 }
 

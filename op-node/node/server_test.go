@@ -287,10 +287,10 @@ func TestAdminAPISdm(t *testing.T) {
 	dr := &mockDriverClient{}
 	api := NewAdminAPI(dr, testlog.Logger(t, log.LevelError))
 
-	dr.On("SetSdmEnabled", true).Once().Return(nil)
-	require.NoError(t, api.SetSdmEnabled(context.Background(), true))
+	dr.On("SetSdmPostExecOptIn", true).Once().Return(nil)
+	require.NoError(t, api.SetSdmPostExecOptIn(context.Background(), true))
 
-	expected := apis.SdmStatus{DesiredEnabled: true, ProtocolActive: false, Effective: false}
+	expected := apis.SdmStatus{PostExecOptIn: true, ProtocolActive: false, Effective: false}
 	dr.On("SdmStatus").Once().Return(expected)
 	actual, err := api.SdmStatus(context.Background())
 	require.NoError(t, err)
@@ -331,8 +331,8 @@ func (c *mockDriverClient) SequencerActive(ctx context.Context) (bool, error) {
 	return c.Mock.MethodCalled("SequencerActive").Get(0).(bool), nil
 }
 
-func (c *mockDriverClient) SetSdmEnabled(ctx context.Context, enabled bool) error {
-	out := c.Mock.MethodCalled("SetSdmEnabled", enabled).Get(0)
+func (c *mockDriverClient) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
+	out := c.Mock.MethodCalled("SetSdmPostExecOptIn", enabled).Get(0)
 	if out == nil {
 		return nil
 	}

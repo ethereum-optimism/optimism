@@ -129,7 +129,7 @@ pub struct BuilderConfig<Specific: Clone> {
 
     /// Local operator opt-in for SDM PostExec production. Combined with the chain-spec
     /// Interop gate in [`OpPayloadBuilderCtx::post_exec_mode`]; both must be true to
-    /// produce a PostExec tx. Mutated via the `admin_setSdmEnabled` RPC.
+    /// produce a PostExec tx. Mutated via the `admin_setSdmPostExecOptIn` RPC.
     pub sdm_post_exec_opt_in: crate::sdm_admin::SdmPostExecOptInFlag,
 }
 

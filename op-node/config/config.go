@@ -106,10 +106,10 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 	} else {
 		log.Info("No persisted sequencer state loaded")
 	}
-	if enabled, set, err := cfg.ConfigPersistence.SdmEnabled(); err != nil {
+	if enabled, set, err := cfg.ConfigPersistence.SdmPostExecOptIn(); err != nil {
 		return err
 	} else if set {
-		cfg.Driver.SdmEnabled = enabled
+		cfg.Driver.SdmPostExecOptIn = enabled
 	} else {
 		log.Info("No persisted SDM state loaded")
 	}

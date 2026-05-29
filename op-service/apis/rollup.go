@@ -40,7 +40,7 @@ type RollupSafeAtServer interface {
 }
 
 type SdmStatus struct {
-	DesiredEnabled bool    `json:"desiredEnabled"`
+	PostExecOptIn  bool    `json:"postExecOptIn"`
 	ProtocolActive bool    `json:"protocolActive"`
 	Effective      bool    `json:"effective"`
 	ActivationTime *uint64 `json:"activationTime,omitempty"`
@@ -53,7 +53,7 @@ type SequencerActivity interface {
 }
 
 type SequencerSdmControl interface {
-	SetSdmEnabled(ctx context.Context, enabled bool) error
+	SetSdmPostExecOptIn(ctx context.Context, enabled bool) error
 	SdmStatus(ctx context.Context) (SdmStatus, error)
 }
 

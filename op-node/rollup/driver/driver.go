@@ -118,10 +118,12 @@ func NewDriver(
 
 		seq := sequencing.NewSequencer(driverCtx, log, cfg, driverCfg.SequencerSealingDuration, attrBuilder, findL1Origin,
 			sequencerStateListener, sequencerConductor, asyncGossiper, metrics, ec)
+		// Seed the persisted opt-in before attaching the listener so we don't write-back
+		// the value we just loaded. Without a listener attached, this call cannot fail.
+		_ = seq.SetSdmPostExecOptIn(driverCtx, driverCfg.SdmPostExecOptIn)
 		if sdmListener, ok := sequencerStateListener.(sequencing.SequencerSdmListener); ok {
 			seq.AttachSdmListener(sdmListener)
 		}
-		seq.SetSdmDesiredEnabled(driverCfg.SdmEnabled)
 		sequencer = seq
 		sys.Register("sequencer", sequencer)
 	} else {
@@ -396,8 +398,8 @@ func (s *Driver) SequencerActive(ctx context.Context) (bool, error) {
 	return s.sequencer.Active(), nil
 }
 
-func (s *Driver) SetSdmEnabled(ctx context.Context, enabled bool) error {
-	return s.sequencer.SetSdmEnabled(ctx, enabled)
+func (s *Driver) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
+	return s.sequencer.SetSdmPostExecOptIn(ctx, enabled)
 }
 
 func (s *Driver) SdmStatus(ctx context.Context) (apis.SdmStatus, error) {

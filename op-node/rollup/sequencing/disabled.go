@@ -41,7 +41,7 @@ func (ds DisabledSequencer) Stop(ctx context.Context) (hash common.Hash, err err
 	return common.Hash{}, ErrSequencerNotEnabled
 }
 
-func (ds DisabledSequencer) SetSdmEnabled(ctx context.Context, enabled bool) error {
+func (ds DisabledSequencer) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
 	return ErrSequencerNotEnabled
 }
 

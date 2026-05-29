@@ -3,7 +3,7 @@
 //! The protocol gate (chain spec Interop activation) is a consensus rule shared by every node.
 //! This module adds an orthogonal *operator* gate: even on an SDM-active chain, op-reth's
 //! standard payload builder produces `PostExec` txs only when the operator has explicitly opted
-//! in via `admin_setSdmEnabled`. Both gates must be true.
+//! in via `admin_setSdmPostExecOptIn`. Both gates must be true.
 //!
 //! State is in-memory and starts disabled on every process boot; persistence is deliberately
 //! out of scope.
@@ -23,8 +23,8 @@ use std::{
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SdmStatus {
-    /// Whether the operator has opted in via `admin_setSdmEnabled`.
-    pub desired_enabled: bool,
+    /// Whether the operator has opted in via `admin_setSdmPostExecOptIn`.
+    pub post_exec_opt_in: bool,
     /// Whether SDM is active per the chain spec at `query_timestamp`.
     pub protocol_active: bool,
     /// AND of the two gates.
@@ -37,8 +37,8 @@ pub struct SdmStatus {
 #[cfg_attr(test, rpc(server, client, namespace = "admin"))]
 pub trait SdmAdminApi {
     /// Toggle local `PostExec` production. Starts disabled on process boot.
-    #[method(name = "setSdmEnabled")]
-    fn set_sdm_enabled(&self, enabled: bool) -> RpcResult<()>;
+    #[method(name = "setSdmPostExecOptIn")]
+    fn set_sdm_post_exec_opt_in(&self, enabled: bool) -> RpcResult<()>;
 
     /// Report the local opt-in flag, the chain-spec gate at `query_timestamp`, and the AND.
     /// If `query_timestamp` is omitted, uses the current wall-clock time.
@@ -67,23 +67,23 @@ impl<ChainSpec> SdmAdminApiServer for OpSdmAdminApi<ChainSpec>
 where
     ChainSpec: OpHardforks + Send + Sync + 'static,
 {
-    fn set_sdm_enabled(&self, enabled: bool) -> RpcResult<()> {
+    fn set_sdm_post_exec_opt_in(&self, enabled: bool) -> RpcResult<()> {
         self.opt_in.set_enabled(enabled);
         Ok(())
     }
 
     fn sdm_status(&self, query_timestamp: Option<u64>) -> RpcResult<SdmStatus> {
         let timestamp = query_timestamp.unwrap_or_else(current_unix_timestamp);
-        let desired_enabled = self.opt_in.enabled();
+        let post_exec_opt_in = self.opt_in.enabled();
         let protocol_active = self.chain_spec.is_interop_active_at_timestamp(timestamp);
         let activation_time = match self.chain_spec.op_fork_activation(OpHardfork::Interop) {
             ForkCondition::Timestamp(t) => Some(t),
             _ => None,
         };
         Ok(SdmStatus {
-            desired_enabled,
+            post_exec_opt_in,
             protocol_active,
-            effective: desired_enabled && protocol_active,
+            effective: post_exec_opt_in && protocol_active,
             activation_time,
         })
     }

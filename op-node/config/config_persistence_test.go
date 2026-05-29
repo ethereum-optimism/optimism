@@ -61,21 +61,21 @@ func TestActive(t *testing.T) {
 		require.Equal(t, StateStopped, state)
 	})
 
-	t.Run("PersistSdmEnabled", func(t *testing.T) {
+	t.Run("PersistSdmPostExecOptIn", func(t *testing.T) {
 		config1 := create()
-		enabled, set, err := config1.SdmEnabled()
+		enabled, set, err := config1.SdmPostExecOptIn()
 		require.NoError(t, err)
 		require.False(t, enabled)
 		require.False(t, set)
 
-		require.NoError(t, config1.SetSdmEnabled(true))
-		enabled, set, err = config1.SdmEnabled()
+		require.NoError(t, config1.SetSdmPostExecOptIn(true))
+		enabled, set, err = config1.SdmPostExecOptIn()
 		require.NoError(t, err)
 		require.True(t, enabled)
 		require.True(t, set)
 
 		config2 := NewConfigPersistence(config1.file)
-		enabled, set, err = config2.SdmEnabled()
+		enabled, set, err = config2.SdmPostExecOptIn()
 		require.NoError(t, err)
 		require.True(t, enabled)
 		require.True(t, set)
@@ -84,12 +84,12 @@ func TestActive(t *testing.T) {
 	t.Run("MergeSdmAndSequencerState", func(t *testing.T) {
 		config := create()
 		require.NoError(t, config.SequencerStarted())
-		require.NoError(t, config.SetSdmEnabled(true))
+		require.NoError(t, config.SetSdmPostExecOptIn(true))
 
 		state, err := config.SequencerState()
 		require.NoError(t, err)
 		require.Equal(t, StateStarted, state)
-		enabled, set, err := config.SdmEnabled()
+		enabled, set, err := config.SdmPostExecOptIn()
 		require.NoError(t, err)
 		require.True(t, enabled)
 		require.True(t, set)
@@ -98,7 +98,7 @@ func TestActive(t *testing.T) {
 		state, err = config.SequencerState()
 		require.NoError(t, err)
 		require.Equal(t, StateStopped, state)
-		enabled, set, err = config.SdmEnabled()
+		enabled, set, err = config.SdmPostExecOptIn()
 		require.NoError(t, err)
 		require.True(t, enabled)
 		require.True(t, set)
@@ -107,7 +107,7 @@ func TestActive(t *testing.T) {
 		require.NoError(t, err)
 		var persisted map[string]bool
 		require.NoError(t, json.Unmarshal(data, &persisted))
-		require.Equal(t, map[string]bool{"sequencerStarted": false, "sdmEnabled": true}, persisted)
+		require.Equal(t, map[string]bool{"sequencerStarted": false, "sdmPostExecOptIn": true}, persisted)
 	})
 
 	t.Run("CreateParentDirs", func(t *testing.T) {
@@ -145,8 +145,8 @@ func TestDisabledConfigPersistence_AlwaysUnset(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, StateUnset, state)
 
-	require.NoError(t, config.SetSdmEnabled(true))
-	enabled, set, err := config.SdmEnabled()
+	require.NoError(t, config.SetSdmPostExecOptIn(true))
+	enabled, set, err := config.SdmPostExecOptIn()
 	require.NoError(t, err)
 	require.False(t, enabled)
 	require.False(t, set)

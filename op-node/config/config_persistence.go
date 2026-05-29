@@ -20,15 +20,15 @@ const (
 
 type persistedState struct {
 	SequencerStarted *bool `json:"sequencerStarted,omitempty"`
-	SdmEnabled       *bool `json:"sdmEnabled,omitempty"`
+	SdmPostExecOptIn *bool `json:"sdmPostExecOptIn,omitempty"`
 }
 
 type ConfigPersistence interface {
 	SequencerStarted() error
 	SequencerStopped() error
 	SequencerState() (RunningState, error)
-	SetSdmEnabled(enabled bool) error
-	SdmEnabled() (enabled bool, set bool, err error)
+	SetSdmPostExecOptIn(enabled bool) error
+	SdmPostExecOptIn() (enabled bool, set bool, err error)
 }
 
 var _ ConfigPersistence = (*ActiveConfigPersistence)(nil)
@@ -59,9 +59,9 @@ func (p *ActiveConfigPersistence) SequencerStopped() error {
 	})
 }
 
-func (p *ActiveConfigPersistence) SetSdmEnabled(enabled bool) error {
+func (p *ActiveConfigPersistence) SetSdmPostExecOptIn(enabled bool) error {
 	return p.persist(func(state *persistedState) {
-		state.SdmEnabled = boolPtr(enabled)
+		state.SdmPostExecOptIn = boolPtr(enabled)
 	})
 }
 
@@ -127,15 +127,15 @@ func (p *ActiveConfigPersistence) SequencerState() (RunningState, error) {
 	}
 }
 
-func (p *ActiveConfigPersistence) SdmEnabled() (bool, bool, error) {
+func (p *ActiveConfigPersistence) SdmPostExecOptIn() (bool, bool, error) {
 	config, err := p.read()
 	if err != nil {
 		return false, false, err
 	}
-	if config.SdmEnabled == nil {
+	if config.SdmPostExecOptIn == nil {
 		return false, false, nil
 	}
-	return *config.SdmEnabled, true, nil
+	return *config.SdmPostExecOptIn, true, nil
 }
 
 func (p *ActiveConfigPersistence) read() (persistedState, error) {
@@ -178,10 +178,10 @@ func (d DisabledConfigPersistence) SequencerStopped() error {
 	return nil
 }
 
-func (d DisabledConfigPersistence) SetSdmEnabled(enabled bool) error {
+func (d DisabledConfigPersistence) SetSdmPostExecOptIn(enabled bool) error {
 	return nil
 }
 
-func (d DisabledConfigPersistence) SdmEnabled() (bool, bool, error) {
+func (d DisabledConfigPersistence) SdmPostExecOptIn() (bool, bool, error) {
 	return false, false, nil
 }
