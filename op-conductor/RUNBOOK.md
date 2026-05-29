@@ -31,7 +31,32 @@ OP_CONDUCTOR_HEALTHCHECK_INTERVAL=<healthcheck-interval> # in seconds
 OP_CONDUCTOR_HEALTHCHECK_UNSAFE_INTERVAL=<unsafe-interval> # Interval allowed between unsafe head and now measured in seconds
 OP_CONDUCTOR_HEALTHCHECK_MIN_PEER_COUNT=<min-peer-count> # minimum number of peers required to be considered healthy
 OP_CONDUCTOR_RAFT_BOOTSTRAP=true/false # set to true if you want to bootstrap the raft cluster
+
+# Reorg recovery (optional, op-reth only). Both must be set together.
+OP_CONDUCTOR_REORG_RECOVERY_ENABLED=true/false # default false
+OP_CONDUCTOR_EXECUTION_WS_URL=<execution-ws-url> # for example, ws://op-reth:8546 ; required when reorg-recovery is enabled
 ```
+
+#### Reorg recovery (`OP_CONDUCTOR_REORG_RECOVERY_ENABLED`)
+
+When enabled, op-conductor subscribes to its op-reth's
+`reth_subscribeChainNotifications` (over `OP_CONDUCTOR_EXECUTION_WS_URL`) and, on a
+reorg, moves the recorded unsafe head backward to follow the EL — relaxing the default
+"no unsafe reorgs" guarantee. Requirements and constraints:
+
+- **op-reth only.** The op-reth pod must enable `--ws` and include `reth` in `--ws.api`.
+  The WS endpoint must be bound **pod-local / cluster-internal** — with the FSM guard
+  bypassed, this signal is part of the consensus trust boundary, and the `reth`
+  namespace must not expose unrelated admin methods.
+- **MUST be fleet-uniform.** The flag changes Raft FSM apply semantics, so it MUST be
+  set **identically on every conductor in the cluster — all-on or all-off, never
+  mixed.** A mixed setting causes silent Raft FSM divergence with no in-protocol
+  detection.
+- **A toggle is a coordinated, state-incompatible event.** Raft snapshots and logs are
+  not portable across a flag flip (a backward entry applies differently under each flag
+  value). Enabling or disabling is **not** a hot-flip: follow the
+  "Redeploy a HA sequencer" / "Disaster recovery" procedures below and treat it as a
+  single coordinated version + config change across the whole cluster.
 
 ### How to bootstrap a sequencer cluster from scratch
 

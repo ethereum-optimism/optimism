@@ -25,7 +25,9 @@ all participating nodes are honest and act correctly.
 
 The design of the `op-conductor` provides the following guarantees:
 
-*   **No Unsafe Reorgs**
+*   **No Unsafe Reorgs** (default). With `--reorg-recovery.enabled` set, this guarantee
+    is intentionally relaxed: the recorded unsafe head can move backward to follow an
+    op-reth interop reorg. With the flag off (the default), the guarantee holds as before.
 *   **No Unsafe Head Stall During Network Partition**
 *   **100% Uptime with No More Than 1 Node Failure**
 
@@ -319,6 +321,24 @@ It is configured via its [flags / environment variables](https://github.com/ethe
 *   **Usage:** HTTP provider URL for execution layer
 *   **Default Value:** None specified
 *   **Required:** yes
+
+#### --reorg-recovery.enabled (`REORG_RECOVERY_ENABLED`)
+
+*   **Usage:** Enable reth reorg-recovery. When true, op-conductor subscribes to op-reth
+    reorg notifications and removes the FSM forward-only head guard so a reorg can move
+    the recorded unsafe head backward. **CRITICAL: this flag changes Raft FSM apply
+    semantics and MUST be set identically on every conductor in the cluster — all-on or
+    all-off, never mixed; a mixed setting causes silent Raft FSM divergence.** Enable only
+    as a coordinated, fleet-wide rollout. Requires `--execution.ws-url` when set. op-reth only.
+*   **Default Value:** `false`
+*   **Required:** no
+
+#### --execution.ws-url (`EXECUTION_WS_URL`)
+
+*   **Usage:** WebSocket URL for the execution layer (op-reth) reorg subscription.
+    Required when `--reorg-recovery.enabled` is set.
+*   **Default Value:** None specified
+*   **Required:** only when `--reorg-recovery.enabled` is set
 
 #### --healthcheck.interval (`HEALTHCHECK_INTERVAL`)
 
