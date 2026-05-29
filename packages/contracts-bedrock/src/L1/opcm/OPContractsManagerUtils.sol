@@ -362,6 +362,7 @@ contract OPContractsManagerUtils {
         // v5-style implementation whose initializer writes the ERC-7201 slot during upgradeAndCall.
         // Re-point at StorageSetter to read what the initializer wrote and revert the whole upgrade
         // if v5 state is now present, which keeps an unsupported implementation from being installed.
+        // TODO: This should be removed when the OPCM has proper support for upgrading a v5 Initializable contract.
         _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
         if (IStorageSetter(_target).getBytes32(OZ_V5_INITIALIZABLE_SLOT) != bytes32(0)) {
             revert OPContractsManagerUtils_OZv5InitializableUnsupported();
