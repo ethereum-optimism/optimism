@@ -66,6 +66,10 @@ type LogsDBChainIngester struct {
 
 	errorState atomic.Pointer[IngesterError]
 
+	// onFailsafeChange, if set, is invoked after the error state changes so the
+	// backend can refresh the failsafe metric. Set once before Start.
+	onFailsafeChange func()
+
 	earliestIngestedBlock    atomic.Uint64
 	earliestIngestedBlockSet atomic.Bool
 
@@ -208,6 +212,16 @@ func (c *LogsDBChainIngester) SetError(reason IngesterErrorReason, msg string) {
 	if reason == ErrorReorg || reason == ErrorConflict {
 		c.metrics.RecordReorgDetected(chainIDUint64)
 	}
+
+	if c.onFailsafeChange != nil {
+		c.onFailsafeChange()
+	}
+}
+
+// SetOnFailsafeChange registers a callback invoked after the error state
+// changes. Used by the backend to keep the failsafe metric in sync.
+func (c *LogsDBChainIngester) SetOnFailsafeChange(fn func()) {
+	c.onFailsafeChange = fn
 }
 
 // Error returns the current error state, or nil if no error.
@@ -219,6 +233,10 @@ func (c *LogsDBChainIngester) Error() *IngesterError {
 func (c *LogsDBChainIngester) ClearError() {
 	c.errorState.Store(nil)
 	c.log.Info("Ingester error state cleared")
+
+	if c.onFailsafeChange != nil {
+		c.onFailsafeChange()
+	}
 }
 
 // Contains checks if a log exists in the database

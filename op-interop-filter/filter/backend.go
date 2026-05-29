@@ -61,11 +61,19 @@ type BackendParams struct {
 	ReorgRecoveryEnabled bool
 }
 
+// failsafeObserver is implemented by components whose error state feeds into
+// FailsafeEnabled. The backend wires a callback so the failsafe_enabled metric
+// is refreshed whenever a component enters or clears its error state, not only
+// on the manual SetFailsafeEnabled path.
+type failsafeObserver interface {
+	SetOnFailsafeChange(func())
+}
+
 // NewBackend creates a new Backend instance with the provided components.
 func NewBackend(parentCtx context.Context, params BackendParams) *Backend {
 	ctx, cancel := context.WithCancel(parentCtx)
 
-	return &Backend{
+	b := &Backend{
 		log:                         params.Logger,
 		metrics:                     params.Metrics,
 		chains:                      params.Chains,
@@ -76,6 +84,22 @@ func NewBackend(parentCtx context.Context, params BackendParams) *Backend {
 		cancel:                      cancel,
 		reorgRecoveryEnabled:        params.ReorgRecoveryEnabled,
 	}
+
+	// Refresh the metric from the combined failsafe state whenever a component's
+	// error state changes. Recomputing FailsafeEnabled() (rather than passing a
+	// bool) keeps the gauge correct when multiple chains or the cross-validator
+	// can independently hold failsafe on.
+	refresh := func() { b.metrics.RecordFailsafeEnabled(b.FailsafeEnabled()) }
+	for _, ingester := range b.chains {
+		if o, ok := ingester.(failsafeObserver); ok {
+			o.SetOnFailsafeChange(refresh)
+		}
+	}
+	if o, ok := b.crossValidator.(failsafeObserver); ok {
+		o.SetOnFailsafeChange(refresh)
+	}
+
+	return b
 }
 
 // Start starts all chain ingesters and the cross-validator
