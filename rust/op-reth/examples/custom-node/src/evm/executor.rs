@@ -17,7 +17,7 @@ use alloy_evm::{
 use alloy_op_evm::{
     OpBlockExecutionCtx, OpBlockExecutor, OpEvmContext,
     block::OpTxResult,
-    post_exec::{PostExecEvm, PostExecExecutorExt, WarmingRefundEvent},
+    post_exec::{PostExecEvm, PostExecExecutorExt, WarmingRefundEvent, WarmingState},
 };
 use op_alloy_consensus::SDMGasEntry;
 use reth_op::{OpReceipt, OpTxType, chainspec::OpChainSpec, node::OpRethReceiptBuilder};
@@ -88,7 +88,7 @@ where
 
 impl<E> PostExecExecutorExt for CustomBlockExecutor<E>
 where
-    E: alloy_evm::Evm,
+    E: PostExecEvm,
 {
     fn post_exec_entries(&self) -> &[SDMGasEntry] {
         self.inner.post_exec_entries()
@@ -100,6 +100,14 @@ where
 
     fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
         self.inner.take_warming_events_by_tx()
+    }
+
+    fn warming_state(&self) -> WarmingState {
+        self.inner.warming_state()
+    }
+
+    fn seed_warming_state(&mut self, state: WarmingState) {
+        self.inner.seed_warming_state(state);
     }
 }
 

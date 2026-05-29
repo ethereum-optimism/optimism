@@ -43,7 +43,7 @@ use revm::{
 
 use crate::post_exec::{
     PostExecEvm, PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecTxContext,
-    PostExecTxKind, WarmingRefundEvent,
+    PostExecTxKind, WarmingRefundEvent, WarmingState,
 };
 
 mod canyon;
@@ -385,6 +385,25 @@ where
     /// Take the exact per-transaction warming refund attribution events aligned with receipts.
     pub fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
         core::mem::take(&mut self.warming_events_by_tx)
+    }
+}
+
+impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
+where
+    E: PostExecEvm,
+    R: OpReceiptBuilder,
+{
+    /// Snapshot the block-scoped warming state from the underlying EVM's inspector.
+    ///
+    /// Builders that execute a block across multiple flashblock executors carry this into the next
+    /// flashblock's executor so block-scoped warming refunds match a single canonical pass.
+    pub fn warming_state(&self) -> WarmingState {
+        self.evm.warming_state()
+    }
+
+    /// Seed the underlying EVM's inspector with warming state captured from a prior flashblock.
+    pub fn seed_warming_state(&mut self, state: WarmingState) {
+        self.evm.seed_warming_state(state);
     }
 }
 

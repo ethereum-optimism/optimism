@@ -68,7 +68,7 @@ pub use tx::OpTx;
 
 pub use alloy_op_evm::{
     OpBlockExecutionCtx, OpBlockExecutorFactory, OpEvm, OpEvmFactory, PostExecMode,
-    post_exec::{PostExecExecutorExt, WarmingRefundEvent, WarmingRefundKind},
+    post_exec::{PostExecExecutorExt, WarmingRefundEvent, WarmingRefundKind, WarmingState},
 };
 
 mod post_exec_ext;
@@ -126,6 +126,34 @@ impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, 
     }
 }
 
+/// Returns true when SDM post-exec transactions are consensus-active at `timestamp`.
+///
+/// SDM rides the Interop hardfork: it is active iff Interop is active at `timestamp`
+/// per the chain spec. This matches op-node's `IsSDM` (see `op-node/rollup/toggles.go`).
+///
+/// This is the single source of truth for the SDM protocol gate. Call sites that only hold a
+/// chain spec should route through this helper rather than calling
+/// [`OpHardforks::is_interop_active_at_timestamp`] directly, so the gate cannot drift.
+pub fn is_sdm_active_at_timestamp(chain_spec: &impl OpHardforks, timestamp: u64) -> bool {
+    chain_spec.is_interop_active_at_timestamp(timestamp)
+}
+
+fn post_exec_mode_from_transactions<'a, I, T>(
+    transactions: I,
+    block_number: u64,
+    sdm_active: bool,
+) -> Result<PostExecMode, EIP1559ParamError>
+where
+    I: IntoIterator<Item = &'a T>,
+    T: OpConsensusTransaction + 'a,
+{
+    parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active)
+        .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)
+        .map(|parsed| {
+            parsed.map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
+        })
+}
+
 impl<ChainSpec, N, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory>
 where
     ChainSpec: OpHardforks,
@@ -138,10 +166,9 @@ where
 
     /// Returns true when SDM post-exec transactions are consensus-active at `timestamp`.
     ///
-    /// SDM rides the Interop hardfork: it is active iff Interop is active at `timestamp`
-    /// per the chain spec. This matches op-node's `IsSDM` (see `op-node/rollup/toggles.go`).
+    /// See the free [`is_sdm_active_at_timestamp`] function, which this delegates to.
     pub fn is_sdm_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.chain_spec().is_interop_active_at_timestamp(timestamp)
+        crate::is_sdm_active_at_timestamp(self.chain_spec(), timestamp)
     }
 
     /// Builds a block execution context with an optional post-exec mode override.
@@ -249,21 +276,13 @@ where
         &self,
         block: &'_ SealedBlock<N::Block>,
     ) -> Result<OpBlockExecutionCtx, Self::Error> {
-        let post_exec_mode = parse_post_exec_payload_from_transactions(
+        let post_exec_mode = post_exec_mode_from_transactions(
             block.body().transactions(),
             block.header().number(),
             self.is_sdm_active_at_timestamp(block.header().timestamp()),
-        )
-        .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?
-        .map(|parsed| PostExecMode::Verify(parsed.payload))
-        .unwrap_or_default();
+        )?;
 
-        Ok(OpBlockExecutionCtx {
-            parent_hash: block.header().parent_hash(),
-            parent_beacon_block_root: block.header().parent_beacon_block_root(),
-            extra_data: block.header().extra_data().clone(),
-            post_exec_mode,
-        })
+        Ok(self.context_for_block_with_post_exec_mode(block, Some(post_exec_mode)))
     }
 
     fn context_for_next_block(
@@ -271,12 +290,11 @@ where
         parent: &SealedHeader<N::BlockHeader>,
         attributes: Self::NextBlockEnvCtx,
     ) -> Result<OpBlockExecutionCtx, Self::Error> {
-        Ok(OpBlockExecutionCtx {
-            parent_hash: parent.hash(),
-            parent_beacon_block_root: attributes.parent_beacon_block_root,
-            extra_data: attributes.extra_data,
-            post_exec_mode: PostExecMode::default(),
-        })
+        Ok(self.context_for_next_block_with_post_exec_mode(
+            parent,
+            attributes,
+            PostExecMode::default(),
+        ))
     }
 }
 
@@ -349,14 +367,11 @@ where
             .map(|encoded| TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref()))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
-        let post_exec_mode = parse_post_exec_payload_from_transactions(
+        let post_exec_mode = post_exec_mode_from_transactions(
             transactions.iter(),
             payload.payload.block_number(),
             self.is_sdm_active_at_timestamp(payload.payload.timestamp()),
-        )
-        .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?
-        .map(|parsed| PostExecMode::Verify(parsed.payload))
-        .unwrap_or_default();
+        )?;
 
         Ok(OpBlockExecutionCtx {
             parent_hash: payload.parent_hash(),

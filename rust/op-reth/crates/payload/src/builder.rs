@@ -482,15 +482,17 @@ impl<Txs> OpBuilder<'_, Txs> {
             }
         }
 
-        let mut sdm_refund_gas = 0;
-        if ctx.sdm_production_enabled() {
+        let sdm_refund_gas = if ctx.sdm_production_enabled() {
             let block_number = builder.evm_mut().block().number().saturating_to();
             let entries = builder.executor_mut().take_post_exec_entries();
-            sdm_refund_gas = self::sdm_refund_gas(&entries);
+            let refund_gas = self::sdm_refund_gas(&entries);
             try_include_post_exec_tx(block_number, entries, |tx| {
                 builder.execute_transaction(tx).map(|g| g.tx_gas_used())
             })?;
-        }
+            refund_gas
+        } else {
+            0
+        };
 
         let BlockBuilderOutcome {
             execution_result,
@@ -723,8 +725,10 @@ where
     ///
     /// Either being false disables production.
     pub fn sdm_production_enabled(&self) -> bool {
-        let protocol_active =
-            self.chain_spec.is_interop_active_at_timestamp(self.attributes().timestamp());
+        let protocol_active = reth_optimism_evm::is_sdm_active_at_timestamp(
+            &self.chain_spec,
+            self.attributes().timestamp(),
+        );
         protocol_active && self.builder_config.sdm_post_exec_opt_in.enabled()
     }
 

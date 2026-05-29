@@ -4,6 +4,7 @@ use alloy_op_evm::{
     OpEvmContext, OpTxError,
     post_exec::{
         PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext,
+        WarmingState,
     },
 };
 use alloy_primitives::{Bytes, address};
@@ -146,6 +147,22 @@ fn test_setup_custom_precompiles() {
             I: Inspector<Self::Context<DB>>,
         {
             evm.take_last_post_exec_tx_result()
+        }
+
+        fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> WarmingState
+        where
+            DB: Database,
+            I: Inspector<Self::Context<DB>>,
+        {
+            evm.warming_state()
+        }
+
+        fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: WarmingState)
+        where
+            DB: Database,
+            I: Inspector<Self::Context<DB>>,
+        {
+            evm.seed_warming_state(state);
         }
     }
 

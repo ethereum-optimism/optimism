@@ -161,6 +161,16 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
     pub fn take_last_post_exec_tx_result(&mut self) -> post_exec::PostExecExecutedTx {
         core::mem::take(&mut self.last_tx_post_exec_result)
     }
+
+    /// Snapshot the block-scoped warming state for carry-forward across flashblock executors.
+    pub fn warming_state(&self) -> post_exec::WarmingState {
+        self.inner.0.inspector.warming_state()
+    }
+
+    /// Seed the block-scoped warming state captured from a prior flashblock's executor.
+    pub fn seed_warming_state(&mut self, state: post_exec::WarmingState) {
+        self.inner.0.inspector.seed_warming_state(state);
+    }
 }
 
 impl<DB: Database, I, P, Tx> post_exec::PostExecEvm for OpEvm<DB, I, P, Tx>
@@ -173,6 +183,14 @@ where
 
     fn take_last_post_exec_tx_result(&mut self) -> post_exec::PostExecExecutedTx {
         Self::take_last_post_exec_tx_result(self)
+    }
+
+    fn warming_state(&self) -> post_exec::WarmingState {
+        Self::warming_state(self)
+    }
+
+    fn seed_warming_state(&mut self, state: post_exec::WarmingState) {
+        Self::seed_warming_state(self, state);
     }
 }
 
@@ -196,6 +214,22 @@ where
         I: Inspector<Self::Context<DB>>,
     {
         evm.take_last_post_exec_tx_result()
+    }
+
+    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> post_exec::WarmingState
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.warming_state()
+    }
+
+    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: post_exec::WarmingState)
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.seed_warming_state(state);
     }
 }
 

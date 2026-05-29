@@ -75,20 +75,18 @@ where
     fn sdm_status(&self, query_timestamp: Option<u64>) -> RpcResult<SdmStatus> {
         let timestamp = query_timestamp.unwrap_or_else(current_unix_timestamp);
         let post_exec_opt_in = self.opt_in.enabled();
-        let protocol_active = self.chain_spec.is_interop_active_at_timestamp(timestamp);
+        let protocol_active =
+            reth_optimism_evm::is_sdm_active_at_timestamp(&self.chain_spec, timestamp);
         let activation_time = match self.chain_spec.op_fork_activation(OpHardfork::Interop) {
-            ForkCondition::Timestamp(t) => Some(t),
+            ForkCondition::Timestamp(timestamp) => Some(timestamp),
             _ => None,
         };
-        Ok(SdmStatus {
-            post_exec_opt_in,
-            protocol_active,
-            effective: post_exec_opt_in && protocol_active,
-            activation_time,
-        })
+        let effective = post_exec_opt_in && protocol_active;
+
+        Ok(SdmStatus { post_exec_opt_in, protocol_active, effective, activation_time })
     }
 }
 
 fn current_unix_timestamp() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_secs())
 }

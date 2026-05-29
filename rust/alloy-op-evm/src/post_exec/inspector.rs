@@ -152,6 +152,22 @@ impl CurrentTxState {
     }
 }
 
+/// Block-scoped warming provenance snapshotted from an [`SDMWarmingInspector`].
+///
+/// SDM warming refunds are *block*-scoped: once a tx warms an account/slot, a later tx's touch of
+/// the same account/slot becomes refundable. A builder that executes a block across several
+/// independent flashblock executors (each with its own fresh inspector) would otherwise reset this
+/// warming at every flashblock boundary and diverge from a single canonical pass. Carrying this
+/// state from one flashblock's inspector into the next (via [`SDMWarmingInspector::warming_state`]
+/// and [`SDMWarmingInspector::seed_warming_state`]) keeps the per-flashblock refund set identical
+/// to whole-block execution. The carried provenance only feeds attribution events, so its
+/// flashblock-local tx indices do not affect the consensus `SDMGasEntry` set.
+#[derive(Debug, Clone, Default)]
+pub struct WarmingState {
+    warmed_accounts: HashMap<Address, WarmProvenance>,
+    warmed_slots: HashMap<(Address, B256), WarmProvenance>,
+}
+
 /// Lightweight inspector that computes post-exec block-warming refunds.
 #[derive(Debug, Clone, Default)]
 pub struct SDMWarmingInspector {
@@ -165,6 +181,24 @@ impl SDMWarmingInspector {
     /// Begins tracking for the next transaction.
     pub fn begin_tx(&mut self, ctx: PostExecTxContext) {
         self.current_tx.begin(ctx);
+    }
+
+    /// Snapshots the block-scoped warming maps for carry-forward into another inspector.
+    pub fn warming_state(&self) -> WarmingState {
+        WarmingState {
+            warmed_accounts: self.warmed_accounts.clone(),
+            warmed_slots: self.warmed_slots.clone(),
+        }
+    }
+
+    /// Seeds the block-scoped warming maps from a prior [`warming_state`](Self::warming_state).
+    ///
+    /// Intended for a freshly constructed inspector (empty maps); the carried provenance is
+    /// installed wholesale so subsequent touches see the accounts/slots warmed earlier in the
+    /// block. The per-tx working state ([`begin_tx`](Self::begin_tx)) is unaffected.
+    pub fn seed_warming_state(&mut self, state: WarmingState) {
+        self.warmed_accounts = state.warmed_accounts;
+        self.warmed_slots = state.warmed_slots;
     }
 
     /// Notes an account touch that happened outside opcode stepping.
@@ -400,6 +434,16 @@ impl<I> PostExecCompositeInspector<I> {
     /// Begin tracking the next transaction.
     pub fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext) {
         self.post_exec.begin_tx(ctx);
+    }
+
+    /// Snapshots the block-scoped warming state for carry-forward across flashblock executors.
+    pub fn warming_state(&self) -> WarmingState {
+        self.post_exec.warming_state()
+    }
+
+    /// Seeds the block-scoped warming state captured from a prior flashblock's inspector.
+    pub fn seed_warming_state(&mut self, state: WarmingState) {
+        self.post_exec.seed_warming_state(state);
     }
 
     /// Notes an account touch that happened outside opcode stepping.
