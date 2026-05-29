@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -43,35 +42,28 @@ func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.S
 		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("target block number for timestamp %d: %w", timestamp, err)
 	}
 
-	// Use BlockRefWithStatus so the LocalSafeL2 bound below sees a status consistent
-	// with the resolved ref.
+	// BlockRefWithStatus returns a non-nil status alongside ethereum.NotFound, so the
+	// LocalSafeL2 bound and any omit-chain response describe the same snapshot as
+	// the failed lookup.
 	ref, status, err := s.dr.BlockRefWithStatus(ctx, blockNum)
 	if err != nil {
-		// NotFound (beyond unsafe head): omit chain, populate sync fields from a
-		// fresh SyncStatus call. Other errors propagate.
-		if !errors.Is(err, ethereum.NotFound) {
-			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("blockRefWithStatus@%d: %w", blockNum, err)
+		// Block beyond known head: omit chain. Other errors propagate.
+		if errors.Is(err, ethereum.NotFound) {
+			return responseSkeleton(status, chainID), nil
 		}
-		status, ssErr := s.dr.SyncStatus(ctx)
-		if ssErr != nil {
-			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("syncStatus after blockRef NotFound@%d: %w", blockNum, ssErr)
-		}
-		return responseSkeleton(status, chainID), nil
+		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("blockRefWithStatus@%d: %w", blockNum, err)
 	}
 
 	resp := responseSkeleton(status, chainID)
 
-	// op-supernode omits the chain past LocalSafeL2; any synthetic entry here would
-	// diverge for consumers that read OptimisticAtTimestamp without checking Data.
+	// Omit the chain past LocalSafeL2, matching op-supernode.
 	if blockNum > status.LocalSafeL2.Number {
 		return resp, nil
 	}
 
 	output, err := s.client.OutputV0AtBlock(ctx, ref.Hash)
 	if err != nil {
-		if errors.Is(err, ethereum.NotFound) {
-			return resp, nil
-		}
+		// We already resolved ref by number; a later miss means state shifted.
 		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("outputV0AtBlock@%s: %w", ref, err)
 	}
 	outputRoot := eth.OutputRoot(output)
@@ -85,12 +77,7 @@ func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.S
 		requiredL1, _, err = s.safeDB.L1AtSafeHead(ctx, ref.Number)
 	}
 	if err != nil {
-		// Only transient SafeDB lag (ErrL1AtSafeHeadNotFound) omits the chain;
-		// permanent gaps and disabled-DB / IO errors propagate.
-		if errors.Is(err, safedb.ErrL1AtSafeHeadNotFound) {
-			s.log.Debug("L1AtSafeHead transient, omitting chain", "err", err, "block", ref)
-			return resp, nil
-		}
+		// ref is at-or-below LocalSafeL2, so SafeDB should have a record; propagate.
 		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("l1AtSafeHead@%s: %w", ref, err)
 	}
 

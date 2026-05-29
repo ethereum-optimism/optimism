@@ -102,11 +102,10 @@ func (f *fixture) expectBlockRef(blockNum uint64, hash common.Hash, l1Origin eth
 	return ref
 }
 
-// expectBlockMissing mocks the beyond-unsafe path: BlockRefWithStatus → NotFound,
-// then a SyncStatus fallback to populate the response.
+// expectBlockMissing mocks the beyond-unsafe path: NotFound paired with a non-nil
+// status, per the driver contract.
 func (f *fixture) expectBlockMissing(blockNum uint64) {
-	f.dr.ExpectBlockRefWithStatus(blockNum, eth.L2BlockRef{}, nil, ethereum.NotFound)
-	f.dr.Mock.On("SyncStatus").Return(f.syncStatus)
+	f.dr.ExpectBlockRefWithStatus(blockNum, eth.L2BlockRef{}, f.syncStatus, ethereum.NotFound)
 }
 
 func (f *fixture) expectOutputV0(hash common.Hash) *eth.OutputV0 {
@@ -193,8 +192,8 @@ func TestSuperrootAPI_VerifiedAtGenesisL2(t *testing.T) {
 	f.safeDB.Mock.AssertNotCalled(t, "L1AtSafeHead")
 }
 
-func TestSuperrootAPI_SafeDBNotFound_OmitsChain(t *testing.T) {
-	// Transient SafeDB lag: omit chain (op-supernode maps it to ethereum.NotFound).
+func TestSuperrootAPI_SafeDBNotFound_Errors(t *testing.T) {
+	// Block is at-or-below LocalSafeL2; missing SafeDB record is inconsistency, propagate.
 	f := newFixture(t)
 
 	hash := common.Hash{0x40}
@@ -202,10 +201,8 @@ func TestSuperrootAPI_SafeDBNotFound_OmitsChain(t *testing.T) {
 	f.expectOutputV0(hash)
 	f.safeDB.ExpectL1AtSafeHead(uint64(40), eth.BlockID{}, eth.BlockID{}, safedb.ErrL1AtSafeHeadNotFound)
 
-	resp, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts+40*testBlockTime)
-	require.NoError(t, err)
-	require.Nil(t, resp.Data)
-	require.Empty(t, resp.OptimisticAtTimestamp)
+	_, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts+40*testBlockTime)
+	require.ErrorIs(t, err, safedb.ErrL1AtSafeHeadNotFound)
 }
 
 func TestSuperrootAPI_SafeDBUnavailable_ReturnsError(t *testing.T) {
@@ -244,17 +241,15 @@ func TestSuperrootAPI_BlockRefError_Propagates(t *testing.T) {
 	require.ErrorIs(t, err, driverErr)
 }
 
-func TestSuperrootAPI_OutputNotFound_OmitsChain(t *testing.T) {
-	// OutputV0AtBlock → NotFound: omit chain (block known, output not yet available).
+func TestSuperrootAPI_OutputNotFound_Errors(t *testing.T) {
+	// Ref already resolved; later NotFound on its hash means state shifted, propagate.
 	f := newFixture(t)
 	hash := common.Hash{0x40}
 	f.expectBlockRef(40, hash, eth.BlockID{Number: 170})
 	f.l2Client.ExpectOutputV0AtBlock(hash, (*eth.OutputV0)(nil), ethereum.NotFound)
 
-	resp, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts+40*testBlockTime)
-	require.NoError(t, err)
-	require.Nil(t, resp.Data)
-	require.Empty(t, resp.OptimisticAtTimestamp)
+	_, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts+40*testBlockTime)
+	require.ErrorIs(t, err, ethereum.NotFound)
 }
 
 func TestSuperrootAPI_OutputClientError(t *testing.T) {
