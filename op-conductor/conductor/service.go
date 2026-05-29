@@ -12,10 +12,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/hashicorp/raft"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/chainevents"
 	"github.com/ethereum-optimism/optimism/op-conductor/client"
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
@@ -41,9 +43,19 @@ var (
 	ErrNoUnsafeHead       = errors.New("no unsafe head")
 )
 
+// ELClient is the execution-layer dependency used by the reorg handler. It is a
+// focused seam (distinct from client.SequencerControl, which lacks PayloadByHash):
+// InfoByLabel reads the EL's current canonical head (the authoritative post-reorg
+// tip, since the reth notification carries no block hash), and PayloadByHash fetches
+// the full envelope to commit. *sources.EthClient satisfies it.
+type ELClient interface {
+	PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error)
+	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
+}
+
 // New creates a new OpConductor instance.
 func New(ctx context.Context, cfg *Config, log log.Logger, version string) (*OpConductor, error) {
-	return NewOpConductor(ctx, cfg, log, metrics.NewMetrics(), version, nil, nil, nil)
+	return NewOpConductor(ctx, cfg, log, metrics.NewMetrics(), version, nil, nil, nil, nil)
 }
 
 // NewOpConductor creates a new OpConductor instance.
@@ -56,6 +68,7 @@ func NewOpConductor(
 	ctrl client.SequencerControl,
 	cons consensus.Consensus,
 	hmon health.HealthMonitor,
+	elClient ELClient,
 ) (*OpConductor, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
@@ -74,9 +87,17 @@ func NewOpConductor(
 		ctrl:         ctrl,
 		cons:         cons,
 		hmon:         hmon,
+		elClient:     elClient,
 		retryBackoff: func() time.Duration { return time.Duration(rand.Intn(2000)) * time.Millisecond },
 	}
 	oc.loopActionFn = oc.loopAction
+
+	// When reorg-recovery is enabled, the subscriber produces events on this cap-1
+	// channel and reorgLoop consumes them. ExecutionWSURL is guaranteed non-empty
+	// by Config.Check when the feature is on.
+	if oc.reorgRecoveryEnabled() {
+		oc.reorgEventCh = make(chan chainevents.ReorgEvent, 1)
+	}
 
 	// explicitly set all atomic.Bool values
 	oc.leader.Store(false)         // upon start, it should not be the leader unless specified otherwise by raft bootstrap, in that case, it'll receive a leadership update from consensus.
@@ -145,6 +166,10 @@ func (c *OpConductor) initSequencerControl(ctx context.Context) error {
 	}
 	node := sources.NewRollupClient(nc)
 	c.ctrl = client.NewSequencerControl(exec, node)
+	// Reuse the same EL client for the reorg handler (PayloadByHash + InfoByLabel).
+	// Only set on the production path; when ctrl is injected in tests, initSequencerControl
+	// returns early above and elClient comes from the NewOpConductor parameter.
+	c.elClient = exec
 
 	enabled, err := retry.Do(ctx, 60, retry.Fixed(5*time.Second), func() (bool, error) {
 		enabled, err := c.ctrl.ConductorEnabled(ctx)
@@ -362,6 +387,16 @@ type OpConductor struct {
 	cons consensus.Consensus
 	hmon health.HealthMonitor
 
+	// elClient is the EL client used by the reorg handler (PayloadByHash + InfoByLabel).
+	// On the production path it is assigned in initSequencerControl; tests may inject a mock.
+	elClient ELClient
+	// reorgEventCh carries reorg events from the subscriber to reorgLoop. Non-nil only
+	// when reorg-recovery is enabled.
+	reorgEventCh chan chainevents.ReorgEvent
+	// subscriber maintains the op-reth reorg-notification WS subscription. Non-nil only
+	// when reorg-recovery is enabled.
+	subscriber *chainevents.Subscriber
+
 	leader         atomic.Bool
 	leaderOverride atomic.Bool
 	seqActive      atomic.Bool
@@ -434,6 +469,18 @@ func (oc *OpConductor) Start(ctx context.Context) error {
 		if err := oc.flashblocksHandler.Start(ctx); err != nil {
 			return fmt.Errorf("failed to start flashblocks handler: %w", err)
 		}
+	}
+
+	// Start the reth reorg subscription and its consumer loop when reorg-recovery is
+	// enabled. The subscriber's internal read loop is shutdownCtx-cancelled (not
+	// wg-joined, matching the flashblocks cancel-only posture); reorgLoop IS wg-joined
+	// so Stop's oc.wg.Wait() blocks until it returns.
+	if oc.reorgRecoveryEnabled() {
+		oc.log.Info("starting reth reorg subscription", "url", oc.cfg.ExecutionWSURL)
+		oc.subscriber = chainevents.NewSubscriber(oc.log, oc.cfg.ExecutionWSURL, oc.reorgEventCh)
+		oc.subscriber.Start(oc.shutdownCtx)
+		oc.wg.Add(1)
+		go oc.reorgLoop(oc.shutdownCtx)
 	}
 
 	if oc.cfg.MetricsConfig.Enabled {
@@ -645,6 +692,27 @@ func (oc *OpConductor) ClusterMembership(_ context.Context) (*consensus.ClusterM
 // LatestUnsafePayload returns the latest unsafe payload envelope from FSM in a strongly consistent fashion.
 func (oc *OpConductor) LatestUnsafePayload(_ context.Context) (*eth.ExecutionPayloadEnvelope, error) {
 	return oc.cons.LatestUnsafePayload()
+}
+
+// reorgRecoveryEnabled reports whether the reth reorg-recovery feature is on.
+// Stated once here so every gate reads from a single source.
+func (oc *OpConductor) reorgRecoveryEnabled() bool {
+	return oc.cfg.ReorgRecoveryEnabled
+}
+
+// reorgLoop consumes reorg events from the subscriber. It is wg-joined and exits
+// when ctx (shutdownCtx) is cancelled. Phase 1: log only; the commit handler is
+// added in Phase 2.
+func (oc *OpConductor) reorgLoop(ctx context.Context) {
+	defer oc.wg.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case ev := <-oc.reorgEventCh:
+			oc.log.Info("reorg observed", "old_tip", ev.OldTipNumber, "new_tip", ev.NewTipNumber, "has_new_tip", ev.HasNewTip)
+		}
+	}
 }
 
 func (oc *OpConductor) loop() {

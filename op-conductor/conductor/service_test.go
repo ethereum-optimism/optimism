@@ -119,7 +119,7 @@ func (s *OpConductorTestSuite) SetupTest() {
 	s.hmon = &healthmocks.HealthMonitor{}
 	s.cons.EXPECT().ServerID().Return("SequencerA")
 
-	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
+	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon, nil)
 	s.NoError(err)
 	conductor.retryBackoff = func() time.Duration { return 0 } // disable retry backoff for tests
 	s.conductor = conductor
@@ -1035,7 +1035,7 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 	testCfg.WebsocketServerPort = 0
 
 	// Create a new conductor with the updated config
-	conductor, err := NewOpConductor(s.ctx, &testCfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
+	conductor, err := NewOpConductor(s.ctx, &testCfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon, nil)
 	s.NoError(err)
 
 	// Set up mock expectation for Leader() calls - the flashblocks handler checks leadership

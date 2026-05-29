@@ -210,6 +210,23 @@ var (
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RAFT_ROUND_ROBIN_LEADER_TRANSFER"),
 		Value:   false,
 	}
+	ReorgRecoveryEnabled = &cli.BoolFlag{
+		Name:  "reorg-recovery.enabled",
+		Value: false, // default OFF — ships dormant
+		Usage: "Enable reth reorg-recovery. When true, op-conductor subscribes to " +
+			"op-reth reorg notifications and removes the FSM forward-only head guard " +
+			"so a reorg can move the recorded unsafe head backward. " +
+			"CRITICAL: this flag changes Raft FSM apply semantics. It MUST be set " +
+			"IDENTICALLY on EVERY conductor in the cluster — all-on or all-off, NEVER " +
+			"mixed. A mixed setting causes silent Raft FSM divergence. Enable only as a " +
+			"coordinated, fleet-wide rollout. Requires --execution.ws-url when set.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "REORG_RECOVERY_ENABLED"),
+	}
+	ExecutionWSURL = &cli.StringFlag{
+		Name:    "execution.ws-url",
+		Usage:   "WebSocket URL for the execution layer (op-reth) reorg subscription. Required when --reorg-recovery.enabled is set.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EXECUTION_WS_URL"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -257,6 +274,8 @@ func init() {
 	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix, "")...)
 	optionalFlags = append(optionalFlags, RollupBoostWsURL)
 	optionalFlags = append(optionalFlags, WebsocketServerPort)
+	optionalFlags = append(optionalFlags, ReorgRecoveryEnabled)
+	optionalFlags = append(optionalFlags, ExecutionWSURL)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 
