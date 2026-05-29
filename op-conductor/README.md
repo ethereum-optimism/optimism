@@ -14,7 +14,11 @@ intended to run inside a private network with access restricted to authorized us
 
 The design will provide below guarantees:
 
-1. No unsafe reorgs
+1. No unsafe reorgs (default). With `--reorg-recovery.enabled` set, this guarantee is
+   intentionally relaxed: the recorded unsafe head **can move backward** to follow an
+   op-reth interop reorg (last-write-wins in the FSM), driven by a
+   `reth_subscribeChainNotifications` subscription on the leader. With the flag OFF (the
+   default) the guarantee holds exactly as before.
 2. No unsafe head stall during network partition
 3. 100% uptime with no more than 1 node failure (for a standard 3 node setup)
 
@@ -49,6 +53,22 @@ On a high level, op-conductor serves the following functions:
 Helpful tips:
 To better understand the graph, focus on one node at a time, understand what can be transitioned to this current state and how it can transition to other states.
 This way you could understand how we handle the state transitions.
+
+### Reorg recovery (optional, `--reorg-recovery.enabled`)
+
+By default the FSM only records forward-moving unsafe heads, so a backward interop
+reorg leaves the recorded head pinned to the orphaned block (issue #20006). When
+`--reorg-recovery.enabled` is set, the leader subscribes to its op-reth's
+`reth_subscribeChainNotifications` over a WebSocket (`--execution.ws-url`). On a reorg
+notification it reads the EL's current canonical head (`eth_getBlockByNumber` for the
+unsafe label — the authoritative post-reorg tip, since the notification itself carries
+no block hash), fetches the full payload, and commits it via the existing
+`CommitUnsafePayload`. The FSM's forward-only guard is bypassed in this mode so the
+recorded head can move backward.
+
+**This flag changes Raft FSM apply semantics and MUST be set identically on every
+conductor in the cluster — all-on or all-off, never mixed.** A mixed setting causes
+silent FSM divergence. See [RUNBOOK.md](./RUNBOOK.md) for the operational contract.
 
 ### RPC design
 
