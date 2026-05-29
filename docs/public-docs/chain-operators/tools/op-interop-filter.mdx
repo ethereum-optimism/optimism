@@ -56,7 +56,7 @@ graph LR
   class Filter filter
 ```
 
-The EL points at the filter through op-reth's `--rollup.supervisor-http` flag and calls the filter's `interop_checkAccessList` method to validate each interop transaction.
+The EL points at the filter through op-reth's `--rollup.interop-http` flag and calls the filter's `interop_checkAccessList` method to validate each interop transaction.
 
 This is a different job from what [op-supernode](/op-stack/interop/supernode) does.
 The supernode operates at the consensus layer (CL): it verifies that a block's cross-chain dependencies have been reproduced from L1, then promotes the block to *safe* through the chain's own CL.
