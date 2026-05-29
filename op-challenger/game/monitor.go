@@ -124,7 +124,11 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 	var gamesToPlay []types.GameMetadata
 	for _, game := range games {
 		if !m.supportedGameType(game.GameType) {
-			m.logger.Debug("Skipping unsupported game type", "game", game.Proxy, "gameType", game.GameType)
+			if game.GameType == uint32(types.SuperPermissionedGameType) {
+				m.logger.Info("Skipping unsupported super permissioned game type", "game", game.Proxy)
+			} else {
+				m.logger.Warn("Skipping unsupported game type", "game", game.Proxy, "gameType", game.GameType)
+			}
 			continue
 		}
 		if !m.allowedGame(game.Proxy) {
