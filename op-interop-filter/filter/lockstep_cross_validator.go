@@ -109,7 +109,11 @@ func (v *LockstepCrossValidator) Error() *ValidatorError {
 	return v.err
 }
 
-// setError sets the validation error state.
+// setError sets the validation error state. There is intentionally no clear
+// path today: the cross-validator does not self-recover, so its error — and the
+// failsafe_reason_active{reason="cross_validation"} gauge — clears only on
+// process restart. If a recovery path is ever added, it MUST also fire
+// onFailsafeChange so the failsafe metrics drop back accordingly.
 func (v *LockstepCrossValidator) setError(msg string) {
 	v.errMu.Lock()
 	v.err = &ValidatorError{

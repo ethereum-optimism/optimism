@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -249,7 +248,7 @@ func failsafeSummary(manual bool, chainErrs map[eth.ChainID]*IngesterError, cvEr
 	for id := range chainErrs {
 		ids = append(ids, id)
 	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i].String() < ids[j].String() })
+	eth.SortChainID(ids) // numeric (not lexicographic) order for stable, readable summaries
 	for _, id := range ids {
 		parts = append(parts, fmt.Sprintf("chain[%s]=%s", id, chainErrs[id].Reason))
 	}

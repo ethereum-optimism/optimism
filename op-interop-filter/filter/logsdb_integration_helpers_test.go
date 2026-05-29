@@ -549,6 +549,7 @@ func (m *capturingMetrics) failsafeReasonActive(reason string) bool {
 	defer m.mu.Unlock()
 	return m.failsafeReasons[reason]
 }
+
 func (m *capturingMetrics) RecordChainHead(chainID uint64, blockNum uint64) {
 	m.locked(func() { m.chainHead[chainID] = blockNum })
 }
