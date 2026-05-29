@@ -470,6 +470,42 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 1)
 }
 
+// TestStartSequencerConsensusBehindNodeFailsSafe is the regression guard for the
+// reorg-recovery catch-up fail-safe (issue #20006 / plan Risk 4). After a backward
+// reorg write, consensus is BEHIND the node (cons < node). startSequencer's
+// `uint64(consNum) - nodeNum == 1` check then underflows (it is not 1) and must NOT
+// post the node onto the lower/stale consensus head. The underflow lives in
+// startSequencer (service.go), not compareUnsafeHead (which only returns the
+// mismatch), so this test drives the full start path. It asserts the conductor does
+// not reach PostUnsafePayload or StartSequencer and stays not-sequencing.
+func (s *OpConductorTestSuite) TestStartSequencerConsensusBehindNodeFailsSafe() {
+	s.enableSynchronization()
+
+	// consensus head (2) is BEHIND the node head (5) — the post-backward-write state.
+	mockPayload := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: 2,
+			Timestamp:   hexutil.Uint64(time.Now().Unix()),
+			BlockHash:   [32]byte{1, 2, 3},
+		},
+	}
+	mockBlockInfo := &testutils.MockBlockInfo{
+		InfoNum:  5,
+		InfoHash: [32]byte{2, 3, 4},
+	}
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
+
+	s.updateLeaderStatusAndExecuteAction(true)
+
+	// [leader, healthy, NOT sequencing]: the underflow fail-safe blocks the catch-up.
+	s.True(s.conductor.leader.Load())
+	s.True(s.conductor.healthy.Load())
+	s.False(s.conductor.seqActive.Load())
+	s.ctrl.AssertNotCalled(s.T(), "PostUnsafePayload", mock.Anything, mock.Anything)
+	s.ctrl.AssertNotCalled(s.T(), "StartSequencer", mock.Anything, mock.Anything)
+}
+
 // In this test, we have a follower that is healthy and not sequencing, we send a unhealthy update to it and expect it to stay as follower and not start sequencing.
 // [follower, healthy, not sequencing] -- become unhealthy --> [follower, not healthy, not sequencing]
 func (s *OpConductorTestSuite) TestScenario5() {

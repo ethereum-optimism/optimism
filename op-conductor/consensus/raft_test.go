@@ -85,3 +85,78 @@ func TestCommitAndRead(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, payload, unsafeHead)
 }
+
+// v3Payload builds a minimal BlockV3 ExecutionPayloadEnvelope at the given number.
+func v3Payload(number uint64) *eth.ExecutionPayloadEnvelope {
+	one := hexutil.Uint64(1)
+	hash := common.HexToHash("0x12345")
+	return &eth.ExecutionPayloadEnvelope{
+		ParentBeaconBlockRoot: &hash,
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber:   hexutil.Uint64(number),
+			Timestamp:     hexutil.Uint64(time.Now().Unix()),
+			Transactions:  []eth.Data{},
+			ExtraData:     []byte{},
+			Withdrawals:   &types.Withdrawals{},
+			ExcessBlobGas: &one,
+			BlobGasUsed:   &one,
+		},
+	}
+}
+
+// newBootstrapConsensus spins up a single-node bootstrapped raft cluster and waits
+// for leadership. storageDir is wiped first.
+func newBootstrapConsensus(t *testing.T, serverID, storageDir string, allowNonMonotonic bool) *RaftConsensus {
+	now := uint64(time.Now().Unix())
+	rollupCfg := &rollup.Config{CanyonTime: &now}
+	require.NoError(t, os.RemoveAll(storageDir))
+	cfg := &RaftConsensusConfig{
+		ServerID:                    serverID,
+		ListenPort:                  0,
+		ListenAddr:                  "127.0.0.1",
+		AdvertisedAddr:              "",
+		StorageDir:                  storageDir,
+		Bootstrap:                   true,
+		RollupCfg:                   rollupCfg,
+		SnapshotInterval:            120 * time.Second,
+		SnapshotThreshold:           10240,
+		TrailingLogs:                8192,
+		HeartbeatTimeout:            1000 * time.Millisecond,
+		LeaderLeaseTimeout:          500 * time.Millisecond,
+		AllowNonMonotonicUnsafeHead: allowNonMonotonic,
+	}
+	cons, err := NewRaftConsensus(testlog.Logger(t, log.LevelInfo), cfg)
+	require.NoError(t, err)
+	<-cons.LeaderCh()
+	return cons
+}
+
+// TestCommitNonMonotonicWhenUnguarded proves a backward CommitUnsafePayload is
+// recorded through the real raft Apply path when the flag is on (the reorg case).
+// Multi-node follower convergence is covered by the Phase 3 acceptance test; the
+// FSM Apply that followers replay is identical, exercised in raft_fsm_test.go.
+func TestCommitNonMonotonicWhenUnguarded(t *testing.T) {
+	cons := newBootstrapConsensus(t, "SequencerReorgOn", "/tmp/sequencer-reorg-on", true)
+
+	require.NoError(t, cons.CommitUnsafePayload(v3Payload(5)))
+	require.NoError(t, cons.CommitUnsafePayload(v3Payload(2))) // backward (reorg)
+
+	unsafeHead, err := cons.LatestUnsafePayload()
+	require.NoError(t, err)
+	require.Equal(t, hexutil.Uint64(2), unsafeHead.ExecutionPayload.BlockNumber,
+		"with the guard bypassed, a backward commit must move the recorded head back")
+}
+
+// TestCommitForwardOnlyWhenGuarded proves the default (flag off) path drops a
+// backward commit through the real raft Apply path — byte-for-byte today's behavior.
+func TestCommitForwardOnlyWhenGuarded(t *testing.T) {
+	cons := newBootstrapConsensus(t, "SequencerReorgOff", "/tmp/sequencer-reorg-off", false)
+
+	require.NoError(t, cons.CommitUnsafePayload(v3Payload(5)))
+	require.NoError(t, cons.CommitUnsafePayload(v3Payload(2))) // backward — must be dropped
+
+	unsafeHead, err := cons.LatestUnsafePayload()
+	require.NoError(t, err)
+	require.Equal(t, hexutil.Uint64(5), unsafeHead.ExecutionPayload.BlockNumber,
+		"with the guard on, a backward commit must be ignored")
+}

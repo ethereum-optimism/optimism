@@ -212,6 +212,8 @@ func (c *OpConductor) initConsensus(ctx context.Context) error {
 		TrailingLogs:       c.cfg.RaftTrailingLogs,
 		HeartbeatTimeout:   c.cfg.RaftHeartbeatTimeout,
 		LeaderLeaseTimeout: c.cfg.RaftLeaderLeaseTimeout,
+		// Single point tying the fleet-uniform flag to FSM apply semantics.
+		AllowNonMonotonicUnsafeHead: c.cfg.ReorgRecoveryEnabled,
 	}
 	cons, err := consensus.NewRaftConsensus(c.log, raftConsensusConfig)
 	if err != nil {
@@ -700,9 +702,16 @@ func (oc *OpConductor) reorgRecoveryEnabled() bool {
 	return oc.cfg.ReorgRecoveryEnabled
 }
 
-// reorgLoop consumes reorg events from the subscriber. It is wg-joined and exits
-// when ctx (shutdownCtx) is cancelled. Phase 1: log only; the commit handler is
-// added in Phase 2.
+// reorgHandlerTimeout bounds a single reorg handler invocation. It must exceed the
+// Raft Apply bound (defaultTimeout=5s) plus an EL round-trip: CommitUnsafePayload
+// takes no ctx and applies its own internal 5s on rc.r.Apply, so this outer ctx does
+// not propagate into the Apply leg; it bounds the EL reads (InfoByLabel + PayloadByHash)
+// and gives headroom for a full 5s Apply before the handler abandons.
+const reorgHandlerTimeout = 15 * time.Second
+
+// reorgLoop consumes reorg events from the subscriber and runs the commit handler
+// off the main control loop. It is wg-joined and exits when ctx (shutdownCtx) is
+// cancelled.
 func (oc *OpConductor) reorgLoop(ctx context.Context) {
 	defer oc.wg.Done()
 	for {
@@ -710,9 +719,64 @@ func (oc *OpConductor) reorgLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case ev := <-oc.reorgEventCh:
-			oc.log.Info("reorg observed", "old_tip", ev.OldTipNumber, "new_tip", ev.NewTipNumber, "has_new_tip", ev.HasNewTip)
+			oc.handleReorgEvent(ctx, ev)
 		}
 	}
+}
+
+// handleReorgEvent reacts to an op-reth reorg notification by committing the EL's
+// current unsafe head into consensus. The notification is a trigger only: reth does
+// not serialize the block hash, so the authoritative post-reorg tip is read from the
+// EL via InfoByLabel(eth.Unsafe). With the guard bypassed, Apply records the (possibly
+// backward) head unconditionally.
+func (oc *OpConductor) handleReorgEvent(parent context.Context, ev chainevents.ReorgEvent) {
+	oc.metrics.RecordReorgObserved()
+	// oc.Leader() is LeaderOverridden() || cons.Leader(), so an operator leader-override
+	// can pass this gate on a non-Raft-leader node. That is safe: the real gate is the
+	// Raft layer — a non-leader Apply (raft.go, rc.r.Apply) returns the hashicorp/raft
+	// library's ErrNotLeader, so a stray write is rejected and only logged as a commit
+	// failure, never replicated. This pre-check is a cheap fast-path, not the authority.
+	if !oc.Leader(parent) {
+		oc.log.Info("reorg observed on non-leader; ignoring", "new_tip", ev.NewTipNumber)
+		return
+	}
+	ctx, cancel := context.WithTimeout(parent, reorgHandlerTimeout)
+	defer cancel()
+
+	// The reth notification carries no block hash (SealedHeader.hash is serde-skipped),
+	// so read the authoritative head from the EL. reth broadcasts the notification only
+	// after the canonical head/label updates, so InfoByLabel(eth.Unsafe) should already
+	// reflect the post-reorg tip.
+	head, err := oc.elClient.InfoByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		oc.log.Error("reorg: failed to read EL unsafe head", "err", err)
+		oc.metrics.RecordReorgFetchFailure()
+		return
+	}
+	// Diagnostic for the (expected-impossible) race where the notification arrives
+	// before the label reflects the new tip. We commit the EL head regardless; the
+	// metric lets Phase 3 confirm whether the race ever occurs in practice.
+	if ev.HasNewTip && head.NumberU64() != ev.NewTipNumber {
+		oc.log.Warn("reorg: EL head number differs from notification tip (possible label-lag race)",
+			"el_head", head.NumberU64(), "notification_tip", ev.NewTipNumber)
+		oc.metrics.RecordReorgNumberMismatch()
+	}
+	// No depth bound: legitimate interop rewinds to the common ancestor can be deep.
+	payload, err := oc.elClient.PayloadByHash(ctx, head.Hash())
+	if err != nil {
+		oc.log.Error("reorg: failed to fetch post-reorg payload from EL", "hash", head.Hash(), "err", err)
+		oc.metrics.RecordReorgFetchFailure()
+		return
+	}
+	// Always commit the EL's current unsafe head: reorgs can recur at the same height,
+	// so we never skip on equal number/hash. CommitUnsafePayload is the existing FSM
+	// write; with the flag on, Apply records this (possibly backward) head unconditionally.
+	if err := oc.cons.CommitUnsafePayload(payload); err != nil {
+		oc.log.Error("reorg: failed to commit post-reorg unsafe head", "hash", head.Hash(), "err", err)
+		return
+	}
+	oc.log.Info("committed post-reorg unsafe head", "number", head.NumberU64(), "hash", head.Hash())
+	oc.metrics.RecordReorgCommitted()
 }
 
 func (oc *OpConductor) loop() {
@@ -1039,7 +1103,17 @@ func (oc *OpConductor) startSequencer() error {
 	// When starting sequencer, we need to make sure that the current node has the latest unsafe head from the consensus protocol
 	// If not, then we wait for the unsafe head to catch up or gossip it to op-node manually from op-conductor.
 	unsafeInCons, unsafeInNode, err := oc.compareUnsafeHead(ctx)
-	// if there's a mismatch, try to post the unsafe head to op-node
+	// if there's a mismatch, try to post the unsafe head to op-node.
+	//
+	// REORG-RECOVERY FAIL-SAFE (issue #20006): this == 1 branch fires only when
+	// consensus is exactly one block AHEAD of the node (the normal gossip-delay
+	// catch-up). After a reorg-recovery backward write, consensus is BEHIND the node
+	// (cons < node), so this unsigned subtraction underflows to a huge value, is never
+	// == 1, and control falls through to the mismatch error instead of posting the node
+	// onto a lower head. This safety is IMPLICIT in the unsigned arithmetic — do NOT
+	// refactor to a signed delta, which would silently reintroduce the #20006-style
+	// "drag op-node onto the stale/orphaned hash" behavior. Guarded by
+	// TestStartSequencerConsensusBehindNodeFailsSafe.
 	if errors.Is(err, ErrUnsafeHeadMismatch) && uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
 		// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
 		oc.log.Debug(

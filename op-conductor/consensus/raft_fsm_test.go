@@ -71,6 +71,41 @@ func TestUnsafeHeadTracker(t *testing.T) {
 	})
 }
 
+// applyEnvelope SSZ-encodes env and applies it to the tracker, asserting no error.
+func applyEnvelope(t *testing.T, tracker *unsafeHeadTracker, env *eth.ExecutionPayloadEnvelope) {
+	var buf bytes.Buffer
+	_, err := env.MarshalSSZ(&buf)
+	require.NoError(t, err)
+	require.Nil(t, tracker.Apply(&raft.Log{Data: buf.Bytes()}))
+}
+
+// TestApplyForwardOnlyWhenGuarded asserts the default (flag OFF) forward-only guard:
+// a lower-number entry is dropped. This is byte-for-byte today's behavior.
+func TestApplyForwardOnlyWhenGuarded(t *testing.T) {
+	tracker := NewUnsafeHeadTracker(testlog.Logger(t, log.LevelDebug), false)
+	applyEnvelope(t, tracker, createPayloadEnvelope(333))
+	applyEnvelope(t, tracker, createPayloadEnvelope(222)) // lower — must be dropped
+	require.Equal(t, hexutil.Uint64(333), tracker.unsafeHead.ExecutionPayload.BlockNumber)
+}
+
+// TestApplyLastWriteWinsWhenUnguarded asserts the flag-ON behavior: a lower-number
+// entry replaces the head (reorg recorded).
+func TestApplyLastWriteWinsWhenUnguarded(t *testing.T) {
+	tracker := NewUnsafeHeadTracker(testlog.Logger(t, log.LevelDebug), true)
+	applyEnvelope(t, tracker, createPayloadEnvelope(333))
+	applyEnvelope(t, tracker, createPayloadEnvelope(222)) // lower — must replace
+	require.Equal(t, hexutil.Uint64(222), tracker.unsafeHead.ExecutionPayload.BlockNumber)
+}
+
+// TestApplyForwardStillAdvancesWhenUnguarded asserts no regression on the forward
+// path with the flag ON: a higher-number entry still advances the head.
+func TestApplyForwardStillAdvancesWhenUnguarded(t *testing.T) {
+	tracker := NewUnsafeHeadTracker(testlog.Logger(t, log.LevelDebug), true)
+	applyEnvelope(t, tracker, createPayloadEnvelope(333))
+	applyEnvelope(t, tracker, createPayloadEnvelope(444)) // higher — must advance
+	require.Equal(t, hexutil.Uint64(444), tracker.unsafeHead.ExecutionPayload.BlockNumber)
+}
+
 type mockReadCloser struct {
 	currentPosition int
 	data            *eth.ExecutionPayloadEnvelope

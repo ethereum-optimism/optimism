@@ -21,6 +21,10 @@ type Metricer interface {
 	RecordLoopExecutionTime(duration float64)
 	RecordRollupBoostConnectionAttempts(success bool, source string)
 	RecordWebSocketClientCount(count int)
+	RecordReorgObserved()
+	RecordReorgCommitted()
+	RecordReorgNumberMismatch()
+	RecordReorgFetchFailure()
 	opmetrics.RPCMetricer
 }
 
@@ -46,6 +50,13 @@ type Metrics struct {
 
 	loopExecutionTime prometheus.Histogram
 	webSocketClients  prometheus.Gauge
+
+	// Reorg-recovery counters are label-less (no dimension), so they are plain
+	// Counters, not CounterVecs. They use the local _count suffix convention.
+	reorgsObserved      prometheus.Counter
+	reorgsCommitted     prometheus.Counter
+	reorgNumberMismatch prometheus.Counter
+	reorgFetchErrors    prometheus.Counter
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -122,6 +133,26 @@ func NewMetrics() *Metrics {
 			Name:      "websocket_clients_connected",
 			Help:      "Number of WebSocket clients currently connected to the hub",
 		}),
+		reorgsObserved: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "reorgs_observed_count",
+			Help:      "Number of reth reorg notifications observed",
+		}),
+		reorgsCommitted: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "reorgs_committed_count",
+			Help:      "Number of post-reorg unsafe heads committed to consensus",
+		}),
+		reorgNumberMismatch: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "reorg_number_mismatch_count",
+			Help:      "Number of reorgs where the EL head number differed from the notification tip number (possible label-lag race)",
+		}),
+		reorgFetchErrors: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "reorg_fetch_errors_count",
+			Help:      "Number of reorg EL fetch failures (InfoByLabel or PayloadByHash)",
+		}),
 	}
 }
 
@@ -182,4 +213,25 @@ func (m *Metrics) RecordRollupBoostConnectionAttempts(success bool, source strin
 // RecordWebSocketClientCount sets the current number of WebSocket clients connected.
 func (m *Metrics) RecordWebSocketClientCount(count int) {
 	m.webSocketClients.Set(float64(count))
+}
+
+// RecordReorgObserved increments the count of observed reth reorg notifications.
+func (m *Metrics) RecordReorgObserved() {
+	m.reorgsObserved.Inc()
+}
+
+// RecordReorgCommitted increments the count of post-reorg unsafe heads committed.
+func (m *Metrics) RecordReorgCommitted() {
+	m.reorgsCommitted.Inc()
+}
+
+// RecordReorgNumberMismatch increments the count of reorgs where the EL head
+// number differed from the notification tip number.
+func (m *Metrics) RecordReorgNumberMismatch() {
+	m.reorgNumberMismatch.Inc()
+}
+
+// RecordReorgFetchFailure increments the count of reorg EL fetch failures.
+func (m *Metrics) RecordReorgFetchFailure() {
+	m.reorgFetchErrors.Inc()
 }
