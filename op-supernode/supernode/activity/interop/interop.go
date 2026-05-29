@@ -27,8 +27,19 @@ import (
 var (
 	_                  activity.RunnableActivity     = (*Interop)(nil)
 	_                  activity.VerificationActivity = (*Interop)(nil)
-	backoffPeriod                                    = 1 * time.Second // backoff when chains aren't ready
+	backoffPeriod                                    = 1 * time.Second // backoff when chains aren't ready and caught up to the tip
 	errorBackoffPeriod                               = 2 * time.Second // backoff on errors
+	// catchupBackoffPeriod is the shorter backoff used after a no-op round while
+	// still draining a verification backlog, so the verifier retries promptly
+	// instead of sleeping a full second per transient wait (e.g. timestamp gaps
+	// from differing per-chain block times). See progress.
+	catchupBackoffPeriod = 50 * time.Millisecond
+	// maxFastNoProgress bounds how many consecutive no-op rounds use the short
+	// catchupBackoffPeriod before falling back to backoffPeriod. During a drain,
+	// advances reset the streak so the verifier stays in fast mode; once caught
+	// up to the tip the streak grows and the verifier idles calmly without
+	// busy-polling. See progress.
+	maxFastNoProgress = 10
 )
 
 // DefaultLogBackfillDepth matches the interop message expiry window so backfill
@@ -205,6 +216,12 @@ type Interop struct {
 
 	// verifyRounds counts verification loop iterations for periodic progress logging.
 	verifyRounds atomic.Int32
+
+	// noProgressStreak counts consecutive no-op verification rounds. It is used
+	// to keep the backoff short while a backlog is being drained (advances reset
+	// it) and only fall back to the full backoff once genuinely caught up to the
+	// tip. Only read/written by the main loop goroutine; no mutex needed.
+	noProgressStreak int
 
 	// l1Checker must be non-nil whenever observeRound runs. Production sets it
 	// via New; tests inject noopL1Checker.
@@ -441,9 +458,26 @@ func (i *Interop) progress() (time.Duration, error) {
 		i.log.Info("interop verification progress", fields...)
 	}
 	if !madeProgress {
-		return backoffPeriod, nil
+		return i.backoffAfterNoProgress(), nil
 	}
+	i.noProgressStreak = 0
 	return 0, nil
+}
+
+// backoffAfterNoProgress records a no-op verification round and returns how long
+// to wait before the next attempt. While a backlog is being drained, no-op
+// rounds (e.g. timestamp gaps between chains with different block times) are
+// interleaved with advances that reset the streak, so this keeps the backoff
+// short (catchupBackoffPeriod) and the verifier drains at IO/CPU speed instead
+// of ~1 round/sec. Sustained no-ops (streak past maxFastNoProgress) mean we are
+// caught up to the tip and waiting for new data, so it falls back to the full
+// backoffPeriod to avoid busy-polling. Only called from the main loop goroutine.
+func (i *Interop) backoffAfterNoProgress() time.Duration {
+	i.noProgressStreak++
+	if i.noProgressStreak <= maxFastNoProgress {
+		return catchupBackoffPeriod
+	}
+	return backoffPeriod
 }
 
 // Stop stops the Interop activity.
