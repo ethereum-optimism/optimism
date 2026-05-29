@@ -506,3 +506,7 @@ release-notes component from='latest' to='latest-rc' mode='':
         "${tag_args[@]}" \
         "${offline_args[@]}" \
         -- "${from_tag}..${range_end}"
+
+# Run the rust-code-reviewer agent over the current branch (delegates to rust/justfile).
+rust-review base='':
+  cd rust && just rust-review "{{base}}"
