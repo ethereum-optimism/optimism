@@ -44,7 +44,7 @@ func TestInteropActivation_MultiChain(gt *testing.T) {
 }
 
 func testInteropActivation_MultiChain(gt *testing.T, testCfg *helpers.TestCfg[forks.Name]) {
-	// kona-host single auto-synthesises a one-chain depset; remove once it accepts a caller-supplied one.
+	// The KONA_HOST path only invokes `kona-host single`, does not support the super mode.
 	helpers.SkipIfKona(gt)
 
 	t := actionsHelpers.NewDefaultTesting(gt)
