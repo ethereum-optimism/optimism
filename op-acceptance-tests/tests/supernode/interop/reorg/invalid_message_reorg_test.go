@@ -10,12 +10,37 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
-// TestSupernodeInteropInvalidMessageReplacement tests that:
+// TestSupernodeInteropInvalidMessageReplacement runs the invalid-message
+// replacement scenario with the supernode virtual sequencer.
+func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	runInteropInvalidMessageReplacementScenario(t, sys)
+}
+
+// TestSupernodeLightSequencerInteropInvalidMessageReplacement is the follow-mode
+// (light op-node CL sequencer) analogue of TestSupernodeInteropInvalidMessageReplacement.
+// The light CLs sequence unsafe blocks on their own ELs and follow the shared
+// supernode's safe head (consensus-layer sync, the production default). It asserts
+// the follower adopts the supernode's deposits-only replacement after an invalid
+// executing message. See https://github.com/ethereum-optimism/optimism/issues/21119.
+func TestSupernodeLightSequencerInteropInvalidMessageReplacement(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0)
+	runInteropInvalidMessageReplacementScenario(t, sys)
+}
+
+// runInteropInvalidMessageReplacementScenario drives the invalid-message replacement
+// scenario against an already-constructed two-L2 supernode interop system, so the
+// caller owns the sequencer topology (virtual sequencer vs light op-node follow-CL).
+//
 // WHEN: an invalid Executing Message is included in a chain
 // THEN:
 // - The interop activity detects the invalid block
@@ -23,10 +48,7 @@ import (
 // - A reset/rewind is triggered if the chain is using that block
 // - A replacement block is built at the same height (deposits-only)
 // - The replacement block's timestamp eventually becomes verified
-func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t, 0)
-
+func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 	ctx := t.Ctx()
 
 	// Create funded EOAs on both chains
@@ -126,4 +148,21 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 	sys.Supernode.AwaitValidatedTimestamp(txTimestamp)
 	// Should still have the tx in the block.
 	sys.L2ELB.AssertTxInBlock(bigs.Uint64Strict(tx.Included.Value().BlockNumber), tx.Included.Value().TxHash)
+
+	// CONVERGENCE & STABILITY: every node on the reorged chain must agree on the single
+	// canonical replacement chain AND keep building on top of it — no oscillation back
+	// onto the invalidated fork (the #21119 failure mode). We require each chain's block
+	// producer (L2{A,B}CL — the supernode's virtual sequencer, or the light op-node
+	// sequencer in follow-mode presets) to converge with the supernode's verifier route
+	// (L2{A,B}SupernodeCL) at cross-safe while its local-unsafe head keeps advancing.
+	dsl.CheckAll(t,
+		sys.L2BCL.MatchedWithProgressFn(sys.L2BSupernodeCL, safety.CrossSafe, safety.LocalUnsafe, 90*time.Second, 30*time.Second),
+		sys.L2ACL.MatchedWithProgressFn(sys.L2ASupernodeCL, safety.CrossSafe, safety.LocalUnsafe, 90*time.Second, 30*time.Second),
+	)
+	// Both nodes on the reorged chain must also agree at local-safe, confirming the
+	// replacement chain (not the fork) is the one they consolidated.
+	dsl.CheckAll(t,
+		sys.L2BCL.MatchedFn(sys.L2BSupernodeCL, safety.LocalSafe, 30),
+		sys.L2ACL.MatchedFn(sys.L2ASupernodeCL, safety.LocalSafe, 30),
+	)
 }
