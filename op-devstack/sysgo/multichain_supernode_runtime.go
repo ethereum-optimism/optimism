@@ -330,38 +330,65 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 
 	var l2ACL L2CLNode = supernodeL2ACL
 	var l2BCL L2CLNode = supernodeL2BCL
+	// supernode VN ELs (always distinct identity from any follow-mode sequencer EL).
+	supernodeL2AEL, supernodeL2BEL := l2AEL, l2BEL
+	// sequencer ELs default to the supernode ELs in virtual-sequencer mode;
+	// in light-sequencer mode each follow-mode sequencer gets its own EL.
+	seqL2AEL, seqL2BEL := l2AEL, l2BEL
 	if !supernodeSequencerEnabled {
-		l2ACL = startL2CLNode(t, keys, l1Net, l2ANet, l1EL, l1CL, l2AEL, jwtSecret, l2CLNodeStartConfig{
-			Key:           "sequencer",
-			IsSequencer:   true,
-			NoDiscovery:   true,
-			EnableReqResp: true,
-			UseReqResp:    true,
-			DependencySet: runtimeDepSet,
-			L2CLOptions:   cfg.GlobalL2CLOptions,
+		// Production-faithful topology: each follow-mode sequencer runs its own
+		// EL, distinct from the supernode VN's EL, joined only by L1 and P2P.
+		seqL2AEL = startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0))
+		seqL2BEL = startSequencerEL(t, l2BNet, jwtPath, jwtSecret, NewELNodeIdentity(0))
+
+		// Light sequencers follow the supernode's safe head (production:
+		// kind=sequencer, lightNode=true, deps on op-supernode). They sequence
+		// unsafe blocks but disable L1 derivation, importing safe/finalized state
+		// from the supernode route and reorging onto its invalid-message
+		// replacements.
+		l2ACL = startL2CLNode(t, keys, l1Net, l2ANet, l1EL, l1CL, seqL2AEL, jwtSecret, l2CLNodeStartConfig{
+			Key:            "sequencer",
+			IsSequencer:    true,
+			NoDiscovery:    true,
+			EnableReqResp:  true,
+			UseReqResp:     false,
+			DependencySet:  runtimeDepSet,
+			L2FollowSource: supernodeL2ACL.UserRPC(),
+			L2CLOptions:    cfg.GlobalL2CLOptions,
+			// Follow-mode sequencers reorg onto the supernode's invalid-message
+			// replacement via EL sync; req-resp CL sync is being deprecated.
+			SyncMode: nodeSync.ELSync,
 		})
-		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, l2BEL, jwtSecret, l2CLNodeStartConfig{
-			Key:           "sequencer",
-			IsSequencer:   true,
-			NoDiscovery:   true,
-			EnableReqResp: true,
-			UseReqResp:    true,
-			DependencySet: runtimeDepSet,
-			L2CLOptions:   cfg.GlobalL2CLOptions,
+		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, seqL2BEL, jwtSecret, l2CLNodeStartConfig{
+			Key:            "sequencer",
+			IsSequencer:    true,
+			NoDiscovery:    true,
+			EnableReqResp:  true,
+			UseReqResp:     false,
+			DependencySet:  runtimeDepSet,
+			L2FollowSource: supernodeL2BCL.UserRPC(),
+			L2CLOptions:    cfg.GlobalL2CLOptions,
+			SyncMode:       nodeSync.ELSync,
 		})
+		// CL gossip: unsafe blocks (incl. the supernode's deposits-only
+		// replacement) propagate between the sequencer CLs and the VN CLs.
 		connectL2CLPeers(t, t.Logger(), l2ACL, supernodeL2ACL)
 		connectL2CLPeers(t, t.Logger(), l2BCL, supernodeL2BCL)
+		// EL P2P: block bodies sync between each sequencer EL and its paired
+		// supernode EL (required for the ELSync follow path).
+		connectL2ELPeers(t, t.Logger(), supernodeL2AEL.UserRPC(), seqL2AEL.UserRPC(), false)
+		connectL2ELPeers(t, t.Logger(), supernodeL2BEL.UserRPC(), seqL2BEL.UserRPC(), false)
 	}
 
-	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, l2AEL, cfg.BatcherOptions...)
+	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, seqL2AEL, cfg.BatcherOptions...)
 	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, supernodeL2ACL)
-	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, l2BCL, l2BEL, cfg.BatcherOptions...)
+	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, l2BCL, seqL2BEL, cfg.BatcherOptions...)
 	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, supernodeL2BCL)
 
 	faucetService := startFaucetsForRPCs(t, keys, map[eth.ChainID]string{
 		l1Net.ChainID():  l1EL.UserRPC(),
-		l2ANet.ChainID(): l2AEL.UserRPC(),
-		l2BNet.ChainID(): l2BEL.UserRPC(),
+		l2ANet.ChainID(): seqL2AEL.UserRPC(),
+		l2BNet.ChainID(): seqL2BEL.UserRPC(),
 	})
 
 	// Wait for interop filter readiness now that the supernode and batchers are running.
@@ -381,18 +408,20 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			"l2a": {
 				Name:        "l2a",
 				Network:     l2ANet,
-				EL:          l2AEL,
+				EL:          seqL2AEL,
 				CL:          l2ACL,
 				SupernodeCL: supernodeL2ACL,
+				SupernodeEL: supernodeL2AEL,
 				Batcher:     l2ABatcher,
 				Proposer:    l2AProposer,
 			},
 			"l2b": {
 				Name:        "l2b",
 				Network:     l2BNet,
-				EL:          l2BEL,
+				EL:          seqL2BEL,
 				CL:          l2BCL,
 				SupernodeCL: supernodeL2BCL,
+				SupernodeEL: supernodeL2BEL,
 				Batcher:     l2BBatcher,
 				Proposer:    l2BProposer,
 			},
@@ -492,6 +521,9 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 		UseReqResp:     false,
 		L2FollowSource: chain.CL.UserRPC(),
 		DependencySet:  runtime.DependencySet,
+		// Follow nodes catch up to their follow source via EL sync;
+		// req-resp CL sync is being deprecated.
+		SyncMode: nodeSync.ELSync,
 	})
 
 	connectL2ELPeers(t, t.Logger(), chain.EL.UserRPC(), l2EL.UserRPC(), false)
