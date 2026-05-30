@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
 // TestSupernodeInteropInvalidMessageReplacement runs the invalid-message
@@ -153,13 +154,21 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 
 	// We should still be able to include new transactions and have them be fully
 	// validated. After the invalid-message reorg the chain can still be settling for a
-	// few blocks — the light sequencer rebuilds on the supernode's replacement and may
-	// briefly reorg again before converging — so assert eventual consistency rather than
-	// a single pre-settle snapshot: the new tx must end up in a cross-safe block
-	// (supernode-validated and reorg-immune), re-resolving its block on each poll.
+	// while — the light sequencer rebuilds on the supernode's replacement and may briefly
+	// reorg again before converging, and under a loaded executor that recovery can be
+	// several times slower. So don't assert immediate inclusion (which would race a slow
+	// box) or a single pre-settle snapshot. Submit the tx, then assert eventual
+	// consistency: it must end up in a cross-safe block (supernode-validated and
+	// reorg-immune), re-resolving its block on each poll. The whole inclusion + validation
+	// window is covered by one generous timeout rather than the default short inclusion
+	// retry budget.
 	bruce := sys.FunderB.NewFundedEOA(eth.OneEther)
-	tx := bruce.Transfer(alice.Address(), eth.OneHundredthEther)
-	txHash := tx.Included.Value().TxHash
+	tx := txplan.NewPlannedTx(bruce.PlanTransfer(alice.Address(), eth.OneHundredthEther))
+	signed, err := tx.Signed.Eval(ctx)
+	require.NoError(t, err, "sign post-reorg transfer")
+	txHash := signed.Hash()
+	_, err = tx.Submitted.Eval(ctx)
+	require.NoError(t, err, "submit post-reorg transfer")
 	require.Eventually(t, func() bool {
 		client := sys.L2ELB.Escape().EthClient()
 		rcpt, err := client.TransactionReceipt(ctx, txHash)
@@ -172,7 +181,7 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 			return false
 		}
 		return safe.Number >= bigs.Uint64Strict(rcpt.BlockNumber)
-	}, 120*time.Second, time.Second, "new tx must reach a cross-safe (validated, reorg-immune) block")
+	}, 240*time.Second, time.Second, "new tx must reach a cross-safe (validated, reorg-immune) block")
 
 	// CONVERGENCE & STABILITY: every node on the reorged chain must agree on the single
 	// canonical replacement chain AND keep building on top of it — no oscillation back
