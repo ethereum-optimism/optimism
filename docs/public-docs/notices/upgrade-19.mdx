@@ -94,7 +94,7 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
 <Steps>
   <Step title="Verify the new kona-client absolute prestate">
 
-  The absolute prestate is generated with [`kona-client/v1.5.2`](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.5.2). As of Upgrade 19, the `kona-client` source lives inside the [`ethereum-optimism/optimism`](https://github.com/ethereum-optimism/optimism) monorepo.
+  The absolute prestate is generated with [`kona-client/v1.6.0`](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.6.0). As of Upgrade 19, the `kona-client` source lives inside the [`ethereum-optimism/optimism`](https://github.com/ethereum-optimism/optimism) monorepo.
 
   Choose the verification path that matches your chain:
 
@@ -102,14 +102,14 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
     <Tab title="Chains in the superchain-registry">
       Two variants ship with this release:
 
-      *   **`cannon64-kona`** (`0x0342fb4df7931013ac09dd028d083e1b641f044a2085b2a807b67417ec912d6e`) — standard variant for chains adopting `CANNON_KONA` (game type 8) as the respected game type.
-      *   **`cannon64-kona-interop`** (`0x03ae89b2187ce030608efb2a4df76c7dd62d9293f708764bfefa593f89f77a1f`) — for chains also running the interop fault proof variant.
+      *   **`cannon64-kona`** (`0x03cdb57a890f7e129d5abbe074f19425f94cf2b84f614aab008a96f91debae65`) — standard variant for chains adopting `CANNON_KONA` (game type 8) as the respected game type.
+      *   **`cannon64-kona-interop`** (`0x039e98f06aa04983d15f8dfce40884c4c93131de8ab4c01d9e647ab38a954894`) — for chains also running the interop fault proof variant.
 
       These prestates apply to the following chains:
 
       *   Mainnet and Sepolia: `OP`, `Ink`, `Soneium`, and `Unichain`
 
-      You can verify both absolute prestates by running the following command in the root of the monorepo on the `kona-client/v1.5.2` tag:
+      You can verify both absolute prestates by running the following command in the root of the monorepo on the `kona-client/v1.6.0` tag:
 
       ```shell
       just reproducible-prestate-kona
