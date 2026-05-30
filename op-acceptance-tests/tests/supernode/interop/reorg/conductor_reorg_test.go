@@ -4,6 +4,8 @@ import (
 	"context"
 	"math/rand"
 	"os"
+	"sort"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,7 +30,29 @@ import (
 const (
 	reorgObservedMetric  = "op_conductor_reorgs_observed_count"
 	reorgCommittedMetric = "op_conductor_reorgs_committed_count"
+
+	// deepReorgBuildPerBlock budgets wall-clock time per L2 block while burying the invalid
+	// block under reorgDepth descendants and while the chain re-derives them after the
+	// reorg. L2 blocks are produced in real time, so a deep reorg needs a long window.
+	deepReorgBuildPerBlock = 4 * time.Second
+	// deepReorgBuildBase is fixed slack on top of the per-block build/settle budget.
+	deepReorgBuildBase = 120 * time.Second
 )
+
+// deepReorgBuildTimeout returns a generous timeout for building or re-deriving reorgDepth
+// L2 blocks at real-time block production.
+func deepReorgBuildTimeout(reorgDepth uint64) time.Duration {
+	return time.Duration(reorgDepth)*deepReorgBuildPerBlock + deepReorgBuildBase
+}
+
+// requireDeepReorgEnabled skips a test unless OP_RUN_DEEP_REORG_TEST is set. Deep reorg
+// tests pause interop and wait for the chain to extend by the reorg depth in real time, so
+// they take minutes and are excluded from CI by default.
+func requireDeepReorgEnabled(t devtest.T) {
+	if os.Getenv("OP_RUN_DEEP_REORG_TEST") == "" {
+		t.Skip("deep reorg test is manual-only (real-time L2 block production makes it slow); set OP_RUN_DEEP_REORG_TEST=1 to run")
+	}
+}
 
 // requireOpReth skips the test unless the EL backend is op-reth. The acceptance CI
 // matrix runs the same package under an op-geth job (which leaves DEVSTACK_L2EL_KIND
@@ -46,11 +70,21 @@ type reorgTrigger struct {
 	invalidBlockTimestamp uint64
 }
 
-// triggerInvalidMessageReorgOnB forces a same-chain reorg on chain B by including an
-// invalid executing message and resuming interop, which invalidates and replaces the
-// offending block. It returns once the EL has replaced the block. Mirrors the trigger in
-// invalid_message_reorg_test.go.
+// triggerInvalidMessageReorgOnB forces a same-height, single-block reorg on chain B by
+// including an invalid executing message and resuming interop, which invalidates and
+// replaces the offending block. It returns once the EL has replaced the block. Mirrors the
+// trigger in invalid_message_reorg_test.go.
 func triggerInvalidMessageReorgOnB(t devtest.T, sys *presets.TwoL2SupernodeInteropWithConductors) reorgTrigger {
+	return triggerInvalidMessageReorgOnBWithDepth(t, sys, 0)
+}
+
+// triggerInvalidMessageReorgOnBWithDepth is triggerInvalidMessageReorgOnB with an optional
+// reorg depth: while interop stays paused, the chain is extended reorgDepth blocks past the
+// invalid executing message before interop is resumed. Resuming then invalidates the buried
+// block and re-derives every descendant, producing a reorg that spans ~reorgDepth blocks
+// (the EL unsafe head transiently rewinds to the replacement before climbing back). A depth
+// of 0 reproduces the shallow same-height replacement.
+func triggerInvalidMessageReorgOnBWithDepth(t devtest.T, sys *presets.TwoL2SupernodeInteropWithConductors, reorgDepth uint64) reorgTrigger {
 	ctx := t.Ctx()
 
 	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
@@ -72,20 +106,51 @@ func triggerInvalidMessageReorgOnB(t devtest.T, sys *presets.TwoL2SupernodeInter
 	invalidBlockHash := execMsg.BlockHash()
 	invalidBlockTimestamp := sys.L2B.TimestampForBlockNum(invalidBlockNumber)
 	t.Logger().Info("invalid executing message sent on chain B",
-		"block", invalidBlockNumber, "hash", invalidBlockHash, "timestamp", invalidBlockTimestamp)
+		"block", invalidBlockNumber, "hash", invalidBlockHash, "timestamp", invalidBlockTimestamp, "depth", reorgDepth)
 
 	require.Eventually(t, func() bool {
 		return sys.L2BCL.SyncStatus().LocalSafeL2.Number >= invalidBlockNumber
 	}, 60*time.Second, time.Second, "invalid block should become locally safe")
 
+	// Bury the invalid block under reorgDepth descendants while interop is paused, so the
+	// invalidation on resume rewinds a deep span rather than a single block. Capture a deep
+	// descendant's hash to later prove the reorg actually cascaded that far.
+	var deepDescendant eth.BlockRef
+	if reorgDepth > 0 {
+		target := invalidBlockNumber + reorgDepth
+		require.Eventually(t, func() bool {
+			return sys.L2BCL.SyncStatus().UnsafeL2.Number >= target
+		}, deepReorgBuildTimeout(reorgDepth), time.Second,
+			"chain B must extend reorgDepth blocks past the invalid block while interop is paused")
+		var err error
+		deepDescendant, err = sys.L2ELB.Escape().EthClient().BlockRefByNumber(ctx, invalidBlockNumber+reorgDepth-1)
+		require.NoError(t, err, "read deep descendant before resume")
+		t.Logger().Info("buried invalid block under descendants",
+			"invalid", invalidBlockNumber, "depth", reorgDepth,
+			"unsafe_head", sys.L2BCL.SyncStatus().UnsafeL2.Number, "deep_descendant", deepDescendant.Hash)
+	}
+
 	sys.Supernode.ResumeInterop()
+	replaceTimeout := 60 * time.Second
+	if reorgDepth > 0 {
+		replaceTimeout = deepReorgBuildTimeout(reorgDepth)
+	}
 	require.Eventually(t, func() bool {
 		currentBlock, err := sys.L2ELB.Escape().EthClient().BlockRefByNumber(ctx, invalidBlockNumber)
 		if err != nil {
 			return false
 		}
 		return currentBlock.Hash != invalidBlockHash
-	}, 60*time.Second, time.Second, "the invalid block at the reorg height should be replaced at the EL")
+	}, replaceTimeout, time.Second, "the invalid block at the reorg height should be replaced at the EL")
+
+	if reorgDepth > 0 {
+		require.Eventually(t, func() bool {
+			cur, err := sys.L2ELB.Escape().EthClient().BlockRefByNumber(ctx, deepDescendant.Number)
+			return err == nil && cur.Hash != deepDescendant.Hash
+		}, replaceTimeout, time.Second,
+			"a deep descendant block must be reorged, proving the reorg spanned reorgDepth blocks")
+		t.Logger().Info("deep reorg confirmed: descendant reorged", "descendant_block", deepDescendant.Number)
+	}
 
 	return reorgTrigger{
 		invalidBlockNumber:    invalidBlockNumber,
@@ -164,6 +229,188 @@ func leaderUnsafePayload(ctx context.Context, leader *dsl.Conductor) (*eth.Execu
 
 type ethBlockByNumber interface {
 	BlockRefByNumber(ctx context.Context, num uint64) (eth.BlockRef, error)
+}
+
+type ethLiveClient interface {
+	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
+}
+
+// assertSequencerLive asserts the cluster is left with a working sequencer after the reorg
+// stabilizes: some conductor is leader + healthy + actively sequencing, and chain B's unsafe
+// head keeps advancing. Convergence alone does not prove this — if a leadership transfer
+// stalls (e.g. on a head mismatch during the reorg) every EL can still converge on the
+// post-reorg chain via gossip/derivation while no conductor is active, halting block
+// production. Without this check that wedge passes the convergence assertions silently.
+func assertSequencerLive(t devtest.T, conductors dsl.ConductorSet, elClient ethLiveClient) {
+	ctx := t.Ctx()
+	require.Eventually(t, func() bool {
+		for _, c := range conductors {
+			callCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			leader, lerr := c.Escape().RpcAPI().Leader(callCtx)
+			healthy, herr := c.Escape().RpcAPI().SequencerHealthy(callCtx)
+			active, aerr := c.Escape().RpcAPI().Active(callCtx)
+			cancel()
+			if lerr == nil && herr == nil && aerr == nil && leader && healthy && active {
+				return true
+			}
+		}
+		return false
+	}, 90*time.Second, time.Second,
+		"after the reorg a conductor must be leader+healthy+active (a live sequencer)")
+
+	start, err := elClient.InfoByLabel(ctx, eth.Unsafe)
+	require.NoError(t, err, "read chain B unsafe head for liveness baseline")
+	const minAdvance = 3
+	target := start.NumberU64() + minAdvance
+	require.Eventually(t, func() bool {
+		head, err := elClient.InfoByLabel(ctx, eth.Unsafe)
+		return err == nil && head.NumberU64() >= target
+	}, 60*time.Second, time.Second,
+		"chain B must keep producing blocks after the reorg (unsafe head must advance)")
+}
+
+// runDeepReorgRecovery drives a depth-block deep reorg on chain B and asserts the conductor
+// cluster recovers: some node observes and commits the post-reorg head into the FSM, every
+// chain-B EL converges on the replacement, AND the cluster is left with a live sequencer. The
+// caller sets the health-check config via preset options, which determines whether the
+// unsafe-staleness check trips during the reorg (and thus whether the FSM-commit vs
+// unhealthy-driven-transfer race is exercised). Per-conductor reorg metrics are logged so a
+// repeated stress run can tell which node committed (the initial leader = race won; a
+// post-transfer leader = race window entered but self-healed).
+func runDeepReorgRecovery(t devtest.T, sys *presets.TwoL2SupernodeInteropWithConductors, depth uint64) {
+	conductors := conductorsForChainB(t, sys)
+	elB := sys.L2ELB.Escape().EthClient()
+
+	leaderBefore := findLeader(t, conductors)
+	t.Logger().Info("chain B leader before deep reorg", "leader", leaderBefore.String(), "depth", depth)
+
+	// Watch leadership/health across the whole reorg window.
+	stopWatch := watchClusterHealth(t, conductors, leaderBefore)
+
+	trigger := triggerInvalidMessageReorgOnBWithDepth(t, sys, depth)
+
+	// Some node observed the deep reorg notification and committed the post-reorg head. Sum
+	// across the cluster: under a tight health check leadership can churn mid-reorg, so the
+	// committer is not necessarily the node that is leader when we scrape.
+	require.Eventually(t, func() bool {
+		var observed, committed float64
+		for _, c := range conductors {
+			observed += c.ScrapeCounter(reorgObservedMetric)
+			committed += c.ScrapeCounter(reorgCommittedMetric)
+		}
+		return observed >= 1 && committed >= 1
+	}, 90*time.Second, time.Second, "some conductor should observe and commit the post-reorg head")
+
+	// The leader's FSM head converges to the canonical post-reorg chain.
+	assertLeaderHeadConverges(t, conductors, elB, trigger.invalidBlockNumber)
+
+	// Every chain-B EL (VN + leader + candidates) converges on the replacement.
+	assertAllChainBELsConverged(t, sys, trigger)
+
+	// Liveness: the cluster must still have a healthy, active sequencer producing blocks.
+	assertSequencerLive(t, conductors, elB)
+
+	healthTrips, leaderChurned := stopWatch()
+	for _, c := range conductors {
+		t.Logger().Info("conductor reorg metrics",
+			"conductor", c.String(),
+			"was_initial_leader", c.String() == leaderBefore.String(),
+			"observed", c.ScrapeCounter(reorgObservedMetric),
+			"committed", c.ScrapeCounter(reorgCommittedMetric))
+	}
+	t.Logger().Info("deep reorg gating measurement",
+		"depth", depth,
+		"leader_health_tripped", healthTrips,
+		"leadership_churned", leaderChurned,
+		"initial_leader_committed", leaderBefore.ScrapeCounter(reorgCommittedMetric),
+		"note", "with reorg-recovery ON the cluster should recover; health/leadership detail is in conductor logs")
+}
+
+// chainBELNodes returns every chain-B EL the reorg must converge across: the supernode
+// validator-node EL plus every conductor-controlled sequencer EL (leader + candidates).
+func chainBELNodes(t devtest.T, sys *presets.TwoL2SupernodeInteropWithConductors) []*dsl.L2ELNode {
+	chainB := sys.L2B.Escape().ChainID()
+	vn := sys.SupernodeELs[chainB]
+	t.Require().NotNil(vn, "missing supernode VN EL for chain B")
+	seqELs := sys.SequencerELs[chainB]
+	t.Require().NotEmpty(seqELs, "missing conductor sequencer ELs for chain B")
+	names := make([]string, 0, len(seqELs))
+	for name := range seqELs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out := make([]*dsl.L2ELNode, 0, len(seqELs)+1)
+	out = append(out, vn)
+	for _, name := range names {
+		out = append(out, seqELs[name])
+	}
+	return out
+}
+
+// assertAllChainBELsConverged asserts every chain-B EL replaced the invalid block at the
+// reorg height and converged on a single canonical hash — proving the reorg propagated to
+// the supernode VN EL and every conductor-controlled sequencer EL, not just the leader's
+// EL that assertLeaderHeadConverges checks. On timeout it logs each EL's block-at-height
+// hash and current unsafe head so a holdout (stuck or diverged) is identified by name.
+func assertAllChainBELsConverged(t devtest.T, sys *presets.TwoL2SupernodeInteropWithConductors, trigger reorgTrigger) {
+	ctx := t.Ctx()
+	els := chainBELNodes(t, sys)
+	deadline := time.Now().Add(90 * time.Second)
+	var lastReport string
+	nextLog := time.Now()
+	for {
+		converged, report := chainBELConvergence(ctx, els, trigger)
+		if converged {
+			t.Logger().Info("all chain-B ELs converged on the post-reorg replacement",
+				"block", trigger.invalidBlockNumber, "el_count", len(els))
+			return
+		}
+		lastReport = report
+		if time.Now().After(nextLog) {
+			t.Logger().Info("waiting for chain-B ELs to converge", "block", trigger.invalidBlockNumber, "state", report)
+			nextLog = time.Now().Add(10 * time.Second)
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	t.Require().FailNowf("chain-B ELs did not converge",
+		"every chain-B EL (VN + all conductor sequencer ELs) must converge on the replacement at block %d; last observation: %s",
+		trigger.invalidBlockNumber, lastReport)
+}
+
+// chainBELConvergence reports whether every EL has replaced the invalid block at the reorg
+// height with a single shared canonical hash. The returned string describes each EL's
+// block-at-height hash and current unsafe head, so a failed poll names the holdout.
+func chainBELConvergence(ctx context.Context, els []*dsl.L2ELNode, trigger reorgTrigger) (bool, string) {
+	var canonical common.Hash
+	converged := true
+	var report string
+	for i, el := range els {
+		ref, err := el.Escape().EthClient().BlockRefByNumber(ctx, trigger.invalidBlockNumber)
+		head, headErr := el.Escape().EthClient().InfoByLabel(ctx, eth.Unsafe)
+		headStr := "?"
+		if headErr == nil {
+			headStr = head.Hash().TerminalString() + ":" + strconv.FormatUint(head.NumberU64(), 10)
+		}
+		switch {
+		case err != nil:
+			report += " " + el.String() + "(blk=err:" + err.Error() + " head=" + headStr + ")"
+			converged = false
+		case ref.Hash == trigger.invalidBlockHash:
+			report += " " + el.String() + "(blk=INVALID head=" + headStr + ")"
+			converged = false
+		default:
+			report += " " + el.String() + "(blk=" + ref.Hash.TerminalString() + " head=" + headStr + ")"
+			if i == 0 {
+				canonical = ref.Hash
+			} else if ref.Hash != canonical {
+				converged = false
+			}
+		}
+	}
+	return converged, report
 }
 
 // pickNonLeader returns a voter in the cluster other than the current leader.
@@ -265,6 +512,11 @@ func TestConductorReorgRecovery(gt *testing.T) {
 	// former follower has it after a transfer).
 	assertLeaderHeadConverges(t, conductors, elB, trigger.invalidBlockNumber)
 
+	// Scenario A (cont.): the reorg must propagate to every chain-B EL — the supernode
+	// VN EL and every conductor-controlled sequencer EL (leader + candidates) — not just
+	// the leader's EL. All converge on the same canonical replacement block.
+	assertAllChainBELsConverged(t, sys, trigger)
+
 	// Scenario C: only the leader writes — every non-leader's committed count stays 0.
 	for _, c := range conductors {
 		if c.IsLeader() {
@@ -305,6 +557,64 @@ func TestConductorReorgRecovery(gt *testing.T) {
 	require.NoError(t, err, "new leader's recorded head should exist on the canonical chain")
 	require.Equal(t, head.ExecutionPayload.BlockHash, ref.Hash,
 		"new leader's recorded head should be canonical — Raft state survived the transfer")
+}
+
+// TestConductorDeepReorgRecovery exercises reorg-recovery against a deep reorg: the invalid
+// executing message is buried under deepReorgDepth descendants (built while interop is
+// paused) before interop resumes, so the invalidation rewinds a deep span rather than a
+// single same-height block. With reorg-recovery ON, the leader must observe and commit the
+// post-reorg head, its FSM head must converge to the canonical post-reorg chain, every
+// chain-B EL must converge on the replacement, and leadership must stay stable.
+//
+// Manual-only (gated by OP_RUN_DEEP_REORG_TEST): L2 blocks are produced in real time, so
+// extending the chain by deepReorgDepth takes minutes — too slow for CI.
+func TestConductorDeepReorgRecovery(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	requireOpReth(t)
+	requireDeepReorgEnabled(t)
+
+	// deepReorgDepth is the number of blocks the chain is extended past the invalid block
+	// before interop resumes, i.e. the depth of the resulting reorg. Tune as needed.
+	const deepReorgDepth = 100
+
+	sys := presets.NewTwoL2SupernodeInteropWithConductors(t, 0,
+		presets.WithConductorReorgRecovery(),
+	)
+	runDeepReorgRecovery(t, sys, deepReorgDepth)
+}
+
+// TestConductorDeepReorgRecoveryTightHealth runs deep-reorg recovery under an aggressive but
+// valid health check: a 1s poll cadence with a 4s unsafe-staleness window (one notch tighter
+// than production's 5s, still safely above the 2s block time so steady-state production never
+// trips). Unlike TestConductorDeepReorgRecovery's lenient default (UnsafeInterval 3600, which
+// never trips and so never transfers leadership), the deep rewind here makes the unsafe head
+// stale enough to trip the staleness check and force a leadership transfer mid-reorg. That
+// exercises the safety-critical race between the reorg-recovery FSM commit and the
+// unhealthy-driven leadership transfer: if leadership moves away before the post-reorg head is
+// committed, a new leader could be left on a stale FSM head with no pending notification to
+// re-commit. The liveness assertion in runDeepReorgRecovery catches a resulting wedge.
+//
+// Depth is OP_DEEP_REORG_DEPTH (default 25) — small enough to keep iterations short for
+// repeated stress runs, large enough that the rewind (depth*blocktime ≈ 50s) far exceeds the
+// 4s window and reliably trips health.
+func TestConductorDeepReorgRecoveryTightHealth(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	requireOpReth(t)
+	requireDeepReorgEnabled(t)
+
+	depth := uint64(25)
+	if v := os.Getenv("OP_DEEP_REORG_DEPTH"); v != "" {
+		parsed, err := strconv.ParseUint(v, 10, 64)
+		require.NoError(t, err, "OP_DEEP_REORG_DEPTH must be a uint")
+		require.Positive(t, parsed, "OP_DEEP_REORG_DEPTH must be > 0")
+		depth = parsed
+	}
+
+	sys := presets.NewTwoL2SupernodeInteropWithConductors(t, 0,
+		presets.WithConductorReorgRecovery(),
+		presets.WithConductorHealthCheck(1, 4, 1200),
+	)
+	runDeepReorgRecovery(t, sys, depth)
 }
 
 // TestConductorReorgRecoveryDisabled is Scenario D: with reorg-recovery OFF (the

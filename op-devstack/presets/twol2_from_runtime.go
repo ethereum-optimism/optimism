@@ -215,10 +215,61 @@ func twoL2SupernodeInteropWithConductorsFromRuntime(t devtest.T, runtime *sysgo.
 		chainA.Network.ChainID(): addConductorsToL2Network(t, base.L2A, chainA.Network.ChainID(), chainA.Conductors),
 		chainB.Network.ChainID(): addConductorsToL2Network(t, base.L2B, chainB.Network.ChainID(), chainB.Conductors),
 	}
+	supernodeELs := map[eth.ChainID]*dsl.L2ELNode{
+		chainA.Network.ChainID(): supernodeELNode(t, chainA),
+		chainB.Network.ChainID(): supernodeELNode(t, chainB),
+	}
+	sequencerELs := map[eth.ChainID]map[string]*dsl.L2ELNode{
+		chainA.Network.ChainID(): conductorSequencerELNodes(t, chainA, base.L2ELA),
+		chainB.Network.ChainID(): conductorSequencerELNodes(t, chainB, base.L2ELB),
+	}
 	return &TwoL2SupernodeInteropWithConductors{
 		TwoL2SupernodeInterop: base,
 		ConductorSets:         conductorSets,
+		SupernodeELs:          supernodeELs,
+		SequencerELs:          sequencerELs,
 	}
+}
+
+// l2ELNodeFromRuntime wraps a sysgo EL handle into a DSL L2ELNode frontend so it can
+// be queried directly (used to expose the supernode VN ELs and conductor candidate ELs
+// that the base preset does not surface).
+func l2ELNodeFromRuntime(t devtest.T, name string, net *sysgo.L2Network, el sysgo.L2ELNode) *dsl.L2ELNode {
+	return dsl.NewL2ELNode(newL2ELFrontend(
+		t,
+		name,
+		net.ChainID(),
+		el.UserRPC(),
+		el.EngineRPC(),
+		el.JWTPath(),
+		net.RollupConfig(),
+		el,
+	))
+}
+
+// supernodeELNode returns the supernode VN EL for the chain as a DSL handle.
+func supernodeELNode(t devtest.T, chain *sysgo.MultiChainNodeRuntime) *dsl.L2ELNode {
+	t.Require().NotNil(chain.SupernodeEL, "missing supernode EL for chain %s", chain.Name)
+	return l2ELNodeFromRuntime(t, "supernode", chain.Network, chain.SupernodeEL)
+}
+
+// conductorSequencerELNodes returns every conductor-controlled sequencer EL for the
+// chain, keyed by conductor name. The bootstrap leader ("sequencer") drives the chain's
+// primary EL, which the base preset already exposes as leaderEL; each candidate runs its
+// own EL recorded in the runtime's Followers map.
+func conductorSequencerELNodes(t devtest.T, chain *sysgo.MultiChainNodeRuntime, leaderEL *dsl.L2ELNode) map[string]*dsl.L2ELNode {
+	out := make(map[string]*dsl.L2ELNode, len(chain.Conductors))
+	for name := range chain.Conductors {
+		if name == "sequencer" {
+			out[name] = leaderEL
+			continue
+		}
+		follower := chain.Followers[name]
+		t.Require().NotNil(follower, "missing follower runtime for conductor candidate %s", name)
+		t.Require().NotNil(follower.EL, "missing EL for conductor candidate %s", name)
+		out[name] = l2ELNodeFromRuntime(t, name, chain.Network, follower.EL)
+	}
+	return out
 }
 
 func addConductorsToL2Network(t devtest.T, l2 *dsl.L2Network, chainID eth.ChainID, conductors map[string]*sysgo.Conductor) dsl.ConductorSet {

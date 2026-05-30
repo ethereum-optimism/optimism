@@ -114,6 +114,17 @@ type TwoL2SupernodeInteropWithConductors struct {
 	*TwoL2SupernodeInterop
 
 	ConductorSets map[eth.ChainID]dsl.ConductorSet
+
+	// SupernodeELs maps each chain to its supernode validator-node EL. In this
+	// production-faithful topology that EL is distinct from the conductor-controlled
+	// sequencer ELs, joined only by L1 + P2P.
+	SupernodeELs map[eth.ChainID]*dsl.L2ELNode
+
+	// SequencerELs maps each chain to its conductor-controlled sequencer ELs, keyed
+	// by conductor name ("sequencer" is the bootstrap leader candidate). Together
+	// with SupernodeELs these are every EL that must converge on the canonical chain
+	// after a reorg.
+	SequencerELs map[eth.ChainID]map[string]*dsl.L2ELNode
 }
 
 // AdvanceTime advances the time-travel clock if enabled.
