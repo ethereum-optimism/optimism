@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
 // TestSupernodeInteropInvalidMessageReplacement runs the invalid-message
@@ -152,51 +151,34 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 		"invalid_block_hash", invalidBlockHash,
 	)
 
-	// We should still be able to include new transactions and have them be fully
-	// validated. After the invalid-message reorg the chain can still be settling for a
-	// while — the light sequencer rebuilds on the supernode's replacement and may briefly
-	// reorg again before converging, and under a loaded executor that recovery can be
-	// several times slower. So don't assert immediate inclusion (which would race a slow
-	// box) or a single pre-settle snapshot. Submit the tx, then assert eventual
-	// consistency: it must end up in a cross-safe block (supernode-validated and
-	// reorg-immune), re-resolving its block on each poll. The whole inclusion + validation
-	// window is covered by one generous timeout rather than the default short inclusion
-	// retry budget.
-	bruce := sys.FunderB.NewFundedEOA(eth.OneEther)
-	tx := txplan.NewPlannedTx(bruce.PlanTransfer(alice.Address(), eth.OneHundredthEther))
-	signed, err := tx.Signed.Eval(ctx)
-	require.NoError(t, err, "sign post-reorg transfer")
-	txHash := signed.Hash()
-	_, err = tx.Submitted.Eval(ctx)
-	require.NoError(t, err, "submit post-reorg transfer")
-	require.Eventually(t, func() bool {
-		client := sys.L2ELB.Escape().EthClient()
-		rcpt, err := client.TransactionReceipt(ctx, txHash)
-		if err != nil {
-			return false // not currently canonical (mid-reorg); keep waiting
-		}
-		// Cross-safe (the EL "safe" label) is supernode-validated and will not reorg.
-		safe, err := client.BlockRefByLabel(ctx, eth.Safe)
-		if err != nil {
-			return false
-		}
-		return safe.Number >= bigs.Uint64Strict(rcpt.BlockNumber)
-	}, 240*time.Second, time.Second, "new tx must reach a cross-safe (validated, reorg-immune) block")
-
-	// CONVERGENCE & STABILITY: every node on the reorged chain must agree on the single
-	// canonical replacement chain AND keep building on top of it — no oscillation back
-	// onto the invalidated fork (the #21119 failure mode). We require each chain's block
-	// producer (L2{A,B}CL — the supernode's virtual sequencer, or the light op-node
-	// sequencer in follow-mode presets) to converge with the supernode's verifier route
-	// (L2{A,B}SupernodeCL) at cross-safe while its local-unsafe head keeps advancing.
+	// CONVERGENCE & STABILITY (settle first): every node on the reorged chain must agree on
+	// the single canonical replacement chain AND keep building on top of it — no oscillation
+	// back onto the invalidated fork (the #21119 failure mode). Each chain's block producer
+	// (L2{A,B}CL — the supernode's virtual sequencer, or the light op-node sequencer in
+	// follow-mode presets) must converge with the supernode's verifier route
+	// (L2{A,B}SupernodeCL) at cross-safe while its local-unsafe head keeps advancing, and
+	// agree at local-safe. MatchedWithProgressFn is progress-aware — it fails on a stall, not
+	// a wall-clock deadline — so it tolerates a slow/loaded executor while still catching a
+	// genuine non-convergence stall. We settle here before transacting below, so the new tx
+	// lands on an already-converged chain instead of racing the in-flight reorgs.
 	dsl.CheckAll(t,
 		sys.L2BCL.MatchedWithProgressFn(sys.L2BSupernodeCL, safety.CrossSafe, safety.LocalUnsafe, 90*time.Second, 30*time.Second),
 		sys.L2ACL.MatchedWithProgressFn(sys.L2ASupernodeCL, safety.CrossSafe, safety.LocalUnsafe, 90*time.Second, 30*time.Second),
 	)
-	// Both nodes on the reorged chain must also agree at local-safe, confirming the
-	// replacement chain (not the fork) is the one they consolidated.
 	dsl.CheckAll(t,
 		sys.L2BCL.MatchedFn(sys.L2BSupernodeCL, safety.LocalSafe, 30),
 		sys.L2ACL.MatchedFn(sys.L2ASupernodeCL, safety.LocalSafe, 30),
 	)
+
+	// With the chain settled on the replacement, a new transaction must still be includable
+	// and fully validated. On the now-converged chain it lands cleanly, so the idiomatic
+	// timestamp-validation flow (the same one used for the replacement block above) is
+	// robust: include it, wait for the supernode to validate its timestamp (which makes its
+	// block cross-safe and reorg-immune), and confirm it is still in its block.
+	bruce := sys.FunderB.NewFundedEOA(eth.OneEther)
+	tx := bruce.Transfer(alice.Address(), eth.OneHundredthEther)
+	txBlock := bigs.Uint64Strict(tx.Included.Value().BlockNumber)
+	txTimestamp := sys.L2B.TimestampForBlockNum(txBlock)
+	sys.Supernode.AwaitValidatedTimestamp(txTimestamp)
+	sys.L2ELB.AssertTxInBlock(txBlock, tx.Included.Value().TxHash)
 }
