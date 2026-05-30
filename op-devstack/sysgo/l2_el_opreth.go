@@ -18,11 +18,13 @@ import (
 type OpRethConfig struct {
 	// ExtraArgs are appended to the generated CLI args.
 	ExtraArgs []string
+	// ProofsHistory enables the proofs-history ExEx sidecar. Defaults to true.
+	ProofsHistory bool
 }
 
-// DefaultOpRethConfig returns a zero-valued OpRethConfig that callers can mutate via OpRethOptions.
+// DefaultOpRethConfig returns the default OpRethConfig that callers can mutate via OpRethOptions.
 func DefaultOpRethConfig() *OpRethConfig {
-	return &OpRethConfig{}
+	return &OpRethConfig{ProofsHistory: true}
 }
 
 // OpRethOption customises an OpRethConfig for a specific component target.
@@ -58,6 +60,21 @@ func OpRethWithExtraArgs(args ...string) OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.ExtraArgs = append(cfg.ExtraArgs, args...)
 	})
+}
+
+// OpRethWithoutProofsHistory disables the proofs-history ExEx sidecar. Sequencer ELs do
+// not serve historical proofs, and the sidecar currently crashes the node on a deep reorg
+// (parent-hash mismatch in the proofs-history trie engine), so conductor sequencer ELs that
+// must survive deep reorgs run without it.
+func OpRethWithoutProofsHistory() OpRethOption {
+	return OpRethOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.ProofsHistory = false
+	})
+}
+
+// OpRethWithSDMEnabled enables Sequencer-Defined Metering on the op-reth node.
+func OpRethWithSDMEnabled() OpRethOption {
+	return OpRethWithExtraArgs("--rollup.sdm-enabled")
 }
 
 // OpRethWithInteropURL wires the op-reth node to the given interop filter HTTP endpoint.

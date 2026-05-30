@@ -374,29 +374,32 @@ func buildMixedOpRethNode(
 	err = exec.Command(execPath, initArgs...).Run()
 	t.Require().NoError(err, "must init op-reth node")
 
-	proofHistoryDir := filepath.Join(tempDir, "proof-history")
-
-	initProofsArgs := []string{
-		"proofs",
-		"init",
-		"--datadir=" + dataDirPath,
-		"--chain=" + chainConfigPath,
-		"--proofs-history.storage-path=" + proofHistoryDir,
-		"--proofs-history.storage-version=" + storageVersion,
-	}
-	initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
-	t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
-
-	args = append(
-		args,
-		"--proofs-history",
-		"--proofs-history.window=10000",
-		"--proofs-history.storage-path="+proofHistoryDir,
-		"--proofs-history.storage-version="+storageVersion,
-	)
-
 	opRethCfg := DefaultOpRethConfig()
 	OpRethOptionBundle(opts).Apply(t, NewComponentTarget(key, l2Net.ChainID()), opRethCfg)
+
+	if opRethCfg.ProofsHistory {
+		proofHistoryDir := filepath.Join(tempDir, "proof-history")
+
+		initProofsArgs := []string{
+			"proofs",
+			"init",
+			"--datadir=" + dataDirPath,
+			"--chain=" + chainConfigPath,
+			"--proofs-history.storage-path=" + proofHistoryDir,
+			"--proofs-history.storage-version=" + storageVersion,
+		}
+		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
+		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
+
+		args = append(
+			args,
+			"--proofs-history",
+			"--proofs-history.window=10000",
+			"--proofs-history.storage-path="+proofHistoryDir,
+			"--proofs-history.storage-version="+storageVersion,
+		)
+	}
+
 	args = append(args, opRethCfg.ExtraArgs...)
 
 	return &OpReth{

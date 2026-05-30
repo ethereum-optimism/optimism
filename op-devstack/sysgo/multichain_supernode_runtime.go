@@ -373,8 +373,10 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		// sequencer runs its own EL, distinct from the supernode VN's EL, joined
 		// only by L1 and P2P. This lets it reorg onto the supernode's
 		// invalid-message replacement via EL sync (see startConductorControlledSequencerCL).
-		seqL2AEL = startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0))
-		seqL2BEL = startSequencerEL(t, l2BNet, jwtPath, jwtSecret, NewELNodeIdentity(0))
+		// They run without the proofs-history ExEx: sequencers don't serve historical proofs,
+		// and the sidecar crashes the node on a deep reorg (parent-hash mismatch).
+		seqL2AEL = startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0), OpRethWithoutProofsHistory())
+		seqL2BEL = startSequencerEL(t, l2BNet, jwtPath, jwtSecret, NewELNodeIdentity(0), OpRethWithoutProofsHistory())
 
 		conductorCfg := conductorConfigFromPreset(cfg)
 		var conductorNodeDepSet depset.DependencySet
@@ -698,8 +700,10 @@ func startConductorClusterForChain(
 		name := fmt.Sprintf("candidate-%d", i)
 		// startL2ELForKey respects DEVSTACK_L2EL_KIND, so candidates run op-reth (with the
 		// reth namespace, needed for reorg-recovery subscriptions) rather than the op-geth
-		// that startL2ELNode hardcodes. This keeps the conductor fleet EL-uniform.
-		candidateEL := startL2ELForKey(t, l2Net, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
+		// that startL2ELNode hardcodes. This keeps the conductor fleet EL-uniform. Like the
+		// leader sequencer EL, candidates run without the proofs-history ExEx (it crashes the
+		// node on a deep reorg).
+		candidateEL := startL2ELForKey(t, l2Net, jwtPath, jwtSecret, name, NewELNodeIdentity(0), OpRethWithoutProofsHistory())
 		connectL2ELPeers(t, t.Logger(), l2EL.UserRPC(), candidateEL.UserRPC(), false)
 		candidateEndpoint := newConductorRPCEndpoint()
 		candidateCL := startConductorControlledSequencerCL(t, keys, l1Net, l1EL, l1CL, l2Net, candidateEL, name, supernodeCL, dependencySet, jwtSecret, candidateEndpoint)
