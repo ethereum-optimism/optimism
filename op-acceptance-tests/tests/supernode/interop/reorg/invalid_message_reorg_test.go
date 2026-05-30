@@ -139,15 +139,28 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 		"invalid_block_hash", invalidBlockHash,
 	)
 
-	// We should still be able to include new transactions and have them be fully validated
+	// We should still be able to include new transactions and have them be fully
+	// validated. After the invalid-message reorg the chain can still be settling for a
+	// few blocks — the light sequencer rebuilds on the supernode's replacement and may
+	// briefly reorg again before converging — so assert eventual consistency rather than
+	// a single pre-settle snapshot: the new tx must end up in a cross-safe block
+	// (supernode-validated and reorg-immune), re-resolving its block on each poll.
 	bruce := sys.FunderB.NewFundedEOA(eth.OneEther)
 	tx := bruce.Transfer(alice.Address(), eth.OneHundredthEther)
-	sys.L2ELB.AssertTxInBlock(bigs.Uint64Strict(tx.Included.Value().BlockNumber), tx.Included.Value().TxHash)
-
-	txTimestamp := sys.L2B.TimestampForBlockNum(bigs.Uint64Strict(tx.Included.Value().BlockNumber))
-	sys.Supernode.AwaitValidatedTimestamp(txTimestamp)
-	// Should still have the tx in the block.
-	sys.L2ELB.AssertTxInBlock(bigs.Uint64Strict(tx.Included.Value().BlockNumber), tx.Included.Value().TxHash)
+	txHash := tx.Included.Value().TxHash
+	require.Eventually(t, func() bool {
+		client := sys.L2ELB.Escape().EthClient()
+		rcpt, err := client.TransactionReceipt(ctx, txHash)
+		if err != nil {
+			return false // not currently canonical (mid-reorg); keep waiting
+		}
+		// Cross-safe (the EL "safe" label) is supernode-validated and will not reorg.
+		safe, err := client.BlockRefByLabel(ctx, eth.Safe)
+		if err != nil {
+			return false
+		}
+		return safe.Number >= rcpt.BlockNumber.Uint64()
+	}, 120*time.Second, time.Second, "new tx must reach a cross-safe (validated, reorg-immune) block")
 
 	// CONVERGENCE & STABILITY: every node on the reorged chain must agree on the single
 	// canonical replacement chain AND keep building on top of it — no oscillation back
