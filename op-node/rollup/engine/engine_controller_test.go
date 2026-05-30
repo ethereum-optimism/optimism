@@ -838,6 +838,137 @@ func TestFollowSource_SeedsGenesisRefsFromZeroState(t *testing.T) {
 	mockEngine.AssertExpectations(t)
 }
 
+// recordingOriginResetter counts ResetOrigins calls. A non-nil resetter is what marks an
+// EngineController as a sequencer (wired only when SequencerEnabled), which is the
+// discriminator the follow-source divergence branch uses.
+type recordingOriginResetter struct{ resets int }
+
+func (r *recordingOriginResetter) ResetOrigins() { r.resets++ }
+
+// TestFollowSource_SequencerDivergenceForcesReset verifies a follow-mode SEQUENCER reorgs
+// decisively onto the upstream chain on divergence (forceReset, resetting origins). Regression
+// guard for #21119, where the pre-fix soft update oscillated (see FollowSource).
+func TestFollowSource_SequencerDivergenceForcesReset(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(4242))
+	l1Origin := testutils.RandomBlockRef(rng)
+	mk := func(num uint64, parent common.Hash) eth.L2BlockRef {
+		return eth.L2BlockRef{
+			Hash: testutils.RandomHash(rng), Number: num,
+			ParentHash: parent, Time: l1Origin.Time + num,
+			L1Origin: l1Origin.ID(), SequenceNumber: num,
+		}
+	}
+	block3 := mk(3, testutils.RandomHash(rng))
+	block4 := mk(4, block3.Hash)
+	// Two competing block 5s on top of the common ancestor block4:
+	extBlock5 := mk(5, block4.Hash)  // upstream replacement (deposits-only N')
+	forkBlock5 := mk(5, block4.Hash) // the follower-sequencer's own fork
+
+	interopTime := uint64(0)
+	cfg := &rollup.Config{InteropTime: &interopTime}
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	emitter.Mock.On("Emit", mock.Anything).Maybe()
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+		metrics.NoopMetrics, cfg, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, &testutils.MockL1Source{}, emitter, nil)
+
+	// Wiring an origin-selector resetter marks this controller as a sequencer.
+	originResetter := &recordingOriginResetter{}
+	ec.SetOriginSelectorResetter(originResetter)
+
+	// Local state: the sequencer has built its own fork to block 5.
+	ec.unsafeHead = forkBlock5
+	ec.SetLocalSafeHead(block4)
+	ec.SetDeprecatedSafeHead(block4)
+	ec.SetFinalizedHead(block3)
+	ec.lastForkchoice = eth.ForkchoiceState{
+		HeadBlockHash:      forkBlock5.Hash,
+		SafeBlockHash:      block4.Hash,
+		FinalizedBlockHash: block3.Hash,
+	}
+
+	// Divergence: the local block at height 5 is the fork, not the upstream's block 5.
+	mockEngine.ExpectL2BlockRefByNumber(5, forkBlock5, nil)
+
+	// forceReset FCUs the engine onto the upstream chain in one shot.
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      extBlock5.Hash,
+			SafeBlockHash:      extBlock5.Hash,
+			FinalizedBlockHash: block4.Hash,
+		}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil,
+	)
+
+	// externalCrossSafe=extBlock5, externalLocalSafe=extBlock5, externalFinalized=block4
+	ec.FollowSource(extBlock5, extBlock5, block4)
+
+	require.Equal(t, 1, originResetter.resets, "sequencer divergence must reset origins to cancel the in-flight fork build")
+	require.Equal(t, extBlock5, ec.unsafeHead, "unsafe head must reorg onto the upstream chain")
+	require.Equal(t, extBlock5, ec.localSafeHead, "local safe must reorg onto the upstream chain")
+	require.Equal(t, extBlock5, ec.deprecatedSafeHead, "cross safe must follow the upstream chain")
+	mockEngine.AssertExpectations(t)
+}
+
+// TestFollowSource_VerifierDivergenceStaysSoft verifies a follow-mode VERIFIER (no origin-
+// selector resetter) keeps the soft follow path on divergence WITHOUT resetting origins —
+// there is no competing block production. The #21119 fix must not change this path.
+func TestFollowSource_VerifierDivergenceStaysSoft(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(7373))
+	l1Origin := testutils.RandomBlockRef(rng)
+	mk := func(num uint64, parent common.Hash) eth.L2BlockRef {
+		return eth.L2BlockRef{
+			Hash: testutils.RandomHash(rng), Number: num,
+			ParentHash: parent, Time: l1Origin.Time + num,
+			L1Origin: l1Origin.ID(), SequenceNumber: num,
+		}
+	}
+	block3 := mk(3, testutils.RandomHash(rng))
+	block4 := mk(4, block3.Hash)
+	extBlock5 := mk(5, block4.Hash)  // upstream chain
+	forkBlock5 := mk(5, block4.Hash) // local block at the same height, different hash
+
+	interopTime := uint64(0)
+	cfg := &rollup.Config{InteropTime: &interopTime}
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	emitter.Mock.On("Emit", mock.Anything).Maybe()
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+		metrics.NoopMetrics, cfg, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, &testutils.MockL1Source{}, emitter, nil)
+
+	// No origin-selector resetter: this is a pure verifier.
+	ec.unsafeHead = forkBlock5
+	ec.SetLocalSafeHead(block4)
+	ec.SetDeprecatedSafeHead(block4)
+	ec.SetFinalizedHead(block3)
+	ec.lastForkchoice = eth.ForkchoiceState{
+		HeadBlockHash:      forkBlock5.Hash,
+		SafeBlockHash:      block4.Hash,
+		FinalizedBlockHash: block3.Hash,
+	}
+
+	mockEngine.ExpectL2BlockRefByNumber(5, forkBlock5, nil)
+
+	// The soft path FCUs once finalized advances (via promoteFinalized): head=safe=extBlock5,
+	// finalized=block4.
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      extBlock5.Hash,
+			SafeBlockHash:      extBlock5.Hash,
+			FinalizedBlockHash: block4.Hash,
+		}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil,
+	)
+
+	ec.FollowSource(extBlock5, extBlock5, block4)
+
+	require.Equal(t, extBlock5, ec.unsafeHead, "soft path still advances the unsafe head toward upstream")
+	require.Equal(t, extBlock5, ec.localSafeHead, "soft path advances local safe toward upstream")
+	mockEngine.AssertExpectations(t)
+}
+
 // TestEngineController_FinalizedHead tests FinalizedHead behavior with various configurations
 func TestEngineController_FinalizedHead(t *testing.T) {
 	tests := []struct {

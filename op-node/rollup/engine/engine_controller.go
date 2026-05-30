@@ -1454,8 +1454,22 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 		return
 	}
 
-	// External local safe is found locally but they differ so trigger reorg.
-	// Reorging may trigger EL Sync, or updating the EL Sync target.
+	// External local safe is found locally but differs: the follower diverged from upstream
+	// and must reorg onto it.
+	if e.originSelectorResetter != nil {
+		// This follower is also a sequencer (the origin-selector resetter is wired only when
+		// sequencing is enabled). A soft unsafe-head update would be clobbered by the next
+		// sequencer block before the FCU lands (head on the fork, safe on upstream ->
+		// InvalidForkchoiceState -> reset re-selects the fork -> oscillation, #21119). forceReset
+		// cancels the in-flight build and FCUs onto the upstream chain in one shot (head==safe);
+		// the sequencer then rebuilds from there.
+		logger.Warn("Follow Source: Reorg onto upstream chain")
+		e.forceReset(e.ctx, eLocalSafeRef, eLocalSafeRef, eLocalSafeRef, eSafeBlockRef, eFinalizedRef, false)
+		return
+	}
+
+	// Pure verifier (no local block production): a soft update suffices and may trigger or
+	// retarget EL sync.
 	logger.Warn("Follow Source: Reorg. May Trigger EL sync")
 	followExternalRefs(true)
 }
