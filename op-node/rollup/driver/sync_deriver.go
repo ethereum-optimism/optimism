@@ -211,6 +211,13 @@ func (s *SyncDeriver) SyncStep() {
 
 	s.tryBackupUnsafeReorg()
 
+	// Seed a follow-mode sequencer's engine before the EL-sync backoff below: it is the sole
+	// block producer, so at genesis there is no peer payload to initial-EL-sync from and it
+	// would otherwise back off forever. Idempotent, so this is a one-time genesis bootstrap.
+	if s.SyncCfg.FollowSourceEnabled() && s.SyncCfg.NeedInitialResetEngine {
+		s.Engine.TryInitialResetEngineForSequencer(s.Ctx)
+	}
+
 	if s.Engine.IsEngineInitialELSyncing() {
 		// The pipeline cannot move forwards if doing initial EL sync.
 		s.Log.Debug("Rollup driver is backing off because execution engine is performing initial EL sync.",
@@ -220,10 +227,6 @@ func (s *SyncDeriver) SyncStep() {
 	}
 
 	if s.SyncCfg.FollowSourceEnabled() {
-		if s.SyncCfg.NeedInitialResetEngine {
-			// May need a single reset to trigger sequencer block building
-			s.Engine.TryInitialResetEngineForSequencer(s.Ctx)
-		}
 		return
 	}
 

@@ -838,6 +838,70 @@ func TestFollowSource_SeedsGenesisRefsFromZeroState(t *testing.T) {
 	mockEngine.AssertExpectations(t)
 }
 
+// TestTryInitialResetEngineForSequencer_GenesisELSyncBootstrap verifies the genesis
+// bootstrap path for a follow-mode ELSync sequencer (ethereum-optimism/optimism#21119): with
+// no peer payload to exit syncStatusWillStartEL, the method must seed the engine from
+// FindL2Heads and leave the initial-EL-sync state so the sole-producer sequencer can build.
+func TestTryInitialResetEngineForSequencer_GenesisELSyncBootstrap(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(0xb0075))
+	l1Genesis := eth.L1BlockRef{
+		Hash:       testutils.RandomHash(rng),
+		Number:     0,
+		ParentHash: common.Hash{},
+		Time:       123456,
+	}
+	l2Genesis := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         0,
+		ParentHash:     common.Hash{},
+		Time:           l1Genesis.Time,
+		L1Origin:       l1Genesis.ID(),
+		SequenceNumber: 0,
+	}
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1:     l1Genesis.ID(),
+			L2:     l2Genesis.ID(),
+			L2Time: l2Genesis.Time,
+		},
+		BlockTime:     2,
+		SeqWindowSize: 2,
+	}
+
+	// A fresh genesis-only engine reports genesis for all labeled heads; FindL2Heads
+	// (via currentHeads) then confirms genesis's L1 origin is canonical and returns it.
+	mockEngine := &testutils.MockEngine{}
+	mockEngine.ExpectL2BlockRefByLabel(eth.Finalized, l2Genesis, nil)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Safe, l2Genesis, nil)
+	mockEngine.ExpectL2BlockRefByLabel(eth.Unsafe, l2Genesis, nil)
+	mockL1 := &testutils.MockL1Source{}
+	mockL1.ExpectL1BlockRefByNumber(0, l1Genesis, nil)
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+		metrics.NoopMetrics, cfg,
+		&sync.Config{SyncMode: sync.ELSync, L2FollowSourceEndpoint: "http://localhost"},
+		mockL1, discardEmitter{}, nil)
+
+	// Precondition: a fresh ELSync engine is in initial EL sync with no unsafe head.
+	require.Equal(t, syncStatusWillStartEL, ec.syncStatus)
+	require.True(t, ec.IsEngineInitialELSyncing())
+	require.Equal(t, eth.L2BlockRef{}, ec.unsafeHead)
+
+	ec.TryInitialResetEngineForSequencer(context.Background())
+
+	// The engine is seeded at genesis and has left initial EL sync.
+	require.Equal(t, l2Genesis, ec.unsafeHead, "engine seeded at genesis")
+	require.Equal(t, syncStatusFinishedEL, ec.syncStatus, "left initial EL sync so the driver stops backing off")
+	require.False(t, ec.IsEngineInitialELSyncing())
+	mockEngine.AssertExpectations(t)
+	mockL1.AssertExpectations(t)
+
+	// Idempotent: once the engine has an unsafe head the method early-returns, making
+	// no further engine/L1 lookups (any would fail against the now-exhausted mocks).
+	ec.TryInitialResetEngineForSequencer(context.Background())
+	require.Equal(t, l2Genesis, ec.unsafeHead)
+}
+
 // TestEngineController_FinalizedHead tests FinalizedHead behavior with various configurations
 func TestEngineController_FinalizedHead(t *testing.T) {
 	tests := []struct {
