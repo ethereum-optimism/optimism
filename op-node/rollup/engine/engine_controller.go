@@ -1336,6 +1336,12 @@ func (e *EngineController) TryInitialResetEngineForSequencer(ctx context.Context
 		return
 	}
 	e.forceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized, true)
+	// Once seeded, a follow-mode sequencer has nothing to initial-EL-sync to, so leave the
+	// initial-EL-sync state (as insertUnsafePayload does) and let the driver proceed. EL sync
+	// still engages later via forkchoice updates if the follow source gets ahead.
+	if e.syncStatus == syncStatusWillStartEL {
+		e.syncStatus = syncStatusFinishedEL
+	}
 }
 
 var ErrEngineSyncing = errors.New("engine is syncing")
