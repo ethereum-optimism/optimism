@@ -16,6 +16,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
 // TestSupernodeInteropInvalidMessageReplacement runs the invalid-message
@@ -174,9 +176,15 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 	// and fully validated. On the now-converged chain it lands cleanly, so the idiomatic
 	// timestamp-validation flow (the same one used for the replacement block above) is
 	// robust: include it, wait for the supernode to validate its timestamp (which makes its
-	// block cross-safe and reorg-immune), and confirm it is still in its block.
+	// block cross-safe and reorg-immune), and confirm it is still in its block. We widen the
+	// inclusion budget from the default 5 to 10 attempts (matching the contention-sensitive
+	// txs in isthmus/superroot) so a saturated CI executor with slow block production still
+	// produces the receipt — this is an attempt-bounded retry, not a wall-clock deadline.
 	bruce := sys.FunderB.NewFundedEOA(eth.OneEther)
-	tx := bruce.Transfer(alice.Address(), eth.OneHundredthEther)
+	tx := bruce.Transact(
+		bruce.PlanTransfer(alice.Address(), eth.OneHundredthEther),
+		txplan.WithRetryInclusion(sys.L2ELB.Escape().EthClient(), 10, retry.Exponential()),
+	)
 	txBlock := bigs.Uint64Strict(tx.Included.Value().BlockNumber)
 	txTimestamp := sys.L2B.TimestampForBlockNum(txBlock)
 	sys.Supernode.AwaitValidatedTimestamp(txTimestamp)
