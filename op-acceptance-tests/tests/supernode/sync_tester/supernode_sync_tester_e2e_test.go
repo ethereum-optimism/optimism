@@ -70,12 +70,29 @@ func TestSupernodeVerifierELSyncsFromCold(gt *testing.T) {
 }
 
 // Interop activates a few seconds after genesis; the VN must cross the
-// activation boundary both initially and during a cold catch-up resync.
+// activation boundary both initially and during a cold catch-up resync
+// (default CLSync + reqresp).
 func TestSupernodeVerifierSyncsThroughInteropActivation(gt *testing.T) {
+	syncsThroughInteropActivation(gt)
+}
+
+// Same activation-boundary catch-up under ELSync mode.
+func TestSupernodeVerifierELSyncsThroughInteropActivation(gt *testing.T) {
+	syncsThroughInteropActivation(gt,
+		presets.WithSupernodeVerifierSyncMode(nodeSync.ELSync),
+		presets.WithGlobalSyncTesterELOption(sysgo.SyncTesterELOptionFn(
+			func(_ devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.SyncTesterELConfig) {
+				cfg.ELSyncActive = true
+			},
+		)),
+	)
+}
+
+func syncsThroughInteropActivation(gt *testing.T, opts ...presets.Option) {
 	t := devtest.ParallelT(gt)
 	const activationDelay = uint64(6) // ~3 L2 blocks at the 2s block time
 	sys := presets.NewSingleSupernodeWithSyncTester(t,
-		presets.WithInteropActivationDelay(activationDelay),
+		append([]presets.Option{presets.WithInteropActivationDelay(activationDelay)}, opts...)...,
 	)
 	require := t.Require()
 
