@@ -57,6 +57,16 @@ reorg, moves the recorded unsafe head backward to follow the EL — relaxing the
   value). Enabling or disabling is **not** a hot-flip: follow the
   "Redeploy a HA sequencer" / "Disaster recovery" procedures below and treat it as a
   single coordinated version + config change across the whole cluster.
+- **Adds a 5s demotion grace on staleness.** A deep reorg rewinds the unsafe head far
+  enough to trip the staleness health check; without a grace, leadership would transfer
+  away before the leader commits the (one-shot, non-replayed) reorg notification, wedging
+  the cluster. In this mode the first staleness observation holds the leader healthy for
+  5s so it can commit the post-reorg head, then demotes it **unconditionally** (a healthy
+  poll during the grace cannot cancel it). Operational effects: (1) up to ~5s extra
+  failover latency on a stuck-but-connected sequencer (a genuine connection loss still
+  fails over immediately); (2) one guaranteed leadership handoff per deep reorg. Shallow
+  reorgs never trip staleness and see no change. With the flag off the grace is 0
+  (immediate demotion, exactly as before).
 
 ### How to bootstrap a sequencer cluster from scratch
 

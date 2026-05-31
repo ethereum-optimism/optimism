@@ -66,6 +66,20 @@ no block hash), fetches the full payload, and commits it via the existing
 `CommitUnsafePayload`. The FSM's forward-only guard is bypassed in this mode so the
 recorded head can move backward.
 
+A deep reorg rewinds the unsafe head far enough to trip the unsafe-staleness health
+check, which would normally transfer leadership away before the leader processes the
+(one-shot, non-replayed) reorg notification — wedging the cluster on the pre-reorg head.
+To close that race, this mode adds a **non-cancellable demotion grace** (5s): the first
+staleness observation keeps the leader reporting healthy for the grace so it can commit
+the post-reorg head, then demotes it **unconditionally** at expiry (a fresh block
+timestamp does not prove a correct chain, so a healthy poll during the grace cannot
+cancel the demotion). `ErrSequencerConnectionDown` still fails over immediately. Cost: up
+to ~5s added failover latency on a stuck-but-connected sequencer, and one guaranteed
+leadership handoff per deep reorg (shallow reorgs never trip staleness, so they are
+unaffected). The grace is 0 (today's immediate demotion) when the flag is off. Separately,
+because the subscription has no replay, the leader re-commits its EL's current head on
+every (re)subscribe, recovering any reorg missed during a WebSocket disconnect.
+
 **This flag changes Raft FSM apply semantics and MUST be set identically on every
 conductor in the cluster — all-on or all-off, never mixed.** A mixed setting causes
 silent FSM divergence. See [RUNBOOK.md](./RUNBOOK.md) for the operational contract.

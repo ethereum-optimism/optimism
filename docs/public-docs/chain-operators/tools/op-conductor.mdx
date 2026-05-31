@@ -330,6 +330,10 @@ It is configured via its [flags / environment variables](https://github.com/ethe
     semantics and MUST be set identically on every conductor in the cluster — all-on or
     all-off, never mixed; a mixed setting causes silent Raft FSM divergence.** Enable only
     as a coordinated, fleet-wide rollout. Requires `--execution.ws-url` when set. op-reth only.
+    Also adds a non-cancellable 5s demotion grace on unsafe-staleness so a leader can commit
+    a deep-reorg head before failing over: this adds up to ~5s failover latency on a
+    stuck-but-connected sequencer and one guaranteed leadership handoff per deep reorg
+    (connection loss still fails over immediately; shallow reorgs are unaffected).
 *   **Default Value:** `false`
 *   **Required:** no
 
