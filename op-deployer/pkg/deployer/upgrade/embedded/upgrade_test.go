@@ -177,6 +177,17 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			shouldPass:    false,
 		},
 		{
+			name: "SUPER_PERMISSIONED_CANNON requires SuperPermissionedDisputeGameConfig",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeSuperPermCannon,
+				// Missing SuperPermissionedDisputeGameConfig
+			},
+			errorContains: fmt.Sprintf("superPermissionedDisputeGameConfig is required for game type %d", GameTypeSuperPermCannon),
+			shouldPass:    false,
+		},
+		{
 			name: "ZK_DISPUTE_GAME requires ZKDisputeGameConfig",
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
@@ -333,6 +344,18 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 					AbsolutePrestate: common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
 					Proposer:         common.HexToAddress("0x1111111111111111111111111111111111111111"),
 					Challenger:       common.HexToAddress("0x2222222222222222222222222222222222222222"),
+				},
+			},
+			shouldPass: true,
+		},
+		{
+			name: "SUPER_PERMISSIONED_CANNON with correct SuperPermissionedDisputeGameConfig",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeSuperPermCannon,
+				SuperPermissionedDisputeGameConfig: &SuperPermissionedDisputeGameConfig{
+					Proposer: common.HexToAddress("0x1111111111111111111111111111111111111111"),
 				},
 			},
 			shouldPass: true,
@@ -589,6 +612,48 @@ func TestEncodedUpgradeInputV2_GameArgsEncoding(t *testing.T) {
 			"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c" + // gameArgs data (absolutePrestate)
 			"0000000000000000000000001111111111111111111111111111111111111111" + // gameArgs data (proposer)
 			"0000000000000000000000002222222222222222222222222222222222222222" + // gameArgs data (challenger)
+			"0000000000000000000000000000000000000000000000000000000000000000" // extraInstructions.length
+
+		require.Equal(t, expected, hex.EncodeToString(data))
+	})
+
+	t.Run("SuperPermissionedDisputeGameConfig encodes correctly", func(t *testing.T) {
+		proposer := common.HexToAddress("0x1111111111111111111111111111111111111111")
+
+		input := &UpgradeOPChainInput{
+			Prank: common.Address{0xaa},
+			Opcm:  common.Address{0xbb},
+			UpgradeInputV2: &UpgradeInputV2{
+				SystemConfig: common.Address{0x01},
+				DisputeGameConfigs: []DisputeGameConfig{
+					{
+						Enabled:  true,
+						InitBond: big.NewInt(1000),
+						GameType: GameTypeSuperPermCannon,
+						SuperPermissionedDisputeGameConfig: &SuperPermissionedDisputeGameConfig{
+							Proposer: proposer,
+						},
+					},
+				},
+			},
+		}
+
+		data, err := input.EncodedUpgradeInputV2()
+		require.NoError(t, err)
+		require.NotEmpty(t, data)
+
+		expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
+			"0000000000000000000000000100000000000000000000000000000000000000" + // systemConfig
+			"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs
+			"0000000000000000000000000000000000000000000000000000000000000160" + // offset to extraInstructions
+			"0000000000000000000000000000000000000000000000000000000000000001" + // disputeGameConfigs.length
+			"0000000000000000000000000000000000000000000000000000000000000020" + // offset to disputeGameConfigs[0]
+			"0000000000000000000000000000000000000000000000000000000000000001" + // disputeGameConfigs[0].enabled
+			"00000000000000000000000000000000000000000000000000000000000003e8" + // disputeGameConfigs[0].initBond (1000)
+			"0000000000000000000000000000000000000000000000000000000000000005" + // disputeGameConfigs[0].gameType
+			"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+			"0000000000000000000000000000000000000000000000000000000000000020" + // gameArgs.length (32 bytes)
+			"0000000000000000000000001111111111111111111111111111111111111111" + // gameArgs data (proposer)
 			"0000000000000000000000000000000000000000000000000000000000000000" // extraInstructions.length
 
 		require.Equal(t, expected, hex.EncodeToString(data))

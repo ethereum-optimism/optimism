@@ -265,7 +265,6 @@ func startInteropChallenger(
 		sharedchallenger.WithPrivKey(challengerSecret),
 		sharedchallenger.WithDepset(staticDepSet),
 		sharedchallenger.WithCannonConfig(rollupCfgs, l1Net.genesis, l2Geneses, sharedchallenger.InteropVariant),
-		sharedchallenger.WithSuperPermissionedGameType(),
 		sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 		sharedchallenger.WithSuperCannonKonaGameType(),
 	}

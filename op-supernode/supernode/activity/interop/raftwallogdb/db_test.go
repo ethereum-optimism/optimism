@@ -283,30 +283,27 @@ func TestOpenBlock_Boundaries(t *testing.T) {
 	require.Empty(t, msgs)
 }
 
-// TestOpenBlock_FirstBlockReturnsSkipped asserts that OpenBlock at the first
-// sealed block number returns ErrSkipped when the first block is not genesis,
-// matching the old op-supervisor logs DB contract. Callers (op-supernode's
-// algo.go fallback) rely on this to identify the anchor and use
-// FirstSealedBlock instead. FirstSealedBlock must still return the block.
-func TestOpenBlock_FirstBlockReturnsSkipped(t *testing.T) {
+// TestOpenBlock_FirstBlockOpens asserts that OpenBlock at the first sealed
+// block number succeeds, returning the block's stored data, even when the
+// first block is not genesis. The first sealed block is no longer treated as
+// an opaque anchor.
+func TestOpenBlock_FirstBlockOpens(t *testing.T) {
 	db := tempDB(t)
 	first := blockID(100, 0x64)
 	require.NoError(t, db.SealBlock(common.Hash{}, first, 1000))
 	sealRange(t, db, first, 101, 103)
 
-	_, _, _, err := db.OpenBlock(100)
-	require.ErrorIs(t, err, interop.ErrSkipped, "OpenBlock(firstBlock) must return ErrSkipped when firstBlock > 0")
+	ref, _, _, err := db.OpenBlock(100)
+	require.NoError(t, err)
+	require.Equal(t, uint64(100), ref.Number)
+	require.Equal(t, first.Hash, ref.Hash)
+	require.Equal(t, uint64(1000), ref.Time)
 
 	seal, err := db.FirstSealedBlock()
 	require.NoError(t, err)
 	require.Equal(t, uint64(100), seal.Number)
 	require.Equal(t, first.Hash, seal.Hash)
 	require.Equal(t, uint64(1000), seal.Timestamp)
-
-	// OpenBlock(firstBlock + 1) still succeeds.
-	ref, _, _, err := db.OpenBlock(101)
-	require.NoError(t, err)
-	require.Equal(t, uint64(101), ref.Number)
 }
 
 func TestMultiBlockRoundtrip(t *testing.T) {
@@ -661,7 +658,7 @@ func TestPersistence_AfterRewind(t *testing.T) {
 	db, err := Open(dir, chain)
 	require.NoError(t, err)
 	first := blockID(100, 0x64)
-	require.NoError(t, db.SealBlock(common.Hash{}, first, 1000))
+	require.NoError(t, db.SealBlock(hash(0x63), first, 1000))
 	last := sealRange(t, db, first, 101, 105)
 	require.Equal(t, uint64(105), last.Number)
 

@@ -45,7 +45,7 @@ jobs:
             GH_TOKEN="$GITHUB_TOKEN_GOVERNANCE" gh pr create \
               --title "ci: bump rust nightly pin to ${LATEST}" \
               --body "Automated daily bump of the pinned nightly Rust toolchain from \`${CURRENT}\` to \`${LATEST}\`. CI on this PR will validate the new toolchain compiles cleanly." \
-              --base main \
+              --base develop \
               --label "ci" || echo "PR may already exist for this branch."
 
 workflows:
@@ -56,7 +56,7 @@ workflows:
           filters:
             branches:
               only:
-                - main
+                - develop
     jobs:
       - bump-nightly:
           context:

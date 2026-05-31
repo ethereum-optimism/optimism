@@ -279,7 +279,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			timestamp:  1000,
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, false)
+		err := interop.processBlockLogs(db, blockInfo, types.Receipts{})
 
 		require.NoError(t, err)
 		require.Len(t, db.sealBlockCalls, 1)
@@ -315,7 +315,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			},
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, receipts, false)
+		err := interop.processBlockLogs(db, blockInfo, receipts)
 
 		require.NoError(t, err)
 		require.Equal(t, 3, db.addLogCalls)
@@ -334,41 +334,32 @@ func TestProcessBlockLogs(t *testing.T) {
 			timestamp:  1000,
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, true)
+		err := interop.processBlockLogs(db, blockInfo, types.Receipts{})
 
 		require.NoError(t, err)
 		require.Len(t, db.sealBlockCalls, 1)
 		require.Equal(t, uint64(0), db.sealBlockCalls[0].block.Number)
 	})
 
-	t.Run("first block at non-zero number seals virtual parent first", func(t *testing.T) {
+	t.Run("first block at non-zero number is sealed directly", func(t *testing.T) {
 		t.Parallel()
 
 		interop := &Interop{log: gethlog.New()}
 		db := &mockLogsDB{}
 		blockInfo := &testBlockInfo{
 			hash:       common.Hash{0x02},
-			parentHash: common.Hash{0x01}, // Real parent hash
-			number:     10,                // Non-zero block number
+			parentHash: common.Hash{0x01},
+			number:     10,
 			timestamp:  1000,
 		}
 
-		// isFirstBlock=true should first seal a "virtual parent" block,
-		// then seal the actual block. This allows logs to reference a sealed parent.
-		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, true)
+		err := interop.processBlockLogs(db, blockInfo, types.Receipts{})
 
 		require.NoError(t, err)
-		require.Len(t, db.sealBlockCalls, 2)
-
-		// First call: seal the virtual parent (block 9) with empty parent hash
-		require.Equal(t, common.Hash{}, db.sealBlockCalls[0].parentHash)
-		require.Equal(t, uint64(9), db.sealBlockCalls[0].block.Number)
-		require.Equal(t, common.Hash{0x01}, db.sealBlockCalls[0].block.Hash)
-
-		// Second call: seal the actual block (block 10) with real parent hash
-		require.Equal(t, common.Hash{0x01}, db.sealBlockCalls[1].parentHash)
-		require.Equal(t, uint64(10), db.sealBlockCalls[1].block.Number)
-		require.Equal(t, common.Hash{0x02}, db.sealBlockCalls[1].block.Hash)
+		require.Len(t, db.sealBlockCalls, 1)
+		require.Equal(t, common.Hash{0x01}, db.sealBlockCalls[0].parentHash)
+		require.Equal(t, uint64(10), db.sealBlockCalls[0].block.Number)
+		require.Equal(t, common.Hash{0x02}, db.sealBlockCalls[0].block.Hash)
 	})
 
 	t.Run("first block with logs succeeds", func(t *testing.T) {
@@ -391,12 +382,10 @@ func TestProcessBlockLogs(t *testing.T) {
 			},
 		}
 
-		// This is the key test: first block with logs should work because
-		// we seal the virtual parent first, allowing AddLog to reference it
-		err := interop.processBlockLogs(db, blockInfo, receipts, true)
+		err := interop.processBlockLogs(db, blockInfo, receipts)
 
 		require.NoError(t, err)
-		require.Len(t, db.sealBlockCalls, 2) // virtual parent + actual block
+		require.Len(t, db.sealBlockCalls, 1)
 		require.Equal(t, 1, db.addLogCalls)
 	})
 
@@ -426,9 +415,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			},
 		}
 
-		// This is the key integration test: first block with logs must work
-		// against the real logs.DB, not just the mock.
-		err = interop.processBlockLogs(db, blockInfo, receipts, true)
+		err = interop.processBlockLogs(db, blockInfo, receipts)
 		require.NoError(t, err)
 
 		// Verify data is correctly in the DB
@@ -461,7 +448,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			},
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, receipts, false)
+		err := interop.processBlockLogs(db, blockInfo, receipts)
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "add log failed")
@@ -479,7 +466,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			timestamp:  1000,
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, false)
+		err := interop.processBlockLogs(db, blockInfo, types.Receipts{})
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "seal failed")

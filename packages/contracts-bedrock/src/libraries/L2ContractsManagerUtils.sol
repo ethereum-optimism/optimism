@@ -8,12 +8,10 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
-// Contracts
-import { L2ProxyAdmin } from "src/L2/L2ProxyAdmin.sol";
-
 // Interfaces
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
+import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 
@@ -54,7 +52,7 @@ library L2ContractsManagerUtils {
 
         // We skip checking the version for those predeploys that have no code. This would be the case for newly added
         // predeploys that are being introduced on this particular upgrade.
-        address implementation = L2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
+        address implementation = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
 
         // We avoid downgrading Predeploys
         if (
@@ -125,7 +123,7 @@ library L2ContractsManagerUtils {
 
         // We skip checking the version for those predeploys that have no code. This would be the case for newly added
         // predeploys that are being introduced on this particular upgrade.
-        address implementation = L2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
+        address implementation = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
 
         if (
             implementation.code.length != 0

@@ -139,9 +139,9 @@ where
                                 rollup_args.enable_tx_conditional
                                     || builder_args.enable_revert_protection,
                             )
-                            .with_supervisor(
-                                rollup_args.supervisor_http.clone(),
-                                rollup_args.supervisor_safety_level,
+                            .with_interop(
+                                rollup_args.interop_http.clone(),
+                                rollup_args.interop_safety_level,
                             ),
                     )
                     .payload(B::new_service(builder_config)?),

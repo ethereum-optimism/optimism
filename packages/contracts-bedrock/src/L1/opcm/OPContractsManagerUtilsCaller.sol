@@ -158,7 +158,9 @@ abstract contract OPContractsManagerUtilsCaller {
     /// @param _proxyAdmin The proxy admin of the contract.
     /// @param _target The target of the contract.
     /// @param _implementation The implementation of the contract.
-    /// @param _data The data to call the initializer with.
+    /// @param _data The data to call the initializer with. Must be called and not left empty.
+    /// @dev make sure _data is not empty and calls the initializer. otherwise it can lead to
+    ///      unsupported OZ v5 Initializable contracts being used.
     function _upgrade(IProxyAdmin _proxyAdmin, address _target, address _implementation, bytes memory _data) internal {
         _upgrade(_proxyAdmin, _target, _implementation, _data, bytes32(0), 0);
     }

@@ -103,7 +103,7 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast
 		return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 	}
 	monitorInterval := 100 * time.Millisecond
-	cl := clock.NewAdvancingClock(10 * time.Millisecond)
+	cl := clock.NewAdvancingClock()
 	cl.Start()
 	extractor := &mockExtractor{}
 	forecast := &mockForecast{}
@@ -168,7 +168,7 @@ func TestMonitor_NodeEndpointErrorsMonitorIntegration(t *testing.T) {
 			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 		}
 		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl := clock.NewAdvancingClock()
 		cl.Start()
 
 		// Create games with endpoint errors
@@ -215,7 +215,7 @@ func TestMonitor_NodeEndpointErrorCountMonitorIntegration(t *testing.T) {
 			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 		}
 		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl := clock.NewAdvancingClock()
 		cl.Start()
 
 		// Create games with endpoint error counts
@@ -269,7 +269,7 @@ func TestMonitor_MixedAvailabilityMonitorIntegration(t *testing.T) {
 			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 		}
 		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl := clock.NewAdvancingClock()
 		cl.Start()
 
 		// Create games with mixed availability scenarios
@@ -335,7 +335,7 @@ func TestMonitor_MixedSafetyMonitorIntegration(t *testing.T) {
 			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 		}
 		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl := clock.NewAdvancingClock()
 		cl.Start()
 
 		// Create games with mixed safety scenarios
@@ -389,7 +389,7 @@ func TestMonitor_MixedSafetyMonitorIntegration(t *testing.T) {
 			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 		}
 		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl := clock.NewAdvancingClock()
 		cl.Start()
 
 		// Create games without mixed safety
@@ -432,7 +432,7 @@ func TestMonitor_MixedSafetyMonitorIntegration(t *testing.T) {
 			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 		}
 		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl := clock.NewAdvancingClock()
 		cl.Start()
 
 		// Create a game with minimal mixed safety (1 safe, 1 unsafe)
@@ -478,7 +478,7 @@ func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
 			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 		}
 		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl := clock.NewAdvancingClock()
 		cl.Start()
 
 		// Create games with different output root scenarios
@@ -523,7 +523,7 @@ func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
 			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 		}
 		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl := clock.NewAdvancingClock()
 		cl.Start()
 
 		// Create games without different output roots
@@ -563,7 +563,7 @@ func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
 			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 		}
 		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl := clock.NewAdvancingClock()
 		cl.Start()
 
 		// Create games where all have different output roots
@@ -603,7 +603,7 @@ func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
 			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 		}
 		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl := clock.NewAdvancingClock()
 		cl.Start()
 
 		// Create empty games list

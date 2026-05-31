@@ -249,7 +249,7 @@ func newConsolidateCheckDeps(
 	oracle l2.Oracle,
 	consolidateState *consolidateState,
 ) (*consolidateCheckDeps, error) {
-	// TODO(#14415): handle case where dep set changes in a given timestamp
+	// Note: This does not handle the dep set changing in a given timestamp. That is currently unsupported.
 	canonBlocks := make(map[eth.ChainID]*l2.FastCanonicalBlockHeaderOracle)
 	for i, chain := range chains {
 		progress := transitionState.PendingProgress[i]

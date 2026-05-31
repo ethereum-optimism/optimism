@@ -1,28 +1,72 @@
 package rollup
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// SuperAuthority provides payload validation functionality from a supernode.
-// When running inside a supernode, this allows the engine controller to check
-// if payloads are denied before applying them, enabling coordinated block invalidation.
+// VerifierHeadSource classifies the origin of a head reported by the SuperAuthority.
+type VerifierHeadSource uint8
+
+const (
+	// VerifierHeadPreActivation: the registered verifier is inactive at the
+	// current local-safe timestamp. Caller uses local-safe / local-finalized.
+	VerifierHeadPreActivation VerifierHeadSource = iota
+	// VerifierHeadAnchor: the active verifier has no verified-DB entry for this
+	// chain yet. Block is zero; Timestamp is the pre-activation cap
+	// (`activationTimestamp - 1`); caller resolves the canonical L2 block at
+	// that timestamp.
+	VerifierHeadAnchor
+	// VerifierHeadVerified: Block is the verified tip from the verifier.
+	VerifierHeadVerified
+)
+
+// Exhaustive — adding a variant requires updating every consumer's switch.
+func (s VerifierHeadSource) String() string {
+	switch s {
+	case VerifierHeadPreActivation:
+		return "pre-activation"
+	case VerifierHeadAnchor:
+		return "anchor"
+	case VerifierHeadVerified:
+		return "verified"
+	default:
+		return fmt.Sprintf("unknown(%d)", uint8(s))
+	}
+}
+
+// VerifierHead is the result of a SuperAuthority head query.
+//   - Source == PreActivation: Block and Timestamp are zero; caller uses local.
+//   - Source == Verified:      Block is the verified tip; Timestamp is its L2 time.
+//   - Source == Anchor:        Block is zero; Timestamp is the pre-activation cap
+//     (`activationTimestamp - 1`); caller resolves the canonical L2 block at that
+//     timestamp itself.
+type VerifierHead struct {
+	Block     eth.BlockID
+	Timestamp uint64
+	Source    VerifierHeadSource
+}
+
+// SuperAuthority is the cross-chain attestation surface a supernode exposes to
+// op-node: cross-verified safe / finalized head reporting and payload deny-list
+// checks. Returned heads are consumed by the engine controller to choose what
+// to publish as SafeL2Head / FinalizedHead and whether to apply a payload.
 type SuperAuthority interface {
-	// FullyVerifiedL2Head returns the fully verified L2 head block reference.
-	// The second return value indicates whether the caller should fall back to local-safe.
-	// If useLocalSafe is true, the BlockID return value should be ignored and local-safe used instead.
-	// If useLocalSafe is false, the BlockID is the cross-verified safe head.
-	FullyVerifiedL2Head() (head eth.BlockID, useLocalSafe bool)
-	// FinalizedL2Head returns the finalized L2 head block reference.
-	// The second return value indicates whether the caller should fall back to local-finalized.
-	// If useLocalFinalized is true, the BlockID return value should be ignored and local-finalized used instead.
-	// If useLocalFinalized is false, the BlockID is the cross-verified finalized head.
-	FinalizedL2Head() (head eth.BlockID, useLocalFinalized bool)
-	// IsDenied checks if a payload hash is denied at the given block number.
-	// Returns true if the payload should not be applied.
-	// The error indicates if the check could not be performed (should be logged but not fatal).
+	// FullyVerifiedL2Head returns the cross-verified safe L2 head.
+	// `ok=false` signals a transient read failure — caller must hold the
+	// previous value (floored at FinalizedHead), never fall back to local-safe.
+	FullyVerifiedL2Head(ctx context.Context) (head VerifierHead, ok bool)
+
+	// FinalizedL2Head is the finalized analogue of FullyVerifiedL2Head.
+	// Finalized blocks cannot reorg, so the caller may cache the result.
+	FinalizedL2Head(ctx context.Context) (head VerifierHead, ok bool)
+
+	// IsDenied reports whether a payload hash is denied at the given block
+	// number. Errors are logged but not fatal.
 	IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error)
 }
 

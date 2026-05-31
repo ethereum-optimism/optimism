@@ -204,42 +204,6 @@ func TestLogsDBChainIngester_InitLogsDB(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestLogsDBChainIngester_SealParentBlock(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	// Set up mock client with a parent block
-	mockClient := NewMockEthClient()
-	parentBlock := createTestBlock(99, 1198, common.Hash{})
-	mockClient.AddBlock(parentBlock, nil)
-
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	// Initialize logsDB first
-	err := ingester.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	// Seal the parent block
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
-
-	// Verify the block was sealed
-	latestBlock, ok := ingester.LatestBlock()
-	require.True(t, ok)
-	require.Equal(t, uint64(99), latestBlock.Number)
-
-	// Note: earliestIngestedBlock is NOT set in sealParentBlock anymore.
-	// It's now set in ingestBlock when the first block with actual log data is ingested.
-	// The anchor block is just a checkpoint, not a block with queryable log data.
-	require.False(t, ingester.earliestIngestedBlockSet.Load(), "sealParentBlock should not set earliestIngestedBlock")
-}
-
 func TestLogsDBChainIngester_IngestBlockRange_WritesInOrder(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(901)
 	tempDir := t.TempDir()
@@ -271,7 +235,6 @@ func TestLogsDBChainIngester_IngestBlockRange_WritesInOrder(t *testing.T) {
 
 	require.NoError(t, ingester.initLogsDB())
 	t.Cleanup(func() { ingester.logsDB.Close() })
-	require.NoError(t, ingester.sealParentBlock(99))
 	mockClient.ResetCompleted()
 
 	nextBlock, _, err := ingester.ingestBlockRange(100, 101, clock.SystemClock.Now())
@@ -307,7 +270,6 @@ func TestLogsDBChainIngester_IngestBlockRange_FetchFailureReturnsFailingBlock(t 
 
 	require.NoError(t, ingester.initLogsDB())
 	t.Cleanup(func() { ingester.logsDB.Close() })
-	require.NoError(t, ingester.sealParentBlock(99))
 
 	nextBlock, _, err := ingester.ingestBlockRange(100, 102, clock.SystemClock.Now())
 	require.Error(t, err)
@@ -374,13 +336,6 @@ func TestLogsDBChainIngester_Ready(t *testing.T) {
 	// Still not ready - no blocks sealed
 	require.False(t, ingester.Ready())
 
-	// Seal parent and ingest block 100
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
-
-	// Still not ready - latest timestamp is 1198 (block 99), startTimestamp is 1200
-	require.False(t, ingester.Ready())
-
 	err = ingester.ingestBlock(100)
 	require.NoError(t, err)
 
@@ -444,10 +399,6 @@ func TestLogsDBChainIngester_Contains(t *testing.T) {
 	err = ingester.initLogsDB()
 	require.NoError(t, err)
 	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	// Seal parent and ingest block
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
 
 	err = ingester.ingestBlock(100)
 	require.NoError(t, err)

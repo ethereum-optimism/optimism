@@ -29,7 +29,7 @@ The rollup node software and associated services, including:
 - **op-proposer**: L2 output submitter
 - **op-challenger**: Dispute game challenge agent
 - **op-conductor**: High-availability sequencer service
-- **op-supervisor**: Cross-chain message safety monitor (DEPRECATED)
+- **op-supernode**: Multi-chain consensus-layer host that runs multiple OP Stack chains in a single process and performs in-process cross-chain safety verification
 
 ### Smart Contracts (`packages/contracts-bedrock`)
 

@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 )
 
-// DefaultMessageExpiryWindow is 7 days, matching op-supervisor's default
+// DefaultMessageExpiryWindow is 7 days, matching the interop message expiry default.
 const DefaultMessageExpiryWindow = 7 * 24 * time.Hour
 
 type Config struct {

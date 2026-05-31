@@ -71,9 +71,9 @@ type ChainContainer interface {
 	OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error)
 	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error)
 	RegisterVerifier(v activity.VerificationActivity)
-	// VerifierCurrentL1s returns the CurrentL1 from each registered verifier.
-	// This allows callers to determine the minimum L1 block that all verifiers have processed.
-	VerifierCurrentL1s() []eth.BlockID
+	// VerifierCurrentL1 returns the CurrentL1 of the registered verifier.
+	// The bool is false when no verifier is registered.
+	VerifierCurrentL1() (eth.BlockID, bool)
 	// FetchReceipts fetches the receipts for a given block by hash.
 	// Returns block info and receipts, or an error if the block or receipts cannot be fetched.
 	FetchReceipts(ctx context.Context, blockHash eth.BlockID) (eth.BlockInfo, types.Receipts, error)
@@ -93,6 +93,12 @@ type ChainContainer interface {
 	GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error)
 	// OutputV0AtBlockNumber returns the full OutputV0 for the block at the given number.
 	OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error)
+	// PayloadByHash returns the canonical execution payload envelope for the given block hash.
+	// Used by interop build paths to capture canonical payloads for WAL'd rewind operations.
+	PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error)
+	// PayloadByNumber returns the canonical execution payload envelope for the given block number.
+	// Used by interop build paths when the rewind target is below the verified frontier.
+	PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error)
 	// SetResetCallback sets a callback that is invoked when the chain resets.
 	// The supernode uses this to notify activities about chain resets.
 	SetResetCallback(cb ResetCallback)
@@ -108,17 +114,29 @@ type InteropChain interface {
 	// HasDeniedAtOrAfterTimestamp returns true if any deny-list entry has
 	// DecisionTimestamp >= timestamp, without mutating the deny list.
 	HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error)
-	// RewindEngine rewinds the engine to the highest block with timestamp less than
-	// or equal to the given timestamp. invalidatedBlock is the block that triggered
-	// the rewind and is passed to reset callbacks.
-	RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error
-	// InvalidateBlock adds a block to the deny list and triggers a rewind if the
-	// chain currently uses that block at the specified height. Returns true if a
-	// rewind was triggered, false otherwise.
-	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error)
+	// RewindEngine rewinds the engine to the supplied target block. target is the canonical
+	// payload at the rewind destination, loaded from durable WAL storage by the caller —
+	// not re-derived from the live engine. invalidatedBlock is the block that triggered the
+	// rewind and is passed to reset callbacks (it is purely informational).
+	RewindEngine(ctx context.Context, target *eth.ExecutionPayloadEnvelope, invalidatedBlock eth.BlockRef) error
+	// InvalidateBlock adds a block to the deny list and triggers a rewind if the chain
+	// currently uses that block at the specified height. parentPayload is the canonical
+	// payload at height-1 (the rewind destination) loaded from durable WAL storage —
+	// callers must capture it at build time, before the rewind starts. Returns true if
+	// a rewind was triggered, false otherwise.
+	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
+
+// RPCRouterGate is the chain container's narrow view of the shared RPC router.
+// It lets containers swap per-chain handlers while also controlling when the
+// router may dispatch requests to them.
+type RPCRouterGate interface {
+	SetHandler(chainID string, h http.Handler)
+	SetReadinessCheck(chainID string, fn func() bool)
+	RemoveHandler(chainID string)
+}
 
 // ResetCallback is called when the chain container resets due to an invalidated block.
 // The supernode uses this to notify activities about the reset.
@@ -145,23 +163,25 @@ type simpleChainContainer struct {
 	chainID            eth.ChainID
 	initOverload       *rollupNode.InitializationOverrides     // Base shared resources for all virtual nodes
 	rpcHandler         *oprpc.Handler                          // Current per-chain RPC handler instance
-	setHandler         func(chainID string, h http.Handler)    // Set the RPC handler on the router for the chain
+	rpcRouter          RPCRouterGate                           // Gates and dispatches RPC traffic for this chain
 	addMetricsRegistry func(key string, g prometheus.Gatherer) // Set the metrics registry on the global metrics server
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	metrics            *resources.SupernodeMetrics
 
-	// verifiersMu guards writes and reads of the verifiers slice.
-	verifiersMu sync.RWMutex
-	verifiers   []activity.VerificationActivity
-	onReset     ResetCallback // Called when chain resets to notify activities
+	// verifierMu guards writes and reads of the verifier.
+	verifierMu sync.RWMutex
+	verifier   activity.VerificationActivity
+	onReset    ResetCallback // Called when chain resets to notify activities
 }
 
 // Interface conformance assertions
 var _ ChainContainer = (*simpleChainContainer)(nil)
 var _ InteropChain = (*simpleChainContainer)(nil)
-var _ rollup.SuperAuthority = (*simpleChainContainer)(nil)
+
+// rollup.SuperAuthority conformance is asserted in super_authority.go alongside
+// the method definitions.
 
 func NewChainContainer(
 	chainID eth.ChainID,
@@ -170,7 +190,7 @@ func NewChainContainer(
 	cfg config.CLIConfig,
 	initOverload *rollupNode.InitializationOverrides,
 	rpcHandler *oprpc.Handler,
-	setHandler func(chainID string, h http.Handler),
+	rpcRouter RPCRouterGate,
 	addMetricsRegistry func(key string, g prometheus.Gatherer),
 	metrics *resources.SupernodeMetrics,
 ) InteropChain {
@@ -185,7 +205,7 @@ func NewChainContainer(
 		stopped:            make(chan struct{}, 1),
 		initOverload:       initOverload,
 		rpcHandler:         rpcHandler,
-		setHandler:         setHandler,
+		rpcRouter:          rpcRouter,
 		addMetricsRegistry: addMetricsRegistry,
 		appVersion:         virtualNodeVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
@@ -206,18 +226,6 @@ func NewChainContainer(
 	} else {
 		c.denyList = denyList
 	}
-	// Initialize engine controller (separate connection, not an op-node override) with a short setup timeout
-	if vncfg.L2 != nil {
-		setupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		// Provide contextual logger to engine controller
-		engLog := log.New("chain_id", chainID.String(), "component", "engine_controller")
-		if eng, err := engine_controller.NewEngineControllerFromConfig(setupCtx, engLog, vncfg); err != nil {
-			log.Error("failed to setup engine controller", "err", err)
-		} else {
-			c.engine = eng
-		}
-	}
 	return c
 }
 
@@ -225,22 +233,30 @@ func (c *simpleChainContainer) ID() eth.ChainID {
 	return c.chainID
 }
 
-// RegisterVerifier adds a verification activity to this chain container.
-// This allows late binding when activities and chains have circular dependencies.
+// RegisterVerifier registers the verification activity for this chain container.
+// Allows late binding when activities and chains have circular dependencies.
+// The chain container supports a single verifier; a second call panics.
 func (c *simpleChainContainer) RegisterVerifier(v activity.VerificationActivity) {
-	c.verifiersMu.Lock()
-	defer c.verifiersMu.Unlock()
-	c.verifiers = append(c.verifiers, v)
+	c.verifierMu.Lock()
+	defer c.verifierMu.Unlock()
+	if c.verifier != nil {
+		panic("chain container supports only one verifier")
+	}
+	c.verifier = v
 }
 
-func (c *simpleChainContainer) VerifierCurrentL1s() []eth.BlockID {
-	c.verifiersMu.RLock()
-	defer c.verifiersMu.RUnlock()
-	result := make([]eth.BlockID, len(c.verifiers))
-	for i, v := range c.verifiers {
-		result[i] = v.CurrentL1()
+func (c *simpleChainContainer) VerifierCurrentL1() (eth.BlockID, bool) {
+	v := c.registeredVerifier()
+	if v == nil {
+		return eth.BlockID{}, false
 	}
-	return result
+	return v.CurrentL1(), true
+}
+
+func (c *simpleChainContainer) registeredVerifier() activity.VerificationActivity {
+	c.verifierMu.RLock()
+	defer c.verifierMu.RUnlock()
+	return c.verifier
 }
 
 // defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
@@ -265,20 +281,34 @@ func (c *simpleChainContainer) setVN(vn virtual_node.VirtualNode) {
 	c.vn = vn
 }
 
+// IsRPCReady reports whether the chain's router handler may serve requests.
+// Pause and stop close the gate immediately; otherwise the current virtual node
+// must be installed and running.
+func (c *simpleChainContainer) IsRPCReady() bool {
+	if c.pause.Load() || c.stop.Load() {
+		return false
+	}
+	vn := c.getVN()
+	return vn != nil && vn.State() == virtual_node.VNStateRunning
+}
+
 func (c *simpleChainContainer) subPath(path string) string {
 	return filepath.Join(c.cfg.DataDir, c.chainID.String(), path)
 }
 
 func (c *simpleChainContainer) Start(ctx context.Context) error {
 	defer func() { c.stopped <- struct{}{} }()
+	if c.rpcRouter != nil {
+		c.rpcRouter.SetReadinessCheck(c.chainID.String(), c.IsRPCReady)
+	}
 	for {
 		// Refresh per-start derived fields
 		c.vncfg.SafeDBPath = c.subPath("safe_db")
 		c.vncfg.RPC = c.cfg.RPCConfig
 		// create a fresh handler per (re)start, swap it into the router, and inject into overload
 		h := oprpc.NewHandler("", oprpc.WithLogger(c.log.New("chain_id", c.chainID.String())))
-		if c.setHandler != nil {
-			c.setHandler(c.chainID.String(), h)
+		if c.rpcRouter != nil {
+			c.rpcRouter.SetHandler(c.chainID.String(), h)
 		}
 		c.initOverload.RPCHandler = h
 		c.rpcHandler = h
@@ -303,6 +333,7 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		if vn == nil {
 			return virtual_node.ErrVirtualNodeNotRunning
 		}
+		// Install before Start so the RPC gate can observe this VN entering running state.
 		c.setVN(vn)
 		if c.pause.Load() {
 			// Check for stop/cancellation even while paused, so teardown doesn't hang.
@@ -318,6 +349,18 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 		if c.stop.Load() {
 			break
+		}
+
+		// Initialize engine controller if not yet connected (retries on each VN restart)
+		if c.engine == nil && c.vncfg.L2 != nil {
+			setupCtx, setupCancel := context.WithTimeout(ctx, 10*time.Second)
+			engLog := c.log.New("chain_id", c.chainID.String(), "component", "engine_controller")
+			if eng, engErr := engine_controller.NewEngineControllerFromConfig(setupCtx, engLog, c.vncfg); engErr != nil {
+				c.log.Error("failed to setup engine controller", "err", engErr)
+			} else {
+				c.engine = eng
+			}
+			setupCancel()
 		}
 
 		// start the virtual node
@@ -356,6 +399,10 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 
 func (c *simpleChainContainer) Stop(ctx context.Context) error {
 	c.stop.Store(true)
+	if c.rpcRouter != nil {
+		defer c.rpcRouter.RemoveHandler(c.chainID.String())
+	}
+
 	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -585,6 +632,20 @@ func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, 
 }
 
 // FetchReceipts fetches the receipts for a given block by hash.
+func (c *simpleChainContainer) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	if c.engine == nil {
+		return nil, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.PayloadByHash(ctx, hash)
+}
+
+func (c *simpleChainContainer) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	if c.engine == nil {
+		return nil, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.PayloadByNumber(ctx, number)
+}
+
 func (c *simpleChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
 	if c.engine == nil {
 		return nil, nil, engine_controller.ErrNoEngineClient
@@ -623,6 +684,8 @@ func (c *simpleChainContainer) attachInProcRollupClient() error {
 func isCriticalRewindError(err error) bool {
 	return errors.Is(err, engine_controller.ErrNoEngineClient) ||
 		errors.Is(err, engine_controller.ErrNoRollupConfig) ||
+		errors.Is(err, engine_controller.ErrRewindNilTarget) ||
+		errors.Is(err, engine_controller.ErrRewindTargetMismatch) ||
 		errors.Is(err, engine_controller.ErrRewindComputeTargetsFailed) ||
 		errors.Is(err, engine_controller.ErrRewindTimestampToBlockConversion) ||
 		errors.Is(err, engine_controller.ErrRewindOverFinalizedHead)
@@ -630,7 +693,11 @@ func isCriticalRewindError(err error) bool {
 
 // RewindEngine is part of the InteropChain interface — callers must hold that
 // wider interface (only interop transition application does) to invoke it.
-func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
+func (c *simpleChainContainer) RewindEngine(ctx context.Context, target *eth.ExecutionPayloadEnvelope, invalidatedBlock eth.BlockRef) error {
+	if target == nil || target.ExecutionPayload == nil {
+		return engine_controller.ErrRewindNilTarget
+	}
+	timestamp := uint64(target.ExecutionPayload.Timestamp)
 	if !c.resetting.CompareAndSwap(false, true) {
 		return fmt.Errorf("reset already in progress")
 	}
@@ -664,11 +731,8 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, timestamp uint6
 
 retryLoop:
 	for {
-		err = c.engine.RewindToTimestamp(ctx, timestamp)
+		err = c.engine.Rewind(ctx, target)
 		switch {
-		case errors.Is(err, context.DeadlineExceeded):
-			c.log.Error("chain_container/RewindEngine: timeout exceeded")
-			return err
 		case isCriticalRewindError(err):
 			c.log.Error("chain_container/RewindEngine: critical error", "err", err)
 			return err
@@ -676,6 +740,13 @@ retryLoop:
 			c.log.Info("chain_container/RewindEngine: executed engine rewind")
 			break retryLoop
 		default:
+			// context.DeadlineExceeded is treated as transient: the caller's ctx is
+			// the long-lived service ctx (no deadline), so a DeadlineExceeded here
+			// originates from a per-call RPC deadline inside the engine client — e.g.
+			// a slow synthetic FCU against op-reth. Keep retrying: if the EL is truly
+			// down a subsequent attempt will surface a transport error, and if it is
+			// still chewing on the rewind, waiting is the right answer. The ctx.Done()
+			// branch below stops the loop on service shutdown.
 			c.log.Error("chain_container/RewindEngine: temporary error", "err", err)
 			select {
 			case <-ctx.Done():

@@ -249,7 +249,7 @@ func (s *Service) initLargePreimages() error {
 }
 
 func (s *Service) initMonitor(cfg *config.Config) {
-	s.monitor = newGameMonitor(s.logger, s.l1Clock, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, cfg.GameAllowlist, s.l1RPC, cfg.MinUpdateInterval)
+	s.monitor = newGameMonitor(s.logger, s.l1Clock, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, cfg.GameTypes, cfg.GameAllowlist, s.l1RPC, cfg.MinUpdateInterval)
 }
 
 func (s *Service) Start(ctx context.Context) error {
