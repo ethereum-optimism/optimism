@@ -22,3 +22,4 @@ func (*NoopMetricsImpl) RecordReorgObserved()                                   
 func (*NoopMetricsImpl) RecordReorgCommitted()                                           {}
 func (*NoopMetricsImpl) RecordReorgNumberMismatch()                                      {}
 func (*NoopMetricsImpl) RecordReorgFetchFailure()                                        {}
+func (*NoopMetricsImpl) RecordReorgResync()                                              {}

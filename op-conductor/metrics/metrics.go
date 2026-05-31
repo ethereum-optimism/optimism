@@ -25,6 +25,7 @@ type Metricer interface {
 	RecordReorgCommitted()
 	RecordReorgNumberMismatch()
 	RecordReorgFetchFailure()
+	RecordReorgResync()
 	opmetrics.RPCMetricer
 }
 
@@ -57,6 +58,7 @@ type Metrics struct {
 	reorgsCommitted     prometheus.Counter
 	reorgNumberMismatch prometheus.Counter
 	reorgFetchErrors    prometheus.Counter
+	reorgResyncs        prometheus.Counter
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -153,6 +155,11 @@ func NewMetrics() *Metrics {
 			Name:      "reorg_fetch_errors_count",
 			Help:      "Number of reorg EL fetch failures (InfoByLabel or PayloadByHash)",
 		}),
+		reorgResyncs: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "reorg_resyncs_count",
+			Help:      "Number of reconnect-reconcile catch-up triggers emitted on (re)subscribe",
+		}),
 	}
 }
 
@@ -234,4 +241,9 @@ func (m *Metrics) RecordReorgNumberMismatch() {
 // RecordReorgFetchFailure increments the count of reorg EL fetch failures.
 func (m *Metrics) RecordReorgFetchFailure() {
 	m.reorgFetchErrors.Inc()
+}
+
+// RecordReorgResync increments the count of reconnect-reconcile catch-up triggers.
+func (m *Metrics) RecordReorgResync() {
+	m.reorgResyncs.Inc()
 }
