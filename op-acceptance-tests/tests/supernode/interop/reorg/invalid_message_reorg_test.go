@@ -29,21 +29,13 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 }
 
 // TestSupernodeLightSequencerInteropInvalidMessageReplacement is the follow-mode
-// (light op-node CL sequencer) analogue of TestSupernodeInteropInvalidMessageReplacement.
-// The light CLs sequence unsafe blocks on their own ELs and follow the shared
-// supernode's safe head via EL sync. It asserts the follower adopts the supernode's
-// deposits-only replacement after an invalid executing message and the chain keeps
-// making validated progress. See https://github.com/ethereum-optimism/optimism/issues/21119.
+// (light op-node CL sequencer) analogue of TestSupernodeInteropInvalidMessageReplacement:
+// the light CLs sequence on their own ELs and follow the shared supernode's safe head via
+// EL sync. See https://github.com/ethereum-optimism/optimism/issues/21119.
 //
-// op-reth only: on op-geth this scenario consistently does not converge (0/12 locally).
-// After the deposits-only replacement, the op-geth follower never adopts the supernode's
-// replacement block — cross-safe stalls at the replacement height while the sequencer
-// keeps building a divergent chain above it, so the follow-source reorg fires every tick
-// and no block past the replacement is ever validated. The new transaction therefore
-// never gets a stable receipt (`tx.Included` fails with "after 5 attempts: not found").
-// The virtual-sequencer variant above passes on op-geth, so this is specific to the
-// light-sequencer follow path. op-geth is being deprecated, so we skip rather than block
-// on it; tracked for follow-up.
+// op-reth only. On op-geth the follower never adopts the replacement (cross-safe stalls,
+// follow-source reorgs forever); the virtual variant passes there, so it's specific to the
+// light-sequencer path. op-geth is being deprecated, so we skip rather than block on it.
 func TestSupernodeLightSequencerInteropInvalidMessageReplacement(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sysgo.SkipOnOpGeth(t, "light-sequencer follow-mode reorg recovery does not converge on op-geth (op-geth deprecating); see #21119")
@@ -153,33 +145,22 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 		"invalid_block_hash", invalidBlockHash,
 	)
 
-	// CONVERGENCE & STABILITY (settle first): every node on the reorged chain must agree on
-	// the single canonical replacement chain AND keep building on top of it — no oscillation
-	// back onto the invalidated fork (the #21119 failure mode). Each chain's block producer
-	// (L2{A,B}CL — the supernode's virtual sequencer, or the light op-node sequencer in
-	// follow-mode presets) must converge with the supernode's verifier route
-	// (L2{A,B}SupernodeCL) at cross-safe while its local-unsafe head keeps advancing, and
-	// agree at local-safe. MatchedWithProgressFn is progress-aware — it fails on a stall, not
-	// a wall-clock deadline — so it tolerates a slow/loaded executor while still catching a
-	// genuine non-convergence stall. We settle here before transacting below, so the new tx
-	// lands on an already-converged chain instead of racing the in-flight reorgs.
+	// Settle before transacting. Cross-safe is pinned at the replacement while the
+	// follow-source oscillates (#21119), and only advances once the divergence resolves, so
+	// gate on cross-safe advancing — not a match, which passes trivially while both sides are
+	// pinned. A tx sequenced mid-oscillation would land in a fork block and get orphaned.
 	dsl.CheckAll(t,
-		sys.L2BCL.MatchedWithProgressFn(sys.L2BSupernodeCL, safety.CrossSafe, safety.LocalUnsafe, 90*time.Second, 30*time.Second),
-		sys.L2ACL.MatchedWithProgressFn(sys.L2ASupernodeCL, safety.CrossSafe, safety.LocalUnsafe, 90*time.Second, 30*time.Second),
+		sys.L2ACL.AdvancedFn(safety.CrossSafe, 3, 45),
+		sys.L2BCL.AdvancedFn(safety.CrossSafe, 3, 45),
 	)
 	dsl.CheckAll(t,
-		sys.L2BCL.MatchedFn(sys.L2BSupernodeCL, safety.LocalSafe, 30),
-		sys.L2ACL.MatchedFn(sys.L2ASupernodeCL, safety.LocalSafe, 30),
+		sys.L2ACL.MatchedFn(sys.L2ASupernodeCL, safety.CrossSafe, 30),
+		sys.L2BCL.MatchedFn(sys.L2BSupernodeCL, safety.CrossSafe, 30),
 	)
 
-	// With the chain settled on the replacement, a new transaction must still be includable
-	// and fully validated. On the now-converged chain it lands cleanly, so the idiomatic
-	// timestamp-validation flow (the same one used for the replacement block above) is
-	// robust: include it, wait for the supernode to validate its timestamp (which makes its
-	// block cross-safe and reorg-immune), and confirm it is still in its block. We widen the
-	// inclusion budget from the default 5 to 10 attempts (matching the contention-sensitive
-	// txs in isthmus/superroot) so a saturated CI executor with slow block production still
-	// produces the receipt — this is an attempt-bounded retry, not a wall-clock deadline.
+	// A new tx on the settled chain must still be includable and validated. The 10-attempt
+	// inclusion budget (vs the default 5, matching isthmus/superroot) tolerates slow block
+	// production on a loaded executor.
 	bruce := sys.FunderB.NewFundedEOA(eth.OneEther)
 	tx := bruce.Transact(
 		bruce.PlanTransfer(alice.Address(), eth.OneHundredthEther),
