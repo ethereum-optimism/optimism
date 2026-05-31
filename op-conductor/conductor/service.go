@@ -89,6 +89,7 @@ func NewOpConductor(
 		hmon:         hmon,
 		elClient:     elClient,
 		retryBackoff: func() time.Duration { return time.Duration(rand.Intn(2000)) * time.Millisecond },
+		latch:        demotionLatch{enabled: cfg.ReorgRecoveryEnabled},
 	}
 	oc.loopActionFn = oc.loopAction
 
@@ -406,6 +407,15 @@ type OpConductor struct {
 	hcerr          error // error from health check
 	prevState      *state
 
+	// Phase 7 reorg-recovery demotion grace (Fix 1). latch is the non-cancellable
+	// staleness-demotion state machine; demotionTimer fires the unconditional demotion
+	// at grace expiry. All three are mutated only on the control-loop goroutine;
+	// demotionTimer is non-nil only when reorg recovery is enabled, and loopAction
+	// selects on its channel (a nil-channel case never fires when disabled).
+	latch              demotionLatch
+	demotionTimer      *time.Timer
+	demotionTimerArmed bool
+
 	healthUpdateCh <-chan error
 	leaderUpdateCh <-chan bool
 	loopActionFn   func() // loopActionFn defines the logic to be executed inside control loop.
@@ -483,6 +493,12 @@ func (oc *OpConductor) Start(ctx context.Context) error {
 		oc.subscriber.Start(oc.shutdownCtx)
 		oc.wg.Add(1)
 		go oc.reorgLoop(oc.shutdownCtx)
+		// Create the demotion-grace timer in the stopped state; loopAction arms it when
+		// the latch goes armed. Drain the initial fire so the first Reset is clean.
+		oc.demotionTimer = time.NewTimer(reorgDemotionGrace)
+		if !oc.demotionTimer.Stop() {
+			<-oc.demotionTimer.C
+		}
 	}
 
 	if oc.cfg.MetricsConfig.Enabled {
@@ -711,6 +727,21 @@ func (oc *OpConductor) reorgRecoveryEnabled() bool {
 	return oc.cfg.ReorgRecoveryEnabled
 }
 
+// reorgDemotionGrace is the fixed grace a stale leader is given before being demoted
+// unconditionally (Phase 7 Fix 1). It must exceed the observed op-reth reorg
+// notification→commit gap (~5–6s, partly debug-build latency) so the leader can commit
+// the post-reorg head before staleness transfers leadership away. Active only when
+// reorg recovery is enabled; with the flag off the grace is 0 (today's immediate demotion).
+const reorgDemotionGrace = 5 * time.Second
+
+// demotionGrace returns the staleness-demotion grace, or 0 when reorg recovery is off.
+func (oc *OpConductor) demotionGrace() time.Duration {
+	if oc.reorgRecoveryEnabled() {
+		return reorgDemotionGrace
+	}
+	return 0
+}
+
 // reorgHandlerTimeout bounds a single reorg handler invocation. It must exceed the
 // Raft Apply bound (defaultTimeout=5s) plus an EL round-trip: CommitUnsafePayload
 // takes no ctx and applies its own internal 5s on rc.r.Apply, so this outer ctx does
@@ -739,14 +770,19 @@ func (oc *OpConductor) reorgLoop(ctx context.Context) {
 // EL via InfoByLabel(eth.Unsafe). With the guard bypassed, Apply records the (possibly
 // backward) head unconditionally.
 func (oc *OpConductor) handleReorgEvent(parent context.Context, ev chainevents.ReorgEvent) {
-	oc.metrics.RecordReorgObserved()
+	if ev.Resync {
+		// Synthetic catch-up trigger from a (re)subscribe, not a reth-reported reorg.
+		oc.metrics.RecordReorgResync()
+	} else {
+		oc.metrics.RecordReorgObserved()
+	}
 	// oc.Leader() is LeaderOverridden() || cons.Leader(), so an operator leader-override
 	// can pass this gate on a non-Raft-leader node. That is safe: the real gate is the
 	// Raft layer — a non-leader Apply (raft.go, rc.r.Apply) returns the hashicorp/raft
 	// library's ErrNotLeader, so a stray write is rejected and only logged as a commit
 	// failure, never replicated. This pre-check is a cheap fast-path, not the authority.
 	if !oc.Leader(parent) {
-		oc.log.Info("reorg observed on non-leader; ignoring", "new_tip", ev.NewTipNumber)
+		oc.log.Info("reorg event on non-leader; ignoring", "new_tip", ev.NewTipNumber, "resync", ev.Resync)
 		return
 	}
 	ctx, cancel := context.WithTimeout(parent, reorgHandlerTimeout)
@@ -807,6 +843,8 @@ func (oc *OpConductor) loopAction() {
 	select {
 	case healthy := <-oc.healthUpdateCh:
 		oc.handleHealthUpdate(healthy)
+	case <-oc.demotionTimerC():
+		oc.handleDemotionExpiry()
 	case leader := <-oc.leaderUpdateCh:
 		oc.handleLeaderUpdate(leader)
 	case <-oc.pauseCh:
@@ -841,9 +879,29 @@ func (oc *OpConductor) handleLeaderUpdate(leader bool) {
 	oc.queueAction()
 }
 
-// handleHealthUpdate handles health update from health monitor.
+// handleHealthUpdate handles health update from health monitor. When reorg recovery is
+// enabled the result is filtered through the demotion-grace latch (Fix 1): a stale leader
+// keeps reporting healthy for a fixed grace so it can commit the reorg notification before
+// staleness would transfer leadership away. With the flag off, demotionGrace is 0 and the
+// result passes through unchanged (byte-for-byte today's behavior).
 func (oc *OpConductor) handleHealthUpdate(hcerr error) {
 	oc.log.Debug("received health update", "server", oc.cons.ServerID(), "error", hcerr)
+	if oc.demotionGrace() == 0 {
+		oc.applyHealth(hcerr)
+		return
+	}
+	report, arm := oc.latch.observe(hcerr)
+	if arm {
+		oc.log.Warn("reorg-recovery: arming demotion grace on stale leader", "grace", oc.demotionGrace(), "err", hcerr)
+	}
+	oc.syncDemotionTimer()
+	oc.applyHealth(report)
+}
+
+// applyHealth records a health result, updating oc.healthy/oc.hcerr and queueing actions.
+// This is the original handleHealthUpdate behavior, extracted so the demotion latch can
+// feed it a graced (possibly-deferred) result.
+func (oc *OpConductor) applyHealth(hcerr error) {
 	healthy := hcerr == nil
 	if !healthy {
 		oc.log.Error("Sequencer is unhealthy", "server", oc.cons.ServerID(), "err", hcerr)
@@ -858,6 +916,48 @@ func (oc *OpConductor) handleHealthUpdate(hcerr error) {
 	}
 
 	oc.hcerr = hcerr
+}
+
+// demotionTimerC returns the demotion-grace timer's channel, or nil when reorg recovery is
+// disabled. Selecting on a nil channel never fires, so the loop's demotion case is inert
+// when the feature is off.
+func (oc *OpConductor) demotionTimerC() <-chan time.Time {
+	if oc.demotionTimer == nil {
+		return nil
+	}
+	return oc.demotionTimer.C
+}
+
+// syncDemotionTimer reconciles the demotion-grace timer with the latch state. It (re)arms
+// the timer only on the disarmed→armed transition — never resetting an already-running
+// grace — and stops it (draining a pending fire) otherwise. Runs on the control loop only.
+func (oc *OpConductor) syncDemotionTimer() {
+	armed := oc.latch.state == latchArmed
+	switch {
+	case armed && !oc.demotionTimerArmed:
+		oc.demotionTimer.Reset(oc.demotionGrace())
+		oc.demotionTimerArmed = true
+	case !armed && oc.demotionTimerArmed:
+		if !oc.demotionTimer.Stop() {
+			select {
+			case <-oc.demotionTimer.C:
+			default:
+			}
+		}
+		oc.demotionTimerArmed = false
+	}
+}
+
+// handleDemotionExpiry fires when the grace timer elapses: the stale leader is demoted
+// unconditionally. A superseded fire (latch no longer armed) is ignored.
+func (oc *OpConductor) handleDemotionExpiry() {
+	report, ok := oc.latch.expire()
+	if !ok {
+		return
+	}
+	oc.demotionTimerArmed = false
+	oc.log.Warn("reorg-recovery: demotion grace expired; demoting stale leader", "err", report)
+	oc.applyHealth(report)
 }
 
 // action tries to bring the sequencer to the desired state, a retry will be queued if any action failed.

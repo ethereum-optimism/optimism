@@ -34,6 +34,12 @@ type ReorgEvent struct {
 	// HasNewTip is false on a pure revert (empty "new" chain).
 	NewTipNumber uint64
 	HasNewTip    bool
+	// Resync marks a synthetic catch-up trigger emitted on each successful (re)subscribe,
+	// not a reth-reported reorg. reth_subscribeChainNotifications has no replay, so a reorg
+	// that lands during a WS disconnect is lost; re-reading and committing the EL's current
+	// unsafe head on reconnect reconciles any reorg missed during the gap. Idempotent: a
+	// no-op when the EL head already matches the FSM head.
+	Resync bool
 }
 
 // Subscriber maintains a WebSocket subscription to op-reth's reorg notifications,
@@ -118,6 +124,10 @@ func (s *Subscriber) connectAndRead(ctx context.Context) (subscribed bool, err e
 		return false, err
 	}
 	s.log.Info("subscribed to reth chain notifications", "url", s.wsURL)
+	// Emit a catch-up trigger on every (re)subscribe so the leader reconciles its EL's
+	// current unsafe head, recovering any reorg missed while the WS was disconnected
+	// (reth notifications have no replay). Idempotent on the handler side.
+	s.deliver(ReorgEvent{Resync: true})
 
 	for {
 		if ctx.Err() != nil {
