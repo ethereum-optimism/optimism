@@ -113,10 +113,11 @@ func (c *simpleChainContainer) GetDeniedOutput(height uint64, payloadHash common
 
 // OutputV0AtBlockNumber returns the full OutputV0 for the block at the given number.
 func (c *simpleChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
-	if c.engine == nil {
+	eng := c.getEngine()
+	if eng == nil {
 		return nil, engine_controller.ErrNoEngineClient
 	}
-	return c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
+	return eng.OutputV0AtBlockNumber(ctx, l2BlockNum)
 }
 
 var _ rollup.SuperAuthority = (*simpleChainContainer)(nil)

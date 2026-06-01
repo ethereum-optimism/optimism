@@ -221,6 +221,8 @@ type mockEngineController struct {
 	rewindFunc               func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error // optional custom behavior
 	l2BlockRefByNumberResult eth.L2BlockRef
 	l2BlockRefByNumberErr    error
+	outputV0Result           *eth.OutputV0
+	outputV0Err              error
 	payloadByHashResult      *eth.ExecutionPayloadEnvelope
 	payloadByHashErr         error
 	payloadByNumberResult    *eth.ExecutionPayloadEnvelope
@@ -240,7 +242,7 @@ func (m *mockEngineController) L2BlockRefByLabel(ctx context.Context, label eth.
 }
 
 func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
-	return nil, nil
+	return m.outputV0Result, m.outputV0Err
 }
 
 func (m *mockEngineController) OutputV0ByBlockHash(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
@@ -429,6 +431,135 @@ func TestChainContainer_EngineControllerNotInitInConstructor(t *testing.T) {
 	impl, ok := container.(*simpleChainContainer)
 	require.True(t, ok)
 	require.Nil(t, impl.engine, "engine should not be initialized in constructor; it is deferred to Start loop")
+}
+
+func TestChainContainer_EngineControllerRetryContinuesWhileVNRunning(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	vncfg.L2 = &opnodecfg.L2EndpointConfig{L2EngineAddr: "http://unused.example"}
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+
+	mockVN := newMockVirtualNode()
+	mockVN.blockOnStart = true
+	impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+		return mockVN
+	}
+
+	firstAttempt := make(chan struct{})
+	allowSecondAttempt := make(chan struct{})
+	var attempts int
+	expectedOutput := &eth.OutputV0{BlockHash: common.Hash{0x42}}
+	mockEngine := &mockEngineController{outputV0Result: expectedOutput}
+
+	prevSetup := newEngineControllerFromConfig
+	prevRetryDelay := engineControllerRetryDelay
+	newEngineControllerFromConfig = func(ctx context.Context, log gethlog.Logger, vncfg *opnodecfg.Config) (engine_controller.EngineController, error) {
+		attempts++
+		if attempts == 1 {
+			close(firstAttempt)
+			return nil, errors.New("el unavailable")
+		}
+		select {
+		case <-allowSecondAttempt:
+			return mockEngine, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	engineControllerRetryDelay = 10 * time.Millisecond
+	t.Cleanup(func() {
+		newEngineControllerFromConfig = prevSetup
+		engineControllerRetryDelay = prevRetryDelay
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- container.Start(ctx)
+	}()
+	defer func() {
+		cancel()
+		select {
+		case err := <-startDone:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			t.Fatal("chain container Start did not return")
+		}
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), time.Second)
+		defer stopCancel()
+		require.NoError(t, container.Stop(stopCtx))
+	}()
+
+	select {
+	case <-mockVN.startSignal:
+	case <-time.After(time.Second):
+		t.Fatal("virtual node did not start")
+	}
+	select {
+	case <-firstAttempt:
+	case <-time.After(time.Second):
+		t.Fatal("engine controller setup was not attempted")
+	}
+
+	_, err := container.OutputV0AtBlockNumber(context.Background(), 0)
+	require.ErrorIs(t, err, engine_controller.ErrNoEngineClient)
+
+	close(allowSecondAttempt)
+	require.Eventually(t, func() bool {
+		out, err := container.OutputV0AtBlockNumber(context.Background(), 0)
+		return err == nil && out == expectedOutput
+	}, time.Second, 10*time.Millisecond, "engine controller should connect without a VN restart")
+
+	mockVN.mu.Lock()
+	startCalls := mockVN.startCalled
+	mockVN.mu.Unlock()
+	require.Equal(t, 1, startCalls, "engine retry should not restart the virtual node")
+}
+
+func TestChainContainer_EngineControllerRetryStopsWhenStartReturns(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	vncfg.L2 = &opnodecfg.L2EndpointConfig{L2EngineAddr: "http://unused.example"}
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+	setupStarted := make(chan struct{})
+	impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+		<-setupStarted
+		return nil
+	}
+
+	var once sync.Once
+	prevSetup := newEngineControllerFromConfig
+	newEngineControllerFromConfig = func(ctx context.Context, log gethlog.Logger, vncfg *opnodecfg.Config) (engine_controller.EngineController, error) {
+		once.Do(func() { close(setupStarted) })
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	t.Cleanup(func() {
+		newEngineControllerFromConfig = prevSetup
+	})
+
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- container.Start(context.Background())
+	}()
+	select {
+	case err := <-startDone:
+		require.ErrorIs(t, err, virtual_node.ErrVirtualNodeNotRunning)
+	case <-time.After(time.Second):
+		t.Fatal("Start should return even when engine setup is blocked")
+	}
 }
 
 func TestChainContainerIsRPCReady(t *testing.T) {

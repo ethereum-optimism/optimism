@@ -20,6 +20,7 @@ const (
 	l2BlockTime         = uint64(1)
 	backfillDepth       = 3 * time.Second
 	preRestartFinalized = uint64(5)
+	elOfflineProbeDelay = 15 * time.Second
 )
 
 // TestSupernodeResyncResumesAtActivation_PostActivation drives a full
@@ -92,6 +93,43 @@ func TestSupernodeResyncSchedulesAtActivation_PreActivation(gt *testing.T) {
 	sys.Supernode.RestartWithFreshDataDir()
 	sys.Supernode.AwaitVerificationStartsAt(activation)
 
+	dsl.CheckAll(t,
+		sys.L2ACL.AdvancedFn(safety.CrossSafe, 1, 60),
+		sys.L2BCL.AdvancedFn(safety.CrossSafe, 1, 60),
+	)
+}
+
+func TestSupernodeEngineControllerRetriesAfterELUnavailableAtStartup(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0,
+		presets.WithUniformL2BlockTimes(l2BlockTime),
+		presets.WithInteropLogBackfillDepth(backfillDepth),
+	)
+
+	sys.Supernode.AwaitBackfillCompleted()
+
+	sys.Supernode.Stop()
+	sys.L2ELA.Stop()
+	sys.L2ELB.Stop()
+	t.Cleanup(func() {
+		sys.L2ELA.Start()
+		sys.L2ELB.Start()
+	})
+
+	// Start the supernode while the EL RPC endpoints are down. Before the
+	// engine-controller retry loop, this left interop permanently stuck with
+	// ErrNoEngineClient even after the ELs came back.
+	sys.Supernode.Start()
+	// Keep the ELs offline long enough for the first engine-controller setup
+	// attempt to time out and enter the retry path.
+	time.Sleep(elOfflineProbeDelay)
+
+	sys.L2ELA.Start()
+	sys.L2ELB.Start()
+	sys.L2ELA.WaitForOnline()
+	sys.L2ELB.WaitForOnline()
+
+	sys.Supernode.AwaitBackfillCompleted()
 	dsl.CheckAll(t,
 		sys.L2ACL.AdvancedFn(safety.CrossSafe, 1, 60),
 		sys.L2BCL.AdvancedFn(safety.CrossSafe, 1, 60),

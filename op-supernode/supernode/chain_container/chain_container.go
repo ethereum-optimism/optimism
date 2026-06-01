@@ -45,6 +45,12 @@ var ErrHistoryUnavailable = errors.New("safedb history unavailable on this node"
 // during cold start; callers should back off and retry.
 var ErrSafeDBNotReady = errors.New("safedb not ready: no stable first entry yet")
 
+var (
+	engineControllerSetupTimeout  = 10 * time.Second
+	engineControllerRetryDelay    = 2 * time.Second
+	newEngineControllerFromConfig = engine_controller.NewEngineControllerFromConfig
+)
+
 type ChainContainer interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
@@ -153,6 +159,7 @@ type simpleChainContainer struct {
 	vn                 virtual_node.VirtualNode
 	vncfg              *opnodecfg.Config
 	cfg                config.CLIConfig
+	engineMu           sync.RWMutex
 	engine             engine_controller.EngineController
 	denyList           *DenyList
 	pause              atomic.Bool
@@ -297,7 +304,18 @@ func (c *simpleChainContainer) subPath(path string) string {
 }
 
 func (c *simpleChainContainer) Start(ctx context.Context) error {
-	defer func() { c.stopped <- struct{}{} }()
+	retryCtx, retryCancel := context.WithCancel(ctx)
+	var retryWG sync.WaitGroup
+	retryWG.Add(1)
+	go func() {
+		defer retryWG.Done()
+		c.retryEngineController(retryCtx)
+	}()
+	defer func() {
+		retryCancel()
+		retryWG.Wait()
+		c.stopped <- struct{}{}
+	}()
 	if c.rpcRouter != nil {
 		c.rpcRouter.SetReadinessCheck(c.chainID.String(), c.IsRPCReady)
 	}
@@ -349,18 +367,6 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 		if c.stop.Load() {
 			break
-		}
-
-		// Initialize engine controller if not yet connected (retries on each VN restart)
-		if c.engine == nil && c.vncfg.L2 != nil {
-			setupCtx, setupCancel := context.WithTimeout(ctx, 10*time.Second)
-			engLog := c.log.New("chain_id", c.chainID.String(), "component", "engine_controller")
-			if eng, engErr := engine_controller.NewEngineControllerFromConfig(setupCtx, engLog, c.vncfg); engErr != nil {
-				c.log.Error("failed to setup engine controller", "err", engErr)
-			} else {
-				c.engine = eng
-			}
-			setupCancel()
 		}
 
 		// start the virtual node
@@ -417,10 +423,7 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 		}
 	}
 
-	// Close engine controller RPC resources
-	if c.engine != nil {
-		_ = c.engine.Close()
-	}
+	c.closeEngine()
 
 	// Close deny list database
 	if c.denyList != nil {
@@ -437,6 +440,65 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 	}
 }
 
+func (c *simpleChainContainer) getEngine() engine_controller.EngineController {
+	c.engineMu.RLock()
+	defer c.engineMu.RUnlock()
+	return c.engine
+}
+
+func (c *simpleChainContainer) setEngineIfRunning(eng engine_controller.EngineController) bool {
+	c.engineMu.Lock()
+	defer c.engineMu.Unlock()
+	if c.stop.Load() || c.engine != nil {
+		return false
+	}
+	c.engine = eng
+	return true
+}
+
+func (c *simpleChainContainer) closeEngine() {
+	c.engineMu.Lock()
+	eng := c.engine
+	c.engine = nil
+	c.engineMu.Unlock()
+	if eng != nil {
+		_ = eng.Close()
+	}
+}
+
+func (c *simpleChainContainer) retryEngineController(ctx context.Context) {
+	if c.vncfg == nil || c.vncfg.L2 == nil {
+		return
+	}
+	engLog := c.log.New("chain_id", c.chainID.String(), "component", "engine_controller")
+	for {
+		if ctx.Err() != nil || c.stop.Load() || c.getEngine() != nil {
+			return
+		}
+
+		setupCtx, setupCancel := context.WithTimeout(ctx, engineControllerSetupTimeout)
+		eng, err := newEngineControllerFromConfig(setupCtx, engLog, c.vncfg)
+		setupCancel()
+		if err == nil {
+			if ctx.Err() != nil || !c.setEngineIfRunning(eng) {
+				_ = eng.Close()
+				return
+			}
+			c.log.Info("engine controller connected")
+			return
+		}
+		c.log.Error("failed to setup engine controller", "err", err)
+
+		timer := time.NewTimer(engineControllerRetryDelay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+	}
+}
+
 func (c *simpleChainContainer) Pause(ctx context.Context) error {
 	c.pause.Store(true)
 	return nil
@@ -448,10 +510,11 @@ func (c *simpleChainContainer) Resume(ctx context.Context) error {
 }
 
 func (c *simpleChainContainer) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
-	if c.engine == nil {
+	eng := c.getEngine()
+	if eng == nil {
 		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
 	}
-	return c.engine.L2BlockRefByLabel(ctx, eth.Finalized)
+	return eng.L2BlockRefByLabel(ctx, eth.Finalized)
 }
 
 func (c *simpleChainContainer) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
@@ -504,7 +567,8 @@ func (c *simpleChainContainer) FirstSafeHeadTimestamp(ctx context.Context) (uint
 // LocalSafeBlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client,
 // if the block at that timestamp is local safe.
 func (c *simpleChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
-	if c.engine == nil {
+	eng := c.getEngine()
+	if eng == nil {
 		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
 	}
 
@@ -524,7 +588,7 @@ func (c *simpleChainContainer) LocalSafeBlockAtTimestamp(ctx context.Context, ts
 		return eth.L2BlockRef{}, ethereum.NotFound
 	}
 
-	return c.engine.L2BlockRefByNumber(ctx, num)
+	return eng.L2BlockRefByNumber(ctx, num)
 }
 
 // SyncStatus returns the in-process op-node sync status for this chain.
@@ -544,10 +608,11 @@ func (c *simpleChainContainer) SyncStatus(ctx context.Context) (*eth.SyncStatus,
 }
 
 func (c *simpleChainContainer) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
-	if c.engine == nil {
+	eng := c.getEngine()
+	if eng == nil {
 		return eth.Bytes32{}, engine_controller.ErrNoEngineClient
 	}
-	out, err := c.engine.OutputV0ByBlockHash(ctx, blockHash)
+	out, err := eng.OutputV0ByBlockHash(ctx, blockHash)
 	if err != nil {
 		return eth.Bytes32{}, err
 	}
@@ -633,24 +698,27 @@ func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, 
 
 // FetchReceipts fetches the receipts for a given block by hash.
 func (c *simpleChainContainer) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
-	if c.engine == nil {
+	eng := c.getEngine()
+	if eng == nil {
 		return nil, engine_controller.ErrNoEngineClient
 	}
-	return c.engine.PayloadByHash(ctx, hash)
+	return eng.PayloadByHash(ctx, hash)
 }
 
 func (c *simpleChainContainer) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
-	if c.engine == nil {
+	eng := c.getEngine()
+	if eng == nil {
 		return nil, engine_controller.ErrNoEngineClient
 	}
-	return c.engine.PayloadByNumber(ctx, number)
+	return eng.PayloadByNumber(ctx, number)
 }
 
 func (c *simpleChainContainer) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
-	if c.engine == nil {
+	eng := c.getEngine()
+	if eng == nil {
 		return nil, nil, engine_controller.ErrNoEngineClient
 	}
-	return c.engine.FetchReceipts(ctx, blockID.Hash)
+	return eng.FetchReceipts(ctx, blockID.Hash)
 }
 
 // BlockTime returns the block time in seconds for this chain from the rollup config.
@@ -707,7 +775,8 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, target *eth.Exe
 	if vn == nil {
 		return fmt.Errorf("virtual node not initialized")
 	}
-	if c.engine == nil {
+	eng := c.getEngine()
+	if eng == nil {
 		return fmt.Errorf("engine not initialized")
 	}
 
@@ -731,7 +800,7 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, target *eth.Exe
 
 retryLoop:
 	for {
-		err = c.engine.Rewind(ctx, target)
+		err = eng.Rewind(ctx, target)
 		switch {
 		case isCriticalRewindError(err):
 			c.log.Error("chain_container/RewindEngine: critical error", "err", err)
