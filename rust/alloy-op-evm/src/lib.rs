@@ -142,7 +142,7 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
             }),
             inspect,
             post_exec_tracking_active: false,
-            last_tx_post_exec_result: post_exec::PostExecExecutedTx::default(),
+            last_tx_post_exec_result: Default::default(),
             _tx: PhantomData,
         }
     }

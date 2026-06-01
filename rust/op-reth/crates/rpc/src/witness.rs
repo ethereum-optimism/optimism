@@ -231,17 +231,17 @@ where
         let (tx, rx) = oneshot::channel();
         let this = self.clone();
         self.inner.task_spawner.spawn_blocking_task(async move {
-            let res = (|| {
+            let replay = || {
                 let state_provider = this
                     .inner
                     .provider
                     .state_by_block_hash(block.header().parent_hash())
-                    .map_err(|err| internal_rpc_err(err.to_string()))?;
+                    .to_rpc_result()?;
                 let db = StateProviderDatabase::new(&state_provider);
                 replay_block(&this.inner.evm_config, db, &block, config)
                     .map_err(|err| internal_rpc_err(err.to_string()))
-            })();
-            let _ = tx.send(res);
+            };
+            let _ = tx.send(replay());
         });
 
         rx.await.map_err(|err| internal_rpc_err(err.to_string()))?

@@ -110,6 +110,7 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 		return err
 	} else if set {
 		cfg.Driver.SdmPostExecOptIn = enabled
+		log.Info("Persisted SDM state loaded", "enabled", enabled)
 	} else {
 		log.Info("No persisted SDM state loaded")
 	}

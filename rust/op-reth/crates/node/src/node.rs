@@ -137,24 +137,12 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
 }
 /// Helper trait for OP primitives whose block is the standard alloy block shape.
 pub trait OpReplayNodePrimitives:
-    OpPayloadPrimitives
-    + NodePrimitives<
-        Block = alloy_consensus::Block<Self::_TX, Self::_Header>,
-        BlockBody = alloy_consensus::BlockBody<Self::_TX, Self::_Header>,
-        BlockHeader = Self::_Header,
-        SignedTx = Self::_TX,
-    >
+    OpPayloadPrimitives + NodePrimitives<Block = alloy_consensus::Block<Self::_TX, Self::_Header>>
 {
 }
 
 impl<T> OpReplayNodePrimitives for T where
-    T: OpPayloadPrimitives
-        + NodePrimitives<
-            Block = alloy_consensus::Block<T::_TX, T::_Header>,
-            BlockBody = alloy_consensus::BlockBody<T::_TX, T::_Header>,
-            BlockHeader = T::_Header,
-            SignedTx = T::_TX,
-        >
+    T: OpPayloadPrimitives + NodePrimitives<Block = alloy_consensus::Block<T::_TX, T::_Header>>
 {
 }
 
@@ -921,6 +909,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
     }
 
     /// Provide the shared SDM operator opt-in flag.
+    #[must_use]
     pub fn with_sdm_post_exec_opt_in(mut self, sdm_post_exec_opt_in: SdmPostExecOptIn) -> Self {
         self.sdm_post_exec_opt_in = Some(sdm_post_exec_opt_in);
         self
@@ -1321,6 +1310,7 @@ impl OpPayloadBuilder {
     }
 
     /// Provide the shared SDM operator opt-in flag.
+    #[must_use]
     pub fn with_sdm_post_exec_opt_in(mut self, sdm_post_exec_opt_in: SdmPostExecOptIn) -> Self {
         self.sdm_post_exec_opt_in = sdm_post_exec_opt_in;
         self

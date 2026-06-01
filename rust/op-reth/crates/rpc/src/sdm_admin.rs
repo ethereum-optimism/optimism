@@ -68,7 +68,7 @@ where
     ChainSpec: OpHardforks + Send + Sync + 'static,
 {
     fn set_sdm_post_exec_opt_in(&self, enabled: bool) -> RpcResult<()> {
-        self.opt_in.set_enabled(enabled);
+        self.opt_in.set(enabled);
         Ok(())
     }
 

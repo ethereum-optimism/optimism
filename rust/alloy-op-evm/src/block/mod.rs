@@ -74,6 +74,13 @@ pub enum PostExecMode {
     Verify(PostExecPayload),
 }
 
+impl From<bool> for PostExecMode {
+    /// `true` opts into local post-exec production; `false` disables it.
+    fn from(produce: bool) -> Self {
+        if produce { Self::Produce } else { Self::Disabled }
+    }
+}
+
 /// Per-block post-exec state carried by [`OpBlockExecutor`].
 #[derive(Debug)]
 pub enum PostExecState {

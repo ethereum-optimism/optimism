@@ -454,6 +454,7 @@ mod tests {
         assert!(!evm_config.is_sdm_active_at_timestamp(99));
         assert!(evm_config.is_sdm_active_at_timestamp(100));
         assert!(evm_config.is_sdm_active_at_timestamp(101));
+        assert!(evm_config.is_sdm_active_at_timestamp(u64::MAX));
     }
 
     #[test]
@@ -466,6 +467,8 @@ mod tests {
         let evm_config = OpEvmConfig::optimism(chain_spec);
 
         assert!(!evm_config.is_sdm_active_at_timestamp(0));
+        // SDM inactivity is a consequence of the Interop precondition: assert it explicitly.
+        assert!(!evm_config.chain_spec().is_interop_active_at_timestamp(u64::MAX));
         assert!(!evm_config.is_sdm_active_at_timestamp(u64::MAX));
     }
 

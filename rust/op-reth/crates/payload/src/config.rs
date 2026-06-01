@@ -45,7 +45,7 @@ impl SdmPostExecOptIn {
     }
 
     /// Sets the opt-in state.
-    pub fn set_enabled(&self, enabled: bool) {
+    pub fn set(&self, enabled: bool) {
         self.inner.store(enabled, Ordering::Release);
     }
 }

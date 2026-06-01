@@ -1,8 +1,5 @@
-use alloc::vec::Vec;
-use alloy_primitives::{
-    Address, B256,
-    map::{HashMap, HashSet},
-};
+use alloc::{collections::BTreeMap, vec::Vec};
+use alloy_primitives::{Address, B256, map::HashSet};
 use revm::{
     Inspector,
     bytecode::opcode,
@@ -164,15 +161,15 @@ impl CurrentTxState {
 /// flashblock-local tx indices do not affect the consensus `SDMGasEntry` set.
 #[derive(Debug, Clone, Default)]
 pub struct WarmingState {
-    warmed_accounts: HashMap<Address, WarmProvenance>,
-    warmed_slots: HashMap<(Address, B256), WarmProvenance>,
+    warmed_accounts: BTreeMap<Address, WarmProvenance>,
+    warmed_slots: BTreeMap<(Address, B256), WarmProvenance>,
 }
 
 /// Lightweight inspector that computes post-exec block-warming refunds.
 #[derive(Debug, Clone, Default)]
 pub struct SDMWarmingInspector {
-    warmed_accounts: HashMap<Address, WarmProvenance>,
-    warmed_slots: HashMap<(Address, B256), WarmProvenance>,
+    warmed_accounts: BTreeMap<Address, WarmProvenance>,
+    warmed_slots: BTreeMap<(Address, B256), WarmProvenance>,
     current_tx: CurrentTxState,
     last_tx: PostExecExecutedTx,
 }

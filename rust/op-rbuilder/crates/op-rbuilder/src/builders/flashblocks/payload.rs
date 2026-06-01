@@ -1074,10 +1074,10 @@ struct FlashblocksMetadata {
 pub(super) trait FlashblockBuildState<P> {
     type TransitionState: Clone;
 
-    fn transition_state_snapshot(&self) -> Self::TransitionState;
-    fn restore_transition_state(&mut self, transition_state: Self::TransitionState);
+    fn transition_state(&self) -> &Self::TransitionState;
+    fn set_transition_state(&mut self, transition_state: Self::TransitionState);
     fn merge_transitions(&mut self, retention: BundleRetention);
-    fn bundle_state_clone(&self) -> BundleState;
+    fn bundle_state(&self) -> &BundleState;
     fn provider(&self) -> &P;
     fn take_bundle(&mut self) -> BundleState;
 }
@@ -1088,11 +1088,11 @@ where
 {
     type TransitionState = Option<revm::database::TransitionState>;
 
-    fn transition_state_snapshot(&self) -> Self::TransitionState {
-        self.transition_state.clone()
+    fn transition_state(&self) -> &Self::TransitionState {
+        &self.transition_state
     }
 
-    fn restore_transition_state(&mut self, transition_state: Self::TransitionState) {
+    fn set_transition_state(&mut self, transition_state: Self::TransitionState) {
         self.transition_state = transition_state;
     }
 
@@ -1100,8 +1100,8 @@ where
         State::merge_transitions(self, retention);
     }
 
-    fn bundle_state_clone(&self) -> BundleState {
-        self.bundle_state.clone()
+    fn bundle_state(&self) -> &BundleState {
+        &self.bundle_state
     }
 
     fn provider(&self) -> &P {
@@ -1276,7 +1276,7 @@ where
     ExtraCtx: std::fmt::Debug + Default,
 {
     // We use it to preserve state, so we run merge_transitions on transition state at most once
-    let untouched_transition_state = state.transition_state_snapshot();
+    let untouched_transition_state = state.transition_state().clone();
     let state_merge_start_time = Instant::now();
     state.merge_transitions(BundleRetention::Reverts);
     let state_transition_merge_time = state_merge_start_time.elapsed();
@@ -1306,12 +1306,12 @@ where
         Some(inputs) => materialize_post_exec(
             ctx,
             inputs.state_provider,
-            state.bundle_state_clone(),
+            state.bundle_state().clone(),
             info,
             inputs.post_exec_entries,
         )?,
         None => PostExecMaterialization {
-            bundle: state.bundle_state_clone(),
+            bundle: state.bundle_state().clone(),
             transactions: info.executed_transactions.clone(),
             senders: info.executed_senders.clone(),
             receipts: info.receipts.clone(),
@@ -1523,7 +1523,7 @@ where
 
     // We clean bundle and place initial state transaction back
     state.take_bundle();
-    state.restore_transition_state(untouched_transition_state);
+    state.set_transition_state(untouched_transition_state);
 
     Ok((
         OpBuiltPayload::new(

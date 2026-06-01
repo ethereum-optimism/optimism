@@ -750,11 +750,7 @@ where
         impl BlockBuilder<Primitives = Evm::Primitives, Executor: PostExecExecutorExt> + 'a,
         PayloadBuilderError,
     > {
-        let post_exec_mode = if self.sdm_production_enabled() {
-            PostExecMode::Produce
-        } else {
-            PostExecMode::Disabled
-        };
+        let post_exec_mode: PostExecMode = self.sdm_production_enabled().into();
 
         self.evm_config
             .post_exec_builder_for_next_block(

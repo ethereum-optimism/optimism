@@ -13,6 +13,7 @@ use alloy_hardforks::ForkCondition;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use metrics::gauge;
 use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_evm::is_sdm_active_at_timestamp;
 use reth_optimism_forks::{OpHardfork, OpHardforks};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -20,7 +21,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
-    time::{SystemTime, UNIX_EPOCH},
+    time::UNIX_EPOCH,
 };
 
 /// Shared "operator wants to produce PostExec" flag. Cloned into both the RPC
@@ -81,7 +82,7 @@ impl SdmAdminApiServer for SdmAdminExt {
     fn sdm_status(&self, query_timestamp: Option<u64>) -> RpcResult<SdmStatus> {
         let timestamp = query_timestamp.unwrap_or_else(current_unix_timestamp);
         let opt_in = self.opt_in.load(Ordering::Acquire);
-        let protocol_active = self.chain_spec.is_interop_active_at_timestamp(timestamp);
+        let protocol_active = is_sdm_active_at_timestamp(&*self.chain_spec, timestamp);
         let activation_time = match self.chain_spec.op_fork_activation(OpHardfork::Interop) {
             ForkCondition::Timestamp(t) => Some(t),
             _ => None,
@@ -96,8 +97,5 @@ impl SdmAdminApiServer for SdmAdminExt {
 }
 
 fn current_unix_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+    UNIX_EPOCH.elapsed().map(|d| d.as_secs()).unwrap_or(0)
 }
