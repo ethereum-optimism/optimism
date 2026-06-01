@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
@@ -261,54 +262,109 @@ type disputeGame struct {
 	Address        common.Address
 	L2BlockNumber  uint64
 	SequenceNumber uint64
+	OutputRoot     common.Hash
 	UsesSuperRoots bool
 }
 
-// forGamePublished waits until a game is published on L1 for the given l2BlockNumber
+// forGamePublished waits until the earliest game that covers the given l2BlockNumber is published on L1.
 // Note that the l2 block number is passed even for super games. Conversion to timestamp is done automatically
 // when required by the respected game type
 func (b *StandardBridge) forGamePublished(l2BlockNumber *big.Int) disputeGame {
+	return b.waitForCoveringGames(l2BlockNumber, 1)[0]
+}
+
+func (b *StandardBridge) waitForCoveringGames(l2BlockNumber *big.Int, count int) []disputeGame {
+	b.require.Positive(count, "expected covering game count must be positive")
+
 	respectedGameType := b.RespectedGameType()
-	l2SequenceNumber := bigs.Uint64Strict(l2BlockNumber)
+	minSequence := bigs.Uint64Strict(l2BlockNumber)
 	superRootsActive := b.UsesSuperRoots()
 	if superRootsActive {
-		l2SequenceNumber = b.rollupCfg.TimestampForBlock(l2SequenceNumber)
+		minSequence = b.rollupCfg.TimestampForBlock(minSequence)
 	}
 
-	var game bindings.DisputeGame
-	var gameSeqNum uint64
-	var gameIndex *big.Int
+	var games []disputeGame
 	b.require.Eventuallyf(func() bool {
 		var err error
-		game, gameIndex, err = b.findLatestGame(respectedGameType)
+		games, err = b.findCoveringGames(respectedGameType, new(big.Int).SetUint64(minSequence), superRootsActive)
 		if err != nil {
-			b.log.Warn("No game of required type found", "err", err)
+			b.log.Warn("No covering game of required type found", "err", err)
 			return false
 		}
-		gameContract := bindings.NewBindings[bindings.FaultDisputeGame](
-			bindings.WithClient(b.l1Client.EthClient()),
-			bindings.WithTo(game.Proxy),
-			bindings.WithTest(b.t))
-		seqNum, err := contractio.Read(gameContract.L2SequenceNumber(), b.ctx)
-		b.require.NoError(err, "Failed to read sequence number")
-		gameSeqNum = bigs.Uint64Strict(seqNum)
-		b.log.Info("Found latest game", "index", gameIndex, "seqNum", gameSeqNum)
-		return gameSeqNum >= l2SequenceNumber
-	}, 90*time.Second, 100*time.Millisecond, "did not find a game of type %v at or after l2 sequence number %v", respectedGameType, l2SequenceNumber)
+		if len(games) < count {
+			b.log.Info("Waiting for covering games", "found", len(games), "expected", count, "minSequence", minSequence)
+			return false
+		}
+		b.log.Info("Found covering games", "count", len(games), "earliestIndex", games[0].Index, "earliestSeqNum", games[0].SequenceNumber, "earliestBlock", games[0].L2BlockNumber)
+		return true
+	}, 90*time.Second, 100*time.Millisecond, "did not find %d games of type %v at or after l2 sequence number %v", count, respectedGameType, minSequence)
 
-	gameBlockNum := gameSeqNum
-	if superRootsActive {
-		blockNum, err := b.rollupCfg.TargetBlockNumber(gameSeqNum)
-		b.require.NoError(err, "Failed to convert game timestamp to block number")
-		gameBlockNum = blockNum
+	return games
+}
+
+func (b *StandardBridge) findCoveringGames(gameType uint32, minSequence *big.Int, superRootsActive bool) ([]disputeGame, error) {
+	gameCount, err := contractio.Read(b.disputeGameFactory.GameCount(), b.ctx)
+	b.require.NoError(err, "Failed to read game count")
+	if gameCount.Cmp(common.Big0) == 0 {
+		return nil, errors.New("no games")
 	}
-	return disputeGame{
-		Index:          gameIndex,
-		Address:        game.Proxy,
-		L2BlockNumber:  gameBlockNum,
-		SequenceNumber: gameSeqNum,
-		UsesSuperRoots: superRootsActive,
+
+	type candidate struct {
+		index      *big.Int
+		sequence   *big.Int
+		outputRoot common.Hash
 	}
+	var candidates []candidate
+	l2ChainID := b.rollupCfg.L2ChainID
+	searchStart := new(big.Int).Sub(gameCount, common.Big1)
+	for searchStart.Sign() >= 0 {
+		games, err := contractio.Read(b.disputeGameFactory.FindLatestGames(gameType, searchStart, big.NewInt(32)), b.ctx)
+		b.require.NoErrorf(err, "Failed to find latest games for %v", gameType)
+		if len(games) == 0 {
+			break
+		}
+		for _, game := range games {
+			sequence, outputRoot, ok, err := bridgeGameSequenceAndOutputRoot(game, gameTypes.GameType(gameType), l2ChainID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode game %v: %w", game.Index, err)
+			}
+			if ok && sequence.Cmp(minSequence) >= 0 {
+				candidates = append(candidates, candidate{
+					index:      game.Index,
+					sequence:   sequence,
+					outputRoot: outputRoot,
+				})
+			}
+			searchStart = new(big.Int).Sub(game.Index, common.Big1)
+		}
+	}
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("no covering game found for sequence %v", minSequence)
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].index.Cmp(candidates[j].index) < 0
+	})
+
+	coveringGames := make([]disputeGame, 0, len(candidates))
+	for _, selected := range candidates {
+		gameAtIndex, err := contractio.Read(b.disputeGameFactory.GameAtIndex(selected.index), b.ctx)
+		b.require.NoErrorf(err, "Failed to get game at index %v", selected.index)
+		gameBlockNum := bigs.Uint64Strict(selected.sequence)
+		if superRootsActive {
+			blockNum, err := b.rollupCfg.TargetBlockNumber(gameBlockNum)
+			b.require.NoError(err, "Failed to convert game timestamp to block number")
+			gameBlockNum = blockNum
+		}
+		coveringGames = append(coveringGames, disputeGame{
+			Index:          selected.index,
+			Address:        gameAtIndex.Proxy,
+			L2BlockNumber:  gameBlockNum,
+			SequenceNumber: bigs.Uint64Strict(selected.sequence),
+			OutputRoot:     selected.outputRoot,
+			UsesSuperRoots: superRootsActive,
+		})
+	}
+	return coveringGames, nil
 }
 
 // findLatestGame finds the latest game in the DisputeGameFactory contract.
@@ -332,6 +388,40 @@ func (b *StandardBridge) findLatestGame(gameType uint32) (bindings.DisputeGame, 
 		return latestGame, gameIdx, nil
 	}
 	return bindings.DisputeGame{}, nil, errors.New("no suitable games found")
+}
+
+func bridgeGameSequenceAndOutputRoot(game bindings.GameSearchResult, gameType gameTypes.GameType, l2ChainID *big.Int) (*big.Int, common.Hash, bool, error) {
+	switch gameType {
+	case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType:
+		if len(game.ExtraData) < 32 {
+			return nil, common.Hash{}, false, fmt.Errorf("legacy game extra data is %d bytes, need at least 32", len(game.ExtraData))
+		}
+		return new(big.Int).SetBytes(game.ExtraData[:32]), game.RootClaim, true, nil
+	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
+		return bridgeSuperRootChainOutput(game.ExtraData, l2ChainID)
+	default:
+		return nil, common.Hash{}, false, fmt.Errorf("unsupported game type: %v", gameType)
+	}
+}
+
+func bridgeSuperRootChainOutput(extraData []byte, l2ChainID *big.Int) (*big.Int, common.Hash, bool, error) {
+	if len(extraData) < 9 {
+		return nil, common.Hash{}, false, fmt.Errorf("super root extra data is %d bytes, need at least 9", len(extraData))
+	}
+	if extraData[0] != 1 {
+		return nil, common.Hash{}, false, fmt.Errorf("unsupported super root version %d", extraData[0])
+	}
+	if (len(extraData)-9)%64 != 0 {
+		return nil, common.Hash{}, false, fmt.Errorf("invalid super root extra data length %d", len(extraData))
+	}
+	sequence := new(big.Int).SetBytes(extraData[1:9])
+	for offset := 9; offset < len(extraData); offset += 64 {
+		chainID := new(big.Int).SetBytes(extraData[offset : offset+32])
+		if chainID.Cmp(l2ChainID) == 0 {
+			return sequence, common.BytesToHash(extraData[offset+32 : offset+64]), true, nil
+		}
+	}
+	return sequence, common.Hash{}, false, nil
 }
 
 type Withdrawal struct {
@@ -360,6 +450,10 @@ func (w *Withdrawal) FinalizeGasCost() eth.ETH {
 
 func (w *Withdrawal) InitiateBlockHash() common.Hash {
 	return w.initReceipt.BlockHash
+}
+
+func (w *Withdrawal) InitiateTxHash() common.Hash {
+	return w.initReceipt.TxHash
 }
 
 func (w *Withdrawal) Prove(user *EOA) {
@@ -461,7 +555,7 @@ func (w *Withdrawal) proveWithdrawalParametersForEvent(ev *nodebindings.L2ToL1Me
 		trieNodes[i] = s
 	}
 
-	return ProvenWithdrawalParameters{
+	params := ProvenWithdrawalParameters{
 		Nonce:              ev.Nonce,
 		Sender:             ev.Sender,
 		Target:             ev.Target,
@@ -478,6 +572,14 @@ func (w *Withdrawal) proveWithdrawalParametersForEvent(ev *nodebindings.L2ToL1Me
 		},
 		WithdrawalProof: trieNodes,
 	}
+	outputRoot := eth.OutputRoot(&eth.OutputV0{
+		StateRoot:                eth.Bytes32(params.OutputRootProof.StateRoot),
+		MessagePasserStorageRoot: eth.Bytes32(params.OutputRootProof.MessagePasserStorageRoot),
+		BlockHash:                common.Hash(params.OutputRootProof.LatestBlockhash),
+	})
+	w.require.Equalf(disputeGame.OutputRoot, common.Hash(outputRoot),
+		"computed output root must match dispute game root claim for game index %v", disputeGame.Index)
+	return params
 }
 
 // Ported from op-node/withdrawals/proof.go to fit in the op-devstack, using op-service proof types

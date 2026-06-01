@@ -87,7 +87,13 @@ func ProveWithdrawal(ctx *cli.Context) error {
 		return fmt.Errorf("failed to bind dispute game factory: %w", err)
 	}
 
-	_, err = wait.ForGamePublished(ctx.Context, l1Client, portalAddr, factoryAddr, rcpt.BlockNumber)
+	head, err := l2Client.HeaderByHash(ctx.Context, rcpt.BlockHash)
+	if err != nil {
+		return fmt.Errorf("failed to get block header for tx receipt: %w", err)
+	}
+	l2BlockTimestamp := head.Time
+
+	_, err = wait.ForGamePublished(ctx.Context, l1Client, portalAddr, factoryAddr, rcpt.BlockNumber, l2BlockTimestamp)
 	if err != nil {
 		return fmt.Errorf("could not find a dispute game at or above l2 block number %v: %w", rcpt.BlockNumber, err)
 	}

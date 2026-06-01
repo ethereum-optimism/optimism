@@ -116,9 +116,13 @@ func ProveWithdrawal(t *testing.T, cfg e2esys.SystemConfig, clients ClientProvid
 	allocType := cfg.AllocType
 
 	l1Client := clients.NodeClient(e2esys.RoleL1)
-	var err error
 	l1Deployments := config.L1Deployments(allocType)
-	_, err = wait.ForGamePublished(ctx, l1Client, l1Deployments.OptimismPortalProxy, l1Deployments.DisputeGameFactoryProxy, l2WithdrawalReceipt.BlockNumber)
+
+	head, err := clients.NodeClient(e2esys.RoleSeq).HeaderByHash(ctx, l2WithdrawalReceipt.BlockHash)
+	require.NoError(t, err)
+	withdrawalTimestamp := head.Time
+
+	_, err = wait.ForGamePublished(ctx, l1Client, l1Deployments.OptimismPortalProxy, l1Deployments.DisputeGameFactoryProxy, l2WithdrawalReceipt.BlockNumber, withdrawalTimestamp)
 	require.NoError(t, err)
 
 	// Wait for another block to be mined so that the timestamp increases. Otherwise,

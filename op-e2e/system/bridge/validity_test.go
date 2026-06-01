@@ -417,7 +417,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			transactor.ExpectedL2Nonce = transactor.ExpectedL2Nonce + 1
 
 			// Wait for the finalization period, then we can finalize this withdrawal.
-			_, err = wait.ForGamePublished(ctx, l1Client, cfg.L1Deployments.OptimismPortalProxy, cfg.L1Deployments.DisputeGameFactoryProxy, receipt.BlockNumber)
+			_, err = wait.ForGamePublished(ctx, l1Client, cfg.L1Deployments.OptimismPortalProxy, cfg.L1Deployments.DisputeGameFactoryProxy, receipt.BlockNumber, header.Time)
 			require.Nil(t, err)
 
 			rpcClient, err := rpc.Dial(sys.EthInstances["verifier"].UserRPC().RPC())
