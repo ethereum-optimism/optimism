@@ -14,7 +14,16 @@ rss: true
 
 **op-reth** is the OP Stack execution layer (EL) built on [Reth](https://reth.rs), a modular, high-performance Rust Ethereum node. It is the recommended execution client for OP Stack chains, replacing op-geth.
 
-<Update label="May 18, 2026" description="v2.2.3" tags={["Latest", "Stable"]}>
+<Update label="May 26, 2026" description="v2.2.5" tags={["Latest", "Stable"]}>
+
+> [!IMPORTANT]
+> This release bumps the reth dependency which includes [FCU backfill-target fix](https://github.com/paradigmxyz/reth/pull/24159).
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth/v2.2.5)
+
+</Update>
+
+<Update label="May 18, 2026" description="v2.2.3" tags={["Stable"]}>
 
 > [!IMPORTANT]
 > This release contains support for historical proofs storage format v2. It can be enabled by setting `--proofs-history.storage-version=v2`. Note that the proofs data has to be reinitialized if switching to the new storage version format. See [the docs](https://docs.optimism.io/node-operators/reference/op-reth-historical-proof-config#op-reth-historical-proof-configuration) for further details.
