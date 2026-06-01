@@ -53,11 +53,6 @@ module Types {
   // Corresponds to the block seal used by LogsDB.FindSealedBlock.
   datatype BlockSeal = BlockSeal(id: BlockID, timestamp: nat)
 
-  // Result of a single OptimisticAt query.
-  // Corresponds to the l2Block and l1Block values returned by c.OptimisticAt in
-  // checkChainsReady in interop.go.
-  datatype OptimisticAtResult = OptimisticAtResult(l2Block: BlockID, l1Head: BlockID)
-
   // Consistent snapshot of the current round's state, captured upfront so that
   // the decision function operates on immutable data.
   // Corresponds to interop.RoundObservation; the test-only Paused field is omitted.
@@ -89,6 +84,30 @@ module Types {
     | InvalidateOutput(result: Result)
     | RewindOutput
 
+  // Corresponds to types.ExecutingMessage in supervisor/types/types.go.
+  // Models an executing message found in an L2 block's receipts.
+  datatype ExecutingMessage = ExecutingMessage(
+    chainID: ChainID,  // source chain the initiating message was emitted on
+    blockNum: nat,     // block number of the initiating message
+    logIdx: nat,       // log index within the initiating block
+    timestamp: nat,    // timestamp of the initiating block
+    checksum: nat      // simplified from MessageChecksum (hash of payload + identifier)
+  )
+
+  // Corresponds to types.ContainsQuery in supervisor/types/types.go.
+  // Derived from an ExecutingMessage to query for the initiating message in a logsDB.
+  datatype ContainsQuery = ContainsQuery(
+    blockNum: nat,
+    logIdx: nat,
+    timestamp: nat,
+    checksum: nat
+  )
+
+  // The log data for a block: executing messages keyed by log index.
+  // Corresponds to the executing-message subset of types.Receipts returned by
+  // ChainContainer.FetchReceipts. Non-executing logs are omitted from the model.
+  datatype BlockLogs = BlockLogs(execMsgs: map<nat, ExecutingMessage>)
+
   // ----- System configuration constants -----------------------------------
 
   // Ghost constants representing the single model instance's configuration.
@@ -96,8 +115,12 @@ module Types {
   // Linked to the Interop class fields by the Valid() predicate in Interop.dfy:
   //   activationTimestamp == ACTIVATION_TIMESTAMP
   //   chains.Keys == CHAIN_IDS
+  //   messageExpiryWindow == MESSAGE_EXPIRY_WINDOW
   const ACTIVATION_TIMESTAMP: nat
   const CHAIN_IDS: set<ChainID>
+  // Maximum age (in seconds) of an initiating message that can be referenced by
+  // an executing message. Corresponds to defaultMessageExpiryWindow in algo.go.
+  const MESSAGE_EXPIRY_WINDOW: nat
 
   // ----- Structural validity predicates -----------------------------------
 
@@ -127,7 +150,9 @@ module Types {
     (pending.decision == Rewind ==> pending.rewind.Some?) &&
     (pending.decision == Rewind ==> ValidRewindPlan(pending.rewind.value)) &&
     (pending.decision == Advance ==> pending.result.Some?) &&
+    (pending.decision == Advance ==> |pending.result.value.invalidHeads| == 0) &&
     (pending.decision == Invalidate ==> pending.result.Some?) &&
+    (pending.decision == Invalidate ==> 0 < |pending.result.value.invalidHeads|) &&
     (pending.result.Some? ==> pending.result.value.l2Heads.Keys == CHAIN_IDS)
   }
 
@@ -143,11 +168,13 @@ module Types {
       case AdvanceOutput(result) =>
         result.timestamp == obs.nextTimestamp &&
         result.l2Heads == obs.blocksAtTS &&
-        result.l2Heads.Keys == CHAIN_IDS
+        result.l2Heads.Keys == CHAIN_IDS &&
+        |result.invalidHeads| == 0
       case InvalidateOutput(result) =>
         result.timestamp == obs.nextTimestamp &&
         result.l2Heads == obs.blocksAtTS &&
-        result.l2Heads.Keys == CHAIN_IDS
+        result.l2Heads.Keys == CHAIN_IDS &&
+        0 < |result.invalidHeads|
     }
   }
 

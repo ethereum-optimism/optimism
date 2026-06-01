@@ -63,6 +63,34 @@ module LogsDB {
         FindSealedBlock(number).value.id.number == number
       ensures {:axiom} forall number' ::
         0 <= number' < number && FindSealedBlock(number').Some? && FindSealedBlock(number).Some? ==>
-        FindSealedBlock(number').value.timestamp < FindSealedBlock(number).value.timestamp
+          FindSealedBlock(number').value.timestamp < FindSealedBlock(number).value.timestamp
+
+    ghost function BlockLogs(blockNum: nat) : BlockLogs
+      reads this
+      requires FindSealedBlock(blockNum).Some?
+      ensures {:axiom} |BlockLogs(FirstSealedBlock().value.number).execMsgs| == 0
+
+    // Opens a sealed block and returns its block seal plus the map of
+    // logIdx -> ExecutingMessage for all executing messages in that block.
+    // In Go, OpenBlock fails with ErrSkipped for the first block in the DB
+    // because there is no parent to verify against. In Dafny, callers handle
+    // the first block separately using FirstSealedBlock() before calling OpenBlock.
+    // Corresponds to LogsDB.OpenBlock in logdb.go.
+    method OpenBlock(blockNum: nat) returns (ref: BlockSeal, execMsgs: map<nat, ExecutingMessage>)
+      requires FindSealedBlock(blockNum).Some?
+      requires FirstSealedBlock().Some? && FirstSealedBlock().value.number < blockNum
+      ensures {:axiom} ref == FindSealedBlock(blockNum).value
+      ensures {:axiom} execMsgs == BlockLogs(blockNum).execMsgs
+
+    // Checks whether an initiating message matching the query exists in the DB.
+    // Returns true if found. Simplified from Go's Contains, which returns (BlockSeal, error):
+    // both ErrConflict (message absent) and ErrFuture (not yet indexed) map to false here.
+    // Corresponds to LogsDB.Contains in logdb.go.
+    predicate Contains(query: ContainsQuery)
+      reads this
+      ensures {:axiom} Contains(query) ==> FindSealedBlock(query.blockNum).Some?
+      ensures {:axiom} Contains(query) ==> FindSealedBlock(query.blockNum).value.timestamp == query.timestamp
+      ensures {:axiom} Contains(query) ==> query.logIdx in BlockLogs(query.blockNum).execMsgs.Keys
+      ensures {:axiom} Contains(query) ==> BlockLogs(query.blockNum).execMsgs[query.logIdx].checksum == query.checksum
   }
 }
