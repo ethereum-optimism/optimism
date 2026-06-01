@@ -153,7 +153,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     OP_CHALLENGER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
 
     # L2 Configuration - Replace with your actual node endpoints  
-    OP_CHALLENGER_L2_ETH_RPC=http://op-geth:8545
+    OP_CHALLENGER_L2_ETH_RPC=http://op-reth:8545
     OP_CHALLENGER_ROLLUP_RPC=http://op-node:8547
 
     # OP Stack challenger configuration (optional - defaults provided)
@@ -316,7 +316,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
 
     **L2 network access:**
 
-    *   L2 RPC URL: Your op-geth archive node endpoint
+    *   L2 RPC URL: Your op-reth archive node endpoint
     *   Rollup RPC URL: Your op-node endpoint with historical data
 
     **Challenger wallet:**
@@ -388,7 +388,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     </Expandable>
 
     <Expandable title="--l2-eth-rpc">
-    *   This needs to be `op-geth` archive node, with `debug` enabled.
+    *   This needs to be an `op-reth` archive node, with `debug` enabled.
     *   Technically doesn't need to go to bedrock, but needs to have access to the start of any game that is still in progress.
     </Expandable>
 
@@ -415,9 +415,9 @@ For challenger deployment, we recommend using Docker as it provides a consistent
 
     2.  Ensuring Historical Data Availability:
 
-        *   Both `op-node` and `op-geth` must have data from the start of the games to maintain network consistency and allow nodes to reference historical state and transactions.
+        *   Both `op-node` and `op-reth` must have data from the start of the games to maintain network consistency and allow nodes to reference historical state and transactions.
         *   For `op-node`: Configure it to maintain a sufficient history of blockchain data locally or use an archive node.
-        *   For `op-geth`: Similarly, configure to store or access historical data.
+        *   For `op-reth`: Similarly, configure to store or access historical data.
         *   Example Configuration:
 
         ```
@@ -442,7 +442,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     <Expandable title="--network">
     *   This identifies the L2 network `op-challenger` is running for, e.g., `op-sepolia` or `op-mainnet`.
     *   When using the `--network` flag, the `--game-factory-address` will be automatically pulled from the [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json).
-    *   When cannon is executed, challenger needs the roll-up config and the L2 Genesis, which is op-geth's Genesis file. Both files are automatically loaded when Cannon Network is used, but custom networks will need to specify both Cannon L2 Genesis and Cannon rollup config.
+    *   When cannon is executed, challenger needs the roll-up config and the L2 Genesis file. Both files are automatically loaded when Cannon Network is used, but custom networks will need to specify both Cannon L2 Genesis and Cannon rollup config.
     *   For custom networks not in the [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json), the `--game-factory-address` and rollup must be specified, as follows:
 
         ```

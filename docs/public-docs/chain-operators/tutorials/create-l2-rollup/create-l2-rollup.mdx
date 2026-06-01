@@ -3,10 +3,6 @@ title: Creating your own L2 rollup testnet
 description: Learn how to deploy and orchestrate all OP Stack components for a complete testnet deployment.
 ---
 
-<Warning>
-  **The execution-layer step of this tutorial is being rewritten for op-reth.** The legacy [Spin up sequencer](./op-geth-setup) step used op-geth, which reached end-of-support on 2026-05-31 and will not support the L1 Glamsterdam hardfork. Until the op-reth setup step lands, configure your execution layer with **op-reth** using the [execution clients guide](/node-operators/guides/configuration/execution-clients). See the [op-geth deprecation notice](/notices/op-geth-deprecation).
-</Warning>
-
 Welcome to the complete guide for deploying your own OP Stack L2 rollup testnet. This multi-part tutorial will walk you through each component step-by-step, from initial setup to a fully functioning rollup.
 
 <Info>
@@ -20,7 +16,7 @@ Basic familiarity with Docker is also recommended.
 By the end of this tutorial, you'll have a complete OP Stack testnet with:
 
 *   **L1 Smart Contracts** deployed on Sepolia testnet
-*   **Execution Client** (op-geth) processing transactions
+*   **Execution Client** (op-reth) processing transactions
 *   **Consensus Client** (op-node) managing rollup consensus
 *   **Batcher** (op-batcher) publishing transaction data to L1
 *   **Proposer** (op-proposer) submitting state root proposals
@@ -167,7 +163,7 @@ To keep your rollup deployment organized, we'll create a dedicated directory str
 ```bash
 rollup/
 ├── deployer/        # op-deployer files and contracts
-├── sequencer/  # op-geth and op-node
+├── sequencer/  # op-reth and op-node
 ├── batcher/    # op-batcher configuration
 ├── proposer/   # op-proposer setup
 └── challenger/ # op-challenger files
@@ -193,9 +189,9 @@ Install op-deployer, deploy L1 contracts, and prepare your environment
 
 <Step title="Spin up sequencer">
 
-Set up and run op-geth and op-node (the execution and consensus layers)
+Set up and run op-reth and op-node (the execution and consensus layers)
 
-[Go to sequencer setup →](/chain-operators/tutorials/create-l2-rollup/op-geth-setup)
+[Go to sequencer setup →](/chain-operators/tutorials/create-l2-rollup/op-reth-setup)
 </Step>
 
 <Step title="Spin up batcher">
