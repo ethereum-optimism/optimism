@@ -23,6 +23,9 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.0"
+  c-publish_contract_artifacts_ref:
+    type: string
+    default: ""
   # Workflow activation flags (set by the decision tree in config.yml)
   c-run_main:
     type: boolean
@@ -67,6 +70,9 @@ parameters:
     type: boolean
     default: false
   c-run_ci_gate_skip:
+    type: boolean
+    default: false
+  c-run_publish_contract_artifacts:
     type: boolean
     default: false
 
@@ -2293,6 +2299,24 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - run:
+          name: Checkout publish ref
+          environment:
+            PUBLISH_CONTRACT_ARTIFACTS_REF: << pipeline.parameters.c-publish_contract_artifacts_ref >>
+          command: |
+            set -euo pipefail
+
+            if [ -z "$PUBLISH_CONTRACT_ARTIFACTS_REF" ]; then
+              echo "Using pipeline checkout $(git rev-parse HEAD)"
+              exit 0
+            fi
+
+            git fetch --no-tags origin "$PUBLISH_CONTRACT_ARTIFACTS_REF"
+            git checkout --detach FETCH_HEAD
+            echo "Checked out publish ref '$PUBLISH_CONTRACT_ARTIFACTS_REF' at $(git rev-parse HEAD)"
+
+            # Respect the tool versions specified by the ref being published.
+            mise install -v -y
       - install-contracts-dependencies
       - install-zstd
       - run:
@@ -2831,6 +2855,13 @@ workflows:
               only: /^op-contracts\/v.*/
             branches:
               ignore: /.*/
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
+  publish-contract-artifacts-auto-or-manual:
+    when: << pipeline.parameters.c-run_publish_contract_artifacts >>
+    jobs:
+      - publish-contract-artifacts:
           context:
             - circleci-repo-readonly-authenticated-github-token
 
