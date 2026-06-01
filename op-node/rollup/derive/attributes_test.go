@@ -382,13 +382,13 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		prepareActivationAttributes := func(t *testing.T, depSet depset.DependencySet) *eth.PayloadAttributes {
 			cfg := mkCfg()
 			cfg.ActivateAtGenesis(forks.Isthmus)
-			interopTime := uint64(1000)
-			cfg.LagoonTime = &interopTime
+			lagoonTime := uint64(1000)
+			cfg.LagoonTime = &lagoonTime
 			rng := rand.New(rand.NewSource(1234))
 			l1Fetcher := &testutils.MockL1Source{}
 			defer l1Fetcher.AssertExpectations(t)
 			l2Parent := testutils.RandomL2BlockRef(rng)
-			l2Parent.Time = interopTime - cfg.BlockTime
+			l2Parent.Time = lagoonTime - cfg.BlockTime
 
 			l1CfgFetcher := &testutils.MockL2Client{}
 			l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)

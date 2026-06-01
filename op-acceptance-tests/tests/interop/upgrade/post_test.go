@@ -49,11 +49,13 @@ func TestPostInteropUpgradeComprehensive(gt *testing.T) {
 	sys.L2A.WaitForBlock()
 	sys.L2B.WaitForBlock()
 
-	// Get interop activation time
-	interopTime := sys.L2A.Escape().ChainConfig().InteropTime
-	require.NotNil(interopTime, "InteropTime must be set by the Lagoon fork")
+	// Get Lagoon activation time. The op-geth ChainConfig field is still named
+	// InteropTime — this is a deliberate carveout (op-geth field rename happens
+	// in a follow-up).
+	lagoonTime := sys.L2A.Escape().ChainConfig().InteropTime
+	require.NotNil(lagoonTime, "Lagoon activation time must be set")
 
-	logger.Info("Starting comprehensive post-interop upgrade tests", "interopTime", *interopTime)
+	logger.Info("Starting comprehensive post-interop upgrade tests", "lagoonTime", *lagoonTime)
 
 	// 1. Check that chains reach cross-safe past the activation block
 	logger.Info("Checking cross-safe progression past activation block")
@@ -98,7 +100,7 @@ func testActivationCrossSafe(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 		logger.Info("Validating activation block timing",
 			"chainID", net.ChainID(),
 			"derivedBlockNumber", activationBlock.Number,
-			"interopTime", *forkTimestamp)
+			"lagoonTime", *forkTimestamp)
 	})
 
 	logger.Info("Activation cross-safe validation completed successfully")
