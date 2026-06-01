@@ -1144,19 +1144,13 @@ where
         ctx: &BuilderContext<Node>,
         evm_config: Evm,
     ) -> eyre::Result<Self::Pool> {
-        let Self {
-            pool_config_overrides,
-            enable_tx_conditional,
-            interop_http,
-            interop_safety_level,
-            ..
-        } = self;
+        let Self { pool_config_overrides, .. } = self;
 
         // Interop filter used for txpool validation.
-        let interop_client = if let Some(url) = interop_http {
+        let interop_client = if let Some(url) = self.interop_http.clone() {
             Some(
                 InteropFilterClient::builder(url, ctx.chain_spec().chain_id())
-                    .minimum_safety(interop_safety_level)
+                    .minimum_safety(self.interop_safety_level)
                     .build()
                     .await,
             )
@@ -1218,7 +1212,9 @@ where
 
         // The Op txpool maintenance task is only spawned when interop is scheduled/active and an
         // interop filter is configured.
-        if interop_filter_enabled && let Some(ref interop) = interop_client {
+        if ctx.chain_spec().op_fork_activation(OpHardfork::Interop) != ForkCondition::Never &&
+            let Some(ref interop) = interop_client
+        {
             // Spawn failsafe polling task (shares interop filter client via clone).
             ctx.task_executor().spawn_critical_task(
                 "Op txpool failsafe polling task",
@@ -1242,7 +1238,7 @@ where
             debug!(target: "reth::cli", "Spawned Op interop txpool maintenance task");
         }
 
-        if enable_tx_conditional {
+        if self.enable_tx_conditional {
             // spawn the Op txpool maintenance task
             let chain_events = ctx.provider().canonical_state_stream();
             ctx.task_executor().spawn_critical_task(
