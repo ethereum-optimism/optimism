@@ -1,0 +1,60 @@
+version: 2.1
+
+# Continuation config for the scheduled rust nightly toolchain bump.
+# Merged into the final pipeline by .circleci/scripts/merge-configs.sh.
+# Activated by the build_daily schedule via the decision tree in
+# .circleci/config.yml, which sets c-run_scheduled_rust_nightly_bump.
+
+parameters:
+  c-run_scheduled_rust_nightly_bump:
+    type: boolean
+    default: false
+
+orbs:
+  github-cli: circleci/github-cli@2.7.0
+
+jobs:
+  rust-nightly-bump:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    steps:
+      - checkout
+      - github-cli/install
+      - run:
+          name: Open PR if the pinned nightly is outdated
+          command: |
+            set -euo pipefail
+            TODAY=$(date -u +%Y-%m-%d)
+            LATEST="nightly-${TODAY}"
+            CURRENT=$(grep -oE 'nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}' rust/justfile | head -1)
+
+            echo "Latest nightly: ${LATEST}"
+            echo "Current pin:    ${CURRENT}"
+
+            if [ "${LATEST}" = "${CURRENT}" ]; then
+              echo "Pin is already up to date. Nothing to do."
+              exit 0
+            fi
+
+            BRANCH="ci/bump-rust-nightly-${LATEST}"
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN_GOVERNANCE}@github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git"
+            git checkout -b "${BRANCH}"
+
+            sed -i "s/NIGHTLY := \"${CURRENT}\"/NIGHTLY := \"${LATEST}\"/" rust/justfile
+            git add rust/justfile
+            git -c user.email=ci@oplabs.co -c user.name="OP Labs CI" commit -m "ci: bump rust nightly pin to ${LATEST}"
+            git push origin "${BRANCH}"
+
+            GH_TOKEN="${GITHUB_TOKEN_GOVERNANCE}" gh pr create \
+              --title "ci: bump rust nightly pin to ${LATEST}" \
+              --body "Automated daily bump of the pinned nightly Rust toolchain from \`${CURRENT}\` to \`${LATEST}\`. CI on this PR will validate the new toolchain compiles cleanly." \
+              --base develop \
+              --label "ci" || echo "PR may already exist for this branch."
+
+workflows:
+  scheduled-rust-nightly-bump:
+    when: << pipeline.parameters.c-run_scheduled_rust_nightly_bump >>
+    jobs:
+      - rust-nightly-bump:
+          context:
+            - circleci-repo-optimism
