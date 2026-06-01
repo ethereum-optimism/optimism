@@ -237,8 +237,18 @@ pub trait OpHardforks: EthereumHardforks {
 
     /// Returns `true` if [`Lagoon`](OpHardfork::Lagoon) is active at given block
     /// timestamp.
-    fn is_interop_active_at_timestamp(&self, timestamp: u64) -> bool {
+    fn is_lagoon_active_at_timestamp(&self, timestamp: u64) -> bool {
         self.op_fork_activation(OpHardfork::Lagoon).active_at_timestamp(timestamp)
+    }
+
+    /// Returns `true` if the interop feature is active at the given block timestamp.
+    ///
+    /// Currently equivalent to [`Self::is_lagoon_active_at_timestamp`] because Lagoon
+    /// is the hard fork that activates interop. Kept as a separate method so the
+    /// feature toggle can diverge from the hard fork accessor if interop's activation
+    /// is ever decoupled from Lagoon.
+    fn is_interop_active_at_timestamp(&self, timestamp: u64) -> bool {
+        self.is_lagoon_active_at_timestamp(timestamp)
     }
 }
 
