@@ -3,6 +3,12 @@ title: Spin up challenger
 description: Learn how to configure challenger for your OP Stack chain.
 ---
 
+<Warning>
+  **This guide still shows the legacy op-program prestate flow and op-geth examples, and is being rewritten.** For fault proofs, op-program is being replaced by **kona-client** (run as `cannon-kona`) at Karst, and op-geth reached end-of-support on 2026-05-31.
+
+  For current guidance, use the [op-challenger configuration guide](/chain-operators/guides/configuration/op-challenger-config-guide) and the [absolute prestate tutorial](/chain-operators/tutorials/absolute-prestate), and configure your execution layer with op-reth per the [execution clients guide](/node-operators/guides/configuration/execution-clients). See the [op-geth deprecation notice](/notices/op-geth-deprecation).
+</Warning>
+
 After you have spun up your sequencer, batcher, and proposer, the final step is to configure a challenger to monitor and respond to disputes. The challenger is the security component that ensures the integrity of your rollup by monitoring dispute games and responding to invalid claims.
 
 <Info>

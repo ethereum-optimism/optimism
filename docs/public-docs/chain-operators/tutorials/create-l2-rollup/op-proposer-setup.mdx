@@ -3,6 +3,10 @@ title: Spin up proposer
 description: Learn how to set up and configure an OP Stack proposer to post L2 state roots.
 ---
 
+<Warning>
+  **The execution-layer step of this tutorial is being rewritten for op-reth.** The legacy [Spin up sequencer](./op-geth-setup) step used op-geth, which reached end-of-support on 2026-05-31. Configure your execution layer with **op-reth** via the [execution clients guide](/node-operators/guides/configuration/execution-clients) until the op-reth setup step lands. See the [op-geth deprecation notice](/notices/op-geth-deprecation).
+</Warning>
+
 After you have spun up your sequencer and batcher, you need to attach a proposer to post your L2 state roots data back onto L1 so we can prove withdrawal validity. The proposer is a critical component that enables trustless L2-to-L1 messaging and creates the authoritative view of L2 state from L1's perspective.
 
 <Info>

@@ -1,5 +1,7 @@
 # Create L2 Rollup - Code Example
 
+> **⚠️ The execution layer in this example uses op-geth, which reached end-of-support on 2026-05-31 and will not support the L1 Glamsterdam hardfork.** Do not stand up a new chain on op-geth. This docker-compose example is being updated to op-reth; until then, configure your execution layer with op-reth per the [execution clients guide](https://docs.optimism.io/node-operators/guides/configuration/execution-clients). See the [op-geth deprecation notice](https://docs.optimism.io/notices/op-geth-deprecation).
+
 This directory contains the complete working implementation that accompanies the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup/create-l2-rollup). It provides automated deployment of an OP Stack L2 rollup testnet using official published Docker images.
 
 ## Overview
