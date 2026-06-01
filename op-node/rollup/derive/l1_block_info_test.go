@@ -218,7 +218,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
 		rollupCfg.ActivateAtGenesis(forks.Isthmus)
 		jovianTime := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime // activate jovian just after genesis
-		rollupCfg.LagoonTime = &jovianTime
+		rollupCfg.JovianTime = &jovianTime
 		depTx, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, jovianTime)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)

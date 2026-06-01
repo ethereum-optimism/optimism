@@ -496,11 +496,6 @@ func (c *Config) IsLagoon(timestamp uint64) bool {
 	return c.IsForkActive(forks.Lagoon, timestamp)
 }
 
-// IsInterop returns true if the interoperability feature is active at or past the given timestamp.
-func (c *Config) IsInterop(timestamp uint64) bool {
-	return c.IsLagoon(timestamp)
-}
-
 func (c *Config) IsRegolithActivationBlock(l2BlockTime uint64) bool {
 	return c.IsRegolith(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&
@@ -575,11 +570,12 @@ func (c *Config) IsKarstActivationBlock(l2BlockTime uint64) bool {
 		!c.IsKarst(l2BlockTime-c.BlockTime)
 }
 
-// IsInteropActivationBlock returns true if the given block timestamp is the first block at which interop is active.
-func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
-	return c.IsInterop(l2BlockTime) &&
+// IsLagoonActivationBlock returns whether the specified block is the first block subject to the
+// Lagoon upgrade.
+func (c *Config) IsLagoonActivationBlock(l2BlockTime uint64) bool {
+	return c.IsLagoon(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&
-		!c.IsInterop(l2BlockTime-c.BlockTime)
+		!c.IsLagoon(l2BlockTime-c.BlockTime)
 }
 
 func (c *Config) ActivationTime(fork ForkName) *uint64 {
