@@ -136,14 +136,14 @@ pub enum InteropHostError {
     /// An error when no provider found for chain ID.
     #[error("No provider found for chain ID: {0}")]
     RootProviderError(u64),
-    /// Interop is scheduled for a supplied rollup config but no dependency-set file was provided.
+    /// Lagoon is scheduled for a supplied rollup config but no dependency-set file was provided.
     #[error(
-        "Interop is scheduled for chain {chain_id} (lagoon_time = {lagoon_time:?}), but \
+        "Lagoon is scheduled for chain {chain_id} (lagoon_time = {lagoon_time:?}), but \
          --depset-cfg was not provided. Supply the dependency-set JSON file matching op-node's \
-         --interop.dependency-set to avoid silent state divergence on interop activation."
+         --interop.dependency-set to avoid silent state divergence on Lagoon activation."
     )]
     InteropWithoutDependencySet {
-        /// The L2 chain ID whose rollup config has interop scheduled.
+        /// The L2 chain ID whose rollup config has Lagoon scheduled.
         chain_id: u64,
         /// The `lagoon_time` from that rollup config.
         lagoon_time: Option<u64>,

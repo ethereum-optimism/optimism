@@ -175,7 +175,7 @@ func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]
 
 		if vnCfg.Rollup.LagoonTime == nil {
 			if resolved != nil {
-				return nil, fmt.Errorf("chain %s has no interop activation timestamp, but chain %s is configured for timestamp %d", chainID, resolvedChain, *resolved)
+				return nil, fmt.Errorf("chain %s has no Lagoon activation timestamp, but chain %s is configured for timestamp %d", chainID, resolvedChain, *resolved)
 			}
 			if missingChain == nil {
 				missingChain = new(eth.ChainID)
@@ -185,7 +185,7 @@ func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]
 		}
 
 		if missingChain != nil {
-			return nil, fmt.Errorf("chain %s is configured for interop activation timestamp %d, but chain %s has no interop activation timestamp", chainID, *vnCfg.Rollup.LagoonTime, *missingChain)
+			return nil, fmt.Errorf("chain %s is configured for Lagoon activation timestamp %d, but chain %s has no Lagoon activation timestamp", chainID, *vnCfg.Rollup.LagoonTime, *missingChain)
 		}
 
 		if resolved == nil {
@@ -196,7 +196,7 @@ func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]
 		}
 
 		if *resolved != *vnCfg.Rollup.LagoonTime {
-			return nil, fmt.Errorf("mismatched interop activation timestamps: chain %s=%d, chain %s=%d", resolvedChain, *resolved, chainID, *vnCfg.Rollup.LagoonTime)
+			return nil, fmt.Errorf("mismatched Lagoon activation timestamps: chain %s=%d, chain %s=%d", resolvedChain, *resolved, chainID, *vnCfg.Rollup.LagoonTime)
 		}
 	}
 

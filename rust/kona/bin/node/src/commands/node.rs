@@ -354,10 +354,10 @@ impl NodeCommand {
                 Ok(Some(Arc::new(dep_set)))
             }
             None if cfg.hardforks.lagoon_time.is_some() => bail!(
-                "Interop is scheduled for this chain (lagoon_time = {:?}), but \
+                "Lagoon is scheduled for this chain (lagoon_time = {:?}), but \
                  --interop.dependency-set was not provided. Supply the dependency-set \
                  JSON file matching op-node's --interop.dependency-set to avoid silent \
-                 state divergence on interop activation.",
+                 state divergence on Lagoon activation.",
                 cfg.hardforks.lagoon_time,
             ),
             None => Ok(None),
