@@ -83,11 +83,6 @@ pub struct PostExecExecutedTx {
     pub refund_events: Vec<WarmingRefundEvent>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct WarmProvenance {
-    first_warmed_by_tx_index: u64,
-}
-
 #[derive(Debug, Clone, Default)]
 struct CurrentTxState {
     tx_index: u64,
@@ -129,7 +124,7 @@ impl CurrentTxState {
 
     fn emit_refund(
         &mut self,
-        provenance: WarmProvenance,
+        first_warmed_by_tx_index: u64,
         kind: WarmingRefundKind,
         amount: u64,
         address: Address,
@@ -143,7 +138,7 @@ impl CurrentTxState {
                 amount,
                 address,
                 slot,
-                first_warmed_by_tx_index: provenance.first_warmed_by_tx_index,
+                first_warmed_by_tx_index,
             });
         }
     }
@@ -161,15 +156,17 @@ impl CurrentTxState {
 /// flashblock-local tx indices do not affect the consensus `SDMGasEntry` set.
 #[derive(Debug, Clone, Default)]
 pub struct WarmingState {
-    warmed_accounts: BTreeMap<Address, WarmProvenance>,
-    warmed_slots: BTreeMap<(Address, B256), WarmProvenance>,
+    /// Account -> index of the tx that first warmed it.
+    warmed_accounts: BTreeMap<Address, u64>,
+    /// (account, slot) -> index of the tx that first warmed it.
+    warmed_slots: BTreeMap<(Address, B256), u64>,
 }
 
 /// Lightweight inspector that computes post-exec block-warming refunds.
 #[derive(Debug, Clone, Default)]
 pub struct SDMWarmingInspector {
-    warmed_accounts: BTreeMap<Address, WarmProvenance>,
-    warmed_slots: BTreeMap<(Address, B256), WarmProvenance>,
+    warmed_accounts: BTreeMap<Address, u64>,
+    warmed_slots: BTreeMap<(Address, B256), u64>,
     current_tx: CurrentTxState,
     last_tx: PostExecExecutedTx,
 }
@@ -260,10 +257,6 @@ impl SDMWarmingInspector {
         }
     }
 
-    const fn current_warm_provenance(&self) -> WarmProvenance {
-        WarmProvenance { first_warmed_by_tx_index: self.current_tx.tx_index }
-    }
-
     fn observe_account_touch(&mut self, address: Address, allow_refund: bool) {
         if self.current_tx.kind().is_none() {
             return;
@@ -273,9 +266,9 @@ impl SDMWarmingInspector {
             allow_refund &&
             !self.current_tx.intrinsic_warm_accounts.contains(&address)
         {
-            if let Some(provenance) = self.warmed_accounts.get(&address).copied() {
+            if let Some(first_warmed_by_tx_index) = self.warmed_accounts.get(&address).copied() {
                 self.current_tx.emit_refund(
-                    provenance,
+                    first_warmed_by_tx_index,
                     WarmingRefundKind::WarmAccount,
                     ACCOUNT_REWARM_REFUND,
                     address,
@@ -284,8 +277,7 @@ impl SDMWarmingInspector {
             }
         }
 
-        let provenance = self.current_warm_provenance();
-        self.warmed_accounts.entry(address).or_insert(provenance);
+        self.warmed_accounts.entry(address).or_insert(self.current_tx.tx_index);
     }
 
     fn observe_slot_touch(&mut self, address: Address, slot: B256, is_sstore: bool) {
@@ -300,18 +292,23 @@ impl SDMWarmingInspector {
         if self.current_tx.touched_slots.insert(slot_key) &&
             !self.current_tx.intrinsic_warm_slots.contains(&slot_key)
         {
-            if let Some(provenance) = self.warmed_slots.get(&slot_key).copied() {
+            if let Some(first_warmed_by_tx_index) = self.warmed_slots.get(&slot_key).copied() {
                 let (kind, amount) = if is_sstore {
                     (WarmingRefundKind::WarmSstore, SSTORE_REWARM_REFUND)
                 } else {
                     (WarmingRefundKind::WarmSload, SLOAD_REWARM_REFUND)
                 };
-                self.current_tx.emit_refund(provenance, kind, amount, address, Some(slot));
+                self.current_tx.emit_refund(
+                    first_warmed_by_tx_index,
+                    kind,
+                    amount,
+                    address,
+                    Some(slot),
+                );
             }
         }
 
-        let provenance = self.current_warm_provenance();
-        self.warmed_slots.entry(slot_key).or_insert(provenance);
+        self.warmed_slots.entry(slot_key).or_insert(self.current_tx.tx_index);
     }
 }
 
