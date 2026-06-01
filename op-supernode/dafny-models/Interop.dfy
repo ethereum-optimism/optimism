@@ -11,12 +11,39 @@ module Interop {
   import opened ChainContainer
   import opened LogsDB
 
+  // Abstract model of the frontier verification view, which pre-fetches block
+  // receipts for the unverified frontier so verification can answer same-timestamp
+  // queries without racing against logsDB writes.
+  // Corresponds to frontierVerificationView in verification_view.go.
+  class FrontierView {
+    // Checks whether the initiating message matching query is present in the
+    // frontier block for chainID.
+    // Corresponds to frontierVerificationView.contains in verification_view.go.
+    predicate Contains(chainID: ChainID, query: ContainsQuery)
+      reads this
+      requires chainID in CHAIN_IDS
+      ensures {:axiom} Contains(chainID, query) ==> BlockInfo(chainID).id.number == query.blockNum
+      ensures {:axiom} Contains(chainID, query) ==> BlockInfo(chainID).timestamp == query.timestamp
+      ensures {:axiom} Contains(chainID, query) ==> query.logIdx in BlockLogs(chainID).execMsgs.Keys
+      ensures {:axiom} Contains(chainID, query) ==>
+        BlockLogs(chainID).execMsgs[query.logIdx].checksum == query.checksum
+
+    function BlockInfo(chainID: ChainID) : BlockInfo
+      reads this
+      requires chainID in CHAIN_IDS
+
+    function BlockLogs(chainID: ChainID) : BlockLogs
+      reads this
+      requires chainID in CHAIN_IDS
+  }
+
   class Interop {
 
     var currentL1: BlockID
     const chains: map<ChainID, ChainContainer>
     const verifiedDB: VerifiedDB
     const activationTimestamp: nat
+    const messageExpiryWindow: nat
     const logsDBs: map<ChainID, LogsDB>
 
     constructor(chains: map<ChainID, ChainContainer>)
@@ -40,6 +67,7 @@ module Interop {
 
       this.verifiedDB := new VerifiedDB();
       this.activationTimestamp := ACTIVATION_TIMESTAMP;
+      this.messageExpiryWindow := MESSAGE_EXPIRY_WINDOW;
       this.currentL1 := BlockID(0, 0);
       this.chains := chains;
       this.logsDBs := logsDBs;
@@ -85,6 +113,7 @@ module Interop {
       reads verifiedDB
     {
       activationTimestamp == ACTIVATION_TIMESTAMP &&
+      messageExpiryWindow == MESSAGE_EXPIRY_WINDOW &&
       chains.Keys == CHAIN_IDS &&
 
       /* LogsDBs invariants */
@@ -407,6 +436,113 @@ module Interop {
         AdvancesLogsDB(ts, chainID, blocksAtTS[chainID])
     }
 
+    ghost predicate ValidExecutingMessage(execTimestamp: nat, execChain: ChainID, execMsg: ExecutingMessage)
+      requires execChain in CHAIN_IDS
+      requires chains.Keys == CHAIN_IDS
+    {
+      var initChain := execMsg.chainID;
+      var initTimestamp := execMsg.timestamp;
+      initChain in chains.Keys &&
+      var initBlockTime := chains[initChain].BlockTime();
+      var execBlockTime := chains[execChain].BlockTime();
+      activationTimestamp + execBlockTime <= execTimestamp &&
+      activationTimestamp + initBlockTime <= initTimestamp &&
+      initTimestamp <= execTimestamp <= initTimestamp + messageExpiryWindow
+    }
+
+    ghost predicate PresentInFrontierView(execMsg: ExecutingMessage, view: FrontierView)
+      reads view
+      requires execMsg.chainID in CHAIN_IDS
+    {
+      var query := ContainsQuery(execMsg.blockNum, execMsg.logIdx, execMsg.timestamp, execMsg.checksum);
+      view.Contains(execMsg.chainID, query)
+    }
+
+    ghost predicate PresentInLogsDB(execMsg: ExecutingMessage)
+      reads logsDBs.Values
+      requires execMsg.chainID in logsDBs.Keys
+    {
+      var query := ContainsQuery(execMsg.blockNum, execMsg.logIdx, execMsg.timestamp, execMsg.checksum);
+      logsDBs[execMsg.chainID].Contains(query)
+    }
+
+    ghost predicate BlockIsCrossValid(ts: nat, chainID: ChainID, logs: BlockLogs)
+      requires chainID in CHAIN_IDS
+      requires chains.Keys == CHAIN_IDS
+    {
+      forall execMsg :: execMsg in logs.execMsgs.Values ==>
+        ValidExecutingMessage(ts, chainID, execMsg)
+    }
+
+    ghost predicate AllMessagesPresent(chainID: ChainID, logs: BlockLogs, view: FrontierView)
+      reads logsDBs.Values, view
+      requires logsDBs.Keys == CHAIN_IDS
+      requires forall execMsg :: execMsg in logs.execMsgs.Values ==>
+        execMsg.chainID in CHAIN_IDS
+    {
+      forall execMsg :: execMsg in logs.execMsgs.Values ==>
+        PresentInFrontierView(execMsg, view) ||
+        PresentInLogsDB(execMsg)
+    }
+
+    ghost predicate AllMessagesInLogsDB(chainID: ChainID, logs: BlockLogs)
+      reads logsDBs.Values
+      requires forall execMsg :: execMsg in logs.execMsgs.Values ==>
+        execMsg.chainID in logsDBs.Keys
+    {
+      forall execMsg :: execMsg in logs.execMsgs.Values ==>
+        PresentInLogsDB(execMsg)
+    }
+
+    ghost predicate ResultIsCrossValid(result: Result)
+      requires chains.Keys == CHAIN_IDS
+      requires result.l2Heads.Keys == CHAIN_IDS
+      requires |result.invalidHeads| == 0
+    {
+      forall chainID :: chainID in CHAIN_IDS ==>
+        var block := result.l2Heads[chainID];
+        var blockInfo := chains[chainID].BlockInfo(block);
+        blockInfo.Some? &&
+        var ts := blockInfo.value.timestamp;
+        var blockLogs := chains[chainID].BlockLogs(block).value;
+        BlockIsCrossValid(ts, chainID, blockLogs)
+    }
+
+    ghost predicate BlockExistedOnChain(chainID: ChainID, blockID: BlockID)
+      requires chainID in chains.Keys
+    {
+      chains[chainID].BlockInfo(blockID).Some?
+    }
+
+    ghost predicate BlocksExistedOnChain(blocksAtTS: map<ChainID, BlockID>)
+      requires blocksAtTS.Keys == CHAIN_IDS
+      requires chains.Keys == CHAIN_IDS
+    {
+      forall chainID :: chainID in CHAIN_IDS ==>
+        BlockExistedOnChain(chainID, blocksAtTS[chainID])
+    }
+
+    ghost predicate TransitionIsCrossValid(pendingTransition: PendingTransition)
+      requires chains.Keys == CHAIN_IDS
+      requires ValidPendingTransition(pendingTransition)
+    {
+      pendingTransition.decision.Advance? ==>
+        assert pendingTransition.result.Some?;
+        ResultIsCrossValid(pendingTransition.result.value)
+    }
+
+    ghost predicate AllVerifiedCrossValid()
+      reads verifiedDB
+      requires Valid()
+    {
+      verifiedDB.LastTimestamp().Some? ==>
+        forall ts :: activationTimestamp <= ts <= verifiedDB.LastTimestamp().value ==>
+          assert verifiedDB.Has(ts) by { SequentialContainsRange(verifiedDB.db, activationTimestamp); }
+          var verified := verifiedDB.Get(ts);
+          var result := Result(verified.timestamp, verified.l1Inclusion, verified.l2Heads, map[]);
+          ResultIsCrossValid(result)
+    }
+
     // ========================================================================
     // Methods
     // ========================================================================
@@ -419,8 +555,14 @@ module Interop {
       modifies this, verifiedDB, chains.Values, logsDBs.Values
       requires Valid()
       requires PendingTransitionIsConsistent()
+      requires AllVerifiedCrossValid()
+      requires verifiedDB.GetPendingTransition().Some? ==>
+        TransitionIsCrossValid(verifiedDB.GetPendingTransition().value)
       ensures Valid()
       ensures PendingTransitionIsConsistent()
+      ensures AllVerifiedCrossValid()
+      ensures verifiedDB.GetPendingTransition().Some? ==>
+        TransitionIsCrossValid(verifiedDB.GetPendingTransition().value)
     {
       // Crash-recovery path: resume an interrupted transition if one was
       // persisted from a previous run.
@@ -444,6 +586,8 @@ module Interop {
       // Persist the transition as a WAL entry before applying it, so that a
       // crash between the two steps is recoverable on the next startup.
       var pendingTx := BuildPendingTransition(output, obs);
+
+      assert TransitionIsCrossValid(pendingTx);
 
       // Snapshot the heap before SetPendingTransition so that the twostate lemma
       // below can reference the pre-set state where AllDBsInSync() holds.
@@ -481,6 +625,7 @@ module Interop {
       ensures ValidStepOutput(output, obs)
       ensures OutputConsistentWithVerified(output, obs)
       ensures OutputConsistentWithLogs(output, obs)
+      ensures output.AdvanceOutput? ==> ResultIsCrossValid(output.result)
     {
       obs := ObserveRound();
 
@@ -488,16 +633,19 @@ module Interop {
         output := WaitOutput;
         return;
       }
+
       if !obs.l2sConsistent {
         output := WaitOutput;
         return;
       }
+
       if !obs.l1Consistent {
         output := RewindOutput;
         return;
       }
 
-      var result := Verify(obs.nextTimestamp, obs.blocksAtTS);
+      var result := Verify(obs.nextTimestamp, obs.blocksAtTS, obs.l1Heads);
+
       if result.l2Heads == map[] {
         output := WaitOutput;
       } else if result.invalidHeads != map[] {
@@ -518,6 +666,8 @@ module Interop {
       ensures ValidRoundObservation(obs)
       ensures ObservationConsistentWithVerified(obs)
       ensures ObservationConsistentWithLogs(obs)
+      ensures 0 < |obs.blocksAtTS| ==> obs.blocksAtTS.Keys == CHAIN_IDS
+      ensures 0 < |obs.blocksAtTS| ==> BlocksExistedOnChain(obs.blocksAtTS)
     {
       // Read the last verified timestamp and its result from the DB.
       var lastTS := verifiedDB.LastTimestamp();
@@ -588,6 +738,7 @@ module Interop {
       ensures Valid()
       ensures result.Some? ==> result.value.blocks.Keys == chains.Keys
       ensures result.Some? ==> AdvancesAllLogsDBs(ts, result.value.blocks)
+      ensures result.Some? ==> BlocksExistedOnChain(result.value.blocks)
     {
       var blocks: map<ChainID, BlockID> := map[];
       var l1Heads: map<ChainID, BlockID> := map[];
@@ -600,6 +751,8 @@ module Interop {
           ts == activationTimestamp
         invariant forall k :: k in chainIDs[0..i] ==>
           AdvancesLogsDB(ts, k, blocks[k])
+        invariant forall k :: k in chainIDs[0..i] ==>
+          BlockExistedOnChain(k, blocks[k])
       {
         var chainID := chainIDs[i];
         var chainResult := chains[chainID].OptimisticAt(ts);
@@ -618,6 +771,7 @@ module Interop {
         }
 
         assert AdvancesLogsDB(ts, chainID, chainResult.value.l2Block);
+        assert BlockExistedOnChain(chainID, chainResult.value.l2Block);
       }
 
       result := Some(ChainsReadyResult(blocks, l1Heads));
@@ -625,16 +779,21 @@ module Interop {
 
     // Verifies cross-chain messages and checks for cycles at the given timestamp,
     // returning the combined result.
-    // Corresponds to verify in interop.go. The frontierView setup
-    // (resolveFrontierVerificationView) is abstracted away.
-    method Verify(ts: nat, blocksAtTS: map<ChainID, BlockID>) returns (result: Result)
+    // Corresponds to verify in interop.go.
+    method Verify(ts: nat, blocksAtTS: map<ChainID, BlockID>, l1Heads: map<ChainID, BlockID>) returns (result: Result)
       requires Valid()
+      requires blocksAtTS.Keys == CHAIN_IDS
+      requires BlocksExistedOnChain(blocksAtTS)
+      requires AdvancesAllLogsDBs(ts, blocksAtTS)
       ensures Valid()
       ensures result.timestamp == ts
       ensures result.l2Heads == blocksAtTS
+      ensures |result.invalidHeads| == 0 ==>
+        ResultIsCrossValid(result)
     {
-      result := VerifyMessages(ts, blocksAtTS);
-      var cycleResult := VerifyCycles(ts, blocksAtTS);
+      var view := ResolveFrontierVerificationView(blocksAtTS);
+      result := VerifyMessages(ts, blocksAtTS, l1Heads, view);
+      var cycleResult := VerifyCycles(ts, blocksAtTS, view);
       result := result.(invalidHeads := result.invalidHeads + cycleResult.invalidHeads);
     }
 
@@ -647,13 +806,19 @@ module Interop {
       requires Valid()
       requires verifiedDB.GetPendingTransition() == Some(pending)
       requires PendingTransitionIsConsistent()
+      requires TransitionIsCrossValid(pending)
+      requires AllVerifiedCrossValid()
       ensures Valid()
-      ensures AllDBsInSync()
       ensures PendingTransitionIsConsistent()
+      ensures AllVerifiedCrossValid()
       ensures madeProgress.None? ==>
         verifiedDB.pendingTransition == Some(pending)
       ensures madeProgress.Some? ==>
+        verifiedDB.pendingTransition == None
+      ensures madeProgress.Some? ==>
         (madeProgress.value <==> pending.decision == Advance)
+      ensures madeProgress.Some? ==>
+        AllDBsInSync()
     {
       assert ValidPendingTransition(pending);
 
@@ -670,6 +835,7 @@ module Interop {
         if !rewindOk {
           madeProgress := None;
           assert PendingTransitionIsConsistent();
+          assert AllVerifiedCrossValid();
           return;
         }
 
@@ -688,6 +854,9 @@ module Interop {
         }
 
         madeProgress := Some(false);
+        assert AllVerifiedCrossValid() by {
+          ClearPendingPreservesAllVerifiedCrossValid@BeforeClearRewind();
+        }
 
       } else if pending.decision == Invalidate {
 
@@ -703,6 +872,7 @@ module Interop {
           invariant Valid()
           invariant verifiedDB.pendingTransition == Some(pending)
           invariant AllDBsInSync()
+          invariant AllVerifiedCrossValid()
         {
           var chainID := invSeq[i];
           if chainID in chains {
@@ -732,6 +902,9 @@ module Interop {
         }
 
         madeProgress := Some(false);
+        assert AllVerifiedCrossValid() by {
+          ClearPendingPreservesAllVerifiedCrossValid@BeforeClearInvalidate();
+        }
 
       } else { // Advance case
 
@@ -739,7 +912,20 @@ module Interop {
         assert pending.result.Some?;
 
         var result := pending.result.value;
-        PersistFrontierLogs(result.timestamp, result.l2Heads);
+        var persistOk := PersistFrontierLogs(result.timestamp, result.l2Heads);
+
+        if !persistOk {
+          // FetchReceipts failed for some chain; keep the pending transition for retry.
+          madeProgress := None;
+          assert PendingTransitionIsConsistent();
+          assert AllVerifiedCrossValid();
+          return;
+        }
+
+        assert ResultIsCrossValid(result);
+        // AllVerifiedCrossValid() still holds here: PersistFrontierLogs does not modify
+        // verifiedDB, so the reads-verifiedDB predicate is unchanged since method entry.
+        assert AllVerifiedCrossValid();
 
         // Snapshot the heap before Commit so the twostate lemma can reference
         // the post-PersistFrontierLogs state via old@BeforeCommit().
@@ -754,6 +940,12 @@ module Interop {
           }
         }
 
+        assert AllVerifiedCrossValid() by {
+          CommitExtendsAllVerifiedCrossValid@BeforeCommit(
+            result.timestamp,
+            VerifiedResult(result.timestamp, result.l1Inclusion, result.l2Heads));
+        }
+
         label BeforeClearAdvance:
         verifiedDB.ClearPendingTransition();
 
@@ -765,6 +957,9 @@ module Interop {
 
         currentL1 := result.l1Inclusion;
         madeProgress := Some(true);
+        assert AllVerifiedCrossValid() by {
+          ClearPendingPreservesAllVerifiedCrossValid@BeforeClearAdvance();
+        }
       }
     }
 
@@ -783,17 +978,26 @@ module Interop {
         forall k :: k in logsDBs.Keys ==> PlanConsistentWithLogs(plan, k)
       requires plan.resetAllChainsTo.Some? ==>
         AllDBsInSyncUpTo(plan.resetAllChainsTo.value)
+      requires AllVerifiedCrossValid()
       ensures Valid()
       ensures ValidRewindPlan(plan)
       ensures verifiedDB.pendingTransition == old(verifiedDB.pendingTransition)
       ensures PlanConsistentWithVerified(plan)
       ensures plan.resetAllChainsTo.Some? ==>
-        forall k :: k in logsDBs.Keys ==>
-          PlanConsistentWithLogs(plan, k) &&
-          RewoundLogsDB(plan, k)
-      ensures AllDBsInSync()
+        forall k :: k in logsDBs.Keys ==> PlanConsistentWithLogs(plan, k)
+      ensures plan.resetAllChainsTo.Some? && success ==>
+        forall k :: k in logsDBs.Keys ==> RewoundLogsDB(plan, k)
+      ensures plan.resetAllChainsTo.Some? ==>
+        AllDBsInSyncUpTo(plan.resetAllChainsTo.value)
+      ensures success ==> AllDBsInSync()
+      ensures AllVerifiedCrossValid()
     {
+      label BeforeRewind:
       var _ := verifiedDB.Rewind(plan.rewindAtOrAfter);
+
+      assert AllVerifiedCrossValid() by {
+        RewindPreservesAllVerifiedCrossValid@BeforeRewind(plan.rewindAtOrAfter);
+      }
 
       assert unchanged(logsDBs.Values);
       assert Valid();
@@ -808,6 +1012,29 @@ module Interop {
       var enginesOk := RewindChainEngines(plan, chainIDs);
 
       assert unchanged(logsDBs.Values);
+      assert AllVerifiedCrossValid();
+
+      if plan.resetAllChainsTo.Some? {
+        assert AllDBsInSyncUpTo(plan.resetAllChainsTo.value) by {
+          var ts := plan.resetAllChainsTo.value;
+
+          forall k | k in chainIDs
+            ensures DBsInSyncUpTo(k, ts)
+          {
+            // RewindChainEngines touched only chains.Values, so the twostate lemma
+            // preconditions are identical to the post-Rewind call site: verifiedDB.db
+            // is the same, logsDBs[k] is unchanged, and old() still resolves to
+            // method entry where the precondition DBsInSyncUpTo(k, ts) held.
+            VerifiedDBRewindPreservesDBsInSyncUpTo(k, ts, plan.rewindAtOrAfter);
+          }
+
+        }
+      }
+
+      if !enginesOk {
+        success := false;
+        return;
+      }
 
       // Clear or rewind log databases depending on whether target heads are available.
       // resetAllChainsTo.None? corresponds to the nil TargetHeads case in Go,
@@ -815,24 +1042,10 @@ module Interop {
       if plan.resetAllChainsTo.None? {
         ClearLogsDBs(plan, chainIDs);
       } else {
-        // Establish DBsInSyncUpTo here, right before RewindLogsDBs needs it.
-        // RewindChainEngines touched only chains.Values, so the twostate lemma
-        // preconditions are identical to the post-Rewind call site: verifiedDB.db
-        // is the same, logsDBs[k] is unchanged, and old() still resolves to
-        // method entry where the precondition DBsInSyncUpTo(k, ts) held.
-        var ts := plan.resetAllChainsTo.value;
-
-        assert AllDBsInSyncUpTo(ts) by {
-          forall k | k in chainIDs
-            ensures DBsInSyncUpTo(k, ts)
-          {
-            VerifiedDBRewindPreservesDBsInSyncUpTo(k, ts, plan.rewindAtOrAfter);
-          }
-        }
-
         RewindLogsDBs(plan, chainIDs);
       }
-      success := enginesOk;
+
+      success := true;
     }
 
     // Prunes deny lists and optionally rewinds chain engines for all chains in chainIDs.
@@ -928,8 +1141,11 @@ module Interop {
     }
 
     // Persists frontier logs for the given verified result.
+    // Returns false if any FetchReceipts call fails (corresponds to an error return
+    // from sealFetchedBlockIntoLogsDB in interop.go).
     // Corresponds to persistFrontierLogs in interop.go.
     method {:isolate_assertions} PersistFrontierLogs(ts: nat, blocksAtTS: map<ChainID, BlockID>)
+        returns (success: bool)
       modifies logsDBs.Values
       requires Valid()
       requires blocksAtTS.Keys == chains.Keys
@@ -937,18 +1153,20 @@ module Interop {
       requires verifiedDB.LastTimestamp().Some? ==>
         AllDBsInSyncUpTo(verifiedDB.LastTimestamp().value)
       ensures Valid()
-      ensures forall k :: k in blocksAtTS.Keys ==>
+      ensures success ==> forall k :: k in blocksAtTS.Keys ==>
         logsDBs[k].LatestSealedBlock() == Some(blocksAtTS[k])
       ensures verifiedDB.LastTimestamp().Some? ==>
         AllDBsInSyncUpTo(verifiedDB.LastTimestamp().value)
+      ensures AdvancesAllLogsDBs(ts, blocksAtTS)
     {
+      success := true;
       var chainIDs := Enumerate(blocksAtTS.Keys);
 
       for i := 0 to |chainIDs|
         invariant Valid()
         invariant forall j, k :: 0 <= j < k < |chainIDs| ==>
           chainIDs[j] != chainIDs[k]
-        invariant forall j :: i <= j < |chainIDs| ==>
+        invariant forall j :: 0 <= j < |chainIDs| ==>
           AdvancesLogsDB(ts, chainIDs[j], blocksAtTS[chainIDs[j]])
         invariant forall j :: 0 <= j < i ==>
           logsDBs[chainIDs[j]].LatestSealedBlock() == Some(blocksAtTS[chainIDs[j]])
@@ -973,9 +1191,27 @@ module Interop {
         var skip := latestBlock == Some(blockID);
 
         if !skip {
-          var blockInfo := chain.FetchReceipts(blockID);
-          // Preconditions replacing ErrStaleLogsDB and ErrParentHashMismatch:
-          // in Go these would be error returns; here they are assumed away.
+          var fetchResult := chain.FetchReceipts(blockID);
+
+          if fetchResult.None? {
+            // I/O error fetching receipts. In Go this propagates as an error from
+            // sealFetchedBlockIntoLogsDB; the pending transition is kept for retry.
+            success := false;
+
+            assert AdvancesAllLogsDBs(ts, blocksAtTS);
+            assert verifiedDB.LastTimestamp().Some? ==>
+              AllDBsInSyncUpTo(verifiedDB.LastTimestamp().value);
+
+            return;
+          }
+
+          var blockInfo := fetchResult.value.info;
+          var logs := fetchResult.value.logs;
+
+          // FetchReceipts postcondition: result.value.info.id == blockID.
+          assert blockInfo.id == blockID;
+
+          // ErrParentHashMismatch: in Go this is an error return; here assumed away.
           assume latestBlock.Some? ==> blockInfo.parentHash == latestBlock.value.hash;
 
           if verifiedDB.LastTimestamp().Some? {
@@ -984,17 +1220,16 @@ module Interop {
             assert SealedBlockForVerifiedAtTimestamp(chainID, lastTS).Some? ==>
               db.LatestSealedBlock().Some?;
 
-            assert AllDBsInSyncUpTo(lastTS) by {
-              forall k | k in blocksAtTS.Keys && k != chainID
-                ensures DBsInSyncUpTo(k, lastTS)
-              {
-                assert logsDBs[k] != db;
-              }
-            }
+            assert AllDBsInSyncUpTo(lastTS);
           }
 
+          // ProcessBlock only modifies db = logsDBs[chainID]; all other logsDBs are
+          // distinct objects (from Valid() + distinct chainIDs), so their state is
+          // preserved for the loop invariants.
+          assert forall j :: 0 <= j < |chainIDs| && j != i ==> logsDBs[chainIDs[i]] != logsDBs[chainIDs[j]];
+
           label BeforeProcessBlock:
-          ProcessBlock(db, blockInfo);
+          ProcessBlock(db, blockInfo, logs);
 
           assert logsDBs[chainID].LatestSealedBlock() == Some(blocksAtTS[chainID]);
 
@@ -1002,10 +1237,13 @@ module Interop {
             var lastTS := verifiedDB.LastTimestamp().value;
 
             assert AllDBsInSyncUpTo(lastTS) by {
+              assert old@BeforeProcessBlock(logsDBs[chainID].LatestSealedBlock()).Some?;
               ProcessBlockPreservesDBsInSyncUpTo@BeforeProcessBlock(chainID, lastTS, blockInfo.id.number);
             }
           }
         }
+
+        assert logsDBs[chainIDs[i]].LatestSealedBlock() == Some(blocksAtTS[chainIDs[i]]);
       }
     }
 
@@ -1023,6 +1261,10 @@ module Interop {
       ensures ValidPendingTransition(pendingTx)
       ensures TransitionConsistentWithVerified(pendingTx)
       ensures TransitionConsistentWithLogs(pendingTx)
+      ensures output.AdvanceOutput? <==> pendingTx.decision.Advance?
+      ensures output.InvalidateOutput? <==> pendingTx.decision.Invalidate?
+      ensures (pendingTx.decision.Advance? || pendingTx.decision.Invalidate?) ==>
+        pendingTx.result.value == output.result
     {
       if output.AdvanceOutput? {
         pendingTx := PendingTransition(Advance, Some(output.result), None);
@@ -1047,6 +1289,211 @@ module Interop {
       }
     }
 
+    // Verifies a single executing message against the source chain's logsDB
+    // and (for same-timestamp messages) the frontier view.
+    // Returns true if all validity conditions are satisfied, false otherwise.
+    // Models verifyExecutingMessage in algo.go.
+    // Simplification vs. Go: ErrUnknownChain is treated as invalid (false)
+    // rather than a fatal error.
+    method VerifyExecutingMessage(
+        executingChain: ChainID,
+        executingTimestamp: nat,
+        execMsg: ExecutingMessage,
+        view: FrontierView)
+        returns (valid: bool)
+      requires Valid()
+      requires executingChain in CHAIN_IDS
+      ensures Valid()
+      ensures valid ==>
+        ValidExecutingMessage(executingTimestamp, executingChain, execMsg)
+      ensures valid ==>
+        if execMsg.timestamp == executingTimestamp then
+          PresentInFrontierView(execMsg, view)
+        else
+          assert execMsg.timestamp < executingTimestamp; // by ValidExecutingMessage above
+          PresentInLogsDB(execMsg)
+    {
+      // Unknown source chain: in Go this is ErrUnknownChain (fatal). Modeled as invalid.
+      if execMsg.chainID !in logsDBs || execMsg.chainID !in chains {
+        valid := false;
+        return;
+      }
+
+      // Activation invariant: interop must be active for at least one full block on
+      // the executing chain. Matches kona and op-program.
+      if executingTimestamp < activationTimestamp + chains[executingChain].BlockTime() {
+        valid := false;  // ErrExecutedTooEarly
+        return;
+      }
+
+      // Activation invariant: interop must be active for at least one full block on
+      // the initiating chain.
+      if execMsg.timestamp < activationTimestamp + chains[execMsg.chainID].BlockTime() {
+        valid := false;  // ErrInitiatedTooEarly
+        return;
+      }
+
+      // Timestamp ordering: the initiating message must not be from the future.
+      if execMsg.timestamp > executingTimestamp {
+        valid := false;  // ErrTimestampViolation
+        return;
+      }
+
+      // Message expiry: the initiating message must not be older than the expiry window.
+      if execMsg.timestamp + messageExpiryWindow < executingTimestamp {
+        valid := false;  // ErrMessageExpired
+        return;
+      }
+
+      var query := ContainsQuery(execMsg.blockNum, execMsg.logIdx, execMsg.timestamp, execMsg.checksum);
+
+      // Same-timestamp dependencies may reside in the frontier view rather than the
+      // accepted-history logsDB. Check the frontier view first; if found, the message
+      // is valid without a logsDB lookup.
+      if execMsg.timestamp == executingTimestamp {
+        // Unlike the Go code, we return false immediately if the initiating message is
+        // not in the frontier. Since we know that there are no blocks for the current
+        // timestamp in the logsDB, there is no point looking there.
+        valid := view.Contains(execMsg.chainID, query);
+        return;
+      }
+
+      // Check the logsDB for the initiating message.
+      valid := logsDBs[execMsg.chainID].Contains(query);
+    }
+
+    // Verifies cross-chain interop messages at the given timestamp.
+    // Models verifyInteropMessages in algo.go.
+    // Simplifications vs. Go:
+    // - InvalidHead carries only BlockID; StateRoot/MessagePasserStorageRoot from
+    //   newInvalidHead are not modeled (see B2).
+    // - Fatal I/O errors (e.g. OpenBlock failure on non-first blocks) are replaced
+    //   by assumes with explanatory comments.
+    method {:isolate_assertions} VerifyMessages(
+        ts: nat,
+        blocksAtTS: map<ChainID, BlockID>,
+        l1Heads: map<ChainID, BlockID>,
+        view: FrontierView)
+        returns (result: Result)
+      requires Valid()
+      requires blocksAtTS.Keys == CHAIN_IDS
+      requires AdvancesAllLogsDBs(ts, blocksAtTS)
+      ensures Valid()
+      ensures result.timestamp == ts
+      ensures result.l2Heads == blocksAtTS
+      ensures |result.invalidHeads| == 0 ==>
+        forall chainID :: chainID in CHAIN_IDS ==>
+          BlockIsCrossValid(view.BlockInfo(chainID).timestamp, chainID, view.BlockLogs(chainID)) &&
+          AllMessagesPresent(chainID, view.BlockLogs(chainID), view)
+    {
+      var l1Inclusion := ComputeL1Inclusion(blocksAtTS, l1Heads);
+      result := Result(ts, l1Inclusion, blocksAtTS, map[]);
+
+      var chainIDs := Enumerate(blocksAtTS.Keys);
+
+      for i := 0 to |chainIDs|
+        invariant Valid()
+        invariant AdvancesAllLogsDBs(ts, blocksAtTS)
+        invariant result.timestamp == ts
+        invariant result.l2Heads == blocksAtTS
+        invariant |result.invalidHeads| == 0 ==>
+          forall j :: 0 <= j < i ==>
+            BlockIsCrossValid(view.BlockInfo(chainIDs[j]).timestamp, chainIDs[j], view.BlockLogs(chainIDs[j])) &&
+            AllMessagesPresent(chainIDs[j], view.BlockLogs(chainIDs[j]), view)
+      {
+        var chainID := chainIDs[i];
+        var expectedBlock := blocksAtTS[chainID];
+
+        // In Go, chains not in logsDBs are skipped. Since Valid() guarantees
+        // logsDBs.Keys == chains.Keys == CHAIN_IDS, and our preconditions
+        // also guarantee blocksAtTS.Keys == CHAIN_IDs, we can just assert this.
+        assert chainID in logsDBs.Keys;
+        assert chainID in chains.Keys;
+
+        // The Go code falls back to querying the logsDBs if a block is not in
+        // the frontier verification view, but in practice this can't happen.
+        // Here we can ensure that the view has a block for every chain.
+        var block := view.BlockInfo(chainID);
+        var logs := view.BlockLogs(chainID);
+
+        // Verify each executing message. Stop at the first invalid one.
+        var blockValid := true;
+        var logIdxs := Enumerate(logs.execMsgs.Keys);
+        var j := 0;
+        while j < |logIdxs| && blockValid
+          invariant 0 <= j <= |logIdxs|
+          invariant Valid()
+          invariant |result.invalidHeads| == 0 ==>
+            forall k :: 0 <= k < i ==>
+              BlockIsCrossValid(view.BlockInfo(chainIDs[k]).timestamp, chainIDs[k], view.BlockLogs(chainIDs[k])) &&
+              AllMessagesPresent(chainIDs[k], view.BlockLogs(chainIDs[k]), view)
+          invariant blockValid ==>
+            forall k :: 0 <= k < j ==>
+              ValidExecutingMessage(block.timestamp, chainID, logs.execMsgs[logIdxs[k]]) &&
+              (PresentInFrontierView(logs.execMsgs[logIdxs[k]], view) || PresentInLogsDB(logs.execMsgs[logIdxs[k]]))
+        {
+          var logIdx := logIdxs[j];
+          var execMsg := logs.execMsgs[logIdx];
+          var ok := VerifyExecutingMessage(chainID, block.timestamp, execMsg, view);
+          if !ok {
+            blockValid := false;
+          }
+          j := j + 1;
+        }
+
+        if !blockValid {
+          result := result.(invalidHeads := result.invalidHeads[chainID := expectedBlock]);
+        } else {
+          assert BlockIsCrossValid(block.timestamp, chainID, logs);
+          assert AllMessagesPresent(chainID, logs, view);
+        }
+      }
+    }
+
+    // Verifies same-timestamp cycle constraints at the given timestamp.
+    // Abstracts cycleVerifyFn (i.verifyCycleMessages) from interop.go.
+    method VerifyCycles(ts: nat, blocksAtTS: map<ChainID, BlockID>, view: FrontierView) returns (result: Result)
+      requires Valid()
+      ensures {:axiom} Valid()
+      ensures {:axiom} result.timestamp == ts
+      ensures {:axiom} result.l2Heads == blocksAtTS
+
+    // Builds the frontier verification view for the given block set.
+    // The view pre-fetches receipts for same-timestamp message queries so that
+    // VerifyMessages can answer them without racing against logsDB writes.
+    // Corresponds to resolveFrontierVerificationView in interop.go.
+    method ResolveFrontierVerificationView(blocksAtTS: map<ChainID, BlockID>) returns (view: FrontierView)
+      requires Valid()
+      requires blocksAtTS.Keys == CHAIN_IDS
+      requires BlocksExistedOnChain(blocksAtTS)
+      ensures {:axiom} Valid()
+      ensures {:axiom} fresh(view)
+      ensures {:axiom} forall chainID :: chainID in CHAIN_IDS ==>
+        chains[chainID].BlockInfo(blocksAtTS[chainID]).Some? &&
+        view.BlockInfo(chainID) == chains[chainID].BlockInfo(blocksAtTS[chainID]).value &&
+        view.BlockLogs(chainID) == chains[chainID].BlockLogs(blocksAtTS[chainID]).value
+
+    // Computes the L1 inclusion block for the given set of L2 blocks by taking
+    // the maximum of the per-chain L1 heads.
+    // Corresponds to the l1Inclusion computation in verifyInteropMessages in algo.go.
+    method ComputeL1Inclusion(blocksAtTS: map<ChainID, BlockID>, l1Heads: map<ChainID, BlockID>) returns (l1Inclusion: BlockID)
+      requires Valid()
+      ensures {:axiom} Valid()
+
+    // Processes and seals a block's logs into the given chain's log database.
+    // Corresponds to processBlockLogs in logdb.go; the parent-hash precondition
+    // mirrors ErrParentHashMismatch (which is assumed away at the call site).
+    method ProcessBlock(db: LogsDB, info: BlockInfo, logs: BlockLogs)
+      modifies db
+      requires Valid()
+      requires db.LatestSealedBlock().None? || (
+        db.LatestSealedBlock().value.number + 1 == info.id.number &&
+        info.parentHash == db.LatestSealedBlock().value.hash)
+      ensures {:axiom} unchanged(verifiedDB)
+      ensures {:axiom} Valid()
+      ensures {:axiom} db.LatestSealedBlock() == Some(info.id)
+      ensures {:axiom} forall n :: n != info.id.number ==> db.FindSealedBlock(n) == old(db.FindSealedBlock(n))
+
     // Checks L1 consistency from two perspectives.
     // l1Consistent: the last verified L1 inclusion block is on the same chain
     //   as the current frontier L1 heads (requires lastVerified to be present).
@@ -1059,34 +1506,6 @@ module Interop {
       requires Valid()
       ensures {:axiom} Valid()
       ensures {:axiom} !l1Consistent ==> lastVerified.Some?
-
-    // Verifies cross-chain interop messages at the given timestamp.
-    // Abstracts verifyFn (i.verifyInteropMessages) from interop.go.
-    method VerifyMessages(ts: nat, blocksAtTS: map<ChainID, BlockID>) returns (result: Result)
-      requires Valid()
-      ensures {:axiom} Valid()
-      ensures {:axiom} result.timestamp == ts
-      ensures {:axiom} result.l2Heads == blocksAtTS
-
-    // Verifies same-timestamp cycle constraints at the given timestamp.
-    // Abstracts cycleVerifyFn (i.verifyCycleMessages) from interop.go.
-    method VerifyCycles(ts: nat, blocksAtTS: map<ChainID, BlockID>) returns (result: Result)
-      requires Valid()
-      ensures {:axiom} Valid()
-
-    // Processes and seals a block's logs in the given chain's log database.
-    // Abstracts processBlockLogs in logdb.go; the stale-data and parent-hash
-    // error returns from persistFrontierLogs are replaced with preconditions.
-    method ProcessBlock(db: LogsDB, info: BlockInfo)
-      modifies db
-      requires Valid()
-      requires db.LatestSealedBlock().None? || (
-        db.LatestSealedBlock().value.number + 1 == info.id.number &&
-        info.parentHash == db.LatestSealedBlock().value.hash)
-      ensures {:axiom} unchanged(verifiedDB)
-      ensures {:axiom} Valid()
-      ensures {:axiom} db.LatestSealedBlock() == Some(info.id)
-      ensures {:axiom} forall n :: n != info.id.number ==> db.FindSealedBlock(n) == old(db.FindSealedBlock(n))
 
     // Updates currentL1 when no progress is made.
     // Corresponds to refreshCurrentL1OnWait in interop.go.
@@ -1272,6 +1691,114 @@ module Interop {
         assert n <= latestNum;
         assert n != newBlockNumber;
         assert logsDBs[chainID].FindSealedBlock(n) == old(logsDBs[chainID].FindSealedBlock(n));
+      }
+    }
+
+    // Framing lemma: ClearPendingTransition preserves AllVerifiedCrossValid.
+    // db and lastTimestamp are unchanged, so the range and entries are the same;
+    // ResultIsCrossValid is heap-independent w.r.t. anything ClearPendingTransition
+    // touches (only pendingTransition changes).
+    // Intended to be called as ClearPendingPreservesAllVerifiedCrossValid@L() where
+    // L is a label placed just before the ClearPendingTransition call.
+    twostate lemma {:isolate_assertions} ClearPendingPreservesAllVerifiedCrossValid()
+      requires old(Valid())
+      requires Valid()
+      requires unchanged(chains.Values)
+      requires verifiedDB.db == old(verifiedDB.db)
+      requires verifiedDB.lastTimestamp == old(verifiedDB.lastTimestamp)
+      requires old(AllVerifiedCrossValid())
+      ensures AllVerifiedCrossValid()
+    {
+      if verifiedDB.LastTimestamp().Some? {
+        var lastTS := verifiedDB.LastTimestamp().value;
+        SequentialContainsRange(verifiedDB.db, activationTimestamp);
+        forall ts | activationTimestamp <= ts <= lastTS
+          ensures verifiedDB.Has(ts)
+          ensures verifiedDB.Get(ts).l2Heads.Keys == CHAIN_IDS
+          ensures ResultIsCrossValid(Result(verifiedDB.Get(ts).timestamp,
+                                            verifiedDB.Get(ts).l1Inclusion,
+                                            verifiedDB.Get(ts).l2Heads, map[]))
+        {
+          assert old(verifiedDB.Has(ts));           // fires trigger on old(AllVerifiedCrossValid())
+          assert verifiedDB.db[ts] == old(verifiedDB.db)[ts];
+        }
+      }
+    }
+
+    // Framing lemma: verifiedDB.Rewind preserves AllVerifiedCrossValid.
+    // Rewind removes entries >= rewindAt; all remaining entries were covered by
+    // old(AllVerifiedCrossValid()) and ResultIsCrossValid is heap-independent
+    // w.r.t. anything Rewind touches (only verifiedDB).
+    // Intended to be called as RewindPreservesAllVerifiedCrossValid(rewindAt) right
+    // after the Rewind call (no label needed when Rewind is the first operation).
+    twostate lemma {:isolate_assertions} RewindPreservesAllVerifiedCrossValid(rewindAt: nat)
+      requires old(Valid())
+      requires Valid()
+      requires unchanged(chains.Values)
+      requires verifiedDB.db ==
+        map k | k in old(verifiedDB.db) && k < rewindAt :: old(verifiedDB.db)[k]
+      requires old(AllVerifiedCrossValid())
+      ensures AllVerifiedCrossValid()
+    {
+      if verifiedDB.LastTimestamp().Some? {
+        var lastTS := verifiedDB.LastTimestamp().value;
+        assert lastTS == MaxKey(verifiedDB.db);   // from Valid(): lastTimestamp == Some(MaxKey(db))
+        assert lastTS in verifiedDB.db;            // MaxKey postcondition
+        assert lastTS < rewindAt;                  // lastTS in verifiedDB.db = {k in old(db) | k < rewindAt}
+        SequentialContainsRange(verifiedDB.db, activationTimestamp);
+        forall ts | activationTimestamp <= ts <= lastTS
+          ensures verifiedDB.Has(ts)
+          ensures verifiedDB.Get(ts).l2Heads.Keys == CHAIN_IDS
+          ensures ResultIsCrossValid(Result(verifiedDB.Get(ts).timestamp,
+                                            verifiedDB.Get(ts).l1Inclusion,
+                                            verifiedDB.Get(ts).l2Heads, map[]))
+        {
+          assert ts < rewindAt;                     // ts <= lastTS < rewindAt
+          assert ts in old(verifiedDB.db);          // ts in verifiedDB.db = {k in old(db) | k < rewindAt}
+          assert old(verifiedDB.Has(ts));           // fires trigger on old(AllVerifiedCrossValid())
+          assert verifiedDB.db[ts] == old(verifiedDB.db)[ts];
+        }
+      }
+    }
+
+    // Framing lemma: verifiedDB.Commit extends AllVerifiedCrossValid with a new entry.
+    // Old entries are unchanged and their ResultIsCrossValid follows from old(AllVerifiedCrossValid());
+    // the new entry must be supplied as ResultIsCrossValid(Result(newTs, ...)) in the requires.
+    // Intended to be called as CommitExtendsAllVerifiedCrossValid@L(newTs, newR) where
+    // L is a label placed just before the Commit call.
+    twostate lemma {:isolate_assertions} CommitExtendsAllVerifiedCrossValid(newTs: nat, newR: VerifiedResult)
+      requires old(Valid())
+      requires Valid()
+      requires unchanged(chains.Values)
+      requires newR.l2Heads.Keys == CHAIN_IDS
+      requires verifiedDB.db == old(verifiedDB.db)[newTs := newR]
+      requires verifiedDB.lastTimestamp == Some(newTs)
+      requires old(verifiedDB.LastTimestamp()).None? ==> newTs == activationTimestamp
+      requires old(verifiedDB.LastTimestamp()).Some? ==>
+        newTs == old(verifiedDB.LastTimestamp()).value + 1
+      requires old(AllVerifiedCrossValid())
+      requires ResultIsCrossValid(Result(newTs, newR.l1Inclusion, newR.l2Heads, map[]))
+      ensures AllVerifiedCrossValid()
+    {
+      SequentialContainsRange(verifiedDB.db, activationTimestamp);
+      forall ts | activationTimestamp <= ts <= newTs
+        ensures verifiedDB.Has(ts)
+        ensures verifiedDB.Get(ts).l2Heads.Keys == CHAIN_IDS
+        ensures ResultIsCrossValid(Result(verifiedDB.Get(ts).timestamp,
+                                          verifiedDB.Get(ts).l1Inclusion,
+                                          verifiedDB.Get(ts).l2Heads, map[]))
+      {
+        if ts == newTs {
+          // direct from requires ResultIsCrossValid(Result(newTs, ...))
+        } else {
+          // ts < newTs; need old(verifiedDB.Has(ts)) to fire old(AllVerifiedCrossValid()) trigger
+          assert old(verifiedDB.LastTimestamp()).Some?;  // else newTs == activationTimestamp <= ts, contradiction
+          var oldLastTS := old(verifiedDB.LastTimestamp()).value;
+          assert ts <= oldLastTS;                         // ts < newTs == oldLastTS + 1
+          SequentialContainsRange(old(verifiedDB.db), activationTimestamp);
+          assert old(verifiedDB.Has(ts));                // fires trigger on old(AllVerifiedCrossValid())
+          assert verifiedDB.db[ts] == old(verifiedDB.db)[ts];
+        }
       }
     }
 
