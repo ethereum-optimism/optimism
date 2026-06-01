@@ -53,6 +53,7 @@ type HardforkConfig struct {
 	// InteropTime mirrors the superchain-registry TOML field name (`interop_time`).
 	// The fork is named Lagoon in this repo, but the registry retains the "interop"
 	// name in its TOML schema, so this field stays InteropTime to deserialize correctly.
+	// Tracked in #21135 — flip to LagoonTime once the registry renames the TOML key.
 	InteropTime *uint64 `toml:"interop_time"`
 	// Optional Forks
 	PectraBlobScheduleTime *uint64 `toml:"pectra_blob_schedule_time,omitempty"`

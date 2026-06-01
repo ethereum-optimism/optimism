@@ -80,6 +80,9 @@ pub struct HardForkConfig {
     /// TOML schema, which still uses the pre-rename name. Serialization always emits
     /// `lagoon_time`. This matches the Go-side carveout on
     /// `superchain.HardforkConfig.InteropTime`.
+    ///
+    /// Tracked in ethereum-optimism/optimism#21135 — drop the alias once the registry
+    /// renames the TOML key to `lagoon_time`.
     #[cfg_attr(
         feature = "serde",
         serde(skip_serializing_if = "Option::is_none", alias = "interop_time")
