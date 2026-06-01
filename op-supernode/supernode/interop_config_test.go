@@ -49,7 +49,7 @@ func TestResolveInteropActivationTimestamp(t *testing.T) {
 				eth.ChainIDFromUInt64(10):   {Rollup: rollup.Config{}},
 				eth.ChainIDFromUInt64(8453): {Rollup: rollup.Config{LagoonTime: uint64Ptr(1234)}},
 			},
-			wantErr: "has no interop activation timestamp",
+			wantErr: "has no Lagoon activation timestamp",
 		},
 		{
 			name: "error on mismatched rollup timestamps",
@@ -57,7 +57,7 @@ func TestResolveInteropActivationTimestamp(t *testing.T) {
 				eth.ChainIDFromUInt64(10):   {Rollup: rollup.Config{LagoonTime: uint64Ptr(100)}},
 				eth.ChainIDFromUInt64(8453): {Rollup: rollup.Config{LagoonTime: uint64Ptr(200)}},
 			},
-			wantErr: "mismatched interop activation timestamps",
+			wantErr: "mismatched Lagoon activation timestamps",
 		},
 	}
 
