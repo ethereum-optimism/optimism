@@ -31,11 +31,11 @@ use crate::{Ecotone, Fjord, Isthmus, Jovian, Karst, Lagoon};
 /// assert_eq!(isthmus_upgrade_tx.collect::<Vec<_>>().len(), 8);
 /// ```
 ///
-/// Build interop hardfork upgrade transactions:
+/// Build lagoon hardfork upgrade transactions:
 /// ```rust
 /// use kona_hardforks::{Hardfork, Hardforks};
-/// let interop_upgrade_tx = Hardforks::LAGOON.txs();
-/// assert_eq!(interop_upgrade_tx.collect::<Vec<_>>().len(), 30);
+/// let lagoon_upgrade_tx = Hardforks::LAGOON.txs();
+/// assert_eq!(lagoon_upgrade_tx.collect::<Vec<_>>().len(), 30);
 /// ```
 #[derive(Debug, Default, Clone, Copy)]
 #[non_exhaustive]

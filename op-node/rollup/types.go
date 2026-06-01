@@ -497,8 +497,6 @@ func (c *Config) IsLagoon(timestamp uint64) bool {
 }
 
 // IsInterop returns true if the interoperability feature is active at or past the given timestamp.
-// Lagoon is the fork that activates interop; the method retains the "Interop" name to keep
-// concept-level (protocol feature) call sites stable across the fork rename.
 func (c *Config) IsInterop(timestamp uint64) bool {
 	return c.IsLagoon(timestamp)
 }
@@ -577,9 +575,7 @@ func (c *Config) IsKarstActivationBlock(l2BlockTime uint64) bool {
 		!c.IsKarst(l2BlockTime-c.BlockTime)
 }
 
-// IsInteropActivationBlock returns true if the given block timestamp is the Lagoon activation block
-// (i.e., the first block at which interop is active). The method retains the "Interop" name to
-// keep concept-level call sites stable across the fork rename.
+// IsInteropActivationBlock returns true if the given block timestamp is the first block at which interop is active.
 func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
 	return c.IsInterop(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&
