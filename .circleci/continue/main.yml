@@ -26,6 +26,17 @@ parameters:
   c-publish_contract_artifacts_ref:
     type: string
     default: ""
+  # CircleCI forwards user-supplied setup params into continuation validation.
+  # These aliases are transformed into the c-* params above by config.yml.
+  main_dispatch:
+    type: boolean
+    default: true
+  publish_contract_artifacts_dispatch:
+    type: boolean
+    default: false
+  publish_contract_artifacts_ref:
+    type: string
+    default: ""
   # Workflow activation flags (set by the decision tree in config.yml)
   c-run_main:
     type: boolean

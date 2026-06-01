@@ -44,16 +44,21 @@ if [ "${1:-}" = "--force" ] || [ "${1:-}" = "-f" ]; then
 fi
 
 checksum=$(bash "$CONTRACTS_DIR/scripts/ops/calculate-checksum.sh")
+commit=$(git -C "$ROOT_DIR" rev-parse HEAD)
 
 archive_name_zst="artifacts-v1-$checksum.tar.zst"
+commit_archive_name_zst="artifacts-v1-$commit.tar.zst"
 upload_url_zst="$BUCKET_URL/$archive_name_zst"
+commit_upload_url_zst="$BUCKET_URL/$commit_archive_name_zst"
 
 echoerr "> Checksum: $checksum"
+echoerr "> Commit: $commit"
 echoerr "> Checking for existing artifacts..."
 
 exists_zst=$(curl -s -o /dev/null --fail -LI "$upload_url_zst" || echo "fail")
-if [ "$exists_zst" != "fail" ] && [ "$FORCE" = false ]; then
-  echoerr "> Existing artifacts found (.tar.zst), nothing to do. Use --force to overwrite."
+commit_exists_zst=$(curl -s -o /dev/null --fail -LI "$commit_upload_url_zst" || echo "fail")
+if [ "$exists_zst" != "fail" ] && [ "$commit_exists_zst" != "fail" ] && [ "$FORCE" = false ]; then
+  echoerr "> Existing checksum and commit artifacts found (.tar.zst), nothing to do. Use --force to overwrite."
   exit 0
 fi
 
@@ -87,6 +92,10 @@ gcloud config set storage/parallel_composite_upload_enabled False
 
 gcloud --verbosity="info" storage cp "$TEMP_DIR/$archive_name_zst" "gs://$DEPLOY_BUCKET/$archive_name_zst"
 echoerr "> Uploaded to: $upload_url_zst"
+
+echoerr "> Uploading commit-addressed artifact..."
+gcloud --verbosity="info" storage cp "$TEMP_DIR/$archive_name_zst" "gs://$DEPLOY_BUCKET/$commit_archive_name_zst"
+echoerr "> Uploaded to: $commit_upload_url_zst"
 
 echoerr "> Uploading as 'latest' for PR fallback..."
 gcloud --verbosity="info" storage cp "gs://$DEPLOY_BUCKET/$archive_name_zst" "gs://$DEPLOY_BUCKET/artifacts-v1-latest.tar.zst"

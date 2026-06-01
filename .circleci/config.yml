@@ -300,7 +300,7 @@ jobs:
               # API triggers: dispatch flags select workflows
               api)
                 run release
-                if is_true main_dispatch && [[ "$(param github-event-type)" == "__not_set__" ]]; then
+                if is_true main_dispatch && ! is_true publish_contract_artifacts_dispatch && [[ "$(param github-event-type)" == "__not_set__" ]]; then
                   run main contracts_feature_tests
                 fi
                 if is_true fault_proofs_dispatch;     then run develop_fault_proofs; fi

@@ -190,7 +190,7 @@ run_scenario \
 run_scenario \
   "API: publish_contract_artifacts_dispatch" \
   "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": true, "c-publish_contract_artifacts_dispatch": true, "c-github-event-type": "__not_set__"}' \
   release publish_contract_artifacts
 
 run_scenario \
