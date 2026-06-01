@@ -4,10 +4,6 @@ use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::{Address, B256, Bytes};
 use serde::{Deserialize, Serialize};
 
-const fn compare_payload_default() -> bool {
-    true
-}
-
 /// Single-block replay request, accepting either a block tag/number or a block hash.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -20,15 +16,15 @@ pub enum ReplayPostExecBlockRequest {
 
 /// Options for `debug_replaySDMBlock`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ReplayPostExecBlockOptions {
     /// Compare replay refunds against any embedded post-exec payload in the source block.
-    #[serde(default = "compare_payload_default")]
     pub compare_payload: bool,
 }
 
 impl Default for ReplayPostExecBlockOptions {
     fn default() -> Self {
-        Self { compare_payload: compare_payload_default() }
+        Self { compare_payload: true }
     }
 }
 
@@ -41,7 +37,7 @@ pub struct PostExecReplayConfig {
 
 impl Default for PostExecReplayConfig {
     fn default() -> Self {
-        Self { compare_payload: compare_payload_default() }
+        Self { compare_payload: true }
     }
 }
 
