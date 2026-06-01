@@ -6,9 +6,7 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import {
-    BondDistributionMode, Claim, Duration, GameStatus, GameType, Hash, Timestamp
-} from "src/dispute/lib/Types.sol";
+import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 import { NoCreditToClaim, UnknownChainId } from "src/dispute/lib/Errors.sol";
 import { Types } from "src/libraries/Types.sol";
@@ -92,7 +90,7 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 /// Scenario 7 — Child game with modified chain set resolves normally
 /// ───────────────────────────────────────────────────────────────────────────
 ///  1. Parent game commits to a 2-chain super root [op-mainnet=10, l2ChainId].
-///  2. Child game references the parent but commits to a 3-chain super root. 
+///  2. Child game references the parent but commits to a 3-chain super root.
 ///     Absolute prestate is updated in the factory gameArgs.
 ///  3. Both games run unchallenged → DEFENDER_WINS → finalize → close.
 ///  4. Each game's per-chain lookups remain isolated to its own committed chain set.
@@ -534,7 +532,7 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
 
         // ── Rotate `absolutePrestate` before extending the chain set ──
         // Expanding the proven chain set means the ZK program changes. Governance needs to update the
-        // absolutePresate in the factory gameArgs. 
+        // absolutePresate in the factory gameArgs.
         // The mock verifier accepts unconditionally, so the contract permits the transition.
         // Note: This is not strictly needed here but exercises the intended flow.
         setupZKDisputeGame(
