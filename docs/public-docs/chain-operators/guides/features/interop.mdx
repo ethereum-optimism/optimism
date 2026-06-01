@@ -1,0 +1,100 @@
+---
+title: Opting your chain into interop
+description: What a chain operator must do to opt an OP Stack chain into interop — activate the Lagoon hardfork, join a dependency set, and configure the sequencer, interop filter, and fault proofs.
+audit-source:
+  - op-core/interop/depset/depset.go
+  - op-core/interop/depset/links.go
+  - op-core/interop/depset/static_depset.go
+  - op-interop-filter/README.md
+  - op-supernode/supernode/activity/interop/interop.go
+---
+
+<Info>
+  OP Stack interop is in active development.
+  Interop activates through the Lagoon hardfork, targeted first for OP Sepolia and Unichain Sepolia on testnet, then OP Mainnet and Unichain.
+  The components and steps below may change as the rollout progresses.
+</Info>
+
+Opting into interop is two actions: activate the Lagoon hardfork on your chain (which turns on the interop feature), and join a dependency set, the group of chains your chain can exchange cross-chain messages with.
+Joining a dependency set is what makes the setup below necessary, not Lagoon on its own.
+With an empty dependency set there's nothing to cross-validate, so a Lagoon-active chain can keep running a plain op-node setup and its existing output-root fault proofs.
+
+For how cross-chain messaging and block safety work at the protocol level, start with the [interop explainer](/op-stack/interop/explainer).
+
+## Chain operator vs node operator responsibilities
+
+A chain operator runs everything a node operator runs, plus the sequencer-side and activation work.
+
+The node-operator baseline is running one or more [op-supernode](/op-stack/interop/supernode) instances that derive every chain in the dependency set, with the rest of the fleet following as [Light CLs](/notices/specialized-node-topology).
+That baseline is covered by the [interop prep notice](/notices/interop-prep) and the [specialized op-node topology notice](/notices/specialized-node-topology).
+Read those first, because the chain-operator setup builds on them.
+
+The table below shows what each role owns.
+
+| Responsibility | Node operator | Chain operator |
+| --- | --- | --- |
+| Supernode + Light CL topology | Yes | Yes |
+| Execution clients (op-reth, one per chain) | Yes | Yes |
+| Block production (sequencing) | No | Yes |
+| Interop activation (Lagoon) and dependency-set membership | No | Yes |
+| op-interop-filter for sequencer transaction admission | No | Yes |
+| Fault proofs over super roots (op-proposer, op-challenger) | No | Yes |
+| High-availability sequencer handover (op-conductor) | No | Yes |
+
+## Opt in: activate Lagoon and join a dependency set
+
+Opting in is two distinct actions.
+
+**Activate the Lagoon hardfork.**
+Lagoon is the hardfork that turns on the interop feature for your chain.
+For a new chain, schedule the Lagoon activation in your [op-deployer](/chain-operators/tools/op-deployer/overview) genesis configuration.
+For an existing chain, the activation timestamp is a governance-approved rollup-config update published in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry).
+
+**Join a dependency set.**
+A dependency set is the group of chains that can exchange cross-chain messages, and OP Mainnet and Unichain form the initial set.
+Because every chain in the set depends on the others' messages being valid, membership is a mutual trust boundary: joining one is a coordinated, governance-gated process agreed across all members, not a change you make to your chain alone.
+Once your chain is admitted, the set is published in the superchain-registry that your supernode and interop filter read.
+
+### Does adding a chain to the set require another hardfork?
+
+No.
+Lagoon and dependency-set membership are separate mechanisms.
+Lagoon turns on the interop feature per chain; set membership changes through the coordinated process above, not through a hardfork.
+A chain joining an existing set needs Lagoon active on itself, which is a one-time activation of the existing hardfork, not a new one.
+For how membership and cross-chain message validity interact, see the [interop explainer](/op-stack/interop/explainer) and [interop reorg awareness](/op-stack/interop/reorg).
+
+## Configure your sequencer
+
+Once your chain is in a dependency set, your sequencer setup changes in two ways.
+
+**An execution client wired to the interop filter.**
+Run op-reth as your sequencer's execution client and point it at an [op-interop-filter](/chain-operators/tools/op-interop-filter) endpoint with `--rollup.interop-http`.
+The filter ingests the logs of every chain in your dependency set and answers the execution layer's `interop_checkAccessList` calls; the execution layer rejects any interop transaction the filter can't validate before it enters the pool.
+Run more than one filter for high availability: the execution layer fails closed, so if the filter it points at is unreachable, the sequencer stops admitting interop transactions until it recovers.
+See the [op-interop-filter page](/chain-operators/tools/op-interop-filter) for configuration, the RPC surface, and failsafe behavior.
+
+**A consensus layer that follows the supernode.**
+Run your sequencer's consensus client (op-node or kona-node) in Light CL mode with `--l2.follow.source` pointed at an op-supernode, the same as the rest of your fleet.
+The difference is that the sequencer is the one producing unsafe blocks.
+The supernode derives every chain in the dependency set and promotes a block to safe only once its cross-chain dependencies have been reproduced from L1, so the sequencer inherits a cross-validated safe view.
+See the [supernode explainer](/op-stack/interop/supernode) for the topology.
+
+For high-availability sequencing, run [op-conductor](/chain-operators/tools/op-conductor) as you would for any OP Stack chain.
+It manages leader election and no-downtime sequencer handover; the interop filter and supernode attach to whichever execution and consensus layer the active sequencer is running.
+
+## Move fault proofs to super roots
+
+Interop changes how your chain's state is proven.
+A chain in a dependency set proves its state with super roots (commitments across every chain in the set at a timestamp) rather than per-chain output roots, so its fault-proof system moves to super-root dispute games.
+After the migration, op-proposer proposes super-root claims against an op-supernode and op-challenger defends them.
+
+Walk through the migration in [Upgrading a chain from output roots to super roots](/chain-operators/tutorials/upgrade-chain-to-super-roots).
+
+## Where to go next
+
+*   Read the [interop explainer](/op-stack/interop/explainer) for how cross-chain messaging and block safety work at the protocol level.
+*   Read the [interop prep notice](/notices/interop-prep) and the [specialized op-node topology notice](/notices/specialized-node-topology) for the node-operator topology your fleet runs.
+*   Read the [op-supernode explainer](/op-stack/interop/supernode) and [supernode configuration guide](/node-operators/guides/configuration/supernode) for the consensus-layer side of interop.
+*   Read the [op-interop-filter page](/chain-operators/tools/op-interop-filter) for sequencer transaction admission.
+*   Follow [Upgrading a chain from output roots to super roots](/chain-operators/tutorials/upgrade-chain-to-super-roots) to move your fault proofs to super-root games.
+*   Read [interop reorg awareness](/op-stack/interop/reorg) for how the safety model handles equivocation and L1 reorgs.

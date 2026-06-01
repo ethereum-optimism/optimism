@@ -1917,7 +1917,8 @@
                   "chain-operators/guides/features/flashblocks-guide",
                   "chain-operators/guides/features/alt-da-mode-guide",
                   "chain-operators/guides/features/blobs",
-                  "chain-operators/guides/features/snap-sync"
+                  "chain-operators/guides/features/snap-sync",
+                  "chain-operators/guides/features/interop"
                 ]
               },
               {
