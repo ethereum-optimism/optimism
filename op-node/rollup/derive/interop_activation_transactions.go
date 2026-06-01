@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// Interop activates via a JSON NUT bundle (see UpgradeTransactions(forks.Interop))
+// Interop activates via a JSON NUT bundle (see UpgradeTransactions(forks.Lagoon))
 // that may be wrapped between two hardcoded deposit transactions:
 //
 //	[1] interopSetFeatureTx           — must run before the bundle so the L2CM
@@ -35,7 +35,7 @@ var (
 // The NUT bundle always executes. The setFeature and ETHLiquidity funding
 // wrappers execute only when activateInteropContracts is true.
 func InteropActivationUpgradeTransactions(activateInteropContracts bool) ([]hexutil.Bytes, uint64, error) {
-	bundleTxs, bundleGas, err := UpgradeTransactions(forks.Interop)
+	bundleTxs, bundleGas, err := UpgradeTransactions(forks.Lagoon)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to load interop NUT bundle: %w", err)
 	}

@@ -415,7 +415,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 			})
 			require.NoError(t, err)
 			attrs := prepareActivationAttributes(t, depSet)
-			bundleTxs, _, err := UpgradeTransactions(forks.Interop)
+			bundleTxs, _, err := UpgradeTransactions(forks.Lagoon)
 			require.NoError(t, err)
 
 			require.Len(t, attrs.Transactions, len(bundleTxs)+1) // +1 for L1Info tx
@@ -436,7 +436,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 
 			setFeatureTx, err := interopSetFeatureTx()
 			require.NoError(t, err)
-			bundleTxs, _, err := UpgradeTransactions(forks.Interop)
+			bundleTxs, _, err := UpgradeTransactions(forks.Lagoon)
 			require.NoError(t, err)
 			fundingTx, err := interopETHLiquidityFundingTx()
 			require.NoError(t, err)

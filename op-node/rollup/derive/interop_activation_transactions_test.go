@@ -48,7 +48,7 @@ func TestInteropETHLiquidityFundingTx(t *testing.T) {
 }
 
 func TestInteropActivationUpgradeTransactions(t *testing.T) {
-	bundleTxs, bundleGas, err := UpgradeTransactions(forks.Interop)
+	bundleTxs, bundleGas, err := UpgradeTransactions(forks.Lagoon)
 	require.NoError(t, err)
 
 	singleChainTxs, singleChainGas, err := InteropActivationUpgradeTransactions(false)
@@ -72,7 +72,7 @@ func TestInteropActivationUpgradeTransactions(t *testing.T) {
 }
 
 func TestUpgradeTransactionsInterop(t *testing.T) {
-	txs, gas, err := UpgradeTransactions(forks.Interop)
+	txs, gas, err := UpgradeTransactions(forks.Lagoon)
 	require.NoError(t, err)
 
 	// 26 implementation deployments + L2CM deployment + upgradePredeploys = 28.
