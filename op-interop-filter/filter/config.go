@@ -72,9 +72,10 @@ func (c *Config) Check() error {
 	if c.ValidationInterval <= 0 {
 		result = errors.Join(result, errors.New("validation-interval must be positive"))
 	}
-	if c.FailsafeLogInterval <= 0 {
-		result = errors.Join(result, errors.New("failsafe-log-interval must be positive"))
-	}
+	// FailsafeLogInterval is intentionally not required: a zero value means
+	// "use the default" and is defaulted to defaultFailsafeLogInterval by the
+	// backend. The CLI flag defaults to 1m, and callers that build Config
+	// directly (e.g. tests) may leave it unset.
 	if c.RPCConcurrency <= 0 {
 		result = errors.Join(result, errors.New("rpc-concurrency must be positive"))
 	}
