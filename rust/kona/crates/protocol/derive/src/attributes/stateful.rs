@@ -212,8 +212,7 @@ where
             upgrade_transactions.append(
                 &mut Hardforks::LAGOON.txs_for_activation(activate_interop_contracts).collect(),
             );
-            upgrade_gas +=
-                Hardforks::LAGOON.upgrade_gas_for_activation(activate_interop_contracts);
+            upgrade_gas += Hardforks::LAGOON.upgrade_gas_for_activation(activate_interop_contracts);
         }
 
         // Build and encode the L1 info transaction for the current payload.
