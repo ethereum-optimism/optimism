@@ -106,6 +106,39 @@ func TestForecast_Forecast_BasicTests(t *testing.T) {
 		expectedMetrics[metrics.DisagreeDefenderWins] = 1
 		require.Equal(t, expectedMetrics, m.gameAgreement)
 	})
+	t.Run("SuperPermissionedInProgress_Disagree", func(t *testing.T) {
+		forecast, m, logs := setupForecastTest(t)
+		expectedGame := monTypes.EnrichedGameData{
+			GameMetadata: types.GameMetadata{GameType: uint32(types.SuperPermissionedGameType)},
+			Status:       types.GameStatusInProgress,
+			RootClaim:    common.Hash{0xbb},
+		}
+		forecast.Forecast([]*monTypes.EnrichedGameData{&expectedGame}, 0, 0)
+		l := logs.FindLog(testlog.NewLevelFilter(log.LevelError), testlog.NewMessageFilter("Found super permissioned game still in progress, this should be impossible, check game configuration"))
+		require.NotNil(t, l)
+		require.Equal(t, expectedGame.Proxy, l.AttrValue("game"))
+
+		expectedMetrics := zeroGameAgreement()
+		expectedMetrics[metrics.DisagreeDefenderAhead] = 1
+		require.Equal(t, expectedMetrics, m.gameAgreement)
+	})
+	t.Run("SuperPermissionedInProgress_Agree", func(t *testing.T) {
+		forecast, m, logs := setupForecastTest(t)
+		expectedGame := monTypes.EnrichedGameData{
+			GameMetadata:   types.GameMetadata{GameType: uint32(types.SuperPermissionedGameType)},
+			Status:         types.GameStatusInProgress,
+			RootClaim:      common.Hash{0xbb},
+			AgreeWithClaim: true,
+		}
+		forecast.Forecast([]*monTypes.EnrichedGameData{&expectedGame}, 0, 0)
+		l := logs.FindLog(testlog.NewLevelFilter(log.LevelError), testlog.NewMessageFilter("Found super permissioned game still in progress, this should be impossible, check game configuration"))
+		require.NotNil(t, l)
+		require.Equal(t, expectedGame.Proxy, l.AttrValue("game"))
+
+		expectedMetrics := zeroGameAgreement()
+		expectedMetrics[metrics.AgreeChallengerAhead] = 1
+		require.Equal(t, expectedMetrics, m.gameAgreement)
+	})
 
 	t.Run("SingleGame", func(t *testing.T) {
 		forecast, _, logs := setupForecastTest(t)
