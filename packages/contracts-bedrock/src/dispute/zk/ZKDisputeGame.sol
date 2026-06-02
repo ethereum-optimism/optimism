@@ -363,13 +363,13 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             }
 
             // INVARIANT: The parent game must be of the same game type.
-            if (IDisputeGame(payable(address(parent))).gameType().raw() != gameType().raw()) {
+            if (parent.gameType().raw() != gameType().raw()) {
                 revert UnexpectedGameType();
             }
 
             startingProposal = Proposal({
-                l2SequenceNumber: IDisputeGame(payable(address(parent))).l2SequenceNumber(),
-                root: Hash.wrap(IDisputeGame(payable(address(parent))).rootClaim().raw())
+                l2SequenceNumber: parent.l2SequenceNumber(),
+                root: Hash.wrap(parent.rootClaim().raw())
             });
 
             // INVARIANT: The parent game's sequence number must be strictly above the anchor state.
