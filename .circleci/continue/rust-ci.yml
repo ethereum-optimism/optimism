@@ -534,6 +534,25 @@ jobs:
           command: just <<parameters.command>> <<parameters.flags>>
       - rust-save-build-cache: *tests-cache-args
 
+  # Cross-language differential test: runs the Go and Rust dumps of the Interop
+  # activation deposits and asserts byte-identical stdout.
+  interop-deposits-go-rust-diff:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &interop-diff-cache-args
+          directory: rust
+          prefix: rust-interop-deposits-diff
+          profile: debug
+      - run:
+          name: Cross-language Interop activation diff
+          command: |
+            bash ops/scripts/test-interop-deposits-diff.sh
+      - rust-save-build-cache: *interop-diff-cache-args
+
   # Shared unused dependencies check job
   rust-ci-udeps:
     parameters:
@@ -1001,6 +1020,10 @@ workflows:
           directory: rust
           context: *rust-ci-context
 
+      - interop-deposits-go-rust-diff:
+          name: interop-deposits-diff
+          context: *rust-ci-context
+
       - rust-ci-doctest:
           name: rust-doctest
           directory: rust
@@ -1132,6 +1155,7 @@ workflows:
             - rust-typos: terminal
             - rust-zepter: terminal
             - rust-tests: terminal
+            - interop-deposits-diff: terminal
             - rust-doctest: terminal
             - rust-docs: terminal
             - rust-udeps: terminal

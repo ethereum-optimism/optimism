@@ -236,6 +236,11 @@ func (c Config) Check() error {
 	if len(c.GameTypes) == 0 {
 		return ErrMissingGameType
 	}
+	for _, gameType := range c.GameTypes {
+		if !slices.Contains(gameTypes.SupportedGameTypes, gameType) {
+			return fmt.Errorf("%w: %q", gameTypes.ErrUnknownGameType, gameType.String())
+		}
+	}
 	if c.Datadir == "" {
 		return ErrMissingDatadir
 	}
@@ -250,7 +255,7 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) || c.GameTypeEnabled(gameTypes.SuperPermissionedGameType) {
+	if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) {
 		if c.SuperRPC == "" {
 			return ErrMissingSuperRpc
 		}

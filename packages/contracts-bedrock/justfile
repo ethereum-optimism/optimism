@@ -244,7 +244,7 @@ prepare-l2cm-activation-env *ARGS:
   --match-path "test/L2/betanet-fork/**"
 
 # Runs L2CM activation (betanet fork) tests.
-# Usage: L2_FORK_RPC_URL=<url> L2_BLOCK_BEFORE_FORK=<block> just test-l2cm-activation-test [ARGS]
+# Usage: L2_FORK_RPC_URL=<url> L2_BLOCK_BEFORE_FORK=<block> NUT_BUNDLE_PATH=<path> just test-l2cm-activation-test [ARGS]
 test-l2cm-activation-test *ARGS:
   just prepare-l2cm-activation-env "just test {{ARGS}}"
 

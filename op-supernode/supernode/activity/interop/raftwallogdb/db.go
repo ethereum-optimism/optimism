@@ -192,7 +192,10 @@ func (d *DB) refreshCache() error {
 	d.latest = eth.BlockID{Hash: rec.Hash, Number: blockNumFor(last)}
 	d.latestTS = rec.Timestamp
 	d.hasBlocks = true
-	return nil
+	// COMPATIBILITY: hide a pre-#20726 virtual-parent head entry, if any.
+	// Safe to delete with compat_virtual_parent.go once no such databases
+	// remain in operation.
+	return d.hidePreVirtualParentLayout()
 }
 
 // readBlockAt fetches the block record at the given raft-wal index.
@@ -254,11 +257,7 @@ func (d *DB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messa
 	if blockNum > d.latest.Number {
 		return eth.BlockRef{}, 0, nil, interop.ErrFuture
 	}
-	// Matches the old op-supervisor logs DB: the first sealed block is an
-	// anchor with no resolvable parent state, so OpenBlock on it returns
-	// ErrSkipped. Genesis (firstBlock == 0) is exempt since it is its own
-	// anchor. Callers retrieve the anchor via FirstSealedBlock.
-	if blockNum < d.firstBlock || (blockNum == d.firstBlock && d.firstBlock > 0) {
+	if blockNum < d.firstBlock {
 		return eth.BlockRef{}, 0, nil, interop.ErrSkipped
 	}
 	var log raft.Log

@@ -36,6 +36,14 @@ var (
 // executing message.
 const DefaultLogBackfillDepth = time.Duration(depset.MessageExpiryTimeSecondsInterop) * time.Second
 
+// Interop activity state values exposed via supernode_interop_activity_state gauge.
+const (
+	InteropStateNotStarted       = 0
+	InteropStateColdStartWaiting = 1
+	InteropStateRunning          = 2
+	InteropStateHalted           = 3
+)
+
 // InteropActivationTimestampFlag is the CLI flag for the interop activation timestamp.
 var InteropActivationTimestampFlag = &cli.Uint64Flag{
 	Name:    "interop.activation-timestamp",
@@ -195,6 +203,9 @@ type Interop struct {
 	// tests to gate on cold-start init finishing.
 	backfillCompleted atomic.Bool
 
+	// verifyRounds counts verification loop iterations for periodic progress logging.
+	verifyRounds atomic.Int32
+
 	// l1Checker must be non-nil whenever observeRound runs. Production sets it
 	// via New; tests inject noopL1Checker.
 	l1Checker l1ConsistencyChecker
@@ -313,12 +324,14 @@ func (i *Interop) tryInitFromVerifiedDB() {
 		i.verificationStartTimestamp = lastTS + 1
 		i.initialized.Store(true)
 		i.backfillCompleted.Store(true) // resume skips backfill
+		i.metrics.InteropActivityState.Set(InteropStateRunning)
 		i.log.Info("interop resuming from verifiedDB",
 			"verificationStartTimestamp", i.verificationStartTimestamp,
 			"activationTimestamp", i.activationTimestamp)
 		return
 	}
 	i.waitingForSync = true
+	i.metrics.InteropActivityState.Set(InteropStateColdStartWaiting)
 	i.log.Info("interop cold start; waiting for SafeDB entries on every chain",
 		"activationTimestamp", i.activationTimestamp)
 }
@@ -364,7 +377,9 @@ func (i *Interop) waitForColdStartInit() (time.Duration, error) {
 	advanced, err := i.advanceColdStartInit()
 	if err != nil {
 		i.metrics.ActivityErrors.WithLabelValues("interop", "cold_start_init").Inc()
-		i.log.Warn("interop cold start step failed, will retry", "err", err)
+		attempts := i.backfillAttempts.Load()
+		i.log.Warn("interop cold start step failed, will retry",
+			"err", err, "attempts", attempts)
 		return errorBackoffPeriod, nil
 	}
 	if !advanced {
@@ -372,6 +387,7 @@ func (i *Interop) waitForColdStartInit() (time.Duration, error) {
 	}
 	i.waitingForSync = false
 	i.initialized.Store(true)
+	i.metrics.InteropActivityState.Set(InteropStateRunning)
 	i.log.Info("interop cold start complete",
 		"activationTimestamp", i.activationTimestamp,
 		"verificationStartTimestamp", i.verificationStartTimestamp)
@@ -383,10 +399,12 @@ func (i *Interop) waitForColdStartInit() (time.Duration, error) {
 // the round was a no-op, (errorBackoffPeriod, nil) on a recoverable error,
 // or a non-nil error to terminate the loop.
 func (i *Interop) progress() (time.Duration, error) {
+	round := i.verifyRounds.Add(1)
 	madeProgress, err := i.progressAndRecord()
 	if err != nil {
 		if errors.Is(err, cc.ErrHistoryUnavailable) {
 			i.metrics.ActivityErrors.WithLabelValues("interop", "history_unavailable").Inc()
+			i.metrics.InteropActivityState.Set(InteropStateHalted)
 			i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
 				"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
 			return 0, fmt.Errorf("interop halted due to unavailable history: %w", err)
@@ -394,6 +412,33 @@ func (i *Interop) progress() (time.Duration, error) {
 		i.metrics.ActivityErrors.WithLabelValues("interop", "progress").Inc()
 		i.log.Error("failed to progress and record interop", "err", err)
 		return errorBackoffPeriod, nil
+	}
+	if round%30 == 0 {
+		lastTS, _ := i.verifiedDB.LastTimestamp()
+		var tipTS uint64
+		fields := []any{
+			"round", round, "madeProgress", madeProgress,
+		}
+		for _, chain := range i.chains {
+			status, err := chain.SyncStatus(i.ctx)
+			if err != nil {
+				continue
+			}
+			if status.UnsafeL2.Time > tipTS {
+				tipTS = status.UnsafeL2.Time
+			}
+			fields = append(fields,
+				fmt.Sprintf("chain_%s", chain.ID()),
+				fmt.Sprintf("safe=%d pending_safe=%d unsafe=%d",
+					status.SafeL2.Number, status.PendingSafeL2.Number, status.UnsafeL2.Number))
+		}
+		var behind uint64
+		if tipTS > lastTS {
+			behind = tipTS - lastTS
+		}
+		fields = append(fields,
+			"lastVerifiedTimestamp", lastTS, "tipTimestamp", tipTS, "behindSeconds", behind)
+		i.log.Info("interop verification progress", fields...)
 	}
 	if !madeProgress {
 		return backoffPeriod, nil

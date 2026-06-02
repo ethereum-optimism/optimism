@@ -5,6 +5,7 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -150,6 +151,27 @@ func WithGlobalL2CLOption(opt sysgo.L2CLOption) Option {
 				return
 			}
 			cfg.GlobalL2CLOptions = append(cfg.GlobalL2CLOptions, opt)
+		},
+	}
+}
+
+// WithSupernodeVerifierSyncMode overrides the supernode VN's sync mode.
+func WithSupernodeVerifierSyncMode(mode nodeSync.Mode) Option {
+	return option{
+		kinds: optionKindSupernodeVerifierSyncMode,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			m := mode
+			cfg.SupernodeVerifierSyncMode = &m
+		},
+	}
+}
+
+// WithInteropActivationDelay sets the Interop activation offset past genesis.
+func WithInteropActivationDelay(delaySeconds uint64) Option {
+	return option{
+		kinds: optionKindInteropActivationDelay,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.InteropActivationDelaySeconds = delaySeconds
 		},
 	}
 }

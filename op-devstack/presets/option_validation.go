@@ -30,6 +30,8 @@ const (
 	optionKindInteropFilter
 	optionKindPreGenesisSuperGame
 	optionKindSkipHonestProposer
+	optionKindSupernodeVerifierSyncMode
+	optionKindInteropActivationDelay
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -50,7 +52,9 @@ const allOptionKinds = optionKindDeployer |
 	optionKindInteropLogBackfill |
 	optionKindInteropFilter |
 	optionKindPreGenesisSuperGame |
-	optionKindSkipHonestProposer
+	optionKindSkipHonestProposer |
+	optionKindSupernodeVerifierSyncMode |
+	optionKindInteropActivationDelay
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -75,6 +79,8 @@ var optionKindLabels = []struct {
 	{kind: optionKindInteropFilter, label: "interop filter"},
 	{kind: optionKindPreGenesisSuperGame, label: "pre-genesis super game"},
 	{kind: optionKindSkipHonestProposer, label: "skip honest proposer"},
+	{kind: optionKindSupernodeVerifierSyncMode, label: "supernode verifier sync mode"},
+	{kind: optionKindInteropActivationDelay, label: "interop activation delay"},
 }
 
 func (k optionKinds) String() string {
@@ -134,6 +140,21 @@ const minimalWithConductorsPresetSupportedOptionKinds = optionKindDeployer |
 
 const simpleWithSyncTesterPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
 	optionKindGlobalSyncTesterEL
+
+// singleSupernodeWithSyncTesterPresetSupportedOptionKinds covers exactly what
+// the runtime in singlechain_supernode_synctester_variant.go actually wires.
+// Proposer / game-type / proof-validation options are intentionally excluded:
+// this preset has no proposer and no dispute game surface, so accepting them
+// would be a silent no-op footgun.
+const singleSupernodeWithSyncTesterPresetSupportedOptionKinds = optionKindDeployer |
+	optionKindBatcher |
+	optionKindGlobalL2CL |
+	optionKindGlobalSyncTesterEL |
+	optionKindL1EL |
+	optionKindTimeTravel |
+	optionKindAfterBuild |
+	optionKindSupernodeVerifierSyncMode |
+	optionKindInteropActivationDelay
 
 const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |

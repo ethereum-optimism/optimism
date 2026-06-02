@@ -10,7 +10,9 @@ import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
+import { Bytes } from "src/libraries/Bytes.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
 // Reuse all test logic from L2ForkUpgrade — only setUp differs
@@ -30,6 +32,37 @@ contract L2VerifyBetanetForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
     function setUp() public virtual override(L2ForkUpgrade_TestInit) {
         vm.skip(!Config.l2CMActivationTest());
         super.setUp();
+
+        // Load the committed NUT bundle once per test.
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory loaded = NetworkUpgradeTxns.readArtifact(Config.nutBundlePath());
+        delete currentBundleTxns;
+        for (uint256 i = 0; i < loaded.length; i++) {
+            currentBundleTxns.push(loaded[i]);
+        }
+    }
+
+    /// @notice Helper to find an implementation address by name.
+    /// @dev Locates the `"Deploy <name> Implementation"` transaction in the cached NUT bundle,
+    ///      decodes its `ConditionalDeployer.deploy(bytes32 salt, bytes code)` calldata, and
+    ///      computes the resulting CREATE2 address (the DeterministicDeploymentProxy is the
+    ///      deployer).
+    /// @param _name The contract name (e.g. "StorageSetter", "L1Block", "L1BlockCGT").
+    /// @return impl_ The implementation address used by the bundle.
+    function _findImplByName(string memory _name)
+        internal
+        view
+        virtual
+        override(L2ForkUpgrade_TestInit)
+        returns (address impl_)
+    {
+        string memory expectedIntent = string.concat("Deploy ", _name, " Implementation");
+        uint256 len = currentBundleTxns.length;
+        for (uint256 i = 0; i < len; i++) {
+            if (!LibString.eq(currentBundleTxns[i].intent, expectedIntent)) continue;
+            (bytes32 salt, bytes memory code) = abi.decode(Bytes.slice(currentBundleTxns[i].data, 4), (bytes32, bytes));
+            return vm.computeCreate2Address(salt, keccak256(code), Preinstalls.DeterministicDeploymentProxy);
+        }
+        revert(string.concat("L2VerifyBetanetForkUpgrade: implementation not found in bundle: ", _name));
     }
 
     /// @notice instead of executing the bundle on the fork, it overrides the execution
@@ -58,6 +91,15 @@ contract L2VerifyBetanetForkUpgrade_Versions_Test is
     function _executeCurrentBundle() internal override(L2VerifyBetanetForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2VerifyBetanetForkUpgrade_TestInit._executeCurrentBundle();
     }
+
+    function _findImplByName(string memory _name)
+        internal
+        view
+        override(L2VerifyBetanetForkUpgrade_TestInit, L2ForkUpgrade_TestInit)
+        returns (address impl_)
+    {
+        return L2VerifyBetanetForkUpgrade_TestInit._findImplByName(_name);
+    }
 }
 
 /// @title L2VerifyBetanetForkUpgrade_Initialization_Test
@@ -73,6 +115,15 @@ contract L2VerifyBetanetForkUpgrade_Initialization_Test is
     function _executeCurrentBundle() internal override(L2VerifyBetanetForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2VerifyBetanetForkUpgrade_TestInit._executeCurrentBundle();
     }
+
+    function _findImplByName(string memory _name)
+        internal
+        view
+        override(L2VerifyBetanetForkUpgrade_TestInit, L2ForkUpgrade_TestInit)
+        returns (address impl_)
+    {
+        return L2VerifyBetanetForkUpgrade_TestInit._findImplByName(_name);
+    }
 }
 
 /// @title L2VerifyBetanetForkUpgrade_Implementations_Test
@@ -87,6 +138,15 @@ contract L2VerifyBetanetForkUpgrade_Implementations_Test is
 
     function _executeCurrentBundle() internal override(L2VerifyBetanetForkUpgrade_TestInit, L2ForkUpgrade_TestInit) {
         L2VerifyBetanetForkUpgrade_TestInit._executeCurrentBundle();
+    }
+
+    function _findImplByName(string memory _name)
+        internal
+        view
+        override(L2VerifyBetanetForkUpgrade_TestInit, L2ForkUpgrade_TestInit)
+        returns (address impl_)
+    {
+        return L2VerifyBetanetForkUpgrade_TestInit._findImplByName(_name);
     }
 
     /// @notice Tests that all predeploy implementations match expected addresses and have code.
@@ -119,14 +179,20 @@ contract L2VerifyBetanetForkUpgrade_Events_Test is L2VerifyBetanetForkUpgrade_Te
         L2VerifyBetanetForkUpgrade_TestInit._executeCurrentBundle();
     }
 
+    function _findImplByName(string memory _name)
+        internal
+        view
+        override(L2VerifyBetanetForkUpgrade_TestInit, L2ForkUpgrade_TestInit)
+        returns (address impl_)
+    {
+        return L2VerifyBetanetForkUpgrade_TestInit._findImplByName(_name);
+    }
+
     function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public override(L2ForkUpgrade_Events_Test) {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
-        // Pre-capture everything from generateScript before any fork switch:
-        // in activation mode vm.createSelectFork creates a new fork where generateScript
-        // (deployed on fork 0) is not accessible.
-        address storageSetterImpl = generateScript.findImplByName("StorageSetter");
+        address storageSetterImpl = _findImplByName("StorageSetter");
         PredeployState[] memory predeploys = _getPreUpgradePredeploys();
         address[] memory expectedImpls = _getExpectedImpls(predeploys);
 
@@ -187,7 +253,7 @@ contract L2VerifyBetanetForkUpgrade_ActivationBlockTxns_Test is L2VerifyBetanetF
         uint256 activationBlock = Config.l2ForkBlockNumber() + 1;
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory bundleTxns = _currentBundleTxns();
 
-        string memory blockHex = string.concat("0x", LibString.toHexStringNoPrefix(activationBlock));
+        string memory blockHex = LibString.toMinimalHexString(activationBlock);
         string memory rpcUrl = Config.l2ForkRpcUrl();
 
         // vm.rpc ABI-encodes block objects; use FFI (cast) to fetch JSON for parseJson.

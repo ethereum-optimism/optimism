@@ -469,8 +469,18 @@ release-notes component from='latest' to='latest-rc' mode='':
                 --include-path "rust/alloy-op*/**/*"
             )
             ;;
+        op-deployer)
+            include_path_args=(
+                --include-path "op-deployer/**/*"
+            )
+            ;;
+        op-contracts)
+            include_path_args=(
+                --include-path "packages/contracts-bedrock/**/*"
+            )
+            ;;
         *)
-            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-reth, kona-*; is {{ component }}"
+            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-reth, op-deployer, op-contracts, kona-*; is {{ component }}"
             exit 1
             ;;
     esac
@@ -496,3 +506,7 @@ release-notes component from='latest' to='latest-rc' mode='':
         "${tag_args[@]}" \
         "${offline_args[@]}" \
         -- "${from_tag}..${range_end}"
+
+# Run the rust-code-reviewer agent over the current branch (delegates to rust/justfile).
+rust-review base='':
+  cd rust && just rust-review "{{base}}"

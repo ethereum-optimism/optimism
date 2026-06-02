@@ -1,6 +1,7 @@
 package follow_l2
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -210,8 +211,14 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 	sys.L2CLC.Advanced(safety.LocalSafe, target, attempts)
 	sys.L2CLC.ReachedRef(safety.LocalSafe, sys.L2CLB.HeadBlockRef(safety.LocalSafe).ID(), attempts)
 
-	// Make sure the safe head reaches non-moving unsafe head
-	sys.L2CLC.Reached(safety.LocalSafe, sys.L2CLC.UnsafeHead().BlockRef.Number, attempts)
+	// Wait for L2CLC's local-safe to catch up to its now-frozen unsafe head.
+	// The initial gap can exceed a fixed 40s budget on loaded CI runners
+	// (#20718), so bound the wait by stall detection on local-safe progress.
+	require.NoError(sys.L2CLC.MatchedWithProgressFn(
+		unsafeAsLocalSafe{cl: sys.L2CLC},
+		safety.LocalSafe, safety.LocalSafe,
+		5*time.Minute, 30*time.Second,
+	)())
 	// The only data source for L2CLC is the follow source.
 	// L2CLC unsafe head will only be advancing with safe head together
 	status = sys.L2CLC.SyncStatus()
@@ -249,4 +256,20 @@ func TestFollowL2_WithoutCLP2P(gt *testing.T) {
 		sys.L2CLC.ConnectPeer(sys.L2CL)
 		sys.L2CL.ConnectPeer(sys.L2CLC)
 	})
+}
+
+// unsafeAsLocalSafe lets MatchedWithProgressFn compare cl.LocalSafe to
+// cl.UnsafeL2: it takes two providers at one level, so we synthesize a
+// reference whose LocalSafe reports cl's unsafe head.
+type unsafeAsLocalSafe struct{ cl *dsl.L2CLNode }
+
+func (u unsafeAsLocalSafe) ChainSyncStatus(chainID eth.ChainID, lvl safety.Level) eth.BlockID {
+	if lvl != safety.LocalSafe {
+		panic(fmt.Sprintf("unsafeAsLocalSafe queried at %s, expected LocalSafe", lvl))
+	}
+	return u.cl.ChainSyncStatus(chainID, safety.LocalUnsafe)
+}
+
+func (u unsafeAsLocalSafe) String() string {
+	return u.cl.String() + "/unsafe-as-local-safe"
 }

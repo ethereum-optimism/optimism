@@ -72,7 +72,6 @@ type seedSpec struct {
 	BackfillDuration time.Duration
 	PollInterval     time.Duration
 	FetchConcurrency int
-	NoSealAnchor     bool // omit sealParentBlock; used by init tests
 	NoIngest         bool // omit per-block ingest; used by init tests
 }
 
@@ -114,9 +113,6 @@ func newSeededIngester(t *testing.T, spec seedSpec) *seededIngester {
 		}
 	})
 
-	if !spec.NoSealAnchor {
-		require.NoError(t, si.sealParentBlock(spec.AnchorNumber), "sealParentBlock")
-	}
 	if !spec.NoIngest {
 		for _, b := range spec.Blocks {
 			require.NoErrorf(t, si.ingestBlock(b.Num), "ingestBlock %d", b.Num)
@@ -372,9 +368,9 @@ func reopenSeededIngester(t *testing.T, prev *seededIngester) *seededIngester {
 		}
 	})
 
-	latest, ok := si.logsDB.LatestSealedBlock()
+	_, ok := si.logsDB.LatestSealedBlock()
 	require.True(t, ok, "reopened DB has no sealed blocks")
-	require.NoError(t, si.findAndSetEarliestBlock(latest.Number+1))
+	require.NoError(t, si.findAndSetEarliestBlock())
 	return si
 }
 
@@ -491,21 +487,24 @@ func (sb *seededBackend) requireAccepted(execChain eth.ChainID, execTs uint64, a
 // =============================================================================
 
 type capturingMetrics struct {
-	mu          sync.Mutex
-	rejections  map[string]int
-	reorgs      map[uint64]int
-	blockSealed map[uint64]int64
-	logsAdded   map[uint64]int64
-	chainHead   map[uint64]uint64
+	mu              sync.Mutex
+	rejections      map[string]int
+	reorgs          map[uint64]int
+	blockSealed     map[uint64]int64
+	logsAdded       map[uint64]int64
+	chainHead       map[uint64]uint64
+	failsafeGauge   bool
+	failsafeReasons map[string]bool
 }
 
 func newCapturingMetrics() *capturingMetrics {
 	return &capturingMetrics{
-		rejections:  map[string]int{},
-		reorgs:      map[uint64]int{},
-		blockSealed: map[uint64]int64{},
-		logsAdded:   map[uint64]int64{},
-		chainHead:   map[uint64]uint64{},
+		rejections:      map[string]int{},
+		reorgs:          map[uint64]int{},
+		blockSealed:     map[uint64]int64{},
+		logsAdded:       map[uint64]int64{},
+		chainHead:       map[uint64]uint64{},
+		failsafeReasons: map[string]bool{},
 	}
 }
 
@@ -527,9 +526,30 @@ func (m *capturingMetrics) sealedCount(chainID uint64) int64 {
 	return m.blockSealed[chainID]
 }
 
-func (m *capturingMetrics) RecordInfo(version string)          {}
-func (m *capturingMetrics) RecordUp()                          {}
-func (m *capturingMetrics) RecordFailsafeEnabled(enabled bool) {}
+func (m *capturingMetrics) RecordInfo(version string) {}
+func (m *capturingMetrics) RecordUp()                 {}
+func (m *capturingMetrics) RecordFailsafeEnabled(enabled bool) {
+	m.locked(func() { m.failsafeGauge = enabled })
+}
+
+func (m *capturingMetrics) RecordFailsafeReason(reason string, active bool) {
+	m.locked(func() { m.failsafeReasons[reason] = active })
+}
+
+// failsafeMetric returns the last value passed to RecordFailsafeEnabled.
+func (m *capturingMetrics) failsafeMetric() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.failsafeGauge
+}
+
+// failsafeReasonActive returns the last value recorded for the given reason.
+func (m *capturingMetrics) failsafeReasonActive(reason string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.failsafeReasons[reason]
+}
+
 func (m *capturingMetrics) RecordChainHead(chainID uint64, blockNum uint64) {
 	m.locked(func() { m.chainHead[chainID] = blockNum })
 }

@@ -51,7 +51,12 @@ type SingleChainNodeRuntime struct {
 
 type SyncTesterRuntime struct {
 	Service *SyncTesterService
-	Node    *SingleChainNodeRuntime
+	// Node is set on the op-node-verifier path; nil on the supernode path.
+	Node *SingleChainNodeRuntime
+	// EL is the sync-tester-backed L2ELNode.
+	EL L2ELNode
+	// CL drives the sync-tester EL (op-node or SuperNodeProxy).
+	CL L2CLNode
 }
 
 type FlashblocksRuntimeSupport struct {
@@ -152,4 +157,5 @@ type MultiChainRuntime struct {
 	L2ChallengerConfig *challengerconfig.Config
 	DelaySeconds       uint64
 	InteropFilter      *InteropFilter // nil if not using interop filter
+	SyncTester         *SyncTesterRuntime
 }

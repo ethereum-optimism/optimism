@@ -5,11 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
 )
 
 // putIntoReorg forces the ingester into ErrorReorg by ingesting a block whose
@@ -42,15 +41,11 @@ func reorgRecoveryBackend(t *testing.T) (*seededBackend, *seededIngester) {
 	si := bk.ingesters[eth.ChainIDFromUInt64(901)]
 	return bk, si
 }
-
 func TestIntegration_RecoverReorg_HappyPath(t *testing.T) {
 	t.Parallel()
-
 	bk, si := reorgRecoveryBackend(t)
 	si.eth.SetLabelBlock(eth.Finalized, si.blockInfo[101])
-
 	putIntoReorg(t, si, 103, 1206)
-
 	blockID, timestamp, err := bk.recoverChainReorg(context.Background(), si.chainID, si.LogsDBChainIngester)
 	require.NoError(t, err)
 	require.Equal(t, uint64(101), blockID.Number)
@@ -59,95 +54,68 @@ func TestIntegration_RecoverReorg_HappyPath(t *testing.T) {
 	require.Equal(t, uint64(102), si.applyPendingRewind(200),
 		"ingestion loop must resume from finalized+1 after recovery")
 }
-
 func TestIntegration_RecoverReorg_BeforeInit_Uninitialized(t *testing.T) {
 	t.Parallel()
-
 	si := newSeededIngester(t, seedSpec{
-		NoSealAnchor: true,
-		NoIngest:     true,
+		NoIngest: true,
 	})
 	require.NoError(t, si.logsDB.Close())
 	si.logsDB = nil
-
 	_, _, err := si.RewindToFinalized(context.Background())
 	require.ErrorIs(t, err, interop.ErrUninitialized)
 }
-
 func TestIntegration_RecoverReorg_FinalizedBlockNotInDB_StaysInFailsafe(t *testing.T) {
 	t.Parallel()
-
 	bk, si := reorgRecoveryBackend(t)
-
 	// finalized points at a block far past latest sealed — FindSealedBlock returns ErrFuture.
 	future := makeBlockInfo(200, 1500, common.Hash{0x99})
 	si.eth.SetLabelBlock(eth.Finalized, future)
-
 	putIntoReorg(t, si, 103, 1206)
-
 	_, _, err := bk.recoverChainReorg(context.Background(), si.chainID, si.LogsDBChainIngester)
 	require.Error(t, err)
 	require.True(t, errors.Is(err, interop.ErrFuture), "expected ErrFuture, got %v", err)
 	require.NotNil(t, si.Error())
 	require.Equal(t, ErrorReorg, si.Error().Reason)
 }
-
 func TestIntegration_RecoverReorg_FinalizedHashMismatch_StaysInFailsafe(t *testing.T) {
 	t.Parallel()
-
 	bk, si := reorgRecoveryBackend(t)
-
 	// finalized block has the correct number but a different hash than stored.
 	fake := makeBlockInfo(101, 1202, common.Hash{0x77})
 	si.eth.SetLabelBlock(eth.Finalized, fake)
-
 	putIntoReorg(t, si, 103, 1206)
-
 	_, _, err := bk.recoverChainReorg(context.Background(), si.chainID, si.LogsDBChainIngester)
 	require.Error(t, err)
 	require.True(t, errors.Is(err, interop.ErrConflict), "expected ErrConflict, got %v", err)
 	require.NotNil(t, si.Error())
 	require.Equal(t, ErrorReorg, si.Error().Reason)
 }
-
 func TestIntegration_RecoverReorg_FinalizedBelowEarliest_StaysInFailsafe(t *testing.T) {
 	t.Parallel()
-
 	bk, si := reorgRecoveryBackend(t)
-
 	stale := makeBlockInfo(10, 1020, common.Hash{0x55})
 	si.eth.SetLabelBlock(eth.Finalized, stale)
-
 	putIntoReorg(t, si, 103, 1206)
-
 	_, _, err := bk.recoverChainReorg(context.Background(), si.chainID, si.LogsDBChainIngester)
 	require.Error(t, err)
 	require.NotNil(t, si.Error())
 	require.Equal(t, ErrorReorg, si.Error().Reason)
 }
-
 func TestIntegration_RecoverReorg_NotInReorgState_SkippedNoOp(t *testing.T) {
 	t.Parallel()
-
 	bk, si := reorgRecoveryBackend(t)
 	si.eth.SetLabelBlock(eth.Finalized, si.blockInfo[101])
-
 	si.SetError(ErrorConflict, "forced")
-
 	_, _, err := bk.recoverChainReorg(context.Background(), si.chainID, si.LogsDBChainIngester)
 	require.Error(t, err)
 	require.NotNil(t, si.Error())
 	require.Equal(t, ErrorConflict, si.Error().Reason)
 }
-
 func TestIntegration_RecoverReorg_FullSequence_ResolvesAndResumes(t *testing.T) {
 	t.Parallel()
-
 	bk, si := reorgRecoveryBackend(t)
 	si.eth.SetLabelBlock(eth.Finalized, si.blockInfo[101])
-
 	putIntoReorg(t, si, 103, 1206)
-
 	bk.tryResolveReorgs(context.Background())
 	require.Nil(t, si.Error(), "ingester error should be cleared after resolution")
 	require.False(t, bk.FailsafeEnabled(), "failsafe should clear once last ingester error clears")

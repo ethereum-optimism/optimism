@@ -12,7 +12,9 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import {
     DisputeGameValidationArgs,
     DisputeGameImpls,
-    DisputeGameConfig
+    DisputeGameConfig,
+    SuperPermissionedDisputeGameValidationArgs,
+    SuperPermissionedDisputeGameImpls
 } from "src/L1/opcm/StandardValidatorUtils.sol";
 
 interface IStandardValidatorUtils {
@@ -132,6 +134,14 @@ interface IStandardValidatorUtils {
         DisputeGameValidationArgs memory _args,
         DisputeGameImpls memory _impls,
         DisputeGameConfig memory _cfg
+    )
+        external
+        view
+        returns (string memory errors_);
+
+    function assertValidSuperPermissionedDisputeGame(
+        SuperPermissionedDisputeGameValidationArgs memory _args,
+        SuperPermissionedDisputeGameImpls memory _impls
     )
         external
         view

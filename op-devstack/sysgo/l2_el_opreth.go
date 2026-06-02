@@ -65,14 +65,14 @@ func OpRethWithSDMEnabled() OpRethOption {
 	return OpRethWithExtraArgs("--rollup.sdm-enabled")
 }
 
-// OpRethWithSupervisorURL wires the op-reth node to the given supervisor HTTP endpoint.
-// An empty supervisorURL is a no-op so callers can pass the value unconditionally.
-func OpRethWithSupervisorURL(supervisorURL string) OpRethOption {
+// OpRethWithInteropURL wires the op-reth node to the given interop filter HTTP endpoint.
+// An empty interopURL is a no-op so callers can pass the value unconditionally.
+func OpRethWithInteropURL(interopURL string) OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
-		if supervisorURL == "" {
+		if interopURL == "" {
 			return
 		}
-		cfg.ExtraArgs = append(cfg.ExtraArgs, "--rollup.supervisor-http="+supervisorURL)
+		cfg.ExtraArgs = append(cfg.ExtraArgs, "--rollup.interop-http="+interopURL)
 	})
 }
 

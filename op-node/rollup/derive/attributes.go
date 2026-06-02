@@ -167,21 +167,17 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeGas += nutGas
 	}
 
-	// TODO(#19239): migrate Interop to NUT bundle and add its gas to upgradeGas.
 	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) {
-		interop, err := InteropNetworkUpgradeTransactions()
+		// The Interop NUT bundle executes on all chains. The setFeature and
+		// ETHLiquidity funding wrappers only execute for chains in a multi-chain
+		// dependency set, which signals the L2ContractsManager to activate
+		// Interop-specific contracts.
+		interopTxs, interopGas, err := InteropActivationUpgradeTransactions(len(ba.depSet.Chains()) > 1)
 		if err != nil {
-			return nil, NewCriticalError(fmt.Errorf("failed to build interop network upgrade txs: %w", err))
+			return nil, NewCriticalError(err)
 		}
-		upgradeTxs = append(upgradeTxs, interop...)
-
-		if len(ba.depSet.Chains()) > 1 {
-			txs, err := InteropActivateCrossL2InboxTransactions()
-			if err != nil {
-				return nil, NewCriticalError(fmt.Errorf("failed to build interop cross l2 inbox txs: %w", err))
-			}
-			upgradeTxs = append(upgradeTxs, txs...)
-		}
+		upgradeTxs = append(upgradeTxs, interopTxs...)
+		upgradeGas += interopGas
 	}
 
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, ba.l1ChainConfig, sysConfig, seqNumber, l1Info, nextL2Time)

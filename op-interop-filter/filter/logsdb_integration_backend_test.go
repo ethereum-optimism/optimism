@@ -55,6 +55,89 @@ func TestIntegration_Backend_IngesterErrorTripsFailsafe(t *testing.T) {
 	bk.requireRejection(executingChain(), inclusionTs, "failsafe", bk.sourceAccess(100, 0))
 }
 
+func TestIntegration_Backend_MultipleFailsafeReasons_Reflected(t *testing.T) {
+	t.Parallel()
+
+	bk := twoChainBackend(t, 1)
+	require.False(t, bk.metrics.failsafeMetric(), "metric starts off")
+
+	// Three concurrent reasons: manual override + two chains erroring with
+	// different reasons.
+	bk.SetFailsafeEnabled(true)
+	bk.ingesters[eth.ChainIDFromUInt64(901)].SetError(ErrorReorg, "forced")
+	bk.ingesters[eth.ChainIDFromUInt64(902)].SetError(ErrorConflict, "forced")
+
+	require.True(t, bk.metrics.failsafeMetric())
+	require.True(t, bk.metrics.failsafeReasonActive(failsafeReasonManual))
+	require.True(t, bk.metrics.failsafeReasonActive(ErrorReorg.String()))
+	require.True(t, bk.metrics.failsafeReasonActive(ErrorConflict.String()))
+	require.False(t, bk.metrics.failsafeReasonActive(failsafeReasonCrossValidation))
+
+	// Clearing the reorg chain drops only the reorg reason; the rest remain.
+	bk.ingesters[eth.ChainIDFromUInt64(901)].ClearError()
+	require.True(t, bk.metrics.failsafeMetric())
+	require.False(t, bk.metrics.failsafeReasonActive(ErrorReorg.String()),
+		"reorg reason must drop once no chain holds it")
+	require.True(t, bk.metrics.failsafeReasonActive(ErrorConflict.String()))
+	require.True(t, bk.metrics.failsafeReasonActive(failsafeReasonManual))
+
+	// Clearing the last chain error and the manual override drops everything.
+	bk.ingesters[eth.ChainIDFromUInt64(902)].ClearError()
+	bk.SetFailsafeEnabled(false)
+	require.False(t, bk.metrics.failsafeMetric())
+	require.False(t, bk.metrics.failsafeReasonActive(failsafeReasonManual))
+	require.False(t, bk.metrics.failsafeReasonActive(ErrorConflict.String()))
+}
+
+func TestIntegration_Backend_RPCSetFailsafe_UpdatesMetric(t *testing.T) {
+	t.Parallel()
+
+	bk := twoChainBackend(t, 1)
+	require.False(t, bk.metrics.failsafeMetric(), "metric starts off")
+
+	// Drive the actual admin RPC handler, not just the backend method.
+	admin := &AdminFrontend{backend: bk.Backend}
+
+	require.NoError(t, admin.SetFailsafeEnabled(context.Background(), true))
+	require.True(t, bk.FailsafeEnabled())
+	require.True(t, bk.metrics.failsafeMetric(),
+		"admin_setFailsafeEnabled(true) must flip the metric on")
+
+	require.NoError(t, admin.SetFailsafeEnabled(context.Background(), false))
+	require.False(t, bk.FailsafeEnabled())
+	require.False(t, bk.metrics.failsafeMetric(),
+		"admin_setFailsafeEnabled(false) must flip the metric off")
+}
+
+func TestIntegration_Backend_AutoFailsafe_UpdatesMetric(t *testing.T) {
+	t.Parallel()
+
+	bk := twoChainBackend(t, 1)
+	require.False(t, bk.metrics.failsafeMetric(), "metric starts off")
+
+	// Auto-trip via an ingester error, without any manual SetFailsafeEnabled call.
+	bk.ingesters[eth.ChainIDFromUInt64(901)].SetError(ErrorConflict, "forced")
+	require.True(t, bk.FailsafeEnabled())
+	require.True(t, bk.metrics.failsafeMetric(),
+		"ingester error must flip the failsafe metric on")
+
+	// A second chain entering error keeps the metric on.
+	bk.ingesters[eth.ChainIDFromUInt64(902)].SetError(ErrorConflict, "forced")
+	require.True(t, bk.metrics.failsafeMetric())
+
+	// Clearing one chain while another still errors must NOT report failsafe off.
+	bk.ingesters[eth.ChainIDFromUInt64(901)].ClearError()
+	require.True(t, bk.FailsafeEnabled())
+	require.True(t, bk.metrics.failsafeMetric(),
+		"metric must stay on while another chain still errors")
+
+	// Clearing the last error flips the metric off.
+	bk.ingesters[eth.ChainIDFromUInt64(902)].ClearError()
+	require.False(t, bk.FailsafeEnabled())
+	require.False(t, bk.metrics.failsafeMetric(),
+		"metric must clear once all errors clear")
+}
+
 func TestIntegration_Backend_RecoverReorg_ClearsFailsafe(t *testing.T) {
 	t.Parallel()
 

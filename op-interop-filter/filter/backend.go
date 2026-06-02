@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,6 +37,11 @@ type Backend struct {
 	// Manual failsafe override
 	manualFailsafe atomic.Bool
 
+	// failsafeMu serializes failsafe metric/log refreshes so concurrent error
+	// transitions cannot latch a stale gauge value or interleave log lines.
+	failsafeMu          sync.Mutex
+	lastFailsafeSummary string
+
 	// Passthrough mode: all transactions pass without filtering
 	passthrough bool
 
@@ -47,6 +53,11 @@ type Backend struct {
 
 	reorgRecoveryEnabled bool
 	reorgRecoveryWg      sync.WaitGroup
+
+	// failsafeLogInterval is how often the active failsafe reason is re-logged
+	// while failsafe is enabled. failsafeWg tracks that heartbeat goroutine.
+	failsafeLogInterval time.Duration
+	failsafeWg          sync.WaitGroup
 }
 
 // BackendParams contains parameters for creating a Backend.
@@ -59,13 +70,47 @@ type BackendParams struct {
 	LegacyCheckAccessListFormat bool
 
 	ReorgRecoveryEnabled bool
+	FailsafeLogInterval  time.Duration
+}
+
+// Failsafe reason labels that are not chain-ingester errors. Chain errors use
+// IngesterErrorReason.String() (reorg, conflict, data_corruption, invalid_log).
+const (
+	failsafeReasonManual          = "manual"
+	failsafeReasonCrossValidation = "cross_validation"
+	failsafeReasonNone            = "none"
+)
+
+// defaultFailsafeLogInterval is the fallback heartbeat interval used when
+// BackendParams.FailsafeLogInterval is unset (e.g. in tests). Production wires
+// the --failsafe-log-interval flag (also defaulting to 1m).
+const defaultFailsafeLogInterval = time.Minute
+
+// allFailsafeReasons is the full set of reason labels the failsafe_reason_active
+// gauge can emit. Every refresh sets all of them so a cleared reason drops back
+// to 0 instead of holding its last value.
+var allFailsafeReasons = []string{
+	failsafeReasonManual,
+	ErrorReorg.String(),
+	ErrorConflict.String(),
+	ErrorDataCorruption.String(),
+	ErrorInvalidExecutingMessage.String(),
+	failsafeReasonCrossValidation,
+}
+
+// failsafeObserver is implemented by components whose error state feeds into
+// FailsafeEnabled. The backend wires a callback so the failsafe metrics and logs
+// are refreshed whenever a component enters or clears its error state, not only
+// on the manual SetFailsafeEnabled path.
+type failsafeObserver interface {
+	SetOnFailsafeChange(func())
 }
 
 // NewBackend creates a new Backend instance with the provided components.
 func NewBackend(parentCtx context.Context, params BackendParams) *Backend {
 	ctx, cancel := context.WithCancel(parentCtx)
 
-	return &Backend{
+	b := &Backend{
 		log:                         params.Logger,
 		metrics:                     params.Metrics,
 		chains:                      params.Chains,
@@ -75,7 +120,29 @@ func NewBackend(parentCtx context.Context, params BackendParams) *Backend {
 		ctx:                         ctx,
 		cancel:                      cancel,
 		reorgRecoveryEnabled:        params.ReorgRecoveryEnabled,
+		failsafeLogInterval:         params.FailsafeLogInterval,
 	}
+	if b.failsafeLogInterval <= 0 {
+		b.failsafeLogInterval = defaultFailsafeLogInterval
+	}
+
+	// Initialize so the first benign refresh (state == off) does not log a
+	// spurious "cleared" transition.
+	b.lastFailsafeSummary = failsafeReasonNone
+
+	// Refresh failsafe metrics/logs whenever a component's error state changes,
+	// so auto-triggered failsafe (chain or cross-validator errors) is reflected,
+	// not just the manual SetFailsafeEnabled path.
+	for _, ingester := range b.chains {
+		if o, ok := ingester.(failsafeObserver); ok {
+			o.SetOnFailsafeChange(b.refreshFailsafe)
+		}
+	}
+	if o, ok := b.crossValidator.(failsafeObserver); ok {
+		o.SetOnFailsafeChange(b.refreshFailsafe)
+	}
+
+	return b
 }
 
 // Start starts all chain ingesters and the cross-validator
@@ -97,6 +164,9 @@ func (b *Backend) Start(ctx context.Context) error {
 		go b.runReorgRecovery(b.ctx)
 	}
 
+	b.failsafeWg.Add(1)
+	go b.runFailsafeHeartbeat(b.ctx)
+
 	return nil
 }
 
@@ -108,6 +178,7 @@ func (b *Backend) Stop(ctx context.Context) error {
 	var result error
 
 	b.reorgRecoveryWg.Wait()
+	b.failsafeWg.Wait()
 
 	if err := b.crossValidator.Stop(); err != nil {
 		result = errors.Join(result, fmt.Errorf("failed to stop cross-validator: %w", err))
@@ -131,7 +202,143 @@ func (b *Backend) FailsafeEnabled() bool {
 // SetFailsafeEnabled sets the manual failsafe override.
 func (b *Backend) SetFailsafeEnabled(enabled bool) {
 	b.manualFailsafe.Store(enabled)
-	b.metrics.RecordFailsafeEnabled(b.FailsafeEnabled())
+	b.refreshFailsafe()
+}
+
+// refreshFailsafe recomputes the failsafe metrics and logs reason transitions.
+// It is the single choke point for failsafe observability: invoked on the manual
+// toggle and via the onFailsafeChange callback whenever a chain ingester or the
+// cross-validator changes error state.
+//
+// failsafeMu serializes compute+record+log so concurrent transitions cannot
+// latch a stale gauge value (the last writer observes all completed state
+// changes) or interleave log lines.
+func (b *Backend) refreshFailsafe() {
+	b.failsafeMu.Lock()
+	defer b.failsafeMu.Unlock()
+
+	manual := b.manualFailsafe.Load()
+	chainErrs := b.GetChainErrors()
+	cvErr := b.crossValidator.Error()
+
+	enabled := manual || len(chainErrs) > 0 || cvErr != nil
+
+	// Build the active-reason set (deduped across chains: a reason is "active"
+	// if at least one source currently holds it).
+	active := make(map[string]bool, len(allFailsafeReasons))
+	if manual {
+		active[failsafeReasonManual] = true
+	}
+	for _, ie := range chainErrs {
+		active[ie.Reason.String()] = true
+	}
+	if cvErr != nil {
+		active[failsafeReasonCrossValidation] = true
+	}
+
+	b.metrics.RecordFailsafeEnabled(enabled)
+	for _, reason := range allFailsafeReasons {
+		b.metrics.RecordFailsafeReason(reason, active[reason])
+	}
+
+	// Log only when the reason set changes, to avoid spam from frequent refreshes.
+	summary := failsafeSummary(manual, chainErrs, cvErr)
+	if summary == b.lastFailsafeSummary {
+		return
+	}
+	b.lastFailsafeSummary = summary
+	if enabled {
+		b.log.Warn("Failsafe active", "reasons", summary,
+			"detail", failsafeReasonDetail(manual, chainErrs, cvErr))
+	} else {
+		b.log.Info("Failsafe cleared")
+	}
+}
+
+// failsafeSummary renders the active failsafe reasons as a stable, greppable
+// string with per-chain detail, e.g. "manual,chain[901]=reorg,cross_validation".
+// Returns failsafeReasonNone when nothing is active. Chain IDs are sorted for
+// deterministic output (so change-detection logging does not fire spuriously).
+func failsafeSummary(manual bool, chainErrs map[eth.ChainID]*IngesterError, cvErr *ValidatorError) string {
+	var parts []string
+	if manual {
+		parts = append(parts, failsafeReasonManual)
+	}
+	ids := make([]eth.ChainID, 0, len(chainErrs))
+	for id := range chainErrs {
+		ids = append(ids, id)
+	}
+	eth.SortChainID(ids) // numeric (not lexicographic) order for stable, readable summaries
+	for _, id := range ids {
+		parts = append(parts, fmt.Sprintf("chain[%s]=%s", id, chainErrs[id].Reason))
+	}
+	if cvErr != nil {
+		parts = append(parts, failsafeReasonCrossValidation)
+	}
+	if len(parts) == 0 {
+		return failsafeReasonNone
+	}
+	return strings.Join(parts, ",")
+}
+
+// failsafeReasonDetail renders the active failsafe reasons together with each
+// source's underlying error message — the "why" behind the failsafe. Returns
+// failsafeReasonNone when nothing is active.
+func failsafeReasonDetail(manual bool, chainErrs map[eth.ChainID]*IngesterError, cvErr *ValidatorError) string {
+	var parts []string
+	if manual {
+		parts = append(parts, "manual override")
+	}
+	ids := make([]eth.ChainID, 0, len(chainErrs))
+	for id := range chainErrs {
+		ids = append(ids, id)
+	}
+	eth.SortChainID(ids)
+	for _, id := range ids {
+		ie := chainErrs[id]
+		parts = append(parts, fmt.Sprintf("chain[%s] %s: %s", id, ie.Reason, ie.Message))
+	}
+	if cvErr != nil {
+		parts = append(parts, fmt.Sprintf("cross-validation: %s", cvErr.Message))
+	}
+	if len(parts) == 0 {
+		return failsafeReasonNone
+	}
+	return strings.Join(parts, "; ")
+}
+
+// runFailsafeHeartbeat periodically re-logs the active failsafe reason while
+// failsafe remains on. The transition log in refreshFailsafe fires only once
+// (when the reason set changes), so without this a long-lived failsafe (e.g. a
+// reorg awaiting recovery) would stop appearing in recent logs.
+func (b *Backend) runFailsafeHeartbeat(ctx context.Context) {
+	defer b.failsafeWg.Done()
+
+	ticker := time.NewTicker(b.failsafeLogInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			b.logFailsafeIfActive()
+		}
+	}
+}
+
+// logFailsafeIfActive logs the current failsafe reasons at Warn if failsafe is
+// active; no-op otherwise.
+func (b *Backend) logFailsafeIfActive() {
+	manual := b.manualFailsafe.Load()
+	chainErrs := b.GetChainErrors()
+	cvErr := b.crossValidator.Error()
+	if !manual && len(chainErrs) == 0 && cvErr == nil {
+		return
+	}
+	b.log.Warn("Failsafe still active",
+		"reasons", failsafeSummary(manual, chainErrs, cvErr),
+		"detail", failsafeReasonDetail(manual, chainErrs, cvErr))
 }
 
 // GetChainErrors returns all chains that are in an error state

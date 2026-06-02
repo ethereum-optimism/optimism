@@ -164,6 +164,11 @@ type EngineController struct {
 	// SuperAuthority for payload validation (may be nil when not in supernode context)
 	superAuthority rollup.SuperAuthority
 
+	// crossSafeCache holds the last canonical cross-safe head; consulted by
+	// crossSafeFallback when the verifier is unavailable or returns a reorg
+	// signal, so a transient outage doesn't drop cross-safe to FinalizedHead.
+	crossSafeCache *crossSafeCache
+
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 }
 
@@ -191,6 +196,7 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 		ctx:            ctx,
 		emitter:        emitter,
 		superAuthority: superAuthority,
+		crossSafeCache: newCrossSafeCache(log),
 		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 	}
 }
@@ -244,6 +250,7 @@ func (e *EngineController) resolveVerifiedAsSafe(block eth.BlockID) eth.L2BlockR
 			"super_authority_safe", br, "canonical", canonicalRef)
 		return e.crossSafeFallback("non-canonical")
 	}
+	e.crossSafeCache.Store(br)
 	return br
 }
 
@@ -265,14 +272,20 @@ func (e *EngineController) resolveAnchorAsSafe(ts uint64) eth.L2BlockRef {
 		// Local safe hasn't reached the anchor block for the validator, so use local safe head.
 		return e.localSafeHead
 	}
+	e.crossSafeCache.Store(br)
 	return br
 }
 
-// crossSafeFallback is the cross-safe fallback path: returns FinalizedHead so
-// we never advance cross-safe to local-safe on a verifier read failure or any
-// reorg signal, and never drop below finalized.
+// crossSafeFallback is the cross-safe fallback path. It first tries the
+// canonicality-validated cross-safe cache (so a transient verifier outage
+// doesn't drop cross-safe to FinalizedHead), and otherwise floors at
+// FinalizedHead — never local-safe, never below finalized.
 func (e *EngineController) crossSafeFallback(reason string) eth.L2BlockRef {
 	finalized := e.FinalizedHead()
+	if cached, ok := e.crossSafeCache.Get(e.ctx, e.engine, e.localSafeHead); ok && cached.Number >= finalized.Number {
+		e.log.Debug("cross-safe fallback using cache", "reason", reason, "cached", cached)
+		return cached
+	}
 	e.log.Debug("cross-safe fallback flooring at finalized", "reason", reason, "finalized", finalized)
 	return finalized
 }
@@ -1139,6 +1152,7 @@ func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUns
 	}
 
 	ForceEngineReset(e, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
+	e.crossSafeCache.Store(crossSafe)
 
 	if e.pipelineResetter != nil {
 		e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})

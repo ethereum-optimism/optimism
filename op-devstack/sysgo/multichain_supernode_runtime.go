@@ -122,16 +122,16 @@ func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [
 	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
 }
 
-// startSupernodeELWithSupervisorURL starts an L2 EL node with --rollup.supervisor-http
+// startSupernodeELWithInteropURL starts an L2 EL node with --rollup.interop-http
 // pointing at the given URL. Used by supernode interop presets to connect ELs
 // to the interop filter for tx pool validation.
-func startSupernodeELWithSupervisorURL(
+func startSupernodeELWithInteropURL(
 	t devtest.T,
 	l2Net *L2Network,
 	key string,
 	jwtPath string,
 	jwtSecret [32]byte,
-	supervisorURL string,
+	interopURL string,
 ) L2ELNode {
 	switch devstackL2ELKind() {
 	case MixedL2ELOpGeth:
@@ -143,15 +143,15 @@ func startSupernodeELWithSupervisorURL(
 			l2Net:         l2Net,
 			jwtPath:       jwtPath,
 			jwtSecret:     jwtSecret,
-			supervisorRPC: supervisorURL,
+			supervisorRPC: interopURL,
 			cfg:           cfg,
 		}
 		l2EL.Start()
 		t.Cleanup(l2EL.Stop)
 		return l2EL
 	default: // op-reth
-		return startMixedOpRethNodeWithSupervisorURL(
-			t, l2Net, key, jwtPath, jwtSecret, nil, supervisorURL, "v1")
+		return startMixedOpRethNodeWithInteropURL(
+			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, "v1")
 	}
 }
 
@@ -188,7 +188,12 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 		require.NoError(overrideErr, "failed to override message expiry window")
 	}
 
-	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopAtGenesis)
+	var interopActivationTimestamp *uint64
+	if interopAtGenesis {
+		ts := l2Net.rollupCfg.Genesis.L2Time
+		interopActivationTimestamp = &ts
+	}
+	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopActivationTimestamp, true, nodeSync.CLSync)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
 	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
 
@@ -257,8 +262,8 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		filterRPC := "http://" + filterProxy.Addr()
 
 		// Start ELs with filter proxy URL
-		l2AEL = startSupernodeELWithSupervisorURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC)
-		l2BEL = startSupernodeELWithSupervisorURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC)
+		l2AEL = startSupernodeELWithInteropURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC)
+		l2BEL = startSupernodeELWithInteropURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC)
 
 		// Build rollup config map from L2 networks (Go structs, no file I/O)
 		rollupConfigs := map[eth.ChainID]*rollup.Config{
@@ -274,7 +279,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		// Connect proxy to the filter's actual RPC endpoint
 		filterProxy.SetUpstream(ProxyAddr(require, interopFilter.HTTPEndpoint()))
 	} else {
-		// No interop filter — ELs start without supervisor/filter URL (existing behavior)
+		// No interop filter — ELs start without an interop filter URL (existing behavior)
 		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
 		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
 	}
@@ -633,20 +638,26 @@ func startSingleChainSharedSupernode(
 	l2EL L2ELNode,
 	depSet *depset.StaticConfigDependencySet,
 	jwtSecret [32]byte,
-	interopAtGenesis bool,
+	interopActivationTimestamp *uint64,
+	sequencerEnabled bool,
+	verifierSyncMode nodeSync.Mode,
 ) (*SuperNode, *SuperNodeProxy) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
 	makeNodeCfg := func() *opnodeconfig.Config {
-		p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
-		require.NoError(err, "need p2p key for supernode virtual sequencer")
+		var sequencerP2PKeyHex string
+		if sequencerEnabled {
+			p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
+			require.NoError(err, "need p2p key for supernode virtual sequencer")
+			sequencerP2PKeyHex = hex.EncodeToString(crypto.FromECDSA(p2pKey))
+		}
 		p2pConfig, p2pSignerSetup := newDevstackP2PConfig(
 			t,
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
 			true,
-			hex.EncodeToString(crypto.FromECDSA(p2pKey)),
+			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{
 			L1: &opnodeconfig.L1EndpointConfig{
@@ -666,13 +677,13 @@ func startSingleChainSharedSupernode(
 			},
 			DependencySet:                   depSet,
 			Beacon:                          &opnodeconfig.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
-			Driver:                          driver.Config{SequencerEnabled: true, SequencerConfDepth: 2},
+			Driver:                          driver.Config{SequencerEnabled: sequencerEnabled, SequencerConfDepth: 2},
 			Rollup:                          *l2Net.rollupCfg,
 			P2PSigner:                       p2pSignerSetup,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
-			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync, SyncModeReqResp: true},
+			Sync:                            nodeSync.Config{SyncMode: verifierSyncMode, SyncModeReqResp: true},
 			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
@@ -681,12 +692,6 @@ func startSingleChainSharedSupernode(
 		}
 		require.NoError(cfg.Check(), "invalid supernode op-node config for chain %s", l2Net.ChainID())
 		return cfg
-	}
-
-	var interopActivationTimestamp *uint64
-	if interopAtGenesis {
-		ts := l2Net.rollupCfg.Genesis.L2Time
-		interopActivationTimestamp = &ts
 	}
 
 	snCfg := &snconfig.CLIConfig{

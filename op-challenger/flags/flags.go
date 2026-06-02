@@ -438,7 +438,7 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 			if err := CheckCannonKonaFlags(ctx); err != nil {
 				return err
 			}
-		case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
+		case gameTypes.SuperCannonKonaGameType:
 			if err := CheckSuperCannonKonaFlags(ctx); err != nil {
 				return err
 			}

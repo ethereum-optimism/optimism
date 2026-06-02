@@ -35,6 +35,7 @@ type mockVirtualNode struct {
 	mu           sync.Mutex
 	startCalled  int
 	stopCalled   int
+	state        virtual_node.VNState
 	startErr     error
 	stopErr      error
 	startFunc    func(ctx context.Context) error
@@ -73,6 +74,7 @@ func newMockVirtualNode() *mockVirtualNode {
 func (m *mockVirtualNode) Start(ctx context.Context) error {
 	m.mu.Lock()
 	m.startCalled++
+	m.state = virtual_node.VNStateRunning
 	callCount := m.startCalled
 	m.mu.Unlock()
 
@@ -82,26 +84,43 @@ func (m *mockVirtualNode) Start(ctx context.Context) error {
 	}
 
 	if m.startFunc != nil {
-		return m.startFunc(ctx)
+		err := m.startFunc(ctx)
+		m.setState(virtual_node.VNStateStopped)
+		return err
 	}
 
 	if m.blockOnStart {
 		<-ctx.Done()
+		m.setState(virtual_node.VNStateStopped)
 		return ctx.Err()
 	}
 
+	m.setState(virtual_node.VNStateStopped)
 	return m.startErr
 }
 
 func (m *mockVirtualNode) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	m.stopCalled++
+	m.state = virtual_node.VNStateStopped
 	m.mu.Unlock()
 
 	if m.stopFunc != nil {
 		return m.stopFunc(ctx)
 	}
 	return m.stopErr
+}
+
+func (m *mockVirtualNode) State() virtual_node.VNState {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.state
+}
+
+func (m *mockVirtualNode) setState(state virtual_node.VNState) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.state = state
 }
 
 // SafeTimestamp implements virtual_node.VirtualNode SafeTimestamp
@@ -154,6 +173,45 @@ func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, erro
 }
 
 // SafeDB is not required by VirtualNode in these tests
+
+type fakeRPCRouterGate struct {
+	mu             sync.Mutex
+	calls          []string
+	handlerChainID string
+	handler        http.Handler
+	readyChainID   string
+	ready          func() bool
+	removedChainID string
+}
+
+func (f *fakeRPCRouterGate) SetHandler(chainID string, h http.Handler) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "handler")
+	f.handlerChainID = chainID
+	f.handler = h
+}
+
+func (f *fakeRPCRouterGate) SetReadinessCheck(chainID string, fn func() bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "ready")
+	f.readyChainID = chainID
+	f.ready = fn
+}
+
+func (f *fakeRPCRouterGate) RemoveHandler(chainID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "remove")
+	f.removedChainID = chainID
+}
+
+func (f *fakeRPCRouterGate) snapshot() (calls []string, handlerChainID string, readyChainID string, ready func() bool, removedChainID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.calls...), f.handlerChainID, f.readyChainID, f.ready, f.removedChainID
+}
 
 // mockEngineController is a mock implementation of engine_controller.EngineController
 type mockEngineController struct {
@@ -371,6 +429,51 @@ func TestChainContainer_EngineControllerNotInitInConstructor(t *testing.T) {
 	impl, ok := container.(*simpleChainContainer)
 	require.True(t, ok)
 	require.Nil(t, impl.engine, "engine should not be initialized in constructor; it is deferred to Start loop")
+}
+
+func TestChainContainerIsRPCReady(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	log := createTestLogger(t)
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	tests := []struct {
+		name    string
+		hasVN   bool
+		vnState virtual_node.VNState
+		pause   bool
+		stop    bool
+		want    bool
+	}{
+		{name: "no virtual node", want: false},
+		{name: "virtual node not running", hasVN: true, vnState: virtual_node.VNStateNotStarted, want: false},
+		{name: "virtual node running", hasVN: true, vnState: virtual_node.VNStateRunning, want: true},
+		{name: "paused closes gate", hasVN: true, vnState: virtual_node.VNStateRunning, pause: true, want: false},
+		{name: "stopped closes gate", hasVN: true, vnState: virtual_node.VNStateRunning, stop: true, want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			vncfg := createTestVNConfig()
+			cfg := createTestCLIConfig(t.TempDir())
+			container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+			impl, ok := container.(*simpleChainContainer)
+			require.True(t, ok)
+
+			if tc.hasVN {
+				mockVN := newMockVirtualNode()
+				mockVN.setState(tc.vnState)
+				impl.setVN(mockVN)
+			}
+			impl.pause.Store(tc.pause)
+			impl.stop.Store(tc.stop)
+
+			require.Equal(t, tc.want, impl.IsRPCReady())
+		})
+	}
 }
 
 // TestChainContainer_Lifecycle tests Start/Stop behavior
@@ -1006,18 +1109,11 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		cancel()
 	})
 
-	t.Run("registers handler with reverse proxy", func(t *testing.T) {
-		var setHandlerCalled bool
-		var calledChainID string
-
-		setHandler := func(id string, h http.Handler) {
-			setHandlerCalled = true
-			calledChainID = id
-		}
-
+	t.Run("registers readiness and handler with router", func(t *testing.T) {
+		router := &fakeRPCRouterGate{}
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, setHandler, nil, nil)
+		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, router, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -1027,18 +1123,49 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 			return mockVN
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
+		startDone := make(chan error, 1)
 		go func() {
-			_ = container.Start(ctx)
+			startDone <- container.Start(ctx)
 		}()
 
-		<-mockVN.startSignal
+		select {
+		case <-mockVN.startSignal:
+		case <-time.After(3 * time.Second):
+			t.Fatal("virtual node did not start")
+		}
 
 		require.Eventually(t, func() bool {
-			return setHandlerCalled && calledChainID == "420"
+			calls, handlerChainID, readyChainID, readyFn, _ := router.snapshot()
+			return len(calls) >= 2 &&
+				calls[0] == "ready" &&
+				calls[1] == "handler" &&
+				readyChainID == "420" &&
+				handlerChainID == "420" &&
+				readyFn != nil
 		}, 1*time.Second, 10*time.Millisecond)
+
+		_, _, _, readyFn, _ := router.snapshot()
+		require.True(t, readyFn())
+
+		cancel()
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer stopCancel()
+		require.NoError(t, container.Stop(stopCtx))
+
+		select {
+		case err := <-startDone:
+			require.NoError(t, err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("chain container Start did not return after Stop")
+		}
+
+		require.Eventually(t, func() bool {
+			_, _, _, _, removedChainID := router.snapshot()
+			return removedChainID == "420"
+		}, time.Second, 10*time.Millisecond)
 	})
 }
 
@@ -1142,6 +1269,9 @@ type mockVNForL1AtSafeHeadError struct {
 
 func (m *mockVNForL1AtSafeHeadError) Start(ctx context.Context) error { return nil }
 func (m *mockVNForL1AtSafeHeadError) Stop(ctx context.Context) error  { return nil }
+func (m *mockVNForL1AtSafeHeadError) State() virtual_node.VNState {
+	return virtual_node.VNStateRunning
+}
 func (m *mockVNForL1AtSafeHeadError) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
 	return eth.BlockID{}, eth.BlockID{}, nil
 }

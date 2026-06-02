@@ -380,7 +380,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::supervisor::CROSS_L2_INBOX_ADDRESS;
+    use crate::interop_filter::CROSS_L2_INBOX_ADDRESS;
     use alloy_eips::eip2930::{AccessList, AccessListItem};
     use alloy_primitives::address;
     use reth_transaction_pool::test_utils::MockTransaction;

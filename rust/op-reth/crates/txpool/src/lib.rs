@@ -14,7 +14,7 @@ pub use validator::{OpL1BlockInfo, OpTransactionValidator};
 pub mod conditional;
 mod pool;
 pub use pool::OpPool;
-pub mod supervisor;
+pub mod interop_filter;
 mod transaction;
 pub use transaction::{OpPooledTransaction, OpPooledTx};
 mod error;

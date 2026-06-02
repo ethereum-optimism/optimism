@@ -74,6 +74,26 @@ contract OPContractsManagerUtils_ImplV2Interop_Harness is ISemver {
     function initialize() external { }
 }
 
+/// @title ImplOZv5_Harness
+/// @notice Implementation that mimics OpenZeppelin Contracts v5 Initializable by writing the
+///         ERC-7201 namespaced slot in its initializer, used to test that implementations using the
+///         OZ v5 initializer layout are rejected by the upgrade helper.
+contract OPContractsManagerUtils_ImplOZv5_Harness is ISemver {
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
+
+    /// @notice ERC-7201 Initializable slot used by OpenZeppelin Contracts v5.
+    bytes32 internal constant OZ_V5_INITIALIZABLE_SLOT =
+        0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
+
+    function initialize() external {
+        bytes32 slot = OZ_V5_INITIALIZABLE_SLOT;
+        assembly {
+            sstore(slot, 1)
+        }
+    }
+}
+
 /// @title OPContractsManagerUtils_TestInit
 /// @notice Shared setup for OPContractsManagerUtils tests.
 contract OPContractsManagerUtils_TestInit is Test, FeatureFlags {
@@ -772,6 +792,33 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
             TEST_SLOT,
             TEST_OFFSET
         );
+    }
+
+    /// @notice Tests that an upgrade reverts when the incoming implementation's initializer writes
+    ///         OZ v5 Initializable state, even though the proxy passed the pre-upgrade check. The
+    ///         revert must roll back the install so the proxy keeps its previous implementation.
+    function test_upgrade_incomingV5Impl_reverts() public {
+        // Set v1 as current implementation. Its ERC-7201 slot is empty, so the pre-check passes.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+        assertEq(vm.load(address(proxy), OZ_V5_INITIALIZABLE_SLOT), bytes32(0));
+
+        // Deploy an implementation using the OZ v5 initializer layout (writes the ERC-7201 slot).
+        OPContractsManagerUtils_ImplOZv5_Harness implOZv5 = new OPContractsManagerUtils_ImplOZv5_Harness();
+
+        vm.expectRevert(IOPContractsManagerUtils.OPContractsManagerUtils_OZv5InitializableUnsupported.selector);
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implOZv5),
+            abi.encodeCall(OPContractsManagerUtils_ImplOZv5_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
+
+        // The revert rolled back the entire upgrade: the proxy keeps v1 and the slot stays empty.
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV1));
+        assertEq(vm.load(address(proxy), OZ_V5_INITIALIZABLE_SLOT), bytes32(0));
     }
 }
 
