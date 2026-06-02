@@ -380,7 +380,6 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             // INVARIANT: The parent game's sequence number must be strictly above the anchor state.
             (, uint256 anchorL2SeqNum) = anchorStateRegistry().getAnchorRoot();
             if (startingProposal.l2SequenceNumber <= anchorL2SeqNum) revert InvalidParentGame();
-
         } else {
             // When there is no parent game, the starting output root is the anchor state for the game type.
             (startingProposal.root, startingProposal.l2SequenceNumber) = anchorStateRegistry().getAnchorRoot();
@@ -444,7 +443,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         uint256 preExtraDataLen = 4 + 2 + _preExtraDataByteCount();
         if (msg.data.length < preExtraDataLen) return false;
 
-        uint256 postExtraDataLen = gameImplArgsByteCount();
+        uint256 postExtraDataLen = _gameImplArgsByteCount();
         uint256 extraDataAndGameArgsLength = msg.data.length - preExtraDataLen;
         // Ensure we have enough data for the game impl args.
         if (extraDataAndGameArgsLength < postExtraDataLen) return false;
@@ -464,7 +463,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // The CWIA runtime appends the immutable args and a 2-byte length suffix to every forwarded
         // call; strip the original calldata and suffix so offsets stay correct for functions with params.
         uint256 immutableArgsLength = msg.data.length - _getImmutableArgsOffset() - 2;
-        return immutableArgsLength - _preExtraDataByteCount() - gameImplArgsByteCount();
+        return immutableArgsLength - _preExtraDataByteCount() - _gameImplArgsByteCount();
     }
 
     /// @notice Returns the byte count of the pre-extra-data region.
@@ -480,7 +479,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice Returns the byte count of the game implementation args for this contract.
     /// @return gameImplArgsByteCount_ The byte count of the game implementation args (172 bytes).
-    function gameImplArgsByteCount() internal pure virtual returns (uint256 gameImplArgsByteCount_) {
+    function _gameImplArgsByteCount() internal pure returns (uint256 gameImplArgsByteCount_) {
         // Expected length: 172 bytes
         // - 32 bytes: absolutePrestate
         // - 20 bytes: verifier address

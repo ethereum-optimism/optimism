@@ -88,7 +88,7 @@
     "sourceCodeHash": "0x0a29792f3226dac84fdb44150b622a165fe65da3b678f6540acecdfe440772bb"
   },
   "src/L2/L2ProxyAdmin.sol:L2ProxyAdmin": {
-    "initCodeHash": "0xd9d6f7850ca2f14376b4a9c8b7693edd820803baddf42da91c0d452c207914a8",
+    "initCodeHash": "0x1b392652cf6009f47ed8c794c1f117ea51a626234fe419660bc273b5ad03b020",
     "sourceCodeHash": "0x43379a0ceae81d693c0fb50d3b7e8b1836e7a2cae0b7931593d2324d09e59ba3"
   },
   "src/L2/L2StandardBridge.sol:L2StandardBridge": {
@@ -181,7 +181,7 @@
   },
   "src/dispute/zk/ZKDisputeGame.sol:ZKDisputeGame": {
     "initCodeHash": "0x1793980c9fac6fe22d3c5b0aa4d7893e2f4dd393879a8f9414666a9faf8680d9",
-    "sourceCodeHash": "0x9479d6355c8d5f6abe2f9fd3b00e6932c59c3cf016f5ddb36d5d91c0541f1013"
+    "sourceCodeHash": "0x3da82484673860ded5521751dbedcbd2dca7db849a82e4ab5591e25aa0b89462"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
     "initCodeHash": "0x2e0ef4c341367eb59cc6c25190c64eff441d3fe130189da91d4d126f6bdbc9b5",
