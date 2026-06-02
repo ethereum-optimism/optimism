@@ -29,7 +29,7 @@ graph TD;
 ```
 
 <Info>
-  The `cannon`, `op-program host`, and `kona-host` executables are run in the `op-challenger` docker container as sub-processes when required to generate game trace data.
+  The `op-challenger` docker container runs the `cannon` VM with a fault-proof program as a sub-process to generate game trace data. The respected game type going forward is `cannon-kona`, which uses `kona-host`. The legacy `cannon` game type uses `op-program host` and reaches end-of-support at the Karst upgrade.
 </Info>
 
 ## Fault detection responses
