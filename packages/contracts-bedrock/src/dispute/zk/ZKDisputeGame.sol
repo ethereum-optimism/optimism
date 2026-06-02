@@ -78,6 +78,13 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice The `ClaimData` struct represents the data associated with a Claim.
+    /// @custom:field parentIndex The index in the factory's game array of this game's parent, or
+    ///                           `type(uint32).max` if this is a root game with no parent.
+    /// @custom:field status      The current status of the proposal (See ProposalStatus).
+    /// @custom:field challenger  The address that challenged the claim, or `address(0)` if unchallenged.
+    /// @custom:field prover      The address that submitted a valid proof, or `address(0)` if unproven.
+    /// @custom:field deadline    The timestamp by which the next action (challenge or prove) must occur.
+    /// @custom:field claim       The root claim being disputed.
     struct ClaimData {
         uint32 parentIndex; // 4 bytes
         ProposalStatus status; // 1 byte |-- slot 1 (25 bytes)
@@ -367,10 +374,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
                 revert UnexpectedGameType();
             }
 
-            startingProposal = Proposal({
-                l2SequenceNumber: parent.l2SequenceNumber(),
-                root: Hash.wrap(parent.rootClaim().raw())
-            });
+            startingProposal =
+                Proposal({ l2SequenceNumber: parent.l2SequenceNumber(), root: Hash.wrap(parent.rootClaim().raw()) });
 
             // INVARIANT: The parent game's sequence number must be strictly above the anchor state.
             (, uint256 anchorL2SeqNum) = anchorStateRegistry().getAnchorRoot();
@@ -463,17 +468,19 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     }
 
     /// @notice Returns the byte count of the pre-extra-data region.
-    function _preExtraDataByteCount() internal pure returns (uint256) {
+    /// @return preExtraDataByteCount_ The byte count of the pre-extra-data CWIA region (88 bytes).
+    function _preExtraDataByteCount() internal pure returns (uint256 preExtraDataByteCount_) {
         // Expected length: 88 bytes
         // - 20 bytes: creator address
         // - 32 bytes: root claim
         // - 32 bytes: l1 head
         // - 4 bytes: game type
-        return 88;
+        preExtraDataByteCount_ = 88;
     }
 
     /// @notice Returns the byte count of the game implementation args for this contract.
-    function gameImplArgsByteCount() internal pure virtual returns (uint256) {
+    /// @return gameImplArgsByteCount_ The byte count of the game implementation args (172 bytes).
+    function gameImplArgsByteCount() internal pure virtual returns (uint256 gameImplArgsByteCount_) {
         // Expected length: 172 bytes
         // - 32 bytes: absolutePrestate
         // - 20 bytes: verifier address
@@ -483,7 +490,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // - 20 bytes: anchorStateRegistry address
         // - 20 bytes: weth address
         // - 32 bytes: l2ChainId (zero for super games)
-        return 172;
+        gameImplArgsByteCount_ = 172;
     }
 
     ////////////////////////////////////////////////////////////////
