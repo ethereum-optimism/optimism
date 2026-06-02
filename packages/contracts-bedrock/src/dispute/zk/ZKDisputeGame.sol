@@ -351,6 +351,9 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             // For subsequent games, get the parent game's information
             (,, IDisputeGame parent) = disputeGameFactory.gameAtIndex(parentIndex());
 
+            // INVARIANT: The parent game must be a valid game.
+            if (parent.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
+
             // Verify parent game is not blacklisted or retired.
             if (anchorStateRegistry().isGameBlacklisted(parent) || anchorStateRegistry().isGameRetired(parent)) {
                 revert InvalidParentGame();
@@ -370,8 +373,6 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             (, uint256 anchorL2SeqNum) = anchorStateRegistry().getAnchorRoot();
             if (startingProposal.l2SequenceNumber <= anchorL2SeqNum) revert InvalidParentGame();
 
-            // INVARIANT: The parent game must be a valid game.
-            if (parent.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
         } else {
             // When there is no parent game, the starting output root is the anchor state for the game type.
             (startingProposal.root, startingProposal.l2SequenceNumber) = anchorStateRegistry().getAnchorRoot();
