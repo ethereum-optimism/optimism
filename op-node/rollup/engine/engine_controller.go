@@ -870,10 +870,11 @@ func (e *EngineController) headsAfterELSync(ctx context.Context, ref eth.L2Block
 	if err != nil {
 		return eth.L2BlockRef{}, eth.L2BlockRef{}, err
 	}
+	finalized := e.FinalizedHead()
 	if fromSafeDB {
 		finalizedRef = safedbRef
-		if e.FinalizedHead().Number < finalizedRef.Number {
-			finalizedRef = e.FinalizedHead()
+		if finalized.Number < finalizedRef.Number {
+			finalizedRef = finalized
 		}
 		return safedbRef, finalizedRef, nil
 	}
@@ -881,8 +882,8 @@ func (e *EngineController) headsAfterELSync(ctx context.Context, ref eth.L2Block
 	// safedb is disabled, or it didn't resolve to a valid safe head on the synced chain: choose
 	// the offset-derived head.
 	safeRef, finalizedRef = offsetRef, offsetRef
-	if finalizedRef.Number < e.FinalizedHead().Number {
-		finalizedRef = e.FinalizedHead()
+	if finalizedRef.Number < finalized.Number {
+		finalizedRef = finalized
 	}
 	if safeRef.Number < e.SafeL2Head().Number {
 		safeRef = e.SafeL2Head()
