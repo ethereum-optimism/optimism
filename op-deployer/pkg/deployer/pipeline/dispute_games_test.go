@@ -46,7 +46,7 @@ func TestShouldDeployAdditionalDisputeGames(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "super_zk_game_in_intent_empty_state",
+			name:     "zk_game_in_intent_empty_state",
 			intent:   &state.ChainIntent{AdditionalDisputeGames: []state.AdditionalDisputeGame{{VMType: state.VMTypeZK}}},
 			st:       &state.ChainState{},
 			expected: true,
