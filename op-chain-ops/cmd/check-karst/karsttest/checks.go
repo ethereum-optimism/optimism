@@ -379,21 +379,48 @@ func CheckEIP7825DepositBypass(
 	portal := bindings.NewBindings[bindings.OptimismPortal2](
 		bindings.WithTo(portalAddr),
 	)
+
+	// depositTransaction burns L1 gas proportional to the requested L2 gas via
+	// ResourceMetering.sol: gasCost = gasLimit * prevBaseFee / max(l1BaseFee, 1 gwei).
+	// With an L2 gas limit just past the 2^24 cap and prevBaseFee near the l1BaseFee
+	// the burn alone approaches the cap, so on an Osaka L1 the deposit only fits when
+	// the l1BaseFee is high enough relative to prevBaseFee. Estimate the burn up
+	// front and bail out if it can't fit under the L1 cap.
+	resourceParams, err := contractio.Read(portal.Params(), ctx, l1Plan)
+	if err != nil {
+		return 0, fmt.Errorf("read resource metering params: %w", err)
+	}
+	l1Block, err := txplan.NewPlannedTx(l1Plan).AgainstBlock.Eval(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get latest l1 block: %w", err)
+	}
+	l1BaseFee := l1Block.BaseFee()
+	if minBaseFee := eth.GWei(1).ToBig(); l1BaseFee.Cmp(minBaseFee) < 0 {
+		l1BaseFee = minBaseFee
+	}
+	burn := new(big.Int).Mul(new(big.Int).SetUint64(depositGasLimit), resourceParams.PrevBaseFee)
+	burn.Div(burn, l1BaseFee)
+	const overhead = 100_000
+	l1GasLimit := new(big.Int).Add(burn, big.NewInt(overhead))
+	if l1GasLimit.Cmp(new(big.Int).SetUint64(params.MaxTxGas)) > 0 {
+		return 0, fmt.Errorf("cannot thread the needle: burn (%s) + overhead exceeds max tx gas limit (%d); l1 base fee (%s) too low vs deposit base fee (%s)", burn, params.MaxTxGas, l1BaseFee, resourceParams.PrevBaseFee)
+	}
+
 	callPlan, err := contractio.Plan(
 		portal.DepositTransaction(l1Sender, depositAmount, depositGasLimit, false, []byte{}),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("plan deposit call: %w", err)
 	}
-
 	logger.Info("EIP-7825-deposit: submitting high-gas deposit on L1",
-		"gas", depositGasLimit, "amount", depositAmount, "portal", portalAddr)
+		"l2GasLimit", depositGasLimit, "l1GasLimit", l1GasLimit, "amount", depositAmount, "portal", portalAddr)
 	// Skip eth_estimateGas: the estimator caps its binary search at MaxTxGas,
-	// but ResourceMetering's Burn.gas inside depositTransaction needs to burn
-	// ~depositGasLimit gas on L1. WithGasLimit overrides the estimator.
+	// but ResourceMetering's Burn.gas inside depositTransaction burns L1 gas
+	// proportional to the requested L2 gas. We size the L1 limit from that burn
+	// estimate (l1GasLimit) instead; WithGasLimit overrides the estimator.
 	l1Receipt, err := txplan.NewPlannedTx(l1Plan, callPlan,
 		txplan.WithValue(depositAmount),
-		txplan.WithGasLimit(depositGasLimit+1_000_000),
+		txplan.WithGasLimit(l1GasLimit.Uint64()),
 	).Included.Eval(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("L1 deposit submission: %w", err)
