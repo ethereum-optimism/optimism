@@ -16,8 +16,8 @@ audit-source:
 </Info>
 
 Opting into interop is two actions: activate the Lagoon hardfork on your chain (which turns on the interop feature), and join a dependency set, the group of chains your chain can exchange cross-chain messages with.
-Joining a dependency set is what makes the setup below necessary, not Lagoon on its own.
-With an empty dependency set there's nothing to cross-validate, so a Lagoon-active chain can keep running a plain op-node setup and its existing output-root fault proofs.
+Cross-chain messaging only switches on once your dependency set has more than one chain.
+A Lagoon-active chain in a dependency set of one runs the base interop upgrades but never deploys the cross-chain machinery, so it has nothing to cross-validate and keeps a plain op-node setup and its existing output-root fault proofs.
 
 For how cross-chain messaging and block safety work at the protocol level, start with the [interop explainer](/op-stack/interop/explainer).
 
@@ -58,14 +58,13 @@ Once your chain is admitted, the set is published in the superchain-registry tha
 ### Does adding a chain to the set require another hardfork?
 
 No.
-Lagoon and dependency-set membership are separate mechanisms.
-Lagoon turns on the interop feature per chain; set membership changes through the coordinated process above, not through a hardfork.
-A chain joining an existing set needs Lagoon active on itself, which is a one-time activation of the existing hardfork, not a new one.
+Lagoon and dependency-set membership are separate mechanisms, and a chain joining a set just needs Lagoon active on itself: a one-time activation of the existing hardfork, not a new one.
+Forming a set is still a coordinated migration across all its members, not a config flip; adding a chain to an already-live set is more involved still and isn't yet a routine operation.
 For how membership and cross-chain message validity interact, see the [interop explainer](/op-stack/interop/explainer) and [interop reorg awareness](/op-stack/interop/reorg).
 
 ## Configure your sequencer
 
-Once your chain is in a dependency set, your sequencer setup changes in two ways.
+Once your dependency set has more than one chain and cross-chain messaging is live, your sequencer setup changes in two ways.
 
 **An execution client wired to the interop filter.**
 Run op-reth as your sequencer's execution client and point it at an [op-interop-filter](/chain-operators/tools/op-interop-filter) endpoint with `--rollup.interop-http`.
@@ -84,7 +83,7 @@ It manages leader election and no-downtime sequencer handover; the interop filte
 
 ## Move fault proofs to super roots
 
-Interop changes how your chain's state is proven.
+Interop changes how your chain's state is proven, and you do this before activating Lagoon, not after.
 A chain in a dependency set proves its state with super roots (commitments across every chain in the set at a timestamp) rather than per-chain output roots, so its fault-proof system moves to super-root dispute games.
 After the migration, op-proposer proposes super-root claims against an op-supernode and op-challenger defends them.
 
