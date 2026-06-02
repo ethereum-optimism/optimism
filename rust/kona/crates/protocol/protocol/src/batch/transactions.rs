@@ -53,10 +53,6 @@ const fn zero_signature() -> Signature {
 
 impl SpanBatchTransactionParts {
     fn from_op_tx(tx: &OpTxEnvelope) -> Result<Self, SpanBatchError> {
-        if matches!(tx, OpTxEnvelope::Deposit(_)) {
-            return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
-        }
-
         let (data, signature, to, nonce, gas, chain_id, tx_type) = match tx {
             OpTxEnvelope::Legacy(signed) => (
                 SpanBatchTransactionData::try_from(&TxEnvelope::Legacy(signed.clone()))?,
@@ -105,7 +101,9 @@ impl SpanBatchTransactionParts {
                 None,
                 OpTxType::PostExec,
             ),
-            OpTxEnvelope::Deposit(_) => unreachable!("deposits rejected above"),
+            OpTxEnvelope::Deposit(_) => {
+                return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+            }
         };
 
         Ok(Self { data, signature, to, nonce, gas, chain_id, tx_type })

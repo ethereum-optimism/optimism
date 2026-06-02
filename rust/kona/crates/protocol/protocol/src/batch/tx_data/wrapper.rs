@@ -157,20 +157,24 @@ impl SpanBatchTransactionData {
             return Err(alloy_rlp::Error::Custom("Invalid transaction data"));
         }
 
-        match b[0] {
-            ty if ty == OpTxType::Eip2930 as u8 => {
+        let tx_type = OpTxType::try_from(b[0])
+            .map_err(|_| alloy_rlp::Error::Custom("Invalid transaction type"))?;
+        match tx_type {
+            OpTxType::Eip2930 => {
                 Ok(Self::Eip2930(SpanBatchEip2930TransactionData::decode(&mut &b[1..])?))
             }
-            ty if ty == OpTxType::Eip1559 as u8 => {
+            OpTxType::Eip1559 => {
                 Ok(Self::Eip1559(SpanBatchEip1559TransactionData::decode(&mut &b[1..])?))
             }
-            ty if ty == OpTxType::Eip7702 as u8 => {
+            OpTxType::Eip7702 => {
                 Ok(Self::Eip7702(SpanBatchEip7702TransactionData::decode(&mut &b[1..])?))
             }
-            ty if ty == OpTxType::PostExec as u8 => {
+            OpTxType::PostExec => {
                 Ok(Self::PostExec(SpanBatchPostExecTransactionData::decode(&mut &b[1..])?))
             }
-            _ => Err(alloy_rlp::Error::Custom("Invalid transaction type")),
+            OpTxType::Legacy | OpTxType::Deposit => {
+                Err(alloy_rlp::Error::Custom("Invalid transaction type"))
+            }
         }
     }
 
