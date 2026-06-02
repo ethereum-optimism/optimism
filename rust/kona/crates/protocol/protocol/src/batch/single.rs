@@ -182,7 +182,7 @@ impl SingleBatch {
                     return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
                 }
                 Ok(OpTxType::PostExec) if !cfg.is_sdm_active(self.timestamp) => {
-                    return BatchValidity::Drop(BatchDropReason::PostExecPreSDM);
+                    return BatchValidity::Drop(BatchDropReason::PostExecPreLagoon);
                 }
                 _ => {}
             }
@@ -560,7 +560,7 @@ mod tests {
         let inclusion_block = BlockInfo::default();
         assert_eq!(
             single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
-            BatchValidity::Drop(BatchDropReason::PostExecPreSDM)
+            BatchValidity::Drop(BatchDropReason::PostExecPreLagoon)
         );
     }
 

@@ -511,8 +511,8 @@ impl SpanBatch {
                         return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
                     }
                     Ok(OpTxType::PostExec) if !cfg.is_sdm_active(batch.timestamp) => {
-                        warn!(target: "batch_span", "PostExec transactions are not supported pre-SDM. tx_index: {}", i);
-                        return BatchValidity::Drop(BatchDropReason::PostExecPreSDM);
+                        warn!(target: "batch_span", "PostExec transactions are not supported pre-Lagoon. tx_index: {}", i);
+                        return BatchValidity::Drop(BatchDropReason::PostExecPreLagoon);
                     }
                     _ => {}
                 }
@@ -2102,11 +2102,13 @@ mod tests {
         };
         assert_eq!(
             batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
-            BatchValidity::Drop(BatchDropReason::PostExecPreSDM)
+            BatchValidity::Drop(BatchDropReason::PostExecPreLagoon)
         );
         let logs = trace_store.get_by_level(Level::WARN);
         assert_eq!(logs.len(), 1);
-        assert!(logs[0].contains("PostExec transactions are not supported pre-SDM. tx_index: 0"));
+        assert!(
+            logs[0].contains("PostExec transactions are not supported pre-Lagoon. tx_index: 0")
+        );
     }
 
     #[tokio::test]

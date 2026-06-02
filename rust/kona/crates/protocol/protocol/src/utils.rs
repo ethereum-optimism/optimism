@@ -95,15 +95,19 @@ fn encode_scalar(blob_base_fee_scalar: u32, base_fee_scalar: u32) -> U256 {
     buf.into()
 }
 
+/// Maximum EIP-2718 transaction-type byte. A leading byte above this is the RLP list header of a
+/// legacy transaction rather than a type identifier.
+const EIP2718_MAX_TX_TYPE: u8 = 0x7F;
+
 /// Reads transaction data from a reader.
 pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, OpTxType), SpanBatchError> {
     let first_byte =
         *r.first().ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
-    let tx_type_id = if first_byte <= 0x7F {
+    let tx_type_id = if first_byte <= EIP2718_MAX_TX_TYPE {
         r.advance(1);
         first_byte
     } else {
-        OpTxType::Legacy as u8
+        u8::from(OpTxType::Legacy)
     };
 
     // Read the RLP header with a different reader pointer. This prevents the initial pointer from
@@ -122,20 +126,19 @@ pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, OpTxType), SpanBatchError
         return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
     }
 
-    let tx_type = match tx_type_id {
-        ty if ty == OpTxType::Legacy as u8 => OpTxType::Legacy,
-        ty if ty == OpTxType::Eip2930 as u8 => OpTxType::Eip2930,
-        ty if ty == OpTxType::Eip1559 as u8 => OpTxType::Eip1559,
-        ty if ty == OpTxType::Eip7702 as u8 => OpTxType::Eip7702,
-        ty if ty == OpTxType::PostExec as u8 => OpTxType::PostExec,
-        _ => return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType)),
+    let tx_type = match OpTxType::try_from(tx_type_id) {
+        // Deposits are not valid span-batch transactions, and an unknown byte is invalid too.
+        Ok(OpTxType::Deposit) | Err(_) => {
+            return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType));
+        }
+        Ok(ty) => ty,
     };
 
     let is_typed_tx = tx_type != OpTxType::Legacy;
     let tx_data_capacity = payload_length_with_header + usize::from(is_typed_tx);
     let mut tx_data = Vec::with_capacity(tx_data_capacity);
     if is_typed_tx {
-        tx_data.push(tx_type as u8);
+        tx_data.push(u8::from(tx_type));
     }
     tx_data.extend_from_slice(&r[..payload_length_with_header]);
     r.advance(payload_length_with_header);
