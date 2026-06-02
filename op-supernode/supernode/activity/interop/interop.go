@@ -290,6 +290,11 @@ func New(
 	for _, d := range roundDecisions {
 		metrics.InteropRoundDecisions.WithLabelValues(d.String())
 	}
+	// Likewise pre-initialize the per-chain invalidation counter to 0 for every
+	// configured chain, so a per-chain invalidate alert has a 0 baseline.
+	for chainID := range chains {
+		metrics.InteropInvalidations.WithLabelValues(chainID.String())
+	}
 	i := &Interop{
 		log:                 log,
 		chains:              chains,
