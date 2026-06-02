@@ -33,6 +33,11 @@ type L2EndpointConfig struct {
 	// L2EngineCallTimeout is the default timeout duration for L2 calls.
 	// Defines the maximum time a call to the L2 engine is allowed to take before timing out.
 	L2EngineCallTimeout time.Duration
+
+	// LazyDial defers the initial engine connection until the first call and lets the
+	// underlying client (re)connect on demand, instead of dialing eagerly at setup. This
+	// keeps a consumer usable when the L2 engine is unavailable at startup. Off by default.
+	LazyDial bool
 }
 
 var _ L2EndpointSetup = (*L2EndpointConfig)(nil)
@@ -56,6 +61,9 @@ func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger,
 		client.WithDialAttempts(10),
 		client.WithCallTimeout(cfg.L2EngineCallTimeout),
 		client.WithRPCRecorder(metrics.NewRecorder("engine-api")),
+	}
+	if cfg.LazyDial {
+		opts = append(opts, client.WithLazyDial())
 	}
 	l2Node, err := client.NewRPC(ctx, log, cfg.L2EngineAddr, opts...)
 	if err != nil {

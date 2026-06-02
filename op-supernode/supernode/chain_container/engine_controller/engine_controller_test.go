@@ -3,8 +3,10 @@ package engine_controller
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"testing"
 
+	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
@@ -13,6 +15,28 @@ import (
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
+
+// TestNewEngineControllerFromConfig_LazyDialSucceedsWhenELUnavailable is the
+// regression test for the startup-resync bug: with lazy dialing, building the
+// engine controller must succeed even when the L2 engine is unreachable, so the
+// supernode can start while its EL is down and recover once it comes up without
+// restarting the virtual node. It also asserts the shared endpoint config is not
+// mutated, so the virtual node keeps its eager-dial behavior.
+func TestNewEngineControllerFromConfig_LazyDialSucceedsWhenELUnavailable(t *testing.T) {
+	t.Parallel()
+
+	l2cfg := &opnodecfg.L2EndpointConfig{L2EngineAddr: "ws://127.0.0.1:0"}
+	vncfg := &opnodecfg.Config{
+		L2:     l2cfg,
+		Rollup: rollup.Config{L2ChainID: big.NewInt(420), BlockTime: 2},
+	}
+
+	ec, err := NewEngineControllerFromConfig(context.Background(), gethlog.New(), vncfg)
+	require.NoError(t, err, "lazy setup must not dial, so an unreachable EL must not fail construction")
+	require.NotNil(t, ec)
+	require.False(t, l2cfg.LazyDial, "lazy must be applied to a copy, leaving the shared VN config eager")
+	require.NoError(t, ec.Close())
+}
 
 // unified mock covers both payload/output paths and BlockAtTimestamp path
 

@@ -89,7 +89,10 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
-		container := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics)
+		container, err := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create chain container for chain %s: %w", chainID, err)
+		}
 		s.chains[chainID] = container
 	}
 

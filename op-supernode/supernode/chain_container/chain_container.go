@@ -32,6 +32,9 @@ import (
 
 const virtualNodeVersion = "0.1.0"
 
+// newEngineControllerFromConfig is the engine-controller constructor, overridable in tests.
+var newEngineControllerFromConfig = engine_controller.NewEngineControllerFromConfig
+
 // ErrHistoryUnavailable is the permanent counterpart of ethereum.NotFound:
 // SafeDB on this node cannot and will not contain the requested history
 // (e.g. snap/CL-sync bootstrap gap). Interop halts on this rather than
@@ -193,7 +196,7 @@ func NewChainContainer(
 	rpcRouter RPCRouterGate,
 	addMetricsRegistry func(key string, g prometheus.Gatherer),
 	metrics *resources.SupernodeMetrics,
-) InteropChain {
+) (InteropChain, error) {
 	if metrics == nil {
 		metrics = resources.NewSupernodeMetrics()
 	}
@@ -226,7 +229,25 @@ func NewChainContainer(
 	} else {
 		c.denyList = denyList
 	}
-	return c
+	// Set up the interop engine controller. The connection is dialed lazily, so setup never
+	// blocks on or fails because of an unreachable L2 engine at startup -- the client connects
+	// on first use and reconnects on demand. This is what lets interop recover once the EL comes
+	// up, without restarting the virtual node. engine is written only here, before the container
+	// is published to other goroutines, so later reads need no synchronization. Chains without an
+	// L2 engine configured leave engine nil and surface ErrNoEngineClient to callers.
+	//
+	// Because the dial is lazy, the only way this fails is an unrecoverable misconfiguration
+	// (e.g. an empty engine address); that must abort startup rather than run a chain that can
+	// never reach its engine.
+	if vncfg.L2 != nil {
+		engLog := log.New("chain_id", chainID.String(), "component", "engine_controller")
+		eng, err := newEngineControllerFromConfig(context.Background(), engLog, vncfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to set up engine controller for chain %s: %w", chainID, err)
+		}
+		c.engine = eng
+	}
+	return c, nil
 }
 
 func (c *simpleChainContainer) ID() eth.ChainID {
@@ -349,18 +370,6 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 		if c.stop.Load() {
 			break
-		}
-
-		// Initialize engine controller if not yet connected (retries on each VN restart)
-		if c.engine == nil && c.vncfg.L2 != nil {
-			setupCtx, setupCancel := context.WithTimeout(ctx, 10*time.Second)
-			engLog := c.log.New("chain_id", c.chainID.String(), "component", "engine_controller")
-			if eng, engErr := engine_controller.NewEngineControllerFromConfig(setupCtx, engLog, c.vncfg); engErr != nil {
-				c.log.Error("failed to setup engine controller", "err", engErr)
-			} else {
-				c.engine = eng
-			}
-			setupCancel()
 		}
 
 		// start the virtual node

@@ -74,8 +74,20 @@ func NewEngineControllerWithL2AndRollup(l2 l2Provider, rollup *rollup.Config) En
 
 // NewEngineControllerFromConfig builds an engine client from the op-node L2 endpoint config.
 // This creates a separate connection (not passed as an override to op-node).
+//
+// The connection is dialed lazily: setup never touches the network, so the controller is
+// usable even when the L2 engine is unreachable at startup. The underlying client dials on
+// first use and reconnects on demand, which is what lets interop recover once the EL comes up
+// without restarting the virtual node. Lazy is applied to a copy of the endpoint config so the
+// virtual node, which shares vncfg.L2, keeps its eager-dial behavior.
 func NewEngineControllerFromConfig(ctx context.Context, log gethlog.Logger, vncfg *opnodecfg.Config) (EngineController, error) {
-	rpc, engCfg, err := vncfg.L2.Setup(ctx, log, &vncfg.Rollup, &opmetrics.NoopRPCMetrics{})
+	l2Setup := vncfg.L2
+	if l2cfg, ok := l2Setup.(*opnodecfg.L2EndpointConfig); ok {
+		lazyCfg := *l2cfg
+		lazyCfg.LazyDial = true
+		l2Setup = &lazyCfg
+	}
+	rpc, engCfg, err := l2Setup.Setup(ctx, log, &vncfg.Rollup, &opmetrics.NoopRPCMetrics{})
 	if err != nil {
 		return nil, err
 	}
