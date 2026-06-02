@@ -123,9 +123,18 @@ func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *foreca
 	}
 
 	var forecastStatus types.GameStatus
-	// Games that have their block number challenged are won
-	// by the challenger since the counter is proven on-chain.
-	if game.BlockNumberChallenged {
+	if types.GameType(game.GameType) == types.SuperPermissionedGameType {
+		// Unreachable since super permissioned games resolve immediately, unless the game was misconfigured!
+		f.logger.Error("Found super permissioned game still in progress, this should be impossible, check game configuration", "game", game.Proxy)
+		// Since we don't know how an in-progress super permissioned game would resolve, we assume the worst and induce an unexpected forecast so mnonitoring can alert on this case.
+		if agreement {
+			forecastStatus = types.GameStatusChallengerWon
+		} else {
+			forecastStatus = types.GameStatusDefenderWon
+		}
+	} else if game.BlockNumberChallenged {
+		// Games that have their block number challenged are won
+		// by the challenger since the counter is proven on-chain.
 		f.logger.Debug("Found game with challenged block number",
 			"game", game.Proxy, "l2SequenceNumber", game.L2SequenceNumber, "agreement", agreement)
 		// If the block number is challenged the challenger will always win

@@ -9,7 +9,6 @@ import (
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -155,7 +154,7 @@ func JobId(
 
 // JobFromExecutingMessageLog converts a log to a job
 func JobFromExecutingMessageLog(log *types.Log, executingChain eth.ChainID) (Job, error) {
-	msg, err := processors.MessageFromLog(log)
+	msg, err := messages.MessageFromLog(log)
 	if err != nil {
 		return Job{}, err
 	}

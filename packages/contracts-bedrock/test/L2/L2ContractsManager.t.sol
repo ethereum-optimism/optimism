@@ -1057,49 +1057,22 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
         }
     }
 
-    // TODO(#19260): Refactor this when we have a proper single source of truth for the predeploys.
-    /// @dev Reverts when `_predeploy` is unmapped so new predeploys cannot slip past this test
-    ///      without the helper being extended.
+    /// @dev Reverts when `_predeploy` has no entry in the registry, so new predeploys cannot
+    ///      slip past this test without being added to `Predeploys.getAllRecords()`.
+    ///      For predeploys with CGT variants the CGT record takes priority on CGT chains;
+    ///      the non-CGT primary record is used on all other chains.
     function _getTargetImpl(address _predeploy) internal view returns (address) {
-        // Initializable predeploys (upgradeToAndCall path).
-        if (_predeploy == Predeploys.L2_CROSS_DOMAIN_MESSENGER) return _findImplByName("L2CrossDomainMessenger");
-        if (_predeploy == Predeploys.L2_STANDARD_BRIDGE) return _findImplByName("L2StandardBridge");
-        if (_predeploy == Predeploys.L2_ERC721_BRIDGE) return _findImplByName("L2ERC721Bridge");
-        if (_predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY) {
-            return _findImplByName("OptimismMintableERC20Factory");
+        bool isCGT = Config.sysFeatureCustomGasToken();
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        string memory fallbackName;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].proxy != _predeploy) continue;
+            if (records[i].isCustomGasToken && isCGT) return _findImplByName(records[i].name);
+            if (!records[i].isVariant) {
+                fallbackName = records[i].name;
+            }
         }
-        if (_predeploy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY) {
-            return _findImplByName("OptimismMintableERC721Factory");
-        }
-        if (_predeploy == Predeploys.SEQUENCER_FEE_WALLET) return _findImplByName("SequencerFeeVault");
-        if (_predeploy == Predeploys.BASE_FEE_VAULT) return _findImplByName("BaseFeeVault");
-        if (_predeploy == Predeploys.L1_FEE_VAULT) return _findImplByName("L1FeeVault");
-        if (_predeploy == Predeploys.OPERATOR_FEE_VAULT) return _findImplByName("OperatorFeeVault");
-        if (_predeploy == Predeploys.LIQUIDITY_CONTROLLER) return _findImplByName("LiquidityController");
-
-        // Non-initializable predeploys (upgradeTo path).
-        if (_predeploy == Predeploys.GAS_PRICE_ORACLE) return _findImplByName("GasPriceOracle");
-        if (_predeploy == Predeploys.L1_BLOCK_ATTRIBUTES) {
-            return Config.sysFeatureCustomGasToken() ? _findImplByName("L1BlockCGT") : _findImplByName("L1Block");
-        }
-        if (_predeploy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
-            return Config.sysFeatureCustomGasToken()
-                ? _findImplByName("L2ToL1MessagePasserCGT")
-                : _findImplByName("L2ToL1MessagePasser");
-        }
-        if (_predeploy == Predeploys.PROXY_ADMIN) return _findImplByName("L2ProxyAdmin");
-        if (_predeploy == Predeploys.L2_DEV_FEATURE_FLAGS) return _findImplByName("L2DevFeatureFlags");
-        if (_predeploy == Predeploys.NATIVE_ASSET_LIQUIDITY) return _findImplByName("NativeAssetLiquidity");
-        if (_predeploy == Predeploys.SCHEMA_REGISTRY) return _findImplByName("SchemaRegistry");
-        if (_predeploy == Predeploys.EAS) return _findImplByName("EAS");
-        if (_predeploy == Predeploys.CROSS_L2_INBOX) return _findImplByName("CrossL2Inbox");
-        if (_predeploy == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
-            return _findImplByName("L2ToL2CrossDomainMessenger");
-        }
-        if (_predeploy == Predeploys.SUPERCHAIN_ETH_BRIDGE) return _findImplByName("SuperchainETHBridge");
-        if (_predeploy == Predeploys.ETH_LIQUIDITY) return _findImplByName("ETHLiquidity");
-        if (_predeploy == Predeploys.CONDITIONAL_DEPLOYER) return _findImplByName("ConditionalDeployer");
-
+        if (bytes(fallbackName).length > 0) return _findImplByName(fallbackName);
         revert("L2ContractsManager_Upgrade_Atomicity_Test: unmapped predeploy");
     }
 

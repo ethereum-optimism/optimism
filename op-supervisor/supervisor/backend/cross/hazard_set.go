@@ -6,9 +6,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
@@ -59,7 +59,7 @@ type potentialHazard struct {
 func (h *HazardSet) checkChainCanExecute(linker depset.LinkChecker, chainID eth.ChainID, block messages.BlockSeal, execMsgs map[uint32]*messages.ExecutingMessage) error {
 	for i, msg := range execMsgs {
 		if !linker.CanExecute(chainID, block.Timestamp, msg.ChainID, msg.Timestamp) {
-			return fmt.Errorf("executing message %d in block %s (chain %s) may not execute %s: %w", i, block, chainID, msg, types.ErrConflict)
+			return fmt.Errorf("executing message %d in block %s (chain %s) may not execute %s: %w", i, block, chainID, msg, interop.ErrConflict)
 		}
 	}
 	return nil
@@ -85,7 +85,7 @@ func (h *HazardSet) checkMessageWithCurrentTimestamp(initChainID eth.ChainID, in
 	existing, ok := h.entries[initChainID]
 	if ok {
 		if existing.ID() != includedIn.ID() {
-			return true, fmt.Errorf("found dependency on %s (chain %s), but already depend on %s: %w", includedIn, initChainID, existing, types.ErrConflict)
+			return true, fmt.Errorf("found dependency on %s (chain %s), but already depend on %s: %w", includedIn, initChainID, existing, interop.ErrConflict)
 		}
 	}
 	return ok, nil
@@ -114,7 +114,7 @@ func (h *HazardSet) build(deps HazardDeps, linker depset.LinkChecker, logger log
 			return fmt.Errorf("failed to open block: %w", err)
 		}
 		if opened.ID() != candidate.ID() {
-			return fmt.Errorf("unsafe L2 DB has %s, but candidate cross-safe was %s: %w", opened, candidate, types.ErrConflict)
+			return fmt.Errorf("unsafe L2 DB has %s, but candidate cross-safe was %s: %w", opened, candidate, interop.ErrConflict)
 		}
 		// Performance & safety: check all executing messages can exist (chain ID linking, timestamp invariants) first.
 		if err := h.checkChainCanExecute(linker, destChainID, candidate, execMsgs); err != nil {
@@ -153,7 +153,7 @@ func (h *HazardSet) build(deps HazardDeps, linker depset.LinkChecker, logger log
 					})
 				}
 			} else {
-				return fmt.Errorf("executing message %s in %s breaks timestamp invariant: %w", msg, candidate, types.ErrConflict)
+				return fmt.Errorf("executing message %s in %s breaks timestamp invariant: %w", msg, candidate, interop.ErrConflict)
 			}
 		}
 	}

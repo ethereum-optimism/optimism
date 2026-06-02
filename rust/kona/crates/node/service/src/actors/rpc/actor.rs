@@ -1,194 +1,252 @@
 //! RPC Server Actor
 
-use crate::{NodeActor, RpcActorError, actors::CancellableContext};
+use crate::{
+    NodeActor, RpcActorError,
+    actors::rpc::launcher::{RpcServerHandle, RpcServerLauncher},
+};
 use async_trait::async_trait;
-use derive_more::Constructor;
-use jsonrpsee::{
-    RpcModule,
-    server::{Server, ServerHandle, middleware::http::ProxyGetRequestLayer},
-};
-use kona_gossip::P2pRpcRequest;
-use kona_rpc::{
-    AdminApiServer, AdminRpc, DevEngineApiServer, DevEngineRpc, EngineRpcClient, HealthzApiServer,
-    HealthzRpc, L1WatcherQueries, NetworkAdminQuery, OpP2PApiServer, P2pRpc, RollupNodeApiServer,
-    RollupRpc, RpcBuilder, SequencerAdminAPIClient, WsRPC, WsServer,
-};
-use std::time::Duration;
-use tokio::sync::mpsc;
-use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
+use jsonrpsee::RpcModule;
 
-/// An actor that handles the RPC server for the rollup node.
-#[derive(Constructor, Debug)]
-pub struct RpcActor<EngineRpcClient_, SequencerAdminApiClient_>
-where
-    EngineRpcClient_: EngineRpcClient,
-    SequencerAdminApiClient_: SequencerAdminAPIClient,
-{
-    /// A launcher for the rpc.
-    config: RpcBuilder,
-
-    engine_rpc_client: EngineRpcClient_,
-    sequencer_admin_rpc_client: Option<SequencerAdminApiClient_>,
-}
-
-/// The communication context used by the RPC actor.
+/// An actor that runs the JSON-RPC server for the rollup node.
+///
+/// The first launch happens upstream of this actor; restarts (up to `restart_count` provided
+/// at construction) are handled inside [`Self::step`].
 #[derive(Debug)]
-pub struct RpcContext {
-    /// The network p2p rpc sender.
-    pub p2p_network: mpsc::Sender<P2pRpcRequest>,
-    /// The network admin rpc sender.
-    pub network_admin: mpsc::Sender<NetworkAdminQuery>,
-    /// The l1 watcher queries sender.
-    pub l1_watcher_queries: mpsc::Sender<L1WatcherQueries>,
-    /// The cancellation token, shared between all tasks.
-    pub cancellation: CancellationToken,
+pub struct RpcActor<Launcher: RpcServerLauncher> {
+    /// Launcher used to relaunch the server if it stops.
+    launcher: Launcher,
+    /// Module set used to relaunch the server if it stops.
+    modules: RpcModule<()>,
+    /// The currently-running server handle. Replaced on each successful relaunch.
+    handle: Option<Launcher::Handle>,
+    /// Remaining relaunches allowed before [`Self::step`] returns
+    /// [`RpcActorError::ServerStopped`].
+    restarts_remaining: u32,
 }
 
-impl CancellableContext for RpcContext {
-    fn cancelled(&self) -> WaitForCancellationFuture<'_> {
-        self.cancellation.cancelled()
+impl<Launcher: RpcServerLauncher> RpcActor<Launcher> {
+    /// Constructs a new [`RpcActor`].
+    ///
+    /// `handle` is the live server returned by the caller's initial launch; this actor takes
+    /// ownership of the running server and handles up to `restarts_remaining` subsequent
+    /// relaunches via `launcher`.
+    pub const fn new(
+        launcher: Launcher,
+        modules: RpcModule<()>,
+        handle: Launcher::Handle,
+        restarts_remaining: u32,
+    ) -> Self {
+        Self { launcher, modules, handle: Some(handle), restarts_remaining }
     }
 }
 
-/// Launches the jsonrpsee [`Server`].
-///
-/// If the RPC server is disabled, this will return `Ok(None)`.
-///
-/// ## Errors
-///
-/// - [`std::io::Error`] if the server fails to start.
-async fn launch(
-    config: &RpcBuilder,
-    module: RpcModule<()>,
-) -> Result<ServerHandle, std::io::Error> {
-    let middleware = tower::ServiceBuilder::new()
-        .layer(
-            ProxyGetRequestLayer::new([("/healthz", "healthz")])
-                .expect("Critical: Failed to build GET method proxy"),
-        )
-        .timeout(Duration::from_secs(2));
-    let server = Server::builder().set_http_middleware(middleware).build(config.socket).await?;
-
-    if let Ok(addr) = server.local_addr() {
-        info!(target: "rpc", addr = ?addr, "RPC server bound to address");
-    } else {
-        error!(target: "rpc", "Failed to get local address for RPC server");
+impl<Launcher: RpcServerLauncher> Drop for RpcActor<Launcher> {
+    fn drop(&mut self) {
+        // jsonrpsee's ServerHandle is Arc<watch::Sender<()>>; dropping is enough to close the
+        // watch and stop the server, but calling `stop()` explicitly is clearer about intent.
+        // Errors here mean the server is already stopped.
+        if let Some(handle) = self.handle.take() {
+            handle.stop();
+        }
     }
-
-    Ok(server.start(module))
 }
 
 #[async_trait]
-impl<EngineRpcClient_, SequencerAdminApiClient_> NodeActor
-    for RpcActor<EngineRpcClient_, SequencerAdminApiClient_>
-where
-    EngineRpcClient_: EngineRpcClient + 'static,
-    SequencerAdminApiClient_: SequencerAdminAPIClient + 'static,
-{
+impl<Launcher: RpcServerLauncher> NodeActor for RpcActor<Launcher> {
     type Error = RpcActorError;
-    type StartData = RpcContext;
 
-    async fn start(
-        mut self,
-        RpcContext {
-            cancellation,
-            p2p_network,
-            l1_watcher_queries,
-            network_admin,
-        }: Self::StartData,
-    ) -> Result<(), Self::Error> {
-        let mut modules = RpcModule::new(());
+    async fn step(&mut self) -> Result<(), Self::Error> {
+        let handle = self.handle.as_ref().ok_or(RpcActorError::ServerStopped)?;
+        handle.stopped().await;
 
-        modules.merge(HealthzApiServer::into_rpc(HealthzRpc {}))?;
-
-        // Build the p2p rpc module.
-        modules.merge(P2pRpc::new(p2p_network).into_rpc())?;
-
-        // Build the admin rpc module.
-        modules.merge(AdminRpc::new(self.sequencer_admin_rpc_client, network_admin).into_rpc())?;
-
-        // Create context for communication between actors.
-        let rollup_rpc = RollupRpc::new(self.engine_rpc_client.clone(), l1_watcher_queries);
-        modules.merge(rollup_rpc.into_rpc())?;
-
-        // Add development RPC module for engine state introspection if enabled
-        if self.config.dev_enabled() {
-            let dev_rpc = DevEngineRpc::new(self.engine_rpc_client.clone());
-            modules.merge(dev_rpc.into_rpc())?;
+        if self.restarts_remaining == 0 {
+            return Err(RpcActorError::ServerStopped);
         }
+        self.restarts_remaining = self.restarts_remaining.saturating_sub(1);
 
-        if self.config.ws_enabled() {
-            modules.merge(WsRPC::new(self.engine_rpc_client.clone()).into_rpc())?;
-        }
-
-        let restarts = self.config.restart_count();
-
-        let mut handle = launch(&self.config, modules.clone()).await?;
-
-        for _ in 0..=restarts {
-            tokio::select! {
-                _ = handle.clone().stopped() => {
-                    match launch(&self.config, modules.clone()).await {
-                        Ok(h) => handle = h,
-                        Err(err) => {
-                            error!(target: "rpc", ?err, "Failed to launch rpc server");
-                            cancellation.cancel();
-                            return Err(RpcActorError::ServerStopped);
-                        }
-                    }
-                }
-                _ = cancellation.cancelled() => {
-                    // The cancellation token has been triggered, so we should stop the server.
-                    handle.stop().map_err(|_| RpcActorError::StopFailed)?;
-                    // Since the RPC Server didn't originate the error, we should return Ok.
-                    return Ok(());
-                }
+        match self.launcher.launch(self.modules.clone()).await {
+            Ok(new_handle) => {
+                self.handle = Some(new_handle);
+                Ok(())
+            }
+            Err(err) => {
+                error!(target: "rpc", ?err, "Failed to launch rpc server");
+                Err(RpcActorError::ServerStopped)
             }
         }
-
-        // Stop the node if there has already been 3 rpc restarts.
-        cancellation.cancel();
-        return Err(RpcActorError::ServerStopped);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
-
     use super::*;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    };
+    use tokio::sync::watch;
 
-    #[tokio::test]
-    async fn test_launch_no_modules() {
-        let launcher = RpcBuilder {
-            socket: SocketAddr::from(([127, 0, 0, 1], 8080)),
-            no_restart: false,
-            enable_admin: false,
-            admin_persistence: None,
-            ws_enabled: false,
-            dev_enabled: false,
-        };
-        let result = launch(&launcher, RpcModule::new(())).await;
-        assert!(result.is_ok());
+    /// Mock handle backed by a [`watch::channel`] of `bool`.
+    ///
+    /// The handle starts with the value `false` ("running") and `stop()` sets it to `true`
+    /// ("stopped"). [`Self::stopped`] resolves when the value becomes `true`, including
+    /// retroactively if `stop()` was called before any awaiter started waiting — which matches
+    /// the behavior of `jsonrpsee::ServerHandle` (and avoids the lost-wakeup hazard of `Notify`).
+    ///
+    /// Holds an idle [`watch::Receiver`] so that `Sender::send` from `stop()` always succeeds
+    /// (a watch sender errors when every receiver has been dropped).
+    #[derive(Debug, Clone)]
+    struct MockHandle {
+        stopped_tx: watch::Sender<bool>,
+        _keepalive: Arc<watch::Receiver<bool>>,
+    }
+
+    impl MockHandle {
+        fn new() -> Self {
+            let (stopped_tx, keepalive) = watch::channel(false);
+            Self { stopped_tx, _keepalive: Arc::new(keepalive) }
+        }
+    }
+
+    #[async_trait]
+    impl RpcServerHandle for MockHandle {
+        async fn stopped(&self) {
+            let mut rx = self.stopped_tx.subscribe();
+            // If the value is already `true`, this returns immediately; otherwise it waits for
+            // the next change.
+            if *rx.borrow() {
+                return;
+            }
+            let _ = rx.changed().await;
+        }
+
+        fn stop(&self) {
+            let _ = self.stopped_tx.send(true);
+        }
+    }
+
+    /// Mock launcher that hands out `MockHandle`s and counts launch invocations.
+    ///
+    /// When `fail_after` is `Some(n)`, the n-th launch (0-indexed) returns an error instead.
+    #[derive(Debug)]
+    struct MockLauncher {
+        launch_count: Arc<AtomicU32>,
+        fail_after: Option<u32>,
+        handles: std::sync::Mutex<Vec<MockHandle>>,
+    }
+
+    impl MockLauncher {
+        fn new(fail_after: Option<u32>) -> Self {
+            Self {
+                launch_count: Arc::new(AtomicU32::new(0)),
+                fail_after,
+                handles: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+
+        fn launch_count(&self) -> u32 {
+            self.launch_count.load(Ordering::SeqCst)
+        }
+
+        /// Returns a clone of the handle from the n-th successful launch (0-indexed).
+        fn handle(&self, n: usize) -> MockHandle {
+            self.handles.lock().unwrap()[n].clone()
+        }
+    }
+
+    #[async_trait]
+    impl RpcServerLauncher for MockLauncher {
+        type Handle = MockHandle;
+
+        async fn launch(&self, _modules: RpcModule<()>) -> Result<Self::Handle, std::io::Error> {
+            let call = self.launch_count.fetch_add(1, Ordering::SeqCst);
+            if Some(call) == self.fail_after {
+                return Err(std::io::Error::other("simulated launch failure"));
+            }
+            let handle = MockHandle::new();
+            self.handles.lock().unwrap().push(handle.clone());
+            Ok(handle)
+        }
+    }
+
+    // Allow `Arc<MockLauncher>` to be used directly as the actor's launcher generic, so tests can
+    // both hold a reference for assertions and pass ownership to the actor.
+    #[async_trait]
+    impl RpcServerLauncher for Arc<MockLauncher> {
+        type Handle = MockHandle;
+
+        async fn launch(&self, modules: RpcModule<()>) -> Result<Self::Handle, std::io::Error> {
+            (**self).launch(modules).await
+        }
+    }
+
+    async fn make_actor_with_initial_handle(
+        launcher: Arc<MockLauncher>,
+        restarts_remaining: u32,
+    ) -> RpcActor<Arc<MockLauncher>> {
+        let initial_handle = launcher.launch(RpcModule::new(())).await.expect("initial launch");
+        RpcActor::new(launcher, RpcModule::new(()), initial_handle, restarts_remaining)
     }
 
     #[tokio::test]
-    async fn test_launch_with_modules() {
-        let launcher = RpcBuilder {
-            socket: SocketAddr::from(([127, 0, 0, 1], 8081)),
-            no_restart: false,
-            enable_admin: false,
-            admin_persistence: None,
-            ws_enabled: false,
-            dev_enabled: false,
-        };
-        let mut modules = RpcModule::new(());
+    async fn step_relaunches_on_first_stop() {
+        let launcher = Arc::new(MockLauncher::new(None));
+        let mut actor = make_actor_with_initial_handle(launcher.clone(), 2).await;
 
-        modules.merge(RpcModule::new(())).expect("module merge");
-        modules.merge(RpcModule::new(())).expect("module merge");
-        modules.merge(RpcModule::new(())).expect("module merge");
+        // Signal the first handle to stop, then drive one step.
+        launcher.handle(0).stop();
+        actor.step().await.expect("first relaunch should succeed");
 
-        let result = launch(&launcher, modules).await;
-        assert!(result.is_ok());
+        assert_eq!(launcher.launch_count(), 2, "expected one relaunch after the initial launch");
+    }
+
+    #[tokio::test]
+    async fn step_exhausts_restarts_then_errors() {
+        let launcher = Arc::new(MockLauncher::new(None));
+        let mut actor = make_actor_with_initial_handle(launcher.clone(), 1).await;
+
+        // First stop: should relaunch.
+        launcher.handle(0).stop();
+        actor.step().await.expect("first relaunch should succeed");
+
+        // Second stop: restart budget is exhausted; step should error.
+        launcher.handle(1).stop();
+        let err = actor.step().await.expect_err("second stop should exhaust restarts");
+        assert!(matches!(err, RpcActorError::ServerStopped));
+    }
+
+    #[tokio::test]
+    async fn step_errors_with_zero_restarts_budget() {
+        let launcher = Arc::new(MockLauncher::new(None));
+        let mut actor = make_actor_with_initial_handle(launcher.clone(), 0).await;
+
+        launcher.handle(0).stop();
+        let err = actor.step().await.expect_err("zero-restart budget should error on first stop");
+        assert!(matches!(err, RpcActorError::ServerStopped));
+        assert_eq!(launcher.launch_count(), 1, "relaunch should not have been attempted");
+    }
+
+    #[tokio::test]
+    async fn step_errors_when_relaunch_fails() {
+        // `fail_after = 1` means the second launch (the first relaunch) fails.
+        let launcher = Arc::new(MockLauncher::new(Some(1)));
+        let mut actor = make_actor_with_initial_handle(launcher.clone(), 3).await;
+
+        launcher.handle(0).stop();
+        let err = actor.step().await.expect_err("failed relaunch should surface as ServerStopped");
+        assert!(matches!(err, RpcActorError::ServerStopped));
+    }
+
+    #[tokio::test]
+    async fn drop_calls_stop_on_live_handle() {
+        let launcher = Arc::new(MockLauncher::new(None));
+        let actor = make_actor_with_initial_handle(launcher.clone(), 0).await;
+
+        let handle_copy = launcher.handle(0);
+        assert!(!*handle_copy.stopped_tx.borrow(), "handle should start running");
+
+        drop(actor);
+
+        assert!(*handle_copy.stopped_tx.borrow(), "drop should have stopped the handle");
     }
 }

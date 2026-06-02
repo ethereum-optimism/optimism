@@ -95,6 +95,8 @@ func NewSimpleWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetConfig) *Si
 	runtime.SyncTester = &SyncTesterRuntime{
 		Service: syncTester,
 		Node:    node,
+		EL:      node.EL,
+		CL:      node.CL,
 	}
 	return runtime
 }

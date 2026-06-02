@@ -69,7 +69,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 
 	// Initialize chain containers for each configured chain ID
 	// Pass shared resources via InitializationOverrides to all containers
-	// Build RPC router first; we'll attach per-chain handlers at runtime via SetHandler
+	// Build RPC router first; chain containers attach handlers and readiness checks at runtime.
 	s.rpcRouter = resources.NewRouter(log, resources.RouterConfig{})
 	// Root JSON-RPC handler mounted at '/'
 	s.rootRPC = oprpc.NewHandler(version, oprpc.WithLogger(log))
@@ -84,12 +84,12 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			L1Source: resources.NewNonCloseableL1Client(s.l1Client),
 			Beacon:   resources.NewNonCloseableL1BeaconClient(s.beaconClient),
 		}
-		// no rpc handler is passed to the chain container, it will create a new one per (re)start using rpcRouter.SetHandler
+		// no rpc handler is passed to the chain container, it will create a new one per (re)start
 		if vnCfgs[chainID] == nil {
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
-		container := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics)
+		container := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics)
 		s.chains[chainID] = container
 	}
 

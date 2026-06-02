@@ -11,7 +11,7 @@ import (
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
-// LogsDB is the subset of an op-supervisor logs DB that
+// LogsDB is the subset of an interop logs DB that
 // LogsDBChainIngester depends on. Capturing it as an interface lets tests
 // substitute a fake when exercising dispatch paths the real DB cannot
 // produce under correct ingester control flow.

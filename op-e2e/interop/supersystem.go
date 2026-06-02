@@ -211,7 +211,7 @@ func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstan
 	l1FinalizedDistance := uint64(3)
 	l1Clock := clock.SystemClock
 	if s.config.SupportTimeTravel {
-		s.timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		s.timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = s.timeTravelClock
 	}
 	// Start the L1 chain

@@ -241,6 +241,86 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 	})
 }
 
+// TestKarstBn256PairingInputSizeReduction proves that Karst reduces the bn256
+// pairing precompile (0x08) input-size cap from Jovian's 81,984 bytes
+// (427 pairs × 192) to 57,600 bytes (300 pairs × 192). The input is all
+// zeros: per EIP-197, (0,0) decodes as the G1/G2 point at infinity, so
+// pairing 300 (or 301) identity pairs yields 1. (The same curve is variously
+// called bn128, bn254, or bn256 across the codebase; op-geth's Go bindings
+// use bn256, so this test follows that convention.)
+func TestKarstBn256PairingInputSizeReduction(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
+
+	t.Run("pre-karst", func(t devtest.T) {
+		t.Parallel()
+
+		// 301 pairs (57,792 bytes) exceeds the Karst cap but fits within
+		// Jovian's 81,984-byte cap. On Jovian the call succeeds (pairing
+		// identity points → 1). Run kona two ways to verify it honors its
+		// rollup config: kona-with-jovian accepts the block, kona-with-karst
+		// rejects because under the Karst cap the call would halt with
+		// Bn254PairLength, diverging state.
+		cases := []struct {
+			name        string
+			konaOpts    []presets.Option
+			konaAccepts bool
+		}{
+			{
+				name:        "kona-with-jovian",
+				konaAccepts: true,
+			},
+			{
+				name:        "kona-with-karst",
+				konaOpts:    []presets.Option{presets.WithKonaKarstAtGenesis()},
+				konaAccepts: false,
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t devtest.T) {
+				t.Parallel()
+				opts := append(
+					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis)},
+					tc.konaOpts...,
+				)
+				sys := presets.NewMinimalWithKona(t, opts...)
+				sys.L2EL.WaitForBlockNumber(1)
+				eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
+
+				// 301-pair input lands on Jovian (within its 81,984-byte cap).
+				input := make([]byte, karsttest.KarstBn256PairMaxInputSize+karsttest.Bn256PairElementLen)
+				receipt, err := txplan.NewPlannedTx(eoa.Plan(),
+					txplan.WithTo(&karsttest.Bn256PairPrecompile),
+					txplan.WithData(input),
+					txplan.WithGasLimit(karsttest.KarstBn256PairProbeGasLimit),
+				).Included.Eval(t.Ctx())
+				t.Require().NoError(err)
+				t.Require().Equal(ethtypes.ReceiptStatusSuccessful, receipt.Status)
+
+				agreedBlock := bigs.Uint64Strict(receipt.BlockNumber) - 1
+				claimBlock := bigs.Uint64Strict(receipt.BlockNumber)
+				t.Require().Equal(tc.konaAccepts, sys.RunKonaNative(agreedBlock, claimBlock))
+			})
+		}
+	})
+
+	t.Run("post-karst", func(t devtest.T) {
+		t.Parallel()
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
+
+		// Make sure the chain is past genesis before submitting txs, so the agreed
+		// block we feed kona below is always >= 1 (genesis output is not reliably
+		// served by OutputAtBlock).
+		sys.L2EL.WaitForBlockNumber(1)
+
+		agreedBlockChild, claimBlock, err := karsttest.CheckKarstBn256PairInputLimit(t.Ctx(), t.Logger(), eoa.Plan())
+		t.Require().NoError(err)
+		t.Require().True(sys.RunKonaNative(agreedBlockChild-1, claimBlock))
+	})
+}
+
 func TestEIP7939CLZ(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")

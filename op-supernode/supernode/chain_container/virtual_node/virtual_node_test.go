@@ -326,6 +326,7 @@ func TestVirtualNode_Lifecycle(t *testing.T) {
 		// Stop it
 		err := vn.Stop(ctx)
 		require.NoError(t, err)
+		require.Equal(t, VNStateStopped, vn.State())
 
 		// Start should exit
 		select {
@@ -501,7 +502,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		mock := newMockInnerNode()
 		mock.db = nil
 		vn.inner = mock
-		vn.state = VNStateRunning
+		vn.setState(VNStateRunning)
 
 		_, err := vn.L1AtSafeHead(context.Background(), eth.BlockID{Number: 10})
 		require.ErrorIs(t, err, ErrVirtualNodeNotRunning)
@@ -517,7 +518,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		mock := newMockInnerNode()
 		mock.db = mockDB
 		vn.inner = mock
-		vn.state = VNStateRunning
+		vn.setState(VNStateRunning)
 
 		// Query for genesis L2 block
 		result, err := vn.L1AtSafeHead(context.Background(), genesisL2)
@@ -534,7 +535,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		mock := newMockInnerNode()
 		mock.db = mockDB
 		vn.inner = mock
-		vn.state = VNStateRunning
+		vn.setState(VNStateRunning)
 
 		// Query with same number as genesis but different hash
 		// Should NOT match genesis since both number AND hash must match
@@ -564,7 +565,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		mock := newMockInnerNode()
 		mock.db = mockDB
 		vn.inner = mock
-		vn.state = VNStateRunning
+		vn.setState(VNStateRunning)
 
 		// Query for L2 block 10 - should return L1=102 (earliest L1 where L2 safe head >= 10)
 		target := eth.BlockID{Number: 10, Hash: [32]byte{0x06}}
@@ -585,7 +586,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		mock := newMockInnerNode()
 		mock.db = mockDB
 		vn.inner = mock
-		vn.state = VNStateRunning
+		vn.setState(VNStateRunning)
 
 		// Query for L2 block 100 - beyond latest L2 safe head (5)
 		target := eth.BlockID{Number: 100, Hash: [32]byte{}}
@@ -606,7 +607,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		mock := newMockInnerNode()
 		mock.db = mockDB
 		vn.inner = mock
-		vn.state = VNStateRunning
+		vn.setState(VNStateRunning)
 
 		// The first recorded SafeDB entry is still usable for that exact L2.
 		target := eth.BlockID{Number: 100, Hash: [32]byte{0x11}}
@@ -630,7 +631,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		mock := newMockInnerNode()
 		mock.db = mockDB
 		vn.inner = mock
-		vn.state = VNStateRunning
+		vn.setState(VNStateRunning)
 
 		// target within latest L2 (90 <= 120) so we enter walkback; prev=499
 		// is below the earliest entry (500) but above genesisL1 (100), so the
@@ -656,7 +657,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		mock := newMockInnerNode()
 		mock.db = mockDB
 		vn.inner = mock
-		vn.state = VNStateRunning
+		vn.setState(VNStateRunning)
 
 		target := eth.BlockID{Number: 10, Hash: [32]byte{0x02}}
 		_, err := vn.L1AtSafeHead(context.Background(), target)
@@ -673,7 +674,7 @@ func TestVirtualNode_L1AtSafeHead(t *testing.T) {
 		mock := newMockInnerNode()
 		mock.db = mockDB
 		vn.inner = mock
-		vn.state = VNStateRunning
+		vn.setState(VNStateRunning)
 
 		target := eth.BlockID{Number: 50, Hash: [32]byte{0xaa}}
 		_, err := vn.L1AtSafeHead(context.Background(), target)

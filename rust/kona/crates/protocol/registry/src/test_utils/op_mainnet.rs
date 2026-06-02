@@ -5,7 +5,7 @@ use alloy_eips::BlockNumHash;
 use alloy_op_hardforks::{
     OP_MAINNET_CANYON_TIMESTAMP, OP_MAINNET_ECOTONE_TIMESTAMP, OP_MAINNET_FJORD_TIMESTAMP,
     OP_MAINNET_GRANITE_TIMESTAMP, OP_MAINNET_HOLOCENE_TIMESTAMP, OP_MAINNET_ISTHMUS_TIMESTAMP,
-    OP_MAINNET_JOVIAN_TIMESTAMP,
+    OP_MAINNET_JOVIAN_TIMESTAMP, OP_MAINNET_KARST_TIMESTAMP,
 };
 use alloy_primitives::{address, b256, uint};
 #[cfg(feature = "rollup_config_override")]
@@ -63,7 +63,7 @@ pub const OP_MAINNET_CONFIG: RollupConfig = RollupConfig {
         pectra_blob_schedule_time: None,
         isthmus_time: Some(OP_MAINNET_ISTHMUS_TIMESTAMP),
         jovian_time: Some(OP_MAINNET_JOVIAN_TIMESTAMP),
-        karst_time: None,
+        karst_time: Some(OP_MAINNET_KARST_TIMESTAMP),
         interop_time: None,
     },
     batch_inbox_address: address!("ff00000000000000000000000000000000000010"),

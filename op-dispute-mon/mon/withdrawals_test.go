@@ -229,6 +229,32 @@ func TestWithdrawalNotInitiated(t *testing.T) {
 		"Expected %v withdrawable to be %v but was %v", honestActor1, 3, metrics.honestWithdrawable[honestActor1])
 }
 
+func TestWithdrawalMonitorSkipsSuperPermissioned(t *testing.T) {
+	now := time.Unix(nowUnix, 0)
+	cl := clock.NewDeterministicClock(now)
+	logger := testlog.Logger(t, log.LvlInfo)
+	metrics := &stubWithdrawalsMetrics{
+		matching:  make(map[common.Address]int),
+		divergent: make(map[common.Address]int),
+	}
+	honestActors := monTypes.NewHonestActors([]common.Address{honestActor1})
+	withdrawals := NewWithdrawalMonitor(logger, cl, metrics, honestActors)
+	games := []*monTypes.EnrichedGameData{
+		{
+			GameMetadata: types.GameMetadata{
+				GameType: uint32(types.SuperPermissionedGameType),
+			},
+		},
+	}
+	withdrawals.CheckWithdrawals(games)
+
+	require.Zero(t, metrics.matchCalls)
+	require.Zero(t, metrics.divergeCalls)
+	require.Empty(t, metrics.matching)
+	require.Empty(t, metrics.divergent)
+	require.Equal(t, big.NewInt(0), metrics.honestWithdrawable[honestActor1])
+}
+
 type stubWithdrawalsMetrics struct {
 	matchCalls         int
 	divergeCalls       int

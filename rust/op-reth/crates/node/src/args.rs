@@ -55,16 +55,20 @@ pub struct RollupArgs {
     #[arg(long = "rollup.sdm-enabled", default_value = "false")]
     pub sdm_enabled: bool,
 
-    /// HTTP endpoint for the supervisor. When not set, interop transaction validation is disabled.
-    #[arg(long = "rollup.supervisor-http", value_name = "SUPERVISOR_HTTP_URL")]
-    pub supervisor_http: Option<String>,
+    /// HTTP endpoint for the interop filter, used to validate the interop messages referenced by
+    /// incoming transactions. When not set, interop transaction validation is disabled: a node
+    /// that builds blocks will then include transactions carrying invalid interop messages,
+    /// producing invalid blocks. It is only safe to leave this unset on nodes that do not build
+    /// blocks.
+    #[arg(long = "rollup.interop-http", value_name = "INTEROP_HTTP_URL")]
+    pub interop_http: Option<String>,
 
-    /// Safety level for the supervisor
+    /// Safety level for interop filter validation.
     #[arg(
-        long = "rollup.supervisor-safety-level",
+        long = "rollup.interop-safety-level",
         default_value_t = SafetyLevel::CrossUnsafe,
     )]
-    pub supervisor_safety_level: SafetyLevel,
+    pub interop_safety_level: SafetyLevel,
 
     /// Optional headers to use when connecting to the sequencer.
     #[arg(long = "rollup.sequencer-headers", requires = "sequencer")]
@@ -161,8 +165,8 @@ impl Default for RollupArgs {
             discovery_v4: false,
             enable_tx_conditional: false,
             sdm_enabled: false,
-            supervisor_http: None,
-            supervisor_safety_level: SafetyLevel::CrossUnsafe,
+            interop_http: None,
+            interop_safety_level: SafetyLevel::CrossUnsafe,
             sequencer_headers: Vec::new(),
             historical_rpc: None,
             min_suggested_priority_fee: 1_000_000,

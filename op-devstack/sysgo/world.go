@@ -4,12 +4,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 func newWorldBuilder(t devtest.T, keys devkeys.Keys) *worldBuilder {
@@ -40,7 +40,7 @@ func applyConfigDeployerOptions(t devtest.T, keys devkeys.Keys, builder intentbu
 	}
 }
 
-func buildSingleChainWorldWithInterop(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*L1Network, *L2Network, coredepset.DependencySet, depset.FullConfigSetMerged) {
+func buildSingleChainWorldWithInterop(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*L1Network, *L2Network, coredepset.DependencySet, config.FullConfigSetMerged) {
 	_, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInteropAndState(t, keys, interopAtGenesis, localContractArtifactsPath, deployerOpts...)
 	return l1Net, l2Net, depSet, fullCfgSet
 }
@@ -66,7 +66,7 @@ func newInteropMigrationState(wb *worldBuilder) *interopMigrationState {
 	return state
 }
 
-func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, coredepset.DependencySet, depset.FullConfigSetMerged) {
+func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, coredepset.DependencySet, config.FullConfigSetMerged) {
 	wb := newWorldBuilder(t, keys)
 	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
 	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)

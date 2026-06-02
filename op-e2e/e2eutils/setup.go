@@ -112,6 +112,9 @@ func GetL2AllocsMode(dc *genesis.DeployConfig, t uint64) genesis.L2AllocsMode {
 	if fork := dc.InteropTime(t); fork != nil && *fork <= 0 {
 		return genesis.L2AllocsInterop
 	}
+	if fork := dc.KarstTime(t); fork != nil && *fork <= 0 {
+		return genesis.L2AllocsKarst
+	}
 	if fork := dc.JovianTime(t); fork != nil && *fork <= 0 {
 		return genesis.L2AllocsJovian
 	}

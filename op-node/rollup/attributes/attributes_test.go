@@ -9,6 +9,7 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -338,6 +339,63 @@ func TestAttributesHandler(t *testing.T) {
 			t.Run("is not last span", func(t *testing.T) {
 				fn(t, false)
 			})
+		})
+		t.Run("not found during EL sync stalls without reset", func(t *testing.T) {
+			logger := testlog.Logger(t, log.LevelInfo)
+			l2 := &testutils.MockL2Client{}
+			emitter := &testutils.MockEmitter{}
+			engDeriver := &MockEngineController{}
+			ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver)
+			ah.AttachEmitter(emitter)
+
+			emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
+			engDeriver.On("RequestPendingSafeUpdate", context.Background()).Once()
+			ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attrA1})
+			engDeriver.AssertExpectations(t)
+			emitter.AssertExpectations(t)
+			require.NotNil(t, ah.attributes, "queued up derived attributes")
+
+			// EL has accepted a future EL-sync target but hasn't filled in
+			// block refA1.Number yet, so the consolidate lookup returns NotFound.
+			l2.ExpectPayloadByNumber(refA1.Number, nil, ethereum.NotFound)
+			engDeriver.On("IsEngineInitialELSyncing").Return(true).Once()
+
+			emitter.ExpectOnceType("EngineTemporaryErrorEvent")
+			ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
+				PendingSafe: refA0,
+				Unsafe:      refA1,
+			})
+			engDeriver.AssertExpectations(t)
+			l2.AssertExpectations(t)
+			emitter.AssertExpectations(t)
+			require.NotNil(t, ah.attributes,
+				"attributes stay queued so consolidation retries once EL sync fills in the block")
+		})
+		t.Run("not found without EL sync resets", func(t *testing.T) {
+			logger := testlog.Logger(t, log.LevelInfo)
+			l2 := &testutils.MockL2Client{}
+			emitter := &testutils.MockEmitter{}
+			engDeriver := &MockEngineController{}
+			ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver)
+			ah.AttachEmitter(emitter)
+
+			emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
+			engDeriver.On("RequestPendingSafeUpdate", context.Background()).Once()
+			ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attrA1})
+			engDeriver.AssertExpectations(t)
+			emitter.AssertExpectations(t)
+
+			l2.ExpectPayloadByNumber(refA1.Number, nil, ethereum.NotFound)
+			engDeriver.On("IsEngineInitialELSyncing").Return(false).Once()
+
+			emitter.ExpectOnceType("ResetEvent")
+			ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
+				PendingSafe: refA0,
+				Unsafe:      refA1,
+			})
+			engDeriver.AssertExpectations(t)
+			l2.AssertExpectations(t)
+			emitter.AssertExpectations(t)
 		})
 	})
 

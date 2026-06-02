@@ -47,6 +47,9 @@ parameters:
   publish_contract_artifacts_dispatch:
     type: boolean
     default: false
+  publish_contract_artifacts_ref:
+    type: string
+    default: ""
   stale_check_dispatch:
     type: boolean
     default: false
@@ -54,9 +57,6 @@ parameters:
     type: boolean
     default: false
   heavy_fuzz_dispatch:
-    type: boolean
-    default: false
-  ai_contracts_test_dispatch:
     type: boolean
     default: false
   rust_ci_dispatch:
@@ -137,6 +137,7 @@ jobs:
             c-github-event-action: << pipeline.parameters.github-event-action >>
             c-github-event-base64: << pipeline.parameters.github-event-base64 >>
             c-go-cache-version: << pipeline.parameters.go-cache-version >>
+            c-publish_contract_artifacts_ref: << pipeline.parameters.publish_contract_artifacts_ref >>
       # Same as above but for booleans. Separate step because CircleCI renders
       # boolean pipeline params as 0/1 in environment blocks — the "bool" mode
       # normalizes them to JSON true/false.
@@ -156,7 +157,6 @@ jobs:
             c-stale_check_dispatch: << pipeline.parameters.stale_check_dispatch >>
             c-contracts_coverage_dispatch: << pipeline.parameters.contracts_coverage_dispatch >>
             c-heavy_fuzz_dispatch: << pipeline.parameters.heavy_fuzz_dispatch >>
-            c-ai_contracts_test_dispatch: << pipeline.parameters.ai_contracts_test_dispatch >>
             c-rust_ci_dispatch: << pipeline.parameters.rust_ci_dispatch >>
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
             c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
@@ -218,7 +218,6 @@ jobs:
                   build_four_hours) run scheduled_todo_issues scheduled_cannon_full_tests ;;
                   build_daily)      run scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests ;;
                   build_weekly)     run scheduled_weekly_tests scheduled_kona_link_checker ;;
-                  build_mon_thu)    run ai_contracts_test ;;
                 esac
                 ;;
 
@@ -283,6 +282,7 @@ jobs:
                 elif [[ "${BRANCH}" == "develop" ]]; then
                   run main
                   run release
+                  run publish_contract_artifacts
                   run develop_fault_proofs
                   run develop_kontrol_tests
                   run contracts_feature_tests
@@ -309,7 +309,7 @@ jobs:
                 if is_true reproducibility_dispatch;  then run scheduled_preimage_reproducibility; fi
                 if is_true stale_check_dispatch;      then run scheduled_stale_check; fi
                 if is_true heavy_fuzz_dispatch;       then run scheduled_heavy_fuzz_tests; fi
-                if is_true ai_contracts_test_dispatch; then run ai_contracts_test; fi
+                if is_true publish_contract_artifacts_dispatch; then run publish_contract_artifacts; fi
                 if is_true l2_fork_test_dispatch;     then run l2_fork_test; fi
                 if is_true rust_ci_dispatch;          then run rust_ci; fi
                 if is_true rust_e2e_dispatch;         then run rust_e2e_ci; fi
@@ -320,7 +320,7 @@ jobs:
             esac
 
             # Params to forward to continuation configs (everything else is stripped)
-            finalize "c-default_docker_image,c-rust_base_image,c-base_image,c-github-event-base64,c-go-cache-version,c-rust_files_changed"
+            finalize "c-default_docker_image,c-rust_base_image,c-base_image,c-github-event-base64,c-go-cache-version,c-rust_files_changed,c-publish_contract_artifacts_ref"
       # Deep-merges the 3 continuation YAML configs (main, rust-ci, rust-e2e)
       # into /tmp/merged-config.yml using yq. Later files win on key conflicts.
       # explode(.) resolves YAML anchors/aliases so the output is self-contained.

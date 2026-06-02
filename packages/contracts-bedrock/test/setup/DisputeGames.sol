@@ -120,6 +120,22 @@ library DisputeGames {
         }
     }
 
+    function superPermissionedGameProposer(IDisputeGameFactory _dgf) internal view returns (address proposer_) {
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
+            LibGameArgs.decodeSuperPermissioned(_dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
+        proposer_ = gameArgs.proposer;
+    }
+
+    function superPermissionedGameAnchorStateRegistry(IDisputeGameFactory _dgf)
+        internal
+        view
+        returns (address anchorStateRegistry_)
+    {
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
+            LibGameArgs.decodeSuperPermissioned(_dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
+        anchorStateRegistry_ = gameArgs.anchorStateRegistry;
+    }
+
     /// @notice Gets the DelayedWETH for a game type, handling both v1 and v2 dispute games.
     ///         V1 games store the prestate on the game implementation, v2 games store it in gameArgs.
     ///         Returns address(0) if no implementation exists for the game type.
@@ -139,7 +155,6 @@ library DisputeGames {
         if (gameImpl == address(0)) {
             return IDelayedWETH(payable(address(0)));
         }
-
         (bool gameArgsExist, bytes memory gameArgsData) = _getGameArgs(_dgf, _gameType);
         if (gameArgsExist) {
             LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsData);
@@ -204,6 +219,30 @@ library DisputeGames {
     function mockGameImplChallenger(IDisputeGameFactory _dgf, GameType _gameType, address _challenger) internal {
         bytes memory value = abi.encodePacked(_challenger);
         _mockGameArg(_dgf, _gameType, GameArg.CHALLENGER, value);
+    }
+
+    function mockSuperPermissionedGameProposer(IDisputeGameFactory _dgf, address _proposer) internal {
+        bytes memory gameArgsData = _dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs = LibGameArgs.decodeSuperPermissioned(gameArgsData);
+        gameArgs.proposer = _proposer;
+
+        vm.mockCall(
+            address(_dgf),
+            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(LibGameArgs.encodeSuperPermissioned(gameArgs))
+        );
+    }
+
+    function mockSuperPermissionedGameASR(IDisputeGameFactory _dgf, address _asr) internal {
+        bytes memory gameArgsData = _dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs = LibGameArgs.decodeSuperPermissioned(gameArgsData);
+        gameArgs.anchorStateRegistry = _asr;
+
+        vm.mockCall(
+            address(_dgf),
+            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(LibGameArgs.encodeSuperPermissioned(gameArgs))
+        );
     }
 
     function _getGameArgs(

@@ -347,6 +347,7 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 		return nil, err
 	}
 	engineKind := engine.Kind(ctx.String(flags.L2EngineKind.Name))
+	offsetELSafe := ctx.Duration(flags.SyncModeOffsetELSafeFlag.Name)
 	cfg := &sync.Config{
 		SyncMode:                       mode,
 		SyncModeReqResp:                ctx.Bool(flags.SyncModeReqRespFlag.Name),
@@ -355,10 +356,14 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 		L2FollowSourceEndpoint:         l2FollowSourceEndpoint,
 		// Sequencer needs a manual initial reset when follow source
 		NeedInitialResetEngine: ctx.Bool(flags.SequencerEnabledFlag.Name) && l2FollowSourceEndpoint != "",
-		OffsetELSafe:           ctx.Duration(flags.SyncModeOffsetELSafeFlag.Name),
+		OffsetELSafe:           offsetELSafe,
 	}
 	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
 		cfg.SyncMode = sync.ELSync
+	}
+	if cfg.OffsetELSafe > 0 && cfg.SyncMode != sync.ELSync {
+		log.Warn("syncmode.offset-el-safe is ineffective unless --syncmode=execution-layer; ignoring configured value", "syncmode", cfg.SyncMode.String(), "configured_offset", cfg.OffsetELSafe)
+		cfg.OffsetELSafe = 0
 	}
 	if err := cfg.Check(); err != nil {
 		return nil, err

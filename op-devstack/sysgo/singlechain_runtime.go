@@ -97,7 +97,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 	l1Clock := clock.SystemClock
 	var timeTravelClock *clock.AdvancingClock
 	if cfg.EnableTimeTravel {
-		timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = timeTravelClock
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, world.L1Network, jwtPath, l1Clock, cfg)

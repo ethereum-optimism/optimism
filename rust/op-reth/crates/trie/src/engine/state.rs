@@ -219,6 +219,10 @@ where
         let start = Instant::now();
         self.persistence.unwind(to, &self.memory)?;
         self.memory.unwind(to.block.number);
+        // Clamp `sync_target` to the post-unwind tip. Without this, a stale target left over
+        // from before a deep FCU rewind keeps `needs_sync()` perpetually true and spins the
+        // runner on `BlockNotFound` for blocks the provider no longer has.
+        self.sync_target = self.sync_target.min(to.block.number.saturating_sub(1));
         #[cfg(feature = "metrics")]
         self.metrics.unwind_duration_seconds.record(start.elapsed());
         Ok(())
@@ -238,5 +242,90 @@ where
         }
 
         Ok(self.storage.provider_ro()?.get_latest_block()?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{OpProofsInitProvider, db::MdbxProofsStorage};
+    use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
+    use alloy_primitives::B256;
+    use reth_chainspec::MAINNET;
+    use reth_db_common::init::init_genesis;
+    use reth_evm_ethereum::EthEvmConfig;
+    use reth_provider::{
+        providers::BlockchainProvider,
+        test_utils::{MockNodeTypesWithDB, create_test_provider_factory_with_chain_spec},
+    };
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    type TestEngineState =
+        EngineState<EthEvmConfig, BlockchainProvider<MockNodeTypesWithDB>, Arc<MdbxProofsStorage>>;
+
+    fn bootstrap_storage() -> Arc<MdbxProofsStorage> {
+        let dir = TempDir::new().unwrap().keep();
+        let store = Arc::new(MdbxProofsStorage::new(&dir).unwrap());
+        let init = store.initialization_provider().expect("init provider");
+        init.set_initial_state_anchor(BlockNumHash { number: 0, hash: B256::ZERO })
+            .expect("set anchor");
+        init.commit_initial_state().expect("commit initial state");
+        OpProofsInitProvider::commit(init).expect("commit tx");
+        store
+    }
+
+    fn make_engine_state() -> TestEngineState {
+        let chain_spec = MAINNET.clone();
+        let factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+        init_genesis(&factory).expect("init genesis");
+        let blockchain_db = BlockchainProvider::new(factory).expect("blockchain provider");
+        let storage = bootstrap_storage();
+        let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
+        let evm_config = EthEvmConfig::ethereum(chain_spec);
+        EngineState::new(evm_config, blockchain_db, storage, pruner)
+    }
+
+    fn unwind_target(block_number: u64) -> BlockWithParent {
+        BlockWithParent::new(
+            B256::repeat_byte(0xAA),
+            NumHash::new(block_number, B256::repeat_byte(0x50)),
+        )
+    }
+
+    #[test]
+    fn unwind_clamps_stale_sync_target_down_to_new_tip() {
+        let mut state = make_engine_state();
+        state.sync_target = 100;
+        state.unwind(unwind_target(50)).expect("unwind");
+        assert_eq!(state.sync_target, 49);
+    }
+
+    #[test]
+    fn unwind_leaves_sync_target_alone_when_at_new_tip() {
+        // sync_target already at the new tip: idempotent.
+        let mut state = make_engine_state();
+        state.sync_target = 49;
+        state.unwind(unwind_target(50)).expect("unwind");
+        assert_eq!(state.sync_target, 49);
+    }
+
+    #[test]
+    fn unwind_leaves_sync_target_alone_when_below_new_tip() {
+        // Engine was behind both before and after the unwind. Don't bump it down further.
+        let mut state = make_engine_state();
+        state.sync_target = 10;
+        state.unwind(unwind_target(50)).expect("unwind");
+        assert_eq!(state.sync_target, 10);
+    }
+
+    #[test]
+    fn unwind_to_block_one_clamps_target_to_zero_without_underflow() {
+        // The original bug scenario at its sharpest: deep rewind all the way back.
+        // `saturating_sub(1)` must not underflow when unwinding to block 1.
+        let mut state = make_engine_state();
+        state.sync_target = 1_000_000;
+        state.unwind(unwind_target(1)).expect("unwind");
+        assert_eq!(state.sync_target, 0);
     }
 }

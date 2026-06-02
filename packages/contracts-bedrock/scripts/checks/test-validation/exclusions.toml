@@ -16,23 +16,24 @@
 # documented here to avoid false validation failures while maintaining the validation rules
 # for standard contract tests.
 src_validation = [
-    "test/invariants/",                    # Invariant testing framework - no direct src counterpart
-    "test/opcm/",                          # OP Chain Manager tests - may have different structure
-    "test/scripts/",                       # Script tests - test deployment/utility scripts, not contracts
-    "test/integration/",                   # Integration tests - test multiple contracts together
-    "test/cannon/MIPS64Memory.t.sol",      # Tests external MIPS implementation
-    "test/dispute/lib/LibClock.t.sol",     # Tests library utilities
-    "test/dispute/lib/LibGameId.t.sol",    # Tests library utilities
-    "test/libraries/DeployUtils.t.sol",    # Tests library utilities - no direct src counterpart
-    "test/setup/DeployVariations.t.sol",   # Tests deployment variations
-    "test/setup/PastNUTBundles.t.sol",     # Tests a test-only library (test/setup/PastNUTBundles.sol)
-    "test/universal/BenchmarkTest.t.sol",  # Performance benchmarking tests
-    "test/universal/ExtendedPause.t.sol",  # Tests extended functionality
-    "test/vendor/Initializable.t.sol",     # Tests external vendor code
-    "test/vendor/InitializableOZv5.t.sol", # Tests external vendor code
-    "test/L2/fork/L2ForkUpgrade.t.sol",    # Tests L2 fork upgrade workflow
-    "test/L2/L2GenesisForkUpgrade.t.sol",  # Tests L2 genesis fork upgrade workflow
-    "test/dispute/zk/ZKDisputeGameIntegration.t.sol", # Integration tests for ZK dispute game lifecycle
+    "test/invariants/",                                       # Invariant testing framework - no direct src counterpart
+    "test/opcm/",                                             # OP Chain Manager tests - may have different structure
+    "test/scripts/",                                          # Script tests - test deployment/utility scripts, not contracts
+    "test/integration/",                                      # Integration tests - test multiple contracts together
+    "test/cannon/MIPS64Memory.t.sol",                         # Tests external MIPS implementation
+    "test/dispute/lib/LibClock.t.sol",                        # Tests library utilities
+    "test/dispute/lib/LibGameId.t.sol",                       # Tests library utilities
+    "test/libraries/DeployUtils.t.sol",                       # Tests library utilities - no direct src counterpart
+    "test/setup/DeployVariations.t.sol",                      # Tests deployment variations
+    "test/setup/PastNUTBundles.t.sol",                        # Tests a test-only library (test/setup/PastNUTBundles.sol)
+    "test/universal/BenchmarkTest.t.sol",                     # Performance benchmarking tests
+    "test/universal/ExtendedPause.t.sol",                     # Tests extended functionality
+    "test/vendor/Initializable.t.sol",                        # Tests external vendor code
+    "test/vendor/InitializableOZv5.t.sol",                    # Tests external vendor code
+    "test/L2/fork/L2ForkUpgrade.t.sol",                       # Tests L2 fork upgrade workflow
+    "test/L2/betanet-fork/L2VerifyBetanetForkUpgrade.t.sol",  # Tests L2 betanet fork upgrade workflow - no src counterpart
+    "test/L2/L2GenesisForkUpgrade.t.sol",                     # Tests L2 genesis fork upgrade workflow
+    "test/dispute/zk/ZKDisputeGameIntegration.t.sol",         # Integration tests for ZK dispute game lifecycle
 ]
 
 # PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:

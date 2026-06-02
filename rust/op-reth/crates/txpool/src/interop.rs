@@ -3,7 +3,7 @@
 use alloy_consensus::Transaction;
 use reth_transaction_pool::PoolTransaction;
 
-use crate::supervisor::CROSS_L2_INBOX_ADDRESS;
+use crate::interop_filter::CROSS_L2_INBOX_ADDRESS;
 
 /// Returns true if the transaction's access list targets `CROSS_L2_INBOX_ADDRESS`
 /// with at least one storage key.

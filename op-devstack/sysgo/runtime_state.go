@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	challengerconfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -14,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
 )
 
@@ -51,7 +51,12 @@ type SingleChainNodeRuntime struct {
 
 type SyncTesterRuntime struct {
 	Service *SyncTesterService
-	Node    *SingleChainNodeRuntime
+	// Node is set on the op-node-verifier path; nil on the supernode path.
+	Node *SingleChainNodeRuntime
+	// EL is the sync-tester-backed L2ELNode.
+	EL L2ELNode
+	// CL drives the sync-tester EL (op-node or SuperNodeProxy).
+	CL L2CLNode
 }
 
 type FlashblocksRuntimeSupport struct {
@@ -61,7 +66,7 @@ type FlashblocksRuntimeSupport struct {
 
 type SingleChainInteropSupport struct {
 	Migration     *interopMigrationState
-	FullConfigSet depset.FullConfigSetMerged
+	FullConfigSet config.FullConfigSetMerged
 	DependencySet coredepset.DependencySet
 }
 
@@ -122,19 +127,20 @@ func (r *SingleChainRuntime) VMConfig(t devtest.T, dir string) *vm.Config {
 }
 
 type MultiChainNodeRuntime struct {
-	Name      string
-	Network   *L2Network
-	EL        L2ELNode
-	CL        L2CLNode
-	Batcher   *L2Batcher
-	Proposer  *L2Proposer
-	Followers map[string]*SingleChainNodeRuntime
+	Name        string
+	Network     *L2Network
+	EL          L2ELNode
+	CL          L2CLNode
+	SupernodeCL L2CLNode
+	Batcher     *L2Batcher
+	Proposer    *L2Proposer
+	Followers   map[string]*SingleChainNodeRuntime
 }
 
 type MultiChainRuntime struct {
 	Keys          devkeys.Keys
 	Migration     *interopMigrationState
-	FullConfigSet depset.FullConfigSetMerged
+	FullConfigSet config.FullConfigSetMerged
 	DependencySet coredepset.DependencySet
 
 	L1Network *L1Network
@@ -151,4 +157,5 @@ type MultiChainRuntime struct {
 	L2ChallengerConfig *challengerconfig.Config
 	DelaySeconds       uint64
 	InteropFilter      *InteropFilter // nil if not using interop filter
+	SyncTester         *SyncTesterRuntime
 }

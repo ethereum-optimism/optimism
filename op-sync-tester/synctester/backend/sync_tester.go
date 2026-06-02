@@ -129,9 +129,8 @@ func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.Blo
 			}
 		}
 		if len(receipts) == 0 {
-			// Should never happen since every block except genesis has at least one deposit tx
-			logger.Warn("L2 Block has zero receipts", "blockNrHash", blockNrOrHash)
-			return nil, errors.New("no receipts")
+			// Genesis legitimately has no receipts.
+			return receipts, nil
 		}
 		target := bigs.Uint64Strict(receipts[0].BlockNumber)
 		if target > session.CurrentState.Latest {
