@@ -393,7 +393,7 @@ func CheckEIP7825DepositBypass(
 	// ~depositGasLimit gas on L1. WithGasLimit overrides the estimator.
 	l1Receipt, err := txplan.NewPlannedTx(l1Plan, callPlan,
 		txplan.WithValue(depositAmount),
-		txplan.WithGasLimit(depositGasLimit+1_000_000),
+		txplan.WithGasLimit(2_000_000),
 	).Included.Eval(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("L1 deposit submission: %w", err)
