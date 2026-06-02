@@ -832,6 +832,12 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 	t.Run("calls engine Rewind with the supplied target and stops VN", func(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockEngine := newMockEngineController()
+		// RewindEngine blocks on WaitReady after Resume; simulate the Start
+		// loop bringing the VN back up immediately after the successful Rewind.
+		mockEngine.rewindFunc = func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
+			mockVN.setState(virtual_node.VNStateRunning)
+			return nil
+		}
 
 		chainID := eth.ChainIDFromUInt64(420)
 		log := createTestLogger(t)
@@ -843,12 +849,13 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 			vn:      mockVN,
 		}
 
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		rewindTimestamp := uint64(1234567890)
 		target := makeTarget(rewindTimestamp)
 		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: rewindTimestamp + 2}
-		err := c.RewindEngine(ctx, target, invalidatedBlock)
-		require.NoError(t, err)
+
+		require.NoError(t, c.RewindEngine(ctx, target, invalidatedBlock))
 
 		require.Equal(t, 1, mockEngine.rewindCalls, "engine.Rewind should be called once")
 		require.Same(t, target, mockEngine.rewindTarget, "engine.Rewind should receive the supplied target envelope")
@@ -961,11 +968,14 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockEngine := newMockEngineController()
 		callCount := 0
+		// RewindEngine blocks on WaitReady after Resume; simulate the Start
+		// loop bringing the VN back up immediately after the successful Rewind.
 		mockEngine.rewindFunc = func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
 			callCount++
 			if callCount < 3 {
 				return context.DeadlineExceeded
 			}
+			mockVN.setState(virtual_node.VNStateRunning)
 			return nil
 		}
 
@@ -979,8 +989,8 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
-		err := c.RewindEngine(ctx, makeTarget(12345), invalidatedBlock)
-		require.NoError(t, err)
+
+		require.NoError(t, c.RewindEngine(ctx, makeTarget(12345), invalidatedBlock))
 		require.Equal(t, 3, mockEngine.rewindCalls, "engine.Rewind should be retried through DeadlineExceeded errors")
 		require.False(t, c.pause.Load(), "Container should be resumed after successful rewind")
 	})
@@ -1014,11 +1024,14 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockEngine := newMockEngineController()
 		failCount := 0
+		// RewindEngine blocks on WaitReady after Resume; simulate the Start
+		// loop bringing the VN back up immediately after the successful Rewind.
 		mockEngine.rewindFunc = func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
 			failCount++
 			if failCount < 3 {
 				return engine_controller.ErrRewindFCUTargetFailed
 			}
+			mockVN.setState(virtual_node.VNStateRunning)
 			return nil
 		}
 
@@ -1030,11 +1043,215 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		}
 
 		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
-		err := c.RewindEngine(context.Background(), makeTarget(12345), invalidatedBlock)
-		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, c.RewindEngine(ctx, makeTarget(12345), invalidatedBlock))
 		require.Equal(t, 3, mockEngine.rewindCalls, "engine.Rewind should be called 3 times (2 failures + 1 success)")
 		require.False(t, c.pause.Load(), "Container should be resumed after successful rewind")
 	})
+}
+
+func TestChainContainer_WaitReady(t *testing.T) {
+	t.Parallel()
+
+	newReadyContainer := func(t *testing.T) *simpleChainContainer {
+		mockVN := newMockVirtualNode()
+		mockVN.state = virtual_node.VNStateRunning
+		return &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			vn:      mockVN,
+		}
+	}
+
+	t.Run("short-circuits when already ready", func(t *testing.T) {
+		t.Parallel()
+		c := newReadyContainer(t)
+		require.True(t, c.IsRPCReady())
+
+		start := time.Now()
+		err := c.WaitReady(context.Background())
+		require.NoError(t, err)
+		require.Less(t, time.Since(start), 10*time.Millisecond, "ready short-circuit should not poll")
+	})
+
+	t.Run("blocks while not ready, returns nil once ready", func(t *testing.T) {
+		t.Parallel()
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+		}
+		c.pause.Store(true)
+
+		done := make(chan error, 1)
+		go func() { done <- c.WaitReady(context.Background()) }()
+
+		select {
+		case <-done:
+			t.Fatal("WaitReady returned while container was paused")
+		case <-time.After(50 * time.Millisecond):
+		}
+
+		// Mirror the Start loop: install a fresh running VN, then unpause.
+		readyVN := newMockVirtualNode()
+		readyVN.state = virtual_node.VNStateRunning
+		c.setVN(readyVN)
+		c.pause.Store(false)
+
+		select {
+		case err := <-done:
+			require.NoError(t, err)
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("WaitReady did not return after container became ready")
+		}
+	})
+
+	t.Run("respects context cancellation", func(t *testing.T) {
+		t.Parallel()
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+		}
+		c.pause.Store(true)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- c.WaitReady(ctx) }()
+
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+
+		select {
+		case err := <-done:
+			require.Error(t, err)
+			require.ErrorIs(t, err, context.Canceled)
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("WaitReady did not return after ctx cancel")
+		}
+	})
+
+	t.Run("respects context deadline", func(t *testing.T) {
+		t.Parallel()
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+		}
+		c.pause.Store(true)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		start := time.Now()
+		err := c.WaitReady(ctx)
+		elapsed := time.Since(start)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.Greater(t, elapsed, 90*time.Millisecond)
+		require.Less(t, elapsed, 500*time.Millisecond, "should not wait beyond caller deadline")
+	})
+
+	t.Run("returns error when stopped even with running VN", func(t *testing.T) {
+		t.Parallel()
+		// Distinct from the pause path: stop=true permanently closes the gate.
+		// Locks in that WaitReady never short-circuits past a stopped container,
+		// even when a running VN is still installed.
+		runningVN := newMockVirtualNode()
+		runningVN.state = virtual_node.VNStateRunning
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			vn:      runningVN,
+		}
+		c.stop.Store(true)
+		require.False(t, c.IsRPCReady())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		err := c.WaitReady(ctx)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+}
+
+// TestChainContainer_RewindEngine_WaitsForVNReady proves the WaitReady barrier
+// in RewindEngine: the call does not return until the chain is ready to serve
+// traffic, even when VN installation lags behind Resume.
+func TestChainContainer_RewindEngine_WaitsForVNReady(t *testing.T) {
+	t.Parallel()
+
+	mockVN := newMockVirtualNode()
+	mockVN.state = virtual_node.VNStateRunning
+	mockEngine := newMockEngineController()
+
+	// rewindCalled fires once engine.Rewind has been entered — proves
+	// RewindEngine has progressed past Pause + vn.Stop and is now committed
+	// to the Resume + WaitReady path. Using this signal instead of polling
+	// !c.pause.Load() avoids racing against the goroutine start: pause
+	// defaults to false, so a polling check could return immediately before
+	// RewindEngine ever ran.
+	rewindCalled := make(chan struct{})
+	mockEngine.rewindFunc = func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
+		close(rewindCalled)
+		return nil
+	}
+
+	c := &simpleChainContainer{
+		chainID: eth.ChainIDFromUInt64(420),
+		log:     createTestLogger(t),
+		engine:  mockEngine,
+		vn:      mockVN,
+	}
+
+	target := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: eth.Uint64Quantity(99),
+			Timestamp:   eth.Uint64Quantity(1234567890),
+			BlockHash:   common.Hash{0xaa},
+			ParentHash:  common.Hash{0xab},
+		},
+	}
+	invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 1234567892}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() { done <- c.RewindEngine(ctx, target, invalidatedBlock) }()
+
+	// Confirm RewindEngine reached engine.Rewind. After this returns, the
+	// goroutine is committed to Resume → WaitReady. mockVN has already been
+	// Stop'd (state=Stopped), so IsRPCReady() is false and WaitReady polls.
+	select {
+	case <-rewindCalled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("engine.Rewind was not called within timeout")
+	}
+
+	// Simulate the Start loop spinning up a new VN after a delay. Until this
+	// completes, RewindEngine must remain blocked inside WaitReady.
+	const installDelay = 200 * time.Millisecond
+	start := time.Now()
+	time.Sleep(installDelay)
+	select {
+	case <-done:
+		t.Fatal("RewindEngine returned before a running VN was installed")
+	default:
+	}
+	freshVN := newMockVirtualNode()
+	freshVN.state = virtual_node.VNStateRunning
+	c.setVN(freshVN)
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("RewindEngine did not return after a running VN was installed")
+	}
+
+	require.GreaterOrEqual(t, time.Since(start), installDelay, "RewindEngine should have blocked through VN install")
+	require.True(t, c.IsRPCReady(), "container should be ready after RewindEngine returns")
 }
 
 // TestChainContainer_VirtualNodeIntegration tests interaction with VirtualNode

@@ -1084,6 +1084,7 @@ func (m *algoMockChain) Start(ctx context.Context) error                  { retu
 func (m *algoMockChain) Stop(ctx context.Context) error                   { return nil }
 func (m *algoMockChain) Pause(ctx context.Context) error                  { return nil }
 func (m *algoMockChain) Resume(ctx context.Context) error                 { return nil }
+func (m *algoMockChain) WaitReady(_ context.Context) error                { return nil }
 func (m *algoMockChain) PauseAndStopVN(ctx context.Context) error         { return nil }
 func (m *algoMockChain) RegisterVerifier(v activity.VerificationActivity) {}
 func (m *algoMockChain) VerifierCurrentL1() (eth.BlockID, bool)           { return eth.BlockID{}, false }
@@ -1167,4 +1168,4 @@ func (m *algoMockChain) IsDenied(height uint64, payloadHash common.Hash) (bool, 
 }
 func (m *algoMockChain) SetResetCallback(cb cc.ResetCallback) {}
 
-var _ cc.ChainContainer = (*algoMockChain)(nil)
+var _ cc.InteropChain = (*algoMockChain)(nil)

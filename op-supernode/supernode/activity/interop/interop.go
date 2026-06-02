@@ -828,7 +828,8 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 				i.metrics.InteropInvalidations.WithLabelValues(p.ChainID.String()).Inc()
 			}
 		}
-		// Resume non-invalidated chains. Invalidated chains are resumed by RewindEngine.
+		// Resume non-invalidated chains. Invalidated chains are resumed by
+		// RewindEngine internally (which also waits for readiness).
 		for chainID, chain := range i.chains {
 			if _, isInvalid := pending.Result.InvalidHeads[chainID]; !isInvalid {
 				if err := chain.Resume(i.ctx); err != nil {
@@ -839,6 +840,22 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		if failedAny {
 			return false, fmt.Errorf("one or more invalidations failed, transition preserved")
 		}
+		// Wait for all resumed chains to be ready for traffic before clearing
+		// the pending transition. Without this barrier the next verifier round
+		// (or external RPC traffic via the shared router gate) hits a chain
+		// whose new VN has not yet reached VNStateRunning. Runs only on the
+		// success path so the error path returns immediately on partial
+		// invalidation failure. Per-chain timeouts are absorbed by the natural
+		// verifier backoff loop, so we log and continue rather than return.
+		waitCtx, cancel := context.WithTimeout(i.ctx, cc.DefaultWaitReadyTimeout)
+		for chainID, chain := range i.chains {
+			if _, isInvalid := pending.Result.InvalidHeads[chainID]; !isInvalid {
+				if err := chain.WaitReady(waitCtx); err != nil {
+					i.log.Error("chain not ready after resume", "chainID", chainID, "err", err)
+				}
+			}
+		}
+		cancel()
 		if err := i.verifiedDB.ClearPendingTransition(); err != nil {
 			return false, fmt.Errorf("clear pending transition: %w", err)
 		}

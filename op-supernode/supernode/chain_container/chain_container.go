@@ -32,6 +32,21 @@ import (
 
 const virtualNodeVersion = "0.1.0"
 
+const (
+	// defaultWaitReadyPoll is the polling interval used by
+	// simpleChainContainer.WaitReady. Matches the RPC router's
+	// defaultGatePoll (25ms) so a WaitReady'ed container becomes
+	// routable on the very next router gate tick.
+	defaultWaitReadyPoll = 25 * time.Millisecond
+	// DefaultWaitReadyTimeout is the default upper bound on WaitReady when
+	// callers do not supply a ctx with their own deadline. Bounded so a
+	// stuck Resume cannot wedge the interop activity loop indefinitely;
+	// matches the RPC router's defaultGateTimeout (60s). Exported so
+	// callers in adjacent packages (e.g. interop activity) can derive
+	// their own ctx deadlines from a single source of truth.
+	DefaultWaitReadyTimeout = 60 * time.Second
+)
+
 // newEngineControllerFromConfig is the engine-controller constructor, overridable in tests.
 var newEngineControllerFromConfig = engine_controller.NewEngineControllerFromConfig
 
@@ -128,6 +143,11 @@ type InteropChain interface {
 	// callers must capture it at build time, before the rewind starts. Returns true if
 	// a rewind was triggered, false otherwise.
 	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error)
+	// WaitReady blocks until IsRPCReady() returns true or ctx is cancelled / times out.
+	// Used by callers that must not return until the chain is actually ready to serve
+	// traffic after a Pause/Resume cycle. Returns ctx.Err() on cancellation or timeout;
+	// returns nil as soon as readiness is observed.
+	WaitReady(ctx context.Context) error
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
@@ -311,6 +331,32 @@ func (c *simpleChainContainer) IsRPCReady() bool {
 	}
 	vn := c.getVN()
 	return vn != nil && vn.State() == virtual_node.VNStateRunning
+}
+
+// WaitReady polls IsRPCReady() until true or ctx is done. If ctx has no
+// deadline, applies DefaultWaitReadyTimeout as a safety bound so a stuck
+// container cannot wedge the caller indefinitely.
+func (c *simpleChainContainer) WaitReady(ctx context.Context) error {
+	if c.IsRPCReady() {
+		return nil
+	}
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, DefaultWaitReadyTimeout)
+		defer cancel()
+	}
+	ticker := time.NewTicker(defaultWaitReadyPoll)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("WaitReady: %w", ctx.Err())
+		case <-ticker.C:
+			if c.IsRPCReady() {
+				return nil
+			}
+		}
+	}
 }
 
 func (c *simpleChainContainer) subPath(path string) string {
@@ -775,7 +821,16 @@ retryLoop:
 	if err != nil {
 		return err
 	}
-	c.log.Info("chain_container/RewindEngine: resumed container")
+
+	// Block until the new VN is installed and running. Without this barrier
+	// callers see RewindEngine return while the next Start() iteration is
+	// still constructing/starting the VN — any RPC traffic submitted in
+	// that window 503s on the router gate. Symmetric with the post-Resume
+	// barrier in interop.applyPendingTransition.
+	if err := c.WaitReady(ctx); err != nil {
+		return fmt.Errorf("RewindEngine: VN not ready after resume: %w", err)
+	}
+	c.log.Info("chain_container/RewindEngine: resumed container, VN ready")
 
 	return nil
 }
