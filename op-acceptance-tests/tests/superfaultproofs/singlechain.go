@@ -187,7 +187,7 @@ func prepareSDMSingleChainTarget(t devtest.T, sys *presets.SingleChainInterop, c
 		t.Ctx(),
 		sys.L2ELA.Escape().L2EthClient().RPC(),
 		targetBlock,
-		sdmpkg.ValidationOptions{},
+		sdmpkg.ValidationOptions{CheckReceipts: true},
 	)
 	t.Require().NoError(err, "target block must contain a valid SDM PostExec tx")
 	t.Require().Equal(targetBlock, validation.Payload.BlockNumber, "post-exec payload must be anchored to the target block")
