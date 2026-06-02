@@ -487,7 +487,7 @@ impl SpanBatch {
 
             // Check that the transactions are not empty and do not contain any deposits.
             for (i, tx) in batch.transactions.iter().enumerate() {
-                let Some(tx_type) = tx.as_ref().first().copied() else {
+                let Some(first_byte) = tx.as_ref().first().copied() else {
                     warn!(
                         target: "batch_span",
                         "transaction data must not be empty, but found empty tx, tx_index: {}",
@@ -495,21 +495,26 @@ impl SpanBatch {
                     );
                     return BatchValidity::Drop(BatchDropReason::EmptyTransaction);
                 };
-                if tx_type == OpTxType::Deposit as u8 {
-                    warn!(
-                        target: "batch_span",
-                        "sequencers may not embed any deposits into batch data, but found tx that has one, tx_index: {}",
-                        i
-                    );
-                    return BatchValidity::Drop(BatchDropReason::DepositTransaction);
-                }
-                if !cfg.is_isthmus_active(batch.timestamp) && tx_type == OpTxType::Eip7702 as u8 {
-                    warn!(target: "batch_span", "EIP-7702 transactions are not supported pre-isthmus. tx_index: {}", i);
-                    return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
-                }
-                if !cfg.is_sdm_active(batch.timestamp) && tx_type == OpTxType::PostExec as u8 {
-                    warn!(target: "batch_span", "PostExec transactions are not supported pre-SDM. tx_index: {}", i);
-                    return BatchValidity::Drop(BatchDropReason::PostExecPreSDM);
+                // A leading byte that doesn't decode to a typed transaction (e.g. a legacy RLP
+                // list header) isn't one of the restricted types, so it falls through to `Accept`.
+                match OpTxType::try_from(first_byte) {
+                    Ok(OpTxType::Deposit) => {
+                        warn!(
+                            target: "batch_span",
+                            "sequencers may not embed any deposits into batch data, but found tx that has one, tx_index: {}",
+                            i
+                        );
+                        return BatchValidity::Drop(BatchDropReason::DepositTransaction);
+                    }
+                    Ok(OpTxType::Eip7702) if !cfg.is_isthmus_active(batch.timestamp) => {
+                        warn!(target: "batch_span", "EIP-7702 transactions are not supported pre-isthmus. tx_index: {}", i);
+                        return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
+                    }
+                    Ok(OpTxType::PostExec) if !cfg.is_sdm_active(batch.timestamp) => {
+                        warn!(target: "batch_span", "PostExec transactions are not supported pre-SDM. tx_index: {}", i);
+                        return BatchValidity::Drop(BatchDropReason::PostExecPreSDM);
+                    }
+                    _ => {}
                 }
             }
         }
@@ -1956,7 +1961,7 @@ mod tests {
         let second = SpanBatchElement {
             epoch_num: 10,
             timestamp: 20,
-            transactions: vec![Bytes::copy_from_slice(&[OpTxType::Deposit as u8])],
+            transactions: vec![Bytes::copy_from_slice(&[u8::from(OpTxType::Deposit)])],
         };
         let third =
             SpanBatchElement { epoch_num: 11, timestamp: 20, transactions: vec![filler_bytes] };
@@ -2018,7 +2023,9 @@ mod tests {
         let second = SpanBatchElement {
             epoch_num: 10,
             timestamp: 20,
-            transactions: vec![Bytes::copy_from_slice(&[alloy_consensus::TxType::Eip7702 as u8])],
+            transactions: vec![Bytes::copy_from_slice(&[u8::from(
+                alloy_consensus::TxType::Eip7702,
+            )])],
         };
         let third =
             SpanBatchElement { epoch_num: 11, timestamp: 20, transactions: vec![filler_bytes] };

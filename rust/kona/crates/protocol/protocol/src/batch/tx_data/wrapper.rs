@@ -61,19 +61,19 @@ impl Encodable for SpanBatchTransactionData {
                 data.encode(out);
             }
             Self::Eip2930(data) => {
-                out.put_u8(OpTxType::Eip2930 as u8);
+                out.put_u8(u8::from(OpTxType::Eip2930));
                 data.encode(out);
             }
             Self::Eip1559(data) => {
-                out.put_u8(OpTxType::Eip1559 as u8);
+                out.put_u8(u8::from(OpTxType::Eip1559));
                 data.encode(out);
             }
             Self::Eip7702(data) => {
-                out.put_u8(OpTxType::Eip7702 as u8);
+                out.put_u8(u8::from(OpTxType::Eip7702));
                 data.encode(out);
             }
             Self::PostExec(data) => {
-                out.put_u8(OpTxType::PostExec as u8);
+                out.put_u8(u8::from(OpTxType::PostExec));
                 data.encode(out);
             }
         }
@@ -230,7 +230,7 @@ impl SpanBatchTransactionData {
         match self {
             Self::PostExec(data) => {
                 let mut out = Vec::with_capacity(1 + data.data.len());
-                out.push(OpTxType::PostExec as u8);
+                out.push(u8::from(OpTxType::PostExec));
                 out.extend_from_slice(data.data.as_ref());
                 Ok(out)
             }

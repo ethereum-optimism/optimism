@@ -47,10 +47,6 @@ struct SpanBatchTransactionParts {
     tx_type: OpTxType,
 }
 
-const fn zero_signature() -> Signature {
-    Signature::new(U256::ZERO, U256::ZERO, false)
-}
-
 impl SpanBatchTransactionParts {
     fn from_op_tx(tx: &OpTxEnvelope) -> Result<Self, SpanBatchError> {
         let (data, signature, to, nonce, gas, chain_id, tx_type) = match tx {
@@ -94,7 +90,8 @@ impl SpanBatchTransactionParts {
                 SpanBatchTransactionData::PostExec(SpanBatchPostExecTransactionData {
                     data: tx.input.clone().into(),
                 }),
-                zero_signature(),
+                // PostExec transactions are unsigned, so we use an all-zero placeholder signature.
+                Signature::new(U256::ZERO, U256::ZERO, false),
                 None,
                 0,
                 0,
