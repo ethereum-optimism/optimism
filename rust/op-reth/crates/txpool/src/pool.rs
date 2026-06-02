@@ -139,6 +139,15 @@ where
         Self { inner, reorg_state, metrics: OpPoolMetrics::default() }
     }
 
+    /// Returns a reference to the wrapped inner pool.
+    ///
+    /// Useful for downstream consumers that need to reach inherent methods on
+    /// the concrete pool type (e.g. `reth_transaction_pool::Pool::validator`)
+    /// which aren't exposed via the [`TransactionPool`] trait.
+    pub const fn inner(&self) -> &P {
+        &self.inner
+    }
+
     /// Returns true if interop filtering should fire on this
     /// `add_external_transactions` call.
     ///
