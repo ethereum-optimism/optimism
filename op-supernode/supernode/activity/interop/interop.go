@@ -94,6 +94,10 @@ const (
 	DecisionRewind
 )
 
+// roundDecisions enumerates every Decision the round loop can emit. Used to
+// pre-initialize the decision counter so all label series exist from startup.
+var roundDecisions = []Decision{DecisionWait, DecisionAdvance, DecisionInvalidate, DecisionRewind}
+
 // Decision is serialized as a self-describing string in the WAL so that the
 // on-disk format survives enum re-ordering or the insertion of new variants.
 func (d Decision) String() string {
@@ -277,6 +281,14 @@ func New(
 	}
 	if metrics == nil {
 		metrics = resources.NewSupernodeMetrics()
+	}
+	// Pre-initialize every decision label series to 0 so the invalidate signal
+	// exists from startup. Without this, the {decision="invalidate"} series only
+	// appears on the first invalidation — already at 1 — and Prometheus
+	// increase()/rate() has no prior 0 sample to diff against, so an alert built
+	// on it misses the very event it guards.
+	for _, d := range roundDecisions {
+		metrics.InteropRoundDecisions.WithLabelValues(d.String())
 	}
 	i := &Interop{
 		log:                 log,
