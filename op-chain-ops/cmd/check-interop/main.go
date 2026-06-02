@@ -452,5 +452,5 @@ func interopTxRejectedError(err error) bool {
 		strings.Contains(msg, "failed to parse access entry") || // op-interop-filter: bad access entry
 		strings.Contains(msg, "interop failsafe is active") || // op-reth: cached failsafe fast-path
 		strings.Contains(msg, "failsafe is enabled") || // op-interop-filter: failsafe at filter level
-		strings.Contains(msg, "no healthy supervisor backends found") // op-reth: interop validation backend marked unhealthy while failsafe rejects checkAccessList
+		strings.Contains(msg, "no healthy supervisor backends found") // proxyd interop_validation: maps the filter's ErrFailsafeEnabled (-32602) to HTTP 503 and marks the (single) filter backend unhealthy
 }
