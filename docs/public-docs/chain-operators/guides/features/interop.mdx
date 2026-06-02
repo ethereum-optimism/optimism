@@ -43,7 +43,13 @@ The table below shows what each role owns.
 
 ## Opt in: activate Lagoon and join a dependency set
 
-Opting in is two distinct actions.
+Opting in means activating the Lagoon hardfork and being part of a dependency set, but the work runs in a specific order:
+
+1. Migrate to super-root fault proofs, as a dependency set of one.
+2. Form the shared dependency set with the other chains.
+3. Activate the Lagoon hardfork.
+
+The sequencer's interop filter comes online once cross-chain messaging is live (a dependency set of more than one chain).
 
 **Activate the Lagoon hardfork.**
 Lagoon is the hardfork that turns on the interop feature for your chain.
@@ -83,7 +89,7 @@ It manages leader election and no-downtime sequencer handover; the interop filte
 
 ## Move fault proofs to super roots
 
-Interop changes how your chain's state is proven, and you do this before activating Lagoon, not after.
+Interop changes how your chain's state is proven.
 A chain in a dependency set proves its state with super roots (commitments across every chain in the set at a timestamp) rather than per-chain output roots, so its fault-proof system moves to super-root dispute games.
 After the migration, op-proposer proposes super-root claims against an op-supernode and op-challenger defends them.
 
