@@ -116,10 +116,22 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 	t.Require().NotNil(chainB.SupernodeCL, "missing l2b supernode CL")
 
 	supernode := newSupernodeFrontend(t, "supernode-two-l2-system", runtime.Supernode.UserRPC())
+	// The supernode VN drives its own EL, distinct from the sequencer's
+	// (joined only by L1 + P2P) in light-sequencer presets. In virtual-sequencer
+	// presets the supernode VN is itself the sequencer, so SupernodeEL == EL and
+	// it reuses the chain's primary EL frontend.
 	l2ASupernodeCL := newL2CLFrontend(t, "supernode", chainA.Network.ChainID(), chainA.SupernodeCL.UserRPC(), chainA.SupernodeCL)
-	l2ASupernodeCL.attachEL(supernodeELFrontend(t, chainA, components.l2AEL))
+	l2ASupernodeEL := components.l2AEL
+	if chainA.SupernodeEL != nil && chainA.SupernodeEL != chainA.EL {
+		l2ASupernodeEL = newL2ELFrontend(t, "supernode", chainA.Network.ChainID(), chainA.SupernodeEL.UserRPC(), chainA.SupernodeEL.EngineRPC(), chainA.SupernodeEL.JWTPath(), chainA.Network.RollupConfig(), chainA.SupernodeEL)
+	}
+	l2ASupernodeCL.attachEL(l2ASupernodeEL)
 	l2BSupernodeCL := newL2CLFrontend(t, "supernode", chainB.Network.ChainID(), chainB.SupernodeCL.UserRPC(), chainB.SupernodeCL)
-	l2BSupernodeCL.attachEL(supernodeELFrontend(t, chainB, components.l2BEL))
+	l2BSupernodeEL := components.l2BEL
+	if chainB.SupernodeEL != nil && chainB.SupernodeEL != chainB.EL {
+		l2BSupernodeEL = newL2ELFrontend(t, "supernode", chainB.Network.ChainID(), chainB.SupernodeEL.UserRPC(), chainB.SupernodeEL.EngineRPC(), chainB.SupernodeEL.JWTPath(), chainB.Network.RollupConfig(), chainB.SupernodeEL)
+	}
+	l2BSupernodeCL.attachEL(l2BSupernodeEL)
 	testSequencer := newTestSequencerFrontend(
 		t,
 		runtime.TestSequencer.Name,
@@ -161,27 +173,6 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 	preset.FunderA = dsl.NewFunder(preset.Wallet, preset.FaucetA, preset.L2ELA)
 	preset.FunderB = dsl.NewFunder(preset.Wallet, preset.FaucetB, preset.L2ELB)
 	return preset
-}
-
-// supernodeELFrontend returns an EL frontend for the supernode VN's EL. When
-// the supernode shares the chain's primary EL (virtual-sequencer presets) it
-// reuses the already-built sequencer EL frontend; when the supernode has its
-// own EL (light-sequencer presets, production topology) it builds a dedicated
-// frontend so the supernode CL is attached to the EL it actually drives.
-func supernodeELFrontend(t devtest.T, chain *sysgo.MultiChainNodeRuntime, seqELFrontend *l2ELFrontend) *l2ELFrontend {
-	if chain.SupernodeEL == nil || chain.SupernodeEL == chain.EL {
-		return seqELFrontend
-	}
-	return newL2ELFrontend(
-		t,
-		"supernode",
-		chain.Network.ChainID(),
-		chain.SupernodeEL.UserRPC(),
-		chain.SupernodeEL.EngineRPC(),
-		chain.SupernodeEL.JWTPath(),
-		chain.Network.RollupConfig(),
-		chain.SupernodeEL,
-	)
 }
 
 func twoL2SupernodeFollowL2FromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *TwoL2SupernodeFollowL2 {

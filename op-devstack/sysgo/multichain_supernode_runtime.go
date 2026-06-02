@@ -356,7 +356,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			L2FollowSource: supernodeL2ACL.UserRPC(),
 			L2CLOptions:    cfg.GlobalL2CLOptions,
 			// Follow-mode sequencers reorg onto the supernode's invalid-message
-			// replacement via EL sync; req-resp CL sync is being deprecated.
+			// replacement via EL sync.
 			SyncMode: nodeSync.ELSync,
 		})
 		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, seqL2BEL, jwtSecret, l2CLNodeStartConfig{
@@ -521,8 +521,7 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 		UseReqResp:     false,
 		L2FollowSource: chain.CL.UserRPC(),
 		DependencySet:  runtime.DependencySet,
-		// Follow nodes catch up to their follow source via EL sync;
-		// req-resp CL sync is being deprecated.
+		// Follow nodes catch up to their follow source via EL sync.
 		SyncMode: nodeSync.ELSync,
 	})
 

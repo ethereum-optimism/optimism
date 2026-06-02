@@ -285,10 +285,7 @@ type l2CLNodeStartConfig struct {
 	L2FollowSource string
 	DependencySet  depset.DependencySet
 	L2CLOptions    []L2CLOption
-	// SyncMode overrides the sequencer and verifier sync modes. The zero value
-	// equals nodeSync.CLSync (iota 0), which is already the DefaultL2CLConfig
-	// default, so leaving it unset is a no-op; set it to nodeSync.ELSync to switch
-	// follow-mode nodes to EL sync.
+	// SyncMode overrides the sequencer and verifier sync modes; defaults to CLSync if unset.
 	SyncMode nodeSync.Mode
 }
 
