@@ -85,6 +85,7 @@ mod tests {
     use crate::{SpanBatchElement, SpanBatchError, SpanBatchTransactions};
     use alloc::{vec, vec::Vec};
     use alloy_consensus::{Signed, TxEip2930, TxEnvelope};
+    use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Bytes, Signature, TxKind, address, hex};
 
     #[test]
@@ -107,7 +108,7 @@ mod tests {
         ));
         let mut span_batch_txs = SpanBatchTransactions::default();
         let mut buf = vec![];
-        tx.encode(&mut buf);
+        tx.encode_2718(&mut buf);
         let txs = vec![Bytes::from(buf)];
         let chain_id = 1;
         span_batch_txs.add_txs(txs, chain_id).unwrap();

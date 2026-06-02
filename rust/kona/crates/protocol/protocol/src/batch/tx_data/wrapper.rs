@@ -1,14 +1,43 @@
 //! This module contains the top level span batch transaction data type.
 
+use alloc::vec::Vec;
 use alloy_consensus::{Transaction, TxEnvelope, TxType};
+use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Signature, U256};
-use alloy_rlp::{Bytes, Decodable, Encodable};
+use alloy_rlp::{Bytes, Decodable, Encodable, Header};
+use op_alloy_consensus::POST_EXEC_TX_TYPE_ID;
 
 use crate::{
     SpanBatchEip1559TransactionData, SpanBatchEip2930TransactionData,
     SpanBatchEip7702TransactionData, SpanBatchError, SpanBatchLegacyTransactionData,
     SpanDecodingError,
 };
+
+/// `PostExec` transaction data within a span batch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpanBatchPostExecTransactionData {
+    /// RLP-encoded `PostExec` payload bytes.
+    pub data: Bytes,
+}
+
+impl Encodable for SpanBatchPostExecTransactionData {
+    fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
+        out.put_slice(self.data.as_ref());
+    }
+}
+
+impl Decodable for SpanBatchPostExecTransactionData {
+    fn decode(r: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {
+        let header = Header::decode(&mut (**r).as_ref())?;
+        let len = header.payload_length + header.length();
+        if r.len() < len {
+            return Err(alloy_rlp::Error::InputTooShort);
+        }
+        let data = Bytes::from(r[..len].to_vec());
+        *r = &r[len..];
+        Ok(Self { data })
+    }
+}
 
 /// The typed transaction data for a transaction within a span batch.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +50,8 @@ pub enum SpanBatchTransactionData {
     Eip1559(SpanBatchEip1559TransactionData),
     /// EIP-7702 transaction data.
     Eip7702(SpanBatchEip7702TransactionData),
+    /// `PostExec` transaction data.
+    PostExec(SpanBatchPostExecTransactionData),
 }
 
 impl Encodable for SpanBatchTransactionData {
@@ -39,6 +70,10 @@ impl Encodable for SpanBatchTransactionData {
             }
             Self::Eip7702(data) => {
                 out.put_u8(TxType::Eip7702 as u8);
+                data.encode(out);
+            }
+            Self::PostExec(data) => {
+                out.put_u8(POST_EXEC_TX_TYPE_ID);
                 data.encode(out);
             }
         }
@@ -105,13 +140,14 @@ impl TryFrom<&TxEnvelope> for SpanBatchTransactionData {
 }
 
 impl SpanBatchTransactionData {
-    /// Returns the transaction type of the [`SpanBatchTransactionData`].
-    pub const fn tx_type(&self) -> TxType {
+    /// Returns the transaction type ID of the [`SpanBatchTransactionData`].
+    pub const fn tx_type(&self) -> u8 {
         match self {
-            Self::Legacy(_) => TxType::Legacy,
-            Self::Eip2930(_) => TxType::Eip2930,
-            Self::Eip1559(_) => TxType::Eip1559,
-            Self::Eip7702(_) => TxType::Eip7702,
+            Self::Legacy(_) => TxType::Legacy as u8,
+            Self::Eip2930(_) => TxType::Eip2930 as u8,
+            Self::Eip1559(_) => TxType::Eip1559 as u8,
+            Self::Eip7702(_) => TxType::Eip7702 as u8,
+            Self::PostExec(_) => POST_EXEC_TX_TYPE_ID,
         }
     }
 
@@ -119,6 +155,10 @@ impl SpanBatchTransactionData {
     pub fn decode_typed(b: &[u8]) -> Result<Self, alloy_rlp::Error> {
         if b.len() <= 1 {
             return Err(alloy_rlp::Error::Custom("Invalid transaction data"));
+        }
+
+        if b[0] == POST_EXEC_TX_TYPE_ID {
+            return Ok(Self::PostExec(SpanBatchPostExecTransactionData::decode(&mut &b[1..])?));
         }
 
         match b[0].try_into().map_err(|_| alloy_rlp::Error::Custom("Invalid tx type"))? {
@@ -168,6 +208,35 @@ impl SpanBatchTransactionData {
                 };
                 TxEnvelope::Eip7702(data.to_signed_tx(nonce, gas, addr, chain_id, signature)?)
             }
+            Self::PostExec(_) => {
+                return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+            }
         })
+    }
+
+    /// Encodes the transaction as a full EIP-2718 transaction.
+    pub fn to_full_tx_bytes(
+        &self,
+        nonce: u64,
+        gas: u64,
+        to: Option<Address>,
+        chain_id: u64,
+        signature: Signature,
+        is_protected: bool,
+    ) -> Result<Vec<u8>, SpanBatchError> {
+        match self {
+            Self::PostExec(data) => {
+                let mut out = Vec::with_capacity(1 + data.data.len());
+                out.push(POST_EXEC_TX_TYPE_ID);
+                out.extend_from_slice(data.data.as_ref());
+                Ok(out)
+            }
+            _ => {
+                let tx = self.to_signed_tx(nonce, gas, to, chain_id, signature, is_protected)?;
+                let mut out = Vec::new();
+                tx.encode_2718(&mut out);
+                Ok(out)
+            }
+        }
     }
 }

@@ -506,6 +506,36 @@ where
     .serialize(serializer)
 }
 
+/// Deserialize a post-exec transaction from its RPC representation.
+///
+/// Counterpart to [`serde_post_exec_tx_rpc`]. RPC responses (e.g. `eth_getBlockByHash` with full
+/// transactions) encode the transaction as a full object whose `input` field carries the
+/// RLP-encoded [`PostExecPayload`]; the remaining fields (`gas`, `value`, `from`, `gasPrice`, …)
+/// are derived placeholders that we ignore. We decode the payload from `input` and reuse the
+/// RPC-provided `hash` so the sealed transaction round-trips without recomputation.
+///
+/// Without this, the envelope's `PostExec` variant would fall back to [`TxPostExec`]'s standalone
+/// serde form (which expects the [`PostExecPayload`] shape), and deserializing an RPC block that
+/// contains a post-exec transaction would fail.
+#[cfg(feature = "serde")]
+pub fn serde_post_exec_tx_rpc_de<'de, D>(deserializer: D) -> Result<Sealed<TxPostExec>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    struct SerdeHelper {
+        hash: B256,
+        input: Bytes,
+    }
+
+    let SerdeHelper { hash, input } = SerdeHelper::deserialize(deserializer)?;
+    let payload =
+        PostExecPayload::from_rlp_bytes(input.as_ref()).map_err(serde::de::Error::custom)?;
+    Ok(Sealed::new_unchecked(TxPostExec::new(payload), hash))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -649,5 +679,52 @@ mod tests {
         let decoded: TxPostExec = serde_json::from_value(value).expect("deserialize tx");
         assert_eq!(decoded, tx);
         assert_eq!(decoded.input, decoded.payload.to_rlp_bytes());
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn post_exec_envelope_rpc_serde_roundtrip() {
+        use crate::OpTxEnvelope;
+
+        let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+        let envelope = OpTxEnvelope::PostExec(tx.seal_slow());
+
+        // Serializes via `serde_post_exec_tx_rpc` (the RPC `{hash,type,gas,value,input}` shape)
+        // and must deserialize back through `serde_post_exec_tx_rpc_de`.
+        let value = serde_json::to_value(&envelope).expect("serialize envelope");
+        let decoded: OpTxEnvelope = serde_json::from_value(value).expect("deserialize envelope");
+
+        assert_eq!(decoded, envelope);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn post_exec_envelope_rpc_deserialize_ignores_extra_fields() {
+        use crate::OpTxEnvelope;
+
+        // Mirrors the object op-geth emits in `eth_getBlockByHash` full-transaction responses:
+        // the canonical data lives in `input`, with derived placeholder/metadata fields alongside.
+        let tx = build_post_exec_tx(27, vec![SDMGasEntry { index: 1, gas_refund: 9 }]);
+        let sealed = tx.clone().seal_slow();
+        let json = serde_json::json!({
+            "type": "0x7d",
+            "hash": sealed.hash(),
+            "gas": "0x0",
+            "value": "0x0",
+            "input": tx.input,
+            "from": "0x0000000000000000000000000000000000000000",
+            "gasPrice": "0x358a0487",
+            "blockHash": "0xab6dfcf5ad132602e939db5f84f56945b1be4e136daab002f9bf9ff0c7f9f7a5",
+            "blockNumber": "0x1b",
+            "transactionIndex": "0x11",
+            "blockTimestamp": "0x6a19f379",
+        });
+
+        let decoded: OpTxEnvelope = serde_json::from_value(json).expect("deserialize rpc tx");
+        let OpTxEnvelope::PostExec(decoded) = decoded else {
+            panic!("expected post-exec envelope, got {decoded:?}");
+        };
+        assert_eq!(decoded.inner(), &tx);
+        assert_eq!(decoded.hash(), sealed.hash());
     }
 }

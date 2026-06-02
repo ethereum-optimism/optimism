@@ -5,7 +5,9 @@ use alloy_consensus::{Transaction, TxType, Typed2718};
 use alloy_primitives::{B256, U256};
 use alloy_rlp::{Buf, Header};
 use kona_genesis::{RollupConfig, SystemConfig};
-use op_alloy_consensus::{OpBlock, decode_holocene_extra_data, decode_jovian_extra_data};
+use op_alloy_consensus::{
+    OpBlock, POST_EXEC_TX_TYPE_ID, decode_holocene_extra_data, decode_jovian_extra_data,
+};
 
 use crate::{
     L1BlockInfoBedrockOnlyFields as _, L1BlockInfoEcotoneBaseFields as _, L1BlockInfoTx,
@@ -96,46 +98,48 @@ fn encode_scalar(blob_base_fee_scalar: u32, base_fee_scalar: u32) -> U256 {
 }
 
 /// Reads transaction data from a reader.
-pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, TxType), SpanBatchError> {
-    let mut tx_data = Vec::new();
+pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, u8), SpanBatchError> {
     let first_byte =
         *r.first().ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
-    let mut tx_type = 0;
-    if first_byte <= 0x7F {
-        // EIP-2718: Non-legacy tx, so write tx type
-        tx_type = first_byte;
-        tx_data.push(tx_type);
+    let tx_type = if first_byte <= 0x7F {
         r.advance(1);
-    }
+        first_byte
+    } else {
+        TxType::Legacy as u8
+    };
 
     // Read the RLP header with a different reader pointer. This prevents the initial pointer from
     // being advanced in the case that what we read is invalid.
     let rlp_header = Header::decode(&mut (**r).as_ref())
         .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
+    if !rlp_header.list {
+        return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+    }
 
-    let tx_payload = if rlp_header.list {
-        // Grab the raw RLP for the transaction data from `r`. It was unaffected since we copied it.
-        let payload_length_with_header = rlp_header.payload_length + rlp_header.length();
-        if payload_length_with_header > MAX_SPAN_BATCH_ELEMENTS as usize {
-            return Err(SpanBatchError::TooBigSpanBatchSize);
-        }
-        if r.len() < payload_length_with_header {
-            return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
-        }
-        let payload = r[0..payload_length_with_header].to_vec();
-        r.advance(payload_length_with_header);
-        Ok(payload)
-    } else {
-        Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))
-    }?;
-    tx_data.extend_from_slice(&tx_payload);
+    let payload_length_with_header = rlp_header.payload_length + rlp_header.length();
+    if payload_length_with_header > MAX_SPAN_BATCH_ELEMENTS as usize {
+        return Err(SpanBatchError::TooBigSpanBatchSize);
+    }
+    if r.len() < payload_length_with_header {
+        return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+    }
 
-    Ok((
-        tx_data,
-        tx_type
+    let is_typed_tx = tx_type != TxType::Legacy as u8;
+    let tx_data_capacity = payload_length_with_header + usize::from(is_typed_tx);
+    let mut tx_data = Vec::with_capacity(tx_data_capacity);
+    if is_typed_tx {
+        tx_data.push(tx_type);
+    }
+    tx_data.extend_from_slice(&r[..payload_length_with_header]);
+    r.advance(payload_length_with_header);
+
+    if tx_type != POST_EXEC_TX_TYPE_ID {
+        let _: TxType = tx_type
             .try_into()
-            .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType))?,
-    ))
+            .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType))?;
+    }
+
+    Ok((tx_data, tx_type))
 }
 
 #[cfg(test)]
