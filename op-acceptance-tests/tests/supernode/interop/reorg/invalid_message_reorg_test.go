@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
@@ -38,7 +37,13 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 // light-sequencer path. op-geth is being deprecated, so we skip rather than block on it.
 func TestSupernodeLightSequencerInteropInvalidMessageReplacement(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sysgo.SkipOnOpGeth(t, "light-sequencer follow-mode reorg recovery does not converge on op-geth (op-geth deprecating); see #21119")
+	// Skipped: an ELSync follow-mode sequencer cannot bootstrap from genesis. As the chain's sole
+	// block producer it has no peer payload to initial-EL-sync from, so it deadlocks in
+	// willStartEL and the chain never starts. TODO #21164. When re-enabling after that is
+	// fixed: this scenario is op-reth only (op-geth never adopts the replacement, #21119) and
+	// follow-mode reorg recovery is still flaky (latestHead can fail to re-anchor past a
+	// FollowSource forceReset under EL sync, #21125).
+	t.Skip("follow-mode light-sequencer ELSync genesis bootstrap unsupported; TODO #21164")
 	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0)
 	runInteropInvalidMessageReplacementScenario(t, sys)
 }
