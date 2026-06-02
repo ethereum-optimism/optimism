@@ -149,13 +149,13 @@ run_scenario \
   "After merge (develop), rust changed" \
   "webhook" "develop" "" "" \
   '{"c-rust_changes_detected": true, "c-contracts_changed": false, "c-docs_changes_detected": true}' \
-  main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates
+  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates
 
 run_scenario \
   "After merge (develop), no rust changes" \
   "webhook" "develop" "" "" \
   '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-docs_changes_detected": false}' \
-  main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip
+  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci_gate_short rust_e2e_gate_skip
 
 run_scenario \
   "Scheduled: build_four_hours" \
@@ -186,6 +186,12 @@ run_scenario \
   "api" "" "" "" \
   '{"c-main_dispatch": false, "c-rust_ci_dispatch": true, "c-github-event-type": "__not_set__"}' \
   release rust_ci
+
+run_scenario \
+  "API: publish_contract_artifacts_dispatch" \
+  "api" "" "" "" \
+  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  release publish_contract_artifacts
 
 run_scenario \
   "API: github event labeled PR" \

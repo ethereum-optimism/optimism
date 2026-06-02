@@ -19,10 +19,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// testSupervisorAPI is a mock supervisor API for testing
-type testSupervisorAPI struct{}
+// testInteropAPI is a mock interop API for testing.
+type testInteropAPI struct{}
 
-func (t *testSupervisorAPI) Ping(_ context.Context) string {
+func (t *testInteropAPI) Ping(_ context.Context) string {
 	return "pong"
 }
 
@@ -50,7 +50,7 @@ func TestDedicatedAdminRPCServer(t *testing.T) {
 	)
 	filterServer.AddAPI(rpc.API{
 		Namespace: "interop",
-		Service:   new(testSupervisorAPI),
+		Service:   new(testInteropAPI),
 	})
 
 	// Create admin server (JWT-protected)
@@ -133,7 +133,7 @@ func TestPublicAdminGetFailsafe(t *testing.T) {
 	)
 	filterServer.AddAPI(rpc.API{
 		Namespace: "interop",
-		Service:   new(testSupervisorAPI),
+		Service:   new(testInteropAPI),
 	})
 	filterServer.AddAPI(rpc.API{
 		Namespace: "admin",
@@ -157,7 +157,7 @@ func TestPublicAdminGetFailsafe(t *testing.T) {
 		require.Equal(t, false, res)
 	})
 
-	t.Run("supervisor API still works alongside public admin", func(t *testing.T) {
+	t.Run("interop API still works alongside public admin", func(t *testing.T) {
 		var res string
 		err := filterClient.Call(&res, "interop_ping")
 		require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestFilterAPIWithoutAdminServer(t *testing.T) {
 	)
 	filterServer.AddAPI(rpc.API{
 		Namespace: "interop",
-		Service:   new(testSupervisorAPI),
+		Service:   new(testInteropAPI),
 	})
 
 	require.NoError(t, filterServer.Start())

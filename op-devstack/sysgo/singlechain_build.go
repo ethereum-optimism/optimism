@@ -150,14 +150,14 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 
 // startL2ELForKey starts an L2 EL node for the given key, respecting DEVSTACK_L2EL_KIND.
 // This is the single env-aware dispatch point for L2 EL selection.
-func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, key string, identity *ELNodeIdentity) L2ELNode {
+func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, key string, identity *ELNodeIdentity, opts ...OpRethOption) L2ELNode {
 	switch devstackL2ELKind() {
 	case MixedL2ELOpGeth:
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
 	case MixedL2ELOpRethV2:
-		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v2")
+		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v2", opts...)
 	default: // op-reth v1
-		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1")
+		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1", opts...)
 	}
 }
 
@@ -193,8 +193,8 @@ func startL2CLForKey(
 	}
 }
 
-func startSequencerEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, identity *ELNodeIdentity) L2ELNode {
-	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", identity)
+func startSequencerEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, identity *ELNodeIdentity, opts ...OpRethOption) L2ELNode {
+	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", identity, opts...)
 }
 
 func startL2ELNode(
@@ -356,6 +356,13 @@ func startL2CLNode(
 	require.NoError(err, "failed to load p2p config")
 	p2pConfig.NoDiscovery = cfg.NoDiscovery
 	p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
+	// Devstack chain timestamps are synthetic: genesis is set in the past and the
+	// chain may lag many seconds behind wallclock during startup (or many minutes
+	// during long tests like dispute games). The production-default 60s gossip
+	// "too old" check then rejects otherwise-valid TestSequencer-produced blocks
+	// — surfacing as "validation failed" out of ts.Next at startup. Match the
+	// multichain devstack (see newDevstackP2PConfig) by loosening to 1 hour.
+	p2pConfig.GossipTimestampThreshold = time.Hour
 
 	nodeCfg := &config.Config{
 		L1: &config.L1EndpointConfig{

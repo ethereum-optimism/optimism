@@ -132,6 +132,11 @@ func TestBatchRoundTrip(t *testing.T) {
 	blockTime := uint64(2)
 	genesisTimestamp := uint64(0)
 	chainID := new(big.Int).SetUint64(rng.Uint64())
+	rollupCfg := &rollup.Config{
+		Genesis:   rollup.Genesis{L2Time: genesisTimestamp},
+		BlockTime: blockTime,
+		L2ChainID: chainID,
+	}
 
 	batches := []*BatchData{
 		NewBatchData(
@@ -164,7 +169,7 @@ func TestBatchRoundTrip(t *testing.T) {
 		err = dec.UnmarshalBinary(enc)
 		require.NoError(t, err)
 		if dec.GetBatchType() == SpanBatchType {
-			_, err := DeriveSpanBatch(&dec, blockTime, genesisTimestamp, chainID)
+			_, err := DeriveSpanBatch(&dec, rollupCfg)
 			require.NoError(t, err)
 		}
 		requireEqual(t, batch, &dec, "Batch not equal test case %v", i)
@@ -176,6 +181,11 @@ func TestBatchRoundTripRLP(t *testing.T) {
 	blockTime := uint64(2)
 	genesisTimestamp := uint64(0)
 	chainID := new(big.Int).SetUint64(rng.Uint64())
+	rollupCfg := &rollup.Config{
+		Genesis:   rollup.Genesis{L2Time: genesisTimestamp},
+		BlockTime: blockTime,
+		L2ChainID: chainID,
+	}
 
 	batches := []*BatchData{
 		NewBatchData(
@@ -212,7 +222,7 @@ func TestBatchRoundTripRLP(t *testing.T) {
 		err = dec.DecodeRLP(s)
 		require.NoError(t, err)
 		if dec.GetBatchType() == SpanBatchType {
-			_, err = DeriveSpanBatch(&dec, blockTime, genesisTimestamp, chainID)
+			_, err = DeriveSpanBatch(&dec, rollupCfg)
 			require.NoError(t, err)
 		}
 		requireEqual(t, batch, &dec, "Batch not equal test case %v", i)

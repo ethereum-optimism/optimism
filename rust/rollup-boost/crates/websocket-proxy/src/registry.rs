@@ -1,13 +1,11 @@
-use crate::client::ClientConnection;
-use crate::metrics::Metrics;
+use crate::{client::ClientConnection, metrics::Metrics};
 use axum::extract::ws::Message;
-use futures::stream::StreamExt;
-use futures::SinkExt;
-use std::sync::Arc;
-use std::time::Instant;
-use tokio::sync::broadcast::error::RecvError;
-use tokio::sync::broadcast::Sender;
-use tokio::time::{interval, Duration};
+use futures::{stream::StreamExt, SinkExt};
+use std::{sync::Arc, time::Instant};
+use tokio::{
+    sync::broadcast::{error::RecvError, Sender},
+    time::{interval, Duration},
+};
 use tracing::{debug, info, trace, warn};
 
 #[derive(Clone)]

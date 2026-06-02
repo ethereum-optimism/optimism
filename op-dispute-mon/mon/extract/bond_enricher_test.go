@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
@@ -97,5 +98,16 @@ func TestBondEnricher(t *testing.T) {
 		}
 		require.Equal(t, expectedCredits, game.Credits)
 		require.Equal(t, faultTypes.RefundDistributionMode, game.BondDistributionMode)
+	})
+
+	t.Run("SkipSuperPermissioned", func(t *testing.T) {
+		enricher := NewBondEnricher()
+		caller := &mockGameCaller{creditsErr: errors.New("nope")}
+		game := &monTypes.EnrichedGameData{
+			GameMetadata: gameTypes.GameMetadata{GameType: uint32(gameTypes.SuperPermissionedGameType)},
+		}
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
+		require.NoError(t, err)
+		require.Empty(t, caller.requestedCredits)
 	})
 }

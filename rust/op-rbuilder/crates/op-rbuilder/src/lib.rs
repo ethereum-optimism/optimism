@@ -7,6 +7,7 @@ pub mod metrics;
 mod monitor_tx_pool;
 pub mod primitives;
 pub mod revert_protection;
+pub mod sdm_admin;
 pub mod traits;
 pub mod tx;
 pub mod tx_signer;

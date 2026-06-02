@@ -61,11 +61,6 @@ func (s *SyncDeriver) OnL1Finalized(ctx context.Context) {
 }
 
 func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
-	// TODO(#16917) Remove Event System Refactor Comments
-	//  ELSyncStartedEvent is removed and OnELSyncStarted is synchronously called at EngineController
-	//  ReceivedBlockEvent is removed and OnUnsafeL2Payload is synchronously called at NewBlockReceiver
-	//  L1UnsafeEvent is removed and OnL1Unsafe is synchronously called at L1Handler
-	//  FinalizeL1Event is removed and OnL1Finalized is synchronously called at L1Handler
 	switch x := ev.(type) {
 	case StepEvent:
 		s.SyncStep()

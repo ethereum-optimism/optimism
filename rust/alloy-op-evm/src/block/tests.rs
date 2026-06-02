@@ -373,7 +373,13 @@ mod sdm {
             .tx_gas_used();
         assert!(second_user_gas < first_user_gas, "second user tx should receive an SDM refund");
 
+        let snapshot = producer.post_exec_entries().to_vec();
+        assert!(!snapshot.is_empty(), "snapshot should expose produced SDM entries");
+        assert_eq!(producer.post_exec_entries(), snapshot.as_slice(), "snapshot must not drain");
+
         let entries = producer.take_post_exec_entries();
+        assert_eq!(entries, snapshot, "take should return the same entries observed by snapshot");
+        assert!(producer.post_exec_entries().is_empty(), "take should drain produced entries");
         assert!(!entries.is_empty(), "producer should emit at least one SDM refund entry");
         assert_eq!(entries[0].index, 1, "the second tx reuses block-warmed addresses");
         assert!(entries[0].gas_refund > 0);

@@ -6,13 +6,12 @@ import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.s
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
-
-// Contracts
-import { L2ProxyAdmin } from "src/L2/L2ProxyAdmin.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
+import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 
@@ -39,6 +38,10 @@ library L2ContractsManagerUtils {
     /// @param _target The address that has no code.
     error L2ContractsManager_EmptyImplementation(address _target);
 
+    /// @notice Thrown when an implementation name is not found in the constructor input.
+    /// @param name The name that was not found.
+    error L2ContractsManager_ImplNotFound(string name);
+
     /// @notice Upgrades a predeploy to a new implementation without calling an initializer.
     ///         Reverts if the predeploy is not upgradeable.
     /// @param _proxy The proxy address of the predeploy.
@@ -49,7 +52,7 @@ library L2ContractsManagerUtils {
 
         // We skip checking the version for those predeploys that have no code. This would be the case for newly added
         // predeploys that are being introduced on this particular upgrade.
-        address implementation = L2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
+        address implementation = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
 
         // We avoid downgrading Predeploys
         if (
@@ -120,7 +123,7 @@ library L2ContractsManagerUtils {
 
         // We skip checking the version for those predeploys that have no code. This would be the case for newly added
         // predeploys that are being introduced on this particular upgrade.
-        address implementation = L2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
+        address implementation = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
 
         if (
             implementation.code.length != 0
@@ -170,5 +173,26 @@ library L2ContractsManagerUtils {
 
         // Upgrade to the implementation and call the initializer.
         IProxy(payable(_proxy)).upgradeToAndCall(_implementation, _data);
+    }
+
+    /// @notice Looks up an implementation address by name from a record array.
+    /// @param _records The array of ImplRecords to search.
+    /// @param _name The name to look up.
+    /// @return impl_ The implementation address, reverts if not found.
+    function findImpl(
+        L2ContractsManagerTypes.ImplRecord[] memory _records,
+        string memory _name
+    )
+        internal
+        pure
+        returns (address impl_)
+    {
+        for (uint256 i = 0; i < _records.length; i++) {
+            if (LibString.eq(_records[i].name, _name)) {
+                impl_ = _records[i].impl;
+                return impl_;
+            }
+        }
+        revert L2ContractsManager_ImplNotFound(_name);
     }
 }

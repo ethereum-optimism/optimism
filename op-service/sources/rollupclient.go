@@ -81,6 +81,16 @@ func (r *RollupClient) SequencerActive(ctx context.Context) (bool, error) {
 	return result, err
 }
 
+func (r *RollupClient) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
+	return r.rpc.CallContext(ctx, nil, "admin_setSdmPostExecOptIn", enabled)
+}
+
+func (r *RollupClient) SdmStatus(ctx context.Context) (apis.SdmStatus, error) {
+	var result apis.SdmStatus
+	err := r.rpc.CallContext(ctx, &result, "admin_sdmStatus")
+	return result, err
+}
+
 func (r *RollupClient) PostUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return r.rpc.CallContext(ctx, nil, "admin_postUnsafePayload", payload)
 }

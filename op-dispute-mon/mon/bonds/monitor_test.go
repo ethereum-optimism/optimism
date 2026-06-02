@@ -61,6 +61,20 @@ func TestCheckBonds(t *testing.T) {
 	require.Nil(t, logs.FindLog(testlog.NewAttributesFilter("delayedWETH", weth1.Hex())))
 }
 
+func TestCheckBondsSkipsSuperPermissioned(t *testing.T) {
+	bonds, metrics, _ := setupBondMetricsTest(t)
+	game := &monTypes.EnrichedGameData{
+		GameMetadata: gameTypes.GameMetadata{
+			GameType: uint32(gameTypes.SuperPermissionedGameType),
+		},
+	}
+
+	require.NotPanics(t, func() {
+		bonds.CheckBonds([]*monTypes.EnrichedGameData{game})
+	})
+	require.Empty(t, metrics.recorded)
+}
+
 func TestCheckRecipientCredit(t *testing.T) {
 	addr1 := common.Address{0x11, 0xaa}
 	addr2 := common.Address{0x22, 0xbb}

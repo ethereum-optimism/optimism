@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
@@ -24,6 +25,9 @@ func NewWithdrawalsEnricher() *WithdrawalsEnricher {
 }
 
 func (w *WithdrawalsEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
+	if gameTypes.GameType(game.GameType) == gameTypes.SuperPermissionedGameType {
+		return nil
+	}
 	recipients := slices.Collect(maps.Keys(game.Recipients))
 	withdrawals, err := caller.GetWithdrawals(ctx, block, recipients...)
 	if err != nil {

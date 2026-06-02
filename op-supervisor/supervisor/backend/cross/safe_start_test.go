@@ -7,9 +7,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
@@ -46,7 +46,7 @@ func TestCrossSafeHazards(t *testing.T) {
 			Timestamp: 42,
 		})
 		hazards, err := CrossSafeHazards(ssd, linker, newTestLogger(t), chainID, inL1Source, candidate)
-		require.ErrorIs(t, err, types.ErrConflict)
+		require.ErrorIs(t, err, interop.ErrConflict)
 		require.Empty(t, hazards)
 		require.True(t, done)
 	})
@@ -206,7 +206,7 @@ func TestCrossSafeHazards(t *testing.T) {
 		// and DerivedToSource returns a BlockSeal with a greater Number than the inL1Source,
 		// an error is returned as a ErrOutOfScope
 		hazards, err := CrossSafeHazards(ssd, linkerAny{}, logger, chainID, inL1Source, candidate)
-		require.ErrorIs(t, err, types.ErrOutOfScope)
+		require.ErrorIs(t, err, interop.ErrOutOfScope)
 		require.Empty(t, hazards)
 	})
 	t.Run("timestamp is less, DerivedToSource Number less", func(t *testing.T) {

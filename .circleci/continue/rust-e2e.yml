@@ -149,7 +149,7 @@ jobs:
   op-reth-e2e-sysgo-tests:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless

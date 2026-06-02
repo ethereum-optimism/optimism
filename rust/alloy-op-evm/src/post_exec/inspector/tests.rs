@@ -85,3 +85,46 @@ fn take_last_tx_result_round_trips() {
     assert_eq!(insp.take_last_tx_result().refund_total, ACCOUNT_REWARM_REFUND);
     assert_eq!(insp.take_last_tx_result().refund_total, 0);
 }
+
+// The carry mechanism (`warming_state` / `seed_warming_state`) exists so a builder that executes a
+// block across several flashblock executors (each with a fresh inspector) still attributes the
+// block-scoped warming refund set that a single canonical pass would. These tests pin that a slot
+// or account warmed in one inspector is refundable in a freshly seeded one — i.e. the boundary
+// does not reset warming.
+
+#[test]
+fn seeded_account_warmth_refunds_across_inspectors() {
+    // First flashblock: tx 0 warms ACCOUNT_A (first warmer, no refund).
+    let mut first = SDMWarmingInspector::default();
+    assert_eq!(run_account(&mut first, 0, PostExecTxKind::Normal, ACCOUNT_A), 0);
+
+    // Next flashblock's fresh inspector, seeded with the carried warming state, must treat
+    // ACCOUNT_A as already warmed and refund the re-touch — matching whole-block execution.
+    let mut next = SDMWarmingInspector::default();
+    next.seed_warming_state(first.warming_state());
+    assert_eq!(run_account(&mut next, 0, PostExecTxKind::Normal, ACCOUNT_A), ACCOUNT_REWARM_REFUND);
+}
+
+#[test]
+fn seeded_slot_warmth_refunds_across_inspectors() {
+    for (is_sstore, expected) in [(false, SLOAD_REWARM_REFUND), (true, SSTORE_REWARM_REFUND)] {
+        let mut first = SDMWarmingInspector::default();
+        assert_eq!(run_slot(&mut first, 0, ACCOUNT_A, SLOT_1, is_sstore), 0);
+
+        let mut next = SDMWarmingInspector::default();
+        next.seed_warming_state(first.warming_state());
+        assert_eq!(run_slot(&mut next, 0, ACCOUNT_A, SLOT_1, is_sstore), expected);
+    }
+}
+
+#[test]
+fn unseeded_inspector_resets_warmth() {
+    // Guards the negative case the fix addresses: without seeding, a fresh inspector treats
+    // ACCOUNT_A as cold (first warmer), so it would *not* refund — the exact divergence from
+    // canonical that flashblock boundaries used to introduce.
+    let mut first = SDMWarmingInspector::default();
+    assert_eq!(run_account(&mut first, 0, PostExecTxKind::Normal, ACCOUNT_A), 0);
+
+    let mut next = SDMWarmingInspector::default();
+    assert_eq!(run_account(&mut next, 0, PostExecTxKind::Normal, ACCOUNT_A), 0);
+}

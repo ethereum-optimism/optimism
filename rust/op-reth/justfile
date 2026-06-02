@@ -127,6 +127,24 @@ cov-report-html: cov-unit
   cargo llvm-cov report --html
   open target/llvm-cov/html/index.html
 
+# Build a local Docker image and load it into the Docker daemon
+[script('bash')]
+docker-build image_tags=env('DOCKER_IMAGE_TAGS', GIT_SHA + ',latest') build_profile=env('BUILD_PROFILE', 'maxperf') features=FEATURES:
+  set -euo pipefail
+  tag_args=()
+  IFS=',' read -ra tags <<< "{{image_tags}}"
+  for tag in "${tags[@]}"; do
+    tag="$(echo "$tag" | xargs)"
+    if [ -n "$tag" ]; then
+      tag_args+=(--tag "{{DOCKER_IMAGE_NAME}}:$tag")
+    fi
+  done
+  docker buildx build --load \
+    --file ./DockerfileOp .. \
+    --build-arg BUILD_PROFILE="{{build_profile}}" \
+    --build-arg FEATURES="{{features}}" \
+    "${tag_args[@]}"
+
 # Build and push a cross-arch Docker image with the given build and push tags
 docker-build-push-tags build_tag push_tag features=FEATURES:
   #!/usr/bin/env bash

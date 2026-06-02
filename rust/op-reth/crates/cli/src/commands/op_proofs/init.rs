@@ -55,8 +55,10 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
         info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
         info!(target: "reth::cli", "Initializing OP proofs storage at: {:?}", self.storage_path);
 
-        // Initialize the environment with read-only access
-        let Environment { provider_factory, .. } = self.env.init::<N>(AccessRights::RO, runtime)?;
+        // Initialize the environment with read-only access. We use `RoInconsistent` to skip the
+        // static-file/database consistency check.
+        let Environment { provider_factory, .. } =
+            self.env.init::<N>(AccessRights::RoInconsistent, runtime)?;
 
         // Create the proofs storage without the metrics wrapper.
         // During initialization we write billions of entries; the metrics layer's

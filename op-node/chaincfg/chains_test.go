@@ -78,6 +78,7 @@ var mainnetCfg = rollup.Config{
 	HoloceneTime:           u64Ptr(1736445601),
 	IsthmusTime:            u64Ptr(1746806401),
 	JovianTime:             u64Ptr(1764691201),
+	KarstTime:              u64Ptr(1783526401),
 	ChainOpConfig:          defaultOpConfig,
 }
 
@@ -118,6 +119,7 @@ var sepoliaCfg = rollup.Config{
 	PectraBlobScheduleTime: u64Ptr(1742486400),
 	IsthmusTime:            u64Ptr(1744905600),
 	JovianTime:             u64Ptr(1763568001),
+	KarstTime:              u64Ptr(1781712001),
 	ChainOpConfig:          defaultOpConfig,
 }
 

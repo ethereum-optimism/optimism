@@ -7,10 +7,11 @@
 
 # All target images use this as base image, and add the final build results.
 # It will default to the target platform.
-ARG TARGET_BASE_IMAGE=alpine:3.20
+ARG TARGET_BASE_IMAGE=chainguard/static:latest
 
-# The ubuntu target base image is used for the op-challenger build with kona.
-ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:24.04
+# The wolfi target base image is used for the op-challenger build with kona,
+# which links against openssl/ca-certificates at runtime.
+ARG UBUNTU_TARGET_BASE_IMAGE=chainguard/wolfi-base:latest
 
 # builder_foundry does not need to be built on $BUILDPLATFORM, as foundry produces static binaries.
 FROM alpine:3.21 AS builder_foundry
@@ -156,11 +157,6 @@ FROM --platform=$BUILDPLATFORM builder AS da-server-builder
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   cd op-alt-da && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE just da-server
 
-FROM --platform=$BUILDPLATFORM builder AS op-supervisor-builder
-ARG OP_SUPERVISOR_VERSION=v0.0.0
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  cd op-supervisor && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_SUPERVISOR_VERSION" just op-supervisor
-
 FROM --platform=$BUILDPLATFORM builder AS op-supernode-builder
 ARG OP_SUPERNODE_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
@@ -261,26 +257,30 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,targe
   RUSTFLAGS="-C target-cpu=generic" cargo build --bin kona-host --profile release-perf --target "$RUST_TARGET" && \
   cp "/rust/target/$RUST_TARGET/release-perf/kona-host" /kona-host
 
-FROM $TARGET_BASE_IMAGE AS cannon-target
+FROM dhi.io/alpine-base:3.23 AS cannon-target
+USER 0
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 COPY --from=cannon-builder /app/cannon/multicannon/embeds/* /usr/local/bin/
 CMD ["cannon"]
 
 FROM $TARGET_BASE_IMAGE AS op-program-target
+USER 0
 COPY --from=op-program-builder /app/op-program/bin/op-program /usr/local/bin/
 CMD ["op-program"]
 
 FROM $TARGET_BASE_IMAGE AS op-wheel-target
+USER 0
 COPY --from=op-wheel-builder /app/op-wheel/bin/op-wheel /usr/local/bin/
 CMD ["op-wheel"]
 
 FROM $TARGET_BASE_IMAGE AS op-node-target
+USER 0
 COPY --from=op-node-builder /app/op-node/bin/op-node /usr/local/bin/
 CMD ["op-node"]
 
 # Also produce an op-challenger loaded with kona using ubuntu
 FROM $UBUNTU_TARGET_BASE_IMAGE AS op-challenger-target
-RUN apt-get update && apt-get install -y --no-install-recommends musl openssl ca-certificates
+RUN apk add --no-cache openssl libstdc++ ca-certificates
 COPY --from=op-challenger-builder /app/op-challenger/bin/op-challenger /usr/local/bin/
 # Copy in op-program and cannon
 COPY --from=op-program-builder /app/op-program/bin/op-program /usr/local/bin/
@@ -294,56 +294,63 @@ ENV OP_CHALLENGER_CANNON_KONA_SERVER=/usr/local/bin/kona-host
 CMD ["op-challenger"]
 
 FROM $TARGET_BASE_IMAGE AS op-dispute-mon-target
+USER 0
 COPY --from=op-dispute-mon-builder /app/op-dispute-mon/bin/op-dispute-mon /usr/local/bin/
 CMD ["op-dispute-mon"]
 
 FROM $TARGET_BASE_IMAGE AS op-batcher-target
+USER 0
 COPY --from=op-batcher-builder /app/op-batcher/bin/op-batcher /usr/local/bin/
 CMD ["op-batcher"]
 
 FROM $TARGET_BASE_IMAGE AS op-proposer-target
+USER 0
 COPY --from=op-proposer-builder /app/op-proposer/bin/op-proposer /usr/local/bin/
 CMD ["op-proposer"]
 
 FROM $TARGET_BASE_IMAGE AS op-conductor-target
+USER 0
 COPY --from=op-conductor-builder /app/op-conductor/bin/op-conductor /usr/local/bin/
 CMD ["op-conductor"]
 
 FROM $TARGET_BASE_IMAGE AS da-server-target
+USER 0
 COPY --from=da-server-builder /app/op-alt-da/bin/da-server /usr/local/bin/
 CMD ["da-server"]
 
-FROM $TARGET_BASE_IMAGE AS op-supervisor-target
-COPY --from=op-supervisor-builder /app/op-supervisor/bin/op-supervisor /usr/local/bin/
-CMD ["op-supervisor"]
-
 FROM $TARGET_BASE_IMAGE AS op-supernode-target
+USER 0
 COPY --from=op-supernode-builder /app/op-supernode/bin/op-supernode /usr/local/bin/
 CMD ["op-supernode"]
 
 FROM $TARGET_BASE_IMAGE AS op-interop-filter-target
+USER 0
 COPY --from=op-interop-filter-builder /app/op-interop-filter/bin/op-interop-filter /usr/local/bin/
 CMD ["op-interop-filter"]
 
 FROM $TARGET_BASE_IMAGE AS op-test-sequencer-target
+USER 0
 COPY --from=op-test-sequencer-builder /app/op-test-sequencer/bin/op-test-sequencer /usr/local/bin/
 CMD ["op-test-sequencer"]
 
-FROM $TARGET_BASE_IMAGE AS op-deployer-target
-RUN apk add --no-cache ca-certificates
+FROM dhi.io/alpine-base:3.23 AS op-deployer-target
+USER 0
 COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/
 COPY --from=op-deployer-builder /app/op-deployer/bin/op-deployer /usr/local/bin/
 ENV FORGE_ENV=alpine
 CMD ["op-deployer"]
 
 FROM $TARGET_BASE_IMAGE AS op-dripper-target
+USER 0
 COPY --from=op-dripper-builder /app/op-dripper/bin/op-dripper /usr/local/bin/
 CMD ["op-dripper"]
 
 FROM $TARGET_BASE_IMAGE AS op-faucet-target
+USER 0
 COPY --from=op-faucet-builder /app/op-faucet/bin/op-faucet /usr/local/bin/
 CMD ["op-faucet"]
 
 FROM $TARGET_BASE_IMAGE AS op-interop-mon-target
+USER 0
 COPY --from=op-interop-mon-builder /app/op-interop-mon/bin/op-interop-mon /usr/local/bin/
 CMD ["op-interop-mon"]

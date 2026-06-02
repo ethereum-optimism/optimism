@@ -33,6 +33,14 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
+/// @title BadSemver
+/// @notice Minimal version stub used to make an expected implementation version mismatch.
+contract BadSemver {
+    function version() external pure returns (string memory) {
+        return "0.0.0-bad";
+    }
+}
+
 /// @title OPContractsManagerMigrationValidator_TestInit
 /// @notice Base contract for MigrationValidator tests. Uses real opcmV2.deploy() + migrate()
 ///         to set up post-migration state, matching the pattern in OPContractsManagerV2_Migrate_Test.
@@ -73,9 +81,6 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     /// @notice The proposer role for super games.
     address proposer;
 
-    /// @notice The challenger role for super games.
-    address challenger;
-
     function setUp() public virtual override {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
@@ -84,15 +89,12 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         chainContracts1 = _deployChainForMigration(1000001);
         chainContracts2 = _deployChainForMigration(1000002);
 
-        // Get validators from OPCM. Fetch challenger from StandardValidator state so that
-        // when StandardValidator.validateMigratedChain pulls challenger from its own storage,
-        // it matches the SPDG game args we configure below.
+        // Get validators from OPCM.
         standardValidator = opcmV2.opcmStandardValidator();
         migrationValidator = standardValidator.migrationValidator();
 
-        // Set proposer/challenger before building migration input.
+        // Set proposer before building migration input.
         proposer = makeAddr("superProposer");
-        challenger = standardValidator.challenger();
 
         // Run real migration with both SPDG and SCKDG.
         _doMigration(_getDefaultMigrateInput());
@@ -105,8 +107,9 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         sharedProxyAdmin = address(IProxyAdminOwnedBase(address(sharedDGF)).proxyAdmin());
         sharedLockbox = IETHLockbox(portal1.ethLockbox());
 
-        // Discover WETH from SPDG game args.
-        LibGameArgs.GameArgs memory args = LibGameArgs.decode(sharedDGF.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
+        // Discover WETH from the permissionless super game args. The simplified
+        // SUPER_PERMISSIONED_CANNON no longer carries WETH in its game args.
+        LibGameArgs.GameArgs memory args = LibGameArgs.decode(sharedDGF.gameArgs(GameTypes.SUPER_CANNON_KONA));
         sharedWETH = args.weth;
     }
 
@@ -118,8 +121,9 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         returns (IOPContractsManagerV2.ChainContracts memory cts_)
     {
         // Get initial proposer/challenger from existing DGF.
-        address initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
-        address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        address initialChallenger = _initialPermissionedGameChallenger(superRoot);
+        address initialProposer = _initialPermissionedGameProposer(superRoot);
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
@@ -130,16 +134,18 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             gameArgs: bytes("")
         });
         dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
+            enabled: !superRoot,
+            initBond: superRoot ? 0 : 0.08 ether,
             gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: cannonPrestate,
-                    proposer: initialProposer,
-                    challenger: initialChallenger
-                })
-            )
+            gameArgs: superRoot
+                ? bytes("")
+                : abi.encode(
+                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                        absolutePrestate: cannonPrestate,
+                        proposer: initialProposer,
+                        challenger: initialChallenger
+                    })
+                )
         });
         dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
@@ -148,10 +154,12 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             gameArgs: bytes("")
         });
         dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
+            enabled: superRoot,
             initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: bytes("")
+            gameArgs: superRoot
+                ? abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: initialProposer }))
+                : bytes("")
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
@@ -174,7 +182,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             unsafeBlockSigner: makeAddr("migrateUnsafeBlockSigner"),
             batcher: makeAddr("migrateBatcher"),
             startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"1234")), l2SequenceNumber: 123 }),
-            startingRespectedGameType: GameTypes.PERMISSIONED_CANNON,
+            startingRespectedGameType: superRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON,
             basefeeScalar: 1368,
             blobBasefeeScalar: 801949,
             gasLimit: 60_000_000,
@@ -194,6 +202,18 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         cts_ = opcmV2.deploy(deployConfig);
     }
 
+    function _initialPermissionedGameChallenger(bool _superRoot) internal view returns (address challenger_) {
+        if (!_superRoot) return DisputeGames.permissionedGameChallenger(disputeGameFactory);
+
+        challenger_ = address(0);
+    }
+
+    function _initialPermissionedGameProposer(bool _superRoot) internal view returns (address proposer_) {
+        if (!_superRoot) return DisputeGames.permissionedGameProposer(disputeGameFactory);
+
+        proposer_ = DisputeGames.superPermissionedGameProposer(disputeGameFactory);
+    }
+
     /// @notice Creates the default migration input with both SPDG and SCKDG.
     /// @return input_ The default migration input.
     function _getDefaultMigrateInput() internal view returns (IOPContractsManagerMigrator.MigrateInput memory input_) {
@@ -205,15 +225,9 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             new IOPContractsManagerUtils.DisputeGameConfig[](2);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
-            initBond: 0.08 ether,
+            initBond: 0,
             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: cannonPrestate,
-                    proposer: proposer,
-                    challenger: challenger
-                })
-            )
+            gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
         });
         disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
@@ -300,8 +314,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
 
     /// @notice Returns the ASR address from the SPDG game args.
     function _spdgASR() internal view returns (address) {
-        bytes memory args = sharedDGF.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
-        return LibGameArgs.decode(args).anchorStateRegistry;
+        return DisputeGames.superPermissionedGameAnchorStateRegistry(sharedDGF);
     }
 }
 
@@ -392,6 +405,18 @@ contract OPContractsManagerMigrationValidator_DGFShape_Test is OPContractsManage
 /// @title OPContractsManagerMigrationValidator_SPDG_Test
 /// @notice Negative tests for MIG-SPDG-* error codes (Super Permissioned Dispute Game).
 contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMigrationValidator_TestInit {
+    /// @notice MIG-SPDG-20: SPDG implementation version doesn't match expected.
+    function test_validate_spdg20WrongVersion_succeeds() public {
+        BadSemver bad = new BadSemver();
+        vm.mockCall(
+            address(standardValidator),
+            abi.encodeCall(IOPContractsManagerStandardValidator.superPermissionedDisputeGameImpl, ()),
+            abi.encode(address(bad))
+        );
+
+        assertEq("MIG-SPDG-20", _validateMigration(true));
+    }
+
     /// @notice MIG-SPDG-GARGS-10: Invalid game args length for SPDG.
     function test_validate_spdgGargs10InvalidArgsLength_succeeds() public {
         vm.mockCall(
@@ -401,102 +426,6 @@ contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMig
         );
         // Per-chain also can't decode SPDG args, skips per-chain checks.
         assertEq("MIG-SPDG-GARGS-10", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-60: l2ChainId != 0 in SPDG game args.
-    function test_validate_spdg60WrongL2ChainId_succeeds() public {
-        DisputeGames.mockGameImplL2ChainId(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, 42);
-        assertEq("MIG-SPDG-60", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-40: Wrong absolutePrestate in SPDG game args.
-    function test_validate_spdg40WrongPrestate_succeeds() public {
-        DisputeGames.mockGameImplPrestate(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, bytes32(uint256(0xbad)));
-        assertEq("MIG-SPDG-40", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-VM-10/20: Wrong VM in SPDG game args (drill-down via assertValidDisputeGame).
-    function test_validate_spdgVm10WrongVM_succeeds() public {
-        address badVM = address(0xbad);
-        DisputeGames.mockGameImplVM(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, badVM);
-        // Mock just enough on the bad VM for drill-down to reach the VM-10/VM-20 checks.
-        vm.mockCall(badVM, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
-        vm.mockCall(badVM, abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION));
-        assertEq("MIG-SPDG-VM-10,MIG-SPDG-VM-20", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-GARGS-30: Wrong WETH in SPDG game args (doesn't match discovered WETH).
-    function test_validate_spdgGargs30WrongWeth_succeeds() public {
-        address badWeth = address(0xbad);
-        DisputeGames.mockGameImplWeth(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, badWeth);
-        // Mock the bad WETH to satisfy drill-down so only GARGS-30 (the cross-chain check) fires.
-        vm.mockCall(badWeth, abi.encodeCall(ISemver.version, ()), abi.encode(ISemver(sharedWETH).version()));
-        vm.mockCall(
-            sharedProxyAdmin,
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (badWeth)),
-            abi.encode(standardValidator.delayedWETHImpl())
-        );
-        vm.mockCall(
-            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
-        );
-        vm.mockCall(
-            badWeth,
-            abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
-            abi.encode(standardValidator.l1PAOMultisig())
-        );
-        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(chainContracts1.systemConfig));
-        vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(sharedProxyAdmin));
-        assertEq("MIG-SPDG-GARGS-30", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-100: Wrong maxGameDepth on SPDG game impl.
-    function test_validate_spdg100WrongMaxGameDepth_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IPermissionedDisputeGame.maxGameDepth, ()),
-            abi.encode(uint256(99))
-        );
-        assertEq("MIG-SPDG-100", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-90: Wrong splitDepth on SPDG game impl.
-    function test_validate_spdg90WrongSplitDepth_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IPermissionedDisputeGame.splitDepth, ()),
-            abi.encode(uint256(99))
-        );
-        assertEq("MIG-SPDG-90", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-80: Wrong clockExtension on SPDG game impl.
-    function test_validate_spdg80WrongClockExtension_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IPermissionedDisputeGame.clockExtension, ()),
-            abi.encode(uint64(99))
-        );
-        assertEq("MIG-SPDG-80", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-110: Wrong maxClockDuration on SPDG game impl.
-    function test_validate_spdg110WrongMaxClockDuration_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IPermissionedDisputeGame.maxClockDuration, ()),
-            abi.encode(uint64(99))
-        );
-        assertEq("MIG-SPDG-110", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-70: l2SequenceNumber != 0 on SPDG game impl.
-    function test_validate_spdg70WrongL2SequenceNumber_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
-            abi.encode(uint256(1))
-        );
-        assertEq("MIG-SPDG-70", _validateMigration(true));
     }
 
     /// @notice MIG-SPDG-120: Anchor root is zero from SPDG ASR.
@@ -510,14 +439,8 @@ contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMig
 
     /// @notice MIG-SPDG-140: Wrong proposer in SPDG game args.
     function test_validate_spdg140WrongProposer_succeeds() public {
-        DisputeGames.mockGameImplProposer(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, address(0xbad));
+        DisputeGames.mockSuperPermissionedGameProposer(sharedDGF, address(0xbad));
         assertEq("MIG-SPDG-140", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-130: Wrong challenger in SPDG game args.
-    function test_validate_spdg130WrongChallenger_succeeds() public {
-        DisputeGames.mockGameImplChallenger(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, address(0xbad));
-        assertEq("MIG-SPDG-130", _validateMigration(true));
     }
 }
 
@@ -749,8 +672,8 @@ contract OPContractsManagerMigrationValidator_SharedDGF_Test is OPContractsManag
 
 /// @title OPContractsManagerMigrationValidator_SharedASR_Test
 /// @notice Negative tests covering shared AnchorStateRegistry invariants. The shared ASR is
-///         reachable from both super games' `assertValidDisputeGame` drill-downs, so each
-///         broken ASR field surfaces under both `MIG-SPDG-ANCHORP-*` and `MIG-SCKDG-ANCHORP-*`.
+///         reachable from both super game validation paths, so each broken ASR field surfaces
+///         under both `MIG-SPDG-ANCHORP-*` and `MIG-SCKDG-ANCHORP-*`.
 contract OPContractsManagerMigrationValidator_SharedASR_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice MIG-{SPDG,SCKDG}-ANCHORP-10: ASR version doesn't match impl version.
     function test_validate_sharedAnchorp10WrongVersion_succeeds() public {
@@ -835,44 +758,44 @@ contract OPContractsManagerMigrationValidator_SharedLockbox_Test is OPContractsM
 }
 
 /// @title OPContractsManagerMigrationValidator_SharedDelayedWETH_Test
-/// @notice Negative tests covering shared DelayedWETH invariants. The discovered shared WETH is
-///         carried into both super-game `assertValidDisputeGame` drill-downs, so each broken
-///         WETH field surfaces under both `MIG-SPDG-DWETH-*` and `MIG-SCKDG-DWETH-*`.
+/// @notice Negative tests covering shared DelayedWETH invariants. The simplified
+///         SUPER_PERMISSIONED_CANNON no longer carries WETH, so these errors surface through
+///         SUPER_CANNON_KONA only.
 contract OPContractsManagerMigrationValidator_SharedDelayedWETH_Test is
     OPContractsManagerMigrationValidator_TestInit
 {
-    /// @notice MIG-{SPDG,SCKDG}-DWETH-10: DelayedWETH version doesn't match impl version.
+    /// @notice MIG-SCKDG-DWETH-10: DelayedWETH version doesn't match impl version.
     function test_validate_sharedDweth10WrongVersion_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0-bad"));
-        assertEq("MIG-SPDG-DWETH-10,MIG-SCKDG-DWETH-10", _validateMigration(true));
+        assertEq("MIG-SCKDG-DWETH-10", _validateMigration(true));
     }
 
-    /// @notice MIG-{SPDG,SCKDG}-DWETH-40: DelayedWETH delay doesn't match expected withdrawalDelaySeconds.
+    /// @notice MIG-SCKDG-DWETH-40: DelayedWETH delay doesn't match expected withdrawalDelaySeconds.
     function test_validate_sharedDweth40WrongDelay_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(uint256(999)));
-        assertEq("MIG-SPDG-DWETH-40,MIG-SCKDG-DWETH-40", _validateMigration(true));
+        assertEq("MIG-SCKDG-DWETH-40", _validateMigration(true));
     }
 
-    /// @notice MIG-{SPDG,SCKDG}-DWETH-30: DelayedWETH proxyAdminOwner doesn't match l1PAOMultisig.
+    /// @notice MIG-SCKDG-DWETH-30: DelayedWETH proxyAdminOwner doesn't match l1PAOMultisig.
     function test_validate_sharedDweth30WrongProxyAdminOwner_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0xbad)));
-        assertEq("MIG-SPDG-DWETH-30,MIG-SCKDG-DWETH-30", _validateMigration(true));
+        assertEq("MIG-SCKDG-DWETH-30", _validateMigration(true));
     }
 
-    /// @notice MIG-{SPDG,SCKDG}-DWETH-20: DelayedWETH proxy implementation doesn't match expected.
+    /// @notice MIG-SCKDG-DWETH-20: DelayedWETH proxy implementation doesn't match expected.
     function test_validate_sharedDweth20WrongImpl_succeeds() public {
         vm.mockCall(
             sharedProxyAdmin,
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (sharedWETH)),
             abi.encode(address(0xbad))
         );
-        assertEq("MIG-SPDG-DWETH-20,MIG-SCKDG-DWETH-20", _validateMigration(true));
+        assertEq("MIG-SCKDG-DWETH-20", _validateMigration(true));
     }
 
-    /// @notice MIG-{SPDG,SCKDG}-DWETH-60: DelayedWETH proxyAdmin doesn't match shared ProxyAdmin.
+    /// @notice MIG-SCKDG-DWETH-60: DelayedWETH proxyAdmin doesn't match shared ProxyAdmin.
     function test_validate_sharedDweth60WrongProxyAdmin_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad)));
-        assertEq("MIG-SPDG-DWETH-60,MIG-SCKDG-DWETH-60", _validateMigration(true));
+        assertEq("MIG-SCKDG-DWETH-60", _validateMigration(true));
     }
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	rpcclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -282,6 +283,21 @@ func TestSafeHeadAtL1Block(t *testing.T) {
 	safeReader.Mock.AssertExpectations(t)
 }
 
+func TestAdminAPISdm(t *testing.T) {
+	dr := &mockDriverClient{}
+	api := NewAdminAPI(dr, testlog.Logger(t, log.LevelError))
+
+	dr.On("SetSdmPostExecOptIn", true).Once().Return(nil)
+	require.NoError(t, api.SetSdmPostExecOptIn(context.Background(), true))
+
+	expected := apis.SdmStatus{PostExecOptIn: true, ProtocolActive: false, Effective: false}
+	dr.On("SdmStatus").Once().Return(expected)
+	actual, err := api.SdmStatus(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+	dr.AssertExpectations(t)
+}
+
 type mockDriverClient struct {
 	mock.Mock
 }
@@ -313,6 +329,18 @@ func (c *mockDriverClient) StopSequencer(ctx context.Context) (common.Hash, erro
 
 func (c *mockDriverClient) SequencerActive(ctx context.Context) (bool, error) {
 	return c.Mock.MethodCalled("SequencerActive").Get(0).(bool), nil
+}
+
+func (c *mockDriverClient) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
+	out := c.Mock.MethodCalled("SetSdmPostExecOptIn", enabled).Get(0)
+	if out == nil {
+		return nil
+	}
+	return out.(error)
+}
+
+func (c *mockDriverClient) SdmStatus(ctx context.Context) (apis.SdmStatus, error) {
+	return c.Mock.MethodCalled("SdmStatus").Get(0).(apis.SdmStatus), nil
 }
 
 func (c *mockDriverClient) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) {

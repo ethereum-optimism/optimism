@@ -1,16 +1,16 @@
-use super::outbound::WebSocketPublisher;
-use super::primitives::{
-    ExecutionPayloadBaseV1, ExecutionPayloadFlashblockDeltaV1, FlashblocksPayloadV1,
+use super::{
+    outbound::WebSocketPublisher,
+    primitives::{ExecutionPayloadBaseV1, ExecutionPayloadFlashblockDeltaV1, FlashblocksPayloadV1},
 };
-use crate::flashblocks::metrics::FlashblocksServiceMetrics;
 use crate::{
     ClientResult, EngineApiExt, NewPayload, OpExecutionPayloadEnvelope, PayloadVersion, RpcClient,
+    flashblocks::metrics::FlashblocksServiceMetrics,
 };
 use alloy_primitives::U256;
 use alloy_rpc_types_engine::{
-    BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3,
+    BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3, ForkchoiceState,
+    ForkchoiceUpdated, PayloadId, PayloadStatus,
 };
-use alloy_rpc_types_engine::{ForkchoiceState, ForkchoiceUpdated, PayloadId, PayloadStatus};
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
 use core::net::SocketAddr;
 use jsonrpsee::core::async_trait;
@@ -19,12 +19,15 @@ use op_alloy_rpc_types_engine::{
     OpPayloadAttributes,
 };
 use reth_optimism_payload_builder::payload_id_optimism;
-use std::io;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    io,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
 use thiserror::Error;
-use tokio::sync::RwLock;
-use tokio::sync::mpsc;
+use tokio::sync::{RwLock, mpsc};
 use tracing::{debug, error, info};
 
 #[derive(Debug, Error, PartialEq)]
@@ -209,8 +212,8 @@ impl FlashblocksService {
         // Check that we have flashblocks for correct payload
         if *self.current_payload_id.read().await != Some(payload_id) {
             // We have outdated `current_payload_id` so we should fallback to get_payload
-            // Clearing best_payload in here would cause situation when old `get_payload` would clear
-            // currently built correct flashblocks.
+            // Clearing best_payload in here would cause situation when old `get_payload` would
+            // clear currently built correct flashblocks.
             // This will self-heal on the next FCU.
             return Err(FlashblocksError::MissingPayload);
         }

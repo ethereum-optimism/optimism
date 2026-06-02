@@ -469,7 +469,7 @@ func testSpanChannelOut_MaxBlocksPerSpanBatch(t *testing.T, tt maxBlocksTest) {
 		bd, err := br()
 		require.NoError(t, err)
 		require.EqualValues(t, SpanBatchType, bd.GetBatchType())
-		sb, err := DeriveSpanBatch(bd, rollupCfg.BlockTime, rollupCfg.Genesis.L2Time, cout.spanBatch.ChainID)
+		sb, err := DeriveSpanBatch(bd, &rollupCfg)
 		require.NoError(t, err)
 		require.Equal(t, expBlocks, sb.GetBlockCount())
 		sbs0, err := sb.GetSingularBatches([]eth.L1BlockRef{l1Origin}, l2SafeHead)

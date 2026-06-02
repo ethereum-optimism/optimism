@@ -7,9 +7,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
@@ -33,7 +33,7 @@ func TestCrossUnsafeHazards(t *testing.T) {
 		// when there is one execMsg, and CanExecuteAt returns false,
 		// no work is done and an error is returned
 		hazards, err := CrossUnsafeHazards(usd, linkerNone{}, newTestLogger(t), chainID, candidate)
-		require.ErrorIs(t, err, types.ErrConflict)
+		require.ErrorIs(t, err, interop.ErrConflict)
 		require.Empty(t, hazards.Entries())
 	})
 	t.Run("executing msg does bad link", func(t *testing.T) {
@@ -57,7 +57,7 @@ func TestCrossUnsafeHazards(t *testing.T) {
 		// when there is one execMsg, and CanInitiateAt returns false,
 		// the error is returned as a ErrConflict
 		hazards, err := CrossUnsafeHazards(usd, linker, newTestLogger(t), chainID, candidate)
-		require.ErrorIs(t, err, types.ErrConflict)
+		require.ErrorIs(t, err, interop.ErrConflict)
 		require.Empty(t, hazards.Entries())
 		require.True(t, done)
 	})

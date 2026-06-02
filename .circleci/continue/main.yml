@@ -23,6 +23,9 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.0"
+  c-publish_contract_artifacts_ref:
+    type: string
+    default: ""
   # Workflow activation flags (set by the decision tree in config.yml)
   c-run_main:
     type: boolean
@@ -54,9 +57,6 @@ parameters:
   c-run_close_issue:
     type: boolean
     default: false
-  c-run_ai_contracts_test:
-    type: boolean
-    default: false
   c-run_l2_fork_test:
     type: boolean
     default: false
@@ -70,6 +70,9 @@ parameters:
     type: boolean
     default: false
   c-run_ci_gate_skip:
+    type: boolean
+    default: false
+  c-run_publish_contract_artifacts:
     type: boolean
     default: false
 
@@ -235,7 +238,7 @@ commands:
     description: "Install zstd compression utility"
     steps:
       - apt-install:
-          packages: "zstd=1.4.8*"
+          packages: "zstd"
 
   get-target-branch:
     description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
@@ -851,30 +854,6 @@ jobs:
           paths:
             - ".circleci-cache/rust-binaries"
 
-  # Lint a vendored (non-submodule) Rust directory.
-  rust-lint-vendored:
-    docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge.gen2
-    parameters:
-      directory:
-        description: "Directory containing the Cargo workspace"
-        type: string
-      lint_command:
-        description: "Lint command to run inside the directory"
-        type: string
-      needs_clang:
-        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)"
-        type: boolean
-        default: false
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - run:
-          name: Lint << parameters.directory >>
-          command: cd << parameters.directory >> && << parameters.lint_command >>
-          no_output_timeout: 20m
-
   initialize:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -886,7 +865,7 @@ jobs:
   cannon-go-lint-and-test:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     parameters:
       skip_slow_tests:
         type: boolean
@@ -931,12 +910,8 @@ jobs:
               TIMEOUT="45m"
             fi
             ../ops/scripts/gotestsum-split.sh --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
-            -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
+            -- -timeout=$TIMEOUT -parallel=$(nproc) ./...
           working_directory: cannon
-      - codecov/upload:
-          disable_search: true
-          files: ./cannon/coverage-64.out
-          flags: cannon-go-tests-64
       - store_test_results:
           path: ./tmp/test-results
       - store_artifacts:
@@ -993,7 +968,7 @@ jobs:
   check-kontrol-build:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1158,43 +1133,10 @@ jobs:
       - notify-failures-on-develop:
           mentions: "@security-oncall"
 
-  # AI Contracts Test Maintenance System
-  # Runbook: https://github.com/ethereum-optimism/optimism/blob/develop/ops/ai-eng/contracts-test-maintenance/docs/runbook.md
-  ai-contracts-test:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium.gen2
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - run:
-          name: Check Python version
-          command: python3 --version
-      - run:
-          name: Run AI Contracts Test System
-          command: just ai-contracts-test
-          working_directory: ops/ai-eng
-          no_output_timeout: 60m
-      - store_artifacts:
-          path: ops/ai-eng/contracts-test-maintenance/log.json
-          destination: log.json
-      - run:
-          name: Build Slack notification
-          command: just build-slack-notification >> $BASH_ENV
-          working_directory: ops/ai-eng
-          when: always
-      - slack/notify:
-          channel: C050F1GUHDG
-          event: always
-          template: AI_PR_SLACK_TEMPLATE
-      - notify-failures-on-develop:
-          mentions: "@security-oncall"
-
   contracts-bedrock-coverage:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     parameters:
       test_timeout:
         description: Timeout for running tests
@@ -1307,7 +1249,7 @@ jobs:
         default: ""
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1422,7 +1364,7 @@ jobs:
         default: "L2CM"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1524,7 +1466,7 @@ jobs:
 
   contracts-bedrock-upload:
     machine: true
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1554,7 +1496,7 @@ jobs:
   contracts-bedrock-checks-fast:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1647,7 +1589,7 @@ jobs:
   go-lint:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1749,7 +1691,7 @@ jobs:
   nut-provenance-verify:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1890,9 +1832,6 @@ jobs:
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
             just go-tests-fraud-proofs-ci
-      - codecov/upload:
-          disable_search: true
-          files: ./coverage.out
       - store_test_results:
           path: ./tmp/test-results
       - run:
@@ -1922,9 +1861,18 @@ jobs:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
+      parallelism:
+        description: Number of machines to distribute the tests across
+        type: integer
+        default: 1
+      acceptance_test_jobs:
+        description: "Override ACCEPTANCE_TEST_JOBS (go test -p) for this run; empty leaves the justfile default in place"
+        type: string
+        default: ""
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge+.gen2
+    parallelism: <<parameters.parallelism>>
     steps:
       - run:
           name: Install eatmydata and disable fsync for all subprocesses
@@ -1968,6 +1916,9 @@ jobs:
           working_directory: op-acceptance-tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
+            if [ -n "<<parameters.acceptance_test_jobs>>" ]; then
+              export ACCEPTANCE_TEST_JOBS="<<parameters.acceptance_test_jobs>>"
+            fi
             LOG_LEVEL=info just acceptance-test
       - run:
           name: Print results (summary)
@@ -2143,7 +2094,7 @@ jobs:
 
   preimage-reproducibility:
     machine: true
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2230,7 +2181,7 @@ jobs:
   analyze-op-program-client:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2249,7 +2200,7 @@ jobs:
   op-program-compat:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2263,7 +2214,7 @@ jobs:
   check-generated-mocks-op-node:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2277,7 +2228,7 @@ jobs:
   check-generated-mocks-op-service:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2302,7 +2253,7 @@ jobs:
   kontrol-tests:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2348,6 +2299,24 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - run:
+          name: Checkout publish ref
+          environment:
+            PUBLISH_CONTRACT_ARTIFACTS_REF: << pipeline.parameters.c-publish_contract_artifacts_ref >>
+          command: |
+            set -euo pipefail
+
+            if [ -z "$PUBLISH_CONTRACT_ARTIFACTS_REF" ]; then
+              echo "Using pipeline checkout $(git rev-parse HEAD)"
+              exit 0
+            fi
+
+            git fetch --no-tags origin "$PUBLISH_CONTRACT_ARTIFACTS_REF"
+            git checkout --detach FETCH_HEAD
+            echo "Checked out publish ref '$PUBLISH_CONTRACT_ARTIFACTS_REF' at $(git rev-parse HEAD)"
+
+            # Respect the tool versions specified by the ref being published.
+            mise install -v -y
       - install-contracts-dependencies
       - install-zstd
       - run:
@@ -2461,7 +2430,7 @@ jobs:
 
   generate-flaky-report:
     machine: true
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2701,19 +2670,8 @@ workflows:
           build_command: cargo build --release -p rollup-boost --bin rollup-boost
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - rust-lint-vendored:
-          name: rust-lint-op-rbuilder
-          directory: rust/op-rbuilder
-          lint_command: cargo +nightly fmt -- --check && cargo clippy --all-features -- -D warnings
-          needs_clang: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-lint-vendored:
-          name: rust-lint-rollup-boost
-          directory: rust/rollup-boost
-          lint_command: cargo +nightly fmt -- --check && cargo clippy -- -D warnings
-          context:
-            - circleci-repo-readonly-authenticated-github-token
+      # Lint runs in `rust-ci.yml` as `op-rbuilder-checks` / `rollup-boost-checks`
+      # via each crate's `make lint`.
       - rust-binaries-for-sysgo:
           requires:
             - rust-workspace-binaries
@@ -2725,6 +2683,8 @@ workflows:
       # IN-MEMORY (all) - op-node/op-geth
       - op-acceptance-tests:
           name: memory-all-opn-op-geth
+          parallelism: 2
+          acceptance_test_jobs: "8"
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2739,6 +2699,8 @@ workflows:
       - op-acceptance-tests:
           name: memory-all-opn-op-reth
           l2_el_kind: op-reth
+          parallelism: 2
+          acceptance_test_jobs: "8"
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2754,6 +2716,8 @@ workflows:
           name: memory-all-kona-op-reth
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
+          parallelism: 2
+          acceptance_test_jobs: "8"
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2894,6 +2858,13 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
 
+  publish-contract-artifacts-auto-or-manual:
+    when: << pipeline.parameters.c-run_publish_contract_artifacts >>
+    jobs:
+      - publish-contract-artifacts:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
   develop-fault-proofs:
     when: << pipeline.parameters.c-run_develop_fault_proofs >>
     jobs:
@@ -3001,16 +2972,6 @@ workflows:
             This issue will be closed now."
           context:
             - circleci-repo-optimism
-
-  ai-contracts-test-workflow:
-    when: << pipeline.parameters.c-run_ai_contracts_test >>
-    jobs:
-      - ai-contracts-test:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-api-token
-            - devin-api
-            - slack
 
   l2-fork-test-workflow:
     when: << pipeline.parameters.c-run_l2_fork_test >>

@@ -43,7 +43,7 @@ use revm::{
 
 use crate::post_exec::{
     PostExecEvm, PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecTxContext,
-    PostExecTxKind,
+    PostExecTxKind, WarmingRefundEvent, WarmingState,
 };
 
 mod canyon;
@@ -72,6 +72,13 @@ pub enum PostExecMode {
     Produce,
     /// Verify canonical gas accounting using an post-exec payload embedded in the block.
     Verify(PostExecPayload),
+}
+
+impl From<bool> for PostExecMode {
+    /// `true` opts into local post-exec production; `false` disables it.
+    fn from(produce: bool) -> Self {
+        if produce { Self::Produce } else { Self::Disabled }
+    }
 }
 
 /// Per-block post-exec state carried by [`OpBlockExecutor`].
@@ -156,6 +163,13 @@ impl PostExecState {
                 ))
             }
             _ => None,
+        }
+    }
+
+    const fn produced_entries(&self) -> &[SDMGasEntry] {
+        match self {
+            Self::Producing { entries } => entries.as_slice(),
+            _ => &[],
         }
     }
 
@@ -249,6 +263,8 @@ pub struct PostExecAdjustment {
     /// Wei to debit from the operator-fee recipient — operator-fee share of the refund
     /// (post-Isthmus).
     pub operator_fee_balance_delta: U256,
+    /// Exact warming refund attribution events that produced the refund.
+    pub warming_events: Vec<WarmingRefundEvent>,
 }
 
 /// The result of executing an OP transaction.
@@ -317,6 +333,8 @@ pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
     pub l1_block_info: Option<L1BlockInfo>,
     /// Post-exec execution state (mode and producer/verifier working state).
     pub post_exec: PostExecState,
+    /// Per-transaction exact warming refund attribution events aligned with receipts.
+    pub warming_events_by_tx: Vec<Vec<WarmingRefundEvent>>,
 }
 
 impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
@@ -341,6 +359,7 @@ where
             ctx,
             l1_block_info: None,
             post_exec,
+            warming_events_by_tx: Vec::new(),
         }
     }
 
@@ -359,10 +378,39 @@ where
         self.post_exec = PostExecState::new(post_exec_mode);
     }
 
+    /// Returns the accumulated post-exec entries (sequencer mode) without clearing them.
+    pub const fn post_exec_entries(&self) -> &[SDMGasEntry] {
+        self.post_exec.produced_entries()
+    }
+
     /// Take the accumulated post-exec entries (sequencer mode).
     /// Returns the entries and clears the internal state.
     pub fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry> {
         self.post_exec.take_entries()
+    }
+
+    /// Take the exact per-transaction warming refund attribution events aligned with receipts.
+    pub fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
+        core::mem::take(&mut self.warming_events_by_tx)
+    }
+}
+
+impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
+where
+    E: PostExecEvm,
+    R: OpReceiptBuilder,
+{
+    /// Snapshot the block-scoped warming state from the underlying EVM's inspector.
+    ///
+    /// Builders that execute a block across multiple flashblock executors carry this into the next
+    /// flashblock's executor so block-scoped warming refunds match a single canonical pass.
+    pub fn warming_state(&self) -> WarmingState {
+        self.evm.warming_state()
+    }
+
+    /// Seed the underlying EVM's inspector with warming state captured from a prior flashblock.
+    pub fn seed_warming_state(&mut self, state: WarmingState) {
+        self.evm.seed_warming_state(state);
     }
 }
 
@@ -637,6 +685,7 @@ where
             beneficiary_balance_delta,
             base_fee_balance_delta,
             operator_fee_balance_delta,
+            warming_events: Vec::new(),
         })
     }
 
@@ -809,8 +858,9 @@ where
         })?;
 
         let evm_gas_used = result.result.tx_gas_used();
-        let post_exec_refund = if self.post_exec.is_producing() {
-            let refund = self.evm.take_last_post_exec_tx_result().refund_total;
+        let (post_exec_refund, warming_events) = if self.post_exec.is_producing() {
+            let post_exec_result = self.evm.take_last_post_exec_tx_result();
+            let refund = post_exec_result.refund_total;
             // The inspector's accumulated refund must never exceed the tx's evm_gas_used. If
             // it does, we'd emit an `SDMGasEntry` that any honest verifier would reject
             // at pre-execution ("payload refund exceeds evm_gas_used"), so the sequencer
@@ -821,19 +871,24 @@ where
                     "produced refund {refund} exceeds evm_gas_used {evm_gas_used} for tx index {tx_index}",
                 )));
             }
-            refund
+            (refund, post_exec_result.refund_events)
         } else {
-            self.verifier_post_exec_refund_for_tx(tx_index, is_deposit, false, evm_gas_used)?
+            (
+                self.verifier_post_exec_refund_for_tx(tx_index, is_deposit, false, evm_gas_used)?,
+                Vec::new(),
+            )
         };
         let canonical_gas_used = evm_gas_used.saturating_sub(post_exec_refund);
-        let deltas = self.post_exec_settlement_deltas(
+        let mut deltas = self.post_exec_settlement_deltas(
             &tx,
             evm_gas_used,
             post_exec_refund,
             is_deposit,
             false,
         )?;
-        let post_exec = (post_exec_refund > 0).then_some(deltas);
+        deltas.warming_events = warming_events;
+        let post_exec =
+            (post_exec_refund > 0 || !deltas.warming_events.is_empty()).then_some(deltas);
 
         // Pre-compute depositor nonce here so `commit_transaction` can be infallible.
         // Only post-regolith deposit transactions need the depositor account from DB.
@@ -886,7 +941,10 @@ where
             depositor_nonce,
         } = output;
 
-        let post_exec_refund = post_exec.as_ref().map(|d| d.refund).unwrap_or(0);
+        let (post_exec_refund, warming_events) = match post_exec {
+            Some(deltas) => (deltas.refund, deltas.warming_events),
+            None => (0, Vec::new()),
+        };
 
         if !is_deposit && !is_post_exec && post_exec_refund > 0 {
             if let Some(entries) = self.post_exec.produced_entries_mut() {
@@ -895,6 +953,9 @@ where
         }
         if self.post_exec.is_verifying() && post_exec_refund > 0 {
             self.post_exec.consume_verifier_entry(tx_index);
+        }
+        if !is_post_exec {
+            self.warming_events_by_tx.push(warming_events);
         }
 
         self.system_caller.on_state(StateChangeSource::Transaction(self.receipts.len()), &state);

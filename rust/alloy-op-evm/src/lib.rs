@@ -72,7 +72,7 @@ pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx> {
     >,
     inspect: bool,
     post_exec_tracking_active: bool,
-    last_tx_warming_savings: u64,
+    last_tx_post_exec_result: post_exec::PostExecExecutedTx,
     _tx: PhantomData<Tx>,
 }
 
@@ -142,7 +142,7 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
             }),
             inspect,
             post_exec_tracking_active: false,
-            last_tx_warming_savings: 0,
+            last_tx_post_exec_result: Default::default(),
             _tx: PhantomData,
         }
     }
@@ -159,9 +159,17 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
 
     /// Take the extracted post-exec result for the most recently executed transaction.
     pub fn take_last_post_exec_tx_result(&mut self) -> post_exec::PostExecExecutedTx {
-        post_exec::PostExecExecutedTx {
-            refund_total: core::mem::take(&mut self.last_tx_warming_savings),
-        }
+        core::mem::take(&mut self.last_tx_post_exec_result)
+    }
+
+    /// Snapshot the block-scoped warming state for carry-forward across flashblock executors.
+    pub fn warming_state(&self) -> post_exec::WarmingState {
+        self.inner.0.inspector.warming_state()
+    }
+
+    /// Seed the block-scoped warming state captured from a prior flashblock's executor.
+    pub fn seed_warming_state(&mut self, state: post_exec::WarmingState) {
+        self.inner.0.inspector.seed_warming_state(state);
     }
 }
 
@@ -175,6 +183,14 @@ where
 
     fn take_last_post_exec_tx_result(&mut self) -> post_exec::PostExecExecutedTx {
         Self::take_last_post_exec_tx_result(self)
+    }
+
+    fn warming_state(&self) -> post_exec::WarmingState {
+        Self::warming_state(self)
+    }
+
+    fn seed_warming_state(&mut self, state: post_exec::WarmingState) {
+        Self::seed_warming_state(self, state);
     }
 }
 
@@ -198,6 +214,22 @@ where
         I: Inspector<Self::Context<DB>>,
     {
         evm.take_last_post_exec_tx_result()
+    }
+
+    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> post_exec::WarmingState
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.warming_state()
+    }
+
+    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: post_exec::WarmingState)
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.seed_warming_state(state);
     }
 }
 
@@ -249,7 +281,7 @@ where
         &mut self,
         tx: Self::Tx,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
-        self.last_tx_warming_savings = 0;
+        self.last_tx_post_exec_result = post_exec::PostExecExecutedTx::default();
 
         let track_post_exec = self.post_exec_tracking_active;
         let result = if self.inspect || track_post_exec {
@@ -269,8 +301,7 @@ where
                 }
             }
 
-            let post_exec_result = self.inner.0.inspector.finish_post_exec_tx();
-            self.last_tx_warming_savings = post_exec_result.refund_total;
+            self.last_tx_post_exec_result = self.inner.0.inspector.finish_post_exec_tx();
             self.post_exec_tracking_active = false;
         }
 

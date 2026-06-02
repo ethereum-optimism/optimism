@@ -9,23 +9,19 @@ import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
 // Libraries
-import { LibString } from "@solady/utils/LibString.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Preinstalls } from "src/libraries/Preinstalls.sol";
 
 // Interfaces
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
-import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title PastNUTBundles
 /// @notice Test-only library for discovering, validating, skipping, and executing prior NUT
 ///         bundles before live L2 fork upgrade tests run the current bundle. The L2 fork
-///         setUp uses this so chains that have not yet applied prior committed NUTs (e.g.
-///         Karst on a not-yet-Karst chain) are seeded with the predeploy state the current
-///         bundle expects.
+///         setUp uses this so chains that have not yet applied prior committed NUTs are seeded
+///         with the predeploy state the current bundle expects.
 library PastNUTBundles {
     /// @notice One ordered NUT bundle entry returned by the `nut-bundles` Go FFI command.
     /// @param fork The fork name from `op-core/nuts/fork_lock.toml`.
@@ -179,70 +175,23 @@ library PastNUTBundles {
     ///      arbitrary transactions from the prior bundle.
     /// @return skip_ Whether the prior bundle should be skipped.
     /// @return reason_ Human-readable reason logged when `skip_` is true.
-    /// @return priorL2CM_ The prior bundle's L2CM when not skipped via the Karst bootstrap rule;
-    ///                    `address(0)` when bootstrap-skipped, since the caller does not need it.
+    /// @return priorL2CM_ The prior bundle's L2CM.
     function _shouldSkipPriorBundle(
         NUTBundle memory _entry,
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _priorTxns,
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns
     )
         internal
-        view
+        pure
         returns (bool skip_, string memory reason_, address priorL2CM_)
     {
-        if (_shouldSkipKarstBootstrap(_entry, _priorTxns, _currentTxns)) {
-            return (true, "current bundle contains same Karst direct CREATE2 bootstrap", address(0));
-        }
-
         priorL2CM_ = extractL2CM(_priorTxns, _entry.path);
         address currentL2CM = extractL2CM(_currentTxns, Constants.CURRENT_BUNDLE_PATH);
 
         if (priorL2CM_ == currentL2CM) {
-            // TODO(#19369): Remove this Karst exception once Karst is deployed on all chains.
-            // Pre-Karst chains lack ConditionalDeployer. Matching L2CM does not prove the
-            // bootstrap predeploy state exists, so they still need the Karst bundle.
-            if (LibString.eq(_entry.fork, "karst") && !_isConditionalDeployerInitialized()) {
-                return (false, "", priorL2CM_);
-            }
             return (true, "L2CM matches current", priorL2CM_);
         }
 
         return (false, "", priorL2CM_);
-    }
-
-    /// @notice Returns true when the live fork has a usable ConditionalDeployer implementation.
-    function _isConditionalDeployerInitialized() internal view returns (bool) {
-        try ISemver(Predeploys.CONDITIONAL_DEPLOYER).version() returns (string memory) {
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    /// @notice Returns true when the Karst bundle should be skipped because the current bundle
-    ///         owns the same non-idempotent direct CREATE2 bootstrap transaction.
-    /// @dev TODO(#19369): Remove this exception once Karst upgrade is deployed in all chains.
-    function _shouldSkipKarstBootstrap(
-        NUTBundle memory _entry,
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _priorTxns,
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns
-    )
-        internal
-        pure
-        returns (bool)
-    {
-        if (!LibString.eq(_entry.fork, "karst")) return false;
-
-        for (uint256 i = 0; i < _priorTxns.length; i++) {
-            if (_priorTxns[i].to != Preinstalls.DeterministicDeploymentProxy) continue;
-
-            bytes32 priorDataHash = keccak256(_priorTxns[i].data);
-            for (uint256 j = 0; j < _currentTxns.length; j++) {
-                if (_currentTxns[j].to != Preinstalls.DeterministicDeploymentProxy) continue;
-                if (keccak256(_currentTxns[j].data) == priorDataHash) return true;
-            }
-        }
-
-        return false;
     }
 }

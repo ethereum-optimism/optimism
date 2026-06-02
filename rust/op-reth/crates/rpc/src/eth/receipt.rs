@@ -32,21 +32,12 @@ where
 #[derive(Debug, Clone)]
 pub struct OpReceiptConverter<Provider> {
     provider: Provider,
-    /// Whether SDM is explicitly enabled for integration tests.
-    sdm_enabled: bool,
 }
 
 impl<Provider> OpReceiptConverter<Provider> {
     /// Creates a new [`OpReceiptConverter`].
     pub const fn new(provider: Provider) -> Self {
-        Self { provider, sdm_enabled: false }
-    }
-
-    /// Configures the temporary SDM integration-test override.
-    #[must_use]
-    pub const fn with_sdm_enabled(mut self, sdm_enabled: bool) -> Self {
-        self.sdm_enabled = sdm_enabled;
-        self
+        Self { provider }
     }
 }
 
@@ -80,11 +71,11 @@ where
         inputs: Vec<ConvertReceiptInput<'_, N>>,
         block: &SealedBlock<N::Block>,
     ) -> Result<Vec<Self::RpcReceipt>, Self::Error> {
+        let chain_spec = self.provider.chain_spec();
         let mut l1_block_info = match reth_optimism_evm::extract_l1_info(block.body()) {
             Ok(l1_block_info) => l1_block_info,
             Err(err) => {
-                let genesis_number =
-                    self.provider.chain_spec().genesis().number.unwrap_or_default();
+                let genesis_number = chain_spec.genesis().number.unwrap_or_default();
                 // If it is the genesis block (i.e. block number is 0), there is no L1 info, so
                 // we return an empty l1_block_info.
                 if block.header().number() == genesis_number {
@@ -95,10 +86,12 @@ where
         };
 
         let mut receipts = Vec::with_capacity(inputs.len());
+        let sdm_active =
+            reth_optimism_evm::is_sdm_active_at_timestamp(&chain_spec, block.header().timestamp());
         let post_exec_payload = parse_post_exec_payload_from_transactions(
             block.body().transactions(),
             block.header().number(),
-            self.sdm_enabled,
+            sdm_active,
         )?
         .map(|parsed| parsed.payload);
 
@@ -113,13 +106,8 @@ where
                 .and_then(|payload| payload.gas_refund_for_idx(input.meta.index));
 
             receipts.push(
-                OpReceiptBuilder::new(
-                    &self.provider.chain_spec(),
-                    input,
-                    &mut l1_block_info,
-                    op_gas_refund,
-                )?
-                .build(),
+                OpReceiptBuilder::new(&chain_spec, input, &mut l1_block_info, op_gas_refund)?
+                    .build(),
             );
         }
 
@@ -226,13 +214,10 @@ impl OpReceiptFieldsBuilder {
             l1_block_info.l1_blob_base_fee_scalar.map(|scalar| scalar.saturating_to());
 
         // If the operator fee params are both set to 0, we don't add them to the receipt.
-        let operator_fee_scalar_has_non_zero_value: bool =
-            l1_block_info.operator_fee_scalar.is_some_and(|scalar| !scalar.is_zero());
+        let has_operator_fee = l1_block_info.operator_fee_scalar.is_some_and(|s| !s.is_zero()) ||
+            l1_block_info.operator_fee_constant.is_some_and(|c| !c.is_zero());
 
-        let operator_fee_constant_has_non_zero_value =
-            l1_block_info.operator_fee_constant.is_some_and(|constant| !constant.is_zero());
-
-        if operator_fee_scalar_has_non_zero_value || operator_fee_constant_has_non_zero_value {
+        if has_operator_fee {
             self.operator_fee_scalar =
                 l1_block_info.operator_fee_scalar.map(|scalar| scalar.saturating_to());
             self.operator_fee_constant =
@@ -346,7 +331,7 @@ impl OpReceiptBuilder {
         // footprint's value.
         // We're computing the jovian blob gas used before building the receipt since the inputs get
         // consumed by the `build_receipt` function.
-        chain_spec.is_jovian_active_at_timestamp(timestamp).then(|| {
+        if chain_spec.is_jovian_active_at_timestamp(timestamp) {
             // Estimate the size of the transaction in bytes and multiply by the DA
             // footprint gas scalar.
             // Jovian specs: `https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/jovian/exec-engine.md#da-footprint-block-limit`
@@ -355,7 +340,7 @@ impl OpReceiptBuilder {
                 .saturating_mul(l1_block_info.da_footprint_gas_scalar.unwrap_or_default().into());
 
             core_receipt.blob_gas_used = Some(da_size);
-        });
+        }
 
         let op_receipt_fields = OpReceiptFieldsBuilder::new(timestamp, block_number)
             .l1_block_info(chain_spec, tx_signed, l1_block_info)?
@@ -388,15 +373,17 @@ mod test {
         Block, BlockBody, Eip658Value, Header, Receipt, Sealable, SignableTransaction, TxEip7702,
         transaction::TransactionMeta,
     };
+    use alloy_genesis::Genesis;
     use alloy_op_hardforks::{
         OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP, OpChainHardforks,
     };
     use alloy_primitives::{Address, Bytes, Signature, U256, hex};
     use op_alloy_consensus::{OpTypedTransaction, SDMGasEntry, build_post_exec_tx};
     use op_alloy_network::eip2718::Decodable2718;
-    use reth_optimism_chainspec::{BASE_MAINNET, OP_MAINNET};
+    use reth_optimism_chainspec::{BASE_MAINNET, OP_MAINNET, OpChainSpecBuilder};
     use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
     use reth_primitives_traits::{Recovered, SealedBlock};
+    use std::sync::Arc;
 
     /// OP Mainnet transaction at index 0 in block 124665056.
     ///
@@ -554,11 +541,17 @@ mod test {
             },
         });
 
+        let interop_active = Arc::new(
+            OpChainSpecBuilder::default()
+                .chain(OP_MAINNET.chain())
+                .genesis(Genesis::default())
+                .interop_activated()
+                .build(),
+        );
         let converter = OpReceiptConverter::new(reth_storage_api::noop::NoopProvider::<
             _,
             OpPrimitives,
-        >::new(OP_MAINNET.clone()))
-        .with_sdm_enabled(true);
+        >::new(interop_active));
         let receipts =
             <OpReceiptConverter<_> as ReceiptConverter<OpPrimitives>>::convert_receipts_with_block(
                 &converter,

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
@@ -41,6 +42,9 @@ func (w *WithdrawalMonitor) CheckWithdrawals(games []*types.EnrichedGameData) {
 		honestWithdrawableAmounts[address] = big.NewInt(0)
 	}
 	for _, game := range games {
+		if gameTypes.GameType(game.GameType) == gameTypes.SuperPermissionedGameType {
+			continue
+		}
 		matches, diverges := w.validateGameWithdrawals(game, now, honestWithdrawableAmounts)
 		matching[game.WETHContract] += matches
 		divergent[game.WETHContract] += diverges

@@ -2,6 +2,8 @@ package filter
 
 import (
 	"context"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -180,4 +182,114 @@ func TestBackend_CheckAccessList_SupportLegacyCheckAccessListFormat(t *testing.T
 
 	err := backend.CheckAccessList(context.Background(), nil, safety.LocalUnsafe, makeExecDescriptor(0, 150, 0))
 	require.NoError(t, err)
+}
+
+// =============================================================================
+// Failsafe reason logging
+// =============================================================================
+
+func TestFailsafeReasonDetail(t *testing.T) {
+	chain900 := eth.ChainIDFromUInt64(900)
+	chain1000 := eth.ChainIDFromUInt64(1000)
+
+	tests := []struct {
+		name      string
+		manual    bool
+		chainErrs map[eth.ChainID]*IngesterError
+		cvErr     *ValidatorError
+		want      string
+	}{
+		{
+			name: "none active",
+			want: failsafeReasonNone,
+		},
+		{
+			name:   "manual only",
+			manual: true,
+			want:   "manual override",
+		},
+		{
+			name:      "chain error includes reason and message",
+			chainErrs: map[eth.ChainID]*IngesterError{chain900: {Reason: ErrorReorg, Message: "parent hash mismatch at block 175901"}},
+			want:      "chain[900] reorg: parent hash mismatch at block 175901",
+		},
+		{
+			name:  "cross-validation includes message",
+			cvErr: &ValidatorError{Message: "invalid executing message at ts 42"},
+			want:  "cross-validation: invalid executing message at ts 42",
+		},
+		{
+			name:      "combined sources joined with semicolons",
+			manual:    true,
+			chainErrs: map[eth.ChainID]*IngesterError{chain900: {Reason: ErrorConflict, Message: "db conflict"}},
+			cvErr:     &ValidatorError{Message: "validation failed"},
+			want:      "manual override; chain[900] conflict: db conflict; cross-validation: validation failed",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, failsafeReasonDetail(tt.manual, tt.chainErrs, tt.cvErr))
+		})
+	}
+
+	t.Run("chains ordered numerically not lexicographically", func(t *testing.T) {
+		errs := map[eth.ChainID]*IngesterError{
+			chain1000: {Reason: ErrorReorg, Message: "r1000"},
+			chain900:  {Reason: ErrorReorg, Message: "r900"},
+		}
+		got := failsafeReasonDetail(false, errs, nil)
+		require.Less(t, strings.Index(got, "chain[900]"), strings.Index(got, "chain[1000]"),
+			"chains must be ordered numerically, got %q", got)
+	})
+}
+
+func TestBackend_FailsafeHeartbeat_LogsReasonWhileActive(t *testing.T) {
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
+	mock := newMockChainIngester()
+	b := NewBackend(context.Background(), BackendParams{
+		Logger:         logger,
+		Metrics:        metrics.NoopMetrics,
+		Chains:         map[eth.ChainID]ChainIngester{eth.ChainIDFromUInt64(testChainA): mock},
+		CrossValidator: &mockCrossValidator{},
+	})
+
+	const heartbeatMsg = "Failsafe still active"
+
+	// Not in failsafe -> heartbeat is silent.
+	b.logFailsafeIfActive()
+	require.Nil(t, logs.FindLog(testlog.NewMessageFilter(heartbeatMsg)),
+		"heartbeat must not log when failsafe is inactive")
+
+	// In failsafe -> heartbeat logs the reason and the underlying "why" at Warn.
+	mock.SetError(ErrorReorg, "parent hash mismatch at block 175901")
+	b.logFailsafeIfActive()
+	rec := logs.FindLog(testlog.NewMessageFilter(heartbeatMsg), testlog.NewLevelFilter(slog.LevelWarn))
+	require.NotNil(t, rec, "heartbeat must log at Warn while failsafe is active")
+	require.Contains(t, rec.AttrValue("reasons"), "reorg")
+	require.Contains(t, rec.AttrValue("detail"), "parent hash mismatch at block 175901")
+
+	// Cleared -> heartbeat goes silent again.
+	logs.Clear()
+	mock.ClearError()
+	b.logFailsafeIfActive()
+	require.Nil(t, logs.FindLog(testlog.NewMessageFilter(heartbeatMsg)),
+		"heartbeat must stop once failsafe clears")
+}
+
+func TestBackend_FailsafeLogInterval_Configured(t *testing.T) {
+	newBackend := func(interval time.Duration) *Backend {
+		return NewBackend(context.Background(), BackendParams{
+			Logger:              testlog.Logger(t, log.LevelError),
+			Metrics:             metrics.NoopMetrics,
+			Chains:              map[eth.ChainID]ChainIngester{},
+			CrossValidator:      &mockCrossValidator{},
+			FailsafeLogInterval: interval,
+		})
+	}
+
+	// Configured interval is honored.
+	require.Equal(t, 15*time.Second, newBackend(15*time.Second).failsafeLogInterval)
+
+	// Unset (zero) falls back to the default — guards against time.NewTicker(0) panicking.
+	require.Equal(t, defaultFailsafeLogInterval, newBackend(0).failsafeLogInterval)
 }

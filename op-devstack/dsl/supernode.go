@@ -17,6 +17,15 @@ type Supernode struct {
 	commonImpl
 	inner       stack.Supernode
 	testControl stack.SupernodeTestControl
+	managedVNs  []*L2CLNode
+}
+
+// ManageVN registers a VN-proxy L2CLNode as hosted by this supernode so that
+// Start() can re-establish its DSL-managed peer connections after a Stop/Start
+// cycle. Initial peering is done by the sysgo runtime; this hook only matters
+// across restarts driven through Supernode.Start.
+func (s *Supernode) ManageVN(vn *L2CLNode) {
+	s.managedVNs = append(s.managedVNs, vn)
 }
 
 // NewSupernode creates a new Supernode DSL wrapper
@@ -181,6 +190,26 @@ func (s *Supernode) RestartWithFreshDataDir() {
 	s.log.Info("restarting supernode with fresh data dir")
 	err := s.testControl.RestartWithFreshDataDir()
 	s.require.NoError(err, "failed to restart supernode with fresh data dir")
+}
+
+// Stop halts the supernode while preserving its data directory and RPC
+// address. Requires NewSupernodeWithTestControl.
+func (s *Supernode) Stop() {
+	s.require.NotNil(s.testControl, "Stop requires test control; use NewSupernodeWithTestControl")
+	s.log.Info("stopping supernode")
+	s.testControl.Stop()
+}
+
+// Start brings the supernode back up after Stop. Requires NewSupernodeWithTestControl.
+// After the supernode is up, any VNs registered via ManageVN have their
+// DSL-managed peer connections re-established, mirroring L2CLNode.Start.
+func (s *Supernode) Start() {
+	s.require.NotNil(s.testControl, "Start requires test control; use NewSupernodeWithTestControl")
+	s.log.Info("starting supernode")
+	s.testControl.Start()
+	for _, vn := range s.managedVNs {
+		vn.restoreManagedPeers()
+	}
 }
 
 // BackfillAttempts returns the number of log-backfill attempts since the

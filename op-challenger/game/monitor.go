@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -49,6 +50,7 @@ type gameMonitor struct {
 	preimages           preimageScheduler
 	gameWindow          time.Duration
 	claimer             claimer
+	gameTypes           []types.GameType
 	allowedGames        []common.Address
 	l1HeadsSub          ethereum.Subscription
 	l1Source            *headSource
@@ -77,6 +79,7 @@ func newGameMonitor(
 	preimages preimageScheduler,
 	gameWindow time.Duration,
 	claimer claimer,
+	gameTypes []types.GameType,
 	allowedGames []common.Address,
 	l1Source MinimalSubscriber,
 	minUpdatePeriodSeconds time.Duration,
@@ -89,6 +92,7 @@ func newGameMonitor(
 		source:          source,
 		gameWindow:      gameWindow,
 		claimer:         claimer,
+		gameTypes:       gameTypes,
 		allowedGames:    allowedGames,
 		l1Source:        &headSource{inner: l1Source},
 		minUpdatePeriod: minUpdatePeriodSeconds,
@@ -107,6 +111,10 @@ func (m *gameMonitor) allowedGame(game common.Address) bool {
 	return false
 }
 
+func (m *gameMonitor) supportedGameType(gameType uint32) bool {
+	return slices.Contains(m.gameTypes, types.GameType(gameType))
+}
+
 func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, blockNumber uint64) error {
 	minGameTimestamp := clock.MinCheckedTimestamp(m.clock, m.gameWindow)
 	games, err := m.source.GetGamesAtOrAfter(ctx, blockHash, minGameTimestamp)
@@ -115,6 +123,14 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 	}
 	var gamesToPlay []types.GameMetadata
 	for _, game := range games {
+		if !m.supportedGameType(game.GameType) {
+			if game.GameType == uint32(types.SuperPermissionedGameType) {
+				m.logger.Info("Skipping unsupported super permissioned game type", "game", game.Proxy)
+			} else {
+				m.logger.Warn("Skipping unsupported game type", "game", game.Proxy, "gameType", game.GameType)
+			}
+			continue
+		}
 		if !m.allowedGame(game.Proxy) {
 			m.logger.Debug("Skipping game not on allow list", "game", game.Proxy)
 			continue

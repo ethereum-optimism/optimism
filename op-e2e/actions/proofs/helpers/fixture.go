@@ -1,7 +1,6 @@
 package helpers
 
 import (
-	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,14 +20,13 @@ type FaultProofProgramL2Source struct {
 }
 
 type FixtureInputs struct {
-	L2BlockNumber  uint64                            `toml:"l2-block-number"`
-	L2Claim        common.Hash                       `toml:"l2-claim"`
-	L2Head         common.Hash                       `toml:"l2-head"`
-	L2OutputRoot   common.Hash                       `toml:"l2-output-root"`
-	L2ChainID      eth.ChainID                       `toml:"l2-chain-id"`
-	L1Head         common.Hash                       `toml:"l1-head"`
-	AgreedPrestate []byte                            `toml:"agreed-prestate"`
-	DependencySet  *depset.StaticConfigDependencySet `toml:"dependency-set"`
+	L2BlockNumber  uint64      `toml:"l2-block-number"`
+	L2Claim        common.Hash `toml:"l2-claim"`
+	L2Head         common.Hash `toml:"l2-head"`
+	L2OutputRoot   common.Hash `toml:"l2-output-root"`
+	L2ChainID      eth.ChainID `toml:"l2-chain-id"`
+	L1Head         common.Hash `toml:"l1-head"`
+	AgreedPrestate []byte      `toml:"agreed-prestate"`
 
 	L2Sources []*FaultProofProgramL2Source
 

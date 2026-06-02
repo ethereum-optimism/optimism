@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -41,6 +42,13 @@ func (cl *InteropFilterClient) GetBlockHashByNumber(ctx context.Context, chainID
 		return result, err
 	}
 	return result, err
+}
+
+// isNotFound reports whether err is a "not found" RPC error returned by the supervisor
+// or filter. The RPC server converts the returned error to a string so we can't match
+// on an error type here.
+func isNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), ethereum.NotFound.Error())
 }
 
 func (cl *InteropFilterClient) Close() {

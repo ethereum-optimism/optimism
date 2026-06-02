@@ -62,7 +62,7 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
 
         info!(target: "sequencer", "Sending reset request to engine.");
         self.engine_actor_request_tx
-            .send(EngineActorRequest::ResetRequest(Box::new(ResetRequest { result_tx })))
+            .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx })))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
 
@@ -85,7 +85,7 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
         trace!(target: "sequencer", "Sending start build request to engine.");
         if self
             .engine_actor_request_tx
-            .send(EngineActorRequest::BuildRequest(Box::new(BuildRequest {
+            .send(EngineActorRequest::Build(Box::new(BuildRequest {
                 attributes,
                 result_tx: payload_id_tx,
             })))
@@ -113,7 +113,7 @@ impl SequencerEngineClient for QueuedSequencerEngineClient {
 
         trace!(target: "sequencer", ?attributes, "Sending seal request to engine.");
         self.engine_actor_request_tx
-            .send(EngineActorRequest::SealRequest(Box::new(SealRequest {
+            .send(EngineActorRequest::Seal(Box::new(SealRequest {
                 payload_id,
                 attributes,
                 result_tx,

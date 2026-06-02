@@ -2,8 +2,6 @@
 use crate::create_superchain_specs;
 
 create_superchain_specs!(
-    ("arena-z", "mainnet"),
-    ("arena-z", "sepolia"),
     ("automata", "mainnet"),
     ("bob", "mainnet"),
     ("boba", "sepolia"),
@@ -50,7 +48,6 @@ create_superchain_specs!(
     ("soneium-minato", "sepolia"),
     ("sseed", "mainnet"),
     ("swan", "mainnet"),
-    ("swell", "mainnet"),
     ("tbn", "mainnet"),
     ("tbn", "sepolia"),
     ("unichain", "mainnet"),

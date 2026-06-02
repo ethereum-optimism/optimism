@@ -1,0 +1,269 @@
+---
+title: Prepare for interop on OP Sepolia and Unichain Sepolia
+description: Node operator action checklist for the OP Sepolia and Unichain Sepolia interop activation, targeted in July of 2026.
+lang: en-US
+content_type: notice
+topic: interop-prep
+personas:
+  - node-operator
+categories:
+  - protocol
+  - infrastructure
+is_imported_content: 'false'
+audit-source:
+  - op-supernode/cmd/main.go
+  - op-supernode/flags/flags.go
+  - op-supernode/supernode/supernode.go
+  - op-supernode/supernode/activity/interop/interop.go
+  - op-node/rollup/types.go
+  - op-node/rollup/interop/config.go
+---
+
+OP Stack interop is expected to activate on **OP Sepolia** (chain ID `11155420`) and **Unichain Sepolia** (chain ID `1301`) in **July of 2026**, forming a two-chain interop dependency set on testnet.
+Node operators on either chain must change their topology before the activation timestamp: each operator runs one or more [op-supernode](/op-stack/interop/supernode) instances that derive both chains and validate the cross-chain messages between them, and the rest of the fleet runs as [Light CLs](/notices/specialized-node-topology) that follow the supernode.
+
+<Warning>
+  **A node that has not been migrated to the [supernode-plus-Light-CL topology](/notices/specialized-node-topology) by the activation timestamp cannot verify cross-chain dependencies.**
+  Every op-node in the fleet must run with `--l2.follow.source` (env: `OP_NODE_L2_FOLLOW_SOURCE`) pointed at an op-supernode that derives both chains.
+  Without that wiring — flag unset, or pointed at a non-supernode source — the op-node's safe head advances past the activation block without cross-chain validation, so the node cannot serve as a verifier or RPC source for the interop chain.
+  The [Specialized op-node topology notice](/notices/specialized-node-topology) describes the pattern in detail.
+  Start with that notice if your fleet hasn't moved off the homogeneous topology yet.
+</Warning>
+
+<Info>
+  The activation timestamps for OP Sepolia and Unichain Sepolia are planned for in **July of 2026** but have not yet been finalized.
+  Final timestamps will be published in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) once governance approves the rollup-config update.
+  This page will be updated with the exact timestamps once they are pinned.
+  Interop on mainnet OP Stack chains is planned as a follow-up rollout after this testnet activation; mainnet activation timestamps will be announced separately.
+</Info>
+
+## What's changing
+
+At the activation timestamp, OP Sepolia and Unichain Sepolia form a two-chain dependency set.
+Every block on either chain can contain executing messages that reference initiating messages on the other; a block is only [safe](/op-stack/interop/explainer#block-safety-levels) once every initiating message it depends on has itself reached the same safety level.
+The work of tracking both chains and proving those dependencies moves to a new component, [op-supernode](/op-stack/interop/supernode), that runs every chain in the dependency set together as virtual nodes inside one process.
+The rest of the operator's fleet stops deriving locally and follows the supernode's safe view through op-node's [Light CL mode](/notices/specialized-node-topology).
+
+For how cross-chain messages and block safety work under interop, see the [interop explainer](/op-stack/interop/explainer).
+
+## Who this affects
+
+This notice applies to anyone running OP Sepolia or Unichain Sepolia nodes after the activation timestamp.
+
+Every op-node in the fleet — replicas, RPC nodes, or any other op-node deployment — must run as a Light CL pointed at an op-supernode that derives both chains.
+Each operator stands up at least one op-supernode for the dependency set and reconfigures every op-node in their fleet to follow it.
+
+This rollout is scoped to OP Sepolia and Unichain Sepolia.
+Other OP Stack chains will activate the same Lagoon hardfork.
+With an empty dependency set there's nothing to cross-validate, so those operators can keep running plain op-node.
+Interop on OP Mainnet and Unichain follows in late July 2026, and other OP Stack chains move to the supernode topology only when they join an interop set.
+
+## Required components
+
+Update or install the following components before the activation timestamp.
+Versions marked `TBD` will be pinned in this notice once the activation release candidates are finalized.
+
+| Component        | Version | Role |
+| ---------------- | ------- | ---- |
+| `op-supernode`   | `TBD`   | Runs OP Sepolia and Unichain Sepolia as virtual nodes inside one binary and verifies cross-chain messages. Required component. See the [supernode explainer](/op-stack/interop/supernode) and [configuration guide](/node-operators/guides/configuration/supernode). |
+| `op-node`        | `TBD`   | Runs as a [Light CL](/notices/specialized-node-topology) on every node in the fleet; safe and finalized views are inherited from the supernode. |
+| `op-reth`        | `TBD`   | Execution client. Run one per chain in the dependency set — an execution client cannot back two chains (op-node rejects a mismatched chain ID at startup), so a host serving both chains runs at least two execution-client processes. |
+
+<Info>
+  **op-reth is the required execution client.** op-geth end-of-support is **May 31, 2026** — see [End of Support for op-geth and op-program](/notices/op-geth-deprecation). Interop activation lands after that date, so plan your fleet on op-reth.
+</Info>
+
+<Info>
+  op-supernode does not yet have a stable release.
+  Pull the latest candidate from the [op-supernode releases page](https://github.com/ethereum-optimism/optimism/releases?q=op-supernode).
+  op-node and op-reth ship stable releases — track their respective release pages until this notice pins the exact activation versions.
+</Info>
+
+## Action checklist
+
+The migration has four phases.
+Complete each one and verify it on testnet before the activation timestamp.
+Start the execution clients first, then the supernode — the supernode drives the ELs through their sync, because an EL has no way to know what chain head to target on its own.
+Light CLs come last, since they follow the supernode.
+Full per-flag reference for the supernode is in the [supernode configuration guide](/node-operators/guides/configuration/supernode); this notice walks through the testnet-specific setup.
+
+The command examples in each step are minimum viable configurations — they cover the flags required for the interop topology and nothing else.
+Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules, resource limits) on top as your environment requires.
+
+<Steps>
+  <Step title="Stand up execution clients for both chains">
+  Run at least one op-reth process for OP Sepolia and at least one for Unichain Sepolia.
+  Execution clients are not shared across chains.
+  For each chain, plan one EL per consensus client connecting to it — one per supernode virtual node, plus one per Light CL in your fleet.
+  Each execution client needs its own JWT secret file (a single shared file across both ELs is fine — see the note at the end of this step) and its own engine-API listen address.
+  ELs can start unsynced; they wait until the supernode connects before they know what chain head to sync to.
+  The supernode then drives each EL through its initial sync via the engine API, and tolerates the common case where one chain's EL is already synced and the other isn't.
+  Configure each EL to retain block and receipt history for at least 7 days so the supernode can backfill initiating-message logs (a full archive isn't required — see the [op-reth configuration reference](/node-operators/reference/op-reth-config) for the granular `--prune.*` flags).
+  If you also run op-challenger for permissionless fault proofs, these ELs have additional historical data requirements that go beyond the 7-day baseline above — see [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs) for the retention window and configuration. Pure node operators without op-challenger can skip that.
+
+  ```bash
+  # OP Sepolia execution client
+  op-reth node \
+    --chain=optimism-sepolia \
+    --datadir=/var/lib/op-reth-op-sepolia \
+    --authrpc.addr=127.0.0.1 \
+    --authrpc.port=8551 \
+    --authrpc.jwtsecret=/etc/op/jwt-secret.txt
+
+  # Unichain Sepolia execution client
+  op-reth node \
+    --chain=unichain-sepolia \
+    --datadir=/var/lib/op-reth-unichain-sepolia \
+    --authrpc.addr=127.0.0.1 \
+    --authrpc.port=8561 \
+    --authrpc.jwtsecret=/etc/op/jwt-secret.txt
+  ```
+
+  The example binds the engine RPC to `127.0.0.1`. If op-reth runs in a Docker container, or on a different host from the supernode, set `--authrpc.addr=0.0.0.0` (or a specific interface IP reachable from the supernode) and restrict access at the network layer.
+
+  Each EL in the fleet has exactly one consensus client connected to it.
+  The supernode drives its ELs via per-chain virtual nodes; each Light CL also gets its own EL.
+  Set one JWT secret path for all of the supernode's virtual nodes via `OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH`, or override per chain with `OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_AUTH` if a chain's EL needs its own secret.
+  Each Light CL connects to its EL with its own `--l2.jwt-secret` flag.
+  </Step>
+
+  <Step title="Stand up op-supernode for both chains">
+  Run op-supernode with both chains in `--chains`, a shared L1 RPC, and a shared beacon endpoint.
+  A beacon archive fallback is optional — only required if your primary beacon node doesn't keep the full blob history the supernode might need to backfill (Ethereum beacon nodes typically prune blob sidecars after roughly 18 days).
+  The example below uses environment variables; pass the equivalent `--flag` arguments if that fits your deployment better.
+  Fill in the placeholders before starting the binary.
+
+  ```yaml
+  # Dependency set and storage
+  OP_SUPERNODE_CHAINS: "11155420,1301"          # OP Sepolia + Unichain Sepolia
+  OP_SUPERNODE_DATA_DIR: /var/lib/op-supernode
+
+  # Shared L1 access
+  OP_SUPERNODE_L1_ETH_RPC: <your-sepolia-l1-eth-rpc>
+  OP_SUPERNODE_L1_BEACON: <your-sepolia-l1-beacon-rpc>
+  # OP_SUPERNODE_L1_BEACON_FALLBACKS: <your-sepolia-l1-beacon-archiver-rpc>  # optional; add if your primary beacon prunes blob sidecars
+
+  # Shared JWT secret for every virtual node's engine connection
+  OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH: /etc/op/jwt-secret.txt
+
+  # Per-chain: chain identity, engine RPC, and engine kind (reth for both since the fleet runs op-reth)
+  OP_SUPERNODE_VN_11155420_NETWORK: op-sepolia
+  OP_SUPERNODE_VN_11155420_L2_ENGINE_RPC: http://127.0.0.1:8551
+  OP_SUPERNODE_VN_11155420_L2_ENGINE_KIND: reth
+  OP_SUPERNODE_VN_1301_NETWORK: unichain-sepolia
+  OP_SUPERNODE_VN_1301_L2_ENGINE_RPC: http://127.0.0.1:8561
+  OP_SUPERNODE_VN_1301_L2_ENGINE_KIND: reth
+
+  # Top-level JSON-RPC server (per-chain namespaces under /<chainID>/)
+  OP_SUPERNODE_RPC_ADDR: 0.0.0.0
+  OP_SUPERNODE_RPC_PORT: "8545"
+  ```
+
+  If your primary beacon node prunes blob sidecars (the Ethereum default is about 18 days), configure `--l1.beacon-fallbacks` against a non-pruning beacon or an archiver service from the start.
+  A supernode that has been offline past the primary beacon's prune window cannot recover the missing blobs alone, and chain containers will stall at the gap.
+
+  For the full flag reference and recommendations, see the [supernode configuration guide](/node-operators/guides/configuration/supernode).
+  </Step>
+
+  <Step title="Migrate every op-node in the fleet to Light CL">
+  On every op-node, set `--l2.follow.source` to your op-supernode's per-chain RPC endpoint (the `/<chainID>` path prefix).
+  This disables local derivation; the op-node becomes a Light CL and inherits its safe and finalized view from the supernode.
+
+  ```bash
+  # OP Sepolia verifier / RPC op-node
+  op-node \
+    --network=op-sepolia \
+    --l1=<your-sepolia-l1-eth-rpc> \
+    --l1.beacon=<your-sepolia-l1-beacon-rpc> \
+    --l2=http://op-sepolia-reth:8551 \
+    --l2.jwt-secret=/etc/op/jwt-secret.txt \
+    --l2.follow.source=http://op-supernode:8545/11155420 \
+    --rpc.addr=0.0.0.0 \
+    --rpc.port=9545
+
+  # Unichain Sepolia verifier / RPC op-node
+  op-node \
+    --network=unichain-sepolia \
+    --l1=<your-sepolia-l1-eth-rpc> \
+    --l1.beacon=<your-sepolia-l1-beacon-rpc> \
+    --l2=http://unichain-sepolia-reth:8561 \
+    --l2.jwt-secret=/etc/op/jwt-secret.txt \
+    --l2.follow.source=http://op-supernode:8545/1301 \
+    --rpc.addr=0.0.0.0 \
+    --rpc.port=9546
+  ```
+
+  `--l1` and `--l1.beacon` are still required at startup even in Light CL mode — op-node rejects the configuration without them.
+  The Light CL stops issuing L1 RPC calls for derivation work itself; it still keeps L1 references open for runtime config updates and engine-API book-keeping.
+  Unsafe-head progression over P2P is unchanged.
+
+  For background on the topology and why it scales, see the [specialized op-node topology notice](/notices/specialized-node-topology).
+  </Step>
+
+  <Step title="Place your supernodes behind a consensus-aware proxyd">
+  OP Labs recommends running an **HA pool of at least three op-supernode instances** and fronting them with a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-awareness) configured with the `consensus_aware_consensus_layer` routing strategy.
+  Point the fleet's `--l2.follow.source` at the proxyd endpoint rather than at a single supernode.
+  This hides individual supernode failures or reorgs from the Light CL fleet and lets the supernode tier roll between releases without downtime.
+
+  An individual supernode going down inside the HA pool is masked by `proxyd` — Light CLs continue following the surviving instances.
+  If the entire supernode tier becomes unreachable, Light CLs keep advancing the unsafe chain over P2P gossip and resume safe-head tracking automatically once the tier is restored.
+
+  A single op-supernode is acceptable for evaluation, but treat it as a single point of failure for safe-head progression on both chains.
+  </Step>
+</Steps>
+
+## Verify your setup before activation
+
+Run these checks against your topology before the activation timestamp.
+None of them require interop to be active on either chain; they exercise the supernode-plus-Light-CL plumbing on its own so the activation block does not surface configuration errors for the first time.
+
+### Confirm the supernode is hosting both chains
+
+Watch the supernode's logs using whatever you already use (`docker logs -f op-supernode`, `journalctl -fu op-supernode`, `kubectl logs -f op-supernode`, etc.).
+Each chain container tags its log lines with its `chain_id`, so a healthy supernode produces interleaved derivation lines for both chains.
+The most common line during catch-up is `"Advancing bq origin"` (the batch-queue is walking forward through L1):
+
+```text
+t=2026-06-20T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=11155420 vn_id=7754 origin=0x...:4071413 originBehind=false
+t=2026-06-20T12:00:00+0000 lvl=info msg="Advancing bq origin" chain_id=1301     vn_id=d5ca origin=0x...:6728414 originBehind=false
+```
+
+Both `chain_id=11155420` and `chain_id=1301` should appear regularly.
+If you only see one chain, the other's container failed to start or its execution client is unreachable — error-level lines tagged with the missing chain explain why.
+Once the supernode catches up and starts promoting heads, you will also see `msg="Sync progress"` lines with `l2_safe`, `l2_unsafe`, and `l2_finalized` fields tagged with the same `chain_id`.
+
+If you have Prometheus scraping the supernode, the gauge `op_node_supernode_refs_number{layer="l2",type="l2_safe"}` carries the per-chain safe head on the `virtual_node_chain_id` label — a single Grafana panel makes the per-chain progression continuously visible.
+
+### Confirm a Light CL is following the supernode
+
+Watch a Light CL's logs the same way and look for `"Follow Source: Process external refs"` and `"Follow Upstream"` lines.
+A working Light CL produces these continuously while it polls the supernode's `optimism_syncStatus`:
+
+```text
+t=2026-06-20T12:00:00+0000 lvl=info msg="Safety levels" unsafe=enabled safe=http://op-supernode:8545/11155420
+t=2026-06-20T12:00:00+0000 lvl=info msg="Follow Upstream" eSafe=0x...:12345678 eLocalSafe=0x...:12345678 eFinalized=0x...:12345670 eCurrentL1=0x...:4071600
+t=2026-06-20T12:00:00+0000 lvl=info msg="Follow Source: Process external refs" externalSafe=0x...:12345678 externalLocalSafe=0x...:12345678 externalFinalized=0x...:12345670
+```
+
+The first `"Safety levels"` line is the smoke test: if `safe=` shows your supernode URL and per-chain prefix, the wiring is right.
+Once the supernode is past initial sync and starts promoting safe heads, `eSafe` and `externalSafe` carry climbing block numbers.
+If the Light CL never advances past genesis (`eSafe=...:0`) for many minutes, `--l2.follow.source` is pointed at the wrong URL or namespace — recheck the per-chain prefix (`/11155420` for OP Sepolia, `/1301` for Unichain Sepolia).
+
+If you scrape Prometheus, the equivalent gauge on a Light CL is `op_node_default_refs_number{layer="l2",type="l2_safe"}` — one Grafana panel per Light CL plus one panel per supernode chain, side by side, makes any divergence obvious.
+
+## Troubleshooting
+
+* **Safe head advances but RPC consumers report invalid blocks.** The op-node isn't following an op-supernode — either `--l2.follow.source` is unset, or it points at a non-supernode source — so safe-head promotion skips cross-chain validation. Point `--l2.follow.source` at a supernode that derives both chains.
+* **Blobs missing for L1 blocks older than ~18 days.** The primary beacon node has pruned them. Configure `--l1.beacon-fallbacks` against a non-pruning beacon or an archiver service. See the [blob archiver guide](/node-operators/guides/management/blobs#configure-a-blob-archiver) for options.
+* **Light CL safe head lags the supernode by more than a few blocks.** Check the network path between Light CL and supernode (or supernode `proxyd`). The Light CL polls `optimism_syncStatus` over RPC; a high-latency or rate-limited path here directly delays safe-head propagation.
+
+## Resources
+
+* [Interop explainer](/op-stack/interop/explainer) — how cross-chain messages and block safety work under interop.
+* [op-supernode explainer](/op-stack/interop/supernode) — what op-supernode is, why it exists, and how it pairs with Light CL.
+* [Supernode configuration guide](/node-operators/guides/configuration/supernode) — flag reference and starter configuration.
+* [Specialized op-node topology notice](/notices/specialized-node-topology) — operator-facing pattern for running Light CL fleets behind a safe source.
+* [Interop reorg awareness](/op-stack/interop/reorg) — how the safety model handles equivocation and L1 reorgs.
+* [Cross-chain security measures](/op-stack/security/interop-security) — how the safety level for inbound cross-chain messages is configured at the chain level.
+* [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs) — only relevant if you also run op-challenger; configures the supernode's ELs to serve historical proofs.
+

@@ -126,10 +126,11 @@ var (
 	Holocene = &Hardfork{Name: string(forks.Holocene), Precedence: 7}
 	Isthmus  = &Hardfork{Name: string(forks.Isthmus), Precedence: 8}
 	Jovian   = &Hardfork{Name: string(forks.Jovian), Precedence: 9}
+	Karst    = &Hardfork{Name: string(forks.Karst), Precedence: 10}
 )
 
 var (
-	Hardforks      = ForkMatrix{Regolith, Canyon, Delta, Ecotone, Fjord, Granite, Holocene, Isthmus, Jovian}
+	Hardforks      = ForkMatrix{Regolith, Canyon, Delta, Ecotone, Fjord, Granite, Holocene, Isthmus, Jovian, Karst}
 	LatestFork     = Hardforks[len(Hardforks)-1]
 	LatestForkOnly = ForkMatrix{LatestFork}
 )

@@ -619,7 +619,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	clk := clock.SystemClock
 	if cfg.SupportL1TimeTravel {
-		sys.TimeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		sys.TimeTravelClock = clock.NewAdvancingClock()
 		clk = sys.TimeTravelClock
 	}
 

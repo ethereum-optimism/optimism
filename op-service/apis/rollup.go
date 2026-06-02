@@ -39,10 +39,22 @@ type RollupSafeAtServer interface {
 	SafeHeadAtL1Block(ctx context.Context, blockNum hexutil.Uint64) (*eth.SafeHeadResponse, error)
 }
 
+type SdmStatus struct {
+	PostExecOptIn  bool    `json:"postExecOptIn"`
+	ProtocolActive bool    `json:"protocolActive"`
+	Effective      bool    `json:"effective"`
+	ActivationTime *uint64 `json:"activationTime,omitempty"`
+}
+
 type SequencerActivity interface {
 	StartSequencer(ctx context.Context, unsafeHead common.Hash) error
 	StopSequencer(ctx context.Context) (common.Hash, error)
 	SequencerActive(ctx context.Context) (bool, error)
+}
+
+type SequencerSdmControl interface {
+	SetSdmPostExecOptIn(ctx context.Context, enabled bool) error
+	SdmStatus(ctx context.Context) (SdmStatus, error)
 }
 
 type UnsignedPayloadPoster interface {
@@ -61,6 +73,7 @@ type RecoverMode interface {
 type RollupAdminClient interface {
 	CommonAdminClient
 	SequencerActivity
+	SequencerSdmControl
 	UnsignedPayloadPoster
 	RollupConductor
 	RecoverMode
@@ -69,6 +82,7 @@ type RollupAdminClient interface {
 type RollupAdminServer interface {
 	CommonAdminServer
 	SequencerActivity
+	SequencerSdmControl
 	UnsignedPayloadPoster
 	RollupConductor
 	RecoverMode

@@ -67,6 +67,11 @@ func validateEntry(fork string, entry nuts.ForkLockEntry, bundleContent []byte) 
 
 // checkCommitAncestry verifies that a commit is an ancestor of origin/develop.
 func checkCommitAncestry(root, fork string, commit string) error {
+	// Note: if you are here because you want to enable a bundle for a fork to be generated from a
+	// commit on a branch other than `develop`, you will
+	// 1. need to add a special case to this function
+	// 2. need to cherry pick the PR to the `develop` branch.
+	// See the "Regarding L2 contract releases" section in release-process.md for more information..
 	cmd := exec.Command("git", "merge-base", "--is-ancestor", commit, "origin/develop")
 	cmd.Dir = root
 	if err := cmd.Run(); err != nil {

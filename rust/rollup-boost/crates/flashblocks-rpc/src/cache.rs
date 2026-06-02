@@ -1,26 +1,20 @@
-use alloy_consensus::BlockHeader;
-use alloy_consensus::Transaction as _;
-use alloy_consensus::TxReceipt;
-use alloy_consensus::transaction::SignerRecoverable;
-use alloy_consensus::transaction::TransactionMeta;
+use alloy_consensus::{
+    BlockHeader, Transaction as _, TxReceipt,
+    transaction::{Recovered, SignerRecoverable, TransactionMeta},
+};
 use alloy_primitives::{Address, Sealable, TxHash, U256};
-use alloy_rpc_types::Withdrawals;
-use alloy_rpc_types::{BlockTransactions, Header, TransactionInfo};
+use alloy_rpc_types::{BlockTransactions, Header, TransactionInfo, Withdrawals};
 use arc_swap::ArcSwap;
 use op_alloy_consensus::OpTxEnvelope;
 use op_alloy_network::Optimism;
-use op_alloy_rpc_types::OpTransactionReceipt;
-use op_alloy_rpc_types::Transaction;
+use op_alloy_rpc_types::{OpTransactionReceipt, Transaction};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::extract_l1_info;
-use reth_optimism_primitives::OpPrimitives;
-use reth_optimism_primitives::{OpBlock, OpReceipt, OpTransactionSigned};
+use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
 use reth_optimism_rpc::OpReceiptBuilder;
-use reth_primitives::Recovered;
 use reth_primitives_traits::block::body::BlockBody;
 
-use reth_rpc_eth_api::transaction::ConvertReceiptInput;
-use reth_rpc_eth_api::{RpcBlock, RpcReceipt};
+use reth_rpc_eth_api::{RpcBlock, RpcReceipt, transaction::ConvertReceiptInput};
 use rollup_boost::{
     FlashblockBuilder, FlashblocksPayloadV1, OpExecutionPayloadEnvelope, PayloadVersion,
 };
@@ -118,6 +112,7 @@ impl FlashblocksCacheInner {
                         block_number: Some(block.number),
                         index: Some(idx as u64),
                         base_fee: block.base_fee_per_gas,
+                        block_timestamp: Some(block.timestamp),
                     };
                     transform_tx(signed_tx_ec_recovered, tx_info)
                 })
@@ -236,10 +231,14 @@ impl FlashblocksCacheInner {
                 gas_used = receipt.cumulative_gas_used();
                 next_log_index += receipt.logs().len();
 
-                let rpc_receipt =
-                    OpReceiptBuilder::new(&self.chain_spec.clone(), input, &mut l1_block_info)
-                        .expect("failed to build receipt")
-                        .build();
+                let rpc_receipt = OpReceiptBuilder::new(
+                    &self.chain_spec.clone(),
+                    input,
+                    &mut l1_block_info,
+                    None,
+                )
+                .expect("failed to build receipt")
+                .build();
 
                 self.receipts_cache
                     .insert(tx.tx_hash(), rpc_receipt.clone());
@@ -282,6 +281,7 @@ fn transform_tx(tx: Recovered<OpTransactionSigned>, tx_info: TransactionInfo) ->
         block_number,
         index: transaction_index,
         base_fee,
+        block_timestamp,
         ..
     } = tx_info;
 
@@ -305,6 +305,7 @@ fn transform_tx(tx: Recovered<OpTransactionSigned>, tx_info: TransactionInfo) ->
             block_number,
             transaction_index,
             effective_gas_price: Some(effective_gas_price),
+            block_timestamp,
         },
         deposit_nonce: None, // TODO
         deposit_receipt_version: None,

@@ -48,6 +48,14 @@ where
     fn take_last_post_exec_tx_result(&mut self) -> alloy_op_evm::post_exec::PostExecExecutedTx {
         Self::take_last_post_exec_tx_result(self)
     }
+
+    fn warming_state(&self) -> alloy_op_evm::post_exec::WarmingState {
+        self.inner.warming_state()
+    }
+
+    fn seed_warming_state(&mut self, state: alloy_op_evm::post_exec::WarmingState) {
+        self.inner.seed_warming_state(state);
+    }
 }
 
 impl<DB, I, P> Evm for CustomEvm<DB, I, P>

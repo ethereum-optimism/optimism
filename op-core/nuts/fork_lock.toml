@@ -8,8 +8,8 @@
 
 [interop]
   bundle = "op-core/nuts/bundles/interop_nut_bundle.json"
-  hash = "sha256:9c2753c8ff0c63503c2a8bfdb6f2f1058f7251b42399559b97c7ca84492c4d93"
-  commit = "e45f4ca007569a0429e66d6657dae51e21acc89f"
+  hash = "sha256:2124ce31c0947cac15f00114214dd4354848f7b4642ff2d12ebb3f94b28cc989"
+  commit = "fa9974a2cd38d9e7633a12f9024d52f41de55f86"
 
 # REVIEWER NOTE: Changes to this file affect which NUT bundles are embedded
 # into op-node and kona-node for hardfork activations. Review carefully.

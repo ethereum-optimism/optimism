@@ -1,16 +1,17 @@
 ---
-title: Upgrade 19 - L2 Contract Manager, Osaka on L2, and Kona Respected Game Type
-description: Learn how to prepare for Upgrade 19.
+title: Upgrade 19 - Karst Hard Fork
+description: Learn how to prepare for the Karst hard fork.
 ---
 
-Upgrade 19 is a proposed network upgrade for OP Stack chains. It **introduces the L2 Contract Manager (L2CM)** enabling governance-approved L2 smart contract upgrades through a new consensus layer mechanism, **promotes `CANNON_KONA` to the respected game type** making the Rust-based `kona-client` the primary fault proof program used for withdrawals, **activates Osaka EIPs on L2** including the EIP-7825 transaction gas limit, and **adds a preemptive Glamsterdam Defense change** reducing the BN256 pairing precompile maximum input size.
+The Karst hard fork is a proposed network upgrade for OP Stack chains. It **introduces the L2 Contract Manager (L2CM)** enabling governance-approved L2 smart contract upgrades through a new consensus layer mechanism, **promotes `CANNON_KONA` to the respected game type** making the Rust-based `kona-client` the primary fault proof program used for withdrawals, **activates Osaka EIPs on L2** including the EIP-7825 transaction gas limit, and **adds a preemptive Glamsterdam Defense change** reducing the BN256 pairing precompile maximum input size.
 
 <Warning>
   **`op-geth` and `op-program` will not support Upgrade 19 / Karst.** Migrate to **`op-reth`** (and **`kona-client`** for fault proofs) before activation. End of Support is **May 31, 2026** — see [End of Support for op-geth and op-program](/notices/op-geth-deprecation).
 </Warning>
 
 <Info>
-  Upgrade 19 includes hard fork changes (Osaka on L2, Glamsterdam Defense and hard fork activated L2 Contract upgrades). Node operators must upgrade before the activation timestamp. Activation timestamps for each network will be communicated once finalized.
+  The Karst hard fork on Optimism Governed **Sepolia OP Stack chains** will be activated on **Wed, Jun 17, 2026 at 16:00:01 UTC** (`1781712001`). On **Mainnet OP Stack chains** the upgrade is planned to optimistically activate on **Wed, Jul 8, 2026 at 16:00:01 UTC** (`1783526401`), depending on Optimism Governance's approval. The smart contract upgrades are expected to happen the week prior to activation. 
+  The upgrade will be executed on the following chains: `OP`, `Soneium`, `Ink`, `Unichain`, `Mode`, `Metal`, and `Zora`.
 </Info>
 
 ## What's included in Upgrade 19
@@ -72,8 +73,8 @@ Update the following components:
 | ---------------- | ------- | ----- |
 | `op-node`        | `TBD`   | Must be updated **prior** to the activation timestamp. Required for Osaka on L2 and Glamsterdam Defense hard fork changes. |
 | `op-reth`        | `TBD`   | Must be updated **prior** to the activation timestamp. Required for EIP-7825 gas limit enforcement, MODEXP/P256VERIFY gas changes, and BN256 pairing input size reduction. |
-| `op-challenger` | `TBD` | Must be updated **prior** to the upgrade. Required for `CANNON_KONA` respected game type. |
-| `op-dispute-mon` | `TBD` | Must be updated **prior** to the upgrade. |
+| `op-challenger` | [`v1.9.3`](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.9.3) | Must be updated **prior** to the upgrade. Required for `CANNON_KONA` respected game type. |
+| `op-dispute-mon` | [`v1.5.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-dispute-mon%2Fv1.5.2) | Must be updated **prior** to the upgrade. |
 | `op-contracts` | `TBD` | Required for L2CM, OPCMv2, and `CANNON_KONA` respected game type support. |
 
 ### For permissionless fault proof enabled chains

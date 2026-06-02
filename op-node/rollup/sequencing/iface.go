@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
@@ -17,6 +18,8 @@ type SequencerIface interface {
 	Init(ctx context.Context, active bool) error
 	Start(ctx context.Context, head common.Hash) error
 	Stop(ctx context.Context) (hash common.Hash, err error)
+	SetSdmPostExecOptIn(ctx context.Context, enabled bool) error
+	SdmStatus(ctx context.Context, nextBlockTimestamp uint64) (apis.SdmStatus, error)
 	SetMaxSafeLag(ctx context.Context, v uint64) error
 	OverrideLeader(ctx context.Context) error
 	ConductorEnabled(ctx context.Context) bool
