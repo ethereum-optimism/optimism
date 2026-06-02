@@ -4,7 +4,7 @@ use crate::interop_filter::InteropTxValidatorError;
 use op_alloy_rpc_types::SuperchainDAError;
 use reth_metrics::{
     Metrics,
-    metrics::{Counter, Histogram},
+    metrics::{Counter, Gauge, Histogram},
 };
 use std::time::Duration;
 
@@ -37,6 +37,10 @@ pub struct InteropMetrics {
     pub(crate) missed_data_count: Counter,
     /// Counter for the number of times data corruption was encountered
     pub(crate) data_corruption_count: Counter,
+
+    /// Current interop failsafe state: `1` if failsafe is enabled (all interop txs are
+    /// rejected/evicted), `0` if disabled. Refreshed on every failsafe poll.
+    pub(crate) failsafe_enabled: Gauge,
 }
 
 impl InteropMetrics {
@@ -44,6 +48,12 @@ impl InteropMetrics {
     #[inline]
     pub fn record_interop_query(&self, duration: Duration) {
         self.interop_query_latency.record(duration.as_secs_f64());
+    }
+
+    /// Records the current interop failsafe state (`1` = enabled, `0` = disabled).
+    #[inline]
+    pub fn set_failsafe_enabled(&self, enabled: bool) {
+        self.failsafe_enabled.set(if enabled { 1.0 } else { 0.0 });
     }
 
     /// Increments the metrics for the given error

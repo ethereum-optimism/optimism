@@ -143,6 +143,7 @@ impl InteropFilterClient {
         .map_err(InteropTxValidatorError::from_json_rpc)?;
 
         self.inner.failsafe_enabled.store(result, Ordering::Release);
+        self.inner.metrics.set_failsafe_enabled(result);
         Ok(result)
     }
 
