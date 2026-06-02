@@ -14,6 +14,34 @@ rss: true
 
 **op-reth** is the OP Stack execution layer (EL) built on [Reth](https://reth.rs), a modular, high-performance Rust Ethereum node. It is the recommended execution client for OP Stack chains, replacing op-geth.
 
+<Update label="June 2, 2026" description="v2.3.0" tags={["Latest", "Stable"]}>
+
+> [!WARNING]
+> This is a mandatory release for all node operators. It includes [Sepolia](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/sepolia/op.toml#L25) and [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork. 
+>
+> **Operators must upgrade before the scheduled hard fork times.**
+>
+> The following Sepolia chains will activate on **`1781712001` (Wed Jun 17 2026 16:00:01 UTC)**: op, ink, zora, mode, lisk, metal, unichain, soneium-minato, ethernity, creator-chain-testnet
+>
+> The following Mainnet chains will optimistically activate on **`1783526401` (Wed Jul 8 2026 16:00:01 UTC)**, pending governance approval: op, ink, zora, mode, lisk, metal, unichain, soneium, ethernity, tbn
+>
+> **Reminder**: op-geth has reached [end of support](https://docs.optimism.io/notices/op-geth-deprecation), so you must be running op-reth to support the karst activation. For more details on this network upgrade see our [notice page](https://docs.optimism.io/notices/upgrade-19).
+
+Besides the Karst hardfork timestamps, this release also includes several bug fixes.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth/v2.3.0)
+
+</Update>
+
+<Update label="May 26, 2026" description="v2.2.5" tags={["Stable"]}>
+
+> [!IMPORTANT]
+> This release bumps the reth dependency which includes [FCU backfill-target fix](https://github.com/paradigmxyz/reth/pull/24159).
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth/v2.2.5)
+
+</Update>
+
 <Update label="May 18, 2026" description="v2.2.3" tags={["Latest", "Stable"]}>
 
 > [!IMPORTANT]

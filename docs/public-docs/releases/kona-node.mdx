@@ -14,6 +14,25 @@ rss: true
 
 **kona-node** is a Rust implementation of the [rollup-node spec](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/rollup-node.md), backed by kona-derive. It is a Rust-native alternative to op-node.
 
+<Update label="June 2, 2026" description="v1.6.0" tags={["Latest", "Stable"]}>
+
+> [!WARNING]
+> This is a mandatory release for all node operators. It includes [Sepolia](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/sepolia/op.toml#L25) and [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork. 
+>
+> **Operators must upgrade before the scheduled hard fork times.**
+>
+> The following Sepolia chains will activate on **`1781712001` (Wed Jun 17 2026 16:00:01 UTC)**: op, ink, zora, mode, lisk, metal, unichain, soneium-minato, ethernity, creator-chain-testnet
+>
+> The following Mainnet chains will optimistically activate on **`1783526401` (Wed Jul 8 2026 16:00:01 UTC)**, pending governance approval: op, ink, zora, mode, lisk, metal, unichain, soneium, ethernity, tbn
+>
+> **Reminder**: op-geth has reached [end of support](https://docs.optimism.io/notices/op-geth-deprecation), so you must be running op-reth to support the karst activation. For more details on this network upgrade see our [notice page](https://docs.optimism.io/notices/upgrade-19).
+
+Besides the Karst hardfork timestamps, this release also includes a few bug fixes.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/kona-node/v1.6.0)
+
+</Update>
+
 <Update label="May 19, 2026" description="v1.5.2" tags={["Latest", "Stable"]}>
 
 > [!NOTE]

@@ -14,6 +14,53 @@ rss: true
 
 **op-contracts** contains the L1 and L2 smart contracts for the OP Stack. See the [contract reference](https://devdocs.optimism.io/contracts-bedrock) for interface documentation and architecture details.
 
+<Update label="May 29, 2026" description="v7.0.0-rc.4" tags={["Release Candidate"]}>
+
+## What's Changed in op-contracts/v7.0.0-rc.4
+
+* feat(contracts-bedrock): scale ResourceConfig to fit smaller gasLimits (v7.0.0)
+* Merge pull request #20981 from ethereum-optimism/jm/revert-xlayer-layout-fix
+* Revert "fix(l2cm): preserve XLayer LiquidityController minters across upgrade "
+* fix(l2cm): preserve XLayer LiquidityController minters across upgrade
+* fix: filter prerelease OPCM release tags (cherry-pick of #20617)
+* feat: make l2cm default path in devfeature bitmap
+* chore(ci): clean up contracts CI and RPC secrets
+* fix(contracts): reject oz v5 initializable in opcm
+* chore(rust/scr): update superchain registry for rust crates
+* feat: zk go deployer
+* fix(contracts): fail closed resolving semver target branch
+* chore(contracts-bedrock): drop v1 mention from _decodeDisputeGameImpl natspec
+* interop: add OPContractsManagerMigrationValidator for post-migration validation
+* fix(op-fetcher): guard against zero mipsImpl before calling oracle()
+* chore(contracts-bedrock): fix contract typos
+* Revert "chore(rust): bump revm to 38 "
+* Revert "Delete .circleci/Untitled "
+* docs(opcm): acknowledge Initializable upgrade limitations
+* test(contracts): cover VerifyOPCM runSingle lazy setup
+* fix: ZK Game Quality Review Fixes
+* chore(rust): bump revm to 38
+* test: add ZKDisputeGame unit and integration test coverage
+* fix(contracts-bedrock): skip lint fix during CI
+* Delete .circleci/Untitled
+* feat(contracts): enforce EIP-7825 gas cap in NUT bundle validation
+* feat(l2cm): support X Layer LiquidityController in L2CM upgrade path
+* feat: add SP1Adapter
+* fix: add intrinsic gas deduction to l2 fork tests
+* chore(contracts): remove 7 unreferenced interfaces
+* test(contracts): skip VerifyOPCM_Run_Test on coverage only, not unoptimized
+* chore(contracts): remove unused SchemaResolver abstract base
+* fix(contracts): skip ZKDisputeGame in VerifyOPCM when feature disabled
+* refactor: revenue share cleanup
+* fix: l2cm fma followup
+* feat: opcm zk roots
+* chore(deployer): remove OPCMv1 migration, upgrade, and dev feature code
+* contracts: delete unused interop contracts
+* fix(l2cm): guard CGT feature activation and liquidity controller renounce ownership
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v7.0.0-rc.4)
+
+</Update>
+
 <Update label="March 16, 2026" description="v6.0.0" tags={["Latest", "Stable"]}>
 
 This is the contracts release for [Upgrade 18](https://gov.optimism.io/t/upgrade-18-custom-gas-token-v2-and-kona-proofs/10576). The main changes in this release are:
