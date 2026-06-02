@@ -20,7 +20,10 @@ if [[ ! -f "$MANIFEST" ]]; then
 fi
 
 # Parse the first two chain names from manifest.yaml.
-mapfile -t CHAINS < <(grep '^\s*- name:' "$MANIFEST" | head -2 | awk '{print $3}')
+CHAINS=()
+while IFS= read -r line; do
+  CHAINS+=("$line")
+done < <(grep '^[[:space:]]*- name:' "$MANIFEST" | head -2 | awk '{print $3}')
 
 if [[ ${#CHAINS[@]} -lt 2 ]]; then
   echo "Error: expected at least 2 chains in $MANIFEST, found ${#CHAINS[@]}" >&2
@@ -28,9 +31,8 @@ if [[ ${#CHAINS[@]} -lt 2 ]]; then
 fi
 
 # Construct RPC URLs from chain names.
-RPC_BASE="us.networks.ent.dev.oplabs.cloud"
-SOURCE_RPC="https://an-${CHAINS[0]}-opn-reth-a-rpc-0-op-reth.${RPC_BASE}"
-DEST_RPC="https://an-${CHAINS[1]}-opn-reth-a-rpc-0-op-reth.${RPC_BASE}"
+SOURCE_RPC="https://${CHAINS[0]}.optimism.io"
+DEST_RPC="https://${CHAINS[1]}.optimism.io"
 
 echo "Devnet:     $(basename "$DEVNET_DIR")"
 echo "Chain A:    ${CHAINS[0]} -> $SOURCE_RPC"
