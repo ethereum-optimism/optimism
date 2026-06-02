@@ -6,11 +6,11 @@ use crate::{
     SpanBatchTransactionData, SpanDecodingError, read_tx_data,
 };
 use alloc::vec::Vec;
-use alloy_consensus::{Transaction, TxEnvelope, TxType};
+use alloy_consensus::{Transaction, TxEnvelope};
 use alloy_eips::eip2718::Decodable2718;
 use alloy_primitives::{Address, Bytes, Signature, U256, bytes};
 use alloy_rlp::{Buf, Decodable, Encodable};
-use op_alloy_consensus::{OpTxEnvelope, POST_EXEC_TX_TYPE_ID};
+use op_alloy_consensus::{OpTxEnvelope, OpTxType};
 
 /// This struct contains the decoded information for transactions in a span batch.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -32,7 +32,7 @@ pub struct SpanBatchTransactions {
     /// The protected bits, standard span-batch bitlist.
     pub protected_bits: SpanBatchBits,
     /// The types of the transactions.
-    pub tx_types: Vec<u8>,
+    pub tx_types: Vec<OpTxType>,
     /// Total legacy transaction count in the span batch.
     pub legacy_tx_count: u64,
 }
@@ -44,7 +44,7 @@ struct SpanBatchTransactionParts {
     nonce: u64,
     gas: u64,
     chain_id: Option<u64>,
-    tx_type: u8,
+    tx_type: OpTxType,
 }
 
 const fn zero_signature() -> Signature {
@@ -57,42 +57,58 @@ impl SpanBatchTransactionParts {
             return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
         }
 
-        let (data, signature) = match tx {
+        let (data, signature, to, nonce, gas, chain_id, tx_type) = match tx {
             OpTxEnvelope::Legacy(signed) => (
                 SpanBatchTransactionData::try_from(&TxEnvelope::Legacy(signed.clone()))?,
                 *signed.signature(),
+                signed.to(),
+                signed.nonce(),
+                signed.gas_limit(),
+                signed.chain_id(),
+                OpTxType::Legacy,
             ),
             OpTxEnvelope::Eip2930(signed) => (
                 SpanBatchTransactionData::try_from(&TxEnvelope::Eip2930(signed.clone()))?,
                 *signed.signature(),
+                signed.to(),
+                signed.nonce(),
+                signed.gas_limit(),
+                signed.chain_id(),
+                OpTxType::Eip2930,
             ),
             OpTxEnvelope::Eip1559(signed) => (
                 SpanBatchTransactionData::try_from(&TxEnvelope::Eip1559(signed.clone()))?,
                 *signed.signature(),
+                signed.to(),
+                signed.nonce(),
+                signed.gas_limit(),
+                signed.chain_id(),
+                OpTxType::Eip1559,
             ),
             OpTxEnvelope::Eip7702(signed) => (
                 SpanBatchTransactionData::try_from(&TxEnvelope::Eip7702(signed.clone()))?,
                 *signed.signature(),
+                signed.to(),
+                signed.nonce(),
+                signed.gas_limit(),
+                signed.chain_id(),
+                OpTxType::Eip7702,
             ),
             OpTxEnvelope::PostExec(tx) => (
                 SpanBatchTransactionData::PostExec(SpanBatchPostExecTransactionData {
                     data: tx.input.clone().into(),
                 }),
                 zero_signature(),
+                None,
+                0,
+                0,
+                None,
+                OpTxType::PostExec,
             ),
             OpTxEnvelope::Deposit(_) => unreachable!("deposits rejected above"),
         };
-        let tx_type = tx.tx_type() as u8;
 
-        Ok(Self {
-            data,
-            signature,
-            to: tx.to(),
-            nonce: tx.nonce(),
-            gas: tx.gas_limit(),
-            chain_id: (tx_type != POST_EXEC_TX_TYPE_ID).then(|| tx.chain_id()).flatten(),
-            tx_type,
-        })
+        Ok(Self { data, signature, to, nonce, gas, chain_id, tx_type })
     }
 }
 
@@ -280,7 +296,7 @@ impl SpanBatchTransactions {
             let (tx_data_item, tx_type) = read_tx_data(r)?;
             tx_data.push(tx_data_item);
             tx_types.push(tx_type);
-            if tx_type == TxType::Legacy as u8 {
+            if tx_type == OpTxType::Legacy {
                 self.legacy_tx_count += 1;
             }
         }
@@ -331,7 +347,7 @@ impl SpanBatchTransactions {
                 .tx_sigs
                 .get(idx)
                 .ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
-            let is_protected = if tx.tx_type() == TxType::Legacy as u8 {
+            let is_protected = if tx.tx_type() == OpTxType::Legacy {
                 protected_bit_idx += 1;
                 self.protected_bits.get_bit(protected_bit_idx - 1).unwrap_or_default() == 1
             } else {
@@ -351,12 +367,12 @@ impl SpanBatchTransactions {
                 .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
             let parts = SpanBatchTransactionParts::from_op_tx(&op_tx)?;
 
-            if parts.tx_type == TxType::Legacy as u8 {
+            if parts.tx_type == OpTxType::Legacy {
                 self.protected_bits
                     .set_bit(self.legacy_tx_count as usize, parts.chain_id.is_some());
                 self.legacy_tx_count += 1;
             }
-            if parts.tx_type != POST_EXEC_TX_TYPE_ID &&
+            if parts.tx_type != OpTxType::PostExec &&
                 parts.chain_id.is_some_and(|id| id != chain_id)
             {
                 return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
@@ -487,7 +503,9 @@ mod tests {
         let result = span_batch_txs.add_txs(vec![Bytes::from(buf.clone())], 1);
         assert_eq!(result, Ok(()));
         assert_eq!(span_batch_txs.total_block_tx_count, 1);
-        assert_eq!(span_batch_txs.tx_types, vec![POST_EXEC_TX_TYPE_ID]);
+        assert_eq!(span_batch_txs.tx_types, vec![OpTxType::PostExec]);
+        assert!(span_batch_txs.tx_tos.is_empty());
+        assert_eq!(span_batch_txs.contract_creation_bits.get_bit(0), Some(1));
 
         let full_txs = span_batch_txs.full_txs(1).unwrap();
         assert_eq!(full_txs, vec![buf]);

@@ -1,11 +1,11 @@
 //! This module contains the top level span batch transaction data type.
 
 use alloc::vec::Vec;
-use alloy_consensus::{Transaction, TxEnvelope, TxType};
+use alloy_consensus::{Transaction, TxEnvelope};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Signature, U256};
 use alloy_rlp::{Bytes, Decodable, Encodable, Header};
-use op_alloy_consensus::POST_EXEC_TX_TYPE_ID;
+use op_alloy_consensus::OpTxType;
 
 use crate::{
     SpanBatchEip1559TransactionData, SpanBatchEip2930TransactionData,
@@ -61,19 +61,19 @@ impl Encodable for SpanBatchTransactionData {
                 data.encode(out);
             }
             Self::Eip2930(data) => {
-                out.put_u8(TxType::Eip2930 as u8);
+                out.put_u8(OpTxType::Eip2930 as u8);
                 data.encode(out);
             }
             Self::Eip1559(data) => {
-                out.put_u8(TxType::Eip1559 as u8);
+                out.put_u8(OpTxType::Eip1559 as u8);
                 data.encode(out);
             }
             Self::Eip7702(data) => {
-                out.put_u8(TxType::Eip7702 as u8);
+                out.put_u8(OpTxType::Eip7702 as u8);
                 data.encode(out);
             }
             Self::PostExec(data) => {
-                out.put_u8(POST_EXEC_TX_TYPE_ID);
+                out.put_u8(OpTxType::PostExec as u8);
                 data.encode(out);
             }
         }
@@ -140,14 +140,14 @@ impl TryFrom<&TxEnvelope> for SpanBatchTransactionData {
 }
 
 impl SpanBatchTransactionData {
-    /// Returns the transaction type ID of the [`SpanBatchTransactionData`].
-    pub const fn tx_type(&self) -> u8 {
+    /// Returns the transaction type of the [`SpanBatchTransactionData`].
+    pub const fn tx_type(&self) -> OpTxType {
         match self {
-            Self::Legacy(_) => TxType::Legacy as u8,
-            Self::Eip2930(_) => TxType::Eip2930 as u8,
-            Self::Eip1559(_) => TxType::Eip1559 as u8,
-            Self::Eip7702(_) => TxType::Eip7702 as u8,
-            Self::PostExec(_) => POST_EXEC_TX_TYPE_ID,
+            Self::Legacy(_) => OpTxType::Legacy,
+            Self::Eip2930(_) => OpTxType::Eip2930,
+            Self::Eip1559(_) => OpTxType::Eip1559,
+            Self::Eip7702(_) => OpTxType::Eip7702,
+            Self::PostExec(_) => OpTxType::PostExec,
         }
     }
 
@@ -157,19 +157,18 @@ impl SpanBatchTransactionData {
             return Err(alloy_rlp::Error::Custom("Invalid transaction data"));
         }
 
-        if b[0] == POST_EXEC_TX_TYPE_ID {
-            return Ok(Self::PostExec(SpanBatchPostExecTransactionData::decode(&mut &b[1..])?));
-        }
-
-        match b[0].try_into().map_err(|_| alloy_rlp::Error::Custom("Invalid tx type"))? {
-            TxType::Eip2930 => {
+        match b[0] {
+            ty if ty == OpTxType::Eip2930 as u8 => {
                 Ok(Self::Eip2930(SpanBatchEip2930TransactionData::decode(&mut &b[1..])?))
             }
-            TxType::Eip1559 => {
+            ty if ty == OpTxType::Eip1559 as u8 => {
                 Ok(Self::Eip1559(SpanBatchEip1559TransactionData::decode(&mut &b[1..])?))
             }
-            TxType::Eip7702 => {
+            ty if ty == OpTxType::Eip7702 as u8 => {
                 Ok(Self::Eip7702(SpanBatchEip7702TransactionData::decode(&mut &b[1..])?))
+            }
+            ty if ty == OpTxType::PostExec as u8 => {
+                Ok(Self::PostExec(SpanBatchPostExecTransactionData::decode(&mut &b[1..])?))
             }
             _ => Err(alloy_rlp::Error::Custom("Invalid transaction type")),
         }
@@ -227,7 +226,7 @@ impl SpanBatchTransactionData {
         match self {
             Self::PostExec(data) => {
                 let mut out = Vec::with_capacity(1 + data.data.len());
-                out.push(POST_EXEC_TX_TYPE_ID);
+                out.push(OpTxType::PostExec as u8);
                 out.extend_from_slice(data.data.as_ref());
                 Ok(out)
             }
