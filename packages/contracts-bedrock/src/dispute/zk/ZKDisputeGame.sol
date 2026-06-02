@@ -343,6 +343,9 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         Types.SuperRootProof memory proof = Encoding.decodeSuperRootProof(superRootProof());
         if (Hashing.hashSuperRootProof(proof) != rootClaim().raw()) revert BadExtraData();
 
+        // INVARIANT: The l2ChainId must still exist, yet zero-valued, in the game args for legacy reasons.
+        if (_l2ChainId() != 0) revert ZKDisputeGame_NoChainIdNeeded();
+
         // Store the factory reference for parent game lookups.
         disputeGameFactory = IDisputeGameFactory(msg.sender);
 
@@ -378,9 +381,6 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             (startingProposal.root, startingProposal.l2SequenceNumber) = anchorStateRegistry().getAnchorRoot();
             if (startingProposal.root.raw() == bytes32(0)) revert AnchorRootNotFound();
         }
-
-        // The l2ChainId must still exist, yet zero-valued, in the game args for legacy reasons.
-        if (_l2ChainId() != 0) revert ZKDisputeGame_NoChainIdNeeded();
 
         // Do not allow the game to be initialized if the root claim corresponds to a sequence number (timestamp) at
         // or before the configured starting sequence number.
