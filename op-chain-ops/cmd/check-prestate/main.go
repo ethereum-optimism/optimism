@@ -14,21 +14,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/prestate"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/registry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/types"
-	"github.com/ethereum-optimism/optimism/op-program/prestates"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/superchain"
 	"golang.org/x/term"
 )
-
-type FPProgramType interface {
-	FindVersions(log log.Logger, prestateVersion string) (
-		elCommitInfo types.CommitInfo,
-		fppCommitInfo types.CommitInfo,
-		superChainRegistryCommit string,
-		prestateConfigs *superchain.ChainConfigLoader)
-}
 
 func main() {
 	color := term.IsTerminal(int(os.Stderr.Fd()))
@@ -73,18 +64,18 @@ func main() {
 		log.Crit("--prestate-hash is invalid")
 	}
 
-	prestateReleases, err := prestates.LoadReleases(versionsOverrideFile)
+	prestateReleases, err := prestate.LoadReleases(versionsOverrideFile)
 	if err != nil {
 		log.Crit("Failed to load prestate releases list", "err", err)
 	}
 
 	var prestateVersion string
 	var prestateType string
-	for version, prestates := range prestateReleases.Prestates {
-		for _, prestate := range prestates {
-			if common.HexToHash(prestate.Hash) == prestateHash {
+	for version, releases := range prestateReleases.Prestates {
+		for _, release := range releases {
+			if common.HexToHash(release.Hash) == prestateHash {
 				prestateVersion = version
-				prestateType = prestate.Type
+				prestateType = release.Type
 				break
 			}
 		}
@@ -94,19 +85,10 @@ func main() {
 	}
 	log.Info("Found prestate", "version", prestateVersion, "type", prestateType)
 
-	var prestateImpl FPProgramType
-	switch prestateType {
-	case "cannon32", "cannon64", "interop":
-		prestateImpl = prestate.NewOPProgramPrestate()
-	case "cannon64-kona":
-		prestateImpl = prestate.NewKonaPrestate()
-	default:
-		log.Crit("Invalid prestate type", "type", prestateType)
+	if prestateType != "cannon64-kona" {
+		log.Crit("Unsupported prestate type; only kona prestates are supported", "type", prestateType)
 	}
-	elCommitInfo, fppCommitInfo, commit, prestateConfigs := prestateImpl.FindVersions(log, prestateVersion)
-	if err != nil {
-		log.Crit("Failed to load configuration for prestate info", "err", err)
-	}
+	elCommitInfo, fppCommitInfo, commit, prestateConfigs := prestate.NewKonaPrestate().FindVersions(log, prestateVersion)
 
 	prestateNames := prestateConfigs.ChainNames()
 
