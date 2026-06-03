@@ -4,7 +4,7 @@
 //! [`super::storage_trie`]), these read directly from
 //! [`V2AccountsTrieSnapshot`] / [`V2StoragesTrieSnapshot`] without any merge
 //! walk: the snapshot tables already reflect trie state at the snapshot's
-//! `earliest` boundary, so a single current-state read is authoritative.
+//! anchor block, so a single current-state read is authoritative.
 //!
 //! Used by the backfill job when a [`SnapshotStatus::Ready`] snapshot is
 //! available — see `crate::backfill` for the rationale.

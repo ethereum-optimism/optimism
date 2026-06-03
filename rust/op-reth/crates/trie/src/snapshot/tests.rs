@@ -186,6 +186,32 @@ fn snapshot_init_succeeds_on_chain_with_storage_writes() {
 
 #[test]
 #[serial]
+fn snapshot_init_with_small_chunk_size_drives_multi_chunk_drain() {
+    let (provider_factory, storage, latest_num, latest_hash) =
+        build_chain_with_storage_writes_and_initialize_storage(5);
+    let target = BlockNumHash::new(latest_num, latest_hash);
+
+    let reth_provider = provider_factory.database_provider_ro().unwrap();
+    let outcome = SnapshotInitJob::new(reth_provider, storage.clone())
+        .with_chunk_size(1)
+        .run(latest_num)
+        .expect("snapshot");
+
+    assert_eq!(outcome.block, target);
+    assert_eq!(outcome.status, SnapshotInitStatus::Completed);
+
+    // Destination must match source row-for-row even across many tiny commits.
+    let source_count = count_source_account_trie(&storage, latest_num);
+    let dest_count = count_snapshot_account_trie(&storage);
+    assert_eq!(
+        outcome.account_nodes_copied as usize, source_count,
+        "outcome count mismatch (source has {source_count} account-trie rows)"
+    );
+    assert_eq!(dest_count, source_count, "snapshot table doesn't match source");
+}
+
+#[test]
+#[serial]
 fn snapshot_init_clear_then_rebuild_succeeds() {
     let (provider_factory, storage, latest_num, latest_hash) =
         build_chain_and_initialize_storage(3);

@@ -382,6 +382,67 @@ fn write_update_snapshot_handles_removals() {
 }
 
 #[test]
+fn write_update_snapshot_removes_storage_node_and_keeps_sibling() {
+    let db = setup_db();
+    let old_anchor = anchor(10, 0x10);
+    let new_anchor = anchor(9, 0x09);
+    let addr = B256::repeat_byte(0xEE);
+    let dropped_path = Nibbles::from_nibbles_unchecked([0x01]);
+    let kept_path = Nibbles::from_nibbles_unchecked([0x0F]);
+
+    prepare_ready_snapshot(&db, old_anchor);
+
+    let dropped_node = sample_node(0x11);
+    let kept_node = sample_node(0x22);
+
+    // Seed two storage-trie nodes under the same address, both via the
+    // init-path writer (mimics what `SnapshotInitJob` would have produced).
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        provider
+            .store_storage_trie_snapshot_branches(
+                addr,
+                vec![
+                    (dropped_path, Some(dropped_node)),
+                    (kept_path, Some(kept_node.clone())),
+                ],
+            )
+            .expect("seed");
+        OpProofsSnapshotInitProvider::commit(provider).expect("commit seed");
+    }
+
+    // Apply a diff that removes only `dropped_path` from `addr`'s storage trie.
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let mut updates = TrieUpdates::default();
+        let mut st = StorageTrieUpdates::default();
+        st.removed_nodes.insert(dropped_path);
+        updates.storage_tries.insert(addr, st);
+        let sorted = updates.into_sorted();
+        provider.update_snapshot(new_anchor, &sorted).expect("update");
+        OpProofsBackfillProvider::commit(provider).expect("commit");
+    }
+
+    let tx = db.tx().expect("ro");
+    let mut stor_cur = tx.cursor_dup_read::<V2StoragesTrieSnapshot>().expect("stor cur");
+
+    // Dropped row is gone.
+    let dropped =
+        stor_cur.seek_by_key_subkey(addr, StoredNibblesSubKey(dropped_path)).expect("seek dropped");
+    assert!(
+        dropped.is_none_or(|e| e.nibbles != StoredNibblesSubKey(dropped_path)),
+        "dropped storage node should have been deleted",
+    );
+
+    let kept = stor_cur
+        .seek_by_key_subkey(addr, StoredNibblesSubKey(kept_path))
+        .expect("seek kept")
+        .expect("kept row still exists");
+    assert_eq!(kept.nibbles, StoredNibblesSubKey(kept_path));
+    assert_eq!(kept.node, kept_node);
+}
+
+#[test]
 fn write_update_snapshot_errors_when_building() {
     let db = setup_db();
     let target = anchor(10, 0x10);
