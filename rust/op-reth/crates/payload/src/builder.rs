@@ -833,7 +833,7 @@ where
             // denominations into a native-wei tip) before the consensus tx is exposed.
             let miner_fee = tx
                 .effective_tip_per_gas(base_fee)
-                .expect("pool was queried with block.basefee, so max_fee_per_gas >= base_fee");
+                .expect("selected pool transaction must have a valid effective miner tip at the block base fee");
             let tx = tx.into_consensus();
 
             let da_footprint_gas_scalar = self
