@@ -26,7 +26,7 @@ use reth_provider::{
     test_utils::create_test_provider_factory_with_chain_spec,
 };
 use reth_revm::database::StateProviderDatabase;
-use secp256k1::{Keypair, Secp256k1, rand::rng};
+use secp256k1::{Keypair, Secp256k1, SecretKey};
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -39,6 +39,15 @@ pub(crate) fn create_storage() -> Arc<MdbxProofsStorageV2> {
 pub(crate) fn public_key_to_address(pubkey: secp256k1::PublicKey) -> Address {
     let hash = keccak256(&pubkey.serialize_uncompressed()[1..]);
     Address::from_slice(&hash[12..])
+}
+
+/// Deterministic test keypair. Using a fixed secret key (rather than the
+/// thread-local OS RNG) keeps the sender address and thus the entire chain's
+/// state roots reproducible across runs.
+pub(crate) fn deterministic_keypair() -> Keypair {
+    let secp = Secp256k1::new();
+    let secret = SecretKey::from_byte_array([0x42u8; 32]).expect("valid secret");
+    Keypair::from_secret_key(&secp, &secret)
 }
 
 fn sign_tx_with_key_pair(key_pair: Keypair, tx: Transaction) -> TransactionSigned {
@@ -64,29 +73,26 @@ const STORAGE_CONTRACT: Address = Address::repeat_byte(0xAB);
 const STORAGE_BYTECODE: [u8; 5] = [0x43, 0x60, 0x00, 0x55, 0x00];
 
 pub(crate) fn chain_spec_with_address(address: Address) -> Arc<ChainSpec> {
+    let alloc = std::iter::once((
+        address,
+        GenesisAccount { balance: U256::from(10 * ETH_TO_WEI), ..Default::default() },
+    ))
+    .chain(std::iter::once((
+        STORAGE_CONTRACT,
+        GenesisAccount { code: Some(Bytes::from_static(&STORAGE_BYTECODE)), ..Default::default() },
+    )))
+    .chain((0x10u8..0x30).map(|i| {
+        (
+            Address::repeat_byte(i),
+            GenesisAccount { balance: U256::from(1u64), ..Default::default() },
+        )
+    }))
+    .collect();
+
     Arc::new(
         ChainSpecBuilder::default()
             .chain(MAINNET.chain)
-            .genesis(Genesis {
-                alloc: [
-                    (
-                        address,
-                        GenesisAccount {
-                            balance: U256::from(10 * ETH_TO_WEI),
-                            ..Default::default()
-                        },
-                    ),
-                    (
-                        STORAGE_CONTRACT,
-                        GenesisAccount {
-                            code: Some(Bytes::from_static(&STORAGE_BYTECODE)),
-                            ..Default::default()
-                        },
-                    ),
-                ]
-                .into(),
-                ..MAINNET.genesis.clone()
-            })
+            .genesis(Genesis { alloc, ..MAINNET.genesis.clone() })
             .paris_activated()
             .build(),
     )
@@ -246,8 +252,7 @@ pub(crate) fn build_chain_and_initialize_storage(
     u64,
     B256,
 ) {
-    let secp = Secp256k1::new();
-    let key_pair = Keypair::new(&secp, &mut rng());
+    let key_pair = deterministic_keypair();
     let sender = public_key_to_address(key_pair.public_key());
 
     let chain_spec = chain_spec_with_address(sender);
@@ -292,8 +297,7 @@ pub(crate) fn build_chain_with_storage_writes_and_initialize_storage(
     u64,
     B256,
 ) {
-    let secp = Secp256k1::new();
-    let key_pair = Keypair::new(&secp, &mut rng());
+    let key_pair = deterministic_keypair();
     let sender = public_key_to_address(key_pair.public_key());
 
     let chain_spec = chain_spec_with_address(sender);

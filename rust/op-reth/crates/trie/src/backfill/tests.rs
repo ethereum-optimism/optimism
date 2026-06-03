@@ -12,7 +12,7 @@ use crate::{
     test_utils::{
         build_chain_and_initialize_storage, build_chain_with_storage_writes_and_initialize_storage,
         build_transfer_block, chain_spec_with_address, commit_block_to_database, create_storage,
-        execute_block, public_key_to_address,
+        deterministic_keypair, execute_block, public_key_to_address,
     },
 };
 use alloy_consensus::BlockHeader;
@@ -28,7 +28,6 @@ use reth_provider::{
 };
 use reth_revm::database::StateProviderDatabase;
 use reth_trie::{HashedPostState, StateRoot};
-use secp256k1::{Keypair, Secp256k1, rand::rng};
 use serial_test::serial;
 
 // ============================ Tests ============================
@@ -60,8 +59,7 @@ fn run_is_noop_when_target_at_or_above_earliest() {
 #[test]
 #[serial]
 fn run_errors_when_storage_uninitialized() {
-    let secp = Secp256k1::new();
-    let key_pair = Keypair::new(&secp, &mut rng());
+    let key_pair = deterministic_keypair();
     let chain_spec = chain_spec_with_address(public_key_to_address(key_pair.public_key()));
     let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec);
     init_genesis(&provider_factory).unwrap();
@@ -165,8 +163,7 @@ fn backfill_then_forward_write_preserves_state_roots() {
     //   2. Backfill earliest from 5 down to 2.
     //   3. Build + forward-write blocks 6 and 7 via `store_trie_updates`.
     //   4. Assert state roots at every block in [2, 7] match reth's headers.
-    let secp = Secp256k1::new();
-    let key_pair = Keypair::new(&secp, &mut rng());
+    let key_pair = deterministic_keypair();
     let sender = public_key_to_address(key_pair.public_key());
     let chain_spec = chain_spec_with_address(sender);
     let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
@@ -277,8 +274,7 @@ fn backfill_then_forward_write_preserves_state_roots() {
 #[serial]
 fn run_aborts_with_state_root_mismatch_when_header_corrupted() {
     // Custom chain build
-    let secp = Secp256k1::new();
-    let key_pair = Keypair::new(&secp, &mut rng());
+    let key_pair = deterministic_keypair();
     let sender = public_key_to_address(key_pair.public_key());
     let chain_spec = chain_spec_with_address(sender);
     let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());

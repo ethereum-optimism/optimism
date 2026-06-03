@@ -402,10 +402,7 @@ fn write_update_snapshot_removes_storage_node_and_keeps_sibling() {
         provider
             .store_storage_trie_snapshot_branches(
                 addr,
-                vec![
-                    (dropped_path, Some(dropped_node)),
-                    (kept_path, Some(kept_node.clone())),
-                ],
+                vec![(dropped_path, Some(dropped_node)), (kept_path, Some(kept_node.clone()))],
             )
             .expect("seed");
         OpProofsSnapshotInitProvider::commit(provider).expect("commit seed");
