@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -37,28 +38,28 @@ func NewBootstrapClient(r oracleClient) *BootstrapClient {
 }
 
 func (br *BootstrapClient) BootInfo() *BootInfo {
-	l1Head := common.BytesToHash(br.r.Get(L1HeadLocalIndex))
-	l2OutputRoot := common.BytesToHash(br.r.Get(L2OutputRootLocalIndex))
-	l2Claim := common.BytesToHash(br.r.Get(L2ClaimLocalIndex))
-	l2ClaimBlockNumber := binary.BigEndian.Uint64(br.r.Get(L2ClaimBlockNumberLocalIndex))
-	l2ChainID := eth.ChainIDFromUInt64(binary.BigEndian.Uint64(br.r.Get(L2ChainIDLocalIndex)))
+	l1Head := common.BytesToHash(br.r.Get(preimage.L1HeadLocalIndex))
+	l2OutputRoot := common.BytesToHash(br.r.Get(preimage.L2OutputRootLocalIndex))
+	l2Claim := common.BytesToHash(br.r.Get(preimage.L2ClaimLocalIndex))
+	l2ClaimBlockNumber := binary.BigEndian.Uint64(br.r.Get(preimage.L2ClaimBlockNumberLocalIndex))
+	l2ChainID := eth.ChainIDFromUInt64(binary.BigEndian.Uint64(br.r.Get(preimage.L2ChainIDLocalIndex)))
 
 	var l1ChainConfig *params.ChainConfig
 	var l2ChainConfig *params.ChainConfig
 	var rollupConfig *rollup.Config
 	if l2ChainID == CustomChainIDIndicator {
 		l2ChainConfig = new(params.ChainConfig)
-		err := json.Unmarshal(br.r.Get(L2ChainConfigLocalIndex), &l2ChainConfig)
+		err := json.Unmarshal(br.r.Get(preimage.L2ChainConfigLocalIndex), &l2ChainConfig)
 		if err != nil {
 			panic("failed to bootstrap l2ChainConfig")
 		}
 		rollupConfig = new(rollup.Config)
-		err = json.Unmarshal(br.r.Get(RollupConfigLocalIndex), rollupConfig)
+		err = json.Unmarshal(br.r.Get(preimage.RollupConfigLocalIndex), rollupConfig)
 		if err != nil {
 			panic("failed to bootstrap rollup config")
 		}
 		l1ChainConfig = new(params.ChainConfig)
-		err = json.Unmarshal(br.r.Get(L1ChainConfigLocalIndex), l1ChainConfig)
+		err = json.Unmarshal(br.r.Get(preimage.L1ChainConfigLocalIndex), l1ChainConfig)
 		if err != nil {
 			panic("failed to bootstrap l1ChainConfig: " + fmt.Sprintf("%v", err))
 		}

@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/kvstore"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -21,15 +22,15 @@ func NewLocalPreimageSource(config *config.Config) *LocalPreimageSource {
 }
 
 var (
-	l1HeadKey             = boot.L1HeadLocalIndex.PreimageKey()
-	l2OutputRootKey       = boot.L2OutputRootLocalIndex.PreimageKey()
-	l2ClaimKey            = boot.L2ClaimLocalIndex.PreimageKey()
-	l2ClaimBlockNumberKey = boot.L2ClaimBlockNumberLocalIndex.PreimageKey()
-	l2ChainIDKey          = boot.L2ChainIDLocalIndex.PreimageKey()
-	l2ChainConfigKey      = boot.L2ChainConfigLocalIndex.PreimageKey()
-	rollupKey             = boot.RollupConfigLocalIndex.PreimageKey()
-	dependencySetKey      = boot.DependencySetLocalIndex.PreimageKey()
-	l1ChainConfigKey      = boot.L1ChainConfigLocalIndex.PreimageKey()
+	l1HeadKey             = preimage.L1HeadLocalIndex.PreimageKey()
+	l2OutputRootKey       = preimage.L2OutputRootLocalIndex.PreimageKey()
+	l2ClaimKey            = preimage.L2ClaimLocalIndex.PreimageKey()
+	l2ClaimBlockNumberKey = preimage.L2ClaimBlockNumberLocalIndex.PreimageKey()
+	l2ChainIDKey          = preimage.L2ChainIDLocalIndex.PreimageKey()
+	l2ChainConfigKey      = preimage.L2ChainConfigLocalIndex.PreimageKey()
+	rollupKey             = preimage.RollupConfigLocalIndex.PreimageKey()
+	dependencySetKey      = preimage.DependencySetLocalIndex.PreimageKey()
+	l1ChainConfigKey      = preimage.L1ChainConfigLocalIndex.PreimageKey()
 )
 
 func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {

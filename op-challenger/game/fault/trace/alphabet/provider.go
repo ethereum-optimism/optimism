@@ -14,10 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-const (
-	L2ClaimBlockNumberLocalIndex = 4
-)
-
 var (
 	ErrIndexTooLarge = errors.New("index is larger than the maximum index")
 )
@@ -44,7 +40,7 @@ func NewTraceProvider(startingBlockNumber *big.Int, depth types.Depth) *Alphabet
 
 func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, pos types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
 	traceIndex := pos.TraceIndex(ap.depth)
-	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
+	key := preimage.L2ClaimBlockNumberLocalIndex.PreimageKey()
 	preimageData := types.NewPreimageOracleData(key[:], ap.startingBlockNumber.Bytes(), 0)
 	if traceIndex.Cmp(common.Big0) == 0 {
 		return absolutePrestate, []byte{}, preimageData, nil
