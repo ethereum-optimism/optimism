@@ -68,6 +68,32 @@ func TestConfigJSON(t *testing.T) {
 	assert.Equal(t, &roundTripped, config)
 }
 
+func TestConfigUnmarshalLegacyInteropTimeAlias(t *testing.T) {
+	// Mirrors the Rust HardForkConfig `#[serde(alias = "interop_time")]` behavior so
+	// rollup configs written against the pre-rename schema still activate Lagoon.
+	t.Run("legacy interop_time promotes to LagoonTime when lagoon_time absent", func(t *testing.T) {
+		data := []byte(`{"interop_time": 42}`)
+		var cfg Config
+		require.NoError(t, json.Unmarshal(data, &cfg))
+		require.NotNil(t, cfg.LagoonTime, "legacy interop_time must populate LagoonTime")
+		require.Equal(t, uint64(42), *cfg.LagoonTime)
+	})
+
+	t.Run("canonical lagoon_time wins when both keys are present", func(t *testing.T) {
+		data := []byte(`{"interop_time": 42, "lagoon_time": 7}`)
+		var cfg Config
+		require.NoError(t, json.Unmarshal(data, &cfg))
+		require.NotNil(t, cfg.LagoonTime)
+		require.Equal(t, uint64(7), *cfg.LagoonTime, "canonical lagoon_time must take precedence")
+	})
+
+	t.Run("neither key leaves LagoonTime nil", func(t *testing.T) {
+		var cfg Config
+		require.NoError(t, json.Unmarshal([]byte(`{}`), &cfg))
+		require.Nil(t, cfg.LagoonTime)
+	})
+}
+
 type mockL1Client struct {
 	chainID *big.Int
 	Hash    common.Hash

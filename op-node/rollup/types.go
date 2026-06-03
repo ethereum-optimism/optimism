@@ -867,6 +867,25 @@ func (c *Config) forEachFork(callback func(name string, logName string, time *ui
 	callback("Lagoon", "lagoon_time", c.LagoonTime)
 }
 
+// UnmarshalJSON accepts the legacy `interop_time` JSON key as an alias for
+// `lagoon_time`, mirroring the Rust HardForkConfig `#[serde(alias = "interop_time")]`
+// carveout. Drop both once superchain-registry renames the TOML key to
+// `lagoon_time` — tracked in ethereum-optimism/optimism#21135.
+func (c *Config) UnmarshalJSON(data []byte) error {
+	type rawConfig Config
+	aux := struct {
+		InteropTime *uint64 `json:"interop_time,omitempty"`
+		*rawConfig
+	}{rawConfig: (*rawConfig)(c)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if c.LagoonTime == nil && aux.InteropTime != nil {
+		c.LagoonTime = aux.InteropTime
+	}
+	return nil
+}
+
 func (c *Config) ParseRollupConfig(in io.Reader) error {
 	dec := json.NewDecoder(in)
 	if err := dec.Decode(c); err != nil {
