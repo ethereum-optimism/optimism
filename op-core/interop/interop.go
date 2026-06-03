@@ -66,8 +66,6 @@ var errorCodeMap = map[error]int{
 	ErrUnknownChain:          -320501,
 	ErrUninitialized:         -320400,
 
-	// Dedicated failsafe code so clients detect failsafe by code, not message string.
-	// -320602 is the next free subcode in the -3206xx class (after -320600 CONFLICTING, -320601 INEFFECTIVE).
 	ErrFailsafeEnabled: -320602,
 
 	ErrNoRPCSource:             genericInvalidParamsErr,
