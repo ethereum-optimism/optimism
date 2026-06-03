@@ -3,10 +3,6 @@ package crossunsafe
 import (
 	"math/rand"
 	"testing"
-	"time"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -16,19 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// crossUnsafeHead is the JSON shape returned by op-reth's eth_crossUnsafeHead.
-type crossUnsafeHead struct {
-	Number hexutil.Uint64 `json:"number"`
-	Hash   common.Hash    `json:"hash"`
-}
-
-// callCrossUnsafeHead invokes eth_crossUnsafeHead on the given EL node.
-func callCrossUnsafeHead(t devtest.T, el *dsl.L2ELNode) (crossUnsafeHead, error) {
-	var head crossUnsafeHead
-	err := el.EthClient().RPC().CallContext(t.Ctx(), &head, "eth_crossUnsafeHead")
-	return head, err
-}
-
 // TestCrossUnsafeHeadAdvancesPastValidatedExecutingMessage verifies that op-reth's runtime
 // cross-unsafe head advances past a block containing an executing message once the initiating
 // message has been validated against the source chain.
@@ -37,18 +20,16 @@ func callCrossUnsafeHead(t devtest.T, el *dsl.L2ELNode) (crossUnsafeHead, error)
 // pointing at chain A (see WithCrossUnsafeHeadSourceFromPeer). Alice initiates a message on chain
 // A; Bob executes it on chain B.
 //
-// Crucially we require the head to reach the executing block *while that block is still above
-// chain B's safe head*. The endpoint seeds its walk from the local safe head and only validates
-// blocks above it, so reaching an above-safe block is proof that op-reth ran the runtime
-// validation (fetched and checked the initiating message from chain A). Without this guard the
-// assertion could be satisfied by the safe head simply advancing past the block on its own.
+// To make the result unambiguous, chain B's batcher is paused first: with no batch submission its
+// safe head cannot advance to the executing block, so the cross-unsafe head can only reach that
+// block by runtime-validating it as an unsafe block against chain A — not because the safe head
+// caught up to it.
 func TestCrossUnsafeHeadAdvancesPastValidatedExecutingMessage(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "eth_crossUnsafeHead is an op-reth feature")
 
 	sys := presets.NewTwoL2SupernodeInterop(t, 0, presets.WithCrossUnsafeHeadSourceFromPeer())
 	require := t.Require()
-	logger := t.Logger()
 
 	rng := rand.New(rand.NewSource(1234))
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
@@ -59,24 +40,21 @@ func TestCrossUnsafeHeadAdvancesPastValidatedExecutingMessage(gt *testing.T) {
 	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 2, 20))
 	sys.L2A.WaitForBlock()
 
+	// Pin chain B's safe head below the executing message by pausing its batcher.
+	sys.L2BatcherB.Stop()
+
 	// Bob executes the message on chain B (the chain running eth_crossUnsafeHead).
 	execMsg := bob.SendExecMessage(initMsg)
 	execBlock := execMsg.Receipt.BlockNumber.Uint64()
-	logger.Info("executing message included on chain B", "block", execBlock)
 
-	require.Eventually(func() bool {
-		head, err := callCrossUnsafeHead(t, sys.L2ELB)
-		if err != nil {
-			logger.Warn("eth_crossUnsafeHead call failed", "err", err)
-			return false
-		}
-		safe := sys.L2ELB.BlockRefByLabel(eth.Safe).Number
-		logger.Info("cross-unsafe head", "number", uint64(head.Number), "safe", safe, "target", execBlock)
-		// Proof of runtime validation: the head reached an executing-message block that is
-		// still unsafe (strictly above the safe head).
-		return uint64(head.Number) >= execBlock && safe < execBlock && head.Hash != (common.Hash{})
-	}, 90*time.Second, 1*time.Second,
-		"cross-unsafe head should validate and advance past the executing-message block while it is still unsafe")
+	// The cross-unsafe head must reach the executing block, which requires op-reth to validate
+	// the initiating message against chain A.
+	dsl.CheckAll(t, sys.L2ELB.CrossUnsafeHeadReachedFn(execBlock, 45))
+
+	// With the batcher paused the safe head cannot have reached the executing block, so the
+	// advance above is attributable to runtime validation rather than safe-head promotion.
+	require.Less(sys.L2ELB.BlockRefByLabel(eth.Safe).Number, execBlock,
+		"chain B safe head advanced to the executing block despite the paused batcher; cannot attribute the cross-unsafe head to validation")
 }
 
 // TestCrossUnsafeHeadStopsAtInvalidExecutingMessage verifies that op-reth's runtime cross-unsafe
@@ -93,8 +71,6 @@ func TestCrossUnsafeHeadStopsAtInvalidExecutingMessage(gt *testing.T) {
 	sysgo.SkipOnOpGeth(t, "eth_crossUnsafeHead is an op-reth feature")
 
 	sys := presets.NewTwoL2SupernodeInterop(t, 0, presets.WithCrossUnsafeHeadSourceFromPeer())
-	require := t.Require()
-	logger := t.Logger()
 
 	rng := rand.New(rand.NewSource(1234))
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
@@ -111,31 +87,9 @@ func TestCrossUnsafeHeadStopsAtInvalidExecutingMessage(gt *testing.T) {
 	// Bob includes an executing message whose identifier points at a non-existent source log.
 	invalid := bob.SendInvalidExecMessage(initMsg)
 	invalidBlock := invalid.Receipt.BlockNumber.Uint64()
-	logger.Info("invalid executing message included on chain B (unsafe only)", "block", invalidBlock)
 
-	// The walk should reach the block immediately before the invalid one...
-	require.Eventually(func() bool {
-		head, err := callCrossUnsafeHead(t, sys.L2ELB)
-		if err != nil {
-			logger.Warn("eth_crossUnsafeHead call failed", "err", err)
-			return false
-		}
-		logger.Info("cross-unsafe head (approaching invalid block)", "number", uint64(head.Number), "invalidBlock", invalidBlock)
-		return uint64(head.Number) >= invalidBlock-1
-	}, 90*time.Second, 1*time.Second,
-		"cross-unsafe head should advance up to the block before the invalid executing message")
-
-	// ...and must never include the invalid block, even as later unsafe blocks are produced.
-	require.Never(func() bool {
-		head, err := callCrossUnsafeHead(t, sys.L2ELB)
-		if err != nil {
-			return false
-		}
-		if uint64(head.Number) >= invalidBlock {
-			logger.Error("cross-unsafe head advanced past the invalid block", "number", uint64(head.Number), "invalidBlock", invalidBlock)
-			return true
-		}
-		return false
-	}, 20*time.Second, 1*time.Second,
-		"cross-unsafe head must not advance past a block with an unvalidatable executing message")
+	// The walk should reach the block immediately before the invalid one, then never include the
+	// invalid block itself, even as later unsafe blocks are produced.
+	dsl.CheckAll(t, sys.L2ELB.CrossUnsafeHeadReachedFn(invalidBlock-1, 45))
+	dsl.CheckAll(t, sys.L2ELB.CrossUnsafeHeadStaysBelowFn(invalidBlock, 10))
 }
