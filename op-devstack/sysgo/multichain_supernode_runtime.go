@@ -325,7 +325,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		interopActivationTimestamp,
 		cfg.InteropLogBackfillDepth,
 		jwtSecret,
-		supernodeSequencerEnabled,
+		supernodeSequencerEnabled || cfg.SupernodeVNSequencerForBootstrap,
 	)
 
 	var l2ACL L2CLNode = supernodeL2ACL
@@ -346,29 +346,35 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		// unsafe blocks but disable L1 derivation, importing safe/finalized state
 		// from the supernode route and reorging onto its invalid-message
 		// replacements.
+		//
+		// When the supernode VN bootstraps + sequences, the light sequencers start
+		// stopped; a test hands off sequencing to them once they leave willStartEL.
+		lightSeqStopped := cfg.SupernodeVNSequencerForBootstrap
 		l2ACL = startL2CLNode(t, keys, l1Net, l2ANet, l1EL, l1CL, seqL2AEL, jwtSecret, l2CLNodeStartConfig{
-			Key:            "sequencer",
-			IsSequencer:    true,
-			NoDiscovery:    true,
-			EnableReqResp:  true,
-			UseReqResp:     false,
-			DependencySet:  runtimeDepSet,
-			L2FollowSource: supernodeL2ACL.UserRPC(),
-			L2CLOptions:    cfg.GlobalL2CLOptions,
+			Key:              "sequencer",
+			IsSequencer:      true,
+			NoDiscovery:      true,
+			EnableReqResp:    true,
+			UseReqResp:       false,
+			DependencySet:    runtimeDepSet,
+			L2FollowSource:   supernodeL2ACL.UserRPC(),
+			L2CLOptions:      cfg.GlobalL2CLOptions,
+			SequencerStopped: lightSeqStopped,
 			// Follow-mode sequencers reorg onto the supernode's invalid-message
 			// replacement via EL sync.
 			SyncMode: nodeSync.ELSync,
 		})
 		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, seqL2BEL, jwtSecret, l2CLNodeStartConfig{
-			Key:            "sequencer",
-			IsSequencer:    true,
-			NoDiscovery:    true,
-			EnableReqResp:  true,
-			UseReqResp:     false,
-			DependencySet:  runtimeDepSet,
-			L2FollowSource: supernodeL2BCL.UserRPC(),
-			L2CLOptions:    cfg.GlobalL2CLOptions,
-			SyncMode:       nodeSync.ELSync,
+			Key:              "sequencer",
+			IsSequencer:      true,
+			NoDiscovery:      true,
+			EnableReqResp:    true,
+			UseReqResp:       false,
+			DependencySet:    runtimeDepSet,
+			L2FollowSource:   supernodeL2BCL.UserRPC(),
+			L2CLOptions:      cfg.GlobalL2CLOptions,
+			SequencerStopped: lightSeqStopped,
+			SyncMode:         nodeSync.ELSync,
 		})
 		// CL gossip: unsafe blocks (incl. the supernode's deposits-only
 		// replacement) propagate between the sequencer CLs and the VN CLs.
@@ -380,9 +386,20 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		connectL2ELPeers(t, t.Logger(), supernodeL2BEL.UserRPC(), seqL2BEL.UserRPC(), false)
 	}
 
-	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, seqL2AEL, cfg.BatcherOptions...)
+	// Batchers follow the active sequencer's CL + EL so the L1-derived safe chain stays
+	// contiguous (interop verification depends on the safe head advancing). In a VN-sequencer
+	// bootstrap the light CL is stopped + EL-syncing, so batch from the VN: it produces during
+	// bootstrap and tracks the light sequencers via gossip after handoff, keeping a gap-free
+	// batch stream across the switch.
+	batchACL, batchAEL := l2ACL, seqL2AEL
+	batchBCL, batchBEL := l2BCL, seqL2BEL
+	if cfg.SupernodeVNSequencerForBootstrap {
+		batchACL, batchAEL = supernodeL2ACL, supernodeL2AEL
+		batchBCL, batchBEL = supernodeL2BCL, supernodeL2BEL
+	}
+	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, batchACL, batchAEL, cfg.BatcherOptions...)
 	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, supernodeL2ACL)
-	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, l2BCL, seqL2BEL, cfg.BatcherOptions...)
+	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, batchBCL, batchBEL, cfg.BatcherOptions...)
 	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, supernodeL2BCL)
 
 	faucetService := startFaucetsForRPCs(t, keys, map[eth.ChainID]string{

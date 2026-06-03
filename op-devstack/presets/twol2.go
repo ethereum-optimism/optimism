@@ -64,6 +64,14 @@ type TwoL2SupernodeInterop struct {
 	L2ASupernodeCL *dsl.L2CLNode
 	L2BSupernodeCL *dsl.L2CLNode
 
+	// L2ASupernodeEL and L2BSupernodeEL provide access to the supernode VN's
+	// execution layer per chain. In light-sequencer presets this is a distinct
+	// node from L2ELA/L2ELB (joined only by L1 + P2P), so tests can assert the
+	// producer and the verifier agree on execution state. In virtual-sequencer
+	// presets the VN is the sequencer, so these alias L2ELA/L2ELB.
+	L2ASupernodeEL *dsl.L2ELNode
+	L2BSupernodeEL *dsl.L2ELNode
+
 	// L2BatcherA and L2BatcherB provide access to the batchers for pausing/resuming
 	L2BatcherA *dsl.L2Batcher
 	L2BatcherB *dsl.L2Batcher
