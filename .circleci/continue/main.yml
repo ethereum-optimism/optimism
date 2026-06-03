@@ -362,6 +362,63 @@ commands:
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
 
+  # Shared compile cache across rust jobs, backed by GCS so parallel jobs reuse
+  # each other's compiled objects (not just their own per-job target cache).
+  # DISABLED by default. To enable once gs://oplabs-ci-sccache is provisioned
+  # (object-lifecycle TTL + roles/storage.objectAdmin for the CI service
+  # account) and the rust job context carries the GCP_* OIDC vars, flip the
+  # `enabled` default below to true.
+  # NOTE: when enabling, also verify sccache/opendal accepts the workload-
+  # identity (external_account) credential file that gcp-oidc-authenticate
+  # writes to GOOGLE_APPLICATION_CREDENTIALS; it may instead require
+  # SCCACHE_GCS_KEY_PATH pointing at a service-account key.
+  # Currently wired into rust-prepare (all Docker rust jobs). When enabling,
+  # consider scoping to compile-heavy jobs so short lint jobs (fmt/typos/deny)
+  # don't pay the gcloud-auth overhead for no compile benefit.
+  rust-sccache-setup:
+    description: "Enable sccache (shared GCS compile cache). No-op while disabled."
+    parameters:
+      enabled:
+        description: "Master switch. Set true once the GCS bucket + IAM are provisioned."
+        type: boolean
+        default: false
+      bucket:
+        description: "GCS bucket for the sccache cache."
+        type: string
+        default: "oplabs-ci-sccache"
+      version:
+        description: "Pinned sccache release version."
+        type: string
+        default: "0.9.1"
+    steps:
+      - when:
+          condition: << parameters.enabled >>
+          steps:
+            - gcp-cli/install
+            - gcp-oidc-authenticate
+            - run:
+                name: Install and configure sccache
+                command: |
+                  set -euo pipefail
+                  VER="<< parameters.version >>"
+                  ASSET="sccache-v${VER}-x86_64-unknown-linux-musl"
+                  if ! command -v sccache >/dev/null 2>&1; then
+                    curl -fsSL "https://github.com/mozilla/sccache/releases/download/v${VER}/${ASSET}.tar.gz" -o /tmp/sccache.tgz
+                    tar -xzf /tmp/sccache.tgz -C /tmp
+                    sudo install "/tmp/${ASSET}/sccache" /usr/local/bin/sccache
+                  fi
+                  # sccache reads GCS credentials from ADC (GOOGLE_APPLICATION_CREDENTIALS,
+                  # set by gcp-oidc-authenticate). CARGO_INCREMENTAL=0 is required for
+                  # sccache to cache effectively.
+                  {
+                    echo "export RUSTC_WRAPPER=sccache"
+                    echo "export SCCACHE_GCS_BUCKET=<< parameters.bucket >>"
+                    echo "export SCCACHE_GCS_KEY_PREFIX=sccache"
+                    echo "export SCCACHE_GCS_RW_MODE=READ_WRITE"
+                    echo "export CARGO_INCREMENTAL=0"
+                  } >> "$BASH_ENV"
+                  sccache --version
+
   rust-prepare:
     parameters:
       needs_clang:
@@ -377,6 +434,9 @@ commands:
             - run:
                 name: Ensure clang available
                 command: 'command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }'
+      # Shared GCS compile cache; no-op until rust-sccache-setup's `enabled`
+      # default is flipped to true (see command above).
+      - rust-sccache-setup
 
   rust-restore-build-cache:
     description: "Restore the target directory cache for a Rust workspace"
