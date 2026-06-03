@@ -131,6 +131,31 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
     # Run the test with count=1 to avoid caching the test results.
     cd {{SOURCE}}
     mkdir -p ./tmp/test-results ./tmp/testlogs
+
+    # CircleCI parallelism: split this package's tests across nodes by historical
+    # timing (junit results uploaded via store_test_results). Gated on
+    # CIRCLE_NODE_TOTAL>1, so it is a no-op for callers without parallelism
+    # (the other e2e matrix jobs). Assumes no FILTER (the parallel caller,
+    # rust-e2e-restart, runs the whole node/restart package).
+    if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "${CIRCLE_NODE_TOTAL:-0}" -gt 1 ]; then
+      NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
+      go test -list '^Test' ./$GO_PKG_NAME | grep -E '^Test' > /tmp/e2e_tests.txt
+      echo "Found $(wc -l < /tmp/e2e_tests.txt | tr -d ' ') tests in $GO_PKG_NAME to split across $CIRCLE_NODE_TOTAL nodes"
+      circleci tests split --split-by=timings --timings-type=testname /tmp/e2e_tests.txt > /tmp/e2e_shard.txt
+      SHARD_COUNT=$(wc -l < /tmp/e2e_shard.txt | tr -d ' ')
+      echo "Node $NODE_INDEX/$CIRCLE_NODE_TOTAL running $SHARD_COUNT tests: $(cat /tmp/e2e_shard.txt)"
+      if [ "$SHARD_COUNT" -eq 0 ]; then
+        echo "No tests assigned to this node, skipping."
+        exit 0
+      fi
+      RUN_PATTERN="^($(paste -sd '|' /tmp/e2e_shard.txt))$"
+      {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
+          --junitfile=./tmp/test-results/results-$NODE_INDEX.xml \
+          --jsonfile=./tmp/testlogs/log-$NODE_INDEX.json \
+          -- -count=1 -timeout 40m ./$GO_PKG_NAME -run "$RUN_PATTERN"
+      exit
+    fi
+
     {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
         --junitfile=./tmp/test-results/results.xml \
         --jsonfile=./tmp/testlogs/log.json \
@@ -239,7 +264,9 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     fi
     echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"
 
-    circleci tests split --split-by=name /tmp/tests.txt > /tmp/tests_shard.txt
+    # Split by historical timing (junit uploaded via store_test_results) rather
+    # than by name, so slow action tests are balanced across nodes.
+    circleci tests split --split-by=timings --timings-type=testname /tmp/tests.txt > /tmp/tests_shard.txt
 
     SHARD_COUNT=$(wc -l < /tmp/tests_shard.txt | tr -d ' ')
     echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests: $(cat /tmp/tests_shard.txt)"

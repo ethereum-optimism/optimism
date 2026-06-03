@@ -122,6 +122,9 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
+    # node/restart has 3 tests (~8m each, ~25m total). Shard 1 test/node via the
+    # CIRCLE_NODE timing-split in test-e2e-sysgo-run so wall-clock ~= slowest test.
+    parallelism: 3
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -181,7 +184,9 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
-    parallelism: 4
+    # 35 action tests, timing-split across nodes (see action-tests-single-run).
+    # Bumped 4 -> 8 to roughly halve per-node test time.
+    parallelism: 8
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
