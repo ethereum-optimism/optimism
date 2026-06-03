@@ -427,7 +427,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			L2CLOptions:      cfg.GlobalL2CLOptions,
 			SequencerStopped: lightSeqStopped,
 			// Follow-mode sequencers reorg onto the supernode's invalid-message
-			// replacement via EL sync; req-resp CL sync is being deprecated.
+			// replacement via EL sync.
 			SyncMode: nodeSync.ELSync,
 		})
 		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, seqL2BEL, jwtSecret, l2CLNodeStartConfig{
@@ -647,7 +647,7 @@ func startConductorControlledSequencerCL(
 		EnableReqResp: true,
 		UseReqResp:    false,
 		// Conductor-controlled follow-mode sequencers reorg onto the supernode's
-		// invalid-message replacement via EL sync; req-resp CL sync is being deprecated.
+		// invalid-message replacement via EL sync.
 		SyncMode:             nodeSync.ELSync,
 		L2FollowSource:       followSource.UserRPC(),
 		DependencySet:        dependencySet,
@@ -756,8 +756,7 @@ func startMultiChainFollowL2Node(
 		UseReqResp:     false,
 		L2FollowSource: l2CL.UserRPC(),
 		DependencySet:  dependencySet,
-		// Follow nodes catch up to their follow source via EL sync;
-		// req-resp CL sync is being deprecated.
+		// Follow nodes catch up to their follow source via EL sync.
 		SyncMode: nodeSync.ELSync,
 	})
 
