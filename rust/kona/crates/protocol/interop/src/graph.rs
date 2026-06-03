@@ -373,10 +373,10 @@ where
                 actual: initiating_timestamp,
             });
         } else if initiating_timestamp <
-            rollup_config.hardforks.interop_time.unwrap_or_default() + rollup_config.block_time
+            rollup_config.hardforks.lagoon_time.unwrap_or_default() + rollup_config.block_time
         {
             return Err(MessageGraphError::InitiatedTooEarly {
-                activation_time: rollup_config.hardforks.interop_time.unwrap_or_default(),
+                activation_time: rollup_config.hardforks.lagoon_time.unwrap_or_default(),
                 initiating_message_time: initiating_timestamp,
             });
         }

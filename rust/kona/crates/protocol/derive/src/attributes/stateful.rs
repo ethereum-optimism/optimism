@@ -12,7 +12,7 @@ use alloy_rlp::Encodable;
 use alloy_rpc_types_engine::PayloadAttributes;
 use async_trait::async_trait;
 use kona_genesis::{L1ChainConfig, RollupConfig};
-use kona_hardforks::{Hardfork, Hardforks, Interop};
+use kona_hardforks::{Hardfork, Hardforks, Lagoon};
 use kona_interop::DependencySet;
 use kona_protocol::{
     DEPOSIT_EVENT_ABI_HASH, L1BlockInfoTx, L2BlockInfo, Predeploys, decode_deposit,
@@ -35,7 +35,7 @@ where
     /// The L1 receipts fetcher.
     receipts_fetcher: L1P,
     /// Optional interop dependency set. Required when interop is scheduled for the
-    /// chain (`rollup_cfg.hardforks.interop_time.is_some()`); ignored otherwise.
+    /// chain (`rollup_cfg.hardforks.lagoon_time.is_some()`); ignored otherwise.
     dependency_set: Option<Arc<DependencySet>>,
 }
 
@@ -48,7 +48,7 @@ where
     ///
     /// # Panics
     ///
-    /// Panics if `rcfg.hardforks.interop_time.is_some() && dependency_set.is_none()`.
+    /// Panics if `rcfg.hardforks.lagoon_time.is_some() && dependency_set.is_none()`.
     /// A chain that has interop scheduled must have a dependency set provided,
     /// otherwise the builder would silently diverge from op-node on interop
     /// activation (emitting different number of upgrade transactions, or the wrong
@@ -61,11 +61,11 @@ where
         dependency_set: Option<Arc<DependencySet>>,
     ) -> Self {
         assert!(
-            !(rcfg.hardforks.interop_time.is_some() && dependency_set.is_none()),
+            !(rcfg.hardforks.lagoon_time.is_some() && dependency_set.is_none()),
             "StatefulAttributesBuilder: interop is scheduled for this chain \
-             (interop_time = {:?}) but no DependencySet was provided. \
+             (lagoon_time = {:?}) but no DependencySet was provided. \
              This would silently diverge from op-node on interop activation.",
-            rcfg.hardforks.interop_time,
+            rcfg.hardforks.lagoon_time,
         );
         Self {
             rollup_cfg: rcfg,
@@ -199,18 +199,18 @@ where
             !self.rollup_cfg.is_interop_active(l2_parent.block_info.timestamp)
         {
             // Base 7 txs: always emitted on interop activation.
-            upgrade_transactions.append(&mut Hardforks::INTEROP.txs().collect());
+            upgrade_transactions.append(&mut Hardforks::LAGOON.txs().collect());
 
             // CrossL2Inbox pair: only emitted when the dependency set has >1 chains.
             // Matches op-node's gate at op-node/rollup/derive/attributes.go:178.
             // `dependency_set` is guaranteed Some(_) here because the constructor
-            // panics when interop_time.is_some() && dependency_set.is_none(), and
+            // panics when lagoon_time.is_some() && dependency_set.is_none(), and
             // we only reach this branch when interop is active.
             let dependency_set = self.dependency_set.as_ref().expect(
                 "dependency_set must be Some when interop is active — constructor invariant",
             );
             if dependency_set.dependencies.len() > 1 {
-                upgrade_transactions.extend(Interop::cross_l2_inbox_txs());
+                upgrade_transactions.extend(Lagoon::cross_l2_inbox_txs());
             }
         }
 
@@ -815,7 +815,7 @@ mod tests {
                 isthmus_time: Some(50),
                 jovian_time: Some(50),
                 karst_time: Some(50),
-                interop_time: Some(102),
+                lagoon_time: Some(102),
                 ..Default::default()
             },
             ..Default::default()
@@ -865,7 +865,7 @@ mod tests {
                 isthmus_time: Some(50),
                 jovian_time: Some(50),
                 karst_time: Some(50),
-                interop_time: Some(102),
+                lagoon_time: Some(102),
                 ..Default::default()
             },
             ..Default::default()
@@ -917,7 +917,7 @@ mod tests {
                 isthmus_time: Some(50),
                 jovian_time: Some(50),
                 karst_time: Some(50),
-                interop_time: Some(102),
+                lagoon_time: Some(102),
                 ..Default::default()
             },
             ..Default::default()
@@ -982,7 +982,7 @@ mod tests {
                 isthmus_time: Some(50),
                 jovian_time: Some(50),
                 karst_time: Some(50),
-                interop_time: Some(102),
+                lagoon_time: Some(102),
                 ..Default::default()
             },
             ..Default::default()
@@ -1033,7 +1033,7 @@ mod tests {
     #[should_panic(expected = "no DependencySet was provided")]
     fn test_stateful_builder_new_panics_when_interop_scheduled_without_dependency_set() {
         let cfg = Arc::new(RollupConfig {
-            hardforks: HardForkConfig { interop_time: Some(100), ..Default::default() },
+            hardforks: HardForkConfig { lagoon_time: Some(100), ..Default::default() },
             ..Default::default()
         });
         let l1_cfg = Arc::new(L1Config::sepolia().into());

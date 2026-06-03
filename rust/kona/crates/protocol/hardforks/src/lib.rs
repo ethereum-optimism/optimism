@@ -28,7 +28,7 @@ mod isthmus;
 pub use isthmus::Isthmus;
 
 mod interop;
-pub use interop::Interop;
+pub use interop::Lagoon;
 
 mod jovian;
 pub use jovian::Jovian;

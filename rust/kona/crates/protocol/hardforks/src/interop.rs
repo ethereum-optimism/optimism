@@ -14,9 +14,9 @@ use crate::Hardfork;
 
 /// The Interop network upgrade transactions.
 #[derive(Debug, Default, Clone, Copy)]
-pub struct Interop;
+pub struct Lagoon;
 
-impl Interop {
+impl Lagoon {
     /// The depositor account address.
     pub const DEPOSITOR_ACCOUNT: Address = address!("DeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001");
 
@@ -280,7 +280,7 @@ impl Interop {
     }
 }
 
-impl Hardfork for Interop {
+impl Hardfork for Lagoon {
     /// Constructs the network upgrade transactions.
     fn txs(&self) -> impl Iterator<Item = Bytes> {
         Self::deposits().map(|tx| tx.encoded_2718().into())
@@ -297,7 +297,7 @@ mod test {
     #[test]
     fn test_deploy_cross_l2_inbox_source() {
         assert_eq!(
-            Interop::deploy_cross_l2_inbox_source(),
+            Lagoon::deploy_cross_l2_inbox_source(),
             b256!("0x6e5e214f73143df8fe6f6054a3ed7eb472d373376458a9c8aecdf23475beb616")
         );
     }
@@ -305,7 +305,7 @@ mod test {
     #[test]
     fn test_upgrade_cross_l2_inbox_proxy_source() {
         assert_eq!(
-            Interop::upgrade_cross_l2_inbox_proxy_source(),
+            Lagoon::upgrade_cross_l2_inbox_proxy_source(),
             b256!("0x88c6b48354c367125a59792a93a7b60ad7cd66e516157dbba16558c68a46d3cb")
         );
     }
@@ -313,7 +313,7 @@ mod test {
     #[test]
     fn test_deploy_l2_to_l2_xdm_source() {
         assert_eq!(
-            Interop::deploy_l2_to_l2_xdm_source(),
+            Lagoon::deploy_l2_to_l2_xdm_source(),
             b256!("0xf5484697c7a9a791db32a3bf0763bf2ba686c77ae7d4c0a5ee8c222a92a8dcc2")
         );
     }
@@ -321,7 +321,7 @@ mod test {
     #[test]
     fn test_upgrade_l2_to_l2_xdm_proxy_source() {
         assert_eq!(
-            Interop::upgrade_l2_to_l2_xdm_proxy_source(),
+            Lagoon::upgrade_l2_to_l2_xdm_proxy_source(),
             b256!("0xe54b4d06bbcc857f41ae00e89d820339ac5ce0034aac722c817b2873e03a7e68")
         );
     }
@@ -329,7 +329,7 @@ mod test {
     #[test]
     fn test_deploy_superchain_eth_bridge_source() {
         assert_eq!(
-            Interop::deploy_superchain_eth_bridge_source(),
+            Lagoon::deploy_superchain_eth_bridge_source(),
             b256!("0x53eccc738e298d613b3c3dcc8ad1d9e9626945a2f7b005252c2b57837176d960")
         );
     }
@@ -337,7 +337,7 @@ mod test {
     #[test]
     fn test_upgrade_superchain_eth_bridge_proxy_source() {
         assert_eq!(
-            Interop::upgrade_superchain_eth_bridge_proxy_source(),
+            Lagoon::upgrade_superchain_eth_bridge_proxy_source(),
             b256!("0x50684989256294e3c64949ea1cf5bad586c7e6b91b8b7f21ee9ef7086efe60db")
         );
     }
@@ -345,7 +345,7 @@ mod test {
     #[test]
     fn test_deploy_eth_liquidity_source() {
         assert_eq!(
-            Interop::deploy_eth_liquidity_source(),
+            Lagoon::deploy_eth_liquidity_source(),
             b256!("0xceec4ed75501efd5830d25045e10014464155345d91a8c78dba77aed02d5b08b")
         );
     }
@@ -353,7 +353,7 @@ mod test {
     #[test]
     fn test_upgrade_eth_liquidity_proxy_source() {
         assert_eq!(
-            Interop::upgrade_eth_liquidity_proxy_source(),
+            Lagoon::upgrade_eth_liquidity_proxy_source(),
             b256!("0x8c6c281c65cba9a9286233c61c3a1b4d606b899b1aee3b3a7221fd5212b22822")
         );
     }
@@ -361,34 +361,34 @@ mod test {
     #[test]
     fn test_fund_eth_liquidity_source() {
         assert_eq!(
-            Interop::fund_eth_liquidity_source(),
+            Lagoon::fund_eth_liquidity_source(),
             b256!("0xa9b2a45c225d10db0a0a092d024192968cef10170a82f9d67d2bf0264d0c0555")
         );
     }
 
     #[test]
     fn test_deploy_cross_l2_inbox_address_and_code() {
-        let txs = Interop::cross_l2_inbox_deposits().collect::<Vec<_>>();
+        let txs = Lagoon::cross_l2_inbox_deposits().collect::<Vec<_>>();
         check_deployment_code(
             txs[0].clone(),
-            Interop::NEW_CROSS_L2_INBOX_IMPL,
-            Interop::CROSS_L2_INBOX_IMPL_CODE_HASH,
+            Lagoon::NEW_CROSS_L2_INBOX_IMPL,
+            Lagoon::CROSS_L2_INBOX_IMPL_CODE_HASH,
         );
     }
 
     #[test]
     fn test_deploy_l2_to_l2_xdm_address_and_code() {
-        let txs = Interop::deposits().collect::<Vec<_>>();
+        let txs = Lagoon::deposits().collect::<Vec<_>>();
         check_deployment_code(
             txs[0].clone(),
-            Interop::NEW_L2_TO_L2_XDM_IMPL,
-            Interop::L2_TO_L2_XDM_IMPL_CODE_HASH,
+            Lagoon::NEW_L2_TO_L2_XDM_IMPL,
+            Lagoon::L2_TO_L2_XDM_IMPL_CODE_HASH,
         );
     }
 
     #[test]
     fn test_interop_base_txs_encoded() {
-        let interop_upgrade_tx = Interop.txs().collect::<Vec<_>>();
+        let interop_upgrade_tx = Lagoon.txs().collect::<Vec<_>>();
         assert_eq!(interop_upgrade_tx.len(), 7);
 
         let expected_txs: Vec<Bytes> = vec![
@@ -421,7 +421,7 @@ mod test {
 
     #[test]
     fn test_interop_cross_l2_inbox_txs_encoded() {
-        let cross_l2_inbox_tx = Interop::cross_l2_inbox_txs().collect::<Vec<_>>();
+        let cross_l2_inbox_tx = Lagoon::cross_l2_inbox_txs().collect::<Vec<_>>();
         assert_eq!(cross_l2_inbox_tx.len(), 2);
 
         let expected_txs: Vec<Bytes> = vec![

@@ -42,8 +42,8 @@ type FetchingAttributesBuilder struct {
 }
 
 func NewFetchingAttributesBuilder(rollupCfg *rollup.Config, l1ChainConfig *params.ChainConfig, depSet DependencySet, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
-	if rollupCfg.InteropTime != nil && depSet == nil {
-		panic("FetchingAttributesBuilder requires a dependency set when interop fork is scheduled")
+	if rollupCfg.LagoonTime != nil && depSet == nil {
+		panic("FetchingAttributesBuilder requires a dependency set when Lagoon fork is scheduled")
 	}
 	return &FetchingAttributesBuilder{
 		rollupCfg:     rollupCfg,

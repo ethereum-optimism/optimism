@@ -72,7 +72,7 @@ func setupChains(opts ...func(setupOpts *chainSetupOpts)) (*staticConfigSource, 
 		rollupCfg := *chaincfg.OPSepolia()
 		rollupCfg.L2ChainID = big.NewInt(int64(i))
 		// activate interop at genesis
-		rollupCfg.InteropTime = new(uint64)
+		rollupCfg.LagoonTime = new(uint64)
 		chainCfg := *chainconfig.OPSepoliaChainConfig()
 		chainCfg.ChainID = rollupCfg.L2ChainID
 		rollupCfgs = append(rollupCfgs, &rollupCfg)

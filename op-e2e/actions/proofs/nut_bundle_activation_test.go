@@ -23,7 +23,7 @@ import (
 // bundle. Adding a NUT bundle for one of these forks WILL fail this test —
 // remove the entry here as part of the same PR.
 var forksWithoutNUTBundle = map[forks.Name]bool{
-	forks.Interop: true,
+	forks.Lagoon: true,
 }
 
 // TestActivationBlockNUTBundle verifies that, for every fork from Karst onward

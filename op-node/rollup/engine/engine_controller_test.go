@@ -603,7 +603,7 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 	}
 
 	interopTime := uint64(0)
-	cfg := &rollup.Config{InteropTime: &interopTime}
+	cfg := &rollup.Config{LagoonTime: &interopTime}
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
 
