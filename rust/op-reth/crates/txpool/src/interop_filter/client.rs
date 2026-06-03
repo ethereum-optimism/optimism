@@ -560,9 +560,11 @@ mod tests {
                             Verdict::InternalError => {
                                 Err(ErrorObjectOwned::owned(-32603, "internal error", None::<()>))
                             }
-                            // The filter codes failsafe as -32602 with a "failsafe" message.
+                            // The filter emits the dedicated failsafe code -320602. The message is
+                            // intentionally unrelated to "failsafe" to prove detection is by code,
+                            // not by message text.
                             Verdict::Failsafe => {
-                                Err(ErrorObjectOwned::owned(-32602, "failsafe enabled", None::<()>))
+                                Err(ErrorObjectOwned::owned(-320602, "rejected", None::<()>))
                             }
                             Verdict::Slow => {
                                 tokio::time::sleep(Duration::from_secs(60)).await;

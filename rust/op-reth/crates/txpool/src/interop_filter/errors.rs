@@ -2,6 +2,10 @@ use alloy_json_rpc::RpcError;
 use core::error;
 use op_alloy_rpc_types::SuperchainDAError;
 
+/// Dedicated JSON-RPC error code emitted by the op-interop-filter server when its failsafe is
+/// active. Detection relies on this code; the filter must emit it (a prerequisite server change).
+const FAILSAFE_ENABLED_CODE: i32 = -320602;
+
 /// Failures occurring during validation of inbox entries.
 #[derive(thiserror::Error, Debug)]
 pub enum InteropTxValidatorError {
@@ -75,9 +79,9 @@ impl InteropTxValidatorError {
         if let Some(error_payload) = err.as_error_resp() {
             let code = error_payload.code as i32;
 
-            // The filter's failsafe rejection is coded -32602, which is overloaded (it also
-            // covers generic param/read fallbacks), so disambiguate on the message.
-            if error_payload.message.to_ascii_lowercase().contains("failsafe") {
+            // The filter emits a dedicated code for failsafe rejections. Detect by code only;
+            // never match on the message text.
+            if code == FAILSAFE_ENABLED_CODE {
                 return Self::FailsafeEnabled;
             }
 
