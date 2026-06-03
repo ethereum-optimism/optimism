@@ -52,6 +52,10 @@ RUN forge --version
 # We may be cross-building for another platform. Specify which platform we need as builder.
 FROM --platform=$BUILDPLATFORM golang:1.24.13-alpine3.22 AS builder
 
+# Enforce that builds use the committed go.mod/go.sum exactly and never
+# silently mutate them. Fails the build if the lockfile is out of date.
+ENV GOFLAGS=-mod=readonly
+
 RUN apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq yq-go bash just
 
 ARG TARGETARCH
@@ -176,6 +180,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 # Uses BUILDPLATFORM so it runs natively (no QEMU). Contract artifacts are platform-independent.
 FROM --platform=$BUILDPLATFORM golang:1.24.13-bookworm AS op-deployer-contracts
 ARG BUILDARCH
+ENV GOFLAGS=-mod=readonly
 RUN apt-get update && apt-get install -y --no-install-recommends curl jq git && rm -rf /var/lib/apt/lists/*
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
@@ -254,7 +259,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,targe
     *) echo "Unsupported architecture: $TARGETARCH" && exit 1 ;; \
   esac && \
   rustup target add "$RUST_TARGET" && \
-  RUSTFLAGS="-C target-cpu=generic" cargo build --bin kona-host --profile release-perf --target "$RUST_TARGET" && \
+  RUSTFLAGS="-C target-cpu=generic" cargo build --locked --bin kona-host --profile release-perf --target "$RUST_TARGET" && \
   cp "/rust/target/$RUST_TARGET/release-perf/kona-host" /kona-host
 
 FROM dhi.io/alpine-base:3.23 AS cannon-target
