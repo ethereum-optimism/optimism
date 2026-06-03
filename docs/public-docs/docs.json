@@ -1736,7 +1736,7 @@
     },
     {
       "source": "/chain-operators/guides/deployment/sequencer-node",
-      "destination": "/chain-operators/tutorials/op-geth-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
     },
     {
       "source": "/chain-operators/guides/deployment/spin-batcher",
