@@ -59,7 +59,7 @@ pub struct SnapshotInitJob<P, S: crate::OpProofsBackfillStore + Send> {
 }
 
 impl<P, S: crate::OpProofsBackfillStore + Send> SnapshotInitJob<P, S> {
-    /// Build a job with the default chunk size ([`SNAPSHOT_INIT_CHUNK_SIZE`]).
+    /// Build a job with the default chunk size.
     pub const fn new(provider: P, storage: S) -> Self {
         Self { provider, storage, chunk_size: SNAPSHOT_INIT_CHUNK_SIZE }
     }
