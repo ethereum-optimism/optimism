@@ -512,7 +512,7 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 
 	jwtPath := chain.EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
-	l2EL := startL2ELNode(t, chain.Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
+	l2EL := startL2ELForKey(t, chain.Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
 	l2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, chain.Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 		Key:            name,
 		IsSequencer:    false,
