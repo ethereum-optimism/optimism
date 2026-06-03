@@ -385,7 +385,7 @@ commands:
       bucket:
         description: "GCS bucket for the sccache cache."
         type: string
-        default: "op-premium-rust-sccache"
+        default: "op-rust-sccache"
       version:
         description: "Pinned sccache release version."
         type: string
