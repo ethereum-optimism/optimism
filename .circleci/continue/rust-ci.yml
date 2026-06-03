@@ -97,6 +97,10 @@ commands:
             - run:
                 name: Ensure clang available
                 command: 'command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }'
+      # Shared GCS compile cache. The command is defined in main.yml and survives
+      # the merge; it must be invoked from rust-ci.yml's own rust-prepare because
+      # rust-ci.yml's copy overrides main.yml's in the deep-merge (later wins).
+      - rust-sccache-setup
 
   rust-restore-build-cache:
     description: "Restore the target directory cache for a Rust workspace"
@@ -136,6 +140,12 @@ commands:
     description: "Save the target directory cache for a Rust workspace"
     parameters: *cache-params
     steps:
+      # Show sccache hit/write stats at job end when enabled; harmless no-op
+      # otherwise. Confirms the GCS cache is populated/hit vs silently failing.
+      - run:
+          name: sccache stats
+          command: 'command -v sccache >/dev/null 2>&1 && sccache --show-stats || true'
+          when: always
       - save_cache:
           key: << parameters.prefix >>-registry-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
           name: Save << parameters.directory >> registry cache (mise)
