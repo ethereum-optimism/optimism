@@ -1869,9 +1869,13 @@ jobs:
         description: "Override ACCEPTANCE_TEST_JOBS (go test -p) for this run; empty leaves the justfile default in place"
         type: string
         default: ""
+      resource_class:
+        description: "CircleCI resource class to run on"
+        type: string
+        default: "2xlarge+.gen2"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge+.gen2
+    resource_class: <<parameters.resource_class>>
     parallelism: <<parameters.parallelism>>
     steps:
       - run:
@@ -2683,8 +2687,9 @@ workflows:
       # IN-MEMORY (all) - op-node/op-geth
       - op-acceptance-tests:
           name: memory-all-opn-op-geth
-          parallelism: 2
-          acceptance_test_jobs: "8"
+          parallelism: 32
+          acceptance_test_jobs: "32"
+          resource_class: xlarge.gen2
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2699,8 +2704,9 @@ workflows:
       - op-acceptance-tests:
           name: memory-all-opn-op-reth
           l2_el_kind: op-reth
-          parallelism: 2
-          acceptance_test_jobs: "8"
+          parallelism: 32
+          acceptance_test_jobs: "32"
+          resource_class: xlarge.gen2
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2716,8 +2722,9 @@ workflows:
           name: memory-all-kona-op-reth
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
-          parallelism: 2
-          acceptance_test_jobs: "8"
+          parallelism: 32
+          acceptance_test_jobs: "32"
+          resource_class: xlarge.gen2
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
