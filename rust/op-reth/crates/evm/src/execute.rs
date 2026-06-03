@@ -12,8 +12,8 @@ mod tests {
     use op_alloy_consensus::TxDeposit;
     use op_revm::constants::L1_BLOCK_CONTRACT;
     use reth_chainspec::MIN_TRANSACTION_GAS;
-    use reth_evm::execute::{BasicBlockExecutor, Executor};
-    use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder, OP_DEV};
+    use reth_evm::execute::{BasicBlockExecutor, BlockExecutionOutput, Executor};
+    use reth_optimism_chainspec::{OP_DEV, OpChainSpec, OpChainSpecBuilder};
     use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
     use reth_primitives_traits::{Account, RecoveredBlock};
     use reth_revm::{database::StateProviderDatabase, test_utils::StateProviderTest};
@@ -48,6 +48,31 @@ mod tests {
 
     fn evm_config(chain_spec: Arc<OpChainSpec>) -> OpEvmConfig {
         OpEvmConfig::new(chain_spec, OpRethReceiptBuilder::default())
+    }
+
+    /// Build a single-block executor for `chain_spec`, preload the L1 block contract, and execute
+    /// `transactions` (with their recovered `senders`) against `db`.
+    fn execute_block(
+        chain_spec: Arc<OpChainSpec>,
+        db: &StateProviderTest,
+        header: Header,
+        transactions: Vec<OpTransactionSigned>,
+        senders: Vec<Address>,
+    ) -> BlockExecutionOutput<OpReceipt> {
+        let provider = evm_config(chain_spec);
+        let mut executor = BasicBlockExecutor::new(provider, StateProviderDatabase::new(db));
+
+        // make sure the L1 block contract state is preloaded.
+        executor.with_state_mut(|state| {
+            state.load_cache_account(L1_BLOCK_CONTRACT).unwrap();
+        });
+
+        executor
+            .execute(&RecoveredBlock::new_unhashed(
+                Block { header, body: BlockBody { transactions, ..Default::default() } },
+                senders,
+            ))
+            .expect("block execution should succeed")
     }
 
     #[test]
@@ -89,24 +114,8 @@ mod tests {
         }
         .into();
 
-        let provider = evm_config(chain_spec);
-        let mut executor = BasicBlockExecutor::new(provider, StateProviderDatabase::new(&db));
-
-        // make sure the L1 block contract state is preloaded.
-        executor.with_state_mut(|state| {
-            state.load_cache_account(L1_BLOCK_CONTRACT).unwrap();
-        });
-
         // Attempt to execute a block with one deposit and one non-deposit transaction
-        let output = executor
-            .execute(&RecoveredBlock::new_unhashed(
-                Block {
-                    header,
-                    body: BlockBody { transactions: vec![tx, tx_deposit], ..Default::default() },
-                },
-                vec![addr, addr],
-            ))
-            .unwrap();
+        let output = execute_block(chain_spec, &db, header, vec![tx, tx_deposit], vec![addr, addr]);
 
         let receipts = &output.receipts;
         let tx_receipt = &receipts[0];
@@ -162,24 +171,8 @@ mod tests {
         }
         .into();
 
-        let provider = evm_config(chain_spec);
-        let mut executor = BasicBlockExecutor::new(provider, StateProviderDatabase::new(&db));
-
-        // make sure the L1 block contract state is preloaded.
-        executor.with_state_mut(|state| {
-            state.load_cache_account(L1_BLOCK_CONTRACT).unwrap();
-        });
-
         // attempt to execute an empty block with parent beacon block root, this should not fail
-        let output = executor
-            .execute(&RecoveredBlock::new_unhashed(
-                Block {
-                    header,
-                    body: BlockBody { transactions: vec![tx, tx_deposit], ..Default::default() },
-                },
-                vec![addr, addr],
-            ))
-            .expect("Executing a block while canyon is active should not fail");
+        let output = execute_block(chain_spec, &db, header, vec![tx, tx_deposit], vec![addr, addr]);
 
         let receipts = &output.receipts;
         let tx_receipt = &receipts[0];
@@ -214,13 +207,13 @@ mod tests {
         // Create state provider with prefunded accounts and L1 block contract
         let mut db = create_op_state_provider();
 
-        // Add sender account with balance from OP_DEV genesis (10_000 ETH)
+        // Add sender account with balance from OP_DEV genesis (1,000,000 ETH)
         let sender_balance = U256::from_str("0xD3C21BCECCEDA1000000").unwrap();
         let sender_account = Account { balance: sender_balance, nonce: 0, bytecode_hash: None };
         db.insert_account(sender, sender_account, None, HashMap::default());
 
-        // Add recipient account
-        let recipient_account = Account { balance: sender_balance, nonce: 0, bytecode_hash: None };
+        // Add recipient account with zero balance so the post-state assertion is exact
+        let recipient_account = Account { balance: U256::ZERO, nonce: 0, bytecode_hash: None };
         db.insert_account(recipient, recipient_account, None, HashMap::default());
 
         // Create EIP-1559 transfer transaction
@@ -252,22 +245,8 @@ mod tests {
             ..Default::default()
         };
 
-        // Create executor and execute block
-        let provider = evm_config(chain_spec);
-        let mut executor = BasicBlockExecutor::new(provider, StateProviderDatabase::new(&db));
-
-        // Preload L1 block contract state
-        executor.with_state_mut(|state| {
-            state.load_cache_account(L1_BLOCK_CONTRACT).unwrap();
-        });
-
         // Execute block with single transfer transaction
-        let output = executor
-            .execute(&RecoveredBlock::new_unhashed(
-                Block { header, body: BlockBody { transactions: vec![tx], ..Default::default() } },
-                vec![sender],
-            ))
-            .expect("Transaction execution on OP_DEV should succeed");
+        let output = execute_block(chain_spec, &db, header, vec![tx], vec![sender]);
 
         // Verify execution results
         assert_eq!(output.receipts.len(), 1, "Should have exactly one receipt");
@@ -276,7 +255,7 @@ mod tests {
 
         // Verify transaction succeeded
         let OpReceipt::Eip1559(eip1559_receipt) = receipt else {
-            panic!("Expected EIP-1559 receipt, got {:?}", receipt);
+            panic!("Expected EIP-1559 receipt, got {receipt:?}");
         };
         assert_eq!(eip1559_receipt.status, Eip658Value::Eip658(true), "Transaction should succeed");
 
@@ -284,6 +263,24 @@ mod tests {
         assert_eq!(
             eip1559_receipt.cumulative_gas_used, MIN_TRANSACTION_GAS,
             "Gas used should match minimum transaction gas"
+        );
+
+        // Verify the post-state: the transfer moved funds and the sender nonce was bumped.
+        let sender_post = output
+            .state
+            .account(&sender)
+            .and_then(|acc| acc.info.as_ref())
+            .expect("sender account should be present in post-state");
+        assert_eq!(sender_post.nonce, 1, "Sender nonce should be incremented to 1");
+
+        let recipient_post = output
+            .state
+            .account(&recipient)
+            .and_then(|acc| acc.info.as_ref())
+            .expect("recipient account should be present in post-state");
+        assert_eq!(
+            recipient_post.balance, transfer_value,
+            "Recipient balance should equal the transferred value"
         );
     }
 }
