@@ -45,15 +45,6 @@ func deepReorgBuildTimeout(reorgDepth uint64) time.Duration {
 	return time.Duration(reorgDepth)*deepReorgBuildPerBlock + deepReorgBuildBase
 }
 
-// requireDeepReorgEnabled skips a test unless OP_RUN_DEEP_REORG_TEST is set. Deep reorg
-// tests pause interop and wait for the chain to extend by the reorg depth in real time, so
-// they take minutes and are excluded from CI by default.
-func requireDeepReorgEnabled(t devtest.T) {
-	if os.Getenv("OP_RUN_DEEP_REORG_TEST") == "" {
-		t.Skip("deep reorg test is manual-only (real-time L2 block production makes it slow); set OP_RUN_DEEP_REORG_TEST=1 to run")
-	}
-}
-
 // requireOpReth skips the test unless the EL backend is op-reth. The acceptance CI
 // matrix runs the same package under an op-geth job (which leaves DEVSTACK_L2EL_KIND
 // unset) and op-reth jobs (which set it).
@@ -566,12 +557,11 @@ func TestConductorReorgRecovery(gt *testing.T) {
 // post-reorg head, its FSM head must converge to the canonical post-reorg chain, every
 // chain-B EL must converge on the replacement, and leadership must stay stable.
 //
-// Manual-only (gated by OP_RUN_DEEP_REORG_TEST): L2 blocks are produced in real time, so
-// extending the chain by deepReorgDepth takes minutes — too slow for CI.
+// Slow: L2 blocks are produced in real time, so extending the chain by deepReorgDepth
+// takes minutes.
 func TestConductorDeepReorgRecovery(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	requireOpReth(t)
-	requireDeepReorgEnabled(t)
 
 	// deepReorgDepth is the number of blocks the chain is extended past the invalid block
 	// before interop resumes, i.e. the depth of the resulting reorg. Tune as needed.
@@ -600,7 +590,6 @@ func TestConductorDeepReorgRecovery(gt *testing.T) {
 func TestConductorDeepReorgRecoveryTightHealth(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	requireOpReth(t)
-	requireDeepReorgEnabled(t)
 
 	depth := uint64(25)
 	if v := os.Getenv("OP_DEEP_REORG_DEPTH"); v != "" {
