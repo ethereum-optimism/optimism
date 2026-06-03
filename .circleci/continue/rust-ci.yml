@@ -1053,12 +1053,13 @@ workflows:
 
       - rust-ci-cargo-hack:
           name: rust-cargo-hack
-          # The all-features long pole of rust-ci (~28m at parallelism 6).
-          # cargo-hack shards `--each-feature` checks via `--partition i/N`, so
-          # more nodes = fewer feature-checks per node. Doubled to 12 to halve
-          # the variable (per-check) time; diminishing returns kick in once
-          # per-node checks drop below the fixed restore+base-compile floor.
-          parallelism: 12
+          # The all-features long pole of rust-ci. cargo-hack shards
+          # `--each-feature` checks via `--partition i/N`, so more nodes = fewer
+          # checks per node. Measured: 6 -> ~28m, 12 -> ~19.4m (-30%). Pushing to
+          # 32 to find the floor: each node still pays a fixed restore +
+          # base-compile cost, so the gain past this is bounded by that floor
+          # (sccache would lower it).
+          parallelism: 32
           context: *rust-ci-context
 
       - rust-build-binary:
