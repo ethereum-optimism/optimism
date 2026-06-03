@@ -1020,7 +1020,7 @@ func TestConfig_IsSDM(t *testing.T) {
 	require.False(t, cfg.IsSDM(100))
 
 	activation := uint64(100)
-	cfg.InteropTime = &activation
+	cfg.LagoonTime = &activation
 	require.False(t, cfg.IsSDM(99))
 	require.True(t, cfg.IsSDM(100))
 	require.True(t, cfg.IsSDM(101))

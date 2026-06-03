@@ -77,7 +77,7 @@ where
         let post_exec_opt_in = self.opt_in.enabled();
         let protocol_active =
             reth_optimism_evm::is_sdm_active_at_timestamp(&self.chain_spec, timestamp);
-        let activation_time = match self.chain_spec.op_fork_activation(OpHardfork::Interop) {
+        let activation_time = match self.chain_spec.op_fork_activation(OpHardfork::Lagoon) {
             ForkCondition::Timestamp(timestamp) => Some(timestamp),
             _ => None,
         };

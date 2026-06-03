@@ -83,7 +83,7 @@ impl SdmAdminApiServer for SdmAdminExt {
         let timestamp = query_timestamp.unwrap_or_else(current_unix_timestamp);
         let opt_in = self.opt_in.load(Ordering::Acquire);
         let protocol_active = is_sdm_active_at_timestamp(&*self.chain_spec, timestamp);
-        let activation_time = match self.chain_spec.op_fork_activation(OpHardfork::Interop) {
+        let activation_time = match self.chain_spec.op_fork_activation(OpHardfork::Lagoon) {
             ForkCondition::Timestamp(t) => Some(t),
             _ => None,
         };

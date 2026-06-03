@@ -711,8 +711,8 @@ mod tests {
         assert!(config.is_karst_active(20));
         assert!(!config.is_sdm_active(20));
 
-        // Schedule Interop and SDM must follow.
-        config.hardforks.interop_time = Some(30);
+        // Schedule Lagoon and SDM must follow.
+        config.hardforks.lagoon_time = Some(30);
         assert!(!config.is_sdm_active(29));
         assert!(config.is_sdm_active(30));
         assert!(config.is_sdm_active(31));

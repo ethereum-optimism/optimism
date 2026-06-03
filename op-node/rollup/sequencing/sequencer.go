@@ -779,7 +779,7 @@ func (d *Sequencer) SdmStatus(ctx context.Context, nextBlockTimestamp uint64) (a
 		PostExecOptIn:  optIn,
 		ProtocolActive: protocolActive,
 		Effective:      optIn && protocolActive,
-		ActivationTime: d.rollupCfg.InteropTime,
+		ActivationTime: d.rollupCfg.LagoonTime,
 	}, nil
 }
 
