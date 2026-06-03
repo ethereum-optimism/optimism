@@ -111,9 +111,11 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast
 	monitor2 := &mockMonitor{}
 	monitor3 := &mockMonitor{}
 	monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-		extractor.Extract, forecast.Forecast, monitor1.Check, monitor2.Check, monitor3.Check)
+		extractor.Extract, forecast.Forecast, noopAnchorStateCheck, monitor1.Check, monitor2.Check, monitor3.Check)
 	return monitor, extractor, forecast, []*mockMonitor{monitor1, monitor2, monitor3}
 }
+
+func noopAnchorStateCheck(_ context.Context, _ common.Hash, _ []*monTypes.EnrichedGameData) {}
 
 type mockMonitor struct {
 	calls int
@@ -195,7 +197,7 @@ func TestMonitor_NodeEndpointErrorsMonitorIntegration(t *testing.T) {
 		nodeEndpointErrorsMonitor := NewNodeEndpointErrorsMonitor(logger, nodeEndpointErrorsMetrics)
 
 		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, nodeEndpointErrorsMonitor.CheckNodeEndpointErrors)
+			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, nodeEndpointErrorsMonitor.CheckNodeEndpointErrors)
 
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -240,7 +242,7 @@ func TestMonitor_NodeEndpointErrorCountMonitorIntegration(t *testing.T) {
 		nodeEndpointErrorCountMonitor := NewNodeEndpointErrorCountMonitor(logger, nodeEndpointErrorCountMetrics)
 
 		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount)
+			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount)
 
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -306,7 +308,7 @@ func TestMonitor_MixedAvailabilityMonitorIntegration(t *testing.T) {
 		mixedAvailabilityMonitor := NewMixedAvailability(logger, mixedAvailabilityMetrics)
 
 		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, mixedAvailabilityMonitor.CheckMixedAvailability)
+			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, mixedAvailabilityMonitor.CheckMixedAvailability)
 
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -373,7 +375,7 @@ func TestMonitor_MixedSafetyMonitorIntegration(t *testing.T) {
 		mixedSafetyMonitor := NewMixedSafetyMonitor(logger, mixedSafetyMetrics)
 
 		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, mixedSafetyMonitor.CheckMixedSafety)
+			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, mixedSafetyMonitor.CheckMixedSafety)
 
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -417,7 +419,7 @@ func TestMonitor_MixedSafetyMonitorIntegration(t *testing.T) {
 		mixedSafetyMonitor := NewMixedSafetyMonitor(logger, mixedSafetyMetrics)
 
 		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, mixedSafetyMonitor.CheckMixedSafety)
+			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, mixedSafetyMonitor.CheckMixedSafety)
 
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -450,7 +452,7 @@ func TestMonitor_MixedSafetyMonitorIntegration(t *testing.T) {
 		mixedSafetyMonitor := NewMixedSafetyMonitor(logger, mixedSafetyMetrics)
 
 		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, mixedSafetyMonitor.CheckMixedSafety)
+			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, mixedSafetyMonitor.CheckMixedSafety)
 
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -507,7 +509,7 @@ func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
 		differentOutputRootMonitor := NewDifferentRootMonitor(logger, differentOutputRootMetrics)
 
 		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, differentOutputRootMonitor.CheckDifferentRoots)
+			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, differentOutputRootMonitor.CheckDifferentRoots)
 
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -548,7 +550,7 @@ func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
 		differentOutputRootMonitor := NewDifferentRootMonitor(logger, differentOutputRootMetrics)
 
 		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, differentOutputRootMonitor.CheckDifferentRoots)
+			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, differentOutputRootMonitor.CheckDifferentRoots)
 
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -588,7 +590,7 @@ func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
 		differentOutputRootMonitor := NewDifferentRootMonitor(logger, differentOutputRootMetrics)
 
 		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, differentOutputRootMonitor.CheckDifferentRoots)
+			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, differentOutputRootMonitor.CheckDifferentRoots)
 
 		err := monitor.monitorGames()
 		require.NoError(t, err)
@@ -615,7 +617,7 @@ func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
 		differentOutputRootMonitor := NewDifferentRootMonitor(logger, differentOutputRootMetrics)
 
 		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, differentOutputRootMonitor.CheckDifferentRoots)
+			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, differentOutputRootMonitor.CheckDifferentRoots)
 
 		err := monitor.monitorGames()
 		require.NoError(t, err)

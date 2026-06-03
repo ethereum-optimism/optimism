@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	methodL1Head           = "l1Head"
-	methodL2SequenceNumber = "l2SequenceNumber"
-	methodRootClaim        = "rootClaim"
-	methodStatus           = "status"
+	methodL1Head              = "l1Head"
+	methodL2SequenceNumber    = "l2SequenceNumber"
+	methodRootClaim           = "rootClaim"
+	methodStatus              = "status"
+	methodAnchorStateRegistry = "anchorStateRegistry"
 )
 
 type SuperPermissionedGameCaller struct {
@@ -68,6 +69,15 @@ func (s *SuperPermissionedGameCaller) GetExtendedMetadata(ctx context.Context, b
 		RootClaim:     results[2].GetHash(0),
 		Status:        status,
 	}, nil
+}
+
+func (s *SuperPermissionedGameCaller) GetAnchorStateRegistry(ctx context.Context, block rpcblock.Block) (common.Address, error) {
+	defer s.metrics.StartContractRequest("GetAnchorStateRegistry")()
+	result, err := s.multiCaller.SingleCall(ctx, block, s.contract.Call(methodAnchorStateRegistry))
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to retrieve anchor state registry: %w", err)
+	}
+	return result.GetAddress(0), nil
 }
 
 func (s *SuperPermissionedGameCaller) GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error) {
