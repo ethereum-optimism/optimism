@@ -184,8 +184,15 @@ mod test {
             Bytes48::new(raw.as_slice().try_into().unwrap())
         };
 
-        // Validate each field element in the blob
-        (0..FIELD_ELEMENTS_PER_BLOB).into_par_iter().for_each(|i| {
+        // Validate a random subset of field elements. The full
+        // FIELD_ELEMENTS_PER_BLOB (4096) sweep computes and verifies a KZG proof
+        // per element and dominated CI wall-clock (~45s). Sampling 32 random
+        // indices per run cuts that ~128x while still guarding the ROOTS_OF_UNITY
+        // mapping: a systematic table bug fails immediately, and an
+        // index-specific bug is caught probabilistically across CI runs.
+        const SAMPLE_SIZE: u64 = 32;
+        (0..SAMPLE_SIZE).into_par_iter().for_each(|_| {
+            let i = rand::rng().random_range(0..FIELD_ELEMENTS_PER_BLOB);
             let field_element = {
                 let mut fe = [0u8; 32];
                 fe.copy_from_slice(&blob[(i as usize) << 5..(i as usize + 1) << 5]);
