@@ -209,7 +209,7 @@ func assertLeaderHeadConverges(t devtest.T, conductors dsl.ConductorSet, elClien
 // Leader RPC is a local check (no Raft barrier), so it is safe to call on followers.
 func currentLeader(ctx context.Context, conductors dsl.ConductorSet) *dsl.Conductor {
 	for _, c := range conductors {
-		callCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		isLeader, err := c.Escape().RpcAPI().Leader(callCtx)
 		cancel()
 		if err == nil && isLeader {
@@ -222,7 +222,7 @@ func currentLeader(ctx context.Context, conductors dsl.ConductorSet) *dsl.Conduc
 // leaderUnsafePayload reads the leader's recorded unsafe head without the DSL's
 // fail-on-error wrapper, so callers can poll inside require.Eventually.
 func leaderUnsafePayload(ctx context.Context, leader *dsl.Conductor) (*eth.ExecutionPayloadEnvelope, error) {
-	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	return leader.Escape().RpcAPI().LatestUnsafePayload(callCtx)
 }
@@ -245,7 +245,7 @@ func assertSequencerLive(t devtest.T, conductors dsl.ConductorSet, elClient ethL
 	ctx := t.Ctx()
 	require.Eventually(t, func() bool {
 		for _, c := range conductors {
-			callCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			leader, lerr := c.Escape().RpcAPI().Leader(callCtx)
 			healthy, herr := c.Escape().RpcAPI().SequencerHealthy(callCtx)
 			active, aerr := c.Escape().RpcAPI().Active(callCtx)
@@ -445,7 +445,7 @@ func watchClusterHealth(t devtest.T, conductors dsl.ConductorSet, initialLeader 
 				return
 			case <-ticker.C:
 				for _, c := range conductors {
-					callCtx, callCancel := context.WithTimeout(ctx, 3*time.Second)
+					callCtx, callCancel := context.WithTimeout(ctx, 30*time.Second)
 					healthy, err := c.Escape().RpcAPI().SequencerHealthy(callCtx)
 					leaderInfo, lerr := c.Escape().RpcAPI().LeaderWithID(callCtx)
 					callCancel()

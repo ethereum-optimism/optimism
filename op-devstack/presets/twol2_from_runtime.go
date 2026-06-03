@@ -181,27 +181,6 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 	return preset
 }
 
-// supernodeELFrontend returns an EL frontend for the supernode VN's EL. When
-// the supernode shares the chain's primary EL (virtual-sequencer presets) it
-// reuses the already-built sequencer EL frontend; when the supernode has its
-// own EL (light-sequencer presets, production topology) it builds a dedicated
-// frontend so the supernode CL is attached to the EL it actually drives.
-func supernodeELFrontend(t devtest.T, chain *sysgo.MultiChainNodeRuntime, seqELFrontend *l2ELFrontend) *l2ELFrontend {
-	if chain.SupernodeEL == nil || chain.SupernodeEL == chain.EL {
-		return seqELFrontend
-	}
-	return newL2ELFrontend(
-		t,
-		"supernode",
-		chain.Network.ChainID(),
-		chain.SupernodeEL.UserRPC(),
-		chain.SupernodeEL.EngineRPC(),
-		chain.SupernodeEL.JWTPath(),
-		chain.Network.RollupConfig(),
-		chain.SupernodeEL,
-	)
-}
-
 func twoL2SupernodeInteropWithConductorsFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *TwoL2SupernodeInteropWithConductors {
 	base := twoL2SupernodeInteropFromRuntime(t, runtime)
 	chainA := runtime.Chains["l2a"]
