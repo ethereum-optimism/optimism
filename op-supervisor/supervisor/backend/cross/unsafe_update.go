@@ -7,36 +7,38 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type CrossUnsafeDeps interface {
 	reads.Acquirer
 
-	CrossUnsafe(chainID eth.ChainID) (types.BlockSeal, error)
+	CrossUnsafe(chainID eth.ChainID) (messages.BlockSeal, error)
 
 	UnsafeStartDeps
 	UnsafeFrontierCheckDeps
 
-	OpenBlock(chainID eth.ChainID, blockNum uint64) (block eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
+	OpenBlock(chainID eth.ChainID, blockNum uint64) (block eth.BlockRef, logCount uint32, execMsgs map[uint32]*messages.ExecutingMessage, err error)
 
-	UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe types.BlockSeal) error
+	UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe messages.BlockSeal) error
 }
 
 func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps, linker depset.LinkChecker) error {
 	h := d.AcquireHandle()
 	defer h.Release()
 
-	var candidate types.BlockSeal
+	var candidate messages.BlockSeal
 
 	// fetch cross-head to determine next cross-unsafe candidate
 	if crossUnsafe, err := d.CrossUnsafe(chainID); err != nil {
-		if errors.Is(err, types.ErrFuture) {
+		if errors.Is(err, interop.ErrFuture) {
 			// If genesis / no cross-safe block yet, then defer update
 			logger.Debug("No cross-unsafe starting point yet")
 			return nil
@@ -51,9 +53,9 @@ func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps
 			return fmt.Errorf("failed to open block %d: %w", crossUnsafe.Number+1, err)
 		}
 		if bl.ParentHash != crossUnsafe.Hash {
-			return fmt.Errorf("cannot use block %s, it does not build on cross-unsafe block %s: %w", bl, crossUnsafe, types.ErrConflict)
+			return fmt.Errorf("cannot use block %s, it does not build on cross-unsafe block %s: %w", bl, crossUnsafe, interop.ErrConflict)
 		}
-		candidate = types.BlockSealFromRef(bl)
+		candidate = messages.BlockSealFromRef(bl)
 	}
 	h.DependOnDerivedTime(candidate.Timestamp)
 
@@ -71,7 +73,7 @@ func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps
 
 	if !h.IsValid() {
 		logger.Warn("Reads were inconsistent, aborting cross-unsafe update", "aborted", candidate)
-		return types.ErrInvalidatedRead
+		return interop.ErrInvalidatedRead
 	}
 
 	// promote the candidate block to cross-unsafe
@@ -92,7 +94,7 @@ func (c *CrossUnsafeWorker) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch ev.(type) {
 	case superevents.UpdateCrossUnsafeRequestEvent:
 		if err := CrossUnsafeUpdate(c.logger, c.chainID, c.d, c.linker); err != nil {
-			if errors.Is(err, types.ErrFuture) {
+			if errors.Is(err, interop.ErrFuture) {
 				c.logger.Debug("Worker awaits additional blocks", "err", err)
 			} else {
 				c.logger.Warn("Failed to process work", "err", err)

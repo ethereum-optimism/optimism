@@ -73,11 +73,20 @@ acceptance-test:
         CPU_COUNT=1
     fi
 
-    DEFAULT_JOBS="$CPU_COUNT"
-    DEFAULT_TEST_PARALLEL="$(( CPU_COUNT / 2 ))"
-    if [[ "$DEFAULT_TEST_PARALLEL" -lt 1 ]]; then
-        DEFAULT_TEST_PARALLEL=1
-    fi
+    # Each ParallelT acceptance test spins its own full devstack (L1 geth +
+    # op-node + op-reth/op-geth + batcher + proposer + challenger), so the real
+    # cost driver is concurrent ParallelT goroutines, bounded by -p * -parallel.
+    # The previous unbounded default (-p = CPU_COUNT ~= 20, -parallel = ~10)
+    # saturated CPU+RAM and triggered mass "context deadline exceeded" failures
+    # across the runner — see ethereum-optimism/optimism#20966.
+    #
+    # Collapse to a single concurrency axis: -parallel=1 disables intra-package
+    # parallelism so each package binary runs one test at a time, and -p directly
+    # caps concurrent test devstacks across the runner. 12 is well under the
+    # observed ~30-effective-devstack crash threshold and lands wall time near
+    # the pre-cap baseline.
+    DEFAULT_JOBS=12
+    DEFAULT_TEST_PARALLEL=1
 
     JOBS="${ACCEPTANCE_TEST_JOBS:-$DEFAULT_JOBS}"
     TEST_PARALLEL="${ACCEPTANCE_TEST_PARALLEL:-$DEFAULT_TEST_PARALLEL}"
@@ -109,16 +118,53 @@ acceptance-test:
 
     TEST_PACKAGES=("./op-acceptance-tests/tests/...")
 
+    # CircleCI test-level splitting: when running under `parallelism: N > 1`,
+    # split the test set across CIRCLE_NODE_TOTAL nodes using historical timings
+    # so each node runs a balanced subset. Falls back to running everything when
+    # CIRCLE_NODE_TOTAL is unset (local runs, single-node CI).
+    RUN_FLAG=""
+    JUNIT_FILE="$RESULTS_DIR/results.xml"
+    JSON_FILE="$LOG_DIR/raw_go_events.log"
+    if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
+        NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
+        NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
+
+        go test -list '^Test' "${TEST_PACKAGES[@]}" 2>/dev/null | grep -E '^Test' > /tmp/tests.txt
+
+        TOTAL_TESTS=$(wc -l < /tmp/tests.txt | tr -d ' ')
+        if [ "$TOTAL_TESTS" -eq 0 ]; then
+            echo "ERROR: no tests found in packages: ${TEST_PACKAGES[*]}"
+            exit 1
+        fi
+        echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"
+
+        circleci tests split --split-by=timings --timings-type=testname /tmp/tests.txt > /tmp/tests_shard.txt
+
+        SHARD_COUNT=$(wc -l < /tmp/tests_shard.txt | tr -d ' ')
+        echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests:"
+        cat /tmp/tests_shard.txt
+
+        if [ "$SHARD_COUNT" -eq 0 ]; then
+            echo "No tests assigned to this node, skipping."
+            exit 0
+        fi
+
+        RUN_FLAG="-run=^($(paste -sd '|' /tmp/tests_shard.txt))$"
+        JUNIT_FILE="$RESULTS_DIR/results-${NODE_INDEX}.xml"
+        JSON_FILE="$LOG_DIR/raw_go_events-${NODE_INDEX}.log"
+    fi
+
     set +e
     LOG_LEVEL="${LOG_LEVEL}" {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
         --format testname \
-        --junitfile "$RESULTS_DIR/results.xml" \
-        --jsonfile "$LOG_DIR/raw_go_events.log" \
+        --junitfile "$JUNIT_FILE" \
+        --jsonfile "$JSON_FILE" \
         -- \
         -count=1 \
         -p "${JOBS}" \
         -parallel "${TEST_PARALLEL}" \
         -timeout "${TEST_TIMEOUT}" \
+        ${RUN_FLAG:+"$RUN_FLAG"} \
         "${TEST_PACKAGES[@]}" \
         2>&1 | tee "$LOG_DIR/all.log"
     TEST_STATUS=${PIPESTATUS[0]}

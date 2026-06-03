@@ -10,58 +10,6 @@ parameters:
   c-base_image:
     type: string
     default: default
-  # The dispatch parameters are used to manually dispatch pipelines that normally only run post-merge on develop
-  # from the CircleCI UI. Example configuration:
-  #   when:
-  #     or:
-  #       - equal: [ "develop", <<pipeline.git.branch>> ]
-  #       - equal: [ true, <<pipeline.parameters.c-main_dispatch>> ]
-  # Add a new `*_dispatch` parameter for any pipeline you want manual dispatch for.
-  c-main_dispatch:
-    type: boolean
-    default: true # default to running main in case the manual run cancelled an automatic run
-  c-fault_proofs_dispatch:
-    type: boolean
-    default: false
-  c-reproducibility_dispatch:
-    type: boolean
-    default: false
-  c-kontrol_dispatch:
-    type: boolean
-    default: false
-  c-cannon_full_test_dispatch:
-    type: boolean
-    default: false
-  c-sdk_dispatch:
-    type: boolean
-    default: false
-  c-publish_contract_artifacts_dispatch:
-    type: boolean
-    default: false
-  c-stale_check_dispatch:
-    type: boolean
-    default: false
-  c-contracts_coverage_dispatch:
-    type: boolean
-    default: false
-  c-heavy_fuzz_dispatch:
-    type: boolean
-    default: false
-  c-ai_contracts_test_dispatch:
-    type: boolean
-    default: false
-  c-l2_fork_test_dispatch:
-    type: boolean
-    default: false
-  c-l2_fork_weekly_dispatch:
-    type: boolean
-    default: false
-  c-github-event-type:
-    type: string
-    default: "__not_set__"
-  c-github-event-action:
-    type: string
-    default: "__not_set__"
   c-github-event-base64:
     type: string
     default: "__not_set__"
@@ -75,84 +23,58 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.0"
-  # Set to true by path-filtering when contracts or rebuild-all paths change.
-  # When false, contract feature matrix jobs are skipped entirely.
-  c-contracts_changed:
-    type: boolean
-    default: false
-  # Passthrough declarations for setup config parameters.
-  # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
-  # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
-  # These are not referenced by any job — the c- prefixed versions above are used instead.
-  default_docker_image:
+  c-publish_contract_artifacts_ref:
     type: string
-    default: cimg/base:2026.03
-  rust_base_image:
-    type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
-  base_image:
-    type: string
-    default: default
-  main_dispatch:
-    type: boolean
-    default: true
-  fault_proofs_dispatch:
+    default: ""
+  # Workflow activation flags (set by the decision tree in config.yml)
+  c-run_main:
     type: boolean
     default: false
-  reproducibility_dispatch:
+  c-run_release:
     type: boolean
     default: false
-  kontrol_dispatch:
+  c-run_scheduled_todo_issues:
     type: boolean
     default: false
-  cannon_full_test_dispatch:
+  c-run_develop_fault_proofs:
     type: boolean
     default: false
-  sdk_dispatch:
+  c-run_develop_kontrol_tests:
     type: boolean
     default: false
-  docker_publish_dispatch:
+  c-run_scheduled_cannon_full_tests:
     type: boolean
     default: false
-  stale_check_dispatch:
+  c-run_scheduled_preimage_reproducibility:
     type: boolean
     default: false
-  contracts_coverage_dispatch:
+  c-run_scheduled_stale_check:
     type: boolean
     default: false
-  heavy_fuzz_dispatch:
+  c-run_scheduled_heavy_fuzz_tests:
     type: boolean
     default: false
-  sync_test_op_node_dispatch:
+  c-run_close_issue:
     type: boolean
     default: false
-  ai_contracts_test_dispatch:
+  c-run_l2_fork_test:
     type: boolean
     default: false
-  l2_fork_test_dispatch:
+  c-run_scheduled_weekly_tests:
     type: boolean
     default: false
-  l2_fork_weekly_dispatch:
+  c-run_contracts_feature_tests:
     type: boolean
     default: false
-  rust_ci_dispatch:
+  c-run_contracts_feature_tests_short:
     type: boolean
     default: false
-  rust_e2e_dispatch:
+  c-run_ci_gate_skip:
     type: boolean
     default: false
-  github-event-type:
-    type: string
-    default: "__not_set__"
-  github-event-action:
-    type: string
-    default: "__not_set__"
-  github-event-base64:
-    type: string
-    default: "__not_set__"
-  go-cache-version:
-    type: string
-    default: "v0.0"
+  c-run_publish_contract_artifacts:
+    type: boolean
+    default: false
 
 orbs:
   utils: ethereum-optimism/circleci-utils@1.0.27
@@ -316,7 +238,7 @@ commands:
     description: "Install zstd compression utility"
     steps:
       - apt-install:
-          packages: "zstd=1.4.8*"
+          packages: "zstd"
 
   get-target-branch:
     description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
@@ -683,7 +605,7 @@ jobs:
     description: "Build a Rust workspace with target directory caching"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     parameters:
       directory:
         description: "Directory containing the Cargo workspace"
@@ -746,10 +668,11 @@ jobs:
                   - "<< parameters.directory >>/target/<< parameters.profile >>/rollup-boost"
 
   # Build a single Rust binary from a submodule.
-  rust-build-submodule:
+  # Build a single Rust binary from a vendored (non-submodule) directory.
+  rust-build-vendored:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     parameters:
       directory:
         description: "Directory containing the Cargo workspace"
@@ -768,20 +691,11 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - run:
-          name: Get << parameters.directory >> submodule HASH
+          name: Get << parameters.directory >> content HASH
           command: |
             mkdir -p .circleci-cache
-            # Verify the path is a git submodule (gitlink). For submodules, ls-tree prints:
-            # 160000 commit <sha> <path>
-            MODE_AND_TYPE="$(git ls-tree HEAD << parameters.directory >> | awk '{print $1 " " $2}')"
-            if [ "$MODE_AND_TYPE" != "160000 commit" ]; then
-              echo "ERROR: << parameters.directory >> is not a submodule path (expected '160000 commit', got '$MODE_AND_TYPE')" >&2
-              git ls-tree HEAD << parameters.directory >> >&2 || true
-              exit 1
-            fi
-
-            git ls-tree HEAD << parameters.directory >> | awk '{print $3}' > .circleci-cache/expected-submod-sha.txt
-            echo "Expected submodule HASH: $(cat .circleci-cache/expected-submod-sha.txt)"
+            git ls-tree -r HEAD << parameters.directory >> | sha256sum | awk '{print $1}' > .circleci-cache/expected-submod-sha.txt
+            echo "Content HASH: $(cat .circleci-cache/expected-submod-sha.txt)"
             echo "<< parameters.binaries >>" | tr ' ' '\n' | awk 'NF' | sort -u > .circleci-cache/expected-binaries.txt
             echo "Expected binaries: $(tr '\n' ' ' < .circleci-cache/expected-binaries.txt)"
       - restore_cache:
@@ -789,7 +703,7 @@ jobs:
           keys:
             - rust-<< parameters.directory >>-v8-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
       - run:
-          name: Build << parameters.directory >> submodule (if needed)
+          name: Build << parameters.directory >> (if needed)
           command: |
             ROOT_DIR="$(pwd)"
             BIN_CACHE_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
@@ -807,9 +721,6 @@ jobs:
             fi
 
             echo "Cache miss - will build"
-            # Only run on cache miss. We intentionally do not cache into the submodule directory so that cache
-            # restore cannot make the submodule path non-empty (which breaks `git submodule update --init`).
-            git submodule update --init --recursive --depth 1 -j 8 --single-branch << parameters.directory >>
 
             if [ "<< parameters.needs_clang >>" = "true" ] && ! command -v clang >/dev/null; then
               for i in 1 2 3; do
@@ -854,7 +765,7 @@ jobs:
   rust-build-vendored:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     parameters:
       directory:
         description: "Directory containing the Cargo workspace"
@@ -946,7 +857,7 @@ jobs:
   initialize:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - run:
           command: echo  "Initializing..."
@@ -954,7 +865,7 @@ jobs:
   cannon-go-lint-and-test:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     parameters:
       skip_slow_tests:
         type: boolean
@@ -999,12 +910,8 @@ jobs:
               TIMEOUT="45m"
             fi
             ../ops/scripts/gotestsum-split.sh --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
-            -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
+            -- -timeout=$TIMEOUT -parallel=$(nproc) ./...
           working_directory: cannon
-      - codecov/upload:
-          disable_search: true
-          files: ./cannon/coverage-64.out
-          flags: cannon-go-tests-64
       - store_test_results:
           path: ./tmp/test-results
       - store_artifacts:
@@ -1019,7 +926,7 @@ jobs:
   contracts-bedrock-build:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     parameters:
       build_args:
         description: Forge build arguments
@@ -1061,7 +968,7 @@ jobs:
   check-kontrol-build:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1086,7 +993,7 @@ jobs:
   contracts-bedrock-tests:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     parameters:
       test_list:
         description: List of test files to run
@@ -1174,7 +1081,7 @@ jobs:
   contracts-bedrock-heavy-fuzz-nightly:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: full
@@ -1226,43 +1133,10 @@ jobs:
       - notify-failures-on-develop:
           mentions: "@security-oncall"
 
-  # AI Contracts Test Maintenance System
-  # Runbook: https://github.com/ethereum-optimism/optimism/blob/develop/ops/ai-eng/contracts-test-maintenance/docs/runbook.md
-  ai-contracts-test:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - run:
-          name: Check Python version
-          command: python3 --version
-      - run:
-          name: Run AI Contracts Test System
-          command: just ai-contracts-test
-          working_directory: ops/ai-eng
-          no_output_timeout: 60m
-      - store_artifacts:
-          path: ops/ai-eng/contracts-test-maintenance/log.json
-          destination: log.json
-      - run:
-          name: Build Slack notification
-          command: just build-slack-notification >> $BASH_ENV
-          working_directory: ops/ai-eng
-          when: always
-      - slack/notify:
-          channel: C050F1GUHDG
-          event: always
-          template: AI_PR_SLACK_TEMPLATE
-      - notify-failures-on-develop:
-          mentions: "@security-oncall"
-
   contracts-bedrock-coverage:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     parameters:
       test_timeout:
         description: Timeout for running tests
@@ -1375,7 +1249,7 @@ jobs:
         default: ""
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1490,7 +1364,7 @@ jobs:
         default: "L2CM"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1592,7 +1466,7 @@ jobs:
 
   contracts-bedrock-upload:
     machine: true
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1609,7 +1483,7 @@ jobs:
   required-contracts-ci:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
+    resource_class: small.gen2
     parameters:
       always-succeed:
         description: Force always succeed (skip API gate; for contracts-feature-tests-short)
@@ -1622,7 +1496,7 @@ jobs:
   contracts-bedrock-checks-fast:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1682,7 +1556,7 @@ jobs:
         default: false
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1715,7 +1589,7 @@ jobs:
   go-lint:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1736,7 +1610,7 @@ jobs:
   go-binaries-for-sysgo:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1758,7 +1632,7 @@ jobs:
   check-op-geth-version:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
+    resource_class: small.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1779,7 +1653,7 @@ jobs:
   prep-superchain:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
+    resource_class: small.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1804,7 +1678,7 @@ jobs:
   check-nut-locks:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
+    resource_class: small.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1817,7 +1691,7 @@ jobs:
   nut-provenance-verify:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
@@ -1860,7 +1734,7 @@ jobs:
         default: 1
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     parallelism: <<parameters.parallelism>>
     steps:
       - utils/checkout-with-mise:
@@ -1918,7 +1792,7 @@ jobs:
       resource_class:
         description: Machine resource class
         type: string
-        default: 2xlarge
+        default: 2xlarge.gen2
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -1958,9 +1832,6 @@ jobs:
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
             just go-tests-fraud-proofs-ci
-      - codecov/upload:
-          disable_search: true
-          files: ./coverage.out
       - store_test_results:
           path: ./tmp/test-results
       - run:
@@ -1990,10 +1861,25 @@ jobs:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
+      parallelism:
+        description: Number of machines to distribute the tests across
+        type: integer
+        default: 1
+      acceptance_test_jobs:
+        description: "Override ACCEPTANCE_TEST_JOBS (go test -p) for this run; empty leaves the justfile default in place"
+        type: string
+        default: ""
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge+
+    resource_class: 2xlarge+.gen2
+    parallelism: <<parameters.parallelism>>
     steps:
+      - run:
+          name: Install eatmydata and disable fsync for all subprocesses
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends eatmydata
+            echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
@@ -2030,6 +1916,9 @@ jobs:
           working_directory: op-acceptance-tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
+            if [ -n "<<parameters.acceptance_test_jobs>>" ]; then
+              export ACCEPTANCE_TEST_JOBS="<<parameters.acceptance_test_jobs>>"
+            fi
             LOG_LEVEL=info just acceptance-test
       - run:
           name: Print results (summary)
@@ -2070,7 +1959,7 @@ jobs:
   memory-all:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
+    resource_class: small.gen2
     steps:
       - run:
           name: All memory-all tests passed
@@ -2079,7 +1968,7 @@ jobs:
   sanitize-op-program:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2132,7 +2021,7 @@ jobs:
   rust-binaries-for-sysgo:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: small
+    resource_class: small.gen2
     steps:
       - run:
           name: All Rust binaries ready
@@ -2141,7 +2030,7 @@ jobs:
   # ============================================================================
 
   publish-cannon-prestates:
-    resource_class: medium
+    resource_class: medium.gen2
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     steps:
@@ -2205,7 +2094,7 @@ jobs:
 
   preimage-reproducibility:
     machine: true
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2253,7 +2142,7 @@ jobs:
       SEMGREP_COMMIT: << pipeline.git.revision >>
     docker:
       - image: returntocorp/semgrep
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - checkout # no need to use mise here since the docker image contains the only dependency
       - unless:
@@ -2285,14 +2174,14 @@ jobs:
   bedrock-go-tests: # just a helper, that depends on all the actual test jobs
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - run: echo Done
 
   analyze-op-program-client:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2311,7 +2200,7 @@ jobs:
   op-program-compat:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2325,7 +2214,7 @@ jobs:
   check-generated-mocks-op-node:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2339,7 +2228,7 @@ jobs:
   check-generated-mocks-op-service:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2364,7 +2253,7 @@ jobs:
   kontrol-tests:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2399,7 +2288,7 @@ jobs:
   publish-contract-artifacts:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate:
@@ -2410,6 +2299,24 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - run:
+          name: Checkout publish ref
+          environment:
+            PUBLISH_CONTRACT_ARTIFACTS_REF: << pipeline.parameters.c-publish_contract_artifacts_ref >>
+          command: |
+            set -euo pipefail
+
+            if [ -z "$PUBLISH_CONTRACT_ARTIFACTS_REF" ]; then
+              echo "Using pipeline checkout $(git rev-parse HEAD)"
+              exit 0
+            fi
+
+            git fetch --no-tags origin "$PUBLISH_CONTRACT_ARTIFACTS_REF"
+            git checkout --detach FETCH_HEAD
+            echo "Checked out publish ref '$PUBLISH_CONTRACT_ARTIFACTS_REF' at $(git rev-parse HEAD)"
+
+            # Respect the tool versions specified by the ref being published.
+            mise install -v -y
       - install-contracts-dependencies
       - install-zstd
       - run:
@@ -2434,7 +2341,7 @@ jobs:
         type: string
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large
+    resource_class: large.gen2
     steps:
       - setup_remote_docker:
           docker_layer_caching: true
@@ -2457,7 +2364,7 @@ jobs:
   diff-fetcher-forge-artifacts:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2523,7 +2430,7 @@ jobs:
 
   generate-flaky-report:
     machine: true
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -2552,19 +2459,7 @@ jobs:
 
 workflows:
   main:
-    when:
-      and:
-        - equal: ["", << pipeline.git.tag >>]
-        - or:
-            - and:
-                - equal: ["webhook", << pipeline.trigger_source >>]
-            - and:
-                - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
-                - equal: ["api", << pipeline.trigger_source >>]
-                - equal: [
-                      << pipeline.parameters.c-github-event-type >>,
-                      "__not_set__",
-                    ] #this is to prevent triggering this workflow as the default value is always set for main_dispatch
+    when: << pipeline.parameters.c-run_main >>
     jobs:
       - contracts-bedrock-build:
           name: contracts-bedrock-build
@@ -2775,6 +2670,8 @@ workflows:
           build_command: cargo build --release -p rollup-boost --bin rollup-boost
           context:
             - circleci-repo-readonly-authenticated-github-token
+      # Lint runs in `rust-ci.yml` as `op-rbuilder-checks` / `rollup-boost-checks`
+      # via each crate's `make lint`.
       - rust-binaries-for-sysgo:
           requires:
             - rust-workspace-binaries
@@ -2786,6 +2683,8 @@ workflows:
       # IN-MEMORY (all) - op-node/op-geth
       - op-acceptance-tests:
           name: memory-all-opn-op-geth
+          parallelism: 2
+          acceptance_test_jobs: "8"
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2800,6 +2699,8 @@ workflows:
       - op-acceptance-tests:
           name: memory-all-opn-op-reth
           l2_el_kind: op-reth
+          parallelism: 2
+          acceptance_test_jobs: "8"
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2815,6 +2716,8 @@ workflows:
           name: memory-all-kona-op-reth
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
+          parallelism: 2
+          acceptance_test_jobs: "8"
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2902,9 +2805,7 @@ workflows:
             - build-contracts-go-release-op-up
 
   release:
-    when:
-      not:
-        equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_release >>
     jobs:
       - initialize:
           context:
@@ -2938,8 +2839,7 @@ workflows:
               ignore: /.*/
 
   scheduled-todo-issues:
-    when:
-      equal: [build_four_hours, <<pipeline.schedule.name>>]
+    when: << pipeline.parameters.c-run_scheduled_todo_issues >>
     jobs:
       - todo-issues:
           name: todo-issue-checks
@@ -2958,15 +2858,15 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
 
+  publish-contract-artifacts-auto-or-manual:
+    when: << pipeline.parameters.c-run_publish_contract_artifacts >>
+    jobs:
+      - publish-contract-artifacts:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+
   develop-fault-proofs:
-    when:
-      or:
-        - and:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: ["webhook", << pipeline.trigger_source >>]
-        - and:
-            - equal: [true, <<pipeline.parameters.c-fault_proofs_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_develop_fault_proofs >>
     jobs:
       - cannon-prestate:
           context:
@@ -2995,7 +2895,7 @@ workflows:
           mentions: "@proofs-team"
           no_output_timeout: 90m
           test_timeout: 480m
-          resource_class: 2xlarge
+          resource_class: 2xlarge.gen2
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
@@ -3014,14 +2914,7 @@ workflows:
             - op-e2e-cannon-tests
 
   develop-kontrol-tests:
-    when:
-      or:
-        - and:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: ["webhook", << pipeline.trigger_source >>]
-        - and:
-            - equal: [true, <<pipeline.parameters.c-kontrol_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_develop_kontrol_tests >>
     jobs:
       - kontrol-tests:
           context:
@@ -3030,10 +2923,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
 
   scheduled-cannon-full-tests:
-    when:
-      or:
-        - equal: [build_four_hours, <<pipeline.schedule.name>>]
-        - equal: [true, << pipeline.parameters.c-cannon_full_test_dispatch >>]
+    when: << pipeline.parameters.c-run_scheduled_cannon_full_tests >>
     jobs:
       - contracts-bedrock-build:
           build_args: --deny-warnings --skip test
@@ -3050,11 +2940,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
 
   scheduled-preimage-reproducibility:
-    when:
-      or:
-        - equal: [build_daily, <<pipeline.schedule.name>>]
-        # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.c-reproducibility_dispatch >>]
+    when: << pipeline.parameters.c-run_scheduled_preimage_reproducibility >>
     jobs:
       - preimage-reproducibility:
           context:
@@ -3062,32 +2948,21 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
 
   scheduled-stale-check:
-    when:
-      or:
-        - equal: [build_daily, <<pipeline.schedule.name>>]
-          # Trigger on manual triggers if explicitly requested
-        - equal: [true, << pipeline.parameters.c-stale_check_dispatch >>]
+    when: << pipeline.parameters.c-run_scheduled_stale_check >>
     jobs:
       - stale-check:
           context:
             - circleci-repo-optimism
 
   scheduled-heavy-fuzz-tests:
-    when:
-      or:
-        - equal: [build_daily, <<pipeline.schedule.name>>]
-        - equal: [true, << pipeline.parameters.c-heavy_fuzz_dispatch >>]
+    when: << pipeline.parameters.c-run_scheduled_heavy_fuzz_tests >>
     jobs:
       - contracts-bedrock-heavy-fuzz-nightly:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
   close-issue-workflow:
-    when:
-      and:
-        - equal: [<< pipeline.trigger_source >>, "api"]
-        - equal: [<< pipeline.parameters.c-github-event-type >>, "pull_request"]
-        - equal: [<< pipeline.parameters.c-github-event-action >>, "labeled"]
+    when: << pipeline.parameters.c-run_close_issue >>
     jobs:
       - close-issue:
           label_name: "auto-close-trivial-contribution"
@@ -3098,24 +2973,8 @@ workflows:
           context:
             - circleci-repo-optimism
 
-  ai-contracts-test-workflow:
-    when:
-      or:
-        - equal: [build_mon_thu, <<pipeline.schedule.name>>]
-        - equal: [true, << pipeline.parameters.c-ai_contracts_test_dispatch >>]
-    jobs:
-      - ai-contracts-test:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-api-token
-            - devin-api
-            - slack
-
   l2-fork-test-workflow:
-    when:
-      and:
-        - equal: [true, << pipeline.parameters.c-l2_fork_test_dispatch >>]
-        - equal: ["api", << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_l2_fork_test >>
     jobs:
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork-dispatch op-mainnet
@@ -3128,10 +2987,7 @@ workflows:
             - slack
 
   scheduled-weekly-tests:
-    when:
-      or:
-        - equal: [build_weekly, <<pipeline.schedule.name>>]
-        - equal: [true, << pipeline.parameters.c-l2_fork_weekly_dispatch >>]
+    when: << pipeline.parameters.c-run_scheduled_weekly_tests >>
     jobs:
       - contracts-bedrock-tests-l2-fork:
           matrix:
@@ -3156,22 +3012,7 @@ workflows:
             - slack
 
   contracts-feature-tests:
-    when:
-      or:
-        - and:
-            - equal: ["webhook", << pipeline.trigger_source >>]
-            - << pipeline.parameters.c-contracts_changed >>
-        # Always run on develop (mirrors previous check-changed whitelist behavior)
-        - and:
-            - equal: ["webhook", << pipeline.trigger_source >>]
-            - equal: ["develop", << pipeline.git.branch >>]
-        # Merge queue (merge gate). Match checkout branch.
-        - matches:
-            pattern: "^gh-readonly-queue/.*"
-            value: << pipeline.git.branch >>
-        - and:
-            - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_contracts_feature_tests >>
     jobs:
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
@@ -3342,25 +3183,23 @@ workflows:
   # Produces the required-contracts-ci status so the merge queue doesn't hang.
   # ============================================================================
   contracts-feature-tests-short:
-    when:
-      not: # these conditions should be kept in sync with the ones in contracts-feature-tests
-        or:
-          - and:
-              - equal: ["webhook", << pipeline.trigger_source >>]
-              - << pipeline.parameters.c-contracts_changed >>
-          # Always run on develop (mirrors previous check-changed whitelist behavior)
-          - and:
-              - equal: ["webhook", << pipeline.trigger_source >>]
-              - equal: ["develop", << pipeline.git.branch >>]
-          # Merge queue (merge gate). Match checkout branch.
-          - matches:
-              pattern: "^gh-readonly-queue/.*"
-              value: << pipeline.git.branch >>
-          - and:
-              - equal: [true, <<pipeline.parameters.c-main_dispatch>>]
-              - equal: ["api", << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_contracts_feature_tests_short >>
     jobs:
       - required-contracts-ci:
+          always-succeed: true
+          context:
+            - circleci-api-token
+
+  # ============================================================================
+  # ci-gate (skip) — runs only on the docs-only fast path.
+  # Produces the ci-gate required status check with always-succeed so docs-only
+  # PRs (which skip the full `main` workflow) aren't blocked by a missing check.
+  # The real ci-gate still runs in `main` for every other path.
+  # ============================================================================
+  ci-gate-skip:
+    when: << pipeline.parameters.c-run_ci_gate_skip >>
+    jobs:
+      - ci-gate:
           always-succeed: true
           context:
             - circleci-api-token

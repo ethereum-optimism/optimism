@@ -17,85 +17,19 @@ parameters:
   c-base_image:
     type: string
     default: default
-  c-rust_ci_dispatch:
+  # Workflow activation flags (set by the decision tree in config.yml)
+  c-run_rust_ci:
     type: boolean
     default: false
-  c-go-cache-version:
-    type: string
-    default: "v0.0"
-  c-rust_changes_detected:
+  c-run_rust_ci_gate_short:
     type: boolean
     default: false
-  c-non_docs_changes:
+  c-run_scheduled_kona_link_checker:
     type: boolean
     default: false
-  # Passthrough declarations for setup config parameters.
-  # CircleCI forwards all explicitly-passed pipeline parameters to continuation configs.
-  # Without these declarations, manually triggered pipelines fail with "Unexpected argument(s)".
-  # These are not referenced by any job — the c- prefixed versions above are used instead.
-  default_docker_image:
-    type: string
-    default: cimg/base:2026.03
-  rust_base_image:
-    type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
-  base_image:
-    type: string
-    default: default
-  main_dispatch:
-    type: boolean
-    default: true
-  fault_proofs_dispatch:
+  c-run_kona_publish_prestates:
     type: boolean
     default: false
-  reproducibility_dispatch:
-    type: boolean
-    default: false
-  kontrol_dispatch:
-    type: boolean
-    default: false
-  cannon_full_test_dispatch:
-    type: boolean
-    default: false
-  sdk_dispatch:
-    type: boolean
-    default: false
-  docker_publish_dispatch:
-    type: boolean
-    default: false
-  stale_check_dispatch:
-    type: boolean
-    default: false
-  contracts_coverage_dispatch:
-    type: boolean
-    default: false
-  heavy_fuzz_dispatch:
-    type: boolean
-    default: false
-  sync_test_op_node_dispatch:
-    type: boolean
-    default: false
-  ai_contracts_test_dispatch:
-    type: boolean
-    default: false
-  rust_ci_dispatch:
-    type: boolean
-    default: false
-  rust_e2e_dispatch:
-    type: boolean
-    default: false
-  github-event-type:
-    type: string
-    default: "__not_set__"
-  github-event-action:
-    type: string
-    default: "__not_set__"
-  github-event-base64:
-    type: string
-    default: "__not_set__"
-  go-cache-version:
-    type: string
-    default: "v0.0"
 
 # ============================================================================
 # COMMANDS
@@ -314,7 +248,7 @@ commands:
     description: "Install zstd compression utility"
     steps:
       - apt-install:
-          packages: "zstd=1.4.8*"
+          packages: "zstd"
 
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
@@ -373,7 +307,7 @@ jobs:
         default: "just fmt-check"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -398,7 +332,7 @@ jobs:
         default: "cargo clippy --workspace --all-targets --all-features"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -427,7 +361,7 @@ jobs:
         default: "cargo deny check"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -452,7 +386,7 @@ jobs:
         default: "zepter run check"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -473,7 +407,7 @@ jobs:
         type: string
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -498,7 +432,7 @@ jobs:
         default: "just check-no-std"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -524,7 +458,7 @@ jobs:
         default: "just lint-docs"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -551,7 +485,7 @@ jobs:
         default: "just test-docs"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -585,7 +519,7 @@ jobs:
         default: "release"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: 2xlarge
+    resource_class: 2xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -600,6 +534,25 @@ jobs:
           command: just <<parameters.command>> <<parameters.flags>>
       - rust-save-build-cache: *tests-cache-args
 
+  # Cross-language differential test: runs the Go and Rust dumps of the Interop
+  # activation deposits and asserts byte-identical stdout.
+  interop-deposits-go-rust-diff:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &interop-diff-cache-args
+          directory: rust
+          prefix: rust-interop-deposits-diff
+          profile: debug
+      - run:
+          name: Cross-language Interop activation diff
+          command: |
+            bash ops/scripts/test-interop-deposits-diff.sh
+      - rust-save-build-cache: *interop-diff-cache-args
+
   # Shared unused dependencies check job
   rust-ci-udeps:
     parameters:
@@ -612,7 +565,7 @@ jobs:
         default: "just check-udeps"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -626,6 +579,75 @@ jobs:
           no_output_timeout: 40m
           command: <<parameters.command>>
       - rust-save-build-cache: *udeps-cache-args
+
+  # Lint + test job for vendored Rust workspaces that live as subdirectories
+  # of `rust/` (op-rbuilder, rollup-boost). Mirrors what upstream gates on in
+  # GitHub Actions: lint (fmt + clippy) and test against the vendored Cargo
+  # workspace. Optional pre-step + apt packages cover upstream-specific needs
+  # like building a test helper binary or installing native deps.
+  rust-vendored-checks:
+    parameters:
+      directory:
+        description: "Directory containing the vendored Cargo workspace"
+        type: string
+      apt_packages:
+        description: "Space-separated apt packages to install before building (e.g. native deps for sys crates)."
+        type: string
+        default: ""
+      pre_command:
+        description: "Optional command to run before lint/test (e.g. build a tester helper binary). Runs in <directory>."
+        type: string
+        default: ""
+      lint_command:
+        description: "Lint command to run (in <directory>)."
+        type: string
+        default: "make lint"
+      test_command:
+        description: "Test command to run (in <directory>)."
+        type: string
+        default: "make test"
+      resource_class:
+        description: "CircleCI resource class for the job runner."
+        type: string
+        default: "xlarge"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: <<parameters.resource_class>>
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - when:
+          condition: <<parameters.apt_packages>>
+          steps:
+            - apt-install:
+                packages: <<parameters.apt_packages>>
+                extra_flags: "--no-install-recommends"
+      - rust-prepare-and-restore-cache: &vendored-checks-cache-args
+          directory: <<parameters.directory>>
+          prefix: <<parameters.directory>>-checks
+      - when:
+          condition: <<parameters.pre_command>>
+          steps:
+            - run:
+                name: Pre-check setup
+                working_directory: <<parameters.directory>>
+                no_output_timeout: 30m
+                command: <<parameters.pre_command>>
+      - run:
+          name: Lint
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 20m
+          command: <<parameters.lint_command>>
+      - run:
+          name: Test
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 40m
+          environment:
+            TESTS_TEMP_DIR: /tmp/rust-vendored-tests
+          command: |
+            mkdir -p "$TESTS_TEMP_DIR"
+            <<parameters.test_command>>
+      - rust-save-build-cache: *vendored-checks-cache-args
 
   # Shared cargo hack build job (cross-compile targets like WASM)
   rust-ci-cargo-hack-build:
@@ -642,7 +664,7 @@ jobs:
         default: "--workspace"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -665,7 +687,7 @@ jobs:
         default: 1
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     parallelism: <<parameters.parallelism>>
     steps:
       - utils/checkout-with-mise:
@@ -695,7 +717,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     # This job frequently gets killed for smaller resource_class
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -736,7 +758,7 @@ jobs:
     machine:
       image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -787,7 +809,7 @@ jobs:
     machine:
       image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -813,7 +835,7 @@ jobs:
     machine:
       image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -832,7 +854,7 @@ jobs:
   kona-link-checker:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium
+    resource_class: medium.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -841,6 +863,50 @@ jobs:
           working_directory: rust/kona
           command: |
             lychee --config ./lychee.toml --cache-exclude-status 429 '**/README.md' || true
+
+  # Verifies that the committed `etc/{chainList,configs,depsets}.json` snapshots
+  # in `kona-registry` match what `KONA_BIND=true cargo build -p kona-registry`
+  # would regenerate from the current `superchain-registry` submodule. Catches
+  # drift between submodule and snapshot — i.e. someone bumped the submodule
+  # without refreshing the snapshots, or hand-edited the snapshots, or refreshed
+  # only some of the three coupled files.
+  kona-registry-snapshot-check:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Initialize superchain-registry submodule
+          command: |
+            git submodule update --init --depth=1 \
+              packages/contracts-bedrock/lib/superchain-registry
+      - rust-prepare-and-restore-cache: &kona-registry-snapshot-cache
+          directory: rust
+          prefix: rust-kona-registry-snapshot
+      - run:
+          name: Regenerate kona-registry snapshots
+          working_directory: rust/kona
+          environment:
+            KONA_BIND: "true"
+          command: cargo build -p kona-registry
+      - run:
+          name: Assert committed snapshots match regenerated output
+          command: |
+            if ! git diff --exit-code -- \
+                rust/kona/crates/protocol/registry/etc/; then
+              echo
+              echo "kona-registry etc/ snapshots are out of sync with the"
+              echo "superchain-registry submodule. Run:"
+              echo
+              echo "  KONA_BIND=true cargo build -p kona-registry"
+              echo
+              echo "from rust/kona and commit the resulting changes to"
+              echo "rust/kona/crates/protocol/registry/etc/."
+              exit 1
+            fi
+      - rust-save-build-cache: *kona-registry-snapshot-cache
 
   # Kona Publish Prestate Artifacts
   kona-publish-prestate-artifacts:
@@ -855,7 +921,7 @@ jobs:
     machine:
       image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
-    resource_class: xlarge
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -916,14 +982,7 @@ workflows:
   # Runs on rust path changes or manual dispatch with rust_ci_dispatch=true
   # ==========================================================================
   rust-ci:
-    when:
-      or:
-        - and:
-            - equal: ["webhook", << pipeline.trigger_source >>]
-            - << pipeline.parameters.c-rust_changes_detected >>
-        - and:
-            - equal: [true, <<pipeline.parameters.c-rust_ci_dispatch>>]
-            - equal: ["api", << pipeline.trigger_source >>]
+    when: << pipeline.parameters.c-run_rust_ci >>
     jobs:
       # -----------------------------------------------------------------------
       # Workspace-level jobs (replacing per-crate duplicates)
@@ -959,6 +1018,10 @@ workflows:
       - rust-ci-cargo-tests:
           name: rust-tests
           directory: rust
+          context: *rust-ci-context
+
+      - interop-deposits-go-rust-diff:
+          name: interop-deposits-diff
           context: *rust-ci-context
 
       - rust-ci-doctest:
@@ -1046,6 +1109,41 @@ workflows:
           name: kona-host-client-offline-cannon
           context: *rust-ci-context
 
+      # Vendored Rust workspaces (op-rbuilder, rollup-boost).
+      # Mirrors upstream's lint + test gates.
+      - rust-vendored-checks:
+          name: op-rbuilder-checks
+          directory: rust/op-rbuilder
+          # libsqlite3 (db), libtss2 (tdx-quote-provider); upstream installs both.
+          apt_packages: "libsqlite3-dev libtss2-dev"
+          # Match upstream's pre-compile of the tester helper + main binary.
+          pre_command: |
+            make tester
+            cargo build -p op-rbuilder --bin op-rbuilder
+          lint_command: "make lint"
+          # nextest's process-per-test isolation keeps RSS bounded; the
+          # single-process `cargo test --lib` form OOMs on 2xlarge.
+          # `--no-default-features --features jemalloc` drops `docker-tests`
+          # (testcontainers needs /var/run/docker.sock, not exposed here).
+          test_command: |
+            cargo nextest run --workspace --test-threads=4 --retries 2 \
+              --no-default-features --features jemalloc
+          resource_class: "2xlarge"
+          context: *rust-ci-context
+
+      - rust-vendored-checks:
+          name: rollup-boost-checks
+          directory: rust/rollup-boost
+          lint_command: "make lint"
+          # `--no-default-features` drops `docker-tests` (no docker socket here).
+          test_command: |
+            cargo build --bin rollup-boost
+            cargo test --workspace --verbose --no-default-features
+          context: *rust-ci-context
+
+      - kona-registry-snapshot-check:
+          context: *rust-ci-context
+
       # -----------------------------------------------------------------------
       # Required gate — fans in on required Rust CI jobs
       # -----------------------------------------------------------------------
@@ -1057,6 +1155,7 @@ workflows:
             - rust-typos: terminal
             - rust-zepter: terminal
             - rust-tests: terminal
+            - interop-deposits-diff: terminal
             - rust-doctest: terminal
             - rust-docs: terminal
             - rust-udeps: terminal
@@ -1071,6 +1170,9 @@ workflows:
             - kona-lint-cannon: terminal
             - kona-build-fpvm-cannon-client: terminal
             - kona-host-client-offline-cannon: terminal
+            - op-rbuilder-checks: terminal
+            - rollup-boost-checks: terminal
+            - kona-registry-snapshot-check: terminal
           context:
             - circleci-api-token
   # =====================================
@@ -1080,10 +1182,7 @@ workflows:
   # Just runs the rust cargo tests for the different packages in the repo and try to build the fpvm-prestates
   # ==========================================================================
   rust-ci-gate-short:
-    when:
-      and:
-        - equal: ["webhook", << pipeline.trigger_source >>]
-        - not: << pipeline.parameters.c-rust_changes_detected >>
+    when: << pipeline.parameters.c-run_rust_ci_gate_short >>
     jobs:
       - rust-ci-cargo-tests:
           name: rust-tests
@@ -1102,11 +1201,15 @@ workflows:
           target: "cannon-client"
           context: *rust-ci-context
 
+      - kona-registry-snapshot-check:
+          context: *rust-ci-context
+
       - required-rust-ci:
           requires:
             - rust-tests: terminal
             - op-reth-integration-tests: terminal
             - kona-build-fpvm-cannon-client: terminal
+            - kona-registry-snapshot-check: terminal
           context:
             - circleci-api-token
 
@@ -1114,8 +1217,7 @@ workflows:
   # Kona scheduled workflows
   # ==========================================================================
   scheduled-kona-link-checker:
-    when:
-      equal: [build_weekly, <<pipeline.schedule.name>>]
+    when: << pipeline.parameters.c-run_scheduled_kona_link_checker >>
     jobs:
       - kona-link-checker:
           context:
@@ -1123,11 +1225,7 @@ workflows:
 
   # Kona publish prestate artifacts - on push to develop
   kona-publish-prestates:
-    when:
-      and:
-        - equal: ["develop", <<pipeline.git.branch>>]
-        - equal: ["webhook", << pipeline.trigger_source >>] # Only trigger on push to develop, not scheduled runs
-        - << pipeline.parameters.c-rust_changes_detected >> # Only publish when rust paths changed
+    when: << pipeline.parameters.c-run_kona_publish_prestates >>
     jobs:
       - kona-publish-prestate-artifacts:
           name: kona-publish-<<matrix.version>>
@@ -1137,3 +1235,21 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
+
+  # Kona publish prestate artifacts - on kona-client/v* tag push
+  kona-publish-prestates-on-tag:
+    when: << pipeline.parameters.c-run_release >>
+    jobs:
+      - kona-publish-prestate-artifacts:
+          name: kona-publish-<<matrix.version>>
+          matrix:
+            parameters:
+              version: ["kona-client", "kona-client-int"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - oplabs-network-optimism-io-bucket
+          filters:
+            tags:
+              only: /^kona-client\/v.*/
+            branches:
+              ignore: /.*/

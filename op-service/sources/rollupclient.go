@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -78,6 +78,16 @@ func (r *RollupClient) StopSequencer(ctx context.Context) (common.Hash, error) {
 func (r *RollupClient) SequencerActive(ctx context.Context) (bool, error) {
 	var result bool
 	err := r.rpc.CallContext(ctx, &result, "admin_sequencerActive")
+	return result, err
+}
+
+func (r *RollupClient) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
+	return r.rpc.CallContext(ctx, nil, "admin_setSdmPostExecOptIn", enabled)
+}
+
+func (r *RollupClient) SdmStatus(ctx context.Context) (apis.SdmStatus, error) {
+	var result apis.SdmStatus
+	err := r.rpc.CallContext(ctx, &result, "admin_sdmStatus")
 	return result, err
 }
 

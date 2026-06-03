@@ -25,6 +25,7 @@ reth-payload-util.workspace = true
 reth-payload-primitives.workspace = true
 reth-basic-payload-builder.workspace = true
 reth-payload-validator.workspace = true
+reth-metrics.workspace = true
 
 # op-reth
 reth-optimism-evm.workspace = true
@@ -51,4 +52,7 @@ tracing.workspace = true
 thiserror.workspace = true
 sha2.workspace = true
 serde.workspace = true
-either.workspace = true
+
+[dev-dependencies]
+reth-optimism-chainspec.workspace = true
+reth-revm = { workspace = true, features = ["test-utils"] }

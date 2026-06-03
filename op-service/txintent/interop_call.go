@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"math/big"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/lmittmann/w3"
-
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 var _ Call = (*InitTrigger)(nil)
@@ -74,7 +73,7 @@ func (v *SendTrigger) AccessList() (types.AccessList, error) {
 // This Trigger may be embedded to other triggers for preparing access lists
 type ExecTrigger struct {
 	Executor common.Address // address of the EventLogger or CrossL2Inbox
-	Msg      suptypes.Message
+	Msg      messages.Message
 }
 
 func (v *ExecTrigger) To() (*common.Address, error) {
@@ -109,7 +108,7 @@ func (v *ExecTrigger) AccessList() (types.AccessList, error) {
 	access := v.Msg.Access()
 	accessList := types.AccessList{{
 		Address:     predeploys.CrossL2InboxAddr,
-		StorageKeys: suptypes.EncodeAccessList([]suptypes.Access{access}),
+		StorageKeys: messages.EncodeAccessList([]messages.Access{access}),
 	}}
 	return accessList, nil
 }

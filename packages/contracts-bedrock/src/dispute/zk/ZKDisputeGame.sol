@@ -15,6 +15,7 @@ import {
 } from "src/dispute/lib/Types.sol";
 import {
     AlreadyInitialized,
+    AnchorRootNotFound,
     BondTransferFailed,
     ClaimAlreadyResolved,
     GameNotFinalized,
@@ -99,8 +100,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @notice The starting timestamp of the game.
     Timestamp public createdAt;
@@ -236,8 +237,10 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     }
 
     /// @notice Getter for the root claim for a given L2 chain ID.
+    /// @param _chainId The L2 chain ID to get the root claim for.
     /// @return rootClaim_ The root claim of the DisputeGame.
-    function rootClaimByChainId(uint256) public pure returns (Claim rootClaim_) {
+    function rootClaimByChainId(uint256 _chainId) public pure returns (Claim rootClaim_) {
+        if (_chainId != l2ChainId()) revert UnknownChainId();
         rootClaim_ = rootClaim();
     }
 
@@ -330,6 +333,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         } else {
             // When there is no parent game, the starting output root is the anchor state for the game type.
             (startingProposal.root, startingProposal.l2SequenceNumber) = anchorStateRegistry().getAnchorRoot();
+            if (startingProposal.root.raw() == bytes32(0)) revert AnchorRootNotFound();
         }
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the

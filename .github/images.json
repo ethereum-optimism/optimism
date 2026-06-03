@@ -87,14 +87,6 @@
       "target": "da-server",
       "paths": ["op-alt-da/**"]
     },
-    "op-supervisor": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-supervisor",
-      "paths": ["op-supervisor/**"]
-    },
     "op-supernode": {
       "type": "go",
       "check": "go",

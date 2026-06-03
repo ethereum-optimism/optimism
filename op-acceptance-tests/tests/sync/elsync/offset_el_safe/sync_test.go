@@ -7,7 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // TestELSyncSafeRetractedByOffset verifies that when OffsetELSafe is configured on
@@ -32,9 +33,9 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	// Advance both CLs to LocalSafe so the verifier CL has valid finalized state
 	// before we stop it (prevents "forkchoice not initialized" after EL wipe).
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
-		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30))
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 30)
+		sys.L2CL.AdvancedFn(safety.LocalSafe, 1, 30),
+		sys.L2CLB.AdvancedFn(safety.LocalSafe, 1, 30))
+	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 30)
 
 	// Stop verifier and wipe its EL to force a full EL sync on restart.
 	sys.L2ELB.Stop()
@@ -46,7 +47,7 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	sys.L2Batcher.Stop()
 
 	// Advance sequencer further while verifier is down (unsafe only, no batches).
-	sys.L2CL.Advanced(types.LocalUnsafe, 3, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, 3, 30)
 
 	sys.L2ELB.Start()
 	sys.L2CLB.Start()
@@ -58,7 +59,7 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	//  - Derivation began processing old batched data
 	// Because the batcher is stopped, derivation can only reach the last batched
 	// block — the gap between safe and unsafe is permanent.
-	sys.L2CLB.Advanced(types.LocalSafe, 1, 30)
+	sys.L2CLB.Advanced(safety.LocalSafe, 1, 30)
 
 	unsafeHead := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
 	safeHead := sys.L2ELB.SafeHead().BlockRef

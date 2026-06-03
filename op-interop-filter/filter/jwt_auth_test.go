@@ -19,10 +19,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// testSupervisorAPI is a mock supervisor API for testing
-type testSupervisorAPI struct{}
+// testInteropAPI is a mock interop API for testing.
+type testInteropAPI struct{}
 
-func (t *testSupervisorAPI) Ping(_ context.Context) string {
+func (t *testInteropAPI) Ping(_ context.Context) string {
 	return "pong"
 }
 
@@ -49,8 +49,8 @@ func TestDedicatedAdminRPCServer(t *testing.T) {
 		oprpc.WithLogger(logger),
 	)
 	filterServer.AddAPI(rpc.API{
-		Namespace: "supervisor",
-		Service:   new(testSupervisorAPI),
+		Namespace: "interop",
+		Service:   new(testInteropAPI),
 	})
 
 	// Create admin server (JWT-protected)
@@ -103,7 +103,7 @@ func TestDedicatedAdminRPCServer(t *testing.T) {
 
 	t.Run("filter API works without JWT on its dedicated port", func(t *testing.T) {
 		var res string
-		err := filterClient.Call(&res, "supervisor_ping")
+		err := filterClient.Call(&res, "interop_ping")
 		require.NoError(t, err)
 		require.Equal(t, "pong", res)
 	})
@@ -132,8 +132,8 @@ func TestPublicAdminGetFailsafe(t *testing.T) {
 		oprpc.WithLogger(logger),
 	)
 	filterServer.AddAPI(rpc.API{
-		Namespace: "supervisor",
-		Service:   new(testSupervisorAPI),
+		Namespace: "interop",
+		Service:   new(testInteropAPI),
 	})
 	filterServer.AddAPI(rpc.API{
 		Namespace: "admin",
@@ -157,9 +157,9 @@ func TestPublicAdminGetFailsafe(t *testing.T) {
 		require.Equal(t, false, res)
 	})
 
-	t.Run("supervisor API still works alongside public admin", func(t *testing.T) {
+	t.Run("interop API still works alongside public admin", func(t *testing.T) {
 		var res string
-		err := filterClient.Call(&res, "supervisor_ping")
+		err := filterClient.Call(&res, "interop_ping")
 		require.NoError(t, err)
 		require.Equal(t, "pong", res)
 	})
@@ -176,8 +176,8 @@ func TestFilterAPIWithoutAdminServer(t *testing.T) {
 		oprpc.WithLogger(logger),
 	)
 	filterServer.AddAPI(rpc.API{
-		Namespace: "supervisor",
-		Service:   new(testSupervisorAPI),
+		Namespace: "interop",
+		Service:   new(testInteropAPI),
 	})
 
 	require.NoError(t, filterServer.Start())
@@ -192,7 +192,7 @@ func TestFilterAPIWithoutAdminServer(t *testing.T) {
 
 	t.Run("filter API works without admin server configured", func(t *testing.T) {
 		var res string
-		err := filterClient.Call(&res, "supervisor_ping")
+		err := filterClient.Call(&res, "interop_ping")
 		require.NoError(t, err)
 		require.Equal(t, "pong", res)
 	})

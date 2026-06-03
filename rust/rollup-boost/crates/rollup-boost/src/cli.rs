@@ -5,14 +5,13 @@ use tokio::signal::unix::{SignalKind, signal as unix_signal};
 use tracing::{Level, info};
 
 use crate::{
-    BlockSelectionPolicy, ClientArgs, DebugServer, FlashblocksArgs, PayloadSource, ProxyLayer,
-    RollupBoostServer,
+    BlockSelectionPolicy, ClientArgs, DebugServer, FlashblocksArgs, FlashblocksService,
+    PayloadSource, ProxyLayer, RollupBoostServer, RpcClient,
     client::rpc::{BuilderArgs, L2ClientArgs},
     debug_api::ExecutionMode,
     get_version, init_metrics,
     probe::ProbeLayer,
 };
-use crate::{FlashblocksService, RpcClient};
 
 #[derive(Clone, Debug, clap::Args)]
 pub struct RollupBoostLibArgs {

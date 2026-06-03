@@ -6,7 +6,7 @@ PYTHON := env('PYTHON', 'python3')
 
 TEST_TIMEOUT := env('TEST_TIMEOUT', '10m')
 
-TEST_PKGS := "./op-alt-da/... ./op-batcher/... ./op-chain-ops/... ./op-core/... ./op-node/... ./op-proposer/... ./op-challenger/... ./op-faucet/... ./op-dispute-mon/... ./op-conductor/... ./op-program/... ./op-service/... ./op-supervisor/... ./op-test-sequencer/... ./op-fetcher/... ./op-e2e/system/... ./op-e2e/e2eutils/... ./op-e2e/opgeth/... ./op-e2e/interop/... ./op-e2e/actions/altda ./op-e2e/actions/batcher ./op-e2e/actions/derivation ./op-e2e/actions/helpers ./op-e2e/actions/interop ./op-e2e/actions/proofs ./op-e2e/actions/proposer ./op-e2e/actions/safedb ./op-e2e/actions/sequencer ./op-e2e/actions/sync ./op-e2e/actions/upgrades ./packages/contracts-bedrock/scripts/checks/... ./ops/scripts/... ./op-dripper/... ./op-devstack/... ./op-deployer/pkg/deployer/artifacts/... ./op-deployer/pkg/deployer/broadcaster/... ./op-deployer/pkg/deployer/clean/... ./op-deployer/pkg/deployer/integration_test/ ./op-deployer/pkg/deployer/integration_test/cli/... ./op-deployer/pkg/deployer/standard/... ./op-deployer/pkg/deployer/state/... ./op-deployer/pkg/deployer/verify/... ./op-sync-tester/... ./op-supernode/..."
+TEST_PKGS := "./op-alt-da/... ./op-batcher/... ./op-chain-ops/... ./op-core/... ./op-node/... ./op-proposer/... ./op-challenger/... ./op-faucet/... ./op-dispute-mon/... ./op-conductor/... ./op-program/... ./op-service/... ./op-test-sequencer/... ./op-fetcher/... ./op-e2e/system/... ./op-e2e/e2eutils/... ./op-e2e/opgeth/... ./op-e2e/interop/... ./op-e2e/actions/altda ./op-e2e/actions/batcher ./op-e2e/actions/derivation ./op-e2e/actions/helpers ./op-e2e/actions/proofs ./op-e2e/actions/proposer ./op-e2e/actions/safedb ./op-e2e/actions/sequencer ./op-e2e/actions/sync ./op-e2e/actions/upgrades ./packages/contracts-bedrock/scripts/checks/... ./ops/scripts/... ./op-dripper/... ./op-devstack/... ./op-deployer/pkg/deployer/artifacts/... ./op-deployer/pkg/deployer/broadcaster/... ./op-deployer/pkg/deployer/clean/... ./op-deployer/pkg/deployer/integration_test/ ./op-deployer/pkg/deployer/integration_test/cli/... ./op-deployer/pkg/deployer/standard/... ./op-deployer/pkg/deployer/state/... ./op-deployer/pkg/deployer/verify/... ./op-sync-tester/... ./op-supernode/..."
 
 FRAUD_PROOF_TEST_PKGS := "./op-e2e/faultproofs/..."
 
@@ -63,7 +63,34 @@ golang-docker:
       --progress plain \
       --load \
       -f docker-bake.hcl \
-      op-node op-batcher op-proposer op-challenger op-dispute-mon op-supervisor
+      op-node op-batcher op-proposer op-challenger op-dispute-mon
+
+# Builds selected Docker image targets using buildx.
+[private]
+[script('bash')]
+docker-bake targets:
+  set -euo pipefail
+  GIT_COMMIT=$(git rev-parse HEAD)
+  GIT_DATE=$(git show -s --format='%ct')
+  IMAGE_TAGS=${IMAGE_TAGS:-$GIT_COMMIT,latest}
+  read -ra bake_targets <<< "{{targets}}"
+  GIT_COMMIT="$GIT_COMMIT" \
+  GIT_DATE="$GIT_DATE" \
+  IMAGE_TAGS="$IMAGE_TAGS" \
+  docker buildx bake \
+      --progress plain \
+      --load \
+      -f docker-bake.hcl \
+      "${bake_targets[@]}"
+
+# Builds Docker image for op-node using buildx.
+op-node-docker: (docker-bake "op-node")
+
+# Builds Docker image for op-batcher using buildx.
+op-batcher-docker: (docker-bake "op-batcher")
+
+# Builds the requested local Docker images for op-node and op-batcher.
+op-stack-go-requested-docker: (docker-bake "op-node op-batcher")
 
 # Removes the Docker buildx builder.
 docker-builder-clean:
@@ -283,25 +310,25 @@ _go-tests-ci-internal go_test_flags="": sync-superchain
       PARALLEL_PACKAGES=$(echo "$ALL_PACKAGES" | tr ' ' '\n' | awk -v idx="$NODE_INDEX" -v total="$NODE_TOTAL" 'NR % total == idx' | tr '\n' ' ')
       if [ -n "$PARALLEL_PACKAGES" ]; then
           echo "Node $NODE_INDEX/$NODE_TOTAL running packages: $PARALLEL_PACKAGES"
-          ./ops/scripts/gotestsum-split.sh --format=testname \
+          ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
               --junitfile=./tmp/test-results/results-"$NODE_INDEX".xml \
               --jsonfile=./tmp/testlogs/log-"$NODE_INDEX".json \
               --rerun-fails=3 \
               --rerun-fails-max-failures=50 \
               --packages="$PARALLEL_PACKAGES" \
-              -- -parallel="$PARALLEL" -coverprofile=coverage-"$NODE_INDEX".out {{go_test_flags}} -timeout={{TEST_TIMEOUT}} -tags="ci"
+              -- -p=4 -parallel="$PARALLEL" {{go_test_flags}} -timeout={{TEST_TIMEOUT}} -tags="ci"
       else
           echo "ERROR: Node $NODE_INDEX/$NODE_TOTAL has no packages to run! Perhaps parallelism is set too high? (ALL_TEST_PACKAGES has $(echo "$ALL_PACKAGES" | wc -w) packages)"
           exit 1
       fi
   else
-      ./ops/scripts/gotestsum-split.sh --format=testname \
+      ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
           --junitfile=./tmp/test-results/results.xml \
           --jsonfile=./tmp/testlogs/log.json \
           --rerun-fails=3 \
           --rerun-fails-max-failures=50 \
           --packages="$ALL_PACKAGES" \
-          -- -parallel="$PARALLEL" -coverprofile=coverage.out {{go_test_flags}} -timeout={{TEST_TIMEOUT}} -tags="ci"
+          -- -p=4 -parallel="$PARALLEL" {{go_test_flags}} -timeout={{TEST_TIMEOUT}} -tags="ci"
   fi
 
 # Runs short Go tests with gotestsum for CI.
@@ -328,13 +355,13 @@ go-tests-fraud-proofs-ci:
   source ./ops/scripts/source-ci-archive-rpcs.sh
   export NAT_INTEROP_LOADTEST_TARGET=10
   export NAT_INTEROP_LOADTEST_TIMEOUT=30s
-  ./ops/scripts/gotestsum-split.sh --format=testname \
+  ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
       --junitfile=./tmp/test-results/results.xml \
       --jsonfile=./tmp/testlogs/log.json \
       --rerun-fails=3 \
       --rerun-fails-max-failures=50 \
       --packages="{{FRAUD_PROOF_TEST_PKGS}}" \
-      -- -parallel="$PARALLEL" -coverprofile=coverage.out -timeout={{TEST_TIMEOUT}}
+      -- -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}}
 
 # Runs comprehensive Go tests (alias for go-tests).
 test: go-tests
@@ -346,8 +373,8 @@ update-op-geth:
 # Build all Rust binaries (release) for sysgo tests.
 build-rust-release:
   cd rust && cargo build --release --bin kona-node --bin kona-host --bin op-reth
-  cd op-rbuilder && cargo build --release -p op-rbuilder --bin op-rbuilder
-  cd rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
+  cd rust/op-rbuilder && cargo build --release -p op-rbuilder --bin op-rbuilder
+  cd rust/rollup-boost && cargo build --release -p rollup-boost --bin rollup-boost
 
 # Checks that locked NUT bundles have not been modified.
 check-nut-locks:
@@ -469,8 +496,18 @@ release-notes component from='latest' to='latest-rc' mode='':
                 --include-path "rust/alloy-op*/**/*"
             )
             ;;
+        op-deployer)
+            include_path_args=(
+                --include-path "op-deployer/**/*"
+            )
+            ;;
+        op-contracts)
+            include_path_args=(
+                --include-path "packages/contracts-bedrock/**/*"
+            )
+            ;;
         *)
-            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-reth, kona-*; is {{ component }}"
+            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-reth, op-deployer, op-contracts, kona-*; is {{ component }}"
             exit 1
             ;;
     esac
@@ -496,3 +533,7 @@ release-notes component from='latest' to='latest-rc' mode='':
         "${tag_args[@]}" \
         "${offline_args[@]}" \
         -- "${from_tag}..${range_end}"
+
+# Run the rust-code-reviewer agent over the current branch (delegates to rust/justfile).
+rust-review base='':
+  cd rust && just rust-review "{{base}}"

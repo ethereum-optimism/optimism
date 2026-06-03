@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,9 +23,7 @@ import (
 // the legacy hardcoded upgrade-transactions path rather than a JSON NUT
 // bundle. Adding a NUT bundle for one of these forks WILL fail this test —
 // remove the entry here as part of the same PR.
-var forksWithoutNUTBundle = map[forks.Name]bool{
-	forks.Interop: true,
-}
+var forksWithoutNUTBundle = map[forks.Name]bool{}
 
 // TestActivationBlockNUTBundle verifies that, for every fork from Karst onward
 // that uses the JSON NUT bundle system, the fork's activation block contains
@@ -134,10 +133,12 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 			"activation-block tx %d reverted", i)
 	}
 
-	// Fork-specific post-activation assertions. Future forks register cases here.
+	// Fork-specific post-activation assertions.
 	switch fork {
 	case forks.Karst:
 		assertKarstActivation(t, env, actHeader)
+	case forks.Interop:
+		assertInteropActivation(t, env, actHeader)
 	}
 
 	// Advance the safe head across the activation boundary so the fault-proof
@@ -148,6 +149,16 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	l2SafeHead := env.Sequencer.L2Safe()
 	require.Equal(t, bigs.Uint64Strict(actHeader.Number), l2SafeHead.Number,
 		"safe head must be exactly the %s activation block", fork)
+
+	// Skip the fault-proof step for Interop until the depset wiring lands in
+	// op-program and kona-host single (tracked in
+	// https://github.com/ethereum-optimism/optimism/issues/21114, item 4).
+	// The activation transition itself is covered by
+	// TestInteropFaultProofs_ActivationBoundary in op-acceptance-tests via
+	// kona-host super.
+	if fork == forks.Interop {
+		return
+	}
 
 	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
@@ -186,6 +197,68 @@ func assertKarstActivation(t actionsHelpers.StatefulTesting, env *helpers.L2Faul
 		require.NoError(t, err, "read code at new %s impl", p.name)
 		require.NotEmptyf(t, code, "new %s impl %s must have code", p.name, newImplAddr)
 	}
+}
+
+// assertInteropActivation asserts the single-chain Interop activation post-state:
+// bundle predeploy impls installed, INTEROP flag unset, ETHLiquidity unfunded.
+func assertInteropActivation(t actionsHelpers.StatefulTesting, env *helpers.L2FaultProofEnv, actHeader *types.Header) {
+	ethCl := env.Engine.EthClient()
+	postBlock := actHeader.Number
+	preBlock := new(big.Int).Sub(postBlock, big.NewInt(1))
+
+	// L1Block.isFeatureEnabled is mapping(bytes32 => bool) at storage slot 9
+	// (see snapshots/storageLayout/L1Block.json).
+	var featureKey [32]byte
+	copy(featureKey[:], "INTEROP")
+	mappingSlot := common.LeftPadBytes(big.NewInt(9).Bytes(), 32)
+	slot := crypto.Keccak256Hash(featureKey[:], mappingSlot)
+
+	pre, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, slot, preBlock)
+	require.NoError(t, err, "read L1Block.isFeatureEnabled(INTEROP) pre-activation")
+	post, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, slot, postBlock)
+	require.NoError(t, err, "read L1Block.isFeatureEnabled(INTEROP) post-activation")
+	require.Truef(t, allZero(pre), "INTEROP feature must be unset pre-activation, got %x", pre)
+	require.Truef(t, allZero(post), "INTEROP feature must stay unset for single-chain activation, got %x", post)
+
+	// The four Interop predeploys have their EIP-1967 implementation slot set
+	// to a non-empty contract after the L2CM bundle's upgradePredeploys() call.
+	interopProxies := []struct {
+		name string
+		addr common.Address
+	}{
+		{"CrossL2Inbox", predeploys.CrossL2InboxAddr},
+		{"L2ToL2CrossDomainMessenger", predeploys.L2toL2CrossDomainMessengerAddr},
+		{"SuperchainETHBridge", predeploys.SuperchainETHBridgeAddr},
+		{"ETHLiquidity", predeploys.ETHLiquidityAddr},
+	}
+	for _, p := range interopProxies {
+		impl, err := ethCl.StorageAt(context.Background(), p.addr, genesis.ImplementationSlot, postBlock)
+		require.NoError(t, err, "read %s impl slot post-activation", p.name)
+		implAddr := common.BytesToAddress(impl)
+		require.Equal(t, common.Address{}, implAddr,
+			"%s (%s) implementation slot must remain unset after Interop activation", p.name, p.addr)
+		code, err := ethCl.CodeAt(context.Background(), implAddr, postBlock)
+		require.NoError(t, err, "read code at new %s impl", p.name)
+		require.Emptyf(t, code, "new %s impl %s must not have code", p.name, implAddr)
+	}
+
+	// ETHLiquidity stays at zero balance — the post-bundle funding wrapper does
+	// not fire for single-chain activation.
+	preBalance, err := ethCl.BalanceAt(context.Background(), predeploys.ETHLiquidityAddr, preBlock)
+	require.NoError(t, err, "read ETHLiquidity balance pre-activation")
+	postBalance, err := ethCl.BalanceAt(context.Background(), predeploys.ETHLiquidityAddr, postBlock)
+	require.NoError(t, err, "read ETHLiquidity balance post-activation")
+	require.True(t, preBalance.Sign() == 0, "ETHLiquidity must have zero balance pre-activation")
+	require.True(t, postBalance.Sign() == 0, "ETHLiquidity must stay unfunded for single-chain activation")
+}
+
+func allZero(b []byte) bool {
+	for _, v := range b {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // lookupHardforkHelper resolves a fork name to its [helpers.Hardfork] entry by

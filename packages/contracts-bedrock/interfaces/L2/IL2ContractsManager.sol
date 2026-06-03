@@ -26,6 +26,10 @@ interface IL2ContractsManager is ISemver {
     /// @notice Thrown when a feature flag mismatch is detected.
     error L2ContractsManager_FeatureFlagMismatch();
 
+    /// @notice Thrown when an implementation name is not found in the constructor input.
+    /// @param name The name that was not found.
+    error L2ContractsManager_ImplNotFound(string name);
+
     /// @notice Thrown when a predeploy is not upgradeable.
     /// @param _target The address of the non-upgradeable predeploy.
     error L2ContractsManager_NotUpgradeable(address _target);
@@ -46,10 +50,9 @@ interface IL2ContractsManager is ISemver {
     function getImplementations()
         external
         view
-        returns (L2ContractsManagerTypes.Implementations memory implementations_);
+        returns (L2ContractsManagerTypes.ImplRecord[] memory implementations_);
 
     /// @notice Constructor for the L2ContractsManager contract.
-    /// @param _implementations The implementation struct containing the new implementation addresses for the L2
-    /// predeploys.
-    function __constructor__(L2ContractsManagerTypes.Implementations memory _implementations) external;
+    /// @param _implementations Array of name + implementation records for all predeploys.
+    function __constructor__(L2ContractsManagerTypes.ImplRecord[] memory _implementations) external;
 }

@@ -68,7 +68,7 @@ pub use tx::OpTx;
 
 pub use alloy_op_evm::{
     OpBlockExecutionCtx, OpBlockExecutorFactory, OpEvm, OpEvmFactory, PostExecMode,
-    post_exec::PostExecExecutorExt,
+    post_exec::{PostExecExecutorExt, WarmingRefundEvent, WarmingRefundKind, WarmingState},
 };
 
 mod post_exec_ext;
@@ -86,12 +86,6 @@ pub struct OpEvmConfig<
     pub executor_factory: OpBlockExecutorFactory<R, Arc<ChainSpec>, EvmFactory>,
     /// Optimism block assembler.
     pub block_assembler: OpBlockAssembler<ChainSpec>,
-    /// Whether SDM post-exec transactions are enabled for this node.
-    ///
-    /// SDM is not scheduled yet. Keep this disabled outside of explicit
-    /// integration-test setups.
-    #[doc(hidden)]
-    pub sdm_enabled: bool,
     #[doc(hidden)]
     pub _pd: core::marker::PhantomData<N>,
 }
@@ -103,20 +97,21 @@ impl<ChainSpec, N: NodePrimitives, R: Clone, EvmFactory: Clone> Clone
         Self {
             executor_factory: self.executor_factory.clone(),
             block_assembler: self.block_assembler.clone(),
-            sdm_enabled: self.sdm_enabled,
             _pd: self._pd,
         }
     }
 }
 
-impl<ChainSpec: OpHardforks> OpEvmConfig<ChainSpec> {
+impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks> OpEvmConfig<ChainSpec> {
     /// Creates a new [`OpEvmConfig`] with the given chain spec for OP chains.
     pub fn optimism(chain_spec: Arc<ChainSpec>) -> Self {
         Self::new(chain_spec, OpRethReceiptBuilder::default())
     }
 }
 
-impl<ChainSpec: OpHardforks, N: NodePrimitives, R> OpEvmConfig<ChainSpec, N, R> {
+impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, R>
+    OpEvmConfig<ChainSpec, N, R>
+{
     /// Creates a new [`OpEvmConfig`] with the given chain spec.
     pub fn new(chain_spec: Arc<ChainSpec>, receipt_builder: R) -> Self {
         Self {
@@ -126,17 +121,37 @@ impl<ChainSpec: OpHardforks, N: NodePrimitives, R> OpEvmConfig<ChainSpec, N, R> 
                 chain_spec,
                 OpEvmFactory::<OpTx>::default(),
             ),
-            sdm_enabled: false,
             _pd: core::marker::PhantomData,
         }
     }
+}
 
-    /// Configures the temporary SDM integration-test override.
-    #[must_use]
-    pub const fn with_sdm_enabled(mut self, sdm_enabled: bool) -> Self {
-        self.sdm_enabled = sdm_enabled;
-        self
-    }
+/// Returns true when SDM post-exec transactions are consensus-active at `timestamp`.
+///
+/// SDM rides the Interop hardfork: it is active iff Interop is active at `timestamp`
+/// per the chain spec. This matches op-node's `IsSDM` (see `op-node/rollup/toggles.go`).
+///
+/// This is the single source of truth for the SDM protocol gate. Call sites that only hold a
+/// chain spec should route through this helper rather than calling
+/// [`OpHardforks::is_interop_active_at_timestamp`] directly, so the gate cannot drift.
+pub fn is_sdm_active_at_timestamp(chain_spec: &impl OpHardforks, timestamp: u64) -> bool {
+    chain_spec.is_interop_active_at_timestamp(timestamp)
+}
+
+fn post_exec_mode_from_transactions<'a, I, T>(
+    transactions: I,
+    block_number: u64,
+    sdm_active: bool,
+) -> Result<PostExecMode, EIP1559ParamError>
+where
+    I: IntoIterator<Item = &'a T>,
+    T: OpConsensusTransaction + 'a,
+{
+    parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active)
+        .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)
+        .map(|parsed| {
+            parsed.map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
+        })
 }
 
 impl<ChainSpec, N, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory>
@@ -151,10 +166,9 @@ where
 
     /// Returns true when SDM post-exec transactions are consensus-active at `timestamp`.
     ///
-    /// SDM has no scheduled hardfork activation. It is disabled by default, including after Jovian
-    /// and Karst, and can only be enabled explicitly for integration tests.
-    pub const fn is_sdm_active_at_timestamp(&self, _timestamp: u64) -> bool {
-        self.sdm_enabled
+    /// See the free [`is_sdm_active_at_timestamp`] function, which this delegates to.
+    pub fn is_sdm_active_at_timestamp(&self, timestamp: u64) -> bool {
+        crate::is_sdm_active_at_timestamp(self.chain_spec(), timestamp)
     }
 
     /// Builds a block execution context with an optional post-exec mode override.
@@ -262,21 +276,13 @@ where
         &self,
         block: &'_ SealedBlock<N::Block>,
     ) -> Result<OpBlockExecutionCtx, Self::Error> {
-        let post_exec_mode = parse_post_exec_payload_from_transactions(
+        let post_exec_mode = post_exec_mode_from_transactions(
             block.body().transactions(),
             block.header().number(),
             self.is_sdm_active_at_timestamp(block.header().timestamp()),
-        )
-        .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?
-        .map(|parsed| PostExecMode::Verify(parsed.payload))
-        .unwrap_or_default();
+        )?;
 
-        Ok(OpBlockExecutionCtx {
-            parent_hash: block.header().parent_hash(),
-            parent_beacon_block_root: block.header().parent_beacon_block_root(),
-            extra_data: block.header().extra_data().clone(),
-            post_exec_mode,
-        })
+        Ok(self.context_for_block_with_post_exec_mode(block, Some(post_exec_mode)))
     }
 
     fn context_for_next_block(
@@ -284,12 +290,11 @@ where
         parent: &SealedHeader<N::BlockHeader>,
         attributes: Self::NextBlockEnvCtx,
     ) -> Result<OpBlockExecutionCtx, Self::Error> {
-        Ok(OpBlockExecutionCtx {
-            parent_hash: parent.hash(),
-            parent_beacon_block_root: attributes.parent_beacon_block_root,
-            extra_data: attributes.extra_data,
-            post_exec_mode: PostExecMode::default(),
-        })
+        Ok(self.context_for_next_block_with_post_exec_mode(
+            parent,
+            attributes,
+            PostExecMode::default(),
+        ))
     }
 }
 
@@ -362,14 +367,11 @@ where
             .map(|encoded| TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref()))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
-        let post_exec_mode = parse_post_exec_payload_from_transactions(
+        let post_exec_mode = post_exec_mode_from_transactions(
             transactions.iter(),
             payload.payload.block_number(),
             self.is_sdm_active_at_timestamp(payload.payload.timestamp()),
-        )
-        .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?
-        .map(|parsed| PostExecMode::Verify(parsed.payload))
-        .unwrap_or_default();
+        )?;
 
         Ok(OpBlockExecutionCtx {
             parent_hash: payload.parent_hash(),
@@ -429,20 +431,45 @@ mod tests {
         OpEvmConfig::optimism(BASE_MAINNET.clone())
     }
 
-    #[test]
-    fn test_sdm_disabled_by_default_and_explicitly_enabled() {
-        let chain_spec = Arc::new(
+    fn interop_at_timestamp_chain_spec(activation: u64) -> Arc<OpChainSpec> {
+        Arc::new(
             OpChainSpecBuilder::default()
                 .chain(10.into())
                 .genesis(Genesis::default())
-                .jovian_activated()
+                .with_fork(
+                    reth_optimism_forks::OpHardfork::Interop,
+                    reth_chainspec::ForkCondition::Timestamp(activation),
+                )
                 .build(),
-        );
-        let evm_config = OpEvmConfig::optimism(chain_spec.clone());
+        )
+    }
 
-        assert!(chain_spec.is_jovian_active_at_timestamp(0));
+    #[test]
+    fn sdm_rides_interop_activation() {
+        // SDM follows Interop: inactive before the Interop activation timestamp,
+        // active at and after it. This matches op-node's `IsSDM == IsInterop`.
+        let evm_config = OpEvmConfig::optimism(interop_at_timestamp_chain_spec(100));
+
         assert!(!evm_config.is_sdm_active_at_timestamp(0));
-        assert!(evm_config.with_sdm_enabled(true).is_sdm_active_at_timestamp(0));
+        assert!(!evm_config.is_sdm_active_at_timestamp(99));
+        assert!(evm_config.is_sdm_active_at_timestamp(100));
+        assert!(evm_config.is_sdm_active_at_timestamp(101));
+        assert!(evm_config.is_sdm_active_at_timestamp(u64::MAX));
+    }
+
+    #[test]
+    fn sdm_inactive_without_interop_schedule() {
+        // A chain spec that never activates Interop must never activate SDM, even at far
+        // future timestamps.
+        let chain_spec = Arc::new(
+            OpChainSpecBuilder::default().chain(10.into()).genesis(Genesis::default()).build(),
+        );
+        let evm_config = OpEvmConfig::optimism(chain_spec);
+
+        assert!(!evm_config.is_sdm_active_at_timestamp(0));
+        // SDM inactivity is a consequence of the Interop precondition: assert it explicitly.
+        assert!(!evm_config.chain_spec().is_interop_active_at_timestamp(u64::MAX));
+        assert!(!evm_config.is_sdm_active_at_timestamp(u64::MAX));
     }
 
     fn block_with_post_exec_tx(
@@ -465,8 +492,8 @@ mod tests {
         })
     }
 
-    // Covers config-driven SDM activation for imported blocks: disabled nodes reject 0x7d,
-    // enabled nodes enter Verify mode, and malformed payload anchors are rejected.
+    // Covers Interop-driven SDM activation for imported blocks: pre-Interop blocks reject 0x7d,
+    // Interop-active blocks enter Verify mode, and malformed payload anchors are rejected.
     #[test]
     fn context_for_block_applies_sdm_post_exec_mode() {
         let disabled_err = test_evm_config()
@@ -474,7 +501,7 @@ mod tests {
             .expect_err("SDM disabled rejects 0x7d");
         assert!(matches!(disabled_err, EIP1559ParamError::InvalidPostExecPayload));
 
-        let evm_config = test_evm_config().with_sdm_enabled(true);
+        let evm_config = OpEvmConfig::optimism(interop_at_timestamp_chain_spec(0));
         let ctx = evm_config
             .context_for_block(&block_with_post_exec_tx(7, 123, 7))
             .expect("SDM-enabled block parses");

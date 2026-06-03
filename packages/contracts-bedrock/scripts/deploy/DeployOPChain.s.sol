@@ -13,6 +13,7 @@ import { Types } from "scripts/libraries/Types.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -117,13 +118,15 @@ contract DeployOPChain is Script {
             "DeployOPChain: only PERMISSIONED_CANNON game type is supported for initial deployment"
         );
 
-        // Shared permissioned game config — identical for both legacy and super root modes.
+        // Shared permissioned game config for legacy permissioned games.
         IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerUtils
             .PermissionedDisputeGameConfig({
             absolutePrestate: _input.disputeAbsolutePrestate,
             proposer: _input.proposer,
             challenger: _input.challenger
         });
+        IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig memory superPdgConfig =
+            IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: _input.proposer });
 
         // Build dispute game configs - OPCMV2 requires all 6 game type configs.
         // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
@@ -165,9 +168,9 @@ contract DeployOPChain is Script {
         disputeGameConfigs[3] = isSuperRoot
             ? IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: DEFAULT_INIT_BOND,
+                initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                gameArgs: abi.encode(pdgConfig)
+                gameArgs: abi.encode(superPdgConfig)
             })
             : IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
@@ -205,7 +208,7 @@ contract DeployOPChain is Script {
             blobBasefeeScalar: _input.blobBaseFeeScalar,
             gasLimit: _input.gasLimit,
             l2ChainId: _input.l2ChainId,
-            resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
+            resourceConfig: _resourceConfigForGasLimit(_input.gasLimit),
             disputeGameConfigs: disputeGameConfigs,
             useCustomGasToken: _input.useCustomGasToken
         });
@@ -240,6 +243,42 @@ contract DeployOPChain is Script {
             delayedWETHPermissionedGameProxy: _chainContracts.delayedWETH,
             delayedWETHPermissionlessGameProxy: IDelayedWETH(payable(_chainContracts.delayedWETH))
         });
+    }
+
+    /// @notice Derives a ResourceConfig sized to fit the requested L2 gas limit.
+    ///
+    ///         For gasLimit >= the default's reserved gas (maxResourceLimit + systemTxMaxGas),
+    ///         returns DEFAULT_RESOURCE_CONFIG unchanged. Every existing production chain takes
+    ///         this branch.
+    ///
+    ///         For smaller gasLimits, shrinks maxResourceLimit to fit while preserving
+    ///         systemTxMaxGas and the EIP-1559 parameters, so the L1 attributes deposit
+    ///         reservation stays constant and deposit throughput scales with chain size.
+    ///         maxResourceLimit is rounded down to a multiple of elasticityMultiplier to
+    ///         satisfy SystemConfig._setResourceConfig's precision-loss check.
+    /// @param _gasLimit The requested L2 gas limit.
+    /// @return cfg_ A ResourceConfig that satisfies maxResourceLimit + systemTxMaxGas <= _gasLimit.
+    function _resourceConfigForGasLimit(uint64 _gasLimit)
+        internal
+        pure
+        returns (IResourceMetering.ResourceConfig memory cfg_)
+    {
+        cfg_ = Constants.DEFAULT_RESOURCE_CONFIG();
+        uint64 reserved = uint64(cfg_.maxResourceLimit) + uint64(cfg_.systemTxMaxGas);
+        if (_gasLimit >= reserved) {
+            return cfg_;
+        }
+
+        require(_gasLimit > uint64(cfg_.systemTxMaxGas), "DeployOPChain: gasLimit must exceed systemTxMaxGas");
+        // Branch is only reached for _gasLimit < reserved (~21M for the current default), well
+        // within uint32, so the downcast on assignment cannot truncate.
+        uint64 available = _gasLimit - uint64(cfg_.systemTxMaxGas);
+        uint64 mult = uint64(cfg_.elasticityMultiplier);
+
+        // Satisfy the SystemConfig._setResourceConfig requirement that the maxResourceLimit is
+        // a multiple of the elasticityMultiplier.
+        cfg_.maxResourceLimit = uint32((available / mult) * mult);
+        require(cfg_.maxResourceLimit > 0, "DeployOPChain: gasLimit too small for any deposit budget");
     }
 
     // -------- Validations --------

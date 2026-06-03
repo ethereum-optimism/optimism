@@ -14,13 +14,15 @@ import { PastNUTBundles } from "test/setup/PastNUTBundles.sol";
 
 // Interfaces
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
-import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title PastNUTBundles_TestInit
 /// @notice Shared test init for `PastNUTBundles` unit tests.
 abstract contract PastNUTBundles_TestInit is Test {
     /// @notice Path to the committed Karst NUT bundle, relative to `packages/contracts-bedrock`.
     string internal constant KARST_BUNDLE_PATH = "../../op-core/nuts/bundles/karst_nut_bundle.json";
+
+    /// @notice Path to the committed Interop NUT bundle, relative to `packages/contracts-bedrock`.
+    string internal constant INTEROP_BUNDLE_PATH = "../../op-core/nuts/bundles/interop_nut_bundle.json";
 
     /// @notice L2ContractsManager address encoded by the committed Karst NUT bundle.
     address internal constant KARST_L2CM = 0x5398A70Eb0929dd7bfc73c59E7137d8C7CDF6669;
@@ -259,71 +261,18 @@ contract PastNUTBundles_executeWithWrappers_Test is PastNUTBundles_TestInit {
 /// @title PastNUTBundles_applyPastBundles_Test
 /// @notice Exercises the apply loop with explicit current transactions.
 contract PastNUTBundles_applyPastBundles_Test is PastNUTBundles_TestInit {
-    /// @notice When the current L2CM matches a non-Karst prior bundle's L2CM, the apply loop
+    /// @notice When the current L2CM matches a prior bundle's L2CM, the apply loop
     ///         must not invoke the executor for that bundle.
     function test_applyPastBundles_skipsWhenL2CMMatches_succeeds() public {
         ExecuteNUTBundle script = new ExecuteNUTBundle();
 
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
         PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
-        entries[0] = PastNUTBundles.NUTBundle({ fork: "future-fork", path: KARST_BUNDLE_PATH });
+        entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
 
         // No call to executeAll should occur when the current L2CM matches the prior bundle's.
         vm.expectCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), 0);
         PastNUTBundles.applyPastBundles(karstTxns, script, entries);
-    }
-
-    /// @notice When the current bundle already contains a direct deterministic deployment from a
-    ///         prior bundle, applying that prior bundle would make the current bundle collide
-    ///         when it later reaches the same CREATE2 deployment.
-    /// @dev TODO(#19369): Remove with the Karst direct CREATE2 bootstrap skip.
-    function testFuzz_applyPastBundles_skipsWhenCurrentContainsDirectCreate2_succeeds(address _l2cm) public {
-        vm.assume(_l2cm != address(0) && _l2cm != KARST_L2CM);
-        ExecuteNUTBundle script = new ExecuteNUTBundle();
-
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory currentTxns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](2);
-        currentTxns[0] = karstTxns[0];
-        currentTxns[1] = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (_l2cm)),
-            from: address(0),
-            gasLimit: 0,
-            intent: "L2ProxyAdmin Upgrade Predeploys",
-            to: Predeploys.PROXY_ADMIN
-        });
-        PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
-        entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
-
-        // No call to executeAll should occur even though the current L2CM differs, because the
-        // current bundle owns the same non-idempotent direct CREATE2 deployment.
-        vm.expectCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), 0);
-        PastNUTBundles.applyPastBundles(currentTxns, script, entries);
-    }
-
-    /// @notice The direct CREATE2 overlap skip is a Karst bootstrap exception, not a generic
-    ///         "matching transaction means skip the whole prior bundle" rule.
-    /// @dev TODO(#19369): Remove with the Karst direct CREATE2 bootstrap skip.
-    function testFuzz_applyPastBundles_nonKarstDirectCreate2Overlap_succeeds(address _l2cm) public {
-        vm.assume(_l2cm != address(0) && _l2cm != KARST_L2CM);
-        ExecuteNUTBundle script = new ExecuteNUTBundle();
-
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory currentTxns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](2);
-        currentTxns[0] = karstTxns[0];
-        currentTxns[1] = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (_l2cm)),
-            from: address(0),
-            gasLimit: 0,
-            intent: "L2ProxyAdmin Upgrade Predeploys",
-            to: Predeploys.PROXY_ADMIN
-        });
-        PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
-        entries[0] = PastNUTBundles.NUTBundle({ fork: "future-fork", path: KARST_BUNDLE_PATH });
-
-        vm.mockCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), "");
-        vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)));
-
-        PastNUTBundles.applyPastBundles(currentTxns, script, entries);
     }
 
     /// @notice When the current L2CM differs from a prior bundle's L2CM, the apply loop must
@@ -351,58 +300,6 @@ contract PastNUTBundles_applyPastBundles_Test is PastNUTBundles_TestInit {
         PastNUTBundles.applyPastBundles(currentTxns, script, entries);
     }
 
-    /// @notice Karst is still applied on live forks that are missing the ConditionalDeployer
-    ///         bootstrap, even when Karst's L2CM matches the current bundle's L2CM.
-    /// @dev TODO(#19369): Remove with the Karst same-L2CM pre-bootstrap exception.
-    function test_applyPastBundles_karstSameL2CMExecutesWhenConditionalDeployerMissing_succeeds() public {
-        ExecuteNUTBundle script = new ExecuteNUTBundle();
-
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory currentTxns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
-        currentTxns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (KARST_L2CM)),
-            from: address(0),
-            gasLimit: 0,
-            intent: "L2ProxyAdmin Upgrade Predeploys",
-            to: Predeploys.PROXY_ADMIN
-        });
-        PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
-        entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
-
-        vm.mockCallRevert(
-            Predeploys.CONDITIONAL_DEPLOYER, abi.encodePacked(ISemver.version.selector), bytes("not initialized")
-        );
-        vm.mockCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), "");
-        vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)));
-
-        PastNUTBundles.applyPastBundles(currentTxns, script, entries);
-    }
-
-    /// @notice Karst is skipped when the current L2CM matches Karst's L2CM and the live fork
-    ///         already has a usable ConditionalDeployer implementation. The current txns must
-    ///         not include the Karst direct CREATE2 bootstrap or the bootstrap-overlap rule would
-    ///         mask the same-L2CM rule under test.
-    /// @dev TODO(#19369): Fold into the generic same-L2CM skip test once the Karst exception is removed.
-    function test_applyPastBundles_karstSameL2CMSkipsWhenConditionalDeployerInitialized_succeeds() public {
-        ExecuteNUTBundle script = new ExecuteNUTBundle();
-
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory currentTxns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
-        currentTxns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (KARST_L2CM)),
-            from: address(0),
-            gasLimit: 0,
-            intent: "L2ProxyAdmin Upgrade Predeploys",
-            to: Predeploys.PROXY_ADMIN
-        });
-        PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
-        entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
-
-        vm.mockCall(Predeploys.CONDITIONAL_DEPLOYER, abi.encodePacked(ISemver.version.selector), abi.encode("1.0.0"));
-
-        vm.expectCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), 0);
-        PastNUTBundles.applyPastBundles(currentTxns, script, entries);
-    }
-
     /// @notice An empty entries array is a no-op: the loop must not invoke the executor.
     function test_applyPastBundles_emptyEntries_succeeds() public {
         ExecuteNUTBundle script = new ExecuteNUTBundle();
@@ -414,33 +311,22 @@ contract PastNUTBundles_applyPastBundles_Test is PastNUTBundles_TestInit {
         PastNUTBundles.applyPastBundles(currentTxns, script, entries);
     }
 
-    /// @notice Multiple entries are evaluated independently: Karst is bootstrap-skipped because the
-    ///         current bundle owns the same direct CREATE2 deployment, while a non-Karst entry
-    ///         pointing at the same artifact applies because the bootstrap rule is Karst-only and
-    ///         the current L2CM differs from the bundle's L2CM.
-    /// @dev TODO(#19369): Remove with the Karst direct CREATE2 bootstrap skip.
-    function testFuzz_applyPastBundles_multipleEntriesSkipOneApplyOther_succeeds(address _l2cm) public {
-        vm.assume(_l2cm != address(0) && _l2cm != KARST_L2CM);
+    /// @notice Multiple entries are evaluated independently: entries with matching L2CMs are
+    ///         skipped while entries with different L2CMs are applied.
+    function test_applyPastBundles_multipleEntriesSkipOneApplyOther_succeeds() public {
         ExecuteNUTBundle script = new ExecuteNUTBundle();
 
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory currentTxns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](2);
-        currentTxns[0] = karstTxns[0];
-        currentTxns[1] = NetworkUpgradeTxns.NetworkUpgradeTxn({
-            data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (_l2cm)),
-            from: address(0),
-            gasLimit: 0,
-            intent: "L2ProxyAdmin Upgrade Predeploys",
-            to: Predeploys.PROXY_ADMIN
-        });
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory interopTxns = NetworkUpgradeTxns.readArtifact(INTEROP_BUNDLE_PATH);
 
         PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](2);
         entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
-        entries[1] = PastNUTBundles.NUTBundle({ fork: "future-fork", path: KARST_BUNDLE_PATH });
+        entries[1] = PastNUTBundles.NUTBundle({ fork: "interop", path: INTEROP_BUNDLE_PATH });
 
         vm.mockCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), "");
-        vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)), 1);
+        vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)), 0);
+        vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (interopTxns)), 1);
 
-        PastNUTBundles.applyPastBundles(currentTxns, script, entries);
+        PastNUTBundles.applyPastBundles(karstTxns, script, entries);
     }
 }

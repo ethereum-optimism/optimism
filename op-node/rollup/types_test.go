@@ -988,6 +988,18 @@ func TestConfig_IsForkActive(t *testing.T) {
 	}
 }
 
+func TestConfig_IsSDM(t *testing.T) {
+	var cfg Config
+	require.False(t, cfg.IsSDM(0))
+	require.False(t, cfg.IsSDM(100))
+
+	activation := uint64(100)
+	cfg.InteropTime = &activation
+	require.False(t, cfg.IsSDM(99))
+	require.True(t, cfg.IsSDM(100))
+	require.True(t, cfg.IsSDM(101))
+}
+
 // TestConfig_ActivationBlockAndForFork combines tests for IsActivationBlock and IsActivationBlockForFork.
 func TestConfig_ActivationBlockAndForFork(t *testing.T) {
 	for _, fork := range scheduleableForks {

@@ -6,8 +6,7 @@ mod registry;
 mod server;
 mod subscriber;
 
-use axum::extract::ws::Message;
-use axum::http::Uri;
+use axum::{extract::ws::Message, http::Uri};
 use clap::Parser;
 use dotenvy::dotenv;
 use metrics::Metrics;
@@ -15,15 +14,13 @@ use metrics_exporter_prometheus::PrometheusBuilder;
 use rate_limit::{InMemoryRateLimit, RateLimit, RedisRateLimit};
 use registry::Registry;
 use server::Server;
-use std::collections::HashMap;
-use std::io::Write;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{collections::HashMap, io::Write, net::SocketAddr, sync::Arc, time::Duration};
 use subscriber::{SubscriberOptions, WebsocketSubscriber};
-use tokio::signal::unix::{signal, SignalKind};
-use tokio::sync::broadcast;
-use tokio::time::interval;
+use tokio::{
+    signal::unix::{signal, SignalKind},
+    sync::broadcast,
+    time::interval,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, trace, warn, Level};
 use tracing_subscriber::EnvFilter;
@@ -98,7 +95,8 @@ struct Args {
     #[arg(long, env, default_value = "true")]
     metrics: bool,
 
-    /// API Keys, if not provided will be an unauthenticated endpoint, should be in the format <app1>:<apiKey1>:<rateLimit1>,<app2>:<apiKey2>:<rateLimit2>,..
+    /// API Keys, if not provided will be an unauthenticated endpoint, should be in the format
+    /// <app1>:<apiKey1>:<rateLimit1>,<app2>:<apiKey2>:<rateLimit2>,..
     #[arg(long, env, value_delimiter = ',', help = "API keys to allow")]
     api_keys: Vec<String>,
 
@@ -106,7 +104,8 @@ struct Args {
     #[arg(long, env, default_value = "0.0.0.0:9000")]
     metrics_addr: SocketAddr,
 
-    /// Tags to add to every metrics emitted, should be in the format --metrics-global-labels label1=value1,label2=value2
+    /// Tags to add to every metrics emitted, should be in the format --metrics-global-labels
+    /// label1=value1,label2=value2
     #[arg(long, env, default_value = "")]
     metrics_global_labels: String,
 
@@ -118,11 +117,13 @@ struct Args {
     #[arg(long, env, default_value = "20000")]
     subscriber_max_interval_ms: u64,
 
-    /// Interval in milliseconds between ping messages sent to upstream servers to detect unresponsive connections
+    /// Interval in milliseconds between ping messages sent to upstream servers to detect
+    /// unresponsive connections
     #[arg(long, env, default_value = "2000")]
     subscriber_ping_interval_ms: u64,
 
-    /// Timeout in milliseconds to wait for pong responses from upstream servers before considering the connection dead
+    /// Timeout in milliseconds to wait for pong responses from upstream servers before considering
+    /// the connection dead
     #[arg(long, env, default_value = "4000")]
     subscriber_pong_timeout_ms: u64,
 
@@ -244,8 +245,9 @@ async fn main() {
 
     let listener = move |data: Vec<u8>| {
         trace!(message = "received data", data = ?data);
-        // Subtract one from receiver count, as we have to keep one receiver open at all times (see _rec)
-        // to avoid the channel being closed. However this is not an active client connection.
+        // Subtract one from receiver count, as we have to keep one receiver open at all times (see
+        // _rec) to avoid the channel being closed. However this is not an active client
+        // connection.
         metrics_clone
             .active_connections
             .set((send.receiver_count() - 1) as f64);

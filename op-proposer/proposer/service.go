@@ -142,18 +142,6 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 		}
 		ps.ProposalSource = source.NewRollupProposalSource(rollupProvider)
 	}
-	if len(cfg.SupervisorRpcs) != 0 {
-		var clients []source.SupervisorClient
-		for _, url := range cfg.SupervisorRpcs {
-			cl, err := dial.DialSupervisorClientWithTimeout(ctx, ps.Log, url,
-				client.WithRPCRecorder(ps.Metrics.NewRecorder("supervisor")))
-			if err != nil {
-				return fmt.Errorf("failed to dial supervisor RPC client (%v): %w", url, err)
-			}
-			clients = append(clients, cl)
-		}
-		ps.ProposalSource = source.NewSupervisorProposalSource(ps.Log, clients...)
-	}
 	if len(cfg.SuperNodeRpcs) != 0 {
 		var clients []source.SuperNodeClient
 		for _, url := range cfg.SuperNodeRpcs {

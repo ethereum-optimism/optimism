@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -92,7 +93,7 @@ func TestConductorLeadershipTransfer(gt *testing.T) {
 				oldLeaderIndex, newLeaderIndex := i%len(voters), (i+1)%len(voters)
 				oldLeader, newLeader := voters[oldLeaderIndex], voters[newLeaderIndex]
 
-				time.Sleep(3 * time.Second)
+				require.NoError(tt, clock.SystemClock.SleepCtx(ctx, 3*time.Second)) // nosemgrep: flake-sleep-in-test -- intentional inter-transfer pause; no deterministic chain event to wait on
 
 				testTransferLeadershipAndCheck(t, oldLeader, newLeader)
 			}
@@ -105,14 +106,20 @@ func testTransferLeadershipAndCheck(t devtest.T, oldLeader, targetLeader conduct
 
 	t.Run(fmt.Sprintf("Conductor_%s_to_%s", oldLeader, targetLeader), func(tt devtest.T) {
 		// ensure that the current and target leader are healthy and unpaused before transferring leadership
-		require.True(tt, oldLeader.FetchSequencerHealthy(), "current leader's sequencer is not healthy, id", oldLeader)
-		require.True(tt, targetLeader.FetchSequencerHealthy(), "target leader's sequencer is not healthy, id", targetLeader)
-		require.False(tt, oldLeader.FetchPaused(), "current leader's sequencer is paused, id", oldLeader)
-		require.False(tt, targetLeader.FetchPaused(), "target leader's sequencer is paused, id", targetLeader)
+		require.Eventually(tt, func() bool { return oldLeader.FetchSequencerHealthy() },
+			30*time.Second, 500*time.Millisecond, "current leader's sequencer is not healthy, id: %s", oldLeader)
+		require.Eventually(tt, func() bool { return targetLeader.FetchSequencerHealthy() },
+			30*time.Second, 500*time.Millisecond, "target leader's sequencer is not healthy, id: %s", targetLeader)
+		require.Eventually(tt, func() bool { return !oldLeader.FetchPaused() },
+			30*time.Second, 500*time.Millisecond, "current leader's sequencer is paused, id: %s", oldLeader)
+		require.Eventually(tt, func() bool { return !targetLeader.FetchPaused() },
+			30*time.Second, 500*time.Millisecond, "target leader's sequencer is paused, id: %s", targetLeader)
 
 		// ensure that the current leader is the leader before transferring leadership
-		require.True(tt, oldLeader.IsLeader(), "current leader was not found to be the leader")
-		require.False(tt, targetLeader.IsLeader(), "target leader was already found to be the leader")
+		require.Eventually(tt, func() bool { return oldLeader.IsLeader() },
+			30*time.Second, 500*time.Millisecond, "current leader was not found to be the leader")
+		require.Eventually(tt, func() bool { return !targetLeader.IsLeader() },
+			30*time.Second, 500*time.Millisecond, "target leader was already found to be the leader")
 
 		oldLeader.TransferLeadershipTo(targetLeader.info)
 

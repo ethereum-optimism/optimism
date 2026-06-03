@@ -162,8 +162,9 @@ func NewSharedMixedOpKonaRuntime(pkg devtest.P) *sysgo.MixedSingleChainRuntime {
 	return NewSharedMixedOpKonaRuntimeForConfig(pkg, ParseL2NodeConfigFromEnv())
 }
 
-func NewSharedMixedOpKonaRuntimeForConfig(pkg devtest.P, cfg L2NodeConfig) *sysgo.MixedSingleChainRuntime {
+func NewSharedMixedOpKonaRuntimeForConfig(pkg devtest.P, cfg L2NodeConfig, deployerOpts ...sysgo.DeployerOption) *sysgo.MixedSingleChainRuntime {
 	return sysgo.NewMixedSingleChainRuntime(newPackageScopeT(pkg), sysgo.MixedSingleChainPresetConfig{
-		NodeSpecs: mixedOpKonaNodeSpecs(cfg),
+		NodeSpecs:       mixedOpKonaNodeSpecs(cfg),
+		DeployerOptions: deployerOpts,
 	})
 }

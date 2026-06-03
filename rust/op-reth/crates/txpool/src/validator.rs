@@ -1,4 +1,4 @@
-use crate::{InvalidCrossTx, OpPooledTx, supervisor::SupervisorClient};
+use crate::{InvalidCrossTx, OpPooledTx, interop_filter::InteropFilterClient};
 use alloy_consensus::{BlockHeader, Transaction};
 use op_revm::L1BlockInfo;
 use parking_lot::RwLock;
@@ -20,7 +20,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
-/// The timeout for cross-chain transaction validation against the supervisor/interop-filter.
+/// The timeout for cross-chain transaction validation against the interop filter.
 pub(crate) const CHECK_ACCESS_LIST_TIMEOUT_SECS: u64 = 7200;
 
 /// Tracks additional infos for the current block.
@@ -50,8 +50,8 @@ pub struct OpTransactionValidator<Client, Tx, Evm> {
     /// derived from the tracked L1 block info that is extracted from the first transaction in the
     /// L2 block.
     require_l1_data_gas_fee: bool,
-    /// Client used to check transaction validity with op-supervisor
-    supervisor_client: Option<SupervisorClient>,
+    /// Client used to check transaction validity with the interop filter.
+    interop_client: Option<InteropFilterClient>,
     /// tracks activated forks relevant for transaction validation
     fork_tracker: Arc<OpForkTracker>,
 }
@@ -122,14 +122,14 @@ where
             inner: Arc::new(inner),
             block_info: Arc::new(block_info),
             require_l1_data_gas_fee: true,
-            supervisor_client: None,
+            interop_client: None,
             fork_tracker: Arc::new(OpForkTracker { interop: AtomicBool::from(false) }),
         }
     }
 
-    /// Set the supervisor client and safety level
-    pub fn with_supervisor(mut self, supervisor_client: SupervisorClient) -> Self {
-        self.supervisor_client = Some(supervisor_client);
+    /// Sets the interop filter client and safety level.
+    pub fn with_interop(mut self, interop_client: InteropFilterClient) -> Self {
+        self.interop_client = Some(interop_client);
         self
     }
 
@@ -277,7 +277,7 @@ where
     pub async fn is_valid_cross_tx(&self, tx: &Tx) -> Option<Result<(), InvalidCrossTx>> {
         // We don't need to check for deposit transaction in here, because they won't come from
         // txpool
-        self.supervisor_client
+        self.interop_client
             .as_ref()?
             .is_valid_cross_tx(
                 tx.access_list(),

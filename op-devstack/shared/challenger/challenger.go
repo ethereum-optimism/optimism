@@ -13,10 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
@@ -191,13 +191,6 @@ func WithPermissionedGameType() Option {
 func WithSuperCannonKonaGameType() Option {
 	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.SuperCannonKonaGameType)
-		return nil
-	}
-}
-
-func WithSuperPermissionedGameType() Option {
-	return func(_ context.Context, c *config.Config) error {
-		c.GameTypes = append(c.GameTypes, gameTypes.SuperPermissionedGameType)
 		return nil
 	}
 }

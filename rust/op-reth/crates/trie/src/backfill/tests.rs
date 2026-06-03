@@ -17,7 +17,7 @@ use crate::{
 };
 use alloy_consensus::BlockHeader;
 use alloy_eips::{NumHash, eip1898::BlockWithParent};
-use alloy_primitives::Address;
+use alloy_primitives::{Address, B256};
 use reth_db::Database;
 use reth_db_common::init::init_genesis;
 use reth_evm::{ConfigureEvm, execute::Executor};
@@ -158,19 +158,13 @@ fn run_extends_window_backward_with_storage_writes() {
 #[test]
 #[serial]
 fn backfill_then_forward_write_preserves_state_roots() {
-    // Exercises the interaction between backfill-created history shards
-    // (concrete-max keys at the front of each logical key's history) and the
-    // sentinel shard that subsequent forward writes append into:
+    // End-to-end check that backfill and forward writes can share a proofs DB
+    // without corrupting historical reads:
     //
     //   1. Build a 5-block reth chain. Init proofs at block 5 → earliest=latest=5.
     //   2. Backfill earliest from 5 down to 2.
     //   3. Build + forward-write blocks 6 and 7 via `store_trie_updates`.
     //   4. Assert state roots at every block in [2, 7] match reth's headers.
-    //
-    // After step 2, V2*History tables hold concrete-max shards for blocks 3..=5.
-    // After step 3, the forward path creates a sentinel shard at (_, u64::MAX) for
-    // the keys block 6 / 7 touched. Reads at any block in [2, 7] must still
-    // reconstruct correctly across this mixed shard layout.
     let secp = Secp256k1::new();
     let key_pair = Keypair::new(&secp, &mut rng());
     let sender = public_key_to_address(key_pair.public_key());
@@ -270,5 +264,67 @@ fn backfill_then_forward_write_preserves_state_roots() {
             StateRoot::overlay_root(storage.provider_ro().unwrap(), n, HashedPostState::default())
                 .unwrap();
         assert_eq!(computed, expected, "state root mismatch at block {n}");
+    }
+}
+
+/// Negative test for the validation safety net in [`BackfillJob`]. Every
+/// "happy path" test feeds a self-consistent chain, so the
+/// [`BackfillError::StateRootMismatch`] arm in `validate_state_root` is never
+/// taken — a bug there (wrong overlay block, inverted compare, etc.) would let
+/// corrupt history through silently. Here we commit one block with a deliberately
+/// wrong `state_root` field and assert the job aborts at the right block.
+#[test]
+#[serial]
+fn run_aborts_with_state_root_mismatch_when_header_corrupted() {
+    // Custom chain build
+    let secp = Secp256k1::new();
+    let key_pair = Keypair::new(&secp, &mut rng());
+    let sender = public_key_to_address(key_pair.public_key());
+    let chain_spec = chain_spec_with_address(sender);
+    let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&provider_factory).unwrap();
+
+    let recipient = Address::repeat_byte(0x42);
+    const NUM_BLOCKS: u64 = 3;
+    const CORRUPTED_BLOCK: u64 = NUM_BLOCKS - 1;
+    const BOGUS_ROOT: B256 = B256::repeat_byte(0xAB);
+
+    let mut last_hash = chain_spec.genesis_hash();
+    for n in 1..=NUM_BLOCKS {
+        let mut block = build_transfer_block(n, last_hash, &chain_spec, key_pair, n - 1, recipient);
+        let exec = execute_block(&mut block, &provider_factory, &chain_spec);
+        if n == CORRUPTED_BLOCK {
+            block.set_state_root(BOGUS_ROOT);
+        }
+        commit_block_to_database(&block, &exec, &provider_factory);
+        last_hash = block.hash();
+    }
+
+    // Initialization captures *real* state at the latest block, so backfill's
+    // reconstruction at any prior block will produce the real state root —
+    // which disagrees with the bogus header at CORRUPTED_BLOCK.
+    let storage = create_storage();
+    {
+        let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
+            RethTrieStorageLayout::Packed
+        } else {
+            RethTrieStorageLayout::Legacy
+        };
+        let tx = provider_factory.db_ref().tx().unwrap();
+        InitializationJob::new(storage.clone(), tx, trie_layout)
+            .run(NUM_BLOCKS, last_hash)
+            .unwrap();
+    }
+
+    let provider = provider_factory.database_provider_ro().unwrap();
+    let err = BackfillJob::new(provider, storage).run(0).unwrap_err();
+    match err {
+        BackfillError::StateRootMismatch { block_number, expected, .. } => {
+            // Backfill descends from `latest`; the first prepend is NUM_BLOCKS,
+            // which validates at CORRUPTED_BLOCK.
+            assert_eq!(block_number, NUM_BLOCKS, "validation must fire on the first prepend");
+            assert_eq!(expected, BOGUS_ROOT, "expected root must come from the tampered header");
+        }
+        other => panic!("expected StateRootMismatch, got {other:?}"),
     }
 }

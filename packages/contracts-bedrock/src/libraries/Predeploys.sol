@@ -114,90 +114,59 @@ library Predeploys {
     /// @notice Address of the L2DevFeatureFlags predeploy.
     address internal constant L2_DEV_FEATURE_FLAGS = 0x420000000000000000000000000000000000002d;
 
+    /// @notice Configuration record for a single predeploy implementation.
+    /// @param proxy             Canonical proxy address (0x4200...). CGT variants share the same
+    ///                          proxy as their standard counterpart.
+    /// @param name              Implementation contract name (e.g. "L1Block", "L1BlockCGT").
+    /// @param artifactPath      Forge artifact path ("Contract.sol:Contract").
+    /// @param deployGasLimit    Gas limit for deployments in NUT bundles.
+    ///                          Based on gas profiling with a safety margin.
+    /// @param devFeatureGate    DevFeatures constant that gates this predeploy on L2 genesis.
+    /// @param isCustomGasToken  True if this predeploy is only deployed on custom gas token chains.
+    /// @param isInterop         True if this predeploy is only deployed on interop-enabled chains.
+    /// @param isProxied         True if the predeploy uses a Proxy. Non-proxied predeploys
+    ///                          (WETH, GovernanceToken) are etched directly without proxy or
+    ///                          implementation slot setup, and are excluded from NUT bundles.
+    /// @param isDeprecated      True if the predeploy is deprecated. Deprecated predeploys are
+    ///                          present on-chain for backwards compatibility but are excluded from
+    ///                          proxy setup loops, NUT bundles, and upgrade checks.
+    /// @param isVariant         True for records that share a proxy address with another (primary) record.
+    struct PredeployRecord {
+        address proxy;
+        string name;
+        string artifactPath;
+        uint64 deployGasLimit;
+        bytes32 devFeatureGate;
+        bool isCustomGasToken;
+        bool isInterop;
+        bool isProxied;
+        bool isDeprecated;
+        bool isVariant;
+    }
+
     /// @notice Returns the name of the predeploy at the given address.
+    ///         Always returns the primary, non-variant, record name for a given proxy address.
+    ///         e.g. getName(L1_BLOCK_ATTRIBUTES) always returns "L1Block", not "L1BlockCGT".
     function getName(address _addr) internal pure returns (string memory out_) {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
-        if (_addr == LEGACY_MESSAGE_PASSER) return "LegacyMessagePasser";
-        if (_addr == L1_MESSAGE_SENDER) return "L1MessageSender";
-        if (_addr == DEPLOYER_WHITELIST) return "DeployerWhitelist";
-        if (_addr == WETH) return "WETH";
-        if (_addr == L2_CROSS_DOMAIN_MESSENGER) return "L2CrossDomainMessenger";
-        if (_addr == GAS_PRICE_ORACLE) return "GasPriceOracle";
-        if (_addr == L2_STANDARD_BRIDGE) return "L2StandardBridge";
-        if (_addr == SEQUENCER_FEE_WALLET) return "SequencerFeeVault";
-        if (_addr == OPTIMISM_MINTABLE_ERC20_FACTORY) return "OptimismMintableERC20Factory";
-        if (_addr == L1_BLOCK_NUMBER) return "L1BlockNumber";
-        if (_addr == L2_ERC721_BRIDGE) return "L2ERC721Bridge";
-        if (_addr == L1_BLOCK_ATTRIBUTES) return "L1Block";
-        if (_addr == L2_TO_L1_MESSAGE_PASSER) return "L2ToL1MessagePasser";
-        if (_addr == OPTIMISM_MINTABLE_ERC721_FACTORY) return "OptimismMintableERC721Factory";
-        if (_addr == PROXY_ADMIN) return "L2ProxyAdmin";
-        if (_addr == BASE_FEE_VAULT) return "BaseFeeVault";
-        if (_addr == L1_FEE_VAULT) return "L1FeeVault";
-        if (_addr == OPERATOR_FEE_VAULT) return "OperatorFeeVault";
-        if (_addr == SCHEMA_REGISTRY) return "SchemaRegistry";
-        if (_addr == EAS) return "EAS";
-        if (_addr == GOVERNANCE_TOKEN) return "GovernanceToken";
-        if (_addr == LEGACY_ERC20_ETH) return "LegacyERC20ETH";
-        if (_addr == CROSS_L2_INBOX) return "CrossL2Inbox";
-        if (_addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER) return "L2ToL2CrossDomainMessenger";
-        if (_addr == SUPERCHAIN_ETH_BRIDGE) return "SuperchainETHBridge";
-        if (_addr == ETH_LIQUIDITY) return "ETHLiquidity";
-        if (_addr == LIQUIDITY_CONTROLLER) return "LiquidityController";
-        if (_addr == NATIVE_ASSET_LIQUIDITY) return "NativeAssetLiquidity";
-        if (_addr == CONDITIONAL_DEPLOYER) return "ConditionalDeployer";
-        if (_addr == L2_DEV_FEATURE_FLAGS) return "L2DevFeatureFlags";
+        PredeployRecord[] memory records = getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].proxy == _addr && !records[i].isVariant) {
+                return records[i].name;
+            }
+        }
         revert("Predeploys: unnamed predeploy");
     }
 
     /// @notice Returns true if the predeploy is not proxied.
     function notProxied(address _addr) internal pure returns (bool) {
-        return _addr == GOVERNANCE_TOKEN || _addr == WETH;
-    }
-
-    /// @notice Returns true if the address is a supported predeploy on this chain.
-    /// @param _addr             The address of the predeploy to check.
-    /// @param _fork             The fork number for which support is being checked.
-    /// @param _isCustomGasToken Whether the chain uses a custom gas token. Enables CGT-specific predeploys
-    ///                          (LiquidityController, NativeAssetLiquidity).
-    /// @param _useInterop       Whether interop is enabled as a system configuration on this chain.
-    /// @param _devFeatureBitmap Per-chain dev feature bitmap stored in L2DevFeatureFlags. Controls conditional
-    ///                          predeploys still behind dev flags.
-    /// @return                  True if the predeploy is supported on this fork with the given feature flags.
-    function isSupportedPredeploy(
-        address _addr,
-        uint256 _fork,
-        bool _isCustomGasToken,
-        bool _useInterop,
-        bytes32 _devFeatureBitmap
-    )
-        internal
-        pure
-        returns (bool)
-    {
-        bool _useL2CM = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.L2CM);
-        bool _isInteropDevFeatureEnabled =
-            DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
-
-        return _addr == LEGACY_MESSAGE_PASSER || _addr == DEPLOYER_WHITELIST || _addr == WETH
-            || _addr == L2_CROSS_DOMAIN_MESSENGER || _addr == GAS_PRICE_ORACLE || _addr == L2_STANDARD_BRIDGE
-            || _addr == SEQUENCER_FEE_WALLET || _addr == OPTIMISM_MINTABLE_ERC20_FACTORY || _addr == L1_BLOCK_NUMBER
-            || _addr == L2_ERC721_BRIDGE || _addr == L1_BLOCK_ATTRIBUTES || _addr == L2_TO_L1_MESSAGE_PASSER
-            || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
-            || _addr == L1_FEE_VAULT || _addr == OPERATOR_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS
-            || _addr == GOVERNANCE_TOKEN
-            || (_fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop && _addr == CROSS_L2_INBOX)
-            || (
-                _fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop
-                    && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER
-            )
-            || (
-                _fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop
-                    && _addr == SUPERCHAIN_ETH_BRIDGE
-            ) || (_fork >= uint256(Fork.INTEROP) && _isInteropDevFeatureEnabled && _useInterop && _addr == ETH_LIQUIDITY)
-            || (_isCustomGasToken && _addr == LIQUIDITY_CONTROLLER)
-            || (_isCustomGasToken && _addr == NATIVE_ASSET_LIQUIDITY) || (_useL2CM && _addr == CONDITIONAL_DEPLOYER)
-            || (_useL2CM && _addr == L2_DEV_FEATURE_FLAGS);
+        PredeployRecord[] memory records = getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].proxy == _addr) {
+                return !records[i].isProxied;
+            }
+        }
+        return false;
     }
 
     /// @notice Returns true if the address is in the predeploy namespace.
@@ -226,40 +195,480 @@ library Predeploys {
         isUpgradeable_ = isPredeployNamespace(_proxy) && !notProxied(_proxy);
     }
 
-    /// @notice Returns all proxied predeploys that should be upgraded by L2CM.
-    ///         This means that for each of these predeploys, isUpgradeable(predeploy) should return true if running on
-    ///         a network that supports it.
-    /// @dev IMPORTANT: This is the SOURCE OF TRUTH for upgrade coverage. All proxied predeploys from
-    ///      Predeploys library should be listed here.
-    ///      Excludes: WETH, GOVERNANCE_TOKEN (not proxied), legacy predeploys (not upgraded).
-    function getUpgradeablePredeploys() internal pure returns (address[] memory predeploys_) {
-        predeploys_ = new address[](23);
-        // Core predeploys
-        predeploys_[0] = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        predeploys_[1] = Predeploys.GAS_PRICE_ORACLE;
-        predeploys_[2] = Predeploys.L2_STANDARD_BRIDGE;
-        predeploys_[3] = Predeploys.SEQUENCER_FEE_WALLET;
-        predeploys_[4] = Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY;
-        predeploys_[5] = Predeploys.L2_ERC721_BRIDGE;
-        predeploys_[6] = Predeploys.L1_BLOCK_ATTRIBUTES;
-        predeploys_[7] = Predeploys.L2_TO_L1_MESSAGE_PASSER;
-        predeploys_[8] = Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY;
-        predeploys_[9] = Predeploys.PROXY_ADMIN;
-        predeploys_[10] = Predeploys.BASE_FEE_VAULT;
-        predeploys_[11] = Predeploys.L1_FEE_VAULT;
-        predeploys_[12] = Predeploys.OPERATOR_FEE_VAULT;
-        predeploys_[13] = Predeploys.SCHEMA_REGISTRY;
-        predeploys_[14] = Predeploys.EAS;
-        predeploys_[15] = Predeploys.CONDITIONAL_DEPLOYER;
-        // Interop predeploys
-        predeploys_[16] = Predeploys.CROSS_L2_INBOX;
-        predeploys_[17] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
-        predeploys_[18] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
-        predeploys_[19] = Predeploys.ETH_LIQUIDITY;
-        // CGT predeploys (conditionally deployed, but still must be included in the list)
-        predeploys_[20] = Predeploys.NATIVE_ASSET_LIQUIDITY;
-        predeploys_[21] = Predeploys.LIQUIDITY_CONTROLLER;
-        // Dev feature flags bitmap
-        predeploys_[22] = Predeploys.L2_DEV_FEATURE_FLAGS;
+    /// @notice Returns all predeploy implementation records.
+    /// @dev THE SINGLE SOURCE OF TRUTH for predeploy configuration.
+    ///      When adding a new predeploy, update ALL of the following:
+    ///        1. Predeploys.sol (this file)
+    ///           - Add an `address internal constant` for the proxy address above.
+    ///           - Add a `PredeployRecord` entry here and bump the array size.
+    ///        2. src/L2/L2ContractsManager.sol
+    ///           - Add an `address internal immutable` declaration.
+    ///           - Assign it via `findImpl()` in the constructor.
+    ///           - Call `upgradeTo` or `upgradeToAndCall` for it in `_apply()`.
+    ///           - Add an entry to `getImplementations()` and bump the array count.
+    ///        3. scripts/L2Genesis.s.sol
+    ///           - Add a `setXxx()` setter function.
+    ///           - Call it from `setPredeployImplementations()`.
+    ///      Non-proxied records (isProxied = false) are appended at the end and must be skipped
+    ///      by consumers that operate on proxy/implementation slots (NUT bundle, setPredeployProxies).
+    ///      Deprecated records (isDeprecated = true) are appended after non-proxied records and must
+    ///      be skipped by consumers that perform proxy setup, NUT bundles, or upgrade checks.
+    function getAllRecords() internal pure returns (PredeployRecord[] memory records_) {
+        records_ = new PredeployRecord[](30);
+
+        // ── Core predeploys ────────────────────────────────────────────────────────────────
+        records_[0] = PredeployRecord({
+            proxy: L2_CROSS_DOMAIN_MESSENGER,
+            name: "L2CrossDomainMessenger",
+            artifactPath: "L2CrossDomainMessenger.sol:L2CrossDomainMessenger",
+            deployGasLimit: 3_129_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[1] = PredeployRecord({
+            proxy: GAS_PRICE_ORACLE,
+            name: "GasPriceOracle",
+            artifactPath: "GasPriceOracle.sol:GasPriceOracle",
+            deployGasLimit: 2_762_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[2] = PredeployRecord({
+            proxy: L2_STANDARD_BRIDGE,
+            name: "L2StandardBridge",
+            artifactPath: "L2StandardBridge.sol:L2StandardBridge",
+            deployGasLimit: 4_193_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[3] = PredeployRecord({
+            proxy: SEQUENCER_FEE_WALLET,
+            name: "SequencerFeeVault",
+            artifactPath: "SequencerFeeVault.sol:SequencerFeeVault",
+            deployGasLimit: 1_506_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[4] = PredeployRecord({
+            proxy: OPTIMISM_MINTABLE_ERC20_FACTORY,
+            name: "OptimismMintableERC20Factory",
+            artifactPath: "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory",
+            deployGasLimit: 4_193_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[5] = PredeployRecord({
+            proxy: L2_ERC721_BRIDGE,
+            name: "L2ERC721Bridge",
+            artifactPath: "L2ERC721Bridge.sol:L2ERC721Bridge",
+            deployGasLimit: 2_367_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[6] = PredeployRecord({
+            proxy: L1_BLOCK_ATTRIBUTES,
+            name: "L1Block",
+            artifactPath: "L1Block.sol:L1Block",
+            deployGasLimit: 1_191_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[7] = PredeployRecord({
+            proxy: L1_BLOCK_ATTRIBUTES,
+            name: "L1BlockCGT",
+            artifactPath: "L1BlockCGT.sol:L1BlockCGT",
+            deployGasLimit: 1_568_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: true,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: true
+        });
+        records_[8] = PredeployRecord({
+            proxy: L2_TO_L1_MESSAGE_PASSER,
+            name: "L2ToL1MessagePasser",
+            artifactPath: "L2ToL1MessagePasser.sol:L2ToL1MessagePasser",
+            deployGasLimit: 694_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[9] = PredeployRecord({
+            proxy: L2_TO_L1_MESSAGE_PASSER,
+            name: "L2ToL1MessagePasserCGT",
+            artifactPath: "L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT",
+            deployGasLimit: 827_394,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: true,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: true
+        });
+        records_[10] = PredeployRecord({
+            proxy: OPTIMISM_MINTABLE_ERC721_FACTORY,
+            name: "OptimismMintableERC721Factory",
+            artifactPath: "OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory",
+            deployGasLimit: 5_661_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[11] = PredeployRecord({
+            proxy: PROXY_ADMIN,
+            name: "L2ProxyAdmin",
+            artifactPath: "L2ProxyAdmin.sol:L2ProxyAdmin",
+            deployGasLimit: 2_541_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[12] = PredeployRecord({
+            proxy: BASE_FEE_VAULT,
+            name: "BaseFeeVault",
+            artifactPath: "BaseFeeVault.sol:BaseFeeVault",
+            deployGasLimit: 1_503_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[13] = PredeployRecord({
+            proxy: L1_FEE_VAULT,
+            name: "L1FeeVault",
+            artifactPath: "L1FeeVault.sol:L1FeeVault",
+            deployGasLimit: 260_550,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[14] = PredeployRecord({
+            proxy: OPERATOR_FEE_VAULT,
+            name: "OperatorFeeVault",
+            artifactPath: "OperatorFeeVault.sol:OperatorFeeVault",
+            deployGasLimit: 1_504_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[15] = PredeployRecord({
+            proxy: SCHEMA_REGISTRY,
+            name: "SchemaRegistry",
+            artifactPath: "SchemaRegistry.sol:SchemaRegistry",
+            deployGasLimit: 805_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[16] = PredeployRecord({
+            proxy: EAS,
+            name: "EAS",
+            artifactPath: "EAS.sol:EAS",
+            deployGasLimit: 6_251_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+
+        // ── Interop predeploys ─────────────────────────────────────────────────────────────
+        // Interop requires both the INTEROP sys feature and the OPTIMISM_PORTAL_INTEROP dev
+        // feature. Both gates mirror the full condition checked in L2Genesis.
+        records_[17] = PredeployRecord({
+            proxy: CROSS_L2_INBOX,
+            name: "CrossL2Inbox",
+            artifactPath: "CrossL2Inbox.sol:CrossL2Inbox",
+            deployGasLimit: 668_000,
+            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
+            isCustomGasToken: false,
+            isInterop: true,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[18] = PredeployRecord({
+            proxy: L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            name: "L2ToL2CrossDomainMessenger",
+            artifactPath: "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger",
+            deployGasLimit: 1_611_000,
+            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
+            isCustomGasToken: false,
+            isInterop: true,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[19] = PredeployRecord({
+            proxy: SUPERCHAIN_ETH_BRIDGE,
+            name: "SuperchainETHBridge",
+            artifactPath: "SuperchainETHBridge.sol:SuperchainETHBridge",
+            deployGasLimit: 757_000,
+            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
+            isCustomGasToken: false,
+            isInterop: true,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[20] = PredeployRecord({
+            proxy: ETH_LIQUIDITY,
+            name: "ETHLiquidity",
+            artifactPath: "ETHLiquidity.sol:ETHLiquidity",
+            deployGasLimit: 423_000,
+            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
+            isCustomGasToken: false,
+            isInterop: true,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+
+        // ── CGT predeploys ─────────────────────────────────────────────────────────────────
+        records_[21] = PredeployRecord({
+            proxy: NATIVE_ASSET_LIQUIDITY,
+            name: "NativeAssetLiquidity",
+            artifactPath: "NativeAssetLiquidity.sol:NativeAssetLiquidity",
+            deployGasLimit: 392_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: true,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[22] = PredeployRecord({
+            proxy: LIQUIDITY_CONTROLLER,
+            name: "LiquidityController",
+            artifactPath: "LiquidityController.sol:LiquidityController",
+            deployGasLimit: 1_870_000,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: true,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+
+        records_[23] = PredeployRecord({
+            proxy: CONDITIONAL_DEPLOYER,
+            name: "ConditionalDeployer",
+            artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
+            deployGasLimit: 600_000,
+            devFeatureGate: DevFeatures.L2CM,
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[24] = PredeployRecord({
+            proxy: L2_DEV_FEATURE_FLAGS,
+            name: "L2DevFeatureFlags",
+            artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
+            deployGasLimit: 328_228,
+            devFeatureGate: DevFeatures.L2CM,
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false,
+            isVariant: false
+        });
+
+        // ── Non-proxied predeploys ─────────────────────────────────────────────────────────
+        // These are etched directly (no Proxy wrapper, no implementation slot).
+        // Excluded from NUT bundles and proxy setup. deployGasLimit is unused.
+        records_[25] = PredeployRecord({
+            proxy: WETH,
+            name: "WETH",
+            artifactPath: "WETH.sol:WETH",
+            deployGasLimit: 0,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: false,
+            isDeprecated: false,
+            isVariant: false
+        });
+        records_[26] = PredeployRecord({
+            proxy: GOVERNANCE_TOKEN,
+            name: "GovernanceToken",
+            artifactPath: "GovernanceToken.sol:GovernanceToken",
+            deployGasLimit: 0,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: false,
+            isDeprecated: false,
+            isVariant: false
+        });
+
+        // ── Deprecated predeploys ──────────────────────────────────────────────────────────
+        // Present on-chain for backwards compatibility but excluded from proxy setup loops,
+        // NUT bundles, and upgrade checks. Handled by individual setters in L2Genesis.
+        records_[27] = PredeployRecord({
+            proxy: LEGACY_MESSAGE_PASSER,
+            name: "LegacyMessagePasser",
+            artifactPath: "LegacyMessagePasser.sol:LegacyMessagePasser",
+            deployGasLimit: 0,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: true,
+            isVariant: false
+        });
+        records_[28] = PredeployRecord({
+            proxy: DEPLOYER_WHITELIST,
+            name: "DeployerWhitelist",
+            artifactPath: "DeployerWhitelist.sol:DeployerWhitelist",
+            deployGasLimit: 0,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: true,
+            isVariant: false
+        });
+        records_[29] = PredeployRecord({
+            proxy: L1_BLOCK_NUMBER,
+            name: "L1BlockNumber",
+            artifactPath: "L1BlockNumber.sol:L1BlockNumber",
+            deployGasLimit: 0,
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: true,
+            isVariant: false
+        });
+    }
+
+    /// @notice Returns all proxied, non-deprecated predeploy records, including variant records.
+    /// @dev Variant records (isVariant = true) share a proxy with a primary record (e.g. L1BlockCGT
+    ///      shares the L1Block proxy). Callers that need one entry per proxy should skip variants.
+    function getUpgradeableRecords() internal pure returns (PredeployRecord[] memory records_) {
+        PredeployRecord[] memory all = getAllRecords();
+        uint256 count = 0;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (!all[i].isProxied || all[i].isDeprecated) continue;
+            count++;
+        }
+        // Create a new array with the proxied, non-deprecated records
+        records_ = new PredeployRecord[](count);
+        uint256 j = 0;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (!all[i].isProxied || all[i].isDeprecated) continue;
+            records_[j++] = all[i];
+        }
+    }
+
+    /// @notice Asserts that the registry record for `_proxy` has the expected gate fields.
+    ///         Reverts if no matching record is found or if the gates differ.
+    ///         Called by L2Genesis setters to self-verify their own registry configuration,
+    ///         catching any drift between a setter's assumed gates and the registry.
+    function assertGates(address _proxy, bytes32 _devGate, bool _isCustomGasToken, bool _isInterop) internal pure {
+        PredeployRecord[] memory records = getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].proxy == _proxy) {
+                require(
+                    records[i].devFeatureGate == _devGate && records[i].isCustomGasToken == _isCustomGasToken
+                        && records[i].isInterop == _isInterop,
+                    "Predeploys: gate mismatch"
+                );
+                return;
+            }
+        }
+        revert("Predeploys: proxy not found");
+    }
+
+    function isSupportedPredeploy(
+        address _addr,
+        uint256 _fork,
+        bool _isCustomGasToken,
+        bool _useInterop,
+        bytes32 _devFeatureBitmap
+    )
+        internal
+        pure
+        returns (bool)
+    {
+        // iterate over all records and check if the predeploy is supported based on the arguments
+        PredeployRecord[] memory records = getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].proxy == _addr) {
+                if (records[i].devFeatureGate != 0) {
+                    // If the feature on the gate is not present on the bitmap, the predeploy is not supported.
+                    if (!DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, records[i].devFeatureGate)) {
+                        return false;
+                    }
+                    // Additional conditions for interop
+                    if (DevFeatures.isDevFeatureEnabled(records[i].devFeatureGate, DevFeatures.OPTIMISM_PORTAL_INTEROP))
+                    {
+                        if (_fork < uint256(Fork.INTEROP) || !_useInterop) {
+                            return false;
+                        }
+                    }
+                }
+
+                // If the predeploy has a system feature gate, check if it is supported based on the arguments.
+                if ((records[i].isCustomGasToken && !_isCustomGasToken) || (records[i].isInterop && !_useInterop)) {
+                    return false;
+                }
+
+                return true;
+            }
+        }
+        return false;
     }
 }

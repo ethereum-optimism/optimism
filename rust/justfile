@@ -107,6 +107,59 @@ lint-docs:
   RUSTDOCFLAGS="--cfg docsrs -D warnings --show-type-layout --generate-link-to-definition -Zunstable-options" \
     cargo +{{NIGHTLY}} doc --workspace --all-features --no-deps --document-private-items
 
+############################ Review #################################
+
+# Run the rust-code-reviewer agent over the current branch's Rust diff in an interactive session (latest opus, max effort). The agent reviews, asks which findings to apply, then applies them. Base auto-detects from upstream / origin/HEAD; override with `base=...`.
+[script('bash')]
+rust-review base='':
+  set -euo pipefail
+  command -v claude >/dev/null 2>&1 || { echo "claude CLI not found on PATH; install it before running rust-review." >&2; exit 1; }
+  base="{{base}}"
+  if [[ -z "$base" ]]; then
+    # Prefer origin/HEAD (the repo's default branch) so a pushed feature
+    # branch that tracks itself on origin doesn't end up diffing against
+    # HEAD. Fall back to @{upstream}, then origin/develop.
+    base=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null \
+           || git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null \
+           || echo origin/develop)
+  fi
+  head_ref=$(git rev-parse --abbrev-ref HEAD)
+  merge_base=$(git merge-base "$base" HEAD)
+  if git diff --quiet "$merge_base"..HEAD -- ':/rust/**'; then
+    echo "No Rust changes on $head_ref relative to $base; nothing to review."
+    exit 0
+  fi
+  prompt=$(cat <<EOF
+  Review the Rust changes on the current branch.
+
+  Branch: $head_ref
+  Base:   $base (merge-base $merge_base)
+
+  Inspect the diff with:
+    git diff $merge_base..HEAD -- ':/rust/**'
+
+  Follow your standard review process from .claude/agents/rust-code-reviewer.md,
+  including running the project's lint recipe (mise exec -- just l) from the
+  appropriate Rust workspace root before reading the diff. Report findings
+  scoped to the diff only.
+
+  After presenting the findings, use the AskUserQuestion tool to ask which
+  findings (if any) to apply, then apply only the selected ones.
+  EOF
+  )
+  eta=$(date -v +10M '+%H:%M' 2>/dev/null || date -d '+10 min' '+%H:%M')
+  echo "Reviewer starting with ETA before $eta.."
+  echo
+  start=$(date +%s)
+  trap 'rc=$?; end=$(date +%s); printf "\nReviewer ran for %dm %02ds (exit %d)\n" $(( (end - start) / 60 )) $(( (end - start) % 60 )) "$rc"' EXIT
+  claude \
+    --agent rust-code-reviewer \
+    --model opus \
+    --effort max \
+    "$prompt"
+  echo
+  echo "Please help us make our reviewer better by contributing to .claude/agents/rust-code-reviewer.md"
+
 ############################ no_std #################################
 
 # Check no_std compatibility for proof, protocol, alloy, and op-alloy crates

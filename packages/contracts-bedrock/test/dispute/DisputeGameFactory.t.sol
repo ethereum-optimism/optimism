@@ -148,17 +148,8 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up a super permissioned game implementation
-    function setupSuperPermissionedDisputeGame(
-        Claim _absolutePrestate,
-        address _proposer,
-        address _challenger
-    )
-        internal
-        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
-    {
-        bytes memory implArgs;
-        (implArgs, vm_, preimageOracle_) =
-            getSuperPermissionedDisputeGameImmutableArgs(_absolutePrestate, _proposer, _challenger);
+    function setupSuperPermissionedDisputeGame(address _proposer) internal returns (address gameImpl_) {
+        bytes memory implArgs = getSuperPermissionedDisputeGameImmutableArgs(_proposer);
         gameImpl_ = setupSuperPermissionedDisputeGame(implArgs);
     }
 
@@ -245,26 +236,12 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up immutable args for Super PDG implementation
-    function getSuperPermissionedDisputeGameImmutableArgs(
-        Claim _absolutePrestate,
-        address _proposer,
-        address _challenger
-    )
+    function getSuperPermissionedDisputeGameImmutableArgs(address _proposer)
         internal
-        returns (bytes memory implArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+        view
+        returns (bytes memory implArgs_)
     {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
-
-        // Encode the implementation args for CWIA (tightly packed)
-        implArgs_ = abi.encodePacked(
-            _absolutePrestate, // 32 bytes
-            vm_, // 20 bytes
-            anchorStateRegistry, // 20 bytes
-            delayedWeth, // 20 bytes
-            uint256(0), // 32 bytes (l2ChainId),
-            _proposer, // 20 bytes
-            _challenger // 20 bytes
-        );
+        implArgs_ = abi.encodePacked(anchorStateRegistry, _proposer);
     }
 
     /// @notice Deploys PDG v2 implementation and sets it on the DGF
@@ -299,11 +276,12 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     function setupSuperPermissionedDisputeGame(bytes memory _implArgs) internal returns (address gameImpl_) {
         gameImpl_ = DeployUtils.create1({
             _name: "SuperPermissionedDisputeGame",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (_getSuperGameConstructorParams()))
-            )
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, ()))
         });
-        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, _implArgs);
+        vm.startPrank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(gameImpl_), _implArgs);
+        disputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, 0);
+        vm.stopPrank();
     }
 
     /// @notice Parameters for ZKDisputeGame setup

@@ -14,7 +14,8 @@ async fn no_tx_pool() -> eyre::Result<()> {
     }
 
     // process 5 more non empty blocks which are processed by the builder.
-    // The builder should be on sync because it has received the new payload requests from rollup-boost.
+    // The builder should be on sync because it has received the new payload requests from
+    // rollup-boost.
     for _ in 0..5 {
         let (_block, block_creator) = block_generator.generate_block(false).await?;
         assert!(

@@ -12,7 +12,7 @@ use alloy_rlp::Encodable;
 use alloy_rpc_types_engine::PayloadAttributes;
 use async_trait::async_trait;
 use kona_genesis::{L1ChainConfig, RollupConfig};
-use kona_hardforks::{Hardfork, Hardforks, Interop};
+use kona_hardforks::{Hardfork, Hardforks};
 use kona_interop::DependencySet;
 use kona_protocol::{
     DEPOSIT_EVENT_ABI_HASH, L1BlockInfoTx, L2BlockInfo, Predeploys, decode_deposit,
@@ -198,20 +198,22 @@ where
         if self.rollup_cfg.is_interop_active(next_l2_time) &&
             !self.rollup_cfg.is_interop_active(l2_parent.block_info.timestamp)
         {
-            // Base 7 txs: always emitted on interop activation.
-            upgrade_transactions.append(&mut Hardforks::INTEROP.txs().collect());
-
-            // CrossL2Inbox pair: only emitted when the dependency set has >1 chains.
-            // Matches op-node's gate at op-node/rollup/derive/attributes.go:178.
+            // The Interop NUT bundle executes on all chains. The setFeature and
+            // ETHLiquidity funding wrappers only execute for chains in a multi-chain
+            // dependency set, which signals the L2ContractsManager to activate
+            // Interop-specific contracts. Matches op-node's gate at
+            // op-node/rollup/derive/attributes.go.
             // `dependency_set` is guaranteed Some(_) here because the constructor
-            // panics when interop_time.is_some() && dependency_set.is_none(), and
-            // we only reach this branch when interop is active.
+            // panics when interop_time.is_some() && dependency_set.is_none().
             let dependency_set = self.dependency_set.as_ref().expect(
                 "dependency_set must be Some when interop is active — constructor invariant",
             );
-            if dependency_set.dependencies.len() > 1 {
-                upgrade_transactions.extend(Interop::cross_l2_inbox_txs());
-            }
+            let activate_interop_contracts = dependency_set.dependencies.len() > 1;
+            upgrade_transactions.append(
+                &mut Hardforks::INTEROP.txs_for_activation(activate_interop_contracts).collect(),
+            );
+            upgrade_gas +=
+                Hardforks::INTEROP.upgrade_gas_for_activation(activate_interop_contracts);
         }
 
         // Build and encode the L1 info transaction for the current payload.
@@ -778,12 +780,11 @@ mod tests {
     }
 
     // ---------------------------------------------------------------------------
-    // Interop activation gating tests (issue #19311)
+    // Interop activation gating tests
     //
-    // These tests verify that kona's interop activation tx stream byte-matches
-    // op-node's output: 7 base txs always, + 2 CrossL2Inbox txs only when the
-    // dependency set has >1 chain. Go reference: op-node/rollup/derive/
-    // attributes.go:171-185.
+    // The Interop bundle executes for all chains. Multi-chain dependency sets
+    // additionally emit the setFeature and ETHLiquidity funding wrappers. Go reference:
+    // op-node/rollup/derive/attributes.go.
     // ---------------------------------------------------------------------------
 
     fn build_interop_dep_set(chain_count: usize) -> Arc<DependencySet> {
@@ -797,7 +798,7 @@ mod tests {
         Arc::new(DependencySet { dependencies, override_message_expiry_window: None })
     }
 
-    /// Interop-activated, single-chain `dep-set` → base 7 interop txs, no `CrossL2Inbox` pair.
+    /// Interop-activated, single-chain `dep-set` → bundle txs only.
     #[tokio::test]
     async fn test_prepare_payload_with_interop_single_chain() {
         let block_time = 2;
@@ -843,11 +844,12 @@ mod tests {
             seq_num: 0,
         };
         let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
-        // 1 L1InfoTx + 7 interop base txs + 0 CrossL2Inbox txs = 8.
-        assert_eq!(payload.transactions.unwrap().len(), 1 + 7);
+        // 1 L1InfoTx + 28 bundle txs. Single-chain superchains skip only the
+        // setFeature and ETHLiquidity funding wrappers.
+        assert_eq!(payload.transactions.unwrap().len(), 1 + 28);
     }
 
-    /// Interop-activated, multi-chain `dep-set` → base 7 + `CrossL2Inbox` 2 = 9 upgrade txs.
+    /// Interop-activated, multi-chain `dep-set` → full bundle wrapped with setFeature + funding.
     #[tokio::test]
     async fn test_prepare_payload_with_interop_multi_chain() {
         let block_time = 2;
@@ -893,139 +895,8 @@ mod tests {
             seq_num: 0,
         };
         let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
-        // 1 L1InfoTx + 7 interop base txs + 2 CrossL2Inbox txs = 10.
-        assert_eq!(payload.transactions.unwrap().len(), 1 + 7 + 2);
-    }
-
-    /// Single-chain interop: ordering matches Go — base txs [0..7] equal the
-    /// golden `interop_base_tx_*.hex` files.
-    #[tokio::test]
-    async fn test_prepare_payload_with_interop_base_tx_ordering_matches_go() {
-        use alloy_primitives::hex;
-        let block_time = 2;
-        let timestamp = 100;
-        let cfg = Arc::new(RollupConfig {
-            block_time,
-            hardforks: HardForkConfig {
-                regolith_time: Some(50),
-                canyon_time: Some(50),
-                delta_time: Some(50),
-                ecotone_time: Some(50),
-                fjord_time: Some(50),
-                granite_time: Some(50),
-                holocene_time: Some(50),
-                isthmus_time: Some(50),
-                jovian_time: Some(50),
-                karst_time: Some(50),
-                interop_time: Some(102),
-                ..Default::default()
-            },
-            ..Default::default()
-        });
-        let l1_cfg = Arc::new(L1Config::sepolia().into());
-        let l2_number = 1;
-        let mut fetcher = TestSystemConfigL2Fetcher::default();
-        fetcher.insert(l2_number, SystemConfig::default());
-        let mut provider = TestChainProvider::default();
-        let header = Header { timestamp, ..Default::default() };
-        let hash = header.hash_slow();
-        provider.insert_header(hash, header);
-        let dep_set = build_interop_dep_set(1);
-        let mut builder =
-            StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, Some(dep_set));
-        let epoch = BlockNumHash { hash, number: l2_number };
-        let l2_parent = L2BlockInfo {
-            block_info: BlockInfo {
-                hash: B256::ZERO,
-                number: l2_number,
-                timestamp,
-                parent_hash: hash,
-            },
-            l1_origin: BlockNumHash { hash, number: l2_number },
-            seq_num: 0,
-        };
-        let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
-        let txs = payload.transactions.unwrap();
-        let expected: [&str; 7] = [
-            include_str!("../../../hardforks/src/bytecode/interop_base_tx_0.hex"),
-            include_str!("../../../hardforks/src/bytecode/interop_base_tx_1.hex"),
-            include_str!("../../../hardforks/src/bytecode/interop_base_tx_2.hex"),
-            include_str!("../../../hardforks/src/bytecode/interop_base_tx_3.hex"),
-            include_str!("../../../hardforks/src/bytecode/interop_base_tx_4.hex"),
-            include_str!("../../../hardforks/src/bytecode/interop_base_tx_5.hex"),
-            include_str!("../../../hardforks/src/bytecode/interop_base_tx_6.hex"),
-        ];
-        for (i, expected_hex) in expected.iter().enumerate() {
-            let expected_bytes: Bytes = hex::decode(expected_hex.replace('\n', "")).unwrap().into();
-            // txs[0] is the L1 info tx; interop base txs start at txs[1].
-            assert_eq!(txs[1 + i], expected_bytes, "interop base tx {i} diverges from Go");
-        }
-    }
-
-    /// Multi-chain interop: `CrossL2Inbox` pair appended at tail (positions 8..10),
-    /// matching op-node's ordering.
-    #[tokio::test]
-    async fn test_prepare_payload_with_interop_multi_chain_appends_cross_l2_inbox_at_tail() {
-        use alloy_primitives::hex;
-        let block_time = 2;
-        let timestamp = 100;
-        let cfg = Arc::new(RollupConfig {
-            block_time,
-            hardforks: HardForkConfig {
-                regolith_time: Some(50),
-                canyon_time: Some(50),
-                delta_time: Some(50),
-                ecotone_time: Some(50),
-                fjord_time: Some(50),
-                granite_time: Some(50),
-                holocene_time: Some(50),
-                isthmus_time: Some(50),
-                jovian_time: Some(50),
-                karst_time: Some(50),
-                interop_time: Some(102),
-                ..Default::default()
-            },
-            ..Default::default()
-        });
-        let l1_cfg = Arc::new(L1Config::sepolia().into());
-        let l2_number = 1;
-        let mut fetcher = TestSystemConfigL2Fetcher::default();
-        fetcher.insert(l2_number, SystemConfig::default());
-        let mut provider = TestChainProvider::default();
-        let header = Header { timestamp, ..Default::default() };
-        let hash = header.hash_slow();
-        provider.insert_header(hash, header);
-        let dep_set = build_interop_dep_set(2);
-        let mut builder =
-            StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, Some(dep_set));
-        let epoch = BlockNumHash { hash, number: l2_number };
-        let l2_parent = L2BlockInfo {
-            block_info: BlockInfo {
-                hash: B256::ZERO,
-                number: l2_number,
-                timestamp,
-                parent_hash: hash,
-            },
-            l1_origin: BlockNumHash { hash, number: l2_number },
-            seq_num: 0,
-        };
-        let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
-        let txs = payload.transactions.unwrap();
-        let expected_0: Bytes = hex::decode(
-            include_str!("../../../hardforks/src/bytecode/interop_cross_l2_inbox_tx_0.hex")
-                .replace('\n', ""),
-        )
-        .unwrap()
-        .into();
-        let expected_1: Bytes = hex::decode(
-            include_str!("../../../hardforks/src/bytecode/interop_cross_l2_inbox_tx_1.hex")
-                .replace('\n', ""),
-        )
-        .unwrap()
-        .into();
-        // txs[0]=L1Info, txs[1..=7]=base, txs[8..=9]=CrossL2Inbox.
-        assert_eq!(txs[8], expected_0);
-        assert_eq!(txs[9], expected_1);
+        // 1 L1InfoTx + 30 interop txs (1 setFeature + 28 bundle + 1 ETHLiquidity funding).
+        assert_eq!(payload.transactions.unwrap().len(), 1 + 30);
     }
 
     /// Constructor panics fast when interop is scheduled but no dependency set was provided.

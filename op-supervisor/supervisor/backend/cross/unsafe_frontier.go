@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type UnsafeFrontierCheckDeps interface {
@@ -24,7 +24,7 @@ func HazardUnsafeFrontierChecks(d UnsafeFrontierCheckDeps, hazards *HazardSet) e
 		// Anything we depend on in this timestamp must be cross-unsafe already, or the first block after.
 		err := d.IsCrossUnsafe(hazardChainID, hazardBlock.ID())
 		if err != nil {
-			if errors.Is(err, types.ErrFuture) {
+			if errors.Is(err, interop.ErrFuture) {
 				// Not already cross-unsafe, so we check if the block is local-unsafe
 				// (a sanity check if part of the canonical chain).
 				err = d.IsLocalUnsafe(hazardChainID, hazardBlock.ID())

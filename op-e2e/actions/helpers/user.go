@@ -218,6 +218,14 @@ func (s *BasicUser[B]) ActSetGasFeeCap(feeCap *big.Int) Action {
 	}
 }
 
+// ActSetTxNonce pins the nonce for the next MakeTransaction/ActMakeTx,
+// bypassing PendingNonceAt for callers that need a deterministic sequence.
+func (s *BasicUser[B]) ActSetTxNonce(nonce uint64) Action {
+	return func(t Testing) {
+		s.txOpts.Nonce = new(big.Int).SetUint64(nonce)
+	}
+}
+
 func (s *BasicUser[B]) ActRandomTxData(t Testing) {
 	t.Helper()
 	dataLen := s.rng.Intn(128_000)

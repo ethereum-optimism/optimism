@@ -15,7 +15,7 @@ build-devnet BINARY:
 
 build-reth:
   #!/bin/bash
-  cd {{SOURCE}}/../../reth && cargo build --bin op-reth -p op-reth
+  cd {{SOURCE}}/../../op-reth && cargo build --bin op-reth -p op-reth
 
 build-kona PROFILE="release":
   #!/bin/bash
@@ -45,7 +45,7 @@ acceptance-tests-run CL_TYPE="kona-node" EL_TYPE="op-reth":
 
   if [ "{{EL_TYPE}}" = "op-reth" ] ; then
     echo "Running acceptance tests for op-reth"
-    export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
+    export OP_RETH_EXEC_PATH="{{SOURCE}}/../../target/debug/op-reth"
   fi
 
   echo "Running acceptance tests for {{CL_TYPE}} with {{EL_TYPE}}..."
@@ -82,7 +82,7 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
           export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
         fi
         if [ $OP_RETH_EXEC_PATH == "" ]; then
-          export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
+          export OP_RETH_EXEC_PATH="{{SOURCE}}/../../target/debug/op-reth"
         fi
     else
         echo "Invalid BINARY specified. Must be 'node'."
@@ -153,7 +153,7 @@ long-running-test FILTER="" OUTPUT_LOGS_DIR="":
     export OP_VALIDATOR_WITH_GETH=0
 
     export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
-    export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
+    export OP_RETH_EXEC_PATH="{{SOURCE}}/../../target/debug/op-reth"
     export DEVSTACK_ORCHESTRATOR=sysgo
     echo "Building kona-node..."
     just build-kona
@@ -252,7 +252,7 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     xargs -I {} gotestsum --format=testname \
       --junitfile=./tmp/test-results/results-$NODE_INDEX.xml \
       --jsonfile=./tmp/testlogs/log-$NODE_INDEX.json \
-      -- -count=1 -parallel=$PARALLEL -coverprofile=coverage-$NODE_INDEX.out -timeout=60m -run '^{}$' \
+      -- -count=1 -parallel=$PARALLEL -timeout=60m -run '^{}$' \
       < /tmp/tests_shard.txt
 
     # xargs calls gotestsum multiple times appending to the same jsonfile,
@@ -265,7 +265,7 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
   {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
     --junitfile=./tmp/test-results/results.xml \
     --jsonfile=./tmp/testlogs/log.json \
-    -- -count=1 -parallel=$PARALLEL -coverprofile=coverage.out -timeout=60m -run "{{test_name}}"
+    -- -count=1 -parallel=$PARALLEL -timeout=60m -run "{{test_name}}"
 
 # Run action tests for the interop client program on the native target
 action-tests-interop test_name='TestInteropFaultProofs' *args='': action-tests-build (action-tests-interop-run test_name args)

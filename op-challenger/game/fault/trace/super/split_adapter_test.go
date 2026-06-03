@@ -25,24 +25,21 @@ func TestSplitAdapter(t *testing.T) {
 
 	t.Run("FromAbsolutePrestate", func(t *testing.T) {
 		creator, rootProvider, adapter := setupSplitAdapterTest(t, depth, prestateTimestamp, poststateTimestamp)
-		prestateResponse := eth.SuperRootResponse{
-			Version:   eth.SuperRootVersionV1,
-			Timestamp: prestateTimestamp,
-		}
-		rootProvider.Add(prestateResponse)
+		expectedSuper := eth.NewSuperV1(prestateTimestamp)
+		rootProvider.AddAtTimestamp(prestateTimestamp, eth.SuperRootAtTimestampResponse{
+			Data: &eth.SuperRootResponseData{Super: expectedSuper},
+		})
 		postClaim := types.Claim{
 			ClaimData: types.ClaimData{
 				Value:    common.Hash{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
 				Position: types.NewPosition(depth, big.NewInt(0)),
 			},
 		}
-		super, err := prestateResponse.ToSuper()
-		require.NoError(t, err)
 		expectedClaimInfo := ClaimInfo{
-			AgreedPrestate: super.Marshal(),
+			AgreedPrestate: expectedSuper.Marshal(),
 			Claim:          postClaim.Value,
 		}
-		_, err = adapter(context.Background(), depth, types.Claim{}, postClaim)
+		_, err := adapter(context.Background(), depth, types.Claim{}, postClaim)
 		require.ErrorIs(t, err, creatorError)
 		require.Equal(t, split.CreateLocalContext(types.Claim{}, postClaim), creator.localContext)
 		require.Equal(t, expectedClaimInfo, creator.claimInfo)
@@ -50,11 +47,12 @@ func TestSplitAdapter(t *testing.T) {
 
 	t.Run("AfterClaimedBlock", func(t *testing.T) {
 		creator, rootProvider, adapter := setupSplitAdapterTest(t, depth, prestateTimestamp, poststateTimestamp)
-		prestateResponse := eth.SuperRootResponse{
-			Version:   eth.SuperRootVersionV1,
-			Timestamp: poststateTimestamp,
-		}
-		rootProvider.Add(prestateResponse)
+		l1Head := eth.BlockID{}
+		expectedSuper := eth.NewSuperV1(poststateTimestamp)
+		rootProvider.AddAtTimestamp(poststateTimestamp, eth.SuperRootAtTimestampResponse{
+			CurrentL1: inSyncCurrentL1(l1Head),
+			Data:      &eth.SuperRootResponseData{Super: expectedSuper},
+		})
 		preClaim := types.Claim{
 			ClaimData: types.ClaimData{
 				Value:    common.Hash{0x11},
@@ -67,13 +65,11 @@ func TestSplitAdapter(t *testing.T) {
 				Position: types.NewPosition(depth, big.NewInt(1_000_000)),
 			},
 		}
-		super, err := prestateResponse.ToSuper()
-		require.NoError(t, err)
 		expectedClaimInfo := ClaimInfo{
-			AgreedPrestate: super.Marshal(),
+			AgreedPrestate: expectedSuper.Marshal(),
 			Claim:          postClaim.Value,
 		}
-		_, err = adapter(context.Background(), depth, preClaim, postClaim)
+		_, err := adapter(context.Background(), depth, preClaim, postClaim)
 		require.ErrorIs(t, err, creatorError)
 		require.Equal(t, split.CreateLocalContext(preClaim, postClaim), creator.localContext)
 		require.Equal(t, expectedClaimInfo, creator.claimInfo)
@@ -81,14 +77,15 @@ func TestSplitAdapter(t *testing.T) {
 
 	t.Run("MiddleOfTimestampTransition", func(t *testing.T) {
 		creator, rootProvider, adapter := setupSplitAdapterTest(t, depth, prestateTimestamp, poststateTimestamp)
-		prestateResponse := eth.SuperRootResponse{
-			Version:   eth.SuperRootVersionV1,
-			Timestamp: prestateTimestamp,
-		}
-		rootProvider.Add(prestateResponse)
-		rootProvider.Add(eth.SuperRootResponse{
-			Version:   eth.SuperRootVersionV1,
-			Timestamp: prestateTimestamp + 1,
+		l1Head := eth.BlockID{}
+		prevSuper := eth.NewSuperV1(prestateTimestamp)
+		rootProvider.AddAtTimestamp(prestateTimestamp, eth.SuperRootAtTimestampResponse{
+			CurrentL1: inSyncCurrentL1(l1Head),
+			Data:      &eth.SuperRootResponseData{Super: prevSuper},
+		})
+		rootProvider.AddAtTimestamp(prestateTimestamp+1, eth.SuperRootAtTimestampResponse{
+			CurrentL1: inSyncCurrentL1(l1Head),
+			Data:      &eth.SuperRootResponseData{Super: eth.NewSuperV1(prestateTimestamp + 1)},
 		})
 		preClaim := types.Claim{
 			ClaimData: types.ClaimData{
@@ -102,28 +99,26 @@ func TestSplitAdapter(t *testing.T) {
 				Position: types.NewPosition(depth, big.NewInt(3)),
 			},
 		}
-		super, err := prestateResponse.ToSuper()
-		require.NoError(t, err)
 		expectedPrestate := interopTypes.TransitionState{
-			SuperRoot: super.Marshal(),
+			SuperRoot: prevSuper.Marshal(),
 			Step:      3,
 		}
 		expectedClaimInfo := ClaimInfo{
 			AgreedPrestate: expectedPrestate.Marshal(),
 			Claim:          postClaim.Value,
 		}
-		_, err = adapter(context.Background(), depth, preClaim, postClaim)
+		_, err := adapter(context.Background(), depth, preClaim, postClaim)
 		require.ErrorIs(t, err, creatorError)
 		require.Equal(t, split.CreateLocalContext(preClaim, postClaim), creator.localContext)
 		require.Equal(t, expectedClaimInfo, creator.claimInfo)
 	})
 }
 
-func setupSplitAdapterTest(t *testing.T, depth types.Depth, prestateTimestamp uint64, poststateTimestamp uint64) (*capturingCreator, *stubRootProvider, split.ProviderCreator) {
+func setupSplitAdapterTest(t *testing.T, depth types.Depth, prestateTimestamp uint64, poststateTimestamp uint64) (*capturingCreator, *stubSuperNodeRootProvider, split.ProviderCreator) {
 	creator := &capturingCreator{}
-	rootProvider := &stubRootProvider{}
-	prestateProvider := NewSuperRootPrestateProvider(rootProvider, prestateTimestamp)
-	traceProvider := NewSupervisorSuperTraceProvider(testlog.Logger(t, log.LvlInfo), nil, prestateProvider, rootProvider, eth.BlockID{}, depth, prestateTimestamp, poststateTimestamp)
+	rootProvider := &stubSuperNodeRootProvider{}
+	prestateProvider := NewSuperNodePrestateProvider(rootProvider, prestateTimestamp)
+	traceProvider := NewSuperNodeTraceProvider(testlog.Logger(t, log.LvlInfo), prestateProvider, rootProvider, eth.BlockID{}, depth, prestateTimestamp, poststateTimestamp)
 	adapter := SuperRootSplitAdapter(traceProvider, creator.Create)
 	return creator, rootProvider, adapter
 }

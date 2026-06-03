@@ -20,10 +20,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // progressLogInterval is how often to log ingestion progress.
@@ -54,7 +54,7 @@ type LogsDBChainIngester struct {
 
 	rpcClient        client.RPC
 	ethClient        EthClient
-	logsDB           *logs.DB
+	logsDB           LogsDB
 	dataDir          string
 	startTimestamp   uint64        // Timestamp at which we report Ready (typically now)
 	backfillDuration time.Duration // How far back to start ingestion from startTimestamp
@@ -65,6 +65,10 @@ type LogsDBChainIngester struct {
 	stopped atomic.Bool
 
 	errorState atomic.Pointer[IngesterError]
+
+	// onFailsafeChange, if set, is invoked after the error state changes so the
+	// backend can refresh the failsafe metric. Set once before Start.
+	onFailsafeChange func()
 
 	earliestIngestedBlock    atomic.Uint64
 	earliestIngestedBlockSet atomic.Bool
@@ -208,6 +212,16 @@ func (c *LogsDBChainIngester) SetError(reason IngesterErrorReason, msg string) {
 	if reason == ErrorReorg || reason == ErrorConflict {
 		c.metrics.RecordReorgDetected(chainIDUint64)
 	}
+
+	if c.onFailsafeChange != nil {
+		c.onFailsafeChange()
+	}
+}
+
+// SetOnFailsafeChange registers a callback invoked after the error state
+// changes. Used by the backend to keep the failsafe metric in sync.
+func (c *LogsDBChainIngester) SetOnFailsafeChange(fn func()) {
+	c.onFailsafeChange = fn
 }
 
 // Error returns the current error state, or nil if no error.
@@ -219,16 +233,20 @@ func (c *LogsDBChainIngester) Error() *IngesterError {
 func (c *LogsDBChainIngester) ClearError() {
 	c.errorState.Store(nil)
 	c.log.Info("Ingester error state cleared")
+
+	if c.onFailsafeChange != nil {
+		c.onFailsafeChange()
+	}
 }
 
 // Contains checks if a log exists in the database
-func (c *LogsDBChainIngester) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
+func (c *LogsDBChainIngester) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	if c.logsDB == nil {
 		c.log.Warn("Contains called but logs DB not initialized")
-		return types.BlockSeal{}, types.ErrUninitialized
+		return messages.BlockSeal{}, interop.ErrUninitialized
 	}
 
 	return c.logsDB.Contains(query)
@@ -297,7 +315,7 @@ func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]Includ
 
 	if c.logsDB == nil {
 		c.log.Warn("GetExecMsgsAtTimestamp called but logs DB not initialized")
-		return nil, types.ErrUninitialized
+		return nil, interop.ErrUninitialized
 	}
 
 	blockNum, err := c.rollupCfg.TargetBlockNumber(timestamp)
@@ -313,7 +331,7 @@ func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]Includ
 	if !c.earliestIngestedBlockSet.Load() {
 		// We have not yet ingested any block with log data. Backfill is in progress
 		// (or hasn't started); we must not silently report "no executing messages".
-		return nil, types.ErrUninitialized
+		return nil, interop.ErrUninitialized
 	}
 	if blockNum < c.earliestIngestedBlock.Load() {
 		return nil, nil
@@ -341,22 +359,9 @@ func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]Includ
 }
 
 // findAndSetEarliestBlock determines the earliest queryable block on resume.
-//
-// The first sealed block is the anchor checkpoint (sealed without log data).
-// The earliest block that can be opened for queries is the block immediately
-// after it. nextBlock is the next block ingestion will attempt (i.e.
-// latestSealed+1) and is used to distinguish two states:
-//
-//   - nextBlock == first+1: the DB contains only the anchor. No blocks with
-//     log data have been ingested yet. We leave earliestIngestedBlockSet false
-//     and let the first successful ingestBlock set it, exactly as in the
-//     fresh-start path.
-//   - nextBlock > first+1: at least one block past the anchor has been sealed,
-//     which under normal operation also means it has log data. We verify with
-//     OpenBlock(first+1); if that fails the DB is in an unexpected state and
-//     we refuse to start rather than serve potentially incorrect query
-//     results.
-func (c *LogsDBChainIngester) findAndSetEarliestBlock(nextBlock uint64) error {
+// The first sealed block is the earliest block with log data — it is sealed
+// directly with its receipts, not as a separate anchor checkpoint.
+func (c *LogsDBChainIngester) findAndSetEarliestBlock() error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -364,22 +369,10 @@ func (c *LogsDBChainIngester) findAndSetEarliestBlock(nextBlock uint64) error {
 	if err != nil {
 		return fmt.Errorf("failed to find first sealed block in DB: %w", err)
 	}
-	earliest := first.Number + 1
 
-	if nextBlock == earliest {
-		c.log.Info("DB contains only anchor block; deferring earliest-block tracking to first ingestion",
-			"anchor", first.Number)
-		return nil
-	}
-
-	if _, _, _, err := c.logsDB.OpenBlock(earliest); err != nil {
-		return fmt.Errorf("DB has sealed blocks past anchor %d but earliest %d cannot be opened: %w",
-			first.Number, earliest, err)
-	}
-
-	c.earliestIngestedBlock.Store(earliest)
+	c.earliestIngestedBlock.Store(first.Number)
 	c.earliestIngestedBlockSet.Store(true)
-	c.log.Info("Found earliest block in DB", "block", earliest, "anchor", first.Number)
+	c.log.Info("Found earliest block in DB", "block", first.Number)
 	return nil
 }
 
@@ -402,23 +395,22 @@ func (c *LogsDBChainIngester) calculateStartingBlock() uint64 {
 }
 
 func (c *LogsDBChainIngester) initLogsDB() error {
-	var dbPath string
+	var dbDir string
 	if c.dataDir != "" {
-		chainDir := filepath.Join(c.dataDir, fmt.Sprintf("chain-%s", c.chainID))
-		if err := os.MkdirAll(chainDir, 0755); err != nil {
+		dbDir = filepath.Join(c.dataDir, fmt.Sprintf("chain-%s", c.chainID))
+		if err := os.MkdirAll(dbDir, 0755); err != nil {
 			return fmt.Errorf("failed to create chain directory: %w", err)
 		}
-		dbPath = filepath.Join(chainDir, "logs.db")
 	} else {
 		tempDir, err := os.MkdirTemp("", fmt.Sprintf("interop-filter-chain-%s-*", c.chainID))
 		if err != nil {
 			return fmt.Errorf("failed to create temp directory: %w", err)
 		}
-		dbPath = filepath.Join(tempDir, "logs.db")
-		c.log.Warn("Using temporary directory for logs DB", "path", dbPath)
+		dbDir = tempDir
+		c.log.Warn("Using temporary directory for logs DB", "path", dbDir)
 	}
 
-	db, err := logs.NewFromFile(c.log, &logsDBMetrics{m: c.metrics, chainID: c.chainID}, c.chainID, dbPath, true)
+	db, err := raftwallogdb.Open(dbDir, c.chainID)
 	if err != nil {
 		return fmt.Errorf("failed to open logs DB: %w", err)
 	}
@@ -427,7 +419,7 @@ func (c *LogsDBChainIngester) initLogsDB() error {
 	c.logsDB = db
 	c.mu.Unlock()
 
-	c.log.Info("Initialized logs DB", "path", dbPath)
+	c.log.Info("Initialized logs DB", "path", dbDir)
 	return nil
 }
 
@@ -476,6 +468,21 @@ func (c *LogsDBChainIngester) runIngestion() {
 			}
 			c.log.Error("Failed to get head", "err", err)
 			continue
+		}
+
+		// Record chain tip and lag metrics
+		chainIDUint64, _ := c.chainID.Uint64()
+		c.metrics.RecordChainTip(chainIDUint64, head.NumberU64())
+		if nextBlock > 0 {
+			ingestedHead := nextBlock - 1
+			if head.NumberU64() > ingestedHead {
+				c.metrics.RecordTipLagBlocks(chainIDUint64, head.NumberU64()-ingestedHead)
+			} else {
+				c.metrics.RecordTipLagBlocks(chainIDUint64, 0)
+			}
+			if ts, ok := c.LatestTimestamp(); ok {
+				c.metrics.RecordIngestionLagSeconds(chainIDUint64, clock.SystemClock.Since(time.Unix(int64(ts), 0)).Seconds())
+			}
 		}
 
 		// Reorg detection: if head moved behind our progress, check hash
@@ -552,17 +559,12 @@ func (c *LogsDBChainIngester) initIngestion() (uint64, error) {
 		c.log.Info("Resuming from existing DB", "lastSealed", latestSealed.Number, "resumeFrom", nextBlock)
 
 		if !c.earliestIngestedBlockSet.Load() {
-			if err := c.findAndSetEarliestBlock(nextBlock); err != nil {
+			if err := c.findAndSetEarliestBlock(); err != nil {
 				return 0, fmt.Errorf("failed to determine earliest ingested block: %w", err)
 			}
 		}
 
 		return nextBlock, nil
-	}
-
-	// Fresh start: seal parent block as anchor
-	if err := c.sealParentBlock(startingBlock - 1); err != nil {
-		return 0, fmt.Errorf("failed to seal parent block: %w", err)
 	}
 
 	c.log.Info("Starting fresh ingestion",
@@ -618,7 +620,7 @@ func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockI
 	defer c.mu.Unlock()
 
 	if c.logsDB == nil {
-		return eth.BlockID{}, 0, types.ErrUninitialized
+		return eth.BlockID{}, 0, interop.ErrUninitialized
 	}
 
 	// Recovery is intentionally fail-closed: finalized should already be in
@@ -630,10 +632,10 @@ func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockI
 	}
 	if storedSeal.Hash != targetID.Hash {
 		return eth.BlockID{}, 0, fmt.Errorf("finalized block %d hash mismatch: db has %s, chain has %s: %w",
-			targetID.Number, storedSeal.Hash, targetID.Hash, types.ErrConflict)
+			targetID.Number, storedSeal.Hash, targetID.Hash, interop.ErrConflict)
 	}
 
-	if err := c.logsDB.Rewind(reads.NoopRegistry{}, targetID); err != nil {
+	if err := c.logsDB.Rewind(targetID); err != nil {
 		return eth.BlockID{}, 0, fmt.Errorf("failed to rewind logs DB to finalized block %s: %w", targetID, err)
 	}
 
@@ -641,32 +643,6 @@ func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockI
 	c.pendingRewindResumeFromSet = true
 	c.log.Info("Rewound logs DB to finalized", "block", targetID.Number, "hash", targetID.Hash)
 	return targetID, targetInfo.Time(), nil
-}
-
-func (c *LogsDBChainIngester) sealParentBlock(blockNum uint64) error {
-	c.log.Info("Sealing parent block as starting point", "block", blockNum)
-
-	blockInfo, err := c.ethClient.InfoByNumber(c.ctx, blockNum)
-	if err != nil {
-		return fmt.Errorf("failed to get block info: %w", err)
-	}
-
-	blockID := eth.BlockID{Hash: blockInfo.Hash(), Number: blockInfo.NumberU64()}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	parentHash := blockInfo.ParentHash()
-	if err := c.logsDB.SealBlock(parentHash, blockID, blockInfo.Time()); err != nil {
-		return fmt.Errorf("failed to seal block: %w", err)
-	}
-
-	// Note: We don't set earliestIngestedBlock here because the parent block is just
-	// an anchor checkpoint. earliestIngestedBlock will be set in ingestBlock when
-	// the first block with actual log data is ingested.
-
-	c.log.Info("Sealed parent block", "block", blockNum, "hash", blockID.Hash)
-	return nil
 }
 
 func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
@@ -792,11 +768,11 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 
 	logCount, err := c.processBlockLogs(blockInfo, blockID, fetched.receipts, blockNum)
 	if err != nil {
-		if errors.Is(err, types.ErrConflict) {
+		if errors.Is(err, interop.ErrConflict) {
 			c.SetError(ErrorConflict, fmt.Sprintf("database conflict at block %d", blockNum))
 			return c.Error()
 		}
-		if errors.Is(err, types.ErrDataCorruption) {
+		if errors.Is(err, interop.ErrDataCorruption) {
 			c.SetError(ErrorDataCorruption, fmt.Sprintf("data corruption at block %d: %v", blockNum, err))
 			return c.Error()
 		}
@@ -860,9 +836,9 @@ func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID 
 
 	for _, receipt := range receipts {
 		for _, l := range receipt.Logs {
-			logHash := processors.LogToLogHash(l)
+			logHash := messages.LogToLogHash(l)
 
-			execMsg, err := processors.DecodeExecutingMessageLog(l)
+			execMsg, err := messages.DecodeExecutingMessageLog(l)
 			if err != nil {
 				return 0, fmt.Errorf("invalid log %d in block %d: %w: %w", l.Index, blockNum, ErrInvalidLog, err)
 			}
@@ -891,16 +867,6 @@ func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID 
 
 	return logIndex, nil
 }
-
-// logsDBMetrics implements the logs.Metrics interface
-type logsDBMetrics struct {
-	m       metrics.Metricer
-	chainID eth.ChainID
-}
-
-func (l *logsDBMetrics) RecordDBEntryCount(kind string, count int64) {}
-
-func (l *logsDBMetrics) RecordDBSearchEntriesRead(count int64) {}
 
 // Ensure LogsDBChainIngester implements ChainIngester
 var _ ChainIngester = (*LogsDBChainIngester)(nil)

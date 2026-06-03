@@ -10,23 +10,23 @@ type Supernode interface {
 	QueryAPI() apis.SupernodeQueryAPI
 }
 
-// InteropTestControl is the narrow integration-test surface on a running
-// supernode. Tests get direct access to the interop activity via
-// InteropActivity; see op-supernode/supernode/activity/interop for the
-// methods available on the returned pointer (PauseAt, Resume,
-// BackfillAttempts, BackfillCompleted, ActivationTimestamp,
-// BackfillEndTimestamp, FirstVerifiableTimestamp, FirstSealedBlock,
-// LatestSealedBlock, ...).
-type InteropTestControl interface {
+// SupernodeTestControl is the integration-test surface on a running
+// supernode. See op-supernode/supernode/activity/interop for the methods
+// available on the InteropActivity pointer.
+type SupernodeTestControl interface {
 	// InteropActivity returns the current interop activity, or nil if the
-	// supernode is not running or interop is not configured. Callers must
-	// not cache the pointer across RestartInteropActivity, which swaps the
-	// activity for a fresh instance.
+	// supernode is stopped or interop is not configured. Do not cache the
+	// pointer across RestartWithFreshDataDir.
 	InteropActivity() *interop.Interop
 
-	// RestartInteropActivity stops the running interop activity, optionally
-	// wipes its on-disk logs DBs, and launches a fresh instance against the
-	// still-running supernode (HTTP server, chain containers, and all other
-	// activities remain up).
-	RestartInteropActivity(wipeLogsDBs bool) error
+	// RestartWithFreshDataDir stops the supernode, deletes its on-disk
+	// data directory, and starts a fresh supernode against the same chain
+	// containers, virtual nodes, and externally-visible RPC address.
+	RestartWithFreshDataDir() error
+
+	// Stop halts the supernode while preserving its data directory and RPC
+	// address; Start brings it back up. Used by sync tests that need to halt
+	// the verifier, mutate external state, and resume.
+	Stop()
+	Start()
 }

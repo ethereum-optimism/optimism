@@ -8,6 +8,7 @@ import (
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	e2ecfg "github.com/ethereum-optimism/optimism/op-e2e/config"
@@ -76,6 +77,15 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	l2EngineCl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
+	// Synthesise a one-chain depset when interop is scheduled; the sequencer's
+	// FetchingAttributesBuilder constructor panics otherwise.
+	if sd.RollupCfg.InteropTime != nil && sd.DependencySet == nil {
+		defaultDepSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
+			eth.ChainIDFromBig(sd.RollupCfg.L2ChainID): {},
+		})
+		require.NoError(t, err)
+		sd.DependencySet = defaultDepSet
+	}
 	sequencer := helpers.NewL2Sequencer(t, log.New("role", "sequencer"), l1Cl, miner.BlobStore(), altda.Disabled, l2EngineCl, sd.RollupCfg, sd.L1Cfg.Config, sd.DependencySet, 0)
 	miner.ActL1SetFeeRecipient(common.Address{0xCA, 0xFE, 0xBA, 0xBE})
 	sequencer.ActL2PipelineFull(t)
@@ -231,7 +241,6 @@ func NewOpProgramCfg(
 
 	dfault := config.NewConfig(rollupConfigs, l2chainConfigs, l1chainConfig, fi.L1Head, fi.L2Head, fi.L2OutputRoot, fi.L2Claim, fi.L2BlockNumber)
 	dfault.L2ChainID = boot.CustomChainIDIndicator
-	dfault.DependencySet = fi.DependencySet
 	return dfault
 }
 

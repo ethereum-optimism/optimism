@@ -96,6 +96,7 @@ impl OpExecutionPayloadEnvelope {
                     .fee_recipient,
                 withdrawals: Some(payload.execution_payload.withdrawals().clone()),
                 parent_beacon_block_root: Some(payload.parent_beacon_block_root),
+                slot_number: None,
             },
             OpExecutionPayloadEnvelope::V4(payload) => PayloadAttributes {
                 timestamp: payload.execution_payload.payload_inner.timestamp(),
@@ -119,6 +120,7 @@ impl OpExecutionPayloadEnvelope {
                         .clone(),
                 ),
                 parent_beacon_block_root: Some(payload.parent_beacon_block_root),
+                slot_number: None,
             },
         }
     }

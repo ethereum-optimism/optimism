@@ -1,19 +1,19 @@
 //! [`NodeActor`] implementation for the derivation sub-routine.
 
 use crate::{
-    CancellableContext, DerivationActorRequest, DerivationEngineClient, DerivationState,
-    DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate, Metrics,
-    NodeActor, actors::derivation::L2Finalizer,
+    DerivationActorRequest, DerivationEngineClient, DerivationState, DerivationStateMachine,
+    DerivationStateTransitionError, DerivationStateUpdate, Metrics, NodeActor,
+    actors::derivation::L2Finalizer,
 };
 use async_trait::async_trait;
 use kona_derive::{
     ActivationSignal, Pipeline, PipelineError, PipelineErrorKind, ResetError, Signal,
     SignalReceiver, StepResult,
 };
+use kona_engine::FinalizeBlockId;
 use kona_protocol::OpAttributesWithParent;
 use thiserror::Error;
-use tokio::{select, sync::mpsc};
-use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
+use tokio::sync::mpsc;
 
 /// The [`NodeActor`] for the derivation sub-routine.
 ///
@@ -26,8 +26,6 @@ where
     DerivationEngineClient_: DerivationEngineClient,
     PipelineSignalReceiver: Pipeline + SignalReceiver,
 {
-    /// The cancellation token, shared between all tasks.
-    cancellation_token: CancellationToken,
     /// The channel on which all inbound requests are received by the [`DerivationActor`].
     inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
     /// The Engine client used to interact with the engine.
@@ -41,17 +39,6 @@ where
     pub(crate) finalizer: L2Finalizer,
 }
 
-impl<DerivationEngineClient_, PipelineSignalReceiver> CancellableContext
-    for DerivationActor<DerivationEngineClient_, PipelineSignalReceiver>
-where
-    DerivationEngineClient_: DerivationEngineClient,
-    PipelineSignalReceiver: Pipeline + SignalReceiver + Send + Sync,
-{
-    fn cancelled(&self) -> WaitForCancellationFuture<'_> {
-        self.cancellation_token.cancelled()
-    }
-}
-
 impl<DerivationEngineClient_, PipelineSignalReceiver>
     DerivationActor<DerivationEngineClient_, PipelineSignalReceiver>
 where
@@ -61,12 +48,10 @@ where
     /// Creates a new instance of the [`DerivationActor`].
     pub fn new(
         engine_client: DerivationEngineClient_,
-        cancellation_token: CancellationToken,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
         pipeline: PipelineSignalReceiver,
     ) -> Self {
         Self {
-            cancellation_token,
             pipeline,
             inbound_request_rx,
             engine_client,
@@ -189,8 +174,10 @@ where
                 // Attempt to finalize the block. If successful, notify engine.
                 if let Some(l2_block_number) = self.finalizer.try_finalize_next(*finalized_l1_block)
                 {
+                    // Local L1-finality: the engine's own canonical chain is the authoritative
+                    // source at this height, so finalize by number.
                     self.engine_client
-                        .send_finalized_l2_block(l2_block_number)
+                        .send_finalized_l2_block(FinalizeBlockId::ByNumber(l2_block_number))
                         .await
                         .map_err(|e| DerivationError::Sender(Box::new(e)))?;
                 }
@@ -270,32 +257,16 @@ where
     PipelineSignalReceiver: Pipeline + SignalReceiver + Send + Sync + 'static,
 {
     type Error = DerivationError;
-    type StartData = ();
 
-    async fn start(mut self, _: Self::StartData) -> Result<(), Self::Error> {
-        info!(target: "derivation", "Starting derivation");
-        loop {
-            select! {
-                biased;
-
-                _ = self.cancellation_token.cancelled() => {
-                    info!(
-                        target: "derivation",
-                        "Received shutdown signal. Exiting derivation task."
-                    );
-                    return Ok(());
-                }
-                req = self.inbound_request_rx.recv() => {
-                    let Some(request_type) = req else {
-                        error!(target: "derivation", "DerivationActor inbound request receiver closed unexpectedly");
-                        self.cancellation_token.cancel();
-                        return Err(DerivationError::RequestReceiveFailed);
-                    };
-
-                    self.handle_derivation_actor_request(request_type).await?;
-                }
-            }
-        }
+    async fn step(&mut self) -> Result<(), Self::Error> {
+        let request = self.inbound_request_rx.recv().await.ok_or_else(|| {
+            error!(
+                target: "derivation",
+                "DerivationActor inbound request receiver closed unexpectedly",
+            );
+            DerivationError::RequestReceiveFailed
+        })?;
+        self.handle_derivation_actor_request(request).await
     }
 }
 

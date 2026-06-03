@@ -1,10 +1,11 @@
-use super::common::RollupBoostTestHarnessBuilder;
-use super::common::proxy::BuilderProxyHandler;
+use super::common::{RollupBoostTestHarnessBuilder, proxy::BuilderProxyHandler};
 use futures::FutureExt;
 use serde_json::Value;
-use std::pin::Pin;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{
+    pin::Pin,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 // Create a dynamic handler that delays all the calls by 2 seconds
 struct DelayHandler {
@@ -35,8 +36,8 @@ async fn builder_full_delay() -> eyre::Result<()> {
         delay: delay.clone(),
     });
 
-    // This integration test checks that if the builder has a general delay in processing ANY of the requests,
-    // rollup-boost does not stop building blocks.
+    // This integration test checks that if the builder has a general delay in processing ANY of the
+    // requests, rollup-boost does not stop building blocks.
     let harness = RollupBoostTestHarnessBuilder::new("builder_full_delay")
         .proxy_handler(handler)
         .build()

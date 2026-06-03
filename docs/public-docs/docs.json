@@ -1228,7 +1228,11 @@
     },
     {
       "source": "/operators/node-operators/tutorials/node-from-source",
-      "destination": "/node-operators/tutorials/node-from-source"
+      "destination": "/node-operators/tutorials/run-node-from-source"
+    },
+    {
+      "source": "/node-operators/tutorials/node-from-source",
+      "destination": "/node-operators/tutorials/run-node-from-source"
     },
     {
       "source": "/operators/node-operators/tutorials/run-node-from-source",
@@ -1957,9 +1961,11 @@
               "chain-operators/tutorials/adding-precompiles",
               "chain-operators/tutorials/dispute-games",
               "chain-operators/tutorials/integrating-da-layer",
+              "chain-operators/tutorials/merge-shared-dispute-game",
               "chain-operators/tutorials/migrating-permissionless",
               "chain-operators/tutorials/modifying-predeploys",
-              "chain-operators/tutorials/rewind-op-geth"
+              "chain-operators/tutorials/rewind-op-geth",
+              "chain-operators/tutorials/upgrade-chain-to-super-roots"
             ]
           },
           {
@@ -2001,6 +2007,7 @@
                   }
                 ]
               },
+              "chain-operators/tools/op-interop-filter",
               "chain-operators/tools/op-txproxy",
               "chain-operators/tools/op-validator",
               "chain-operators/tools/proxyd"
@@ -2033,7 +2040,7 @@
                 "pages": [
                   "node-operators/guides/configuration/consensus-clients",
                   "node-operators/guides/configuration/execution-clients",
-                  "node-operators/guides/configuration/legacy-geth"
+                  "node-operators/guides/configuration/supernode"
                 ]
               },
               {
@@ -2058,7 +2065,6 @@
             "group": "Tutorials",
             "pages": [
               "node-operators/tutorials/node-from-docker",
-              "node-operators/tutorials/node-from-source",
               "node-operators/tutorials/run-node-from-source",
               "node-operators/tutorials/reth-historical-proofs"
             ]
@@ -2253,7 +2259,9 @@
               "/op-stack/features/custom-gas-token",
               "/op-stack/features/bridged-usdc-standard",
               "/op-stack/features/span-batches",
-              "/op-stack/features/send-raw-transaction-conditional"
+              "/op-stack/features/send-raw-transaction-conditional",
+              "/op-stack/features/l2-contract-manager",
+              "/op-stack/features/osaka-on-l2"
             ]
           },
           {
@@ -2348,6 +2356,12 @@
               "op-mainnet/network-information/snapshots",
               "op-mainnet/network-information/transaction-finality"
             ]
+          },
+          {
+            "group": "Pre-Bedrock History",
+            "pages": [
+              "node-operators/guides/configuration/legacy-geth"
+            ]
           }
         ]
       },
@@ -2369,8 +2383,10 @@
         "tab": "Notices",
         "groups": [
           {
-            "group": "Notices",
+            "group": "Network Notices",
             "pages": [
+              "notices/index",
+              "notices/interop-prep",
               "notices/upgrade-19",
               "notices/specialized-node-topology",
               "notices/stake-based-priority-ordering",
@@ -2393,6 +2409,50 @@
                   "notices/archive/upgrade-13",
                   "notices/archive/holocene-changes",
                   "notices/archive/superchain-withdrawal-pause-test"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Releases",
+            "pages": [
+              "releases/index",
+              {
+                "group": "Protocol",
+                "pages": [
+                  "releases/op-node",
+                  "releases/kona-node",
+                  "releases/op-batcher",
+                  "releases/op-proposer",
+                  "releases/op-challenger"
+                ]
+              },
+              {
+                "group": "Execution",
+                "pages": [
+                  "releases/op-reth"
+                ]
+              },
+              {
+                "group": "Fault Proofs",
+                "pages": [
+                  "releases/kona-client",
+                  "releases/kona-host"
+                ]
+              },
+              {
+                "group": "Contracts",
+                "pages": [
+                  "releases/op-contracts"
+                ]
+              },
+              {
+                "group": "Tooling",
+                "pages": [
+                  "releases/op-deployer",
+                  "releases/op-conductor",
+                  "releases/proxyd",
+                  "releases/op-acceptor"
                 ]
               }
             ]

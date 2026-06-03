@@ -47,6 +47,7 @@ import (
 	batcherCfg "github.com/ethereum-optimism/optimism/op-batcher/config"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
@@ -68,7 +69,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -81,7 +81,6 @@ import (
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 const (
@@ -159,7 +158,6 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 					ListenPort:  0,
 					EnableAdmin: true,
 				},
-				InteropConfig:               &interop.Config{},
 				L1EpochPollInterval:         time.Second * 2,
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &config2.DisabledConfigPersistence{},
@@ -176,7 +174,6 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 					ListenPort:  0,
 					EnableAdmin: true,
 				},
-				InteropConfig:               &interop.Config{},
 				L1EpochPollInterval:         time.Second * 4,
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &config2.DisabledConfigPersistence{},
@@ -413,8 +410,8 @@ func (sys *System) DisputeGameFactoryAddr() common.Address {
 	return sys.L1Deployments().DisputeGameFactoryProxy
 }
 
-func (sys *System) SupervisorClient() *sources.SupervisorClient {
-	sys.t.Fatal("supervisor client is not available for single chain system")
+func (sys *System) SupernodeClient() *sources.SuperNodeClient {
+	sys.t.Fatal("supernode client is not available for single chain system")
 	return nil
 }
 
@@ -449,8 +446,8 @@ func (sys *System) L2NodeEndpoints() []endpoint.RPC {
 	return []endpoint.RPC{sys.NodeEndpoint("sequencer")}
 }
 
-func (sys *System) SupervisorEndpoint() endpoint.RPC {
-	sys.t.Fatalf("supervisor endpoint is not supported for pre-interop System")
+func (sys *System) SupernodeEndpoint() endpoint.RPC {
+	sys.t.Fatalf("supernode endpoint is not supported for pre-interop System")
 	return nil
 }
 
@@ -622,7 +619,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	clk := clock.SystemClock
 	if cfg.SupportL1TimeTravel {
-		sys.TimeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		sys.TimeTravelClock = clock.NewAdvancingClock()
 		clk = sys.TimeTravelClock
 	}
 

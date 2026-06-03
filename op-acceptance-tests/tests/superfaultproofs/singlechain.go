@@ -6,7 +6,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -34,7 +35,7 @@ func RunSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 
 	// Stop batch submission so safe head stalls, then we have a known boundary.
 	c.Batcher.Stop()
-	sys.L2CLA.WaitForStall(types.CrossSafe)
+	sys.L2CLA.WaitForStall(safety.CrossSafe)
 
 	endTimestamp := nextTimestampAfterSafeHeads(t, chains)
 	startTimestamp := endTimestamp - 1

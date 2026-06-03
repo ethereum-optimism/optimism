@@ -1,16 +1,16 @@
 use eyre::Context as _;
 use metrics::histogram;
-use opentelemetry::trace::{Status, TracerProvider as _};
-use opentelemetry::{KeyValue, global};
+use opentelemetry::{
+    KeyValue, global,
+    trace::{Status, TracerProvider as _},
+};
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::trace::SpanProcessor;
-use opentelemetry_sdk::{Resource, propagation::TraceContextPropagator};
+use opentelemetry_sdk::{Resource, propagation::TraceContextPropagator, trace::SpanProcessor};
 use tracing::level_filters::LevelFilter;
 use tracing_opentelemetry::OpenTelemetryLayer;
-use tracing_subscriber::Layer;
-use tracing_subscriber::filter::Targets;
-use tracing_subscriber::fmt::writer::BoxMakeWriter;
-use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::{
+    Layer, filter::Targets, fmt::writer::BoxMakeWriter, layer::SubscriberExt,
+};
 
 use crate::cli::{LogFormat, RollupBoostServiceArgs};
 

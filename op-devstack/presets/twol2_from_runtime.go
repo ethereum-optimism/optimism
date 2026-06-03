@@ -108,8 +108,30 @@ func twoL2FromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) (*TwoL2, *t
 
 func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *TwoL2SupernodeInterop {
 	twoL2, components := twoL2FromRuntime(t, runtime)
+	chainA := runtime.Chains["l2a"]
+	chainB := runtime.Chains["l2b"]
+	t.Require().NotNil(chainA, "missing l2a supernode chain")
+	t.Require().NotNil(chainB, "missing l2b supernode chain")
+	t.Require().NotNil(chainA.SupernodeCL, "missing l2a supernode CL")
+	t.Require().NotNil(chainB.SupernodeCL, "missing l2b supernode CL")
 
 	supernode := newSupernodeFrontend(t, "supernode-two-l2-system", runtime.Supernode.UserRPC())
+	// The supernode VN drives its own EL, distinct from the sequencer's
+	// (joined only by L1 + P2P) in light-sequencer presets. In virtual-sequencer
+	// presets the supernode VN is itself the sequencer, so SupernodeEL == EL and
+	// it reuses the chain's primary EL frontend.
+	l2ASupernodeCL := newL2CLFrontend(t, "supernode", chainA.Network.ChainID(), chainA.SupernodeCL.UserRPC(), chainA.SupernodeCL)
+	l2ASupernodeEL := components.l2AEL
+	if chainA.SupernodeEL != nil && chainA.SupernodeEL != chainA.EL {
+		l2ASupernodeEL = newL2ELFrontend(t, "supernode", chainA.Network.ChainID(), chainA.SupernodeEL.UserRPC(), chainA.SupernodeEL.EngineRPC(), chainA.SupernodeEL.JWTPath(), chainA.Network.RollupConfig(), chainA.SupernodeEL)
+	}
+	l2ASupernodeCL.attachEL(l2ASupernodeEL)
+	l2BSupernodeCL := newL2CLFrontend(t, "supernode", chainB.Network.ChainID(), chainB.SupernodeCL.UserRPC(), chainB.SupernodeCL)
+	l2BSupernodeEL := components.l2BEL
+	if chainB.SupernodeEL != nil && chainB.SupernodeEL != chainB.EL {
+		l2BSupernodeEL = newL2ELFrontend(t, "supernode", chainB.Network.ChainID(), chainB.SupernodeEL.UserRPC(), chainB.SupernodeEL.EngineRPC(), chainB.SupernodeEL.JWTPath(), chainB.Network.RollupConfig(), chainB.SupernodeEL)
+	}
+	l2BSupernodeCL.attachEL(l2BSupernodeEL)
 	testSequencer := newTestSequencerFrontend(
 		t,
 		runtime.TestSequencer.Name,
@@ -135,6 +157,8 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 		TestSequencer:         dsl.NewTestSequencer(testSequencer),
 		L2ELA:                 dsl.NewL2ELNode(components.l2AEL),
 		L2ELB:                 dsl.NewL2ELNode(components.l2BEL),
+		L2ASupernodeCL:        dsl.NewL2CLNode(l2ASupernodeCL),
+		L2BSupernodeCL:        dsl.NewL2CLNode(l2BSupernodeCL),
 		L2BatcherA:            dsl.NewL2Batcher(components.l2ABatcher),
 		L2BatcherB:            dsl.NewL2Batcher(components.l2BBatcher),
 		FaucetA:               components.faucetA,

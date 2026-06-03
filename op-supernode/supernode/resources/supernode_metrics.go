@@ -20,6 +20,9 @@ type SupernodeMetrics struct {
 	LogBackfillProgress         *prometheus.GaugeVec
 	LogBackfillRetries          *prometheus.CounterVec
 	ActivityErrors              *prometheus.CounterVec
+	// InteropActivityState tracks the interop activity lifecycle:
+	// 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.
+	InteropActivityState prometheus.Gauge
 
 	registry *prometheus.Registry
 }
@@ -90,6 +93,11 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 			Name:      "activity_errors_total",
 			Help:      "Total number of activity errors by activity name and error type.",
 		}, []string{"activity", "error_type"}),
+		InteropActivityState: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "interop_activity_state",
+			Help:      "Interop activity lifecycle state: 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.",
+		}),
 		registry: reg,
 	}
 	reg.MustRegister(
@@ -105,6 +113,7 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 		m.LogBackfillProgress,
 		m.LogBackfillRetries,
 		m.ActivityErrors,
+		m.InteropActivityState,
 	)
 	return m
 }

@@ -1,10 +1,10 @@
 package prestate
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
-	"net/http"
-	"net/url"
+	"os/exec"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/registry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/types"
@@ -27,7 +27,7 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 
 	prestateTag := fmt.Sprintf("kona-client/v%s", prestateVersion)
 	log.Info("Found prestate tag", "tag", prestateTag)
-	fppCommitInfo = types.NewCommitInfo("op-rs", "kona", prestateTag, "main", "")
+	fppCommitInfo = types.NewCommitInfo("ethereum-optimism", "optimism", prestateTag, "develop", "rust/kona")
 
 	superChainRegistryCommit, err := fetchSuperchainRegistryCommit(prestateTag)
 	if err != nil {
@@ -51,37 +51,57 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 	return
 }
 
+// fetchSuperchainRegistryCommit returns the superchain-registry commit SHA that
+// the kona-client release identified by ref was built against, by reading the
+// pinned commit file from the local optimism monorepo checkout at that tag.
+//
+// Only kona-client tags that have op-core/superchain/superchain-registry-commit.txt
+// are supported (v1.5.1 and later). If the tag isn't present locally, the
+// function fetches it from origin before giving up.
 func fetchSuperchainRegistryCommit(ref string) (string, error) {
-	endpoint := "https://api.github.com/repos/op-rs/kona/contents/crates/protocol/registry/superchain-registry?ref=" +
-		url.QueryEscape(ref)
+	const path = "op-core/superchain/superchain-registry-commit.txt"
 
-	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err := ensureRefAvailable(ref); err != nil {
+		return "", err
+	}
+
+	stdout, stderr, err := runGit("show", fmt.Sprintf("%s:%s", ref, path))
 	if err != nil {
-		return "", fmt.Errorf("build request: %w", err)
+		return "", fmt.Errorf("git show %s:%s failed: %w (%s)", ref, path, err, strings.TrimSpace(stderr))
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
+	sha := strings.TrimSpace(stdout)
+	if sha == "" {
+		return "", fmt.Errorf("empty commit SHA at %s@%s", path, ref)
+	}
+	return sha, nil
+}
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("http request: %w", err)
+// ensureRefAvailable verifies that ref resolves in the local repo; if not, it
+// attempts to fetch the tag from origin.
+func ensureRefAvailable(ref string) error {
+	if refExists(ref) {
+		return nil
 	}
-	defer resp.Body.Close()
+	refspec := fmt.Sprintf("refs/tags/%s:refs/tags/%s", ref, ref)
+	if _, stderr, err := runGit("fetch", "--quiet", "origin", refspec); err != nil {
+		return fmt.Errorf("ref %q not found locally and git fetch origin %s failed: %w (%s)", ref, refspec, err, strings.TrimSpace(stderr))
+	}
+	if !refExists(ref) {
+		return fmt.Errorf("ref %q still not found after git fetch origin %s", ref, refspec)
+	}
+	return nil
+}
 
-	// Parse error payloads from GitHub if status != 200.
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to fetch superchain-registry version, http status: %s", resp.Status)
-	}
+func refExists(ref string) bool {
+	_, _, err := runGit("rev-parse", "--verify", "--quiet", ref+"^{commit}")
+	return err == nil
+}
 
-	// Success path: expect a single "submodule" content object with "sha".
-	var content struct {
-		Type string `json:"type"` // should be "submodule"
-		SHA  string `json:"sha"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&content); err != nil {
-		return "", fmt.Errorf("decode response: %w", err)
-	}
-	if content.Type != "submodule" {
-		return "", fmt.Errorf("expected a submodule got type %q", content.Type)
-	}
-	return content.SHA, nil
+func runGit(args ...string) (string, string, error) {
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command("git", args...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return stdout.String(), stderr.String(), err
 }

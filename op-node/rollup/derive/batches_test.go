@@ -78,6 +78,8 @@ func TestValidBatch(t *testing.T) {
 	signer := types.NewIsthmusSigner(chainId)
 	randTx := testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), signer)
 	randTxData, _ := randTx.MarshalBinary()
+	postExecTxData, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
 
 	l1A := testutils.RandomBlockRef(rng)
 	l1B := eth.L1BlockRef{
@@ -596,6 +598,47 @@ func TestValidBatch(t *testing.T) {
 			},
 			Expected:    BatchDrop,
 			ExpectedLog: "sequencers may not embed any SetCode transactions before Isthmus",
+		},
+		{
+			Name:       "postExec tx included pre-SDM",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B},
+			L2SafeHead: l2A0,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: &SingularBatch{
+					ParentHash: l2A1.ParentHash,
+					EpochNum:   rollup.Epoch(l2A1.L1Origin.Number),
+					EpochHash:  l2A1.L1Origin.Hash,
+					Timestamp:  l2A1.Time,
+					Transactions: []hexutil.Bytes{
+						postExecTxData,
+					},
+				},
+			},
+			Expected:    BatchDrop,
+			ExpectedLog: "sequencers may not embed any PostExec transactions before SDM",
+		},
+		{
+			Name:       "postExec tx included at SDM",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B},
+			L2SafeHead: l2A0,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: &SingularBatch{
+					ParentHash: l2A1.ParentHash,
+					EpochNum:   rollup.Epoch(l2A1.L1Origin.Number),
+					EpochHash:  l2A1.L1Origin.Hash,
+					Timestamp:  l2A1.Time,
+					Transactions: []hexutil.Bytes{
+						postExecTxData,
+					},
+				},
+			},
+			Expected: BatchAccept,
+			ConfigMod: func(c *rollup.Config) {
+				activation := l2A0.Time
+				c.InteropTime = &activation
+			},
 		},
 		{
 			Name:       "valid batch same epoch",

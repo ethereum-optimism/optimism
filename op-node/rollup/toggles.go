@@ -22,3 +22,9 @@ func (c *Config) IsL2CMActivationBlock(l2BlockTime uint64) bool {
 	}
 	return c.IsKarstActivationBlock(l2BlockTime)
 }
+
+// IsSDM gates Sequencer-Defined Metering. When this returns false, span batches
+// carrying PostExec transactions are rejected during derivation.
+func (c *Config) IsSDM(time uint64) bool {
+	return c.IsInterop(time)
+}
