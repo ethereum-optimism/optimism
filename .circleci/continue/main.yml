@@ -2774,9 +2774,9 @@ workflows:
       # IN-MEMORY (all) - op-node/op-geth
       - op-acceptance-tests:
           name: memory-all-opn-op-geth
-          parallelism: 32
+          parallelism: 4
           acceptance_test_jobs: "32"
-          resource_class: xlarge.gen2
+          resource_class: 2xlarge+.gen2
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2791,9 +2791,9 @@ workflows:
       - op-acceptance-tests:
           name: memory-all-opn-op-reth
           l2_el_kind: op-reth
-          parallelism: 32
+          parallelism: 4
           acceptance_test_jobs: "32"
-          resource_class: xlarge.gen2
+          resource_class: 2xlarge+.gen2
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2809,9 +2809,9 @@ workflows:
           name: memory-all-kona-op-reth
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
-          parallelism: 32
+          parallelism: 4
           acceptance_test_jobs: "32"
-          resource_class: xlarge.gen2
+          resource_class: 2xlarge+.gen2
           no_output_timeout: 120m
           context:
             - circleci-repo-readonly-authenticated-github-token
