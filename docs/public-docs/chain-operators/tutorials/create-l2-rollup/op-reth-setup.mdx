@@ -275,7 +275,7 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
       --http \
       --http.addr=0.0.0.0 \
       --http.port=$OP_GETH_HTTP_PORT \
-      --http.api=eth,net,web3,debug,txpool,admin \
+      --http.api=eth,net,web3,debug,txpool,admin,miner \
       --http.corsdomain="*" \
       --ws \
       --ws.addr=0.0.0.0 \
@@ -286,6 +286,21 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
       --authrpc.jwtsecret=$JWT_SECRET \
       --rollup.disable-tx-pool-gossip
     ```
+
+    <Note>
+      `--http.api` includes `miner` because op-batcher's data-availability throttling calls
+      `miner_setMaxDASize` on the execution client (op-reth implements it). Omitting `miner` makes
+      the batcher log "method miner_setMaxDASize does not exist".
+    </Note>
+
+    <Note>
+      **If this node will back a fault-proof challenger** (the permissionless `cannon-kona` game type
+      from Karst), it also needs to serve historical execution witnesses to `kona-host`. Add the
+      historical-proofs sidecar — run `op-reth proofs init` once, then start the node with
+      `--proofs-history --proofs-history.storage-version v2 --proofs-history.storage-path <path>` and
+      `--rpc.eth-proof-window <N>` — and enable `--safedb.path` on `op-node` so the challenger can look
+      up the safe head per L1 block. See the [op-challenger configuration guide](/chain-operators/guides/configuration/op-challenger-config-guide).
+    </Note>
 
     ### op-node configuration for sequencer
 

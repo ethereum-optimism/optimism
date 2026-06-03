@@ -314,7 +314,11 @@ For setting up the proposer, we recommend using Docker as it provides a consiste
 
       <Info>
         The proposer only needs the `DisputeGameFactory` address to submit proposals.
-        The `GAME_TYPE=0` represents the standard fault proof game type.
+        `GAME_TYPE` must match the game type your chain *respects*. `0` is permissionless
+        `CANNON` (op-program); `1` is `PERMISSIONED_CANNON`; from the Karst upgrade the respected
+        type is **`8` (`CANNON_KONA`)**, the permissionless kona game. Set `GAME_TYPE` to whichever
+        your chain has registered and made respected — the proposer can only create games of a type
+        that has an implementation registered on the `DisputeGameFactory`.
       </Info>
 
       </Step>
