@@ -206,12 +206,6 @@ strip = "symbols"
 panic = "unwind"
 codegen-units = 16
 
-[profile.ci-turbo]
-inherits = "release"
-opt-level = 1
-debug = "line-tables-only"
-strip = "none"
-
 [profile.release-client-lto]
 inherits = "release"
 panic = "abort"

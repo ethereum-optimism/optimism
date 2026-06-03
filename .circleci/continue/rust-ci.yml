@@ -486,15 +486,12 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: 2xlarge.gen2
-    environment:
-      CI_CARGO_PROFILE: ci-turbo
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &doctest-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-doctest
-          profile: ci-turbo
       - run:
           name: Run doc tests
           working_directory: <<parameters.directory>>
@@ -517,14 +514,12 @@ jobs:
         type: string
         default: ""
       cache_profile:
-        description: "Build profile for caching (defaults to ci-turbo, matching CI_CARGO_PROFILE)"
+        description: "Build profile for caching"
         type: string
-        default: "ci-turbo"
+        default: "release"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: 2xlarge.gen2
-    environment:
-      CI_CARGO_PROFILE: ci-turbo
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -1094,6 +1089,7 @@ workflows:
           name: op-reth-integration-tests
           directory: rust
           command: "--justfile op-reth/justfile test-integration"
+          cache_profile: debug
           context: *rust-ci-context
 
       # -----------------------------------------------------------------------

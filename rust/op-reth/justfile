@@ -7,11 +7,6 @@ CARGO_TARGET_DIR := env("CARGO_TARGET_DIR", "target")
 FEATURES := env("FEATURES", if os() == "windows" { "asm-keccak min-debug-logs" } else { "jemalloc asm-keccak min-debug-logs" })
 PROFILE := env("PROFILE", "release")
 CARGO_INSTALL_EXTRA_FLAGS := env("CARGO_INSTALL_EXTRA_FLAGS", "")
-
-# Cargo profile used by test recipes. Empty means "let cargo pick its default".
-# CI sets this to `ci-turbo` (release + opt-level=1) for faster test builds.
-CI_CARGO_PROFILE := env("CI_CARGO_PROFILE", "")
-TEST_PROFILE_FLAG := if CI_CARGO_PROFILE != "" { "--cargo-profile " + CI_CARGO_PROFILE } else { "" }
 DOCKER_IMAGE_NAME := env("DOCKER_IMAGE_NAME", "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth")
 
 # default recipe to display help information
@@ -30,12 +25,11 @@ test edge='':
     --features "asm-keccak {{edge}}" --locked \
     --workspace \
     --no-tests=warn \
-    {{TEST_PROFILE_FLAG}} \
     -E "!kind(test) and not binary(e2e_testsuite) and not test(test_online)"
 
 # Run integration tests for reth-optimism-node
 test-integration:
-  RUST_BACKTRACE=1 cargo nextest run --locked -p reth-optimism-node {{TEST_PROFILE_FLAG}}
+  RUST_BACKTRACE=1 cargo nextest run --locked -p reth-optimism-node
 
 # Check Windows cross-compilation
 check-windows:
