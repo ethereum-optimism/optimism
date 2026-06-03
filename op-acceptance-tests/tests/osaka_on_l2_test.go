@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/params/forks"
 )
 
 func TestEIP7823UpperBoundModExp(gt *testing.T) {
@@ -365,9 +366,15 @@ func TestEIP7825DepositBypassesTxGasLimitCap(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+	sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 	sys.L1Network.WaitForOnline()
 	sys.L2EL.WaitForBlockNumber(1)
+	spamTxs(sys.Minimal)
+	// Wait for base fee to rise so the deposit check can work (with a low L1 base fee, it is
+	// impossible to submit deposits that consume a lot of gas).
+	sys.L2EL.WaitForLabelRef(eth.Unsafe, func(info eth.BlockInfo) (bool, error) {
+		return info.BaseFee().Cmp(eth.GWei(2).ToBig()) < 0, nil
+	})
 
 	alice := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	portalAddr := sys.L2Chain.Escape().RollupConfig().DepositContractAddress
