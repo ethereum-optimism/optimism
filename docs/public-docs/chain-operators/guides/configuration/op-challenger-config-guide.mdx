@@ -66,9 +66,13 @@ To ensure you're using the latest compatible versions of OP Stack components, al
 
 [OP Stack releases page](https://github.com/ethereum-optimism/optimism/releases)
 
-Look for the latest `op-challenger/v*` release. The challenger version used in this guide (op-challenger/v1.9.3) is a verified stable version.
+This guide is verified against the following versions:
 
-Always check the release notes to ensure you're using compatible versions with your chain's deployment.
+*   **op-challenger** — `op-challenger/v1.9.3` (look for the latest `op-challenger/v*`).
+*   **op-reth** — `v2.2.5` (look for the latest [op-reth release](https://github.com/ethereum-optimism/optimism/releases?q=op-reth)). op-reth is both the sequencer's execution client and the archive node the challenger reads withdrawal proofs from.
+*   **kona-client** — the absolute prestate is built from a tagged `kona-client/v*` release (e.g. `kona-client/v1.6.0-rc.1`). Use the tag matching the prestate registered on your chain; for governance-approved upgrades the version is named in the upgrade notice. See the [kona-client prestate tutorial](/chain-operators/tutorials/kona-custom-prestate).
+
+Always check the release notes to ensure you're using compatible versions with your chain's deployment. Using the op-challenger and kona-client versions named in the upgrade notice (or the latest matching releases) is the supported path.
 
 ## Software installation
 
@@ -223,6 +227,7 @@ Check that you have properly installed the challenger component:
   *   This needs to be an `op-reth` archive node, with `debug` enabled.
   *   Technically doesn't need to go to bedrock, but needs to have access to the start of any game that is still in progress.
   *   The withdrawal-proof data the challenger reads via `eth_getProof` is served by op-reth's historical-proofs store. Enable it with `--proofs-history --proofs-history.storage-version v2`, set a persistent `--proofs-history.storage-path`, and size `--proofs-history.window` to cover the dispute game window (≥ 28 days). On permissioned chains, `--rpc.eth-proof-window` bounds how far back `eth_getProof` will serve. See [Running op-reth with historical proofs](/node-operators/tutorials/reth-historical-proofs).
+  *   **Seed the proofs storage once before starting the node with `--proofs-history`**, or op-reth refuses to start (the `proofs-history` ExEx panics with `Proofs storage not initialized`). With the node stopped, run `op-reth proofs init --chain <chain-or-genesis> --datadir <reth-datadir> --proofs-history.storage-path <proofs-db-path> --proofs-history.storage-version v2`. It snapshots the chain's current state to seed the sidecar; the ExEx then indexes forward as the node syncs. Initialize at (or near) genesis so the whole fault-proof window is covered — a node seeded at the current tip only serves proofs for blocks after that point.
   </Expandable>
   
   <Expandable title="--rollup-rpc">
@@ -445,6 +450,7 @@ The Docker setup provides a containerized environment for running the challenger
   *   This needs to be an `op-reth` archive node, with `debug` enabled.
   *   Technically doesn't need to go to bedrock, but needs to have access to the start of any game that is still in progress.
   *   The withdrawal-proof data the challenger reads via `eth_getProof` is served by op-reth's historical-proofs store. Enable it with `--proofs-history --proofs-history.storage-version v2`, set a persistent `--proofs-history.storage-path`, and size `--proofs-history.window` to cover the dispute game window (≥ 28 days). On permissioned chains, `--rpc.eth-proof-window` bounds how far back `eth_getProof` will serve. See [Running op-reth with historical proofs](/node-operators/tutorials/reth-historical-proofs).
+  *   **Seed the proofs storage once before starting the node with `--proofs-history`**, or op-reth refuses to start (the `proofs-history` ExEx panics with `Proofs storage not initialized`). With the node stopped, run `op-reth proofs init --chain <chain-or-genesis> --datadir <reth-datadir> --proofs-history.storage-path <proofs-db-path> --proofs-history.storage-version v2`. It snapshots the chain's current state to seed the sidecar; the ExEx then indexes forward as the node syncs. Initialize at (or near) genesis so the whole fault-proof window is covered — a node seeded at the current tip only serves proofs for blocks after that point.
   </Expandable>
   
   <Expandable title="--rollup-rpc">
