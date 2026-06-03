@@ -381,11 +381,11 @@ commands:
       enabled:
         description: "Master switch. Set true once the GCS bucket + IAM are provisioned."
         type: boolean
-        default: false
+        default: true
       bucket:
         description: "GCS bucket for the sccache cache."
         type: string
-        default: "oplabs-ci-sccache"
+        default: "op-premium-rust-sccache"
       version:
         description: "Pinned sccache release version."
         type: string
@@ -407,17 +407,28 @@ commands:
                     tar -xzf /tmp/sccache.tgz -C /tmp
                     sudo install "/tmp/${ASSET}/sccache" /usr/local/bin/sccache
                   fi
-                  # sccache reads GCS credentials from ADC (GOOGLE_APPLICATION_CREDENTIALS,
-                  # set by gcp-oidc-authenticate). CARGO_INCREMENTAL=0 is required for
-                  # sccache to cache effectively.
-                  {
-                    echo "export RUSTC_WRAPPER=sccache"
-                    echo "export SCCACHE_GCS_BUCKET=<< parameters.bucket >>"
-                    echo "export SCCACHE_GCS_KEY_PREFIX=sccache"
-                    echo "export SCCACHE_GCS_RW_MODE=READ_WRITE"
-                    echo "export CARGO_INCREMENTAL=0"
-                  } >> "$BASH_ENV"
                   sccache --version
+                  # Creds via ADC (GOOGLE_APPLICATION_CREDENTIALS, set by
+                  # gcp-oidc-authenticate). Configure + start the server and only
+                  # enable the wrapper if it comes up, so a credential/bucket
+                  # misconfig degrades to a normal build instead of failing every
+                  # rustc. CARGO_INCREMENTAL=0 is required for sccache to cache.
+                  export SCCACHE_GCS_BUCKET="<< parameters.bucket >>"
+                  export SCCACHE_GCS_KEY_PREFIX=sccache
+                  export SCCACHE_GCS_RW_MODE=READ_WRITE
+                  sccache --stop-server >/dev/null 2>&1 || true
+                  if sccache --start-server && sccache --show-stats; then
+                    {
+                      echo "export RUSTC_WRAPPER=sccache"
+                      echo "export SCCACHE_GCS_BUCKET=<< parameters.bucket >>"
+                      echo "export SCCACHE_GCS_KEY_PREFIX=sccache"
+                      echo "export SCCACHE_GCS_RW_MODE=READ_WRITE"
+                      echo "export CARGO_INCREMENTAL=0"
+                    } >> "$BASH_ENV"
+                    echo "sccache enabled (bucket=<< parameters.bucket >>)"
+                  else
+                    echo "WARNING: sccache failed to start; building WITHOUT it"
+                  fi
 
   rust-prepare:
     parameters:
@@ -495,6 +506,13 @@ commands:
         type: string
         default: "rust-build"
     steps:
+      # Show sccache hit/write stats at job end when enabled. Harmless no-op
+      # otherwise (sccache absent -> swallowed). Lets us confirm the GCS cache
+      # is actually being populated/hit rather than silently failing auth.
+      - run:
+          name: sccache stats
+          command: 'command -v sccache >/dev/null 2>&1 && sccache --show-stats || true'
+          when: always
       - save_cache:
           key: << parameters.prefix >>-registry-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
           name: Save << parameters.directory >> registry cache (mise)
