@@ -1900,10 +1900,8 @@ jobs:
             echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
       # Restore cached Go modules
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-            - go-mod-v1-
+      - go-restore-cache:
+          namespace: op-acceptance-tests
       # Download Go dependencies
       - run:
           name: Download Go dependencies
@@ -1933,10 +1931,8 @@ jobs:
             cat "$LOG_DIR"/failed/*.log || true
           when: on_fail
       # Save the module cache for future runs
-      - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
-          paths:
-            - "/go/pkg/mod"
+      - go-save-cache:
+          namespace: op-acceptance-tests
       # Store test results and artifacts
       - when:
           condition: always
