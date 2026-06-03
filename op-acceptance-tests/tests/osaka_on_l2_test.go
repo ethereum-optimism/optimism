@@ -27,7 +27,7 @@ func TestEIP7823UpperBoundModExp(gt *testing.T) {
 
 	t.Run("pre-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Pre-Karst: the oversized modulus is accepted by the modexp precompile
@@ -43,7 +43,7 @@ func TestEIP7823UpperBoundModExp(gt *testing.T) {
 
 	t.Run("post-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Make sure the chain is past genesis before submitting txs, so the agreed
@@ -63,7 +63,7 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 
 	t.Run("pre-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Empty MODEXP calldata pads to Bsize=Esize=Msize=0, which hits exactly the
@@ -83,7 +83,7 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 
 	t.Run("post-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Make sure the chain is past genesis before submitting txs, so the agreed
@@ -132,7 +132,7 @@ func TestEIP7825TxGasLimitCap(gt *testing.T) {
 			t.Run(tc.name, func(t devtest.T) {
 				t.Parallel()
 				opts := append(
-					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis)},
+					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka))},
 					tc.konaOpts...,
 				)
 				sys := presets.NewMinimalWithKona(t, opts...)
@@ -159,7 +159,7 @@ func TestEIP7825TxGasLimitCap(gt *testing.T) {
 		// Live chain is on Karst — op-reth's RPC rejects a tx with gas > 2^24
 		// at submission time, so it never lands on-chain. Nothing for kona to
 		// validate.
-		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 		t.Require().NoError(karsttest.CheckEIP7825(t.Ctx(), t.Logger(), eoa.Plan()))
 	})
@@ -205,7 +205,7 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 			t.Run(tc.name, func(t devtest.T) {
 				t.Parallel()
 				opts := append(
-					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis)},
+					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka))},
 					tc.konaOpts...,
 				)
 				sys := presets.NewMinimalWithKona(t, opts...)
@@ -228,7 +228,7 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 
 	t.Run("post-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Make sure the chain is past genesis before submitting txs, so the agreed
@@ -282,7 +282,7 @@ func TestKarstBn256PairingInputSizeReduction(gt *testing.T) {
 			t.Run(tc.name, func(t devtest.T) {
 				t.Parallel()
 				opts := append(
-					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis)},
+					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka))},
 					tc.konaOpts...,
 				)
 				sys := presets.NewMinimalWithKona(t, opts...)
@@ -308,7 +308,7 @@ func TestKarstBn256PairingInputSizeReduction(gt *testing.T) {
 
 	t.Run("post-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Make sure the chain is past genesis before submitting txs, so the agreed
@@ -328,7 +328,7 @@ func TestEIP7939CLZ(gt *testing.T) {
 
 	t.Run("pre-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Pre-Karst: CLZ opcode (0x1e) is invalid; the init code aborts and
@@ -343,7 +343,7 @@ func TestEIP7939CLZ(gt *testing.T) {
 
 	t.Run("post-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Make sure the chain is past genesis before submitting txs, so the agreed
@@ -401,6 +401,7 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 	sys := presets.NewMinimal(t, presets.WithDeployerOptions(
 		sysgo.WithKarstAtGenesis,
 		sysgo.WithL2GasLimit(120_000_000),
+		sysgo.WithForkAtL1Genesis(forks.Osaka),
 	))
 
 	spamTxs(sys)
