@@ -127,11 +127,19 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
     </Tab>
 
     <Tab title="Chains with custom chain configurations">
-      If you generated a custom prestate following the [Custom kona-client prestate tutorial](/chain-operators/tutorials/kona-custom-prestate), the resulting hash is specific to your chain and will not appear in `standard-prestates.toml`. Verify it with these two checks:
+      If you generated a custom prestate following the [Custom kona-client prestate tutorial](/chain-operators/tutorials/kona-custom-prestate), the resulting hash is specific to your chain and will not appear in `standard-prestates.toml`. Verify it with these three checks:
 
       1. **Confirm the inputs.** Open the rollup config files inside the `KONA_CUSTOM_CONFIGS_DIR` you used during the build and confirm the chain ID, fork timestamps (including `karst_time` once it lands), and L1/L2 contract addresses match your chain's actual state. The prestate is only as correct as the configs you fed into the build — once the inputs are right, the build is deterministic.
 
-      2. **On-chain match (post-deployment).** Once the new `FaultDisputeGame` and `PermissionedDisputeGame` implementations are deployed with the new prestate, query `absolutePrestate()` on each and confirm it matches the hash from `jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json`. This is the source of truth post-upgrade.
+      2. **Confirm your chain is embedded (pre-deployment).** A custom build that silently fails to merge your chain produces the *standard* prestate hash. Confirm your chain is actually inside the prestate image before you deploy anything:
+
+         ```bash
+         gunzip -c rust/kona/prestate-artifacts-cannon/prestate.bin.gz | strings | grep "<your-chain-name>"
+         ```
+
+         Run it once per chain in your `chainList.json`; every chain must match at least once.
+
+      3. **On-chain match (post-deployment).** After the new game type is registered, confirm the on-chain absolute prestate matches `jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json`. On current (v2.4+) contracts the prestate lives in the `DisputeGameFactory`'s `gameArgs` (the first 32 bytes of `gameArgs(<gameType>)`), so read it there or from a *created game instance* — `absolutePrestate()` on the bare implementation returns zero because the value is a clone-with-immutable-args argument, not a constructor immutable.
     </Tab>
   </Tabs>
   </Step>
