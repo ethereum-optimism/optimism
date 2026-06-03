@@ -419,6 +419,16 @@ func (wb *worldBuilder) buildL2Genesis() {
 		id := eth.ChainIDFromBytes32(ch.ID)
 		wb.outL2Genesis[id] = l2Genesis
 		wb.outL2RollupCfg[id] = l2RollupCfg
+		// op-geth is deprecated as of the Karst fork and refuses to build, seal,
+		// or import Karst blocks. The op-geth EL lane therefore cannot run any
+		// chain that ever activates Karst, so skip such tests here — the single
+		// point every runtime builds genesis through — letting Karst+ coverage
+		// run on op-reth (the official Karst EL client). op-geth still covers
+		// chains up to Jovian.
+		if l2Genesis.Config.KarstTime != nil && devstackL2ELKind() == MixedL2ELOpGeth {
+			wb.p.Logf("op-geth is deprecated as of Karst; skipping test: chain %s activates Karst and DEVSTACK_L2EL_KIND=op-geth", id)
+			wb.p.SkipNow()
+		}
 	}
 }
 

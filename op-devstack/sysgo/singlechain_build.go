@@ -150,14 +150,7 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 
 // startL2ELForKey starts an L2 EL node for the given key, respecting DEVSTACK_L2EL_KIND.
 // This is the single env-aware dispatch point for L2 EL selection.
-//
-// op-geth is deprecated as of the Karst fork and refuses to build, seal, or import
-// Karst blocks. For Karst-activated chains we therefore sequence and verify on op-reth
-// (the official Karst EL client) and skip any test that explicitly requests op-geth.
 func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, key string, identity *ELNodeIdentity, opts ...OpRethOption) L2ELNode {
-	if l2Net.ChainConfig().IsKarst(l2Net.genesis.Timestamp) && devstackL2ELKind() == MixedL2ELOpGeth {
-		t.Skipf("op-geth is deprecated as of Karst; skipping op-geth EL for Karst-activated chain %q", l2Net.Name())
-	}
 	switch devstackL2ELKind() {
 	case MixedL2ELOpGeth:
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
