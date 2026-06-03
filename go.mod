@@ -14,7 +14,6 @@ require (
 	github.com/cockroachdb/pebble v1.1.5
 	github.com/coder/websocket v1.8.13
 	github.com/consensys/gnark-crypto v0.18.1
-	github.com/crate-crypto/go-kzg-4844 v1.1.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.4-0.20251001155152-4eb15ccedf7e
