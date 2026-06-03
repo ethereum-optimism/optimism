@@ -12,7 +12,7 @@ use alloy_eips::eip2930::AccessList;
 use alloy_primitives::{B256, TxHash};
 use alloy_rpc_client::ReqwestClient;
 use futures_util::{
-    Stream,
+    FutureExt, Stream,
     future::BoxFuture,
     stream::{self, FuturesUnordered, StreamExt},
 };
@@ -111,8 +111,25 @@ impl InteropFilterClient {
                 // Non-response (timeout / transport): does not count toward quorum.
                 Err(_) => continue,
             }
-            // Quorum reached: stop without awaiting not-yet-responded endpoints.
+            // Quorum reached: stop without awaiting not-yet-responded endpoints. But a failsafe
+            // that has *already* arrived must still reject, so non-blocking-drain the responses
+            // that are ready right now first. We never await endpoints that haven't responded
+            // (fast-accept preserved); dropping `futs` afterwards cancels them.
             if valid + invalid >= self.inner.min_responses {
+                while let Some(ready) = futs.next().now_or_never().flatten() {
+                    match ready {
+                        Err(e) if e.is_failsafe() => {
+                            self.inner.metrics.record_failsafe_reject();
+                            return Err(InteropTxValidatorError::FailsafeEnabled);
+                        }
+                        Ok(()) => valid += 1,
+                        Err(e) if e.is_definitive_invalid() => {
+                            invalid += 1;
+                            first_invalid.get_or_insert(e);
+                        }
+                        Err(_) => {}
+                    }
+                }
                 break;
             }
         }
@@ -656,12 +673,14 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn failsafe_on_any_endpoint_hard_rejects() {
+        // All three endpoints respond immediately, and `min_responses == 3` forces the aggregator
+        // to collect every verdict before deciding. This makes the test deterministic (no
+        // arrival-order race): the failsafe verdict is always observed, and any failsafe response
+        // already received must hard-reject even though two valid verdicts are also in hand.
         let a = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
         let b = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
         let failsafe = MockEndpoint::start(Verdict::Failsafe, Failsafe::Reply(false)).await;
-        // min 2 of 3: the two valid endpoints would otherwise satisfy quorum, but a single
-        // endpoint reporting failsafe must hard-reject regardless.
-        let client = client_for(&[&a, &b, &failsafe], Some(2)).await;
+        let client = client_for(&[&a, &b, &failsafe], Some(3)).await;
         let err = check(&client).await.unwrap_err();
         assert!(
             matches!(err, InteropTxValidatorError::FailsafeEnabled),
@@ -679,6 +698,22 @@ mod tests {
         let start = Instant::now();
         assert!(check(&client).await.is_ok());
         assert!(start.elapsed() < Duration::from_secs(1), "decision waited on the slow endpoint");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn slow_non_failsafe_endpoint_does_not_delay_accept() {
+        // Two valid endpoints meet a quorum of 2; a third endpoint is slow but NOT a failsafe.
+        // The aggregator must fast-accept without awaiting the slow endpoint.
+        let a = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
+        let b = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
+        let slow = MockEndpoint::start(Verdict::Slow, Failsafe::Reply(false)).await;
+        let client = client_for(&[&a, &b, &slow], Some(2)).await;
+        let start = Instant::now();
+        assert!(check(&client).await.is_ok());
+        assert!(
+            start.elapsed() < Duration::from_secs(1),
+            "a slow non-failsafe endpoint must not delay accept"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
