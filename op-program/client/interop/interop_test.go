@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
-	"github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	test2 "github.com/ethereum-optimism/optimism/op-program/client/l1/test"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
@@ -119,11 +118,11 @@ func TestDeriveBlockForFirstChainFromSuperchainRoot(t *testing.T) {
 
 	outputRootHash := common.Hash(eth.SuperRoot(agreedSuperRoot))
 	l2PreimageOracle, _ := test.NewStubOracle(t)
-	l2PreimageOracle.TransitionStates[outputRootHash] = &types.TransitionState{SuperRoot: agreedSuperRoot.Marshal()}
+	l2PreimageOracle.TransitionStates[outputRootHash] = &eth.TransitionState{SuperRoot: agreedSuperRoot.Marshal()}
 
-	expectedIntermediateRoot := &types.TransitionState{
+	expectedIntermediateRoot := &eth.TransitionState{
 		SuperRoot: agreedSuperRoot.Marshal(),
-		PendingProgress: []types.OptimisticBlock{
+		PendingProgress: []eth.OptimisticBlock{
 			{BlockHash: tasksStub.blockHash, OutputRoot: tasksStub.outputRoot},
 		},
 		Step: 1,
@@ -136,9 +135,9 @@ func TestDeriveBlockForFirstChainFromSuperchainRoot(t *testing.T) {
 func TestDeriveBlockForSecondChainFromTransitionState(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
 	configSource, agreedSuperRoot, tasksStub := setupTwoChains()
-	agreedTransitionState := &types.TransitionState{
+	agreedTransitionState := &eth.TransitionState{
 		SuperRoot: agreedSuperRoot.Marshal(),
-		PendingProgress: []types.OptimisticBlock{
+		PendingProgress: []eth.OptimisticBlock{
 			{BlockHash: common.Hash{0xaa}, OutputRoot: eth.Bytes32{6: 22}},
 		},
 		Step: 1,
@@ -146,9 +145,9 @@ func TestDeriveBlockForSecondChainFromTransitionState(t *testing.T) {
 	outputRootHash := agreedTransitionState.Hash()
 	l2PreimageOracle, _ := test.NewStubOracle(t)
 	l2PreimageOracle.TransitionStates[outputRootHash] = agreedTransitionState
-	expectedIntermediateRoot := &types.TransitionState{
+	expectedIntermediateRoot := &eth.TransitionState{
 		SuperRoot: agreedSuperRoot.Marshal(),
-		PendingProgress: []types.OptimisticBlock{
+		PendingProgress: []eth.OptimisticBlock{
 			{BlockHash: common.Hash{0xaa}, OutputRoot: eth.Bytes32{6: 22}},
 			{BlockHash: tasksStub.blockHash, OutputRoot: tasksStub.outputRoot},
 		},
@@ -162,9 +161,9 @@ func TestDeriveBlockForSecondChainFromTransitionState(t *testing.T) {
 func TestNoOpStep(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
 	configSource, agreedSuperRoot, tasksStub := setupTwoChains()
-	agreedTransitionState := &types.TransitionState{
+	agreedTransitionState := &eth.TransitionState{
 		SuperRoot: agreedSuperRoot.Marshal(),
-		PendingProgress: []types.OptimisticBlock{
+		PendingProgress: []eth.OptimisticBlock{
 			{BlockHash: common.Hash{0xaa}, OutputRoot: eth.Bytes32{6: 22}},
 			{BlockHash: tasksStub.blockHash, OutputRoot: tasksStub.outputRoot},
 		},
@@ -517,9 +516,9 @@ func runConsolidationTestCase(t *testing.T, testCase consolidationTestCase) {
 		chainIDA: createOutput(block2A.Hash()),
 		chainIDB: createOutput(block2B.Hash()),
 	}
-	finalTransitionState := &types.TransitionState{
+	finalTransitionState := &eth.TransitionState{
 		SuperRoot: agreedSuperRoot.Marshal(),
-		PendingProgress: []types.OptimisticBlock{
+		PendingProgress: []eth.OptimisticBlock{
 			{BlockHash: block2A.Hash(), OutputRoot: eth.OutputRoot(pendingOutputs[chainIDA])},
 			{BlockHash: block2B.Hash(), OutputRoot: eth.OutputRoot(pendingOutputs[chainIDB])},
 		},
@@ -641,7 +640,7 @@ func TestTraceExtensionOnceClaimedTimestampIsReached(t *testing.T) {
 	configSource, agreedSuperRoot, tasksStub := setupTwoChains()
 	agreedPrestatehash := common.Hash(eth.SuperRoot(agreedSuperRoot))
 	l2PreimageOracle, _ := test.NewStubOracle(t)
-	l2PreimageOracle.TransitionStates[agreedPrestatehash] = &types.TransitionState{SuperRoot: agreedSuperRoot.Marshal()}
+	l2PreimageOracle.TransitionStates[agreedPrestatehash] = &eth.TransitionState{SuperRoot: agreedSuperRoot.Marshal()}
 
 	// We have reached the game's timestamp so should just trace extend the agreed claim
 	expectedClaim := agreedPrestatehash
@@ -653,7 +652,7 @@ func TestPanicIfAgreedPrestateIsAfterGameTimestamp(t *testing.T) {
 	configSource, agreedSuperRoot, tasksStub := setupTwoChains()
 	agreedPrestatehash := common.Hash(eth.SuperRoot(agreedSuperRoot))
 	l2PreimageOracle, _ := test.NewStubOracle(t)
-	l2PreimageOracle.TransitionStates[agreedPrestatehash] = &types.TransitionState{SuperRoot: agreedSuperRoot.Marshal()}
+	l2PreimageOracle.TransitionStates[agreedPrestatehash] = &eth.TransitionState{SuperRoot: agreedSuperRoot.Marshal()}
 
 	// We have reached the game's timestamp so should just trace extend the agreed claim
 	expectedClaim := agreedPrestatehash
@@ -692,9 +691,9 @@ func TestHazardSet_ExpiredMessageShortCircuitsInclusionCheck(t *testing.T) {
 		block2B, block2BReceipts := createBlock(rng, configB, 2, nil)
 
 		pendingOutputs := [2]*eth.OutputV0{0: createOutput(block2A.Hash()), 1: createOutput(block2B.Hash())}
-		transitionState := &types.TransitionState{
+		transitionState := &eth.TransitionState{
 			SuperRoot: agreedSuperRoot.Marshal(),
-			PendingProgress: []types.OptimisticBlock{
+			PendingProgress: []eth.OptimisticBlock{
 				{BlockHash: block2A.Hash(), OutputRoot: eth.OutputRoot(pendingOutputs[0])},
 				{BlockHash: block2B.Hash(), OutputRoot: eth.OutputRoot(pendingOutputs[1])},
 			},
@@ -755,10 +754,10 @@ func TestMaximumNumberOfChains(t *testing.T) {
 	rng := rand.New(rand.NewSource(123))
 
 	agreedHash := common.Hash(eth.SuperRoot(agreedSuperRoot))
-	pendingProgress := make([]types.OptimisticBlock, 0, chainCount)
+	pendingProgress := make([]eth.OptimisticBlock, 0, chainCount)
 	step := uint64(0)
 	l2PreimageOracle, _ := test.NewStubOracle(t)
-	l2PreimageOracle.TransitionStates[agreedHash] = &types.TransitionState{SuperRoot: agreedSuperRoot.Marshal()}
+	l2PreimageOracle.TransitionStates[agreedHash] = &eth.TransitionState{SuperRoot: agreedSuperRoot.Marshal()}
 
 	// Generate an optimistic block for every chain
 	for _, cfg := range configSource.rollupCfgs {
@@ -767,8 +766,8 @@ func TestMaximumNumberOfChains(t *testing.T) {
 		tasksStub.blockHash = block.Hash()
 		output := createOutput(tasksStub.blockHash)
 		tasksStub.outputRoot = eth.OutputRoot(output)
-		newPendingProgress := append(pendingProgress, types.OptimisticBlock{BlockHash: tasksStub.blockHash, OutputRoot: tasksStub.outputRoot})
-		expectedIntermediateRoot := &types.TransitionState{
+		newPendingProgress := append(pendingProgress, eth.OptimisticBlock{BlockHash: tasksStub.blockHash, OutputRoot: tasksStub.outputRoot})
+		expectedIntermediateRoot := &eth.TransitionState{
 			SuperRoot:       agreedSuperRoot.Marshal(),
 			PendingProgress: newPendingProgress,
 			Step:            step + 1,

@@ -1,27 +1,26 @@
-package types
+package eth
 
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTransitionStateCodec(t *testing.T) {
 	t.Run("TransitionState", func(t *testing.T) {
-		superRoot := &eth.SuperV1{
+		superRoot := &SuperV1{
 			Timestamp: 9842494,
-			Chains: []eth.ChainIDAndOutput{
-				{ChainID: eth.ChainIDFromUInt64(34), Output: eth.Bytes32{0x01}},
-				{ChainID: eth.ChainIDFromUInt64(35), Output: eth.Bytes32{0x02}},
+			Chains: []ChainIDAndOutput{
+				{ChainID: ChainIDFromUInt64(34), Output: Bytes32{0x01}},
+				{ChainID: ChainIDFromUInt64(35), Output: Bytes32{0x02}},
 			},
 		}
 		state := &TransitionState{
 			SuperRoot: superRoot.Marshal(),
 			PendingProgress: []OptimisticBlock{
-				{BlockHash: common.Hash{0x05}, OutputRoot: eth.Bytes32{0x03}},
-				{BlockHash: common.Hash{0x06}, OutputRoot: eth.Bytes32{0x04}},
+				{BlockHash: common.Hash{0x05}, OutputRoot: Bytes32{0x03}},
+				{BlockHash: common.Hash{0x06}, OutputRoot: Bytes32{0x04}},
 			},
 			Step: 2,
 		}
@@ -32,11 +31,11 @@ func TestTransitionStateCodec(t *testing.T) {
 	})
 
 	t.Run("SuperRoot", func(t *testing.T) {
-		superRoot := &eth.SuperV1{
+		superRoot := &SuperV1{
 			Timestamp: 9842494,
-			Chains: []eth.ChainIDAndOutput{
-				{ChainID: eth.ChainIDFromUInt64(34), Output: eth.Bytes32{0x01}},
-				{ChainID: eth.ChainIDFromUInt64(35), Output: eth.Bytes32{0x02}},
+			Chains: []ChainIDAndOutput{
+				{ChainID: ChainIDFromUInt64(34), Output: Bytes32{0x01}},
+				{ChainID: ChainIDFromUInt64(35), Output: Bytes32{0x02}},
 			},
 		}
 		expected := &TransitionState{

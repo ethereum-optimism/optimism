@@ -1,7 +1,6 @@
 package l2
 
 import (
-	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	l2Types "github.com/ethereum-optimism/optimism/op-program/client/l2/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -103,7 +102,7 @@ func (o *CachingOracle) BlockDataByHash(agreedBlockHash, blockHash common.Hash, 
 	return block
 }
 
-func (o *CachingOracle) TransitionStateByRoot(root common.Hash) *interopTypes.TransitionState {
+func (o *CachingOracle) TransitionStateByRoot(root common.Hash) *eth.TransitionState {
 	// Don't bother caching as this is only requested once as part of the bootstrap process
 	return o.oracle.TransitionStateByRoot(root)
 }

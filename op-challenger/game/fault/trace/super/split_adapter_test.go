@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -99,7 +98,7 @@ func TestSplitAdapter(t *testing.T) {
 				Position: types.NewPosition(depth, big.NewInt(3)),
 			},
 		}
-		expectedPrestate := interopTypes.TransitionState{
+		expectedPrestate := eth.TransitionState{
 			SuperRoot: prevSuper.Marshal(),
 			Step:      3,
 		}

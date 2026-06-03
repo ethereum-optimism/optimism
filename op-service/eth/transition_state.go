@@ -1,9 +1,8 @@
-package types
+package eth
 
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -11,11 +10,16 @@ import (
 
 var (
 	IntermediateTransitionVersion = byte(255)
+
+	// InvalidTransition is the sentinel claim value used by the interop fault proof
+	// program and the super dispute game when a transition cannot be validated.
+	InvalidTransition     = []byte("invalid")
+	InvalidTransitionHash = crypto.Keccak256Hash(InvalidTransition)
 )
 
 type OptimisticBlock struct {
 	BlockHash  common.Hash
-	OutputRoot eth.Bytes32
+	OutputRoot Bytes32
 }
 
 type TransitionState struct {
@@ -47,21 +51,21 @@ func (i *TransitionState) Hash() common.Hash {
 
 func UnmarshalTransitionState(data []byte) (*TransitionState, error) {
 	if len(data) == 0 {
-		return nil, eth.ErrInvalidSuperRoot
+		return nil, ErrInvalidSuperRoot
 	}
 	switch data[0] {
 	case IntermediateTransitionVersion:
 		return unmarshalTransitionState(data)
-	case eth.SuperRootVersionV1:
+	case SuperRootVersionV1:
 		return &TransitionState{SuperRoot: data}, nil
 	default:
-		return nil, eth.ErrInvalidSuperRootVersion
+		return nil, ErrInvalidSuperRootVersion
 	}
 }
 
 func unmarshalTransitionState(data []byte) (*TransitionState, error) {
 	if len(data) == 0 {
-		return nil, eth.ErrInvalidSuperRoot
+		return nil, ErrInvalidSuperRoot
 	}
 	var state TransitionState
 	if err := rlp.DecodeBytes(data[1:], &state); err != nil {

@@ -21,8 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-program/client/interop"
-	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -245,17 +243,17 @@ func superRootAtTimestamp(t devtest.T, chains []*chain, timestamp uint64) eth.Su
 // optimisticBlockAtTimestamp returns the optimistic block for a single chain at the given timestamp.
 // It queries the supernode's super_atTimestamp API which returns the true optimistic output root,
 // even after an invalid block has been replaced during cross-safe validation.
-func optimisticBlockAtTimestamp(t devtest.T, queryAPI apis.SupernodeQueryAPI, chainID eth.ChainID, timestamp uint64) interopTypes.OptimisticBlock {
+func optimisticBlockAtTimestamp(t devtest.T, queryAPI apis.SupernodeQueryAPI, chainID eth.ChainID, timestamp uint64) eth.OptimisticBlock {
 	resp, err := queryAPI.SuperRootAtTimestamp(t.Ctx(), timestamp)
 	t.Require().NoError(err)
 	out, ok := resp.OptimisticAtTimestamp[chainID]
 	t.Require().Truef(ok, "no optimistic output for chain %v at timestamp %d", chainID, timestamp)
-	return interopTypes.OptimisticBlock{BlockHash: out.Output.BlockHash, OutputRoot: out.OutputRoot}
+	return eth.OptimisticBlock{BlockHash: out.Output.BlockHash, OutputRoot: out.OutputRoot}
 }
 
 // marshalTransition serializes a transition state with the given super root, step, and progress.
-func marshalTransition(superRoot eth.SuperV1, step uint64, progress ...interopTypes.OptimisticBlock) []byte {
-	return (&interopTypes.TransitionState{
+func marshalTransition(superRoot eth.SuperV1, step uint64, progress ...eth.OptimisticBlock) []byte {
+	return (&eth.TransitionState{
 		SuperRoot:       superRoot.Marshal(),
 		PendingProgress: progress,
 		Step:            step,
@@ -470,7 +468,7 @@ func buildTransitionTests(
 		{
 			Name:               "FirstChainReachesL1Head",
 			AgreedClaim:        start.Marshal(),
-			DisputedClaim:      super.InvalidTransition,
+			DisputedClaim:      eth.InvalidTransition,
 			DisputedTraceIndex: 0,
 			L1Head:             l1HeadBefore,
 			ClaimTimestamp:     endTimestamp,
@@ -479,7 +477,7 @@ func buildTransitionTests(
 		{
 			Name:               "SecondChainReachesL1Head",
 			AgreedClaim:        step1,
-			DisputedClaim:      super.InvalidTransition,
+			DisputedClaim:      eth.InvalidTransition,
 			DisputedTraceIndex: 1,
 			L1Head:             l1HeadAfterFirst,
 			ClaimTimestamp:     endTimestamp,
@@ -496,8 +494,8 @@ func buildTransitionTests(
 		},
 		{
 			Name:               "FromInvalidTransitionHash",
-			AgreedClaim:        super.InvalidTransition,
-			DisputedClaim:      super.InvalidTransition,
+			AgreedClaim:        eth.InvalidTransition,
+			DisputedClaim:      eth.InvalidTransition,
 			DisputedTraceIndex: 2,
 			L1Head:             l1HeadBefore,
 			ClaimTimestamp:     endTimestamp,
@@ -566,7 +564,7 @@ func buildAfterChainHeadTests(
 	end, endNext eth.SuperV1,
 	endTimestamp uint64,
 	l1HeadCurrent eth.BlockID,
-	firstOptNext, secondOptNext interopTypes.OptimisticBlock,
+	firstOptNext, secondOptNext eth.OptimisticBlock,
 ) []*transitionTest {
 	boundary := endTimestamp + 1
 	const claimBuffer = uint64(100)
@@ -584,7 +582,7 @@ func buildAfterChainHeadTests(
 	// Otherwise it rolls over with chain A's previous-block data.
 	test1Disputed := marshalTransition(end, 1, firstOptNext)
 	if chainAExpects {
-		test1Disputed = interop.InvalidTransition
+		test1Disputed = eth.InvalidTransition
 	}
 	tests = append(tests, &transitionTest{
 		Name:               "DisputeTimestampAfterChainHeadChainA",
@@ -621,8 +619,8 @@ func buildAfterChainHeadTests(
 	test3Agreed := marshalTransition(end, consolidateStep, firstOptNext, secondOptNext)
 	test3Disputed := endNext.Marshal()
 	if anyExpects {
-		test3Agreed = interop.InvalidTransition
-		test3Disputed = interop.InvalidTransition
+		test3Agreed = eth.InvalidTransition
+		test3Disputed = eth.InvalidTransition
 	}
 	tests = append(tests, &transitionTest{
 		Name:               "DisputeTimestampAfterChainHeadConsolidate",
@@ -641,12 +639,12 @@ func buildAfterChainHeadTests(
 	// In varied: cascade — agreed and disputed both InvalidTransition.
 	test4Agreed := endNext.Marshal()
 	if anyExpects {
-		test4Agreed = interop.InvalidTransition
+		test4Agreed = eth.InvalidTransition
 	}
 	tests = append(tests, &transitionTest{
 		Name:               "DisputeBlockAfterChainHead-FirstChain",
 		AgreedClaim:        test4Agreed,
-		DisputedClaim:      interop.InvalidTransition,
+		DisputedClaim:      eth.InvalidTransition,
 		L1Head:             l1HeadCurrent,
 		ClaimTimestamp:     claimTimestamp,
 		DisputedTraceIndex: 2 * stepsPerTimestamp,
@@ -657,8 +655,8 @@ func buildAfterChainHeadTests(
 	tests = append(tests,
 		&transitionTest{
 			Name:               "AgreedBlockAfterChainHead-Consolidate",
-			AgreedClaim:        interop.InvalidTransition,
-			DisputedClaim:      interop.InvalidTransition,
+			AgreedClaim:        eth.InvalidTransition,
+			DisputedClaim:      eth.InvalidTransition,
 			L1Head:             l1HeadCurrent,
 			ClaimTimestamp:     claimTimestamp,
 			DisputedTraceIndex: 4*stepsPerTimestamp - 1,
@@ -666,8 +664,8 @@ func buildAfterChainHeadTests(
 		},
 		&transitionTest{
 			Name:               "AgreedBlockAfterChainHead-Optimistic",
-			AgreedClaim:        interop.InvalidTransition,
-			DisputedClaim:      interop.InvalidTransition,
+			AgreedClaim:        eth.InvalidTransition,
+			DisputedClaim:      eth.InvalidTransition,
 			L1Head:             l1HeadCurrent,
 			ClaimTimestamp:     claimTimestamp,
 			DisputedTraceIndex: 4*stepsPerTimestamp + 1,
@@ -830,7 +828,7 @@ func RunUnsafeProposalTest(t devtest.T, sys *presets.SimpleInterop) {
 		{
 			Name:               "ProposedUnsafeBlock-ShouldBeInvalid",
 			AgreedClaim:        agreedClaim,
-			DisputedClaim:      super.InvalidTransition,
+			DisputedClaim:      eth.InvalidTransition,
 			DisputedTraceIndex: 0,
 			L1Head:             l1Head,
 			ClaimTimestamp:     endTimestamp,
@@ -1248,7 +1246,7 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
 		{
 			Name:               "FirstChainReachesL1Head",
 			AgreedClaim:        start.Marshal(),
-			DisputedClaim:      interop.InvalidTransition,
+			DisputedClaim:      eth.InvalidTransition,
 			DisputedTraceIndex: 0,
 			// The derivation reaches the L1 head before the next block can be created
 			L1Head:         l1BlockBeforeBatches.ID(),
@@ -1267,8 +1265,8 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
 		},
 		{
 			Name:               "FromInvalidTransitionHash",
-			AgreedClaim:        interop.InvalidTransition,
-			DisputedClaim:      interop.InvalidTransition,
+			AgreedClaim:        eth.InvalidTransition,
+			DisputedClaim:      eth.InvalidTransition,
 			DisputedTraceIndex: 2,
 			// The derivation reaches the L1 head before the next block can be created
 			L1Head:         l1BlockBeforeBatches.ID(),

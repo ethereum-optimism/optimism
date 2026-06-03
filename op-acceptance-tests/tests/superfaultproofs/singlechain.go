@@ -2,7 +2,6 @@ package superfaultproofs
 
 import (
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -138,7 +137,7 @@ func runSingleChainSuperFaultProofSmokeTest(t devtest.T, sys *presets.SingleChai
 		{
 			Name:               "ChainReachesL1Head",
 			AgreedClaim:        start.Marshal(),
-			DisputedClaim:      super.InvalidTransition,
+			DisputedClaim:      eth.InvalidTransition,
 			DisputedTraceIndex: 0,
 			L1Head:             l1HeadBefore,
 			ClaimTimestamp:     endTimestamp,
