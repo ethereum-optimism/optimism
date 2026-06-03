@@ -213,6 +213,21 @@ The compiled `kona-client` binary embeds the merged registry via `include_str!()
     The hash printed is your chain's custom kona absolute prestate. The build also writes a hash-named gzipped binary at `rust/kona/prestate-artifacts-cannon/0x<hash>.bin.gz` — this is the file `op-challenger` needs to fetch at dispute time.
   </Step>
 
+  <Step title="Verify your chain is embedded in the prestate">
+    A custom-config build that silently fails to merge your chain produces the *standard* prestate hash — and an `op-challenger` pointed at it will never agree with your games. Always confirm your chain actually made it in:
+
+    ```bash
+    # 1. The build log must list every custom chain that was merged:
+    #    cargo:warning=...: inserting new custom chain <bucket>: [chain-a,chain-b]
+    #    (or "merging custom chains <bucket>: [...]" if the bucket already exists)
+    #
+    # 2. The chain name must appear inside the prestate image itself:
+    gunzip -c rust/kona/prestate-artifacts-cannon/prestate.bin.gz | strings | grep "<chain-name>"
+    ```
+
+    Run the `grep` once per chain in your `chainList.json` and confirm at least one match for **every** chain — a build that embeds chain A but drops chain B still produces a valid-looking hash. Zero matches means `KONA_CUSTOM_CONFIGS=true` was not set in the build shell, or `KONA_CUSTOM_CONFIGS_DIR` was a relative path.
+  </Step>
+
   <Step title="Verify reproducibility">
     From a fresh checkout of the same tag with the same custom-configs files in place, repeat the build and confirm the hash is bit-identical. Anyone who wants to participate as an honest challenger on your chain must be able to reproduce this hash from the same inputs.
   </Step>
@@ -225,14 +240,30 @@ The compiled `kona-client` binary embeds the merged registry via `include_str!()
     Upload `0x<hash>.bin.gz` to wherever you serve preimage files for `op-challenger` — typically a GCS bucket or HTTP endpoint. Files must be named by their absolute prestate hash so the challenger can resolve them on demand.
   </Step>
 
-  <Step title="Deploy a new FaultDisputeGame implementation with the custom prestate">
-    The `absolutePrestate` constructor argument on `FaultDisputeGame` is immutable, so each new prestate requires a fresh implementation deployment. Once deployed, register it on your `DisputeGameFactory`:
+  <Step title="Register the custom prestate as game type 8">
+    On the current (v2.4+) dispute-game contracts the absolute prestate is **not** a constructor argument — it lives in the `DisputeGameFactory`'s per-game-type `gameArgs`, appended to each game via clones-with-immutable-args. So you do **not** deploy a new implementation for a new prestate. Reuse the existing permissionless `FaultDisputeGame` implementation (a fresh op-deployer chain deploys one but leaves it unregistered) and register it for game type 8 with `gameArgs` that carry your prestate.
 
-    ```solidity
-    DisputeGameFactory.setImplementation(GAME_TYPE_CANNON_KONA, newImpl);
+    `gameArgs` for a permissionless game is the packed encoding (124 bytes):
+
+    ```
+    abi.encodePacked(absolutePrestate, vm, anchorStateRegistry, weth, l2ChainId)
     ```
 
-    `GAME_TYPE_CANNON_KONA` is `8`.
+    Reuse `vm` / `anchorStateRegistry` / `weth` / `l2ChainId` from an existing registered game type (e.g. read `gameArgs(1)` and swap in your prestate), then register from the `DisputeGameFactory` owner:
+
+    ```solidity
+    // GAME_TYPE_CANNON_KONA == 8
+    DisputeGameFactory.setImplementation(8, faultDisputeGameImpl, gameArgs);
+    DisputeGameFactory.setInitBond(8, initBond);            // 0 is fine for a dev/test chain
+    ```
+
+    Then make game type 8 the respected type from the Guardian role — `respectedGameType` lives on the `AnchorStateRegistry`, not the `OptimismPortal` (the portal proxies to it):
+
+    ```solidity
+    AnchorStateRegistry.setRespectedGameType(8);
+    ```
+
+    See [Migrating to permissionless fault proofs](/chain-operators/tutorials/migrating-permissionless) for the full role/transaction walkthrough. (On older, pre-v2.4 contracts where `absolutePrestate` was a constructor immutable, each prestate did require a fresh implementation deployment instead.)
   </Step>
 
   <Step title="Configure op-challenger">
