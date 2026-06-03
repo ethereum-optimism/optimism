@@ -527,11 +527,23 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-tests
           profile: <<parameters.cache_profile>>
+      # PROTOTYPE (einar/ci-experiments): measure mold link-time speedup.
+      # `mold -run` intercepts the linker via LD_PRELOAD for the cargo/rustc/cc
+      # subprocess tree, so no RUSTFLAGS change -> build & sccache cache keys
+      # are untouched. Linux-only; the CI rust image is Debian/Ubuntu-based.
+      - run:
+          name: Install mold linker (prototype)
+          command: |
+            if ! command -v mold >/dev/null 2>&1; then
+              sudo apt-get update -qq
+              sudo apt-get install -y --no-install-recommends mold
+            fi
+            echo "mold: $(command -v mold)"; mold --version
       - run:
           name: Run cargo tests
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
-          command: just <<parameters.command>> <<parameters.flags>>
+          command: mold -run just <<parameters.command>> <<parameters.flags>>
       - rust-save-build-cache: *tests-cache-args
 
   # Cross-language differential test: runs the Go and Rust dumps of the Interop
