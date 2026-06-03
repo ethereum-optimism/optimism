@@ -381,7 +381,10 @@ commands:
       enabled:
         description: "Master switch. Set true once the GCS bucket + IAM are provisioned."
         type: boolean
-        default: true
+        # Temporarily disabled: auth + wiring verified, but the context's service
+        # account still needs roles/storage.objectAdmin on op-rust-sccache (GCS
+        # writes 403). Flip back to true once that IAM grant lands.
+        default: false
       bucket:
         description: "GCS bucket for the sccache cache."
         type: string
