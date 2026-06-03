@@ -291,5 +291,6 @@ workflows:
     when: << pipeline.parameters.c-run_rust_e2e_gate_skip >>
     jobs:
       - required-rust-e2e:
+          always-succeed: true
           context:
             - circleci-api-token
