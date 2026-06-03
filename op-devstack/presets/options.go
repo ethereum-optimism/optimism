@@ -298,6 +298,20 @@ func WithInteropFilter() Option {
 	}
 }
 
+// WithCrossUnsafeHeadSourceFromPeer starts the second chain's op-reth with
+// --rollup.cross-unsafe-head-source-rpc pointing at the first chain, so it
+// runtime-validates (via eth_crossUnsafeHead) executing messages that initiate
+// on the first chain. Only supported on two-chain supernode interop presets,
+// and only effective with op-reth.
+func WithCrossUnsafeHeadSourceFromPeer() Option {
+	return option{
+		kinds: optionKindCrossUnsafeHeadSource,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.CrossUnsafeHeadSourceFromPeer = true
+		},
+	}
+}
+
 func WithRequireInteropNotAtGenesis() Option {
 	return option{
 		kinds: optionKindRequireInteropNotAtGen,

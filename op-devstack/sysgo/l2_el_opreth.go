@@ -71,6 +71,17 @@ func OpRethWithInteropURL(interopURL string) OpRethOption {
 	})
 }
 
+// OpRethWithCrossUnsafeHeadSourceRPC configures op-reth to runtime-validate the
+// executing messages behind eth_crossUnsafeHead against the given source chain,
+// reachable at the given HTTP JSON-RPC endpoint.
+func OpRethWithCrossUnsafeHeadSourceRPC(sourceChainID eth.ChainID, sourceHTTPRPC string) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		p.Require().NotEmpty(sourceHTTPRPC, "cross-unsafe head source RPC must not be empty")
+		cfg.ExtraArgs = append(cfg.ExtraArgs,
+			fmt.Sprintf("--rollup.cross-unsafe-head-source-rpc=%s=%s", sourceChainID, sourceHTTPRPC))
+	})
+}
+
 type OpReth struct {
 	mu sync.Mutex
 
@@ -80,6 +91,7 @@ type OpReth struct {
 	jwtSecret [32]byte
 	authRPC   string
 	userRPC   string
+	httpRPC   string
 
 	authProxy *tcpproxy.Proxy
 	userProxy *tcpproxy.Proxy
@@ -132,11 +144,19 @@ func (n *OpReth) Start() {
 
 	userRPCChan := make(chan string, 1)
 	defer close(userRPCChan)
+
+	httpRPCChan := make(chan string, 1)
+	defer close(httpRPCChan)
 	onLogEntry := func(e logpipe.LogEntry) {
 		msg := e.LogMessage()
 		if msg == "RPC WS server started" {
 			select {
 			case userRPCChan <- "ws://" + e.FieldValue("url").(string):
+			default:
+			}
+		} else if msg == "RPC HTTP server started" {
+			select {
+			case httpRPCChan <- "http://" + e.FieldValue("url").(string):
 			default:
 			}
 		} else if msg == "RPC auth server started" {
@@ -173,6 +193,13 @@ func (n *OpReth) Start() {
 	n.p.Require().NoError(tasks.Await(n.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
 	n.p.Require().NoError(tasks.Await(n.p.Ctx(), authRPCChan, &authRPCAddr), "need auth RPC")
 
+	// The HTTP endpoint is served directly (not via the WS user proxy); capture it
+	// for clients that require an http:// transport, e.g. a peer op-reth's
+	// --rollup.cross-unsafe-head-source-rpc.
+	var httpRPCAddr string
+	n.p.Require().NoError(tasks.Await(n.p.Ctx(), httpRPCChan, &httpRPCAddr), "need http RPC")
+	n.httpRPC = httpRPCAddr
+
 	if areMetricsEnabled() {
 		var metricsTarget PrometheusMetricsTarget
 		n.p.Require().NoError(tasks.Await(n.p.Ctx(), metricsTargetChan, &metricsTarget), "need metrics endpoint")
@@ -203,6 +230,13 @@ func (n *OpReth) UserRPC() string {
 
 func (n *OpReth) EngineRPC() string {
 	return n.authRPC
+}
+
+// HTTPUserRPC returns the node's user-facing HTTP JSON-RPC endpoint. Unlike
+// UserRPC (a WebSocket proxy address), this is the direct http:// endpoint,
+// suitable for clients that require an HTTP transport.
+func (n *OpReth) HTTPUserRPC() string {
+	return n.httpRPC
 }
 
 func (n *OpReth) JWTPath() string {

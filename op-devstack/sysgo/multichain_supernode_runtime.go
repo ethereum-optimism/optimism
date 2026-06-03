@@ -118,8 +118,8 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 
 // startSupernodeEL starts an L2 EL node for the supernode runtime,
 // respecting DEVSTACK_L2EL_KIND (defaults to op-reth when unset).
-func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
-	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
+func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, opts ...OpRethOption) L2ELNode {
+	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0), opts...)
 }
 
 // startSupernodeELWithInteropURL starts an L2 EL node with --rollup.interop-http
@@ -153,6 +153,23 @@ func startSupernodeELWithInteropURL(
 		return startMixedOpRethNodeWithInteropURL(
 			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, "v1")
 	}
+}
+
+// crossUnsafeHeadSourceOpts returns the op-reth options that wire a chain's op-reth to
+// runtime-validate executing messages against sourceEL's chain via
+// --rollup.cross-unsafe-head-source-rpc, or no options when the feature is disabled. It is an
+// op-reth-only feature; if the source node is not op-reth (e.g. DEVSTACK_L2EL_KIND=op-geth) it
+// logs a warning and returns nothing (tests relying on it should skip on op-geth).
+func crossUnsafeHeadSourceOpts(t devtest.T, cfg PresetConfig, sourceChainID eth.ChainID, sourceEL L2ELNode) []OpRethOption {
+	if !cfg.CrossUnsafeHeadSourceFromPeer {
+		return nil
+	}
+	source, ok := sourceEL.(*OpReth)
+	if !ok {
+		t.Logger().Warn("cross-unsafe head source RPC requires an op-reth source; starting without it")
+		return nil
+	}
+	return []OpRethOption{OpRethWithCrossUnsafeHeadSourceRPC(sourceChainID, source.HTTPUserRPC())}
 }
 
 func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
@@ -281,7 +298,10 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 	} else {
 		// No interop filter — ELs start without an interop filter URL (existing behavior)
 		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
-		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
+		// Chain B can runtime-validate executing messages (which initiate on chain A) via
+		// eth_crossUnsafeHead. Chain A is already started, so its HTTP RPC is available to wire
+		// into chain B's --rollup.cross-unsafe-head-source-rpc.
+		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret, crossUnsafeHeadSourceOpts(t, cfg, l2ANet.ChainID(), l2AEL)...)
 	}
 
 	var activationTime uint64

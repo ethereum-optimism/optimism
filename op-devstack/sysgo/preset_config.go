@@ -52,6 +52,10 @@ type PresetConfig struct {
 	// sequencers stopped, so the VN can bootstrap the chain the light sequencers EL-sync
 	// from before a test hands off sequencing to them.
 	SupernodeVNSequencerForBootstrap bool
+	// CrossUnsafeHeadSourceFromPeer, when true, starts the second chain's op-reth
+	// with --rollup.cross-unsafe-head-source-rpc pointing at the first chain, so it
+	// runtime-validates executing messages that initiate on the first chain. op-reth only.
+	CrossUnsafeHeadSourceFromPeer bool
 }
 
 func NewPresetConfig() PresetConfig {
