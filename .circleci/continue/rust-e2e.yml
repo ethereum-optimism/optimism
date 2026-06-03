@@ -266,7 +266,8 @@ workflows:
             - contracts-bedrock-build
             - cannon-prestate
             - rust-workspace-release
-      # Proof tests - single kind only, interop excluded per original config
+      # Proof action tests - single-chain only. Interop proof coverage runs
+      # under kona-host in op-acceptance-tests, not as action tests.
       - kona-proof-action-tests:
           name: kona-proof-action-single
           kind: single
