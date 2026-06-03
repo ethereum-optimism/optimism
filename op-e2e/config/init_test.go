@@ -19,7 +19,7 @@ import (
 // Run with -race to catch any shared state that might be silently aliased.
 //
 // This is the regression guard for CircleCI failures where the matrix runner
-// for op-e2e/actions/proofs.TestOperatorFeeConsistency crashed inside
+// for rust/kona/tests/proofs.TestOperatorFeeConsistency crashed inside
 // (*DeployConfig).Copy with "concurrent map writes". The previous
 // implementation handed out copies via a json.Marshal of a single shared
 // *DeployConfig; the new implementation snapshots the JSON once at init and

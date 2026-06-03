@@ -162,9 +162,9 @@ jobs:
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
-          path: op-e2e/actions/proofs/tmp/test-results
+          path: rust/kona/tests/proofs/tmp/test-results
       - store_artifacts:
-          path: op-e2e/actions/proofs/tmp/testlogs
+          path: rust/kona/tests/proofs/tmp/testlogs
           when: always
 
   required-rust-e2e:
