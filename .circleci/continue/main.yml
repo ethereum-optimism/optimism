@@ -945,11 +945,38 @@ jobs:
           name: Print forge version
           command: forge --version
       - run:
+          name: Compute forge build cache key
+          command: |
+            # Hash everything that affects forge output: sources, config, dep
+            # submodule pins, toolchain (forge/solc via mise), and build inputs.
+            # Exact-key only (no broad fallback) so a hit always corresponds to
+            # these exact sources — avoids serving stale artifacts for
+            # deleted/renamed contracts. A miss is a normal clean build.
+            {
+              echo "profile=<<parameters.profile>> args=<<parameters.build_args>>"
+              sha256sum mise.toml packages/contracts-bedrock/foundry.toml
+              git ls-tree HEAD -- packages/contracts-bedrock/lib
+              find packages/contracts-bedrock/src packages/contracts-bedrock/test \
+                   packages/contracts-bedrock/scripts packages/contracts-bedrock/interfaces \
+                   -name '*.sol' -type f -print0 | sort -z | xargs -0 sha256sum
+            } | sha256sum | cut -d' ' -f1 | tee /tmp/forge-cache-key.txt
+      - restore_cache:
+          name: Restore forge build cache
+          keys:
+            - forge-build-v1-<<parameters.profile>>-{{ checksum "/tmp/forge-cache-key.txt" }}
+      - run:
           name: Build contracts
           command: just forge-build <<parameters.build_args>>
           environment:
             FOUNDRY_PROFILE: <<parameters.profile>>
           working_directory: packages/contracts-bedrock
+      - save_cache:
+          name: Save forge build cache
+          key: forge-build-v1-<<parameters.profile>>-{{ checksum "/tmp/forge-cache-key.txt" }}
+          paths:
+            - packages/contracts-bedrock/cache
+            - packages/contracts-bedrock/artifacts
+            - packages/contracts-bedrock/forge-artifacts
       - run:
           name: "Copy artifacts into deployer"
           command: |
