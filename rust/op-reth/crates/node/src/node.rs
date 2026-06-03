@@ -61,7 +61,7 @@ use reth_rpc_api::{
     eth::{RpcTypes, helpers::config::EthConfigHandler},
 };
 use reth_rpc_server_types::RethRpcModule;
-use reth_tracing::tracing::{debug, info};
+use reth_tracing::tracing::{debug, info, warn};
 use reth_transaction_pool::{
     EthPoolTransaction, PoolPooledTx, PoolTransaction, TransactionPool,
     TransactionValidationTaskExecutor, blobstore::DiskFileBlobStore,
@@ -798,17 +798,24 @@ where
                 }
 
                 if let Some(cross_unsafe_head_ext) = cross_unsafe_head_ext {
-                    debug!(target: "reth::cli", "Installing runtime cross-unsafe head rpc endpoint");
                     if modules.module_config().contains_any(&RethRpcModule::Eth) {
+                        debug!(target: "reth::cli", "Installing runtime cross-unsafe head rpc endpoint");
                         // Best-effort cache warmer: spawned non-critical so a failure here can
                         // never bring the node down.
                         task_executor.spawn_task(cross_unsafe_head_ext.clone().run_auto_poller());
                         debug!(target: "reth::cli", "Spawned runtime cross-unsafe head poller");
+                        modules.merge_if_module_configured(
+                            RethRpcModule::Eth,
+                            cross_unsafe_head_ext.into_rpc(),
+                        )?;
+                    } else {
+                        // eth_crossUnsafeHead lives in the eth namespace; without it the configured
+                        // source RPCs would be silently ignored. Surface the misconfiguration.
+                        warn!(
+                            target: "reth::cli",
+                            "--rollup.cross-unsafe-head-source-rpc is set but the eth RPC module is not enabled; eth_crossUnsafeHead will not be available"
+                        );
                     }
-                    modules.merge_if_module_configured(
-                        RethRpcModule::Eth,
-                        cross_unsafe_head_ext.into_rpc(),
-                    )?;
                 }
 
                 Ok(())

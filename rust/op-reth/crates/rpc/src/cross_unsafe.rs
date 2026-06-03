@@ -288,31 +288,24 @@ where
                 let Some(message) = parse_log_to_executing_message(log) else { continue };
 
                 let initiating_timestamp = message.identifier.timestamp.saturating_to::<u64>();
-                if initiating_timestamp > executing_timestamp {
-                    debug!(
-                        target: "rpc::cross_unsafe",
-                        number,
-                        initiating_timestamp,
-                        executing_timestamp,
-                        "executing message points to a future initiating timestamp"
-                    );
-                    return Ok(BlockValidation::invalid());
-                }
                 // NOTE: this uses the default `MESSAGE_EXPIRY_WINDOW`. The canonical validation
                 // path (`kona_interop::MessageGraph`) takes the window as a parameter and honors a
                 // dependency set's `override_message_expiry_window`. This simplified gate does not
                 // load the dependency set, so on a chain configured with a non-default expiry the
                 // boundary here can diverge from consensus. Acceptable for the default config;
                 // revisit if per-chain expiry overrides need to be tracked.
-                if initiating_timestamp < executing_timestamp.saturating_sub(MESSAGE_EXPIRY_WINDOW)
-                {
+                if !initiating_timestamp_in_window(
+                    initiating_timestamp,
+                    executing_timestamp,
+                    MESSAGE_EXPIRY_WINDOW,
+                ) {
                     debug!(
                         target: "rpc::cross_unsafe",
                         number,
                         initiating_timestamp,
                         executing_timestamp,
                         message_expiry_window = MESSAGE_EXPIRY_WINDOW,
-                        "executing message points to an expired initiating timestamp"
+                        "executing message initiating timestamp is outside the valid window (future or expired)"
                     );
                     return Ok(BlockValidation::invalid());
                 }
@@ -351,6 +344,17 @@ impl BlockValidation {
     const fn invalid() -> Self {
         Self { valid: false, sources: Vec::new() }
     }
+}
+
+/// Whether an executing message's initiating timestamp is acceptable for a block with the given
+/// executing timestamp: not in the future, and not older than `expiry_window` seconds.
+const fn initiating_timestamp_in_window(
+    initiating_timestamp: u64,
+    executing_timestamp: u64,
+    expiry_window: u64,
+) -> bool {
+    initiating_timestamp <= executing_timestamp &&
+        initiating_timestamp >= executing_timestamp.saturating_sub(expiry_window)
 }
 
 #[derive(Debug)]
@@ -731,6 +735,26 @@ mod tests {
             parent_hash: B256::repeat_byte(parent),
             sources: Vec::new(),
         }
+    }
+
+    #[test]
+    fn initiating_timestamp_window_boundaries() {
+        let exec = 1_000_000u64;
+        let window = MESSAGE_EXPIRY_WINDOW;
+
+        // Same timestamp is valid; one second in the future is not.
+        assert!(initiating_timestamp_in_window(exec, exec, window));
+        assert!(!initiating_timestamp_in_window(exec + 1, exec, window));
+
+        // The oldest allowed timestamp is exactly `exec - window`; one older is expired.
+        assert!(initiating_timestamp_in_window(exec - window, exec, window));
+        assert!(!initiating_timestamp_in_window(exec - window - 1, exec, window));
+        assert!(initiating_timestamp_in_window(exec - 1, exec, window));
+
+        // The lower bound saturates: when the executing timestamp is below the window, any
+        // non-future initiating timestamp (down to 0) is in window.
+        assert!(initiating_timestamp_in_window(0, 100, window));
+        assert!(!initiating_timestamp_in_window(101, 100, window));
     }
 
     #[test]
