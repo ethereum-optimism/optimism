@@ -12,8 +12,11 @@ batcher/
 proposer/
 challenger/
 
-# Optimism monorepo
+# Optimism monorepo (if cloned locally)
 optimism/
+
+# Local-only docker-compose override (host port remaps etc. — never committed)
+docker-compose.override.yml*
 
 # Downloaded binaries
 op-deployer

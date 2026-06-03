@@ -88,6 +88,21 @@ generate_addresses() {
         log_info "Created wallet for $role: $address"
     done
 
+    # Operational signers (batcher, proposer) get REAL, dedicated keys.
+    # These roles sign L1 transactions continuously, so they must NOT reuse the
+    # deployer key — day-to-day operation should never touch the deployer. We
+    # derive a real address with cast and persist the private key so the services
+    # can sign with it (and so we can fund it below).
+    for role in batcher proposer; do
+        wallet=$(cast wallet new --json)
+        private_key=$(echo "$wallet" | jq -r '.[0].private_key')
+        address=$(echo "$wallet" | jq -r '.[0].address')
+        echo "${private_key#0x}" > "${role}_private_key.txt"
+        echo "$address" > "${role}_address.txt"
+        chmod 600 "${role}_private_key.txt"
+        log_info "Generated dedicated $role signer: $address"
+    done
+
     log_success "Wallet addresses generated"
     log_info "Addresses generated successfully, continuing to init..."
 }
@@ -108,11 +123,14 @@ EOF
     rm -rf .deployer
 
         # Initialize intent
+    # custom intent: deploys a standalone superchain (fresh SuperchainConfig) rather
+    # than joining the shared Sepolia superchain — avoids OPCM SuperchainConfigNeedsUpgrade
+    # when using a release-candidate op-deployer/contracts version (e.g. v0.7.0-rc.1).
     op-deployer init \
         --l1-chain-id $L1_CHAIN_ID \
         --l2-chain-ids "$L2_CHAIN_ID_DECIMAL" \
         --workdir .deployer \
-        --intent-type standard-overrides
+        --intent-type custom
 
     log_success "op-deployer initialized"
 }
@@ -131,6 +149,18 @@ update_intent() {
     PROPOSER_ADDR=$(cat addresses/proposer_address.txt)
     CHALLENGER_ADDR=$(cat addresses/challenger_address.txt)
     OPERATOR_FEE_VAULT_ADDR=$(cat addresses/operator_fee_vault_recipient_address.txt)
+    ADMIN_ADDR=$(cat addresses/admin_address.txt)
+
+    # Owners and non-signing roles stay as the deployer for simplicity: the deployer
+    # already controls the chain, and these roles do not sign L1 transactions during
+    # normal operation. The batcher and proposer, however, keep their own dedicated
+    # addresses (generated in generate_addresses and read above) and are funded
+    # separately — so the chain operates without ever using the deployer key.
+    DEPLOYER_ADDR=$(cast wallet address --private-key "0x${PRIVATE_KEY#0x}")
+    ADMIN_ADDR="$DEPLOYER_ADDR"
+    CHALLENGER_ADDR="$DEPLOYER_ADDR"
+    SYSTEM_CONFIG_ADDR="$DEPLOYER_ADDR"
+    UNSAFE_BLOCK_SIGNER_ADDR="$DEPLOYER_ADDR"
 
     # Keep the default contract locators and opcmAddress from op-deployer init
 
@@ -147,6 +177,24 @@ update_intent() {
     sed -i.bak "s|challenger = .*|challenger = \"$CHALLENGER_ADDR\"|" .deployer/intent.toml
     sed -i.bak "s|fundDevAccounts = .*|fundDevAccounts = true|" .deployer/intent.toml
     sed -i.bak "s|operatorFeeVaultRecipient = .*|operatorFeeVaultRecipient = \"$OPERATOR_FEE_VAULT_ADDR\"|" .deployer/intent.toml
+    # op-deployer v0.7.0-rc.1 requires the ProxyAdmin owners to be non-zero
+    sed -i.bak "s|l1ProxyAdminOwner = .*|l1ProxyAdminOwner = \"$ADMIN_ADDR\"|" .deployer/intent.toml
+    sed -i.bak "s|l2ProxyAdminOwner = .*|l2ProxyAdminOwner = \"$ADMIN_ADDR\"|" .deployer/intent.toml
+
+    # custom configType: set the superchain roles (deploying our own superchain)
+    sed -i.bak "s|SuperchainProxyAdminOwner = .*|SuperchainProxyAdminOwner = \"$ADMIN_ADDR\"|" .deployer/intent.toml
+    sed -i.bak "s|SuperchainGuardian = .*|SuperchainGuardian = \"$ADMIN_ADDR\"|" .deployer/intent.toml
+    sed -i.bak "s|Challenger = .*|Challenger = \"$CHALLENGER_ADDR\"|" .deployer/intent.toml
+
+    # custom intent ships with zero eip1559 params — set standard OP values or the chain is invalid
+    sed -i.bak "s|eip1559DenominatorCanyon = .*|eip1559DenominatorCanyon = 250|" .deployer/intent.toml
+    sed -i.bak "s|eip1559Denominator = .*|eip1559Denominator = 50|" .deployer/intent.toml
+    sed -i.bak "s|eip1559Elasticity = .*|eip1559Elasticity = 6|" .deployer/intent.toml
+
+    # activate Karst (the U19 hardfork) at genesis
+    if ! grep -q 'globalDeployOverrides' .deployer/intent.toml; then
+        printf '\n[globalDeployOverrides]\n  l2GenesisKarstTimeOffset = "0x0"\n' >> .deployer/intent.toml
+    fi
     log_success "Intent configuration updated"
 }
 
@@ -162,6 +210,55 @@ deploy_contracts() {
         --private-key "$PRIVATE_KEY"
 
     log_success "L1 contracts deployed"
+}
+
+# Fund the operational signers (batcher, proposer) from the deployer
+fund_operators() {
+    log_info "Funding operational signers from the deployer..."
+
+    BATCHER_ADDR=$(cat "$DEPLOYER_DIR/addresses/batcher_address.txt")
+    PROPOSER_ADDR=$(cat "$DEPLOYER_DIR/addresses/proposer_address.txt")
+
+    # Sepolia ETH sent to each signer. The batcher posts batches every channel and
+    # the proposer posts output roots on its interval, so both need ongoing L1 gas.
+    # Override with OPERATOR_FUND_AMOUNT in your .env if you want more headroom.
+    FUND_AMOUNT=${OPERATOR_FUND_AMOUNT:-0.1ether}
+
+    for entry in "batcher:$BATCHER_ADDR" "proposer:$PROPOSER_ADDR"; do
+        role="${entry%%:*}"
+        addr="${entry#*:}"
+        log_info "Funding $role ($addr) with $FUND_AMOUNT..."
+        cast send "$addr" \
+            --value "$FUND_AMOUNT" \
+            --private-key "0x${PRIVATE_KEY#0x}" \
+            --rpc-url "$L1_RPC_URL" \
+            --confirmations 1
+        balance=$(cast balance "$addr" --rpc-url "$L1_RPC_URL")
+        log_info "$role L1 balance: $balance wei"
+    done
+
+    log_success "Operational signers funded"
+}
+
+# Zero the permissioned (game type 1) init bond
+zero_permissioned_bond() {
+    log_info "Setting permissioned (game type 1) init bond to 0..."
+
+    # The DisputeGameFactory enforces initBonds[gameType] on EVERY game creation,
+    # permissioned included — bonds are not exclusive to the permissionless game.
+    # op-deployer sets a non-zero bond for the permissioned game, which would force
+    # us to refund the proposer a fresh bond before every proposal (it otherwise
+    # starves after one game). On a single-operator permissioned demo chain there is
+    # no untrusted party to bond against, so we set it to 0 and the proposer runs
+    # freely. The factory owner is the deployer.
+    DGF_ADDR=$(jq -r '.opChainDeployments[0].DisputeGameFactoryProxy' "$DEPLOYER_DIR/.deployer/state.json")
+
+    cast send "$DGF_ADDR" 'setInitBond(uint32,uint256)' 1 0 \
+        --private-key "0x${PRIVATE_KEY#0x}" \
+        --rpc-url "$L1_RPC_URL" \
+        --confirmations 1 > /dev/null
+
+    log_success "Permissioned init bond set to 0"
 }
 
 # Generate chain configuration
@@ -213,12 +310,16 @@ setup_batcher() {
     # Copy state file
     cp "$DEPLOYER_DIR/.deployer/state.json" .
     INBOX_ADDRESS=$(cat state.json | jq -r '.opChainDeployments[0].SystemConfigProxy')
-    
+
+    # Use the dedicated batcher key (not the deployer key) so batch submission
+    # signs as the batcher role configured in the system config.
+    BATCHER_KEY=$(cat "$DEPLOYER_DIR/addresses/batcher_private_key.txt")
+
     # Create .env file with OP_BATCHER prefixed variables
     cat > .env << EOF
-OP_BATCHER_L2_ETH_RPC=http://op-geth:8545
+OP_BATCHER_L2_ETH_RPC=http://op-reth:8545
 OP_BATCHER_ROLLUP_RPC=http://op-node:8547
-OP_BATCHER_PRIVATE_KEY=$PRIVATE_KEY
+OP_BATCHER_PRIVATE_KEY=$BATCHER_KEY
 OP_BATCHER_POLL_INTERVAL=1s
 OP_BATCHER_SUB_SAFETY_MARGIN=6
 OP_BATCHER_NUM_CONFIRMATIONS=1
@@ -242,58 +343,24 @@ setup_proposer() {
     # Extract dispute game factory address
     GAME_FACTORY_ADDR=$(cat state.json | jq -r '.opChainDeployments[0].DisputeGameFactoryProxy')
 
+    # Use the dedicated proposer key (not the deployer key) so output proposals
+    # sign as the proposer role.
+    PROPOSER_KEY=$(cat "$DEPLOYER_DIR/addresses/proposer_private_key.txt")
+
     # Create .env file with OP_PROPOSER prefixed variables
     cat > .env << EOF
 OP_PROPOSER_GAME_FACTORY_ADDRESS=$GAME_FACTORY_ADDR
-OP_PROPOSER_PRIVATE_KEY=$PRIVATE_KEY
+# A fresh op-deployer chain ships permissioned: the OptimismPortal respects game
+# type 1 (PermissionedDisputeGame) and only that impl is registered in the
+# DisputeGameFactory. The proposer must therefore propose game type 1 — type 0
+# (permissionless) has no implementation on this chain.
+OP_PROPOSER_PRIVATE_KEY=$PROPOSER_KEY
 OP_PROPOSER_POLL_INTERVAL=20s
-OP_PROPOSER_GAME_TYPE=0
+OP_PROPOSER_GAME_TYPE=1
 OP_PROPOSER_PROPOSAL_INTERVAL=3600s
 EOF
 
     log_success "Proposer setup complete"
-}
-
-# Setup challenger
-setup_challenger() {
-    log_info "Setting up challenger..."
-
-    mkdir -p "$CHALLENGER_DIR"
-    cd "$CHALLENGER_DIR"
-
-    # Copy configuration files
-    cp "$DEPLOYER_DIR/.deployer/genesis.json" .
-    cp "$DEPLOYER_DIR/.deployer/rollup.json" .
-
-    # Extract dispute game factory address
-    GAME_FACTORY_ADDR=$(cat ../deployer/.deployer/state.json | jq -r '.opChainDeployments[0].DisputeGameFactoryProxy')
-
-    # Check for existing prestate file
-    CHALLENGER_PRESTATE_FILE=""
-    if [ -d "$CHALLENGER_DIR" ]; then
-        # Look for any .bin.gz file in the challenger directory
-        EXISTING_PRESTATE=$(find "$CHALLENGER_DIR" -maxdepth 1 -name "*.bin.gz" -print -quit 2>/dev/null)
-        if [ -n "$EXISTING_PRESTATE" ]; then
-            CHALLENGER_PRESTATE_FILE=$(basename "$EXISTING_PRESTATE")
-            log_info "Found existing prestate file: $CHALLENGER_PRESTATE_FILE"
-        fi
-    fi
-
-    # Ensure prestate file exists
-    if [ -z "$CHALLENGER_PRESTATE_FILE" ] || [ ! -f "$CHALLENGER_DIR/$CHALLENGER_PRESTATE_FILE" ]; then
-        log_error "Challenger prestate file not found in $CHALLENGER_DIR/"
-        log_error "Make sure generate_challenger_prestate runs before setup_challenger"
-        return 1
-    fi
-
-    # Create .env file with OP_CHALLENGER prefixed variables
-    cat > .env << EOF
-OP_CHALLENGER_GAME_FACTORY_ADDRESS=$GAME_FACTORY_ADDR
-OP_CHALLENGER_PRIVATE_KEY=$PRIVATE_KEY
-OP_CHALLENGER_CANNON_PRESTATE=/workspace/$CHALLENGER_PRESTATE_FILE
-EOF
-
-    log_success "Challenger setup complete"
 }
 
 # Validate main .env file for docker-compose
@@ -344,135 +411,6 @@ validate_main_env() {
     log_success ".env file validated"
 }
 
-# Generate challenger prestate
-generate_challenger_prestate() {
-    log_info "Generating challenger prestate..."
-
-    # Get the chain ID from the rollup config
-    if [ -f "$DEPLOYER_DIR/.deployer/rollup.json" ]; then
-        CHAIN_ID=$(jq -r '.l2_chain_id' "$DEPLOYER_DIR/.deployer/rollup.json")
-    else
-        log_error "Could not find rollup.json to determine chain ID"
-        return 1
-    fi
-
-    log_info "Chain ID for prestate generation: $CHAIN_ID"
-
-    # Create optimism directory for prestate generation
-    OPTIMISM_DIR="$ROLLUP_DIR/optimism"
-    if [ ! -d "$OPTIMISM_DIR" ]; then
-        log_info "Cloning Optimism repository..."
-        git clone https://github.com/ethereum-optimism/optimism.git "$OPTIMISM_DIR"
-        cd "$OPTIMISM_DIR"
-
-        # Find the latest op-program tag
-        log_info "Finding latest op-program version..."
-        OP_PROGRAM_TAG=$(git tag --list "op-program/v*" | sort -V | tail -1)
-        if [ -z "$OP_PROGRAM_TAG" ]; then
-            log_error "Could not find any op-program tags"
-            return 1
-        fi
-        log_info "Using op-program version: $OP_PROGRAM_TAG"
-
-        git checkout "$OP_PROGRAM_TAG"
-        git submodule update --init --recursive
-    else
-        log_info "Optimism repository already exists, checking configuration..."
-        cd "$OPTIMISM_DIR"
-
-        # Check if we're on the correct op-program tag
-        CURRENT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
-        LATEST_TAG=$(git tag --list "op-program/v*" | sort -V | tail -1)
-
-        if [ "$CURRENT_TAG" != "$LATEST_TAG" ]; then
-            log_info "Updating to latest op-program version: $LATEST_TAG"
-            git checkout "$LATEST_TAG"
-            git submodule update --init --recursive
-        else
-            log_info "Already on correct op-program version: $CURRENT_TAG"
-        fi
-    fi
-
-    # Copy configuration files
-    log_info "Copying chain configuration files..."
-    mkdir -p op-program/chainconfig/configs
-    cp "$DEPLOYER_DIR/.deployer/rollup.json" "op-program/chainconfig/configs/${CHAIN_ID}-rollup.json"
-    cp "$DEPLOYER_DIR/.deployer/genesis.json" "op-program/chainconfig/configs/${CHAIN_ID}-genesis-l2.json"
-
-    # Generate prestate
-    log_info "Generating reproducible prestate..."
-    make reproducible-prestate
-
-    # Extract the prestate hash from the JSON file
-    PRESTATE_HASH=$(jq -r '.pre' op-program/bin/prestate-proof-mt64.json)
-    if [ -z "$PRESTATE_HASH" ] || [ "$PRESTATE_HASH" = "null" ]; then
-        log_error "Could not extract prestate hash from prestate-proof-mt64.json"
-        return 1
-    fi
-
-    log_info "Prestate hash: $PRESTATE_HASH"
-
-    # Move the prestate file
-    log_info "Moving prestate file to challenger directory..."
-    mkdir -p "$ROLLUP_DIR/challenger"
-    mv "op-program/bin/prestate-mt64.bin.gz" "$ROLLUP_DIR/challenger/${PRESTATE_HASH}.bin.gz"
-
-    # Verify the prestate file was created successfully
-    if [ ! -f "$ROLLUP_DIR/challenger/${PRESTATE_HASH}.bin.gz" ]; then
-        log_error "Failed to create prestate file: $ROLLUP_DIR/challenger/${PRESTATE_HASH}.bin.gz"
-        return 1
-    fi
-
-    # Clean up
-    cd "$ROLLUP_DIR"
-    # rm -rf "$OPTIMISM_DIR"  # Uncomment to clean up after successful generation
-
-    log_success "Challenger prestate generation complete: $ROLLUP_DIR/challenger/${PRESTATE_HASH}.bin.gz"
-}
-
-# Setup dispute monitor
-setup_dispute_monitor() {
-    log_info "Setting up dispute monitor..."
-
-    mkdir -p "$DISPUTE_MON_DIR"
-    cd "$DISPUTE_MON_DIR"
-
-    # Get required addresses from state.json
-    GAME_FACTORY_ADDRESS=$(jq -r '.opChainDeployments[0].DisputeGameFactoryProxy' "$DEPLOYER_DIR/.deployer/state.json")
-    PROPOSER_ADDRESS=$(jq -r '.appliedIntent.chains[0].roles.proposer' "$DEPLOYER_DIR/.deployer/state.json")
-    CHALLENGER_ADDRESS=$(jq -r '.appliedIntent.chains[0].roles.challenger' "$DEPLOYER_DIR/.deployer/state.json")
-
-    log_info "Game Factory: $GAME_FACTORY_ADDRESS"
-    log_info "Proposer: $PROPOSER_ADDRESS"
-    log_info "Challenger: $CHALLENGER_ADDRESS"
-
-    # Create environment file for dispute monitor
-    cat > .env << EOF
-# Rollup RPC Configuration
-ROLLUP_RPC=http://op-node:8547
-
-# Contract Addresses
-OP_DISPUTE_MON_GAME_FACTORY_ADDRESS=$GAME_FACTORY_ADDRESS
-
-# Honest Actors
-PROPOSER_ADDRESS=$PROPOSER_ADDRESS
-CHALLENGER_ADDRESS=$CHALLENGER_ADDRESS
-
-# Network Configuration
-OP_DISPUTE_MON_NETWORK=op-sepolia
-
-# Monitoring Configuration
-OP_DISPUTE_MON_MONITOR_INTERVAL=10s
-EOF
-
-    # Create logs directory
-    mkdir -p logs
-
-    log_success "Dispute monitor configuration created"
-    log_info "Dispute monitor will start with 'docker-compose up -d' from project root"
-    log_info "To verify it's working, run: curl -s http://localhost:7300/metrics | grep -E \"op_dispute_mon_(games|ignored)\" | head -10"
-}
-
 # Add op-deployer to PATH if it exists in the workspace
 if [ -f "$(dirname "$0")/../op-deployer" ]; then
     OP_DEPLOYER_PATH="$(cd "$(dirname "$0")/.." && pwd)/op-deployer"
@@ -497,40 +435,18 @@ main() {
     init_deployer
     update_intent
     deploy_contracts
+    fund_operators
+    zero_permissioned_bond
     generate_config
     setup_sequencer
     setup_batcher
     setup_proposer
-    generate_challenger_prestate
-    setup_challenger
-    setup_dispute_monitor
 
     log_success "OP Stack L2 Rollup deployment complete!"
-    log_info "Run 'docker-compose up -d' to start all services (including dispute monitor)"
-    log_info "Dispute monitor metrics: http://localhost:7300/metrics"
+    log_info "Run 'docker-compose up -d' to start the rollup (op-reth, op-node, batcher, proposer)."
+    log_info "Your chain is permissioned (game type 1) and finalizes via the proposer's uncontested"
+    log_info "dispute games. To add a fault-proof challenger or move to permissionless fault proofs,"
+    log_info "see https://docs.optimism.io/chain-operators/tutorials/migrating-permissionless"
 }
 
-# Handle command line arguments for standalone function calls
-if [ $# -gt 0 ]; then
-    case "$1" in
-        "prestate"|"generate-prestate")
-            log_info "Running standalone prestate generation..."
-
-            # Set up required variables for standalone execution
-            SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-            ROLLUP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-            DEPLOYER_DIR="$ROLLUP_DIR/deployer"
-
-            generate_challenger_prestate
-            exit $?
-            ;;
-        *)
-            log_error "Unknown command: $1"
-            log_info "Available commands: prestate"
-            exit 1
-            ;;
-    esac
-fi
-
-# Run main function if no arguments provided
 main "$@"
