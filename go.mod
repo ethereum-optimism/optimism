@@ -6,7 +6,7 @@ toolchain go1.24.13
 
 require (
 	github.com/BurntSushi/toml v1.5.0
-	github.com/Masterminds/semver/v3 v3.3.1
+	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/andybalholm/brotli v1.1.0
 	github.com/base/go-bip39 v1.1.0
 	github.com/btcsuite/btcd v0.24.2
