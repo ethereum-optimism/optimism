@@ -28,12 +28,10 @@ use reth_provider::{
 };
 use reth_revm::database::StateProviderDatabase;
 use reth_trie::{HashedPostState, StateRoot};
-use serial_test::serial;
 
 // ============================ Tests ============================
 
 #[test]
-#[serial]
 fn run_is_noop_when_target_at_or_above_earliest() {
     // Build a chain of 3 blocks; storage initialized at block 3 (earliest = 3).
     let (provider_factory, storage, latest_num, latest_hash) =
@@ -57,7 +55,6 @@ fn run_is_noop_when_target_at_or_above_earliest() {
 }
 
 #[test]
-#[serial]
 fn run_errors_when_storage_uninitialized() {
     let key_pair = deterministic_keypair();
     let chain_spec = chain_spec_with_address(public_key_to_address(key_pair.public_key()));
@@ -75,7 +72,6 @@ fn run_errors_when_storage_uninitialized() {
 }
 
 #[test]
-#[serial]
 fn run_extends_window_backward_multi_block() {
     // 5-block chain — exercises descending iteration across multiple
     // `BackfillContext::step` calls.
@@ -99,7 +95,6 @@ fn run_extends_window_backward_multi_block() {
 }
 
 #[test]
-#[serial]
 fn run_extends_window_backward() {
     // Smallest possible case: 1-block chain, single backfill step from 1 → 0.
     let (provider_factory, storage, latest_num, latest_hash) =
@@ -125,7 +120,6 @@ fn run_extends_window_backward() {
 }
 
 #[test]
-#[serial]
 fn run_extends_window_backward_with_storage_writes() {
     // Every block calls `STORAGE_CONTRACT`, writing `block.number` to slot 0.
     // This exercises the backfill code paths that are silent in plain-transfer
@@ -154,7 +148,6 @@ fn run_extends_window_backward_with_storage_writes() {
 }
 
 #[test]
-#[serial]
 fn backfill_then_forward_write_preserves_state_roots() {
     // End-to-end check that backfill and forward writes can share a proofs DB
     // without corrupting historical reads:
@@ -271,7 +264,6 @@ fn backfill_then_forward_write_preserves_state_roots() {
 /// corrupt history through silently. Here we commit one block with a deliberately
 /// wrong `state_root` field and assert the job aborts at the right block.
 #[test]
-#[serial]
 fn run_aborts_with_state_root_mismatch_when_header_corrupted() {
     // Custom chain build
     let key_pair = deterministic_keypair();

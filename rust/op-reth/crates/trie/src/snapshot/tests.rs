@@ -32,7 +32,6 @@ use reth_provider::{
     test_utils::create_test_provider_factory_with_chain_spec,
 };
 use reth_trie::{Nibbles, StoredNibbles, trie_cursor::TrieCursor};
-use serial_test::serial;
 use std::sync::Arc;
 
 /// Count rows the history-aware `account_trie_cursor` would yield at
@@ -65,7 +64,6 @@ fn count_snapshot_account_trie(storage: &Arc<MdbxProofsStorageV2>) -> usize {
 }
 
 #[test]
-#[serial]
 fn snapshot_init_at_latest_completes_and_anchor_matches() {
     // 3-block chain; storage initialized at block 3 (earliest = latest = 3).
     let (provider_factory, storage, latest_num, latest_hash) =
@@ -100,7 +98,6 @@ fn snapshot_init_at_latest_completes_and_anchor_matches() {
 }
 
 #[test]
-#[serial]
 fn snapshot_init_target_outside_window_errors() {
     let (provider_factory, storage, _latest_num, _latest_hash) =
         build_chain_and_initialize_storage(3);
@@ -122,7 +119,6 @@ fn snapshot_init_target_outside_window_errors() {
 }
 
 #[test]
-#[serial]
 fn snapshot_init_refuses_second_run_when_completed() {
     let (provider_factory, storage, latest_num, _latest_hash) =
         build_chain_and_initialize_storage(3);
@@ -145,7 +141,6 @@ fn snapshot_init_refuses_second_run_when_completed() {
 }
 
 #[test]
-#[serial]
 fn snapshot_init_drift_detection_aborts_run() {
     // Build a chain and plant a `Building` meta at a *different* anchor than
     // the one the job will compute for `latest`. The classify step must
@@ -173,7 +168,6 @@ fn snapshot_init_drift_detection_aborts_run() {
 }
 
 #[test]
-#[serial]
 fn snapshot_init_succeeds_on_chain_with_storage_writes() {
     // Drive the job over a chain whose every block touches a storage slot.
     // This exercises the storage-trie phase (`drain_storage_trie` +
@@ -193,7 +187,6 @@ fn snapshot_init_succeeds_on_chain_with_storage_writes() {
 }
 
 #[test]
-#[serial]
 fn snapshot_init_with_small_chunk_size_drives_multi_chunk_drain() {
     let (provider_factory, storage, latest_num, latest_hash) =
         build_chain_with_storage_writes_and_initialize_storage(5);
@@ -219,7 +212,6 @@ fn snapshot_init_with_small_chunk_size_drives_multi_chunk_drain() {
 }
 
 #[test]
-#[serial]
 fn snapshot_init_clear_then_rebuild_succeeds() {
     let (provider_factory, storage, latest_num, latest_hash) =
         build_chain_and_initialize_storage(3);
@@ -253,7 +245,6 @@ fn snapshot_init_clear_then_rebuild_succeeds() {
 /// target block, inverted compare, …) would let every existing test pass
 /// while silently marking a corrupt snapshot `Ready`.
 #[test]
-#[serial]
 fn snapshot_init_aborts_with_state_root_mismatch_when_header_corrupted() {
     // Custom chain build — need to perturb the latest block's header before
     // commit, so we can't reuse `build_chain_and_initialize_storage`.
@@ -322,7 +313,6 @@ fn snapshot_init_aborts_with_state_root_mismatch_when_header_corrupted() {
 /// Resume happy path for [`SnapshotInitJob::start_or_resume`] — the
 /// `InProgress` arm at the *matching* anchor
 #[test]
-#[serial]
 fn snapshot_init_resumes_from_partial_building_at_matching_anchor() {
     let (provider_factory, storage, latest_num, latest_hash) =
         build_chain_with_storage_writes_and_initialize_storage(5);
@@ -411,7 +401,6 @@ where
 /// Interior-target snapshot — the history-aware cursors at `target` actually
 /// have to reconstruct trie state at a block below the tip.
 #[test]
-#[serial]
 fn snapshot_init_at_interior_target() {
     // Build chain [1..=5] then backfill earliest to 2 → window [2, 5].
     let (provider_factory, storage, latest_num, _latest_hash) =
@@ -443,7 +432,6 @@ fn snapshot_init_at_interior_target() {
 /// `snapshot_init_target_outside_window_errors` only hits the `> latest`
 /// half; this test pins the other half of the same `if`.
 #[test]
-#[serial]
 fn snapshot_init_target_below_earliest_errors() {
     // Window [2, 5] — running with target=1 falls below earliest.
     let (provider_factory, storage, latest_num, _latest_hash) =
@@ -469,7 +457,6 @@ fn snapshot_init_target_below_earliest_errors() {
 /// Inclusive window boundaries: both `target == earliest` and
 /// `target == latest` must accept.
 #[test]
-#[serial]
 fn snapshot_init_at_earliest_and_latest_boundaries_succeed() {
     // Earliest boundary (target == earliest = 2 in a [2, 5] window).
     {
