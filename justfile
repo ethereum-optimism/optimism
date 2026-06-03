@@ -307,7 +307,16 @@ _go-tests-ci-internal go_test_flags="": sync-superchain
   if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
       NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
       NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
-      PARALLEL_PACKAGES=$(echo "$ALL_PACKAGES" | tr ' ' '\n' | awk -v idx="$NODE_INDEX" -v total="$NODE_TOTAL" 'NR % total == idx' | tr '\n' ' ')
+      # Split by historical timing instead of round-robin. Expand the wildcard
+      # patterns to concrete import paths so the unit is one package (otherwise
+      # e.g. all of ./op-e2e/system/... lands on a single node as a straggler).
+      # gotestsum writes JUnit classname=import path (uploaded via
+      # store_test_results), so CircleCI already has per-package timings to
+      # balance on; `circleci tests split` reads CIRCLE_NODE_TOTAL/INDEX itself
+      # and falls back to name-based splitting for packages with no timing yet.
+      PARALLEL_PACKAGES=$(go list -e -tags=ci $ALL_PACKAGES \
+          | circleci tests split --split-by=timings --timings-type=classname \
+          | tr '\n' ' ')
       if [ -n "$PARALLEL_PACKAGES" ]; then
           echo "Node $NODE_INDEX/$NODE_TOTAL running packages: $PARALLEL_PACKAGES"
           ./ops/scripts/gotestsum-split.sh --format=standard-verbose \
