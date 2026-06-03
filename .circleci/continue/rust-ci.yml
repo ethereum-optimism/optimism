@@ -1014,6 +1014,11 @@ workflows:
           directory: rust
           context: &rust-ci-context
             - circleci-repo-readonly-authenticated-github-token
+            # Provides the GCP workload-identity OIDC vars used by
+            # rust-sccache-setup -> gcp-oidc-authenticate for the GCS compile
+            # cache. The context's service account must have storage.objectAdmin
+            # on op-rust-sccache, or writes will 403.
+            - oplabs-network-optimism-io-bucket
 
       - rust-ci-clippy:
           name: rust-clippy
