@@ -7,9 +7,18 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+type DataFormat string
+
+const (
+	DataFormatFile      DataFormat = "file"
+	DataFormatDirectory DataFormat = "directory"
+	DataFormatPebble    DataFormat = "pebble"
+)
+
+var SupportedDataFormats = []DataFormat{DataFormatFile, DataFormatDirectory, DataFormatPebble}
 
 const formatFilename = "kvformat"
 
@@ -18,19 +27,19 @@ var (
 	ErrUnsupportedFormat = errors.New("unsupported format")
 )
 
-func recordKVFormat(dir string, format types.DataFormat) error {
+func recordKVFormat(dir string, format DataFormat) error {
 	return os.WriteFile(filepath.Join(dir, formatFilename), []byte(format), 0o644)
 }
 
-func readKVFormat(dir string) (types.DataFormat, error) {
+func readKVFormat(dir string) (DataFormat, error) {
 	data, err := os.ReadFile(filepath.Join(dir, formatFilename))
 	if errors.Is(err, os.ErrNotExist) {
 		return "", ErrFormatUnavailable
 	} else if err != nil {
 		return "", fmt.Errorf("failed to read kv format: %w", err)
 	}
-	format := types.DataFormat(data)
-	if !slices.Contains(types.SupportedDataFormats, format) {
+	format := DataFormat(data)
+	if !slices.Contains(SupportedDataFormats, format) {
 		return "", fmt.Errorf("%w: %s", ErrUnsupportedFormat, format)
 	}
 	return format, nil
@@ -42,7 +51,7 @@ func readKVFormat(dir string) (types.DataFormat, error) {
 // which may result in the existing data being unused.
 // If the existing data records a format that is not supported, an error is returned.
 // The format is automatically recorded if it wasn't previously stored.
-func NewDiskKV(logger log.Logger, dir string, defaultFormat types.DataFormat) (KV, error) {
+func NewDiskKV(logger log.Logger, dir string, defaultFormat DataFormat) (KV, error) {
 	format, err := readKVFormat(dir)
 	if errors.Is(err, ErrFormatUnavailable) {
 		format = defaultFormat
@@ -57,11 +66,11 @@ func NewDiskKV(logger log.Logger, dir string, defaultFormat types.DataFormat) (K
 	}
 
 	switch format {
-	case types.DataFormatFile:
+	case DataFormatFile:
 		return newFileKV(dir), nil
-	case types.DataFormatDirectory:
+	case DataFormatDirectory:
 		return newDirectoryKV(dir), nil
-	case types.DataFormatPebble:
+	case DataFormatPebble:
 		return newPebbleKV(dir), nil
 	default:
 		return nil, fmt.Errorf("invalid data format: %s", format)

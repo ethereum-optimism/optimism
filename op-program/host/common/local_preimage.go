@@ -1,10 +1,11 @@
-package kvstore
+package common
 
 import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -45,7 +46,7 @@ func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
 		return binary.BigEndian.AppendUint64(nil, eth.EvilChainIDToUInt64(s.config.L2ChainID)), nil
 	case l2ChainConfigKey:
 		if s.config.L2ChainID != boot.CustomChainIDIndicator {
-			return nil, ErrNotFound
+			return nil, kvstore.ErrNotFound
 		}
 		if s.config.InteropEnabled {
 			return json.Marshal(s.config.L2ChainConfigs)
@@ -53,7 +54,7 @@ func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
 		return json.Marshal(s.config.L2ChainConfigs[0])
 	case rollupKey:
 		if s.config.L2ChainID != boot.CustomChainIDIndicator {
-			return nil, ErrNotFound
+			return nil, kvstore.ErrNotFound
 		}
 		if s.config.InteropEnabled {
 			return json.Marshal(s.config.Rollups)
@@ -67,10 +68,10 @@ func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
 	case l1ChainConfigKey:
 		// NOTE: We check the L2 chain ID again to determine if we are using custom configs
 		if s.config.L2ChainID != boot.CustomChainIDIndicator {
-			return nil, ErrNotFound
+			return nil, kvstore.ErrNotFound
 		}
 		return json.Marshal(s.config.L1ChainConfig)
 	default:
-		return nil, ErrNotFound
+		return nil, kvstore.ErrNotFound
 	}
 }

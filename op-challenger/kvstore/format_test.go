@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestRecordAndReadKVFormat(t *testing.T) {
-	for _, format := range types.SupportedDataFormats {
+	for _, format := range SupportedDataFormats {
 		format := format
 		t.Run(string(format), func(t *testing.T) {
 			dir := t.TempDir()
@@ -38,10 +37,10 @@ func TestRecordAndReadKVFormat(t *testing.T) {
 }
 
 func TestNewDiskKV(t *testing.T) {
-	for _, existingFormat := range types.SupportedDataFormats {
+	for _, existingFormat := range SupportedDataFormats {
 		existingFormat := existingFormat
 
-		for _, specifiedFormat := range types.SupportedDataFormats {
+		for _, specifiedFormat := range SupportedDataFormats {
 			specifiedFormat := specifiedFormat
 			t.Run(fmt.Sprintf("%v->%v", existingFormat, specifiedFormat), func(t *testing.T) {
 				dir := t.TempDir()
