@@ -13,6 +13,9 @@ interface IL2ContractsManager is ISemver {
     /// @notice Thrown when the upgrade function is called outside of a DELEGATECALL context.
     error L2ContractsManager_OnlyDelegatecall();
 
+    /// @notice Thrown when the deploy function is called inside a DELEGATECALL context.
+    error L2ContractsManager_OnlyDirectcall();
+
     /// @notice Thrown when a user attempts to downgrade a contract.
     /// @param _target The address of the contract that was attempted to be downgraded.
     error L2ContractsManager_DowngradeNotAllowed(address _target);
@@ -44,6 +47,13 @@ interface IL2ContractsManager is ISemver {
     /// @notice Executes the upgrade for all predeploys.
     /// @dev This function MUST be called via DELEGATECALL from the L2ProxyAdmin.
     function upgrade() external;
+
+    /// @notice Upgrades, initializes, and configures all predeploy proxies for genesis deployment.
+    /// @dev This function MUST be called directly, never via DELEGATECALL. The caller must
+    ///      temporarily set each touched proxy admin to this contract so the upgrades execute under
+    ///      the admin path.
+    /// @param _config The full configuration for the L2 Predeploys.
+    function deploy(L2ContractsManagerTypes.FullConfig memory _config) external;
 
     /// @notice Returns the implementation addresses for each predeploy upgraded by the L2ContractsManager.
     /// @return implementations_ The implementation addresses for each predeploy upgraded by the L2ContractsManager.

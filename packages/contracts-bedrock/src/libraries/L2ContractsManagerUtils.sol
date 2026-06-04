@@ -44,22 +44,28 @@ library L2ContractsManagerUtils {
 
     /// @notice Upgrades a predeploy to a new implementation without calling an initializer.
     ///         Reverts if the predeploy is not upgradeable.
+    /// @dev Deploy mode skips the live implementation read and downgrade guard because genesis
+    ///      temporarily sets proxy admins to the L2ContractsManager.
     /// @param _proxy The proxy address of the predeploy.
     /// @param _implementation The new implementation address.
-    function upgradeTo(address _proxy, address _implementation) internal {
+    /// @param _isDeploy Whether the call is part of the genesis deploy path rather than an upgrade.
+    function upgradeTo(address _proxy, address _implementation, bool _isDeploy) internal {
         if (_implementation.code.length == 0) revert L2ContractsManager_EmptyImplementation(_implementation);
         if (!Predeploys.isUpgradeable(_proxy)) revert L2ContractsManager_NotUpgradeable(_proxy);
 
-        // We skip checking the version for those predeploys that have no code. This would be the case for newly added
-        // predeploys that are being introduced on this particular upgrade.
-        address implementation = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
+        // Deploy mode uses a temporary proxy admin, so the canonical ProxyAdmin read cannot work.
+        // The pre-set code-namespace impl is not a live-upgrade source for the downgrade guard.
+        if (!_isDeploy) {
+            // Skip version checks for code-less predeploys newly introduced by this upgrade.
+            address implementation = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
 
-        // We avoid downgrading Predeploys
-        if (
-            implementation.code.length != 0
-                && SemverComp.gt(ISemver(_proxy).version(), ISemver(_implementation).version())
-        ) {
-            revert L2ContractsManager_DowngradeNotAllowed(address(_proxy));
+            // Avoid downgrading Predeploys.
+            if (
+                implementation.code.length != 0
+                    && SemverComp.gt(ISemver(_proxy).version(), ISemver(_implementation).version())
+            ) {
+                revert L2ContractsManager_DowngradeNotAllowed(address(_proxy));
+            }
         }
 
         IProxy(payable(_proxy)).upgradeTo(_implementation);
@@ -79,16 +85,15 @@ library L2ContractsManagerUtils {
         try IFeeVault(payable(_feeVault)).WITHDRAWAL_NETWORK() returns (Types.WithdrawalNetwork withdrawalNetwork_) {
             withdrawalNetwork = withdrawalNetwork_;
         } catch {
-            // Previous FeeVault implementations hardcoded L1 withdrawals (via L2StandardBridge.bridgeETHTo)
-            // and did not expose a WITHDRAWAL_NETWORK() function. We preserve this L1 behavior as the default.
-            // Modifying this configuration requires explicit migration steps outside the L2ContractsManager upgrade
-            // flow.
+            // Previous FeeVault implementations hardcoded L1 withdrawals via
+            // L2StandardBridge.bridgeETHTo and did not expose WITHDRAWAL_NETWORK(). Preserve this
+            // L1 behavior as the default. Modifying this configuration requires explicit migration
+            // steps outside the L2ContractsManager upgrade flow.
             withdrawalNetwork = Types.WithdrawalNetwork.L1;
         }
 
-        // Note: We are intentionally using legacy deprecated getters for this 1.0.0 version of the L2ContractsManager.
-        // Subsequent versions should use the new getters as L2ContractsManager should ensure that the new current
-        // version of the FeeVault is used.
+        // Use legacy deprecated getters because upgrade mode reads from the currently deployed
+        // FeeVault, which may not expose the newer getters yet.
         IFeeVault feeVault = IFeeVault(payable(_feeVault));
         config_ = L2ContractsManagerTypes.FeeVaultConfig({
             recipient: feeVault.RECIPIENT(),
@@ -97,79 +102,89 @@ library L2ContractsManagerUtils {
         });
     }
 
-    /// @notice Upgrades an initializable Predeploy's implementation to _implementation by resetting the initialized
-    ///         slot and calling upgradeToAndCall with _data. Reverts if the predeploy is not upgradeable.
-    /// @dev It's important to make sure that only initializable Predeploys are upgraded this way.
+    /// @notice Upgrades an initializable predeploy to a new implementation and calls its
+    ///         initializer. Reverts if the predeploy is not upgradeable.
+    /// @dev Upgrade mode resets the initialized slot through StorageSetter before calling the
+    ///      initializer. Deploy mode skips the reset because genesis proxies are uninitialized.
     /// @param _proxy The proxy of the contract.
     /// @param _implementation The new implementation of the contract.
     /// @param _storageSetterImpl The address of the StorageSetter implementation.
     /// @param _data The data to call upgradeToAndCall with.
     /// @param _slot The slot where the initialized value is located.
     /// @param _offset The offset of the initializer value in the slot.
+    /// @param _isDeploy Whether the call is part of the genesis deploy path rather than an upgrade.
     function upgradeToAndCall(
         address _proxy,
         address _implementation,
         address _storageSetterImpl,
         bytes memory _data,
         bytes32 _slot,
-        uint8 _offset
+        uint8 _offset,
+        bool _isDeploy
     )
         internal
     {
         if (!Predeploys.isUpgradeable(_proxy)) revert L2ContractsManager_NotUpgradeable(_proxy);
 
-        if (_storageSetterImpl.code.length == 0) revert L2ContractsManager_EmptyImplementation(_storageSetterImpl);
+        // Deploy mode may pass a dummy StorageSetter because uninitialized genesis proxies do not
+        // need the reset dance.
+        if (!_isDeploy && _storageSetterImpl.code.length == 0) {
+            revert L2ContractsManager_EmptyImplementation(_storageSetterImpl);
+        }
         if (_implementation.code.length == 0) revert L2ContractsManager_EmptyImplementation(_implementation);
 
-        // We skip checking the version for those predeploys that have no code. This would be the case for newly added
-        // predeploys that are being introduced on this particular upgrade.
-        address implementation = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
+        // Deploy mode uses a temporary proxy admin, so the canonical ProxyAdmin read cannot work.
+        // The pre-set code-namespace impl is not a live-upgrade source for the downgrade guard.
+        if (!_isDeploy) {
+            // Skip version checks for code-less predeploys newly introduced by this upgrade.
+            address implementation = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
 
-        if (
-            implementation.code.length != 0
-                && SemverComp.gt(ISemver(_proxy).version(), ISemver(_implementation).version())
-        ) {
-            revert L2ContractsManager_DowngradeNotAllowed(address(_proxy));
-        }
+            if (
+                implementation.code.length != 0
+                    && SemverComp.gt(ISemver(_proxy).version(), ISemver(_implementation).version())
+            ) {
+                revert L2ContractsManager_DowngradeNotAllowed(address(_proxy));
+            }
 
-        // Upgrade to StorageSetter.
-        IProxy(payable(_proxy)).upgradeTo(_storageSetterImpl);
+            // Upgrade to StorageSetter.
+            IProxy(payable(_proxy)).upgradeTo(_storageSetterImpl);
 
-        // OZ v5 ERC-7201 Initializable namespaced slot. For v4 contracts this slot is all zeros.
-        // Slot derivation (ERC-7201):
-        //   keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Initializable")) - 1)) &
-        // ~bytes32(uint256(0xff))
-        // Ref:
-        // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/6b55a93e/contracts/proxy/utils/Initializable.sol#L77
-        bytes32 v5Slot = bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
+            // OZ v5 ERC-7201 Initializable namespaced slot. For v4 contracts this slot is all zeros.
+            // Slot derivation (ERC-7201):
+            //   keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Initializable")) - 1)) &
+            // ~bytes32(uint256(0xff))
+            // Ref:
+            // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/6b55a93e/contracts/proxy/utils/Initializable.sol#L77
+            bytes32 v5Slot = bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
 
-        // V5 contracts use a fixed layout with _initialized at offset 0. A non-zero offset
-        // would misalign the clearing mask and corrupt the slot.
-        if (_slot == v5Slot && _offset != 0) {
-            revert L2ContractsManager_InvalidV5Offset();
-        }
+            // V5 contracts use a fixed layout with _initialized at offset 0. A non-zero offset
+            // would misalign the clearing mask and corrupt the slot.
+            if (_slot == v5Slot && _offset != 0) {
+                revert L2ContractsManager_InvalidV5Offset();
+            }
 
-        // OZ v4: check `_initializing` and clear `_initialized` byte.
-        // Only applies when `_slot` differs from the v5 namespaced slot, to avoid
-        // misreading v5's uint64 `_initialized` field as the v4 `_initializing` flag.
-        if (_slot != v5Slot) {
-            bytes32 v4Value = IStorageSetter(_proxy).getBytes32(_slot);
-            if ((uint256(v4Value) >> (uint256(_offset + 1) * 8)) & 0xFF != 0) {
+            // OZ v4: check `_initializing` and clear `_initialized` byte.
+            // Only applies when `_slot` differs from the v5 namespaced slot, to avoid
+            // misreading v5's uint64 `_initialized` field as the v4 `_initializing` flag.
+            if (_slot != v5Slot) {
+                bytes32 v4Value = IStorageSetter(_proxy).getBytes32(_slot);
+                if ((uint256(v4Value) >> (uint256(_offset + 1) * 8)) & 0xFF != 0) {
+                    revert L2ContractsManager_InitializingDuringUpgrade();
+                }
+                uint256 v4Mask = ~(uint256(0xff) << (uint256(_offset) * 8));
+                IStorageSetter(_proxy).setBytes32(_slot, bytes32(uint256(v4Value) & v4Mask));
+            }
+
+            // OZ v5: check `_initializing` and clear `_initialized` uint64.
+            // OZ v5 stores `_initialized` as uint64 in the low 8 bytes and `_initializing` as
+            // bool at byte offset 8 of the ERC-7201 namespaced slot.
+            // For v4 contracts this slot is all zeros, making this a no-op.
+            uint256 v5Value = uint256(IStorageSetter(_proxy).getBytes32(v5Slot));
+            if ((v5Value >> 64) & 0xFF != 0) {
                 revert L2ContractsManager_InitializingDuringUpgrade();
             }
-            uint256 v4Mask = ~(uint256(0xff) << (uint256(_offset) * 8));
-            IStorageSetter(_proxy).setBytes32(_slot, bytes32(uint256(v4Value) & v4Mask));
+            IStorageSetter(_proxy).setBytes32(v5Slot, bytes32(v5Value & ~uint256(0xFFFFFFFFFFFFFFFF)));
         }
-
-        // OZ v5: check `_initializing` and clear `_initialized` uint64.
-        // OZ v5 stores `_initialized` as uint64 in the low 8 bytes and `_initializing` as
-        // bool at byte offset 8 of the ERC-7201 namespaced slot.
-        // For v4 contracts this slot is all zeros, making this a no-op.
-        uint256 v5Value = uint256(IStorageSetter(_proxy).getBytes32(v5Slot));
-        if ((v5Value >> 64) & 0xFF != 0) {
-            revert L2ContractsManager_InitializingDuringUpgrade();
-        }
-        IStorageSetter(_proxy).setBytes32(v5Slot, bytes32(v5Value & ~uint256(0xFFFFFFFFFFFFFFFF)));
 
         // Upgrade to the implementation and call the initializer.
         IProxy(payable(_proxy)).upgradeToAndCall(_implementation, _data);

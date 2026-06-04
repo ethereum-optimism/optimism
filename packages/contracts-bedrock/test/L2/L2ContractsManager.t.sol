@@ -45,9 +45,9 @@ contract L2ContractsManager_FunctionsExposer_Harness is L2ContractsManager {
     }
 }
 
-/// @title L2ContractsManager_Upgrade_Test
-/// @notice Test contract for the L2ContractsManager contract, testing the upgrade path.
-contract L2ContractsManager_Upgrade_Test is CommonTest {
+/// @title L2ContractsManager_TestInit
+/// @notice Shared setup and helpers for L2ContractsManager tests.
+abstract contract L2ContractsManager_TestInit is CommonTest {
     error ImplNotFound(string name);
 
     L2ContractsManager_FunctionsExposer_Harness internal l2cm;
@@ -95,7 +95,9 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
     /// @notice Looks up an implementation address by name in _implRecords.
     function _findImplByName(string memory _name) internal view returns (address) {
         for (uint256 i = 0; i < _implRecords.length; i++) {
-            if (LibString.eq(_implRecords[i].name, _name)) return _implRecords[i].impl;
+            if (LibString.eq(_implRecords[i].name, _name)) {
+                return _implRecords[i].impl;
+            }
         }
         revert ImplNotFound(_name);
     }
@@ -124,7 +126,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
     /// @notice Executes the upgrade via DELEGATECALL from the L2ProxyAdmin context.
     function _executeUpgrade() internal {
         // The L2CM must be called via DELEGATECALL from the ProxyAdmin.
-        // We simulate this by pranking as the ProxyAdmin and using delegatecall.
+        // Simulate this by pranking as the ProxyAdmin and using delegatecall.
         address proxyAdmin = Predeploys.PROXY_ADMIN;
         vm.prank(proxyAdmin, true);
         (bool success,) = address(l2cm).delegatecall(abi.encodeCall(L2ContractsManager.upgrade, ()));
@@ -271,6 +273,29 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         );
     }
 
+    /// @notice Checks if a predeploy is deployed and upgradeable.
+    /// @dev Uses EIP1967Helper to read the implementation slot directly from storage.
+    ///      This avoids calling the proxy's implementation() function which may fail.
+    function _isPredeployUpgradeable(address _proxy) internal view returns (bool) {
+        address impl = EIP1967Helper.getImplementation(_proxy);
+        return impl != address(0) && impl.code.length > 0;
+    }
+
+    /// @notice Checks if a predeploy requires initialization.
+    /// @dev Returns true for predeploys that have an initializer and need upgradeToAndCall.
+    ///      This determines the upgrade method, not coverage.
+    function _requiresInitialization(address _predeploy) internal pure returns (bool) {
+        return _predeploy == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _predeploy == Predeploys.L2_STANDARD_BRIDGE
+            || _predeploy == Predeploys.L2_ERC721_BRIDGE || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
+            || _predeploy == Predeploys.SEQUENCER_FEE_WALLET || _predeploy == Predeploys.BASE_FEE_VAULT
+            || _predeploy == Predeploys.L1_FEE_VAULT || _predeploy == Predeploys.OPERATOR_FEE_VAULT
+            || _predeploy == Predeploys.LIQUIDITY_CONTROLLER || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY;
+    }
+}
+
+/// @title L2ContractsManager_Upgrade_Test
+/// @notice Test contract for the L2ContractsManager upgrade path.
+contract L2ContractsManager_Upgrade_Test is L2ContractsManager_TestInit {
     /// @notice Tests that the upgrade produces identical state when called twice with the same pre-state.
     function test_upgradeProducesSameState_whenCalledTwiceWithSamePreState_succeeds() public {
         // Save the pre-upgrade state
@@ -508,30 +533,270 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             _feeVault.withdrawalNetwork() == _expectedWithdrawalNetwork, "FeeVault.withdrawalNetwork not preserved"
         );
     }
+}
 
-    /// @notice Checks if a predeploy is deployed and upgradeable.
-    /// @dev Uses EIP1967Helper to read the implementation slot directly from storage.
-    ///      This avoids calling the proxy's implementation() function which may fail.
-    function _isPredeployUpgradeable(address _proxy) internal view returns (bool) {
-        address impl = EIP1967Helper.getImplementation(_proxy);
-        return impl != address(0) && impl.code.length > 0;
+/// @title L2ContractsManager_Deploy_Test
+/// @notice Test contract for the L2ContractsManager deploy path.
+contract L2ContractsManager_Deploy_Test is L2ContractsManager_TestInit {
+    /// @notice ERC-7201 Initializable namespaced slot used by OZ v5 contracts.
+    bytes32 internal constant INITIALIZABLE_SLOT_OZ_V5 =
+        0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
+
+    uint256 internal constant DEPLOY_REMOTE_CHAIN_ID = 12_345_678;
+    uint256 internal constant SEQUENCER_FEE_VAULT_MIN_WITHDRAWAL_AMOUNT = 11 ether;
+    uint256 internal constant BASE_FEE_VAULT_MIN_WITHDRAWAL_AMOUNT = 12 ether;
+    uint256 internal constant L1_FEE_VAULT_MIN_WITHDRAWAL_AMOUNT = 13 ether;
+    uint256 internal constant OPERATOR_FEE_VAULT_MIN_WITHDRAWAL_AMOUNT = 14 ether;
+
+    /// @dev Runs deploy mode with each touched proxy temporarily administered by the L2CM.
+    function _executeDeploy(
+        L2ContractsManager_FunctionsExposer_Harness _l2cm,
+        L2ContractsManagerTypes.FullConfig memory _config
+    )
+        internal
+    {
+        address[] memory proxies = _deployTouchedProxies(_config);
+
+        _clearInitializerSlots(_config);
+
+        for (uint256 i = 0; i < proxies.length; i++) {
+            EIP1967Helper.setAdmin(proxies[i], address(_l2cm));
+        }
+
+        _l2cm.deploy(_config);
+
+        for (uint256 i = 0; i < proxies.length; i++) {
+            EIP1967Helper.setAdmin(proxies[i], Predeploys.PROXY_ADMIN);
+        }
     }
 
-    /// @notice Checks if a predeploy requires initialization.
-    /// @dev Returns true for predeploys that have an initializer and need upgradeToAndCall.
-    ///      This determines the upgrade method, not coverage.
-    function _requiresInitialization(address _predeploy) internal pure returns (bool) {
-        return _predeploy == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _predeploy == Predeploys.L2_STANDARD_BRIDGE
-            || _predeploy == Predeploys.L2_ERC721_BRIDGE || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
-            || _predeploy == Predeploys.SEQUENCER_FEE_WALLET || _predeploy == Predeploys.BASE_FEE_VAULT
-            || _predeploy == Predeploys.L1_FEE_VAULT || _predeploy == Predeploys.OPERATOR_FEE_VAULT
-            || _predeploy == Predeploys.LIQUIDITY_CONTROLLER || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY;
+    /// @dev Clears Initializable state that deploy mode expects to be unset at genesis.
+    function _clearInitializerSlots(L2ContractsManagerTypes.FullConfig memory _config) internal {
+        uint256 v4InitializedMask = ~uint256(0xff);
+        uint256 v5InitializedMask = ~uint256(0xFFFFFFFFFFFFFFFF);
+
+        // CrossDomainMessengerLegacySpacer0 places the v4 _initialized byte at offset 20.
+        uint256 value = uint256(vm.load(Predeploys.L2_CROSS_DOMAIN_MESSENGER, bytes32(0)));
+        vm.store(Predeploys.L2_CROSS_DOMAIN_MESSENGER, bytes32(0), bytes32(value & ~(uint256(0xff) << (20 * 8))));
+
+        value = uint256(vm.load(Predeploys.L2_STANDARD_BRIDGE, bytes32(0)));
+        vm.store(Predeploys.L2_STANDARD_BRIDGE, bytes32(0), bytes32(value & v4InitializedMask));
+
+        value = uint256(vm.load(Predeploys.L2_ERC721_BRIDGE, bytes32(0)));
+        vm.store(Predeploys.L2_ERC721_BRIDGE, bytes32(0), bytes32(value & v4InitializedMask));
+
+        value = uint256(vm.load(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, bytes32(0)));
+        vm.store(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, bytes32(0), bytes32(value & v4InitializedMask));
+
+        // OptimismMintableERC721Factory keeps its Initializable storage at slot 1
+        // because of the mapping at slot 0.
+        value = uint256(vm.load(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, bytes32(uint256(1))));
+        vm.store(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, bytes32(uint256(1)), bytes32(value & v4InitializedMask));
+
+        if (_config.isCustomGasToken) {
+            value = uint256(vm.load(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0)));
+            vm.store(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0), bytes32(value & v4InitializedMask));
+        }
+
+        value = uint256(vm.load(Predeploys.SEQUENCER_FEE_WALLET, INITIALIZABLE_SLOT_OZ_V5));
+        vm.store(Predeploys.SEQUENCER_FEE_WALLET, INITIALIZABLE_SLOT_OZ_V5, bytes32(value & v5InitializedMask));
+
+        value = uint256(vm.load(Predeploys.BASE_FEE_VAULT, INITIALIZABLE_SLOT_OZ_V5));
+        vm.store(Predeploys.BASE_FEE_VAULT, INITIALIZABLE_SLOT_OZ_V5, bytes32(value & v5InitializedMask));
+
+        value = uint256(vm.load(Predeploys.L1_FEE_VAULT, INITIALIZABLE_SLOT_OZ_V5));
+        vm.store(Predeploys.L1_FEE_VAULT, INITIALIZABLE_SLOT_OZ_V5, bytes32(value & v5InitializedMask));
+
+        value = uint256(vm.load(Predeploys.OPERATOR_FEE_VAULT, INITIALIZABLE_SLOT_OZ_V5));
+        vm.store(Predeploys.OPERATOR_FEE_VAULT, INITIALIZABLE_SLOT_OZ_V5, bytes32(value & v5InitializedMask));
+    }
+
+    /// @dev Derives the proxy set from the predeploy registry using the deploy config's feature gates.
+    function _deployTouchedProxies(L2ContractsManagerTypes.FullConfig memory _config)
+        internal
+        pure
+        returns (address[] memory proxies_)
+    {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        uint256 count;
+
+        for (uint256 i = 0; i < records.length; i++) {
+            bool disabledCGT = records[i].isCustomGasToken && !_config.isCustomGasToken;
+            bool disabledInterop = records[i].isInterop && !_config.isInterop;
+            if (records[i].isVariant || disabledCGT || disabledInterop) {
+                continue;
+            }
+            count++;
+        }
+
+        proxies_ = new address[](count);
+        uint256 idx;
+
+        for (uint256 i = 0; i < records.length; i++) {
+            bool disabledCGT = records[i].isCustomGasToken && !_config.isCustomGasToken;
+            bool disabledInterop = records[i].isInterop && !_config.isInterop;
+            if (records[i].isVariant || disabledCGT || disabledInterop) {
+                continue;
+            }
+            proxies_[idx++] = records[i].proxy;
+        }
+    }
+
+    function _assertLiveConfigEquals(L2ContractsManagerTypes.FullConfig memory _expected) internal view {
+        L2ContractsManagerTypes.FullConfig memory actual = l2cm.loadFullConfig();
+
+        assertEq(
+            address(actual.crossDomainMessenger.otherMessenger),
+            address(_expected.crossDomainMessenger.otherMessenger),
+            "CrossDomainMessenger config mismatch"
+        );
+        assertEq(
+            address(actual.standardBridge.otherBridge),
+            address(_expected.standardBridge.otherBridge),
+            "StandardBridge config mismatch"
+        );
+        assertEq(address(actual.erc721Bridge.otherBridge), address(_expected.erc721Bridge.otherBridge));
+        assertEq(actual.mintableERC20Factory.bridge, _expected.mintableERC20Factory.bridge);
+        assertEq(actual.mintableERC721Factory.bridge, _expected.mintableERC721Factory.bridge);
+        assertEq(actual.mintableERC721Factory.remoteChainID, _expected.mintableERC721Factory.remoteChainID);
+        _assertFeeVaultConfigEquals(actual.sequencerFeeVault, _expected.sequencerFeeVault, "SequencerFeeVault");
+        _assertFeeVaultConfigEquals(actual.baseFeeVault, _expected.baseFeeVault, "BaseFeeVault");
+        _assertFeeVaultConfigEquals(actual.l1FeeVault, _expected.l1FeeVault, "L1FeeVault");
+        _assertFeeVaultConfigEquals(actual.operatorFeeVault, _expected.operatorFeeVault, "OperatorFeeVault");
+        assertEq(actual.isCustomGasToken, _expected.isCustomGasToken, "isCustomGasToken mismatch");
+        assertEq(actual.isInterop, _expected.isInterop, "isInterop mismatch");
+
+        if (_expected.isCustomGasToken) {
+            assertEq(actual.liquidityController.owner, _expected.liquidityController.owner);
+            assertEq(actual.liquidityController.gasPayingTokenName, _expected.liquidityController.gasPayingTokenName);
+            assertEq(
+                actual.liquidityController.gasPayingTokenSymbol, _expected.liquidityController.gasPayingTokenSymbol
+            );
+        }
+    }
+
+    function _assertFeeVaultConfigEquals(
+        L2ContractsManagerTypes.FeeVaultConfig memory _actual,
+        L2ContractsManagerTypes.FeeVaultConfig memory _expected,
+        string memory _label
+    )
+        internal
+        pure
+    {
+        assertEq(_actual.recipient, _expected.recipient, string.concat(_label, " recipient mismatch"));
+        assertEq(
+            _actual.minWithdrawalAmount,
+            _expected.minWithdrawalAmount,
+            string.concat(_label, " minWithdrawalAmount mismatch")
+        );
+        assertEq(
+            uint8(_actual.withdrawalNetwork),
+            uint8(_expected.withdrawalNetwork),
+            string.concat(_label, " withdrawalNetwork mismatch")
+        );
+    }
+
+    /// @notice Tests that calling deploy() via DELEGATECALL reverts.
+    function test_deploy_whenCalledViaDelegatecall_reverts() public {
+        L2ContractsManagerTypes.FullConfig memory config = l2cm.loadFullConfig();
+
+        (bool success, bytes memory ret) =
+            address(l2cm).delegatecall(abi.encodeCall(L2ContractsManager.deploy, (config)));
+
+        assertFalse(success, "deploy() via delegatecall should revert");
+        assertEq(
+            ret,
+            abi.encodeWithSelector(L2ContractsManager.L2ContractsManager_OnlyDirectcall.selector),
+            "deploy() should revert with OnlyDirectcall"
+        );
+    }
+
+    /// @notice Tests that the deploy path produces the same predeploy state as the upgrade path.
+    function test_deployProducesSameStateAsUpgrade_succeeds() public {
+        uint256 snap = vm.snapshotState();
+        L2ContractsManagerTypes.FullConfig memory config = l2cm.loadFullConfig();
+
+        _executeDeploy(l2cm, config);
+        PostUpgradeState memory afterDeploy = _capturePostUpgradeState();
+
+        vm.revertToState(snap);
+
+        _executeUpgrade();
+        PostUpgradeState memory afterUpgrade = _capturePostUpgradeState();
+
+        _assertStatesEqual(afterDeploy, afterUpgrade);
+    }
+
+    /// @notice Tests that deploy() applies the supplied config.
+    function test_deployUsesSuppliedConfig_succeeds() public {
+        L2ContractsManagerTypes.FullConfig memory config = l2cm.loadFullConfig();
+
+        config.crossDomainMessenger.otherMessenger = ICrossDomainMessenger(makeAddr("deployOtherMessenger"));
+        config.standardBridge.otherBridge = IStandardBridge(payable(makeAddr("deployOtherBridge")));
+        config.erc721Bridge.otherBridge = IERC721Bridge(makeAddr("deployOtherERC721Bridge"));
+        config.mintableERC20Factory.bridge = makeAddr("deployERC20Bridge");
+        config.mintableERC721Factory.bridge = makeAddr("deployERC721Bridge");
+        config.mintableERC721Factory.remoteChainID = DEPLOY_REMOTE_CHAIN_ID;
+
+        config.sequencerFeeVault = L2ContractsManagerTypes.FeeVaultConfig({
+            recipient: makeAddr("deploySequencerFeeVaultRecipient"),
+            minWithdrawalAmount: SEQUENCER_FEE_VAULT_MIN_WITHDRAWAL_AMOUNT,
+            withdrawalNetwork: Types.WithdrawalNetwork.L2
+        });
+        config.baseFeeVault = L2ContractsManagerTypes.FeeVaultConfig({
+            recipient: makeAddr("deployBaseFeeVaultRecipient"),
+            minWithdrawalAmount: BASE_FEE_VAULT_MIN_WITHDRAWAL_AMOUNT,
+            withdrawalNetwork: Types.WithdrawalNetwork.L2
+        });
+        config.l1FeeVault = L2ContractsManagerTypes.FeeVaultConfig({
+            recipient: makeAddr("deployL1FeeVaultRecipient"),
+            minWithdrawalAmount: L1_FEE_VAULT_MIN_WITHDRAWAL_AMOUNT,
+            withdrawalNetwork: Types.WithdrawalNetwork.L2
+        });
+        config.operatorFeeVault = L2ContractsManagerTypes.FeeVaultConfig({
+            recipient: makeAddr("deployOperatorFeeVaultRecipient"),
+            minWithdrawalAmount: OPERATOR_FEE_VAULT_MIN_WITHDRAWAL_AMOUNT,
+            withdrawalNetwork: Types.WithdrawalNetwork.L2
+        });
+
+        if (config.isCustomGasToken) {
+            config.liquidityController = L2ContractsManagerTypes.LiquidityControllerConfig({
+                owner: makeAddr("deployLiquidityControllerOwner"),
+                gasPayingTokenName: "Deploy Gas Token",
+                gasPayingTokenSymbol: "DGT"
+            });
+        }
+
+        _executeDeploy(l2cm, config);
+
+        _assertLiveConfigEquals(config);
+    }
+
+    /// @notice Tests that deploy() tolerates genesis' dummy StorageSetter record.
+    function test_deployWithZeroStorageSetter_succeeds() public {
+        L2ContractsManagerTypes.ImplRecord[] memory records =
+            new L2ContractsManagerTypes.ImplRecord[](_implRecords.length);
+
+        for (uint256 i = 0; i < _implRecords.length; i++) {
+            records[i] = _implRecords[i];
+            if (LibString.eq(records[i].name, "StorageSetter")) {
+                records[i].impl = address(0);
+            }
+        }
+
+        L2ContractsManager_FunctionsExposer_Harness zeroStorageSetterL2CM =
+            new L2ContractsManager_FunctionsExposer_Harness(records);
+        L2ContractsManagerTypes.FullConfig memory config = zeroStorageSetterL2CM.loadFullConfig();
+
+        _executeDeploy(zeroStorageSetterL2CM, config);
+
+        _assertLiveConfigEquals(config);
     }
 }
 
 /// @title L2ContractsManager_CGT_Test
 /// @notice Test contract for the L2ContractsManager on Custom Gas Token networks.
-contract L2ContractsManager_Upgrade_CGT_Test is L2ContractsManager_Upgrade_Test {
+contract L2ContractsManager_Upgrade_CGT_Test is L2ContractsManager_TestInit {
     /// @notice Tests that CGT-specific contracts are upgraded when CGT is enabled.
     function test_upgradeUpgradesCGTContracts_whenCGTEnabled_succeeds() public {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
@@ -634,13 +899,14 @@ contract L2ContractsManager_Upgrade_CGT_Test is L2ContractsManager_Upgrade_Test 
 
 /// @title L2ContractsManager_Upgrade_DowngradePrevention_Test
 /// @notice Test contract that verifies L2CM prevents downgrading predeploy implementations.
-contract L2ContractsManager_Upgrade_DowngradePrevention_Test is L2ContractsManager_Upgrade_Test {
+contract L2ContractsManager_Upgrade_DowngradePrevention_Test is L2ContractsManager_TestInit {
+    string internal constant HIGHER_VERSION = "999.0.0";
+
     /// @notice Tests that upgrade reverts when a non-initializable predeploy has a higher version than the new
     /// implementation.
     function test_upgrade_whenDowngradingNonInitializablePredeploy_reverts() public {
         // Mock GasPriceOracle to report a version higher than the new implementation
-        string memory higherVersion = "999.0.0";
-        vm.mockCall(Predeploys.GAS_PRICE_ORACLE, abi.encodeCall(ISemver.version, ()), abi.encode(higherVersion));
+        vm.mockCall(Predeploys.GAS_PRICE_ORACLE, abi.encodeCall(ISemver.version, ()), abi.encode(HIGHER_VERSION));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -654,9 +920,8 @@ contract L2ContractsManager_Upgrade_DowngradePrevention_Test is L2ContractsManag
     /// implementation.
     function test_upgrade_whenDowngradingInitializablePredeploy_reverts() public {
         // Mock L2CrossDomainMessenger to report a version higher than the new implementation
-        string memory higherVersion = "999.0.0";
         vm.mockCall(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER, abi.encodeCall(ISemver.version, ()), abi.encode(higherVersion)
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER, abi.encodeCall(ISemver.version, ()), abi.encode(HIGHER_VERSION)
         );
 
         vm.expectRevert(
@@ -688,7 +953,7 @@ contract L2ContractsManager_Upgrade_DowngradePrevention_Test is L2ContractsManag
 
 /// @title L2ContractsManager_GetImplementations_Test
 /// @notice Tests for the getImplementations() getter function.
-contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrade_Test {
+contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_TestInit {
     /// @notice Tests that the ImplRecord[] passed to the constructor is well-formed:
     ///         every entry has a non-empty name and a non-zero implementation address.
     function test_implRecords_areWellFormed_succeeds() public view {
@@ -722,7 +987,7 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
 
 /// @title L2ContractsManager_Upgrade_InteropFlagEnabled_Test
 /// @notice Tests that interop predeploy upgrades are correctly gated behind the INTEROP sys feature (set on L1Block).
-contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManager_Upgrade_Test {
+contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManager_TestInit {
     using stdStorage for StdStorage;
 
     /// @notice The list of interop predeploy addresses.
@@ -775,7 +1040,7 @@ contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManage
 
 /// @title L2ContractsManager_Upgrade_InteropFlagDisabled_Test
 /// @notice Tests that interop predeploy upgrades are skipped when the INTEROP sys feature is disabled.
-contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManager_Upgrade_Test {
+contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManager_TestInit {
     using stdStorage for StdStorage;
 
     /// @notice The list of interop predeploy addresses.
@@ -815,7 +1080,7 @@ contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManag
 /// @title L2ContractsManager_Upgrade_FeatureFlagMismatch_Test
 /// @notice Tests that _loadFullConfig reverts when the INTEROP system customization is enabled
 ///         but the OPTIMISM_PORTAL_INTEROP dev feature is not.
-contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManager_Upgrade_Test {
+contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManager_TestInit {
     using stdStorage for StdStorage;
 
     /// @notice Tests that upgrade succeeds when the dev feature is enabled but the system feature is not.
@@ -846,7 +1111,7 @@ contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManag
 /// @title L2ContractsManager_Upgrade_Coverage_Test
 /// @notice Test that verifies all predeploys receive upgrade calls during L2CM upgrade.
 ///         Uses Predeploys.sol as the source of truth for which predeploys should be upgraded.
-contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_Test {
+contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_TestInit {
     function setUp() public override {
         super.setUp();
         // Skip interop since it requires to call useInterop() on setUp.
@@ -936,7 +1201,7 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
 /// @notice Tests the upgrade process when the L2DevFeatureFlags
 ///         implementation has no code, simulating existing chains where the predeploy was
 ///         never deployed.
-contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager_Upgrade_Test {
+contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager_TestInit {
     using stdStorage for StdStorage;
 
     /// @notice Helper function that simulates an existing-chain state where L2DevFeatureFlags
@@ -1045,7 +1310,7 @@ contract L2ContractsManager_Reverter_Harness {
 /// @notice Regression guard: ensures any per-predeploy upgrade failure in
 ///         `_apply()` aborts the whole upgrade, covering both the `upgradeToAndCall` and
 ///         `upgradeTo` paths.
-contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade_Test {
+contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_TestInit {
     function _countUpgradeablePredeploys(bool _initializable) internal view returns (uint256 count_) {
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
         for (uint256 i; i < records.length; i++) {
@@ -1067,12 +1332,16 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
         string memory fallbackName;
         for (uint256 i = 0; i < records.length; i++) {
             if (records[i].proxy != _predeploy) continue;
-            if (records[i].isCustomGasToken && isCGT) return _findImplByName(records[i].name);
+            if (records[i].isCustomGasToken && isCGT) {
+                return _findImplByName(records[i].name);
+            }
             if (!records[i].isVariant) {
                 fallbackName = records[i].name;
             }
         }
-        if (bytes(fallbackName).length > 0) return _findImplByName(fallbackName);
+        if (bytes(fallbackName).length > 0) {
+            return _findImplByName(fallbackName);
+        }
         revert("L2ContractsManager_Upgrade_Atomicity_Test: unmapped predeploy");
     }
 
