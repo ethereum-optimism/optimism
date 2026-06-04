@@ -374,8 +374,8 @@ func WithInteropAtGenesis() Option {
 // WithSupernodeVNSequencerForBootstrap enables sequencing on the supernode VN of
 // the light-sequencer supernode interop preset and starts the light follow-mode
 // ELSync sequencers stopped, so the VN can bootstrap the chain the light sequencers
-// EL-sync from. Pair with BootstrapLightSequencersViaVNHandoff, which drives the
-// bootstrap and hands sequencing off to the light sequencers (#21164).
+// EL-sync from. Pair with the system's BootstrapLightSequencersViaVNHandoff method,
+// which drives the bootstrap and hands sequencing off to the light sequencers (#21164).
 func WithSupernodeVNSequencerForBootstrap() Option {
 	return option{
 		kinds: optionKindSupernodeVNSequencerForBootstrap,

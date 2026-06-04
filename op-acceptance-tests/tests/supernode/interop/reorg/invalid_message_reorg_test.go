@@ -42,7 +42,7 @@ func TestSupernodeLightSequencerInteropInvalidMessageReplacement(gt *testing.T) 
 	// Bootstrap via the supernode VN sequencer and hand off to the light ELSync sequencers, then
 	// run the invalid-message scenario on the live chain.
 	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0, presets.WithSupernodeVNSequencerForBootstrap())
-	presets.BootstrapLightSequencersViaVNHandoff(t, sys)
+	sys.BootstrapLightSequencersViaVNHandoff()
 	runInteropInvalidMessageReplacementScenario(t, sys)
 }
 

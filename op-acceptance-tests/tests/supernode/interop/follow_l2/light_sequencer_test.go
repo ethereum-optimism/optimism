@@ -19,7 +19,7 @@ func TestLightSequencerSupernodeDerivesSafeChain(gt *testing.T) {
 	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0, presets.WithSupernodeVNSequencerForBootstrap())
 	logger := sys.Log.With("Test", "TestLightSequencerSupernodeDerivesSafeChain")
 
-	presets.BootstrapLightSequencersViaVNHandoff(t, sys)
+	sys.BootstrapLightSequencersViaVNHandoff()
 
 	lightAActive, err := sys.L2ACL.Escape().RollupAPI().SequencerActive(t.Ctx())
 	t.Require().NoError(err, "chain A light CL sequencer status")
