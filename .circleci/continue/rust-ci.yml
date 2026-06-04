@@ -13,7 +13,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:758f67c7212e7d05c3d02c34f26766ef86f657d3bb811da07cc01e37b736ebef
   c-base_image:
     type: string
     default: default
@@ -97,6 +97,9 @@ commands:
             - run:
                 name: Ensure clang available
                 command: 'command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }'
+      # Shared GCS compile cache (op-rust-sccache). Defined in main.yml; invoked
+      # here because rust-ci.yml's rust-prepare wins the config deep-merge.
+      - rust-sccache-setup
 
   rust-restore-build-cache:
     description: "Restore the target directory cache for a Rust workspace"
@@ -136,6 +139,12 @@ commands:
     description: "Save the target directory cache for a Rust workspace"
     parameters: *cache-params
     steps:
+      # Surface sccache hit/write stats at job end. Harmless no-op when sccache
+      # is absent; confirms the GCS cache is hit rather than silently failing.
+      - run:
+          name: sccache stats
+          command: 'command -v sccache >/dev/null 2>&1 && sccache --show-stats || true'
+          when: always
       - save_cache:
           key: << parameters.prefix >>-registry-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
           name: Save << parameters.directory >> registry cache (mise)
@@ -992,6 +1001,9 @@ workflows:
           directory: rust
           context: &rust-ci-context
             - circleci-repo-readonly-authenticated-github-token
+            # GCP Workload Identity coords + reader SA + bucket for the sccache
+            # GCS compile cache (rust-sccache-setup). Restricted to this project.
+            - sccache-gcs-optimism
 
       - rust-ci-clippy:
           name: rust-clippy
