@@ -524,14 +524,23 @@ mod tests {
     use std::net::SocketAddr;
 
     /// Behavior of a mock interop filter endpoint for `interop_checkAccessList`.
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     enum Verdict {
         /// Responds immediately with a valid result.
         Valid,
         /// Responds immediately with a definitive validation rejection (maps to `InvalidEntry`).
         Invalid,
+        /// Responds immediately with a generic `-32602` rejection that is not a `SuperchainDAError`
+        /// code (e.g. "failed to parse access entry"). Maps to `Rejected`, a definitive verdict.
+        GenericRejection,
         /// Responds immediately with a non-definitive internal error (maps to `Other`).
         InternalError,
+        /// Responds immediately with `FutureData` (-321401): the node is out of sync. Maps to the
+        /// soft, non-response `DataUnavailable`.
+        OutOfSyncFutureData,
+        /// Responds immediately with `Uninitialized` (-320400): the node is out of sync. Maps to
+        /// the soft, non-response `DataUnavailable`.
+        OutOfSyncUninitialized,
         /// Responds immediately with the filter's failsafe rejection (maps to `FailsafeEnabled`).
         Failsafe,
         /// Sleeps far longer than the client timeout before responding valid (a slow endpoint).
@@ -574,8 +583,23 @@ mod tests {
                                 "conflicting data",
                                 None::<()>,
                             )),
+                            // Generic -32602 rejection (e.g. malformed entry). Not a
+                            // SuperchainDAError code, not -320602; must count as a definitive
+                            // rejection and surface its message.
+                            Verdict::GenericRejection => Err(ErrorObjectOwned::owned(
+                                -32602,
+                                "failed to parse access entry",
+                                None::<()>,
+                            )),
                             Verdict::InternalError => {
                                 Err(ErrorObjectOwned::owned(-32603, "internal error", None::<()>))
+                            }
+                            // Out-of-sync soft failures: node lacks the data yet.
+                            Verdict::OutOfSyncFutureData => {
+                                Err(ErrorObjectOwned::owned(-321401, "future data", None::<()>))
+                            }
+                            Verdict::OutOfSyncUninitialized => {
+                                Err(ErrorObjectOwned::owned(-320400, "uninitialized", None::<()>))
                             }
                             // The filter emits the dedicated failsafe code -320602. The message is
                             // intentionally unrelated to "failsafe" to prove detection is by code,
@@ -656,6 +680,53 @@ mod tests {
                 InteropTxValidatorError::InvalidEntry(SuperchainDAError::ConflictingData)
             ),
             "expected the real rejection reason, got {err:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn generic_rejection_counts_and_surfaces_message() {
+        // A generic -32602 rejection (not a SuperchainDAError code) must count as a definitive
+        // verdict and reject with the filter's real message preserved (single endpoint, min 1).
+        let a = MockEndpoint::start(Verdict::GenericRejection, Failsafe::Reply(false)).await;
+        let client = client_for(&[&a], None).await;
+        let err = check(&client).await.unwrap_err();
+        assert!(
+            matches!(&err, InteropTxValidatorError::Rejected { code: -32602, .. }),
+            "expected a definitive Rejected verdict, got {err:?}"
+        );
+        assert!(
+            err.to_string().contains("failed to parse access entry"),
+            "rejection must preserve the filter's message, got: {err}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn out_of_sync_endpoint_is_soft() {
+        // One endpoint is out of sync (FutureData / Uninitialized), the others are valid and meet
+        // the quorum. The soft node must be ignored (treated as a non-response), not a rejection.
+        for soft in [Verdict::OutOfSyncFutureData, Verdict::OutOfSyncUninitialized] {
+            let a = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
+            let b = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
+            let out_of_sync = MockEndpoint::start(soft, Failsafe::Reply(false)).await;
+            // min 2 of 3: the two valid endpoints meet the quorum; the soft node is ignored.
+            let client = client_for(&[&a, &b, &out_of_sync], Some(2)).await;
+            assert!(
+                check(&client).await.is_ok(),
+                "an out-of-sync soft failure ({soft:?}) must not cause rejection when quorum is met"
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn all_endpoints_out_of_sync_fail_closed() {
+        // Every endpoint is out of sync: no definitive verdicts collected, so fail closed.
+        let a = MockEndpoint::start(Verdict::OutOfSyncFutureData, Failsafe::Reply(false)).await;
+        let b = MockEndpoint::start(Verdict::OutOfSyncUninitialized, Failsafe::Reply(false)).await;
+        let client = client_for(&[&a, &b], None).await;
+        let err = check(&client).await.unwrap_err();
+        assert!(
+            matches!(err, InteropTxValidatorError::QuorumNotReached { received: 0, required: 2 }),
+            "all endpoints out of sync must fail closed, got {err:?}"
         );
     }
 
