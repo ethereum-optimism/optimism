@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -169,39 +168,13 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 
 	// A new tx on the recovered chain must still be includable and durably validated. The light
 	// sequencer's unsafe tip oscillates during recovery, so a tx sent into it can be orphaned
-	// even as the chain keeps advancing. Rather than predict a stable tip, re-send the
-	// transfer until one lands at or below the supernode VN's L1-derived safe head (irreversible),
-	// then assert it is present on BOTH ELs there. Bounded so a genuine freeze fails rather than hangs.
-	supernodeClient := sys.L2BSupernodeEL.Escape().EthClient()
-	var settledBlock uint64
-	var settledTxHash common.Hash
-	const maxSendAttempts = 8
-	for attempt := 0; attempt < maxSendAttempts && settledBlock == 0; attempt++ {
+	// even as the chain keeps advancing. Re-send the transfer until one lands at or below the
+	// supernode VN's L1-derived safe head, then assert it is present on BOTH ELs.
+	settledBlock, settledTxHash := sys.L2BSupernodeEL.ResendUntilSafe(func() *txplan.PlannedTx {
 		// Fresh funded account per attempt => clean nonce space, immune to an orphaned prior send.
 		eoa := sys.FunderB.NewFundedEOA(eth.OneEther)
-		// Broadcast only — do NOT require inclusion. A blocking inclusion wait (eoa.Transact) would
-		// hard-fail mid-loop if the tx is orphaned; we confirm via the supernode-safe poll below, so
-		// a non-landing send just falls through to the next attempt.
-		tx := txplan.NewPlannedTx(eoa.PlanTransfer(alice.Address(), eth.OneHundredthEther))
-		signed, err := tx.Signed.Eval(ctx)
-		if err != nil {
-			continue // could not sign (unexpected); try a fresh account
-		}
-		h := signed.Hash()
-		if _, err := tx.Submitted.Eval(ctx); err != nil {
-			continue // broadcast rejected mid-oscillation; re-send
-		}
-		// Bounded wait for THIS broadcast to derive onto the supernode's irreversible safe chain.
-		for i := 0; i < 20 && settledBlock == 0; i++ {
-			if rcpt, err := supernodeClient.TransactionReceipt(ctx, h); err == nil && rcpt != nil &&
-				bigs.Uint64Strict(rcpt.BlockNumber) <= sys.L2BSupernodeEL.BlockRefByLabel(eth.Safe).Number {
-				settledBlock, settledTxHash = bigs.Uint64Strict(rcpt.BlockNumber), h
-				break
-			}
-			time.Sleep(time.Second)
-		}
-	}
-	require.NotZero(t, settledBlock, "new transfer should reach the supernode's L1-derived safe chain within the resend budget")
+		return txplan.NewPlannedTx(eoa.PlanTransfer(alice.Address(), eth.OneHundredthEther))
+	}, 8, 20)
 	sys.Supernode.AwaitValidatedTimestamp(sys.L2B.TimestampForBlockNum(settledBlock))
 	// The tx is in a derived-safe block on the supernode; the light sequencer must agree there.
 	// Wait for the light seq EL's safe head to reach it.
