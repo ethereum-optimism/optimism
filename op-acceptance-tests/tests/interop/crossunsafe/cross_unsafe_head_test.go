@@ -93,3 +93,43 @@ func TestCrossUnsafeHeadStopsAtInvalidExecutingMessage(gt *testing.T) {
 	dsl.CheckAll(t, sys.L2ELB.CrossUnsafeHeadReachedFn(invalidBlock-1, 45))
 	dsl.CheckAll(t, sys.L2ELB.CrossUnsafeHeadStaysBelowFn(invalidBlock, 10))
 }
+
+// TestCrossUnsafeHeadAdvancesPastSelfReferencingMessage verifies that op-reth validates an
+// intra-chain (self-referencing) executing message against its own local provider rather than a
+// source RPC.
+//
+// Both the initiating and executing messages are on chain B, so the executing message's identifier
+// chain ID equals chain B's own ID. There is no source RPC configured for the local chain, so the
+// head can only reach the executing block if op-reth takes the local-provider validation path.
+// As in the cross-chain test, chain B's batcher is paused so reaching the block (while it is still
+// above the safe head) is proof of runtime validation rather than safe-head promotion.
+func TestCrossUnsafeHeadAdvancesPastSelfReferencingMessage(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpGeth(t, "eth_crossUnsafeHead is an op-reth feature")
+
+	sys := presets.NewTwoL2SupernodeInterop(t, 0, presets.WithCrossUnsafeHeadSourceFromPeer())
+	require := t.Require()
+
+	rng := rand.New(rand.NewSource(1234))
+	// Both EOAs are on chain B: the executing message references an initiating message on the same
+	// chain.
+	alice := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
+
+	eventLoggerAddress := alice.DeployEventLogger()
+	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 2, 20))
+	sys.L2B.WaitForBlock()
+
+	// Pin chain B's safe head below the executing block.
+	sys.L2BatcherB.Stop()
+
+	execMsg := bob.SendExecMessage(initMsg)
+	execBlock := execMsg.Receipt.BlockNumber.Uint64()
+
+	// Reaching the executing block requires validating the same-chain initiating message against
+	// the local provider.
+	dsl.CheckAll(t, sys.L2ELB.CrossUnsafeHeadReachedFn(execBlock, 45))
+
+	require.Less(sys.L2ELB.BlockRefByLabel(eth.Safe).Number, execBlock,
+		"chain B safe head advanced to the executing block despite the paused batcher; cannot attribute the cross-unsafe head to validation")
+}

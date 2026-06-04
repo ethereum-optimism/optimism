@@ -64,6 +64,10 @@ pub struct CrossUnsafeHeadExt<Provider> {
 #[derive(Debug)]
 struct CrossUnsafeHeadExtInner<Provider> {
     provider: Provider,
+    /// The chain ID of the local chain this extension runs on. Executing messages that initiate on
+    /// this chain (intra-chain / self-references) are validated against the local provider rather
+    /// than a source RPC.
+    local_chain_id: u64,
     source_clients: SourceLogClients,
     state: Mutex<CrossUnsafeState>,
 }
@@ -72,11 +76,13 @@ impl<Provider> CrossUnsafeHeadExt<Provider> {
     /// Creates a new runtime cross-unsafe head extension.
     pub fn new(
         provider: Provider,
+        local_chain_id: u64,
         source_rpcs: impl IntoIterator<Item = impl Into<String>>,
     ) -> Result<Self, String> {
         Ok(Self {
             inner: Arc::new(CrossUnsafeHeadExtInner {
                 provider,
+                local_chain_id,
                 source_clients: SourceLogClients::new(source_rpcs)?,
                 state: Mutex::new(CrossUnsafeState::default()),
             }),
@@ -310,18 +316,35 @@ where
                     return Ok(BlockValidation::invalid());
                 }
 
-                let source = self
-                    .inner
-                    .source_clients
-                    .validate_initiating_message(
-                        message.identifier.chainId.saturating_to::<u64>(),
-                        message.identifier.blockNumber.saturating_to::<u64>(),
-                        message.identifier.logIndex.saturating_to::<u64>(),
+                let source_chain_id = message.identifier.chainId.saturating_to::<u64>();
+                let source_block = message.identifier.blockNumber.saturating_to::<u64>();
+                let source_log_index = message.identifier.logIndex.saturating_to::<u64>();
+
+                // A message initiating on our own chain (intra-chain / self-reference) is validated
+                // against the local provider — the referenced block already exists locally, and
+                // (with the strict timestamp check above) it is strictly earlier than this block.
+                // Cross-chain references go to the configured source RPC.
+                let source = if source_chain_id == self.inner.local_chain_id {
+                    self.validate_local_initiating_message(
+                        source_block,
+                        source_log_index,
                         initiating_timestamp,
                         message.identifier.origin,
                         message.payloadHash,
-                    )
-                    .await;
+                    )?
+                } else {
+                    self.inner
+                        .source_clients
+                        .validate_initiating_message(
+                            source_chain_id,
+                            source_block,
+                            source_log_index,
+                            initiating_timestamp,
+                            message.identifier.origin,
+                            message.payloadHash,
+                        )
+                        .await
+                };
 
                 let Some(source) = source else { return Ok(BlockValidation::invalid()) };
                 if !sources.contains(&source) {
@@ -331,6 +354,89 @@ where
         }
 
         Ok(BlockValidation { valid: true, sources })
+    }
+
+    /// Validates an initiating message that lives on the local chain, against the local provider.
+    ///
+    /// Mirrors the remote `SourceLogClient::validate_initiating_message` checks (block timestamp,
+    /// log existence at the claimed block-global index, origin, payload hash) but reads from the
+    /// local provider instead of a source RPC. Returns the local block hash as the dependency on
+    /// success, or `None` on any mismatch / missing data (fail closed).
+    fn validate_local_initiating_message(
+        &self,
+        block_number: u64,
+        log_index: u64,
+        timestamp: u64,
+        origin: alloy_primitives::Address,
+        payload_hash: B256,
+    ) -> RpcResult<Option<SourceRef>> {
+        let Some(header) = self.inner.provider.sealed_header(block_number).map_err(|err| {
+            internal_rpc_err(format!("failed to read local header {block_number}: {err}"))
+        })?
+        else {
+            return Ok(None);
+        };
+        if header.timestamp() != timestamp {
+            debug!(
+                target: "rpc::cross_unsafe",
+                block_number,
+                expected = timestamp,
+                actual = header.timestamp(),
+                "local initiating block timestamp mismatch"
+            );
+            return Ok(None);
+        }
+
+        let Some(receipts) = self
+            .inner
+            .provider
+            .receipts_by_block(BlockHashOrNumber::Number(block_number))
+            .map_err(|err| {
+                internal_rpc_err(format!(
+                    "failed to read receipts for local block {block_number}: {err}"
+                ))
+            })?
+        else {
+            return Ok(None);
+        };
+
+        // The identifier's `logIndex` is the block-global position across all logs in the block.
+        let Some(log) = receipts.iter().flat_map(|receipt| receipt.logs()).nth(log_index as usize)
+        else {
+            debug!(target: "rpc::cross_unsafe", block_number, log_index, "local initiating log not found");
+            return Ok(None);
+        };
+
+        if log.address != origin {
+            debug!(
+                target: "rpc::cross_unsafe",
+                block_number,
+                log_index,
+                expected = %origin,
+                actual = %log.address,
+                "local initiating log origin mismatch"
+            );
+            return Ok(None);
+        }
+
+        let local_payload_hash = keccak256(RawMessagePayload::from(log).as_ref());
+        if local_payload_hash != payload_hash {
+            debug!(
+                target: "rpc::cross_unsafe",
+                block_number,
+                log_index,
+                expected = %payload_hash,
+                actual = %local_payload_hash,
+                "local initiating log payload hash mismatch"
+            );
+            return Ok(None);
+        }
+
+        Ok(Some(SourceRef {
+            chain_id: self.inner.local_chain_id,
+            block_number,
+            block_hash: header.hash(),
+        }))
     }
 }
 

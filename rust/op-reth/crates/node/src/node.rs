@@ -736,9 +736,14 @@ where
             ctx.node.pool().clone(),
             ctx.node.provider().clone(),
         );
+        let local_chain_id = ctx.node.provider().chain_spec().chain().id();
         let cross_unsafe_head_ext = (!cross_unsafe_head_source_rpcs.is_empty())
             .then(|| {
-                CrossUnsafeHeadExt::new(ctx.node.provider().clone(), cross_unsafe_head_source_rpcs)
+                CrossUnsafeHeadExt::new(
+                    ctx.node.provider().clone(),
+                    local_chain_id,
+                    cross_unsafe_head_source_rpcs,
+                )
             })
             .transpose()
             .map_err(eyre::Report::msg)?;
