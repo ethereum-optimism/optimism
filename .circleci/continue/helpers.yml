@@ -1,0 +1,80 @@
+# Shared command helpers merged into every continuation config (see
+# .circleci/scripts/merge-configs.sh). Defining them here once avoids
+# duplicating the definitions across main.yml and rust-e2e.yml.
+commands:
+  # Shared Go module cache. There is a single Go module in the repo, so the
+  # downloaded module set is identical for every job at a given go.sum. It is
+  # populated once by the prep-go-modules job and restored read-only everywhere
+  # else, so modules are downloaded a single time per go.sum rather than once
+  # per job (every download is an opportunity for a proxy.golang.org flake).
+  restore-go-mod-cache:
+    parameters:
+      module:
+        type: string
+        default: .
+      version:
+        type: string
+        default: <<pipeline.parameters.c-go-cache-version>>
+    steps:
+      - restore_cache:
+          name: Restore Go module cache (<<parameters.module>>/go.sum)
+          keys:
+            - go-mod-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.sum" }}
+            - go-mod-<<parameters.version>>-<<parameters.module>>-
+
+  save-go-mod-cache:
+    parameters:
+      module:
+        type: string
+        default: .
+      version:
+        type: string
+        default: <<pipeline.parameters.c-go-cache-version>>
+    steps:
+      - save_cache:
+          name: Save Go module cache (<<parameters.module>>/go.sum)
+          key: go-mod-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.sum" }}
+          paths:
+            - ~/go/pkg/mod
+
+  # Restores the shared module cache plus a per-namespace Go build cache. The
+  # build cache holds compiled artifacts specific to each job's build flags and
+  # targets, so it stays namespaced per job.
+  go-restore-cache:
+    parameters:
+      module:
+        type: string
+        default: .
+      namespace:
+        type: string
+      version:
+        type: string
+        default: <<pipeline.parameters.c-go-cache-version>>
+    steps:
+      - restore-go-mod-cache:
+          module: <<parameters.module>>
+          version: <<parameters.version>>
+      - restore_cache:
+          name: Restore Go build cache for <<parameters.namespace>>
+          keys:
+            - go-build-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.sum" }}
+            - go-build-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-
+
+  # Saves only the per-namespace build cache; the module cache is written once
+  # by prep-go-modules.
+  go-save-cache:
+    parameters:
+      module:
+        type: string
+        default: .
+      namespace:
+        type: string
+      version:
+        type: string
+        default: <<pipeline.parameters.c-go-cache-version>>
+    steps:
+      - save_cache:
+          name: Save Go build cache for <<parameters.namespace>>
+          key: go-build-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.sum" }}
+          paths:
+            - ~/.cache/go-build

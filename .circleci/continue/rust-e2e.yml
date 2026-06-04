@@ -25,43 +25,8 @@ parameters:
     type: boolean
     default: false
 
-# Commands used by rust-e2e jobs
-commands:
-  go-restore-cache:
-    parameters:
-      module:
-        type: string
-        default: .
-      namespace:
-        type: string
-      version:
-        type: string
-        default: <<pipeline.parameters.c-go-cache-version>>
-    steps:
-      - restore_cache:
-          name: Restore go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
-          keys:
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-
-
-  go-save-cache:
-    parameters:
-      module:
-        type: string
-        default: .
-      namespace:
-        type: string
-      version:
-        type: string
-        default: <<pipeline.parameters.c-go-cache-version>>
-    steps:
-      - save_cache:
-          name: Save go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
-          paths:
-            - ~/.cache/go-build
-            - ~/go/pkg/mod
-          key: go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
+# Cache helper commands (go-restore-cache, go-save-cache, …) are defined once
+# in helpers.yml and merged into every continuation config.
 
 # ============================================================================
 # RUST E2E JOBS

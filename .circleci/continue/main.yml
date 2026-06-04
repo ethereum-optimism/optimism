@@ -298,49 +298,6 @@ commands:
               fi
             fi
 
-  go-restore-cache:
-    parameters:
-      # The go module to cache for. If the go module does not come with its own go.mod and go.sum,
-      # "." can be used to point to the root go.mod and go.sum
-      module:
-        type: string
-        default: .
-      # Since many builds can run off the same go.mod/go.sum, we'll namespace the caches
-      namespace:
-        type: string
-      # Version can be used as a cache buster when making breaking changes to caching strategy
-      version:
-        type: string
-        default: <<pipeline.parameters.c-go-cache-version>>
-    steps:
-      - restore_cache:
-          name: Restore go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
-          keys:
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-
-
-  go-save-cache:
-    parameters:
-      # The go module to cache for. If the go module does not come with its own go.mod and go.sum,
-      # "." can be used to point to the root go.mod and go.sum
-      module:
-        type: string
-        default: .
-      # Since many builds can run off the same go.mod/go.sum, we'll namespace the caches
-      namespace:
-        type: string
-      version:
-        type: string
-        default: <<pipeline.parameters.c-go-cache-version>>
-    steps:
-      - save_cache:
-          name: Save go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
-          paths:
-            - ~/.cache/go-build
-            - ~/go/pkg/mod
-          key: go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
-
   # --- Rust environment setup commands ---
   rust-setup-env:
     description: "Fix rust mise environment variables"
@@ -1094,6 +1051,8 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
+      - go-restore-cache:
+          namespace: contracts-bedrock-heavy-fuzz
       - run:
           name: Build go-ffi
           command: just build-go-ffi
@@ -1115,11 +1074,8 @@ jobs:
             FOUNDRY_PROFILE: ciheavy
           working_directory: packages/contracts-bedrock
           when: on_fail
-      - save_cache:
-          name: Save Go build cache
-          key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
-          paths:
-            - "~/.cache/go-build"
+      - go-save-cache:
+          namespace: contracts-bedrock-heavy-fuzz
       # Store raw JUnit XML as artifact for debugging when store_test_results
       # shows 0 results (see ethereum-optimism/optimism#19577)
       - store_artifacts:
@@ -1252,6 +1208,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
+      - go-restore-cache:
+          namespace: contracts-bedrock-tests-upgrade
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
@@ -1306,11 +1264,8 @@ jobs:
             FORK_BASE_CHAIN: <<parameters.fork_base_chain>>
           working_directory: packages/contracts-bedrock
           when: on_fail
-      - save_cache:
-          name: Save Go build cache
-          key: golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
-          paths:
-            - "~/.cache/go-build"
+      - go-save-cache:
+          namespace: contracts-bedrock-tests-upgrade
       - save_cache:
           name: Save forked state
           key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
@@ -1367,6 +1322,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           enable-mise-cache: true
+      - go-restore-cache:
+          namespace: contracts-bedrock-tests-l2-fork
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
@@ -1443,11 +1400,8 @@ jobs:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           when: on_fail
-      - save_cache:
-          name: Save Go build cache
-          key: golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
-          paths:
-            - "~/.cache/go-build"
+      - go-save-cache:
+          namespace: contracts-bedrock-tests-l2-fork
       - save_cache:
           name: Save forked L2 state
           key: forked-state-l2-<<parameters.fork_op_chain>>-{{ checksum "packages/contracts-bedrock/l2ForkBlockNumber.txt" }}
@@ -1595,12 +1549,16 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - go-restore-cache:
+          namespace: go-lint
       - restore_cache:
           key: golangci-v1-{{ checksum ".golangci.yaml" }}
       - run:
           name: run Go linter
           command: |
             just lint-go
+      - go-save-cache:
+          namespace: go-lint
       - save_cache:
           key: golangci-v1-{{ checksum ".golangci.yaml" }}
           paths:
@@ -1674,6 +1632,24 @@ jobs:
           paths:
             - op-core/superchain/superchain-configs.zip
 
+  # Downloads the Go module set once and saves the shared module cache so the
+  # many downstream Go jobs restore it instead of each hitting proxy.golang.org.
+  # Downstream jobs require this so the cache is warm within the same pipeline,
+  # including the first run after a go.sum change.
+  prep-go-modules:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - restore-go-mod-cache
+      - run:
+          name: Download Go modules
+          command: go mod download
+      - save-go-mod-cache
+
   check-nut-locks:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -1682,10 +1658,14 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - go-restore-cache:
+          namespace: check-nut-locks
       - run:
           name: check nut locks
           command: |
             go run ./ops/scripts/check-nut-locks
+      - go-save-cache:
+          namespace: check-nut-locks
 
   nut-provenance-verify:
     docker:
@@ -1741,8 +1721,8 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
-      - restore_cache:
-          key: go-tests-v2-{{ checksum "go.mod" }}
+      - go-restore-cache:
+          namespace: go-tests
       - run:
           name: Run Go tests
           no_output_timeout: <<parameters.no_output_timeout>>
@@ -1753,11 +1733,8 @@ jobs:
             # like Geth
             export PARALLEL=12
             just <<parameters.rule>>
-      - save_cache:
-          key: go-tests-v2-{{ checksum "go.mod" }}
-          paths:
-            - "~/.cache/go-build"
-            - "~/go"
+      - go-save-cache:
+          namespace: go-tests
       - store_test_results:
           path: ./tmp/test-results
       - run:
@@ -1813,6 +1790,8 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - go-restore-cache:
+          namespace: go-tests-with-fault-proof-deps
       - run:
           name: build op-program-client
           command: just op-program-client
@@ -1831,6 +1810,8 @@ jobs:
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
             just go-tests-fraud-proofs-ci
+      - go-save-cache:
+          namespace: go-tests-with-fault-proof-deps
       - store_test_results:
           path: ./tmp/test-results
       - run:
@@ -1970,6 +1951,8 @@ jobs:
           enable-mise-cache: true
       - apt-install:
           packages: "binutils-mips-linux-gnu"
+      - go-restore-cache:
+          namespace: sanitize-op-program
       - run:
           name: Build cannon
           command: just cannon
@@ -1980,6 +1963,8 @@ jobs:
           name: Sanitize op-program client
           command: GUEST_PROGRAM=../op-program/bin/op-program-client64.elf just sanitize-program
           working_directory: cannon
+      - go-save-cache:
+          namespace: sanitize-op-program
 
   cannon-prestate:
     machine:
@@ -2112,6 +2097,8 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - setup_remote_docker
+      - go-restore-cache:
+          namespace: cannon-stf-verify
       - run:
           name: Build cannon
           command: just cannon
@@ -2119,6 +2106,8 @@ jobs:
           name: Verify the Cannon STF
           command: just cannon-stf-verify
           working_directory: cannon
+      - go-save-cache:
+          namespace: cannon-stf-verify
       - notify-failures-on-develop:
           mentions: "@proofs-team"
 
@@ -2182,11 +2171,15 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - setup_remote_docker
+      - go-restore-cache:
+          namespace: analyze-op-program-client
       - run:
           name: Run Analyzer
           command: |
             just run-vm-compat
           working_directory: op-program
+      - go-save-cache:
+          namespace: analyze-op-program-client
       - store_artifacts:
           path: op-program/bin/vm-compat-output/vm-compat-findings.json
           destination: vm-compat-findings.json
@@ -2460,6 +2453,8 @@ workflows:
           name: contracts-bedrock-build
           # Build with just core + script contracts.
           build_args: --deny-warnings --skip test
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -2504,6 +2499,7 @@ workflows:
       - go-lint:
           requires:
             - prep-superchain
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       - check-op-geth-version:
@@ -2512,7 +2508,12 @@ workflows:
       - prep-superchain:
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - check-nut-locks:
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       - nut-provenance-verify:
@@ -2528,6 +2529,8 @@ workflows:
                 - op-node
                 - op-service
                 - op-chain-ops
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       - fuzz-golang:
@@ -2539,6 +2542,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
+            - prep-go-modules
       - fuzz-golang:
           name: op-e2e-fuzz
           package_name: op-e2e
@@ -2549,6 +2553,7 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
+            - prep-go-modules
       - go-tests:
           name: go-tests-short
           parallelism: 12
@@ -2559,6 +2564,7 @@ workflows:
             - cannon-prestate
             - go-binaries-for-sysgo
             - prep-superchain
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
@@ -2580,11 +2586,14 @@ workflows:
             - cannon-prestate
             - go-binaries-for-sysgo
             - prep-superchain
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
       - analyze-op-program-client:
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       - op-program-compat:
@@ -2607,6 +2616,7 @@ workflows:
       - sanitize-op-program:
           requires:
             - cannon-prestate
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       - check-generated-mocks-op-node:
@@ -2673,6 +2683,8 @@ workflows:
             - rust-build-op-rbuilder
             - rust-build-rollup-boost
       - go-binaries-for-sysgo:
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       # IN-MEMORY (all) - op-node/op-geth
@@ -2690,6 +2702,7 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
+            - prep-go-modules
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
           name: memory-all-opn-op-reth
@@ -2706,6 +2719,7 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
+            - prep-go-modules
       # IN-MEMORY - kona/op-reth
       - op-acceptance-tests:
           name: memory-all-kona-op-reth
@@ -2723,6 +2737,7 @@ workflows:
             - cannon-prestate
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
+            - prep-go-modules
       # Gate job - single stable job used as GitHub required status check for develop.
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.
@@ -2838,15 +2853,22 @@ workflows:
   develop-fault-proofs:
     when: << pipeline.parameters.c-run_develop_fault_proofs >>
     jobs:
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - cannon-stf-verify:
+          requires:
+            - prep-go-modules
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
           build_args: --deny-warnings --skip test
+          requires:
+            - prep-go-modules
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
@@ -2874,6 +2896,7 @@ workflows:
             - contracts-bedrock-build
             - cannon-prestate
             - rust-workspace-binaries
+            - prep-go-modules
       - publish-cannon-prestates:
           context:
             - slack
@@ -2927,7 +2950,12 @@ workflows:
   scheduled-heavy-fuzz-tests:
     when: << pipeline.parameters.c-run_scheduled_heavy_fuzz_tests >>
     jobs:
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-heavy-fuzz-nightly:
+          requires:
+            - prep-go-modules
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
@@ -2946,11 +2974,16 @@ workflows:
   l2-fork-test-workflow:
     when: << pipeline.parameters.c-run_l2_fork_test >>
     jobs:
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork-dispatch op-mainnet
           fork_op_chain: op-mainnet
           l2_fork_block_number: latest
           test_profile: ci
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
@@ -2959,7 +2992,12 @@ workflows:
   scheduled-weekly-tests:
     when: << pipeline.parameters.c-run_scheduled_weekly_tests >>
     jobs:
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests-l2-fork:
+          requires:
+            - prep-go-modules
           matrix:
             parameters:
               fork_op_chain:
