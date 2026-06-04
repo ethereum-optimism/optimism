@@ -3,7 +3,6 @@ package dsl
 import (
 	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -69,7 +68,9 @@ func (n *L1Network) PrintChain() {
 	}
 
 	n.log.Info("Printing block hashes and parent hashes", "network", n.String(), "chain", n.ChainID())
-	spew.Dump(entries)
+	for _, entry := range entries {
+		n.log.Info("Chain entry", "entry", entry)
+	}
 }
 
 func (n *L1Network) WaitForFinalization() eth.BlockRef {

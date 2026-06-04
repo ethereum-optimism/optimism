@@ -7,7 +7,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -201,7 +200,9 @@ func (n *L2Network) PrintChain() {
 	entries = append(entries, fmt.Sprintf("Cross-Safe L2:   %s", syncStatus.SafeL2))
 
 	n.log.Info("Printing block hashes and parent hashes", "network", n.String(), "chain", n.ChainID())
-	spew.Dump(entries)
+	for _, entry := range entries {
+		n.log.Info("Chain entry", "entry", entry)
+	}
 }
 
 func (n *L2Network) unsafeHeadRef() eth.L2BlockRef {

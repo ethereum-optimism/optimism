@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -117,7 +116,7 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 	}
 
 	status := sys.L2CL.SyncStatus()
-	spew.Dump(status)
+	l.Info("L2 sync status after deriving batcher data", "status", status)
 }
 
 func sequenceBlockWithL1Origin(t devtest.T, ts apis.TestSequencerControlAPI, parent common.Hash, l1Origin common.Hash, from *dsl.EOA, to *dsl.EOA, nonce uint64) {
