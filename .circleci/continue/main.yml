@@ -160,6 +160,9 @@ commands:
                     echo "export SCCACHE_ERROR_LOG=/tmp/sccache.log"
                     echo "export SCCACHE_LOG=warn"
                     echo "export SCCACHE_IDLE_TIMEOUT=0"
+                    # Required for sccache to cache rustc output. rust-setup-env
+                    # also sets this, but rust-build-vendored does not run it.
+                    echo "export CARGO_INCREMENTAL=0"
                   } >> "$BASH_ENV"
             # develop overrides to the writer identity. This selects the SA only;
             # write access is enforced by GCP Workload Identity, which grants write
@@ -729,6 +732,10 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      # Wrap the cargo build with sccache (sets RUSTC_WRAPPER). Fail-open: if the
+      # cache is unavailable the build just runs uncached. Only helps on a binary
+      # cache miss (a hit short-circuits the build below).
+      - rust-sccache-setup
       - run:
           name: Get << parameters.directory >> content HASH
           command: |
@@ -822,6 +829,10 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      # Wrap the cargo build with sccache (sets RUSTC_WRAPPER). Fail-open: if the
+      # cache is unavailable the build just runs uncached. Only helps on a binary
+      # cache miss (a hit short-circuits the build below).
+      - rust-sccache-setup
       - run:
           name: Get << parameters.directory >> content HASH
           command: |
