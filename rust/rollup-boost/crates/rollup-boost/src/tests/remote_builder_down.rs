@@ -37,7 +37,8 @@ async fn remote_builder_down() -> eyre::Result<()> {
     let _ = block_generator.generate_block(false).await?;
     tokio::time::sleep(Duration::from_secs(2)).await;
 
-    // create 3 new blocks that are processed by the l2 builder because the builder is not synced with the previous 3 blocks
+    // create 3 new blocks that are processed by the l2 builder because the builder is not synced
+    // with the previous 3 blocks
     for _ in 0..3 {
         let (_block, block_creator) = block_generator.generate_block(false).await?;
         assert!(

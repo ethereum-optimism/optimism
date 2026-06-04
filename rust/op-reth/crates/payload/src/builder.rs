@@ -19,6 +19,10 @@ use reth_evm::{
     },
 };
 use reth_execution_types::BlockExecutionOutput;
+use reth_metrics::{
+    Metrics,
+    metrics::{self, Counter, Gauge},
+};
 use reth_optimism_evm::{ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction};
@@ -42,6 +46,27 @@ use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, Transac
 use revm::context::{Block, BlockEnv};
 use std::{marker::PhantomData, sync::Arc};
 use tracing::{debug, trace, warn};
+
+/// SDM/PostExec payload-builder metrics.
+#[derive(Metrics, Clone)]
+#[metrics(scope = "optimism_payload_builder")]
+struct OpPayloadBuilderMetrics {
+    /// Total SDM gas refunded by produced `PostExec` payloads.
+    sdm_refund_gas_total: Counter,
+    /// SDM gas refunded by the latest produced block.
+    sdm_refund_gas_per_block: Gauge,
+}
+
+impl OpPayloadBuilderMetrics {
+    fn record_sdm_refund_gas(&self, gas_refund: u64) {
+        self.sdm_refund_gas_total.increment(gas_refund);
+        self.sdm_refund_gas_per_block.set(gas_refund as f64);
+    }
+}
+
+fn sdm_refund_gas(entries: &[SDMGasEntry]) -> u64 {
+    entries.iter().map(|entry| entry.gas_refund).sum()
+}
 
 fn build_post_exec_recovered_tx<Tx>(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<Tx>
 where
@@ -438,12 +463,15 @@ impl<Txs> OpBuilder<'_, Txs> {
         })?;
 
         // 2. execute sequencer transactions
-        let mut info = ctx.execute_sequencer_transactions(&mut builder)?;
+        let mut info = ctx.execute_sequencer_transactions(&mut builder, None)?;
 
         // 3. if mem pool transactions are requested we execute them
         if !ctx.attributes().no_tx_pool() {
             let best_txs = best(ctx.best_transaction_attributes(builder.evm_mut().block()));
-            if ctx.execute_best_transactions(&mut info, &mut builder, best_txs, None)?.is_some() {
+            if ctx
+                .execute_best_transactions(&mut info, &mut builder, best_txs, None, None)?
+                .is_some()
+            {
                 return Ok(BuildOutcomeKind::Cancelled);
             }
 
@@ -454,16 +482,27 @@ impl<Txs> OpBuilder<'_, Txs> {
             }
         }
 
-        if ctx.sdm_production_enabled() {
+        let sdm_refund_gas = if ctx.sdm_production_enabled() {
             let block_number = builder.evm_mut().block().number().saturating_to();
             let entries = builder.executor_mut().take_post_exec_entries();
+            let refund_gas = self::sdm_refund_gas(&entries);
             try_include_post_exec_tx(block_number, entries, |tx| {
                 builder.execute_transaction(tx).map(|g| g.tx_gas_used())
             })?;
-        }
+            refund_gas
+        } else {
+            0
+        };
 
-        let BlockBuilderOutcome { execution_result, hashed_state, trie_updates, block } =
-            builder.finish(state_provider, None)?;
+        let BlockBuilderOutcome {
+            execution_result,
+            hashed_state,
+            trie_updates,
+            block,
+            block_access_list: _,
+        } = builder.finish(state_provider, None)?;
+
+        OpPayloadBuilderMetrics::default().record_sdm_refund_gas(sdm_refund_gas);
 
         let sealed_block = Arc::new(block.sealed_block().clone());
         debug!(target: "payload_builder", id=%ctx.attributes().payload_id(), sealed_block_header = ?sealed_block.header(), "sealed built block");
@@ -475,9 +514,8 @@ impl<Txs> OpBuilder<'_, Txs> {
         let executed: BuiltPayloadExecutedBlock<N> = BuiltPayloadExecutedBlock {
             recovered_block: Arc::new(block),
             execution_output: Arc::new(execution_outcome),
-            // Keep unsorted; conversion to sorted happens when needed downstream
-            hashed_state: either::Either::Left(Arc::new(hashed_state)),
-            trie_updates: either::Either::Left(Arc::new(trie_updates)),
+            hashed_state: Arc::new(hashed_state),
+            trie_updates: Arc::new(trie_updates),
         };
 
         let no_tx_pool = ctx.attributes().no_tx_pool();
@@ -519,7 +557,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         let mut builder = ctx.block_builder(&mut db)?;
 
         builder.apply_pre_execution_changes()?;
-        ctx.execute_sequencer_transactions(&mut builder)?;
+        ctx.execute_sequencer_transactions(&mut builder, None)?;
         builder.into_executor().apply_post_execution_changes()?;
 
         if ctx.chain_spec.is_isthmus_active_at_timestamp(ctx.attributes().timestamp()) {
@@ -677,10 +715,21 @@ where
         )
     }
 
-    /// Returns whether SDM production is enabled for this payload by the explicit integration-test
-    /// override.
-    pub const fn sdm_production_enabled(&self) -> bool {
-        self.builder_config.sdm_enabled
+    /// Returns whether SDM production should run for this payload.
+    ///
+    /// Two gates must agree:
+    /// - **Protocol**: SDM rides the Interop hardfork, so this requires Interop active at the next
+    ///   block's timestamp per the chain spec.
+    /// - **Operator**: the local opt-in flag on `OpBuilderConfig`, mutated by the `admin_` SDM RPC.
+    ///   Starts disabled at process boot.
+    ///
+    /// Either being false disables production.
+    pub fn sdm_production_enabled(&self) -> bool {
+        let protocol_active = reth_optimism_evm::is_sdm_active_at_timestamp(
+            &self.chain_spec,
+            self.attributes().timestamp(),
+        );
+        protocol_active && self.builder_config.sdm_post_exec_opt_in.enabled()
     }
 
     /// Returns the unique id for this payload job.
@@ -701,6 +750,8 @@ where
         impl BlockBuilder<Primitives = Evm::Primitives, Executor: PostExecExecutorExt> + 'a,
         PayloadBuilderError,
     > {
+        let post_exec_mode: PostExecMode = self.sdm_production_enabled().into();
+
         self.evm_config
             .post_exec_builder_for_next_block(
                 db,
@@ -711,19 +762,21 @@ where
                     self.chain_spec.as_ref(),
                 )
                 .map_err(PayloadBuilderError::other)?,
-                if self.sdm_production_enabled() {
-                    PostExecMode::Produce
-                } else {
-                    PostExecMode::Disabled
-                },
+                post_exec_mode,
             )
             .map_err(PayloadBuilderError::other)
     }
 
     /// Executes all sequencer transactions that are included in the payload attributes.
+    ///
+    /// When `committed_txs` is `Some(vec)`, each successfully committed sequencer
+    /// transaction is appended to `vec` in commit order. `None` skips the
+    /// recording. The function never reads or clears the vec; the caller controls
+    /// capacity and lifecycle.
     pub fn execute_sequencer_transactions(
         &self,
         builder: &mut impl BlockBuilder<Primitives = Evm::Primitives>,
+        mut committed_txs: Option<&mut Vec<Recovered<TxTy<Evm::Primitives>>>>,
     ) -> Result<ExecutionInfo, PayloadBuilderError> {
         let mut info = ExecutionInfo::new();
 
@@ -760,6 +813,12 @@ where
 
             // add gas used by the transaction to cumulative gas used, before creating the receipt
             info.cumulative_gas_used += gas_used.tx_gas_used();
+
+            // Record the successfully committed transaction for callers that want per-call
+            // visibility.
+            if let Some(sink) = committed_txs.as_deref_mut() {
+                sink.push(sequencer_tx);
+            }
         }
 
         Ok(info)
@@ -771,6 +830,11 @@ where
     ///   - `None`: effective limit is `min(block_gas_limit, gas_limit_config)`.
     ///   - `Some(g)`: effective limit is `min(g, block_gas_limit, gas_limit_config)`
     ///
+    /// When `committed_txs` is `Some(vec)`, each successfully committed transaction
+    /// is appended to `vec` in commit order. `None` skips the recording. The
+    /// function never reads or clears the vec; the caller controls capacity and
+    /// lifecycle.
+    ///
     /// Returns `Ok(Some(()))` if the job was cancelled.
     pub fn execute_best_transactions<Builder>(
         &self,
@@ -780,6 +844,7 @@ where
             Transaction: PoolTransaction<Consensus = TxTy<Evm::Primitives>> + OpPooledTx,
         >,
         gas_limit_cap: Option<u64>,
+        mut committed_txs: Option<&mut Vec<Recovered<TxTy<Evm::Primitives>>>>,
     ) -> Result<Option<()>, PayloadBuilderError>
     where
         Builder: BlockBuilder<Primitives = Evm::Primitives>,
@@ -882,6 +947,12 @@ where
                 .effective_tip_per_gas(base_fee)
                 .expect("fee is always valid; execution succeeded");
             info.total_fees += U256::from(miner_fee) * U256::from(tx_gas_used);
+
+            // Record the successfully committed transaction for callers that want per-call
+            // visibility.
+            if let Some(sink) = committed_txs.as_deref_mut() {
+                sink.push(tx);
+            }
         }
 
         Ok(None)

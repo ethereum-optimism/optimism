@@ -8,6 +8,7 @@ import (
 	"runtime"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
@@ -119,7 +120,29 @@ func addGameTypesForRuntime(
 
 	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
 	if enabled[gameTypes.ZKDisputeGameType] {
-		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t)
+		// Deploy ZKMockVerifier so the verifier address has deployed code, satisfying the
+		// on-chain ZKDG-80 check (verifier.code.length > 0). ZK proofs are never verified
+		// in devstack — the smoke test only checks game registration.
+		_, filename, _, ok := runtime.Caller(0)
+		require.Truef(ok, "failed to get caller filename for ZKMockVerifier path")
+		monorepoDir, mErr := op_service.FindMonorepoRoot(filename)
+		require.NoError(mErr, "failed to find monorepo root for ZKMockVerifier")
+		artifactPath := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts", "ZKMockVerifier.sol", "ZKMockVerifier.json")
+		zkArtifact, aErr := foundry.ReadArtifact(artifactPath)
+		require.NoError(aErr, "failed to read ZKMockVerifier artifact")
+		deployTx := txplan.NewPlannedTx(
+			txplan.WithChainID(client),
+			txplan.WithPrivateKey(l1PAOKey),
+			txplan.WithPendingNonce(client),
+			txplan.WithAgainstLatestBlockEthClient(client),
+			txplan.WithData(zkArtifact.Bytecode.Object),
+			txplan.WithEstimator(client, true),
+			txplan.WithRetrySubmission(client, 5, retry.Exponential()),
+			txplan.WithRetryInclusion(client, 5, retry.Exponential()),
+		)
+		receipt, rErr := deployTx.Included.Eval(t.Ctx())
+		require.NoError(rErr, "failed to deploy ZKMockVerifier")
+		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t, receipt.ContractAddress)
 	}
 
 	// OPCMv2 requires all 6 game configs in order:
@@ -184,13 +207,14 @@ func addGameTypesForRuntime(
 }
 
 // ZKDisputeGameConfigForRuntime returns a ZKDisputeGameConfig for use in devstack/test environments.
-// The verifier is set to address(0) as a placeholder; real deployments must supply a valid verifier.
-func ZKDisputeGameConfigForRuntime(t devtest.CommonT) *embedded.ZKDisputeGameConfig {
+// verifier must be a deployed contract address (code.length > 0); use deployMockZKVerifier for devstack.
+// AbsolutePrestate is a fixed dummy hash — ZK proofs are never verified in devstack.
+func ZKDisputeGameConfigForRuntime(t devtest.CommonT, verifier common.Address) *embedded.ZKDisputeGameConfig {
 	return &embedded.ZKDisputeGameConfig{
-		AbsolutePrestate:     common.Hash{},    // placeholder for devstack
-		Verifier:             common.Address{}, // address(0) — external verifier not yet wired
-		MaxChallengeDuration: 604800,           // 7 days
-		MaxProveDuration:     259200,           // 3 days
+		AbsolutePrestate:     common.Hash{0x01}, // dummy for devstack, not validated at claim time
+		Verifier:             verifier,
+		MaxChallengeDuration: 604800, // 7 days
+		MaxProveDuration:     259200, // 3 days
 		ChallengerBond:       eth.GWei(80_000_000).ToBig(),
 	}
 }

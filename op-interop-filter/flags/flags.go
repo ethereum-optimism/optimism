@@ -56,7 +56,7 @@ var (
 		Name:    "message-expiry-window",
 		Usage:   "Message expiry window duration (e.g., 168h for 7 days). Messages older than this are considered expired.",
 		EnvVars: prefixEnvVars("MESSAGE_EXPIRY_WINDOW"),
-		Value:   168 * time.Hour, // 7 days default, matching op-supervisor
+		Value:   168 * time.Hour, // 7 days default for interop message expiry
 	}
 	JWTSecretFlag = &cli.StringFlag{
 		Name: "admin.jwt-secret",
@@ -109,6 +109,12 @@ var (
 		Usage:   "Automatically resolve reorg-triggered failsafe by rewinding logs DBs to finalized.",
 		EnvVars: prefixEnvVars("REORG_RECOVERY_ENABLED"),
 	}
+	FailsafeLogIntervalFlag = &cli.DurationFlag{
+		Name:    "failsafe-log-interval",
+		Usage:   "Interval at which the active failsafe reason is re-logged while failsafe is enabled (e.g., 1m, 30s)",
+		EnvVars: prefixEnvVars("FAILSAFE_LOG_INTERVAL"),
+		Value:   time.Minute,
+	}
 	RPCConcurrencyFlag = &cli.IntFlag{
 		Name:    "rpc-concurrency",
 		Usage:   "Maximum number of concurrent RPC requests per chain",
@@ -123,7 +129,7 @@ var (
 	}
 	SupportLegacyCheckAccessListFormatFlag = &cli.BoolFlag{
 		Name:    "support-legacy-check-access-list-format",
-		Usage:   "Support legacy supervisor_checkAccessList requests that omit executing chainID. DANGEROUS: intended only for compatibility with legacy clients; access-list source-chain validation still runs.",
+		Usage:   "Support legacy interop_checkAccessList requests that omit executing chainID. DANGEROUS: intended only for compatibility with legacy clients; access-list source-chain validation still runs.",
 		EnvVars: prefixEnvVars("SUPPORT_LEGACY_CHECK_ACCESS_LIST_FORMAT"),
 	}
 	DangerouslyEnablePassthroughFlag = &cli.BoolFlag{
@@ -151,6 +157,7 @@ var optionalFlags = []cli.Flag{
 	PollIntervalFlag,
 	ValidationIntervalFlag,
 	ReorgRecoveryEnabledFlag,
+	FailsafeLogIntervalFlag,
 	RPCConcurrencyFlag,
 	FetchConcurrencyFlag,
 	SupportLegacyCheckAccessListFormatFlag,

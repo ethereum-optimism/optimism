@@ -3,6 +3,7 @@ package standardbuilder
 import (
 	"context"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -10,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/params"
@@ -66,7 +66,7 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 
 	var depSet depset.DependencySet
 	// Dependency set is only required if interop is scheduled and the RPC may not be available before then.
-	if cfg.InteropTime != nil {
+	if cfg.LagoonTime != nil {
 		depSet, err = retry.Do(ctx, 10, retry.Exponential(), func() (depset.DependencySet, error) {
 			opts.Log.Info("Fetching dependency set for block-building")
 			depSet, err := rolCl.DependencySet(ctx)

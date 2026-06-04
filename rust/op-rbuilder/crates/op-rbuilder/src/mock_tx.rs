@@ -127,6 +127,10 @@ impl PoolTransaction for MockFbTransaction {
 
     type Pooled = PooledTransactionVariant;
 
+    fn consensus_ref(&self) -> Recovered<&Self::Consensus> {
+        unimplemented!("mock transaction does not wrap a consensus transaction")
+    }
+
     fn into_consensus(self) -> Recovered<Self::Consensus> {
         self.inner.into()
     }

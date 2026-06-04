@@ -24,8 +24,8 @@ async fn test_admin_external_ip() -> eyre::Result<()> {
     let mut network_args = NetworkArgs::default()
         .with_unused_ports()
         .with_nat_resolver(NatResolver::ExternalIp(external_ip));
-    network_args.discovery.discv5_port = 0;
-    network_args.discovery.discv5_port_ipv6 = 0;
+    network_args.discovery.discv5_port = Some(0);
+    network_args.discovery.discv5_port_ipv6 = Some(0);
     let node_config = NodeConfig::test()
         .map_chain(BASE_MAINNET.clone())
         .with_network(network_args)
@@ -52,8 +52,8 @@ async fn test_eth_config_endpoint_exists() -> eyre::Result<()> {
     // Node setup
     let network = BASE_MAINNET.clone();
     let mut network_args = NetworkArgs::default().with_unused_ports();
-    network_args.discovery.discv5_port = 0;
-    network_args.discovery.discv5_port_ipv6 = 0;
+    network_args.discovery.discv5_port = Some(0);
+    network_args.discovery.discv5_port_ipv6 = Some(0);
     let node_config = NodeConfig::test()
         .map_chain(network.clone())
         .with_network(network_args)

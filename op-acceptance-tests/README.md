@@ -62,7 +62,7 @@ When invoked with `go test`, devstack acceptance tests support configuring loggi
 Example:
 
 ```bash
-LOG_LEVEL=info go test -v ./op-acceptance-tests/tests/interop/sync/multisupervisor_interop/... -run TestL2CLAheadOfSupervisor
+LOG_LEVEL=info go test -v ./op-acceptance-tests/tests/interop/message/... -run TestInteropHappyTx
 ```
 
 ## Adding Tests

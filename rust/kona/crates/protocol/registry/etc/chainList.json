@@ -507,27 +507,6 @@
     }
   },
   {
-    "name": "Swellchain",
-    "identifier": "mainnet/swell",
-    "chainId": 1923,
-    "rpc": [
-      "https://swell-mainnet.alt.technology"
-    ],
-    "explorers": [
-      "https://explorer.swellnetwork.io"
-    ],
-    "superchainLevel": 1,
-    "governedByOptimism": true,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "Unichain",
     "identifier": "mainnet/unichain",
     "chainId": 130,
@@ -599,27 +578,6 @@
     ],
     "explorers": [
       "https://explorer.zora.energy"
-    ],
-    "superchainLevel": 1,
-    "governedByOptimism": true,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
-    "name": "arena-z",
-    "identifier": "mainnet/arena-z",
-    "chainId": 7897,
-    "rpc": [
-      "https://rpc.arena-z.gg"
-    ],
-    "explorers": [
-      "https://explorer.arena-z.gg"
     ],
     "superchainLevel": 1,
     "governedByOptimism": true,
@@ -1197,27 +1155,6 @@
     "parent": {
       "type": "L2",
       "chain": "rehearsal-0-bn"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
-    "name": "arena-z-testnet",
-    "identifier": "sepolia/arena-z",
-    "chainId": 9899,
-    "rpc": [
-      "https://testnet-rpc.arena-z.gg"
-    ],
-    "explorers": [
-      "https://testnet-explorer.arena-z.gg"
-    ],
-    "superchainLevel": 1,
-    "governedByOptimism": true,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia"
     },
     "faultProofs": {
       "status": "permissioned"

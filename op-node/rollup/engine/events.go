@@ -3,7 +3,6 @@ package engine
 import (
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -104,16 +103,6 @@ type FinalizedUpdateEvent struct {
 
 func (ev FinalizedUpdateEvent) String() string {
 	return "finalized-update"
-}
-
-// InteropInvalidateBlockEvent is emitted when a block needs to be invalidated, and a replacement is needed.
-type InteropInvalidateBlockEvent struct {
-	Invalidated eth.BlockRef
-	Attributes  *derive.AttributesWithParent
-}
-
-func (ev InteropInvalidateBlockEvent) String() string {
-	return "interop-invalidate-block"
 }
 
 // InteropReplacedBlockEvent is emitted when a replacement is done.

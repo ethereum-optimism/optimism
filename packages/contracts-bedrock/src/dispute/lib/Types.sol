@@ -81,6 +81,9 @@ library GameTypes {
     /// @notice A dispute game type that uses the cannon vm with Kona (Super Roots).
     GameType internal constant SUPER_CANNON_KONA = GameType.wrap(9);
 
+    /// @notice A dispute game type that uses optimistic + ZK proofs for dispute resolution.
+    GameType internal constant ZK_DISPUTE_GAME = GameType.wrap(10);
+
     /// @notice A dispute game type with short game duration for testing withdrawals.
     ///         Not intended for production use.
     GameType internal constant FAST = GameType.wrap(254);
@@ -91,9 +94,6 @@ library GameTypes {
 
     /// @notice A dispute game type that uses RISC Zero's Kailua
     GameType internal constant KAILUA = GameType.wrap(1337);
-
-    /// @notice A dispute game type that uses optimistic + ZK proofs for dispute resolution.
-    GameType internal constant ZK_DISPUTE_GAME = GameType.wrap(10);
 
     /// @notice Returns true if the game type uses super roots.
     function isSuperGame(GameType _gameType) internal pure returns (bool) {

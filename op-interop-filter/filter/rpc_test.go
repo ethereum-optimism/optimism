@@ -35,7 +35,7 @@ func TestQueryFrontendGetBlockHashByNumberRPC(t *testing.T) {
 		oprpc.WithLogger(logger),
 	)
 	server.AddAPI(rpc.API{
-		Namespace: "supervisor",
+		Namespace: "interop",
 		Service:   &QueryFrontend{backend: backend},
 	})
 
@@ -50,33 +50,33 @@ func TestQueryFrontendGetBlockHashByNumberRPC(t *testing.T) {
 
 	t.Run("latest selector", func(t *testing.T) {
 		var result common.Hash
-		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), "latest")
+		err := client.Call(&result, "interop_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), "latest")
 		require.NoError(t, err)
 		require.Equal(t, common.HexToHash("0x02"), result)
 	})
 
 	t.Run("numeric selector", func(t *testing.T) {
 		var result common.Hash
-		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), rpc.BlockNumber(100))
+		err := client.Call(&result, "interop_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), rpc.BlockNumber(100))
 		require.NoError(t, err)
 		require.Equal(t, common.HexToHash("0x01"), result)
 	})
 
 	t.Run("missing block", func(t *testing.T) {
 		var result common.Hash
-		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), rpc.BlockNumber(999))
+		err := client.Call(&result, "interop_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), rpc.BlockNumber(999))
 		require.ErrorContains(t, err, "not found")
 	})
 
 	t.Run("unknown chain", func(t *testing.T) {
 		var result common.Hash
-		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(999), rpc.BlockNumber(100))
+		err := client.Call(&result, "interop_getBlockHashByNumber", eth.ChainIDFromUInt64(999), rpc.BlockNumber(100))
 		require.ErrorContains(t, err, "unknown chain")
 	})
 
 	t.Run("unsupported tag", func(t *testing.T) {
 		var result common.Hash
-		err := client.Call(&result, "supervisor_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), "safe")
+		err := client.Call(&result, "interop_getBlockHashByNumber", eth.ChainIDFromUInt64(testChainA), "safe")
 		require.ErrorContains(t, err, "unsupported block tag")
 	})
 }

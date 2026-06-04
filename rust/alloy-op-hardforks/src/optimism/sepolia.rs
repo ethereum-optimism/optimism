@@ -18,3 +18,5 @@ pub const OP_SEPOLIA_HOLOCENE_TIMESTAMP: u64 = 1_732_633_200;
 pub const OP_SEPOLIA_ISTHMUS_TIMESTAMP: u64 = 1_744_905_600;
 /// Jovian sepolia hardfork activation timestamp is `1_763_568_001` # Wed 19 Nov 2025 16:00:01 UTC.
 pub const OP_SEPOLIA_JOVIAN_TIMESTAMP: u64 = 1_763_568_001;
+/// Karst sepolia hardfork activation timestamp is `1_781_712_001` # Wed 17 Jun 2026 16:00:01 UTC
+pub const OP_SEPOLIA_KARST_TIMESTAMP: u64 = 1_781_712_001;

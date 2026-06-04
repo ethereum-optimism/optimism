@@ -142,25 +142,6 @@ The op-node is changing in two ways:
 - Event tests: [Issue 13163](https://github.com/ethereum-optimism/optimism/issues/13163)
 - Improving P2P sync: [Issue 11779](https://github.com/ethereum-optimism/optimism/issues/11779)
 
-#### Interoperability
-
-The OP Stack makes chains natively interoperable:
-messages between chains form safety dependencies, and verified asynchronously.
-Asynchronous verification entails that the op-node reorgs away a block
-if and when the block is determined to be invalid.
-
-The [op-supervisor] specializes in this dependency verification work.
-
-The op-node encapsulates all the single-chain concerns:
-it prepares the local safety data-points (DA confirmation and block contents) for the op-supervisor.
-
-The op-supervisor then verifies the cross-chain safety, and promotes the block safety level accordingly,
-which the op-node then follows.
-
-See [Interop specs] and [Interop design-docs] for more information about interoperability.
-
-[op-supervisor]: ../op-supervisor/README.md
-
 ### User stories
 
 <!-- As a **actor** I want **achievement** so that I **benefit** -->

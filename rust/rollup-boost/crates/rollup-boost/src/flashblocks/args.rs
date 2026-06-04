@@ -36,11 +36,13 @@ pub struct FlashblocksWebsocketConfig {
     #[arg(long, env, default_value = "5000")]
     pub flashblock_builder_ws_max_reconnect_ms: u64,
 
-    /// Interval in milliseconds between ping messages sent to upstream servers to detect unresponsive connections
+    /// Interval in milliseconds between ping messages sent to upstream servers to detect
+    /// unresponsive connections
     #[arg(long, env, default_value = "500")]
     pub flashblock_builder_ws_ping_interval_ms: u64,
 
-    /// Timeout in milliseconds to wait for pong responses from upstream servers before considering the connection dead
+    /// Timeout in milliseconds to wait for pong responses from upstream servers before considering
+    /// the connection dead
     #[arg(long, env, default_value = "1500")]
     pub flashblock_builder_ws_pong_timeout_ms: u64,
 }

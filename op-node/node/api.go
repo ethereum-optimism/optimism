@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -36,6 +36,8 @@ type driverClient interface {
 	StartSequencer(ctx context.Context, blockHash common.Hash) error
 	StopSequencer(context.Context) (common.Hash, error)
 	SequencerActive(context.Context) (bool, error)
+	SetSdmPostExecOptIn(ctx context.Context, enabled bool) error
+	SdmStatus(ctx context.Context) (apis.SdmStatus, error)
 	OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope)
 	OverrideLeader(ctx context.Context) error
 	ConductorEnabled(ctx context.Context) (bool, error)
@@ -44,6 +46,15 @@ type driverClient interface {
 
 type SafeDBReader interface {
 	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1 eth.BlockID, l2 eth.BlockID, err error)
+	// L1AtSafeHead returns the earliest L1 block at which the recorded L2 safe
+	// head reached at least targetL2Num. See safedb.L1AtSafeHead.
+	L1AtSafeHead(ctx context.Context, targetL2Num uint64) (l1 eth.BlockID, safeHead eth.BlockID, err error)
+	// FirstEntry returns the lowest recorded (L1, L2 safe head) pair.
+	// Returns ErrNotFound when no entries exist yet.
+	FirstEntry(ctx context.Context) (l1 eth.BlockID, l2 eth.BlockID, err error)
+	// LastEntry returns the highest recorded (L1, L2 safe head) pair (the safedb tip).
+	// Returns ErrNotFound when no entries exist yet.
+	LastEntry(ctx context.Context) (l1 eth.BlockID, l2 eth.BlockID, err error)
 }
 
 type adminAPI struct {
@@ -74,6 +85,14 @@ func (n *adminAPI) StopSequencer(ctx context.Context) (common.Hash, error) {
 
 func (n *adminAPI) SequencerActive(ctx context.Context) (bool, error) {
 	return n.dr.SequencerActive(ctx)
+}
+
+func (n *adminAPI) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
+	return n.dr.SetSdmPostExecOptIn(ctx, enabled)
+}
+
+func (n *adminAPI) SdmStatus(ctx context.Context) (apis.SdmStatus, error) {
+	return n.dr.SdmStatus(ctx)
 }
 
 // PostUnsafePayload is a special API that allows posting an unsafe payload to the L2 derivation pipeline.

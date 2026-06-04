@@ -3,11 +3,14 @@ package interop
 import (
 	"context"
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +32,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
@@ -36,21 +41,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
-	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
+	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	supervisorConfig "github.com/ethereum-optimism/optimism/op-supervisor/config"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
 )
 
 // SuperSystem is an interface for the system (collection of connected resources)
@@ -68,11 +67,11 @@ type SuperSystem interface {
 
 	// Superchain level
 	L2IDs() []string
-	Supervisor() *supervisor.SupervisorService
+	Supernode() *supernode.Supernode
 	Batcher(network string) *bss.BatcherService
-	Proposer(network string) *l2os.ProposerService
 	AddUser(username string)
-	SupervisorClient() *sources.SupervisorClient
+	SupernodeClient() *sources.SuperNodeClient
+	SupernodeEndpoint() endpoint.RPC
 	DependencySet() *depset.StaticConfigDependencySet
 
 	// L2 client specific
@@ -82,7 +81,6 @@ type SuperSystem interface {
 	L2RollupClient(network string, node string) *sources.RollupClient
 	SendL2Tx(network string, node string, username string, applyTxOpts helpers.TxOptsFn) *types.Receipt
 	EmitData(ctx context.Context, network string, node string, username string, data string) *types.Receipt
-	AddNode(network string, nodeName string)
 
 	// L2 level
 	ChainID(network string) *big.Int
@@ -98,14 +96,14 @@ type SuperSystem interface {
 		ctx context.Context,
 		id string,
 		sender string,
-		msgIdentifier supervisortypes.Identifier,
+		msgIdentifier messages.Identifier,
 		msgHash [32]byte,
 		expectedError error,
 	) (*types.Receipt, error)
 	// Access a contract on a network by name
 }
+
 type SuperSystemConfig struct {
-	mempoolFiltering  bool
 	SupportTimeTravel bool
 	BatcherUsesBlobs  bool
 }
@@ -132,10 +130,11 @@ type interopE2ESystem struct {
 	beacon          *fakebeacon.FakeBeacon
 	l1              *geth.GethInstance
 	l2s             map[string]l2Net
-	// supervisor and L1 clients should be singletons, so they are cached
+	// supernode and L1 clients should be singletons, so they are cached
 	l1GethClient *ethclient.Client
-	superClient  *sources.SupervisorClient
-	supervisor   *supervisor.SupervisorService
+	supernode    *supernode.Supernode
+	supernodeURL string
+	snClient     *sources.SuperNodeClient
 	config       *SuperSystemConfig
 }
 
@@ -212,7 +211,7 @@ func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstan
 	l1FinalizedDistance := uint64(3)
 	l1Clock := clock.SystemClock
 	if s.config.SupportTimeTravel {
-		s.timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		s.timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = s.timeTravelClock
 	}
 	// Start the L1 chain
@@ -275,61 +274,77 @@ func (s *interopE2ESystem) L2Genesis(network string) *core.Genesis {
 	return s.l2s[network].l2Out.Genesis
 }
 
-// prepareSupervisor creates a new supervisor for the system
-func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
-	// Be verbose with op-supervisor, it's in early test phase
-	logger := testlog.Logger(s.t, log.LevelDebug).New("role", "supervisor")
-	cfg := &supervisorConfig.Config{
-		MetricsConfig: metrics.CLIConfig{
-			Enabled: false,
-		},
-		PprofConfig: oppprof.CLIConfig{
-			ListenEnabled: false,
-		},
-		LogConfig: oplog.CLIConfig{
-			Level:  log.LevelDebug,
-			Format: oplog.FormatText,
-		},
-		RPC: oprpc.CLIConfig{
+// prepareSupernode boots an op-supernode that owns one virtual op-node per L2 chain.
+// The L2 ELs (op-geth) must already be running so their engine RPC endpoints can be wired in.
+func (s *interopE2ESystem) prepareSupernode() (*supernode.Supernode, string) {
+	logger := testlog.Logger(s.t, log.LevelDebug).New("role", "supernode")
+
+	depSet := s.DependencySet()
+
+	chainIDsU64 := make([]uint64, 0, len(s.l2s))
+	vnCfgs := make(map[eth.ChainID]*opnodeconfig.Config, len(s.l2s))
+	for _, id := range s.L2IDs() {
+		l2 := s.l2s[id]
+		chainID := eth.ChainIDFromBig(l2.chainID)
+		chainIDsU64 = append(chainIDsU64, eth.EvilChainIDToUInt64(chainID))
+		vnCfgs[chainID] = s.newSupernodeNodeConfig(l2, depSet)
+	}
+
+	snCfg := &snconfig.CLIConfig{
+		Chains:             chainIDsU64,
+		DataDir:            path.Join(s.t.TempDir(), "supernode"),
+		L1NodeAddr:         s.l1.UserRPC().RPC(),
+		L1HTTPPollInterval: 100 * time.Millisecond,
+		L1BeaconAddr:       s.beacon.BeaconAddr(),
+		RPCConfig: oprpc.CLIConfig{
 			ListenAddr:  "127.0.0.1",
 			ListenPort:  0,
 			EnableAdmin: true,
 		},
-		SyncSources:             &syncnode.CLISyncNodes{}, // no sync-sources
-		L1RPC:                   s.l1.UserRPC().RPC(),
-		Datadir:                 path.Join(s.t.TempDir(), "supervisor"),
-		RPCVerificationWarnings: true,
 	}
 
-	fullCfgSet, err := worldToFullCfgSet(s.worldOutput)
-	require.NoError(s.t, err)
-	cfg.FullConfigSetSource = fullCfgSet
+	ctx, cancel := context.WithCancel(context.Background())
+	exitFn := context.CancelCauseFunc(func(err error) { s.t.Errorf("supernode critical error: %v", err) })
+	sn, err := supernode.New(ctx, logger, "op-e2e", exitFn, snCfg, vnCfgs)
+	require.NoError(s.t, err, "failed to construct supernode")
+	require.NoError(s.t, sn.Start(ctx), "failed to start supernode")
 
-	// Create the supervisor with the configuration
-	super, err := supervisor.SupervisorFromConfig(context.Background(), cfg, logger)
-	require.NoError(s.t, err)
-	// Start the supervisor
-	err = super.Start(context.Background())
-	require.NoError(s.t, err)
+	addr, err := sn.WaitRPCAddr(ctx)
+	require.NoError(s.t, err, "supernode failed to bind RPC address")
+	base := "http://" + addr
+
 	s.t.Cleanup(func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // force-quit
-		s.t.Logf("Closing supervisor")
-		closeErr := super.Stop(ctx)
-		s.t.Logf("Closed supervisor: %v", closeErr)
+		cancel()
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stopCancel()
+		s.t.Logf("Closing supernode")
+		closeErr := sn.Stop(stopCtx)
+		s.t.Logf("Closed supernode: %v", closeErr)
 	})
-	return super
+
+	// Wait for each chain's RPC route to be ready under <base>/<chainID>.
+	for _, chainID := range chainIDsU64 {
+		url := base + "/" + strconv.FormatUint(chainID, 10)
+		waitForSupernodeRoute(s.t, url)
+	}
+
+	return sn, base
 }
 
-// SupervisorClient returns the supervisor client for the system, creating it if it doesn't exist
-func (s *interopE2ESystem) SupervisorClient() *sources.SupervisorClient {
-	if s.superClient != nil {
-		return s.superClient
+// SupernodeClient returns a cached client targeting the supernode root RPC.
+func (s *interopE2ESystem) SupernodeClient() *sources.SuperNodeClient {
+	if s.snClient != nil {
+		return s.snClient
 	}
-	superClient, err := dial.DialSupervisorClientWithTimeout(context.Background(), s.logger, s.supervisor.RPC())
-	require.NoError(s.t, err, "failed to dial supervisor RPC")
-	s.superClient = superClient
-	return superClient
+	cl, err := dial.DialSuperNodeClientWithTimeout(context.Background(), s.logger, s.supernodeURL)
+	require.NoError(s.t, err, "failed to dial supernode RPC")
+	s.snClient = cl
+	return cl
+}
+
+// SupernodeEndpoint returns the supernode root RPC URL.
+func (s *interopE2ESystem) SupernodeEndpoint() endpoint.RPC {
+	return endpoint.URL(s.supernodeURL)
 }
 
 // prepare sets up the system for testing
@@ -341,33 +356,22 @@ func (s *interopE2ESystem) prepare(t *testing.T, w WorldResourcePaths) {
 	s.hdWallet = s.prepareHDWallet()
 	s.worldDeployment, s.worldOutput = s.prepareWorld(w)
 
-	// L1 first so that the Supervisor and L2s can connect to it
+	// L1 first so the supernode and L2 ELs can reach it.
 	s.beacon, s.l1 = s.prepareL1()
 
-	s.supervisor = s.prepareSupervisor()
-
+	// Bring up the per-chain L2 ELs and per-chain bookkeeping. Op-nodes live inside the supernode
+	// and are started in prepareSupernode below.
 	s.l2s = s.prepareL2s()
 
-	s.prepareContracts()
+	// Boot the supernode now that each chain's EL is up.
+	s.supernode, s.supernodeURL = s.prepareSupernode()
 
-	// add the L2 RPCs to the supervisor now that the L2s are created
-	ctx := context.Background()
-	for _, l2 := range s.l2s {
-		for _, node := range l2.nodes {
-			rpcEndpoint, secret := node.opNode.InteropRPC()
-			err := s.SupervisorClient().AddL2RPC(ctx, rpcEndpoint, secret)
-			require.NoError(s.t, err, "failed to add L2 RPC to supervisor")
-		}
+	// Start the batchers, which need the supernode-routed CL RPC URLs.
+	for _, id := range s.L2IDs() {
+		s.startBatcherForL2(id)
 	}
 
-	// Try to close the op-supervisor first
-	s.t.Cleanup(func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // force-quit
-		s.t.Logf("Closing supervisor")
-		closeErr := s.supervisor.Stop(ctx)
-		s.t.Logf("Closed supervisor: %v", closeErr)
-	})
+	s.prepareContracts()
 }
 
 // AddUser adds a user to the system by creating a user key for each L2.
@@ -405,7 +409,7 @@ func (s *interopE2ESystem) Address(id, username string) common.Address {
 func (s *interopE2ESystem) prepareL2s() map[string]l2Net {
 	l2s := make(map[string]l2Net)
 	for id, l2Out := range s.worldOutput.L2s {
-		l2s[id] = s.newL2(id, l2Out, s.DependencySet())
+		l2s[id] = s.newL2(id, l2Out)
 	}
 	return l2s
 }
@@ -442,9 +446,8 @@ func (s *interopE2ESystem) L1GethClient() *ethclient.Client {
 	return nodeClient
 }
 
-func (s *interopE2ESystem) Supervisor() *supervisor.SupervisorService { return s.supervisor }
-func (s *interopE2ESystem) Batcher(id string) *bss.BatcherService     { return s.l2s[id].batcher }
-func (s *interopE2ESystem) Proposer(id string) *l2os.ProposerService  { return s.l2s[id].proposer }
+func (s *interopE2ESystem) Supernode() *supernode.Supernode       { return s.supernode }
+func (s *interopE2ESystem) Batcher(id string) *bss.BatcherService { return s.l2s[id].batcher }
 func (s *interopE2ESystem) L2OperatorKey(id string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey {
 	return s.l2s[id].operatorKeys[role]
 }
@@ -500,7 +503,7 @@ func (s *interopE2ESystem) ValidateMessage(
 	ctx context.Context,
 	id string,
 	sender string,
-	msgIdentifier supervisortypes.Identifier,
+	msgIdentifier messages.Identifier,
 	msgHash [32]byte,
 	expectedError error,
 ) (*types.Receipt, error) {
@@ -525,7 +528,7 @@ func (s *interopE2ESystem) ValidateMessage(
 	auth.AccessList = []types.AccessTuple{
 		{
 			Address:     predeploys.CrossL2InboxAddr,
-			StorageKeys: supervisortypes.EncodeAccessList([]supervisortypes.Access{access}),
+			StorageKeys: messages.EncodeAccessList([]messages.Access{access}),
 		},
 	}
 
@@ -537,7 +540,7 @@ func (s *interopE2ESystem) ValidateMessage(
 		require.NoError(s.t, err)
 	}
 	s.logger.Info("Validating message", "tx", tx.Hash(), "to", tx.To(), "data", hexutil.Bytes(tx.Data()))
-	return bind.WaitMined(ctx, s.L2GethClient(id, "sequencer"), tx) // use the sequencer client to wait for the tx
+	return bind.WaitMined(ctx, s.L2GethClient(id, "sequencer"), tx)
 }
 
 // DeployEmitterContract deploys the Emitter contract on the L2
@@ -595,14 +598,6 @@ func (s *interopE2ESystem) DependencySet() *depset.StaticConfigDependencySet {
 	return stDepSet
 }
 
-func mustDial(t *testing.T, logger log.Logger) func(v string) *rpc.Client {
-	return func(v string) *rpc.Client {
-		cl, err := dial.DialRPCClientWithTimeout(context.Background(), logger, v)
-		require.NoError(t, err, "failed to dial")
-		return cl
-	}
-}
-
 var testingJWTSecret = [32]byte{123}
 
 func writeDefaultJWT(t testing.TB) string {
@@ -631,10 +626,30 @@ func worldToDepSet(world *interopgen.WorldOutput) (*depset.StaticConfigDependenc
 	return depset.NewStaticConfigDependencySet(depSet)
 }
 
-func worldToFullCfgSet(world *interopgen.WorldOutput) (depset.FullConfigSetMerged, error) {
-	depSet, err := worldToDepSet(world)
-	if err != nil {
-		return depset.FullConfigSetMerged{}, err
+// waitForSupernodeRoute polls the supernode's per-chain route until the chain's op-node API is
+// fully registered (admin/optimism namespaces). The chain container brings the per-chain RPC up
+// asynchronously, so callers that dial too early see "method does not exist" even though the
+// HTTP layer is mounted.
+func waitForSupernodeRoute(t *testing.T, url string) {
+	deadline := time.Now().Add(60 * time.Second)
+	logger := testlog.Logger(t, log.LevelWarn)
+	for {
+		cl, err := dial.DialRollupClientWithTimeout(context.Background(), logger, url)
+		if err == nil {
+			if _, cfgErr := cl.RollupConfig(context.Background()); cfgErr == nil {
+				cl.Close()
+				return
+			}
+			cl.Close()
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("supernode route %s never became fully usable (last err=%v)", url, err)
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
-	return depset.NewFullConfigSetMerged(world.RollupConfigSet(), depSet)
+}
+
+// chainURL returns the supernode-routed URL for the given chain.
+func (s *interopE2ESystem) chainURL(chainID *big.Int) string {
+	return fmt.Sprintf("%s/%s", strings.TrimRight(s.supernodeURL, "/"), chainID.String())
 }

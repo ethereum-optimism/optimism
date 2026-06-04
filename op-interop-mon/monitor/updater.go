@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -205,7 +205,7 @@ func (t *RPCUpdater) UpdateJobStatus(job *Job) {
 		return
 	}
 	// now to confirm the log event matches
-	actualHash := crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(log))
+	actualHash := crypto.Keccak256Hash(messages.LogToMessagePayload(log))
 	if actualHash != job.executingPayload {
 		t.log.Error("log hash mismatch", "expected", job.executingPayload, "got", actualHash)
 		job.UpdateStatus(jobStatusInvalid)

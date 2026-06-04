@@ -200,13 +200,15 @@ func NewBurst(blockTime time.Duration, opts ...AIMDOption) *Burst {
 // encountered.
 func (b *Burst) Run(t devtest.T, spammer Spammer) {
 	ctx, cancel := context.WithCancel(t.Ctx())
-	defer cancel()
 	t = t.WithCtx(ctx)
 
 	aimd := setupAIMD(t, b.blockTime, b.opts...)
 
 	var wg sync.WaitGroup
-	defer wg.Wait()
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
 	for range aimd.Ready() {
 		wg.Add(1)
 		go func() {

@@ -34,7 +34,7 @@ type GameCaller interface {
 
 type GameCallerCreator struct {
 	m      GameCallerMetrics
-	cache  *caching.LRUCache[common.Address, contracts.FaultDisputeGameContract]
+	cache  *caching.LRUCache[common.Address, GameCaller]
 	caller *batching.MultiCaller
 }
 
@@ -42,7 +42,7 @@ func NewGameCallerCreator(m GameCallerMetrics, caller *batching.MultiCaller) *Ga
 	return &GameCallerCreator{
 		m:      m,
 		caller: caller,
-		cache:  caching.NewLRUCache[common.Address, contracts.FaultDisputeGameContract](m, metricsLabel, 100),
+		cache:  caching.NewLRUCache[common.Address, GameCaller](m, metricsLabel, 100),
 	}
 }
 
@@ -51,12 +51,15 @@ func (g *GameCallerCreator) CreateContract(ctx context.Context, game gameTypes.G
 		return fdg, nil
 	}
 	switch gameTypes.GameType(game.GameType) {
+	case gameTypes.SuperPermissionedGameType:
+		fdg := NewSuperPermissionedGameCaller(g.m, game.Proxy, g.caller)
+		g.cache.Add(game.Proxy, fdg)
+		return fdg, nil
 	case gameTypes.CannonGameType,
 		gameTypes.PermissionedGameType,
 		gameTypes.CannonKonaGameType,
 		gameTypes.AlphabetGameType,
 		gameTypes.FastGameType,
-		gameTypes.SuperPermissionedGameType,
 		gameTypes.SuperCannonKonaGameType:
 		fdg, err := contracts.NewFaultDisputeGameContract(ctx, g.m, game.Proxy, g.caller)
 		if err != nil {

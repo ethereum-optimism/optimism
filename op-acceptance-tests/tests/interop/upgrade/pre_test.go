@@ -18,7 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // preInteropExecError returns true if err matches a known pre-interop
@@ -38,10 +39,10 @@ func preInteropExecError(err error) bool {
 
 // TestPreNoInbox verifies pre-interop behavior: the CrossL2Inbox is not deployed,
 // the derivation pipeline advances local-safe heads, and executing messages fail
-// before the interop fork activates.
+// before the Lagoon (interop activation) fork activates.
 func TestPreNoInbox(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Use a very large activation delay (24h) so interop never activates during the test.
+	// Use a very large activation delay (24h) so Lagoon never activates interop during the test.
 	// This test only checks pre-interop state and the old 60s offset caused flakiness
 	// when the test took too long and crossed the activation boundary.
 	// See: https://github.com/ethereum-optimism/optimism/issues/17298
@@ -73,12 +74,12 @@ func TestPreNoInbox(gt *testing.T) {
 	// interop verifier and must instead fall through to local-safe /
 	// local-finalized. See issue #20191.
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(types.LocalSafe, 5, 100),
-		sys.L2BCL.AdvancedFn(types.LocalSafe, 5, 100),
-		sys.L2ACL.AdvancedFn(types.CrossSafe, 5, 100),
-		sys.L2BCL.AdvancedFn(types.CrossSafe, 5, 100),
-		sys.L2ACL.AdvancedFn(types.Finalized, 1, 100),
-		sys.L2BCL.AdvancedFn(types.Finalized, 1, 100),
+		sys.L2ACL.AdvancedFn(safety.LocalSafe, 5, 100),
+		sys.L2BCL.AdvancedFn(safety.LocalSafe, 5, 100),
+		sys.L2ACL.AdvancedFn(safety.CrossSafe, 5, 100),
+		sys.L2BCL.AdvancedFn(safety.CrossSafe, 5, 100),
+		sys.L2ACL.AdvancedFn(safety.Finalized, 1, 100),
+		sys.L2BCL.AdvancedFn(safety.Finalized, 1, 100),
 	)
 
 	// Phase 3: Try interop before the upgrade, confirm that messages do not get included

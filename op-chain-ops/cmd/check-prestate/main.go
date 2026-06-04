@@ -19,7 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/superchain"
-	"github.com/mattn/go-isatty"
+	"golang.org/x/term"
 )
 
 type FPProgramType interface {
@@ -31,7 +31,7 @@ type FPProgramType interface {
 }
 
 func main() {
-	color := isatty.IsTerminal(os.Stderr.Fd())
+	color := term.IsTerminal(int(os.Stderr.Fd()))
 	handler := log.NewTerminalHandler(os.Stderr, color)
 	oplog.SetGlobalLogHandler(handler)
 	log := log.NewLogger(handler)
@@ -116,8 +116,8 @@ func main() {
 	}
 
 	knownChains := make(map[string]bool)
-	supportedChains := make([]string, 0) // Not null for json serialization
-	outdatedChains := make(map[string]types.OutdatedChain)
+	supportedChains := make([]string, 0)             // Not null for json serialization
+	outdatedChains := make([]types.OutdatedChain, 0) // Not null for json serialization
 	for _, name := range prestateNames {
 		if !chainFilter(name) {
 			continue
@@ -128,10 +128,10 @@ func main() {
 			log.Crit("Failed to check config", "chain", name, "err", err)
 		}
 		if diff != nil {
-			outdatedChains[name] = types.OutdatedChain{
+			outdatedChains = append(outdatedChains, types.OutdatedChain{
 				Name: name,
 				Diff: diff,
-			}
+			})
 		} else {
 			supportedChains = append(supportedChains, name)
 		}
@@ -159,7 +159,7 @@ func main() {
 		ExecutionClient:    elCommitInfo,
 		SuperchainRegistry: commitInfo("superchain-registry", commit, "main", "superchain"),
 		UpToDateChains:     supportedChains,
-		OutdatedChains:     slices.Collect(maps.Values(outdatedChains)),
+		OutdatedChains:     outdatedChains,
 		MissingChains:      missingChains,
 	}
 	encoder := json.NewEncoder(os.Stdout)

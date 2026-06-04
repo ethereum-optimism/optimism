@@ -25,6 +25,8 @@ var (
 	l2BridgeAddr = common.HexToAddress("0x4200000000000000000000000000000000000010")
 )
 
+const cgtCallTimeout = 30 * time.Second
+
 func cgtOpts() []presets.Option {
 	// Create a CGT-enabled devnet with 1M tokens of liquidity.
 	liq := new(big.Int).Mul(big.NewInt(1_000_000), big.NewInt(1e18))
@@ -45,7 +47,7 @@ func isCGTEnabled(t devtest.T, sys *presets.Minimal) bool {
 	l2 := sys.L2EL.Escape().L2EthClient()
 	isCustomGasTokenFunc := w3.MustNewFunc("isCustomGasToken()", "bool")
 
-	ctx, cancel := context.WithTimeout(t.Ctx(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Ctx(), cgtCallTimeout)
 	defer cancel()
 
 	data, _ := isCustomGasTokenFunc.EncodeArgs()
@@ -69,7 +71,7 @@ func getCGTMetadata(t devtest.T, sys *presets.Minimal) (string, string) {
 	gasPayingTokenNameFunc := w3.MustNewFunc("gasPayingTokenName()", "string")
 	gasPayingTokenSymbolFunc := w3.MustNewFunc("gasPayingTokenSymbol()", "string")
 
-	ctx, cancel := context.WithTimeout(t.Ctx(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Ctx(), cgtCallTimeout)
 	defer cancel()
 
 	// Read name

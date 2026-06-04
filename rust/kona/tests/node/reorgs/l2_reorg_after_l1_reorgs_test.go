@@ -8,7 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 	"github.com/ethereum/go-ethereum/common"
@@ -106,7 +107,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	// wait until L2 chain cross-safe ref caught up to where it was before the reorg
 	var waitFunc []dsl.CheckFunc
 	for _, clNode := range sys.L2CLNodes() {
-		waitFunc = append(waitFunc, clNode.ReachedFn(types.CrossSafe, tipL2_preReorg.Number, 200))
+		waitFunc = append(waitFunc, clNode.ReachedFn(safety.CrossSafe, tipL2_preReorg.Number, 200))
 	}
 
 	dsl.CheckAll(t, waitFunc...)

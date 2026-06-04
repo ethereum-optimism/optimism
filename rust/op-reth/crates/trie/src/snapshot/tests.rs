@@ -14,17 +14,24 @@
 
 use super::{SnapshotError, SnapshotInitJob};
 use crate::{
-    MdbxProofsStorageV2, OpProofsBackfillProvider, OpProofsBackfillStore, OpProofsProviderRO,
-    OpProofsSnapshotInitProvider, OpProofsSnapshotProviderRO, OpProofsStore, SnapshotInitStatus,
+    BackfillJob, InitializationJob, MdbxProofsStorageV2, OpProofsBackfillProvider,
+    OpProofsBackfillStore, OpProofsProviderRO, OpProofsSnapshotInitProvider,
+    OpProofsSnapshotProviderRO, OpProofsStore, RethTrieStorageLayout, SnapshotInitStatus,
     test_utils::{
         build_chain_and_initialize_storage, build_chain_with_storage_writes_and_initialize_storage,
+        build_transfer_block, chain_spec_with_address, commit_block_to_database, create_storage,
+        deterministic_keypair, execute_block, public_key_to_address,
     },
 };
 use alloy_eips::BlockNumHash;
-use alloy_primitives::B256;
-use reth_provider::DatabaseProviderFactory;
-use reth_trie::{Nibbles, trie_cursor::TrieCursor};
-use serial_test::serial;
+use alloy_primitives::{Address, B256};
+use reth_db::Database;
+use reth_db_common::init::init_genesis;
+use reth_provider::{
+    DatabaseProviderFactory, StorageSettingsCache,
+    test_utils::create_test_provider_factory_with_chain_spec,
+};
+use reth_trie::{Nibbles, StoredNibbles, trie_cursor::TrieCursor};
 use std::sync::Arc;
 
 /// Count rows the history-aware `account_trie_cursor` would yield at
@@ -57,7 +64,6 @@ fn count_snapshot_account_trie(storage: &Arc<MdbxProofsStorageV2>) -> usize {
 }
 
 #[test]
-#[serial]
 fn snapshot_init_at_latest_completes_and_anchor_matches() {
     // 3-block chain; storage initialized at block 3 (earliest = latest = 3).
     let (provider_factory, storage, latest_num, latest_hash) =
@@ -92,7 +98,6 @@ fn snapshot_init_at_latest_completes_and_anchor_matches() {
 }
 
 #[test]
-#[serial]
 fn snapshot_init_target_outside_window_errors() {
     let (provider_factory, storage, _latest_num, _latest_hash) =
         build_chain_and_initialize_storage(3);
@@ -114,7 +119,6 @@ fn snapshot_init_target_outside_window_errors() {
 }
 
 #[test]
-#[serial]
 fn snapshot_init_refuses_second_run_when_completed() {
     let (provider_factory, storage, latest_num, _latest_hash) =
         build_chain_and_initialize_storage(3);
@@ -137,7 +141,6 @@ fn snapshot_init_refuses_second_run_when_completed() {
 }
 
 #[test]
-#[serial]
 fn snapshot_init_drift_detection_aborts_run() {
     // Build a chain and plant a `Building` meta at a *different* anchor than
     // the one the job will compute for `latest`. The classify step must
@@ -165,7 +168,6 @@ fn snapshot_init_drift_detection_aborts_run() {
 }
 
 #[test]
-#[serial]
 fn snapshot_init_succeeds_on_chain_with_storage_writes() {
     // Drive the job over a chain whose every block touches a storage slot.
     // This exercises the storage-trie phase (`drain_storage_trie` +
@@ -185,7 +187,31 @@ fn snapshot_init_succeeds_on_chain_with_storage_writes() {
 }
 
 #[test]
-#[serial]
+fn snapshot_init_with_small_chunk_size_drives_multi_chunk_drain() {
+    let (provider_factory, storage, latest_num, latest_hash) =
+        build_chain_with_storage_writes_and_initialize_storage(5);
+    let target = BlockNumHash::new(latest_num, latest_hash);
+
+    let reth_provider = provider_factory.database_provider_ro().unwrap();
+    let outcome = SnapshotInitJob::new(reth_provider, storage.clone())
+        .with_chunk_size(1)
+        .run(latest_num)
+        .expect("snapshot");
+
+    assert_eq!(outcome.block, target);
+    assert_eq!(outcome.status, SnapshotInitStatus::Completed);
+
+    // Destination must match source row-for-row even across many tiny commits.
+    let source_count = count_source_account_trie(&storage, latest_num);
+    let dest_count = count_snapshot_account_trie(&storage);
+    assert_eq!(
+        outcome.account_nodes_copied as usize, source_count,
+        "outcome count mismatch (source has {source_count} account-trie rows)"
+    );
+    assert_eq!(dest_count, source_count, "snapshot table doesn't match source");
+}
+
+#[test]
 fn snapshot_init_clear_then_rebuild_succeeds() {
     let (provider_factory, storage, latest_num, latest_hash) =
         build_chain_and_initialize_storage(3);
@@ -211,4 +237,251 @@ fn snapshot_init_clear_then_rebuild_succeeds() {
     let outcome = SnapshotInitJob::new(reth_provider, storage).run(latest_num).expect("rebuild");
     assert_eq!(outcome.block, target);
     assert_eq!(outcome.status, SnapshotInitStatus::Completed);
+}
+
+/// Negative test for the snapshot's validation safety net.
+///
+/// Without this, a bug in `validate_state_root` (wrong cursor factory, wrong
+/// target block, inverted compare, …) would let every existing test pass
+/// while silently marking a corrupt snapshot `Ready`.
+#[test]
+fn snapshot_init_aborts_with_state_root_mismatch_when_header_corrupted() {
+    // Custom chain build — need to perturb the latest block's header before
+    // commit, so we can't reuse `build_chain_and_initialize_storage`.
+    let key_pair = deterministic_keypair();
+    let sender = public_key_to_address(key_pair.public_key());
+    let chain_spec = chain_spec_with_address(sender);
+    let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&provider_factory).unwrap();
+
+    let recipient = Address::repeat_byte(0x42);
+    const NUM_BLOCKS: u64 = 3;
+    // Snapshot validates state_root at `target_block` itself (unlike backfill,
+    // which validates at block_number - 1), so we corrupt the target.
+    const CORRUPTED_BLOCK: u64 = NUM_BLOCKS;
+    const BOGUS_ROOT: B256 = B256::repeat_byte(0xAB);
+
+    let mut last_hash = chain_spec.genesis_hash();
+    for n in 1..=NUM_BLOCKS {
+        let mut block = build_transfer_block(n, last_hash, &chain_spec, key_pair, n - 1, recipient);
+        let exec = execute_block(&mut block, &provider_factory, &chain_spec);
+        if n == CORRUPTED_BLOCK {
+            block.set_state_root(BOGUS_ROOT);
+        }
+        commit_block_to_database(&block, &exec, &provider_factory);
+        last_hash = block.hash();
+    }
+
+    let storage = create_storage();
+    {
+        let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
+            RethTrieStorageLayout::Packed
+        } else {
+            RethTrieStorageLayout::Legacy
+        };
+        let tx = provider_factory.db_ref().tx().unwrap();
+        InitializationJob::new(storage.clone(), tx, trie_layout)
+            .run(NUM_BLOCKS, last_hash)
+            .unwrap();
+    }
+
+    let reth_provider = provider_factory.database_provider_ro().unwrap();
+    let err = SnapshotInitJob::new(reth_provider, storage.clone()).run(NUM_BLOCKS).unwrap_err();
+    match err {
+        SnapshotError::StateRootMismatch { block_number, expected, .. } => {
+            assert_eq!(
+                block_number, NUM_BLOCKS,
+                "validation fires at target_block (not target_block - 1)"
+            );
+            assert_eq!(expected, BOGUS_ROOT, "expected root must come from the tampered header");
+        }
+        other => panic!("expected StateRootMismatch, got {other:?}"),
+    }
+
+    let init_anchor = storage
+        .snapshot_initialization_provider()
+        .expect("init")
+        .snapshot_init_anchor()
+        .expect("anchor");
+    assert_eq!(
+        init_anchor.status,
+        SnapshotInitStatus::InProgress,
+        "meta must stay Building on validation failure",
+    );
+}
+
+/// Resume happy path for [`SnapshotInitJob::start_or_resume`] — the
+/// `InProgress` arm at the *matching* anchor
+#[test]
+fn snapshot_init_resumes_from_partial_building_at_matching_anchor() {
+    let (provider_factory, storage, latest_num, latest_hash) =
+        build_chain_with_storage_writes_and_initialize_storage(5);
+    let target = BlockNumHash::new(latest_num, latest_hash);
+
+    let source_count = count_source_account_trie(&storage, latest_num);
+    assert!(
+        source_count >= 2,
+        "resume test needs ≥2 source rows; got {source_count}. \
+         Enrich the chain helper (more genesis allocs, multi-slot storage) \
+         to restore meaningful resume coverage.",
+    );
+
+    // Read the first source row — this is what we'll seed as a "previously
+    // committed" chunk. Must match a real source row so the snapshot table
+    // stays consistent with the source for state-root validation.
+    let first_row = {
+        let ro = storage.provider_ro().expect("ro");
+        let mut cursor = ro.account_trie_cursor(latest_num).expect("cursor");
+        let (path, node) = cursor.seek(Nibbles::default()).expect("seek").expect("first row");
+        (StoredNibbles(path), node)
+    };
+
+    // Plant a partial Building snapshot at `target`: meta + one row.
+    {
+        let sp = storage.snapshot_initialization_provider().expect("init");
+        sp.set_snapshot_init_anchor(target).expect("plant");
+        sp.store_account_trie_snapshot_branches(vec![first_row.clone()]).expect("seed");
+        OpProofsSnapshotInitProvider::commit(sp).expect("commit");
+    }
+
+    // Sanity: the planted state is what `start_or_resume` will read.
+    let pre = storage
+        .snapshot_initialization_provider()
+        .expect("init")
+        .snapshot_init_anchor()
+        .expect("anchor");
+    assert_eq!(pre.status, SnapshotInitStatus::InProgress);
+    assert_eq!(pre.block, Some(target));
+    assert_eq!(pre.last_account_trie_key, Some(first_row.0));
+
+    // Resume. `chunk_size = 1` forces every remaining row through the
+    // `Some(resume_after)` branch, not just the first iteration.
+    let reth_provider = provider_factory.database_provider_ro().unwrap();
+    let outcome = SnapshotInitJob::new(reth_provider, storage.clone())
+        .with_chunk_size(1)
+        .run(latest_num)
+        .expect("resume");
+
+    assert_eq!(outcome.block, target);
+    assert_eq!(outcome.status, SnapshotInitStatus::Completed);
+    assert_eq!(
+        outcome.account_nodes_copied as usize,
+        source_count - 1,
+        "resumed run must not re-count the seeded row",
+    );
+
+    // Destination mirrors source — drain skipped the seeded row and
+    // appended the rest with no duplicate-key error, no missing rows.
+    assert_eq!(count_snapshot_account_trie(&storage), source_count);
+
+    // `finalize_ready` ran — snapshot_anchor() returns `target` only when
+    // meta is Ready.
+    let post = storage.snapshot_provider_ro().expect("ro").snapshot_anchor().expect("ready");
+    assert_eq!(post, target);
+}
+
+fn widen_window<F>(provider_factory: &F, storage: Arc<MdbxProofsStorageV2>, target_earliest: u64)
+where
+    F: DatabaseProviderFactory<
+        Provider: reth_provider::DBProvider
+                      + reth_provider::StageCheckpointReader
+                      + reth_provider::ChangeSetReader
+                      + reth_provider::StorageChangeSetReader
+                      + reth_provider::BlockNumReader
+                      + reth_provider::BlockHashReader
+                      + reth_provider::HeaderProvider
+                      + reth_provider::StorageSettingsCache
+                      + Send,
+    >,
+{
+    let provider = provider_factory.database_provider_ro().unwrap();
+    BackfillJob::new(provider, storage).run(target_earliest).expect("backfill widens window");
+}
+
+/// Interior-target snapshot — the history-aware cursors at `target` actually
+/// have to reconstruct trie state at a block below the tip.
+#[test]
+fn snapshot_init_at_interior_target() {
+    // Build chain [1..=5] then backfill earliest to 2 → window [2, 5].
+    let (provider_factory, storage, latest_num, _latest_hash) =
+        build_chain_with_storage_writes_and_initialize_storage(5);
+    assert_eq!(latest_num, 5);
+    widen_window(&provider_factory, storage.clone(), 2);
+
+    // Snapshot at interior block 3.
+    const INTERIOR: u64 = 3;
+    let reth_provider = provider_factory.database_provider_ro().unwrap();
+    let outcome = SnapshotInitJob::new(reth_provider, storage.clone())
+        .run(INTERIOR)
+        .expect("interior snapshot");
+
+    // `outcome.block.hash` resolves to reth's `block_hash(INTERIOR)`; the job
+    // already validated the snapshot against `header[INTERIOR].state_root`
+    // (not header[latest]), so reaching `Completed` means the historical
+    // reconstruction agrees with reth's stored interior root.
+    assert_eq!(outcome.block.number, INTERIOR);
+    assert_eq!(outcome.status, SnapshotInitStatus::Completed);
+
+    let sp = storage.snapshot_provider_ro().unwrap();
+    let anchor = sp.snapshot_anchor().expect("ready");
+    assert_eq!(anchor.number, INTERIOR);
+}
+
+/// Lower-bound rejection: `target_block < window.earliest` must fire
+/// `SnapshotInitTargetOutsideWindow`. Existing
+/// `snapshot_init_target_outside_window_errors` only hits the `> latest`
+/// half; this test pins the other half of the same `if`.
+#[test]
+fn snapshot_init_target_below_earliest_errors() {
+    // Window [2, 5] — running with target=1 falls below earliest.
+    let (provider_factory, storage, latest_num, _latest_hash) =
+        build_chain_with_storage_writes_and_initialize_storage(5);
+    assert_eq!(latest_num, 5);
+    widen_window(&provider_factory, storage.clone(), 2);
+
+    let reth_provider = provider_factory.database_provider_ro().unwrap();
+    let err = SnapshotInitJob::new(reth_provider, storage).run(1).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            SnapshotError::SnapshotInitTargetOutsideWindow {
+                target_block: 1,
+                earliest: 2,
+                latest: 5,
+            }
+        ),
+        "got {err:?}",
+    );
+}
+
+/// Inclusive window boundaries: both `target == earliest` and
+/// `target == latest` must accept.
+#[test]
+fn snapshot_init_at_earliest_and_latest_boundaries_succeed() {
+    // Earliest boundary (target == earliest = 2 in a [2, 5] window).
+    {
+        let (provider_factory, storage, latest_num, _latest_hash) =
+            build_chain_with_storage_writes_and_initialize_storage(5);
+        assert_eq!(latest_num, 5);
+        widen_window(&provider_factory, storage.clone(), 2);
+
+        let reth_provider = provider_factory.database_provider_ro().unwrap();
+        let outcome =
+            SnapshotInitJob::new(reth_provider, storage).run(2).expect("earliest boundary");
+        assert_eq!(outcome.block.number, 2);
+        assert_eq!(outcome.status, SnapshotInitStatus::Completed);
+    }
+
+    // Latest boundary (target == latest = 5 in a [2, 5] window).
+    {
+        let (provider_factory, storage, latest_num, _latest_hash) =
+            build_chain_with_storage_writes_and_initialize_storage(5);
+        assert_eq!(latest_num, 5);
+        widen_window(&provider_factory, storage.clone(), 2);
+
+        let reth_provider = provider_factory.database_provider_ro().unwrap();
+        let outcome = SnapshotInitJob::new(reth_provider, storage).run(5).expect("latest boundary");
+        assert_eq!(outcome.block.number, 5);
+        assert_eq!(outcome.status, SnapshotInitStatus::Completed);
+    }
 }

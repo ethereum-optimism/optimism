@@ -27,7 +27,7 @@ import (
 //   - optimisticErr: if set, both OptimisticOutputAtTimestamp and OptimisticAt return it.
 //   - syncStatusErr: if set, SyncStatus returns it.
 //   - status: returned from SyncStatus.
-//   - verifierL1s: returned from VerifierCurrentL1s.
+//   - verifierL1: returned from VerifierCurrentL1 when non-nil.
 //   - byHashCalled: incremented per OutputRootAtL2BlockHash call (for assertion).
 type mockCC struct {
 	optL2          eth.BlockID
@@ -39,17 +39,25 @@ type mockCC struct {
 	optimisticErr  error
 	syncStatusErr  error
 	status         *eth.SyncStatus
-	verifierL1s    []eth.BlockID
+	verifierL1     *eth.BlockID
 	byHashCalled   int
 }
 
-func (m *mockCC) Start(ctx context.Context) error                  { return nil }
-func (m *mockCC) Stop(ctx context.Context) error                   { return nil }
-func (m *mockCC) Pause(ctx context.Context) error                  { return nil }
-func (m *mockCC) Resume(ctx context.Context) error                 { return nil }
-func (m *mockCC) PauseAndStopVN(ctx context.Context) error         { return nil }
+func (m *mockCC) Start(ctx context.Context) error          { return nil }
+func (m *mockCC) Stop(ctx context.Context) error           { return nil }
+func (m *mockCC) Pause(ctx context.Context) error          { return nil }
+func (m *mockCC) Resume(ctx context.Context) error         { return nil }
+func (m *mockCC) PauseAndStopVN(ctx context.Context) error { return nil }
+func (m *mockCC) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
 func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {}
-func (m *mockCC) VerifierCurrentL1s() []eth.BlockID                { return m.verifierL1s }
+func (m *mockCC) VerifierCurrentL1() (eth.BlockID, bool) {
+	if m.verifierL1 == nil {
+		return eth.BlockID{}, false
+	}
+	return *m.verifierL1, true
+}
 func (m *mockCC) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }
@@ -87,6 +95,12 @@ func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*e
 func (m *mockCC) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
 	return nil, nil, nil
 }
+func (m *mockCC) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
+func (m *mockCC) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
 func (m *mockCC) ID() eth.ChainID   { return eth.ChainIDFromUInt64(10) }
 func (m *mockCC) BlockTime() uint64 { return 1 }
 func (m *mockCC) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
@@ -105,6 +119,9 @@ func (m *mockCC) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64,
 }
 func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
 	return 0, nil
+}
+func (m *mockCC) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+	return 0, cc.ErrSafeDBNotReady
 }
 func (m *mockCC) Generation() uint64 { return 0 }
 
@@ -195,10 +212,10 @@ func TestSuperroot_AtTimestamp_VerifierL1ReducesCurrentL1(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
-			optL2:       eth.BlockID{Number: 100, Hash: common.HexToHash("0x01")},
-			optL1:       eth.BlockID{Number: 1000},
-			status:      &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
-			verifierL1s: []eth.BlockID{{Number: 1500}},
+			optL2:      eth.BlockID{Number: 100, Hash: common.HexToHash("0x01")},
+			optL1:      eth.BlockID{Number: 1000},
+			status:     &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
+			verifierL1: &eth.BlockID{Number: 1500},
 		},
 	}
 	s := newSuperroot(chains, preInteropReader())
@@ -211,10 +228,10 @@ func TestSuperroot_AtTimestamp_VerifierL1HigherThanDerivationDoesNotIncrease(t *
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{
 		eth.ChainIDFromUInt64(10): &mockCC{
-			optL2:       eth.BlockID{Number: 100, Hash: common.HexToHash("0x01")},
-			optL1:       eth.BlockID{Number: 1000},
-			status:      &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
-			verifierL1s: []eth.BlockID{{Number: 3000}},
+			optL2:      eth.BlockID{Number: 100, Hash: common.HexToHash("0x01")},
+			optL1:      eth.BlockID{Number: 1000},
+			status:     &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
+			verifierL1: &eth.BlockID{Number: 3000},
 		},
 	}
 	s := newSuperroot(chains, preInteropReader())

@@ -22,7 +22,7 @@ use reth_optimism_forks::OpHardforks;
 use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_primitives::{BuildNextEnv, BuiltPayload, BuiltPayloadExecutedBlock};
 use reth_primitives_traits::{
-    NodePrimitives, SealedBlock, SealedHeader, SignedTransaction, WithEncoded,
+    Block as _, NodePrimitives, SealedBlock, SealedHeader, SignedTransaction, WithEncoded,
 };
 
 /// Re-export for use in downstream arguments.
@@ -461,6 +461,22 @@ impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {
 
     fn requests(&self) -> Option<Requests> {
         None
+    }
+}
+
+// Counterpart to `OpPayloadTypes::block_to_payload`. The two are intentionally
+// parallel: this path receives the BAL via the payload's own field once OP
+// gains BAL support, while `block_to_payload` receives it as a separate arg.
+// See the comment on `OpPayloadTypes::block_to_payload` in `lib.rs`.
+impl<T, N> From<OpBuiltPayload<N>> for OpExecData
+where
+    T: SignedTransaction,
+    N: NodePrimitives<Block = Block<T>>,
+{
+    fn from(value: OpBuiltPayload<N>) -> Self {
+        let block = Arc::unwrap_or_clone(value.block);
+        let hash = block.hash();
+        Self(OpExecutionData::from_block_unchecked(hash, &block.into_block().into_ethereum_block()))
     }
 }
 

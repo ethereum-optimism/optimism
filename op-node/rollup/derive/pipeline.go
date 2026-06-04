@@ -98,17 +98,12 @@ type DerivationPipeline struct {
 
 // NewDerivationPipeline creates a DerivationPipeline, to turn L1 data into L2 block-inputs.
 func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, depSet DependencySet, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher,
-	altDA AltDAInputFetcher, l2Source L2Source, metrics Metrics, managedBySupervisor bool, l1ChainConfig *params.ChainConfig,
+	altDA AltDAInputFetcher, l2Source L2Source, metrics Metrics, l1ChainConfig *params.ChainConfig,
 ) *DerivationPipeline {
 	spec := rollup.NewChainSpec(rollupCfg)
 	// Stages are strung together into a pipeline,
 	// results are pulled from the stage closed to the L2 engine, which pulls from the previous stage, and so on.
-	var l1Traversal l1TraversalStage
-	if managedBySupervisor {
-		l1Traversal = NewL1TraversalManaged(log, rollupCfg, l1Fetcher)
-	} else {
-		l1Traversal = NewL1Traversal(log, rollupCfg, l1Fetcher)
-	}
+	l1Traversal := NewL1Traversal(log, rollupCfg, l1Fetcher)
 	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, altDA) // auxiliary stage for L1Retrieval
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	frameQueue := NewFrameQueue(log, rollupCfg, l1Src)

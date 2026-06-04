@@ -13,12 +13,14 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 
 // Libraries
+import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { Claim, Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -252,16 +254,17 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     /// @param doo The output of the deployment.
     function _checkDeploymentAssertions(DeployOPChain.Output memory doo) internal view {
         IPermissionedDisputeGame pdg = getPermissionedDisputeGame(doo);
-        assertEq(pdg.splitDepth(), disputeSplitDepth, "PDG splitDepth");
-        assertEq(pdg.maxGameDepth(), disputeMaxGameDepth, "PDG maxGameDepth");
-        assertEq(Duration.unwrap(pdg.clockExtension()), Duration.unwrap(disputeClockExtension), "PDG clockExtension");
-        assertEq(
-            Duration.unwrap(pdg.maxClockDuration()), Duration.unwrap(disputeMaxClockDuration), "PDG maxClockDuration"
-        );
-
-        // For v2 contracts, some immutable args are passed in at game creation time from DGF.gameArgs.
-        // Super game impls use a different immutable args layout so skip these checks.
         if (!isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+            assertEq(pdg.splitDepth(), disputeSplitDepth, "PDG splitDepth");
+            assertEq(pdg.maxGameDepth(), disputeMaxGameDepth, "PDG maxGameDepth");
+            assertEq(
+                Duration.unwrap(pdg.clockExtension()), Duration.unwrap(disputeClockExtension), "PDG clockExtension"
+            );
+            assertEq(
+                Duration.unwrap(pdg.maxClockDuration()),
+                Duration.unwrap(disputeMaxClockDuration),
+                "PDG maxClockDuration"
+            );
             assertEq(address(pdg.proposer()), address(0), "PDG proposer");
             assertEq(address(pdg.challenger()), address(0), "PDG challenger");
             assertEq(Claim.unwrap(pdg.absolutePrestate()), bytes32(0), "PDG absolutePrestate");
@@ -286,8 +289,10 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         GameType permType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
         GameType konaType = isSuperRoot ? GameTypes.SUPER_CANNON_KONA : GameTypes.CANNON_KONA;
 
-        // Permissioned game must always be enabled with DEFAULT_INIT_BOND init bond
-        assertEq(doo.disputeGameFactoryProxy.initBonds(permType), deployOPChain.DEFAULT_INIT_BOND());
+        // The legacy permissioned game keeps the default bond. The super permissioned game
+        // has no bonded participation path, so its init bond must be zero.
+        uint256 expectedInitBond = isSuperRoot ? 0 : deployOPChain.DEFAULT_INIT_BOND();
+        assertEq(doo.disputeGameFactoryProxy.initBonds(permType), expectedInitBond);
         assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(permType)), address(0));
 
         // CANNON must be disabled for initial deployment (not deployed for super root path)
@@ -428,5 +433,78 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
         bytes memory emptyInput = "";
         vm.expectRevert("DeployOPChain: input cannot be empty");
         deployOPChain.runWithBytes(emptyInput);
+    }
+}
+
+contract DeployOPChain_GasLimit_Test is DeployOPChain_TestBase {
+    /// @notice A gasLimit large enough to fit the default reserved gas should produce the
+    ///         unchanged DEFAULT_RESOURCE_CONFIG. The boundary value is the sum of
+    ///         default maxResourceLimit and systemTxMaxGas (currently 21M).
+    function test_run_gasLimitAtDefaultThreshold_succeeds() public {
+        IResourceMetering.ResourceConfig memory expected = Constants.DEFAULT_RESOURCE_CONFIG();
+        deployOPChainInput.gasLimit = uint64(expected.maxResourceLimit) + uint64(expected.systemTxMaxGas);
+
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+        IResourceMetering.ResourceConfig memory actual = doo.systemConfigProxy.resourceConfig();
+
+        assertEq(actual.maxResourceLimit, expected.maxResourceLimit, "maxResourceLimit");
+        assertEq(actual.systemTxMaxGas, expected.systemTxMaxGas, "systemTxMaxGas");
+        assertEq(actual.elasticityMultiplier, expected.elasticityMultiplier, "elasticityMultiplier");
+        assertEq(
+            actual.baseFeeMaxChangeDenominator, expected.baseFeeMaxChangeDenominator, "baseFeeMaxChangeDenominator"
+        );
+        assertEq(actual.minimumBaseFee, expected.minimumBaseFee, "minimumBaseFee");
+        assertEq(actual.maximumBaseFee, expected.maximumBaseFee, "maximumBaseFee");
+    }
+
+    /// @notice A 5M gasLimit (below the 21M default-reserved threshold) should produce a
+    ///         scaled-down ResourceConfig where maxResourceLimit + systemTxMaxGas == gasLimit.
+    function test_run_gasLimitFiveMillion_succeeds() public {
+        deployOPChainInput.gasLimit = 5_000_000;
+
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+        IResourceMetering.ResourceConfig memory actual = doo.systemConfigProxy.resourceConfig();
+        IResourceMetering.ResourceConfig memory defaults = Constants.DEFAULT_RESOURCE_CONFIG();
+
+        assertEq(actual.maxResourceLimit, 4_000_000, "maxResourceLimit scaled");
+        assertEq(actual.systemTxMaxGas, defaults.systemTxMaxGas, "systemTxMaxGas preserved");
+        assertEq(actual.elasticityMultiplier, defaults.elasticityMultiplier, "elasticityMultiplier preserved");
+        assertEq(
+            actual.baseFeeMaxChangeDenominator,
+            defaults.baseFeeMaxChangeDenominator,
+            "baseFeeMaxChangeDenominator preserved"
+        );
+        assertEq(actual.minimumBaseFee, defaults.minimumBaseFee, "minimumBaseFee preserved");
+        assertEq(actual.maximumBaseFee, defaults.maximumBaseFee, "maximumBaseFee preserved");
+        assertEq(doo.systemConfigProxy.gasLimit(), 5_000_000, "SystemConfig gasLimit");
+        // Sanity: reserved gas exactly equals the requested gasLimit at the small-chain floor.
+        assertEq(
+            uint64(actual.maxResourceLimit) + uint64(actual.systemTxMaxGas),
+            deployOPChainInput.gasLimit,
+            "reserved gas == gasLimit"
+        );
+    }
+}
+
+contract DeployOPChain_GasLimit_TestFail is DeployOPChain_TestBase {
+    /// @notice A gasLimit at or below the default systemTxMaxGas leaves no room for any
+    ///         deposit budget and must revert at the deploy script with a clear message,
+    ///         rather than failing deeper inside SystemConfig.
+    function test_run_gasLimitBelowSystemTxMaxGas_reverts() public {
+        IResourceMetering.ResourceConfig memory defaults = Constants.DEFAULT_RESOURCE_CONFIG();
+        deployOPChainInput.gasLimit = uint64(defaults.systemTxMaxGas);
+        vm.expectRevert("DeployOPChain: gasLimit must exceed systemTxMaxGas");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    /// @notice A gasLimit only marginally above systemTxMaxGas rounds maxResourceLimit
+    ///         down to zero (because of the elasticityMultiplier divisibility constraint)
+    ///         and must revert before reaching SystemConfig.
+    function test_run_gasLimitTooSmallForDeposits_reverts() public {
+        IResourceMetering.ResourceConfig memory defaults = Constants.DEFAULT_RESOURCE_CONFIG();
+        // available = 5 gas, which rounds down to 0 under elasticityMultiplier = 10.
+        deployOPChainInput.gasLimit = uint64(defaults.systemTxMaxGas) + 5;
+        vm.expectRevert("DeployOPChain: gasLimit too small for any deposit budget");
+        deployOPChain.run(deployOPChainInput);
     }
 }

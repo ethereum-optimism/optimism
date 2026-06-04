@@ -1,10 +1,9 @@
 //! Plain (non-history-aware) cursors over the snapshot tables.
 //!
-//! Unlike the V2 history-aware cursors (see [`super::account_trie`],
-//! [`super::storage_trie`], [`super::account`], [`super::storage`]), these
-//! read directly from the snapshot tables without any merge walk: the
-//! snapshot already reflects state at the snapshot anchor, so a single
-//! current-state read is authoritative.
+//! Unlike the V2 history-aware cursors (see [`super::account_trie`] and
+//! [`super::storage_trie`], [`super::account`], [`super::storage`]), these read directly from
+//! snapshot tables without any merge walk: the snapshot tables already reflect trie state at the
+//! snapshot's anchor block, so a single current-state read is authoritative.
 //!
 //! Used by the backfill job when a [`SnapshotStatus::Ready`] snapshot is
 //! available — see `crate::backfill` for the rationale.

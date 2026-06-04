@@ -58,6 +58,12 @@ type TwoL2SupernodeInterop struct {
 	L2ELA *dsl.L2ELNode
 	L2ELB *dsl.L2ELNode
 
+	// L2ASupernodeCL and L2BSupernodeCL provide access to the shared supernode's
+	// per-chain rollup routes. In light-sequencer presets, L2ACL/L2BCL are the
+	// light CL sequencers and these fields are the safe-chain derivation nodes.
+	L2ASupernodeCL *dsl.L2CLNode
+	L2BSupernodeCL *dsl.L2CLNode
+
 	// L2BatcherA and L2BatcherB provide access to the batchers for pausing/resuming
 	L2BatcherA *dsl.L2Batcher
 	L2BatcherB *dsl.L2Batcher
@@ -89,6 +95,12 @@ type TwoL2SupernodeInterop struct {
 	timeTravel *clock.AdvancingClock
 }
 
+// L2UserRPCURLs returns the user-RPC URLs for both L2 EL nodes in canonical
+// (A, B) order. Useful for scripts and tools that take a list of L2 endpoints.
+func (s *TwoL2SupernodeInterop) L2UserRPCURLs() []string {
+	return []string{s.L2ELA.Escape().UserRPC(), s.L2ELB.Escape().UserRPC()}
+}
+
 // AdvanceTime advances the time-travel clock if enabled.
 func (s *TwoL2SupernodeInterop) AdvanceTime(amount time.Duration) {
 	s.T.Require().NotNil(s.timeTravel, "attempting to advance time on incompatible system")
@@ -103,9 +115,25 @@ func (s *TwoL2SupernodeInterop) SuperNodeClient() apis.SupernodeQueryAPI {
 
 // NewTwoL2SupernodeInterop creates a fresh TwoL2SupernodeInterop target for the current
 // test.
+//
+// When WithInteropFilter() is set the test is skipped on op-geth: the interop filter
+// is only supported with op-reth, since op-geth does not call the interop_ namespace.
 func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInterop {
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeInterop", opts, twoL2SupernodeInteropPresetSupportedOptionKinds)
+	if presetCfg.UseInteropFilter {
+		sysgo.SkipOnOpGeth(t, "interop filter is only supported with op-reth")
+	}
 	return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
+}
+
+// NewTwoL2SupernodeLightSequencerInterop creates a two-L2 interop setup where
+// light op-node CLs sequence blocks and the shared supernode derives safe heads.
+func NewTwoL2SupernodeLightSequencerInterop(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInterop {
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeLightSequencerInterop", opts, twoL2SupernodeInteropPresetSupportedOptionKinds)
+	if presetCfg.UseInteropFilter {
+		sysgo.SkipOnOpGeth(t, "interop filter is only supported with op-reth")
+	}
+	return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
 }
 
 // =============================================================================

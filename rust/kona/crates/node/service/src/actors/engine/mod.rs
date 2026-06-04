@@ -1,7 +1,7 @@
-//! The [`EngineActor`] and its components.
+//! The [`EngineActor`], [`EngineRpcActor`], and their components.
 
 mod actor;
-pub use actor::EngineActor;
+pub use actor::{EngineActor, EngineActorRequest};
 
 mod client;
 pub use client::{EngineDerivationClient, QueuedEngineDerivationClient};
@@ -14,14 +14,9 @@ pub use error::EngineError;
 
 mod request;
 pub use request::{
-    BuildRequest, EngineActorRequest, EngineClientError, EngineClientResult, EngineRpcRequest,
-    ResetRequest, SealRequest,
+    BuildRequest, EngineClientError, EngineClientResult, EngineRpcRequest, ResetRequest,
+    SealRequest,
 };
 
-mod engine_request_processor;
-pub use engine_request_processor::{
-    EngineProcessingRequest, EngineProcessor, EngineRequestReceiver,
-};
-
-mod rpc_request_processor;
-pub use rpc_request_processor::{EngineRpcProcessor, EngineRpcRequestReceiver};
+mod rpc_actor;
+pub use rpc_actor::EngineRpcActor;

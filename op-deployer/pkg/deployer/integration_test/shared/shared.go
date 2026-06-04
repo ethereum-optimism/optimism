@@ -110,6 +110,9 @@ func DefaultPrivkey(t *testing.T) (string, *ecdsa.PrivateKey, *devkeys.MnemonicD
 	return pkHex, pk, dk
 }
 
+// defaultInitBond matches Deploy.s.sol DEFAULT_INIT_BOND (0.08 ether).
+var defaultInitBond = big.NewInt(8e16)
+
 // lastUsedOPCMVersionSelector is the selector for SystemConfig.lastUsedOPCMVersion()
 // keccak256("lastUsedOPCMVersion()")[:4] = 0x9fabcc84
 var lastUsedOPCMVersionSelector = []byte{0x9f, 0xab, 0xcc, 0x84}
@@ -240,7 +243,7 @@ func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy c
 	disputeGameConfigs := []embedded.DisputeGameConfig{
 		{
 			Enabled:  true,
-			InitBond: big.NewInt(0),
+			InitBond: new(big.Int).Set(defaultInitBond),
 			GameType: embedded.GameTypeCannon,
 			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
 				AbsolutePrestate: opcmregistry.DummyCannonPrestate,
@@ -248,7 +251,7 @@ func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy c
 		},
 		{
 			Enabled:  true,
-			InitBond: big.NewInt(0),
+			InitBond: new(big.Int).Set(defaultInitBond),
 			GameType: embedded.GameTypePermissionedCannon,
 			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
 				AbsolutePrestate: opcmregistry.DummyCannonPrestate,
@@ -258,7 +261,7 @@ func buildV2OPCMUpgradeConfig(t *testing.T, prank, opcmAddr, systemConfigProxy c
 		},
 		{
 			Enabled:  true,
-			InitBond: big.NewInt(0),
+			InitBond: new(big.Int).Set(defaultInitBond),
 			GameType: embedded.GameTypeCannonKona,
 			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
 				AbsolutePrestate: opcmregistry.DummyCannonKonaPrestate,

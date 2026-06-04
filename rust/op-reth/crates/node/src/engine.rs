@@ -30,7 +30,10 @@ pub struct OpEngineTypes<T: PayloadTypes = OpPayloadTypes> {
     _marker: PhantomData<T>,
 }
 
-impl<T: PayloadTypes<ExecutionData = OpExecData>> PayloadTypes for OpEngineTypes<T> {
+impl<T: PayloadTypes<ExecutionData = OpExecData>> PayloadTypes for OpEngineTypes<T>
+where
+    OpExecData: From<<T as PayloadTypes>::BuiltPayload>,
+{
     type ExecutionData = T::ExecutionData;
     type BuiltPayload = T::BuiltPayload;
     type PayloadAttributes = T::PayloadAttributes;
@@ -39,8 +42,9 @@ impl<T: PayloadTypes<ExecutionData = OpExecData>> PayloadTypes for OpEngineTypes
         block: SealedBlock<
             <<Self::BuiltPayload as BuiltPayload>::Primitives as NodePrimitives>::Block,
         >,
+        _bal: Option<alloy_primitives::Bytes>,
     ) -> <T as PayloadTypes>::ExecutionData {
-        OpExecData::from(op_alloy_rpc_types_engine::OpExecutionData::from_block_unchecked(
+        OpExecData(op_alloy_rpc_types_engine::OpExecutionData::from_block_unchecked(
             block.hash(),
             &block.into_block().into_ethereum_block(),
         ))
@@ -49,6 +53,7 @@ impl<T: PayloadTypes<ExecutionData = OpExecData>> PayloadTypes for OpEngineTypes
 
 impl<T: PayloadTypes<ExecutionData = OpExecData>> EngineTypes for OpEngineTypes<T>
 where
+    OpExecData: From<<T as PayloadTypes>::BuiltPayload>,
     T::BuiltPayload: BuiltPayload<Primitives: NodePrimitives<Block = OpBlock>>
         + TryInto<ExecutionPayloadV1>
         + TryInto<ExecutionPayloadEnvelopeV2>

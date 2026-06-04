@@ -20,9 +20,7 @@ type KonaNode struct {
 	name    string
 	chainID eth.ChainID
 
-	userRPC          string
-	interopEndpoint  string // warning: currently not fully supported
-	interopJwtSecret eth.Bytes32
+	userRPC string
 
 	userProxy *tcpproxy.Proxy
 
@@ -123,10 +121,6 @@ func (k *KonaNode) Stop() {
 
 func (k *KonaNode) UserRPC() string {
 	return k.userRPC
-}
-
-func (k *KonaNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
-	return k.interopEndpoint, k.interopJwtSecret
 }
 
 var _ L2CLNode = (*KonaNode)(nil)

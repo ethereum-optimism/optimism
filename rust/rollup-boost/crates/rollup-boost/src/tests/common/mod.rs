@@ -1,44 +1,52 @@
 #![allow(dead_code)]
-use crate::DebugClient;
-use crate::{AuthLayer, AuthService};
-use crate::{EngineApiClient, OpExecutionPayloadEnvelope, PayloadVersion};
-use crate::{NewPayload, PayloadSource};
+use crate::{
+    AuthLayer, AuthService, DebugClient, EngineApiClient, NewPayload, OpExecutionPayloadEnvelope,
+    PayloadSource, PayloadVersion,
+};
 use alloy_eips::Encodable2718;
 use alloy_primitives::{B256, Bytes, TxKind, U256, address, hex};
-use alloy_rpc_types_engine::{ExecutionPayload, JwtSecret};
 use alloy_rpc_types_engine::{
-    ForkchoiceState, ForkchoiceUpdated, PayloadAttributes, PayloadId, PayloadStatus,
-    PayloadStatusEnum,
+    ExecutionPayload, ForkchoiceState, ForkchoiceUpdated, PayloadAttributes, PayloadId,
+    PayloadStatus, PayloadStatusEnum,
 };
 use alloy_rpc_types_eth::BlockNumberOrTag;
 use bytes::BytesMut;
 use eyre::{Context, ContextCompat};
-use futures::FutureExt;
-use futures::future::BoxFuture;
-use jsonrpsee::core::middleware::layer::RpcLogger;
-use jsonrpsee::http_client::RpcService;
-use jsonrpsee::http_client::{HttpClient, transport::HttpBackend};
-use jsonrpsee::proc_macros::rpc;
+use futures::{FutureExt, future::BoxFuture};
+use jsonrpsee::{
+    core::middleware::layer::RpcLogger,
+    http_client::{HttpClient, RpcService, transport::HttpBackend},
+    proc_macros::rpc,
+};
 use op_alloy_consensus::TxDeposit;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use parking_lot::Mutex;
 use proxy::{BuilderProxyHandler, start_proxy_server};
+use reth_rpc_layer::JwtSecret;
 use serde_json::Value;
-use services::op_reth::{AUTH_RPC_PORT, OpRethConfig, OpRethImage, OpRethMehods, P2P_PORT};
-use services::rollup_boost::{RollupBoost, RollupBoostConfig};
-use std::collections::HashSet;
-use std::net::TcpListener;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::{Arc, LazyLock};
-use std::time::{Duration, SystemTime};
-use std::{fs::File, io::BufReader, time::UNIX_EPOCH};
-use testcontainers::core::ContainerPort;
-use testcontainers::core::client::docker_client_instance;
-use testcontainers::core::logs::LogFrame;
-use testcontainers::core::logs::consumer::LogConsumer;
-use testcontainers::runners::AsyncRunner;
-use testcontainers::{ContainerAsync, ImageExt};
+use services::{
+    op_reth::{AUTH_RPC_PORT, OpRethConfig, OpRethImage, OpRethMehods, P2P_PORT},
+    rollup_boost::{RollupBoost, RollupBoostConfig},
+};
+use std::{
+    collections::HashSet,
+    fs::File,
+    io::BufReader,
+    net::TcpListener,
+    path::PathBuf,
+    str::FromStr,
+    sync::{Arc, LazyLock},
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+use testcontainers::{
+    ContainerAsync, ImageExt,
+    core::{
+        ContainerPort,
+        client::docker_client_instance,
+        logs::{LogFrame, consumer::LogConsumer},
+    },
+    runners::AsyncRunner,
+};
 use time::{OffsetDateTime, format_description};
 use tokio::io::AsyncWriteExt as _;
 use tower_http::sensitive_headers::SetSensitiveRequestHeaders;
@@ -487,10 +495,11 @@ impl SimpleBlockGenerator {
 
         let txns = match version {
             PayloadVersion::V4 => {
-                // Starting on the Ishtmus hardfork, the payload attributes must include a "BlockInfo"
-                // transaction which is a deposit transaction with info about the gas fees on L1.
-                // Op-Reth will fail to process the block if the state resulting from executing this transaction
-                // is not set in REVM.
+                // Starting on the Ishtmus hardfork, the payload attributes must include a
+                // "BlockInfo" transaction which is a deposit transaction with info
+                // about the gas fees on L1. Op-Reth will fail to process the block
+                // if the state resulting from executing this transaction is not set
+                // in REVM.
                 let tx = create_deposit_tx();
                 Some(vec![tx])
             }
@@ -510,6 +519,7 @@ impl SimpleBlockGenerator {
                         timestamp,
                         prev_randao: B256::ZERO,
                         suggested_fee_recipient: Default::default(),
+                        slot_number: None,
                     },
                     transactions: txns,
                     no_tx_pool: Some(empty_blocks),

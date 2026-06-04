@@ -14,7 +14,6 @@ import (
 )
 
 // InteropFilter wraps an in-process op-interop-filter service for devstack.
-// Follows the same pattern as OpSupervisor (supervisor_op.go).
 type InteropFilter struct {
 	mu      sync.Mutex
 	name    string

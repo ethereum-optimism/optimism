@@ -12,7 +12,7 @@ import (
 // the permissionless super games and makes SUPER_CANNON_KONA the respected type.
 func TestSuperRootGamesInstalledViaOPCMUpgrade(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainInteropSupernodeProofs(t)
+	sys := presets.NewSingleChainInterop(t)
 
 	sys.StandardBridge(sys.L2ChainA).VerifyRespectedGameType(gameTypes.SuperCannonKonaGameType)
 	sys.DisputeGameFactory().VerifyGameImplPresent(gameTypes.SuperCannonKonaGameType)

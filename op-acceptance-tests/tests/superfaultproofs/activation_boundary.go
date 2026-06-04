@@ -23,11 +23,11 @@ func RunInteropActivationBoundaryTest(t devtest.T, sys *presets.SimpleInterop) {
 	chains := orderedChains(sys)
 	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
 
-	// Determine the interop activation timestamp from the rollup config.
-	interopTime := chains[0].Cfg.InteropTime
-	t.Require().NotNilf(interopTime, "interop fork must be scheduled")
+	// Determine the Lagoon (interop activation) timestamp from the rollup config.
+	interopTime := chains[0].Cfg.LagoonTime
+	t.Require().NotNilf(interopTime, "Lagoon (interop activation) fork must be scheduled")
 	activationTimestamp := *interopTime
-	t.Require().NotZero(activationTimestamp, "interop must not activate at genesis for this test")
+	t.Require().NotZero(activationTimestamp, "Lagoon must not activate at genesis for this test")
 
 	startTimestamp := activationTimestamp - 1
 	endTimestamp := activationTimestamp

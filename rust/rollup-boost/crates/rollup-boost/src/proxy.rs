@@ -1,10 +1,13 @@
-use crate::client::http::HttpClient;
-use crate::{Request, Response, from_buffered_request, into_buffered_request};
+use crate::{
+    Request, Response, client::http::HttpClient, from_buffered_request, into_buffered_request,
+};
 use http_body_util::BodyExt as _;
-use jsonrpsee::core::BoxError;
-use jsonrpsee::server::HttpBody;
-use std::task::{Context, Poll};
-use std::{future::Future, pin::Pin};
+use jsonrpsee::{core::BoxError, server::HttpBody};
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 use tower::{Layer, Service};
 use tracing::info;
 
@@ -129,32 +132,31 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::probe::ProbeLayer;
-    use crate::{ClientArgs, PayloadSource};
+    use crate::{ClientArgs, PayloadSource, probe::ProbeLayer};
 
     use super::*;
     use alloy_primitives::{B256, Bytes, U64, U128, hex};
-    use alloy_rpc_types_engine::JwtSecret;
     use alloy_rpc_types_eth::erc4337::TransactionConditional;
     use http::{StatusCode, Uri};
     use http_body_util::{BodyExt, Full};
     use hyper::service::service_fn;
-    use hyper_util::client::legacy::Client;
-    use hyper_util::client::legacy::connect::HttpConnector;
-    use hyper_util::rt::{TokioExecutor, TokioIo};
-    use jsonrpsee::server::Server;
-    use jsonrpsee::types::{ErrorCode, ErrorObject};
+    use hyper_util::{
+        client::legacy::{Client, connect::HttpConnector},
+        rt::{TokioExecutor, TokioIo},
+    };
     use jsonrpsee::{
         RpcModule,
         core::{ClientError, client::ClientT},
         http_client::HttpClient,
         rpc_params,
-        server::{ServerBuilder, ServerHandle},
+        server::{Server, ServerBuilder, ServerHandle},
+        types::{ErrorCode, ErrorObject},
     };
+    use reth_rpc_layer::JwtSecret;
     use serde_json::json;
+    use serial_test::serial;
     use std::{net::SocketAddr, sync::Arc};
-    use tokio::net::TcpListener;
-    use tokio::task::JoinHandle;
+    use tokio::{net::TcpListener, task::JoinHandle};
 
     // A JSON-RPC error is retriable if error.code ∉ (-32700, -32600]
     fn is_retriable_code(code: i32) -> bool {
@@ -183,7 +185,7 @@ mod tests {
                     url: format!("http://{}:{}", l2.addr.ip(), l2.addr.port()).parse::<Uri>()?,
                     jwt_token: Some(JwtSecret::random()),
                     jwt_path: None,
-                    timeout: 1,
+                    timeout: 2000,
                 }
                 .new_http_client(PayloadSource::L2)
                 .unwrap(),
@@ -192,7 +194,7 @@ mod tests {
                         .parse::<Uri>()?,
                     jwt_token: Some(JwtSecret::random()),
                     jwt_path: None,
-                    timeout: 1,
+                    timeout: 2000,
                 }
                 .new_http_client(PayloadSource::Builder)?,
             ));
@@ -400,6 +402,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_proxy_service() {
         proxy_success().await;
         proxy_failure().await;
@@ -499,7 +502,7 @@ mod tests {
                 url: l2_auth_uri.clone(),
                 jwt_token: Some(jwt),
                 jwt_path: None,
-                timeout: 1,
+                timeout: 2000,
             }
             .new_http_client(PayloadSource::L2)
             .unwrap(),
@@ -507,7 +510,7 @@ mod tests {
                 url: l2_auth_uri.clone(),
                 jwt_token: Some(jwt),
                 jwt_path: None,
-                timeout: 1,
+                timeout: 2000,
             }
             .new_http_client(PayloadSource::Builder)
             .unwrap(),
@@ -543,8 +546,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_forward_set_max_da_size() -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let max_tx_size = U64::MAX;
@@ -583,8 +586,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_forward_eth_send_raw_transaction() -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let expected_tx: Bytes = hex!("1234").into();
@@ -617,8 +620,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_forward_eth_send_raw_transaction_conditional() -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let expected_tx: Bytes = hex!("1234").into();
@@ -656,8 +659,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_forward_miner_set_extra() -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let extra = Bytes::default();
@@ -690,6 +693,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_forward_miner_set_gas_price() -> eyre::Result<()> {
         let test_harness = TestHarness::new().await?;
 
@@ -724,6 +728,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_forward_miner_set_gas_limit() -> eyre::Result<()> {
         let test_harness = TestHarness::new().await?;
 
@@ -759,8 +764,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_direct_forward_mock_request() -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let mock_data = U128::ZERO;
@@ -790,9 +795,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_l2_server_recovery() -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-
         // Step 1: Reserve a port for L2 by binding and then releasing it
         let temp_listener = TcpListener::bind("127.0.0.1:0").await?;
         let l2_addr = temp_listener.local_addr()?;
@@ -903,6 +907,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_success_then_failure_then_success() -> eyre::Result<()> {
         // Dynamically bind L2 and Proxy servers
         let l2 = MockHttpServer::serve().await?;

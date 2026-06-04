@@ -6,7 +6,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +30,7 @@ func TestEngine(gt *testing.T) {
 			go func() {
 				defer close(done)
 				// Wait for 40 unsafe blocks to be produced.
-				node.Advanced(types.LocalUnsafe, 40, 100)
+				node.Advanced(safety.LocalUnsafe, 40, 100)
 			}()
 
 			queueLens := node_utils.GetDevWS(t, node, "engine_queue_size", done)

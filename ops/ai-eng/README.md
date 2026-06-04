@@ -8,22 +8,6 @@ This directory contains AI-powered tools designed to automate and improve engine
 
 ## Projects
 
-### 🧪 [Contract Test Maintenance](contracts-test-maintenance/)
-
-Automated system for maintaining and improving Solidity test coverage in `contracts-bedrock`.
-
-- **Purpose**: Identify stale tests and improve coverage using AI
-- **Status**: ✅ Active - Runs twice weekly
-- **Tech**: Python + Devin AI API
-- **Docs**:
-  - [README](contracts-test-maintenance/README.md) - Overview and quick start
-  - [Runbook](contracts-test-maintenance/docs/runbook.md) - Operational guide
-
-**Quick Start**:
-```bash
-just ai-contracts-test
-```
-
 ### 💎 [Graphite Code Review](graphite/)
 
 AI-powered code review rules for Solidity files in pull requests.
@@ -60,5 +44,5 @@ Each project has its own documentation and support channels. See individual proj
 ---
 
 **Maintainer**: EVM Safety Team
-**Projects**: 2 active
+**Projects**: 1 active
 

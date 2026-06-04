@@ -4,6 +4,7 @@ use alloy_op_evm::{
     OpEvmContext, OpTxError,
     post_exec::{
         PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext,
+        WarmingState,
     },
 };
 use alloy_primitives::{Bytes, address};
@@ -58,22 +59,6 @@ fn test_basic_setup() {
 
             Ok(())
         })
-        .check_launch();
-}
-
-// Launch-plumbing coverage for the SDM CLI/config flag: the node builder should still compose
-// when the experimental override is enabled.
-#[test]
-fn test_basic_setup_with_sdm_enabled_flag() {
-    let config = NodeConfig::new(BASE_MAINNET.clone());
-    let db = create_test_rw_db();
-    let args = RollupArgs { sdm_enabled: true, ..Default::default() };
-    let op_node = OpNode::new(args);
-    let _builder = NodeBuilder::new(config)
-        .with_database(db)
-        .with_types_and_provider::<OpNode, BlockchainProvider<NodeTypesWithDBAdapter<OpNode, _>>>()
-        .with_components(op_node.components())
-        .with_add_ons(op_node.add_ons())
         .check_launch();
 }
 
@@ -163,6 +148,22 @@ fn test_setup_custom_precompiles() {
         {
             evm.take_last_post_exec_tx_result()
         }
+
+        fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> WarmingState
+        where
+            DB: Database,
+            I: Inspector<Self::Context<DB>>,
+        {
+            evm.warming_state()
+        }
+
+        fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: WarmingState)
+        where
+            DB: Database,
+            I: Inspector<Self::Context<DB>>,
+        {
+            evm.seed_warming_state(state);
+        }
     }
 
     /// Unichain executor builder.
@@ -185,7 +186,7 @@ fn test_setup_custom_precompiles() {
         >;
 
         async fn build_evm(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::EVM> {
-            let OpEvmConfig { executor_factory, block_assembler, sdm_enabled, _pd: _ } =
+            let OpEvmConfig { executor_factory, block_assembler, _pd: _ } =
                 OpExecutorBuilder::default().build_evm(ctx).await?;
             let uni_executor_factory = OpBlockExecutorFactory::new(
                 *executor_factory.receipt_builder(),
@@ -195,7 +196,6 @@ fn test_setup_custom_precompiles() {
             let uni_evm_config = OpEvmConfig {
                 executor_factory: uni_executor_factory,
                 block_assembler,
-                sdm_enabled,
                 _pd: PhantomData,
             };
             Ok(uni_evm_config)

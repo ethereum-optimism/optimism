@@ -9,7 +9,6 @@ use crate::{
 };
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, BlockNumber, U256};
-use derive_more::Constructor;
 use reth_primitives_traits::{Account, AlloyBlockHeader};
 use reth_provider::{BlockHashReader, HeaderProvider, ProviderError};
 use reth_trie::{
@@ -20,7 +19,9 @@ use reth_trie::{
 use std::time::Instant;
 use tracing::info;
 
-/// Rows copied per chunked init transaction.
+/// Default rows copied per chunked init transaction. Used by
+/// [`SnapshotInitJob::new`]; callers can override via
+/// [`SnapshotInitJob::with_chunk_size`].
 const SNAPSHOT_INIT_CHUNK_SIZE: usize = 50_000;
 
 /// Storage-trie chunk grouped by hashed address. Each inner vec is the
@@ -56,12 +57,30 @@ pub struct SnapshotInitOutcome {
 }
 
 /// Builds the one-time trie-state snapshot.
-#[derive(Debug, Constructor)]
+#[derive(Debug)]
 pub struct SnapshotInitJob<P, S: crate::OpProofsBackfillStore + Send> {
     /// Reth DB provider (used to look up the target block's hash + header).
     provider: P,
     /// Op-reth proofs storage that owns the snapshot tables.
     storage: S,
+    /// Rows committed per chunked rw-tx during the drain phases. Larger
+    /// values trade peak memory for fewer commits.
+    chunk_size: usize,
+}
+
+impl<P, S: crate::OpProofsBackfillStore + Send> SnapshotInitJob<P, S> {
+    /// Build a job with the default chunk size.
+    pub const fn new(provider: P, storage: S) -> Self {
+        Self { provider, storage, chunk_size: SNAPSHOT_INIT_CHUNK_SIZE }
+    }
+
+    /// Override the per-tx chunk size. Useful for operators tuning memory
+    /// usage on small/large databases, or for tests that want to drive the
+    /// chunk loop in a few iterations.
+    pub const fn with_chunk_size(mut self, chunk_size: usize) -> Self {
+        self.chunk_size = chunk_size;
+        self
+    }
 }
 
 impl<P, S> SnapshotInitJob<P, S>
@@ -225,7 +244,7 @@ where
             let chunk = {
                 let ro = self.storage.provider_ro()?;
                 let mut cursor = ro.account_trie_cursor(target_block)?;
-                collect_account_chunk(&mut cursor, resume_after.clone(), SNAPSHOT_INIT_CHUNK_SIZE)?
+                collect_account_chunk(&mut cursor, resume_after.clone(), self.chunk_size)?
             };
             if chunk.is_empty() {
                 break;
@@ -261,12 +280,7 @@ where
         loop {
             let chunk = {
                 let ro = self.storage.provider_ro()?;
-                collect_storage_chunk(
-                    &ro,
-                    target_block,
-                    resume_after.clone(),
-                    SNAPSHOT_INIT_CHUNK_SIZE,
-                )?
+                collect_storage_chunk(&ro, target_block, resume_after.clone(), self.chunk_size)?
             };
             if chunk.is_empty() {
                 break;

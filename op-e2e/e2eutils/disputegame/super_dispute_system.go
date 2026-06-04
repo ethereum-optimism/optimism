@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/interop"
@@ -11,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -22,8 +22,8 @@ type SuperDisputeSystem struct {
 	opts *e2esys.SystemConfigOpts
 }
 
-func (s *SuperDisputeSystem) SupervisorClient() *sources.SupervisorClient {
-	return s.sys.SupervisorClient()
+func (s *SuperDisputeSystem) SupernodeClient() *sources.SuperNodeClient {
+	return s.sys.SupernodeClient()
 }
 
 func NewSuperDisputeSystem(sys interop.SuperSystem, opts *e2esys.SystemConfigOpts) *SuperDisputeSystem {
@@ -60,8 +60,8 @@ func (s *SuperDisputeSystem) L2NodeEndpoints() []endpoint.RPC {
 	return endpoints
 }
 
-func (s *SuperDisputeSystem) SupervisorEndpoint() endpoint.RPC {
-	return endpoint.URL(s.sys.Supervisor().RPC())
+func (s *SuperDisputeSystem) SupernodeEndpoint() endpoint.RPC {
+	return s.sys.SupernodeEndpoint()
 }
 
 func (s *SuperDisputeSystem) NodeClient(name string) *ethclient.Client {

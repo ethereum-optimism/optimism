@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -164,7 +164,7 @@ func jobForTest(
 	return &Job{
 		executingChain: eth.ChainIDFromUInt64(executingChainID),
 		executingBlock: eth.BlockID{Number: executingBlockNum, Hash: common.HexToHash(executingBlockHash)},
-		initiating:     &supervisortypes.Identifier{ChainID: eth.ChainIDFromUInt64(initiatingChainID), BlockNumber: initiatingBlockNum},
+		initiating:     &messages.Identifier{ChainID: eth.ChainIDFromUInt64(initiatingChainID), BlockNumber: initiatingBlockNum},
 		status:         status,
 	}
 }

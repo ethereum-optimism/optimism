@@ -7,8 +7,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func TestReadHandles(t *testing.T) {
@@ -64,7 +64,7 @@ func TestReadHandles(t *testing.T) {
 		require.False(t, h.IsValid(), "affected by invalidation before release")
 		h.Release()
 		require.False(t, h.IsValid(), "still considered invalid after release")
-		require.ErrorIs(t, h.Err(), types.ErrInvalidatedRead, "err helper works")
+		require.ErrorIs(t, h.Err(), interop.ErrInvalidatedRead, "err helper works")
 	})
 	t.Run("invalidated two", func(t *testing.T) {
 		reg := newRegistry(t)
@@ -135,7 +135,7 @@ func TestReadHandles(t *testing.T) {
 		release1, err := reg.TryInvalidate(SourceInvalidation{100})
 		require.NoError(t, err)
 		_, err = reg.TryInvalidate(SourceInvalidation{200})
-		require.ErrorIs(t, err, types.ErrAlreadyInvalidatingRead)
+		require.ErrorIs(t, err, interop.ErrAlreadyInvalidatingRead)
 		release1()
 	})
 	t.Run("no valid reads while invalidating", func(t *testing.T) {

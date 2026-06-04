@@ -9,9 +9,8 @@ import (
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // =============================================================================
@@ -222,15 +221,17 @@ func TestVerifyPreviousTimestampSealed(t *testing.T) {
 			t.Parallel()
 
 			interop := &Interop{
-				log:                 gethlog.New(),
-				activationTimestamp: tt.activationTS,
+				log:                        gethlog.New(),
+				activationTimestamp:        tt.activationTS,
+				verificationStartTimestamp: tt.activationTS,
 			}
+			interop.initialized.Store(true)
 			chainID := eth.ChainIDFromUInt64(10)
 			expectedHash := common.Hash{0x01}
 			db := &mockLogsDB{
 				hasBlocks:   tt.dbHasBlocks,
 				latestBlock: eth.BlockID{Hash: expectedHash, Number: 100},
-				seal: suptypes.BlockSeal{
+				seal: messages.BlockSeal{
 					Hash:      expectedHash,
 					Number:    100,
 					Timestamp: tt.sealTimestamp,
@@ -278,7 +279,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			timestamp:  1000,
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, false)
+		err := interop.processBlockLogs(db, blockInfo, types.Receipts{})
 
 		require.NoError(t, err)
 		require.Len(t, db.sealBlockCalls, 1)
@@ -314,7 +315,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			},
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, receipts, false)
+		err := interop.processBlockLogs(db, blockInfo, receipts)
 
 		require.NoError(t, err)
 		require.Equal(t, 3, db.addLogCalls)
@@ -333,41 +334,32 @@ func TestProcessBlockLogs(t *testing.T) {
 			timestamp:  1000,
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, true)
+		err := interop.processBlockLogs(db, blockInfo, types.Receipts{})
 
 		require.NoError(t, err)
 		require.Len(t, db.sealBlockCalls, 1)
 		require.Equal(t, uint64(0), db.sealBlockCalls[0].block.Number)
 	})
 
-	t.Run("first block at non-zero number seals virtual parent first", func(t *testing.T) {
+	t.Run("first block at non-zero number is sealed directly", func(t *testing.T) {
 		t.Parallel()
 
 		interop := &Interop{log: gethlog.New()}
 		db := &mockLogsDB{}
 		blockInfo := &testBlockInfo{
 			hash:       common.Hash{0x02},
-			parentHash: common.Hash{0x01}, // Real parent hash
-			number:     10,                // Non-zero block number
+			parentHash: common.Hash{0x01},
+			number:     10,
 			timestamp:  1000,
 		}
 
-		// isFirstBlock=true should first seal a "virtual parent" block,
-		// then seal the actual block. This allows logs to reference a sealed parent.
-		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, true)
+		err := interop.processBlockLogs(db, blockInfo, types.Receipts{})
 
 		require.NoError(t, err)
-		require.Len(t, db.sealBlockCalls, 2)
-
-		// First call: seal the virtual parent (block 9) with empty parent hash
-		require.Equal(t, common.Hash{}, db.sealBlockCalls[0].parentHash)
-		require.Equal(t, uint64(9), db.sealBlockCalls[0].block.Number)
-		require.Equal(t, common.Hash{0x01}, db.sealBlockCalls[0].block.Hash)
-
-		// Second call: seal the actual block (block 10) with real parent hash
-		require.Equal(t, common.Hash{0x01}, db.sealBlockCalls[1].parentHash)
-		require.Equal(t, uint64(10), db.sealBlockCalls[1].block.Number)
-		require.Equal(t, common.Hash{0x02}, db.sealBlockCalls[1].block.Hash)
+		require.Len(t, db.sealBlockCalls, 1)
+		require.Equal(t, common.Hash{0x01}, db.sealBlockCalls[0].parentHash)
+		require.Equal(t, uint64(10), db.sealBlockCalls[0].block.Number)
+		require.Equal(t, common.Hash{0x02}, db.sealBlockCalls[0].block.Hash)
 	})
 
 	t.Run("first block with logs succeeds", func(t *testing.T) {
@@ -390,12 +382,10 @@ func TestProcessBlockLogs(t *testing.T) {
 			},
 		}
 
-		// This is the key test: first block with logs should work because
-		// we seal the virtual parent first, allowing AddLog to reference it
-		err := interop.processBlockLogs(db, blockInfo, receipts, true)
+		err := interop.processBlockLogs(db, blockInfo, receipts)
 
 		require.NoError(t, err)
-		require.Len(t, db.sealBlockCalls, 2) // virtual parent + actual block
+		require.Len(t, db.sealBlockCalls, 1)
 		require.Equal(t, 1, db.addLogCalls)
 	})
 
@@ -425,9 +415,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			},
 		}
 
-		// This is the key integration test: first block with logs must work
-		// against the real logs.DB, not just the mock.
-		err = interop.processBlockLogs(db, blockInfo, receipts, true)
+		err = interop.processBlockLogs(db, blockInfo, receipts)
 		require.NoError(t, err)
 
 		// Verify data is correctly in the DB
@@ -460,7 +448,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			},
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, receipts, false)
+		err := interop.processBlockLogs(db, blockInfo, receipts)
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "add log failed")
@@ -478,7 +466,7 @@ func TestProcessBlockLogs(t *testing.T) {
 			timestamp:  1000,
 		}
 
-		err := interop.processBlockLogs(db, blockInfo, types.Receipts{}, false)
+		err := interop.processBlockLogs(db, blockInfo, types.Receipts{})
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "seal failed")
@@ -492,22 +480,22 @@ func TestProcessBlockLogs(t *testing.T) {
 type mockLogsDB struct {
 	latestBlock    eth.BlockID
 	hasBlocks      bool
-	seal           suptypes.BlockSeal
+	seal           messages.BlockSeal
 	findSealErr    error
 	addLogErr      error
 	sealBlockErr   error
 	addLogCalls    int
 	sealBlockCalls []*sealBlockCall // Track all SealBlock calls
 
-	firstSealedBlock    suptypes.BlockSeal
+	firstSealedBlock    messages.BlockSeal
 	firstSealedBlockErr error
 
 	openBlockRef     eth.BlockRef
 	openBlockLogCnt  uint32
-	openBlockExecMsg map[uint32]*suptypes.ExecutingMessage
+	openBlockExecMsg map[uint32]*messages.ExecutingMessage
 	openBlockErr     error
 
-	containsSeal suptypes.BlockSeal
+	containsSeal messages.BlockSeal
 	containsErr  error
 }
 
@@ -521,35 +509,35 @@ func (m *mockLogsDB) LatestSealedBlock() (eth.BlockID, bool) {
 	return m.latestBlock, m.hasBlocks
 }
 
-func (m *mockLogsDB) FirstSealedBlock() (suptypes.BlockSeal, error) {
+func (m *mockLogsDB) FirstSealedBlock() (messages.BlockSeal, error) {
 	if m.firstSealedBlockErr != nil {
-		return suptypes.BlockSeal{}, m.firstSealedBlockErr
+		return messages.BlockSeal{}, m.firstSealedBlockErr
 	}
 	return m.firstSealedBlock, nil
 }
 
-func (m *mockLogsDB) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) {
+func (m *mockLogsDB) FindSealedBlock(number uint64) (messages.BlockSeal, error) {
 	if m.findSealErr != nil {
-		return suptypes.BlockSeal{}, m.findSealErr
+		return messages.BlockSeal{}, m.findSealErr
 	}
 	return m.seal, nil
 }
 
-func (m *mockLogsDB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*suptypes.ExecutingMessage, error) {
+func (m *mockLogsDB) OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error) {
 	if m.openBlockErr != nil {
 		return eth.BlockRef{}, 0, nil, m.openBlockErr
 	}
 	return m.openBlockRef, m.openBlockLogCnt, m.openBlockExecMsg, nil
 }
 
-func (m *mockLogsDB) Contains(query suptypes.ContainsQuery) (suptypes.BlockSeal, error) {
+func (m *mockLogsDB) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
 	if m.containsErr != nil {
-		return suptypes.BlockSeal{}, m.containsErr
+		return messages.BlockSeal{}, m.containsErr
 	}
 	return m.containsSeal, nil
 }
 
-func (m *mockLogsDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *suptypes.ExecutingMessage) error {
+func (m *mockLogsDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error {
 	m.addLogCalls++
 	return m.addLogErr
 }
@@ -563,8 +551,8 @@ func (m *mockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, timest
 	return m.sealBlockErr
 }
 
-func (m *mockLogsDB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error { return nil }
-func (m *mockLogsDB) Clear(inv reads.Invalidator) error                       { return nil }
-func (m *mockLogsDB) Close() error                                            { return nil }
+func (m *mockLogsDB) Rewind(newHead eth.BlockID) error { return nil }
+func (m *mockLogsDB) Clear() error                     { return nil }
+func (m *mockLogsDB) Close() error                     { return nil }
 
 var _ LogsDB = (*mockLogsDB)(nil)

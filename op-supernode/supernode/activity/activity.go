@@ -52,12 +52,16 @@ type VerificationActivity interface {
 	// data at or before that timestamp as safe without consulting this activity.
 	IsActiveAt(ts uint64) bool
 
-	// LatestVerifiedL2Block returns the latest L2 block which has been verified,
-	// along with the timestamp at which it was verified.
-	LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64)
+	// LatestVerifiedL2Block returns the latest verified L2 block.
+	// (block, ts, nil) — verified tip at ts.
+	// (empty, ts, nil) — no verified entry; ts is the pre-activation cap the
+	//   caller should resolve to a canonical L2 block. ts==0 means no cap.
+	// (empty, 0, err) — verifier is transiently unavailable.
+	LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint64, error)
 
-	// VerifiedBlockAtL1 returns the verified L2 block and timestamp
-	// which guarantees that the verified data at that timestamp
-	// originates from or before the supplied L1 block.
-	VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64)
+	// VerifiedBlockAtL1 returns the latest verified L2 block whose data was
+	// derived from or before the supplied L1 block. Return shape matches
+	// LatestVerifiedL2Block: an empty BlockID with non-zero ts is a cap, not a
+	// failure.
+	VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64, error)
 }

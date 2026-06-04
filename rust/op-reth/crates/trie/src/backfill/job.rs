@@ -16,10 +16,7 @@ use reth_provider::{
     StageCheckpointReader, StorageChangeSetReader, StorageSettingsCache,
 };
 use reth_trie::{HashedPostState, StateRoot, hashed_cursor::HashedPostStateCursorFactory};
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 use tracing::info;
 
 /// How often to emit a progress line during a long backfill, measured in
@@ -180,11 +177,9 @@ where
         let block_ref = self.resolve_block_ref(block_number)?;
         let (diff, compute) = self.compute_diff(block_number)?;
 
-        let bp = Arc::new(self.storage.backfill_provider()?);
+        let bp = self.storage.backfill_provider()?;
         let (_, prepend) = timed(|| bp.prepend_block(block_ref, diff))?;
         let validate = self.validate_state_root(&bp, block_number)?;
-        let bp = Arc::into_inner(bp)
-            .expect("validate_state_root must release its Arc clone before returning");
         let (_, commit) = timed(|| bp.commit())?;
 
         Ok(PhaseTimings { compute, prepend, validate, commit })
@@ -238,7 +233,7 @@ where
     /// own uncommitted writes) and comparing to the reth header.
     fn validate_state_root<BP>(
         &self,
-        bp: &Arc<BP>,
+        bp: &BP,
         block_number: BlockNumber,
     ) -> Result<Duration, BackfillError>
     where
@@ -250,11 +245,8 @@ where
                 .header_by_number(block_number - 1)?
                 .ok_or_else(|| ProviderError::HeaderNotFound((block_number - 1).into()))?
                 .state_root();
-            let computed_root = StateRoot::overlay_root(
-                Arc::clone(bp),
-                block_number - 1,
-                HashedPostState::default(),
-            )?;
+            let computed_root =
+                StateRoot::overlay_root(bp, block_number - 1, HashedPostState::default())?;
             if computed_root != expected_root {
                 return Err(BackfillError::StateRootMismatch {
                     block_number,
@@ -342,10 +334,12 @@ where
 
     /// Snapshot-accelerated per-block backfill.
     ///
-    /// One rw-tx per block does all four writes atomically:
-    /// 1. `prepend_block` — write changesets / history; advance proofs `earliest` to `E-1`.
-    /// 2. `update_snapshot` — project the same diff onto the snapshot tables; advance snapshot
-    ///    anchor to `E-1`.
+    /// One rw-tx per block does all four writes atomically (the order between
+    /// steps 1 and 2 is immaterial — they hit disjoint tables and both must
+    /// land for the tx to commit):
+    /// 1. `update_snapshot` — project the diff onto the snapshot tables; advance snapshot anchor to
+    ///    `E-1`.
+    /// 2. `prepend_block` — write changesets / history; advance proofs `earliest` to `E-1`.
     /// 3. State-root validation against reth's header at `E-1` (read via snapshot cursors).
     /// 4. Commit.
     fn backfill_block_with_snapshot(
@@ -358,22 +352,23 @@ where
         // After this iteration the proofs window's earliest moves from E to
         // E-1, so the snapshot anchor advances to the parent block.
         let new_anchor = BlockNumHash::new(block_number - 1, block_ref.parent);
-        let bp = Arc::new(self.storage.backfill_provider()?);
+        let bp = self.storage.backfill_provider()?;
 
-        // Step 1+2: advance both the proofs window and the snapshot anchor in one tx.
+        // Steps 1+2: advance both the snapshot anchor and the proofs window in one tx.
         let (_, prepend) = timed(|| -> Result<(), BackfillError> {
             bp.update_snapshot(new_anchor, &diff)?;
             bp.prepend_block(block_ref, diff)?;
             Ok(())
         })?;
 
-        // Step 3: validate against the just-updated snapshot at E-1.
+        // Step 3: validate against the just-updated snapshot at E-1 — same
+        // borrowed-`bp` pattern as [`Self::backfill_block`]; the cursor
+        // factories accept `&BP` via the blanket impl on
+        // [`OpProofsSnapshotProviderRO`].
         let validate = self.validate_state_root_with_snapshot(&bp, block_number)?;
 
-        // Step 4: commit (consumes the sole remaining Arc clone).
-        let bp = Arc::into_inner(bp)
-            .expect("validate_state_root_with_snapshot must release its Arc clone");
-        let (_, commit) = timed(|| OpProofsBackfillProvider::commit(bp))?;
+        // Step 4: commit.
+        let (_, commit) = timed(|| bp.commit())?;
 
         Ok(PhaseTimings { compute, prepend, validate, commit })
     }
@@ -408,7 +403,7 @@ where
     /// same tx, so its reads reflect the new state).
     fn validate_state_root_with_snapshot<BP>(
         &self,
-        sp: &Arc<BP>,
+        bp: &BP,
         block_number: BlockNumber,
     ) -> Result<Duration, BackfillError>
     where
@@ -423,9 +418,9 @@ where
 
             let state_sorted = HashedPostState::default().into_sorted();
             let computed_root = StateRoot::new(
-                SnapshotTrieCursorFactory::new(Arc::clone(sp)),
+                SnapshotTrieCursorFactory::new(bp),
                 HashedPostStateCursorFactory::new(
-                    SnapshotHashedCursorFactory::new(Arc::clone(sp)),
+                    SnapshotHashedCursorFactory::new(bp),
                     &state_sorted,
                 ),
             )
