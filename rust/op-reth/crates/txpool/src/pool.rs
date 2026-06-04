@@ -211,11 +211,6 @@ where
     T: TransactionOrdering<Transaction = V::Transaction>,
     S: BlobStore,
 {
-    /// Returns the wrapped pool internals.
-    pub fn inner(&self) -> &reth_transaction_pool::pool::PoolInner<V, T, S> {
-        self.inner.inner()
-    }
-
     /// Get the config the pool was configured with.
     pub fn config(&self) -> &PoolConfig {
         self.inner.config()
@@ -232,7 +227,7 @@ where
         origin: TransactionOrigin,
         transaction: V::Transaction,
     ) -> TransactionValidationOutcome<V::Transaction> {
-        self.inner.validator().validate_transaction(origin, transaction).await
+        self.validator().validate_transaction(origin, transaction).await
     }
 
     /// Returns whether or not the pool is over its configured size and transaction count limits.
@@ -662,20 +657,5 @@ mod tests {
         // add_transaction (RPC/Local path) is never affected by the reorg filter.
         let result = pool.add_transaction(TransactionOrigin::Local, interop).await;
         assert!(result.is_err(), "NoopTransactionPool always rejects, proving tx was forwarded");
-    }
-
-    #[tokio::test]
-    async fn test_standard_pool_public_methods_are_exposed() {
-        let pool = OpPool::new(testing_pool(), false);
-
-        assert!(pool.is_empty());
-        assert_eq!(pool.len(), 0);
-        assert!(!pool.is_exceeded());
-        assert!(std::ptr::eq(pool.config(), pool.inner().config()));
-        assert!(std::ptr::eq(pool.validator(), pool.inner().validator()));
-        assert!(std::ptr::eq(pool.blob_store(), pool.inner().blob_store()));
-
-        let outcome = pool.validate(TransactionOrigin::External, mock_normal_tx()).await;
-        assert!(outcome.is_valid());
     }
 }
