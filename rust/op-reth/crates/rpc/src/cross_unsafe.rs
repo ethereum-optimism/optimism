@@ -347,13 +347,20 @@ impl BlockValidation {
 }
 
 /// Whether an executing message's initiating timestamp is acceptable for a block with the given
-/// executing timestamp: not in the future, and not older than `expiry_window` seconds.
+/// executing timestamp: strictly earlier than it, and not older than `expiry_window` seconds.
+///
+/// Same-timestamp initiating messages are rejected. This is a conservative simplification that
+/// closes the same-timestamp cycle gap without implementing cycle detection (cycles can only form
+/// among same-timestamp messages), and the sequencer does not currently produce same-timestamp
+/// cross-chain messages, so it costs no liveness in practice. It is stricter than the protocol; the
+/// only effect is that such a block's cross-unsafe head stalls until it goes cross-safe, which is
+/// fail-closed and self-healing.
 const fn initiating_timestamp_in_window(
     initiating_timestamp: u64,
     executing_timestamp: u64,
     expiry_window: u64,
 ) -> bool {
-    initiating_timestamp <= executing_timestamp &&
+    initiating_timestamp < executing_timestamp &&
         initiating_timestamp >= executing_timestamp.saturating_sub(expiry_window)
 }
 
@@ -730,17 +737,17 @@ mod tests {
         let exec = 1_000_000u64;
         let window = MESSAGE_EXPIRY_WINDOW;
 
-        // Same timestamp is valid; one second in the future is not.
-        assert!(initiating_timestamp_in_window(exec, exec, window));
+        // Strictly earlier is valid; same timestamp and future are both rejected.
+        assert!(initiating_timestamp_in_window(exec - 1, exec, window));
+        assert!(!initiating_timestamp_in_window(exec, exec, window));
         assert!(!initiating_timestamp_in_window(exec + 1, exec, window));
 
         // The oldest allowed timestamp is exactly `exec - window`; one older is expired.
         assert!(initiating_timestamp_in_window(exec - window, exec, window));
         assert!(!initiating_timestamp_in_window(exec - window - 1, exec, window));
-        assert!(initiating_timestamp_in_window(exec - 1, exec, window));
 
         // The lower bound saturates: when the executing timestamp is below the window, any
-        // non-future initiating timestamp (down to 0) is in window.
+        // strictly-earlier initiating timestamp (down to 0) is in window.
         assert!(initiating_timestamp_in_window(0, 100, window));
         assert!(!initiating_timestamp_in_window(101, 100, window));
     }
