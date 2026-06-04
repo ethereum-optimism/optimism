@@ -182,33 +182,29 @@ commands:
                           echo "export SCCACHE_GCS_RW_MODE=READ_WRITE"
                         } >> "$BASH_ENV"
             - run:
-                name: "Start sccache (best-effort; build proceeds without it on any failure)"
+                name: "Start sccache"
                 command: |
-                  set +e
-                  warn() { echo "WARNING: $1; building WITHOUT sccache"; exit 0; }
-                  command -v sccache >/dev/null 2>&1 || warn "sccache not on PATH"
-                  # Coords come from the sccache-gcs-optimism context. If it is not
-                  # attached (e.g. a job that doesn't carry it), skip rather than fail.
-                  [ -n "${GCP_PROJECT_ID:-}" ] && [ -n "${GCP_WIP_ID:-}" ] && \
-                  [ -n "${GCP_WIP_PROVIDER_ID:-}" ] && [ -n "${GCP_SERVICE_ACCOUNT_EMAIL:-}" ] \
-                    || warn "GCP WIF coords absent (sccache-gcs-optimism context not attached)"
-                  # Build a Workload Identity ADC config directly (no gcloud, which
-                  # is flaky to install on some images); sccache reads it via ADC.
+                  # Build a Workload Identity ADC config (no gcloud needed); sccache
+                  # reads it via GOOGLE_APPLICATION_CREDENTIALS. Coords come from the
+                  # sccache-gcs-optimism context.
                   printf '%s' "${CIRCLE_OIDC_TOKEN:-}" > /tmp/sccache_oidc_token
                   printf '{"type":"external_account","audience":"//iam.googleapis.com/projects/%s/locations/global/workloadIdentityPools/%s/providers/%s","subject_token_type":"urn:ietf:params:oauth:token-type:jwt","token_url":"https://sts.googleapis.com/v1/token","service_account_impersonation_url":"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken","credential_source":{"file":"/tmp/sccache_oidc_token","format":{"type":"text"}}}' \
                     "$GCP_PROJECT_ID" "$GCP_WIP_ID" "$GCP_WIP_PROVIDER_ID" "$GCP_SERVICE_ACCOUNT_EMAIL" > /tmp/sccache_gcp_cred.json
                   export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sccache_gcp_cred.json
-                  sccache --stop-server >/dev/null 2>&1
-                  if sccache --start-server && sccache --show-stats; then
+                  # RUSTC_WRAPPER is set ONLY if the server starts. sccache is an
+                  # accelerator: a cache/auth/GCS hiccup must yield an uncached build,
+                  # never a broken one (RUSTC_WRAPPER=sccache fails every rustc call
+                  # if the server is down).
+                  if sccache --start-server; then
+                    sccache --show-stats || true
                     {
                       echo "export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sccache_gcp_cred.json"
                       echo "export RUSTC_WRAPPER=sccache"
                     } >> "$BASH_ENV"
                     echo "sccache enabled (bucket=${SCCACHE_GCS_BUCKET:-?})"
                   else
-                    echo "WARNING: sccache failed to start; building WITHOUT it"
+                    echo "sccache unavailable; building without it"
                   fi
-                  exit 0
 
   check-changed:
     description: "Conditionally halts a step if certain modules change"
