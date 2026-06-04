@@ -626,7 +626,7 @@ func registerAPIs(cfg *config.Config, node *OpNode, handler *oprpc.Handler) erro
 	// `superroot_atTimestamp` for non-interop chains; always-on, harmless until games activate.
 	if err := handler.AddAPI(rpc.API{
 		Namespace: "superroot",
-		Service:   NewSuperrootAPI(&cfg.Rollup, node.l2Source.L2Client, node.l2Driver, node.safeDB, node.log),
+		Service:   NewSuperrootAPI(&cfg.Rollup, node.l2Source.L2Client, node.l2Driver, node.safeDB),
 	}); err != nil {
 		return fmt.Errorf("failed to add Superroot API: %w", err)
 	}

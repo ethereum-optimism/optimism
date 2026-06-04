@@ -8,13 +8,11 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
@@ -38,7 +36,6 @@ type fixture struct {
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 
-	logger := testlog.Logger(t, log.LevelError)
 	cfg := &rollup.Config{
 		L2ChainID: big.NewInt(testL2ChainID),
 		Genesis: rollup.Genesis{
@@ -76,7 +73,7 @@ func newFixture(t *testing.T) *fixture {
 	dr := &mockDriverClient{}
 	l2Client := &testutils.MockL2Client{}
 	safeDB := &mockSafeDBReader{}
-	api := NewSuperrootAPI(cfg, l2Client, dr, safeDB, logger)
+	api := NewSuperrootAPI(cfg, l2Client, dr, safeDB)
 
 	return &fixture{
 		cfg:        cfg,
@@ -221,7 +218,7 @@ func TestSuperrootAPI_SafeDBUnavailable_ReturnsError(t *testing.T) {
 func TestSuperrootAPI_SafeDBDisabled_Errors(t *testing.T) {
 	// Without --safedb.path, safedb.Disabled returns ErrNotEnabled; propagate it.
 	f := newFixture(t)
-	api := NewSuperrootAPI(f.cfg, f.l2Client, f.dr, safedb.Disabled, testlog.Logger(t, log.LevelError))
+	api := NewSuperrootAPI(f.cfg, f.l2Client, f.dr, safedb.Disabled)
 
 	hash := common.Hash{0x40}
 	f.expectBlockRef(40, hash, eth.BlockID{Number: 170})

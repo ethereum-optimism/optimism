@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -21,11 +20,10 @@ type superrootAPI struct {
 	client l2EthClient
 	dr     driverClient
 	safeDB SafeDBReader
-	log    log.Logger
 }
 
-func NewSuperrootAPI(cfg *rollup.Config, client l2EthClient, dr driverClient, safeDB SafeDBReader, log log.Logger) *superrootAPI {
-	return &superrootAPI{cfg: cfg, client: client, dr: dr, safeDB: safeDB, log: log}
+func NewSuperrootAPI(cfg *rollup.Config, client l2EthClient, dr driverClient, safeDB SafeDBReader) *superrootAPI {
+	return &superrootAPI{cfg: cfg, client: client, dr: dr, safeDB: safeDB}
 }
 
 // AtTimestamp serves the "superroot_atTimestamp" wire method.
