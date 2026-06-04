@@ -56,6 +56,9 @@ members = [
 
   # Revm execution-environment integration tests
   "revm-ee-tests/",
+
+  # In-test OP execution layer for op-e2e/actions parity
+  "op-reth-test-engine/",
 ]
 default-members = [
   "kona/bin/host",
