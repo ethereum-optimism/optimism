@@ -59,10 +59,22 @@ var (
 		EnvVars:  op_service.PrefixEnvVar(prefix, "PORTAL"),
 		Required: true,
 	}
+	FlashblocksWS = &cli.StringFlag{
+		Name: "flashblocks-ws",
+		Usage: "Optional flashblocks websocket endpoint (any flashblocks-API stream, e.g. op-rbuilder or rollup-boost). " +
+			"When set, every L2 tx a check includes on-chain must also appear in a flashblock for its inclusion block.",
+		EnvVars: op_service.PrefixEnvVar(prefix, "FLASHBLOCKS_WS"),
+	}
 )
 
+// flashblockVerifyTimeout bounds how long, after a check's txs have landed
+// on-chain, we wait for the matching flashblocks to be observed on the stream.
+// The flashblock for an inclusion block precedes sealing, so this only absorbs
+// websocket propagation latency.
+const flashblockVerifyTimeout = 30 * time.Second
+
 func makeFlags() []cli.Flag {
-	flags := []cli.Flag{EndpointL2, AccountKey}
+	flags := []cli.Flag{EndpointL2, AccountKey, FlashblocksWS}
 	return append(flags, oplog.CLIFlags(prefix)...)
 }
 
@@ -74,12 +86,32 @@ type checkEnv struct {
 	l2       *ethclient.Client
 	key      *ecdsa.PrivateKey
 	basePlan txplan.Option
+
+	// fbTracker and fbStop are non-nil only when --flashblocks-ws is set.
+	// fbTracker records and verifies flashblock inclusion of the L2 txs sent via
+	// basePlan; fbStop tears down the websocket stream.
+	fbTracker *karsttest.FlashblockTracker
+	fbStop    func()
 }
 
 func (e *checkEnv) close() {
+	if e.fbStop != nil {
+		e.fbStop()
+	}
 	if e.l2 != nil {
 		e.l2.Close()
 	}
+}
+
+// verifyFlashblocks asserts every L2 tx a check included on-chain also appeared
+// in a flashblock for its inclusion block. It is a no-op when --flashblocks-ws
+// is unset. Call it after the check action and before close() (which stops the
+// stream).
+func (e *checkEnv) verifyFlashblocks() error {
+	if e.fbTracker == nil {
+		return nil
+	}
+	return e.fbTracker.Verify(e.ctx, flashblockVerifyTimeout)
 }
 
 func resolveEnv(c *cli.Context) (*checkEnv, error) {
@@ -96,13 +128,27 @@ func resolveEnv(c *cli.Context) (*checkEnv, error) {
 		l2Cl.Close()
 		return nil, fmt.Errorf("failed to parse account private key: %w", err)
 	}
-	return &checkEnv{
+
+	env := &checkEnv{
 		ctx:      c.Context,
 		logger:   logger,
 		l2:       l2Cl,
 		key:      key,
 		basePlan: karsttest.NewBasePlan(l2Cl, key),
-	}, nil
+	}
+
+	if wsURL := c.String(FlashblocksWS.Name); wsURL != "" {
+		tracker, trackOpt, stop, err := karsttest.StartFlashblockTracking(c.Context, logger, wsURL)
+		if err != nil {
+			l2Cl.Close()
+			return nil, err
+		}
+		env.basePlan = txplan.Combine(env.basePlan, trackOpt)
+		env.fbTracker = tracker
+		env.fbStop = stop
+	}
+
+	return env, nil
 }
 
 // CheckAction is the shared signature for every karsttest check function the
@@ -123,7 +169,7 @@ func makeCommand(name string, fn CheckAction) *cli.Command {
 			if err := fn(env.ctx, env.logger, env.l2, env.basePlan); err != nil {
 				return fmt.Errorf("command error: %w", err)
 			}
-			return nil
+			return env.verifyFlashblocks()
 		},
 	}
 }
@@ -167,7 +213,7 @@ func makeAllCommand() *cli.Command {
 			); err != nil {
 				return fmt.Errorf("command error: %w", err)
 			}
-			return nil
+			return env.verifyFlashblocks()
 		},
 	}
 }
@@ -209,7 +255,7 @@ func makeBlockSizeCommand() *cli.Command {
 			); err != nil {
 				return fmt.Errorf("command error: %w", err)
 			}
-			return nil
+			return env.verifyFlashblocks()
 		},
 	}
 }
@@ -256,7 +302,7 @@ func makeDepositCommand() *cli.Command {
 			); err != nil {
 				return fmt.Errorf("command error: %w", err)
 			}
-			return nil
+			return env.verifyFlashblocks()
 		},
 	}
 }
