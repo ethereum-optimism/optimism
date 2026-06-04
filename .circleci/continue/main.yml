@@ -130,14 +130,17 @@ commands:
 
   rust-sccache-setup:
     description: >
-      Enable sccache backed by the op-rust-sccache GCS bucket. The GCP Workload
-      Identity coords, reader service account, and bucket come from the
-      sccache-gcs-optimism CircleCI context (attached to the rust-ci jobs). The
-      read-only reader identity is the default for every ref; develop overrides to
-      the read/write writer identity. The write/read split is enforced by GCP
-      Workload Identity on the signed CircleCI OIDC vcs-ref claim, so a non-develop
-      ref impersonating the writer is denied by GCP; this only selects the SA.
-      sccache itself is preinstalled in the ci-base-clang image.
+      Best-effort sccache GCS compile cache for the Rust build jobs. The GCP
+      Workload Identity coords, reader service account, and bucket come from the
+      sccache-gcs-optimism CircleCI context; the read-only reader is the default
+      for every ref and develop overrides to the writer. The write/read split is
+      enforced by GCP Workload Identity on the signed CircleCI OIDC vcs-ref claim,
+      so a non-develop ref impersonating the writer is denied by GCP; this only
+      selects the SA. sccache is preinstalled in the ci-base-clang image.
+
+      Fail-open by design: sccache is an accelerator, never a gate. If the
+      context is absent, auth fails, or the server won't start, the step logs a
+      warning and the build proceeds WITHOUT the cache (never fails the job).
     parameters:
       enabled:
         description: "Master switch for the GCS compile cache."
@@ -147,10 +150,7 @@ commands:
       - when:
           condition: << parameters.enabled >>
           steps:
-            # sccache tuning + read-only as the safe default for every ref. The
-            # GCP coords / reader SA / bucket are supplied by the
-            # sccache-gcs-optimism context. sccache reads the GCS env when the
-            # server starts, so RW mode must be in $BASH_ENV before the start step.
+            # sccache tuning + read-only as the safe default for every ref.
             - run:
                 name: "sccache read-only default + tuning"
                 command: |
@@ -178,29 +178,34 @@ commands:
                           echo "export GCP_SERVICE_ACCOUNT_EMAIL=sccache-writer@oplabs-tools-artifacts.iam.gserviceaccount.com"
                           echo "export SCCACHE_GCS_RW_MODE=READ_WRITE"
                         } >> "$BASH_ENV"
-            - gcp-cli/install
-            - gcp-oidc-authenticate
             - run:
-                name: "Start sccache server"
+                name: "Start sccache (best-effort; build proceeds without it on any failure)"
                 command: |
-                  set -euo pipefail
-                  # sccache is baked into ci-base-clang; tolerate its absence
-                  # (e.g. a non-Rust image) by building without the cache.
-                  if ! command -v sccache >/dev/null 2>&1; then
-                    echo "WARNING: sccache not found on PATH (expected from ci-base-clang); building WITHOUT it"
-                    exit 0
-                  fi
-                  sccache --version
-                  sccache --stop-server >/dev/null 2>&1 || true
-                  # GCS vars come from the context + $BASH_ENV, creds via ADC
-                  # (GOOGLE_APPLICATION_CREDENTIALS, set by gcp-oidc-authenticate);
-                  # sccache reads them at server start.
+                  set +e
+                  warn() { echo "WARNING: $1; building WITHOUT sccache"; exit 0; }
+                  command -v sccache >/dev/null 2>&1 || warn "sccache not on PATH"
+                  # Coords come from the sccache-gcs-optimism context. If it is not
+                  # attached (e.g. a job that doesn't carry it), skip rather than fail.
+                  [ -n "${GCP_PROJECT_ID:-}" ] && [ -n "${GCP_WIP_ID:-}" ] && \
+                  [ -n "${GCP_WIP_PROVIDER_ID:-}" ] && [ -n "${GCP_SERVICE_ACCOUNT_EMAIL:-}" ] \
+                    || warn "GCP WIF coords absent (sccache-gcs-optimism context not attached)"
+                  # Build a Workload Identity ADC config directly (no gcloud, which
+                  # is flaky to install on some images); sccache reads it via ADC.
+                  printf '%s' "${CIRCLE_OIDC_TOKEN:-}" > /tmp/sccache_oidc_token
+                  printf '{"type":"external_account","audience":"//iam.googleapis.com/projects/%s/locations/global/workloadIdentityPools/%s/providers/%s","subject_token_type":"urn:ietf:params:oauth:token-type:jwt","token_url":"https://sts.googleapis.com/v1/token","service_account_impersonation_url":"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken","credential_source":{"file":"/tmp/sccache_oidc_token","format":{"type":"text"}}}' \
+                    "$GCP_PROJECT_ID" "$GCP_WIP_ID" "$GCP_WIP_PROVIDER_ID" "$GCP_SERVICE_ACCOUNT_EMAIL" > /tmp/sccache_gcp_cred.json
+                  export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sccache_gcp_cred.json
+                  sccache --stop-server >/dev/null 2>&1
                   if sccache --start-server && sccache --show-stats; then
-                    echo "export RUSTC_WRAPPER=sccache" >> "$BASH_ENV"
+                    {
+                      echo "export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sccache_gcp_cred.json"
+                      echo "export RUSTC_WRAPPER=sccache"
+                    } >> "$BASH_ENV"
                     echo "sccache enabled (bucket=${SCCACHE_GCS_BUCKET:-?})"
                   else
                     echo "WARNING: sccache failed to start; building WITHOUT it"
                   fi
+                  exit 0
 
   check-changed:
     description: "Conditionally halts a step if certain modules change"
