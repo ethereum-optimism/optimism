@@ -78,10 +78,10 @@ var (
 		EnvVars: op_service.PrefixEnvVar(prefix, "RPS"),
 		Value:   50,
 	}
-	SpamFundEther = &cli.Float64Flag{
-		Name:    "fund-ether",
-		Usage:   "Whole ether transferred from --account to each spam EOA up front",
-		EnvVars: op_service.PrefixEnvVar(prefix, "FUND_ETHER"),
+	SpamFundGwei = &cli.Uint64Flag{
+		Name:    "fund-gwei",
+		Usage:   "Whole gwei transferred from --account to each spam EOA up front",
+		EnvVars: op_service.PrefixEnvVar(prefix, "FUND_GWEI"),
 		Value:   10,
 	}
 	SpamBlockTime = &cli.DurationFlag{
@@ -339,7 +339,7 @@ func makeDepositCommand() *cli.Command {
 // blocks against an external network. Flashblocks tracking is not wired in
 // because the spammer never includes its own "check" txs to verify.
 func makeSpamCommand() *cli.Command {
-	flags := []cli.Flag{EndpointL2, AccountKey, SpamAccounts, SpamRPS, SpamFundEther, SpamBlockTime}
+	flags := []cli.Flag{EndpointL2, AccountKey, SpamAccounts, SpamRPS, SpamFundGwei, SpamBlockTime}
 	flags = append(flags, oplog.CLIFlags(prefix)...)
 	return &cli.Command{
 		Name:  "spam",
@@ -363,7 +363,7 @@ func makeSpamCommand() *cli.Command {
 
 			return karsttest.SpamCalldata(c.Context, logger, l2Cl, key, karsttest.SpamConfig{
 				NumAccounts:    c.Uint64(SpamAccounts.Name),
-				FundPerAccount: eth.Ether(c.Uint64(SpamFundEther.Name)),
+				FundPerAccount: eth.GWei(c.Uint64(SpamFundGwei.Name)),
 				BaseRPS:        c.Uint64(SpamRPS.Name),
 				To:             predeploys.L1BlockAddr,
 				BlockTime:      c.Duration(SpamBlockTime.Name),
