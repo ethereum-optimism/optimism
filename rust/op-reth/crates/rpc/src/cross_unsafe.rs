@@ -449,6 +449,10 @@ fn source_rewind_target(checked: impl IntoIterator<Item = (u64, Option<bool>)>) 
 ///
 /// Pure (no I/O) so the rejection matrix is unit-testable; `validate_local_initiating_message`
 /// supplies the data from the local provider.
+// The arguments are the block identity plus the expected-message identity (the same fields the
+// remote `SourceLogClient::validate_initiating_message` path takes); grouping them into a struct
+// would only add indirection for this one pure helper.
+#[allow(clippy::too_many_arguments)]
 fn validate_local_log<'a>(
     local_chain_id: u64,
     block_number: u64,
@@ -559,7 +563,7 @@ mod tests {
     fn validate_local_log_accepts_and_rejects() {
         let origin = alloy_primitives::Address::repeat_byte(0xab);
         let block_hash = B256::repeat_byte(0x33);
-        let logs = vec![local_log(origin)]; // single log at block-global index 0
+        let logs = [local_log(origin)]; // single log at block-global index 0
         let payload = keccak256(RawMessagePayload::from(&logs[0]).as_ref());
         let chain = 901u64;
 
