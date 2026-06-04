@@ -2752,6 +2752,7 @@ workflows:
           rust_files_changed: << pipeline.parameters.c-rust_files_changed >>
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       - rust-build-vendored: &rust-build-op-rbuilder
           name: rust-build-op-rbuilder
           directory: rust/op-rbuilder
@@ -2760,6 +2761,7 @@ workflows:
           needs_clang: true
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       - rust-build-vendored: &rust-build-rollup-boost
           name: rust-build-rollup-boost
           directory: rust/rollup-boost
@@ -2767,6 +2769,7 @@ workflows:
           build_command: cargo build --release -p rollup-boost --bin rollup-boost
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       # Lint runs in `rust-ci.yml` as `op-rbuilder-checks` / `rollup-boost-checks`
       # via each crate's `make lint`.
       - rust-binaries-for-sysgo:
@@ -2995,6 +2998,7 @@ workflows:
           rust_files_changed: << pipeline.parameters.c-rust_files_changed >>
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       - go-tests-with-fault-proof-deps:
           name: op-e2e-cannon-tests
           notify: true

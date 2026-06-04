@@ -204,6 +204,7 @@ workflows:
           persist_to_workspace: true
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       - rust-e2e-sysgo-tests:
           name: rust-e2e-<<matrix.devnet_config>>
           matrix:
