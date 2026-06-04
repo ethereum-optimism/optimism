@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-karst/karsttest"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -64,6 +65,30 @@ var (
 		Usage: "Optional flashblocks websocket endpoint (any flashblocks-API stream, e.g. op-rbuilder or rollup-boost). " +
 			"When set, every L2 tx a check includes on-chain must also appear in a flashblock for its inclusion block.",
 		EnvVars: op_service.PrefixEnvVar(prefix, "FLASHBLOCKS_WS"),
+	}
+	SpamAccounts = &cli.Uint64Flag{
+		Name:    "accounts",
+		Usage:   "Number of ephemeral EOAs to fund and round-robin spam from (reth caps in-flight txs per account at 16, so spamming needs many accounts)",
+		EnvVars: op_service.PrefixEnvVar(prefix, "ACCOUNTS"),
+		Value:   50,
+	}
+	SpamRPS = &cli.Uint64Flag{
+		Name:    "rps",
+		Usage:   "Base send rate per block slot for the burst scheduler (ramps up while accepted, backs off on errors)",
+		EnvVars: op_service.PrefixEnvVar(prefix, "RPS"),
+		Value:   50,
+	}
+	SpamFundEther = &cli.Uint64Flag{
+		Name:    "fund-ether",
+		Usage:   "Whole ether transferred from --account to each spam EOA up front",
+		EnvVars: op_service.PrefixEnvVar(prefix, "FUND_ETHER"),
+		Value:   10,
+	}
+	SpamBlockTime = &cli.DurationFlag{
+		Name:    "block-time",
+		Usage:   "L2 block time, used to pace the burst scheduler and the reliable-inclusion retry loop",
+		EnvVars: op_service.PrefixEnvVar(prefix, "BLOCK_TIME"),
+		Value:   2 * time.Second,
 	}
 )
 
@@ -307,6 +332,46 @@ func makeDepositCommand() *cli.Command {
 	}
 }
 
+// makeSpamCommand wires up the calldata spammer. Unlike the checks, it does not
+// assert anything: it floods L2 with calldata-heavy transactions (the same shape
+// the EIP-7934 block-size acceptance test uses) until interrupted with Ctrl+C,
+// which is handy for manually driving up the L2 base fee or producing oversized
+// blocks against an external network. Flashblocks tracking is not wired in
+// because the spammer never includes its own "check" txs to verify.
+func makeSpamCommand() *cli.Command {
+	flags := []cli.Flag{EndpointL2, AccountKey, SpamAccounts, SpamRPS, SpamFundEther, SpamBlockTime}
+	flags = append(flags, oplog.CLIFlags(prefix)...)
+	return &cli.Command{
+		Name:  "spam",
+		Usage: "Flood L2 with calldata-heavy transactions until interrupted (Ctrl+C).",
+		Flags: cliapp.ProtectFlags(flags),
+		Action: func(c *cli.Context) error {
+			logCfg := oplog.ReadCLIConfig(c)
+			logger := oplog.NewLogger(c.App.Writer, logCfg)
+
+			c.Context = ctxinterrupt.WithCancelOnInterrupt(c.Context)
+			l2Cl, err := ethclient.DialContext(c.Context, c.String(EndpointL2.Name))
+			if err != nil {
+				return fmt.Errorf("dial L2 RPC: %w", err)
+			}
+			defer l2Cl.Close()
+
+			key, err := crypto.HexToECDSA(strings.TrimPrefix(c.String(AccountKey.Name), "0x"))
+			if err != nil {
+				return fmt.Errorf("parse account private key: %w", err)
+			}
+
+			return karsttest.SpamCalldata(c.Context, logger, l2Cl, key, karsttest.SpamConfig{
+				NumAccounts:    c.Uint64(SpamAccounts.Name),
+				FundPerAccount: eth.Ether(c.Uint64(SpamFundEther.Name)),
+				BaseRPS:        c.Uint64(SpamRPS.Name),
+				To:             predeploys.L1BlockAddr,
+				BlockTime:      c.Duration(SpamBlockTime.Name),
+			})
+		},
+	}
+}
+
 func main() {
 	app := cli.NewApp()
 	app.Name = "check-karst"
@@ -344,6 +409,7 @@ func main() {
 		}),
 		makeBlockSizeCommand(),
 		makeDepositCommand(),
+		makeSpamCommand(),
 	}
 
 	if err := app.Run(os.Args); err != nil {

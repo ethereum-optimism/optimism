@@ -428,13 +428,11 @@ func spamL1Txs(sys *presets.Minimal) {
 func runSpam(t devtest.T, eoas []*loadtest.SyncEOA, blockTime time.Duration, to common.Address) {
 	eoasRR := loadtest.NewRoundRobin(eoas)
 	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
-		// Max tx size in op-geth and op-reth mempools is 128 kB per tx.
-		// We leave an 8 kB buffer for tx data outside the calldata.
-		const calldataSize = 120 * 1024
+		// Tx shape shared with the check-karst `spam` command (see karsttest).
 		_, err := eoasRR.Get().Include(t,
 			txplan.WithTo(&to),
-			txplan.WithData(make([]byte, calldataSize)),
-			txplan.WithGasLimit(1_250_000),
+			txplan.WithData(make([]byte, karsttest.SpamCalldataSize)),
+			txplan.WithGasLimit(karsttest.SpamGasLimit),
 		)
 		return err
 	})
