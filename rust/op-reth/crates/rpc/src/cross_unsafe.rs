@@ -499,10 +499,10 @@ impl SourceLogClient {
             return None;
         }
 
-        // Filter by the claimed origin address so a source block with very many logs cannot push
-        // the target log past the source RPC's `eth_getLogs` response cap (which would otherwise
-        // make a valid block look invalid). The block-global `log_index` is preserved by the RPC,
-        // so matching it against the filtered subset is still correct.
+        // Filter by the claimed origin address: the message is only valid if the log at
+        // `log_index` was emitted by `origin`, so restricting to that address is a correct
+        // narrowing and keeps the response small. The block-global `log_index` is preserved by the
+        // RPC, so matching it against the filtered subset is still correct.
         let logs = self.fetch_logs(block.header.hash, origin).await?;
         let Some(log) = logs.into_iter().find(|log| log.log_index == Some(log_index)) else {
             debug!(
