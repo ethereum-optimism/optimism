@@ -2178,13 +2178,6 @@ jobs:
           no_output_timeout: 20m
       - notify-failures-on-develop
 
-  bedrock-go-tests: # just a helper, that depends on all the actual test jobs
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: medium.gen2
-    steps:
-      - run: echo Done
-
   analyze-op-program-client:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2630,17 +2623,6 @@ workflows:
       - op-program-compat:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - bedrock-go-tests:
-          requires:
-            - go-lint
-            - cannon-go-lint-and-test
-            - check-generated-mocks-op-node
-            - check-generated-mocks-op-service
-            - op-program-compat
-            - go-tests-short
-            - sanitize-op-program
-          context:
-            - circleci-repo-readonly-authenticated-github-tokens
       - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2779,10 +2761,32 @@ workflows:
             - shell-check: terminal
             - go-lint: terminal
             - semgrep-scan-local: terminal
+            - semgrep-test: terminal
             - go-tests-short: terminal
             - memory-all-opn-op-geth: terminal
             - memory-all-opn-op-reth: terminal
             - memory-all-kona-op-reth: terminal
+            # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
+            - cannon-go-lint-and-test: terminal
+            - check-generated-mocks-op-node: terminal
+            - check-generated-mocks-op-service: terminal
+            - op-program-compat: terminal
+            - sanitize-op-program: terminal
+            # Misc checks that run on the merge queue.
+            - analyze-op-program-client: terminal
+            - check-nut-locks: terminal
+            - check-op-geth-version: terminal
+            - op-deployer-forge-version: terminal
+            - l2-chains-sync-check: terminal
+            - nut-provenance-verify: terminal
+            - diff-fetcher-forge-artifacts: terminal
+            # Fuzz jobs.
+            - cannon-fuzz: terminal
+            - op-e2e-fuzz: terminal
+            - fuzz-golang-op-challenger: terminal
+            - fuzz-golang-op-node: terminal
+            - fuzz-golang-op-service: terminal
+            - fuzz-golang-op-chain-ops: terminal
           context:
             - circleci-api-token
           filters:

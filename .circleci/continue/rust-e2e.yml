@@ -247,6 +247,7 @@ workflows:
             - rust-e2e-simple-kona-geth: terminal
             - rust-e2e-simple-kona-sequencer: terminal
             - rust-e2e-restart: terminal
+            - op-reth-e2e-sysgo-tests: terminal
             - kona-proof-action-single: terminal
           context:
             - circleci-api-token
