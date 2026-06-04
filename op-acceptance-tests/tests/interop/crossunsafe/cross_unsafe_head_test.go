@@ -12,19 +12,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// TestCrossUnsafeHeadAdvancesPastValidatedExecutingMessage verifies that op-reth's runtime
-// cross-unsafe head advances past a block containing an executing message once the initiating
-// message has been validated against the source chain.
+// TestCrossUnsafeHeadAdvancesPastValidatedExecutingMessages verifies that op-reth's runtime
+// cross-unsafe head advances past blocks containing validated executing messages — exercising both
+// validation paths:
+//   - a cross-chain message (initiated on chain A, the configured source chain), validated via the
+//     source RPC; and
+//   - an intra-chain / self-reference (initiated on chain B itself), validated against op-reth's
+//     own local provider (there is no source RPC for the local chain).
 //
-// Two-chain interop, with chain B's op-reth started with --rollup.cross-unsafe-head-source-rpc
-// pointing at chain A (see WithCrossUnsafeHeadSourceFromPeer). Alice initiates a message on chain
-// A; Bob executes it on chain B.
-//
-// To make the result unambiguous, chain B's batcher is paused first: with no batch submission its
-// safe head cannot advance to the executing block, so the cross-unsafe head can only reach that
-// block by runtime-validating it as an unsafe block against chain A — not because the safe head
-// caught up to it.
-func TestCrossUnsafeHeadAdvancesPastValidatedExecutingMessage(gt *testing.T) {
+// Chain B's batcher is paused first, pinning its safe head below the executing messages, so the
+// head reaching them is proof of runtime validation rather than safe-head promotion.
+func TestCrossUnsafeHeadAdvancesPastValidatedExecutingMessages(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "eth_crossUnsafeHead is an op-reth feature")
 
@@ -32,29 +30,35 @@ func TestCrossUnsafeHeadAdvancesPastValidatedExecutingMessage(gt *testing.T) {
 	require := t.Require()
 
 	rng := rand.New(rand.NewSource(1234))
-	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 
-	// Alice initiates a message on chain A (the source chain).
-	eventLoggerAddress := alice.DeployEventLogger()
-	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 2, 20))
+	// A cross-chain initiating message on chain A (the configured source chain).
+	sourceA := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+	crossInit := sourceA.SendInitMessage(interop.RandomInitTrigger(rng, sourceA.DeployEventLogger(), 2, 20))
+	// An intra-chain (self-reference) initiating message on chain B itself.
+	sourceB := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
+	selfInit := sourceB.SendInitMessage(interop.RandomInitTrigger(rng, sourceB.DeployEventLogger(), 2, 20))
+
 	sys.L2A.WaitForBlock()
+	sys.L2B.WaitForBlock()
 
-	// Pin chain B's safe head below the executing message by pausing its batcher.
+	// Pin chain B's safe head below the executing messages by pausing its batcher.
 	sys.L2BatcherB.Stop()
 
-	// Bob executes the message on chain B (the chain running eth_crossUnsafeHead).
-	execMsg := bob.SendExecMessage(initMsg)
-	execBlock := execMsg.Receipt.BlockNumber.Uint64()
+	// Execute both messages on chain B: one references chain A (validated via the source RPC), the
+	// other references chain B itself (validated via the local provider).
+	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
+	crossExec := bob.SendExecMessage(crossInit)
+	selfExec := bob.SendExecMessage(selfInit)
+	target := max(crossExec.Receipt.BlockNumber.Uint64(), selfExec.Receipt.BlockNumber.Uint64())
 
-	// The cross-unsafe head must reach the executing block, which requires op-reth to validate
-	// the initiating message against chain A.
-	dsl.CheckAll(t, sys.L2ELB.CrossUnsafeHeadReachedFn(execBlock, 45))
+	// Reaching `target` requires validating every executing message at or below it — both the
+	// cross-chain message (against chain A) and the self-reference (against the local provider).
+	dsl.CheckAll(t, sys.L2ELB.CrossUnsafeHeadReachedFn(target, 45))
 
-	// With the batcher paused the safe head cannot have reached the executing block, so the
+	// With the batcher paused the safe head cannot have reached the executing messages, so the
 	// advance above is attributable to runtime validation rather than safe-head promotion.
-	require.Less(sys.L2ELB.BlockRefByLabel(eth.Safe).Number, execBlock,
-		"chain B safe head advanced to the executing block despite the paused batcher; cannot attribute the cross-unsafe head to validation")
+	require.Less(sys.L2ELB.BlockRefByLabel(eth.Safe).Number, target,
+		"chain B safe head advanced to the executing messages despite the paused batcher; cannot attribute the cross-unsafe head to validation")
 }
 
 // TestCrossUnsafeHeadStopsAtInvalidExecutingMessage verifies that op-reth's runtime cross-unsafe
@@ -92,44 +96,4 @@ func TestCrossUnsafeHeadStopsAtInvalidExecutingMessage(gt *testing.T) {
 	// invalid block itself, even as later unsafe blocks are produced.
 	dsl.CheckAll(t, sys.L2ELB.CrossUnsafeHeadReachedFn(invalidBlock-1, 45))
 	dsl.CheckAll(t, sys.L2ELB.CrossUnsafeHeadStaysBelowFn(invalidBlock, 10))
-}
-
-// TestCrossUnsafeHeadAdvancesPastSelfReferencingMessage verifies that op-reth validates an
-// intra-chain (self-referencing) executing message against its own local provider rather than a
-// source RPC.
-//
-// Both the initiating and executing messages are on chain B, so the executing message's identifier
-// chain ID equals chain B's own ID. There is no source RPC configured for the local chain, so the
-// head can only reach the executing block if op-reth takes the local-provider validation path.
-// As in the cross-chain test, chain B's batcher is paused so reaching the block (while it is still
-// above the safe head) is proof of runtime validation rather than safe-head promotion.
-func TestCrossUnsafeHeadAdvancesPastSelfReferencingMessage(gt *testing.T) {
-	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpGeth(t, "eth_crossUnsafeHead is an op-reth feature")
-
-	sys := presets.NewTwoL2SupernodeInterop(t, 0, presets.WithCrossUnsafeHeadSourceFromPeer())
-	require := t.Require()
-
-	rng := rand.New(rand.NewSource(1234))
-	// Both EOAs are on chain B: the executing message references an initiating message on the same
-	// chain.
-	alice := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
-
-	eventLoggerAddress := alice.DeployEventLogger()
-	initMsg := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, 2, 20))
-	sys.L2B.WaitForBlock()
-
-	// Pin chain B's safe head below the executing block.
-	sys.L2BatcherB.Stop()
-
-	execMsg := bob.SendExecMessage(initMsg)
-	execBlock := execMsg.Receipt.BlockNumber.Uint64()
-
-	// Reaching the executing block requires validating the same-chain initiating message against
-	// the local provider.
-	dsl.CheckAll(t, sys.L2ELB.CrossUnsafeHeadReachedFn(execBlock, 45))
-
-	require.Less(sys.L2ELB.BlockRefByLabel(eth.Safe).Number, execBlock,
-		"chain B safe head advanced to the executing block despite the paused batcher; cannot attribute the cross-unsafe head to validation")
 }
