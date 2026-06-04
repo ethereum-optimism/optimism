@@ -54,7 +54,7 @@ where
     pub fn run(mut self, launcher: impl Launcher<C, Ext>) -> Result<()> {
         let runner = match self.runner.take() {
             Some(runner) => runner,
-            None => CliRunner::try_default_runtime()?,
+            None => crate::build_cli_runner()?,
         };
 
         // add network name to logs dir

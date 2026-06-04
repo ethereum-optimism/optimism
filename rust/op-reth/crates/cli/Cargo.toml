@@ -43,7 +43,7 @@ reth-chainspec.workspace = true
 reth-node-events.workspace = true
 reth-optimism-evm.workspace = true
 reth-cli-runner.workspace = true
-reth-tasks.workspace = true
+reth-tasks = { workspace = true, features = ["rayon"] }
 reth-node-builder.workspace = true
 reth-tracing.workspace = true
 

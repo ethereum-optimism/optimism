@@ -58,6 +58,36 @@ use reth_optimism_node::args::RollupArgs;
 // reporting
 use reth_node_metrics as _;
 
+/// Builds the [`CliRunner`], optionally overriding the state-trie-overlay worker-pool thread count
+/// via the `OP_RETH_STATE_TRIE_OVERLAY_THREADS` environment variable.
+///
+/// The overlay worker pool defaults to 4 threads, and that headroom normally masks the
+/// `StateTrieOverlayManager::get_overlay` shard-lock-vs-worker-pool deadlock. Setting the variable
+/// to a small value (e.g. `1`) removes the headroom so the race surfaces readily on a devnet,
+/// which is useful for reproducing the hang and validating fixes for it. When the variable is
+/// unset or not a positive integer, this behaves exactly like [`CliRunner::try_default_runtime`].
+pub(crate) fn build_cli_runner() -> Result<CliRunner, reth_tasks::RuntimeBuildError> {
+    let mut config = reth_tasks::RuntimeConfig::default();
+
+    if let Some(threads) = std::env::var("OP_RETH_STATE_TRIE_OVERLAY_THREADS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|threads| *threads > 0)
+    {
+        tracing::warn!(
+            target: "reth::cli",
+            threads,
+            "Overriding state-trie-overlay worker pool size via OP_RETH_STATE_TRIE_OVERLAY_THREADS \
+             (debug/repro aid for the overlay deadlock; not for production use)"
+        );
+        config = config.with_rayon(
+            reth_tasks::RayonConfig::default().with_state_trie_overlay_worker_threads(threads),
+        );
+    }
+
+    CliRunner::try_with_runtime_config(config)
+}
+
 /// The main op-reth cli interface.
 ///
 /// This is the entrypoint to the executable.
@@ -124,7 +154,7 @@ where
         L: FnOnce(WithLaunchContext<NodeBuilder<DatabaseEnv, C::ChainSpec>>, Ext) -> Fut,
         Fut: Future<Output = eyre::Result<()>>,
     {
-        self.with_runner(CliRunner::try_default_runtime()?, launcher)
+        self.with_runner(build_cli_runner()?, launcher)
     }
 
     /// Execute the configured cli command with the provided [`CliRunner`].
