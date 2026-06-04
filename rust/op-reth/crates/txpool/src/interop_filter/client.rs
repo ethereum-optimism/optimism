@@ -3,7 +3,11 @@
 use crate::{
     InvalidCrossTx,
     interop_filter::{
-        ExecutingDescriptor, InteropTxValidatorError, metrics::InteropMetrics,
+        ExecutingDescriptor, InteropTxValidatorError,
+        metrics::{
+            InteropMetrics, RESULT_ALLOWED, RESULT_REJECTED_FAILSAFE,
+            RESULT_REJECTED_PRE_INTEROP_HARDFORK, validation_failure_result,
+        },
         parse_access_list_items_to_inbox_entries,
     },
 };
@@ -104,11 +108,13 @@ impl InteropFilterClient {
         // Interop check
         if !is_interop_active {
             // No cross chain tx allowed before interop
+            self.inner.metrics.record_decision(RESULT_REJECTED_PRE_INTEROP_HARDFORK);
             return Some(Err(InvalidCrossTx::CrossChainTxPreInterop));
         }
 
         // Fast-path: reject immediately if failsafe is active (no RPC round-trip)
         if self.is_failsafe_enabled() {
+            self.inner.metrics.record_decision(RESULT_REJECTED_FAILSAFE);
             return Some(Err(InvalidCrossTx::FailsafeEnabled));
         }
 
@@ -119,10 +125,19 @@ impl InteropFilterClient {
             )
             .await
         {
-            self.inner.metrics.increment_metrics_for_error(&err);
+            // Distinguish a legitimate rejection (the filter answered and said no) from an infra
+            // failure (we never got a trustworthy answer), so an outage does not masquerade as a
+            // flood of rejections in the allow-rate signal.
+            self.inner.metrics.record_decision(validation_failure_result(&err));
+            if let InteropTxValidatorError::InvalidEntry(reason) = &err {
+                self.inner.metrics.record_validation_error(reason);
+            } else {
+                self.inner.metrics.record_filter_error(&err);
+            }
             trace!(target: "txpool", hash=%hash, err=%err, "Cross chain transaction invalid");
             return Some(Err(InvalidCrossTx::ValidationError(err)));
         }
+        self.inner.metrics.record_decision(RESULT_ALLOWED);
         Some(Ok(()))
     }
 
