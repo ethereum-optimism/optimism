@@ -54,6 +54,11 @@ pub enum SuperchainDAError {
     #[error("data is already known and didn't change anything")]
     IneffectiveData = -320601,
 
+    /// Happens when the interop filter has failsafe enabled and is rejecting all interop
+    /// (executing-message) transactions until failsafe is cleared.
+    #[error("interop filter failsafe is enabled")]
+    Failsafe = -320602,
+
     //-------------------------- -3209XX FAILED_PRECONDITION errors ----------------------------//
     /// Happens when you try to add data to the DB, but it does not actually fit onto
     /// the latest data.

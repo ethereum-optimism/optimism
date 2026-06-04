@@ -2,10 +2,6 @@ use alloy_json_rpc::RpcError;
 use core::error;
 use op_alloy_rpc_types::SuperchainDAError;
 
-/// Dedicated JSON-RPC error code the interop filter returns when failsafe is enabled.
-/// See ethereum-optimism/optimism#21205 (previously shared the generic invalid-params code).
-const FAILSAFE_ERROR_CODE: i32 = -320602;
-
 /// Failures occurring during validation of inbox entries.
 #[derive(thiserror::Error, Debug)]
 pub enum InteropTxValidatorError {
@@ -38,11 +34,15 @@ impl InteropTxValidatorError {
 
     /// Maps a JSON-RPC error code to a known interop filter error variant, if recognized.
     /// Returns `None` for unknown codes (the caller falls back to [`Other`](Self::Other)).
+    ///
+    /// Failsafe shares the [`SuperchainDAError`] code space (`-320602`) but is an operational
+    /// state, not a data-availability rejection, so it maps to its own variant.
     fn from_error_code(code: i32) -> Option<Self> {
-        if code == FAILSAFE_ERROR_CODE {
-            return Some(Self::FailsafeEnabled);
+        match SuperchainDAError::try_from(code) {
+            Ok(SuperchainDAError::Failsafe) => Some(Self::FailsafeEnabled),
+            Ok(invalid_entry) => Some(Self::InvalidEntry(invalid_entry)),
+            Err(_) => None,
         }
-        SuperchainDAError::try_from(code).ok().map(Self::InvalidEntry)
     }
 
     /// This function will parse the error code to determine if it matches
@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn failsafe_code_maps_to_failsafe_variant() {
         assert!(matches!(
-            InteropTxValidatorError::from_error_code(FAILSAFE_ERROR_CODE),
+            InteropTxValidatorError::from_error_code(SuperchainDAError::Failsafe as i32),
             Some(InteropTxValidatorError::FailsafeEnabled)
         ));
     }
