@@ -621,6 +621,7 @@ dependencies = [
  "alloy-hardforks",
  "alloy-primitives 1.6.0",
  "auto_impl",
+ "serde",
 ]
 
 [[package]]
@@ -1459,6 +1460,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "01a0035943b75fe1e249f52e688492d7a1b1826bc2d19b8e1d5d3c24a2ad8f50"
 dependencies = [
  "darling 0.23.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "ambassador"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd3d4da7fddbc6567cbd7b5c30364f91313701b1857ab5b925eb3acf06162eed"
+dependencies = [
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -3841,7 +3854,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4184,7 +4197,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5275,7 +5288,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "system-configuration",
  "tokio",
  "tower-layer",
@@ -6223,6 +6236,87 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-genesis"
+version = "0.4.5"
+dependencies = [
+ "alloy-chains",
+ "alloy-consensus 2.0.5",
+ "alloy-eips 2.0.5",
+ "alloy-genesis 2.0.5",
+ "alloy-hardforks",
+ "alloy-op-hardforks",
+ "alloy-primitives 1.6.0",
+ "alloy-sol-types 1.6.0",
+ "derive_more",
+ "op-revm",
+ "serde",
+ "serde_repr",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "kona-interop"
+version = "0.4.5"
+dependencies = [
+ "alloy-consensus 2.0.5",
+ "alloy-eips 2.0.5",
+ "alloy-primitives 1.6.0",
+ "alloy-rlp",
+ "alloy-sol-types 1.6.0",
+ "async-trait",
+ "derive_more",
+ "kona-genesis",
+ "kona-protocol",
+ "kona-registry",
+ "op-alloy-consensus",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "kona-protocol"
+version = "0.4.5"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloy-consensus 2.0.5",
+ "alloy-eips 2.0.5",
+ "alloy-hardforks",
+ "alloy-primitives 1.6.0",
+ "alloy-rlp",
+ "alloy-rpc-types-engine",
+ "alloy-rpc-types-eth 2.0.5",
+ "ambassador",
+ "async-trait",
+ "brotli",
+ "derive_more",
+ "kona-genesis",
+ "miniz_oxide 0.9.1",
+ "op-alloy-consensus",
+ "op-alloy-rpc-types",
+ "op-alloy-rpc-types-engine",
+ "thiserror 2.0.18",
+ "tracing",
+ "unsigned-varint 0.8.0",
+]
+
+[[package]]
+name = "kona-registry"
+version = "0.4.5"
+dependencies = [
+ "alloy-chains",
+ "alloy-eips 2.0.5",
+ "alloy-genesis 2.0.5",
+ "alloy-hardforks",
+ "alloy-op-hardforks",
+ "alloy-primitives 1.6.0",
+ "kona-genesis",
+ "lazy_static",
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "konst"
 version = "0.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6262,6 +6356,9 @@ name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+dependencies = [
+ "spin",
+]
 
 [[package]]
 name = "leb128fmt"
@@ -7436,7 +7533,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8837,7 +8934,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -8875,9 +8972,9 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "tracing",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -11322,6 +11419,7 @@ dependencies = [
  "jsonrpsee 0.26.0",
  "jsonrpsee-core 0.26.0",
  "jsonrpsee-types 0.26.0",
+ "kona-interop",
  "metrics",
  "op-alloy-consensus",
  "op-alloy-network",
@@ -12943,7 +13041,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -13032,7 +13130,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs 1.0.7",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -13726,6 +13824,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "spin"
+version = "0.9.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+
+[[package]]
 name = "spki"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14035,7 +14139,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -15407,7 +15511,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
