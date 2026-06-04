@@ -359,29 +359,34 @@ const fn initiating_timestamp_in_window(
 
 #[derive(Debug)]
 struct SourceLogClients {
-    clients: BTreeMap<u64, SourceLogClient>,
+    clients: Vec<SourceLogClient>,
 }
 
 impl SourceLogClients {
     fn new(source_rpcs: impl IntoIterator<Item = impl Into<String>>) -> Result<Self, String> {
-        let mut clients = BTreeMap::new();
+        let mut clients: Vec<SourceLogClient> = Vec::new();
         for source_rpc in source_rpcs {
-            let source_rpc = source_rpc.into();
-            let (chain_id, endpoint) = source_rpc.split_once('=').ok_or_else(|| {
-                format!("invalid source RPC mapping {source_rpc:?}: expected CHAIN_ID=RPC_URL")
-            })?;
-            let chain_id = chain_id
-                .parse::<u64>()
-                .map_err(|err| format!("invalid source chain ID {chain_id:?}: {err}"))?;
-            if clients
-                .insert(chain_id, SourceLogClient::new(chain_id, endpoint.to_string())?)
-                .is_some()
-            {
-                return Err(format!("duplicate source RPC for chain ID {chain_id}"));
+            let endpoint = source_rpc.into();
+            if clients.iter().any(|client| client.endpoint == endpoint) {
+                return Err(format!("duplicate source RPC URL {endpoint:?}"));
             }
+            clients.push(SourceLogClient::new(endpoint)?);
         }
 
         Ok(Self { clients })
+    }
+
+    /// Finds the configured source client serving `chain_id`, resolving each client's chain ID
+    /// lazily via `eth_chainId`. A client whose RPC is not reachable yet resolves to `None` and is
+    /// simply skipped, so a peer EL that has not started cannot match (and cannot deadlock
+    /// startup); it will match on a later refresh once it is up.
+    async fn client_for(&self, chain_id: u64) -> Option<&SourceLogClient> {
+        for client in &self.clients {
+            if client.resolve_chain_id().await == Some(chain_id) {
+                return Some(client);
+            }
+        }
+        None
     }
 
     async fn validate_initiating_message(
@@ -393,20 +398,21 @@ impl SourceLogClients {
         origin: alloy_primitives::Address,
         payload_hash: B256,
     ) -> Option<SourceRef> {
-        let Some(client) = self.clients.get(&chain_id) else {
+        let Some(client) = self.client_for(chain_id).await else {
             warn!(
                 target: "rpc::cross_unsafe",
                 chain_id,
                 block_number,
                 log_index,
-                "missing source RPC for initiating message chain"
+                "no source RPC available for initiating message chain"
             );
             return None;
         };
 
-        client
+        let block_hash = client
             .validate_initiating_message(block_number, log_index, timestamp, origin, payload_hash)
-            .await
+            .await?;
+        Some(SourceRef { chain_id, block_number, block_hash })
     }
 
     /// Returns whether the cached source block is still canonical:
@@ -420,12 +426,12 @@ impl SourceLogClients {
         block_number: u64,
         block_hash: B256,
     ) -> Option<bool> {
-        let Some(client) = self.clients.get(&chain_id) else {
+        let Some(client) = self.client_for(chain_id).await else {
             warn!(
                 target: "rpc::cross_unsafe",
                 chain_id,
                 block_number,
-                "missing source RPC for cached source block"
+                "no source RPC available for cached source block"
             );
             return None;
         };
@@ -436,15 +442,14 @@ impl SourceLogClients {
 
 #[derive(Debug)]
 struct SourceLogClient {
-    chain_id: u64,
     endpoint: String,
     client: RpcClient,
-    /// Set once the source RPC has been confirmed to serve the expected chain ID.
-    chain_id_ok: OnceCell<()>,
+    /// The source chain's ID, discovered once via `eth_chainId` and cached.
+    chain_id: OnceCell<u64>,
 }
 
 impl SourceLogClient {
-    fn new(chain_id: u64, endpoint: String) -> Result<Self, String> {
+    fn new(endpoint: String) -> Result<Self, String> {
         let url = endpoint
             .parse()
             .map_err(|err| format!("invalid cross unsafe head source RPC URL: {err}"))?;
@@ -453,9 +458,26 @@ impl SourceLogClient {
             .build()
             .map_err(|err| format!("failed to build cross unsafe head source RPC client: {err}"))?;
         let client = ClientBuilder::default().http_with_client(http, url);
-        Ok(Self { chain_id, endpoint, client, chain_id_ok: OnceCell::new() })
+        Ok(Self { endpoint, client, chain_id: OnceCell::new() })
     }
 
+    /// Resolves and caches this source's chain ID via `eth_chainId`.
+    ///
+    /// Returns `None` when the RPC is not reachable yet, so a peer EL that has not started cannot
+    /// deadlock op-reth startup (no synchronous request is made when the clients are constructed).
+    /// The result is cached on first success; failures are not cached, so the next refresh retries.
+    async fn resolve_chain_id(&self) -> Option<u64> {
+        self.chain_id
+            .get_or_try_init(|| async {
+                self.fetch_chain_id().await.map(|id| id.saturating_to::<u64>()).ok_or(())
+            })
+            .await
+            .ok()
+            .copied()
+    }
+
+    /// Validates an initiating message against this source chain, returning the source block hash
+    /// on success (so the caller can record the dependency).
     async fn validate_initiating_message(
         &self,
         block_number: u64,
@@ -463,16 +485,12 @@ impl SourceLogClient {
         timestamp: u64,
         origin: alloy_primitives::Address,
         payload_hash: B256,
-    ) -> Option<SourceRef> {
-        if !self.ensure_chain_id().await {
-            return None;
-        }
-
+    ) -> Option<B256> {
         let block = self.fetch_block(block_number).await?;
         if block.header.timestamp() != timestamp {
             debug!(
                 target: "rpc::cross_unsafe",
-                chain_id = self.chain_id,
+                endpoint = %self.endpoint,
                 block_number,
                 expected = timestamp,
                 actual = block.header.timestamp(),
@@ -489,7 +507,7 @@ impl SourceLogClient {
         let Some(log) = logs.into_iter().find(|log| log.log_index == Some(log_index)) else {
             debug!(
                 target: "rpc::cross_unsafe",
-                chain_id = self.chain_id,
+                endpoint = %self.endpoint,
                 block_number,
                 log_index,
                 "source log not found"
@@ -500,7 +518,7 @@ impl SourceLogClient {
         if log.address() != origin {
             debug!(
                 target: "rpc::cross_unsafe",
-                chain_id = self.chain_id,
+                endpoint = %self.endpoint,
                 block_number,
                 log_index,
                 expected = %origin,
@@ -514,7 +532,7 @@ impl SourceLogClient {
         if remote_payload_hash != payload_hash {
             debug!(
                 target: "rpc::cross_unsafe",
-                chain_id = self.chain_id,
+                endpoint = %self.endpoint,
                 block_number,
                 log_index,
                 expected = %payload_hash,
@@ -524,36 +542,12 @@ impl SourceLogClient {
             return None;
         }
 
-        Some(SourceRef { chain_id: self.chain_id, block_number, block_hash: block.header.hash })
+        Some(block.header.hash)
     }
 
     /// Returns the canonical hash of `block_number` on the source chain, if available.
     async fn block_hash(&self, block_number: u64) -> Option<B256> {
-        if !self.ensure_chain_id().await {
-            return None;
-        }
         self.fetch_block(block_number).await.map(|block| block.header.hash)
-    }
-
-    /// Verifies (once) that the configured RPC serves the expected chain ID.
-    async fn ensure_chain_id(&self) -> bool {
-        self.chain_id_ok
-            .get_or_try_init(|| async {
-                let actual = self.fetch_chain_id().await.ok_or(())?;
-                if actual == U64::from(self.chain_id) {
-                    return Ok(());
-                }
-                warn!(
-                    target: "rpc::cross_unsafe",
-                    endpoint = %self.endpoint,
-                    expected_chain_id = self.chain_id,
-                    actual_chain_id = %actual,
-                    "source RPC chain ID mismatch"
-                );
-                Err(())
-            })
-            .await
-            .is_ok()
     }
 
     async fn fetch_chain_id(&self) -> Option<U64> {
@@ -565,7 +559,6 @@ impl SourceLogClient {
                     target: "rpc::cross_unsafe",
                     %err,
                     endpoint = %self.endpoint,
-                    expected_chain_id = self.chain_id,
                     "failed to fetch source chain ID"
                 );
                 None
@@ -574,7 +567,6 @@ impl SourceLogClient {
                 warn!(
                     target: "rpc::cross_unsafe",
                     endpoint = %self.endpoint,
-                    expected_chain_id = self.chain_id,
                     "timed out fetching source chain ID"
                 );
                 None
@@ -600,7 +592,6 @@ impl SourceLogClient {
                     target: "rpc::cross_unsafe",
                     %err,
                     endpoint = %self.endpoint,
-                    chain_id = self.chain_id,
                     %block_hash,
                     "failed to fetch source logs"
                 );
@@ -610,7 +601,6 @@ impl SourceLogClient {
                 warn!(
                     target: "rpc::cross_unsafe",
                     endpoint = %self.endpoint,
-                    chain_id = self.chain_id,
                     %block_hash,
                     "timed out fetching source logs"
                 );
@@ -633,7 +623,7 @@ impl SourceLogClient {
             Ok(Ok(None)) => {
                 debug!(
                     target: "rpc::cross_unsafe",
-                    chain_id = self.chain_id,
+                    endpoint = %self.endpoint,
                     block_number,
                     "source block not found"
                 );
@@ -644,7 +634,6 @@ impl SourceLogClient {
                     target: "rpc::cross_unsafe",
                     %err,
                     endpoint = %self.endpoint,
-                    chain_id = self.chain_id,
                     block_number,
                     "failed to fetch source block"
                 );
@@ -654,7 +643,6 @@ impl SourceLogClient {
                 warn!(
                     target: "rpc::cross_unsafe",
                     endpoint = %self.endpoint,
-                    chain_id = self.chain_id,
                     block_number,
                     "timed out fetching source block"
                 );
@@ -758,26 +746,25 @@ mod tests {
     }
 
     #[test]
-    fn parses_source_rpc_mappings_by_chain_id() {
+    fn builds_source_clients_from_urls() {
         let clients = SourceLogClients::new([
-            "901=http://chain-a:8545".to_string(),
-            "902=http://chain-b:8545".to_string(),
+            "http://chain-a:8545".to_string(),
+            "http://chain-b:8545".to_string(),
         ])
         .unwrap();
 
-        assert!(clients.clients.contains_key(&901));
-        assert!(clients.clients.contains_key(&902));
+        assert_eq!(clients.clients.len(), 2);
     }
 
     #[test]
-    fn rejects_invalid_source_rpc_mappings() {
-        assert!(SourceLogClients::new(["http://chain-a:8545".to_string()]).is_err());
-        assert!(SourceLogClients::new(["chain-a=http://chain-a:8545".to_string()]).is_err());
-        assert!(SourceLogClients::new(["901=not a url".to_string()]).is_err());
+    fn rejects_invalid_or_duplicate_source_rpc_urls() {
+        // Malformed URL.
+        assert!(SourceLogClients::new(["not a url".to_string()]).is_err());
+        // Duplicate URLs are rejected (chain IDs are not yet known at construction time).
         assert!(
             SourceLogClients::new([
-                "901=http://chain-a:8545".to_string(),
-                "901=http://chain-b:8545".to_string(),
+                "http://chain-a:8545".to_string(),
+                "http://chain-a:8545".to_string(),
             ])
             .is_err()
         );

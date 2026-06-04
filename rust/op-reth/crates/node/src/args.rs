@@ -57,12 +57,12 @@ pub struct RollupArgs {
     #[arg(long = "rollup.interop-http", value_name = "INTEROP_HTTP_URL")]
     pub interop_http: Option<String>,
 
-    /// Remote execution RPCs used to validate initiating message existence for
-    /// `eth_crossUnsafeHead`.
+    /// Remote execution RPC URLs used to validate initiating message existence for
+    /// `eth_crossUnsafeHead`. Each source chain's ID is discovered from the URL via `eth_chainId`,
+    /// so you must configure a source RPC for every chain whose messages this chain executes.
     ///
-    /// Each value is a `CHAIN_ID=RPC_URL` mapping. Repeat the flag to configure multiple source
-    /// chains.
-    #[arg(long = "rollup.cross-unsafe-head-source-rpc", value_name = "CHAIN_ID=RPC_URL")]
+    /// Repeat the flag to configure multiple source chains.
+    #[arg(long = "rollup.cross-unsafe-head-source-rpc", value_name = "RPC_URL")]
     pub cross_unsafe_head_source_rpcs: Vec<String>,
 
     /// Safety level for interop filter validation.
@@ -244,17 +244,17 @@ mod tests {
     fn test_parse_cross_unsafe_head_source_rpc_args() {
         let expected_args = RollupArgs {
             cross_unsafe_head_source_rpcs: vec![
-                "901=http://chain-a:8545".into(),
-                "902=http://chain-b:8545".into(),
+                "http://chain-a:8545".into(),
+                "http://chain-b:8545".into(),
             ],
             ..Default::default()
         };
         let args = CommandParser::<RollupArgs>::parse_from([
             "reth",
             "--rollup.cross-unsafe-head-source-rpc",
-            "901=http://chain-a:8545",
+            "http://chain-a:8545",
             "--rollup.cross-unsafe-head-source-rpc",
-            "902=http://chain-b:8545",
+            "http://chain-b:8545",
         ])
         .args;
         assert_eq!(args, expected_args);

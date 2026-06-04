@@ -71,14 +71,13 @@ func OpRethWithInteropURL(interopURL string) OpRethOption {
 	})
 }
 
-// OpRethWithCrossUnsafeHeadSourceRPC configures op-reth to runtime-validate the
-// executing messages behind eth_crossUnsafeHead against the given source chain,
-// reachable at the given HTTP JSON-RPC endpoint.
-func OpRethWithCrossUnsafeHeadSourceRPC(sourceChainID eth.ChainID, sourceHTTPRPC string) OpRethOption {
+// OpRethWithCrossUnsafeHeadSourceRPC configures op-reth to runtime-validate the executing messages
+// behind eth_crossUnsafeHead against the source chain reachable at the given HTTP JSON-RPC
+// endpoint. The source chain's ID is discovered by op-reth via eth_chainId.
+func OpRethWithCrossUnsafeHeadSourceRPC(sourceHTTPRPC string) OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		p.Require().NotEmpty(sourceHTTPRPC, "cross-unsafe head source RPC must not be empty")
-		cfg.ExtraArgs = append(cfg.ExtraArgs,
-			fmt.Sprintf("--rollup.cross-unsafe-head-source-rpc=%s=%s", sourceChainID, sourceHTTPRPC))
+		cfg.ExtraArgs = append(cfg.ExtraArgs, "--rollup.cross-unsafe-head-source-rpc="+sourceHTTPRPC)
 	})
 }
 

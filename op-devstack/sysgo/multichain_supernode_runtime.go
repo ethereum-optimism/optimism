@@ -160,7 +160,7 @@ func startSupernodeELWithInteropURL(
 // --rollup.cross-unsafe-head-source-rpc, or no options when the feature is disabled. It is an
 // op-reth-only feature; if the source node is not op-reth (e.g. DEVSTACK_L2EL_KIND=op-geth) it
 // logs a warning and returns nothing (tests relying on it should skip on op-geth).
-func crossUnsafeHeadSourceOpts(t devtest.T, cfg PresetConfig, sourceChainID eth.ChainID, sourceEL L2ELNode) []OpRethOption {
+func crossUnsafeHeadSourceOpts(t devtest.T, cfg PresetConfig, sourceEL L2ELNode) []OpRethOption {
 	if !cfg.CrossUnsafeHeadSourceFromPeer {
 		return nil
 	}
@@ -169,7 +169,7 @@ func crossUnsafeHeadSourceOpts(t devtest.T, cfg PresetConfig, sourceChainID eth.
 		t.Logger().Warn("cross-unsafe head source RPC requires an op-reth source; starting without it")
 		return nil
 	}
-	return []OpRethOption{OpRethWithCrossUnsafeHeadSourceRPC(sourceChainID, source.HTTPUserRPC())}
+	return []OpRethOption{OpRethWithCrossUnsafeHeadSourceRPC(source.HTTPUserRPC())}
 }
 
 func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
@@ -301,7 +301,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		// Chain B can runtime-validate executing messages (which initiate on chain A) via
 		// eth_crossUnsafeHead. Chain A is already started, so its HTTP RPC is available to wire
 		// into chain B's --rollup.cross-unsafe-head-source-rpc.
-		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret, crossUnsafeHeadSourceOpts(t, cfg, l2ANet.ChainID(), l2AEL)...)
+		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret, crossUnsafeHeadSourceOpts(t, cfg, l2AEL)...)
 	}
 
 	var activationTime uint64
