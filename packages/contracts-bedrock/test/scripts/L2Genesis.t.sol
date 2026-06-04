@@ -16,10 +16,15 @@ import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
+import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
+import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
+import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
+import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
 import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
 import { IOperatorFeeVault } from "interfaces/L2/IOperatorFeeVault.sol";
+import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
@@ -167,6 +172,163 @@ abstract contract L2Genesis_TestInit is Test {
         assertGt(Predeploys.LIQUIDITY_CONTROLLER.code.length, 0);
         assertGt(Predeploys.NATIVE_ASSET_LIQUIDITY.code.length, 0);
     }
+
+    function runGenesisAndAssertL2CM() internal {
+        address temporaryL2CM = expectedTemporaryL2CM();
+
+        genesis.run(input);
+
+        assertL2CMProxyImplementations();
+        assertL2CMInitializedStorage();
+        assertNoTemporaryL2CMResidue(temporaryL2CM);
+    }
+
+    function expectedTemporaryL2CM() internal view returns (address) {
+        uint256 nonce = vm.getNonce(address(genesis));
+
+        // setEAS always deploys one temporary implementation contract before L2CM.
+        nonce++;
+
+        if (input.enableGovernance) {
+            // setGovernanceToken deploys one temporary implementation contract before L2CM.
+            nonce++;
+        }
+
+        return vm.computeCreateAddress(address(genesis), nonce);
+    }
+
+    function assertL2CMProxyImplementations() internal view {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        bool isInterop = input.useInterop && input.fork >= uint256(Fork.INTEROP);
+
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].isVariant) continue;
+
+            bool disabledCGT = records[i].isCustomGasToken && !input.useCustomGasToken;
+            bool disabledInterop = records[i].isInterop && !isInterop;
+            address proxy = records[i].proxy;
+
+            assertEq(
+                EIP1967Helper.getAdmin(proxy), Predeploys.PROXY_ADMIN, string.concat(records[i].name, " admin mismatch")
+            );
+
+            if (disabledCGT || disabledInterop) {
+                assertEq(EIP1967Helper.getImplementation(proxy), address(0), string.concat(records[i].name, " impl"));
+                continue;
+            }
+
+            address expectedImpl = Predeploys.predeployToCodeNamespace(proxy);
+            assertEq(EIP1967Helper.getImplementation(proxy), expectedImpl, string.concat(records[i].name, " impl"));
+            assertGt(expectedImpl.code.length, 0, string.concat(records[i].name, " impl code"));
+        }
+    }
+
+    function assertL2CMInitializedStorage() internal view {
+        assertEq(
+            address(IL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger()),
+            input.l1CrossDomainMessengerProxy,
+            "L2CrossDomainMessenger otherMessenger mismatch"
+        );
+        assertEq(
+            address(IL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).l1CrossDomainMessenger()),
+            input.l1CrossDomainMessengerProxy,
+            "L2CrossDomainMessenger l1CrossDomainMessenger mismatch"
+        );
+        assertEq(
+            address(IL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).otherBridge()),
+            input.l1StandardBridgeProxy,
+            "L2StandardBridge otherBridge mismatch"
+        );
+        assertEq(
+            IL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).l1TokenBridge(),
+            input.l1StandardBridgeProxy,
+            "L2StandardBridge l1TokenBridge mismatch"
+        );
+        assertEq(
+            address(IL2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE).otherBridge()),
+            input.l1ERC721BridgeProxy,
+            "L2ERC721Bridge otherBridge mismatch"
+        );
+
+        testFactories();
+
+        assertFeeVaultStorage(
+            Predeploys.SEQUENCER_FEE_WALLET,
+            input.sequencerFeeVaultRecipient,
+            input.sequencerFeeVaultMinimumWithdrawalAmount,
+            input.sequencerFeeVaultWithdrawalNetwork,
+            "SequencerFeeVault"
+        );
+        assertFeeVaultStorage(
+            Predeploys.BASE_FEE_VAULT,
+            input.baseFeeVaultRecipient,
+            input.baseFeeVaultMinimumWithdrawalAmount,
+            input.baseFeeVaultWithdrawalNetwork,
+            "BaseFeeVault"
+        );
+        assertFeeVaultStorage(
+            Predeploys.L1_FEE_VAULT,
+            input.l1FeeVaultRecipient,
+            input.l1FeeVaultMinimumWithdrawalAmount,
+            input.l1FeeVaultWithdrawalNetwork,
+            "L1FeeVault"
+        );
+        assertFeeVaultStorage(
+            Predeploys.OPERATOR_FEE_VAULT,
+            input.operatorFeeVaultRecipient,
+            input.operatorFeeVaultMinimumWithdrawalAmount,
+            input.operatorFeeVaultWithdrawalNetwork,
+            "OperatorFeeVault"
+        );
+
+        assertEq(
+            IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).devFeatureBitmap(),
+            input.devFeatureBitmap,
+            "L2DevFeatureFlags bitmap mismatch"
+        );
+
+        if (input.useCustomGasToken) {
+            testCGT();
+        }
+    }
+
+    function assertFeeVaultStorage(
+        address _vault,
+        address _recipient,
+        uint256 _minWithdrawalAmount,
+        uint256 _withdrawalNetwork,
+        string memory _label
+    )
+        internal
+        view
+    {
+        IFeeVault vault = IFeeVault(payable(_vault));
+
+        assertEq(vault.RECIPIENT(), _recipient, string.concat(_label, " legacy recipient mismatch"));
+        assertEq(vault.recipient(), _recipient, string.concat(_label, " recipient mismatch"));
+        assertEq(
+            vault.MIN_WITHDRAWAL_AMOUNT(),
+            _minWithdrawalAmount,
+            string.concat(_label, " legacy minWithdrawalAmount mismatch")
+        );
+        assertEq(vault.minWithdrawalAmount(), _minWithdrawalAmount, string.concat(_label, " minWithdrawalAmount"));
+        assertEq(
+            uint8(vault.WITHDRAWAL_NETWORK()),
+            uint8(_withdrawalNetwork),
+            string.concat(_label, " legacy withdrawalNetwork mismatch")
+        );
+        assertEq(
+            uint8(vault.withdrawalNetwork()),
+            uint8(_withdrawalNetwork),
+            string.concat(_label, " withdrawalNetwork mismatch")
+        );
+    }
+
+    function assertNoTemporaryL2CMResidue(address _temporaryL2CM) internal view {
+        assertEq(_temporaryL2CM.code.length, 0, "temporary L2CM code residue");
+        assertEq(vm.getNonce(_temporaryL2CM), 0, "temporary L2CM nonce residue");
+        assertEq(_temporaryL2CM.balance, 0, "temporary L2CM balance residue");
+    }
 }
 
 /// @title L2Genesis_Run_Test
@@ -302,7 +464,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     /// @notice Tests that enabling l2cm succeeds.
     function test_run_l2cm_succeeds() external {
         input.devFeatureBitmap |= DevFeatures.L2CM;
-        genesis.run(input);
+        runGenesisAndAssertL2CM();
 
         testProxyAdmin();
         testPredeploys();
@@ -310,6 +472,55 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         testGovernance();
         testFactories();
         testForks();
+    }
+
+    /// @notice Tests that the L2CM genesis path succeeds with custom gas token predeploys.
+    function test_run_l2cm_cgt_succeeds() external {
+        input.devFeatureBitmap |= DevFeatures.L2CM;
+        _setInputCGTEnabled();
+        runGenesisAndAssertL2CM();
+
+        testProxyAdmin();
+        testPredeploys();
+        testVaults();
+        testGovernance();
+        testFactories();
+        testForks();
+        testCGT();
+    }
+
+    /// @notice Tests that the L2CM genesis path succeeds with interop predeploys.
+    function test_run_l2cm_interopAtGenesis_succeeds() external {
+        input.devFeatureBitmap |= DevFeatures.L2CM;
+        _setInputInteropEnabled();
+        input.fork = uint256(Fork.INTEROP);
+        runGenesisAndAssertL2CM();
+
+        testProxyAdmin();
+        testPredeploys();
+        testVaults();
+        testGovernance();
+        testFactories();
+        testForks();
+        testInterop();
+    }
+
+    /// @notice Tests that the L2CM genesis path succeeds when CGT and interop are both active.
+    function test_run_l2cm_cgtAndInteropAtGenesis_succeeds() external {
+        input.devFeatureBitmap |= DevFeatures.L2CM;
+        _setInputCGTEnabled();
+        _setInputInteropEnabled();
+        input.fork = uint256(Fork.INTEROP);
+        runGenesisAndAssertL2CM();
+
+        testProxyAdmin();
+        testPredeploys();
+        testVaults();
+        testGovernance();
+        testFactories();
+        testForks();
+        testCGT();
+        testInterop();
     }
 
     /// @notice Tests that run reverts when useInterop is true but the OPTIMISM_PORTAL_INTEROP dev bit is not set.
