@@ -9,9 +9,8 @@
 # It will default to the target platform.
 ARG TARGET_BASE_IMAGE=chainguard/static:latest
 
-# The wolfi target base image is used for the op-challenger build with kona,
-# which links against openssl/ca-certificates at runtime.
-ARG UBUNTU_TARGET_BASE_IMAGE=chainguard/wolfi-base:latest
+# The ubuntu target base image is used for the op-challenger build with kona.
+ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:24.04
 
 # builder_foundry does not need to be built on $BUILDPLATFORM, as foundry produces static binaries.
 FROM alpine:3.21 AS builder_foundry
@@ -285,7 +284,7 @@ CMD ["op-node"]
 
 # Also produce an op-challenger loaded with kona using ubuntu
 FROM $UBUNTU_TARGET_BASE_IMAGE AS op-challenger-target
-RUN apk add --no-cache openssl libstdc++ ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends musl openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=op-challenger-builder /app/op-challenger/bin/op-challenger /usr/local/bin/
 # Copy in op-program and cannon
 COPY --from=op-program-builder /app/op-program/bin/op-program /usr/local/bin/
