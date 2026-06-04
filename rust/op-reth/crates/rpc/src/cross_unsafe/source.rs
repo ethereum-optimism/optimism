@@ -3,11 +3,16 @@
 //! Each configured source RPC is a plain URL; the source chain's ID is discovered lazily via
 //! `eth_chainId` (no request is made at construction, so a peer EL that has not started cannot
 //! deadlock op-reth startup). Each request is bounded by [`SOURCE_RPC_TIMEOUT`].
+//!
+//! The low-level RPC calls are abstracted behind the [`SourceRpc`] trait so the validation logic
+//! ([`validate_initiating_message`], [`source_block_hash`]) can be unit-tested against canned
+//! responses without a live endpoint.
 
 use alloy_consensus::BlockHeader;
-use alloy_primitives::{B256, U64, keccak256};
+use alloy_primitives::{Address, B256, U64, keccak256};
 use alloy_rpc_client::{ClientBuilder, RpcClient};
 use alloy_rpc_types_eth::{Block as RpcBlock, Filter, Log as RpcLog};
+use jsonrpsee_core::async_trait;
 use kona_interop::RawMessagePayload;
 use std::time::Duration;
 use tokio::{sync::OnceCell, time::timeout};
@@ -17,6 +22,90 @@ use super::state::SourceRef;
 
 /// Per-request timeout for every source-chain RPC call.
 const SOURCE_RPC_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// The low-level source-chain RPC calls the validation logic needs. Abstracted so the validation
+/// can be exercised against canned responses in tests; the production implementation is
+/// [`SourceLogClient`].
+#[async_trait]
+trait SourceRpc {
+    /// A human-readable identifier for the source (used only in logs).
+    fn endpoint(&self) -> &str;
+    /// Fetches the source chain's ID (`eth_chainId`).
+    async fn fetch_chain_id(&self) -> Option<U64>;
+    /// Fetches a source block by number (`eth_getBlockByNumber`).
+    async fn fetch_block(&self, block_number: u64) -> Option<RpcBlock>;
+    /// Fetches the logs emitted by `origin` in the block with `block_hash` (`eth_getLogs`).
+    async fn fetch_logs(&self, block_hash: B256, origin: Address) -> Option<Vec<RpcLog>>;
+}
+
+/// Validates an initiating message against a source chain, returning the source block hash on
+/// success (so the caller can record the dependency), or `None` on any mismatch / missing data
+/// (fail closed).
+async fn validate_initiating_message<S: SourceRpc + ?Sized>(
+    rpc: &S,
+    block_number: u64,
+    log_index: u64,
+    timestamp: u64,
+    origin: Address,
+    payload_hash: B256,
+) -> Option<B256> {
+    let block = rpc.fetch_block(block_number).await?;
+    if block.header.timestamp() != timestamp {
+        debug!(
+            target: "rpc::cross_unsafe",
+            endpoint = rpc.endpoint(),
+            block_number,
+            expected = timestamp,
+            actual = block.header.timestamp(),
+            "source block timestamp mismatch"
+        );
+        return None;
+    }
+
+    // Filter by the claimed origin address: the message is only valid if the log at `log_index` was
+    // emitted by `origin`, so restricting to that address is a correct narrowing and keeps the
+    // response small. The block-global `log_index` is preserved by the RPC, so matching it against
+    // the filtered subset is still correct.
+    let logs = rpc.fetch_logs(block.header.hash, origin).await?;
+    let Some(log) = logs.into_iter().find(|log| log.log_index == Some(log_index)) else {
+        debug!(target: "rpc::cross_unsafe", endpoint = rpc.endpoint(), block_number, log_index, "source log not found");
+        return None;
+    };
+
+    if log.address() != origin {
+        debug!(
+            target: "rpc::cross_unsafe",
+            endpoint = rpc.endpoint(),
+            block_number,
+            log_index,
+            expected = %origin,
+            actual = %log.address(),
+            "source log origin mismatch"
+        );
+        return None;
+    }
+
+    let remote_payload_hash = keccak256(RawMessagePayload::from(&log.inner).as_ref());
+    if remote_payload_hash != payload_hash {
+        debug!(
+            target: "rpc::cross_unsafe",
+            endpoint = rpc.endpoint(),
+            block_number,
+            log_index,
+            expected = %payload_hash,
+            actual = %remote_payload_hash,
+            "source log payload hash mismatch"
+        );
+        return None;
+    }
+
+    Some(block.header.hash)
+}
+
+/// Returns the canonical hash of `block_number` on the source chain, if available.
+async fn source_block_hash<S: SourceRpc + ?Sized>(rpc: &S, block_number: u64) -> Option<B256> {
+    rpc.fetch_block(block_number).await.map(|block| block.header.hash)
+}
 
 #[derive(Debug)]
 pub(super) struct SourceLogClients {
@@ -58,7 +147,7 @@ impl SourceLogClients {
         block_number: u64,
         log_index: u64,
         timestamp: u64,
-        origin: alloy_primitives::Address,
+        origin: Address,
         payload_hash: B256,
     ) -> Option<SourceRef> {
         let Some(client) = self.client_for(chain_id).await else {
@@ -72,9 +161,15 @@ impl SourceLogClients {
             return None;
         };
 
-        let block_hash = client
-            .validate_initiating_message(block_number, log_index, timestamp, origin, payload_hash)
-            .await?;
+        let block_hash = validate_initiating_message(
+            client,
+            block_number,
+            log_index,
+            timestamp,
+            origin,
+            payload_hash,
+        )
+        .await?;
         Some(SourceRef { chain_id, block_number, block_hash })
     }
 
@@ -99,7 +194,7 @@ impl SourceLogClients {
             return None;
         };
 
-        Some(client.block_hash(block_number).await? == block_hash)
+        Some(source_block_hash(client, block_number).await? == block_hash)
     }
 }
 
@@ -138,79 +233,12 @@ impl SourceLogClient {
             .ok()
             .copied()
     }
+}
 
-    /// Validates an initiating message against this source chain, returning the source block hash
-    /// on success (so the caller can record the dependency).
-    async fn validate_initiating_message(
-        &self,
-        block_number: u64,
-        log_index: u64,
-        timestamp: u64,
-        origin: alloy_primitives::Address,
-        payload_hash: B256,
-    ) -> Option<B256> {
-        let block = self.fetch_block(block_number).await?;
-        if block.header.timestamp() != timestamp {
-            debug!(
-                target: "rpc::cross_unsafe",
-                endpoint = %self.endpoint,
-                block_number,
-                expected = timestamp,
-                actual = block.header.timestamp(),
-                "source block timestamp mismatch"
-            );
-            return None;
-        }
-
-        // Filter by the claimed origin address: the message is only valid if the log at
-        // `log_index` was emitted by `origin`, so restricting to that address is a correct
-        // narrowing and keeps the response small. The block-global `log_index` is preserved by the
-        // RPC, so matching it against the filtered subset is still correct.
-        let logs = self.fetch_logs(block.header.hash, origin).await?;
-        let Some(log) = logs.into_iter().find(|log| log.log_index == Some(log_index)) else {
-            debug!(
-                target: "rpc::cross_unsafe",
-                endpoint = %self.endpoint,
-                block_number,
-                log_index,
-                "source log not found"
-            );
-            return None;
-        };
-
-        if log.address() != origin {
-            debug!(
-                target: "rpc::cross_unsafe",
-                endpoint = %self.endpoint,
-                block_number,
-                log_index,
-                expected = %origin,
-                actual = %log.address(),
-                "source log origin mismatch"
-            );
-            return None;
-        }
-
-        let remote_payload_hash = keccak256(RawMessagePayload::from(&log.inner).as_ref());
-        if remote_payload_hash != payload_hash {
-            debug!(
-                target: "rpc::cross_unsafe",
-                endpoint = %self.endpoint,
-                block_number,
-                log_index,
-                expected = %payload_hash,
-                actual = %remote_payload_hash,
-                "source log payload hash mismatch"
-            );
-            return None;
-        }
-
-        Some(block.header.hash)
-    }
-
-    /// Returns the canonical hash of `block_number` on the source chain, if available.
-    async fn block_hash(&self, block_number: u64) -> Option<B256> {
-        self.fetch_block(block_number).await.map(|block| block.header.hash)
+#[async_trait]
+impl SourceRpc for SourceLogClient {
+    fn endpoint(&self) -> &str {
+        &self.endpoint
     }
 
     async fn fetch_chain_id(&self) -> Option<U64> {
@@ -231,41 +259,6 @@ impl SourceLogClient {
                     target: "rpc::cross_unsafe",
                     endpoint = %self.endpoint,
                     "timed out fetching source chain ID"
-                );
-                None
-            }
-        }
-    }
-
-    async fn fetch_logs(
-        &self,
-        block_hash: B256,
-        origin: alloy_primitives::Address,
-    ) -> Option<Vec<RpcLog>> {
-        let filter = Filter::new().at_block_hash(block_hash).address(origin);
-        match timeout(
-            SOURCE_RPC_TIMEOUT,
-            self.client.request::<_, Vec<RpcLog>>("eth_getLogs", (filter,)),
-        )
-        .await
-        {
-            Ok(Ok(logs)) => Some(logs),
-            Ok(Err(err)) => {
-                warn!(
-                    target: "rpc::cross_unsafe",
-                    %err,
-                    endpoint = %self.endpoint,
-                    %block_hash,
-                    "failed to fetch source logs"
-                );
-                None
-            }
-            Err(_) => {
-                warn!(
-                    target: "rpc::cross_unsafe",
-                    endpoint = %self.endpoint,
-                    %block_hash,
-                    "timed out fetching source logs"
                 );
                 None
             }
@@ -313,11 +306,81 @@ impl SourceLogClient {
             }
         }
     }
+
+    async fn fetch_logs(&self, block_hash: B256, origin: Address) -> Option<Vec<RpcLog>> {
+        let filter = Filter::new().at_block_hash(block_hash).address(origin);
+        match timeout(
+            SOURCE_RPC_TIMEOUT,
+            self.client.request::<_, Vec<RpcLog>>("eth_getLogs", (filter,)),
+        )
+        .await
+        {
+            Ok(Ok(logs)) => Some(logs),
+            Ok(Err(err)) => {
+                warn!(
+                    target: "rpc::cross_unsafe",
+                    %err,
+                    endpoint = %self.endpoint,
+                    %block_hash,
+                    "failed to fetch source logs"
+                );
+                None
+            }
+            Err(_) => {
+                warn!(
+                    target: "rpc::cross_unsafe",
+                    endpoint = %self.endpoint,
+                    %block_hash,
+                    "timed out fetching source logs"
+                );
+                None
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_primitives::{Bytes, LogData};
+
+    /// A `SourceRpc` returning canned responses, for exercising the validation logic without a live
+    /// endpoint.
+    struct MockSourceRpc {
+        block: Option<RpcBlock>,
+        logs: Vec<RpcLog>,
+    }
+
+    #[async_trait]
+    impl SourceRpc for MockSourceRpc {
+        fn endpoint(&self) -> &str {
+            "mock"
+        }
+        async fn fetch_chain_id(&self) -> Option<U64> {
+            None
+        }
+        async fn fetch_block(&self, _block_number: u64) -> Option<RpcBlock> {
+            self.block.clone()
+        }
+        async fn fetch_logs(&self, _block_hash: B256, _origin: Address) -> Option<Vec<RpcLog>> {
+            Some(self.logs.clone())
+        }
+    }
+
+    fn source_block(hash: B256, timestamp: u64) -> RpcBlock {
+        let mut block: RpcBlock = RpcBlock::default();
+        block.header.hash = hash;
+        block.header.inner.timestamp = timestamp;
+        block
+    }
+
+    fn source_log(origin: Address, log_index: u64) -> RpcLog {
+        let mut log: RpcLog = RpcLog::default();
+        log.inner.address = origin;
+        log.inner.data = LogData::new_unchecked(vec![], Bytes::from_static(b"payload"));
+        log.log_index = Some(log_index);
+        log
+    }
 
     #[test]
     fn builds_source_clients_from_urls() {
@@ -342,5 +405,61 @@ mod tests {
             ])
             .is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn validate_initiating_message_accepts_a_matching_message() {
+        let origin = Address::repeat_byte(0xab);
+        let block_hash = B256::repeat_byte(0x11);
+        let log = source_log(origin, 3);
+        let payload = keccak256(RawMessagePayload::from(&log.inner).as_ref());
+        let mock = MockSourceRpc { block: Some(source_block(block_hash, 1_000)), logs: vec![log] };
+
+        assert_eq!(
+            validate_initiating_message(&mock, 7, 3, 1_000, origin, payload).await,
+            Some(block_hash),
+        );
+    }
+
+    #[tokio::test]
+    async fn validate_initiating_message_rejection_matrix() {
+        let origin = Address::repeat_byte(0xab);
+        let block_hash = B256::repeat_byte(0x11);
+        let log = source_log(origin, 3);
+        let payload = keccak256(RawMessagePayload::from(&log.inner).as_ref());
+        let mock = MockSourceRpc { block: Some(source_block(block_hash, 1_000)), logs: vec![log] };
+
+        // source block timestamp does not match the claimed initiating timestamp
+        assert_eq!(validate_initiating_message(&mock, 7, 3, 999, origin, payload).await, None);
+        // no log at the claimed block-global index
+        assert_eq!(validate_initiating_message(&mock, 7, 9, 1_000, origin, payload).await, None);
+        // the log at the index was not emitted by the claimed origin
+        assert_eq!(
+            validate_initiating_message(&mock, 7, 3, 1_000, Address::repeat_byte(0xcd), payload)
+                .await,
+            None,
+        );
+        // the recomputed payload hash does not match the claimed one
+        assert_eq!(
+            validate_initiating_message(&mock, 7, 3, 1_000, origin, B256::repeat_byte(0x99)).await,
+            None,
+        );
+
+        // source block unavailable → cannot validate
+        let unavailable = MockSourceRpc { block: None, logs: vec![] };
+        assert_eq!(
+            validate_initiating_message(&unavailable, 7, 3, 1_000, origin, payload).await,
+            None,
+        );
+    }
+
+    #[tokio::test]
+    async fn source_block_hash_reports_canonical_hash() {
+        let block_hash = B256::repeat_byte(0x22);
+        let present = MockSourceRpc { block: Some(source_block(block_hash, 5)), logs: vec![] };
+        assert_eq!(source_block_hash(&present, 7).await, Some(block_hash));
+
+        let unavailable = MockSourceRpc { block: None, logs: vec![] };
+        assert_eq!(source_block_hash(&unavailable, 7).await, None);
     }
 }
