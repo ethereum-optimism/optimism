@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -45,7 +46,7 @@ func TestCrossUnsafeHeadAdvancesPastValidatedExecutingMessage(gt *testing.T) {
 
 	// Bob executes the message on chain B (the chain running eth_crossUnsafeHead).
 	execMsg := bob.SendExecMessage(initMsg)
-	execBlock := execMsg.Receipt.BlockNumber.Uint64()
+	execBlock := bigs.Uint64Strict(execMsg.Receipt.BlockNumber)
 
 	// The cross-unsafe head must reach the executing block, which requires op-reth to validate the
 	// initiating message against chain A.
@@ -86,7 +87,7 @@ func TestCrossUnsafeHeadStopsAtInvalidExecutingMessage(gt *testing.T) {
 
 	// Bob includes an executing message whose identifier points at a non-existent source log.
 	invalid := bob.SendInvalidExecMessage(initMsg)
-	invalidBlock := invalid.Receipt.BlockNumber.Uint64()
+	invalidBlock := bigs.Uint64Strict(invalid.Receipt.BlockNumber)
 
 	// The walk should reach the block immediately before the invalid one, then never include the
 	// invalid block itself, even as later unsafe blocks are produced.
