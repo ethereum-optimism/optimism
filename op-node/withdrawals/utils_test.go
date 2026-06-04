@@ -118,6 +118,21 @@ func TestGameSequenceAndOutputRoot(t *testing.T) {
 		require.Equal(t, expectedRoot, root)
 	})
 
+	t.Run("fast game uses block number and root claim", func(t *testing.T) {
+		game := bindings.IDisputeGameFactoryGameSearchResult{
+			RootClaim: expectedRoot,
+			ExtraData: common.LeftPadBytes(
+				big.NewInt(1234).Bytes(),
+				32,
+			),
+		}
+		sequence, root, ok, err := gameSequenceAndOutputRoot(game, gameTypes.FastGameType, nil)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, uint64(1234), bigs.Uint64Strict(sequence))
+		require.Equal(t, expectedRoot, root)
+	})
+
 	t.Run("super game uses timestamp and matching chain output", func(t *testing.T) {
 		game := bindings.IDisputeGameFactoryGameSearchResult{
 			ExtraData: superRootExtraData(5678, l2ChainID, expectedRoot),

@@ -137,7 +137,7 @@ func ProveWithdrawalParametersFaultProofs(ctx context.Context, proofCl ProofClie
 	var minSequence *big.Int
 	var l2ChainID *big.Int
 	switch respectedGame {
-	case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType:
+	case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType, gameTypes.FastGameType:
 		minSequence = new(big.Int).Set(receipt.BlockNumber)
 	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
 		minSequence = new(big.Int).SetUint64(withdrawalHeader.Time)
@@ -183,7 +183,7 @@ func chainID(ctx context.Context, clients ...any) (*big.Int, error) {
 
 func l2HeaderForGame(ctx context.Context, l2HeaderCl HeaderClient, gameType gameTypes.GameType, sequence *big.Int) (*types.Header, error) {
 	switch gameType {
-	case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType:
+	case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType, gameTypes.FastGameType:
 		header, err := l2HeaderCl.HeaderByNumber(ctx, sequence)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get l2 header %v: %w", sequence, err)
@@ -247,7 +247,7 @@ func findLatestWithdrawalGameCandidate(ctx context.Context, disputeGameFactoryCo
 
 func gameSequenceAndOutputRoot(game bindings.IDisputeGameFactoryGameSearchResult, gameType gameTypes.GameType, l2ChainID *big.Int) (*big.Int, common.Hash, bool, error) {
 	switch gameType {
-	case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType:
+	case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType, gameTypes.FastGameType:
 		if len(game.ExtraData) < 32 {
 			return nil, common.Hash{}, false, fmt.Errorf("legacy game extra data is %d bytes, need at least 32", len(game.ExtraData))
 		}

@@ -47,7 +47,7 @@ func ForGamePublished(ctx context.Context, client *ethclient.Client, optimismPor
 
 		var gameSequenceNumber *big.Int
 		switch gameTypes.GameType(respectedGameType) {
-		case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType:
+		case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType, gameTypes.FastGameType:
 			gameSequenceNumber = new(big.Int).SetBytes(latestGame.ExtraData[0:32])
 		case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
 			gameSequenceNumber = new(big.Int).SetBytes(latestGame.ExtraData[1:9])
@@ -58,7 +58,7 @@ func ForGamePublished(ctx context.Context, client *ethclient.Client, optimismPor
 	}
 	outputBlockNum, err := AndGet(ctx, time.Second, getL2BlockFromLatestGame, func(latestSeqnum *big.Int) bool {
 		switch gameTypes.GameType(respectedGameType) {
-		case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType:
+		case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType, gameTypes.FastGameType:
 			return latestSeqnum.Cmp(l2BlockNumber) >= 0
 		case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
 			return bigs.Uint64Strict(latestSeqnum) >= l2SequenceNumber
