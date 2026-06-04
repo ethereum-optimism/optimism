@@ -2,13 +2,13 @@
 
 /// Offset before deadline expiry at which a tx becomes "stale" and triggers revalidation.
 const OFFSET_TIME: u64 = 60;
-/// Maximum number of supervisor requests at the same time
-const MAX_SUPERVISOR_QUERIES: usize = 10;
+/// Maximum number of interop filter requests at the same time.
+const MAX_INTEROP_QUERIES: usize = 10;
 
 use crate::{
     conditional::MaybeConditionalTransaction,
     interop::{MaybeInteropTransaction, is_interop_tx, is_stale_interop, is_valid_interop},
-    supervisor::SupervisorClient,
+    interop_filter::InteropFilterClient,
     validator::CHECK_ACCESS_LIST_TIMEOUT_SECS,
 };
 use alloy_consensus::{BlockHeader, conditional::BlockConditionalAttributes};
@@ -50,8 +50,8 @@ struct MaintainPoolInteropMetrics {
     /// Counter for interop transactions that became stale and need revalidation
     stale_interop_transactions: Counter,
     // TODO: we also should add metric for (hash, counter) to check number of validation per tx
-    /// Histogram for measuring supervisor revalidation duration (congestion metric)
-    supervisor_revalidation_duration_seconds: Histogram,
+    /// Histogram for measuring interop revalidation duration (congestion metric).
+    interop_revalidation_duration_seconds: Histogram,
 }
 
 impl MaintainPoolInteropMetrics {
@@ -69,10 +69,10 @@ impl MaintainPoolInteropMetrics {
         self.stale_interop_transactions.increment(count as u64);
     }
 
-    /// Record supervisor revalidation duration
+    /// Records interop revalidation duration.
     #[inline]
-    fn record_supervisor_duration(&self, duration: std::time::Duration) {
-        self.supervisor_revalidation_duration_seconds.record(duration.as_secs_f64());
+    fn record_interop_duration(&self, duration: std::time::Duration) {
+        self.interop_revalidation_duration_seconds.record(duration.as_secs_f64());
     }
 }
 /// Returns a spawnable future for maintaining the state of the conditional txs in the transaction
@@ -131,7 +131,7 @@ where
 pub fn maintain_transaction_pool_interop_future<N, Pool, St>(
     pool: Pool,
     events: St,
-    supervisor_client: SupervisorClient,
+    interop_client: InteropFilterClient,
 ) -> BoxFuture<'static, ()>
 where
     N: NodePrimitives,
@@ -140,7 +140,7 @@ where
     St: Stream<Item = CanonStateNotification<N>> + Send + Unpin + 'static,
 {
     async move {
-        maintain_transaction_pool_interop(pool, events, supervisor_client).await;
+        maintain_transaction_pool_interop(pool, events, interop_client).await;
     }
     .boxed()
 }
@@ -152,7 +152,7 @@ where
 pub async fn maintain_transaction_pool_interop<N, Pool, St>(
     pool: Pool,
     mut events: St,
-    supervisor_client: SupervisorClient,
+    interop_client: InteropFilterClient,
 ) where
     N: NodePrimitives,
     Pool: TransactionPool,
@@ -172,7 +172,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
             // If failsafe is active, evict ALL interop txs and skip revalidation.
             // Belt-and-suspenders with poll_failsafe: catches any tx that raced past
             // the ingress check or was added between poll_failsafe transition ticks.
-            if supervisor_client.is_failsafe_enabled() {
+            if interop_client.is_failsafe_enabled() {
                 let interop_hashes: Vec<_> = pool
                     .pooled_transactions()
                     .iter()
@@ -209,11 +209,11 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                 metrics.inc_stale_tx_interop(to_revalidate.len());
 
                 let revalidation_start = Instant::now();
-                let revalidation_stream = supervisor_client.revalidate_interop_txs_stream(
+                let revalidation_stream = interop_client.revalidate_interop_txs_stream(
                     to_revalidate,
                     timestamp,
                     CHECK_ACCESS_LIST_TIMEOUT_SECS,
-                    MAX_SUPERVISOR_QUERIES,
+                    MAX_INTEROP_QUERIES,
                 );
 
                 futures_util::pin_mut!(revalidation_stream);
@@ -242,7 +242,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                     }
                 }
 
-                metrics.record_supervisor_duration(revalidation_start.elapsed());
+                metrics.record_interop_duration(revalidation_start.elapsed());
             }
 
             if !to_remove.is_empty() {
@@ -253,11 +253,11 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
     }
 }
 
-/// Background task that polls the supervisor for failsafe state every second.
+/// Background task that polls the interop filter for failsafe state every second.
 /// When failsafe transitions from disabled to enabled, evicts all interop txs
 /// from the pool immediately (does not wait for the next block event).
 /// Matches op-geth's `startBackgroundInteropFailsafeDetection` (miner/miner.go:140-165).
-pub async fn poll_failsafe<Pool>(supervisor_client: SupervisorClient, pool: Pool)
+pub async fn poll_failsafe<Pool>(interop_client: InteropFilterClient, pool: Pool)
 where
     Pool: TransactionPool,
     Pool::Transaction: MaybeInteropTransaction,
@@ -267,7 +267,7 @@ where
     let mut was_enabled = false;
     loop {
         interval.tick().await;
-        match supervisor_client.query_failsafe().await {
+        match interop_client.query_failsafe().await {
             Ok(enabled) => {
                 // On transition to enabled: evict all interop txs immediately
                 if enabled && !was_enabled {
@@ -302,12 +302,12 @@ where
 
 /// Creates a boxed future for the failsafe polling task.
 pub fn poll_failsafe_future<Pool>(
-    supervisor_client: SupervisorClient,
+    interop_client: InteropFilterClient,
     pool: Pool,
 ) -> BoxFuture<'static, ()>
 where
     Pool: TransactionPool + 'static,
     Pool::Transaction: MaybeInteropTransaction,
 {
-    Box::pin(poll_failsafe(supervisor_client, pool))
+    Box::pin(poll_failsafe(interop_client, pool))
 }

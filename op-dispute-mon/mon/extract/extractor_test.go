@@ -291,6 +291,7 @@ type mockGameCaller struct {
 	withdrawalsCalls     int
 	withdrawalsErr       error
 	withdrawals          []*contracts.WithdrawalRequest
+	resolvedCalls        int
 	resolvedErr          error
 	resolved             map[int]bool
 }
@@ -363,6 +364,7 @@ func (m *mockGameCaller) GetBalanceAndDelay(_ context.Context, _ rpcblock.Block)
 }
 
 func (m *mockGameCaller) IsResolved(_ context.Context, _ rpcblock.Block, claims ...faultTypes.Claim) ([]bool, error) {
+	m.resolvedCalls++
 	if m.resolvedErr != nil {
 		return nil, m.resolvedErr
 	}

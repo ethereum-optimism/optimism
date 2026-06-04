@@ -62,9 +62,6 @@ type Config struct {
 	// ExecutionRPC is the HTTP provider URL for execution layer.
 	ExecutionRPC string
 
-	// SupervisorRPC is the HTTP provider URL for supervisor.
-	SupervisorRPC string
-
 	// RollupBoostEnabled enables the rollup-boost healthcheck (HTTP status codes).
 	// When enabled, healthchecks are performed against ExecutionRPC + "/healthz".
 	// The client internally appends the /healthz path to ExecutionRPC.
@@ -189,7 +186,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RaftLeaderLeaseTimeout:        ctx.Duration(flags.RaftLeaderLeaseTimeout.Name),
 		NodeRPC:                       ctx.String(flags.NodeRPC.Name),
 		ExecutionRPC:                  ctx.String(flags.ExecutionRPC.Name),
-		SupervisorRPC:                 ctx.String(flags.SupervisorRPC.Name),
 		RollupBoostEnabled:            ctx.Bool(flags.RollupBoostEnabled.Name),
 		RollupBoostHealthcheckTimeout: ctx.Duration(flags.RollupBoostHealthcheckTimeout.Name),
 		RollupBoostNextEnabled:        ctx.Bool(flags.RollupBoostNextEnabled.Name),

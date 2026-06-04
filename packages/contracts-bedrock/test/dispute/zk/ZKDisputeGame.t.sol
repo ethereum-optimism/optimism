@@ -8,6 +8,7 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
 import {
+    AnchorRootNotFound,
     BadExtraData,
     IncorrectBondAmount,
     UnexpectedRootClaim,
@@ -33,6 +34,7 @@ import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 
 /// @title ZKDisputeGame_TestInit
@@ -515,6 +517,27 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         assertEq(anchorGame.startingRootHash().raw(), anchorRoot.raw());
         assertEq(anchorGame.startingBlockNumber(), anchorSeqNum);
         assertEq(anchorGame.parentIndex(), type(uint32).max);
+    }
+
+    function test_initialize_zeroAnchorRoot_reverts() public {
+        // Mock the anchor state registry to return a zero root hash, simulating a misconfigured
+        // or uninitialized anchor state. Only genesis games (parentIndex == uint32.max) read
+        // from the anchor directly, so we target that path.
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
+            abi.encode(Hash.wrap(bytes32(0)), anchorL2SequenceNumber)
+        );
+
+        vm.startPrank(proposer);
+        vm.deal(proposer, 1 ether);
+        vm.expectRevert(AnchorRootNotFound.selector);
+        disputeGameFactory.create{ value: 1 ether }(
+            gameType,
+            Claim.wrap(keccak256("zero-anchor-claim")),
+            abi.encodePacked(anchorL2SequenceNumber + 5000, type(uint32).max)
+        );
+        vm.stopPrank();
     }
 
     function test_initialize_notRespectedGameType_succeeds() public {
@@ -1422,6 +1445,22 @@ contract ZKDisputeGame_Credit_Test is ZKDisputeGame_TestInit {
         // Before closeGame is called, bondDistributionMode is UNDECIDED.
         // credit() should default to returning normalModeCredit.
         assertEq(game.credit(proposer), 0);
+    }
+}
+
+/// @title ZKDisputeGame_RootClaim_Test
+/// @notice Tests the `rootClaimByChainId` function of `ZKDisputeGame`.
+contract ZKDisputeGame_RootClaim_Test is ZKDisputeGame_TestInit {
+    /// @notice Tests that rootClaimByChainId returns the same value as rootClaim() for the correct chain ID.
+    function test_rootClaimByChainId_succeeds() public view {
+        assertEq(game.rootClaimByChainId(game.l2ChainId()).raw(), game.rootClaim().raw());
+    }
+
+    /// @notice Tests that rootClaimByChainId reverts when called with a valid but wrong chain ID.
+    function testFuzz_rootClaimByChainId_wrongChainId_reverts(uint256 _chainId) public {
+        vm.assume(_chainId != game.l2ChainId());
+        vm.expectRevert(UnknownChainId.selector);
+        game.rootClaimByChainId(_chainId);
     }
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
@@ -24,7 +25,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 // MockL1OriginSelector is a shim to override the origin as sequencer, so we can force it to stay on an older origin.
@@ -275,8 +275,8 @@ func (s *L2Sequencer) ActBuildL2ToIsthmus(t Testing) {
 // we can use ActBuildL2ToTime with (e.g.) the JovianTime.
 
 func (s *L2Sequencer) ActBuildL2ToInterop(t Testing) {
-	require.NotNil(t, s.RollupCfg.InteropTime, "cannot activate InteropTime when it is not scheduled")
-	for s.L2Unsafe().Time < *s.RollupCfg.InteropTime {
+	require.NotNil(t, s.RollupCfg.LagoonTime, "cannot activate LagoonTime when it is not scheduled")
+	for s.L2Unsafe().Time < *s.RollupCfg.LagoonTime {
 		s.ActL2EmptyBlock(t)
 	}
 }

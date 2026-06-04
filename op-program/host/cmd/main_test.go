@@ -9,16 +9,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/kvstore"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
-	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 
@@ -153,7 +153,7 @@ func TestDataDir(t *testing.T) {
 }
 
 func TestDataFormat(t *testing.T) {
-	for _, format := range types.SupportedDataFormats {
+	for _, format := range kvstore.SupportedDataFormats {
 		format := format
 		t.Run(fmt.Sprintf("Valid-%v", format), func(t *testing.T) {
 			cfg := configForArgs(t, addRequiredArgs("--data.format", string(format)))

@@ -55,11 +55,13 @@ async fn monitor_transaction_gc(rbuilder: LocalInstance) -> eyre::Result<()> {
 
         // since we created the 10 transactions with increasing block ranges, as we generate blocks
         // one transaction will be gc on each block.
-        // transactions from [0, i] should be dropped, transactions from [i+1, 10] should be queued
-        for j in 0..=i {
+        // The pool considers a bundle "exceeded" when current_block > block_number_max (strict
+        // greater than), so after the i-th iteration (current block = latest + i + 1) the bundles
+        // with max in [latest+1, latest+i] are dropped and the rest are still pending.
+        for j in 0..i {
             assert!(rbuilder.pool().is_dropped(*pending_txn[j].tx_hash()));
         }
-        for j in i + 1..10 {
+        for j in i..10 {
             assert!(rbuilder.pool().is_pending(*pending_txn[j].tx_hash()));
         }
     }
@@ -156,11 +158,16 @@ async fn bundle(rbuilder: LocalInstance) -> eyre::Result<()> {
     // After the block the transaction is still pending in the pool
     assert!(rbuilder.pool().is_pending(*reverted_bundle.tx_hash()));
 
-    // Test 3: Chain progresses beyond the bundle range. The transaction is dropped from the pool
+    // Test 3: Chain reaches the bundle's max block. The bundle is still in range (current == max)
+    // and therefore still pending in the pool.
     driver.build_new_block().await?; // Block 4
+    assert!(rbuilder.pool().is_pending(*reverted_bundle.tx_hash()));
+
+    // Test 4: Chain progresses beyond the bundle range. The transaction is dropped from the pool.
+    driver.build_new_block().await?; // Block 5
     assert!(rbuilder.pool().is_dropped(*reverted_bundle.tx_hash()));
 
-    driver.build_new_block().await?; // Block 5
+    driver.build_new_block().await?; // Block 6
     assert!(rbuilder.pool().is_dropped(*reverted_bundle.tx_hash()));
 
     Ok(())
@@ -419,15 +426,22 @@ async fn check_transaction_receipt_status_message(rbuilder: LocalInstance) -> ey
         .await?;
     let tx_hash = reverting_tx.tx_hash();
 
+    let _ = driver.build_new_block().await?; // Block 1
+    let receipt = provider.get_transaction_receipt(*tx_hash).await?;
+    assert!(receipt.is_none());
+
+    let _ = driver.build_new_block().await?; // Block 2
+    let receipt = provider.get_transaction_receipt(*tx_hash).await?;
+    assert!(receipt.is_none());
+
+    // Block 3 is the bundle's max block. The bundle is still in range (current == max) so it is
+    // still pending and the receipt is not yet a hard error.
     let _ = driver.build_new_block().await?;
     let receipt = provider.get_transaction_receipt(*tx_hash).await?;
     assert!(receipt.is_none());
 
-    let _ = driver.build_new_block().await?;
-    let receipt = provider.get_transaction_receipt(*tx_hash).await?;
-    assert!(receipt.is_none());
-
-    // Dropped
+    // Block 4 advances past the bundle's max block, the pool drops the transaction and the
+    // receipt RPC reports it as dropped.
     let _ = driver.build_new_block().await?;
     let receipt = provider.get_transaction_receipt(*tx_hash).await;
 

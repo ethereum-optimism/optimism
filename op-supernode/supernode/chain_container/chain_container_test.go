@@ -13,6 +13,7 @@ import (
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -25,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 )
@@ -34,6 +36,7 @@ type mockVirtualNode struct {
 	mu           sync.Mutex
 	startCalled  int
 	stopCalled   int
+	state        virtual_node.VNState
 	startErr     error
 	stopErr      error
 	startFunc    func(ctx context.Context) error
@@ -54,6 +57,13 @@ type mockVirtualNode struct {
 	// instead of the synthesised default built from safeHeadL1/safeHeadL2.
 	// When nil, the default synthesis below is used.
 	syncStatusOverride func() (*eth.SyncStatus, error)
+
+	// Decouples FirstSafeHeadEntry's result from safeHeadL1/L2 (read by
+	// SyncStatus, SafeHeadAtL1, etc.).
+	firstSafeHeadEntryOverride func() (eth.BlockID, eth.BlockID, error)
+
+	// Order in which mock methods were invoked.
+	methodCalls []string
 }
 
 func newMockVirtualNode() *mockVirtualNode {
@@ -65,6 +75,7 @@ func newMockVirtualNode() *mockVirtualNode {
 func (m *mockVirtualNode) Start(ctx context.Context) error {
 	m.mu.Lock()
 	m.startCalled++
+	m.state = virtual_node.VNStateRunning
 	callCount := m.startCalled
 	m.mu.Unlock()
 
@@ -74,26 +85,43 @@ func (m *mockVirtualNode) Start(ctx context.Context) error {
 	}
 
 	if m.startFunc != nil {
-		return m.startFunc(ctx)
+		err := m.startFunc(ctx)
+		m.setState(virtual_node.VNStateStopped)
+		return err
 	}
 
 	if m.blockOnStart {
 		<-ctx.Done()
+		m.setState(virtual_node.VNStateStopped)
 		return ctx.Err()
 	}
 
+	m.setState(virtual_node.VNStateStopped)
 	return m.startErr
 }
 
 func (m *mockVirtualNode) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	m.stopCalled++
+	m.state = virtual_node.VNStateStopped
 	m.mu.Unlock()
 
 	if m.stopFunc != nil {
 		return m.stopFunc(ctx)
 	}
 	return m.stopErr
+}
+
+func (m *mockVirtualNode) State() virtual_node.VNState {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.state
+}
+
+func (m *mockVirtualNode) setState(state virtual_node.VNState) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.state = state
 }
 
 // SafeTimestamp implements virtual_node.VirtualNode SafeTimestamp
@@ -111,6 +139,17 @@ func (m *mockVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) 
 	return m.safeHeadL1, m.safeHeadErr
 }
 
+// FirstSafeHeadEntry implements virtual_node.VirtualNode FirstSafeHeadEntry
+func (m *mockVirtualNode) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	m.mu.Lock()
+	m.methodCalls = append(m.methodCalls, "FirstSafeHeadEntry")
+	m.mu.Unlock()
+	if m.firstSafeHeadEntryOverride != nil {
+		return m.firstSafeHeadEntryOverride()
+	}
+	return m.safeHeadL1, m.safeHeadL2, m.safeHeadErr
+}
+
 // LastL1 implements virtual_node.VirtualNode LastL1
 func (m *mockVirtualNode) LastL1(ctx context.Context) (eth.BlockID, error) {
 	return m.safeHeadL1, m.safeHeadErr
@@ -118,6 +157,9 @@ func (m *mockVirtualNode) LastL1(ctx context.Context) (eth.BlockID, error) {
 
 // SyncStatus implements virtual_node.VirtualNode SyncStatus
 func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	m.mu.Lock()
+	m.methodCalls = append(m.methodCalls, "SyncStatus")
+	m.mu.Unlock()
 	if m.syncStatusOverride != nil {
 		return m.syncStatusOverride()
 	}
@@ -133,14 +175,59 @@ func (m *mockVirtualNode) SyncStatus(ctx context.Context) (*eth.SyncStatus, erro
 
 // SafeDB is not required by VirtualNode in these tests
 
+type fakeRPCRouterGate struct {
+	mu             sync.Mutex
+	calls          []string
+	handlerChainID string
+	handler        http.Handler
+	readyChainID   string
+	ready          func() bool
+	removedChainID string
+}
+
+func (f *fakeRPCRouterGate) SetHandler(chainID string, h http.Handler) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "handler")
+	f.handlerChainID = chainID
+	f.handler = h
+}
+
+func (f *fakeRPCRouterGate) SetReadinessCheck(chainID string, fn func() bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "ready")
+	f.readyChainID = chainID
+	f.ready = fn
+}
+
+func (f *fakeRPCRouterGate) RemoveHandler(chainID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "remove")
+	f.removedChainID = chainID
+}
+
+func (f *fakeRPCRouterGate) snapshot() (calls []string, handlerChainID string, readyChainID string, ready func() bool, removedChainID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.calls...), f.handlerChainID, f.readyChainID, f.ready, f.removedChainID
+}
+
 // mockEngineController is a mock implementation of engine_controller.EngineController
 type mockEngineController struct {
-	rewindToTimestampCalled  int
-	rewindTimestamp          uint64
+	rewindCalls              int
+	rewindTarget             *eth.ExecutionPayloadEnvelope
 	rewindErr                error
-	rewindFunc               func(ctx context.Context, timestamp uint64) error // optional custom behavior
+	rewindFunc               func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error // optional custom behavior
 	l2BlockRefByNumberResult eth.L2BlockRef
 	l2BlockRefByNumberErr    error
+	outputV0Result           *eth.OutputV0
+	outputV0Err              error
+	payloadByHashResult      *eth.ExecutionPayloadEnvelope
+	payloadByHashErr         error
+	payloadByNumberResult    *eth.ExecutionPayloadEnvelope
+	payloadByNumberErr       error
 }
 
 func (m *mockEngineController) BlockAtTimestamp(ctx context.Context, ts uint64, label eth.BlockLabel) (eth.L2BlockRef, error) {
@@ -151,8 +238,12 @@ func (m *mockEngineController) L2BlockRefByNumber(ctx context.Context, num uint6
 	return m.l2BlockRefByNumberResult, m.l2BlockRefByNumberErr
 }
 
+func (m *mockEngineController) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
+
 func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
-	return nil, nil
+	return m.outputV0Result, m.outputV0Err
 }
 
 func (m *mockEngineController) OutputV0ByBlockHash(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
@@ -195,13 +286,21 @@ func newMockEngineController() *mockEngineController {
 func (m *mockEngineController) SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }
-func (m *mockEngineController) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
-	m.rewindToTimestampCalled++
-	m.rewindTimestamp = timestamp
+func (m *mockEngineController) Rewind(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
+	m.rewindCalls++
+	m.rewindTarget = target
 	if m.rewindFunc != nil {
-		return m.rewindFunc(ctx, timestamp)
+		return m.rewindFunc(ctx, target)
 	}
 	return m.rewindErr
+}
+
+func (m *mockEngineController) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	return m.payloadByHashResult, m.payloadByHashErr
+}
+
+func (m *mockEngineController) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return m.payloadByNumberResult, m.payloadByNumberErr
 }
 
 // Interface conformance assertion
@@ -209,6 +308,25 @@ var _ engine_controller.EngineController = (*mockEngineController)(nil)
 
 func createTestLogger(t testing.TB) gethlog.Logger {
 	return testlog.Logger(t, gethlog.LevelDebug)
+}
+
+// mustNewChainContainer builds a chain container and fails the test on error.
+func mustNewChainContainer(
+	t testing.TB,
+	chainID eth.ChainID,
+	vncfg *opnodecfg.Config,
+	log gethlog.Logger,
+	cfg config.CLIConfig,
+	initOverload *rollupNode.InitializationOverrides,
+	rpcHandler *oprpc.Handler,
+	rpcRouter RPCRouterGate,
+	addMetricsRegistry func(key string, g prometheus.Gatherer),
+	metrics *resources.SupernodeMetrics,
+) InteropChain {
+	t.Helper()
+	container, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, rpcHandler, rpcRouter, addMetricsRegistry, metrics)
+	require.NoError(t, err)
+	return container
 }
 
 // TestChainContainer_Constructor tests initialization and configuration
@@ -222,7 +340,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 
 	t.Run("creates container with correct config", func(t *testing.T) {
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 
 		require.NotNil(t, container)
 
@@ -242,7 +360,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 		cfg := config.CLIConfig{
 			DataDir: dataDir,
 		}
-		container := NewChainContainer(eth.ChainIDFromUInt64(420), vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, eth.ChainIDFromUInt64(420), vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -259,7 +377,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 				ListenPort: 9545,
 			},
 		}
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -269,7 +387,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 
 	t.Run("appVersion set correctly", func(t *testing.T) {
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -281,7 +399,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 		cfg := config.CLIConfig{
 			DataDir: dataDir,
 		}
-		container := NewChainContainer(eth.ChainIDFromUInt64(420), vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, eth.ChainIDFromUInt64(420), vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -306,7 +424,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 		}
 
 		for _, tc := range testCases {
-			container := NewChainContainer(tc.chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+			container := mustNewChainContainer(t, tc.chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 			impl, ok := container.(*simpleChainContainer)
 			require.True(t, ok)
 
@@ -315,6 +433,122 @@ func TestChainContainer_Constructor(t *testing.T) {
 			require.Equal(t, expected, result, "subPath should work for chain %d", tc.chainID)
 		}
 	})
+}
+
+// TestChainContainer_EngineControllerNotInitWhenNoL2 verifies that a chain with
+// no L2 engine configured leaves the engine controller nil.
+func TestChainContainer_EngineControllerNotInitWhenNoL2(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig() // no L2 endpoint configured
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+	require.Nil(t, impl.engine, "engine should be nil when no L2 endpoint is configured")
+}
+
+// TestChainContainer_EngineControllerInitInConstructor verifies that, when an L2
+// endpoint is configured, the engine controller is set up eagerly in the
+// constructor. Because the dial is lazy this never blocks on a reachable EL, so
+// the controller is available immediately and usable once the EL comes up,
+// without waiting for a virtual-node restart.
+func TestChainContainer_EngineControllerInitInConstructor(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	vncfg.L2 = &opnodecfg.L2EndpointConfig{L2EngineAddr: "http://unused.example"}
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	expectedOutput := &eth.OutputV0{BlockHash: common.Hash{0x42}}
+	mockEngine := &mockEngineController{outputV0Result: expectedOutput}
+
+	prevSetup := newEngineControllerFromConfig
+	newEngineControllerFromConfig = func(ctx context.Context, log gethlog.Logger, vncfg *opnodecfg.Config) (engine_controller.EngineController, error) {
+		return mockEngine, nil
+	}
+	t.Cleanup(func() { newEngineControllerFromConfig = prevSetup })
+
+	container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+	require.NotNil(t, impl.engine, "engine should be initialized in constructor when L2 is configured")
+
+	out, err := container.OutputV0AtBlockNumber(context.Background(), 0)
+	require.NoError(t, err)
+	require.Equal(t, expectedOutput, out, "calls should dispatch to the engine set up in the constructor")
+}
+
+// TestChainContainer_EngineControllerSetupErrorFailsConstruction verifies that a
+// fatal engine-controller setup error aborts construction rather than being
+// swallowed, since a chain that can never reach its engine must not start.
+func TestChainContainer_EngineControllerSetupErrorFailsConstruction(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	vncfg.L2 = &opnodecfg.L2EndpointConfig{L2EngineAddr: "http://unused.example"}
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	setupErr := errors.New("bad engine config")
+	prevSetup := newEngineControllerFromConfig
+	newEngineControllerFromConfig = func(ctx context.Context, log gethlog.Logger, vncfg *opnodecfg.Config) (engine_controller.EngineController, error) {
+		return nil, setupErr
+	}
+	t.Cleanup(func() { newEngineControllerFromConfig = prevSetup })
+
+	_, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	require.ErrorIs(t, err, setupErr)
+}
+
+func TestChainContainerIsRPCReady(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	log := createTestLogger(t)
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	tests := []struct {
+		name    string
+		hasVN   bool
+		vnState virtual_node.VNState
+		pause   bool
+		stop    bool
+		want    bool
+	}{
+		{name: "no virtual node", want: false},
+		{name: "virtual node not running", hasVN: true, vnState: virtual_node.VNStateNotStarted, want: false},
+		{name: "virtual node running", hasVN: true, vnState: virtual_node.VNStateRunning, want: true},
+		{name: "paused closes gate", hasVN: true, vnState: virtual_node.VNStateRunning, pause: true, want: false},
+		{name: "stopped closes gate", hasVN: true, vnState: virtual_node.VNStateRunning, stop: true, want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			vncfg := createTestVNConfig()
+			cfg := createTestCLIConfig(t.TempDir())
+			container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+			impl, ok := container.(*simpleChainContainer)
+			require.True(t, ok)
+
+			if tc.hasVN {
+				mockVN := newMockVirtualNode()
+				mockVN.setState(tc.vnState)
+				impl.setVN(mockVN)
+			}
+			impl.pause.Store(tc.pause)
+			impl.stop.Store(tc.stop)
+
+			require.Equal(t, tc.want, impl.IsRPCReady())
+		})
+	}
 }
 
 // TestChainContainer_Lifecycle tests Start/Stop behavior
@@ -328,7 +562,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Run("Start respects stop flag", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -355,7 +589,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Run("Stop sets stop flag", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -370,7 +604,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Run("signals stopped channel on exit", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -400,7 +634,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Run("context cancellation stops restart loop", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -441,7 +675,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Run("Stop flag stops restart loop", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -488,7 +722,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 	t.Run("Pause sets pause flag", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -502,7 +736,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 	t.Run("Resume clears pause flag", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -518,7 +752,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 	t.Run("paused container doesn't start VN, resumed does", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -584,152 +818,24 @@ func TestChainContainer_PauseResume(t *testing.T) {
 
 // TestChainContainer_RewindEngine tests the RewindEngine method
 func TestChainContainer_RewindEngine(t *testing.T) {
-	t.Run("calls RewindToTimestamp on engine controller and stops VN", func(t *testing.T) {
-		// Setup
+	makeTarget := func(timestamp uint64) *eth.ExecutionPayloadEnvelope {
+		return &eth.ExecutionPayloadEnvelope{
+			ExecutionPayload: &eth.ExecutionPayload{
+				BlockNumber: eth.Uint64Quantity(99),
+				Timestamp:   eth.Uint64Quantity(timestamp),
+				BlockHash:   common.Hash{0xaa},
+				ParentHash:  common.Hash{0xab},
+			},
+		}
+	}
+
+	t.Run("calls engine Rewind with the supplied target and stops VN", func(t *testing.T) {
 		mockVN := newMockVirtualNode()
 		mockEngine := newMockEngineController()
-
-		chainID := eth.ChainIDFromUInt64(420)
-		log := createTestLogger(t)
-
-		// Create container with mocks directly injected (no Start loop needed)
-		c := &simpleChainContainer{
-			chainID: chainID,
-			log:     log,
-			engine:  mockEngine,
-			vn:      mockVN,
-		}
-
-		// Call RewindEngine
-		ctx := context.Background()
-		rewindTimestamp := uint64(1234567890)
-		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: rewindTimestamp + 2}
-		err := c.RewindEngine(ctx, rewindTimestamp, invalidatedBlock)
-		require.NoError(t, err)
-
-		// Verify RewindToTimestamp was called with correct timestamp
-		require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should be called once")
-		require.Equal(t, rewindTimestamp, mockEngine.rewindTimestamp, "RewindToTimestamp should be called with correct timestamp")
-
-		// Verify the virtual node was stopped
-		mockVN.mu.Lock()
-		require.Equal(t, 1, mockVN.stopCalled, "Virtual node should be stopped once")
-		mockVN.mu.Unlock()
-
-		// Verify container state: paused should be false (resumed), allowing new VN to start
-		require.False(t, c.pause.Load(), "Container should be resumed after rewind")
-	})
-
-	t.Run("retries transient errors and eventually fails", func(t *testing.T) {
-		// Setup - transient error should be retried
-		mockVN := newMockVirtualNode()
-		mockEngine := newMockEngineController()
-		mockEngine.rewindErr = engine_controller.ErrRewindFCUSyntheticFailed
-
-		chainID := eth.ChainIDFromUInt64(420)
-		log := createTestLogger(t)
-
-		c := &simpleChainContainer{
-			chainID: chainID,
-			log:     log,
-			engine:  mockEngine,
-			vn:      mockVN,
-		}
-
-		// Call RewindEngine - should retry and eventually fail
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second) // this will prevent infinite retries
-		defer cancel()
-		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
-		err := c.RewindEngine(ctx, 12345, invalidatedBlock)
-		require.Error(t, err)
-		require.ErrorIs(t, err, context.DeadlineExceeded)
-
-		// Verify RewindToTimestamp was called multiple times (retry attempts)
-		require.Greater(t, mockEngine.rewindToTimestampCalled, 1, "RewindToTimestamp should be retried at least once")
-
-		// Container should be resumed even after a failed rewind, so the Start() loop
-		// can detect the stop flag and exit cleanly instead of spinning forever.
-		require.False(t, c.pause.Load(), "Container should be resumed (not stuck paused) after failed rewind")
-	})
-
-	t.Run("does not retry critical errors", func(t *testing.T) {
-		criticalErrors := []struct {
-			name string
-			err  error
-		}{
-			{"ErrNoEngineClient", engine_controller.ErrNoEngineClient},
-			{"ErrNoRollupConfig", engine_controller.ErrNoRollupConfig},
-			{"ErrRewindComputeTargetsFailed", engine_controller.ErrRewindComputeTargetsFailed},
-			{"ErrRewindTimestampToBlockConversion", engine_controller.ErrRewindTimestampToBlockConversion},
-		}
-
-		for _, tc := range criticalErrors {
-			t.Run(tc.name, func(t *testing.T) {
-				// Setup - critical error should not be retried
-				mockVN := newMockVirtualNode()
-				mockEngine := newMockEngineController()
-				mockEngine.rewindErr = tc.err
-
-				chainID := eth.ChainIDFromUInt64(420)
-				log := createTestLogger(t)
-
-				c := &simpleChainContainer{
-					chainID: chainID,
-					log:     log,
-					engine:  mockEngine,
-					vn:      mockVN,
-				}
-
-				// Call RewindEngine - should fail immediately without retry
-				ctx := context.Background()
-				invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
-				err := c.RewindEngine(ctx, 12345, invalidatedBlock)
-				require.Error(t, err)
-				require.ErrorIs(t, err, tc.err)
-
-				// Verify RewindToTimestamp was called only once (no retry for critical errors)
-				require.Equal(t, 1, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be retried for critical errors")
-			})
-		}
-	})
-
-	t.Run("returns error when VN stop fails", func(t *testing.T) {
-		// Setup
-		mockVN := newMockVirtualNode()
-		mockVN.stopErr = context.DeadlineExceeded
-		mockEngine := newMockEngineController()
-
-		chainID := eth.ChainIDFromUInt64(420)
-		log := createTestLogger(t)
-
-		c := &simpleChainContainer{
-			chainID: chainID,
-			log:     log,
-			engine:  mockEngine,
-			vn:      mockVN,
-		}
-
-		// Call RewindEngine - should fail on VN stop
-		ctx := context.Background()
-		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
-		err := c.RewindEngine(ctx, 12345, invalidatedBlock)
-		require.Error(t, err)
-		require.ErrorIs(t, err, context.DeadlineExceeded)
-
-		// Verify RewindToTimestamp was NOT called since VN stop failed
-		require.Equal(t, 0, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should not be called when VN stop fails")
-	})
-
-	t.Run("succeeds after transient error on retry", func(t *testing.T) {
-		// Setup - fail first 2 attempts, succeed on 3rd
-		mockVN := newMockVirtualNode()
-		mockEngine := newMockEngineController()
-		failCount := 0
-		mockEngine.rewindFunc = func(ctx context.Context, timestamp uint64) error {
-			failCount++
-			if failCount < 3 {
-				return engine_controller.ErrRewindFCUTargetFailed
-			}
+		// RewindEngine blocks on WaitReady after Resume; simulate the Start
+		// loop bringing the VN back up immediately after the successful Rewind.
+		mockEngine.rewindFunc = func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
+			mockVN.setState(virtual_node.VNStateRunning)
 			return nil
 		}
 
@@ -743,18 +849,409 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 			vn:      mockVN,
 		}
 
-		// Call RewindEngine - should succeed after retries
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		rewindTimestamp := uint64(1234567890)
+		target := makeTarget(rewindTimestamp)
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: rewindTimestamp + 2}
+
+		require.NoError(t, c.RewindEngine(ctx, target, invalidatedBlock))
+
+		require.Equal(t, 1, mockEngine.rewindCalls, "engine.Rewind should be called once")
+		require.Same(t, target, mockEngine.rewindTarget, "engine.Rewind should receive the supplied target envelope")
+
+		mockVN.mu.Lock()
+		require.Equal(t, 1, mockVN.stopCalled, "Virtual node should be stopped once")
+		mockVN.mu.Unlock()
+
+		require.False(t, c.pause.Load(), "Container should be resumed after rewind")
+	})
+
+	t.Run("rejects nil target without touching the engine", func(t *testing.T) {
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		err := c.RewindEngine(context.Background(), nil, eth.BlockRef{})
+		require.ErrorIs(t, err, engine_controller.ErrRewindNilTarget)
+		require.Equal(t, 0, mockEngine.rewindCalls)
+	})
+
+	t.Run("retries transient errors and eventually fails", func(t *testing.T) {
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+		mockEngine.rewindErr = engine_controller.ErrRewindFCUSyntheticFailed
+
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
 		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
-		err := c.RewindEngine(ctx, 12345, invalidatedBlock)
-		require.NoError(t, err)
+		err := c.RewindEngine(ctx, makeTarget(12345), invalidatedBlock)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
 
-		// Verify RewindToTimestamp was called 3 times (2 failures + 1 success)
-		require.Equal(t, 3, mockEngine.rewindToTimestampCalled, "RewindToTimestamp should be called 3 times")
+		require.Greater(t, mockEngine.rewindCalls, 1, "engine.Rewind should be retried at least once")
+		require.False(t, c.pause.Load(), "Container should be resumed (not stuck paused) after failed rewind")
+	})
 
-		// Container should be resumed after successful rewind
+	t.Run("does not retry critical errors", func(t *testing.T) {
+		criticalErrors := []struct {
+			name string
+			err  error
+		}{
+			{"ErrNoEngineClient", engine_controller.ErrNoEngineClient},
+			{"ErrNoRollupConfig", engine_controller.ErrNoRollupConfig},
+			{"ErrRewindComputeTargetsFailed", engine_controller.ErrRewindComputeTargetsFailed},
+			{"ErrRewindTimestampToBlockConversion", engine_controller.ErrRewindTimestampToBlockConversion},
+			{"ErrRewindNilTarget", engine_controller.ErrRewindNilTarget},
+			{"ErrRewindTargetMismatch", engine_controller.ErrRewindTargetMismatch},
+		}
+
+		for _, tc := range criticalErrors {
+			t.Run(tc.name, func(t *testing.T) {
+				mockVN := newMockVirtualNode()
+				mockEngine := newMockEngineController()
+				mockEngine.rewindErr = tc.err
+
+				c := &simpleChainContainer{
+					chainID: eth.ChainIDFromUInt64(420),
+					log:     createTestLogger(t),
+					engine:  mockEngine,
+					vn:      mockVN,
+				}
+
+				invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+				err := c.RewindEngine(context.Background(), makeTarget(12345), invalidatedBlock)
+				require.Error(t, err)
+				require.ErrorIs(t, err, tc.err)
+				require.Equal(t, 1, mockEngine.rewindCalls, "engine.Rewind should not be retried for critical errors")
+			})
+		}
+	})
+
+	t.Run("returns error when VN stop fails", func(t *testing.T) {
+		mockVN := newMockVirtualNode()
+		mockVN.stopErr = context.DeadlineExceeded
+		mockEngine := newMockEngineController()
+
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+		err := c.RewindEngine(context.Background(), makeTarget(12345), invalidatedBlock)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.Equal(t, 0, mockEngine.rewindCalls, "engine.Rewind should not be called when VN stop fails")
+	})
+
+	t.Run("treats DeadlineExceeded from engine as transient and retries", func(t *testing.T) {
+		// The caller's ctx is the long-lived service ctx with no deadline, so a
+		// DeadlineExceeded from engine.Rewind originates from a per-call RPC deadline
+		// (e.g. a slow synthetic FCU against op-reth). The retry loop must keep going.
+		// See ethereum-optimism/optimism#21015.
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+		callCount := 0
+		// RewindEngine blocks on WaitReady after Resume; simulate the Start
+		// loop bringing the VN back up immediately after the successful Rewind.
+		mockEngine.rewindFunc = func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
+			callCount++
+			if callCount < 3 {
+				return context.DeadlineExceeded
+			}
+			mockVN.setState(virtual_node.VNStateRunning)
+			return nil
+		}
+
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+
+		require.NoError(t, c.RewindEngine(ctx, makeTarget(12345), invalidatedBlock))
+		require.Equal(t, 3, mockEngine.rewindCalls, "engine.Rewind should be retried through DeadlineExceeded errors")
 		require.False(t, c.pause.Load(), "Container should be resumed after successful rewind")
 	})
+
+	t.Run("returns ctx.Err() when caller ctx is cancelled during DeadlineExceeded retries", func(t *testing.T) {
+		// In production the caller's ctx has no deadline and is only cancelled on service
+		// shutdown. Confirm that cancellation does stop the loop — otherwise it would spin
+		// forever against a permanently-broken engine even after shutdown begins.
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+		mockEngine.rewindErr = context.DeadlineExceeded
+
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+		defer cancel()
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+		err := c.RewindEngine(ctx, makeTarget(12345), invalidatedBlock)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.Greater(t, mockEngine.rewindCalls, 1, "engine.Rewind should be retried at least once before ctx expires")
+		require.False(t, c.pause.Load(), "Container should be resumed (not stuck paused) after ctx expiry")
+	})
+
+	t.Run("succeeds after transient error on retry", func(t *testing.T) {
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+		failCount := 0
+		// RewindEngine blocks on WaitReady after Resume; simulate the Start
+		// loop bringing the VN back up immediately after the successful Rewind.
+		mockEngine.rewindFunc = func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
+			failCount++
+			if failCount < 3 {
+				return engine_controller.ErrRewindFCUTargetFailed
+			}
+			mockVN.setState(virtual_node.VNStateRunning)
+			return nil
+		}
+
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			engine:  mockEngine,
+			vn:      mockVN,
+		}
+
+		invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 12347}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, c.RewindEngine(ctx, makeTarget(12345), invalidatedBlock))
+		require.Equal(t, 3, mockEngine.rewindCalls, "engine.Rewind should be called 3 times (2 failures + 1 success)")
+		require.False(t, c.pause.Load(), "Container should be resumed after successful rewind")
+	})
+}
+
+func TestChainContainer_WaitReady(t *testing.T) {
+	t.Parallel()
+
+	newReadyContainer := func(t *testing.T) *simpleChainContainer {
+		mockVN := newMockVirtualNode()
+		mockVN.state = virtual_node.VNStateRunning
+		return &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			vn:      mockVN,
+		}
+	}
+
+	t.Run("short-circuits when already ready", func(t *testing.T) {
+		t.Parallel()
+		c := newReadyContainer(t)
+		require.True(t, c.IsRPCReady())
+
+		start := time.Now()
+		err := c.WaitReady(context.Background())
+		require.NoError(t, err)
+		require.Less(t, time.Since(start), 10*time.Millisecond, "ready short-circuit should not poll")
+	})
+
+	t.Run("blocks while not ready, returns nil once ready", func(t *testing.T) {
+		t.Parallel()
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+		}
+		c.pause.Store(true)
+
+		done := make(chan error, 1)
+		go func() { done <- c.WaitReady(context.Background()) }()
+
+		select {
+		case <-done:
+			t.Fatal("WaitReady returned while container was paused")
+		case <-time.After(50 * time.Millisecond):
+		}
+
+		// Mirror the Start loop: install a fresh running VN, then unpause.
+		readyVN := newMockVirtualNode()
+		readyVN.state = virtual_node.VNStateRunning
+		c.setVN(readyVN)
+		c.pause.Store(false)
+
+		select {
+		case err := <-done:
+			require.NoError(t, err)
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("WaitReady did not return after container became ready")
+		}
+	})
+
+	t.Run("respects context cancellation", func(t *testing.T) {
+		t.Parallel()
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+		}
+		c.pause.Store(true)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- c.WaitReady(ctx) }()
+
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+
+		select {
+		case err := <-done:
+			require.Error(t, err)
+			require.ErrorIs(t, err, context.Canceled)
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("WaitReady did not return after ctx cancel")
+		}
+	})
+
+	t.Run("respects context deadline", func(t *testing.T) {
+		t.Parallel()
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+		}
+		c.pause.Store(true)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		start := time.Now()
+		err := c.WaitReady(ctx)
+		elapsed := time.Since(start)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.Greater(t, elapsed, 90*time.Millisecond)
+		require.Less(t, elapsed, 500*time.Millisecond, "should not wait beyond caller deadline")
+	})
+
+	t.Run("returns error when stopped even with running VN", func(t *testing.T) {
+		t.Parallel()
+		// Distinct from the pause path: stop=true permanently closes the gate.
+		// Locks in that WaitReady never short-circuits past a stopped container,
+		// even when a running VN is still installed.
+		runningVN := newMockVirtualNode()
+		runningVN.state = virtual_node.VNStateRunning
+		c := &simpleChainContainer{
+			chainID: eth.ChainIDFromUInt64(420),
+			log:     createTestLogger(t),
+			vn:      runningVN,
+		}
+		c.stop.Store(true)
+		require.False(t, c.IsRPCReady())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+
+		err := c.WaitReady(ctx)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+}
+
+// TestChainContainer_RewindEngine_WaitsForVNReady proves the WaitReady barrier
+// in RewindEngine: the call does not return until the chain is ready to serve
+// traffic, even when VN installation lags behind Resume.
+func TestChainContainer_RewindEngine_WaitsForVNReady(t *testing.T) {
+	t.Parallel()
+
+	mockVN := newMockVirtualNode()
+	mockVN.state = virtual_node.VNStateRunning
+	mockEngine := newMockEngineController()
+
+	// rewindCalled fires once engine.Rewind has been entered — proves
+	// RewindEngine has progressed past Pause + vn.Stop and is now committed
+	// to the Resume + WaitReady path. Using this signal instead of polling
+	// !c.pause.Load() avoids racing against the goroutine start: pause
+	// defaults to false, so a polling check could return immediately before
+	// RewindEngine ever ran.
+	rewindCalled := make(chan struct{})
+	mockEngine.rewindFunc = func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
+		close(rewindCalled)
+		return nil
+	}
+
+	c := &simpleChainContainer{
+		chainID: eth.ChainIDFromUInt64(420),
+		log:     createTestLogger(t),
+		engine:  mockEngine,
+		vn:      mockVN,
+	}
+
+	target := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: eth.Uint64Quantity(99),
+			Timestamp:   eth.Uint64Quantity(1234567890),
+			BlockHash:   common.Hash{0xaa},
+			ParentHash:  common.Hash{0xab},
+		},
+	}
+	invalidatedBlock := eth.BlockRef{Number: 100, Hash: common.Hash{0x1}, ParentHash: common.Hash{0x2}, Time: 1234567892}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() { done <- c.RewindEngine(ctx, target, invalidatedBlock) }()
+
+	// Confirm RewindEngine reached engine.Rewind. After this returns, the
+	// goroutine is committed to Resume → WaitReady. mockVN has already been
+	// Stop'd (state=Stopped), so IsRPCReady() is false and WaitReady polls.
+	select {
+	case <-rewindCalled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("engine.Rewind was not called within timeout")
+	}
+
+	// Simulate the Start loop spinning up a new VN after a delay. Until this
+	// completes, RewindEngine must remain blocked inside WaitReady.
+	const installDelay = 200 * time.Millisecond
+	start := time.Now()
+	time.Sleep(installDelay)
+	select {
+	case <-done:
+		t.Fatal("RewindEngine returned before a running VN was installed")
+	default:
+	}
+	freshVN := newMockVirtualNode()
+	freshVN.state = virtual_node.VNStateRunning
+	c.setVN(freshVN)
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("RewindEngine did not return after a running VN was installed")
+	}
+
+	require.GreaterOrEqual(t, time.Since(start), installDelay, "RewindEngine should have blocked through VN install")
+	require.True(t, c.IsRPCReady(), "container should be ready after RewindEngine returns")
 }
 
 // TestChainContainer_VirtualNodeIntegration tests interaction with VirtualNode
@@ -768,7 +1265,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 	t.Run("Start creates and starts virtual node", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -799,7 +1296,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 	t.Run("auto-restart virtual node on exit", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -837,7 +1334,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
 		metrics := resources.NewSupernodeMetrics()
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, metrics)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, metrics)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -869,7 +1366,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 	t.Run("Stop calls virtual node Stop", func(t *testing.T) {
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -904,18 +1401,11 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		cancel()
 	})
 
-	t.Run("registers handler with reverse proxy", func(t *testing.T) {
-		var setHandlerCalled bool
-		var calledChainID string
-
-		setHandler := func(id string, h http.Handler) {
-			setHandlerCalled = true
-			calledChainID = id
-		}
-
+	t.Run("registers readiness and handler with router", func(t *testing.T) {
+		router := &fakeRPCRouterGate{}
 		log := createTestLogger(t)
 		cfg := createTestCLIConfig(t.TempDir())
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, setHandler, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, router, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -925,18 +1415,49 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 			return mockVN
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
+		startDone := make(chan error, 1)
 		go func() {
-			_ = container.Start(ctx)
+			startDone <- container.Start(ctx)
 		}()
 
-		<-mockVN.startSignal
+		select {
+		case <-mockVN.startSignal:
+		case <-time.After(3 * time.Second):
+			t.Fatal("virtual node did not start")
+		}
 
 		require.Eventually(t, func() bool {
-			return setHandlerCalled && calledChainID == "420"
+			calls, handlerChainID, readyChainID, readyFn, _ := router.snapshot()
+			return len(calls) >= 2 &&
+				calls[0] == "ready" &&
+				calls[1] == "handler" &&
+				readyChainID == "420" &&
+				handlerChainID == "420" &&
+				readyFn != nil
 		}, 1*time.Second, 10*time.Millisecond)
+
+		_, _, _, readyFn, _ := router.snapshot()
+		require.True(t, readyFn())
+
+		cancel()
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer stopCancel()
+		require.NoError(t, container.Stop(stopCtx))
+
+		select {
+		case err := <-startDone:
+			require.NoError(t, err)
+		case <-time.After(3 * time.Second):
+			t.Fatal("chain container Start did not return after Stop")
+		}
+
+		require.Eventually(t, func() bool {
+			_, _, _, _, removedChainID := router.snapshot()
+			return removedChainID == "420"
+		}, time.Second, 10*time.Millisecond)
 	})
 }
 
@@ -954,7 +1475,7 @@ func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadNotFound(t *testing.T) {
 	cfg := createTestCLIConfig(t.TempDir())
 	initOverload := &rollupNode.InitializationOverrides{}
 
-	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 	impl, ok := container.(*simpleChainContainer)
 	require.True(t, ok)
 
@@ -1006,7 +1527,7 @@ func TestChainContainer_OptimisticAt_LocalSafeTipNotFoundLogsDebug(t *testing.T)
 	cfg := createTestCLIConfig(t.TempDir())
 	initOverload := &rollupNode.InitializationOverrides{}
 
-	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 	impl, ok := container.(*simpleChainContainer)
 	require.True(t, ok)
 
@@ -1040,11 +1561,17 @@ type mockVNForL1AtSafeHeadError struct {
 
 func (m *mockVNForL1AtSafeHeadError) Start(ctx context.Context) error { return nil }
 func (m *mockVNForL1AtSafeHeadError) Stop(ctx context.Context) error  { return nil }
+func (m *mockVNForL1AtSafeHeadError) State() virtual_node.VNState {
+	return virtual_node.VNStateRunning
+}
 func (m *mockVNForL1AtSafeHeadError) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
 	return eth.BlockID{}, eth.BlockID{}, nil
 }
 func (m *mockVNForL1AtSafeHeadError) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
 	return eth.BlockID{}, m.l1AtSafeHeadErr
+}
+func (m *mockVNForL1AtSafeHeadError) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, nil
 }
 func (m *mockVNForL1AtSafeHeadError) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return m.syncStatusResult, nil
@@ -1066,7 +1593,7 @@ func TestChainContainer_OptimisticAt_ErrL1AtSafeHeadUnavailable(t *testing.T) {
 	cfg := createTestCLIConfig(t.TempDir())
 	initOverload := &rollupNode.InitializationOverrides{}
 
-	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 	impl, ok := container.(*simpleChainContainer)
 	require.True(t, ok)
 
@@ -1181,7 +1708,7 @@ func TestChainContainer_LocalSafeBlockAtTimestamp(t *testing.T) {
 		vncfg.Rollup.Genesis.L2Time = tc.genesisTime
 		vncfg.Rollup.BlockTime = tc.blockTime
 
-		container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+		container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -1339,7 +1866,7 @@ func TestChainContainer_SyncStatus_UninitializedVirtualNode(t *testing.T) {
 	cfg := createTestCLIConfig(t.TempDir())
 	initOverload := &rollupNode.InitializationOverrides{}
 
-	container := NewChainContainer(chainID, createTestVNConfig(), log, cfg, initOverload, nil, nil, nil, nil)
+	container := mustNewChainContainer(t, chainID, createTestVNConfig(), log, cfg, initOverload, nil, nil, nil, nil)
 
 	status, err := container.SyncStatus(context.Background())
 	require.Nil(t, status)
@@ -1359,7 +1886,7 @@ func TestChainContainer_BlockNumberToTimestamp_RespectsGenesisBlockNumber(t *tes
 	vncfg.Rollup.Genesis.L2.Number = 100
 	vncfg.Rollup.BlockTime = 2
 
-	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 	impl, ok := container.(*simpleChainContainer)
 	require.True(t, ok)
 
@@ -1370,4 +1897,153 @@ func TestChainContainer_BlockNumberToTimestamp_RespectsGenesisBlockNumber(t *tes
 	_, err = impl.BlockNumberToTimestamp(context.Background(), 99)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "before genesis 100")
+}
+
+// Returns ErrSafeDBNotReady until the deriver's currentL1 has moved past
+// firstEntry.L1; only then is the entry's L2 final.
+func TestChainContainer_FirstSafeHeadTimestamp_StableSnapshot(t *testing.T) {
+	t.Parallel()
+
+	const blockTime = 2
+	const genesisL2Time = 1000
+
+	type tc struct {
+		name       string
+		firstEntry func() (eth.BlockID, eth.BlockID, error)
+		syncStatus func() (*eth.SyncStatus, error)
+		wantErr    error
+		wantTS     uint64
+	}
+	for _, c := range []tc{
+		{
+			name: "empty SafeDB -> ErrSafeDBNotReady",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 5}}, nil
+			},
+			wantErr: ErrSafeDBNotReady,
+		},
+		{
+			name: "deriver still on firstEntry's L1 -> ErrSafeDBNotReady",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 4}}, nil
+			},
+			wantErr: ErrSafeDBNotReady,
+		},
+		{
+			name: "deriver below firstEntry's L1 (impossible but defensive) -> ErrSafeDBNotReady",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 3}}, nil
+			},
+			wantErr: ErrSafeDBNotReady,
+		},
+		{
+			name: "deriver past firstEntry's L1 -> returns timestamp",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 5}}, nil
+			},
+			wantTS: genesisL2Time + 23*blockTime,
+		},
+		{
+			name: "SyncStatus error propagates",
+			firstEntry: func() (eth.BlockID, eth.BlockID, error) {
+				return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+			},
+			syncStatus: func() (*eth.SyncStatus, error) {
+				return nil, errors.New("rpc down")
+			},
+			wantErr: nil, // checked via Contains below
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			vncfg := createTestVNConfig()
+			vncfg.Rollup.Genesis.L2Time = genesisL2Time
+			vncfg.Rollup.BlockTime = blockTime
+			log := createTestLogger(t)
+
+			mockVN := newMockVirtualNode()
+			mockVN.firstSafeHeadEntryOverride = c.firstEntry
+			mockVN.syncStatusOverride = c.syncStatus
+
+			impl := &simpleChainContainer{
+				chainID: eth.ChainIDFromUInt64(420),
+				log:     log,
+				vncfg:   vncfg,
+				vn:      mockVN,
+			}
+
+			ts, err := impl.FirstSafeHeadTimestamp(context.Background())
+			if c.wantErr != nil {
+				require.ErrorIs(t, err, c.wantErr)
+				require.Zero(t, ts)
+				return
+			}
+			if c.name == "SyncStatus error propagates" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "sync status")
+				require.Contains(t, err.Error(), "rpc down")
+				require.Zero(t, ts)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, c.wantTS, ts)
+		})
+	}
+}
+
+// SyncStatus must be sampled before FirstSafeHeadEntry; the reverse order
+// admits a race where the deriver finishes firstEntry.L1 between reads.
+func TestChainContainer_FirstSafeHeadTimestamp_SamplesSyncStatusFirst(t *testing.T) {
+	t.Parallel()
+
+	vncfg := createTestVNConfig()
+	vncfg.Rollup.Genesis.L2Time = 1000
+	vncfg.Rollup.BlockTime = 2
+	log := createTestLogger(t)
+
+	mockVN := newMockVirtualNode()
+	mockVN.firstSafeHeadEntryOverride = func() (eth.BlockID, eth.BlockID, error) {
+		return eth.BlockID{Number: 4}, eth.BlockID{Number: 23}, nil
+	}
+	mockVN.syncStatusOverride = func() (*eth.SyncStatus, error) {
+		return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 5}}, nil
+	}
+
+	impl := &simpleChainContainer{
+		chainID: eth.ChainIDFromUInt64(420),
+		log:     log,
+		vncfg:   vncfg,
+		vn:      mockVN,
+	}
+
+	_, err := impl.FirstSafeHeadTimestamp(context.Background())
+	require.NoError(t, err)
+
+	mockVN.mu.Lock()
+	defer mockVN.mu.Unlock()
+	require.GreaterOrEqual(t, len(mockVN.methodCalls), 2)
+	syncIdx, firstIdx := -1, -1
+	for i, name := range mockVN.methodCalls {
+		if name == "SyncStatus" && syncIdx == -1 {
+			syncIdx = i
+		}
+		if name == "FirstSafeHeadEntry" && firstIdx == -1 {
+			firstIdx = i
+		}
+	}
+	require.NotEqual(t, -1, syncIdx, "SyncStatus should have been called")
+	require.NotEqual(t, -1, firstIdx, "FirstSafeHeadEntry should have been called")
+	require.Less(t, syncIdx, firstIdx,
+		"SyncStatus must be sampled before FirstSafeHeadEntry — the reverse order admits a race; methodCalls=%v", mockVN.methodCalls)
 }

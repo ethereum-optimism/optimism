@@ -139,6 +139,15 @@ pub struct OpRBuilderMetrics {
     pub reverted_tx_gas_used: Histogram,
     /// Gas used by reverted transactions in the latest block
     pub payload_reverted_tx_gas_used: Gauge,
+    /// Total SDM gas refunded by produced PostExec payloads.
+    pub sdm_refund_gas_total: Counter,
+    /// SDM gas refunded by the latest produced block.
+    pub sdm_refund_gas_per_block: Gauge,
+    /// Histogram of duration spent replaying flashblock txs into a canonical block to attach
+    /// the PostExec tx. Cost is O(N) per invocation in tx count, and the function is invoked
+    /// once per flashblock when SDM PostExec production is active — so cumulative per-block
+    /// cost grows ~O(N²). Useful for tracking the perf impact of the SDM PostExec path.
+    pub sdm_canonical_replay_duration: Histogram,
     /// Histogram of tx simulation duration
     pub tx_simulation_duration: Histogram,
     /// Byte size of transactions
@@ -194,6 +203,11 @@ impl OpRBuilderMetrics {
         self.bundles_reverted.record(num_bundles_reverted);
         self.payload_reverted_tx_gas_used.set(reverted_gas_used);
     }
+
+    pub fn record_sdm_refund_gas(&self, gas_refund: u64) {
+        self.sdm_refund_gas_total.increment(gas_refund);
+        self.sdm_refund_gas_per_block.set(gas_refund as f64);
+    }
 }
 
 /// Set gauge metrics for some flags so we can inspect which ones are set
@@ -204,6 +218,10 @@ pub fn record_flag_gauge_metrics(builder_args: &OpRbuilderArgs) {
         .set(builder_args.flashtestations.flashtestations_enabled as i32);
     gauge!("op_rbuilder_flags_enable_revert_protection")
         .set(builder_args.enable_revert_protection as i32);
+    // SDM opt-in starts disabled on every process boot; the value is mutated at runtime via
+    // admin_setSdmPostExecOptIn. We seed the gauge here so scrapes pre-RPC see 0 rather than
+    // missing-metric.
+    gauge!("op_rbuilder_flags_sdm_enabled").set(0);
 }
 
 /// Record TEE workload ID and measurement metrics

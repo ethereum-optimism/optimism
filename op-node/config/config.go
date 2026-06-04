@@ -9,17 +9,16 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/node/tracer"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -28,8 +27,6 @@ type Config struct {
 	L2 L2EndpointSetup
 
 	Beacon L1BeaconEndpointSetup
-
-	InteropConfig interop.Setup
 
 	Driver driver.Config
 
@@ -89,11 +86,6 @@ type Config struct {
 
 	// Experimental. Enables new opstack RPC namespace. Used by op-test-sequencer.
 	ExperimentalOPStackAPI bool
-
-	// SupervisorEnabled indicates whether supervisor-based interop features are enabled.
-	// When false (default), interop contracts deploy but cross-chain coordination is handled locally.
-	// When true, the node defers cross-unsafe/cross-safe/finality to the supervisor.
-	SupervisorEnabled bool
 }
 
 // ConductorRPCFunc retrieves the endpoint. The RPC may not immediately be available.
@@ -113,6 +105,14 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 		cfg.Driver.SequencerStopped = stopped
 	} else {
 		log.Info("No persisted sequencer state loaded")
+	}
+	if enabled, set, err := cfg.ConfigPersistence.SdmPostExecOptIn(); err != nil {
+		return err
+	} else if set {
+		cfg.Driver.SdmPostExecOptIn = enabled
+		log.Info("Persisted SDM state loaded", "enabled", enabled)
+	} else {
+		log.Info("No persisted SDM state loaded")
 	}
 	return nil
 }
@@ -138,12 +138,6 @@ func (cfg *Config) Check() error {
 			return fmt.Errorf("misconfigured L1 Beacon API endpoint: %w", err)
 		}
 	}
-	if cfg.InteropConfig == nil {
-		return errors.New("missing interop config")
-	}
-	if err := cfg.InteropConfig.Check(); err != nil {
-		return fmt.Errorf("misconfigured interop: %w", err)
-	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)
 	}
@@ -154,8 +148,8 @@ func (cfg *Config) Check() error {
 			"'--ignore-missing-pectra-blob-schedule' flag or 'IGNORE_MISSING_PECTRA_BLOB_SCHEDULE' env var.")
 		return ErrMissingPectraBlobSchedule
 	}
-	if cfg.Rollup.InteropTime != nil && cfg.DependencySet == nil {
-		return fmt.Errorf("the Interop upgrade is scheduled (timestamp = %d) but not dependency set is configured", *cfg.Rollup.InteropTime)
+	if cfg.Rollup.LagoonTime != nil && cfg.DependencySet == nil {
+		return fmt.Errorf("the Lagoon upgrade is scheduled (timestamp = %d) but not dependency set is configured", *cfg.Rollup.LagoonTime)
 	}
 	if err := cfg.Metrics.Check(); err != nil {
 		return fmt.Errorf("metrics config error: %w", err)

@@ -13,6 +13,9 @@ var disputeGameFactory []byte
 //go:embed abi/SuperFaultDisputeGame.json
 var superFaultDisputeGame []byte
 
+//go:embed abi/SuperPermissionedDisputeGame.json
+var superPermissionedDisputeGame []byte
+
 //go:embed abi/FaultDisputeGame.json
 var faultDisputeGame []byte
 
@@ -40,6 +43,10 @@ func LoadDisputeGameFactoryABI() *abi.ABI {
 
 func LoadSuperFaultDisputeGameABI() *abi.ABI {
 	return loadABI(superFaultDisputeGame)
+}
+
+func LoadSuperPermissionedDisputeGameABI() *abi.ABI {
+	return loadABI(superPermissionedDisputeGame)
 }
 
 func LoadFaultDisputeGameABI() *abi.ABI {

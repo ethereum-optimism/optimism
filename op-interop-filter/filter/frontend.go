@@ -8,22 +8,25 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
-// QueryFrontend handles supervisor query RPC methods
+// QueryFrontend handles interop query RPC methods.
 type QueryFrontend struct {
 	backend *Backend
 }
 
 // CheckAccessList validates interop executing messages
 func (f *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
+	minSafety safety.Level, executingDescriptor messages.ExecutingDescriptor) error {
 
 	err := f.backend.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
 	if err != nil {
 		return &rpc.JsonError{
-			Code:    types.GetErrorCode(err),
+			Code:    interop.GetErrorCode(err),
 			Message: err.Error(),
 		}
 	}

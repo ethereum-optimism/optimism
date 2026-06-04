@@ -7,38 +7,38 @@ import (
 	"testing"
 	"time"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type messageSource interface {
-	Get() *suptypes.Message
+	Get() *messages.Message
 }
 
 type messageSink interface {
-	Append(*suptypes.Message)
+	Append(*messages.Message)
 }
 
 type messagePool struct {
 	mu       sync.Mutex // mu protects both rng's rand.Source and messages.
 	rng      *rand.Rand
-	messages []*suptypes.Message
+	messages []*messages.Message
 }
 
 var _ messageSource = (*messagePool)(nil)
 var _ messageSink = (*messagePool)(nil)
 
 // newMessagePool creates a messagePool, using message as the first message in the pool.
-func newMessagePool(message *suptypes.Message) *messagePool {
+func newMessagePool(message *messages.Message) *messagePool {
 	return &messagePool{
 		rng:      rand.New(rand.NewSource(1234)),
-		messages: []*suptypes.Message{message},
+		messages: []*messages.Message{message},
 	}
 }
 
 // Get pseudorandomly selects a message from the pool.
-func (p *messagePool) Get() *suptypes.Message {
+func (p *messagePool) Get() *messages.Message {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	index := p.rng.Intn(len(p.messages))
@@ -46,7 +46,7 @@ func (p *messagePool) Get() *suptypes.Message {
 }
 
 // Append adds msg to the pool.
-func (p *messagePool) Append(msg *suptypes.Message) {
+func (p *messagePool) Append(msg *messages.Message) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.messages = append(p.messages, msg)
@@ -98,7 +98,7 @@ func TestMaxExecutingMessagesBurst(gt *testing.T) {
 	t, l2A, l2B := setupLoadTest(gt)
 
 	// Initiate messages on both chains.
-	var initMsgFromA, initMsgFromB *suptypes.Message
+	var initMsgFromA, initMsgFromB *messages.Message
 	func() {
 		var wg sync.WaitGroup
 		defer wg.Wait()
@@ -131,7 +131,7 @@ func TestMaxExecutingMessagesBurst(gt *testing.T) {
 	}()
 }
 
-func initiate(t devtest.T, l2 *L2) *suptypes.Message {
+func initiate(t devtest.T, l2 *L2) *messages.Message {
 	tx, err := l2.Include(t, planCall(t, &txintent.InitTrigger{
 		Emitter: l2.EventLogger,
 	}))

@@ -219,9 +219,9 @@ contract L2Genesis is Script {
 
         for (uint256 i = 0; i < Predeploys.PREDEPLOY_COUNT; i++) {
             address addr = address(prefix | uint160(i));
-            if (Predeploys.notProxied(addr)) {
-                continue;
-            }
+
+            // Non-proxied predeploys are excluded from proxy setup.
+            if (Predeploys.notProxied(addr)) continue;
 
             vm.etch(addr, code);
             EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
@@ -248,9 +248,9 @@ contract L2Genesis is Script {
         // Must be first: other contracts' initialize() calls assert _assertOnlyProxyAdminOrProxyAdminOwner(),
         // which reads L2ProxyAdmin.owner(). The owner slot must be set before any initializer runs.
         setL2ProxyAdmin(_input); // 18
-        setLegacyMessagePasser(); // 0
+        setLegacyMessagePasser(); // 0: LEGACY_MESSAGE_PASSER is deprecated and not used in OP-Stack
         // 01: legacy, not used in OP-Stack
-        setDeployerWhitelist(); // 2
+        setDeployerWhitelist(); // 2: DEPLOYER_WHITELIST is deprecated and not used in OP-Stack
         // 3,4,5: legacy, not used in OP-Stack.
         setWETH(); // 6: WETH (not behind a proxy)
         setL2CrossDomainMessenger(_input.l1CrossDomainMessengerProxy); // 7
@@ -259,7 +259,7 @@ contract L2Genesis is Script {
         setL2StandardBridge(_input.l1StandardBridgeProxy); // 10
         setSequencerFeeVault(_input); // 11
         setOptimismMintableERC20Factory(); // 12
-        setL1BlockNumber(); // 13
+        setL1BlockNumber(); // 13: L1_BLOCK_NUMBER is deprecated and not used in OP-Stack
         setL2ERC721Bridge(_input.l1ERC721BridgeProxy); // 14
         setL1Block(_input); // 15
         setL2ToL1MessagePasser(_input.useCustomGasToken); // 16
@@ -305,8 +305,7 @@ contract L2Genesis is Script {
 
         bytes32 _ownerSlot = bytes32(0);
 
-        // TODO(#19182): Remove this once the L2ProxyAdmin is initializable.
-        // there is no initialize() function, so we just set the storage manually.
+        // L2ProxyAdmin has no initializer by design, so we set the proxy owner slot directly.
         vm.store(Predeploys.PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
     }
 
@@ -399,7 +398,9 @@ contract L2Genesis is Script {
         } else {
             _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
         }
-        if (_input.useInterop) {
+        // Only set the runtime INTEROP feature flag at genesis if the chain is being born at or
+        // beyond the Interop fork.
+        if (_input.useInterop && _input.fork >= uint256(Fork.INTEROP)) {
             IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.INTEROP);
         }
     }
@@ -519,18 +520,23 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setCrossL2Inbox() internal {
+        Predeploys.assertGates(Predeploys.CROSS_L2_INBOX, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
         _setImplementationCode(Predeploys.CROSS_L2_INBOX);
     }
 
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setL2ToL2CrossDomainMessenger() internal {
+        Predeploys.assertGates(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true
+        );
         _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
 
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setETHLiquidity() internal {
+        Predeploys.assertGates(Predeploys.ETH_LIQUIDITY, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
         _setImplementationCode(Predeploys.ETH_LIQUIDITY);
         vm.deal(Predeploys.ETH_LIQUIDITY, type(uint128).max);
     }
@@ -538,11 +544,13 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setSuperchainETHBridge() internal {
+        Predeploys.assertGates(Predeploys.SUPERCHAIN_ETH_BRIDGE, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
         _setImplementationCode(Predeploys.SUPERCHAIN_ETH_BRIDGE);
     }
 
     /// @notice This predeploy is following the safety invariant #1.
     function setLiquidityController(Input memory _input) internal {
+        Predeploys.assertGates(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0), true, false);
         address impl = _setImplementationCode(Predeploys.LIQUIDITY_CONTROLLER);
 
         ILiquidityController(impl).initialize({
@@ -561,6 +569,7 @@ contract L2Genesis is Script {
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setNativeAssetLiquidity(Input memory _input) internal {
+        Predeploys.assertGates(Predeploys.NATIVE_ASSET_LIQUIDITY, bytes32(0), true, false);
         _setImplementationCode(Predeploys.NATIVE_ASSET_LIQUIDITY);
 
         require(
@@ -574,11 +583,13 @@ contract L2Genesis is Script {
 
     /// @notice This predeploy is following the safety invariant #1.
     function setConditionalDeployer() internal {
+        Predeploys.assertGates(Predeploys.CONDITIONAL_DEPLOYER, DevFeatures.L2CM, false, false);
         _setImplementationCode(Predeploys.CONDITIONAL_DEPLOYER);
     }
 
     /// @notice Sets up the L2DevFeatureFlags predeploy with the development feature bitmap.
     function setL2DevFeatureFlags(Input memory _input) internal {
+        Predeploys.assertGates(Predeploys.L2_DEV_FEATURE_FLAGS, DevFeatures.L2CM, false, false);
         _setImplementationCode(Predeploys.L2_DEV_FEATURE_FLAGS);
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).setDevFeatureBitmap(_input.devFeatureBitmap);

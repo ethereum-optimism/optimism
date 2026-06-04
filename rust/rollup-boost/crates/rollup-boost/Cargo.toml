@@ -3,6 +3,7 @@ name = "rollup-boost"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+workspace = "../.."
 
 [dependencies]
 tracing.workspace = true
@@ -68,27 +69,36 @@ backoff.workspace = true
 uuid = { version = "1.17.0", features = ["v4", "v7"] }
 bytes = "1.10.1"
 lru = "0.16"
+reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", rev = "81c026181e96ef33a823f3ef4d2a28940e9fa4fe" }
 
 [dev-dependencies]
 serial_test = "3"
 rand = "0.9.0"
 time = { version = "0.3.36", features = ["macros", "formatting", "parsing"] }
 op-alloy-consensus.workspace = true
-alloy-eips = { version = "1.0.41", features = ["serde"] }
-alloy-consensus = { workspace = true, features = ["serde"] }
+alloy-eips = { version = "2.0.4", features = ["serde"], default-features = false }
+alloy-consensus = { workspace = true, features = ["serde"], default-features = false }
 anyhow = "1.0"
 assert_cmd = "2.0.10"
 predicates = "3.1.2"
 tokio-util = { version = "0.7.13" }
 bytes = "1.2"
-reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.4.7" }
 ctor = "0.4.1"
 reqwest = "0.12.15"
 testcontainers.workspace = true
 
 [build-dependencies]
-vergen = { version = "9.0.4", features = ["build", "cargo", "emit_and_set"] }
-vergen-git2 = "1.0.5"
+vergen = { version = "9.1.0", features = ["build", "cargo", "emit_and_set"] }
+vergen-git2 = "9.1.0"
+
+[features]
+default = ["docker-tests"]
+# Gates the testcontainers-driven integration tests under
+# `src/tests/` that require access to the host Docker socket.
+# Disable with `--no-default-features` in environments (e.g. the
+# CircleCI Docker executor) where `/var/run/docker.sock` is not
+# available.
+docker-tests = []
 
 [[bin]]
 name = "rollup-boost"

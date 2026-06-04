@@ -3,6 +3,8 @@ package superevents
 import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 type UpdateCrossUnsafeRequestEvent struct {
@@ -41,7 +43,7 @@ func (ev LocalSafeUpdateEvent) String() string {
 
 type CrossUnsafeUpdateEvent struct {
 	ChainID        eth.ChainID
-	NewCrossUnsafe types.BlockSeal
+	NewCrossUnsafe messages.BlockSeal
 }
 
 func (ev CrossUnsafeUpdateEvent) String() string {
@@ -75,7 +77,7 @@ func (ev FinalizedL1UpdateEvent) String() string {
 
 type FinalizedL2UpdateEvent struct {
 	ChainID     eth.ChainID
-	FinalizedL2 types.BlockSeal
+	FinalizedL2 messages.BlockSeal
 }
 
 func (ev FinalizedL2UpdateEvent) String() string {

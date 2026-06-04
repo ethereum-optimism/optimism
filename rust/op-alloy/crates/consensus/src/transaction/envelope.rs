@@ -43,7 +43,10 @@ pub enum OpTxEnvelope {
     Deposit(Sealed<TxDeposit>),
     /// A [`TxPostExec`] tagged with type 0x7D.
     #[envelope(ty = 0x7D)]
-    #[serde(serialize_with = "crate::post_exec::serde_post_exec_tx_rpc")]
+    #[serde(
+        serialize_with = "crate::post_exec::serde_post_exec_tx_rpc",
+        deserialize_with = "crate::post_exec::serde_post_exec_tx_rpc_de"
+    )]
     PostExec(Sealed<TxPostExec>),
 }
 

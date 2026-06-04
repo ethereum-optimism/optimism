@@ -9,16 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-type DataFormat string
-
-const (
-	DataFormatFile      DataFormat = "file"
-	DataFormatDirectory DataFormat = "directory"
-	DataFormatPebble    DataFormat = "pebble"
-)
-
-var SupportedDataFormats = []DataFormat{DataFormatFile, DataFormatDirectory, DataFormatPebble}
-
 type L2Source interface {
 	HeaderAndTxsByHash(ctx context.Context, blockHash common.Hash) (*types.Header, types.Transactions, error)
 	NodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)

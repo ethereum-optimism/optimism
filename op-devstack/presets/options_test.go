@@ -85,15 +85,6 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want: optionKindTimeTravel,
 		},
 		{
-			name:      "simple interop super proofs reject builder and proof hooks",
-			supported: simpleInteropSuperProofsPresetSupportedOptionKinds,
-			opts: Combine(
-				WithOPRBuilderOption(builderOpt),
-				RequireGameTypePresent(gameTypes.CannonGameType),
-			),
-			want: optionKindOPRBuilder | optionKindAfterBuild | optionKindProofValidation,
-		},
-		{
 			name:      "shared supernode proofs reject pre-genesis super game",
 			supported: supernodeProofsPresetSupportedOptionKinds,
 			opts: Combine(

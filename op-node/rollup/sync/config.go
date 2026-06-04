@@ -92,9 +92,6 @@ func (c *Config) Check() error {
 	if c.OffsetELSafe < 0 {
 		return errors.New("sync.offset-el-safe must be >= 0")
 	}
-	if c.OffsetELSafe > 0 && c.SyncMode != ELSync {
-		return fmt.Errorf("sync.offset-el-safe is only supported with EL sync (syncmode=%s)", ELSyncString)
-	}
 	return nil
 }
 

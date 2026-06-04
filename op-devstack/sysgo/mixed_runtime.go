@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
@@ -47,6 +48,7 @@ const (
 	MixedL2ELOpGeth   MixedL2ELKind = "op-geth"
 	MixedL2ELOpReth   MixedL2ELKind = "op-reth"
 	MixedL2ELOpRethV2 MixedL2ELKind = "op-reth-proof-v2"
+	MixedOpRbuilder   MixedL2ELKind = "op-rbuilder"
 )
 
 type MixedL2CLKind string
@@ -68,6 +70,12 @@ func SkipOnOpReth(t devtest.T, reason string) {
 	if devstackL2ELKind() == MixedL2ELOpReth {
 		t.Skipf("skipping on op-reth: %s", reason)
 	}
+}
+
+// IsOpRbuilder reports whether the L2 execution layer is op-rbuilder
+// (DEVSTACK_L2EL_KIND=op-rbuilder).
+func IsOpRbuilder() bool {
+	return devstackL2ELKind() == MixedOpRbuilder
 }
 
 // SkipOnKonaNode skips the test when the L2 consensus layer is kona-node
@@ -119,6 +127,10 @@ type MixedSingleChainPresetConfig struct {
 	DeployerOptions            []DeployerOption
 	BatcherOptions             []BatcherOption
 	OpRethOptions              []OpRethOption
+	// InteropAtGenesis activates the Interop hardfork at genesis on the L2 chain and provides
+	// the resulting dependency set to op-node CL startup. Required by any test that exercises
+	// Interop-gated consensus features (e.g. SDM PostExec) without a supervisor.
+	InteropAtGenesis bool
 }
 
 type mixedSingleChainNode struct {
@@ -156,7 +168,14 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	l1Net, l2Net := buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	var l1Net *L1Network
+	var l2Net *L2Network
+	var depSet coredepset.DependencySet
+	if cfg.InteropAtGenesis {
+		l1Net, l2Net, depSet, _ = buildSingleChainWorldWithInterop(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	} else {
+		l1Net, l2Net = buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	}
 	jwtPath, jwtSecret := writeJWTSecret(t)
 	l1EL, l1CL := startInProcessL1(t, l1Net, jwtPath)
 
@@ -187,6 +206,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				NoDiscovery:   true,
 				EnableReqResp: true,
 				UseReqResp:    true,
+				DependencySet: depSet,
 			})
 		case MixedL2CLKona:
 			cl = startMixedKonaNode(
@@ -412,23 +432,23 @@ func startMixedOpRethNode(
 	return node
 }
 
-// startMixedOpRethNodeWithSupervisorURL builds and starts an OpReth node
-// with --rollup.supervisor-http pointing at the given URL.
-func startMixedOpRethNodeWithSupervisorURL(
+// startMixedOpRethNodeWithInteropURL builds and starts an OpReth node
+// with --rollup.interop-http pointing at the given URL.
+func startMixedOpRethNodeWithInteropURL(
 	t devtest.T,
 	l2Net *L2Network,
 	key string,
 	jwtPath string,
 	jwtSecret [32]byte,
 	metricsRegistrar L2MetricsRegistrar,
-	supervisorURL string,
+	interopURL string,
 	storageVersion string,
 	opts ...OpRethOption,
 ) *OpReth {
-	opts = append(opts, OpRethWithSupervisorURL(supervisorURL))
+	opts = append(opts, OpRethWithInteropURL(interopURL))
 	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar, storageVersion, opts...)
-	t.Logger().Info("Starting op-reth with supervisor URL",
-		"name", key, "chain", l2Net.ChainID(), "supervisorURL", supervisorURL)
+	t.Logger().Info("Starting op-reth with interop filter URL",
+		"name", key, "chain", l2Net.ChainID(), "interopURL", interopURL)
 	node.Start()
 	t.Cleanup(node.Stop)
 	t.Logger().Info("op-reth is ready", "name", key, "chain", l2Net.ChainID(), "userRPC", node.userRPC, "authRPC", node.authRPC)
@@ -516,8 +536,6 @@ func startMixedKonaNode(
 		name:               clKey,
 		chainID:            l2Net.ChainID(),
 		userRPC:            "",
-		interopEndpoint:    "",
-		interopJwtSecret:   eth.Bytes32{},
 		execPath:           execPath,
 		args:               []string{"node"},
 		env:                envVars,

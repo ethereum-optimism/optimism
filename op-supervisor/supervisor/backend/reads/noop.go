@@ -1,8 +1,6 @@
 package reads
 
-import (
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-)
+import "github.com/ethereum-optimism/optimism/op-core/interop"
 
 // NoopHandle implements Handle without offering actual protection.
 // This can be used when access is known to be synchronous and safe.
@@ -64,7 +62,7 @@ func (i InvalidHandle) invalidateSource(blockNum uint64) {
 }
 
 func (i InvalidHandle) Err() error {
-	return types.ErrInvalidatedRead
+	return interop.ErrInvalidatedRead
 }
 
 func (i InvalidHandle) IsValid() bool {

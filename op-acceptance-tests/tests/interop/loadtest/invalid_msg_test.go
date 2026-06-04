@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -15,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/core"
 )
 
@@ -24,7 +24,7 @@ import (
 type InvalidExecMsgSpammer struct {
 	l2             *L2
 	eoa            *SyncEOA
-	validInitMsg   suptypes.Message
+	validInitMsg   messages.Message
 	makeInvalidFns *RoundRobin[dsl.InvalidMsgFn]
 }
 
@@ -32,7 +32,7 @@ var _ Spammer = (*InvalidExecMsgSpammer)(nil)
 
 // NewInvalidExecMsgSpammer returns an InvalidExecutor. It assumes  validInitMsg is a valid
 // initiating message on a source chain.
-func NewInvalidExecMsgSpammer(t devtest.T, l2 *L2, validInitMsg suptypes.Message) *InvalidExecMsgSpammer {
+func NewInvalidExecMsgSpammer(t devtest.T, l2 *L2, validInitMsg messages.Message) *InvalidExecMsgSpammer {
 	// Fund an EOA that will be spamming the invalid transactions. It should never need to spend
 	// any wei, but we don't want to trigger mempool balance checks.
 	eoa := l2.Wallet.NewEOA(l2.EL)
@@ -101,7 +101,6 @@ func TestRelayWithInvalidMessagesSteady(gt *testing.T) {
 	ctxInvalid, cancelInvalid := context.WithCancel(t.Ctx())
 	defer cancelInvalid()
 	var wg sync.WaitGroup
-	defer wg.Wait()
 
 	// Spam a fixed number of invalid messages per block time.
 	wg.Add(1)
@@ -125,4 +124,11 @@ func TestRelayWithInvalidMessagesSteady(gt *testing.T) {
 		s := NewSteady(l2B.EL.Escape().EthClient(), l2B.Config.ElasticityMultiplier(), l2B.BlockTime, WithAIMDObserver(observer))
 		s.Run(t, NewRelaySpammer(l2A, l2B))
 	}()
+
+	// Block until the goroutines exit (when t.Ctx() expires after the setupLoadTest
+	// timeout). Using an explicit Wait — rather than defer wg.Wait() — keeps the
+	// goroutines' ctxInvalid alive for the full test duration. A deferred closure
+	// that cancels ctxInvalid before waiting would race with the goroutine's
+	// startup, since the test body returns immediately after spawning them.
+	wg.Wait()
 }

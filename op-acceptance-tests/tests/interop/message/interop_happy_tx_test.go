@@ -10,7 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // TestInteropHappyTx is testing that a valid init message, followed by a valid exec message are correctly
@@ -41,10 +42,10 @@ func TestInteropHappyTx(gt *testing.T) {
 
 	// confirm that the cross-safe safety passed init and exec receipts and that blocks were not reorged
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedRefFn(stypes.CrossSafe, initMsg.BlockID(),
+		sys.L2ACL.ReachedRefFn(safety.CrossSafe, initMsg.BlockID(),
 			// TODO(#16598): Make this relative to the block time
 			500),
-		sys.L2BCL.ReachedRefFn(stypes.CrossSafe, execMsg.BlockID(),
+		sys.L2BCL.ReachedRefFn(safety.CrossSafe, execMsg.BlockID(),
 			// TODO(#16598): Make this relative to the block time
 			500),
 	)

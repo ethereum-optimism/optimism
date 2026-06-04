@@ -48,8 +48,13 @@ fn run() -> Result<()> {
 
     let karst_bundle = monorepo_root.join("op-core/nuts/bundles/karst_nut_bundle.json");
     println!("cargo::rerun-if-changed={}", karst_bundle.display());
+    generate("karst", &karst_bundle, &out_dir).context("generate karst bundle")?;
 
-    generate("karst", &karst_bundle, &out_dir).context("generate karst bundle")
+    let interop_bundle = monorepo_root.join("op-core/nuts/bundles/interop_nut_bundle.json");
+    println!("cargo::rerun-if-changed={}", interop_bundle.display());
+    generate("interop", &interop_bundle, &out_dir).context("generate interop bundle")?;
+
+    Ok(())
 }
 
 fn main() {

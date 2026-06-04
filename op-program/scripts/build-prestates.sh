@@ -8,7 +8,7 @@ TMP_DIR=$(mktemp -d)
 WORKTREE_DIR="${TMP_DIR}/optimism"
 
 function cleanup() {
-  git -C "${REPO_ROOT}" worktree remove "${WORKTREE_DIR}" --force 2>/dev/null || true
+  git -C "${REPO_ROOT}" worktree remove "${WORKTREE_DIR}" --force 2> /dev/null || true
   rm -rf "${TMP_DIR}"
 }
 trap cleanup EXIT
@@ -90,23 +90,15 @@ function build_prestates() {
 
   if [ -f mise.toml ]; then
     echo "Install dependencies with mise" >> "${log_file}"
-    # We need go (for op-program), just (for kona), and jq (for extracting hashes).
-    # jq should already be preinstalled in the mise cache.
-    # Replace mise.toml with a minimal one to avoid conflicts with other preinstalled dependencies.
-    GO_VERSION=$(mise config get tools.go)
-    JUST_VERSION=$(mise config get tools.just)
-    cat > mise.toml << EOF
-[tools]
-go = "${GO_VERSION}"
-just = "${JUST_VERSION}"
-EOF
+    # Install only the host-side tools: go (for op-program), just (for kona), jq
+    # (for extracting hashes).
     mise trust
-    mise install -v -y >> "${log_file}" 2>&1
+    mise install -v -y go just jq >> "${log_file}" 2>&1
   fi
 
   rm -rf "${BIN_DIR}"
   rm -rf rust/kona/prestate-artifacts-*
-  if [ -f justfile ] && just --show reproducible-prestate &>/dev/null; then
+  if [ -f justfile ] && just --show reproducible-prestate &> /dev/null; then
     just reproducible-prestate >> "${log_file}" 2>&1
   else
     make reproducible-prestate >> "${log_file}" 2>&1
@@ -172,7 +164,7 @@ for i in "${!VERSIONS[@]}"; do
   build_prestates "${tag}" "${log_file}"
   popd
   if [ "${CIRCLECI:-}" = "true" ]; then
-    if (( (i + 1) % 10 == 0 )); then
+    if (((i + 1) % 10 == 0)); then
       echo "Pruning docker build artifacts after ${i} builds"
       docker system prune -f
     fi
@@ -188,7 +180,7 @@ for i in "${!LEGACY_KONA_VERSIONS[@]}"; do
   build_legacy_kona_prestate "${tag}" "${log_file}"
   popd
   if [ "${CIRCLECI:-}" = "true" ]; then
-    if (( (i + 1) % 10 == 0 )); then
+    if (((i + 1) % 10 == 0)); then
       echo "Pruning docker build artifacts after ${i} builds"
       docker system prune -f
     fi

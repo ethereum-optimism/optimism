@@ -34,7 +34,7 @@ type Service struct {
 
 	pprofService   *oppprof.Service
 	metricsSrv     *httputil.HTTPServer
-	rpcServer      *oprpc.Server // Main RPC server (public supervisor API)
+	rpcServer      *oprpc.Server // Main RPC server (public interop API)
 	adminRPCServer *oprpc.Server // Admin RPC server (JWT-protected, separate port)
 
 	backend *Backend
@@ -69,7 +69,7 @@ func Main(version string) cliapp.LifecycleAction {
 			l.Warn("PASSTHROUGH MODE ENABLED: all transactions will bypass interop filtering")
 		}
 		if cfg.LegacyCheckAccessListFormat {
-			l.Warn("LEGACY CHECK ACCESS LIST FORMAT ENABLED: supervisor_checkAccessList will not reject missing executing chain IDs")
+			l.Warn("LEGACY CHECK ACCESS LIST FORMAT ENABLED: interop_checkAccessList will not reject missing executing chain IDs")
 		}
 
 		if !cfg.MessageExpiryWindowExplicit {
@@ -232,6 +232,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 		LegacyCheckAccessListFormat: cfg.LegacyCheckAccessListFormat,
 
 		ReorgRecoveryEnabled: cfg.ReorgRecoveryEnabled,
+		FailsafeLogInterval:  cfg.FailsafeLogInterval,
 	})
 
 	s.log.Info("Created backend", "chains", len(chains))
@@ -239,7 +240,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 }
 
 func (s *Service) initRPCServer(cfg *Config) error {
-	// Create server without JWT - public supervisor API
+	// Create server without JWT - public interop API
 	server := oprpc.NewServer(
 		cfg.RPCAddr,
 		cfg.RPCPort,
@@ -247,9 +248,8 @@ func (s *Service) initRPCServer(cfg *Config) error {
 		oprpc.WithLogger(s.log),
 	)
 
-	// Register supervisor query API (public, no auth)
 	server.AddAPI(rpc.API{
-		Namespace:     "supervisor",
+		Namespace:     "interop",
 		Service:       &QueryFrontend{backend: s.backend},
 		Authenticated: false,
 	})
@@ -307,7 +307,7 @@ func (s *Service) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start backend: %w", err)
 	}
 
-	// Start main RPC server (supervisor API)
+	// Start main RPC server (interop API)
 	if err := s.rpcServer.Start(); err != nil {
 		// Rollback: stop backend if RPC server fails to start
 		stopErr := s.backend.Stop(ctx)

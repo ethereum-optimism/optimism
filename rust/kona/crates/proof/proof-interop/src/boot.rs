@@ -116,6 +116,20 @@ impl BootInfo {
         let agreed_pre_state =
             PreState::decode(&mut raw_pre_state.as_ref()).map_err(OracleProviderError::Rlp)?;
 
+        // INVARIANT: the honest actor never agrees to a prestate whose timestamp exceeds
+        // the dispute-game-pinned `claimed_l2_timestamp`. The oracle only verifies
+        // `key == keccak256(preimage)`, not the timestamp inside; without this guard a
+        // malicious proposer could register a future-timestamped prestate and use it as
+        // both starting and disputed claim at trace-extended bisection positions, where
+        // `claim == prestate ⇒ Ok(())` would resolve as `vmStatus = VALID`. Op-program
+        // panics on this condition (see `op-program/client/interop/interop.go:87-97`).
+        assert!(
+            agreed_pre_state.timestamp() <= l2_claim_block,
+            "agreed prestate timestamp {} is after the game timestamp {}",
+            agreed_pre_state.timestamp(),
+            l2_claim_block
+        );
+
         let chain_ids: Vec<_> = match agreed_pre_state {
             PreState::SuperRoot(ref super_root) => {
                 super_root.output_roots.iter().map(|r| r.chain_id).collect()

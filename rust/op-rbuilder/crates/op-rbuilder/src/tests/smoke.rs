@@ -17,7 +17,9 @@ use tracing::info;
 /// and that the block generator is functioning correctly.
 ///
 /// Generated blocks are also validated against an external op-reth node to
-/// ensure their correctness.
+/// ensure their correctness. Gated on `docker-tests` because that validation
+/// step needs `/var/run/docker.sock`.
+#[cfg(feature = "docker-tests")]
 #[rb_test]
 async fn chain_produces_blocks(rbuilder: LocalInstance) -> eyre::Result<()> {
     let driver = rbuilder.driver().await?;
@@ -194,6 +196,8 @@ async fn test_no_tx_pool(rbuilder: LocalInstance) -> eyre::Result<()> {
     Ok(())
 }
 
+// Cross-validates against an external op-reth — gated on `docker-tests`.
+#[cfg(feature = "docker-tests")]
 #[rb_test(args = OpRbuilderArgs {
     max_gas_per_txn: Some(25000),
     ..Default::default()
@@ -252,6 +256,8 @@ async fn chain_produces_big_tx_with_gas_limit(rbuilder: LocalInstance) -> eyre::
     Ok(())
 }
 
+// Cross-validates against an external op-reth — gated on `docker-tests`.
+#[cfg(feature = "docker-tests")]
 #[rb_test(args = OpRbuilderArgs {
     ..Default::default()
 })]

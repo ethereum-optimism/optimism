@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // ErrCycle is returned when a cycle is detected in same-timestamp messages.
@@ -18,7 +18,7 @@ var ErrCycle = errors.New("cycle detected in same-timestamp messages")
 type dependencyNode struct {
 	chainID  eth.ChainID
 	logIndex uint32
-	execMsg  *types.ExecutingMessage // nil if not an executing message
+	execMsg  *messages.ExecutingMessage // nil if not an executing message
 
 	resolved     bool
 	dependsOn    []*dependencyNode
@@ -118,7 +118,7 @@ func executingMessageBefore(chainEMs []*dependencyNode, targetLogIdx uint32) *de
 // For each EM, two types of edges are added:
 // 1. Intra-chain: depends on the previous EM on the same chain (if exists)
 // 2. Cross-chain: depends on executingMessageBefore(targetChain, targetLogIdx) (if exists)
-func buildCycleGraph(ts uint64, chainEMs map[eth.ChainID]map[uint32]*types.ExecutingMessage) *dependencyGraph {
+func buildCycleGraph(ts uint64, chainEMs map[eth.ChainID]map[uint32]*messages.ExecutingMessage) *dependencyGraph {
 	graph := &dependencyGraph{}
 	orderedExecutingMessages := make(map[eth.ChainID][]*dependencyNode)
 
@@ -176,7 +176,7 @@ func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.Chain
 	}
 
 	// collect all EMs for the given blocks per chain
-	chainEMs := make(map[eth.ChainID]map[uint32]*types.ExecutingMessage)
+	chainEMs := make(map[eth.ChainID]map[uint32]*messages.ExecutingMessage)
 	for chainID, blockID := range blocksAtTimestamp {
 		if frontierBlock, ok := view.block(chainID); ok {
 			if frontierBlock.ref.Time == ts {

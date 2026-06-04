@@ -7,12 +7,14 @@ use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::ProofsStorageVersion;
 use reth_optimism_primitives::OpPrimitives;
-use reth_optimism_trie::{SnapshotInitJob, db::MdbxProofsStorageV2};
+use reth_optimism_trie::{
+    OpProofsProviderRO, OpProofsStore, SnapshotInitJob, db::MdbxProofsStorageV2,
+};
 use reth_provider::{DBProvider, DatabaseProviderFactory};
 use std::{path::PathBuf, sync::Arc};
 use tracing::info;
 
-/// Builds the snapshot at `--target-block` (defaults to `latest`) and marks it `Ready`.
+/// Builds the snapshot at `--target-block` (defaults to `earliest`) and marks it `Ready`.
 #[derive(Debug, Parser)]
 pub struct SnapshotInitCommand<C: ChainSpecParser> {
     #[command(flatten)]
@@ -27,9 +29,10 @@ pub struct SnapshotInitCommand<C: ChainSpecParser> {
     pub storage_path: PathBuf,
 
     /// Target block for the snapshot anchor. Must fall inside the proofs
-    /// window `[earliest, latest]`. Defaults to `latest`.
+    /// window `[earliest, latest]`. Defaults to `earliest` — that's the
+    /// anchor the snapshot-accelerated backfill flow picks up.
     #[arg(long = "proofs-history.snapshot-target-block", value_name = "TARGET_BLOCK")]
-    pub target_block: u64,
+    pub target_block: Option<u64>,
 
     /// Storage schema version. Snapshot is only supported on v2.
     #[arg(
@@ -62,12 +65,26 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> SnapshotInitCommand<C> {
                         .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorageV2: {e}"))?,
                 );
 
+                // Resolve `None` to the proof window's `earliest`.
+                let target_block = match self.target_block {
+                    Some(b) => b,
+                    None => {
+                        storage
+                            .provider_ro()
+                            .map_err(|e| eyre::eyre!("Failed to open proofs RO provider: {e}"))?
+                            .get_proof_window()
+                            .map_err(|e| eyre::eyre!("Failed to read proof window: {e}"))?
+                            .earliest
+                            .number
+                    }
+                };
+
                 let provider = provider_factory
                     .database_provider_ro()
                     .map_err(|e| eyre::eyre!("Failed to open reth DB provider: {e}"))?
                     .disable_long_read_transaction_safety();
 
-                let outcome = SnapshotInitJob::new(provider, storage).run(self.target_block)?;
+                let outcome = SnapshotInitJob::new(provider, storage).run(target_block)?;
                 info!(
                     target: "reth::cli",
                     anchor = ?outcome.block,

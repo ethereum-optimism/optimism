@@ -10,7 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum"
 )
 
@@ -33,10 +34,10 @@ func TestCLELDivergence(gt *testing.T) {
 	require := t.Require()
 	l := t.Logger()
 
-	startNum := sys.L2CLB.HeadBlockRef(types.LocalUnsafe).Number
+	startNum := sys.L2CLB.HeadBlockRef(safety.LocalUnsafe).Number
 
 	// Wait for the sequencer to produce the next block so the verifier initial EL sync can complete.
-	sys.L2CL.Reached(types.LocalUnsafe, startNum+1, 30)
+	sys.L2CL.Reached(safety.LocalUnsafe, startNum+1, 30)
 
 	// Complete initial EL sync by providing the first missing block.
 	// At this point, the EL has sufficient state to validate block startNum+1.
@@ -50,7 +51,7 @@ func TestCLELDivergence(gt *testing.T) {
 	// Choose a future EL sync target for which the EL lacks state to validate.
 	delta := uint64(5)
 	targetNumber := startNum + delta
-	sys.L2CL.Advanced(types.LocalUnsafe, targetNumber, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, targetNumber, 30)
 	targetBlock := sys.L2EL.BlockRefByNumber(targetNumber)
 
 	// The CL advances its unsafe head to the target block, even though there is a gap.

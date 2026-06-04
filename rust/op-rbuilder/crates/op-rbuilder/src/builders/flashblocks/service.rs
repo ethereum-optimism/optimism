@@ -67,7 +67,6 @@ impl FlashblocksServiceBuilder {
                 if let Some(ref p2p_known_peers) = self.0.specific.p2p_known_peers {
                     p2p_known_peers
                         .split(',')
-                        .map(|s| s.to_string())
                         .filter_map(|s| s.parse().ok())
                         .collect()
                 } else {
@@ -88,7 +87,7 @@ impl FlashblocksServiceBuilder {
                 .try_build::<Message>()
                 .wrap_err("failed to build flashblocks p2p node")?;
             let multiaddrs = node.multiaddrs();
-            ctx.task_executor().spawn(async move {
+            ctx.task_executor().spawn_task(async move {
                 if let Err(e) = node.run().await {
                     tracing::error!(error = %e, "p2p node exited");
                 }
@@ -107,13 +106,14 @@ impl FlashblocksServiceBuilder {
 
         let metrics = Arc::new(OpRBuilderMetrics::default());
         let (built_payload_tx, built_payload_rx) = tokio::sync::mpsc::channel(16);
+        let evm_config = OpEvmConfig::optimism(ctx.chain_spec());
 
         let ws_pub: Arc<WebSocketPublisher> =
             WebSocketPublisher::new(self.0.specific.ws_addr, metrics.clone())
                 .wrap_err("failed to create ws publisher")?
                 .into();
         let payload_builder = OpPayloadBuilder::new(
-            OpEvmConfig::optimism(ctx.chain_spec()),
+            evm_config.clone(),
             pool,
             ctx.provider().clone(),
             self.0.clone(),
@@ -139,7 +139,7 @@ impl FlashblocksServiceBuilder {
         let syncer_ctx = crate::builders::flashblocks::ctx::OpPayloadSyncerCtx::new(
             &ctx.provider().clone(),
             self.0,
-            OpEvmConfig::optimism(ctx.chain_spec()),
+            evm_config,
             metrics.clone(),
         )
         .wrap_err("failed to create flashblocks payload builder context")?;
@@ -155,11 +155,9 @@ impl FlashblocksServiceBuilder {
         );
 
         ctx.task_executor()
-            .spawn_critical("custom payload builder service", Box::pin(payload_service));
-        ctx.task_executor().spawn_critical(
-            "flashblocks payload handler",
-            Box::pin(payload_handler.run()),
-        );
+            .spawn_critical_task("custom payload builder service", payload_service);
+        ctx.task_executor()
+            .spawn_critical_task("flashblocks payload handler", payload_handler.run());
 
         tracing::info!("Flashblocks payload builder service started");
         Ok(payload_builder_handle)
