@@ -914,11 +914,18 @@ jobs:
           environment:
             FOUNDRY_PROFILE: <<parameters.profile>>
           working_directory: packages/contracts-bedrock
+      # copy-contract-artifacts runs `go run ... mktar`, which needs the Go
+      # module set. Restore the shared cache (warmed by prep-go-modules) so it
+      # doesn't hit proxy.golang.org.
+      - go-restore-cache:
+          namespace: contracts-bedrock-build
       - run:
           name: "Copy artifacts into deployer"
           command: |
             just copy-contract-artifacts
           working_directory: op-deployer
+      - go-save-cache:
+          namespace: contracts-bedrock-build
       - persist_to_workspace:
           root: "."
           paths:
