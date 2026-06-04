@@ -293,14 +293,14 @@ where
                     warn!(
                         target: "txpool::interop",
                         evicted,
-                        "interop failsafe enabled: rejecting all interop transactions; the execution layer may need to be restarted to resume interop"
+                        "interop failsafe enabled: rejecting all interop transactions; admission resumes automatically (within the ~1s poll interval) once the interop filter clears failsafe"
                     );
                     last_heartbeat = Instant::now();
                 } else if enabled && last_heartbeat.elapsed() >= FAILSAFE_HEARTBEAT_INTERVAL {
                     // Heartbeat: keep a long-lived failsafe visible in recent logs.
                     warn!(
                         target: "txpool::interop",
-                        "interop failsafe still active: all interop transactions are being rejected; the execution layer may need to be restarted to resume interop"
+                        "interop failsafe still active: all interop transactions are being rejected; admission resumes automatically once the interop filter clears failsafe"
                     );
                     last_heartbeat = Instant::now();
                 } else if !enabled && was_enabled {
