@@ -1,13 +1,15 @@
 package node_utils
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
+	"github.com/coder/websocket"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +34,7 @@ type rpcError struct {
 	Message string `json:"message"`
 }
 
-// push { "jsonrpc":"2.0", "method":"time", "params":{ "subscription":"0x…", "result":"…" } }
+// push { "jsonrpc":"2.0", "method":"time", "params":{ "subscription":"0x…", "result":"…" } }
 type push[Out any] struct {
 	Method string `json:"method"`
 	Params struct {
@@ -43,6 +45,22 @@ type push[Out any] struct {
 
 // ---------------------------------------------------------------------------
 
+func writeJSON(ctx context.Context, conn *websocket.Conn, value any) error {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return conn.Write(ctx, websocket.MessageText, payload)
+}
+
+func readJSON(ctx context.Context, conn *websocket.Conn, value any) error {
+	_, payload, err := conn.Read(ctx)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(payload, value)
+}
+
 func AsyncGetPrefixedWs[T any, Out any](t devtest.T, node *dsl.L2CLNode, prefix string, method string, runUntil <-chan T) <-chan Out {
 	userRPC := node.Escape().UserRPC()
 	wsRPC := strings.Replace(userRPC, "http", "ws", 1)
@@ -50,32 +68,36 @@ func AsyncGetPrefixedWs[T any, Out any](t devtest.T, node *dsl.L2CLNode, prefix 
 	output := make(chan Out, 128)
 
 	go func() {
-		conn, _, err := websocket.DefaultDialer.DialContext(t.Ctx(), wsRPC, nil)
+		conn, _, err := websocket.Dial(t.Ctx(), wsRPC, nil)
 		require.NoError(t, err, "dial: %v", err)
-		defer conn.Close()
+		defer func() {
+			_ = conn.Close(websocket.StatusNormalClosure, "test complete")
+		}()
 		defer close(output)
 
 		// 1. send the *_subscribe request
-		require.NoError(t, conn.WriteJSON(rpcRequest{
+		require.NoError(t, writeJSON(t.Ctx(), conn, rpcRequest{
 			JSONRPC: "2.0",
 			ID:      1,
 			Method:  prefix + "_" + "subscribe_" + method,
 			Params:  nil,
-		}), "subscribe: %v", err)
+		}), "subscribe")
 
-		// 2. read the ack – blocking read just once
+		// 2. read the ack - blocking read just once
 		var a rpcResponse
-		require.NoError(t, conn.ReadJSON(&a), "ack: %v", err)
+		require.NoError(t, readJSON(t.Ctx(), conn, &a), "ack")
 		t.Log("subscribed to websocket - id=", string(a.Result))
 
 		// 3. defer the unsubscribe request
 		defer func() {
-			require.NoError(t, conn.WriteJSON(rpcRequest{
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			require.NoError(t, writeJSON(ctx, conn, rpcRequest{
 				JSONRPC: "2.0",
 				ID:      2,
 				Method:  prefix + "_unsubscribe_" + method,
 				Params:  []any{a.Result},
-			}), "unsubscribe: %v", err)
+			}), "unsubscribe")
 
 			t.Log("gracefully closed websocket connection")
 		}()
@@ -84,16 +106,16 @@ func AsyncGetPrefixedWs[T any, Out any](t devtest.T, node *dsl.L2CLNode, prefix 
 		msgChan := make(chan json.RawMessage, 1) // Buffered channel to avoid goroutine leak
 
 		go func() {
-			var msg json.RawMessage
 			defer close(msgChan)
 
 			for {
-				if err := conn.ReadJSON(&msg); err != nil {
+				_, msg, err := conn.Read(t.Ctx())
+				if err != nil {
 					t.Log("readJSON channel closed")
 					return
 				}
 
-				// Clone the raw payload before the next ReadJSON call can reuse the buffer.
+				// Clone the raw payload before the next Read call can reuse the buffer.
 				msgChan <- append(json.RawMessage(nil), msg...)
 			}
 		}()
@@ -102,7 +124,7 @@ func AsyncGetPrefixedWs[T any, Out any](t devtest.T, node *dsl.L2CLNode, prefix 
 		for {
 			select {
 			case _, ok := <-runUntil:
-				// Clean‑up if necessary, then exit
+				// Clean-up if necessary, then exit
 				if ok {
 					t.Log(method, "subscriber", "stopping: runUntil condition met")
 				} else {
@@ -110,7 +132,7 @@ func AsyncGetPrefixedWs[T any, Out any](t devtest.T, node *dsl.L2CLNode, prefix 
 				}
 				return
 			case <-t.Ctx().Done():
-				// Clean‑up if necessary, then exit
+				// Clean-up if necessary, then exit
 				t.Log("unsafe head subscriber", "stopping: context cancelled")
 				return
 			case msg, ok := <-msgChan:
@@ -120,7 +142,7 @@ func AsyncGetPrefixedWs[T any, Out any](t devtest.T, node *dsl.L2CLNode, prefix 
 				}
 
 				var p push[Out]
-				require.NoError(t, json.Unmarshal(msg, &p), "decode: %v", err)
+				require.NoError(t, json.Unmarshal(msg, &p), "decode")
 				output <- p.Params.Result
 			}
 		}
