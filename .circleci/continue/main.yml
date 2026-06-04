@@ -412,10 +412,16 @@ commands:
             - << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>-<< parameters.features >>
             - << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>
             - << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
+      # Shared across every Rust job: the downloaded crate set is identical
+      # for a given Cargo.lock regardless of job, profile, or features, so a
+      # single key avoids each job downloading and storing its own copy.
+      # No fallback key on purpose — a Cargo.lock change fully refreshes the
+      # cache rather than layering new crates on top of stale ones, which keeps
+      # the cache from growing unboundedly with old dependency versions.
       - restore_cache:
-          name: Restore << parameters.directory >> registry cache (mise)
+          name: Restore << parameters.directory >> dependency cache (shared)
           keys:
-            - << parameters.prefix >>-registry-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
+            - rust-deps-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
 
   rust-save-build-cache:
     description: "Save the target directory cache for a Rust workspace"
@@ -441,8 +447,8 @@ commands:
         default: "rust-build"
     steps:
       - save_cache:
-          key: << parameters.prefix >>-registry-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
-          name: Save << parameters.directory >> registry cache (mise)
+          key: rust-deps-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
+          name: Save << parameters.directory >> dependency cache (shared)
           paths:
             - /data/mise-data/.cargo/registry
             - /data/mise-data/.cargo/git
