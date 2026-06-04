@@ -377,6 +377,13 @@ commands:
           name: Restore << parameters.directory >> dependency cache (shared)
           keys:
             - rust-deps-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
+      # Toolchain (.rustup + cargo-installed bins) keyed on the toolchain pins,
+      # not Cargo.lock, so a dependency bump no longer discards and re-downloads
+      # the Rust toolchain. Shared across all jobs.
+      - restore_cache:
+          name: Restore Rust toolchain cache (shared)
+          keys:
+            - rust-toolchain-v<< parameters.version >>-{{ checksum "mise.toml" }}-{{ checksum "rust/rust-toolchain.toml" }}
 
   rust-save-build-cache:
     description: "Save the target directory cache for a Rust workspace"
@@ -407,6 +414,10 @@ commands:
           paths:
             - /data/mise-data/.cargo/registry
             - /data/mise-data/.cargo/git
+      - save_cache:
+          key: rust-toolchain-v<< parameters.version >>-{{ checksum "mise.toml" }}-{{ checksum "rust/rust-toolchain.toml" }}
+          name: Save Rust toolchain cache (shared)
+          paths:
             - /data/mise-data/.cargo/bin
             - /data/mise-data/.rustup
       - save_cache:
