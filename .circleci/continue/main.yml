@@ -184,6 +184,14 @@ commands:
             - run:
                 name: "Start sccache"
                 command: |
+                  # Skip where sccache is not installed (machine-executor jobs like
+                  # the cannon builds run on a VM, not the ci-base-clang image). This
+                  # is NOT fail-open for a broken cache: if sccache IS present, a
+                  # failed server start below still fails the job.
+                  if ! command -v sccache >/dev/null 2>&1; then
+                    echo "sccache not installed on this executor; skipping (no cache)"
+                    exit 0
+                  fi
                   # Build a Workload Identity ADC config (no gcloud needed); sccache
                   # reads it via GOOGLE_APPLICATION_CREDENTIALS. Coords come from the
                   # sccache-gcs-optimism context.
