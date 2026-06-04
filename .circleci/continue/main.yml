@@ -159,6 +159,10 @@ commands:
           keys:
             # use mise.toml to anchor on the underlying forge/svm versions
             - svm-cache-{{ checksum "mise.toml" }}-<<parameters.solc_versions>>
+            # Fall back to any svm cache for the same forge/svm versions so a
+            # changed solc_versions list reuses what's there and installs only
+            # the difference instead of a full cold install.
+            - svm-cache-{{ checksum "mise.toml" }}-
       - run:
           name: Install solc compilers
           command: |
@@ -842,6 +846,8 @@ jobs:
           at: .
       - check-changed:
           patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
+      - go-restore-cache:
+          namespace: cannon-go-lint-and-test
       - run:
           name: prep Cannon results dir
           command: |
@@ -868,6 +874,8 @@ jobs:
             ../ops/scripts/gotestsum-split.sh --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
             -- -timeout=$TIMEOUT -parallel=$(nproc) ./...
           working_directory: cannon
+      - go-save-cache:
+          namespace: cannon-go-lint-and-test
       - store_test_results:
           path: ./tmp/test-results
       - store_artifacts:
@@ -1142,6 +1150,8 @@ jobs:
           key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
       - setup-features:
           features: <<parameters.features>>
+      - go-restore-cache:
+          namespace: contracts-bedrock-coverage
       - run:
           name: Build go-ffi
           command: just build-go-ffi
@@ -1168,6 +1178,8 @@ jobs:
           disable_search: true
           files: ./packages/contracts-bedrock/lcov-all.info
           flags: contracts-bedrock-tests
+      - go-save-cache:
+          namespace: contracts-bedrock-coverage
       - save_cache:
           name: Save forked state
           key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
@@ -1552,7 +1564,11 @@ jobs:
       - go-restore-cache:
           namespace: go-lint
       - restore_cache:
-          key: golangci-v1-{{ checksum ".golangci.yaml" }}
+          keys:
+            - golangci-v1-{{ checksum ".golangci.yaml" }}
+            # Fall back to the latest golangci cache so a config change reuses
+            # the prior analysis cache instead of a full cold lint.
+            - golangci-v1-
       - run:
           name: run Go linter
           command: |
@@ -1560,7 +1576,10 @@ jobs:
       - go-save-cache:
           namespace: go-lint
       - save_cache:
+          # Warm the analysis cache even when linting fails, so a branch with
+          # lint errors doesn't repeatedly cold-start golangci-lint.
           key: golangci-v1-{{ checksum ".golangci.yaml" }}
+          when: always
           paths:
             - "/home/circleci/.cache/golangci-lint"
 
@@ -1880,14 +1899,11 @@ jobs:
           command: |
             echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
-      # Restore cached Go modules
+      # Restore cached Go modules (downloaded once by prep-go-modules) plus the
+      # per-job build cache. Modules are already present, so the test run below
+      # does not need a separate `go mod download`.
       - go-restore-cache:
           namespace: op-acceptance-tests
-      # Download Go dependencies
-      - run:
-          name: Download Go dependencies
-          working_directory: op-acceptance-tests
-          command: go mod download
       # Run the acceptance tests (if the devnet is running)
       - run:
           name: Run acceptance tests
@@ -2209,9 +2225,13 @@ jobs:
           enable-mise-cache: true
       - check-changed:
           patterns: op-node
+      - go-restore-cache:
+          namespace: check-generated-mocks-op-node
       - run:
           name: check-generated-mocks
           command: just generate-mocks-op-node && git diff --exit-code
+      - go-save-cache:
+          namespace: check-generated-mocks-op-node
 
   check-generated-mocks-op-service:
     docker:
@@ -2223,9 +2243,13 @@ jobs:
           enable-mise-cache: true
       - check-changed:
           patterns: op-service
+      - go-restore-cache:
+          namespace: check-generated-mocks-op-service
       - run:
           name: check-generated-mocks
           command: just generate-mocks-op-service && git diff --exit-code
+      - go-save-cache:
+          namespace: check-generated-mocks-op-service
 
   op-deployer-forge-version:
     docker:
@@ -3022,9 +3046,14 @@ workflows:
   contracts-feature-tests:
     when: << pipeline.parameters.c-run_contracts_feature_tests >>
     jobs:
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
           name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
+          requires:
+            - prep-go-modules
           test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
@@ -3051,6 +3080,8 @@ workflows:
       # On PRs, run tests with lite profile for better build times.
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests <<matrix.features>>
+          requires:
+            - prep-go-modules
           test_list: find test -name "*.t.sol"
           test_profile: liteci
           features: <<matrix.features>>
@@ -3066,6 +3097,8 @@ workflows:
       # On develop, run tests with ci profile to mirror production.
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests-develop <<matrix.features>>
+          requires:
+            - prep-go-modules
           test_list: find test -name "*.t.sol"
           test_profile: ci
           features: <<matrix.features>>
@@ -3081,6 +3114,8 @@ workflows:
       - contracts-bedrock-coverage:
           # Generate coverage reports.
           name: contracts-bedrock-coverage <<matrix.features>>
+          requires:
+            - prep-go-modules
           test_timeout: 1h
           test_profile: cicoverage
           features: <<matrix.features>>
@@ -3094,6 +3129,8 @@ workflows:
       # On PRs, run upgrade tests with lite profile for better build times.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
+          requires:
+            - prep-go-modules
           fork_op_chain: op
           fork_base_chain: mainnet
           test_profile: liteci
@@ -3111,6 +3148,8 @@ workflows:
       # On develop, run upgrade tests with ci profile to mirror production.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade-develop op-mainnet <<matrix.features>>
+          requires:
+            - prep-go-modules
           fork_op_chain: op
           fork_base_chain: mainnet
           test_profile: ci
@@ -3128,6 +3167,8 @@ workflows:
       # On PRs, run chain-specific upgrade tests with lite profile for better build times.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade <<matrix.fork_op_chain>>-mainnet
+          requires:
+            - prep-go-modules
           fork_op_chain: <<matrix.fork_op_chain>>
           fork_base_chain: mainnet
           test_profile: liteci
@@ -3144,6 +3185,8 @@ workflows:
       # On develop, run chain-specific upgrade tests with ci profile to mirror production.
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade-develop <<matrix.fork_op_chain>>-mainnet
+          requires:
+            - prep-go-modules
           fork_op_chain: <<matrix.fork_op_chain>>
           fork_base_chain: mainnet
           test_profile: ci
@@ -3160,6 +3203,8 @@ workflows:
       # Always run L2 fork tests with ci profile
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork op-mainnet
+          requires:
+            - prep-go-modules
           fork_op_chain: op-mainnet
           l2_fork_block_number: latest
           test_profile: ci

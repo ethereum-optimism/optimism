@@ -25,9 +25,6 @@ parameters:
     type: boolean
     default: false
 
-# Cache helper commands (go-restore-cache, go-save-cache, …) are defined once
-# in helpers.yml and merged into every continuation config.
-
 # ============================================================================
 # RUST E2E JOBS
 # ============================================================================
