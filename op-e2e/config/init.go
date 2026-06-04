@@ -215,7 +215,7 @@ func initAllocType(root string, allocType AllocType) {
 	lgr := log.New()
 
 	allocModes := []genesis.L2AllocsMode{
-		genesis.L2AllocsInterop,
+		genesis.L2AllocsLagoon,
 		genesis.L2AllocsKarst,
 		genesis.L2AllocsJovian,
 		genesis.L2AllocsIsthmus,

@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
@@ -38,6 +39,14 @@ func (ds DisabledSequencer) Start(ctx context.Context, head common.Hash) error {
 
 func (ds DisabledSequencer) Stop(ctx context.Context) (hash common.Hash, err error) {
 	return common.Hash{}, ErrSequencerNotEnabled
+}
+
+func (ds DisabledSequencer) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
+	return ErrSequencerNotEnabled
+}
+
+func (ds DisabledSequencer) SdmStatus(ctx context.Context, nextBlockTimestamp uint64) (apis.SdmStatus, error) {
+	return apis.SdmStatus{}, ErrSequencerNotEnabled
 }
 
 func (ds DisabledSequencer) SetMaxSafeLag(ctx context.Context, v uint64) error {

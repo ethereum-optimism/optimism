@@ -116,10 +116,22 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 	t.Require().NotNil(chainB.SupernodeCL, "missing l2b supernode CL")
 
 	supernode := newSupernodeFrontend(t, "supernode-two-l2-system", runtime.Supernode.UserRPC())
+	// The supernode VN drives its own EL, distinct from the sequencer's
+	// (joined only by L1 + P2P) in light-sequencer presets. In virtual-sequencer
+	// presets the supernode VN is itself the sequencer, so SupernodeEL == EL and
+	// it reuses the chain's primary EL frontend.
 	l2ASupernodeCL := newL2CLFrontend(t, "supernode", chainA.Network.ChainID(), chainA.SupernodeCL.UserRPC(), chainA.SupernodeCL)
-	l2ASupernodeCL.attachEL(components.l2AEL)
+	l2ASupernodeEL := components.l2AEL
+	if chainA.SupernodeEL != nil && chainA.SupernodeEL != chainA.EL {
+		l2ASupernodeEL = newL2ELFrontend(t, "supernode", chainA.Network.ChainID(), chainA.SupernodeEL.UserRPC(), chainA.SupernodeEL.EngineRPC(), chainA.SupernodeEL.JWTPath(), chainA.Network.RollupConfig(), chainA.SupernodeEL)
+	}
+	l2ASupernodeCL.attachEL(l2ASupernodeEL)
 	l2BSupernodeCL := newL2CLFrontend(t, "supernode", chainB.Network.ChainID(), chainB.SupernodeCL.UserRPC(), chainB.SupernodeCL)
-	l2BSupernodeCL.attachEL(components.l2BEL)
+	l2BSupernodeEL := components.l2BEL
+	if chainB.SupernodeEL != nil && chainB.SupernodeEL != chainB.EL {
+		l2BSupernodeEL = newL2ELFrontend(t, "supernode", chainB.Network.ChainID(), chainB.SupernodeEL.UserRPC(), chainB.SupernodeEL.EngineRPC(), chainB.SupernodeEL.JWTPath(), chainB.Network.RollupConfig(), chainB.SupernodeEL)
+	}
+	l2BSupernodeCL.attachEL(l2BSupernodeEL)
 	testSequencer := newTestSequencerFrontend(
 		t,
 		runtime.TestSequencer.Name,

@@ -18,12 +18,15 @@ use reth_ethereum_primitives as _;
 
 pub mod api;
 pub use api::{
-    BlockStateDiff, OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw, OpProofsStore,
-    ProofWindowRange,
+    BlockStateDiff, OpProofsBackfillProvider, OpProofsBackfillStore, OpProofsInitProvider,
+    OpProofsProviderRO, OpProofsProviderRw, OpProofsStore, ProofWindowRange,
 };
 
 pub mod initialize;
 pub use initialize::{InitializationJob, RethTrieStorageLayout};
+
+pub mod backfill;
+pub use backfill::{BackfillError, BackfillJob};
 
 pub mod in_memory;
 pub use in_memory::{

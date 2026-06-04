@@ -109,8 +109,8 @@ func Ether(v uint64) *big.Int {
 }
 
 func GetL2AllocsMode(dc *genesis.DeployConfig, t uint64) genesis.L2AllocsMode {
-	if fork := dc.InteropTime(t); fork != nil && *fork <= 0 {
-		return genesis.L2AllocsInterop
+	if fork := dc.LagoonTime(t); fork != nil && *fork <= 0 {
+		return genesis.L2AllocsLagoon
 	}
 	if fork := dc.KarstTime(t); fork != nil && *fork <= 0 {
 		return genesis.L2AllocsKarst
@@ -223,7 +223,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		IsthmusTime:            deployConf.IsthmusTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		JovianTime:             deployConf.JovianTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		KarstTime:              deployConf.KarstTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		LagoonTime:             deployConf.LagoonTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		AltDAConfig:            pcfg,
 		ChainOpConfig: &params.OptimismConfig{
 			EIP1559Elasticity:        deployConf.EIP1559Elasticity,

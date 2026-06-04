@@ -1,0 +1,69 @@
+---
+title: L2 Contract Manager
+description: Learn how the L2 Contract Manager (L2CM) enables governance-approved L2 smart contract upgrades through the consensus layer.
+---
+
+<Info>
+  This feature ships with [Upgrade 19](/notices/upgrade-19). It is non-functional until the upgrade is approved by governance and activated on Mainnet.
+</Info>
+
+The L2 Contract Manager (L2CM) is a new mechanism that enables governance-approved upgrades to L2 smart contracts (predeploys) as part of a network upgrade. L2CM executes predeploy upgrades atomically and in a structured, auditable way — eliminating the need for individual multisig transactions per contract and reducing upgrade complexity for the entire OP Stack ecosystem.
+
+## Overview
+
+Before L2CM, upgrading L2 predeploy contracts required individual multisig transactions for each contract, coordinated outside the normal upgrade process. L2CM replaces this with a single atomic upgrade triggered automatically by the consensus layer at the start of a hard fork block, using a Network Upgrade Transaction (NUT).
+
+L2CM is a prerequisite for interoperability and future protocol upgrades that need to modify L2 contracts.
+
+## How it works
+
+L2CM is implemented as the `L2ContractsManager` contract, which holds the new implementation addresses for all predeploys as immutables. During a network upgrade activation:
+
+1. The consensus layer (`op-node`) emits a Network Upgrade Transaction (NUT) targeting the `L2ProxyAdmin` predeploy.
+2. The `L2ProxyAdmin` executes a `DELEGATECALL` to the `L2ContractsManager.upgrade()` function.
+3. `upgrade()` reads chain-specific configuration from the current state — `L1Block` (for `isCustomGasToken`, `isInterop`), fee vault recipients, bridge addresses, and other per-chain parameters.
+4. Using this configuration, `L2ContractsManager` upgrades and re-initializes every predeploy in a single atomic transaction.
+
+Because `upgrade()` is called via `DELEGATECALL` from `L2ProxyAdmin`, no multisig approval is needed for individual contracts — the upgrade is entirely encoded in the `L2ContractsManager` deployment and activated by governance through the normal network upgrade process.
+
+## What gets upgraded
+
+Each `L2ContractsManager` deployment ships new implementations for all core L2 predeploys, including:
+
+*   `L2CrossDomainMessenger`
+*   `L2StandardBridge`
+*   `L2ERC721Bridge`
+*   `L1Block`
+*   `L2ToL1MessagePasser`
+*   `GasPriceOracle`
+*   `OptimismMintableERC20Factory`
+*   `OptimismMintableERC721Factory`
+*   Fee vaults (`SequencerFeeWallet`, `BaseFeeVault`, `L1FeeVault`, `OperatorFeeVault`)
+*   `ProxyAdmin`
+*   Interop contracts (`CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `SuperchainETHBridge`, `ETHLiquidity`) when interop is enabled
+*   Custom Gas Token contracts (`NativeAssetLiquidity`, `LiquidityController`) when CGT is enabled
+
+The exact set of upgraded contracts and their new versions is documented in the changelog for each network upgrade.
+
+## Why it matters
+
+*   **Atomic upgrades:** All predeploys are upgraded in a single transaction, eliminating partial upgrade states.
+*   **Reduced multisig overhead:** No per-contract signing required; the upgrade is encoded at deployment time and activated through the governance-approved hard fork.
+*   **Auditable:** The full set of implementation changes is visible in the `L2ContractsManager` source code before the upgrade activates.
+*   **Interop prerequisite:** Interop requires coordinated changes across multiple predeploys; L2CM makes this feasible.
+*   **Stage 1 decentralization:** By routing L2 predeploy upgrades through the Security Council-owned `L2ProxyAdmin`, L2CM satisfies the Stage 1 requirement that the Security Council has a blocking vote on L2 upgrades.
+
+## For app developers
+
+If your application interacts directly with predeploy contracts (for example, calling methods on `L2CrossDomainMessenger`, `L2StandardBridge`, or `L1Block`), be aware that:
+
+*   Predeploy behavior may change with each network upgrade. Review the changelog for the specific upgrade to understand new functions, removed functions, or behavior changes.
+*   Proxy addresses remain stable — only implementations change.
+*   Existing ABIs remain backward-compatible unless a breaking change is explicitly noted in the upgrade changelog.
+
+## References
+
+*   [L2CM design document](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md)
+*   [L2CM FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md)
+*   [Upgrade 19 notice](/notices/upgrade-19)
+*   [L2ContractsManager source](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ContractsManager.sol)

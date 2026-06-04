@@ -127,11 +127,18 @@ func (r *SingleChainRuntime) VMConfig(t devtest.T, dir string) *vm.Config {
 }
 
 type MultiChainNodeRuntime struct {
-	Name        string
-	Network     *L2Network
+	Name    string
+	Network *L2Network
+	// EL is the chain's primary EL. In light-sequencer presets it is the
+	// follow-mode sequencer's own EL; in virtual-sequencer presets it is the
+	// same EL the supernode VN drives.
 	EL          L2ELNode
 	CL          L2CLNode
 	SupernodeCL L2CLNode
+	// SupernodeEL is the EL the supernode VN reads/writes. In light-sequencer
+	// presets it is distinct from EL (production topology: separate ELs joined
+	// only by L1 + P2P); in virtual-sequencer presets it equals EL.
+	SupernodeEL L2ELNode
 	Batcher     *L2Batcher
 	Proposer    *L2Proposer
 	Followers   map[string]*SingleChainNodeRuntime

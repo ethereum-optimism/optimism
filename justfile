@@ -65,6 +65,33 @@ golang-docker:
       -f docker-bake.hcl \
       op-node op-batcher op-proposer op-challenger op-dispute-mon
 
+# Builds selected Docker image targets using buildx.
+[private]
+[script('bash')]
+docker-bake targets:
+  set -euo pipefail
+  GIT_COMMIT=$(git rev-parse HEAD)
+  GIT_DATE=$(git show -s --format='%ct')
+  IMAGE_TAGS=${IMAGE_TAGS:-$GIT_COMMIT,latest}
+  read -ra bake_targets <<< "{{targets}}"
+  GIT_COMMIT="$GIT_COMMIT" \
+  GIT_DATE="$GIT_DATE" \
+  IMAGE_TAGS="$IMAGE_TAGS" \
+  docker buildx bake \
+      --progress plain \
+      --load \
+      -f docker-bake.hcl \
+      "${bake_targets[@]}"
+
+# Builds Docker image for op-node using buildx.
+op-node-docker: (docker-bake "op-node")
+
+# Builds Docker image for op-batcher using buildx.
+op-batcher-docker: (docker-bake "op-batcher")
+
+# Builds the requested local Docker images for op-node and op-batcher.
+op-stack-go-requested-docker: (docker-bake "op-node op-batcher")
+
 # Removes the Docker buildx builder.
 docker-builder-clean:
   docker buildx rm buildx-build
@@ -445,7 +472,7 @@ release-notes component from='latest' to='latest-rc' mode='':
     if [ -z "$from_tag" ]; then echo "error: could not resolve from tag '{{ from }}' for {{ component }}"; exit 1; fi
     include_path_args=()
     case "{{ component }}" in
-        op-node|op-batcher|op-proposer|op-challenger)
+        op-node|op-batcher|op-proposer|op-challenger|op-supernode)
             include_path_args=(
                 --include-path "{{ component }}/**/*"
                 --include-path "go.*"
@@ -480,7 +507,7 @@ release-notes component from='latest' to='latest-rc' mode='':
             )
             ;;
         *)
-            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-reth, op-deployer, op-contracts, kona-*; is {{ component }}"
+            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-reth, op-deployer, op-contracts, op-supernode, kona-*; is {{ component }}"
             exit 1
             ;;
     esac

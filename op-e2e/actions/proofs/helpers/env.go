@@ -79,7 +79,7 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 
 	// Synthesise a one-chain depset when interop is scheduled; the sequencer's
 	// FetchingAttributesBuilder constructor panics otherwise.
-	if sd.RollupCfg.InteropTime != nil && sd.DependencySet == nil {
+	if sd.RollupCfg.LagoonTime != nil && sd.DependencySet == nil {
 		defaultDepSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 			eth.ChainIDFromBig(sd.RollupCfg.L2ChainID): {},
 		})

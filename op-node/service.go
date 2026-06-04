@@ -314,7 +314,7 @@ func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.Chai
 
 // NewDependencySetFromCLI returns the dep set from --interop.dependency-set if
 // set, otherwise from the superchain-registry. An unknown chain yields
-// (nil, nil); config.Check then errors iff InteropTime is set.
+// (nil, nil); config.Check then errors iff LagoonTime is set.
 func NewDependencySetFromCLI(cli cliiface.Context, chainID eth.ChainID) (depset.DependencySet, error) {
 	if cli.IsSet(flags.InteropDependencySet.Name) {
 		loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}

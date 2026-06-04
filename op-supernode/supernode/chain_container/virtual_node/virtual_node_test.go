@@ -158,6 +158,22 @@ func (m *mockSafeDBReader) FirstEntry(ctx context.Context) (eth.BlockID, eth.Blo
 	return entry.l1, entry.l2, nil
 }
 
+func (m *mockSafeDBReader) LastEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	if len(m.entries) == 0 {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
+	}
+	var highest uint64
+	first := true
+	for num := range m.entries {
+		if first || num > highest {
+			highest = num
+			first = false
+		}
+	}
+	entry := m.entries[highest]
+	return entry.l1, entry.l2, nil
+}
+
 // Test helpers
 func createTestConfig() *opnodecfg.Config {
 	return &opnodecfg.Config{

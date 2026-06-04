@@ -231,7 +231,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NoError(t, err)
 
 		// sets config to post-interop
-		cfg.ActivateAtGenesis(forks.Interop)
+		cfg.ActivateAtGenesis(forks.Lagoon)
 
 		seqNumber := uint64(0)
 		epoch := l1Info.ID()
@@ -271,7 +271,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1Info.InfoNum = l2Parent.L1Origin.Number // same origin again, so the sequence number is not reset
 
 		// sets config to post-interop
-		cfg.ActivateAtGenesis(forks.Interop)
+		cfg.ActivateAtGenesis(forks.Lagoon)
 
 		seqNumber := l2Parent.SequenceNumber + 1
 		epoch := l1Info.ID()
@@ -382,13 +382,13 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		prepareActivationAttributes := func(t *testing.T, depSet depset.DependencySet) *eth.PayloadAttributes {
 			cfg := mkCfg()
 			cfg.ActivateAtGenesis(forks.Isthmus)
-			interopTime := uint64(1000)
-			cfg.InteropTime = &interopTime
+			lagoonTime := uint64(1000)
+			cfg.LagoonTime = &lagoonTime
 			rng := rand.New(rand.NewSource(1234))
 			l1Fetcher := &testutils.MockL1Source{}
 			defer l1Fetcher.AssertExpectations(t)
 			l2Parent := testutils.RandomL2BlockRef(rng)
-			l2Parent.Time = interopTime - cfg.BlockTime
+			l2Parent.Time = lagoonTime - cfg.BlockTime
 
 			l1CfgFetcher := &testutils.MockL2Client{}
 			l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
@@ -415,7 +415,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 			})
 			require.NoError(t, err)
 			attrs := prepareActivationAttributes(t, depSet)
-			bundleTxs, _, err := UpgradeTransactions(forks.Interop)
+			bundleTxs, _, err := UpgradeTransactions(forks.Lagoon)
 			require.NoError(t, err)
 
 			require.Len(t, attrs.Transactions, len(bundleTxs)+1) // +1 for L1Info tx
@@ -436,7 +436,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 
 			setFeatureTx, err := interopSetFeatureTx()
 			require.NoError(t, err)
-			bundleTxs, _, err := UpgradeTransactions(forks.Interop)
+			bundleTxs, _, err := UpgradeTransactions(forks.Lagoon)
 			require.NoError(t, err)
 			fundingTx, err := interopETHLiquidityFundingTx()
 			require.NoError(t, err)

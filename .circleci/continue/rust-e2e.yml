@@ -266,7 +266,8 @@ workflows:
             - contracts-bedrock-build
             - cannon-prestate
             - rust-workspace-release
-      # Proof tests - single kind only, interop excluded per original config
+      # Proof action tests - single-chain only. Interop proof coverage runs
+      # under kona-host in op-acceptance-tests, not as action tests.
       - kona-proof-action-tests:
           name: kona-proof-action-single
           kind: single
@@ -290,29 +291,7 @@ workflows:
   rust-e2e-gate-skip:
     when: << pipeline.parameters.c-run_rust_e2e_gate_skip >>
     jobs:
-      - contracts-bedrock-build:
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary:
-          name: rust-workspace-release
-          directory: rust
-          profile: release
-          persist_to_workspace: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      # Proof tests - single kind only, interop excluded per original config
-      - kona-proof-action-tests:
-          name: kona-proof-action-single
-          kind: single
-          requires:
-            - rust-workspace-release
-            - contracts-bedrock-build
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-
       - required-rust-e2e:
-          requires:
-            - kona-proof-action-single: terminal
+          always-succeed: true
           context:
             - circleci-api-token

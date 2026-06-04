@@ -20,6 +20,7 @@ type PresetConfig struct {
 	BatcherOptions             []BatcherOption
 	ProposerOptions            []ProposerOption
 	OPRBuilderOptions          []OPRBuilderNodeOption
+	OpRethOptions              []OpRethOption
 	GlobalL2CLOptions          []L2CLOption
 	GlobalSyncTesterELOptions  []SyncTesterELOption
 	L1ELKind                   string
@@ -41,6 +42,11 @@ type PresetConfig struct {
 	SupernodeVerifierSyncMode *nodeSync.Mode
 	// InteropActivationDelaySeconds offsets Interop activation past genesis (0 = at genesis).
 	InteropActivationDelaySeconds uint64
+	// InteropAtGenesis activates Interop on the L2 chain at genesis and provisions a
+	// DependencySet for op-node startup (without a supervisor). Required by tests that
+	// exercise Interop-gated consensus features (e.g. SDM PostExec) on the default
+	// single-chain runtime.
+	InteropAtGenesis bool
 }
 
 func NewPresetConfig() PresetConfig {

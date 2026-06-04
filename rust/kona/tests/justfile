@@ -267,23 +267,6 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     --jsonfile=./tmp/testlogs/log.json \
     -- -count=1 -parallel=$PARALLEL -timeout=60m -run "{{test_name}}"
 
-# Run action tests for the interop client program on the native target
-action-tests-interop test_name='TestInteropFaultProofs' *args='': action-tests-build (action-tests-interop-run test_name args)
-
-action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
-  #!/bin/bash
-  set -euo pipefail
-
-  echo "Building host program for the native target"
-  just build-native --bin kona-host
-  export KONA_HOST_PATH="{{SOURCE}}/../target/debug/kona-host"
-
-  # GitHub actions patch - do not print logs.
-  # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
-  echo "Running action tests for the client program on the native target"
-
-  cd {{SOURCE}}/../../../op-e2e/actions/interop && GITHUB_ACTIONS=false {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
-
 update-packages:
     #!/bin/bash
     cd {{SOURCE}}/optimism/op-deployer && just build-contracts copy-contract-artifacts

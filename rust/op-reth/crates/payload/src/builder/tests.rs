@@ -1,11 +1,7 @@
 use super::{
-    ExecutionInfo, OpPayloadBuilder, OpPayloadBuilderCtx, build_post_exec_recovered_tx,
-    try_include_post_exec_tx,
+    ExecutionInfo, OpPayloadBuilderCtx, build_post_exec_recovered_tx, try_include_post_exec_tx,
 };
-use crate::{
-    OpPayloadBuilderAttributes,
-    config::{OpBuilderConfig, OpDAConfig, OpGasLimitConfig},
-};
+use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig};
 use alloy_consensus::{
     Header, SignableTransaction, TxEip1559, Typed2718,
     transaction::{Recovered, TxHashRef},
@@ -148,24 +144,6 @@ fn run_execute_best_transactions(
         .collect();
 
     (info, included_tx_hashes)
-}
-
-// Ensures the payload builder keeps SDM disabled by default and preserves the explicit
-// integration-test override when swapping in a transaction source.
-#[test]
-fn payload_builder_preserves_sdm_config() {
-    let default = OpBuilderConfig::new(OpDAConfig::default(), OpGasLimitConfig::default());
-    assert!(!default.sdm_enabled);
-
-    let builder = OpPayloadBuilder::<(), (), (), (), ()>::with_builder_config(
-        (),
-        (),
-        (),
-        OpBuilderConfig::new_with_sdm(OpDAConfig::default(), OpGasLimitConfig::default(), true),
-    )
-    .with_transactions(42u64);
-    assert!(builder.config.sdm_enabled);
-    assert_eq!(builder.best_transactions, 42);
 }
 
 #[test]

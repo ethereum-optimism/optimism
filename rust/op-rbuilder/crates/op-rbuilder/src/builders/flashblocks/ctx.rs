@@ -1,7 +1,11 @@
 use crate::{
-    builders::{BuilderConfig, OpPayloadBuilderCtx, flashblocks::FlashblocksConfig},
+    builders::{
+        BuilderConfig, OpPayloadBuilderCtx, context::compute_post_exec_mode,
+        flashblocks::FlashblocksConfig,
+    },
     gas_limiter::{AddressGasLimiter, args::GasLimiterArgs},
     metrics::OpRBuilderMetrics,
+    sdm_admin::SdmPostExecOptInFlag,
     traits::ClientBounds,
 };
 use op_revm::OpSpecId;
@@ -29,6 +33,8 @@ pub(super) struct OpPayloadSyncerCtx {
     max_gas_per_txn: Option<u64>,
     /// The metrics for the builder
     metrics: Arc<OpRBuilderMetrics>,
+    /// Operator opt-in flag for SDM PostExec production, shared with the admin RPC.
+    sdm_post_exec_opt_in: SdmPostExecOptInFlag,
 }
 
 impl OpPayloadSyncerCtx {
@@ -48,6 +54,7 @@ impl OpPayloadSyncerCtx {
             chain_spec,
             max_gas_per_txn: builder_config.max_gas_per_txn,
             metrics,
+            sdm_post_exec_opt_in: builder_config.sdm_post_exec_opt_in.clone(),
         })
     }
 
@@ -66,6 +73,11 @@ impl OpPayloadSyncerCtx {
         block_env_attributes: OpNextBlockEnvAttributes,
         cancel: CancellationToken,
     ) -> OpPayloadBuilderCtx {
+        let post_exec_mode = compute_post_exec_mode(
+            &self.evm_config,
+            payload_config.attributes.timestamp(),
+            &self.sdm_post_exec_opt_in,
+        );
         OpPayloadBuilderCtx {
             evm_config: self.evm_config,
             da_config: self.da_config,
@@ -80,6 +92,7 @@ impl OpPayloadSyncerCtx {
             extra_ctx: (),
             max_gas_per_txn: self.max_gas_per_txn,
             address_gas_limiter: AddressGasLimiter::new(GasLimiterArgs::default()),
+            post_exec_mode,
         }
     }
 }

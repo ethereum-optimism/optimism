@@ -539,8 +539,8 @@ func (f *DisputeGameFactory) RunFPP(startTimestamp uint64, endTimestamp uint64) 
 			"endTimestamp", endTimestamp,
 			"timestamp", timestamp,
 			"step", step,
-			"invalidTransition", super.InvalidTransition,
-			"invalidTransitionHash", super.InvalidTransitionHash,
+			"invalidTransition", eth.InvalidTransition,
+			"invalidTransitionHash", eth.InvalidTransitionHash,
 		)
 
 		runFPPForStep(f, tmpDir, inputs)

@@ -145,7 +145,6 @@ commands:
             CHECK_CHANGED_NO_GO_DEPS: "<<parameters.no_go_deps>>"
           command: |
             cd ops/check-changed
-            pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
 
   install-solc-compilers:
@@ -2778,31 +2777,6 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - build-contracts-go-release-op-deployer
-
-  go-release-op-up:
-    jobs:
-      - contracts-bedrock-build:
-          name: build-contracts-go-release-op-up
-          filters:
-            tags:
-              only: /^op-up.*/
-            branches:
-              ignore: /.*/
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - go-release:
-          filters:
-            tags:
-              only: /^op-up.*/
-            branches:
-              ignore: /.*/
-          module: op-up
-          context:
-            - oplabs-gcr-release
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - build-contracts-go-release-op-up
 
   release:
     when: << pipeline.parameters.c-run_release >>

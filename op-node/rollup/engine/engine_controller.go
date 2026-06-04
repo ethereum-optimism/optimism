@@ -66,7 +66,15 @@ type Metrics interface {
 }
 
 type SyncDeriver interface {
-	OnELSyncStarted()
+	// ResetSafeDB removes safedb entries at or above ref (a zero ref clears it entirely).
+	// Called at EL-sync completion to trim a safedb whose tip isn't part of the synced chain.
+	ResetSafeDB(ref eth.L2BlockRef)
+	// SafeDBTip returns the L2 safe head at the safedb tip, reporting ok=false when the
+	// safedb is disabled or empty.
+	SafeDBTip(ctx context.Context) (l2 eth.BlockID, ok bool, err error)
+	// SafeDBHeadAtOrAboveL2 returns the L2 safe head the safedb recorded at the first L1 source
+	// whose safe head reached at least l2Num, reporting ok=false when there's no such entry.
+	SafeDBHeadAtOrAboveL2(ctx context.Context, l2Num uint64) (l2 eth.BlockID, ok bool, err error)
 }
 
 type AttributesForceResetter interface {
@@ -148,7 +156,7 @@ type EngineController struct {
 	// of the chain.
 	needFCUCallForBackupUnsafeReorg bool
 
-	// For clearing safe head db when EL sync started
+	// Used at EL-sync completion to read/clear the safedb.
 	// EngineController is first initialized and used to initialize SyncDeriver.
 	// Embed SyncDeriver into EngineController after initializing SyncDeriver
 	SyncDeriver SyncDeriver
@@ -755,7 +763,6 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
 			e.elStart = e.clock.Now()
-			e.SyncDeriver.OnELSyncStarted()
 		} else if err == nil {
 			e.syncStatus = syncStatusFinishedEL
 			e.log.Info("Skipping EL sync and going straight to CL sync because there is a finalized block", "id", b.ID())
@@ -794,24 +801,9 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		fc.FinalizedBlockHash = e.FinalizedHead().Hash
 	}
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
-		offsetRef := ref
-		if target := sync.OffsetBlockNum(e.syncCfg.OffsetELSafe, e.rollupCfg.BlockTime, ref.Number, e.rollupCfg.Genesis.L2.Number); target < ref.Number {
-			d, err := e.engine.L2BlockRefByNumber(ctx, target)
-			if err != nil {
-				return derive.NewTemporaryError(fmt.Errorf("EL sync offset-derived head at block %d: %w", target, err))
-			}
-			offsetRef = d
-		}
-		// With SupportsPostFinalizationELSync, EL sync can start even when
-		// there is already a finalized head. Never retract finalized or safe
-		// behind their prior values.
-		finalizedRef := offsetRef
-		if finalizedRef.Number < e.FinalizedHead().Number {
-			finalizedRef = e.FinalizedHead()
-		}
-		safeRef := offsetRef
-		if safeRef.Number < e.SafeL2Head().Number {
-			safeRef = e.SafeL2Head()
+		safeRef, finalizedRef, err := e.headsAfterELSync(ctx, ref)
+		if err != nil {
+			return err
 		}
 		fc.SafeBlockHash = safeRef.Hash
 		fc.FinalizedBlockHash = finalizedRef.Hash
@@ -871,6 +863,88 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		"mgasps", float64(envelope.ExecutionPayload.GasUsed)*1000/float64(totalTime))
 
 	return nil
+}
+
+// headsAfterELSync computes the safe and finalized heads to set when EL sync completes, keeping
+// the safedb gap-free. It resumes from the safedb-derived head when one is available, with
+// finalized following it but never advancing past the genuinely-finalized head (finalized may
+// move backward and is re-advanced by derivation). With no usable safedb it falls back to the
+// offset-derived head, never retracting safe or un-finalizing below the engine's current heads
+// (which would re-derive the offset window on every restart).
+func (e *EngineController) headsAfterELSync(ctx context.Context, ref eth.L2BlockRef) (safeRef, finalizedRef eth.L2BlockRef, err error) {
+	offsetRef := ref
+	if target := sync.OffsetBlockNum(e.syncCfg.OffsetELSafe, e.rollupCfg.BlockTime, ref.Number, e.rollupCfg.Genesis.L2.Number); target < ref.Number {
+		if offsetRef, err = e.engine.L2BlockRefByNumber(ctx, target); err != nil {
+			return eth.L2BlockRef{}, eth.L2BlockRef{}, derive.NewTemporaryError(fmt.Errorf("EL sync offset-derived head at block %d: %w", target, err))
+		}
+	}
+
+	safedbRef, fromSafeDB, err := e.safeDBRefAfterELSync(ctx, offsetRef)
+	if err != nil {
+		return eth.L2BlockRef{}, eth.L2BlockRef{}, err
+	}
+	finalized := e.FinalizedHead()
+	if fromSafeDB {
+		finalizedRef = safedbRef
+		if finalized.Number < finalizedRef.Number {
+			finalizedRef = finalized
+		}
+		return safedbRef, finalizedRef, nil
+	}
+
+	// safedb is disabled, or it didn't resolve to a valid safe head on the synced chain: choose
+	// the offset-derived head.
+	safeRef, finalizedRef = offsetRef, offsetRef
+	if finalizedRef.Number < finalized.Number {
+		finalizedRef = finalized
+	}
+	if safeRef.Number < e.SafeL2Head().Number {
+		safeRef = e.SafeL2Head()
+	}
+	return safeRef, finalizedRef, nil
+}
+
+// safeDBRefAfterELSync returns the safedb-derived head to resume derivation from after EL sync,
+// reporting fromSafeDB=false when there's no usable safedb (resume from the offset head). It
+// preserves a safedb whose tip is on the synced chain; otherwise it looks up the recorded safe
+// head at or just above the offset head — a real stored block — and, if that is on the synced
+// chain, trims to it (keeping the consistent history below). If it isn't on the synced chain the
+// db can't be trusted, so it is cleared.
+func (e *EngineController) safeDBRefAfterELSync(ctx context.Context, offsetRef eth.L2BlockRef) (eth.L2BlockRef, bool, error) {
+	tip, ok, err := e.SyncDeriver.SafeDBTip(ctx)
+	if err != nil {
+		return eth.L2BlockRef{}, false, derive.NewTemporaryError(fmt.Errorf("failed to read safedb tip after EL sync: %w", err))
+	}
+	if !ok {
+		return eth.L2BlockRef{}, false, nil // no safedb
+	}
+	switch tipRef, err := e.engine.L2BlockRefByHash(ctx, tip.Hash); {
+	case err == nil:
+		// The tip is on the synced chain: resume from it, preserving the whole safedb.
+		return tipRef, true, nil
+	case !errors.Is(err, ethereum.NotFound):
+		return eth.L2BlockRef{}, false, derive.NewTemporaryError(fmt.Errorf("failed to resolve safedb tip %s after EL sync: %w", tip, err))
+	}
+	// The tip isn't on the synced chain (a recent reorg dropped it, or a foreign restore). Find the
+	// recorded safe head at or just above the offset head — a real stored block — and trim to it if
+	// it's on the synced chain; otherwise the db can't be trusted, so clear it.
+	anchor, ok, err := e.SyncDeriver.SafeDBHeadAtOrAboveL2(ctx, offsetRef.Number)
+	if err != nil {
+		return eth.L2BlockRef{}, false, derive.NewTemporaryError(fmt.Errorf("failed to read safedb head at offset %d after EL sync: %w", offsetRef.Number, err))
+	}
+	if ok {
+		switch anchorRef, err := e.engine.L2BlockRefByHash(ctx, anchor.Hash); {
+		case err == nil:
+			e.log.Warn("safedb tip not on synced chain, trimming to recorded head near offset", "anchor", anchorRef, "offset_head", offsetRef)
+			e.SyncDeriver.ResetSafeDB(anchorRef)
+			return anchorRef, true, nil
+		case !errors.Is(err, ethereum.NotFound):
+			return eth.L2BlockRef{}, false, derive.NewTemporaryError(fmt.Errorf("failed to check safedb head %s after EL sync: %w", anchor, err))
+		}
+	}
+	e.log.Warn("safedb has no canonical recorded head at the offset, clearing safedb", "offset_head", offsetRef)
+	e.SyncDeriver.ResetSafeDB(eth.L2BlockRef{})
+	return eth.L2BlockRef{}, false, nil
 }
 
 // shouldTryBackupUnsafeReorg checks reorging(restoring) unsafe head to backupUnsafeHead is needed.
@@ -1454,8 +1528,22 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 		return
 	}
 
-	// External local safe is found locally but they differ so trigger reorg.
-	// Reorging may trigger EL Sync, or updating the EL Sync target.
+	// External local safe is found locally but differs: the follower diverged from upstream
+	// and must reorg onto it.
+	if e.originSelectorResetter != nil {
+		// This follower is also a sequencer (the origin-selector resetter is wired only when
+		// sequencing is enabled). A soft unsafe-head update would be clobbered by the next
+		// sequencer block before the FCU lands (head on the fork, safe on upstream ->
+		// InvalidForkchoiceState -> reset re-selects the fork -> oscillation, #21119). forceReset
+		// cancels the in-flight build and FCUs onto the upstream chain in one shot (head==safe);
+		// the sequencer then rebuilds from there.
+		logger.Warn("Follow Source: Reorg onto upstream chain")
+		e.forceReset(e.ctx, eLocalSafeRef, eLocalSafeRef, eLocalSafeRef, eSafeBlockRef, eFinalizedRef, false)
+		return
+	}
+
+	// Pure verifier (no local block production): a soft update suffices and may trigger or
+	// retarget EL sync.
 	logger.Warn("Follow Source: Reorg. May Trigger EL sync")
 	followExternalRefs(true)
 }

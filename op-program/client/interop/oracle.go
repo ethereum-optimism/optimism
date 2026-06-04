@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	l2Types "github.com/ethereum-optimism/optimism/op-program/client/l2/types"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
@@ -20,12 +19,12 @@ import (
 type ConsolidateOracle struct {
 	o  l2.Oracle
 	db l2.KeyValueStore
-	ts *interopTypes.TransitionState
+	ts *eth.TransitionState
 }
 
 var _ l2.Oracle = &ConsolidateOracle{}
 
-func NewConsolidateOracle(oracle l2.Oracle, transitionState *interopTypes.TransitionState) *ConsolidateOracle {
+func NewConsolidateOracle(oracle l2.Oracle, transitionState *eth.TransitionState) *ConsolidateOracle {
 	return &ConsolidateOracle{
 		o:  oracle,
 		db: memorydb.New(),
@@ -107,7 +106,7 @@ func (o *ConsolidateOracle) Hinter() l2Types.OracleHinter {
 	return o.o.Hinter()
 }
 
-func (o *ConsolidateOracle) TransitionStateByRoot(root common.Hash) *interopTypes.TransitionState {
+func (o *ConsolidateOracle) TransitionStateByRoot(root common.Hash) *eth.TransitionState {
 	return o.ts
 }
 

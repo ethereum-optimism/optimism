@@ -25,6 +25,7 @@ reth-payload-util.workspace = true
 reth-payload-primitives.workspace = true
 reth-basic-payload-builder.workspace = true
 reth-payload-validator.workspace = true
+reth-metrics.workspace = true
 
 # op-reth
 reth-optimism-evm.workspace = true
