@@ -113,6 +113,7 @@ pub(crate) const fn filter_error_kind(error: &InteropTxValidatorError) -> &'stat
 /// single source of truth for which `result` the error path records.
 pub(crate) const fn validation_failure_result(error: &InteropTxValidatorError) -> &'static str {
     match error {
+        InteropTxValidatorError::FailsafeEnabled => RESULT_REJECTED_FAILSAFE,
         InteropTxValidatorError::InvalidEntry(_) => RESULT_REJECTED_VALIDATION,
         _ => RESULT_ERRORED,
     }
@@ -174,5 +175,10 @@ mod tests {
         // No trustworthy answer -> infra failure, must not look like a rejection.
         assert_eq!(validation_failure_result(&InteropTxValidatorError::Timeout(2)), RESULT_ERRORED);
         assert_eq!(validation_failure_result(&server_error()), RESULT_ERRORED);
+        // The dedicated failsafe error code is a failsafe rejection, not an infra failure.
+        assert_eq!(
+            validation_failure_result(&InteropTxValidatorError::FailsafeEnabled),
+            RESULT_REJECTED_FAILSAFE
+        );
     }
 }

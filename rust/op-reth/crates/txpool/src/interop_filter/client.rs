@@ -125,17 +125,25 @@ impl InteropFilterClient {
             )
             .await
         {
-            // Distinguish a legitimate rejection (the filter answered and said no) from an infra
-            // failure (we never got a trustworthy answer), so an outage does not masquerade as a
-            // flood of rejections in the allow-rate signal.
+            // Classify the failure: the filter answered "no" (legitimate rejection), it is in
+            // failsafe, or we never got a trustworthy answer (infra failure) — so an outage does
+            // not masquerade as a flood of rejections in the allow-rate signal.
             self.inner.metrics.record_decision(validation_failure_result(&err));
-            if let InteropTxValidatorError::InvalidEntry(reason) = &err {
-                self.inner.metrics.record_validation_error(reason);
-            } else {
-                self.inner.metrics.record_filter_error(&err);
+            match &err {
+                InteropTxValidatorError::InvalidEntry(reason) => {
+                    self.inner.metrics.record_validation_error(reason);
+                }
+                // Single-cause outcome, counted via the decision metric; no breakdown.
+                InteropTxValidatorError::FailsafeEnabled => {}
+                _ => self.inner.metrics.record_filter_error(&err),
             }
             trace!(target: "txpool", hash=%hash, err=%err, "Cross chain transaction invalid");
-            return Some(Err(InvalidCrossTx::ValidationError(err)));
+            // A per-tx failsafe response maps to the same rejection as the cached fast-path,
+            // covering the race where failsafe turns on between the poll and this check.
+            return Some(Err(match err {
+                InteropTxValidatorError::FailsafeEnabled => InvalidCrossTx::FailsafeEnabled,
+                other => InvalidCrossTx::ValidationError(other),
+            }));
         }
         self.inner.metrics.record_decision(RESULT_ALLOWED);
         Some(Ok(()))
