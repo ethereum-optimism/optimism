@@ -369,11 +369,11 @@ func TestEIP7825DepositBypassesTxGasLimitCap(gt *testing.T) {
 	sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 	sys.L1Network.WaitForOnline()
 	sys.L2EL.WaitForBlockNumber(1)
-	spamTxs(sys.Minimal)
-	// Wait for base fee to rise so the deposit check can work (with a low L1 base fee, it is
-	// impossible to submit deposits that consume a lot of gas).
-	sys.L2EL.WaitForLabelRef(eth.Unsafe, func(info eth.BlockInfo) (bool, error) {
-		return info.BaseFee().Cmp(eth.GWei(2).ToBig()) < 0, nil
+	// Wait for the L1 base fee to rise so the deposit check can work (with a low L1 base fee, it
+	// is impossible to submit deposits that consume a lot of gas).
+	spamL1Txs(sys.Minimal)
+	sys.L1EL.WaitForLabelRef(eth.Unsafe, func(info eth.BlockInfo) (bool, error) {
+		return info.BaseFee().Cmp(eth.GWei(2).ToBig()) >= 0, nil
 	})
 
 	alice := sys.FunderL1.NewFundedEOA(eth.OneEther)
@@ -410,32 +410,45 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 	t.Require().NoError(karsttest.CheckEIP7934BlockSizeDisabled(t.Ctx(), t.Logger(), sys.L2EL.EthClient(), l2BlockTime))
 }
 
+// spamTxs floods L2 with large-calldata transactions to drive the L2 base fee up.
 func spamTxs(sys *presets.Minimal) {
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
 	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
+	runSpam(sys.T, eoas, l2BlockTime, predeploys.L1BlockAddr)
+}
+
+// spamL1Txs floods L1 with large-calldata transactions to drive the L1 base fee up.
+func spamL1Txs(sys *presets.Minimal) {
+	l1BlockTime := sys.L1EL.EstimateBlockTime()
+	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l1BlockTime, sys.L1EL, sys.Wallet, sys.FaucetL1)
+	// The target only needs to absorb calldata, so any address works.
+	runSpam(sys.T, eoas, l1BlockTime, common.Address{0x42})
+}
+
+func runSpam(t devtest.T, eoas []*loadtest.SyncEOA, blockTime time.Duration, to common.Address) {
 	eoasRR := loadtest.NewRoundRobin(eoas)
 	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
 		// Max tx size in op-geth and op-reth mempools is 128 kB per tx.
 		// We leave an 8 kB buffer for tx data outside the calldata.
 		const calldataSize = 120 * 1024
 		_, err := eoasRR.Get().Include(t,
-			txplan.WithTo(&predeploys.L1BlockAddr),
+			txplan.WithTo(&to),
 			txplan.WithData(make([]byte, calldataSize)),
 			txplan.WithGasLimit(1_250_000),
 		)
 		return err
 	})
-	schedule := loadtest.NewBurst(l2BlockTime, loadtest.WithBaseRPS(50))
+	schedule := loadtest.NewBurst(blockTime, loadtest.WithBaseRPS(50))
 
-	ctx, cancel := context.WithCancel(sys.T.Ctx())
+	ctx, cancel := context.WithCancel(t.Ctx())
 	var wg sync.WaitGroup
 	wg.Add(1)
-	sys.T.Cleanup(func() {
+	t.Cleanup(func() {
 		cancel()
 		wg.Wait()
 	})
 	go func() {
 		defer wg.Done()
-		schedule.Run(sys.T.WithCtx(ctx), spammer)
+		schedule.Run(t.WithCtx(ctx), spammer)
 	}()
 }
