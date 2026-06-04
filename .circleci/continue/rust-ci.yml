@@ -1224,6 +1224,9 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
+            # kona-publish builds the prestate via rust-prepare -> rust-sccache-setup,
+            # which now fails loud, so it must carry the sccache context.
+            - sccache-gcs-optimism
 
   # Kona publish prestate artifacts - on kona-client/v* tag push
   kona-publish-prestates-on-tag:
@@ -1237,6 +1240,9 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
+            # kona-publish builds the prestate via rust-prepare -> rust-sccache-setup,
+            # which now fails loud, so it must carry the sccache context.
+            - sccache-gcs-optimism
           filters:
             tags:
               only: /^kona-client\/v.*/

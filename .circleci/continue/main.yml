@@ -130,17 +130,17 @@ commands:
 
   rust-sccache-setup:
     description: >
-      Best-effort sccache GCS compile cache for the Rust build jobs. The GCP
-      Workload Identity coords, reader service account, and bucket come from the
+      sccache GCS compile cache for the Rust build jobs. The GCP Workload
+      Identity coords, reader service account, and bucket come from the
       sccache-gcs-optimism CircleCI context; the read-only reader is the default
       for every ref and develop overrides to the writer. The write/read split is
       enforced by GCP Workload Identity on the signed CircleCI OIDC vcs-ref claim,
       so a non-develop ref impersonating the writer is denied by GCP; this only
       selects the SA. sccache is preinstalled in the ci-base-clang image.
 
-      Fail-open by design: sccache is an accelerator, never a gate. If the
-      context is absent, auth fails, or the server won't start, the step logs a
-      warning and the build proceeds WITHOUT the cache (never fails the job).
+      Not fail-open: if the sccache server can't start, the job fails so a broken
+      cache is fixed rather than silently masked. Requires the context (so every
+      job invoking this command must carry sccache-gcs-optimism).
     parameters:
       enabled:
         description: "Master switch for the GCS compile cache."
@@ -191,20 +191,14 @@ commands:
                   printf '{"type":"external_account","audience":"//iam.googleapis.com/projects/%s/locations/global/workloadIdentityPools/%s/providers/%s","subject_token_type":"urn:ietf:params:oauth:token-type:jwt","token_url":"https://sts.googleapis.com/v1/token","service_account_impersonation_url":"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken","credential_source":{"file":"/tmp/sccache_oidc_token","format":{"type":"text"}}}' \
                     "$GCP_PROJECT_ID" "$GCP_WIP_ID" "$GCP_WIP_PROVIDER_ID" "$GCP_SERVICE_ACCOUNT_EMAIL" > /tmp/sccache_gcp_cred.json
                   export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sccache_gcp_cred.json
-                  # RUSTC_WRAPPER is set ONLY if the server starts. sccache is an
-                  # accelerator: a cache/auth/GCS hiccup must yield an uncached build,
-                  # never a broken one (RUSTC_WRAPPER=sccache fails every rustc call
-                  # if the server is down).
-                  if sccache --start-server; then
-                    sccache --show-stats || true
-                    {
-                      echo "export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sccache_gcp_cred.json"
-                      echo "export RUSTC_WRAPPER=sccache"
-                    } >> "$BASH_ENV"
-                    echo "sccache enabled (bucket=${SCCACHE_GCS_BUCKET:-?})"
-                  else
-                    echo "sccache unavailable; building without it"
-                  fi
+                  # No fail-open: if the server can't start, fail the job loudly so a
+                  # broken cache is fixed, not silently tolerated.
+                  sccache --start-server
+                  sccache --show-stats
+                  {
+                    echo "export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sccache_gcp_cred.json"
+                    echo "export RUSTC_WRAPPER=sccache"
+                  } >> "$BASH_ENV"
 
   check-changed:
     description: "Conditionally halts a step if certain modules change"
