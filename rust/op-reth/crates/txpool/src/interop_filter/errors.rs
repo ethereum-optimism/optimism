@@ -53,8 +53,8 @@ impl InteropTxValidatorError {
         E: error::Error + Send + Sync + 'static,
     {
         // Try to extract a known error variant from the RPC error code.
-        if let Some(error_payload) = err.as_error_resp()
-            && let Some(known) = Self::from_error_code(error_payload.code as i32)
+        if let Some(error_payload) = err.as_error_resp() &&
+            let Some(known) = Self::from_error_code(error_payload.code as i32)
         {
             return known;
         }
