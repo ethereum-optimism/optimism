@@ -219,24 +219,17 @@ where
             }
         }
 
-        let mut rewind_from: Option<u64> = None;
+        let mut checked: Vec<(u64, Option<bool>)> = Vec::with_capacity(distinct.len());
         for ((chain_id, block_number), (block_hash, min_local)) in distinct {
-            // Only rewind on a *confirmed* mismatch (the source block is still reachable but its
-            // hash changed → reorg). A transient source-RPC failure returns `None` and leaves the
-            // cached blocks in place, so a momentary outage cannot regress the head backwards; the
-            // next refresh re-checks once the source is reachable again.
-            if self
+            let canonical = self
                 .inner
                 .source_clients
                 .source_block_canonical(chain_id, block_number, block_hash)
-                .await ==
-                Some(false)
-            {
-                rewind_from = Some(rewind_from.map_or(min_local, |current| current.min(min_local)));
-            }
+                .await;
+            checked.push((min_local, canonical));
         }
 
-        if let Some(number) = rewind_from {
+        if let Some(number) = source_rewind_target(checked) {
             debug!(
                 target: "rpc::cross_unsafe",
                 number,
@@ -378,16 +371,6 @@ where
         else {
             return Ok(None);
         };
-        if header.timestamp() != timestamp {
-            debug!(
-                target: "rpc::cross_unsafe",
-                block_number,
-                expected = timestamp,
-                actual = header.timestamp(),
-                "local initiating block timestamp mismatch"
-            );
-            return Ok(None);
-        }
 
         let Some(receipts) = self
             .inner
@@ -402,43 +385,17 @@ where
             return Ok(None);
         };
 
-        // The identifier's `logIndex` is the block-global position across all logs in the block.
-        let Some(log) = receipts.iter().flat_map(|receipt| receipt.logs()).nth(log_index as usize)
-        else {
-            debug!(target: "rpc::cross_unsafe", block_number, log_index, "local initiating log not found");
-            return Ok(None);
-        };
-
-        if log.address != origin {
-            debug!(
-                target: "rpc::cross_unsafe",
-                block_number,
-                log_index,
-                expected = %origin,
-                actual = %log.address,
-                "local initiating log origin mismatch"
-            );
-            return Ok(None);
-        }
-
-        let local_payload_hash = keccak256(RawMessagePayload::from(log).as_ref());
-        if local_payload_hash != payload_hash {
-            debug!(
-                target: "rpc::cross_unsafe",
-                block_number,
-                log_index,
-                expected = %payload_hash,
-                actual = %local_payload_hash,
-                "local initiating log payload hash mismatch"
-            );
-            return Ok(None);
-        }
-
-        Ok(Some(SourceRef {
-            chain_id: self.inner.local_chain_id,
+        Ok(validate_local_log(
+            self.inner.local_chain_id,
             block_number,
-            block_hash: header.hash(),
-        }))
+            header.hash(),
+            header.timestamp(),
+            receipts.iter().flat_map(|receipt| receipt.logs()),
+            log_index,
+            timestamp,
+            origin,
+            payload_hash,
+        ))
     }
 }
 
@@ -472,6 +429,83 @@ const fn initiating_timestamp_in_window(
         initiating_timestamp >= executing_timestamp.saturating_sub(expiry_window)
 }
 
+/// The earliest local block to drop given each distinct cached source block's recheck result, as
+/// `(min_local, canonical)` pairs where `min_local` is the lowest local block referencing that
+/// source.
+///
+/// Only a *confirmed* reorg (`Some(false)`) triggers a rewind. A transient source-RPC failure
+/// (`None`) leaves the cache in place, so a momentary outage cannot regress the head backwards; the
+/// next refresh re-checks once the source is reachable again.
+fn source_rewind_target(checked: impl IntoIterator<Item = (u64, Option<bool>)>) -> Option<u64> {
+    checked
+        .into_iter()
+        .filter_map(|(min_local, canonical)| (canonical == Some(false)).then_some(min_local))
+        .min()
+}
+
+/// Validates a local-chain (intra-chain / self-reference) initiating message against already-read
+/// block data: the block's timestamp/hash and its logs in block-global order. Returns the
+/// dependency `SourceRef` on success, or `None` on any mismatch (fail closed).
+///
+/// Pure (no I/O) so the rejection matrix is unit-testable; `validate_local_initiating_message`
+/// supplies the data from the local provider.
+fn validate_local_log<'a>(
+    local_chain_id: u64,
+    block_number: u64,
+    block_hash: B256,
+    block_timestamp: u64,
+    logs: impl Iterator<Item = &'a alloy_primitives::Log>,
+    log_index: u64,
+    timestamp: u64,
+    origin: alloy_primitives::Address,
+    payload_hash: B256,
+) -> Option<SourceRef> {
+    if block_timestamp != timestamp {
+        debug!(
+            target: "rpc::cross_unsafe",
+            block_number,
+            expected = timestamp,
+            actual = block_timestamp,
+            "local initiating block timestamp mismatch"
+        );
+        return None;
+    }
+
+    // The identifier's `logIndex` is the block-global position across all logs in the block.
+    let mut logs = logs;
+    let Some(log) = logs.nth(log_index as usize) else {
+        debug!(target: "rpc::cross_unsafe", block_number, log_index, "local initiating log not found");
+        return None;
+    };
+
+    if log.address != origin {
+        debug!(
+            target: "rpc::cross_unsafe",
+            block_number,
+            log_index,
+            expected = %origin,
+            actual = %log.address,
+            "local initiating log origin mismatch"
+        );
+        return None;
+    }
+
+    let local_payload_hash = keccak256(RawMessagePayload::from(log).as_ref());
+    if local_payload_hash != payload_hash {
+        debug!(
+            target: "rpc::cross_unsafe",
+            block_number,
+            log_index,
+            expected = %payload_hash,
+            actual = %local_payload_hash,
+            "local initiating log payload hash mismatch"
+        );
+        return None;
+    }
+
+    Some(SourceRef { chain_id: local_chain_id, block_number, block_hash })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -494,5 +528,85 @@ mod tests {
         // strictly-earlier initiating timestamp (down to 0) is in window.
         assert!(initiating_timestamp_in_window(0, 100, window));
         assert!(!initiating_timestamp_in_window(101, 100, window));
+    }
+
+    #[test]
+    fn source_rewind_target_only_rewinds_on_confirmed_reorg() {
+        // No reorgs (all canonical) → no rewind.
+        assert_eq!(source_rewind_target([(10, Some(true)), (12, Some(true))]), None);
+        // A transient failure (None) is not a reorg → no rewind.
+        assert_eq!(source_rewind_target([(10, Some(true)), (12, None)]), None);
+        // A confirmed reorg rewinds from the local block that referenced it.
+        assert_eq!(source_rewind_target([(10, Some(true)), (12, Some(false))]), Some(12));
+        // With several confirmed reorgs, rewind from the earliest local block.
+        assert_eq!(
+            source_rewind_target([(20, Some(false)), (8, Some(false)), (15, Some(true))]),
+            Some(8),
+        );
+    }
+
+    fn local_log(origin: alloy_primitives::Address) -> alloy_primitives::Log {
+        alloy_primitives::Log {
+            address: origin,
+            data: alloy_primitives::LogData::new_unchecked(
+                vec![],
+                alloy_primitives::Bytes::from_static(b"payload"),
+            ),
+        }
+    }
+
+    #[test]
+    fn validate_local_log_accepts_and_rejects() {
+        let origin = alloy_primitives::Address::repeat_byte(0xab);
+        let block_hash = B256::repeat_byte(0x33);
+        let logs = vec![local_log(origin)]; // single log at block-global index 0
+        let payload = keccak256(RawMessagePayload::from(&logs[0]).as_ref());
+        let chain = 901u64;
+
+        // Accept: timestamp matches, the log at index 0 is from `origin` with the claimed payload.
+        assert_eq!(
+            validate_local_log(chain, 7, block_hash, 1_000, logs.iter(), 0, 1_000, origin, payload),
+            Some(SourceRef { chain_id: chain, block_number: 7, block_hash }),
+        );
+        // Reject: block timestamp does not match the claimed initiating timestamp.
+        assert!(
+            validate_local_log(chain, 7, block_hash, 1_000, logs.iter(), 0, 999, origin, payload)
+                .is_none()
+        );
+        // Reject: no log at the claimed block-global index.
+        assert!(
+            validate_local_log(chain, 7, block_hash, 1_000, logs.iter(), 5, 1_000, origin, payload)
+                .is_none()
+        );
+        // Reject: the log at the index was not emitted by the claimed origin.
+        assert!(
+            validate_local_log(
+                chain,
+                7,
+                block_hash,
+                1_000,
+                logs.iter(),
+                0,
+                1_000,
+                alloy_primitives::Address::repeat_byte(0xcd),
+                payload,
+            )
+            .is_none()
+        );
+        // Reject: the recomputed payload hash does not match the claimed one.
+        assert!(
+            validate_local_log(
+                chain,
+                7,
+                block_hash,
+                1_000,
+                logs.iter(),
+                0,
+                1_000,
+                origin,
+                B256::repeat_byte(0x99),
+            )
+            .is_none()
+        );
     }
 }
