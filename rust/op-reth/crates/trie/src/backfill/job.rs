@@ -335,10 +335,12 @@ where
 
     /// Snapshot-accelerated per-block backfill.
     ///
-    /// One rw-tx per block does all four writes atomically:
-    /// 1. `prepend_block` — write changesets / history; advance proofs `earliest` to `E-1`.
-    /// 2. `update_snapshot` — project the same diff onto the snapshot tables; advance snapshot
-    ///    anchor to `E-1`.
+    /// One rw-tx per block does all four writes atomically (the order between
+    /// steps 1 and 2 is immaterial — they hit disjoint tables and both must
+    /// land for the tx to commit):
+    /// 1. `update_snapshot` — project the diff onto the snapshot tables; advance snapshot anchor to
+    ///    `E-1`.
+    /// 2. `prepend_block` — write changesets / history; advance proofs `earliest` to `E-1`.
     /// 3. State-root validation against reth's header at `E-1` (read via snapshot cursors).
     /// 4. Commit.
     fn backfill_block_with_snapshot(
@@ -353,7 +355,7 @@ where
         let new_anchor = BlockNumHash::new(block_number - 1, block_ref.parent);
         let bp = self.storage.backfill_provider()?;
 
-        // Step 1+2: advance both the proofs window and the snapshot anchor in one tx.
+        // Steps 1+2: advance both the snapshot anchor and the proofs window in one tx.
         let (_, prepend) = timed(|| -> Result<(), BackfillError> {
             bp.update_snapshot(new_anchor, &trie_updates)?;
             bp.prepend_block(

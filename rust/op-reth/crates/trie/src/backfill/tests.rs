@@ -477,3 +477,60 @@ fn run_aborts_with_state_root_mismatch_when_header_corrupted() {
         other => panic!("expected StateRootMismatch, got {other:?}"),
     }
 }
+
+/// Snapshot-accelerated mirror of
+/// [`run_aborts_with_state_root_mismatch_when_header_corrupted`]: the
+/// validation step in `validate_state_root_with_snapshot` (the snapshot path's
+/// safety net) must reject a mismatch between the snapshot's computed root and
+/// reth's header at `E-1`.
+#[test]
+fn run_with_snapshot_aborts_with_state_root_mismatch_when_header_corrupted() {
+    let key_pair = deterministic_keypair();
+    let sender = public_key_to_address(key_pair.public_key());
+    let chain_spec = chain_spec_with_address(sender);
+    let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&provider_factory).unwrap();
+
+    let recipient = Address::repeat_byte(0x42);
+    const NUM_BLOCKS: u64 = 3;
+
+    const CORRUPTED_BLOCK: u64 = NUM_BLOCKS - 1;
+    const BOGUS_ROOT: B256 = B256::repeat_byte(0xAB);
+
+    let mut last_hash = chain_spec.genesis_hash();
+    for n in 1..=NUM_BLOCKS {
+        let mut block = build_transfer_block(n, last_hash, &chain_spec, key_pair, n - 1, recipient);
+        let exec = execute_block(&mut block, &provider_factory, &chain_spec);
+        if n == CORRUPTED_BLOCK {
+            block.set_state_root(BOGUS_ROOT);
+        }
+        commit_block_to_database(&block, &exec, &provider_factory);
+        last_hash = block.hash();
+    }
+
+    let storage = create_storage();
+    {
+        let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
+            RethTrieStorageLayout::Packed
+        } else {
+            RethTrieStorageLayout::Legacy
+        };
+        let tx = provider_factory.db_ref().tx().unwrap();
+        InitializationJob::new(storage.clone(), tx, trie_layout)
+            .run(NUM_BLOCKS, last_hash)
+            .unwrap();
+    }
+
+    let provider = provider_factory.database_provider_ro().unwrap();
+    let err = BackfillJob::new(provider, storage).run_with_snapshot(0).unwrap_err();
+    match err {
+        BackfillError::StateRootMismatch { block_number, expected, .. } => {
+            assert_eq!(
+                block_number, NUM_BLOCKS,
+                "validation must fire on the first snapshot-accelerated prepend",
+            );
+            assert_eq!(expected, BOGUS_ROOT, "expected root must come from the tampered header");
+        }
+        other => panic!("expected StateRootMismatch, got {other:?}"),
+    }
+}
