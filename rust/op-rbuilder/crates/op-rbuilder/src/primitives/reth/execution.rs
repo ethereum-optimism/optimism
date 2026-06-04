@@ -12,6 +12,10 @@ pub enum TxnExecutionResult {
     BlockDALimitExceeded(u64, u64, u64),
     #[display("TransactionGasLimitExceeded: total_gas_used={_0} tx_gas_limit={_1}")]
     TransactionGasLimitExceeded(u64, u64, u64),
+    #[display(
+        "PreRefundGasLimitExceeded: cumulative_evm_gas_used={_0} tx_gas_limit={_1} block_gas_limit={_2}"
+    )]
+    PreRefundGasLimitExceeded(u64, u64, u64),
     SequencerTransaction,
     NonceTooLow,
     InteropFailed,
@@ -34,6 +38,11 @@ pub struct ExecutionInfo<Extra: Debug + Default = ()> {
     pub receipts: Vec<OpReceipt>,
     /// All gas used so far
     pub cumulative_gas_used: u64,
+    /// All pre-refund EVM gas (real compute) so far, before any SDM/post-exec refund.
+    ///
+    /// Persists across flashblocks (each gets a fresh executor whose accumulator resets), so it is
+    /// the binding quantity for the cross-flashblock pre-refund block-gas cap.
+    pub cumulative_evm_gas_used: u64,
     /// Estimated DA size
     pub cumulative_da_bytes_used: u64,
     /// Tracks fees from executed mempool transactions
@@ -52,6 +61,7 @@ impl<T: Debug + Default> ExecutionInfo<T> {
             executed_senders: Vec::with_capacity(capacity),
             receipts: Vec::with_capacity(capacity),
             cumulative_gas_used: 0,
+            cumulative_evm_gas_used: 0,
             cumulative_da_bytes_used: 0,
             total_fees: U256::ZERO,
             extra: Default::default(),
@@ -101,6 +111,10 @@ impl<T: Debug + Default> ExecutionInfo<T> {
             }
         }
 
+        // Canonical (post-refund) block-gas-limit check. The pre-refund check below subsumes the
+        // *bound* (since `cumulative_evm_gas_used >= cumulative_gas_used`), but this is kept as a
+        // distinct diagnostic: it fires only when even canonical gas overflows (the only case with
+        // SDM off).
         if self.cumulative_gas_used + tx_gas_limit > block_gas_limit {
             return Err(TxnExecutionResult::TransactionGasLimitExceeded(
                 self.cumulative_gas_used,
@@ -108,6 +122,49 @@ impl<T: Debug + Default> ExecutionInfo<T> {
                 block_gas_limit,
             ));
         }
+
+        // Cap real compute (pre-refund EVM gas) at the block gas limit, regardless of SDM refunds.
+        // Binds across flashblocks because `cumulative_evm_gas_used` persists while the per-
+        // flashblock executor accumulator resets. With SDM on, this fires (where the canonical check
+        // above did not) when refunds let canonical gas fit but real compute is the binding limit.
+        if self.cumulative_evm_gas_used + tx_gas_limit > block_gas_limit {
+            return Err(TxnExecutionResult::PreRefundGasLimitExceeded(
+                self.cumulative_evm_gas_used,
+                tx_gas_limit,
+                block_gas_limit,
+            ));
+        }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pre_refund_limit_uses_evm_gas_not_canonical_gas() {
+        let mut info: ExecutionInfo = ExecutionInfo::with_capacity(0);
+        info.cumulative_gas_used = 50;
+        info.cumulative_evm_gas_used = 90;
+
+        assert!(
+            info.is_tx_over_limits(0, 100, None, None, 10, None, None)
+                .is_ok(),
+            "tx exactly filling the remaining pre-refund budget should fit"
+        );
+
+        match info.is_tx_over_limits(0, 100, None, None, 11, None, None) {
+            Err(TxnExecutionResult::PreRefundGasLimitExceeded(
+                cumulative_evm_gas_used,
+                tx_gas_limit,
+                block_gas_limit,
+            )) => {
+                assert_eq!(cumulative_evm_gas_used, 90);
+                assert_eq!(tx_gas_limit, 11);
+                assert_eq!(block_gas_limit, 100);
+            }
+            other => panic!("expected pre-refund gas limit error, got {other:?}"),
+        }
     }
 }

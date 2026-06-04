@@ -23,7 +23,9 @@ use reth_metrics::{
     Metrics,
     metrics::{self, Counter, Gauge},
 };
-use reth_optimism_evm::{ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode};
+use reth_optimism_evm::{
+    ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode, PreRefundGasUsed,
+};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction};
 use reth_optimism_txpool::{
@@ -617,6 +619,12 @@ pub struct ExecutedPayload<N: NodePrimitives> {
 pub struct ExecutionInfo {
     /// All gas used so far
     pub cumulative_gas_used: u64,
+    /// All pre-refund EVM gas (real compute) so far, before any SDM/post-exec refund.
+    ///
+    /// Bounds the block against the block gas limit regardless of refunds, so an honest block
+    /// never trips the executor's consensus check. Equals [`Self::cumulative_gas_used`] with
+    /// SDM off.
+    pub cumulative_evm_gas_used: u64,
     /// Estimated DA size
     pub cumulative_da_bytes_used: u64,
     /// Tracks fees from executed mempool transactions
@@ -626,7 +634,12 @@ pub struct ExecutionInfo {
 impl ExecutionInfo {
     /// Create a new instance with allocated slots.
     pub const fn new() -> Self {
-        Self { cumulative_gas_used: 0, cumulative_da_bytes_used: 0, total_fees: U256::ZERO }
+        Self {
+            cumulative_gas_used: 0,
+            cumulative_evm_gas_used: 0,
+            cumulative_da_bytes_used: 0,
+            total_fees: U256::ZERO,
+        }
     }
 
     /// Returns true if the transaction would exceed the block limits:
@@ -663,7 +676,11 @@ impl ExecutionInfo {
             }
         }
 
-        self.cumulative_gas_used + tx_gas_limit > block_gas_limit
+        // Cap real compute (pre-refund EVM gas) at the block gas limit, regardless of SDM refunds.
+        // Inducting off the declared gas limit bounds the actual sum. Since
+        // `cumulative_evm_gas_used >= cumulative_gas_used`, this subsumes the canonical
+        // block-gas-limit check; with SDM off the two are identical.
+        self.cumulative_evm_gas_used + tx_gas_limit > block_gas_limit
     }
 }
 
@@ -747,7 +764,10 @@ where
         &'a self,
         db: &'a mut State<DB>,
     ) -> Result<
-        impl BlockBuilder<Primitives = Evm::Primitives, Executor: PostExecExecutorExt> + 'a,
+        impl BlockBuilder<
+            Primitives = Evm::Primitives,
+            Executor: PostExecExecutorExt + BlockExecutor<Result: PreRefundGasUsed>,
+        > + 'a,
         PayloadBuilderError,
     > {
         let post_exec_mode: PostExecMode = self.sdm_production_enabled().into();
@@ -812,7 +832,11 @@ where
             };
 
             // add gas used by the transaction to cumulative gas used, before creating the receipt
-            info.cumulative_gas_used += gas_used.tx_gas_used();
+            let tx_gas_used = gas_used.tx_gas_used();
+            info.cumulative_gas_used += tx_gas_used;
+            // Sequencer txs (deposits/system txs) are never SDM-refunded, so pre-refund gas equals
+            // canonical gas; track it so the pool-tx pre-refund check starts from the right total.
+            info.cumulative_evm_gas_used += tx_gas_used;
 
             // Record the successfully committed transaction for callers that want per-call
             // visibility.
@@ -849,6 +873,7 @@ where
     where
         Builder: BlockBuilder<Primitives = Evm::Primitives>,
         <<Builder::Executor as BlockExecutor>::Evm as AlloyEvm>::DB: Database,
+        <Builder::Executor as BlockExecutor>::Result: PreRefundGasUsed,
     {
         let mut block_gas_limit = builder.evm_mut().block().gas_limit();
         if let Some(gas_limit_config) = self.builder_config.gas_limit_config.gas_limit() {
@@ -919,7 +944,11 @@ where
                 return Ok(Some(()));
             }
 
-            let gas_used = match builder.execute_transaction(tx.clone()) {
+            let mut evm_gas_used = 0;
+            let gas_used = match builder
+                .execute_transaction_with_result_closure(tx.clone(), |result| {
+                    evm_gas_used = result.evm_gas_used()
+                }) {
                 Ok(gas_used) => gas_used,
                 Err(BlockExecutionError::Validation(BlockValidationError::InvalidTx {
                     error,
@@ -946,6 +975,7 @@ where
             // receipt
             let tx_gas_used = gas_used.tx_gas_used();
             info.cumulative_gas_used += tx_gas_used;
+            info.cumulative_evm_gas_used += evm_gas_used;
             info.cumulative_da_bytes_used += tx_da_size;
 
             // update and add to total fees

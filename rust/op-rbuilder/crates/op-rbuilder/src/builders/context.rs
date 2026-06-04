@@ -4,6 +4,7 @@ use alloy_evm::{
     Database, Evm as AlloyEvm,
     block::{BlockExecutor as AlloyBlockExecutor, CommitChanges, TxResult},
 };
+use alloy_op_evm::PreRefundGasUsed;
 use alloy_primitives::{BlockHash, Bytes, U256};
 use alloy_rpc_types_eth::Withdrawals;
 use core::fmt::Debug;
@@ -321,6 +322,7 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
                 Transaction = OpTransactionSigned,
                 Receipt = OpReceipt,
                 Evm: AlloyEvm<DB: DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
             >,
         > + 'a,
         PayloadBuilderError,
@@ -382,7 +384,12 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
             };
 
             // add gas used by the transaction to cumulative gas used, before creating the receipt
-            info.cumulative_gas_used += gas_used.tx_gas_used();
+            let tx_gas_used = gas_used.tx_gas_used();
+            info.cumulative_gas_used += tx_gas_used;
+            // Sequencer txs (deposits/system txs) are never SDM-refunded, so pre-refund gas equals
+            // canonical gas; track it to stay in lockstep with the executor's pre-refund accumulator
+            // (otherwise we'd admit a tx the executor then fatally rejects).
+            info.cumulative_evm_gas_used += tx_gas_used;
 
             if !sequencer_tx.is_deposit() {
                 info.cumulative_da_bytes_used += op_alloy_flz::tx_estimated_size_fjord_bytes(
@@ -429,6 +436,7 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
         Builder: BlockBuilder<Primitives = reth_optimism_primitives::OpPrimitives>,
         Builder::Executor:
             AlloyBlockExecutor<Transaction = OpTransactionSigned, Receipt = OpReceipt>,
+        <Builder::Executor as AlloyBlockExecutor>::Result: PreRefundGasUsed,
     {
         let execute_txs_start_time = Instant::now();
         let mut num_txs_considered = 0;
@@ -537,14 +545,17 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
 
             let tx_simulation_start_time = Instant::now();
             let mut gas_used = 0;
+            let mut evm_gas_used = 0;
             let mut tx_succeeded = false;
             let mut gas_limit_exceeded = false;
             let mut address_limit_exceeded = false;
             let committed = match builder.execute_transaction_with_commit_condition(
                 tx.clone(),
                 |result| {
-                    gas_used = result.result().result.tx_gas_used();
-                    tx_succeeded = result.result().result.is_success();
+                    let execution_result = &result.result().result;
+                    gas_used = execution_result.tx_gas_used();
+                    evm_gas_used = result.evm_gas_used();
+                    tx_succeeded = execution_result.is_success();
                     gas_limit_exceeded = self
                         .max_gas_per_txn
                         .is_some_and(|max_gas_per_txn| gas_used > max_gas_per_txn);
@@ -627,6 +638,7 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
             }
 
             info.cumulative_gas_used += gas_used;
+            info.cumulative_evm_gas_used += evm_gas_used;
             info.cumulative_da_bytes_used += tx_da_size;
 
             info.receipts.push(

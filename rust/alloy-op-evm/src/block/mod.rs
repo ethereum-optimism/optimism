@@ -276,6 +276,11 @@ pub struct OpTxResult<H, T> {
     pub is_deposit: bool,
     /// Whether the transaction is a post-exec transaction.
     pub is_post_exec: bool,
+    /// Gas used by EVM execution before any post-exec (SDM) refund — the "real compute" performed.
+    ///
+    /// Accumulated and bounded against the block gas limit by both block builders and the executor
+    /// (see [`PreRefundGasUsed`]).
+    pub evm_gas_used: u64,
     /// Canonical gas used after any post-exec adjustment.
     pub canonical_gas_used: u64,
     /// Canonical post-exec adjustment, if any.
@@ -283,6 +288,21 @@ pub struct OpTxResult<H, T> {
     /// Cached depositor nonce — looked up during execute so commit can be infallible.
     /// `Some` only for regolith deposit transactions.
     pub depositor_nonce: Option<u64>,
+}
+
+/// Read access to a transaction's pre-refund EVM gas usage.
+///
+/// Lets block builders read `evm_gas_used` through the generic [`BlockExecutor::Result`] type
+/// (otherwise only bounded by `TxResult`) to self-limit a block against the block gas limit.
+pub trait PreRefundGasUsed {
+    /// Gas used by EVM execution, before any post-exec (SDM) refund.
+    fn evm_gas_used(&self) -> u64;
+}
+
+impl<H, T> PreRefundGasUsed for OpTxResult<H, T> {
+    fn evm_gas_used(&self) -> u64 {
+        self.evm_gas_used
+    }
 }
 
 impl<H, T> TxResult for OpTxResult<H, T>
@@ -316,6 +336,10 @@ pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
     pub receipts: Vec<R::Receipt>,
     /// Total gas used by executed transactions.
     pub gas_used: u64,
+    /// Total pre-refund EVM gas (real compute) across executed txs, before any post-exec (SDM)
+    /// refund. Bounded by the block gas limit; equals [`Self::gas_used`] with SDM off, greater
+    /// otherwise.
+    pub evm_gas_used: u64,
     /// Da footprint.
     ///
     /// This is only set for blocks post-Jovian activation.
@@ -351,6 +375,7 @@ where
             receipt_builder,
             receipts: Vec::new(),
             gas_used: 0,
+            evm_gas_used: 0,
             da_footprint_used: 0,
             ctx,
             l1_block_info: None,
@@ -770,16 +795,25 @@ where
         let is_post_exec = tx.tx().ty() == POST_EXEC_TX_TYPE_ID;
         let tx_index = self.receipts.len() as u64;
 
-        // The sum of the transaction's gas limit, Tg, and the gas utilized in this block prior,
-        // must be no greater than the block's gasLimit.
-        let block_available_gas = self.evm.block().gas_limit() - self.gas_used;
-        if tx.tx().gas_limit() > block_available_gas && (self.is_regolith || !is_deposit) {
-            return Err(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
-                transaction_gas_limit: tx.tx().gas_limit(),
-                block_available_gas,
+        let transaction_gas_limit = tx.tx().gas_limit();
+        let validate_block_gas = |block_available_gas| -> Result<(), BlockExecutionError> {
+            if transaction_gas_limit > block_available_gas && (self.is_regolith || !is_deposit) {
+                return Err(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+                    transaction_gas_limit,
+                    block_available_gas,
+                }
+                .into());
             }
-            .into());
-        }
+            Ok(())
+        };
+
+        // Bound the block's *pre-refund* `evm_gas_used` (real compute) rather than canonical
+        // `gas_used`, so SDM refunds can't admit more compute than the block gas limit allows.
+        // Inducting off the declared gas limit (an upper bound on actual `evm_gas_used`) keeps the
+        // pre-refund sum within the limit. Since `evm_gas_used >= gas_used`, this subsumes the
+        // canonical block-gas-limit check; with SDM off the two are identical.
+        let evm_gas_available = self.evm.block().gas_limit().saturating_sub(self.evm_gas_used);
+        validate_block_gas(evm_gas_available)?;
 
         if is_post_exec {
             let payload =
@@ -809,6 +843,7 @@ where
                 },
                 is_deposit: false,
                 is_post_exec: true,
+                evm_gas_used: 0,
                 canonical_gas_used: 0,
                 post_exec: None,
                 depositor_nonce: None,
@@ -820,7 +855,8 @@ where
             .is_jovian_active_at_timestamp(self.evm.block().timestamp().saturating_to()) &&
             !is_deposit
         {
-            let da_footprint_available = self.evm.block().gas_limit() - self.da_footprint_used;
+            let da_footprint_available =
+                self.evm.block().gas_limit().saturating_sub(self.da_footprint_used);
 
             let tx_da_footprint = self.jovian_da_footprint_estimation(&tx_env, &tx)?;
 
@@ -914,6 +950,7 @@ where
             },
             is_deposit,
             is_post_exec: false,
+            evm_gas_used,
             canonical_gas_used,
             post_exec,
             depositor_nonce,
@@ -926,6 +963,7 @@ where
             inner: EthTxResult { result: ResultAndState { result, state }, blob_gas_used, tx_type },
             is_deposit,
             is_post_exec,
+            evm_gas_used,
             canonical_gas_used,
             post_exec,
             depositor_nonce,
@@ -952,6 +990,9 @@ where
 
         // add canonical gas used
         self.gas_used += canonical_gas_used;
+        // Accumulate pre-refund EVM gas (real compute); bounded against the block gas limit by the
+        // admission check in `execute_transaction_without_commit`.
+        self.evm_gas_used += evm_gas_used;
 
         // Update DA footprint if Jovian is active
         if self.spec.is_jovian_active_at_timestamp(self.evm.block().timestamp().saturating_to()) &&

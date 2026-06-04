@@ -20,6 +20,7 @@ use alloy_consensus::{
 };
 use alloy_eips::{Encodable2718, eip7685::EMPTY_REQUESTS_HASH, merge::BEACON_NONCE};
 use alloy_evm::block::BlockExecutor as AlloyBlockExecutor;
+use alloy_op_evm::PreRefundGasUsed;
 use alloy_primitives::{Address, B256, U256, map::foldhash::HashMap};
 use core::time::Duration;
 use eyre::WrapErr as _;
@@ -692,6 +693,7 @@ where
                 Transaction = OpTransactionSigned,
                 Receipt = OpReceipt,
                 Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
             >,
         DB: Database + std::fmt::Debug + AsRef<P>,
     {
@@ -1246,6 +1248,7 @@ fn execute_pre_steps<'a, DB, ExtraCtx>(
             Executor: PostExecExecutorExt
                           + AlloyBlockExecutor<
                 Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
             >,
         > + 'a,
         ExecutionInfo<FlashblocksExecutionInfo>,

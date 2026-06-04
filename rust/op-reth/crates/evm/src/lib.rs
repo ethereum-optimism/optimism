@@ -68,6 +68,7 @@ pub use tx::OpTx;
 
 pub use alloy_op_evm::{
     OpBlockExecutionCtx, OpBlockExecutorFactory, OpEvm, OpEvmFactory, PostExecMode,
+    PreRefundGasUsed,
     post_exec::{PostExecExecutorExt, WarmingRefundEvent, WarmingRefundKind, WarmingState},
 };
 
