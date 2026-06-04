@@ -78,7 +78,7 @@ var (
 		EnvVars: op_service.PrefixEnvVar(prefix, "RPS"),
 		Value:   50,
 	}
-	SpamFundEther = &cli.Uint64Flag{
+	SpamFundEther = &cli.Float64Flag{
 		Name:    "fund-ether",
 		Usage:   "Whole ether transferred from --account to each spam EOA up front",
 		EnvVars: op_service.PrefixEnvVar(prefix, "FUND_ETHER"),
