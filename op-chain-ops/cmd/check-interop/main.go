@@ -25,6 +25,7 @@ package main
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -46,6 +47,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -65,32 +67,37 @@ func main() {
 	logger := log.NewLogger(handler)
 
 	var (
-		l2aRPC     string
-		l2bRPC     string
-		privateKey string
-		filterRPC  string
-		jwtPath    string
+		l2aRPC          string
+		l2bRPC          string
+		privateKey      string
+		filterRPC       string
+		publicFilterRPC string
+		jwtPath         string
 	)
 	flag.StringVar(&l2aRPC, "l2a-rpc", "http://localhost:8545", "RPC URL for chain A (interop source).")
 	flag.StringVar(&l2bRPC, "l2b-rpc", "http://localhost:8546", "RPC URL for chain B (interop destination).")
 	flag.StringVar(&privateKey, "private-key", "", "Hex private key funding the test transactions (required).")
 	flag.StringVar(&filterRPC, "filter-admin-rpc", "", "JWT-protected admin RPC URL of op-interop-filter (required).")
+	flag.StringVar(&publicFilterRPC, "filter-rpc", "", "Public RPC URL of op-interop-filter (interop_checkAccessList), used to assert the dedicated failsafe error code (required).")
 	flag.StringVar(&jwtPath, "filter-jwt-secret", "", "Path to the JWT secret file for the filter admin RPC (required).")
 	flag.Parse()
 
-	if err := run(context.Background(), logger, l2aRPC, l2bRPC, privateKey, filterRPC, jwtPath); err != nil {
+	if err := run(context.Background(), logger, l2aRPC, l2bRPC, privateKey, filterRPC, publicFilterRPC, jwtPath); err != nil {
 		logger.Error("interop failsafe check FAILED", "err", err)
 		os.Exit(1)
 	}
 	logger.Info("interop failsafe check PASSED")
 }
 
-func run(ctx context.Context, logger log.Logger, l2aRPC, l2bRPC, privateKey, filterRPC, jwtPath string) error {
+func run(ctx context.Context, logger log.Logger, l2aRPC, l2bRPC, privateKey, filterRPC, publicFilterRPC, jwtPath string) error {
 	if privateKey == "" {
 		return fmt.Errorf("-private-key is required")
 	}
 	if filterRPC == "" {
 		return fmt.Errorf("-filter-admin-rpc is required (the JWT admin endpoint; the public filter RPC cannot set failsafe)")
+	}
+	if publicFilterRPC == "" {
+		return fmt.Errorf("-filter-rpc is required (the public filter RPC for interop_checkAccessList)")
 	}
 	if jwtPath == "" {
 		return fmt.Errorf("-filter-jwt-secret is required")
@@ -121,6 +128,12 @@ func run(ctx context.Context, logger log.Logger, l2aRPC, l2bRPC, privateKey, fil
 		return err
 	}
 	defer fs.close()
+
+	filterQuery, err := connectFilterQuery(ctx, logger, publicFilterRPC)
+	if err != nil {
+		return err
+	}
+	defer filterQuery.Close()
 
 	userA := &user{chain: chainA, priv: priv, addr: addr}
 	userB := &user{chain: chainB, priv: priv, addr: addr}
@@ -179,6 +192,13 @@ func run(ctx context.Context, logger log.Logger, l2aRPC, l2bRPC, privateKey, fil
 		return fmt.Errorf("executing message failed but not with a filter/failsafe rejection: %w", rejErr)
 	}
 	logger.Info("executing message correctly rejected while failsafe on", "err", rejErr)
+
+	// The end-to-end rejection above proves the stack enforces failsafe, but op-reth/proxyd
+	// translate the filter's error before it reaches us. Query the filter directly to assert it
+	// returns the dedicated failsafe error code (op-interop-filter #21205).
+	if err := assertFilterFailsafeCode(ctx, logger, filterQuery, chainB, accessList); err != nil {
+		return err
+	}
 
 	// --- Failsafe OFF: an executing message must succeed again ---
 	if err := setFailsafeAndWait(ctx, logger, fs, chainB, false); err != nil {
@@ -391,6 +411,51 @@ func (f *failsafe) close() {
 	f.rpc.Close()
 }
 
+// failsafeErrorCode is the dedicated JSON-RPC error code op-interop-filter returns from
+// interop_checkAccessList when failsafe is enabled. See ethereum-optimism/optimism#21205
+// (previously failsafe shared the generic invalid-params code).
+const failsafeErrorCode = -320602
+
+// connectFilterQuery dials the filter's public RPC for interop_checkAccessList. Unlike the admin
+// endpoint it needs no JWT.
+func connectFilterQuery(ctx context.Context, logger log.Logger, url string) (*sources.InteropFilterClient, error) {
+	rpcCl, err := opclient.NewRPC(ctx, logger.New("chain", "interop-filter", "rpc", url), url,
+		opclient.WithFixedDialBackoff(time.Second),
+		opclient.WithDialAttempts(5),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("dial filter RPC %s: %w", url, err)
+	}
+	return sources.NewInteropFilterClient(rpcCl), nil
+}
+
+// assertFilterFailsafeCode queries interop_checkAccessList directly (the filter must already be in
+// failsafe) and requires it to fail with the dedicated failsafe error code. Failsafe short-circuits
+// all validation, so the executing descriptor's timestamp does not affect the outcome.
+func assertFilterFailsafeCode(ctx context.Context, logger log.Logger, fc *sources.InteropFilterClient, execChain *chain, accessList types.AccessList) error {
+	if len(accessList) == 0 {
+		return fmt.Errorf("empty executing access list; cannot query the filter")
+	}
+	desc := messages.ExecutingDescriptor{
+		ChainID:   execChain.chainID,
+		Timestamp: uint64(time.Now().Unix()),
+	}
+	err := fc.CheckAccessList(ctx, accessList[0].StorageKeys, safety.CrossUnsafe, desc)
+	if err == nil {
+		return fmt.Errorf("interop_checkAccessList unexpectedly succeeded while failsafe is enabled")
+	}
+	var rpcErr gethrpc.Error
+	if !errors.As(err, &rpcErr) {
+		return fmt.Errorf("interop_checkAccessList failed without a JSON-RPC error code: %w", err)
+	}
+	if rpcErr.ErrorCode() != failsafeErrorCode {
+		return fmt.Errorf("interop_checkAccessList returned code %d, want dedicated failsafe code %d (#21205): %w",
+			rpcErr.ErrorCode(), failsafeErrorCode, err)
+	}
+	logger.Info("filter returned dedicated failsafe error code", "code", rpcErr.ErrorCode())
+	return nil
+}
+
 // setFailsafeAndWait sets the failsafe flag, confirms the filter reflects it, then
 // waits one Chain B block so op-reth's failsafe poller can pick up the new state
 // before we depend on tx-pool behavior.
@@ -452,5 +517,5 @@ func interopTxRejectedError(err error) bool {
 		strings.Contains(msg, "failed to parse access entry") || // op-interop-filter: bad access entry
 		strings.Contains(msg, "interop failsafe is active") || // op-reth: cached failsafe fast-path
 		strings.Contains(msg, "failsafe is enabled") || // op-interop-filter: failsafe at filter level
-		strings.Contains(msg, "no healthy supervisor backends found") // proxyd interop_validation: maps the filter's ErrFailsafeEnabled (-32602) to HTTP 503 and marks the (single) filter backend unhealthy
+		strings.Contains(msg, "no healthy supervisor backends found") // proxyd interop_validation: maps the filter's ErrFailsafeEnabled (-320602, #21205) to HTTP 503 and marks the (single) filter backend unhealthy
 }
