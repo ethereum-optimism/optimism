@@ -104,7 +104,7 @@ jobs:
     docker:
       - image: << pipeline.parameters.default_docker_image >>
     environment:
-      BASE_REVISION: devlop
+      BASE_REVISION: develop
     steps:
       - checkout
       # yq is used by the "Merge continuation configs" step to deep-merge YAML files.
