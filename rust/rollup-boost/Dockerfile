@@ -75,8 +75,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     PROFILE_FLAG=$([ "$RELEASE" = "true" ] && echo "--release" || echo "") && \
     TARGET_DIR=$([ "$RELEASE" = "true" ] && echo "release" || echo "debug") && \
-    cargo build $PROFILE_FLAG --locked --features="$FEATURES" --package=${SERVICE_NAME}; \
-    cp target/$TARGET_DIR/${SERVICE_NAME} /tmp/final_binary
+    cargo build $PROFILE_FLAG --locked --features="$FEATURES" --package=${SERVICE_NAME} && \
+    cp "target/${TARGET_DIR}/${SERVICE_NAME}" /tmp/final_binary && \
+    test -n "$('/tmp/final_binary' --help 2>&1)"
 
 #
 # Runtime container
