@@ -3148,6 +3148,7 @@ workflows:
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
+            - contracts-bedrock-tests-l2-fork op-mainnet: terminal
             - contracts-bedrock-checks-fast-feature-tests: terminal
           context:
             - circleci-api-token
