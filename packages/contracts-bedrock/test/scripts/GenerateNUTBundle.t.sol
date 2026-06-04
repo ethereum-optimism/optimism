@@ -17,11 +17,6 @@ import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 /// @title GenerateNUTBundle_Harness
 /// @notice Harness contract that exposes internal functions for testing.
 contract GenerateNUTBundle_Harness is GenerateNUTBundle {
-    /// @notice Builds the upgrade transaction bundle Output struct without writing to disk.
-    function buildOutput() external returns (Output memory) {
-        return _buildOutput();
-    }
-
     /// @notice Returns the fork name used by the generated bundle.
     function upgradeName() external pure returns (string memory) {
         return UPGRADE_NAME;

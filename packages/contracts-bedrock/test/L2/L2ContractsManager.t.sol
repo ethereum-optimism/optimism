@@ -706,7 +706,7 @@ contract L2ContractsManager_Deploy_Test is L2ContractsManager_TestInit {
         assertFalse(success, "deploy() via delegatecall should revert");
         assertEq(
             ret,
-            abi.encodeWithSelector(L2ContractsManager.L2ContractsManager_OnlyDirectcall.selector),
+            bytes.concat(L2ContractsManager.L2ContractsManager_OnlyDirectcall.selector),
             "deploy() should revert with OnlyDirectcall"
         );
     }
