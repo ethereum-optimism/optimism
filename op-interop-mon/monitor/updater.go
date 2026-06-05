@@ -203,7 +203,7 @@ func (t *RPCUpdater) UpdateJobStatus(job *Job) {
 
 	log, err := t.findLogEvent(receipts, job)
 	if err == ErrLogNotFound {
-		t.log.Error("log not found", "error", err)
+		t.log.Warn("initiating log not found", "job", job.String())
 		job.UpdateStatus(jobStatusInvalid)
 		return
 	} else if err != nil {
@@ -211,13 +211,44 @@ func (t *RPCUpdater) UpdateJobStatus(job *Job) {
 		job.UpdateStatus(jobStatusUnknown)
 		return
 	}
-	// now to confirm the log event matches
-	actualHash := crypto.Keccak256Hash(messages.LogToMessagePayload(log))
-	if actualHash != job.executingPayload {
-		t.log.Error("log hash mismatch", "expected", job.executingPayload, "got", actualHash)
+
+	// Origin must match the initiating message's declared origin address.
+	if log.Address != job.initiating.Origin {
+		t.log.Warn("initiating log origin mismatch", "expected", job.initiating.Origin, "got", log.Address)
 		job.UpdateStatus(jobStatusInvalid)
 		return
 	}
+
+	// The initiating block timestamp must match the timestamp bound into the message identifier.
+	if blockInfo.Time() != job.initiating.Timestamp {
+		t.log.Warn("initiating timestamp mismatch", "expected", job.initiating.Timestamp, "got", blockInfo.Time())
+		job.UpdateStatus(jobStatusTimestampMismatch)
+		return
+	}
+
+	// Payload hash must match (binds the message contents).
+	actualHash := crypto.Keccak256Hash(messages.LogToMessagePayload(log))
+	if actualHash != job.executingPayload {
+		t.log.Warn("log hash mismatch", "expected", job.executingPayload, "got", actualHash)
+		job.UpdateStatus(jobStatusInvalid)
+		return
+	}
+
+	// Expiry invariants: an executing message cannot precede its initiating
+	// message, and must be executed within the message expiry window.
+	if job.executingTimestamp < job.initiating.Timestamp {
+		t.log.Warn("executing message precedes initiating message",
+			"executing_ts", job.executingTimestamp, "initiating_ts", job.initiating.Timestamp)
+		job.UpdateStatus(jobStatusInvalid)
+		return
+	}
+	if job.executingTimestamp > job.initiating.Timestamp+t.messageExpiryWindow {
+		t.log.Warn("executing message is expired",
+			"executing_ts", job.executingTimestamp, "initiating_ts", job.initiating.Timestamp, "window", t.messageExpiryWindow)
+		job.UpdateStatus(jobStatusExpired)
+		return
+	}
+
 	job.UpdateStatus(jobStatusValid)
 }
 
