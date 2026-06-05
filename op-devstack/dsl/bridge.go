@@ -375,7 +375,7 @@ func (b *StandardBridge) findCoveringGames(gameType uint32, minSequence *big.Int
 
 func bridgeGameSequenceAndOutputRoot(game bindings.GameSearchResult, gameType gameTypes.GameType, l2ChainID *big.Int) (*big.Int, common.Hash, bool, error) {
 	switch gameType {
-	case gameTypes.CannonKonaGameType, gameTypes.CannonGameType, gameTypes.PermissionedGameType:
+	case gameTypes.CannonKonaGameType, gameTypes.PermissionedGameType:
 		if len(game.ExtraData) < 32 {
 			return nil, common.Hash{}, false, fmt.Errorf("legacy game extra data is %d bytes, need at least 32", len(game.ExtraData))
 		}

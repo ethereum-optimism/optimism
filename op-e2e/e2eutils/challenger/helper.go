@@ -133,13 +133,28 @@ func handleOptError(t *testing.T, opt shared.Option) Option {
 	}
 }
 
-// withKonaHostCannonServer points Cannon.Server at the kona-host binary instead of
-// op-program. In op-e2e the op-program cannon game type is never executed (output
-// games use cannon-kona and the permissioned game uses an invalid prestate), so the
-// configured server is only validated for existence — pointing it at kona-host keeps
-// op-e2e from depending on the op-program binary.
-func withKonaHostCannonServer(t *testing.T) Option {
+// withOpProgramCannonConfig wires the Cannon VM config and the op-program absolute prestate for
+// the legacy Cannon (game type 0) path that op-e2e still exercises. The oracle server is pointed
+// at kona-host rather than op-program: the op-program cannon game type is never executed in op-e2e
+// (output games use cannon-kona and the permissioned game uses an invalid prestate), so the
+// configured server is only validated for existence.
+func withOpProgramCannonConfig(t *testing.T, system System) Option {
 	return func(c *config.Config) {
+		handleOptError(t, func(_ context.Context, cfg *config.Config) error {
+			if err := shared.ApplyCannonVMConfig(cfg, system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()); err != nil {
+				return err
+			}
+			root, err := shared.FindMonorepoRoot()
+			if err != nil {
+				return err
+			}
+			if variant := system.PrestateVariant(); variant != "" {
+				cfg.CannonAbsolutePreState = root + "op-program/bin/prestate-" + string(variant) + ".bin.gz"
+			} else {
+				cfg.CannonAbsolutePreState = root + "op-program/bin/prestate.bin.gz"
+			}
+			return nil
+		})(c)
 		bin, err := shared.LocateKonaHost(t.Context())
 		require.NoError(t, err, "locate kona-host")
 		c.Cannon.Server = bin
@@ -148,24 +163,21 @@ func withKonaHostCannonServer(t *testing.T) Option {
 
 func WithCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
-		withKonaHostCannonServer(t)(c)
+		withOpProgramCannonConfig(t, system)(c)
 		handleOptError(t, shared.WithCannonGameType())(c)
 	}
 }
 
 func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
-		withKonaHostCannonServer(t)(c)
+		withOpProgramCannonConfig(t, system)(c)
 		handleOptError(t, shared.WithPermissionedGameType())(c)
 	}
 }
 
 func WithCannonKona(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
-		withKonaHostCannonServer(t)(c)
+		withOpProgramCannonConfig(t, system)(c)
 		handleOptError(t, shared.WithCannonKonaConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()))(c)
 		handleOptError(t, shared.WithCannonKonaGameType())(c)
 	}
@@ -173,8 +185,7 @@ func WithCannonKona(t *testing.T, system System) Option {
 
 func WithSuperCannonKona(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
-		withKonaHostCannonServer(t)(c)
+		withOpProgramCannonConfig(t, system)(c)
 		handleOptError(t, shared.WithCannonKonaInteropConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()))(c)
 		handleOptError(t, shared.WithSuperCannonKonaGameType())(c)
 	}

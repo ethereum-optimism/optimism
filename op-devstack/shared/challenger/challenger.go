@@ -57,7 +57,25 @@ func WithPrivKey(key *ecdsa.PrivateKey) Option {
 	}
 }
 
-func applyCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) error {
+// DummyPermissionedPrestate is a placeholder absolute prestate for the PermissionedCannon
+// game type. The legacy fault-proof program is no longer wired into devstack, so PermissionedCannon
+// games are configured with a dummy prestate and never executed by the challenger — permissioned
+// games skip prestate validation and only trusted actors participate, so they resolve without
+// reaching step().
+const DummyPermissionedPrestate = "0x000000000000000000000000000000000000000000000000000000000000dead"
+
+// FindMonorepoRoot returns the relative path to the monorepo root from the current working
+// directory. Different tests might be nested in subdirectories.
+func FindMonorepoRoot() (string, error) {
+	return findMonorepoRoot()
+}
+
+// ApplyCannonVMConfig wires the Cannon VM config (VM binary, genesis files and oracle server)
+// without depending on the legacy fault-proof program binary. The server defaults to the cannon VM
+// binary, which is never executed for the Cannon VM config in devstack — output games use
+// cannon-kona and permissioned games resolve without reaching step(). Callers that need a real
+// oracle server (e.g. op-e2e) can override c.Cannon.Server afterwards.
+func ApplyCannonVMConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) error {
 	root, err := findMonorepoRoot()
 	if err != nil {
 		return err
@@ -65,12 +83,19 @@ func applyCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis 
 	if err := applyVmConfig(root, &c.Cannon, c.Datadir, rollupCfgs, l1Genesis, l2Geneses); err != nil {
 		return err
 	}
-	if prestateVariant != "" {
-		c.CannonAbsolutePreState = root + "op-program/bin/prestate-" + string(prestateVariant) + ".bin.gz"
-	} else {
-		c.CannonAbsolutePreState = root + "op-program/bin/prestate.bin.gz"
+	c.Cannon.Server = c.Cannon.VmBin
+	return nil
+}
+
+// applyPermissionedCannonConfig wires the Cannon VM config used by the PermissionedCannon game
+// type. The VM binary and oracle server are required by the challenger config validation but are
+// never invoked for permissioned games, so the cannon binary doubles as the (unused) server and
+// the absolute prestate is a dummy value.
+func applyPermissionedCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) error {
+	if err := ApplyCannonVMConfig(c, rollupCfgs, l1Genesis, l2Geneses); err != nil {
+		return err
 	}
-	c.Cannon.Server = root + "op-program/bin/op-program"
+	c.CannonAbsolutePreState = DummyPermissionedPrestate
 	return nil
 }
 
@@ -158,9 +183,12 @@ func WithFactoryAddress(addr common.Address) Option {
 	}
 }
 
-func WithCannonConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) Option {
+// WithPermissionedCannonConfig wires the Cannon VM config used by the PermissionedCannon game
+// type. The legacy fault-proof program is no longer referenced — the prestate is a dummy and the
+// server is unused.
+func WithPermissionedCannonConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) Option {
 	return func(_ context.Context, c *config.Config) error {
-		return applyCannonConfig(c, rollupCfgs, l1Genesis, l2Geneses, prestateVariant)
+		return applyPermissionedCannonConfig(c, rollupCfgs, l1Genesis, l2Geneses)
 	}
 }
 
@@ -176,6 +204,8 @@ func WithCannonKonaInteropConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Ge
 	}
 }
 
+// WithCannonGameType registers the legacy Cannon game type (game type 0). op-devstack no longer
+// uses this — it is retained for op-e2e, which still exercises the legacy Cannon path.
 func WithCannonGameType() Option {
 	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.CannonGameType)
@@ -257,18 +287,6 @@ func applyCommonChallengerOpts(ctx context.Context, cfg *config.Config, options 
 		_, err := os.Stat(cfg.Cannon.VmBin)
 		if err != nil {
 			return errors.New("cannon should be built. Make sure you've run make cannon-prestates")
-		}
-	}
-	if cfg.Cannon.Server != "" {
-		_, err := os.Stat(cfg.Cannon.Server)
-		if err != nil {
-			return errors.New("op-program should be built. Make sure you've run make cannon-prestates")
-		}
-	}
-	if cfg.CannonAbsolutePreState != "" {
-		_, err := os.Stat(cfg.CannonAbsolutePreState)
-		if err != nil {
-			return errors.New("cannon pre-state should be built. Make sure you've run make cannon-prestates")
 		}
 	}
 
