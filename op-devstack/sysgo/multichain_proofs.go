@@ -272,7 +272,7 @@ func startInteropChallenger(
 	}
 	cfg, err := sharedchallenger.NewInteropChallengerConfig(
 		t.Ctx(),
-		t.TempDir(),
+		t.TempDirWithPrefix("super-challenger"),
 		l1EL.UserRPC(),
 		l1CL.beaconHTTPAddr,
 		superRPC,

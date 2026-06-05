@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -195,6 +196,29 @@ func (n *OpReth) Stop() {
 	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
 	n.sub = nil
+}
+
+func (n *OpReth) StartControlled(ctx context.Context) error {
+	return runControlStart(ctx, n.Running, n.Start)
+}
+
+func (n *OpReth) StopControlled(ctx context.Context) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sub == nil {
+		return nil
+	}
+	if err := n.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
+		return err
+	}
+	n.sub = nil
+	return nil
+}
+
+func (n *OpReth) Running() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.sub != nil
 }
 
 func (n *OpReth) UserRPC() string {

@@ -85,3 +85,35 @@ func (n *OpNode) Stop() {
 
 	n.opNode = nil
 }
+
+func (n *OpNode) StartControlled(ctx context.Context) error {
+	return runControlStart(ctx, n.Running, n.Start)
+}
+
+func (n *OpNode) StopControlled(ctx context.Context) error {
+	n.mu.Lock()
+	if n.opNode == nil {
+		n.mu.Unlock()
+		return nil
+	}
+	opNode := n.opNode
+	n.mu.Unlock()
+
+	err := opNode.Stop(ctx)
+	if err != nil && !opNode.Stopped() {
+		return err
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.opNode == opNode {
+		n.opNode = nil
+	}
+	return nil
+}
+
+func (n *OpNode) Running() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.opNode != nil
+}

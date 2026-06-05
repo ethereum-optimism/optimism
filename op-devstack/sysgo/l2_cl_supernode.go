@@ -91,6 +91,45 @@ func (n *SuperNode) Stop() {
 	n.stopLocked()
 }
 
+func (n *SuperNode) StartControlled(ctx context.Context) error {
+	return runControlStart(ctx, n.Running, n.Start)
+}
+
+func (n *SuperNode) StopControlled(ctx context.Context) error {
+	n.mu.Lock()
+	if n.sn == nil {
+		n.mu.Unlock()
+		return nil
+	}
+	sn := n.sn
+	cancel := n.cancel
+	n.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	if err := sn.Stop(ctx); err != nil {
+		return err
+	}
+	if !sn.Stopped() {
+		return fmt.Errorf("supernode stop did not confirm all goroutines exited")
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sn == sn {
+		n.sn = nil
+		n.cancel = nil
+	}
+	return nil
+}
+
+func (n *SuperNode) Running() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.sn != nil
+}
+
 // stopLocked tears down the supernode instance, leaving httpProxy in place
 // so a later startLocked can repoint it. Caller must hold n.mu.
 func (n *SuperNode) stopLocked() {

@@ -308,7 +308,7 @@ func buildMixedOpRethNode(
 	storageVersion string,
 	opts ...OpRethOption,
 ) *OpReth {
-	tempDir := t.TempDir()
+	tempDir := t.TempDirWithPrefix("l2-el-" + NewComponentTarget(key, l2Net.ChainID()).String())
 
 	data, err := json.Marshal(l2Net.genesis)
 	t.Require().NoError(err, "must json-encode genesis")
@@ -474,7 +474,7 @@ func startMixedKonaNode(
 	isSequencer bool,
 	metricsRegistrar L2MetricsRegistrar,
 ) *KonaNode {
-	tempKonaDir := t.TempDir()
+	tempKonaDir := t.TempDirWithPrefix("l2-cl-kona-" + NewComponentTarget(clKey, l2Net.ChainID()).String())
 
 	tempP2PPath := filepath.Join(tempKonaDir, "p2pkey.txt")
 
