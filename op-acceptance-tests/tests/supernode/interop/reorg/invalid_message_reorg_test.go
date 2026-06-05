@@ -12,10 +12,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -37,14 +37,12 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 // light-sequencer path. op-geth is being deprecated, so we skip rather than block on it.
 func TestSupernodeLightSequencerInteropInvalidMessageReplacement(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	// Skipped: an ELSync follow-mode sequencer cannot bootstrap from genesis. As the chain's sole
-	// block producer it has no peer payload to initial-EL-sync from, so it deadlocks in
-	// willStartEL and the chain never starts. TODO #21164. When re-enabling after that is
-	// fixed: this scenario is op-reth only (op-geth never adopts the replacement, #21119) and
-	// follow-mode reorg recovery is still flaky (latestHead can fail to re-anchor past a
-	// FollowSource forceReset under EL sync, #21125).
-	t.Skip("follow-mode light-sequencer ELSync genesis bootstrap unsupported; TODO #21164")
-	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0)
+	// op-reth only: on op-geth the follower never adopts the deposits-only replacement.
+	sysgo.SkipOnOpGeth(t, "op-geth does not adopt the invalid-message replacement on the light path (#21119)")
+	// Bootstrap via the supernode VN sequencer and hand off to the light ELSync sequencers, then
+	// run the invalid-message scenario on the live chain.
+	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0, presets.WithSupernodeVNSequencerForBootstrap())
+	sys.BootstrapLightSequencersViaVNHandoff()
 	runInteropInvalidMessageReplacementScenario(t, sys)
 }
 
@@ -141,19 +139,9 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 	// Wait for interop to proceed and verify the replacement block at the timestamp
 	sys.Supernode.AwaitValidatedTimestamp(invalidBlockTimestamp)
 
-	// ASSERTION: The invalid transaction no longer exists in the chain
-	// The invalid exec message transaction should NOT be in the replacement block
-	sys.L2ELB.AssertTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
-
-	t.Logger().Info("test complete: invalid block was replaced and verified",
-		"invalid_block_number", invalidBlockNumber,
-		"invalid_block_hash", invalidBlockHash,
-	)
-
-	// Settle before transacting. Cross-safe is pinned at the replacement while the
-	// follow-source oscillates (#21119), and only advances once the divergence resolves, so
-	// gate on cross-safe advancing — not a match, which passes trivially while both sides are
-	// pinned. A tx sequenced mid-oscillation would land in a fork block and get orphaned.
+	// Settle before asserting: the follow-source unsafe head oscillates while cross-safe is pinned
+	// at the replacement. Gate on cross-safe advancing past it — a match alone passes trivially
+	// while both sides are pinned — so reads below see the settled chain.
 	dsl.CheckAll(t,
 		sys.L2ACL.AdvancedFn(safety.CrossSafe, 3, 45),
 		sys.L2BCL.AdvancedFn(safety.CrossSafe, 3, 45),
@@ -163,16 +151,34 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 		sys.L2BCL.MatchedFn(sys.L2BSupernodeCL, safety.CrossSafe, 30),
 	)
 
-	// A new tx on the settled chain must still be includable and validated. The 10-attempt
-	// inclusion budget (vs the default 5, matching isthmus/superroot) tolerates slow block
-	// production on a loaded executor.
-	bruce := sys.FunderB.NewFundedEOA(eth.OneEther)
-	tx := bruce.Transact(
-		bruce.PlanTransfer(alice.Address(), eth.OneHundredthEther),
-		txplan.WithRetryInclusion(sys.L2ELB.Escape().EthClient(), 10, retry.Exponential()),
+	// The invalid exec-message tx must be gone from the replacement block on BOTH the light
+	// sequencer's EL and the supernode VN's EL — distinct nodes joined only by L1 + P2P, so
+	// agreement proves one canonical chain. AssertTxNotInBlock reads by number (the oscillating
+	// unsafe head), so gate each read on that EL's safe head reaching the block first; blocks
+	// at/below safe are irreversible.
+	sys.L2ELB.Reached(eth.Safe, invalidBlockNumber, 30)
+	sys.L2ELB.AssertTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
+	sys.L2BSupernodeEL.Reached(eth.Safe, invalidBlockNumber, 30)
+	sys.L2BSupernodeEL.AssertTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
+
+	t.Logger().Info("test complete: invalid block was replaced and verified",
+		"invalid_block_number", invalidBlockNumber,
+		"invalid_block_hash", invalidBlockHash,
 	)
-	txBlock := bigs.Uint64Strict(tx.Included.Value().BlockNumber)
-	txTimestamp := sys.L2B.TimestampForBlockNum(txBlock)
-	sys.Supernode.AwaitValidatedTimestamp(txTimestamp)
-	sys.L2ELB.AssertTxInBlock(txBlock, tx.Included.Value().TxHash)
+
+	// A new tx on the recovered chain must still be includable and durably validated. The light
+	// sequencer's unsafe tip oscillates during recovery, so a tx sent into it can be orphaned
+	// even as the chain keeps advancing. Re-send the transfer until one lands at or below the
+	// supernode VN's L1-derived safe head, then assert it is present on BOTH ELs.
+	settledBlock, settledTxHash := sys.L2BSupernodeEL.ResendUntilSafe(func() *txplan.PlannedTx {
+		// Fresh funded account per attempt => clean nonce space, immune to an orphaned prior send.
+		eoa := sys.FunderB.NewFundedEOA(eth.OneEther)
+		return txplan.NewPlannedTx(eoa.PlanTransfer(alice.Address(), eth.OneHundredthEther))
+	}, 8, 20)
+	sys.Supernode.AwaitValidatedTimestamp(sys.L2B.TimestampForBlockNum(settledBlock))
+	// The tx is in a derived-safe block on the supernode; the light sequencer must agree there.
+	// Wait for the light seq EL's safe head to reach it.
+	sys.L2BSupernodeEL.AssertTxInBlock(settledBlock, settledTxHash)
+	sys.L2ELB.Reached(eth.Safe, settledBlock, 30)
+	sys.L2ELB.AssertTxInBlock(settledBlock, settledTxHash)
 }

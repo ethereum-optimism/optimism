@@ -4,6 +4,9 @@
 const OFFSET_TIME: u64 = 60;
 /// Maximum number of interop filter requests at the same time.
 const MAX_INTEROP_QUERIES: usize = 10;
+/// Interval at which a heartbeat warning is re-logged while failsafe stays enabled, so a
+/// long-lived failsafe keeps surfacing in recent logs rather than only at the transition.
+const FAILSAFE_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(60);
 
 use crate::{
     conditional::MaybeConditionalTransaction,
@@ -265,27 +268,46 @@ where
     let metrics = MaintainPoolInteropMetrics::default();
     let mut interval = tokio::time::interval(Duration::from_secs(1));
     let mut was_enabled = false;
+    let mut last_heartbeat = Instant::now();
     loop {
         interval.tick().await;
         match interop_client.query_failsafe().await {
             Ok(enabled) => {
-                // On transition to enabled: evict all interop txs immediately
                 if enabled && !was_enabled {
+                    // Transition to enabled: log unconditionally (so the state change is
+                    // visible even when no interop txs are pooled) and evict all interop
+                    // txs immediately.
                     let interop_hashes: Vec<_> = pool
                         .pooled_transactions()
                         .iter()
                         .filter(|tx| is_interop_tx(&tx.transaction))
                         .map(|tx| *tx.hash())
                         .collect();
-                    if !interop_hashes.is_empty() {
-                        info!(
-                            target: "txpool::interop",
-                            count = interop_hashes.len(),
-                            "failsafe enabled: evicting all interop transactions"
-                        );
-                        let removed = pool.remove_transactions(interop_hashes);
-                        metrics.inc_removed_tx_interop(removed.len());
-                    }
+                    let evicted = if interop_hashes.is_empty() {
+                        0
+                    } else {
+                        let removed = pool.remove_transactions(interop_hashes).len();
+                        metrics.inc_removed_tx_interop(removed);
+                        removed
+                    };
+                    warn!(
+                        target: "txpool::interop",
+                        evicted,
+                        "interop failsafe enabled: rejecting all interop transactions; admission resumes automatically (within the ~1s poll interval) once the interop filter clears failsafe"
+                    );
+                    last_heartbeat = Instant::now();
+                } else if enabled && last_heartbeat.elapsed() >= FAILSAFE_HEARTBEAT_INTERVAL {
+                    // Heartbeat: keep a long-lived failsafe visible in recent logs.
+                    warn!(
+                        target: "txpool::interop",
+                        "interop failsafe still active: all interop transactions are being rejected; admission resumes automatically once the interop filter clears failsafe"
+                    );
+                    last_heartbeat = Instant::now();
+                } else if !enabled && was_enabled {
+                    info!(
+                        target: "txpool::interop",
+                        "interop failsafe cleared: resuming interop transaction processing"
+                    );
                 }
                 was_enabled = enabled;
             }

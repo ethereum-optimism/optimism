@@ -101,7 +101,7 @@ func listChain(chainID eth.ChainID) error {
 	if err != nil {
 		return err
 	}
-	if cfg.InteropTime != nil {
+	if cfg.LagoonTime != nil {
 		// If interop is scheduled, check the dependency set is available
 		_, err = chainconfig.DependencySetByChainID(chainID)
 		if err != nil {
@@ -142,7 +142,7 @@ func CheckCustomChains(ctx *cli.Context) error {
 			errs = append(errs, err)
 			continue
 		}
-		if cfg.InteropTime != nil {
+		if cfg.LagoonTime != nil {
 			depset, err := chainconfig.DependencySetByChainID(chainID)
 			if err != nil {
 				errs = append(errs, err)

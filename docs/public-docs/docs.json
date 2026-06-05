@@ -2422,15 +2422,11 @@
                 "pages": [
                   "releases/op-node",
                   "releases/kona-node",
+                  "releases/op-reth",
                   "releases/op-batcher",
                   "releases/op-proposer",
-                  "releases/op-challenger"
-                ]
-              },
-              {
-                "group": "Execution",
-                "pages": [
-                  "releases/op-reth"
+                  "releases/op-challenger",
+                  "releases/op-contracts"
                 ]
               },
               {
@@ -2438,12 +2434,6 @@
                 "pages": [
                   "releases/kona-client",
                   "releases/kona-host"
-                ]
-              },
-              {
-                "group": "Contracts",
-                "pages": [
-                  "releases/op-contracts"
                 ]
               },
               {

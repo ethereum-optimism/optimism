@@ -72,6 +72,12 @@ func SkipOnOpReth(t devtest.T, reason string) {
 	}
 }
 
+// IsOpRbuilder reports whether the L2 execution layer is op-rbuilder
+// (DEVSTACK_L2EL_KIND=op-rbuilder).
+func IsOpRbuilder() bool {
+	return devstackL2ELKind() == MixedOpRbuilder
+}
+
 // SkipOnKonaNode skips the test when the L2 consensus layer is kona-node
 func SkipOnKonaNode(t devtest.T, reason string) {
 	if devstackL2CLKind() == MixedL2CLKona {

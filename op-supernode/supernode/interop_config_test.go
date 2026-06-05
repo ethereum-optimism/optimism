@@ -23,16 +23,16 @@ func TestResolveInteropActivationTimestamp(t *testing.T) {
 			name:     "override wins over rollup configs",
 			override: uint64Ptr(42),
 			vnCfgs: map[eth.ChainID]*opnodecfg.Config{
-				eth.ChainIDFromUInt64(10):   {Rollup: rollup.Config{InteropTime: uint64Ptr(100)}},
-				eth.ChainIDFromUInt64(8453): {Rollup: rollup.Config{InteropTime: uint64Ptr(200)}},
+				eth.ChainIDFromUInt64(10):   {Rollup: rollup.Config{LagoonTime: uint64Ptr(100)}},
+				eth.ChainIDFromUInt64(8453): {Rollup: rollup.Config{LagoonTime: uint64Ptr(200)}},
 			},
 			want: uint64Ptr(42),
 		},
 		{
 			name: "derive from consistent rollup configs",
 			vnCfgs: map[eth.ChainID]*opnodecfg.Config{
-				eth.ChainIDFromUInt64(10):   {Rollup: rollup.Config{InteropTime: uint64Ptr(1234)}},
-				eth.ChainIDFromUInt64(8453): {Rollup: rollup.Config{InteropTime: uint64Ptr(1234)}},
+				eth.ChainIDFromUInt64(10):   {Rollup: rollup.Config{LagoonTime: uint64Ptr(1234)}},
+				eth.ChainIDFromUInt64(8453): {Rollup: rollup.Config{LagoonTime: uint64Ptr(1234)}},
 			},
 			want: uint64Ptr(1234),
 		},
@@ -47,17 +47,17 @@ func TestResolveInteropActivationTimestamp(t *testing.T) {
 			name: "error on mixed nil and configured rollup timestamps",
 			vnCfgs: map[eth.ChainID]*opnodecfg.Config{
 				eth.ChainIDFromUInt64(10):   {Rollup: rollup.Config{}},
-				eth.ChainIDFromUInt64(8453): {Rollup: rollup.Config{InteropTime: uint64Ptr(1234)}},
+				eth.ChainIDFromUInt64(8453): {Rollup: rollup.Config{LagoonTime: uint64Ptr(1234)}},
 			},
-			wantErr: "has no interop activation timestamp",
+			wantErr: "has no Lagoon activation timestamp",
 		},
 		{
 			name: "error on mismatched rollup timestamps",
 			vnCfgs: map[eth.ChainID]*opnodecfg.Config{
-				eth.ChainIDFromUInt64(10):   {Rollup: rollup.Config{InteropTime: uint64Ptr(100)}},
-				eth.ChainIDFromUInt64(8453): {Rollup: rollup.Config{InteropTime: uint64Ptr(200)}},
+				eth.ChainIDFromUInt64(10):   {Rollup: rollup.Config{LagoonTime: uint64Ptr(100)}},
+				eth.ChainIDFromUInt64(8453): {Rollup: rollup.Config{LagoonTime: uint64Ptr(200)}},
 			},
-			wantErr: "mismatched interop activation timestamps",
+			wantErr: "mismatched Lagoon activation timestamps",
 		},
 	}
 

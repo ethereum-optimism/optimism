@@ -9,15 +9,15 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/kvstore"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	clientTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
 	hostcommon "github.com/ethereum-optimism/optimism/op-program/host/common"
-	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	hosttypes "github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/kzg"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -341,7 +341,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		blobKey := make([]byte, 80)
 		copy(blobKey[:48], kzgCommitment[:])
 		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-			rootOfUnity := l1.RootsOfUnity[i].Bytes()
+			rootOfUnity := kzg.RootsOfUnity[i].Bytes()
 			copy(blobKey[48:], rootOfUnity[:])
 			blobKeyHash := crypto.Keccak256Hash(blobKey)
 			if err := p.kvStore.Put(preimage.Keccak256Key(blobKeyHash).PreimageKey(), blobKey); err != nil {
@@ -465,7 +465,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			}
 			return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), output.Marshal())
 		} else {
-			prestate, err := clientTypes.UnmarshalTransitionState(p.agreedPrestate)
+			prestate, err := eth.UnmarshalTransitionState(p.agreedPrestate)
 			if err != nil {
 				return fmt.Errorf("cannot fetch output root, invalid agreed prestate: %w", err)
 			}

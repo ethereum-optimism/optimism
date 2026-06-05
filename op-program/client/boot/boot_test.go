@@ -97,21 +97,21 @@ type mockPreinteropBootstrapOracle struct {
 
 func (o *mockPreinteropBootstrapOracle) Get(key preimage.Key) []byte {
 	switch key.PreimageKey() {
-	case L2ChainIDLocalIndex.PreimageKey():
+	case preimage.L2ChainIDLocalIndex.PreimageKey():
 		return binary.BigEndian.AppendUint64(nil, eth.EvilChainIDToUInt64(o.b.L2ChainID))
-	case L2ChainConfigLocalIndex.PreimageKey():
+	case preimage.L2ChainConfigLocalIndex.PreimageKey():
 		if !o.custom {
 			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
 		}
 		b, _ := json.Marshal(o.b.L2ChainConfig)
 		return b
-	case L1ChainConfigLocalIndex.PreimageKey():
+	case preimage.L1ChainConfigLocalIndex.PreimageKey():
 		if !o.custom {
 			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
 		}
 		b, _ := json.Marshal(o.b.L1ChainConfig)
 		return b
-	case RollupConfigLocalIndex.PreimageKey():
+	case preimage.RollupConfigLocalIndex.PreimageKey():
 		if !o.custom {
 			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
 		}

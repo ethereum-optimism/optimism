@@ -29,7 +29,7 @@ func TestSDMActivatesAtInteropBoundary(gt *testing.T) {
 	sys := newSDMRethSystemWithInteropOffset(t, &offset)
 	verifyOpReth(t, sys.L2EL)
 
-	t.Require().False(sys.L2Network.IsForkActive(forks.Interop),
+	t.Require().False(sys.L2Network.IsForkActive(forks.Lagoon),
 		"Interop must not be active yet at the start of the boundary test")
 
 	// Phase 1: pre-Interop workload. We may need a few attempts to land the densest
@@ -38,7 +38,7 @@ func TestSDMActivatesAtInteropBoundary(gt *testing.T) {
 	preBlock, preIncluded, preBlockNum := mustFindRepeatedSlotBlock(t, sys, 2, 3)
 	t.Require().GreaterOrEqual(len(preIncluded), 2, "pre-Interop target block must contain user txs")
 	preRef := sys.L2EL.BlockRefByNumber(preBlockNum)
-	t.Require().False(sys.L2Network.IsForkActiveAt(forks.Interop, preRef.Time),
+	t.Require().False(sys.L2Network.IsForkActiveAt(forks.Lagoon, preRef.Time),
 		"pre-Interop workload block %d (ts=%d) must land before Interop activation",
 		preBlockNum, preRef.Time)
 
@@ -47,15 +47,15 @@ func TestSDMActivatesAtInteropBoundary(gt *testing.T) {
 		"pre-Interop block %d must not contain a PostExec tx; chain-spec gates SDM off", preBlockNum)
 
 	// Phase 2: wait for Interop activation, then drive the workload again.
-	activationBlock := sys.L2Network.AwaitActivation(t, forks.Interop)
+	activationBlock := sys.L2Network.AwaitActivation(t, forks.Lagoon)
 	t.Logger().Info("Interop activated", "block", activationBlock)
-	t.Require().True(sys.L2Network.IsForkActive(forks.Interop),
+	t.Require().True(sys.L2Network.IsForkActive(forks.Lagoon),
 		"Interop must be active after AwaitActivation returns")
 
 	postBlock, postIncluded, postBlockNum := mustFindRepeatedSlotBlock(t, sys, 2, 3)
 	t.Require().GreaterOrEqual(len(postIncluded), 2, "post-Interop target block must contain user txs")
 	postRef := sys.L2EL.BlockRefByNumber(postBlockNum)
-	t.Require().True(sys.L2Network.IsForkActiveAt(forks.Interop, postRef.Time),
+	t.Require().True(sys.L2Network.IsForkActiveAt(forks.Lagoon, postRef.Time),
 		"post-Interop workload block %d (ts=%d) must land after Interop activation",
 		postBlockNum, postRef.Time)
 

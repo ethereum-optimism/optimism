@@ -2,6 +2,10 @@ ARG GO_VERSION=1.24.10-alpine3.21
 ARG EXPORT_TARGET=current
 FROM golang:${GO_VERSION} AS src
 
+# Enforce that builds use the committed go.mod/go.sum exactly and never
+# silently mutate them. Fails the build if the lockfile is out of date.
+ENV GOFLAGS=-mod=readonly
+
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash just
 
 COPY ./go.mod /app/go.mod

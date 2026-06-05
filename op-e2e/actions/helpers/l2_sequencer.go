@@ -275,8 +275,8 @@ func (s *L2Sequencer) ActBuildL2ToIsthmus(t Testing) {
 // we can use ActBuildL2ToTime with (e.g.) the JovianTime.
 
 func (s *L2Sequencer) ActBuildL2ToInterop(t Testing) {
-	require.NotNil(t, s.RollupCfg.InteropTime, "cannot activate InteropTime when it is not scheduled")
-	for s.L2Unsafe().Time < *s.RollupCfg.InteropTime {
+	require.NotNil(t, s.RollupCfg.LagoonTime, "cannot activate LagoonTime when it is not scheduled")
+	for s.L2Unsafe().Time < *s.RollupCfg.LagoonTime {
 		s.ActL2EmptyBlock(t)
 	}
 }

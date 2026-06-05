@@ -175,6 +175,22 @@
       "target": "op-reth",
       "paths": ["rust/**"]
     },
+    "op-rbuilder": {
+      "type": "rust",
+      "check": "rust",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "op-rbuilder",
+      "paths": ["rust/**"]
+    },
+    "rollup-boost": {
+      "type": "rust",
+      "check": "rust",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "rollup-boost",
+      "paths": ["rust/**"]
+    },
     "cannon-builder": {
       "type": "rust",
       "check": "none",

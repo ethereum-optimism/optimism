@@ -5,11 +5,11 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/kvstore"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
-	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -287,7 +287,7 @@ func TestDBFormat(t *testing.T) {
 		cfg.DataFormat = "foo"
 		require.ErrorIs(t, cfg.Check(), ErrInvalidDataFormat)
 	})
-	for _, format := range types.SupportedDataFormats {
+	for _, format := range kvstore.SupportedDataFormats {
 		format := format
 		t.Run(fmt.Sprintf("%v", format), func(t *testing.T) {
 			cfg := validConfig()

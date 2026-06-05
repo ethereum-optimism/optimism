@@ -13,7 +13,7 @@ import (
 // TestWithdrawal_Karst creates a withdrawal from the L2StandardBridge and
 // observes the full withdrawal flow, including finalization on L1.
 func TestWithdrawal_Karst(gt *testing.T) {
-	withdrawal.TestWithdrawal(gt, gameTypes.CannonGameType,
+	withdrawal.TestWithdrawal(gt, gameTypes.CannonKonaGameType,
 		presets.WithDeployerOptions(sysgo.WithKarstAtGenesis),
 	)
 }
@@ -22,7 +22,7 @@ func TestWithdrawal_Karst(gt *testing.T) {
 // started pre-Karst and activated Karst mid-chain via a scheduled upgrade.
 func TestWithdrawal_KarstUpgrade(gt *testing.T) {
 	offset := uint64(10) // arbitrary offset to have a few blocks before Karst
-	withdrawal.TestWithdrawalAfterUpgrade(gt, gameTypes.CannonGameType, opforks.Karst,
+	withdrawal.TestWithdrawalAfterUpgrade(gt, gameTypes.CannonKonaGameType, opforks.Karst,
 		presets.WithDeployerOptions(sysgo.WithKarstAtOffset(&offset)),
 	)
 }

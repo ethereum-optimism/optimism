@@ -636,7 +636,7 @@ func TestSequencerSdmStatus(t *testing.T) {
 	activation := uint64(30_004)
 
 	seq, deps := createSequencer(logger)
-	deps.cfg.InteropTime = &activation
+	deps.cfg.LagoonTime = &activation
 	status, err := seq.SdmStatus(context.Background(), activation-deps.cfg.BlockTime)
 	require.NoError(t, err)
 	require.False(t, status.PostExecOptIn)

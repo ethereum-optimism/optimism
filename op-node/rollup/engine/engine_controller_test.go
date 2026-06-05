@@ -745,7 +745,7 @@ func TestFollowSource_DivergentLocalSafeAndCrossSafe(t *testing.T) {
 	}
 
 	interopTime := uint64(0)
-	cfg := &rollup.Config{InteropTime: &interopTime}
+	cfg := &rollup.Config{LagoonTime: &interopTime}
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
 
@@ -865,7 +865,7 @@ func TestFollowSource_SequencerDivergenceForcesReset(t *testing.T) {
 	forkBlock5 := mk(5, block4.Hash) // the follower-sequencer's own fork
 
 	interopTime := uint64(0)
-	cfg := &rollup.Config{InteropTime: &interopTime}
+	cfg := &rollup.Config{LagoonTime: &interopTime}
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
 	emitter.Mock.On("Emit", mock.Anything).Maybe()
@@ -930,7 +930,7 @@ func TestFollowSource_VerifierDivergenceStaysSoft(t *testing.T) {
 	forkBlock5 := mk(5, block4.Hash) // local block at the same height, different hash
 
 	interopTime := uint64(0)
-	cfg := &rollup.Config{InteropTime: &interopTime}
+	cfg := &rollup.Config{LagoonTime: &interopTime}
 	mockEngine := &testutils.MockEngine{}
 	emitter := &testutils.MockEmitter{}
 	emitter.Mock.On("Emit", mock.Anything).Maybe()

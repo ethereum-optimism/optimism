@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
-	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
@@ -106,7 +105,6 @@ type DisputeSystem interface {
 	DependencySet() *depset.StaticConfigDependencySet
 	L1Genesis() *core.Genesis
 	L2Geneses() []*core.Genesis
-	PrestateVariant() shared.PrestateVariant
 
 	AdvanceTime(time.Duration)
 }

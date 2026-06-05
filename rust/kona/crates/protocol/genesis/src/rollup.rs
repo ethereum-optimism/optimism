@@ -333,7 +333,7 @@ impl RollupConfig {
 
     /// Returns true if Interop is active at the given timestamp.
     pub fn is_interop_active(&self, timestamp: u64) -> bool {
-        self.hardforks.interop_time.is_some_and(|t| timestamp >= t)
+        self.hardforks.lagoon_time.is_some_and(|t| timestamp >= t)
     }
 
     /// Returns true if the timestamp marks the first Interop block.
@@ -487,10 +487,10 @@ impl OpHardforks for RollupConfig {
                 .hardforks
                 .karst_time
                 .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Interop)),
-            OpHardfork::Interop => self
+                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Lagoon)),
+            OpHardfork::Lagoon => self
                 .hardforks
-                .interop_time
+                .lagoon_time
                 .map(ForkCondition::Timestamp)
                 .unwrap_or(ForkCondition::Never),
             _ => ForkCondition::Never,
@@ -541,7 +541,7 @@ mod tests {
         assert_eq!(config.spec_id(70), op_revm::OpSpecId::JOVIAN);
         config.hardforks.karst_time = Some(80);
         assert_eq!(config.spec_id(80), op_revm::OpSpecId::KARST);
-        config.hardforks.interop_time = Some(90);
+        config.hardforks.lagoon_time = Some(90);
         assert_eq!(config.spec_id(90), op_revm::OpSpecId::INTEROP);
     }
 
@@ -711,8 +711,8 @@ mod tests {
         assert!(config.is_karst_active(20));
         assert!(!config.is_sdm_active(20));
 
-        // Schedule Interop and SDM must follow.
-        config.hardforks.interop_time = Some(30);
+        // Schedule Lagoon and SDM must follow.
+        config.hardforks.lagoon_time = Some(30);
         assert!(!config.is_sdm_active(29));
         assert!(config.is_sdm_active(30));
         assert!(config.is_sdm_active(31));
@@ -722,7 +722,7 @@ mod tests {
     fn test_interop_active() {
         let mut config = RollupConfig::default();
         assert!(!config.is_interop_active(0));
-        config.hardforks.interop_time = Some(10);
+        config.hardforks.lagoon_time = Some(10);
         assert!(config.is_regolith_active(10));
         assert!(config.is_canyon_active(10));
         assert!(config.is_delta_active(10));
@@ -752,7 +752,7 @@ mod tests {
                 isthmus_time: Some(90),
                 jovian_time: Some(100),
                 karst_time: Some(110),
-                interop_time: Some(120),
+                lagoon_time: Some(120),
             },
             block_time: 2,
             ..Default::default()

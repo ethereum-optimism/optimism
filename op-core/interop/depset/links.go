@@ -8,11 +8,13 @@ import (
 // ActivationConfig answers per-chain interop activation queries.
 // It is satisfied by the rollup config set kept alongside the dependency set.
 type ActivationConfig interface {
-	// IsInterop returns true if the Interop hardfork is active for the given chain at the given timestamp.
+	// IsInterop returns true if interop is active for the given chain at the
+	// given timestamp.
 	// It panics if the chain is not part of the rollup config set.
 	IsInterop(chainID eth.ChainID, ts uint64) bool
 
-	// IsInteropActivationBlock returns true if the given timestamp is for an Interop activation block.
+	// IsInteropActivationBlock returns true if the given timestamp is the first
+	// block at which interop is active for the given chain.
 	// It panics if the chain is not part of the rollup config set.
 	IsInteropActivationBlock(chainID eth.ChainID, ts uint64) bool
 }

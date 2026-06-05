@@ -34,11 +34,11 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 	}
 	if !interopAtGenesis {
-		// Karst at genesis, Interop at offset — exercises the activation transition.
+		// Karst at genesis, Lagoon at offset — exercises the activation transition.
 		deployerOpts = append(deployerOpts, func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2Cfg := range builder.L2s() {
 				l2Cfg.WithForkAtGenesis(opforks.Karst)
-				l2Cfg.WithForkAtOffset(opforks.Interop, &delaySeconds)
+				l2Cfg.WithForkAtOffset(opforks.Lagoon, &delaySeconds)
 			}
 		})
 	}

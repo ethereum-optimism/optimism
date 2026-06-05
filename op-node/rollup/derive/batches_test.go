@@ -637,7 +637,7 @@ func TestValidBatch(t *testing.T) {
 			Expected: BatchAccept,
 			ConfigMod: func(c *rollup.Config) {
 				activation := l2A0.Time
-				c.InteropTime = &activation
+				c.LagoonTime = &activation
 			},
 		},
 		{
