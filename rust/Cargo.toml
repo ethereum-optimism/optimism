@@ -233,6 +233,11 @@ inherits = "release"
 lto = "fat"
 codegen-units = 1
 
+[profile.maxperf-dbg]
+inherits = "maxperf"
+debug = "full"
+strip = "none"
+
 [profile.reproducible]
 inherits = "release"
 panic = "abort"
