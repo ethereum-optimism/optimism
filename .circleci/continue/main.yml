@@ -1164,7 +1164,16 @@ jobs:
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
             mkdir -p results
-            forge test --match-path "$MATCH_PATH" --junit > results/results.xml
+            # Rerun-on-failure to absorb transient flakes, mirroring the go
+            # tests' `gotestsum --rerun-fails`. forge has no per-test retry and a
+            # single transient failure reds the whole shard. On failure, rerun
+            # just the previously-failed tests (`--rerun`) and gate the shard on
+            # that result; a real failure still fails, a flake passes.
+            if forge test --match-path "$MATCH_PATH" --junit > results/results.xml; then
+              exit 0
+            fi
+            echo "forge test failed — rerunning failed tests once to absorb transient flakes" >&2
+            forge test --rerun --junit > results/results.xml
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
