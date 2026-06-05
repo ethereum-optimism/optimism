@@ -180,14 +180,6 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		identity := NewELNodeIdentity(0)
 
 		var el L2ELNode
-		// Explicitly pinning op-geth on a Karst chain is a test misconfiguration
-		// (op-geth is deprecated as of Karst): fail loudly rather than silently
-		// dropping the node. The env-driven op-geth lane is handled earlier in
-		// buildL2Genesis; this catches an explicit per-node op-geth spec under a
-		// non-op-geth lane. Use op-reth for Karst+ node specs.
-		if spec.ELKind == MixedL2ELOpGeth && l2Net.ChainConfig().KarstTime != nil {
-			require.FailNowf("op-geth EL on Karst chain", "node spec %q pins op-geth on Karst-activated chain %q; op-geth is deprecated as of Karst, use op-reth", spec.ELKey, l2Net.Name())
-		}
 		switch spec.ELKind {
 		case MixedL2ELOpGeth:
 			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
