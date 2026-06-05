@@ -23,13 +23,13 @@ const (
 	jobStatusUnknown jobStatus = iota
 	jobStatusValid
 	jobStatusInvalid
+	jobStatusExpired
+	jobStatusTimestampMismatch
 )
 
 func (j jobStatus) isTerminal() bool {
 	switch j {
-	case jobStatusValid:
-		return true
-	case jobStatusInvalid:
+	case jobStatusValid, jobStatusInvalid, jobStatusExpired, jobStatusTimestampMismatch:
 		return true
 	default:
 		return false
@@ -44,6 +44,10 @@ func (s jobStatus) String() string {
 		return "valid"
 	case jobStatusInvalid:
 		return "invalid"
+	case jobStatusExpired:
+		return "expired"
+	case jobStatusTimestampMismatch:
+		return "timestamp_mismatch"
 	default:
 		return fmt.Sprintf("unknown status: %d", s)
 	}
