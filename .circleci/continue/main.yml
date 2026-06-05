@@ -453,6 +453,12 @@ commands:
         type: string
         default: "rust-build"
     steps:
+      # Surface sccache hit/write stats at job end. Harmless no-op when sccache
+      # is absent; confirms the GCS cache is hit rather than silently failing.
+      - run:
+          name: sccache stats
+          command: 'command -v sccache >/dev/null 2>&1 && sccache --show-stats || true'
+          when: always
       - save_cache:
           key: rust-deps-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
           name: Save << parameters.directory >> dependency cache (shared)
