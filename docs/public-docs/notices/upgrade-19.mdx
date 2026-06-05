@@ -18,9 +18,9 @@ The Karst hard fork is a proposed network upgrade for OP Stack chains. It **intr
 
 Upgrade 19 introduces the following changes:
 
-* **L2 Contract Manager (L2CM):** introduces a mechanism for upgrading L2 smart contracts (predeploys) as part of a network upgrade. L2CM enables L2 predeploy upgrades in a structured, auditable way — reducing the need for multisig signing for each individual contract change. This is a prerequisite for interop and future protocol upgrades that need to modify L2 contracts. See the [L2CM design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md) and [FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md) for details.
+* **L2 Contract Manager (L2CM):** introduces a mechanism for upgrading L2 smart contracts (predeploys) as part of a network upgrade. L2CM enables L2 predeploy upgrades in a structured, auditable way — reducing the need for multisig signing for each individual contract change. This is a prerequisite for interop and future protocol upgrades that need to modify L2 contracts. See the [L2CM feature page](/op-stack/features/l2-contract-manager), [design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md), and [FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md) for details.
 
-* **Osaka on L2:** activates Osaka EIPs on L2, including [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) which introduces a per-transaction gas limit, gas cost changes for `MODEXP` and `P256VERIFY` precompiles, and a new input size limit for `MODEXP`. See the [Osaka on L2 design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md) for details.
+* **Osaka on L2:** activates a subset of Osaka EIPs on L2, including [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) which introduces a per-transaction gas limit, gas cost changes for `MODEXP` and `P256VERIFY` precompiles, and a new input size limit for `MODEXP`. See the [Osaka on L2 feature page](/op-stack/features/osaka-on-l2) and [design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md) for details.
 
 * **Glamsterdam Defense (BN256 pairing input size reduction):** as a preemptive measure ahead of the Glamsterdam L1 hard fork, Upgrade 19 includes a hard fork change that reduces the maximum input size for BN256 pairing precompile calls from 427 pairs (81,984 bytes) to 390 pairs (74,880 bytes). This provides additional headroom against potential last-minute gas repricing increases in [EIP-7904](https://eips.ethereum.org/EIPS/eip-7904) that could cause fault proof verification to exceed the [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) L1 transaction gas limit. See [analysis](https://github.com/ethereum-optimism/optimism/issues/20195) for details. The full Glamsterdam Defense smart contract changes (absolute pre-state upgrade) are deferred and will be slotted in once final L1 gas pricing values are confirmed.
 
@@ -71,11 +71,13 @@ Update the following components:
 
 | Component | Version | Notes |
 | ---------------- | ------- | ----- |
-| `op-node`        | `TBD`   | Must be updated **prior** to the activation timestamp. Required for Osaka on L2 and Glamsterdam Defense hard fork changes. |
-| `op-reth`        | `TBD`   | Must be updated **prior** to the activation timestamp. Required for EIP-7825 gas limit enforcement, MODEXP/P256VERIFY gas changes, and BN256 pairing input size reduction. |
+| `op-node`        | [`v1.19.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.0)   | Must be updated **prior** to the activation timestamp. Required for Osaka on L2 and Glamsterdam Defense hard fork changes. |
+| `op-reth`        | [`v2.3.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.3.0)   | Must be updated **prior** to the activation timestamp. Required for EIP-7825 gas limit enforcement, MODEXP/P256VERIFY gas changes, and BN256 pairing input size reduction. |
 | `op-challenger` | [`v1.9.3`](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.9.3) | Must be updated **prior** to the upgrade. Required for `CANNON_KONA` respected game type. |
 | `op-dispute-mon` | [`v1.5.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-dispute-mon%2Fv1.5.2) | Must be updated **prior** to the upgrade. |
-| `op-contracts` | `TBD` | Required for L2CM, OPCMv2, and `CANNON_KONA` respected game type support. |
+| `op-contracts` | `v7.0.0` | Required for L2CM, OPCMv2, and `CANNON_KONA` respected game type support. |
+| `rollup-boost` | `TBD` | Only if running Flashblocks. Must be updated **prior** to the activation timestamp. |
+| `op-rbuilder` | `TBD` | Only if running Flashblocks. Must be updated **prior** to the activation timestamp. |
 
 ### For permissionless fault proof enabled chains
 

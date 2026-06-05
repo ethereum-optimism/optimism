@@ -24,7 +24,7 @@ func newWorldBuilder(t devtest.T, keys devkeys.Keys) *worldBuilder {
 
 func applyConfigInteropAtGenesis(builder intentbuilder.Builder) {
 	for _, l2Cfg := range builder.L2s() {
-		l2Cfg.WithForkAtGenesis(forks.Interop)
+		l2Cfg.WithForkAtGenesis(forks.Lagoon)
 	}
 }
 
@@ -40,8 +40,8 @@ func applyConfigDeployerOptions(t devtest.T, keys devkeys.Keys, builder intentbu
 	}
 }
 
-func buildSingleChainWorldWithInterop(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*L1Network, *L2Network, coredepset.DependencySet, config.FullConfigSetMerged) {
-	_, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInteropAndState(t, keys, interopAtGenesis, localContractArtifactsPath, deployerOpts...)
+func buildSingleChainWorldWithInterop(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*L1Network, *L2Network, coredepset.DependencySet, config.FullConfigSetMerged) {
+	_, l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInteropAndState(t, keys, lagoonAtGenesis, localContractArtifactsPath, deployerOpts...)
 	return l1Net, l2Net, depSet, fullCfgSet
 }
 
@@ -66,12 +66,12 @@ func newInteropMigrationState(wb *worldBuilder) *interopMigrationState {
 	return state
 }
 
-func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, interopAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, coredepset.DependencySet, config.FullConfigSetMerged) {
+func buildSingleChainWorldWithInteropAndState(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, coredepset.DependencySet, config.FullConfigSetMerged) {
 	wb := newWorldBuilder(t, keys)
 	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
 	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)
 	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
-	if interopAtGenesis {
+	if lagoonAtGenesis {
 		applyConfigInteropAtGenesis(wb.builder)
 	}
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)

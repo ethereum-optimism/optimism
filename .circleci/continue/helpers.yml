@@ -1,0 +1,58 @@
+# Shared command helpers merged into every continuation config (see
+# .circleci/scripts/merge-configs.sh). Defining them here once avoids
+# duplicating the definitions across main.yml and rust-e2e.yml.
+commands:
+  # Shared Go module cache. There is a single Go module in the repo, so the
+  # downloaded module set is identical for every job at a given go.sum. It is
+  # populated once by the prep-go-modules job and restored read-only everywhere
+  # else, so modules are downloaded a single time per go.sum rather than once
+  # per job (every download is an opportunity for a proxy.golang.org flake).
+  # c-go-cache-version is the global cache-buster for breaking changes.
+  restore-go-mod-cache:
+    steps:
+      - restore_cache:
+          name: Restore Go module cache (go.sum)
+          keys:
+            - go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.sum" }}
+            - go-mod-<<pipeline.parameters.c-go-cache-version>>-
+
+  save-go-mod-cache:
+    steps:
+      - save_cache:
+          name: Save Go module cache (go.sum)
+          key: go-mod-<<pipeline.parameters.c-go-cache-version>>-{{ checksum "go.sum" }}
+          paths:
+            - ~/go/pkg/mod
+
+  # Restores the shared module cache plus a per-namespace Go build cache. The
+  # build cache holds compiled artifacts that track the source, so it is keyed
+  # on branch+revision and saved fresh on every commit (CircleCI cache keys are
+  # immutable, so a key that didn't change with the source could never be
+  # refreshed). Restore falls back from this exact commit, to the latest on the
+  # branch, to the latest overall for the namespace.
+  go-restore-cache:
+    parameters:
+      namespace:
+        type: string
+    steps:
+      - restore-go-mod-cache
+      - restore_cache:
+          name: Restore Go build cache for <<parameters.namespace>>
+          keys:
+            - go-build-<<parameters.namespace>>-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}-{{ .Revision }}
+            - go-build-<<parameters.namespace>>-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}-
+            - go-build-<<parameters.namespace>>-<<pipeline.parameters.c-go-cache-version>>-
+
+  # Saves only the per-namespace build cache; the module cache is written once
+  # by prep-go-modules. The revision in the key makes it unique per commit so
+  # each build persists an up-to-date cache.
+  go-save-cache:
+    parameters:
+      namespace:
+        type: string
+    steps:
+      - save_cache:
+          name: Save Go build cache for <<parameters.namespace>>
+          key: go-build-<<parameters.namespace>>-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - ~/.cache/go-build

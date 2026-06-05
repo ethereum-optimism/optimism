@@ -43,13 +43,7 @@ impl NetworkHandler {
                     self.gossip.swarm.behaviour().gossipsub.peer_score(peer_id).unwrap_or_default();
 
                 // Record the peer score in the metrics.
-                kona_macros::record!(
-                    histogram,
-                    kona_gossip::Metrics::PEER_SCORES,
-                    "peer",
-                    peer_id.to_string(),
-                    score
-                );
+                kona_macros::record!(histogram, kona_gossip::Metrics::PEER_SCORES, score);
 
                 if score < ban_peers.ban_threshold {
                     return Some(*peer_id);

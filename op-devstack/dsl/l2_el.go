@@ -51,10 +51,16 @@ func (el *L2ELNode) EthClient() apis.EthClient {
 	return el.inner.EthClient()
 }
 
-func (el *L2ELNode) BlockRefByLabel(label eth.BlockLabel) eth.L2BlockRef {
+// blockRefByLabel returns the block ref for a label and its lookup error, so the polling helpers
+// can retry transient failures. BlockRefByLabel is the one-shot variant that fails the test.
+func (el *L2ELNode) blockRefByLabel(label eth.BlockLabel) (eth.L2BlockRef, error) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
-	block, err := el.inner.L2EthClient().L2BlockRefByLabel(ctx, label)
+	return el.inner.L2EthClient().L2BlockRefByLabel(ctx, label)
+}
+
+func (el *L2ELNode) BlockRefByLabel(label eth.BlockLabel) eth.L2BlockRef {
+	block, err := el.blockRefByLabel(label)
 	el.require.NoError(err, "block not found using block label")
 	return block
 }
@@ -87,19 +93,22 @@ func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64, opts ...Advan
 		opt(&o)
 	}
 	return func() error {
-		initial := el.BlockRefByLabel(label)
+		var initial eth.L2BlockRef
+		if err := retry.Do0(el.ctx, o.attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				head, err := el.blockRefByLabel(label)
+				if err != nil {
+					el.log.Warn("block-label lookup failed; will retry", "chain", el.inner.ChainID(), "label", label, "err", err)
+					return err
+				}
+				initial = head
+				return nil
+			}); err != nil {
+			return err
+		}
 		target := initial.Number + block
 		el.log.Info("expecting chain to advance", "chain", el.inner.ChainID(), "label", label, "target", target, "attempts", o.attempts)
-		return retry.Do0(el.ctx, o.attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
-			func() error {
-				head := el.BlockRefByLabel(label)
-				if head.Number >= target {
-					el.log.Info("chain advanced", "chain", el.inner.ChainID(), "target", target)
-					return nil
-				}
-				el.log.Info("chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", target)
-				return fmt.Errorf("expected head to advance: %s", label)
-			})
+		return el.ReachedFn(label, target, o.attempts)()
 	}
 }
 
@@ -128,7 +137,11 @@ func (el *L2ELNode) ReachedFn(label eth.BlockLabel, target uint64, attempts int)
 		logger.Info("Expecting L2EL to reach")
 		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
-				head := el.BlockRefByLabel(label)
+				head, err := el.blockRefByLabel(label)
+				if err != nil {
+					logger.Warn("block-label lookup failed; will retry", "err", err)
+					return err
+				}
 				if head.Number >= target {
 					logger.Info("L2EL advanced", "target", target)
 					return nil

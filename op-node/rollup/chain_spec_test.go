@@ -50,7 +50,7 @@ var testConfig = Config{
 	IsthmusTime:            u64ptr(80),
 	JovianTime:             u64ptr(90),
 	KarstTime:              u64ptr(100),
-	InteropTime:            u64ptr(110),
+	LagoonTime:             u64ptr(110),
 	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000010"),
 	DepositContractAddress: common.HexToAddress("0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"),
 	L1SystemConfigAddress:  common.HexToAddress("0x229047fed2591dbec1eF1118d64F7aF3dB9EB290"),
@@ -206,15 +206,15 @@ func TestCheckForkActivation(t *testing.T) {
 			expectedLog:         "Detected hardfork activation block",
 		},
 		{
-			name:                "Interop activation",
+			name:                "Lagoon activation",
 			block:               eth.L2BlockRef{Time: 110, Number: 13, Hash: common.Hash{0xd}},
-			expectedCurrentFork: forks.Interop,
+			expectedCurrentFork: forks.Lagoon,
 			expectedLog:         "Detected hardfork activation block",
 		},
 		{
 			name:                "No more hardforks",
 			block:               eth.L2BlockRef{Time: 700, Number: 14, Hash: common.Hash{0xe}},
-			expectedCurrentFork: forks.Interop,
+			expectedCurrentFork: forks.Lagoon,
 			expectedLog:         "",
 		},
 	}

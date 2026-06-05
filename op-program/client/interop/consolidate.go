@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
-	"github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -47,17 +46,17 @@ type execMessageCacheEntry struct {
 }
 
 type consolidateState struct {
-	*types.TransitionState
+	*eth.TransitionState
 	replacedChains map[eth.ChainID]bool
 
 	// execMessageCache is used to memoize iteration of logs in blocks to speed up executing message retrieval
 	execMessageCache map[common.Hash]execMessageCacheEntry
 }
 
-func newConsolidateState(transitionState *types.TransitionState) *consolidateState {
+func newConsolidateState(transitionState *eth.TransitionState) *consolidateState {
 	s := &consolidateState{
-		TransitionState: &types.TransitionState{
-			PendingProgress: make([]types.OptimisticBlock, len(transitionState.PendingProgress)),
+		TransitionState: &eth.TransitionState{
+			PendingProgress: make([]eth.OptimisticBlock, len(transitionState.PendingProgress)),
 			SuperRoot:       transitionState.SuperRoot,
 			Step:            transitionState.Step,
 		},
@@ -99,7 +98,7 @@ func RunConsolidation(
 	bootInfo *boot.BootInfoInterop,
 	l1PreimageOracle l1.Oracle,
 	l2PreimageOracle l2.Oracle,
-	transitionState *types.TransitionState,
+	transitionState *eth.TransitionState,
 	superRoot *eth.SuperV1,
 	tasks taskExecutor,
 ) (eth.Bytes32, error) {
@@ -244,7 +243,7 @@ type consolidateCheckDeps struct {
 func newConsolidateCheckDeps(
 	depset depset.DependencySet,
 	configSource boot.ConfigSource,
-	transitionState *types.TransitionState,
+	transitionState *eth.TransitionState,
 	chains []eth.ChainIDAndOutput,
 	oracle l2.Oracle,
 	consolidateState *consolidateState,

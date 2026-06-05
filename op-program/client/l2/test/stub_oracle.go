@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	l2Types "github.com/ethereum-optimism/optimism/op-program/client/l2/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,7 +25,7 @@ type StubBlockOracle struct {
 	Blocks           map[common.Hash]*gethTypes.Block
 	Receipts         map[common.Hash]gethTypes.Receipts
 	Outputs          map[common.Hash]eth.Output
-	TransitionStates map[common.Hash]*interopTypes.TransitionState
+	TransitionStates map[common.Hash]*eth.TransitionState
 	stateOracle
 }
 
@@ -36,7 +35,7 @@ func NewStubOracle(t *testing.T) (*StubBlockOracle, *StubStateOracle) {
 		t:                t,
 		Blocks:           make(map[common.Hash]*gethTypes.Block),
 		Outputs:          make(map[common.Hash]eth.Output),
-		TransitionStates: make(map[common.Hash]*interopTypes.TransitionState),
+		TransitionStates: make(map[common.Hash]*eth.TransitionState),
 		Receipts:         make(map[common.Hash]gethTypes.Receipts),
 		stateOracle:      stateOracle,
 	}
@@ -75,7 +74,7 @@ func (o StubBlockOracle) OutputByRoot(root common.Hash, chainID eth.ChainID) eth
 	}
 	return output
 }
-func (o StubBlockOracle) TransitionStateByRoot(root common.Hash) *interopTypes.TransitionState {
+func (o StubBlockOracle) TransitionStateByRoot(root common.Hash) *eth.TransitionState {
 	output, ok := o.TransitionStates[root]
 	if !ok {
 		o.t.Fatalf("requested unknown transition state root %s", root)

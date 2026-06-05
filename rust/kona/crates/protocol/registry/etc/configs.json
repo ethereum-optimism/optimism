@@ -2691,7 +2691,7 @@
           "explorer": ""
         },
         "hardforks": {
-          "interop_time": 1749150000
+          "lagoon_time": 1749150000
         },
         "superchain_config_addr": "0x672f11f34b7be67c13a6fcba819c339bc3b0a585",
         "op_contracts_manager_proxy_addr": null
@@ -2720,7 +2720,7 @@
             "granite_time": 0,
             "holocene_time": 0,
             "isthmus_time": 0,
-            "interop_time": 1749150000
+            "lagoon_time": 1749150000
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -2812,7 +2812,7 @@
             "granite_time": 0,
             "holocene_time": 0,
             "isthmus_time": 0,
-            "interop_time": 1749150000
+            "lagoon_time": 1749150000
           },
           "optimism": {
             "eip1559Elasticity": 6,

@@ -32,6 +32,10 @@ type rewindTestEnv struct {
 func setupRewindTest(gt *testing.T) *rewindTestEnv {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
+	// Match production: supernode runs on Holocene+ chains. Without activating a fork at
+	// genesis the chain is pre-Holocene, where ExtraData must be empty — and the rewind's
+	// synthetic block (which perturbs ExtraData to fork a new block hash) is then rejected.
+	dp.DeployConfig.ActivateForkAtGenesis(helpers.DefaultFork)
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	logger := testlog.Logger(t, log.LevelInfo)
 

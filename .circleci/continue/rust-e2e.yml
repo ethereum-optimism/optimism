@@ -25,44 +25,6 @@ parameters:
     type: boolean
     default: false
 
-# Commands used by rust-e2e jobs
-commands:
-  go-restore-cache:
-    parameters:
-      module:
-        type: string
-        default: .
-      namespace:
-        type: string
-      version:
-        type: string
-        default: <<pipeline.parameters.c-go-cache-version>>
-    steps:
-      - restore_cache:
-          name: Restore go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
-          keys:
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-
-
-  go-save-cache:
-    parameters:
-      module:
-        type: string
-        default: .
-      namespace:
-        type: string
-      version:
-        type: string
-        default: <<pipeline.parameters.c-go-cache-version>>
-    steps:
-      - save_cache:
-          name: Save go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
-          paths:
-            - ~/.cache/go-build
-            - ~/go/pkg/mod
-          key: go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
-
 # ============================================================================
 # RUST E2E JOBS
 # ============================================================================
@@ -200,9 +162,9 @@ jobs:
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
-          path: op-e2e/actions/proofs/tmp/test-results
+          path: rust/kona/tests/proofs/tmp/test-results
       - store_artifacts:
-          path: op-e2e/actions/proofs/tmp/testlogs
+          path: rust/kona/tests/proofs/tmp/testlogs
           when: always
 
   required-rust-e2e:
@@ -266,7 +228,8 @@ workflows:
             - contracts-bedrock-build
             - cannon-prestate
             - rust-workspace-release
-      # Proof tests - single kind only, interop excluded per original config
+      # Proof action tests - single-chain only. Interop proof coverage runs
+      # under kona-host in op-acceptance-tests, not as action tests.
       - kona-proof-action-tests:
           name: kona-proof-action-single
           kind: single
@@ -284,35 +247,14 @@ workflows:
             - rust-e2e-simple-kona-geth: terminal
             - rust-e2e-simple-kona-sequencer: terminal
             - rust-e2e-restart: terminal
+            - op-reth-e2e-sysgo-tests: terminal
             - kona-proof-action-single: terminal
           context:
             - circleci-api-token
   rust-e2e-gate-skip:
     when: << pipeline.parameters.c-run_rust_e2e_gate_skip >>
     jobs:
-      - contracts-bedrock-build:
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary:
-          name: rust-workspace-release
-          directory: rust
-          profile: release
-          persist_to_workspace: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      # Proof tests - single kind only, interop excluded per original config
-      - kona-proof-action-tests:
-          name: kona-proof-action-single
-          kind: single
-          requires:
-            - rust-workspace-release
-            - contracts-bedrock-build
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-
       - required-rust-e2e:
-          requires:
-            - kona-proof-action-single: terminal
+          always-succeed: true
           context:
             - circleci-api-token

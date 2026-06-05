@@ -8,11 +8,13 @@ use crate::{
     monitor_tx_pool::monitor_tx_pool,
     primitives::reth::engine_api_builder::OpEngineApiBuilder,
     revert_protection::{EthApiExtServer, RevertProtectionExt},
+    sdm_admin::{SdmAdminApiServer, SdmAdminExt},
     tx::FBPooledTransaction,
 };
 use core::fmt::Debug;
 use moka::future::Cache;
 use reth::builder::{NodeBuilder, WithLaunchContext};
+use reth_chainspec::ChainSpecProvider;
 use reth_cli_commands::launcher::Launcher;
 use reth_db::mdbx::DatabaseEnv;
 use reth_optimism_chainspec::OpChainSpec;
@@ -105,6 +107,7 @@ where
 
         let da_config = builder_config.da_config.clone();
         let gas_limit_config = builder_config.gas_limit_config.clone();
+        let sdm_post_exec_opt_in = builder_config.sdm_post_exec_opt_in.clone();
         let rollup_args = builder_args.rollup_args;
         let op_node = OpNode::new(rollup_args.clone());
         let reverted_cache = Cache::builder().max_capacity(100).build();
@@ -163,6 +166,11 @@ where
                     ctx.modules
                         .add_or_replace_configured(revert_protection_ext.into_rpc())?;
                 }
+
+                let sdm_admin_ext =
+                    SdmAdminExt::new(sdm_post_exec_opt_in.clone(), ctx.provider().chain_spec());
+                ctx.modules
+                    .add_or_replace_configured(sdm_admin_ext.into_rpc())?;
 
                 Ok(())
             })

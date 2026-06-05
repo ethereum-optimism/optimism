@@ -11,12 +11,14 @@ use op_revm::{L1BlockInfo, OpSpecId};
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::{EthChainSpec, EthereumHardforks};
 use reth_evm::{
-    ConfigureEvm, EvmEnv,
+    EvmEnv,
     execute::{BlockBuilder, BlockExecutionError, BlockValidationError},
 };
 use reth_node_api::PayloadBuilderError;
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_evm::{OpEvmConfig, OpNextBlockEnvAttributes};
+use reth_optimism_evm::{
+    ConfigurePostExecEvm, OpEvmConfig, OpNextBlockEnvAttributes, PostExecExecutorExt, PostExecMode,
+};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_node::OpPayloadBuilderAttributes;
 use reth_optimism_payload_builder::{
@@ -34,7 +36,11 @@ use reth_primitives_traits::{InMemorySize, SealedHeader, SignedTransaction};
 use reth_revm::{State, context::Block};
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
 use revm::interpreter::as_u64_saturated;
-use std::{sync::Arc, time::Instant};
+use std::{
+    ops::DerefMut,
+    sync::{Arc, atomic::Ordering},
+    time::Instant,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, trace};
 
@@ -42,6 +48,7 @@ use crate::{
     gas_limiter::AddressGasLimiter,
     metrics::OpRBuilderMetrics,
     primitives::reth::{ExecutionInfo, TxnExecutionResult},
+    sdm_admin::SdmPostExecOptInFlag,
     traits::PayloadTxsBounds,
     tx::MaybeRevertingTransaction,
     tx_signer::Signer,
@@ -57,6 +64,50 @@ where
     let mut receipt = executor.receipts().last().cloned()?;
     receipt.as_receipt_mut().cumulative_gas_used = cumulative_gas_used;
     Some(receipt)
+}
+
+/// Adds `state_db_mut` to any `BlockBuilder` whose EVM database derefs to a `State<DB>`.
+///
+/// PostExec materialization needs raw access to the underlying `State<DB>` (to merge transitions
+/// and take the bundle), but the `BlockBuilder` trait only exposes the executor/EVM. Rather than
+/// wrap every builder in a delegation struct, this trait provides the accessor as a blanket impl.
+pub(super) trait BlockBuilderStateDbExt<DB>: BlockBuilder
+where
+    Self::Executor: AlloyBlockExecutor<Evm: AlloyEvm<DB: DerefMut<Target = State<DB>>>>,
+    DB: Database,
+{
+    fn state_db_mut(&mut self) -> &mut State<DB> {
+        self.evm_mut().db_mut().deref_mut()
+    }
+}
+
+impl<B, DB> BlockBuilderStateDbExt<DB> for B
+where
+    B: BlockBuilder,
+    B::Executor: AlloyBlockExecutor<Evm: AlloyEvm<DB: DerefMut<Target = State<DB>>>>,
+    DB: Database,
+{
+}
+
+/// Snapshot the post-exec mode for an upcoming build.
+///
+/// Two gates must agree: the protocol gate (chain spec Interop at the given timestamp) and the
+/// operator gate (admin RPC). Either being false yields [`PostExecMode::Disabled`].
+///
+/// Called once per `OpPayloadBuilderCtx` construction so every builder/replay run for the same
+/// payload sees the same decision, even if the admin RPC flips the operator opt-in mid-block.
+pub(super) fn compute_post_exec_mode(
+    evm_config: &OpEvmConfig,
+    timestamp: u64,
+    opt_in: &SdmPostExecOptInFlag,
+) -> PostExecMode {
+    let protocol_active = evm_config.is_sdm_active_at_timestamp(timestamp);
+    let operator_opted_in = opt_in.load(Ordering::Acquire);
+    if protocol_active && operator_opted_in {
+        PostExecMode::Produce
+    } else {
+        PostExecMode::Disabled
+    }
 }
 
 /// Container type that holds all necessities to build a new payload.
@@ -88,6 +139,11 @@ pub struct OpPayloadBuilderCtx<ExtraCtx: Debug + Default = ()> {
     pub max_gas_per_txn: Option<u64>,
     /// Rate limiting based on gas. This is an optional feature.
     pub address_gas_limiter: AddressGasLimiter,
+    /// Snapshot of the post-exec mode for this build. Captured once per `OpPayloadBuilderCtx`
+    /// construction (see [`compute_post_exec_mode`]) so every builder created from this ctx —
+    /// fallback block, each flashblock, canonical replay — observes the same decision even if
+    /// the admin RPC flips the operator opt-in mid-block.
+    pub post_exec_mode: PostExecMode,
 }
 
 impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
@@ -253,23 +309,29 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
 }
 
 impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
-    /// Returns a block builder for the next block in the payload.
+    /// Returns a post-exec-aware block builder for the next block in the payload.
     pub(super) fn block_builder_for_next_block<'a, DB: Database + 'a>(
         &'a self,
         db: &'a mut State<DB>,
     ) -> Result<
         impl BlockBuilder<
             Primitives = reth_optimism_primitives::OpPrimitives,
-            Executor: AlloyBlockExecutor<
+            Executor: PostExecExecutorExt
+                          + AlloyBlockExecutor<
                 Transaction = OpTransactionSigned,
                 Receipt = OpReceipt,
-                Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Evm: AlloyEvm<DB: DerefMut<Target = State<DB>>>,
             >,
         > + 'a,
         PayloadBuilderError,
     > {
         self.evm_config
-            .builder_for_next_block(db, self.parent(), self.block_env_attributes.clone())
+            .post_exec_builder_for_next_block(
+                db,
+                self.parent(),
+                self.block_env_attributes.clone(),
+                self.post_exec_mode.clone(),
+            )
             .map_err(PayloadBuilderError::other)
     }
 

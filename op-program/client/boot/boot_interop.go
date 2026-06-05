@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -119,7 +120,7 @@ func (c *OracleConfigSource) L1ChainConfig(chainID eth.ChainID) (*params.ChainCo
 
 func (c *OracleConfigSource) loadCustomConfigs() {
 	var rollupConfigs []*rollup.Config
-	err := json.Unmarshal(c.oracle.Get(RollupConfigLocalIndex), &rollupConfigs)
+	err := json.Unmarshal(c.oracle.Get(preimage.RollupConfigLocalIndex), &rollupConfigs)
 	if err != nil {
 		panic("failed to bootstrap rollup configs")
 	}
@@ -128,7 +129,7 @@ func (c *OracleConfigSource) loadCustomConfigs() {
 	}
 
 	var chainConfigs []*params.ChainConfig
-	err = json.Unmarshal(c.oracle.Get(L2ChainConfigLocalIndex), &chainConfigs)
+	err = json.Unmarshal(c.oracle.Get(preimage.L2ChainConfigLocalIndex), &chainConfigs)
 	if err != nil {
 		panic("failed to bootstrap chain configs")
 	}
@@ -137,7 +138,7 @@ func (c *OracleConfigSource) loadCustomConfigs() {
 	}
 
 	var depset depset.StaticConfigDependencySet
-	err = json.Unmarshal(c.oracle.Get(DependencySetLocalIndex), &depset)
+	err = json.Unmarshal(c.oracle.Get(preimage.DependencySetLocalIndex), &depset)
 	if err != nil {
 		panic("failed to bootstrap dependency set")
 	}
@@ -145,7 +146,7 @@ func (c *OracleConfigSource) loadCustomConfigs() {
 	c.customConfigsLoaded = true
 
 	var l1ChainConfig *params.ChainConfig
-	err = json.Unmarshal(c.oracle.Get(L1ChainConfigLocalIndex), &l1ChainConfig)
+	err = json.Unmarshal(c.oracle.Get(preimage.L1ChainConfigLocalIndex), &l1ChainConfig)
 	if err != nil {
 		panic("failed to bootstrap l1 chain configs: " + fmt.Sprintf("%v", err))
 	}
@@ -153,10 +154,10 @@ func (c *OracleConfigSource) loadCustomConfigs() {
 }
 
 func BootstrapInterop(r oracleClient) *BootInfoInterop {
-	l1Head := common.BytesToHash(r.Get(L1HeadLocalIndex))
-	agreedPrestate := common.BytesToHash(r.Get(L2OutputRootLocalIndex))
-	claim := common.BytesToHash(r.Get(L2ClaimLocalIndex))
-	claimTimestamp := binary.BigEndian.Uint64(r.Get(L2ClaimBlockNumberLocalIndex))
+	l1Head := common.BytesToHash(r.Get(preimage.L1HeadLocalIndex))
+	agreedPrestate := common.BytesToHash(r.Get(preimage.L2OutputRootLocalIndex))
+	claim := common.BytesToHash(r.Get(preimage.L2ClaimLocalIndex))
+	claimTimestamp := binary.BigEndian.Uint64(r.Get(preimage.L2ClaimBlockNumberLocalIndex))
 
 	return &BootInfoInterop{
 		Configs: &OracleConfigSource{

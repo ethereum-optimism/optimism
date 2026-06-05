@@ -127,18 +127,18 @@ impl SingleBatch {
             return BatchValidity::Drop(BatchDropReason::SequencerDriftOverflow);
         };
 
-        let no_txs = self.transactions.is_empty();
-        if self.timestamp > max && !no_txs {
-            // If the sequencer is ignoring the time drift rule, then drop the batch and force an
-            // empty batch instead, as the sequencer is not allowed to include anything
-            // past this point without moving to the next epoch.
-            return BatchValidity::Drop(BatchDropReason::SequencerDriftExceeded);
-        }
-        if self.timestamp > max && no_txs {
-            // If the sequencer is co-operating by producing an empty batch,
-            // allow the batch if it was the right thing to do to maintain the L2 time >= L1 time
-            // invariant. Only check batches that do not advance the epoch, to ensure
-            // epoch advancement regardless of time drift is allowed.
+        if self.timestamp > max {
+            if !self.transactions.is_empty() {
+                // If the sequencer is ignoring the time drift rule, then drop the batch and force
+                // an empty batch instead, as the sequencer is not allowed to include anything past
+                // this point without moving to the next epoch.
+                return BatchValidity::Drop(BatchDropReason::SequencerDriftExceeded);
+            }
+
+            // If the sequencer is co-operating by producing an empty batch, allow the batch if it
+            // was the right thing to do to maintain the L2 time >= L1 time invariant. Only check
+            // batches that do not advance the epoch, to ensure epoch advancement regardless of time
+            // drift is allowed.
             if epoch.number == batch_origin.number {
                 if l1_blocks.len() < 2 {
                     return BatchValidity::Undecided;
@@ -169,17 +169,22 @@ impl SingleBatch {
 
         // We can do this check earlier, but it's intensive so we do it last for the sad-path.
         for tx in &self.transactions {
-            if tx.is_empty() {
+            let Some(first_byte) = tx.as_ref().first().copied() else {
                 return BatchValidity::Drop(BatchDropReason::EmptyTransaction);
-            }
-            if tx.as_ref().first() == Some(&(OpTxType::Deposit as u8)) {
-                return BatchValidity::Drop(BatchDropReason::DepositTransaction);
-            }
-            // If isthmus is not active yet and the transaction is a 7702, drop the batch.
-            if !cfg.is_isthmus_active(self.timestamp) &&
-                tx.as_ref().first() == Some(&(OpTxType::Eip7702 as u8))
-            {
-                return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
+            };
+            // A leading byte that doesn't decode to a typed transaction (e.g. a legacy RLP
+            // list header) isn't one of the restricted types, so it falls through to `Accept`.
+            match OpTxType::try_from(first_byte) {
+                Ok(OpTxType::Deposit) => {
+                    return BatchValidity::Drop(BatchDropReason::DepositTransaction);
+                }
+                Ok(OpTxType::Eip7702) if !cfg.is_isthmus_active(self.timestamp) => {
+                    return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
+                }
+                Ok(OpTxType::PostExec) if !cfg.is_sdm_active(self.timestamp) => {
+                    return BatchValidity::Drop(BatchDropReason::PostExecPreLagoon);
+                }
+                _ => {}
             }
         }
 
@@ -197,7 +202,9 @@ mod tests {
     use alloy_eips::eip2718::{Decodable2718, Encodable2718};
     use alloy_primitives::{Address, Sealed, Signature, TxKind, U256};
     use kona_genesis::HardForkConfig;
-    use op_alloy_consensus::{OpTxEnvelope, TxDeposit};
+    use op_alloy_consensus::{
+        OpTxEnvelope, POST_EXEC_PAYLOAD_VERSION, PostExecPayload, TxDeposit, TxPostExec,
+    };
     use tracing::Level;
     use tracing_subscriber::layer::SubscriberExt;
 
@@ -526,6 +533,74 @@ mod tests {
     }
 
     #[test]
+    fn test_check_batch_drop_post_exec_pre_sdm() {
+        let mut transactions = example_transactions();
+        let tx: OpTxEnvelope = TxPostExec::new(PostExecPayload {
+            version: POST_EXEC_PAYLOAD_VERSION,
+            block_number: 1,
+            gas_refund_entries: vec![],
+        })
+        .into();
+        transactions.push(tx.encoded_2718().into());
+
+        let single_batch = SingleBatch {
+            parent_hash: BlockHash::ZERO,
+            epoch_num: 1,
+            epoch_hash: BlockHash::ZERO,
+            timestamp: 1,
+            transactions,
+        };
+
+        let cfg = RollupConfig { max_sequencer_drift: 1, ..Default::default() };
+        let l1_blocks = vec![BlockInfo::default(), BlockInfo::default()];
+        let l2_safe_head = L2BlockInfo {
+            block_info: BlockInfo { timestamp: 1, ..Default::default() },
+            ..Default::default()
+        };
+        let inclusion_block = BlockInfo::default();
+        assert_eq!(
+            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            BatchValidity::Drop(BatchDropReason::PostExecPreLagoon)
+        );
+    }
+
+    #[test]
+    fn test_check_batch_accept_post_exec_post_sdm() {
+        let mut transactions = example_transactions();
+        let tx: OpTxEnvelope = TxPostExec::new(PostExecPayload {
+            version: POST_EXEC_PAYLOAD_VERSION,
+            block_number: 1,
+            gas_refund_entries: vec![],
+        })
+        .into();
+        transactions.push(tx.encoded_2718().into());
+
+        let single_batch = SingleBatch {
+            parent_hash: BlockHash::ZERO,
+            epoch_num: 1,
+            epoch_hash: BlockHash::ZERO,
+            timestamp: 1,
+            transactions,
+        };
+
+        let cfg = RollupConfig {
+            max_sequencer_drift: 1,
+            hardforks: HardForkConfig { lagoon_time: Some(0), ..Default::default() },
+            ..Default::default()
+        };
+        let l1_blocks = vec![BlockInfo::default(), BlockInfo::default()];
+        let l2_safe_head = L2BlockInfo {
+            block_info: BlockInfo { timestamp: 1, ..Default::default() },
+            ..Default::default()
+        };
+        let inclusion_block = BlockInfo::default();
+        assert_eq!(
+            single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
+            BatchValidity::Accept
+        );
+    }
+
+    #[test]
     fn test_check_batch_drop_empty_tx() {
         // An empty tx is not valid 2718 encoding.
         // The batch must be dropped.
@@ -620,7 +695,7 @@ mod tests {
         let cfg = RollupConfig {
             max_sequencer_drift: 1,
             block_time: 1,
-            hardforks: HardForkConfig { interop_time: Some(1), ..Default::default() },
+            hardforks: HardForkConfig { lagoon_time: Some(1), ..Default::default() },
             ..Default::default()
         };
         let l1_blocks = vec![BlockInfo::default(), BlockInfo::default()];

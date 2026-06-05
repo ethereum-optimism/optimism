@@ -32,6 +32,11 @@ func (d *DisabledDB) FirstEntry(_ context.Context) (l1 eth.BlockID, safeHead eth
 	return
 }
 
+func (d *DisabledDB) LastEntry(_ context.Context) (l1 eth.BlockID, safeHead eth.BlockID, err error) {
+	err = ErrNotEnabled
+	return
+}
+
 func (d *DisabledDB) SafeHeadReset(_ eth.L2BlockRef) error {
 	return nil
 }

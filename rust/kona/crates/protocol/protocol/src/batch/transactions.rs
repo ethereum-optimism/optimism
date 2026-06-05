@@ -2,14 +2,15 @@
 //! transactions in a span batch.
 
 use crate::{
-    MAX_SPAN_BATCH_ELEMENTS, SpanBatchBits, SpanBatchError, SpanBatchTransactionData,
-    SpanDecodingError, read_tx_data,
+    MAX_SPAN_BATCH_ELEMENTS, SpanBatchBits, SpanBatchError, SpanBatchPostExecTransactionData,
+    SpanBatchTransactionData, SpanDecodingError, read_tx_data,
 };
 use alloc::vec::Vec;
-use alloy_consensus::{Transaction, TxEnvelope, TxType};
-use alloy_eips::eip2718::Encodable2718;
+use alloy_consensus::{Transaction, TxEnvelope};
+use alloy_eips::eip2718::Decodable2718;
 use alloy_primitives::{Address, Bytes, Signature, U256, bytes};
 use alloy_rlp::{Buf, Decodable, Encodable};
+use op_alloy_consensus::{OpTxEnvelope, OpTxType};
 
 /// This struct contains the decoded information for transactions in a span batch.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -31,9 +32,79 @@ pub struct SpanBatchTransactions {
     /// The protected bits, standard span-batch bitlist.
     pub protected_bits: SpanBatchBits,
     /// The types of the transactions.
-    pub tx_types: Vec<TxType>,
+    pub tx_types: Vec<OpTxType>,
     /// Total legacy transaction count in the span batch.
     pub legacy_tx_count: u64,
+}
+
+struct SpanBatchTransactionParts {
+    data: SpanBatchTransactionData,
+    signature: Signature,
+    to: Option<Address>,
+    nonce: u64,
+    gas: u64,
+    chain_id: Option<u64>,
+    tx_type: OpTxType,
+}
+
+impl SpanBatchTransactionParts {
+    fn from_op_tx(tx: &OpTxEnvelope) -> Result<Self, SpanBatchError> {
+        let (data, signature, to, nonce, gas, chain_id, tx_type) = match tx {
+            OpTxEnvelope::Legacy(signed) => (
+                SpanBatchTransactionData::try_from(&TxEnvelope::Legacy(signed.clone()))?,
+                *signed.signature(),
+                signed.to(),
+                signed.nonce(),
+                signed.gas_limit(),
+                signed.chain_id(),
+                OpTxType::Legacy,
+            ),
+            OpTxEnvelope::Eip2930(signed) => (
+                SpanBatchTransactionData::try_from(&TxEnvelope::Eip2930(signed.clone()))?,
+                *signed.signature(),
+                signed.to(),
+                signed.nonce(),
+                signed.gas_limit(),
+                signed.chain_id(),
+                OpTxType::Eip2930,
+            ),
+            OpTxEnvelope::Eip1559(signed) => (
+                SpanBatchTransactionData::try_from(&TxEnvelope::Eip1559(signed.clone()))?,
+                *signed.signature(),
+                signed.to(),
+                signed.nonce(),
+                signed.gas_limit(),
+                signed.chain_id(),
+                OpTxType::Eip1559,
+            ),
+            OpTxEnvelope::Eip7702(signed) => (
+                SpanBatchTransactionData::try_from(&TxEnvelope::Eip7702(signed.clone()))?,
+                *signed.signature(),
+                signed.to(),
+                signed.nonce(),
+                signed.gas_limit(),
+                signed.chain_id(),
+                OpTxType::Eip7702,
+            ),
+            OpTxEnvelope::PostExec(tx) => (
+                SpanBatchTransactionData::PostExec(SpanBatchPostExecTransactionData {
+                    data: tx.input.clone().into(),
+                }),
+                // PostExec transactions are unsigned, so we use an all-zero placeholder signature.
+                Signature::new(U256::ZERO, U256::ZERO, false),
+                None,
+                0,
+                0,
+                None,
+                OpTxType::PostExec,
+            ),
+            OpTxEnvelope::Deposit(_) => {
+                return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+            }
+        };
+
+        Ok(Self { data, signature, to, nonce, gas, chain_id, tx_type })
+    }
 }
 
 impl SpanBatchTransactions {
@@ -220,7 +291,7 @@ impl SpanBatchTransactions {
             let (tx_data_item, tx_type) = read_tx_data(r)?;
             tx_data.push(tx_data_item);
             tx_types.push(tx_type);
-            if matches!(tx_type, TxType::Legacy) {
+            if tx_type == OpTxType::Legacy {
                 self.legacy_tx_count += 1;
             }
         }
@@ -241,118 +312,85 @@ impl SpanBatchTransactions {
         let mut txs = Vec::new();
         let mut to_idx = 0;
         let mut protected_bit_idx = 0;
-        for idx in 0..self.total_block_tx_count {
-            let mut data = self.tx_data[idx as usize].as_slice();
+        for idx in 0..self.total_block_tx_count as usize {
+            let mut data = self.tx_data[idx].as_slice();
             let tx = SpanBatchTransactionData::decode(&mut data)
                 .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
             let nonce = self
                 .tx_nonces
-                .get(idx as usize)
+                .get(idx)
                 .ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
             let gas = self
                 .tx_gases
-                .get(idx as usize)
+                .get(idx)
                 .ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
             let bit = self
                 .contract_creation_bits
-                .get_bit(idx as usize)
+                .get_bit(idx)
                 .ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
             let to = if bit == 0 {
-                if self.tx_tos.len() <= to_idx {
-                    return Err(SpanBatchError::Decoding(
-                        SpanDecodingError::InvalidTransactionData,
-                    ));
-                }
+                let to = *self
+                    .tx_tos
+                    .get(to_idx)
+                    .ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
                 to_idx += 1;
-                Some(self.tx_tos[to_idx - 1])
+                Some(to)
             } else {
                 None
             };
             let sig = *self
                 .tx_sigs
-                .get(idx as usize)
+                .get(idx)
                 .ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
-            let is_protected = if tx.tx_type() == TxType::Legacy {
+            let is_protected = if tx.tx_type() == OpTxType::Legacy {
                 protected_bit_idx += 1;
                 self.protected_bits.get_bit(protected_bit_idx - 1).unwrap_or_default() == 1
             } else {
                 true
             };
-            let tx_envelope = tx.to_signed_tx(*nonce, *gas, to, chain_id, sig, is_protected)?;
-            let mut buf = Vec::new();
-            tx_envelope.encode_2718(&mut buf);
-            txs.push(buf);
+            txs.push(tx.to_full_tx_bytes(*nonce, *gas, to, chain_id, sig, is_protected)?);
         }
         Ok(txs)
     }
 
     /// Add raw transactions into the [`SpanBatchTransactions`].
     pub fn add_txs(&mut self, txs: Vec<Bytes>, chain_id: u64) -> Result<(), SpanBatchError> {
-        let total_block_tx_count = txs.len() as u64;
-        let offset = self.total_block_tx_count;
+        let offset = self.total_block_tx_count as usize;
 
-        for i in 0..total_block_tx_count {
-            let tx_enveloped = TxEnvelope::decode(&mut txs[i as usize].as_ref())
+        for (i, raw_tx) in txs.iter().enumerate() {
+            let op_tx = OpTxEnvelope::decode_2718(&mut raw_tx.as_ref())
                 .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
-            let span_batch_tx = SpanBatchTransactionData::try_from(&tx_enveloped)?;
+            let parts = SpanBatchTransactionParts::from_op_tx(&op_tx)?;
 
-            let tx_type = tx_enveloped.tx_type();
-            if matches!(tx_type, TxType::Legacy) {
-                let protected_bit = tx_enveloped.is_replay_protected();
-                self.protected_bits.set_bit(self.legacy_tx_count as usize, protected_bit);
+            if parts.tx_type == OpTxType::Legacy {
+                self.protected_bits
+                    .set_bit(self.legacy_tx_count as usize, parts.chain_id.is_some());
                 self.legacy_tx_count += 1;
             }
-
-            let (signature, to, nonce, gas, tx_chain_id) = match &tx_enveloped {
-                TxEnvelope::Legacy(tx) => {
-                    let (tx, sig) = (tx.tx(), tx.signature());
-                    (sig, tx.to(), tx.nonce(), tx.gas_limit(), tx.chain_id())
-                }
-                TxEnvelope::Eip2930(tx) => {
-                    let (tx, sig) = (tx.tx(), tx.signature());
-                    (sig, tx.to(), tx.nonce(), tx.gas_limit(), tx.chain_id())
-                }
-                TxEnvelope::Eip1559(tx) => {
-                    let (tx, sig) = (tx.tx(), tx.signature());
-                    (sig, tx.to(), tx.nonce(), tx.gas_limit(), tx.chain_id())
-                }
-                TxEnvelope::Eip7702(tx) => {
-                    let (tx, sig) = (tx.tx(), tx.signature());
-                    (sig, tx.to(), tx.nonce(), tx.gas_limit(), tx.chain_id())
-                }
-                _ => {
-                    return Err(SpanBatchError::Decoding(
-                        SpanDecodingError::InvalidTransactionData,
-                    ));
-                }
-            };
-
-            if tx_enveloped.is_replay_protected() &&
-                tx_chain_id
-                    .ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))? !=
-                    chain_id
+            if parts.tx_type != OpTxType::PostExec &&
+                parts.chain_id.is_some_and(|id| id != chain_id)
             {
                 return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
             }
 
-            let contract_creation_bit = match to {
+            let contract_creation_bit = match parts.to {
                 Some(address) => {
                     self.tx_tos.push(address);
-                    0
+                    false
                 }
-                None => 1,
+                None => true,
             };
             let mut tx_data_buf = Vec::new();
-            span_batch_tx.encode(&mut tx_data_buf);
+            parts.data.encode(&mut tx_data_buf);
 
-            self.tx_sigs.push(*signature);
-            self.contract_creation_bits.set_bit((i + offset) as usize, contract_creation_bit == 1);
-            self.tx_nonces.push(nonce);
+            self.tx_sigs.push(parts.signature);
+            self.contract_creation_bits.set_bit(i + offset, contract_creation_bit);
+            self.tx_nonces.push(parts.nonce);
             self.tx_data.push(tx_data_buf);
-            self.tx_gases.push(gas);
-            self.tx_types.push(tx_type);
+            self.tx_gases.push(parts.gas);
+            self.tx_types.push(parts.tx_type);
         }
-        self.total_block_tx_count += total_block_tx_count;
+        self.total_block_tx_count += txs.len() as u64;
         Ok(())
     }
 }
@@ -361,8 +399,12 @@ impl SpanBatchTransactions {
 mod tests {
     use super::*;
     use alloc::vec;
-    use alloy_consensus::{Signed, TxEip1559, TxEip2930, TxEip7702};
+    use alloy_consensus::{Signed, TxEip1559, TxEip2930, TxEip7702, TxEnvelope};
+    use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Signature, TxKind, address};
+    use op_alloy_consensus::{
+        OpTxEnvelope, POST_EXEC_PAYLOAD_VERSION, PostExecPayload, TxPostExec,
+    };
 
     #[test]
     fn test_decode_tx_sigs_truncated() {
@@ -434,11 +476,34 @@ mod tests {
         ));
         let mut span_batch_txs = SpanBatchTransactions::default();
         let mut buf = vec![];
-        tx.encode(&mut buf);
+        tx.encode_2718(&mut buf);
         let txs = vec![Bytes::from(buf)];
         let chain_id = 1;
         let err = span_batch_txs.add_txs(txs, chain_id).unwrap_err();
         assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+    }
+
+    #[test]
+    fn test_span_batch_transactions_add_post_exec_tx_roundtrip() {
+        let tx: OpTxEnvelope = TxPostExec::new(PostExecPayload {
+            version: POST_EXEC_PAYLOAD_VERSION,
+            block_number: 42,
+            gas_refund_entries: vec![],
+        })
+        .into();
+        let mut buf = vec![];
+        tx.encode_2718(&mut buf);
+
+        let mut span_batch_txs = SpanBatchTransactions::default();
+        let result = span_batch_txs.add_txs(vec![Bytes::from(buf.clone())], 1);
+        assert_eq!(result, Ok(()));
+        assert_eq!(span_batch_txs.total_block_tx_count, 1);
+        assert_eq!(span_batch_txs.tx_types, vec![OpTxType::PostExec]);
+        assert!(span_batch_txs.tx_tos.is_empty());
+        assert_eq!(span_batch_txs.contract_creation_bits.get_bit(0), Some(1));
+
+        let full_txs = span_batch_txs.full_txs(1).unwrap();
+        assert_eq!(full_txs, vec![buf]);
     }
 
     #[test]
@@ -452,7 +517,7 @@ mod tests {
         ));
         let mut span_batch_txs = SpanBatchTransactions::default();
         let mut buf = vec![];
-        tx.encode(&mut buf);
+        tx.encode_2718(&mut buf);
         let txs = vec![Bytes::from(buf)];
         let chain_id = 1;
         let result = span_batch_txs.add_txs(txs, chain_id);
@@ -471,7 +536,7 @@ mod tests {
         ));
         let mut span_batch_txs = SpanBatchTransactions::default();
         let mut buf = vec![];
-        tx.encode(&mut buf);
+        tx.encode_2718(&mut buf);
         let txs = vec![Bytes::from(buf)];
         let chain_id = 1;
         let result = span_batch_txs.add_txs(txs, chain_id);
@@ -490,7 +555,7 @@ mod tests {
         ));
         let mut span_batch_txs = SpanBatchTransactions::default();
         let mut buf = vec![];
-        tx.encode(&mut buf);
+        tx.encode_2718(&mut buf);
         let txs = vec![Bytes::from(buf)];
         let chain_id = 1;
         let result = span_batch_txs.add_txs(txs, chain_id);

@@ -43,9 +43,9 @@ type StaticRollupConfig struct {
 	// Seconds per L2 block
 	BlockTime uint64 `json:"block_time"`
 
-	// InteropTime sets the activation time for the Interop network upgrade.
-	// Active if InteropTime != nil && L2 block timestamp >= *InteropTime, inactive otherwise.
-	InteropTime *uint64 `json:"interop_time,omitempty"`
+	// LagoonTime sets the activation time for the Lagoon network upgrade.
+	// Active if LagoonTime != nil && L2 block timestamp >= *LagoonTime, inactive otherwise.
+	LagoonTime *uint64 `json:"lagoon_time,omitempty"`
 }
 
 // Genesis provides the genesis information relevant for Interop.
@@ -83,15 +83,15 @@ func GenesisFromRollupGenesis(genesis *rollup.Genesis, l1Time uint64) Genesis {
 
 func StaticRollupConfigFromRollupConfig(cfg *rollup.Config, l1Time uint64) *StaticRollupConfig {
 	return &StaticRollupConfig{
-		Genesis:     GenesisFromRollupGenesis(&cfg.Genesis, l1Time),
-		BlockTime:   cfg.BlockTime,
-		InteropTime: cfg.InteropTime,
+		Genesis:    GenesisFromRollupGenesis(&cfg.Genesis, l1Time),
+		BlockTime:  cfg.BlockTime,
+		LagoonTime: cfg.LagoonTime,
 	}
 }
 
-// IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
+// IsInterop returns true if the Lagoon hardfork is active at or past the given timestamp.
 func (c *StaticRollupConfig) IsInterop(ts uint64) bool {
-	return c.InteropTime != nil && ts >= *c.InteropTime
+	return c.LagoonTime != nil && ts >= *c.LagoonTime
 }
 
 func (c *StaticRollupConfig) IsInteropActivationBlock(ts uint64) bool {
@@ -145,7 +145,7 @@ func (s StaticRollupConfigSet) Genesis(chainID eth.ChainID) Genesis {
 	return cfg.Genesis
 }
 
-// IsInterop returns true if the Interop hardfork is active for the given chain at the given timestamp.
+// IsInterop returns true if the Lagoon hardfork is active for the given chain at the given timestamp.
 // Panics if the chain is not part of the rollup config set.
 func (s StaticRollupConfigSet) IsInterop(chainID eth.ChainID, ts uint64) bool {
 	cfg, ok := s[chainID]
@@ -155,7 +155,7 @@ func (s StaticRollupConfigSet) IsInterop(chainID eth.ChainID, ts uint64) bool {
 	return cfg.IsInterop(ts)
 }
 
-// IsInteropActivationBlock returns true if the given timestamp is the activation block for the Interop hardfork.
+// IsInteropActivationBlock returns true if the given timestamp is the activation block for the Lagoon hardfork.
 // Panics if the chain is not part of the rollup config set.
 func (s StaticRollupConfigSet) IsInteropActivationBlock(chainID eth.ChainID, ts uint64) bool {
 	cfg, ok := s[chainID]

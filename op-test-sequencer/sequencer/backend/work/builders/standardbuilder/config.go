@@ -66,7 +66,7 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 
 	var depSet depset.DependencySet
 	// Dependency set is only required if interop is scheduled and the RPC may not be available before then.
-	if cfg.InteropTime != nil {
+	if cfg.LagoonTime != nil {
 		depSet, err = retry.Do(ctx, 10, retry.Exponential(), func() (depset.DependencySet, error) {
 			opts.Log.Info("Fetching dependency set for block-building")
 			depSet, err := rolCl.DependencySet(ctx)

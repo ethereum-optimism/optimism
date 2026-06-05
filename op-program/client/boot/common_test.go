@@ -16,13 +16,13 @@ type mockBootstrapOracle struct {
 
 func (o *mockBootstrapOracle) Get(key preimage.Key) []byte {
 	switch key.PreimageKey() {
-	case L1HeadLocalIndex.PreimageKey():
+	case preimage.L1HeadLocalIndex.PreimageKey():
 		return o.l1Head[:]
-	case L2OutputRootLocalIndex.PreimageKey():
+	case preimage.L2OutputRootLocalIndex.PreimageKey():
 		return o.l2OutputRoot[:]
-	case L2ClaimLocalIndex.PreimageKey():
+	case preimage.L2ClaimLocalIndex.PreimageKey():
 		return o.l2Claim[:]
-	case L2ClaimBlockNumberLocalIndex.PreimageKey():
+	case preimage.L2ClaimBlockNumberLocalIndex.PreimageKey():
 		return binary.BigEndian.AppendUint64(nil, o.l2ClaimBlockNumber)
 	default:
 		panic("unknown key")

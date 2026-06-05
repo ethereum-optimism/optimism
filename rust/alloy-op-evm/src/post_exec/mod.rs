@@ -13,7 +13,7 @@ use revm::{Inspector, inspector::NoOpInspector};
 
 pub use inspector::{
     PostExecCompositeInspector, PostExecExecutedTx, PostExecTxContext, PostExecTxKind,
-    SDMWarmingInspector,
+    SDMWarmingInspector, WarmingRefundEvent, WarmingRefundKind, WarmingState,
 };
 
 use crate::block::{OpBlockExecutor, receipt_builder::OpReceiptBuilder};
@@ -25,6 +25,12 @@ pub trait PostExecEvm: alloy_evm::Evm {
 
     /// Take the extracted post-exec result for the most recently executed transaction.
     fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx;
+
+    /// Snapshot the block-scoped warming state for carry-forward across flashblock executors.
+    fn warming_state(&self) -> WarmingState;
+
+    /// Seed the block-scoped warming state captured from a prior flashblock's executor.
+    fn seed_warming_state(&mut self, state: WarmingState);
 }
 
 /// Extension trait for EVM factories whose produced EVMs support post-exec tracking.
@@ -42,6 +48,18 @@ pub trait PostExecEvmFactoryHooks: EvmFactory {
 
     /// Take the extracted post-exec result for the most recently executed transaction.
     fn take_last_post_exec_tx_result<DB, I>(evm: &mut Self::Evm<DB, I>) -> PostExecExecutedTx
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>;
+
+    /// Snapshot the block-scoped warming state for carry-forward across flashblock executors.
+    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> WarmingState
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>;
+
+    /// Seed the block-scoped warming state captured from a prior flashblock's executor.
+    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: WarmingState)
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
@@ -153,6 +171,14 @@ where
     fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx {
         F::take_last_post_exec_tx_result(&mut self.inner)
     }
+
+    fn warming_state(&self) -> WarmingState {
+        F::warming_state(&self.inner)
+    }
+
+    fn seed_warming_state(&mut self, state: WarmingState) {
+        F::seed_warming_state(&mut self.inner, state);
+    }
 }
 
 /// EVM factory adapter that wraps produced EVMs in [`PostExecEvmAdapter`].
@@ -218,17 +244,45 @@ where
 
 /// Extension trait for block executors that collect post-exec payload entries.
 pub trait PostExecExecutorExt {
+    /// Returns the accumulated post-exec entries for the current block without clearing them.
+    fn post_exec_entries(&self) -> &[SDMGasEntry];
+
     /// Take the accumulated post-exec entries for the current block.
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry>;
+
+    /// Take the exact per-transaction warming refund attribution events aligned with receipts.
+    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>>;
+
+    /// Snapshot the block-scoped warming state for carry-forward across flashblock executors.
+    fn warming_state(&self) -> WarmingState;
+
+    /// Seed the block-scoped warming state captured from a prior flashblock's executor.
+    fn seed_warming_state(&mut self, state: WarmingState);
 }
 
 impl<E, R, Spec> PostExecExecutorExt for OpBlockExecutor<E, R, Spec>
 where
-    E: alloy_evm::Evm,
+    E: PostExecEvm,
     R: OpReceiptBuilder,
     Spec: alloy_op_hardforks::OpHardforks + Clone,
 {
+    fn post_exec_entries(&self) -> &[SDMGasEntry] {
+        Self::post_exec_entries(self)
+    }
+
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry> {
         Self::take_post_exec_entries(self)
+    }
+
+    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
+        Self::take_warming_events_by_tx(self)
+    }
+
+    fn warming_state(&self) -> WarmingState {
+        Self::warming_state(self)
+    }
+
+    fn seed_warming_state(&mut self, state: WarmingState) {
+        Self::seed_warming_state(self, state);
     }
 }

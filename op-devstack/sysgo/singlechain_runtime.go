@@ -60,6 +60,17 @@ func newSingleChainNodeRuntime(name string, isSequencer bool, el L2ELNode, cl L2
 }
 
 func newDefaultSingleChainWorld(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld {
+	if cfg.InteropAtGenesis {
+		l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInterop(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+		return singleChainRuntimeWorld{
+			L1Network: l1Net,
+			L2Network: l2Net,
+			Interop: &SingleChainInteropSupport{
+				DependencySet: depSet,
+				FullConfigSet: fullCfgSet,
+			},
+		}
+	}
 	l1Net, l2Net := buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	return singleChainRuntimeWorld{
 		L1Network: l1Net,
@@ -78,6 +89,18 @@ func startDefaultSingleChainPrimary(
 	cfg PresetConfig,
 ) singleChainPrimaryRuntime {
 	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0))
+	if world.Interop != nil {
+		l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
+			Key:           "sequencer",
+			IsSequencer:   true,
+			NoDiscovery:   true,
+			EnableReqResp: true,
+			UseReqResp:    true,
+			DependencySet: world.Interop.DependencySet,
+			L2CLOptions:   cfg.GlobalL2CLOptions,
+		})
+		return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
+	}
 	l2CL := startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, cfg.GlobalL2CLOptions)
 	return singleChainPrimaryRuntime{
 		EL: l2EL,

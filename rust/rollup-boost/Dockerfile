@@ -66,7 +66,7 @@ COPY --from=planner /workspace/rollup-boost/recipe.json recipe.json
 
 RUN --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     PROFILE_FLAG=$([ "$RELEASE" = "true" ] && echo "--release" || echo "") && \
-    cargo chef cook $PROFILE_FLAG --recipe-path recipe.json
+    cargo chef cook $PROFILE_FLAG --locked --recipe-path recipe.json
 
 COPY . .
 
@@ -75,13 +75,17 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     PROFILE_FLAG=$([ "$RELEASE" = "true" ] && echo "--release" || echo "") && \
     TARGET_DIR=$([ "$RELEASE" = "true" ] && echo "release" || echo "debug") && \
-    cargo build $PROFILE_FLAG --features="$FEATURES" --package=${SERVICE_NAME}; \
-    cp target/$TARGET_DIR/${SERVICE_NAME} /tmp/final_binary
+    cargo build $PROFILE_FLAG --locked --features="$FEATURES" --package=${SERVICE_NAME} && \
+    cp "target/${TARGET_DIR}/${SERVICE_NAME}" /tmp/final_binary && \
+    test -n "$('/tmp/final_binary' --help 2>&1)"
 
 #
 # Runtime container
 #
-FROM gcr.io/distroless/cc-debian12
+FROM debian:trixie-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 ARG SERVICE_NAME

@@ -208,10 +208,10 @@ impl OpChainSpecBuilder {
         self
     }
 
-    /// Enable Interop at genesis
+    /// Enable Lagoon at genesis
     pub fn interop_activated(mut self) -> Self {
         self = self.karst_activated();
-        self.inner = self.inner.with_fork(OpHardfork::Interop, ForkCondition::Timestamp(0));
+        self.inner = self.inner.with_fork(OpHardfork::Lagoon, ForkCondition::Timestamp(0));
         self
     }
 
@@ -411,7 +411,7 @@ impl From<Genesis> for OpChainSpec {
             (OpHardfork::Isthmus.boxed(), genesis_info.isthmus_time),
             (OpHardfork::Jovian.boxed(), genesis_info.jovian_time),
             (OpHardfork::Karst.boxed(), genesis_info.karst_time),
-            (OpHardfork::Interop.boxed(), genesis_info.interop_time),
+            (OpHardfork::Lagoon.boxed(), genesis_info.lagoon_time),
         ];
 
         let mut time_hardforks = time_hardfork_opts
@@ -1217,7 +1217,7 @@ mod tests {
             EthereumHardfork::Prague.boxed(),
             OpHardfork::Isthmus.boxed(),
             OpHardfork::Jovian.boxed(),
-            // OpHardfork::Interop.boxed(),
+            // OpHardfork::Lagoon.boxed(),
         ];
 
         for (expected, actual) in expected_hardforks.iter().zip(hardforks.iter()) {

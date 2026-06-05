@@ -10,12 +10,48 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
-// TestSupernodeInteropInvalidMessageReplacement tests that:
+// TestSupernodeInteropInvalidMessageReplacement runs the invalid-message
+// replacement scenario with the supernode virtual sequencer.
+func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
+	runInteropInvalidMessageReplacementScenario(t, sys)
+}
+
+// TestSupernodeLightSequencerInteropInvalidMessageReplacement is the follow-mode
+// (light op-node CL sequencer) analogue of TestSupernodeInteropInvalidMessageReplacement:
+// the light CLs sequence on their own ELs and follow the shared supernode's safe head via
+// EL sync. See https://github.com/ethereum-optimism/optimism/issues/21119.
+//
+// op-reth only. On op-geth the follower never adopts the replacement (cross-safe stalls,
+// follow-source reorgs forever); the virtual variant passes there, so it's specific to the
+// light-sequencer path. op-geth is being deprecated, so we skip rather than block on it.
+func TestSupernodeLightSequencerInteropInvalidMessageReplacement(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	// Skipped: an ELSync follow-mode sequencer cannot bootstrap from genesis. As the chain's sole
+	// block producer it has no peer payload to initial-EL-sync from, so it deadlocks in
+	// willStartEL and the chain never starts. TODO #21164. When re-enabling after that is
+	// fixed: this scenario is op-reth only (op-geth never adopts the replacement, #21119) and
+	// follow-mode reorg recovery is still flaky (latestHead can fail to re-anchor past a
+	// FollowSource forceReset under EL sync, #21125).
+	t.Skip("follow-mode light-sequencer ELSync genesis bootstrap unsupported; TODO #21164")
+	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0)
+	runInteropInvalidMessageReplacementScenario(t, sys)
+}
+
+// runInteropInvalidMessageReplacementScenario drives the invalid-message replacement
+// scenario against an already-constructed two-L2 supernode interop system, so the
+// caller owns the sequencer topology (virtual sequencer vs light op-node follow-CL).
+//
 // WHEN: an invalid Executing Message is included in a chain
 // THEN:
 // - The interop activity detects the invalid block
@@ -23,10 +59,7 @@ import (
 // - A reset/rewind is triggered if the chain is using that block
 // - A replacement block is built at the same height (deposits-only)
 // - The replacement block's timestamp eventually becomes verified
-func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := presets.NewTwoL2SupernodeInterop(t, 0)
-
+func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 	ctx := t.Ctx()
 
 	// Create funded EOAs on both chains
@@ -117,13 +150,29 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 		"invalid_block_hash", invalidBlockHash,
 	)
 
-	// We should still be able to include new transactions and have them be fully validated
-	bruce := sys.FunderB.NewFundedEOA(eth.OneEther)
-	tx := bruce.Transfer(alice.Address(), eth.OneHundredthEther)
-	sys.L2ELB.AssertTxInBlock(bigs.Uint64Strict(tx.Included.Value().BlockNumber), tx.Included.Value().TxHash)
+	// Settle before transacting. Cross-safe is pinned at the replacement while the
+	// follow-source oscillates (#21119), and only advances once the divergence resolves, so
+	// gate on cross-safe advancing — not a match, which passes trivially while both sides are
+	// pinned. A tx sequenced mid-oscillation would land in a fork block and get orphaned.
+	dsl.CheckAll(t,
+		sys.L2ACL.AdvancedFn(safety.CrossSafe, 3, 45),
+		sys.L2BCL.AdvancedFn(safety.CrossSafe, 3, 45),
+	)
+	dsl.CheckAll(t,
+		sys.L2ACL.MatchedFn(sys.L2ASupernodeCL, safety.CrossSafe, 30),
+		sys.L2BCL.MatchedFn(sys.L2BSupernodeCL, safety.CrossSafe, 30),
+	)
 
-	txTimestamp := sys.L2B.TimestampForBlockNum(bigs.Uint64Strict(tx.Included.Value().BlockNumber))
+	// A new tx on the settled chain must still be includable and validated. The 10-attempt
+	// inclusion budget (vs the default 5, matching isthmus/superroot) tolerates slow block
+	// production on a loaded executor.
+	bruce := sys.FunderB.NewFundedEOA(eth.OneEther)
+	tx := bruce.Transact(
+		bruce.PlanTransfer(alice.Address(), eth.OneHundredthEther),
+		txplan.WithRetryInclusion(sys.L2ELB.Escape().EthClient(), 10, retry.Exponential()),
+	)
+	txBlock := bigs.Uint64Strict(tx.Included.Value().BlockNumber)
+	txTimestamp := sys.L2B.TimestampForBlockNum(txBlock)
 	sys.Supernode.AwaitValidatedTimestamp(txTimestamp)
-	// Should still have the tx in the block.
-	sys.L2ELB.AssertTxInBlock(bigs.Uint64Strict(tx.Included.Value().BlockNumber), tx.Included.Value().TxHash)
+	sys.L2ELB.AssertTxInBlock(txBlock, tx.Included.Value().TxHash)
 }

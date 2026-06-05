@@ -9,10 +9,10 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/kvstore"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	cl "github.com/ethereum-optimism/optimism/op-program/client"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
-	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -205,7 +205,7 @@ func RunPreimageServer(ctx context.Context, logger log.Logger, cfg *config.Confi
 		}
 	}
 
-	localPreimageSource := kvstore.NewLocalPreimageSource(cfg)
+	localPreimageSource := NewLocalPreimageSource(cfg)
 	splitter := kvstore.NewPreimageSourceSplitter(localPreimageSource.Get, getPreimage)
 	preimageGetter := preimage.WithVerification(splitter.Get)
 

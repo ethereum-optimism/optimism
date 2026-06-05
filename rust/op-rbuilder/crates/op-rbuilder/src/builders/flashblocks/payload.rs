@@ -3,7 +3,10 @@ use crate::{
     builders::{
         BuilderConfig,
         builder_tx::BuilderTransactions,
-        context::OpPayloadBuilderCtx,
+        context::{
+            BlockBuilderStateDbExt, OpPayloadBuilderCtx, compute_post_exec_mode,
+            last_receipt_with_cumulative_gas,
+        },
         flashblocks::{best_txs::BestFlashblocksTxs, config::FlashBlocksConfigExt},
         generator::{BlockCell, BuildArguments, PayloadBuilder},
     },
@@ -13,32 +16,38 @@ use crate::{
     traits::{ClientBounds, PoolBounds},
 };
 use alloy_consensus::{
-    BlockBody, EMPTY_OMMER_ROOT_HASH, Header, constants::EMPTY_WITHDRAWALS, proofs,
+    BlockBody, EMPTY_OMMER_ROOT_HASH, Header, Sealable, constants::EMPTY_WITHDRAWALS, proofs,
 };
 use alloy_eips::{Encodable2718, eip7685::EMPTY_REQUESTS_HASH, merge::BEACON_NONCE};
+use alloy_evm::block::BlockExecutor as AlloyBlockExecutor;
 use alloy_primitives::{Address, B256, U256, map::foldhash::HashMap};
 use core::time::Duration;
 use eyre::WrapErr as _;
+use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
 use reth_basic_payload_builder::{BuildOutcome, PayloadConfig};
 use reth_chainspec::EthChainSpec;
 use reth_evm::{ConfigureEvm, execute::BlockBuilder};
 use reth_execution_types::{BlockExecutionOutput, BlockExecutionResult};
 use reth_node_api::{Block, NodePrimitives, PayloadBuilderError};
 use reth_optimism_consensus::{calculate_receipt_root_no_memo_optimism, isthmus};
-use reth_optimism_evm::{OpEvmConfig, OpNextBlockEnvAttributes};
+use reth_optimism_evm::{
+    OpEvmConfig, OpNextBlockEnvAttributes, PostExecExecutorExt, PostExecMode, WarmingState,
+};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_node::{OpBuiltPayload, OpPayloadBuilderAttributes};
 use reth_optimism_payload_builder::OpPayloadAttrs;
 use reth_optimism_primitives::{OpPrimitives, OpReceipt, OpTransactionSigned};
 use reth_payload_primitives::BuiltPayloadExecutedBlock;
 use reth_payload_util::BestPayloadTransactions;
-use reth_primitives_traits::RecoveredBlock;
+use reth_primitives_traits::{Recovered, RecoveredBlock};
 use reth_provider::{
     ExecutionOutcome, HashedPostStateProvider, ProviderError, StateRootProvider,
     StorageRootProvider,
 };
 use reth_revm::{
-    State, database::StateProviderDatabase, db::states::bundle_state::BundleRetention,
+    State,
+    database::StateProviderDatabase,
+    db::{BundleState, states::bundle_state::BundleRetention},
 };
 use reth_transaction_pool::TransactionPool;
 use reth_trie::{HashedPostState, updates::TrieUpdates};
@@ -73,6 +82,45 @@ type NextBestFlashblocksTxs<Pool> = BestFlashblocksTxs<
 pub(super) struct FlashblocksExecutionInfo {
     /// Index of the last consumed flashblock, counting normal executed transactions only.
     last_flashblock_index: usize,
+    /// Block-global SDM refund entries already captured from previous flashblock builders.
+    post_exec_entries: Vec<SDMGasEntry>,
+    /// Block-scoped SDM warming provenance accumulated across prior flashblock executors.
+    ///
+    /// Each flashblock is built with a fresh executor (hence a fresh warming inspector), but SDM
+    /// refunds are block-scoped. Carrying this state into each new flashblock's executor keeps the
+    /// per-flashblock refund set identical to a single canonical pass over the whole block — see
+    /// the seeding in [`OpPayloadBuilder::build_next_flashblock`] and the capture below.
+    warming_state: WarmingState,
+}
+
+/// Inputs threaded into [`build_block`] when the builder is in [`PostExecMode::Produce`].
+///
+/// We carry the parent state provider and the block's cumulative SDM entries (rather than a
+/// pre-built execution) so `build_block` can materialize the canonical PostExec block *after* it
+/// has merged the real-tx transitions — running the single PostExec system tx on top of the
+/// already-accumulated state instead of replaying every prior tx from the parent. See
+/// [`materialize_post_exec`].
+pub(super) struct PostExecInputs<SP> {
+    /// Parent state provider, used as the fall-through DB for the prestate-backed replay state.
+    state_provider: SP,
+    /// Cumulative SDM gas-refund entries for the whole block so far (all flashblocks).
+    post_exec_entries: Vec<SDMGasEntry>,
+}
+
+/// Result of folding the PostExec system tx into the block's accumulated execution.
+struct PostExecMaterialization {
+    /// Full block bundle: the real-tx bundle plus the PostExec tx's state delta.
+    bundle: BundleState,
+    /// Block transactions, including the appended PostExec tx (when one was produced).
+    transactions: Vec<OpTransactionSigned>,
+    /// Senders aligned with `transactions` (PostExec is sent from the zero address).
+    senders: Vec<Address>,
+    /// Receipts aligned with `transactions`, including the PostExec receipt.
+    receipts: Vec<OpReceipt>,
+    /// Block gas used, including the PostExec tx.
+    gas_used: u64,
+    /// The PostExec tx itself, or `None` when there were no SDM entries to refund.
+    post_exec_tx: Option<OpTransactionSigned>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -230,6 +278,7 @@ where
         >,
         cancel: CancellationToken,
         extra_ctx: FlashblocksExtraCtx,
+        post_exec_mode: PostExecMode,
     ) -> eyre::Result<OpPayloadBuilderCtx<FlashblocksExtraCtx>> {
         let chain_spec = self.client.chain_spec();
         let timestamp = config.attributes.timestamp();
@@ -280,6 +329,7 @@ where
             extra_ctx,
             max_gas_per_txn: self.config.max_gas_per_txn,
             address_gas_limiter: self.address_gas_limiter.clone(),
+            post_exec_mode,
         })
     }
 
@@ -319,6 +369,13 @@ where
 
         let timestamp = config.attributes.timestamp();
         let disable_state_root = self.config.specific.disable_state_root;
+        // Snapshot the post-exec mode once for the whole payload so the fallback ctx, the
+        // per-flashblock ctx, and the canonical replay all observe the same decision.
+        let post_exec_mode = compute_post_exec_mode(
+            &self.evm_config,
+            timestamp,
+            &self.config.sdm_post_exec_opt_in,
+        );
         let ctx = self
             .get_op_payload_builder_ctx(
                 config.clone(),
@@ -328,13 +385,10 @@ where
                     disable_state_root,
                     ..Default::default()
                 },
+                post_exec_mode.clone(),
             )
             .map_err(|e| PayloadBuilderError::Other(e.into()))?;
 
-        // The DB owns one StateProvider because `State` is held across awaits and
-        // `Box<dyn StateProvider + Send>` is not `Sync` (so borrowing it would make
-        // the future non-`Send`). A second StateProvider is borrowed for builder-tx
-        // simulation calls below.
         let state_provider = self.client.state_by_block_hash(ctx.parent().hash())?;
         let db_state_provider = self.client.state_by_block_hash(ctx.parent().hash())?;
         let db = StateProviderDatabase::new(db_state_provider);
@@ -347,10 +401,8 @@ where
             .with_bundle_update()
             .build();
 
-        let mut info = {
-            let mut builder = ctx.block_builder_for_next_block(&mut state)?;
-            builder.apply_pre_execution_changes()?;
-            let mut info = ctx.execute_sequencer_transactions(&mut builder)?;
+        let (mut info, payload, fb_payload) = {
+            let (mut builder, mut info) = execute_pre_steps(&mut state, &ctx)?;
             let sequencer_tx_time = sequencer_tx_start_time.elapsed();
             ctx.metrics.sequencer_tx_duration.record(sequencer_tx_time);
             ctx.metrics.sequencer_tx_gauge.set(sequencer_tx_time);
@@ -372,15 +424,29 @@ where
                 );
             };
 
-            info
-        };
+            let calculate_state_root = !disable_state_root || ctx.attributes().no_tx_pool;
+            // SDM entries accumulate regardless of mode; the canonical PostExec tx is only
+            // materialized when producing.
+            let post_exec_entries = current_post_exec_entries(&info, &builder, 0);
+            let post_exec_inputs =
+                matches!(ctx.post_exec_mode, PostExecMode::Produce).then(|| PostExecInputs {
+                    state_provider: &state_provider,
+                    post_exec_entries: post_exec_entries.clone(),
+                });
+            let (payload, fb_payload) = build_block(
+                builder.state_db_mut(),
+                &ctx,
+                &mut info,
+                calculate_state_root, // need to calculate state root for CL sync
+                post_exec_inputs,
+            )?;
+            info.extra.post_exec_entries = post_exec_entries;
+            // Carry the base block's warming provenance (deposits + builder tx) into the first
+            // flashblock executor; subsequent flashblocks chain off this in build_next_flashblock.
+            info.extra.warming_state = builder.executor().warming_state();
 
-        let (payload, fb_payload) = build_block(
-            &mut state,
-            &ctx,
-            &mut info,
-            !disable_state_root || ctx.attributes().no_tx_pool, // need to calculate state root for CL sync
-        )?;
+            (info, payload, fb_payload)
+        };
 
         self.payload_tx
             .try_send(payload.clone())
@@ -477,7 +543,7 @@ where
 
         let mut fb_cancel = block_cancel.child_token();
         let mut ctx = self
-            .get_op_payload_builder_ctx(config, fb_cancel.clone(), extra_ctx)
+            .get_op_payload_builder_ctx(config, fb_cancel.clone(), extra_ctx, post_exec_mode)
             .map_err(|e| PayloadBuilderError::Other(e.into()))?;
 
         // Create best_transaction iterator
@@ -548,36 +614,39 @@ where
             }
 
             // build first flashblock immediately
-            let next_flashblocks_ctx = match self.build_next_flashblock(
-                &ctx,
-                &mut info,
-                &mut state,
-                &state_provider,
-                &mut best_txs,
-                &block_cancel,
-                &best_payload,
-                &fb_span,
-            ) {
-                Ok(Some(next_flashblocks_ctx)) => next_flashblocks_ctx,
-                Ok(None) => {
-                    self.record_flashblocks_metrics(
-                        &ctx,
-                        &info,
-                        flashblocks_per_block,
-                        &span,
-                        "Payload building complete, job cancelled or target flashblock count reached",
-                    );
-                    return Ok(());
-                }
-                Err(err) => {
-                    error!(
-                        target: "payload_builder",
-                        "Failed to build flashblock {} for block number {}: {}",
-                        ctx.flashblock_index(),
-                        ctx.block_number(),
-                        err
-                    );
-                    return Err(PayloadBuilderError::Other(err.into()));
+            let next_flashblocks_ctx = {
+                let mut builder = ctx.block_builder_for_next_block(&mut state)?;
+                match self.build_next_flashblock(
+                    &ctx,
+                    &mut info,
+                    &mut builder,
+                    &state_provider,
+                    &mut best_txs,
+                    &block_cancel,
+                    &best_payload,
+                    &fb_span,
+                ) {
+                    Ok(Some(next_flashblocks_ctx)) => next_flashblocks_ctx,
+                    Ok(None) => {
+                        self.record_flashblocks_metrics(
+                            &ctx,
+                            &info,
+                            flashblocks_per_block,
+                            &span,
+                            "Payload building complete, job cancelled or target flashblock count reached",
+                        );
+                        return Ok(());
+                    }
+                    Err(err) => {
+                        error!(
+                            target: "payload_builder",
+                            "Failed to build flashblock {} for block number {}: {}",
+                            ctx.flashblock_index(),
+                            ctx.block_number(),
+                            err
+                        );
+                        return Err(PayloadBuilderError::Other(err.into()));
+                    }
                 }
             };
 
@@ -600,11 +669,15 @@ where
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn build_next_flashblock<DB, P>(
+    fn build_next_flashblock<
+        Builder,
+        DB,
+        P: StateRootProvider + HashedPostStateProvider + StorageRootProvider,
+    >(
         &self,
         ctx: &OpPayloadBuilderCtx<FlashblocksExtraCtx>,
         info: &mut ExecutionInfo<FlashblocksExecutionInfo>,
-        state: &mut State<DB>,
+        builder: &mut Builder,
         state_provider: impl reth::providers::StateProvider + Clone,
         best_txs: &mut NextBestFlashblocksTxs<Pool>,
         block_cancel: &CancellationToken,
@@ -612,10 +685,25 @@ where
         span: &tracing::Span,
     ) -> eyre::Result<Option<FlashblocksExtraCtx>>
     where
-        DB: Database<Error = ProviderError> + std::fmt::Debug + AsRef<P>,
-        P: StateRootProvider + HashedPostStateProvider + StorageRootProvider,
+        Builder:
+            reth_evm::execute::BlockBuilder<Primitives = reth_optimism_primitives::OpPrimitives>,
+        Builder::Executor: PostExecExecutorExt
+            + AlloyBlockExecutor<
+                Transaction = OpTransactionSigned,
+                Receipt = OpReceipt,
+                Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
+            >,
+        DB: Database + std::fmt::Debug + AsRef<P>,
     {
         let flashblock_index = ctx.flashblock_index();
+        let post_exec_index_offset = info.executed_transactions.len() as u64;
+        // Seed this flashblock's fresh executor with the block-scoped SDM warming provenance
+        // accumulated by prior flashblocks (and the base block). Without this, each fresh executor
+        // would reset warming at the flashblock boundary and attribute a refund set that diverges
+        // from op-reth's single canonical pass. Recaptured after the build below.
+        builder
+            .executor_mut()
+            .seed_warming_state(core::mem::take(&mut info.extra.warming_state));
         let mut target_gas_for_batch = ctx.extra_ctx.target_gas_for_batch;
         let mut target_da_for_batch = ctx.extra_ctx.target_da_for_batch;
         let mut target_da_footprint_for_batch = ctx.extra_ctx.target_da_footprint_for_batch;
@@ -634,12 +722,10 @@ where
         );
         let flashblock_build_start_time = Instant::now();
 
-        let mut builder = ctx.block_builder_for_next_block(state)?;
-
         let builder_txs =
             match self
                 .builder_tx
-                .add_builder_txs(&state_provider, info, ctx, &mut builder, true)
+                .add_builder_txs(&state_provider, info, ctx, builder, true)
             {
                 Ok(builder_txs) => builder_txs,
                 Err(e) => {
@@ -691,7 +777,7 @@ where
         let tx_execution_start_time = Instant::now();
         ctx.execute_best_transactions(
             info,
-            &mut builder,
+            builder,
             best_txs,
             target_gas_for_batch.min(ctx.block_gas_limit()),
             target_da_for_batch,
@@ -727,21 +813,29 @@ where
             .payload_transaction_simulation_gauge
             .set(payload_transaction_simulation_time);
 
-        if let Err(e) =
-            self.builder_tx
-                .add_builder_txs(&state_provider, info, ctx, &mut builder, false)
+        if let Err(e) = self
+            .builder_tx
+            .add_builder_txs(&state_provider, info, ctx, builder, false)
         {
             error!(target: "payload_builder", "Error simulating builder txs: {}", e);
         };
 
-        drop(builder);
-
+        let calculate_state_root = !ctx.extra_ctx.disable_state_root || ctx.attributes().no_tx_pool;
+        // SDM entries accumulate across flashblocks regardless of mode; the canonical PostExec tx
+        // is only materialized (folded into the block) when producing.
+        let post_exec_entries = current_post_exec_entries(info, builder, post_exec_index_offset);
+        let post_exec_inputs =
+            matches!(ctx.post_exec_mode, PostExecMode::Produce).then(|| PostExecInputs {
+                state_provider: state_provider.clone(),
+                post_exec_entries: post_exec_entries.clone(),
+            });
         let total_block_built_duration = Instant::now();
         let build_result = build_block(
-            state,
+            builder.state_db_mut(),
             ctx,
             info,
-            !ctx.extra_ctx.disable_state_root || ctx.attributes().no_tx_pool,
+            calculate_state_root,
+            post_exec_inputs,
         );
         let total_block_built_duration = total_block_built_duration.elapsed();
         ctx.metrics
@@ -757,6 +851,9 @@ where
                 Err(err).wrap_err("failed to build payload")
             }
             Ok((new_payload, mut fb_payload)) => {
+                info.extra.post_exec_entries = post_exec_entries;
+                // Carry this flashblock's accumulated warming provenance into the next flashblock.
+                info.extra.warming_state = builder.executor().warming_state();
                 fb_payload.index = flashblock_index;
                 fb_payload.base = None;
 
@@ -855,6 +952,8 @@ where
         ctx.metrics
             .payload_num_tx_gauge
             .set(info.executed_transactions.len() as f64);
+        ctx.metrics
+            .record_sdm_refund_gas(sdm_refund_gas(&info.extra.post_exec_entries));
 
         debug!(
             target: "payload_builder",
@@ -972,19 +1071,212 @@ struct FlashblocksMetadata {
     block_number: u64,
 }
 
-pub(super) fn build_block<DB, P, ExtraCtx>(
-    state: &mut State<DB>,
+pub(super) trait FlashblockBuildState<P> {
+    type TransitionState: Clone;
+
+    fn transition_state(&self) -> &Self::TransitionState;
+    fn set_transition_state(&mut self, transition_state: Self::TransitionState);
+    fn merge_transitions(&mut self, retention: BundleRetention);
+    fn bundle_state(&self) -> &BundleState;
+    fn provider(&self) -> &P;
+    fn take_bundle(&mut self) -> BundleState;
+}
+
+impl<DB, P> FlashblockBuildState<P> for State<DB>
+where
+    DB: Database + AsRef<P>,
+{
+    type TransitionState = Option<revm::database::TransitionState>;
+
+    fn transition_state(&self) -> &Self::TransitionState {
+        &self.transition_state
+    }
+
+    fn set_transition_state(&mut self, transition_state: Self::TransitionState) {
+        self.transition_state = transition_state;
+    }
+
+    fn merge_transitions(&mut self, retention: BundleRetention) {
+        State::merge_transitions(self, retention);
+    }
+
+    fn bundle_state(&self) -> &BundleState {
+        &self.bundle_state
+    }
+
+    fn provider(&self) -> &P {
+        self.database.as_ref()
+    }
+
+    fn take_bundle(&mut self) -> BundleState {
+        State::take_bundle(self)
+    }
+}
+
+fn sdm_refund_gas(entries: &[SDMGasEntry]) -> u64 {
+    entries.iter().map(|entry| entry.gas_refund).sum()
+}
+
+fn offset_post_exec_entries(
+    previous_entries: &[SDMGasEntry],
+    builder_entries: &[SDMGasEntry],
+    tx_index_offset: u64,
+) -> Vec<SDMGasEntry> {
+    previous_entries
+        .iter()
+        .cloned()
+        .chain(builder_entries.iter().cloned().map(|mut entry| {
+            entry.index = entry.index.saturating_add(tx_index_offset);
+            entry
+        }))
+        .collect()
+}
+
+fn current_post_exec_entries<Builder>(
+    info: &ExecutionInfo<FlashblocksExecutionInfo>,
+    builder: &Builder,
+    tx_index_offset: u64,
+) -> Vec<SDMGasEntry>
+where
+    Builder: BlockBuilder,
+    Builder::Executor: PostExecExecutorExt,
+{
+    offset_post_exec_entries(
+        &info.extra.post_exec_entries,
+        builder.executor().post_exec_entries(),
+        tx_index_offset,
+    )
+}
+
+/// Materialize the canonical PostExec execution **without replaying prior transactions**.
+///
+/// The block's real transactions have already been executed once into the main builder state;
+/// `real_bundle` is that state's merged bundle (passed in by [`build_block`] right after its
+/// merge). We build a throwaway [`State`] seeded with `real_bundle` as its prestate — reads then
+/// see the post-real-tx world (cache → bundle prestate → parent DB) — and execute *only* the
+/// single PostExec system tx on top of it. The PostExec tx is appended to the block's
+/// tx/receipt/sender lists and its state delta is merged into the returned bundle.
+///
+/// This is O(1) in the number of prior txs, replacing the previous O(N) per-flashblock replay
+/// (which re-executed every prior tx from the parent state) and therefore the O(N²) per-block
+/// cost. The state-clear flag (EIP-161) is intentionally not set here: in this revm version it is
+/// handled by the EVM journal based on the active spec, and the prestate already reflects the
+/// pre-execution changes applied when the real txs ran — so we must not re-apply those either.
+fn materialize_post_exec<SP, ExtraCtx>(
+    ctx: &OpPayloadBuilderCtx<ExtraCtx>,
+    state_provider: SP,
+    real_bundle: BundleState,
+    info: &ExecutionInfo<FlashblocksExecutionInfo>,
+    post_exec_entries: Vec<SDMGasEntry>,
+) -> Result<PostExecMaterialization, PayloadBuilderError>
+where
+    SP: reth::providers::StateProvider,
+    ExtraCtx: std::fmt::Debug + Default,
+{
+    let replay_start = Instant::now();
+    let post_exec_tx = build_current_post_exec_tx(ctx, post_exec_entries);
+
+    let db = StateProviderDatabase::new(state_provider);
+    let mut replay_state = State::builder()
+        .with_database(db)
+        .with_bundle_prestate(real_bundle)
+        .with_bundle_update()
+        .build();
+
+    let mut transactions = info.executed_transactions.clone();
+    let mut senders = info.executed_senders.clone();
+    let mut receipts = info.receipts.clone();
+    let mut gas_used = info.cumulative_gas_used;
+
+    if let Some(post_exec_tx) = &post_exec_tx {
+        let mut replay_builder = ctx.block_builder_for_next_block(&mut replay_state)?;
+        let gas_output = replay_builder.execute_transaction(Recovered::new_unchecked(
+            post_exec_tx.clone(),
+            Address::ZERO,
+        ))?;
+        gas_used += gas_output.tx_gas_used();
+        let receipt = last_receipt_with_cumulative_gas(replay_builder.executor(), gas_used)
+            .expect("executor must record a receipt for the post-exec tx");
+        transactions.push(post_exec_tx.clone());
+        senders.push(Address::ZERO);
+        receipts.push(receipt);
+    }
+
+    replay_state.merge_transitions(BundleRetention::Reverts);
+    let bundle = replay_state.take_bundle();
+
+    ctx.metrics
+        .sdm_canonical_replay_duration
+        .record(replay_start.elapsed());
+
+    Ok(PostExecMaterialization {
+        bundle,
+        transactions,
+        senders,
+        receipts,
+        gas_used,
+        post_exec_tx,
+    })
+}
+
+fn build_current_post_exec_tx<ExtraCtx>(
+    ctx: &OpPayloadBuilderCtx<ExtraCtx>,
+    entries: Vec<SDMGasEntry>,
+) -> Option<OpTransactionSigned>
+where
+    ExtraCtx: std::fmt::Debug + Default,
+{
+    if !matches!(ctx.post_exec_mode, PostExecMode::Produce) || entries.is_empty() {
+        return None;
+    }
+
+    Some(OpTransactionSigned::from(
+        build_post_exec_tx(ctx.block_number(), entries).seal_slow(),
+    ))
+}
+
+#[allow(clippy::type_complexity)]
+fn execute_pre_steps<'a, DB, ExtraCtx>(
+    state: &'a mut State<DB>,
+    ctx: &'a OpPayloadBuilderCtx<ExtraCtx>,
+) -> Result<
+    (
+        impl reth_evm::execute::BlockBuilder<
+            Primitives = reth_optimism_primitives::OpPrimitives,
+            Executor: PostExecExecutorExt
+                          + AlloyBlockExecutor<
+                Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
+            >,
+        > + 'a,
+        ExecutionInfo<FlashblocksExecutionInfo>,
+    ),
+    PayloadBuilderError,
+>
+where
+    DB: Database<Error = ProviderError> + std::fmt::Debug,
+    ExtraCtx: std::fmt::Debug + Default,
+{
+    let mut builder = ctx.block_builder_for_next_block(state)?;
+    builder.apply_pre_execution_changes()?;
+    let info = ctx.execute_sequencer_transactions(&mut builder)?;
+
+    Ok((builder, info))
+}
+
+pub(super) fn build_block<P, SP, ExtraCtx>(
+    state: &mut impl FlashblockBuildState<P>,
     ctx: &OpPayloadBuilderCtx<ExtraCtx>,
     info: &mut ExecutionInfo<FlashblocksExecutionInfo>,
     calculate_state_root: bool,
+    post_exec_inputs: Option<PostExecInputs<SP>>,
 ) -> Result<(OpBuiltPayload, FlashblocksPayloadV1), PayloadBuilderError>
 where
-    DB: Database<Error = ProviderError> + AsRef<P>,
     P: StateRootProvider + HashedPostStateProvider + StorageRootProvider,
+    SP: reth::providers::StateProvider,
     ExtraCtx: std::fmt::Debug + Default,
 {
     // We use it to preserve state, so we run merge_transitions on transition state at most once
-    let untouched_transition_state = state.transition_state.clone();
+    let untouched_transition_state = state.transition_state().clone();
     let state_merge_start_time = Instant::now();
     state.merge_transitions(BundleRetention::Reverts);
     let state_transition_merge_time = state_merge_start_time.elapsed();
@@ -998,12 +1290,38 @@ where
     let block_number = ctx.block_number();
     assert_eq!(block_number, ctx.parent().number + 1);
 
-    let execution_outcome = ExecutionOutcome::new(
-        state.bundle_state.clone(),
-        vec![info.receipts.clone()],
-        block_number,
-        vec![],
-    );
+    // Fold the canonical PostExec tx into the block when producing. `materialize_post_exec` runs
+    // the single PostExec system tx on top of the just-merged real-tx bundle (no replay of prior
+    // txs); otherwise we assemble the block straight from the accumulated execution info. Either
+    // way we end up with one tx/receipt/sender set and one bundle, which the single assembly path
+    // below turns into the block.
+    let PostExecMaterialization {
+        bundle,
+        transactions: materialized_transactions,
+        senders: materialized_senders,
+        receipts,
+        gas_used: block_gas_used,
+        post_exec_tx,
+    } = match post_exec_inputs {
+        Some(inputs) => materialize_post_exec(
+            ctx,
+            inputs.state_provider,
+            state.bundle_state().clone(),
+            info,
+            inputs.post_exec_entries,
+        )?,
+        None => PostExecMaterialization {
+            bundle: state.bundle_state().clone(),
+            transactions: info.executed_transactions.clone(),
+            senders: info.executed_senders.clone(),
+            receipts: info.receipts.clone(),
+            gas_used: info.cumulative_gas_used,
+            post_exec_tx: None,
+        },
+    };
+
+    let execution_outcome =
+        ExecutionOutcome::new(bundle.clone(), vec![receipts.clone()], block_number, vec![]);
 
     let receipts_root = execution_outcome
         .generic_receipts_root_slow(block_number, |receipts| {
@@ -1026,12 +1344,11 @@ where
     let mut hashed_state = HashedPostState::default();
 
     if calculate_state_root {
-        let state_provider = state.database.as_ref();
+        let state_provider = state.provider();
         hashed_state = state_provider.hashed_post_state(execution_outcome.state());
         (state_root, trie_output) = {
             state
-                .database
-                .as_ref()
+                .provider()
                 .state_root_with_updates(hashed_state.clone())
                 .inspect_err(|err| {
                     warn!(target: "payload_builder",
@@ -1061,7 +1378,7 @@ where
         // withdrawals root field in block header is used for storage root of L2 predeploy
         // `l2tol1-message-passer`
         Some(
-            isthmus::withdrawals_root(execution_outcome.state(), state.database.as_ref())
+            isthmus::withdrawals_root(execution_outcome.state(), state.provider())
                 .map_err(PayloadBuilderError::other)?,
         )
     } else if ctx
@@ -1074,10 +1391,9 @@ where
     };
 
     // create the block header
-    let transactions_root = proofs::calculate_transaction_root(&info.executed_transactions);
+    let transactions_root = proofs::calculate_transaction_root(&materialized_transactions);
 
     let (excess_blob_gas, blob_gas_used) = ctx.blob_fields(info);
-    let block_gas_used = info.cumulative_gas_used;
     let extra_data = ctx.extra_data()?;
 
     let header = Header {
@@ -1110,14 +1426,13 @@ where
     let block = alloy_consensus::Block::<OpTransactionSigned>::new(
         header,
         BlockBody {
-            transactions: info.executed_transactions.clone(),
+            transactions: materialized_transactions,
             ommers: vec![],
             withdrawals: ctx.withdrawals().cloned(),
         },
     );
 
-    let recovered_block =
-        RecoveredBlock::new_unhashed(block.clone(), info.executed_senders.clone());
+    let recovered_block = RecoveredBlock::new_unhashed(block.clone(), materialized_senders);
     // create the executed block data
 
     let execution_output = BlockExecutionOutput {
@@ -1162,8 +1477,7 @@ where
         .zip(new_receipts.iter())
         .map(|(tx, receipt)| (tx.tx_hash(), receipt.clone()))
         .collect::<HashMap<B256, OpReceipt>>();
-    let new_account_balances = state
-        .bundle_state
+    let new_account_balances = bundle
         .state
         .iter()
         .filter_map(|(address, account)| account.info.as_ref().map(|info| (*address, info.balance)))
@@ -1199,6 +1513,7 @@ where
             gas_used: block_gas_used,
             block_hash,
             transactions: new_transactions_encoded,
+            post_exec_tx: post_exec_tx.as_ref().map(|tx| tx.encoded_2718().into()),
             withdrawals: ctx.withdrawals().cloned().unwrap_or_default().to_vec(),
             withdrawals_root: withdrawals_root.unwrap_or_default(),
             blob_gas_used,
@@ -1208,7 +1523,7 @@ where
 
     // We clean bundle and place initial state transaction back
     state.take_bundle();
-    state.transition_state = untouched_transition_state;
+    state.set_transition_state(untouched_transition_state);
 
     Ok((
         OpBuiltPayload::new(
@@ -1219,4 +1534,47 @@ where
         ),
         fb_payload,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn offset_post_exec_entries_preserves_previous_and_offsets_current() {
+        let previous = vec![SDMGasEntry {
+            index: 1,
+            gas_refund: 10,
+        }];
+        let current = vec![
+            SDMGasEntry {
+                index: 0,
+                gas_refund: 20,
+            },
+            SDMGasEntry {
+                index: 2,
+                gas_refund: 30,
+            },
+        ];
+
+        let entries = offset_post_exec_entries(&previous, &current, 5);
+
+        assert_eq!(
+            entries,
+            vec![
+                SDMGasEntry {
+                    index: 1,
+                    gas_refund: 10
+                },
+                SDMGasEntry {
+                    index: 5,
+                    gas_refund: 20
+                },
+                SDMGasEntry {
+                    index: 7,
+                    gas_refund: 30
+                },
+            ]
+        );
+    }
 }

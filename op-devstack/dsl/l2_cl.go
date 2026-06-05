@@ -207,7 +207,19 @@ func (cl *L2CLNode) AwaitMinL1Processed(minL1 uint64) {
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) AdvancedFn(lvl safety.Level, delta uint64, attempts int) CheckFunc {
 	return func() error {
-		initial := cl.HeadBlockRef(lvl)
+		var initial eth.L2BlockRef
+		if err := retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				head, err := cl.headBlockRef(lvl)
+				if err != nil {
+					cl.log.Warn("SyncStatus RPC failed; will retry", "err", err)
+					return err
+				}
+				initial = head
+				return nil
+			}); err != nil {
+			return err
+		}
 		target := initial.Number + delta
 		cl.log.Info("Expecting chain to advance", "name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "delta", delta)
 		return cl.ReachedFn(lvl, target, attempts)()

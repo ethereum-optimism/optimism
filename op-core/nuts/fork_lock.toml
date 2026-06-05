@@ -6,7 +6,7 @@
   hash = "sha256:08f5df36f7ff29a9421ab84beebe96684a7455df9a5d234a2468613a4008ad91"
   commit = "f2e5bfe4a502788d33d7914d2d5cd42793c0bce5"
 
-[interop]
+[lagoon]
   bundle = "op-core/nuts/bundles/interop_nut_bundle.json"
   hash = "sha256:2124ce31c0947cac15f00114214dd4354848f7b4642ff2d12ebb3f94b28cc989"
   commit = "fa9974a2cd38d9e7633a12f9024d52f41de55f86"

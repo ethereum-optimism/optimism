@@ -8,14 +8,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
-	"github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/client/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -25,9 +23,6 @@ var (
 	ErrIncorrectOutputRootType = errors.New("incorrect output root type")
 	ErrL1HeadReached           = errors.New("l1 head reached")
 	ErrInvalidPrestate         = errors.New("invalid prestate")
-
-	InvalidTransition     = []byte("invalid")
-	InvalidTransitionHash = crypto.Keccak256Hash(InvalidTransition)
 )
 
 const (
@@ -76,8 +71,8 @@ func runInteropProgram(logger log.Logger, bootInfo *boot.BootInfoInterop, l1Prei
 }
 
 func stateTransition(logger log.Logger, bootInfo *boot.BootInfoInterop, l1PreimageOracle l1.Oracle, l2PreimageOracle l2.Oracle, tasks taskExecutor) (common.Hash, error) {
-	if bootInfo.AgreedPrestate == InvalidTransitionHash {
-		return InvalidTransitionHash, nil
+	if bootInfo.AgreedPrestate == eth.InvalidTransitionHash {
+		return eth.InvalidTransitionHash, nil
 	}
 	transitionState, superRoot, err := parseAgreedState(bootInfo, l2PreimageOracle)
 	if err != nil {
@@ -100,7 +95,7 @@ func stateTransition(logger log.Logger, bootInfo *boot.BootInfoInterop, l1Preima
 		logger.Info("Deriving optimistic block")
 		block, err := deriveOptimisticBlock(logger, bootInfo, l1PreimageOracle, l2PreimageOracle, superRoot, transitionState, tasks)
 		if errors.Is(err, ErrL1HeadReached) {
-			return InvalidTransitionHash, nil
+			return eth.InvalidTransitionHash, nil
 		} else if err != nil {
 			return common.Hash{}, err
 		}
@@ -119,7 +114,7 @@ func stateTransition(logger log.Logger, bootInfo *boot.BootInfoInterop, l1Preima
 		return common.Hash(expectedSuperRoot), nil
 	}
 
-	finalState := &types.TransitionState{
+	finalState := &eth.TransitionState{
 		SuperRoot:       transitionState.SuperRoot,
 		PendingProgress: expectedPendingProgress,
 		Step:            transitionState.Step + 1,
@@ -127,11 +122,11 @@ func stateTransition(logger log.Logger, bootInfo *boot.BootInfoInterop, l1Preima
 	return finalState.Hash(), nil
 }
 
-func parseAgreedState(bootInfo *boot.BootInfoInterop, l2PreimageOracle l2.Oracle) (*types.TransitionState, *eth.SuperV1, error) {
+func parseAgreedState(bootInfo *boot.BootInfoInterop, l2PreimageOracle l2.Oracle) (*eth.TransitionState, *eth.SuperV1, error) {
 	// For the first step in a timestamp, we would get a SuperRoot as the agreed claim - TransitionStateByRoot will
 	// automatically convert it to a TransitionState with Step: 0.
 	transitionState := l2PreimageOracle.TransitionStateByRoot(bootInfo.AgreedPrestate)
-	if transitionState.Version() != types.IntermediateTransitionVersion {
+	if transitionState.Version() != eth.IntermediateTransitionVersion {
 		return nil, nil, fmt.Errorf("%w: %v", ErrIncorrectOutputRootType, transitionState.Version())
 	}
 
@@ -146,27 +141,27 @@ func parseAgreedState(bootInfo *boot.BootInfoInterop, l2PreimageOracle l2.Oracle
 	return transitionState, superRoot, nil
 }
 
-func deriveOptimisticBlock(logger log.Logger, bootInfo *boot.BootInfoInterop, l1PreimageOracle l1.Oracle, l2PreimageOracle l2.Oracle, superRoot *eth.SuperV1, transitionState *types.TransitionState, tasks taskExecutor) (types.OptimisticBlock, error) {
+func deriveOptimisticBlock(logger log.Logger, bootInfo *boot.BootInfoInterop, l1PreimageOracle l1.Oracle, l2PreimageOracle l2.Oracle, superRoot *eth.SuperV1, transitionState *eth.TransitionState, tasks taskExecutor) (eth.OptimisticBlock, error) {
 	chainAgreedPrestate := superRoot.Chains[transitionState.Step]
 	rollupCfg, err := bootInfo.Configs.RollupConfig(chainAgreedPrestate.ChainID)
 	if err != nil {
-		return types.OptimisticBlock{}, fmt.Errorf("no rollup config available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
+		return eth.OptimisticBlock{}, fmt.Errorf("no rollup config available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
 	}
 	l2ChainConfig, err := bootInfo.Configs.ChainConfig(chainAgreedPrestate.ChainID)
 	if err != nil {
-		return types.OptimisticBlock{}, fmt.Errorf("no l2 chain config available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
+		return eth.OptimisticBlock{}, fmt.Errorf("no l2 chain config available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
 	}
 	l1ChainConfig, err := bootInfo.Configs.L1ChainConfig(eth.ChainIDFromBig(rollupCfg.L1ChainID))
 	if err != nil {
-		return types.OptimisticBlock{}, fmt.Errorf("no l1 chain config available for chain ID %v: %w", eth.ChainIDFromBig(rollupCfg.L1ChainID), err)
+		return eth.OptimisticBlock{}, fmt.Errorf("no l1 chain config available for chain ID %v: %w", eth.ChainIDFromBig(rollupCfg.L1ChainID), err)
 	}
 	depSet, err := bootInfo.Configs.DependencySet(chainAgreedPrestate.ChainID)
 	if err != nil {
-		return types.OptimisticBlock{}, fmt.Errorf("no dependency set available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
+		return eth.OptimisticBlock{}, fmt.Errorf("no dependency set available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
 	}
 	claimedBlockNumber, err := rollupCfg.TargetBlockNumber(superRoot.Timestamp + 1)
 	if err != nil {
-		return types.OptimisticBlock{}, err
+		return eth.OptimisticBlock{}, err
 	}
 	derivationResult, err := tasks.RunDerivation(
 		logger,
@@ -181,13 +176,13 @@ func deriveOptimisticBlock(logger log.Logger, bootInfo *boot.BootInfoInterop, l1
 		l2PreimageOracle,
 	)
 	if err != nil {
-		return types.OptimisticBlock{}, err
+		return eth.OptimisticBlock{}, err
 	}
 	if derivationResult.Head.Number < claimedBlockNumber {
-		return types.OptimisticBlock{}, ErrL1HeadReached
+		return eth.OptimisticBlock{}, ErrL1HeadReached
 	}
 
-	block := types.OptimisticBlock{
+	block := eth.OptimisticBlock{
 		BlockHash:  derivationResult.BlockHash,
 		OutputRoot: derivationResult.OutputRoot,
 	}

@@ -1,7 +1,7 @@
 //! Implements [`TrieCursorFactory`] and [`HashedCursorFactory`] for [`crate::OpProofsStore`] types.
 
 use crate::{
-    api::OpProofsProviderRO,
+    api::{OpProofsProviderRO, OpProofsSnapshotProviderRO},
     cursor::{OpProofsHashedAccountCursor, OpProofsHashedStorageCursor, OpProofsTrieCursor},
 };
 use alloy_primitives::B256;
@@ -52,6 +52,54 @@ where
                 .storage_trie_cursor(hashed_address, self.block_number)
                 .map_err(Into::<DatabaseError>::into)?,
         ))
+    }
+}
+
+/// Factory for creating trie cursors backed by a snapshot reader.
+///
+/// Unlike [`OpProofsTrieCursorFactory`] (which reads history-aware cursors at
+/// a given block number), this factory reads directly from the snapshot
+/// tables. It carries no block-number context: the snapshot already reflects
+/// trie state at a fixed anchor block. The caller is responsible for first
+/// resolving that anchor via
+/// [`crate::api::OpProofsSnapshotProviderRO::snapshot_anchor`] and ensuring
+/// the block being queried matches it.
+#[derive(Debug, Clone)]
+pub struct SnapshotTrieCursorFactory<P> {
+    reader: P,
+}
+
+impl<P: OpProofsSnapshotProviderRO> SnapshotTrieCursorFactory<P> {
+    /// Create a new snapshot-backed trie cursor factory.
+    pub const fn new(reader: P) -> Self {
+        Self { reader }
+    }
+}
+
+impl<P> TrieCursorFactory for SnapshotTrieCursorFactory<P>
+where
+    P: OpProofsSnapshotProviderRO,
+{
+    type AccountTrieCursor<'a>
+        = P::SnapshotAccountTrieCursor<'a>
+    where
+        Self: 'a;
+    type StorageTrieCursor<'a>
+        = P::SnapshotStorageTrieCursor<'a>
+    where
+        Self: 'a;
+
+    fn account_trie_cursor(&self) -> Result<Self::AccountTrieCursor<'_>, DatabaseError> {
+        self.reader.snapshot_account_trie_cursor().map_err(Into::<DatabaseError>::into)
+    }
+
+    fn storage_trie_cursor(
+        &self,
+        hashed_address: B256,
+    ) -> Result<Self::StorageTrieCursor<'_>, DatabaseError> {
+        self.reader
+            .snapshot_storage_trie_cursor(hashed_address)
+            .map_err(Into::<DatabaseError>::into)
     }
 }
 

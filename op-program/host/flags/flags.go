@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-program/host/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/kvstore"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
@@ -51,9 +51,9 @@ var (
 	}
 	DataFormat = &cli.StringFlag{
 		Name:    "data.format",
-		Usage:   fmt.Sprintf("Format to use for preimage data storage. Available formats: %s", openum.EnumString(types.SupportedDataFormats)),
+		Usage:   fmt.Sprintf("Format to use for preimage data storage. Available formats: %s", openum.EnumString(kvstore.SupportedDataFormats)),
 		EnvVars: prefixEnvVars("DATA_FORMAT"),
-		Value:   string(types.DataFormatDirectory),
+		Value:   string(kvstore.DataFormatDirectory),
 	}
 	L2NodeAddr = &cli.StringSliceFlag{
 		Name:    "l2",
