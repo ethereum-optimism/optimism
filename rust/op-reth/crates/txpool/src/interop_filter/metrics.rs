@@ -4,7 +4,7 @@ use crate::interop_filter::InteropTxValidatorError;
 use op_alloy_rpc_types::SuperchainDAError;
 use reth_metrics::{
     Metrics,
-    metrics::{Counter, Gauge, Histogram},
+    metrics::{Counter, Gauge, Histogram, Label},
 };
 use std::time::Duration;
 
@@ -52,13 +52,57 @@ pub struct InteropMetrics {
     pub(crate) quorum_reject_not_reached: Counter,
     /// Quorum rejected: an endpoint reported its failsafe active (hard short-circuit rejection).
     pub(crate) quorum_reject_failsafe: Counter,
+}
 
-    /// Per-endpoint counter for definitive valid verdicts.
-    pub(crate) endpoint_valid: Counter,
-    /// Per-endpoint counter for definitive invalid verdicts.
-    pub(crate) endpoint_invalid: Counter,
-    /// Per-endpoint counter for non-responses (timeout, transport error, cancellation).
-    pub(crate) endpoint_unavailable: Counter,
+/// Per-endpoint interop metrics, labeled by endpoint index so each configured interop filter can be
+/// observed independently. With the fleet-wide counters alone you can tell *an* endpoint is slow or
+/// down; these labeled metrics answer *which* one — the first question on call for a fan-out
+/// client. Labeled by index (not the raw URL), since interop-http URLs can carry basic-auth
+/// credentials.
+#[derive(Metrics, Clone)]
+#[metrics(scope = "optimism_transaction_pool.interop.endpoint")]
+pub struct EndpointMetrics {
+    /// How long this endpoint took to answer an `interop_checkAccessList` query. Lets an endpoint
+    /// creeping toward the request timeout be spotted before it starts failing.
+    pub(crate) query_latency: Histogram,
+    /// Definitive valid verdicts returned by this endpoint.
+    pub(crate) valid: Counter,
+    /// Definitive invalid verdicts returned by this endpoint.
+    pub(crate) invalid: Counter,
+    /// Non-responses from this endpoint (timeout, transport error, soft out-of-sync,
+    /// cancellation).
+    pub(crate) unavailable: Counter,
+}
+
+impl EndpointMetrics {
+    /// Builds per-endpoint metrics labeled with the endpoint's index.
+    pub fn for_endpoint(index: usize) -> Self {
+        Self::new_with_labels(vec![Label::new("endpoint", index.to_string())])
+    }
+
+    /// Records the duration of this endpoint's interop filter query.
+    #[inline]
+    pub fn record_query(&self, duration: Duration) {
+        self.query_latency.record(duration.as_secs_f64());
+    }
+
+    /// Records this endpoint's definitive valid verdict.
+    #[inline]
+    pub fn record_valid(&self) {
+        self.valid.increment(1);
+    }
+
+    /// Records this endpoint's definitive invalid verdict.
+    #[inline]
+    pub fn record_invalid(&self) {
+        self.invalid.increment(1);
+    }
+
+    /// Records this endpoint's non-response (timeout, transport error, soft out-of-sync).
+    #[inline]
+    pub fn record_unavailable(&self) {
+        self.unavailable.increment(1);
+    }
 }
 
 impl InteropMetrics {
@@ -96,24 +140,6 @@ impl InteropMetrics {
     #[inline]
     pub fn record_failsafe_reject(&self) {
         self.quorum_reject_failsafe.increment(1);
-    }
-
-    /// Records a single endpoint's definitive valid verdict.
-    #[inline]
-    pub fn record_endpoint_valid(&self) {
-        self.endpoint_valid.increment(1);
-    }
-
-    /// Records a single endpoint's definitive invalid verdict.
-    #[inline]
-    pub fn record_endpoint_invalid(&self) {
-        self.endpoint_invalid.increment(1);
-    }
-
-    /// Records a single endpoint's non-response (timeout, transport error, cancellation).
-    #[inline]
-    pub fn record_endpoint_unavailable(&self) {
-        self.endpoint_unavailable.increment(1);
     }
 
     /// Increments the metrics for the given error

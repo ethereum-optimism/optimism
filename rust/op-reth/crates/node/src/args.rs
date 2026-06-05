@@ -60,11 +60,18 @@ pub struct RollupArgs {
     pub interop_http: Vec<String>,
 
     /// Minimum number of definitive verdicts required to decide an interop check across the
-    /// configured `--rollup.interop-http` endpoints. Defaults to the number of endpoints
-    /// (unanimity, fail-closed). A transaction is accepted only when this many endpoints return a
-    /// definitive verdict and all of them agree it is valid; if they disagree the transaction is
-    /// rejected. Disagreement detection is best-effort: once the quorum is reached the remaining
-    /// endpoints are not awaited, so a slow dissenter beyond the quorum may go unseen.
+    /// configured `--rollup.interop-http` endpoints. A transaction is accepted only when this many
+    /// endpoints return a definitive verdict and all of them agree it is valid; if they disagree
+    /// the transaction is rejected.
+    ///
+    /// Defaults to the number of endpoints (unanimity, fail-closed). Note this means any single
+    /// unreachable or out-of-sync endpoint blocks ALL interop admission until it recovers, so
+    /// adding endpoints under the default REDUCES availability. Set a majority quorum (e.g.
+    /// N/2+1) to tolerate a degraded endpoint while still only accepting on unanimous
+    /// agreement among responders.
+    ///
+    /// Disagreement detection is best-effort: once the quorum is reached the remaining endpoints
+    /// are not awaited, so a slow dissenter beyond the quorum may go unseen.
     #[arg(long = "rollup.interop-min-responses", value_name = "INTEROP_MIN_RESPONSES")]
     pub interop_min_responses: Option<usize>,
 

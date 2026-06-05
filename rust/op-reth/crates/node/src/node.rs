@@ -1168,6 +1168,13 @@ where
             }
             None
         } else {
+            let endpoint_count = self.interop_endpoints.len();
+            let effective_min_responses = self.interop_min_responses.unwrap_or(endpoint_count);
+            info!(target: "reth::cli",
+                endpoints = endpoint_count,
+                min_responses = effective_min_responses,
+                "Interop filter configured: a tx is accepted only when {effective_min_responses} of {endpoint_count} endpoints return a definitive verdict and all agree it is valid"
+            );
             let mut builder = InteropFilterClient::builder(
                 self.interop_endpoints.clone(),
                 ctx.chain_spec().chain_id(),

@@ -3,9 +3,11 @@
 use crate::{
     InvalidCrossTx,
     interop_filter::{
-        ExecutingDescriptor, InteropTxValidatorError, metrics::InteropMetrics,
+        ExecutingDescriptor, InteropTxValidatorError,
+        metrics::{EndpointMetrics, InteropMetrics},
         parse_access_list_items_to_inbox_entries,
     },
+    maintain::FAILSAFE_HEARTBEAT_INTERVAL,
 };
 use alloy_consensus::Transaction;
 use alloy_eips::eip2930::AccessList;
@@ -23,11 +25,11 @@ use std::{
     future::IntoFuture,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
-use tracing::{error, trace};
+use tracing::{error, info, trace};
 
 /// The default request timeout to use
 pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
@@ -79,14 +81,15 @@ impl InteropFilterClient {
             .inner
             .endpoints
             .iter()
-            .map(|client| {
+            .map(|endpoint| {
                 CheckAccessListRequest {
-                    client: client.clone(),
+                    client: endpoint.client.clone(),
                     inbox_entries: Cow::Borrowed(inbox_entries),
                     executing_descriptor,
                     timeout: self.inner.timeout,
                     safety: self.inner.safety,
                     metrics: self.inner.metrics.clone(),
+                    endpoint_metrics: endpoint.metrics.clone(),
                 }
                 .into_future()
             })
@@ -100,10 +103,7 @@ impl InteropFilterClient {
                 // Failsafe on any endpoint is a hard rejection: short-circuit immediately, even
                 // if the quorum was already met by valid responses. Dropping `futs` cancels the
                 // remaining in-flight requests.
-                Err(e) if e.is_failsafe() => {
-                    self.inner.metrics.record_failsafe_reject();
-                    return Err(InteropTxValidatorError::FailsafeEnabled);
-                }
+                Err(e) if e.is_failsafe() => return Err(self.reject_failsafe()),
                 Err(e) if e.is_definitive_invalid() => {
                     invalid += 1;
                     first_invalid.get_or_insert(e);
@@ -118,10 +118,7 @@ impl InteropFilterClient {
             if valid + invalid >= self.inner.min_responses {
                 while let Some(ready) = futs.next().now_or_never().flatten() {
                     match ready {
-                        Err(e) if e.is_failsafe() => {
-                            self.inner.metrics.record_failsafe_reject();
-                            return Err(InteropTxValidatorError::FailsafeEnabled);
-                        }
+                        Err(e) if e.is_failsafe() => return Err(self.reject_failsafe()),
                         Ok(()) => valid += 1,
                         Err(e) if e.is_definitive_invalid() => {
                             invalid += 1;
@@ -137,6 +134,7 @@ impl InteropFilterClient {
         self.inner.metrics.record_quorum_outcome(valid, invalid, self.inner.min_responses);
 
         if valid + invalid < self.inner.min_responses {
+            self.log_degraded_quorum(valid + invalid);
             return Err(InteropTxValidatorError::QuorumNotReached {
                 received: valid + invalid,
                 required: self.inner.min_responses,
@@ -215,6 +213,43 @@ impl InteropFilterClient {
         Some(Ok(()))
     }
 
+    /// Records a hard failsafe rejection and flips the cached gate (and gauge) on immediately, so a
+    /// failsafe detected on a check stops admission and is visible on the dashboard right away
+    /// rather than only after the next ~1s failsafe poll. The poll re-confirms or clears it.
+    fn reject_failsafe(&self) -> InteropTxValidatorError {
+        self.inner.metrics.record_failsafe_reject();
+        self.apply_failsafe_state(true);
+        InteropTxValidatorError::FailsafeEnabled
+    }
+
+    /// Logs a rate-limited line when a check fails closed because too few endpoints reached the
+    /// quorum. A degraded quorum silently rejects every interop tx, so without this the only signal
+    /// is the `quorum_reject_not_reached` counter; the log makes the halted state visible. Logged
+    /// at most once per [`FAILSAFE_HEARTBEAT_INTERVAL`] (and on the first occurrence) to avoid
+    /// per-tx spam, and at `info` because the rejection itself is expected, by-design
+    /// fail-closed behavior.
+    fn log_degraded_quorum(&self, received: usize) {
+        let now = self.inner.created_at.elapsed().as_millis() as u64;
+        let interval = FAILSAFE_HEARTBEAT_INTERVAL.as_millis() as u64;
+        let last = self.inner.last_degraded_log_ms.load(Ordering::Relaxed);
+        let due = last == 0 || now.saturating_sub(last) >= interval;
+        if due &&
+            self.inner
+                .last_degraded_log_ms
+                .compare_exchange(last, now.max(1), Ordering::Relaxed, Ordering::Relaxed)
+                .is_ok()
+        {
+            info!(
+                target: "txpool::interop",
+                received,
+                required = self.inner.min_responses,
+                endpoints = self.inner.endpoints.len(),
+                "interop failing closed: too few endpoints returned a definitive verdict to reach \
+                 quorum; all interop transactions are rejected until enough endpoints respond"
+            );
+        }
+    }
+
     /// Returns the cached failsafe state.
     pub fn is_failsafe_enabled(&self) -> bool {
         self.inner.failsafe_enabled.load(Ordering::Acquire)
@@ -229,39 +264,57 @@ impl InteropFilterClient {
     }
 
     /// Queries every configured interop filter for failsafe state and caches the OR across the
-    /// reachable endpoints. Calls `admin_getFailsafeEnabled` on each endpoint concurrently and
-    /// short-circuits on the first `true` (the OR is decisive, so a single slow endpoint must
-    /// not delay the failsafe poll).
+    /// endpoints. Calls `admin_getFailsafeEnabled` on each endpoint concurrently and short-circuits
+    /// on the first `true` (the OR is decisive, so a single slow endpoint must not delay turning
+    /// the gate on).
+    ///
+    /// Clearing the gate (to `false`) requires *every* endpoint to have replied `false`. If some
+    /// endpoints did not answer and none reported failsafe, the result is "don't know": the cached
+    /// state is left unchanged rather than cleared, because a silent endpoint might itself be the
+    /// one in failsafe. Turning the gate *on* never requires unanimity. This matters once
+    /// `min_responses` is lowered for availability — with the unanimity default a silent endpoint
+    /// also fails the check closed, so the partial-information case never decided admission.
     ///
     /// If no endpoint replies, the cache is left unchanged and an error is returned (matching the
     /// previous single-endpoint behavior).
     pub async fn query_failsafe(&self) -> Result<bool, InteropTxValidatorError> {
+        let endpoint_count = self.inner.endpoints.len();
         let mut futs: FuturesUnordered<_> = self
             .inner
             .endpoints
             .iter()
-            .map(|client| {
+            .map(|endpoint| {
                 tokio::time::timeout(
                     self.inner.timeout,
-                    client.request::<_, bool>("admin_getFailsafeEnabled", ()),
+                    endpoint.client.request::<_, bool>("admin_getFailsafeEnabled", ()),
                 )
             })
             .collect();
 
-        let mut any = false;
+        let mut replied = 0usize;
         let mut enabled = false;
         while let Some(res) = futs.next().await {
             if let Ok(Ok(v)) = res {
-                any = true;
+                replied += 1;
+                // Any endpoint reporting failsafe is decisive: turn the gate on immediately.
                 if v {
                     enabled = true;
                     break;
                 }
             }
         }
-        if !any {
+
+        if replied == 0 {
+            // No endpoint answered: leave the cache unchanged (the single-endpoint behavior).
             return Err(InteropTxValidatorError::Timeout(self.inner.timeout.as_secs()));
         }
+        if !enabled && replied < endpoint_count {
+            // Some endpoints did not answer and none reported failsafe. We cannot confirm failsafe
+            // is off — a silent endpoint might itself be in failsafe — so leave the cached gate
+            // unchanged rather than clearing it on partial information.
+            return Ok(self.is_failsafe_enabled());
+        }
+        // Decisive: an endpoint reported failsafe, or every endpoint replied and all said off.
         self.apply_failsafe_state(enabled);
         Ok(enabled)
     }
@@ -309,11 +362,20 @@ impl InteropFilterClient {
     }
 }
 
+/// A single configured interop filter endpoint and its per-endpoint metrics.
+#[derive(Debug)]
+pub(crate) struct Endpoint {
+    /// RPC client for this endpoint.
+    client: ReqwestClient,
+    /// Metrics labeled with this endpoint's index.
+    metrics: EndpointMetrics,
+}
+
 /// Holds interop RPC data. Inner type of [`InteropFilterClient`].
 #[derive(Debug)]
 pub(crate) struct InteropFilterClientInner {
     /// Interop filter endpoints queried concurrently for each check.
-    endpoints: Vec<ReqwestClient>,
+    endpoints: Vec<Endpoint>,
     /// Minimum number of definitive verdicts required to decide a check.
     min_responses: usize,
     /// The chain ID of the executing chain
@@ -326,6 +388,11 @@ pub(crate) struct InteropFilterClientInner {
     metrics: InteropMetrics,
     /// Cached failsafe state (OR across endpoints), polled by the background failsafe task.
     failsafe_enabled: AtomicBool,
+    /// Reference instant for rate-limiting the degraded-quorum log.
+    created_at: Instant,
+    /// Millis (since [`created_at`](Self::created_at)) of the last degraded-quorum log; `0` means
+    /// never. Rate-limits [`log_degraded_quorum`](InteropFilterClient::log_degraded_quorum).
+    last_degraded_log_ms: AtomicU64,
 }
 
 /// Builds [`InteropFilterClient`].
@@ -396,12 +463,14 @@ impl InteropFilterClientBuilder {
         );
 
         let mut clients = Vec::with_capacity(endpoints.len());
-        for endpoint in &endpoints {
+        for (idx, endpoint) in endpoints.iter().enumerate() {
             let client = ReqwestClient::builder()
                 .connect(endpoint.as_str())
                 .await
                 .expect("building interop filter client");
-            clients.push(client);
+            // Label by index, not the raw URL: interop-http URLs can carry basic-auth credentials.
+            let metrics = EndpointMetrics::for_endpoint(idx);
+            clients.push(Endpoint { client, metrics });
         }
 
         InteropFilterClient {
@@ -413,6 +482,8 @@ impl InteropFilterClientBuilder {
                 timeout,
                 metrics: InteropMetrics::default(),
                 failsafe_enabled: AtomicBool::new(false),
+                created_at: Instant::now(),
+                last_degraded_log_ms: AtomicU64::new(0),
             }),
         }
     }
@@ -427,6 +498,7 @@ pub struct CheckAccessListRequest<'a> {
     timeout: Duration,
     safety: SafetyLevel,
     metrics: InteropMetrics,
+    endpoint_metrics: EndpointMetrics,
 }
 
 impl<'a> CheckAccessListRequest<'a> {
@@ -448,7 +520,15 @@ impl<'a> IntoFuture for CheckAccessListRequest<'a> {
     type IntoFuture = BoxFuture<'a, Self::Output>;
 
     fn into_future(self) -> Self::IntoFuture {
-        let Self { client, inbox_entries, executing_descriptor, timeout, safety, metrics } = self;
+        let Self {
+            client,
+            inbox_entries,
+            executing_descriptor,
+            timeout,
+            safety,
+            metrics,
+            endpoint_metrics,
+        } = self;
         Box::pin(async move {
             let start = Instant::now();
 
@@ -460,16 +540,18 @@ impl<'a> IntoFuture for CheckAccessListRequest<'a> {
                 ),
             )
             .await;
-            metrics.record_interop_query(start.elapsed());
+            let elapsed = start.elapsed();
+            metrics.record_interop_query(elapsed);
+            endpoint_metrics.record_query(elapsed);
 
             let verdict = result
                 .map_err(|_| InteropTxValidatorError::Timeout(timeout.as_secs()))
                 .and_then(|r| r.map_err(InteropTxValidatorError::from_json_rpc));
 
             match &verdict {
-                Ok(()) => metrics.record_endpoint_valid(),
-                Err(e) if e.is_definitive_invalid() => metrics.record_endpoint_invalid(),
-                Err(_) => metrics.record_endpoint_unavailable(),
+                Ok(()) => endpoint_metrics.record_valid(),
+                Err(e) if e.is_definitive_invalid() => endpoint_metrics.record_invalid(),
+                Err(_) => endpoint_metrics.record_unavailable(),
             }
             verdict
         })
@@ -760,6 +842,24 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn failsafe_on_check_flips_cached_gate() {
+        // A failsafe detected on a check must flip the cached gate (and gauge) immediately, so
+        // admission stops and the dashboard reflects it without waiting for the next failsafe poll.
+        let a = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
+        let failsafe = MockEndpoint::start(Verdict::Failsafe, Failsafe::Reply(false)).await;
+        let client = client_for(&[&a, &failsafe], Some(2)).await;
+        assert!(!client.is_failsafe_enabled());
+        assert!(matches!(
+            check(&client).await.unwrap_err(),
+            InteropTxValidatorError::FailsafeEnabled
+        ));
+        assert!(
+            client.is_failsafe_enabled(),
+            "a failsafe detected on a check must flip the cached gate immediately"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn ignores_slow_endpoint_once_quorum_met() {
         let a = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
         let b = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
@@ -846,6 +946,36 @@ mod tests {
         let start = Instant::now();
         assert!(client.query_failsafe().await.unwrap());
         assert!(start.elapsed() < Duration::from_secs(1), "failsafe waited on the slow endpoint");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn failsafe_partial_replies_do_not_clear_gate() {
+        // One endpoint is unreachable (slow/timing out) and the other replies "not in failsafe".
+        // The silent endpoint might itself be the one in failsafe, so a partial poll must NOT clear
+        // a previously-set gate to false. Only a unanimous "all replied false" may clear it. This
+        // bug only surfaces once `min_responses` is lowered for availability (with the unanimity
+        // default the slow endpoint also fails the check closed).
+        let silent = MockEndpoint::start(Verdict::Valid, Failsafe::Slow).await;
+        let healthy = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
+        let client = client_for(&[&silent, &healthy], Some(1)).await;
+        // Failsafe was previously detected and cached.
+        client.apply_failsafe_state(true);
+        let result = client.query_failsafe().await;
+        assert!(
+            client.is_failsafe_enabled(),
+            "a partial poll (one endpoint silent) must not clear the failsafe gate, got {result:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn failsafe_unanimous_false_clears_gate() {
+        // Every endpoint replied "not in failsafe", so the gate is cleared (decisive).
+        let a = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
+        let b = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
+        let client = client_for(&[&a, &b], None).await;
+        client.apply_failsafe_state(true);
+        assert!(!client.query_failsafe().await.unwrap());
+        assert!(!client.is_failsafe_enabled(), "a unanimous all-false poll must clear the gate");
     }
 
     #[tokio::test(flavor = "multi_thread")]
