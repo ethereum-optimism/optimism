@@ -2,10 +2,14 @@ package withdrawal
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	ps "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,4 +57,35 @@ func TestSuperRootWithdrawal(gt *testing.T) {
 		Sub(withdrawal.FinalizeGasCost()).
 		// Plus received withdrawal amount
 		Add(withdrawalAmount))
+}
+
+func TestProveWithdrawalParametersFaultProofsSuperRoot(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithTimeTravelEnabled(),
+		presets.WithProposerOption(func(_ sysgo.ComponentTarget, cfg *ps.CLIConfig) {
+			cfg.PollInterval = 100 * time.Millisecond
+			cfg.ProposalInterval = time.Second
+			cfg.AllowNonFinalized = true
+		}),
+	)
+	sys.L1Network.WaitForOnline()
+
+	initialL1Balance := eth.HalfEther
+	depositAmount := eth.OneThirdEther
+	withdrawalAmount := eth.OneTenthEther
+
+	l1User := sys.FunderL1.NewFundedEOA(initialL1Balance)
+	l2User := l1User.AsEL(sys.L2ELA)
+
+	bridge := sys.StandardBridge(sys.L2ChainA)
+	require.True(t, bridge.UsesSuperRoots(), "Expected interop system to be using super roots")
+
+	bridge.Deposit(depositAmount, l1User)
+	sys.L2ChainA.WaitForBlock()
+
+	withdrawal := bridge.InitiateWithdrawal(withdrawalAmount, l2User)
+	params := withdrawal.FaultProofProveParams(sys.AdvanceTime)
+	proveReceipt := bridge.ProveWithFaultProofParams(l1User, params)
+	require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
 }

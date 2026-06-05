@@ -7,7 +7,7 @@ ARG FEATURES
 
 COPY . .
 
-RUN cargo build --release --features="$FEATURES" --package=${BINARY}
+RUN cargo build --release --locked --features="$FEATURES" --package=${BINARY}
 
 FROM gcr.io/distroless/cc-debian12
 WORKDIR /app

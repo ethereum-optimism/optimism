@@ -294,6 +294,8 @@ type mockGameCaller struct {
 	resolvedCalls        int
 	resolvedErr          error
 	resolved             map[int]bool
+	anchorStateRegistry  common.Address
+	anchorStateRegErr    error
 }
 
 func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
@@ -325,6 +327,13 @@ func (m *mockGameCaller) GetExtendedMetadata(_ context.Context, _ rpcblock.Block
 		L1Head:    common.Hash{0xaa},
 		RootClaim: mockRootClaim,
 	}, nil
+}
+
+func (m *mockGameCaller) GetAnchorStateRegistry(_ context.Context, _ rpcblock.Block) (common.Address, error) {
+	if m.anchorStateRegErr != nil {
+		return common.Address{}, m.anchorStateRegErr
+	}
+	return m.anchorStateRegistry, nil
 }
 
 func (m *mockGameCaller) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]faultTypes.Claim, error) {

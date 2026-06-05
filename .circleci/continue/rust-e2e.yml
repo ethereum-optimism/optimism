@@ -25,44 +25,6 @@ parameters:
     type: boolean
     default: false
 
-# Commands used by rust-e2e jobs
-commands:
-  go-restore-cache:
-    parameters:
-      module:
-        type: string
-        default: .
-      namespace:
-        type: string
-      version:
-        type: string
-        default: <<pipeline.parameters.c-go-cache-version>>
-    steps:
-      - restore_cache:
-          name: Restore go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
-          keys:
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-
-
-  go-save-cache:
-    parameters:
-      module:
-        type: string
-        default: .
-      namespace:
-        type: string
-      version:
-        type: string
-        default: <<pipeline.parameters.c-go-cache-version>>
-    steps:
-      - save_cache:
-          name: Save go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
-          paths:
-            - ~/.cache/go-build
-            - ~/go/pkg/mod
-          key: go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
-
 # ============================================================================
 # RUST E2E JOBS
 # ============================================================================
@@ -200,9 +162,9 @@ jobs:
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
-          path: op-e2e/actions/proofs/tmp/test-results
+          path: rust/kona/tests/proofs/tmp/test-results
       - store_artifacts:
-          path: op-e2e/actions/proofs/tmp/testlogs
+          path: rust/kona/tests/proofs/tmp/testlogs
           when: always
 
   required-rust-e2e:
@@ -285,6 +247,7 @@ workflows:
             - rust-e2e-simple-kona-geth: terminal
             - rust-e2e-simple-kona-sequencer: terminal
             - rust-e2e-restart: terminal
+            - op-reth-e2e-sysgo-tests: terminal
             - kona-proof-action-single: terminal
           context:
             - circleci-api-token

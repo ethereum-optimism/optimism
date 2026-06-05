@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"testing"
 
-	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
@@ -152,7 +151,7 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 			loader := NewPreimageLoader(func() (PreimageSource, error) {
 				return kv, nil
 			})
-			storeBlob(t, kv, gokzg4844.KZGCommitment(commitment), gokzg4844.Blob(blob))
+			storeBlob(t, kv, commitment, blob)
 			actual, err := loader.LoadPreimage(proof)
 			require.NoError(t, err)
 
@@ -206,7 +205,7 @@ func TestPreimageLoader_PrecompilePreimage(t *testing.T) {
 	})
 }
 
-func storeBlob(t *testing.T, kv kvstore.KV, commitment gokzg4844.KZGCommitment, blob gokzg4844.Blob) {
+func storeBlob(t *testing.T, kv kvstore.KV, commitment kzg4844.Commitment, blob kzg4844.Blob) {
 	// Pre-store versioned hash preimage (commitment)
 	key := preimage.Sha256Key(sha256.Sum256(commitment[:]))
 	err := kv.Put(key.PreimageKey(), commitment[:])

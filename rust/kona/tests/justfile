@@ -175,10 +175,9 @@ long-running-test FILTER="" OUTPUT_LOGS_DIR="":
 
 # Run action tests for the single-chain client program on the native target.
 #
-# Runs every Test* in op-e2e/actions/proofs/. Tests that exercise op-program-only
-# behavior (and aren't expected to pass under kona-host) opt themselves out by
-# calling helpers.SkipIfKona(t) at the top — the runner sets KONA_HOST_PATH,
-# which the helper detects.
+# Runs every Test* in rust/kona/tests/proofs/. These tests run only here (under
+# kona-host); the runner sets KONA_HOST_PATH and the package is excluded from the
+# monorepo go-tests suite.
 action-tests-single test_name='.*' *args='': action-tests-build (action-tests-single-run test_name args)
 
 # Build action tests for host program
@@ -203,7 +202,7 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
   echo "Running action tests for the client program on the native target"
 
-  PROOFS_DIR="{{SOURCE}}/../../../op-e2e/actions/proofs"
+  PROOFS_DIR="{{SOURCE}}/proofs"
   if [ ! -d "$PROOFS_DIR" ]; then
     echo "Error: proofs directory not found: $PROOFS_DIR" >&2
     exit 1

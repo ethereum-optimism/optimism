@@ -155,6 +155,7 @@ const singleSupernodeWithSyncTesterPresetSupportedOptionKinds = optionKindDeploy
 
 const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
+	optionKindProposer |
 	optionKindL1EL |
 	optionKindTimeTravel |
 	optionKindMessageExpiryWindow |

@@ -69,7 +69,7 @@ clean:
 
 # Run fuzz tests
 fuzz:
-    parallel --tag -N1 "go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz {} ./opgeth" ::: FuzzFjordCostFunction FuzzFastLzGethSolidity FuzzFastLzCgo
+    parallel --line-buffer --tag -N1 "go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz {} ./opgeth" ::: FuzzFjordCostFunction FuzzFastLzGethSolidity FuzzFastLzCgo
 
 # Generate contract bindings
 gen-binding CONTRACT:

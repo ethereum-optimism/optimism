@@ -174,7 +174,7 @@ jobs:
           command: .circleci/scripts/collect-params.sh detect
           environment:
             c-rust_files_changed: "^rust/"
-            c-contracts_changed: "^(packages/contracts-bedrock|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
+            c-contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
             c-docs_changes_detected: "^docs/public-docs/"
             c-rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
       # Safer "docs-only" detection: true iff EVERY changed file is under docs/public-docs/.
