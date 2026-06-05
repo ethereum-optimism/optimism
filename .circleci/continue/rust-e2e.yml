@@ -100,7 +100,14 @@ jobs:
           command: |
             echo "Running tests..."
             WD=$(pwd)
+            # Use the prebuilt release binaries from the attached workspace and
+            # skip the redundant per-node kona+op-reth recompile (the workspace
+            # carries the binaries but not cargo fingerprints, so build-kona/
+            # build-reth would otherwise cold-rebuild — the restart job's floor).
+            export SKIP_RUST_BUILD=true
             export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
+            export KONA_NODE_EXEC_PATH="$WD/rust/target/release/kona-node"
+            export OP_RETH_EXEC_PATH="$WD/rust/target/release/op-reth"
             cd rust/kona && just test-e2e-sysgo node node/restart
       - go-save-cache:
           namespace: kona-ci

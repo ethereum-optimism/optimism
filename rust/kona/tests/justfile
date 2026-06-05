@@ -15,11 +15,24 @@ build-devnet BINARY:
 
 build-reth:
   #!/bin/bash
-  cd {{SOURCE}}/../../op-reth && cargo build --bin op-reth -p op-reth
+  # In CI the binaries already come from the attached workspace
+  # (rust-workspace-release). The workspace carries only the binary, not cargo's
+  # fingerprints, so cargo would otherwise cold-rebuild. SKIP_RUST_BUILD=true
+  # skips that redundant recompile (caller must point OP_RETH_EXEC_PATH at the
+  # prebuilt binary).
+  if [ "${SKIP_RUST_BUILD:-}" = "true" ]; then
+    echo "SKIP_RUST_BUILD=true — skipping op-reth build (using prebuilt binary)"
+  else
+    cd {{SOURCE}}/../../op-reth && cargo build --bin op-reth -p op-reth
+  fi
 
 build-kona PROFILE="release":
   #!/bin/bash
-  cd {{SOURCE}}/.. && cargo build --bin kona-node --profile {{PROFILE}}
+  if [ "${SKIP_RUST_BUILD:-}" = "true" ]; then
+    echo "SKIP_RUST_BUILD=true — skipping kona-node build (using prebuilt binary)"
+  else
+    cd {{SOURCE}}/.. && cargo build --bin kona-node --profile {{PROFILE}}
+  fi
 
 acceptance-tests CL_TYPE="kona-node" EL_TYPE="op-reth":
   #!/bin/bash
