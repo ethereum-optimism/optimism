@@ -143,15 +143,20 @@ where
             let hash = header.hash();
             let parent_hash = header.parent_hash();
             if parent_hash != expected_parent {
+                // A non-contiguous local block means the head reorged out from under us between
+                // the rewind above and this read. Re-anchor: rewind_to_canonical drops the stale
+                // head (and any further-back stale blocks) top-down so we never return a block
+                // that is no longer canonical. (truncate_from(number) here would be a no-op, since
+                // nothing is cached at or above number.)
                 debug!(
                     target: "rpc::cross_unsafe",
                     number,
                     %hash,
                     %parent_hash,
                     expected = %expected_parent,
-                    "stopping cross-unsafe walk at non-contiguous block"
+                    "cross-unsafe head raced a reorg; re-anchoring to canonical"
                 );
-                state.truncate_from(number);
+                self.rewind_to_canonical(&mut state)?;
                 break;
             }
 
