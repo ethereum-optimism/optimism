@@ -6,12 +6,14 @@ on:
       - 'develop'
     paths:
       - '.circleci/config.yml'
+      - '.circleci/continue/**'
       - '.github/workflows/security.yml'
   pull_request:
     branches:
       - 'develop'
     paths:
       - '.circleci/config.yml'
+      - '.circleci/continue/**'
       - '.github/workflows/security.yml'
   workflow_dispatch:
 
@@ -21,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      attestations: read
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
@@ -28,27 +31,41 @@ jobs:
           egress-policy: audit
       - name: Checkout
         uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
-      - name: Extract pinned image reference
+      - name: Extract pinned image references
         id: extract
         run: |
           set -euo pipefail
-          IMAGE_REF=$(grep -A2 '^  rust_base_image:' .circleci/config.yml \
-            | grep -oE 'us-docker\.pkg\.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:[0-9a-f]{64}' \
-            | head -n1)
-          if [[ -z "${IMAGE_REF}" ]]; then
-            echo "Could not extract ci-base-clang image reference from .circleci/config.yml" >&2
+          # Every ci-base-clang digest pinned anywhere in the CircleCI config: the
+          # canonical pin in config.yml plus the copies redeclared in each
+          # continuation fragment (continue/*.yml). All must be attested, since a
+          # divergent or unattested digest in any of them can reach the runners.
+          IMAGE_REFS=$(
+            grep -rhoE 'us-docker\.pkg\.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:[0-9a-f]{64}' \
+              .circleci/config.yml .circleci/continue \
+              | sort -u
+          )
+          if [[ -z "${IMAGE_REFS}" ]]; then
+            echo "Could not extract any ci-base-clang image reference from .circleci" >&2
             exit 1
           fi
-          echo "image=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
-          echo "Pinned image: ${IMAGE_REF}"
+          echo "${IMAGE_REFS}" | sed 's/^/Pinned image: /'
+          {
+            echo "images<<EOF"
+            echo "${IMAGE_REFS}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
       - name: Verify provenance attestation
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGE_REF: ${{ steps.extract.outputs.image }}
+          IMAGES: ${{ steps.extract.outputs.images }}
         run: |
           set -euo pipefail
-          gh attestation verify "oci://${IMAGE_REF}" \
-            --bundle-from-oci \
-            --owner ethereum-optimism \
-            --signer-repo ethereum-optimism/factory \
-            --source-ref refs/heads/develop
+          while IFS= read -r ref; do
+            [[ -z "${ref}" ]] && continue
+            echo "::group::verify ${ref}"
+            gh attestation verify "oci://${ref}" \
+              --owner ethereum-optimism \
+              --signer-repo ethereum-optimism/factory \
+              --source-ref refs/heads/develop
+            echo "::endgroup::"
+          done <<< "${IMAGES}"
