@@ -354,8 +354,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			Key:              "sequencer",
 			IsSequencer:      true,
 			NoDiscovery:      true,
-			EnableReqResp:    true,
-			UseReqResp:       false,
 			DependencySet:    runtimeDepSet,
 			L2FollowSource:   supernodeL2ACL.UserRPC(),
 			L2CLOptions:      cfg.GlobalL2CLOptions,
@@ -368,8 +366,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			Key:              "sequencer",
 			IsSequencer:      true,
 			NoDiscovery:      true,
-			EnableReqResp:    true,
-			UseReqResp:       false,
 			DependencySet:    runtimeDepSet,
 			L2FollowSource:   supernodeL2BCL.UserRPC(),
 			L2CLOptions:      cfg.GlobalL2CLOptions,
@@ -534,8 +530,6 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 		Key:            name,
 		IsSequencer:    false,
 		NoDiscovery:    true,
-		EnableReqResp:  false,
-		UseReqResp:     false,
 		L2FollowSource: chain.CL.UserRPC(),
 		DependencySet:  runtime.DependencySet,
 		// Follow nodes catch up to their follow source via EL sync.
@@ -587,7 +581,6 @@ func startTwoL2SharedSupernode(
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
-			true,
 			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{
@@ -615,7 +608,7 @@ func startTwoL2SharedSupernode(
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
 			RuntimeConfigReloadInterval:     0,
-			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync, SyncModeReqResp: true},
+			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync},
 			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
@@ -704,7 +697,6 @@ func startSingleChainSharedSupernode(
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
-			true,
 			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{
@@ -731,7 +723,7 @@ func startSingleChainSharedSupernode(
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
-			Sync:                            nodeSync.Config{SyncMode: verifierSyncMode, SyncModeReqResp: true},
+			Sync:                            nodeSync.Config{SyncMode: verifierSyncMode},
 			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},

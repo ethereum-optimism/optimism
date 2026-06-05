@@ -64,9 +64,7 @@ func NewConfig(ctx cliiface.Context, blockTime uint64) (*p2p.Config, error) {
 		return nil, fmt.Errorf("failed to load banning option: %w", err)
 	}
 
-	conf.EnableReqRespSync = ctx.Bool(flags.SyncReqRespName)
 	conf.EnablePingService = ctx.Bool(flags.P2PPingName)
-	conf.SyncOnlyReqToStatic = ctx.Bool(flags.SyncOnlyReqToStaticName)
 
 	return conf, nil
 }

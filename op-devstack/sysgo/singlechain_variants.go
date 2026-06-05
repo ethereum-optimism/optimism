@@ -82,12 +82,10 @@ func NewSimpleWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetConfig) *Si
 	)
 	jwtSecret := readJWTSecretFromPath(t, runtime.L2EL.JWTPath())
 	l2CL2 := startL2CLNode(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, syncTesterEL, jwtSecret, l2CLNodeStartConfig{
-		Key:           "verifier",
-		IsSequencer:   false,
-		NoDiscovery:   true,
-		EnableReqResp: true,
-		UseReqResp:    true,
-		L2CLOptions:   cfg.GlobalL2CLOptions,
+		Key:         "verifier",
+		IsSequencer: false,
+		NoDiscovery: true,
+		L2CLOptions: cfg.GlobalL2CLOptions,
 	})
 	node := newSingleChainNodeRuntime("verifier", false, syncTesterEL, l2CL2)
 	runtime.Nodes[node.Name] = node

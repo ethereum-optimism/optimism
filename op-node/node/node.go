@@ -574,7 +574,7 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 	}
 
 	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source, upstreamFollowSource,
-		node.beacon, node, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, node.superAuthority)
+		node.beacon, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, node.superAuthority)
 
 	return l2Source, l2Driver, safeDB, nil
 }
@@ -704,7 +704,7 @@ func initP2P(cfg *config.Config, node *OpNode) (*p2p.NodeP2P, error) {
 		}
 		// embed syncDeriver and tracer(optional) to the blockReceiver to handle unsafe payloads via p2p
 		rec := p2p.NewBlockReceiver(node.log, node.metrics, node.l2Driver.SyncDeriver, node.cfg.Tracer)
-		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.l2Source, node.runCfg, node.metrics, node.clock)
+		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.runCfg, node.metrics, node.clock)
 		if err != nil {
 			return nil, err
 		}
@@ -776,27 +776,6 @@ func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.Exec
 	}
 	// if p2p is not enabled then we just don't publish the payload
 	return nil
-}
-
-func (n *OpNode) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
-	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil && p2pNode.AltSyncEnabled() {
-		if unixTimeStale(start.Time, 12*time.Hour) {
-			n.log.Debug(
-				"ignoring request to sync L2 range, timestamp is too old for p2p",
-				"start", start,
-				"end", end,
-				"start_time", start.Time)
-			return nil
-		}
-		return p2pNode.RequestL2Range(ctx, start, end)
-	}
-	n.log.Debug("ignoring request to sync L2 range, no sync method available", "start", start, "end", end)
-	return nil
-}
-
-// unixTimeStale returns true if the unix timestamp is before the current time minus the supplied duration.
-func unixTimeStale(timestamp uint64, duration time.Duration) bool {
-	return time.Unix(int64(timestamp), 0).Before(time.Now().Add(-1 * duration))
 }
 
 func (n *OpNode) P2P() p2p.Node {

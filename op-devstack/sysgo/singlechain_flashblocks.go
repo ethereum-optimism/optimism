@@ -40,8 +40,6 @@ func startFlashblocksSingleChainPrimary(
 			Key:           "sequencer",
 			IsSequencer:   true,
 			NoDiscovery:   true,
-			EnableReqResp: true,
-			UseReqResp:    true,
 			DependencySet: world.Interop.DependencySet,
 		})
 	} else {
