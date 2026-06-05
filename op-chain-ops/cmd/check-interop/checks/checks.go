@@ -105,16 +105,23 @@ func (t *sendETHTrigger) AccessList() (types.AccessList, error) {
 }
 
 // CheckRoundTrip bridges ETH A -> B and then B -> A through the
-// SuperchainETHBridge predeploy, relaying each message itself.
-func CheckRoundTrip(ctx context.Context, cfg *CheckInteropConfig) error {
+// SuperchainETHBridge predeploy, relaying each message itself, repeated for the
+// given number of iterations.
+func CheckRoundTrip(ctx context.Context, cfg *CheckInteropConfig, iterations int) error {
+	if iterations < 1 {
+		return fmt.Errorf("iterations must be >= 1, got %d", iterations)
+	}
 	recipient := randomRecipient()
-	if err := cfg.bridgeETH(ctx, "A", "B", recipient); err != nil {
-		return err
+	for i := 1; i <= iterations; i++ {
+		cfg.Log.Info("round-trip iteration", "iteration", i, "of", iterations)
+		if err := cfg.bridgeETH(ctx, "A", "B", recipient); err != nil {
+			return fmt.Errorf("iteration %d/%d: %w", i, iterations, err)
+		}
+		if err := cfg.bridgeETH(ctx, "B", "A", recipient); err != nil {
+			return fmt.Errorf("iteration %d/%d: %w", i, iterations, err)
+		}
 	}
-	if err := cfg.bridgeETH(ctx, "B", "A", recipient); err != nil {
-		return err
-	}
-	cfg.Log.Info("interop ETH round-trip check passed")
+	cfg.Log.Info("interop ETH round-trip check passed", "iterations", iterations)
 	return nil
 }
 

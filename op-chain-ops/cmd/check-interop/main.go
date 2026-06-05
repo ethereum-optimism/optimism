@@ -72,6 +72,12 @@ var (
 		EnvVars: op_service.PrefixEnvVar(prefix, "PROPAGATION_WAIT"),
 		Value:   6 * time.Second,
 	}
+	Iterations = &cli.IntFlag{
+		Name:    "iterations",
+		Usage:   "Number of A->B->A round-trips to perform",
+		EnvVars: op_service.PrefixEnvVar(prefix, "ITERATIONS"),
+		Value:   3,
+	}
 )
 
 func baseFlags() []cli.Flag {
@@ -82,6 +88,10 @@ func baseFlags() []cli.Flag {
 		altsrc.NewStringFlag(AccountKey),
 		altsrc.NewDurationFlag(RelayTimeout),
 	}, oplog.CLIFlags(prefix)...)
+}
+
+func roundtripFlags() []cli.Flag {
+	return append(baseFlags(), altsrc.NewIntFlag(Iterations))
 }
 
 func failsafeFlags() []cli.Flag {
@@ -184,7 +194,7 @@ func roundTripAction(c *cli.Context) error {
 		return err
 	}
 	defer cfg.Close()
-	return checks.CheckRoundTrip(ctx, cfg)
+	return checks.CheckRoundTrip(ctx, cfg, c.Int(Iterations.Name))
 }
 
 func failsafeAction(c *cli.Context) error {
@@ -213,15 +223,15 @@ func main() {
 	}
 	app.Writer = os.Stdout
 	app.ErrWriter = os.Stderr
-	roundtripFlags := cliapp.ProtectFlags(baseFlags())
+	roundtripCmdFlags := cliapp.ProtectFlags(roundtripFlags())
 	failsafeCmdFlags := cliapp.ProtectFlags(failsafeFlags())
 	tomlSource := altsrc.NewTomlSourceFromFlagFunc(ConfigFile.Name)
 	app.Commands = []*cli.Command{
 		{
 			Name:   "roundtrip",
 			Usage:  "Send an interop message A -> B and B -> A, relaying each.",
-			Flags:  roundtripFlags,
-			Before: altsrc.InitInputSourceWithContext(roundtripFlags, tomlSource),
+			Flags:  roundtripCmdFlags,
+			Before: altsrc.InitInputSourceWithContext(roundtripCmdFlags, tomlSource),
 			Action: roundTripAction,
 		},
 		{

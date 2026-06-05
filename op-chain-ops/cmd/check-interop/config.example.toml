@@ -8,6 +8,9 @@ account = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 # Durations are strings parsed by time.ParseDuration.
 relay-timeout = "2m"
 
+# Number of A->B->A round-trips the `roundtrip` command performs.
+iterations = 3
+
 # The following only apply to the `failsafe` subcommand.
 propagation-wait = "6s"
 
