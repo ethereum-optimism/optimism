@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -54,10 +53,6 @@ func NewL1Miner(t Testing, log log.Logger, genesis *core.Genesis) *L1Miner {
 		L1Replica: *rep,
 		blobStore: blobstore.New(),
 	}
-}
-
-func (s *L1Miner) BlobSource() prefetcher.L1BlobSource {
-	return s.blobStore
 }
 
 func (s *L1Miner) BlobStore() *blobstore.Store {

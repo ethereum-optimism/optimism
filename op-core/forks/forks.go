@@ -17,7 +17,7 @@ const (
 	Isthmus  Name = "isthmus"
 	Jovian   Name = "jovian"
 	Karst    Name = "karst"
-	Interop  Name = "interop"
+	Lagoon   Name = "lagoon"
 	// ADD NEW MAINLINE FORKS TO [All] BELOW!
 
 	// Optional Forks - not part of mainline
@@ -39,7 +39,7 @@ var All = []Name{
 	Isthmus,
 	Jovian,
 	Karst,
-	Interop,
+	Lagoon,
 	// ADD NEW MAINLINE FORKS HERE!
 }
 

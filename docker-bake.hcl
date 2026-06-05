@@ -370,6 +370,41 @@ target "op-reth" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-reth:${tag}"]
 }
 
+// op-rbuilder and rollup-boost are vendored Rust workspaces under rust/ with
+// path dependencies on sibling crates (op-reth, op-alloy, op-revm, ...). Their
+// Dockerfiles build from inside the crate dir (the `.` context) and pull the
+// sibling crates in via the `monorepo-rust` named context (the rust/ workspace).
+// See the comments at the top of each Dockerfile for the layout.
+target "op-rbuilder" {
+  dockerfile = "Dockerfile"
+  context = "rust/op-rbuilder"
+  contexts = {
+    monorepo-rust = "rust"
+  }
+  args = {
+    RBUILDER_BIN = "op-rbuilder"
+    FEATURES = ""
+  }
+  target = "rbuilder-runtime"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-rbuilder:${tag}"]
+}
+
+target "rollup-boost" {
+  dockerfile = "Dockerfile"
+  context = "rust/rollup-boost"
+  contexts = {
+    monorepo-rust = "rust"
+  }
+  args = {
+    SERVICE_NAME = "rollup-boost"
+    FEATURES = ""
+    RELEASE = "true"
+  }
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/rollup-boost:${tag}"]
+}
+
 target "cannon-builder" {
   dockerfile = "cannon.dockerfile"
   context = "rust/kona/docker/cannon"

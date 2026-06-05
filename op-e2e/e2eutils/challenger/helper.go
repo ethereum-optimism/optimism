@@ -132,9 +132,24 @@ func handleOptError(t *testing.T, opt shared.Option) Option {
 		require.NoError(t, opt(t.Context(), c))
 	}
 }
+
+// withKonaHostCannonServer points Cannon.Server at the kona-host binary instead of
+// op-program. In op-e2e the op-program cannon game type is never executed (output
+// games use cannon-kona and the permissioned game uses an invalid prestate), so the
+// configured server is only validated for existence — pointing it at kona-host keeps
+// op-e2e from depending on the op-program binary.
+func withKonaHostCannonServer(t *testing.T) Option {
+	return func(c *config.Config) {
+		bin, err := shared.LocateKonaHost(t.Context())
+		require.NoError(t, err, "locate kona-host")
+		c.Cannon.Server = bin
+	}
+}
+
 func WithCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
+		withKonaHostCannonServer(t)(c)
 		handleOptError(t, shared.WithCannonGameType())(c)
 	}
 }
@@ -142,6 +157,7 @@ func WithCannon(t *testing.T, system System) Option {
 func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
+		withKonaHostCannonServer(t)(c)
 		handleOptError(t, shared.WithPermissionedGameType())(c)
 	}
 }
@@ -149,6 +165,7 @@ func WithPermissioned(t *testing.T, system System) Option {
 func WithCannonKona(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
+		withKonaHostCannonServer(t)(c)
 		handleOptError(t, shared.WithCannonKonaConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()))(c)
 		handleOptError(t, shared.WithCannonKonaGameType())(c)
 	}
@@ -157,6 +174,7 @@ func WithCannonKona(t *testing.T, system System) Option {
 func WithSuperCannonKona(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses(), system.PrestateVariant()))(c)
+		withKonaHostCannonServer(t)(c)
 		handleOptError(t, shared.WithCannonKonaInteropConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()))(c)
 		handleOptError(t, shared.WithSuperCannonKonaGameType())(c)
 	}
@@ -229,7 +247,7 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 	}
 	if cfg.Cannon.Server != "" {
 		_, err := os.Stat(cfg.Cannon.Server)
-		require.NoError(t, err, "op-program should be built. Make sure you've run make cannon-prestates")
+		require.NoError(t, err, "kona-host should be built. Run: cd rust/kona && just build-native --profile=release")
 	}
 	if cfg.CannonAbsolutePreState != "" {
 		_, err := os.Stat(cfg.CannonAbsolutePreState)

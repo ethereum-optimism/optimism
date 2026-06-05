@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -79,13 +80,20 @@ func (l2 *L2) Include(t devtest.T, opts ...txplan.Option) (*txinclude.IncludedTx
 	return includedTx, nil
 }
 
-func FundEOAs(t devtest.T, budget eth.ETH, numAccounts uint64, blockTime time.Duration, el *dsl.L2ELNode, wallet *dsl.HDWallet, faucet *dsl.Faucet) []*SyncEOA {
+// FundableEL is the subset of the L1/L2 EL DSL needed to fund and spam EOAs. Both
+// *dsl.L1ELNode and *dsl.L2ELNode satisfy it, so FundEOAs works against either layer.
+type FundableEL interface {
+	dsl.ELNode
+	EthClient() apis.EthClient
+}
+
+func FundEOAs(t devtest.T, budget eth.ETH, numAccounts uint64, blockTime time.Duration, el FundableEL, wallet *dsl.HDWallet, faucet *dsl.Faucet) []*SyncEOA {
 	t.Require().Equal(faucet.Escape().ChainID(), el.ChainID())
 
 	// Fund a lot of spammer EOAs. The funder provided by the devstack isn't very reliable when
 	// funding lots of different accounts. We fund one account from the faucet and then use that
 	// account to fund all the others.
-	spammerELClient := txinclude.NewReliableEL(el.Escape().EthClient(), blockTime)
+	spammerELClient := txinclude.NewReliableEL(el.EthClient(), blockTime)
 	funderEOA := newSyncEOA(dsl.NewFunder(wallet, faucet, el).NewFundedEOA(budget), spammerELClient)
 	budget = budget.Sub(budget.Div(50)) // Reserve 2% of the balance for gas.
 	ethPerAccount := budget.Div(numAccounts)

@@ -74,6 +74,19 @@ func applyCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis 
 	return nil
 }
 
+// LocateKonaHost ensures the kona-host native binary is built and returns its path.
+func LocateKonaHost(ctx context.Context) (string, error) {
+	bin, err := rustbin.Spec{
+		SrcDir:  "rust/kona",
+		Package: "kona-host",
+		Binary:  "kona-host",
+	}.EnsureExists(ctx, log.NewLogger(log.DiscardHandler()))
+	if err != nil {
+		return "", fmt.Errorf("kona-host binary: %w", err)
+	}
+	return bin, nil
+}
+
 func applyCannonKonaConfig(ctx context.Context, c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis, interop bool) error {
 	root, err := findMonorepoRoot()
 	if err != nil {
@@ -82,13 +95,9 @@ func applyCannonKonaConfig(ctx context.Context, c *config.Config, rollupCfgs []*
 	if err := applyVmConfig(root, &c.CannonKona, c.Datadir, rollupCfgs, l1Genesis, l2Geneses); err != nil {
 		return err
 	}
-	konaHostBin, err := rustbin.Spec{
-		SrcDir:  "rust/kona",
-		Package: "kona-host",
-		Binary:  "kona-host",
-	}.EnsureExists(ctx, log.NewLogger(log.DiscardHandler()))
+	konaHostBin, err := LocateKonaHost(ctx)
 	if err != nil {
-		return fmt.Errorf("kona-host binary: %w", err)
+		return err
 	}
 	c.CannonKona.Server = konaHostBin
 	if interop {

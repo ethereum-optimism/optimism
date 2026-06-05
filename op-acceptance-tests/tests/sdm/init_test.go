@@ -51,7 +51,7 @@ func newSDMRethSystemWithInteropOffset(
 		// to schedule activation in the future rather than at genesis.
 		deployerOpts = append(deployerOpts, func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2Cfg := range builder.L2s() {
-				l2Cfg.WithForkAtOffset(forks.Interop, &offset)
+				l2Cfg.WithForkAtOffset(forks.Lagoon, &offset)
 			}
 		})
 		return buildSDMRethSystem(t, true, deployerOpts, batcherOpts...)

@@ -148,9 +148,11 @@ func attachSuperChallengerAndProposer(
 	}
 }
 
-func NewTwoL2SupernodeProofsRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
+// NewTwoL2SupernodeProofsRuntimeWithConfig creates a two-chain supernode proofs
+// runtime. lagoonAtGenesis controls whether Lagoon activates interop at genesis.
+func NewTwoL2SupernodeProofsRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
 	cfg = withSuperProofsDeployerFeature(cfg)
-	runtime, _ := newTwoL2SupernodeRuntimeWithConfig(t, interopAtGenesis, 0, cfg)
+	runtime, _ := newTwoL2SupernodeRuntimeWithConfig(t, lagoonAtGenesis, 0, cfg)
 	attachTestSequencerToRuntime(t, runtime, "test-sequencer-2l2")
 	return attachSupernodeSuperProofs(t, runtime, cfg)
 }
@@ -158,9 +160,10 @@ func NewTwoL2SupernodeProofsRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 // NewSingleChainSupernodeProofsRuntimeWithConfig deploys a single chain with
 // SuperPermissionedCannon at genesis, then uses opcm.upgrade to add the
 // permissionless super games and set the real starting anchor root.
-func NewSingleChainSupernodeProofsRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
+// lagoonAtGenesis controls whether Lagoon activates interop at genesis.
+func NewSingleChainSupernodeProofsRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
 	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
-	runtime := newSingleChainSupernodeRuntimeWithConfig(t, interopAtGenesis, cfg)
+	runtime := newSingleChainSupernodeRuntimeWithConfig(t, lagoonAtGenesis, cfg)
 	attachTestSequencerToRuntime(t, runtime, "dev")
 	return attachSupernodeSuperProofsViaUpgrade(t, runtime, cfg)
 }

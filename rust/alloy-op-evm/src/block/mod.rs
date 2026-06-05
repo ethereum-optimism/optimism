@@ -276,10 +276,6 @@ pub struct OpTxResult<H, T> {
     pub is_deposit: bool,
     /// Whether the transaction is a post-exec transaction.
     pub is_post_exec: bool,
-    /// The sender of the transaction.
-    pub sender: Address,
-    /// Gas used returned by normal EVM execution, before any canonical post-exec adjustment.
-    pub evm_gas_used: u64,
     /// Canonical gas used after any post-exec adjustment.
     pub canonical_gas_used: u64,
     /// Canonical post-exec adjustment, if any.
@@ -813,8 +809,6 @@ where
                 },
                 is_deposit: false,
                 is_post_exec: true,
-                sender: *tx.signer(),
-                evm_gas_used: 0,
                 canonical_gas_used: 0,
                 post_exec: None,
                 depositor_nonce: None,
@@ -920,8 +914,6 @@ where
             },
             is_deposit,
             is_post_exec: false,
-            sender,
-            evm_gas_used,
             canonical_gas_used,
             post_exec,
             depositor_nonce,
@@ -934,8 +926,6 @@ where
             inner: EthTxResult { result: ResultAndState { result, state }, blob_gas_used, tx_type },
             is_deposit,
             is_post_exec,
-            sender: _,
-            evm_gas_used: _,
             canonical_gas_used,
             post_exec,
             depositor_nonce,

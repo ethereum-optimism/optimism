@@ -145,6 +145,18 @@ jobs:
           IMAGE_NAME: ${{ matrix.image_name }}
         run: docker run "$IMAGE" "$IMAGE_NAME" --version
 
+      # op-challenger is the only "fat" image: besides itself (run above) it
+      # bundles helper binaries that it execs at runtime. Run each one so a
+      # broken bundled binary (e.g. a runtime-loader/libc mismatch from a
+      # base-image change) fails the build instead of shipping.
+      - name: Run bundled cannon (op-challenger)
+        if: matrix.image_name == 'op-challenger'
+        run: docker run --rm --entrypoint cannon "$IMAGE" --version
+
+      - name: Run bundled kona-host (op-challenger)
+        if: matrix.image_name == 'op-challenger'
+        run: docker run --rm --entrypoint kona-host "$IMAGE" --version
+
   check-cross-platform-rust:
     needs: [plan, build]
     if: |

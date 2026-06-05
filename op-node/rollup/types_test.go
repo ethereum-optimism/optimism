@@ -68,6 +68,32 @@ func TestConfigJSON(t *testing.T) {
 	assert.Equal(t, &roundTripped, config)
 }
 
+func TestConfigUnmarshalLegacyInteropTimeAlias(t *testing.T) {
+	// Mirrors the Rust HardForkConfig `#[serde(alias = "interop_time")]` behavior so
+	// rollup configs written against the pre-rename schema still activate Lagoon.
+	t.Run("legacy interop_time promotes to LagoonTime when lagoon_time absent", func(t *testing.T) {
+		data := []byte(`{"interop_time": 42}`)
+		var cfg Config
+		require.NoError(t, json.Unmarshal(data, &cfg))
+		require.NotNil(t, cfg.LagoonTime, "legacy interop_time must populate LagoonTime")
+		require.Equal(t, uint64(42), *cfg.LagoonTime)
+	})
+
+	t.Run("canonical lagoon_time wins when both keys are present", func(t *testing.T) {
+		data := []byte(`{"interop_time": 42, "lagoon_time": 7}`)
+		var cfg Config
+		require.NoError(t, json.Unmarshal(data, &cfg))
+		require.NotNil(t, cfg.LagoonTime)
+		require.Equal(t, uint64(7), *cfg.LagoonTime, "canonical lagoon_time must take precedence")
+	})
+
+	t.Run("neither key leaves LagoonTime nil", func(t *testing.T) {
+		var cfg Config
+		require.NoError(t, json.Unmarshal([]byte(`{}`), &cfg))
+		require.Nil(t, cfg.LagoonTime)
+	})
+}
+
 type mockL1Client struct {
 	chainID *big.Int
 	Hash    common.Hash
@@ -209,7 +235,7 @@ func TestRandomConfigDescription(t *testing.T) {
 		k := uint64(1677119343)
 		config.KarstTime = &k
 		it := uint64(1677119344)
-		config.InteropTime = &it
+		config.LagoonTime = &it
 
 		out := config.Description(nil)
 		// Don't check human-readable part of the date, it's timezone-dependent.
@@ -223,7 +249,7 @@ func TestRandomConfigDescription(t *testing.T) {
 		require.Contains(t, out, fmt.Sprintf("Isthmus: @ %d ~ ", i))
 		require.Contains(t, out, fmt.Sprintf("Jovian: @ %d ~ ", j))
 		require.Contains(t, out, fmt.Sprintf("Karst: @ %d ~ ", k))
-		require.Contains(t, out, fmt.Sprintf("Interop: @ %d ~ ", it))
+		require.Contains(t, out, fmt.Sprintf("Lagoon: @ %d ~ ", it))
 	})
 }
 
@@ -345,9 +371,9 @@ func TestActivations(t *testing.T) {
 			},
 		},
 		{
-			name: "Interop",
+			name: "Lagoon",
 			setUpgradeTime: func(t *uint64, c *Config) {
-				c.InteropTime = t
+				c.LagoonTime = t
 			},
 			checkEnabled: func(t uint64, c *Config) bool {
 				return c.IsInterop(t)
@@ -629,7 +655,7 @@ func TestConfig_Check(t *testing.T) {
 				cfg.IsthmusTime = &isthmusTime
 				cfg.JovianTime = &jovianTime
 				cfg.KarstTime = &karstTime
-				cfg.InteropTime = &interopTime
+				cfg.LagoonTime = &interopTime
 			},
 			expectedErr: nil,
 		},
@@ -845,7 +871,7 @@ func TestConfig_IsActivationBlock(t *testing.T) {
 		{forks.Granite, func(cfg *Config, ts uint64) { cfg.GraniteTime = &ts }},
 		{forks.Holocene, func(cfg *Config, ts uint64) { cfg.HoloceneTime = &ts }},
 		{forks.Isthmus, func(cfg *Config, ts uint64) { cfg.IsthmusTime = &ts }},
-		{forks.Interop, func(cfg *Config, ts uint64) { cfg.InteropTime = &ts }},
+		{forks.Lagoon, func(cfg *Config, ts uint64) { cfg.LagoonTime = &ts }},
 	}
 
 	for _, tc := range tests {
@@ -994,7 +1020,7 @@ func TestConfig_IsSDM(t *testing.T) {
 	require.False(t, cfg.IsSDM(100))
 
 	activation := uint64(100)
-	cfg.InteropTime = &activation
+	cfg.LagoonTime = &activation
 	require.False(t, cfg.IsSDM(99))
 	require.True(t, cfg.IsSDM(100))
 	require.True(t, cfg.IsSDM(101))

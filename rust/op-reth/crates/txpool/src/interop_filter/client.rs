@@ -131,6 +131,14 @@ impl InteropFilterClient {
         self.inner.failsafe_enabled.load(Ordering::Acquire)
     }
 
+    /// Applies a freshly polled failsafe state to the cached flag (read live by the admission
+    /// fast-path and the block-event handler) and the gauge. Split out of [`Self::query_failsafe`]
+    /// so the live, restart-free state transition can be exercised in tests without an RPC.
+    pub(crate) fn apply_failsafe_state(&self, enabled: bool) {
+        self.inner.failsafe_enabled.store(enabled, Ordering::Release);
+        self.inner.metrics.set_failsafe_enabled(enabled);
+    }
+
     /// Queries the interop filter for failsafe state and caches the result.
     /// Calls `admin_getFailsafeEnabled` RPC.
     pub async fn query_failsafe(&self) -> Result<bool, InteropTxValidatorError> {
@@ -142,7 +150,7 @@ impl InteropFilterClient {
         .map_err(|_| InteropTxValidatorError::Timeout(self.inner.timeout.as_secs()))?
         .map_err(InteropTxValidatorError::from_json_rpc)?;
 
-        self.inner.failsafe_enabled.store(result, Ordering::Release);
+        self.apply_failsafe_state(result);
         Ok(result)
     }
 
@@ -314,5 +322,48 @@ impl<'a> IntoFuture for CheckAccessListRequest<'a> {
                 .map_err(|_| InteropTxValidatorError::Timeout(timeout.as_secs()))?
                 .map_err(InteropTxValidatorError::from_json_rpc)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::interop_filter::CROSS_L2_INBOX_ADDRESS;
+    use alloy_eips::eip2930::AccessListItem;
+
+    async fn test_client() -> InteropFilterClient {
+        InteropFilterClient::builder("http://localhost:8545", 1).build().await
+    }
+
+    /// An access list that marks the tx as cross-chain (one entry targeting the cross-L2 inbox).
+    fn interop_access_list() -> AccessList {
+        AccessList(vec![AccessListItem {
+            address: CROSS_L2_INBOX_ADDRESS,
+            storage_keys: vec![B256::ZERO],
+        }])
+    }
+
+    /// The failsafe gate is a live, runtime-mutable flag: enabling it rejects interop txs on the
+    /// fast-path (no RPC), and clearing it flips the gate back in-process — so admission resumes
+    /// without restarting reth. This is the property the `poll_failsafe` loop relies on.
+    #[tokio::test]
+    async fn failsafe_gate_is_live_and_resumes_without_restart() {
+        let client = test_client().await;
+        let access_list = interop_access_list();
+        let hash = TxHash::ZERO;
+
+        // Filter signals failsafe enabled -> admission fast-path rejects immediately, no RPC.
+        client.apply_failsafe_state(true);
+        assert!(client.is_failsafe_enabled());
+        let outcome = client.is_valid_cross_tx(Some(&access_list), &hash, 0, None, true).await;
+        assert!(
+            matches!(outcome, Some(Err(InvalidCrossTx::FailsafeEnabled))),
+            "failsafe-enabled interop tx should be rejected on the fast-path, got {outcome:?}"
+        );
+
+        // Filter clears failsafe -> the cached gate flips back in-process on the next poll, so
+        // interop admission resumes without restarting the execution layer.
+        client.apply_failsafe_state(false);
+        assert!(!client.is_failsafe_enabled(), "failsafe gate must clear at runtime, no restart");
     }
 }

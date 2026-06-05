@@ -19,7 +19,9 @@ use reth_ethereum_primitives as _;
 pub mod api;
 pub use api::{
     BlockStateDiff, OpProofsBackfillProvider, OpProofsBackfillStore, OpProofsInitProvider,
-    OpProofsProviderRO, OpProofsProviderRw, OpProofsStore, ProofWindowRange,
+    OpProofsProviderRO, OpProofsProviderRw, OpProofsSnapshotInitProvider,
+    OpProofsSnapshotProviderRO, OpProofsStore, ProofWindowRange, SnapshotInitAnchor,
+    SnapshotInitStatus,
 };
 
 pub mod initialize;
@@ -27,6 +29,9 @@ pub use initialize::{InitializationJob, RethTrieStorageLayout};
 
 pub mod backfill;
 pub use backfill::{BackfillError, BackfillJob};
+
+pub mod snapshot;
+pub use snapshot::{SnapshotError, SnapshotInitJob, SnapshotInitOutcome};
 
 pub mod in_memory;
 pub use in_memory::{
@@ -62,7 +67,9 @@ pub mod cursor;
 pub use cursor::{OpProofsHashedAccountCursor, OpProofsHashedStorageCursor, OpProofsTrieCursor};
 
 pub mod cursor_factory;
-pub use cursor_factory::{OpProofsHashedAccountCursorFactory, OpProofsTrieCursorFactory};
+pub use cursor_factory::{
+    OpProofsHashedAccountCursorFactory, OpProofsTrieCursorFactory, SnapshotTrieCursorFactory,
+};
 
 pub mod error;
 pub use error::{OpProofsStorageError, OpProofsStorageResult};
@@ -72,3 +79,6 @@ pub use prune::{
     OpProofStoragePruner, OpProofStoragePrunerResult, OpProofStoragePrunerTask, PrunerError,
     PrunerOutput,
 };
+
+#[cfg(test)]
+pub(crate) mod test_utils;

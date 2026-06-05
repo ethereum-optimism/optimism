@@ -11,10 +11,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/superutil"
 	"github.com/ethereum/go-ethereum/superchain"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/kvstore"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
-	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -58,7 +58,7 @@ type Config struct {
 	DataDir string
 
 	// DataFormat specifies the format to use for on-disk storage. Only applies when DataDir is set.
-	DataFormat types.DataFormat
+	DataFormat kvstore.DataFormat
 
 	// L1Head is the block hash of the L1 chain head block
 	L1Head      common.Hash
@@ -167,7 +167,7 @@ func (c *Config) Check() error {
 	if c.ServerMode && c.ExecCmd != "" {
 		return ErrNoExecInServerMode
 	}
-	if c.DataDir != "" && !slices.Contains(types.SupportedDataFormats, c.DataFormat) {
+	if c.DataDir != "" && !slices.Contains(kvstore.SupportedDataFormats, c.DataFormat) {
 		return ErrInvalidDataFormat
 	}
 	if c.InteropEnabled {
@@ -235,7 +235,7 @@ func NewConfig(
 		L2Claim:            l2Claim,
 		L2ClaimBlockNumber: l2ClaimBlockNum,
 		L1RPCKind:          sources.RPCKindStandard,
-		DataFormat:         types.DataFormatDirectory,
+		DataFormat:         kvstore.DataFormatDirectory,
 	}
 }
 
@@ -379,8 +379,8 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		l2ChainID = eth.ChainID{}
 	}
 
-	dbFormat := types.DataFormat(ctx.String(flags.DataFormat.Name))
-	if !slices.Contains(types.SupportedDataFormats, dbFormat) {
+	dbFormat := kvstore.DataFormat(ctx.String(flags.DataFormat.Name))
+	if !slices.Contains(kvstore.SupportedDataFormats, dbFormat) {
 		return nil, fmt.Errorf("invalid %w: %v", ErrInvalidDataFormat, dbFormat)
 	}
 

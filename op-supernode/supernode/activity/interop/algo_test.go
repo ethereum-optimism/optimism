@@ -69,7 +69,7 @@ func runVerifyInteropTest(t *testing.T, tc verifyInteropTestCase) {
 // interop activation-block guard inside verifyExecutingMessage. The destination chain is
 // the executing chain; the source chain is the initiating chain. Both chains share the
 // same activationTimestamp and blockTime, matching supernode's invariant that all chains
-// in the dependency set share an InteropTime.
+// in the dependency set share a LagoonTime.
 //
 // blockTimeOverride == 0 leaves algoMockChain.BlockTime() at its default (1). All
 // guard-firing cases use init ts <= exec ts so the pre-existing ErrTimestampViolation

@@ -17,10 +17,17 @@ mod metrics;
 mod provider_ro;
 mod provider_rw;
 mod read;
+mod snapshot_init;
+mod snapshot_read;
 mod write;
 
-pub use cursor::{V2AccountCursor, V2AccountTrieCursor, V2StorageCursor, V2StorageTrieCursor};
+pub use cursor::{
+    V2AccountCursor, V2AccountTrieCursor, V2AccountTrieSnapshotCursor, V2StorageCursor,
+    V2StorageTrieCursor, V2StorageTrieSnapshotCursor,
+};
 
+#[cfg(test)]
+mod snapshot_tests;
 #[cfg(test)]
 mod tests;
 
@@ -77,8 +84,20 @@ impl OpProofsStore for MdbxProofsStorageV2 {
 
 impl OpProofsBackfillStore for MdbxProofsStorageV2 {
     type BackfillProvider<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
+    type SnapshotProviderRO<'a> = Arc<MdbxProofsProviderV2<<DatabaseEnv as Database>::TX>>;
+    type SnapshotInitializer<'a> = MdbxProofsProviderV2<<DatabaseEnv as Database>::TXMut>;
 
     fn backfill_provider<'a>(&'a self) -> OpProofsStorageResult<Self::BackfillProvider<'a>> {
+        Ok(MdbxProofsProviderV2::new(self.env.tx_mut()?))
+    }
+
+    fn snapshot_provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::SnapshotProviderRO<'a>> {
+        Ok(Arc::new(MdbxProofsProviderV2::new(self.env.tx()?)))
+    }
+
+    fn snapshot_initialization_provider<'a>(
+        &'a self,
+    ) -> OpProofsStorageResult<Self::SnapshotInitializer<'a>> {
         Ok(MdbxProofsProviderV2::new(self.env.tx_mut()?))
     }
 }

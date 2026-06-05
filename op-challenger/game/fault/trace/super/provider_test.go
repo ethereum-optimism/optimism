@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	types2 "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -115,7 +114,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		stubSuperNode.Add(response)
 		claim, err := provider.Get(context.Background(), types.RootPosition)
 		require.NoError(t, err)
-		require.Equal(t, InvalidTransitionHash, claim)
+		require.Equal(t, eth.InvalidTransitionHash, claim)
 	})
 
 	t.Run("NextSuperRootSafeBeforeGameL1Head", func(t *testing.T) {
@@ -142,7 +141,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		for i := int64(0); i < StepsPerTimestamp+1; i++ {
 			claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(i)))
 			require.NoError(t, err)
-			require.Equalf(t, InvalidTransitionHash, claim, "incorrect claim at index %d", i)
+			require.Equalf(t, eth.InvalidTransitionHash, claim, "incorrect claim at index %d", i)
 		}
 	})
 
@@ -169,7 +168,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		for i := int64(0); i < StepsPerTimestamp+1; i++ {
 			claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(i)))
 			require.NoError(t, err)
-			require.Equalf(t, InvalidTransitionHash, claim, "incorrect claim at index %d", i)
+			require.Equalf(t, eth.InvalidTransitionHash, claim, "incorrect claim at index %d", i)
 		}
 	})
 
@@ -195,13 +194,13 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		// First step should be valid because we can reach the required block on chain 1
 		claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(0)))
 		require.NoError(t, err)
-		require.NotEqual(t, InvalidTransitionHash, claim, "incorrect claim at index 0")
+		require.NotEqual(t, eth.InvalidTransitionHash, claim, "incorrect claim at index 0")
 
 		// Remaining steps should be the invalid transition hash.
 		for i := int64(1); i < StepsPerTimestamp+1; i++ {
 			claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(i)))
 			require.NoError(t, err)
-			require.Equalf(t, InvalidTransitionHash, claim, "incorrect claim at index %d", i)
+			require.Equalf(t, eth.InvalidTransitionHash, claim, "incorrect claim at index %d", i)
 		}
 	})
 
@@ -215,7 +214,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 
 		claim, err := provider.Get(context.Background(), types.RootPosition)
 		require.NoError(t, err)
-		require.Equal(t, InvalidTransitionHash, claim)
+		require.Equal(t, eth.InvalidTransitionHash, claim)
 	})
 
 	t.Run("NextSuperRootTimestampBeyondAllChainHeads", func(t *testing.T) {
@@ -232,7 +231,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		for i := int64(0); i < StepsPerTimestamp+1; i++ {
 			claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(i)))
 			require.NoError(t, err)
-			require.Equalf(t, InvalidTransitionHash, claim, "incorrect claim at index %d", i)
+			require.Equalf(t, eth.InvalidTransitionHash, claim, "incorrect claim at index %d", i)
 		}
 	})
 
@@ -252,7 +251,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		for i := int64(0); i < StepsPerTimestamp+1; i++ {
 			claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(i)))
 			require.NoError(t, err)
-			require.Equalf(t, InvalidTransitionHash, claim, "incorrect claim at index %d", i)
+			require.Equalf(t, eth.InvalidTransitionHash, claim, "incorrect claim at index %d", i)
 		}
 	})
 
@@ -271,13 +270,13 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		// First step should be valid because we can reach the required block on chain 1
 		claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(0)))
 		require.NoError(t, err)
-		require.NotEqual(t, InvalidTransitionHash, claim, "incorrect claim at index 0")
+		require.NotEqual(t, eth.InvalidTransitionHash, claim, "incorrect claim at index 0")
 
 		// All remaining steps should be the invalid transition hash because the second chain is invalid.
 		for i := int64(1); i < StepsPerTimestamp+1; i++ {
 			claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(i)))
 			require.NoError(t, err)
-			require.Equalf(t, InvalidTransitionHash, claim, "incorrect claim at index %d", i)
+			require.Equalf(t, eth.InvalidTransitionHash, claim, "incorrect claim at index %d", i)
 		}
 	})
 
@@ -298,7 +297,7 @@ func TestSuperNodeProvider_Get(t *testing.T) {
 		for i := int64(0); i < StepsPerTimestamp+1; i++ {
 			claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(i)))
 			require.NoError(t, err)
-			require.Equalf(t, InvalidTransitionHash, claim, "incorrect claim at index %d", i)
+			require.Equalf(t, eth.InvalidTransitionHash, claim, "incorrect claim at index %d", i)
 		}
 	})
 
@@ -501,27 +500,27 @@ func createValidSuperNodeSuperRoots(l1Head eth.BlockID) (eth.SuperRootAtTimestam
 
 func expectSuperNodeValidTransition(t *testing.T, provider *SuperNodeTraceProvider, prev eth.SuperRootAtTimestampResponse, next eth.SuperRootAtTimestampResponse) {
 	chain1 := next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(1)]
-	chain1OptimisticBlock := interopTypes.OptimisticBlock{
+	chain1OptimisticBlock := eth.OptimisticBlock{
 		BlockHash:  chain1.Output.BlockHash,
 		OutputRoot: chain1.OutputRoot,
 	}
 	chain2 := next.OptimisticAtTimestamp[eth.ChainIDFromUInt64(2)]
-	chain2OptimisticBlock := interopTypes.OptimisticBlock{
+	chain2OptimisticBlock := eth.OptimisticBlock{
 		BlockHash:  chain2.Output.BlockHash,
 		OutputRoot: chain2.OutputRoot,
 	}
-	expectedFirstStep := &interopTypes.TransitionState{
+	expectedFirstStep := &eth.TransitionState{
 		SuperRoot:       prev.Data.Super.Marshal(),
-		PendingProgress: []interopTypes.OptimisticBlock{chain1OptimisticBlock},
+		PendingProgress: []eth.OptimisticBlock{chain1OptimisticBlock},
 		Step:            1,
 	}
 	claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(0)))
 	require.NoError(t, err)
 	require.Equal(t, expectedFirstStep.Hash(), claim)
 
-	expectedSecondStep := &interopTypes.TransitionState{
+	expectedSecondStep := &eth.TransitionState{
 		SuperRoot:       prev.Data.Super.Marshal(),
-		PendingProgress: []interopTypes.OptimisticBlock{chain1OptimisticBlock, chain2OptimisticBlock},
+		PendingProgress: []eth.OptimisticBlock{chain1OptimisticBlock, chain2OptimisticBlock},
 		Step:            2,
 	}
 	claim, err = provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(1)))
@@ -529,9 +528,9 @@ func expectSuperNodeValidTransition(t *testing.T, provider *SuperNodeTraceProvid
 	require.Equal(t, expectedSecondStep.Hash(), claim)
 
 	for step := uint64(3); step < StepsPerTimestamp; step++ {
-		expectedPaddingStep := &interopTypes.TransitionState{
+		expectedPaddingStep := &eth.TransitionState{
 			SuperRoot:       prev.Data.Super.Marshal(),
-			PendingProgress: []interopTypes.OptimisticBlock{chain1OptimisticBlock, chain2OptimisticBlock},
+			PendingProgress: []eth.OptimisticBlock{chain1OptimisticBlock, chain2OptimisticBlock},
 			Step:            step,
 		}
 		claim, err = provider.Get(context.Background(), types.NewPosition(gameDepth, new(big.Int).SetUint64(step-1)))

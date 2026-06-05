@@ -4,26 +4,31 @@ use super::{MdbxProofsProviderV2, NUM_OF_INDICES_IN_SHARD, write::HistoryCollect
 use crate::{
     BlockStateDiff, OpProofsStorageError, OpProofsStorageResult,
     api::{OpProofsBackfillProvider, WriteCounts},
-    db::models::{
-        AccountTrieShardedKey, BlockNumberHashedAddress, HashedAccountBeforeTx,
-        HashedAccountShardedKey, HashedStorageShardedKey, StorageTrieShardedKey,
-        TrieChangeSetsEntry, V2AccountTrieChangeSets, V2AccountsTrieHistory,
-        V2HashedAccountChangeSets, V2HashedAccountsHistory, V2HashedStorageChangeSets,
-        V2HashedStoragesHistory, V2StorageTrieChangeSets, V2StoragesTrieHistory,
+    db::{
+        SnapshotMeta, SnapshotMetaKey, SnapshotStatus,
+        models::{
+            AccountTrieShardedKey, BlockNumberHashedAddress, HashedAccountBeforeTx,
+            HashedAccountShardedKey, HashedStorageShardedKey, StorageTrieShardedKey,
+            TrieChangeSetsEntry, V2AccountTrieChangeSets, V2AccountsTrieHistory,
+            V2AccountsTrieSnapshot, V2HashedAccountChangeSets, V2HashedAccountsHistory,
+            V2HashedStorageChangeSets, V2HashedStoragesHistory, V2SnapshotMeta,
+            V2StorageTrieChangeSets, V2StoragesTrieHistory, V2StoragesTrieSnapshot,
+        },
     },
 };
-use alloy_eips::eip1898::BlockWithParent;
+use alloy_eips::{BlockNumHash, eip1898::BlockWithParent};
 use alloy_primitives::{B256, BlockNumber};
 use reth_db::{
     BlockNumberList,
-    cursor::{DbCursorRO, DbCursorRW},
+    cursor::{DbCursorRO, DbCursorRW, DbDupCursorRO},
     models::sharded_key::ShardedKey,
     table::Table,
     transaction::{DbTx, DbTxMut},
 };
 use reth_primitives_traits::StorageEntry;
 use reth_trie::{
-    HashedPostStateSorted, StoredNibbles, StoredNibblesSubKey, updates::TrieUpdatesSorted,
+    HashedPostStateSorted, StorageTrieEntry, StoredNibbles, StoredNibblesSubKey,
+    updates::TrieUpdatesSorted,
 };
 use std::{collections::BTreeMap, fmt::Debug};
 use tracing::debug;
@@ -90,6 +95,19 @@ where
 }
 
 impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> MdbxProofsProviderV2<TX> {
+    /// Upsert the singleton row in [`V2SnapshotMeta`].
+    ///
+    /// Shared helper used by both
+    /// [`OpProofsSnapshotInitProvider`](crate::api::OpProofsSnapshotInitProvider)
+    /// (init lifecycle transitions) and
+    /// [`OpProofsBackfillProvider::update_snapshot`] (per-iteration anchor
+    /// updates).
+    pub(super) fn write_snapshot_meta(&self, meta: SnapshotMeta) -> OpProofsStorageResult<()> {
+        let mut cur = self.tx.cursor_write::<V2SnapshotMeta>()?;
+        cur.upsert(SnapshotMetaKey::Singleton, &meta)?;
+        Ok(())
+    }
+
     /// Returns `true` if any changeset entry already exists for `block_number`.
     ///
     /// Uses `V2HashedAccountChangeSets` as the sentinel table: nearly every block
@@ -356,6 +374,70 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsBackfillProvide
         self.prepend_collected_history(collector)?;
         self.set_earliest_block_number_inner(block_number - 1, block_ref.parent)?;
         Ok(counts)
+    }
+
+    fn clear_snapshot(&self) -> OpProofsStorageResult<()> {
+        self.tx.clear::<V2AccountsTrieSnapshot>()?;
+        self.tx.clear::<V2StoragesTrieSnapshot>()?;
+        self.tx.clear::<V2SnapshotMeta>()?;
+        Ok(())
+    }
+
+    fn update_snapshot(
+        &self,
+        new_anchor: BlockNumHash,
+        trie_updates: &TrieUpdatesSorted,
+    ) -> OpProofsStorageResult<u64> {
+        // Refuse to mutate a Building snapshot: its rows are still being
+        // populated, so applying a diff against it would corrupt the result.
+        let SnapshotMeta { status, .. } = self.read_snapshot_meta()?;
+        if status != SnapshotStatus::Ready {
+            return Err(OpProofsStorageError::SnapshotUpdateNotReady { status });
+        }
+
+        let mut count = 0u64;
+
+        // Account trie diff.
+        let mut acc = self.tx.cursor_write::<V2AccountsTrieSnapshot>()?;
+        for (nibbles, maybe_node) in trie_updates.account_nodes_ref() {
+            let key = StoredNibbles(*nibbles);
+            match maybe_node {
+                Some(node) => acc.upsert(key, node)?,
+                None => {
+                    if acc.seek_exact(key)?.is_some() {
+                        acc.delete_current()?;
+                    }
+                }
+            }
+            count += 1;
+        }
+
+        // Storage trie diff.
+        let mut stor = self.tx.cursor_dup_write::<V2StoragesTrieSnapshot>()?;
+        for (hashed_address, nodes) in trie_updates.storage_tries_ref() {
+            for (nibbles, maybe_node) in nodes.storage_nodes_ref() {
+                let subkey = StoredNibblesSubKey(*nibbles);
+                let existing = stor
+                    .seek_by_key_subkey(*hashed_address, subkey.clone())?
+                    .filter(|e| e.nibbles == subkey)
+                    .is_some();
+                if existing {
+                    stor.delete_current()?;
+                }
+                if let Some(node) = maybe_node {
+                    stor.upsert(
+                        *hashed_address,
+                        &StorageTrieEntry { nibbles: subkey, node: node.clone() },
+                    )?;
+                }
+                count += 1;
+            }
+        }
+
+        // Advance the anchor atomically with the diff (status stays Ready).
+        self.write_snapshot_meta(SnapshotMeta::new(new_anchor, SnapshotStatus::Ready))?;
+
+        Ok(count)
     }
 
     fn commit(self) -> OpProofsStorageResult<()> {

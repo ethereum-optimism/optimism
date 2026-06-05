@@ -370,7 +370,7 @@ where
             exec_rollup_config.is_first_interop_block(message.executing_timestamp)
         {
             return Err(MessageGraphError::ExecutedTooEarly {
-                activation_time: exec_rollup_config.hardforks.interop_time.unwrap_or_default(),
+                activation_time: exec_rollup_config.hardforks.lagoon_time.unwrap_or_default(),
                 executing_message_time: message.executing_timestamp,
             });
         }
@@ -384,7 +384,7 @@ where
 
         // Timestamp invariant: The timestamp at the time of inclusion of the initiating message
         // MUST be less than or equal to the timestamp of the executing message as well as greater
-        // than the Interop activation block's timestamp.
+        // than the Lagoon activation block's timestamp.
         if initiating_timestamp > message.executing_timestamp {
             return Err(MessageGraphError::MessageInFuture {
                 max: message.executing_timestamp,
@@ -394,7 +394,7 @@ where
             rollup_config.is_first_interop_block(initiating_timestamp)
         {
             return Err(MessageGraphError::InitiatedTooEarly {
-                activation_time: rollup_config.hardforks.interop_time.unwrap_or_default(),
+                activation_time: rollup_config.hardforks.lagoon_time.unwrap_or_default(),
                 initiating_message_time: initiating_timestamp,
             });
         }
@@ -838,14 +838,14 @@ mod test {
         // deliver the call.
         let mut superchain = default_superchain();
 
-        // Init chain (A): `interop_time = None`. Simulates a chain whose rollup config
+        // Init chain (A): `lagoon_time = None`. Simulates a chain whose rollup config
         // (bundled registry stale, oracle-supplied, or genuinely pre-interop but
-        // incorrectly included in the dep set) has no interop activation.
-        superchain.chain(CHAIN_A_ID).modify_rollup_cfg(|cfg| cfg.hardforks.interop_time = None);
+        // incorrectly included in the dep set) has no Lagoon (interop) activation.
+        superchain.chain(CHAIN_A_ID).modify_rollup_cfg(|cfg| cfg.hardforks.lagoon_time = None);
         // Sanity-check the precondition; otherwise we'd be testing the wrong thing.
         assert!(
-            superchain.chain(CHAIN_A_ID).rollup_config.hardforks.interop_time.is_none(),
-            "test precondition: init chain must have interop_time = None"
+            superchain.chain(CHAIN_A_ID).rollup_config.hardforks.lagoon_time.is_none(),
+            "test precondition: init chain must have lagoon_time = None"
         );
 
         let chain_a_time = superchain.chain(CHAIN_A_ID).header.timestamp;

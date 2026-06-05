@@ -7,6 +7,10 @@ FROM golang:${GO_VERSION} AS builder
 ARG VM_TARGET
 ARG VM_COMPAT_TASK
 
+# Enforce that builds use the committed go.mod/go.sum exactly and never
+# silently mutate them. Fails the build if the lockfile is out of date.
+ENV GOFLAGS=-mod=readonly
+
 # Install dependencies
 RUN apk add --no-cache make git bash jq llvm just
 

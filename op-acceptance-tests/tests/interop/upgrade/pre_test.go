@@ -39,10 +39,10 @@ func preInteropExecError(err error) bool {
 
 // TestPreNoInbox verifies pre-interop behavior: the CrossL2Inbox is not deployed,
 // the derivation pipeline advances local-safe heads, and executing messages fail
-// before the interop fork activates.
+// before the Lagoon (interop activation) fork activates.
 func TestPreNoInbox(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Use a very large activation delay (24h) so interop never activates during the test.
+	// Use a very large activation delay (24h) so Lagoon never activates interop during the test.
 	// This test only checks pre-interop state and the old 60s offset caused flakiness
 	// when the test took too long and crossed the activation boundary.
 	// See: https://github.com/ethereum-optimism/optimism/issues/17298
