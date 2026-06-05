@@ -27,6 +27,31 @@ hide. For each changed file, walk the relevant items and look for the bad patter
   setup→setup. A param declared in both `config.yml` and a fragment with
   different defaults fails with "Conflicting pipeline parameters".
 
+## Choosing where a new job runs
+
+When a diff adds a job, the first question is cadence, not correctness. Options
+here, fastest-signal/highest-cost first:
+
+- **PR-blocking** — wired into a gate's `requires:` chain (items 1–3). Use only for
+  checks that are fast, deterministic, and catch a regression class a reviewer
+  can't eyeball. Every blocking job is a tax on every PR.
+- **Non-blocking on PR** — runs on the PR but sits outside any gate's `requires:`.
+  Treat as a staging area for a check not yet trusted to block, not a permanent
+  home — non-blocking failures get ignored. Have a plan to promote it to blocking
+  or move it off the PR.
+- **develop-only** — `filters:` restricting to the `develop`/`main` branch; runs
+  post-merge. For checks too slow, flaky, or expensive to block every PR but where
+  you still want fast signal on the integration branch.
+- **Scheduled** — a `scheduled_*` workflow gated on a `c-run_scheduled_*` param and
+  dispatched by the schedule-name mapping in `config.yml` (`build_four_hours` /
+  `build_daily` / `build_weekly`). For exhaustive/expensive suites (full Cannon,
+  heavy fuzz, reproducibility, link checks). A new scheduled job not added to that
+  mapping never fires — verify the wiring, not just the workflow definition.
+
+Default heuristic: block if fast + deterministic + guards a real regression;
+otherwise push to develop-only or scheduled by cost and how quickly the signal is
+needed.
+
 ## Repo-specific checklist (high priority)
 
 Each item produces a silently-green-but-untested merge — the worst failure mode
@@ -78,7 +103,14 @@ here. Treat items 1–4 as **blocking**.
    over-subscribing one runner. Set `no_output_timeout` above healthy runtime but
    tight enough to catch hangs.
 
-8. **Validate locally.** Never `circleci config validate` a single fragment (fails
+8. **CI time.** Weigh what a change does to PR-path wall-clock and cost: a new
+   heavy job added to a gate's `requires:`, reduced parallelism, a larger
+   `resource_class`, or a removed/narrowed cache all add up. Don't eyeball it —
+   capture actual before/after numbers. The reliable way is a draft PR: push the
+   change, then compare job durations (and the critical-path total) against the
+   base. Cite the real numbers in review rather than guessing.
+
+9. **Validate locally.** Never `circleci config validate` a single fragment (fails
    on duplicate keys). Always produce the merged output by running the repo's own
    script — `bash .circleci/scripts/merge-configs.sh`, which writes
    `/tmp/merged-config.yml` — so you validate exactly what CI builds; don't
