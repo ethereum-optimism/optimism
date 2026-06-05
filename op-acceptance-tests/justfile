@@ -155,17 +155,24 @@ acceptance-test:
     fi
 
     set +e
+    # Rerun failed tests to absorb transient flakes (e.g. P2P-sync timing), so a
+    # single flake doesn't red the shard — mirrors the go/forge rerun policy.
+    # rerun-fails needs --packages (not positional). =2 (one retry) since each
+    # acceptance test spins a full devstack; the max-failures cap means a broadly
+    # broken run fails fast instead of rerunning everything.
     LOG_LEVEL="${LOG_LEVEL}" {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
         --format testname \
         --junitfile "$JUNIT_FILE" \
         --jsonfile "$JSON_FILE" \
+        --rerun-fails=2 \
+        --rerun-fails-max-failures=10 \
+        --packages "${TEST_PACKAGES[*]}" \
         -- \
         -count=1 \
         -p "${JOBS}" \
         -parallel "${TEST_PARALLEL}" \
         -timeout "${TEST_TIMEOUT}" \
         ${RUN_FLAG:+"$RUN_FLAG"} \
-        "${TEST_PACKAGES[@]}" \
         2>&1 | tee "$LOG_DIR/all.log"
     TEST_STATUS=${PIPESTATUS[0]}
     set -e
