@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-interop-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -37,6 +38,9 @@ type InteropMonitorService struct {
 	updaters  map[eth.ChainID]Updater
 	collector *MetricCollector
 	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash]
+
+	// messageExpiryWindow (seconds) is sourced from the dependency set and passed to updaters.
+	messageExpiryWindow uint64
 
 	Version string
 
@@ -121,6 +125,13 @@ func (ms *InteropMonitorService) initFromClients(
 	// Initialize the expiry map
 	ms.finalized = locks.RWMapFromMap(make(map[eth.ChainID]eth.NumberAndHash))
 
+	// Default the message expiry window when not sourced from a dependency set
+	// (e.g. the pre-built-clients constructor used in tests). The CLI path sets
+	// this from the dependency set before calling initFromClients.
+	if ms.messageExpiryWindow == 0 {
+		ms.messageExpiryWindow = depset.MessageExpiryTimeSecondsInterop
+	}
+
 	// Initialize all updaters
 	ms.updaters = make(map[eth.ChainID]Updater)
 	if err := ms.initUpdaters(clients); err != nil {
@@ -188,7 +199,7 @@ func (ms *InteropMonitorService) dial(ctx context.Context, l2Rpc string) (*sourc
 // initUpdaters initializes the updaters for the given clients
 func (ms *InteropMonitorService) initUpdaters(clients map[eth.ChainID]*sources.EthClient) error {
 	for chainID, ethClient := range clients {
-		updater := NewUpdater(chainID, ethClient, ms.finalized, ms.Log)
+		updater := NewUpdater(chainID, ethClient, ms.finalized, ms.messageExpiryWindow, ms.Log)
 		ms.updaters[chainID] = updater
 	}
 	return nil

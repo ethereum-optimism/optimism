@@ -44,6 +44,11 @@ type RPCUpdater struct {
 	// the duration after the terminal state is set that the job is considered expired
 	expireTime time.Duration
 
+	// messageExpiryWindow is the interop message expiry window in seconds,
+	// sourced from the dependency set. A message is expired if the executing
+	// block timestamp exceeds the initiating message timestamp by more than this.
+	messageExpiryWindow uint64
+
 	inbox  chan *Job
 	closed chan struct{}
 
@@ -57,16 +62,18 @@ func NewUpdater(
 	chainID eth.ChainID,
 	client UpdaterClient,
 	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash],
+	messageExpiryWindow uint64,
 	log log.Logger) *RPCUpdater {
 	return &RPCUpdater{
 		chainID: chainID,
 		client:  client,
 		log:     log.New("component", "rpc_updater", "chain_id", chainID),
 		// inbox depth is set very deep to allow spikes in job creation plus generous buffer
-		inbox:      make(chan *Job, inboxDepth),
-		closed:     make(chan struct{}),
-		expireTime: 2 * time.Minute,
-		finalized:  finalized,
+		inbox:               make(chan *Job, inboxDepth),
+		closed:              make(chan struct{}),
+		expireTime:          2 * time.Minute,
+		finalized:           finalized,
+		messageExpiryWindow: messageExpiryWindow,
 	}
 }
 

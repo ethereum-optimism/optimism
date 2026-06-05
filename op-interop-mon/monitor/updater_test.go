@@ -34,7 +34,7 @@ func setupTestUpdater(t *testing.T) (*RPCUpdater, *mockClient) {
 	logger := log.New()
 	client := &mockClient{}
 	expiry := locks.RWMapFromMap(map[eth.ChainID]eth.NumberAndHash{})
-	updater := NewUpdater(eth.ChainIDFromUInt64(1), client, expiry, logger)
+	updater := NewUpdater(eth.ChainIDFromUInt64(1), client, expiry, 604800, logger)
 	return updater, client
 }
 
