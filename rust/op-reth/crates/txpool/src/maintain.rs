@@ -9,8 +9,7 @@ const OFFSET_TIME: u64 = 60;
 const MAX_INTEROP_QUERIES: usize = 10;
 /// Interval at which a heartbeat warning is re-logged while failsafe stays enabled, so a
 /// long-lived failsafe keeps surfacing in recent logs rather than only at the transition. Also
-/// reused to rate-limit the degraded-quorum log in
-/// [`InteropFilterClient`](crate::InteropFilterClient).
+/// reused to rate-limit the degraded-quorum log in [`InteropFilterClient`].
 pub(crate) const FAILSAFE_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(60);
 
 use crate::{
