@@ -557,8 +557,8 @@ func TestConductorReorgRecovery(gt *testing.T) {
 // post-reorg head, its FSM head must converge to the canonical post-reorg chain, every
 // chain-B EL must converge on the replacement, and leadership must stay stable.
 //
-// Slow: L2 blocks are produced in real time, so extending the chain by deepReorgDepth
-// takes minutes.
+// Too slow for CI: L2 blocks are produced in real time, so extending the chain by
+// deepReorgDepth (100) takes minutes. Run manually; this must not be enabled on CI.
 func TestConductorDeepReorgRecovery(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	requireOpReth(t)
@@ -587,6 +587,9 @@ func TestConductorDeepReorgRecovery(gt *testing.T) {
 // Depth is OP_DEEP_REORG_DEPTH (default 25) — small enough to keep iterations short for
 // repeated stress runs, large enough that the rewind (depth*blocktime ≈ 50s) far exceeds the
 // 4s window and reliably trips health.
+//
+// Too slow for CI: real-time block production over the reorg depth takes minutes. Run
+// manually; this must not be enabled on CI.
 func TestConductorDeepReorgRecoveryTightHealth(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	requireOpReth(t)

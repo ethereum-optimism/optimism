@@ -442,6 +442,88 @@ func fetchInitialUnsafePayload(t devtest.T, nodeRPC string, executionRPC string)
 	return payload
 }
 
+// vnBootstrapGroup couples a supernode VN CL (the genesis bootstrap producer for one chain)
+// with the conductor-controlled follow-mode ELSync sequencer CLs (primary + candidates) that
+// EL-sync from it.
+type vnBootstrapGroup struct {
+	vnCL   L2CLNode
+	seqCLs []L2CLNode
+}
+
+// bootstrapConductorSequencersViaVNHandoff bootstraps the conductor-controlled
+// follow-mode ELSync sequencers using the supernode VN as the genesis producer, then
+// hands sequencing off to the conductor cluster.
+//
+// A follow-mode ELSync sequencer cannot bootstrap a chain from genesis as the sole
+// producer: it has no peer payload to EL-sync from and never leaves the EL-sync start
+// state (#21164). The conductor cannot break the cycle either, since it needs an initial
+// unsafe payload from its sequencer before it can start. The supernode VN resolves it:
+// with sequencing enabled (SupernodeVNSequencerForBootstrap) the VN produces and gossips
+// unsafe blocks, the conductor sequencer CLs EL-sync past genesis, and once they all hold a
+// real unsafe head the VN stops sequencing. Conductor startup then fetches that bootstrapped
+// head and the conductor cluster takes over production.
+//
+// All conductor sequencer CLs for a chain — primary and candidates — must be passed so they
+// EL-sync while the chain is still advancing; a candidate that joins the gossip topic after
+// the VN stops never catches up. On return the VN sequencers are stopped and every conductor
+// sequencer CL holds a non-genesis unsafe head, so the subsequent fetchInitialUnsafePayload
+// calls succeed.
+func bootstrapConductorSequencersViaVNHandoff(t devtest.T, groups ...vnBootstrapGroup) {
+	const minBootstrapBlocks = 3
+	require := t.Require()
+
+	for _, group := range groups {
+		vn := newRollupClientForRPC(t, group.vnCL.UserRPC())
+		active, err := vn.client.SequencerActive(t.Ctx())
+		vn.Close()
+		require.NoError(err, "query supernode VN sequencer status")
+		require.True(active, "supernode VN must be the active bootstrap sequencer")
+	}
+
+	// Wait for every conductor sequencer CL to EL-sync past genesis off the VN's gossip.
+	for _, group := range groups {
+		for _, seqCL := range group.seqCLs {
+			seq := newRollupClientForRPC(t, seqCL.UserRPC())
+			err := retry.Do0(t.Ctx(), 120, retry.Fixed(500*time.Millisecond), func() error {
+				status, err := seq.client.SyncStatus(t.Ctx())
+				if err != nil {
+					return fmt.Errorf("fetch conductor sequencer sync status: %w", err)
+				}
+				if status.UnsafeL2.Number < minBootstrapBlocks {
+					return fmt.Errorf("conductor sequencer unsafe head %d below bootstrap floor %d", status.UnsafeL2.Number, minBootstrapBlocks)
+				}
+				return nil
+			})
+			seq.Close()
+			require.NoError(err, "conductor sequencer never EL-synced past genesis from the supernode VN")
+		}
+	}
+
+	// Hand off: stop the VN sequencers. The conductor cluster takes over from the
+	// bootstrapped unsafe head once its leader becomes active.
+	for _, group := range groups {
+		vn := newRollupClientForRPC(t, group.vnCL.UserRPC())
+		_, err := vn.client.StopSequencer(t.Ctx())
+		vn.Close()
+		require.NoError(err, "stop supernode VN sequencer for conductor handoff")
+	}
+}
+
+// rollupClientHandle bundles a rollup client with the underlying RPC so callers can
+// release both.
+type rollupClientHandle struct {
+	client *sources.RollupClient
+	rpc    interface{ Close() }
+}
+
+func (h rollupClientHandle) Close() { h.rpc.Close() }
+
+func newRollupClientForRPC(t devtest.T, nodeRPC string) rollupClientHandle {
+	rpcClient, err := opclient.NewRPC(t.Ctx(), t.Logger(), nodeRPC)
+	t.Require().NoError(err, "dial node RPC for rollup client")
+	return rollupClientHandle{client: sources.NewRollupClient(rpcClient), rpc: rpcClient}
+}
+
 func waitForRollupSequencerActive(t devtest.T, nodeRPC string) {
 	require := t.Require()
 	rpcClient, err := opclient.NewRPC(t.Ctx(), t.Logger(), nodeRPC)

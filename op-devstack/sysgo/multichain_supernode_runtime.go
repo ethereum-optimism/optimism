@@ -341,6 +341,12 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		}
 	}
 
+	// Conductor-controlled sequencers are follow-mode ELSync nodes that cannot
+	// bootstrap a chain from genesis as the sole producer (#21164). The supernode VN
+	// must sequence the genesis blocks so they can EL-sync, then hand off to the
+	// conductor cluster (see bootstrapConductorSequencersViaVNHandoff below).
+	vnSequencerBootstrap := cfg.SupernodeVNSequencerForBootstrap || enableConductors
+
 	supernode, supernodeL2ACL, supernodeL2BCL := startTwoL2SharedSupernode(
 		t,
 		l1Net,
@@ -354,7 +360,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		interopActivationTimestamp,
 		cfg.InteropLogBackfillDepth,
 		jwtSecret,
-		supernodeSequencerEnabled || cfg.SupernodeVNSequencerForBootstrap,
+		supernodeSequencerEnabled || vnSequencerBootstrap,
 	)
 	var l2ACL L2CLNode = supernodeL2ACL
 	var l2BCL L2CLNode = supernodeL2BCL
@@ -391,16 +397,35 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		l2AFollowers = startConductorHealthPeers(t, keys, l1Net, l1EL, l1CL, l2ANet, seqL2AEL, l2ACL, conductorNodeDepSet, conductorCfg.HealthCheck.MinPeerCount)
 		l2BFollowers = startConductorHealthPeers(t, keys, l1Net, l1EL, l1CL, l2BNet, seqL2BEL, l2BCL, conductorNodeDepSet, conductorCfg.HealthCheck.MinPeerCount)
 
-		// Build a 3-conductor raft cluster per chain (one bootstrap leader on the
-		// primary sequencer CL + two conductor-controlled candidates), so leader-transfer
-		// and cluster-wide convergence scenarios are exercisable.
-		l2AConductors = startConductorClusterForChain(t, keys, l1Net, l1EL, l1CL, l2ANet, seqL2AEL, l2ACL, supernodeL2ACL, conductorNodeDepSet, jwtSecret, conductorEndpoints[l2ANet.ChainID()], conductorCfg, 2, l2AFollowers)
-		l2BConductors = startConductorClusterForChain(t, keys, l1Net, l1EL, l1CL, l2BNet, seqL2BEL, l2BCL, supernodeL2BCL, conductorNodeDepSet, jwtSecret, conductorEndpoints[l2BNet.ChainID()], conductorCfg, 2, l2BFollowers)
-
 		// EL P2P: block bodies sync between each sequencer EL and its paired
-		// supernode EL (required for the ELSync follow path).
+		// supernode EL (required for the ELSync follow path). Wired before the VN
+		// bootstrap so the conductor sequencer ELs can sync the VN's genesis blocks.
 		connectL2ELPeers(t, t.Logger(), supernodeL2AEL.UserRPC(), seqL2AEL.UserRPC(), false)
 		connectL2ELPeers(t, t.Logger(), supernodeL2BEL.UserRPC(), seqL2BEL.UserRPC(), false)
+
+		// Build the candidate sequencer nodes (EL + CL, no conductor service yet) before
+		// the VN handoff so they EL-sync the genesis blocks while the VN is still producing.
+		// A candidate that joins the gossip topic after the chain stops advancing never
+		// catches up (#21164: follow-mode ELSync can't bootstrap from a frozen chain).
+		const conductorMemberCount = 2
+		l2ACandidates := startConductorCandidateNodes(t, keys, l1Net, l1EL, l1CL, l2ANet, seqL2AEL, supernodeL2ACL, conductorNodeDepSet, jwtSecret, conductorMemberCount)
+		l2BCandidates := startConductorCandidateNodes(t, keys, l1Net, l1EL, l1CL, l2BNet, seqL2BEL, supernodeL2BCL, conductorNodeDepSet, jwtSecret, conductorMemberCount)
+
+		// The conductor-controlled sequencers are follow-mode ELSync nodes that cannot
+		// bootstrap from genesis as the sole producer (#21164). The supernode VN is
+		// sequencing (vnSequencerBootstrap), so wait for every conductor sequencer CL
+		// (primary + candidates) to EL-sync past genesis off its gossip, then hand off: the
+		// VN stops and the conductor cluster takes over production from the bootstrapped head.
+		bootstrapConductorSequencersViaVNHandoff(t,
+			vnBootstrapGroup{vnCL: supernodeL2ACL, seqCLs: append([]L2CLNode{l2ACL}, conductorCandidateCLs(l2ACandidates)...)},
+			vnBootstrapGroup{vnCL: supernodeL2BCL, seqCLs: append([]L2CLNode{l2BCL}, conductorCandidateCLs(l2BCandidates)...)},
+		)
+
+		// Form the 3-conductor raft cluster per chain (one bootstrap leader on the primary
+		// sequencer CL + the conductor-controlled candidates), so leader-transfer and
+		// cluster-wide convergence scenarios are exercisable.
+		l2AConductors = formConductorCluster(t, l2ANet, l2ACL, seqL2AEL, conductorEndpoints[l2ANet.ChainID()], conductorCfg, l2ACandidates, l2AFollowers)
+		l2BConductors = formConductorCluster(t, l2BNet, l2BCL, seqL2BEL, conductorEndpoints[l2BNet.ChainID()], conductorCfg, l2BCandidates, l2BFollowers)
 	} else if !supernodeSequencerEnabled {
 		// Production-faithful topology: each follow-mode sequencer runs its own
 		// EL, distinct from the supernode VN's EL, joined only by L1 and P2P.
@@ -454,12 +479,14 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 
 	// Batchers follow the active sequencer's CL + EL so the L1-derived safe chain stays
 	// contiguous (interop verification depends on the safe head advancing). In a VN-sequencer
-	// bootstrap the light CL is stopped + EL-syncing, so batch from the VN: it produces during
-	// bootstrap and tracks the light sequencers via gossip after handoff, keeping a gap-free
-	// batch stream across the switch.
+	// bootstrap (light-sequencer or conductor) the chain's own sequencer is stopped +
+	// EL-syncing across the handoff, so batch from the VN: it produces during bootstrap and
+	// tracks the chain's sequencers via gossip after handoff, keeping a gap-free batch stream
+	// across the switch. Batching the (idle, EL-syncing) sequencer CL instead leaves a gap at
+	// the handoff boundary that wedges derivation ("dropping future span batch" forever).
 	batchACL, batchAEL := l2ACL, seqL2AEL
 	batchBCL, batchBEL := l2BCL, seqL2BEL
-	if cfg.SupernodeVNSequencerForBootstrap {
+	if vnSequencerBootstrap {
 		batchACL, batchAEL = supernodeL2ACL, supernodeL2AEL
 		batchBCL, batchBEL = supernodeL2BCL, supernodeL2BEL
 	}
@@ -657,15 +684,32 @@ func startConductorControlledSequencerCL(
 	return sequencerCL
 }
 
-// startConductorClusterForChain builds a multi-conductor raft cluster for a single
-// supernode-interop chain. It starts a bootstrap conductor on the primary sequencer CL,
-// then memberCount additional conductor-controlled sequencer candidates — each with its
-// own EL, CL, and conductor — and joins them as voters via startConductorCluster (which
-// also resumes every conductor and waits for the cluster to converge). Every conductor
-// shares conductorCfg, so reorg-recovery is enabled fleet-uniformly when requested. The
-// candidate node runtimes are recorded in followers (when non-nil). Returns the conductor
-// set keyed by conductor name ("sequencer" for the bootstrap leader candidate).
-func startConductorClusterForChain(
+// conductorCandidate is a conductor-controlled sequencer candidate node (its own EL + CL)
+// created before the conductor service is attached. The CLs are started ahead of the VN
+// bootstrap handoff so they can EL-sync the genesis blocks while the supernode VN is still
+// producing; the conductor services are attached afterward (see formConductorCluster).
+type conductorCandidate struct {
+	name     string
+	el       L2ELNode
+	cl       L2CLNode
+	endpoint *atomic.Value
+}
+
+// conductorCandidateCLs extracts the candidate sequencer CLs (for the VN bootstrap handoff).
+func conductorCandidateCLs(candidates []conductorCandidate) []L2CLNode {
+	cls := make([]L2CLNode, 0, len(candidates))
+	for _, candidate := range candidates {
+		cls = append(cls, candidate.cl)
+	}
+	return cls
+}
+
+// startConductorCandidateNodes brings up memberCount conductor-controlled sequencer
+// candidates (each with its own EL + CL) without attaching a conductor service yet. The
+// candidate CLs EL-sync from supernodeCL gossip, so they must be started before the VN
+// handoff — otherwise they join the gossip topic after the chain has stopped advancing and
+// never EL-sync past genesis.
+func startConductorCandidateNodes(
 	t devtest.T,
 	keys devkeys.Keys,
 	l1Net *L1Network,
@@ -673,13 +717,44 @@ func startConductorClusterForChain(
 	l1CL *L1CLNode,
 	l2Net *L2Network,
 	l2EL L2ELNode,
-	primarySequencerCL L2CLNode,
 	supernodeCL L2CLNode,
 	dependencySet depset.DependencySet,
 	jwtSecret [32]byte,
+	memberCount int,
+) []conductorCandidate {
+	jwtPath := l2EL.JWTPath()
+	candidates := make([]conductorCandidate, 0, memberCount)
+	for i := 1; i <= memberCount; i++ {
+		name := fmt.Sprintf("candidate-%d", i)
+		// startL2ELForKey respects DEVSTACK_L2EL_KIND, so candidates run op-reth (with the
+		// reth namespace, needed for reorg-recovery subscriptions) rather than the op-geth
+		// that startL2ELNode hardcodes. This keeps the conductor fleet EL-uniform. Like the
+		// leader sequencer EL, candidates run without the proofs-history ExEx (it crashes the
+		// node on a deep reorg).
+		candidateEL := startL2ELForKey(t, l2Net, jwtPath, jwtSecret, name, NewELNodeIdentity(0), OpRethWithoutProofsHistory())
+		connectL2ELPeers(t, t.Logger(), l2EL.UserRPC(), candidateEL.UserRPC(), false)
+		candidateEndpoint := newConductorRPCEndpoint()
+		candidateCL := startConductorControlledSequencerCL(t, keys, l1Net, l1EL, l1CL, l2Net, candidateEL, name, supernodeCL, dependencySet, jwtSecret, candidateEndpoint)
+		candidates = append(candidates, conductorCandidate{name: name, el: candidateEL, cl: candidateCL, endpoint: candidateEndpoint})
+	}
+	return candidates
+}
+
+// formConductorCluster attaches a conductor service to the primary sequencer CL (the
+// bootstrap leader) and to each pre-created candidate, then joins them into a raft cluster
+// via startConductorCluster (which resumes every conductor and waits for convergence). Each
+// conductor's startup fetches an initial unsafe payload from its node, so every sequencer CL
+// must already hold a non-genesis unsafe head (via the VN bootstrap handoff) before this
+// runs. Candidate node runtimes are recorded in followers (when non-nil). Returns the
+// conductor set keyed by name ("sequencer" for the bootstrap leader candidate).
+func formConductorCluster(
+	t devtest.T,
+	l2Net *L2Network,
+	primarySequencerCL L2CLNode,
+	l2EL L2ELNode,
 	primaryConductorEndpoint *atomic.Value,
 	conductorCfg conductorNodeConfig,
-	memberCount int,
+	candidates []conductorCandidate,
 	followers map[string]*SingleChainNodeRuntime,
 ) map[string]*Conductor {
 	bootstrap := startConductorForRPC(
@@ -694,38 +769,27 @@ func startConductorClusterForChain(
 		conductorCfg,
 	)
 	conductors := map[string]*Conductor{"sequencer": bootstrap}
-	members := make([]*Conductor, 0, memberCount)
-	jwtPath := l2EL.JWTPath()
-	for i := 1; i <= memberCount; i++ {
-		name := fmt.Sprintf("candidate-%d", i)
-		// startL2ELForKey respects DEVSTACK_L2EL_KIND, so candidates run op-reth (with the
-		// reth namespace, needed for reorg-recovery subscriptions) rather than the op-geth
-		// that startL2ELNode hardcodes. This keeps the conductor fleet EL-uniform. Like the
-		// leader sequencer EL, candidates run without the proofs-history ExEx (it crashes the
-		// node on a deep reorg).
-		candidateEL := startL2ELForKey(t, l2Net, jwtPath, jwtSecret, name, NewELNodeIdentity(0), OpRethWithoutProofsHistory())
-		connectL2ELPeers(t, t.Logger(), l2EL.UserRPC(), candidateEL.UserRPC(), false)
-		candidateEndpoint := newConductorRPCEndpoint()
-		candidateCL := startConductorControlledSequencerCL(t, keys, l1Net, l1EL, l1CL, l2Net, candidateEL, name, supernodeCL, dependencySet, jwtSecret, candidateEndpoint)
+	members := make([]*Conductor, 0, len(candidates))
+	for _, candidate := range candidates {
 		candidateConductor := startConductorForRPC(
 			t,
-			name,
+			candidate.name,
 			l2Net,
-			candidateCL.UserRPC(),
-			candidateEL.UserRPC(),
+			candidate.cl.UserRPC(),
+			candidate.el.UserRPC(),
 			false,
 			true,
-			candidateEndpoint,
+			candidate.endpoint,
 			conductorCfg,
 		)
-		conductors[name] = candidateConductor
+		conductors[candidate.name] = candidateConductor
 		members = append(members, candidateConductor)
 		if followers != nil {
-			followers[name] = &SingleChainNodeRuntime{
-				Name:        name,
+			followers[candidate.name] = &SingleChainNodeRuntime{
+				Name:        candidate.name,
 				IsSequencer: true,
-				EL:          candidateEL,
-				CL:          candidateCL,
+				EL:          candidate.el,
+				CL:          candidate.cl,
 			}
 		}
 	}
