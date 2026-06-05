@@ -64,12 +64,11 @@ func WithPrivKey(key *ecdsa.PrivateKey) Option {
 // reaching step().
 const DummyPermissionedPrestate = "0x000000000000000000000000000000000000000000000000000000000000dead"
 
-// ApplyCannonVMConfig wires the Cannon VM config (VM binary, genesis files and oracle server)
+// applyCannonVMConfig wires the Cannon VM config (VM binary, genesis files and oracle server)
 // without depending on the legacy fault-proof program binary. The server defaults to the cannon VM
-// binary, which is never executed for the Cannon VM config in devstack — output games use
-// cannon-kona and permissioned games resolve without reaching step(). Callers that need a real
-// oracle server (e.g. op-e2e) can override c.Cannon.Server afterwards.
-func ApplyCannonVMConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) error {
+// binary, which is never executed for the Cannon VM config — output games use cannon-kona and
+// permissioned games resolve without reaching step().
+func applyCannonVMConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) error {
 	root, err := findMonorepoRoot()
 	if err != nil {
 		return err
@@ -86,7 +85,7 @@ func ApplyCannonVMConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesi
 // never invoked for permissioned games, so the cannon binary doubles as the (unused) server and
 // the absolute prestate is a dummy value.
 func applyPermissionedCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Genesis *core.Genesis, l2Geneses []*core.Genesis) error {
-	if err := ApplyCannonVMConfig(c, rollupCfgs, l1Genesis, l2Geneses); err != nil {
+	if err := applyCannonVMConfig(c, rollupCfgs, l1Genesis, l2Geneses); err != nil {
 		return err
 	}
 	c.CannonAbsolutePreState = DummyPermissionedPrestate
