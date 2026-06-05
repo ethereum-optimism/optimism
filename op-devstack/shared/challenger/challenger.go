@@ -22,15 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type PrestateVariant string
-
-const (
-	MTCannonVariant     PrestateVariant = "mt64"
-	MTCannonNextVariant PrestateVariant = "mt64Next"
-	InteropVariant      PrestateVariant = "interop"
-	InteropVariantNext  PrestateVariant = "interopNext"
-)
-
 type Option func(ctx context.Context, cfg *config.Config) error
 
 func WithDepset(ds *depset.StaticConfigDependencySet) Option {

@@ -45,7 +45,6 @@ type System interface {
 	RollupCfgs() []*rollup.Config
 	L1Genesis() *core.Genesis
 	L2Geneses() []*core.Genesis
-	PrestateVariant() shared.PrestateVariant
 }
 type Helper struct {
 	log     log.Logger
