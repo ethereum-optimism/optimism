@@ -737,11 +737,17 @@ where
             ctx.node.provider().clone(),
         );
         let local_chain_id = ctx.node.provider().chain_spec().chain().id();
+        // Interop activates with the Lagoon hardfork (see `is_interop_active_at_timestamp`). Single
+        // network-wide activation: the local chain spec's value also gates source-chain references
+        // (see CrossUnsafeHeadExtInner::interop_activation).
+        let local_interop_activation =
+            ctx.node.provider().chain_spec().op_fork_activation(OpHardfork::Lagoon).as_timestamp();
         let cross_unsafe_head_ext = (!cross_unsafe_head_source_rpcs.is_empty())
             .then(|| {
                 CrossUnsafeHeadExt::new(
                     ctx.node.provider().clone(),
                     local_chain_id,
+                    local_interop_activation,
                     cross_unsafe_head_source_rpcs,
                 )
             })

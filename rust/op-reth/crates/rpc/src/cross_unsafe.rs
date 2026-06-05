@@ -70,6 +70,13 @@ struct CrossUnsafeHeadExtInner<Provider> {
     /// this chain (intra-chain / self-references) are validated against the local provider rather
     /// than a source RPC.
     local_chain_id: u64,
+    /// The local chain's interop activation timestamp (if interop is scheduled by timestamp). An
+    /// initiating message older than this predates interop and is not a valid interop message.
+    ///
+    /// This assumes a single, network-wide interop activation shared across the dependency set, so
+    /// the local chain's value also gates source-chain references. Revisit if activation ever
+    /// becomes per-chain. `None` (interop not scheduled by timestamp) makes the check vacuous.
+    interop_activation: Option<u64>,
     source_clients: SourceLogClients,
     state: Mutex<CrossUnsafeState>,
 }
@@ -79,12 +86,14 @@ impl<Provider> CrossUnsafeHeadExt<Provider> {
     pub fn new(
         provider: Provider,
         local_chain_id: u64,
+        interop_activation: Option<u64>,
         source_rpcs: impl IntoIterator<Item = impl Into<String>>,
     ) -> Result<Self, String> {
         Ok(Self {
             inner: Arc::new(CrossUnsafeHeadExtInner {
                 provider,
                 local_chain_id,
+                interop_activation,
                 source_clients: SourceLogClients::new(source_rpcs)?,
                 state: Mutex::new(CrossUnsafeState::default()),
             }),
@@ -294,6 +303,24 @@ where
                 let Some(message) = parse_log_to_executing_message(log) else { continue };
 
                 let initiating_timestamp = message.identifier.timestamp.saturating_to::<u64>();
+
+                // An initiating message older than interop activation is not a valid interop
+                // message, so an executing message referencing it makes this block invalid. Fail
+                // closed. (Vacuous when activation is unknown or the chain activated at genesis.)
+                if !initiating_after_interop_activation(
+                    initiating_timestamp,
+                    self.inner.interop_activation,
+                ) {
+                    debug!(
+                        target: "rpc::cross_unsafe",
+                        number,
+                        initiating_timestamp,
+                        interop_activation = ?self.inner.interop_activation,
+                        "executing message initiates before interop activation"
+                    );
+                    return Ok(BlockValidation::invalid());
+                }
+
                 // NOTE: this uses the default `MESSAGE_EXPIRY_WINDOW`. The canonical validation
                 // path (`kona_interop::MessageGraph`) takes the window as a parameter and honors a
                 // dependency set's `override_message_expiry_window`. This simplified gate does not
@@ -434,6 +461,15 @@ const fn initiating_timestamp_in_window(
         initiating_timestamp >= executing_timestamp.saturating_sub(expiry_window)
 }
 
+/// Whether an initiating message's timestamp is at or after interop activation. A message older
+/// than activation predates interop and is not a valid interop initiating message. `None`
+/// (activation unknown / not scheduled by timestamp) makes the check vacuous, as does a chain that
+/// activated interop at genesis. Uses the local chain's activation under the single-network-wide-
+/// activation assumption documented on `CrossUnsafeHeadExtInner::interop_activation`.
+fn initiating_after_interop_activation(initiating_timestamp: u64, activation: Option<u64>) -> bool {
+    activation.is_none_or(|activation| initiating_timestamp >= activation)
+}
+
 /// The earliest local block to drop given each distinct cached source block's recheck result, as
 /// `(min_local, canonical)` pairs where `min_local` is the lowest local block referencing that
 /// source.
@@ -537,6 +573,18 @@ mod tests {
         // strictly-earlier initiating timestamp (down to 0) is in window.
         assert!(initiating_timestamp_in_window(0, 100, window));
         assert!(!initiating_timestamp_in_window(101, 100, window));
+    }
+
+    #[test]
+    fn initiating_after_interop_activation_boundaries() {
+        // No known activation (or genesis activation) → vacuous, always accepted.
+        assert!(initiating_after_interop_activation(0, None));
+        assert!(initiating_after_interop_activation(0, Some(0)));
+
+        // At or after activation accepted; strictly before rejected.
+        assert!(initiating_after_interop_activation(1_000, Some(1_000)));
+        assert!(initiating_after_interop_activation(1_001, Some(1_000)));
+        assert!(!initiating_after_interop_activation(999, Some(1_000)));
     }
 
     #[test]
