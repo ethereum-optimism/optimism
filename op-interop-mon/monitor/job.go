@@ -62,11 +62,12 @@ type Job struct {
 	terminalAt    time.Time
 	didMetrics    atomic.Bool
 
-	executingAddress  common.Address
-	executingChain    eth.ChainID
-	executingBlock    eth.BlockID
-	executingLogIndex uint
-	executingPayload  common.Hash
+	executingAddress   common.Address
+	executingChain     eth.ChainID
+	executingBlock     eth.BlockID
+	executingLogIndex  uint
+	executingPayload   common.Hash
+	executingTimestamp uint64
 
 	initiating     *messages.Identifier
 	initiatingHash []common.Hash
