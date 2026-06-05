@@ -27,6 +27,14 @@ var (
 		Required: true,
 	}
 
+	DependencySetFlag = &cli.StringFlag{
+		Name:      "dependency-set",
+		Usage:     "Path to the interop dependency-set JSON file (sources the chain set and message expiry window)",
+		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
+		Required:  true,
+		TakesFile: true,
+	}
+
 	// Optional Flags
 	SupervisorEndpointsFlag = &cli.StringSliceFlag{
 		Name:     "supervisor-endpoints",
@@ -46,6 +54,7 @@ var (
 
 var requiredFlags = []cli.Flag{
 	L2RpcsFlag,
+	DependencySetFlag,
 }
 
 var optionalFlags = []cli.Flag{

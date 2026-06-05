@@ -82,6 +82,27 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 		return fmt.Errorf("failed to init clients: %w", err)
 	}
 
+	// Load the dependency set: it provides the authoritative chain set and the
+	// message expiry window used for executing-message validity checks.
+	loader := &depset.JSONDependencySetLoader{Path: cfg.DependencySetPath}
+	depSet, err := loader.LoadDependencySet()
+	if err != nil {
+		return fmt.Errorf("failed to load dependency set: %w", err)
+	}
+	ms.messageExpiryWindow = depSet.MessageExpiryWindow()
+
+	// Reconcile configured RPCs against the dependency set.
+	for chainID := range clients {
+		if !depSet.HasChain(chainID) {
+			log.Warn("configured L2 RPC chain is not in the dependency set", "chain_id", chainID)
+		}
+	}
+	for _, chainID := range depSet.Chains() {
+		if _, ok := clients[chainID]; !ok {
+			return fmt.Errorf("dependency set chain %s has no configured L2 RPC; cannot validate its initiating messages", chainID)
+		}
+	}
+
 	// check if failsafe and supervisor endpoints are contradictory
 	if cfg.TriggerFailsafe && len(cfg.SupervisorEndpoints) == 0 {
 		log.Warn("trigger-failsafe is enabled, but no supervisor endpoints are provided")

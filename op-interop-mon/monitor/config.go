@@ -15,6 +15,7 @@ import (
 
 type CLIConfig struct {
 	L2Rpcs              []string
+	DependencySetPath   string
 	PollInterval        time.Duration
 	SupervisorEndpoints []string
 	TriggerFailsafe     bool
@@ -39,13 +40,18 @@ func (c *CLIConfig) Check() error {
 		return errors.New("l2 rpcs are required")
 	}
 
+	if c.DependencySetPath == "" {
+		return errors.New("dependency-set is required")
+	}
+
 	return nil
 }
 
 func NewConfig(ctx *cli.Context) *CLIConfig {
 	return &CLIConfig{
 		// Required Flags
-		L2Rpcs: ctx.StringSlice(flags.L2RpcsFlag.Name),
+		L2Rpcs:            ctx.StringSlice(flags.L2RpcsFlag.Name),
+		DependencySetPath: ctx.String(flags.DependencySetFlag.Name),
 
 		// Optional Flags
 		SupervisorEndpoints: ctx.StringSlice(flags.SupervisorEndpointsFlag.Name),
