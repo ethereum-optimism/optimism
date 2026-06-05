@@ -397,12 +397,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		l2AFollowers = startConductorHealthPeers(t, keys, l1Net, l1EL, l1CL, l2ANet, seqL2AEL, l2ACL, conductorNodeDepSet, conductorCfg.HealthCheck.MinPeerCount)
 		l2BFollowers = startConductorHealthPeers(t, keys, l1Net, l1EL, l1CL, l2BNet, seqL2BEL, l2BCL, conductorNodeDepSet, conductorCfg.HealthCheck.MinPeerCount)
 
-		// EL P2P: block bodies sync between each sequencer EL and its paired
-		// supernode EL (required for the ELSync follow path). Wired before the VN
-		// bootstrap so the conductor sequencer ELs can sync the VN's genesis blocks.
-		connectL2ELPeers(t, t.Logger(), supernodeL2AEL.UserRPC(), seqL2AEL.UserRPC(), false)
-		connectL2ELPeers(t, t.Logger(), supernodeL2BEL.UserRPC(), seqL2BEL.UserRPC(), false)
-
 		// Build the candidate sequencer nodes (EL + CL, no conductor service yet) before
 		// the VN handoff so they EL-sync the genesis blocks while the VN is still producing.
 		// A candidate that joins the gossip topic after the chain stops advancing never
@@ -410,6 +404,16 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		const conductorMemberCount = 2
 		l2ACandidates := startConductorCandidateNodes(t, keys, l1Net, l1EL, l1CL, l2ANet, seqL2AEL, supernodeL2ACL, conductorNodeDepSet, jwtSecret, conductorMemberCount)
 		l2BCandidates := startConductorCandidateNodes(t, keys, l1Net, l1EL, l1CL, l2BNet, seqL2BEL, supernodeL2BCL, conductorNodeDepSet, jwtSecret, conductorMemberCount)
+
+		// EL P2P for the VN bootstrap (block-body sync for the ELSync follow path). Wired
+		// before the handoff so the conductor sequencer ELs can sync the VN's genesis blocks.
+		// Star topology with the supernode VN EL as the hub: every conductor sequencer EL trusts
+		// the VN EL (reth auto-reconnects if the link drops), and the sequencer ELs are not
+		// peered to each other (see connectConductorSequencerELPeers). This removes the
+		// single-peer isolation race where a candidate whose lone link to the primary EL failed
+		// to establish sat at genesis with connected_peers=0 forever.
+		connectConductorSequencerELPeers(t, supernodeL2AEL, append([]L2ELNode{seqL2AEL}, conductorCandidateELs(l2ACandidates)...))
+		connectConductorSequencerELPeers(t, supernodeL2BEL, append([]L2ELNode{seqL2BEL}, conductorCandidateELs(l2BCandidates)...))
 
 		// The conductor-controlled sequencers are follow-mode ELSync nodes that cannot
 		// bootstrap from genesis as the sole producer (#21164). The supernode VN is
@@ -704,6 +708,35 @@ func conductorCandidateCLs(candidates []conductorCandidate) []L2CLNode {
 	return cls
 }
 
+// conductorCandidateELs extracts the candidate sequencer ELs (for EL P2P wiring).
+func conductorCandidateELs(candidates []conductorCandidate) []L2ELNode {
+	els := make([]L2ELNode, 0, len(candidates))
+	for _, candidate := range candidates {
+		els = append(els, candidate.el)
+	}
+	return els
+}
+
+// connectConductorSequencerELPeers wires a star EL P2P topology for one chain's conductor
+// sequencer fleet (primary + candidates), with the supernode VN EL as the hub: every sequencer
+// EL peers only with the VN EL, and the sequencer ELs are NOT peered to each other.
+//
+// The VN is the stable hub — it produces the genesis bootstrap blocks and, after the handoff,
+// follows the chain, so its EL always holds the latest (and reorged) canonical head. Each
+// sequencer EL initiates and trusts the VN EL, so reth auto-reconnects to it if a link drops.
+//
+// Sequencer ELs are deliberately not meshed: the conductor cluster is a leaderless raft with no
+// designated source-of-truth sequencer, so peering candidates to each other would let one sync
+// a divergent (e.g. pre-reorg) chain from a sibling. Routing all block-body sync through the VN
+// hub keeps every node tracking the single canonical head. This also removes the prior single
+// primary<->candidate link, whose connection race could leave a candidate isolated at genesis
+// (connected_peers=0, stuck in the reth Headers stage) for the whole bootstrap window.
+func connectConductorSequencerELPeers(t devtest.T, vnEL L2ELNode, seqELs []L2ELNode) {
+	for _, seqEL := range seqELs {
+		connectL2ELPeers(t, t.Logger(), seqEL.UserRPC(), vnEL.UserRPC(), true)
+	}
+}
+
 // startConductorCandidateNodes brings up memberCount conductor-controlled sequencer
 // candidates (each with its own EL + CL) without attaching a conductor service yet. The
 // candidate CLs EL-sync from supernodeCL gossip, so they must be started before the VN
@@ -732,7 +765,6 @@ func startConductorCandidateNodes(
 		// leader sequencer EL, candidates run without the proofs-history ExEx (it crashes the
 		// node on a deep reorg).
 		candidateEL := startL2ELForKey(t, l2Net, jwtPath, jwtSecret, name, NewELNodeIdentity(0), OpRethWithoutProofsHistory())
-		connectL2ELPeers(t, t.Logger(), l2EL.UserRPC(), candidateEL.UserRPC(), false)
 		candidateEndpoint := newConductorRPCEndpoint()
 		candidateCL := startConductorControlledSequencerCL(t, keys, l1Net, l1EL, l1CL, l2Net, candidateEL, name, supernodeCL, dependencySet, jwtSecret, candidateEndpoint)
 		candidates = append(candidates, conductorCandidate{name: name, el: candidateEL, cl: candidateCL, endpoint: candidateEndpoint})
