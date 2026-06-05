@@ -56,3 +56,43 @@ commands:
           key: go-build-<<parameters.namespace>>-<<pipeline.parameters.c-go-cache-version>>-{{ .Branch }}-{{ .Revision }}
           paths:
             - ~/.cache/go-build
+
+  # Single canonical Rust env/prepare commands. Defined here (helpers is merged
+  # first) so there is exactly one of each and the sccache step below cannot be
+  # shadowed by a stale duplicate in main.yml / rust-ci.yml.
+  rust-setup-env:
+    description: "Fix rust mise environment variables"
+    steps:
+      - run:
+          name: Fix mise environment variables
+          command: |
+            echo "export CARGO_HOME=${MISE_CARGO_HOME}" >> "$BASH_ENV"
+            echo "export RUSTUP_HOME=${MISE_RUSTUP_HOME}" >> "$BASH_ENV"
+            echo "source ${MISE_CARGO_HOME}/env" >> "$BASH_ENV"
+            echo "export CARGO_INCREMENTAL=0" >> "$BASH_ENV"
+      - run:
+          name: Configure Rust binary paths (sysgo)
+          command: |
+            ROOT_DIR="$(pwd)"
+            BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
+            echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
+
+  rust-prepare:
+    parameters:
+      needs_clang:
+        description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)."
+        type: boolean
+        default: true
+    description: "Prepare the Rust environment for the build."
+    steps:
+      - rust-setup-env
+      - when:
+          condition: << parameters.needs_clang >>
+          steps:
+            - run:
+                name: Ensure clang available
+                command: 'command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }'
+      # Shared GCS compile cache (op-rust-sccache).
+      - rust-sccache-setup
