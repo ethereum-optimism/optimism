@@ -17,6 +17,6 @@ func (*noopMetrics) RecordMessageStatus(executingChainID string, initiatingChain
 }
 func (*noopMetrics) RecordTerminalStatusChange(executingChainID string, initiatingChainID string, value float64) {
 }
-func (*noopMetrics) RecordExecutingBlockRange(chainID string, min uint64, max uint64)  {}
-func (*noopMetrics) RecordInitiatingBlockRange(chainID string, min uint64, max uint64) {}
+func (*noopMetrics) RecordExecutingBlockRange(chainID string, min uint64, max uint64)        {}
+func (*noopMetrics) RecordInitiatingBlockRange(chainID string, min uint64, max uint64)       {}
 func (*noopMetrics) RecordInitiatingReorg(executingChainID string, initiatingChainID string) {}
