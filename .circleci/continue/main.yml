@@ -145,7 +145,7 @@ commands:
       enabled:
         description: "Master switch for the GCS compile cache."
         type: boolean
-        default: true
+        default: false
     steps:
       - when:
           condition: << parameters.enabled >>
