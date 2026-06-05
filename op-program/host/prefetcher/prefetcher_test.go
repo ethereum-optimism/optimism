@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
 	hostcommon "github.com/ethereum-optimism/optimism/op-program/host/common"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/kzg"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -223,7 +224,7 @@ func TestFetchL1Blob(t *testing.T) {
 		fieldElemKey := make([]byte, 80)
 		copy(fieldElemKey[:48], commitment[:])
 		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-			root := l1.RootsOfUnity[i].Bytes()
+			root := kzg.RootsOfUnity[i].Bytes()
 			copy(fieldElemKey[48:], root[:])
 			key := preimage.Keccak256Key(crypto.Keccak256(fieldElemKey)).PreimageKey()
 			actual, err := prefetcher.kvStore.Get(key)
@@ -1008,7 +1009,7 @@ func storeBlob(t *testing.T, kv kvstore.KV, commitment eth.Bytes48, blob *eth.Bl
 	blobKeyBuf := make([]byte, 80)
 	copy(blobKeyBuf[:48], commitment[:])
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-		root := l1.RootsOfUnity[i].Bytes()
+		root := kzg.RootsOfUnity[i].Bytes()
 		copy(blobKeyBuf[48:], root[:])
 		feKey := crypto.Keccak256Hash(blobKeyBuf)
 
