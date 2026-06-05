@@ -64,12 +64,6 @@ func WithPrivKey(key *ecdsa.PrivateKey) Option {
 // reaching step().
 const DummyPermissionedPrestate = "0x000000000000000000000000000000000000000000000000000000000000dead"
 
-// FindMonorepoRoot returns the relative path to the monorepo root from the current working
-// directory. Different tests might be nested in subdirectories.
-func FindMonorepoRoot() (string, error) {
-	return findMonorepoRoot()
-}
-
 // ApplyCannonVMConfig wires the Cannon VM config (VM binary, genesis files and oracle server)
 // without depending on the legacy fault-proof program binary. The server defaults to the cannon VM
 // binary, which is never executed for the Cannon VM config in devstack — output games use
@@ -204,15 +198,6 @@ func WithCannonKonaInteropConfig(rollupCfgs []*rollup.Config, l1Genesis *core.Ge
 	}
 }
 
-// WithCannonGameType registers the legacy Cannon game type (game type 0). op-devstack no longer
-// uses this — it is retained for op-e2e, which still exercises the legacy Cannon path.
-func WithCannonGameType() Option {
-	return func(_ context.Context, c *config.Config) error {
-		c.GameTypes = append(c.GameTypes, gameTypes.CannonGameType)
-		return nil
-	}
-}
-
 func WithCannonKonaGameType() Option {
 	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.CannonKonaGameType)
@@ -293,7 +278,7 @@ func applyCommonChallengerOpts(ctx context.Context, cfg *config.Config, options 
 	return nil
 }
 
-// FindMonorepoRoot finds the relative path to the monorepo root
+// findMonorepoRoot finds the relative path to the monorepo root
 // Different tests might be nested in subdirectories of the op-e2e dir.
 func findMonorepoRoot() (string, error) {
 	path := "./"

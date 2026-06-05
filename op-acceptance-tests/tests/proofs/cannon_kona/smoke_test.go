@@ -1,4 +1,4 @@
-package cannon
+package cannon_kona
 
 import (
 	"testing"

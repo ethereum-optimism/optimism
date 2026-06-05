@@ -1,4 +1,4 @@
-package cannon
+package cannon_kona
 
 import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"

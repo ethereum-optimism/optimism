@@ -133,51 +133,25 @@ func handleOptError(t *testing.T, opt shared.Option) Option {
 	}
 }
 
-// withOpProgramCannonConfig wires the Cannon VM config and the op-program absolute prestate for
-// the legacy Cannon (game type 0) path that op-e2e still exercises. The oracle server is pointed
-// at kona-host rather than op-program: the op-program cannon game type is never executed in op-e2e
-// (output games use cannon-kona and the permissioned game uses an invalid prestate), so the
-// configured server is only validated for existence.
-func withOpProgramCannonConfig(t *testing.T, system System) Option {
-	return func(c *config.Config) {
-		handleOptError(t, func(_ context.Context, cfg *config.Config) error {
-			if err := shared.ApplyCannonVMConfig(cfg, system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()); err != nil {
-				return err
-			}
-			root, err := shared.FindMonorepoRoot()
-			if err != nil {
-				return err
-			}
-			if variant := system.PrestateVariant(); variant != "" {
-				cfg.CannonAbsolutePreState = root + "op-program/bin/prestate-" + string(variant) + ".bin.gz"
-			} else {
-				cfg.CannonAbsolutePreState = root + "op-program/bin/prestate.bin.gz"
-			}
-			return nil
-		})(c)
-		bin, err := shared.LocateKonaHost(t.Context())
-		require.NoError(t, err, "locate kona-host")
-		c.Cannon.Server = bin
-	}
-}
-
-func WithCannon(t *testing.T, system System) Option {
-	return func(c *config.Config) {
-		withOpProgramCannonConfig(t, system)(c)
-		handleOptError(t, shared.WithCannonGameType())(c)
-	}
+// withCannonVMConfig wires the base Cannon VM config (VM binary and genesis files) with a dummy
+// absolute prestate. op-e2e does not run the legacy Cannon game type; this base config only exists
+// to satisfy the challenger's config validation. The permissioned game type that uses it skips
+// prestate validation and resolves without reaching step(); output games use cannon-kona, which
+// configures its own prestate.
+func withCannonVMConfig(t *testing.T, system System) Option {
+	return handleOptError(t, shared.WithPermissionedCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()))
 }
 
 func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		withOpProgramCannonConfig(t, system)(c)
+		withCannonVMConfig(t, system)(c)
 		handleOptError(t, shared.WithPermissionedGameType())(c)
 	}
 }
 
 func WithCannonKona(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		withOpProgramCannonConfig(t, system)(c)
+		withCannonVMConfig(t, system)(c)
 		handleOptError(t, shared.WithCannonKonaConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()))(c)
 		handleOptError(t, shared.WithCannonKonaGameType())(c)
 	}
@@ -185,7 +159,7 @@ func WithCannonKona(t *testing.T, system System) Option {
 
 func WithSuperCannonKona(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		withOpProgramCannonConfig(t, system)(c)
+		withCannonVMConfig(t, system)(c)
 		handleOptError(t, shared.WithCannonKonaInteropConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()))(c)
 		handleOptError(t, shared.WithSuperCannonKonaGameType())(c)
 	}
@@ -255,14 +229,6 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 	if cfg.Cannon.VmBin != "" {
 		_, err := os.Stat(cfg.Cannon.VmBin)
 		require.NoError(t, err, "cannon should be built. Make sure you've run make cannon-prestates")
-	}
-	if cfg.Cannon.Server != "" {
-		_, err := os.Stat(cfg.Cannon.Server)
-		require.NoError(t, err, "kona-host should be built. Run: cd rust/kona && just build-native --profile=release")
-	}
-	if cfg.CannonAbsolutePreState != "" {
-		_, err := os.Stat(cfg.CannonAbsolutePreState)
-		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestates")
 	}
 	if cfg.CannonKona.Server != "" {
 		_, err := os.Stat(cfg.CannonKona.Server)
