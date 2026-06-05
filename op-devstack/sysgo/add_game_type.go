@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -147,8 +148,8 @@ func addGameTypesForRuntime(
 	// dummyCannonPrestate is used for the PermissionedCannon game type now that the legacy
 	// fault-proof program is no longer wired into devstack. Permissioned games skip prestate
 	// validation and are never executed by the challenger, so the prestate is never resolved at
-	// claim time. It matches challenger.DummyPermissionedPrestate.
-	dummyCannonPrestate := common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000dead")
+	// claim time.
+	dummyCannonPrestate := common.HexToHash(sharedchallenger.DummyPermissionedPrestate)
 
 	// OPCMv2 requires all 6 game configs in order:
 	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.

@@ -132,25 +132,25 @@ func handleOptError(t *testing.T, opt shared.Option) Option {
 	}
 }
 
-// withCannonVMConfig wires the base Cannon VM config (VM binary and genesis files) with a dummy
-// absolute prestate. op-e2e does not run the legacy Cannon game type; this base config only exists
-// to satisfy the challenger's config validation. The permissioned game type that uses it skips
-// prestate validation and resolves without reaching step(); output games use cannon-kona, which
-// configures its own prestate.
-func withCannonVMConfig(t *testing.T, system System) Option {
+// withPermissionedCannonVMConfig wires the base Cannon VM config (VM binary and genesis files) with
+// a dummy absolute prestate. op-e2e does not run the legacy Cannon game type; this base config only
+// exists to satisfy the challenger's config validation. The permissioned game type that uses it
+// skips prestate validation and resolves without reaching step(); output games use cannon-kona,
+// which configures its own prestate.
+func withPermissionedCannonVMConfig(t *testing.T, system System) Option {
 	return handleOptError(t, shared.WithPermissionedCannonConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()))
 }
 
 func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		withCannonVMConfig(t, system)(c)
+		withPermissionedCannonVMConfig(t, system)(c)
 		handleOptError(t, shared.WithPermissionedGameType())(c)
 	}
 }
 
 func WithCannonKona(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		withCannonVMConfig(t, system)(c)
+		withPermissionedCannonVMConfig(t, system)(c)
 		handleOptError(t, shared.WithCannonKonaConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()))(c)
 		handleOptError(t, shared.WithCannonKonaGameType())(c)
 	}
@@ -158,7 +158,7 @@ func WithCannonKona(t *testing.T, system System) Option {
 
 func WithSuperCannonKona(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		withCannonVMConfig(t, system)(c)
+		withPermissionedCannonVMConfig(t, system)(c)
 		handleOptError(t, shared.WithCannonKonaInteropConfig(system.RollupCfgs(), system.L1Genesis(), system.L2Geneses()))(c)
 		handleOptError(t, shared.WithSuperCannonKonaGameType())(c)
 	}
