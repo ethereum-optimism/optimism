@@ -187,6 +187,23 @@ func (t *testingT) TempDir() string {
 	return t.t.TempDir()
 }
 
+func (t *testingT) TempDirWithPrefix(prefix string) string {
+	t.t.Helper()
+	tempDir, err := os.MkdirTemp("", tempDirPattern(prefix))
+	if err != nil {
+		t.Errorf("failed to create temp dir: %v", err)
+		t.FailNow()
+	}
+	require.NotEmpty(t, tempDir, "sanity check temp-dir path is not empty")
+	require.NotEqual(t, "/", tempDir, "sanity-check temp-dir is not root")
+	t.Cleanup(func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.logger.Error("Failed to clean up temp dir", "dir", tempDir, "err", err)
+		}
+	})
+	return tempDir
+}
+
 func (t *testingT) Cleanup(fn func()) {
 	t.t.Cleanup(fn)
 }

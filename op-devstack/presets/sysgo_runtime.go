@@ -25,7 +25,7 @@ func newL1ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 
 func newL1CLFrontend(t devtest.T, name string, chainID eth.ChainID, beaconHTTPAddr string, lifecycle ...stack.Lifecycle) *l1CLFrontend {
 	beaconCl := client.NewBasicHTTPClient(beaconHTTPAddr, t.Logger())
-	l1CL := newPresetL1CLNode(t, name, chainID, beaconCl)
+	l1CL := newPresetL1CLNode(t, name, chainID, beaconHTTPAddr, beaconCl)
 	if len(lifecycle) > 0 {
 		l1CL.lifecycle = lifecycle[0]
 	}
@@ -49,6 +49,9 @@ func newL2ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 	l2EL := newPresetL2ELNode(t, name, chainID, userRPCCl, userRPC, engineRPCCl, rollupCfg)
 	if len(lifecycle) > 0 {
 		l2EL.lifecycle = lifecycle[0]
+		if control, ok := lifecycle[0].(stack.ControlledLifecycle); ok {
+			l2EL.control = control
+		}
 	}
 	return l2EL
 }
@@ -73,6 +76,9 @@ func newL2CLFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 	l2CL := newPresetL2CLNode(t, name, chainID, rpcCl, userRPC)
 	if lifecycle, ok := any(node).(stack.Lifecycle); ok {
 		l2CL.lifecycle = lifecycle
+	}
+	if control, ok := any(node).(stack.ControlledLifecycle); ok {
+		l2CL.control = control
 	}
 	return l2CL
 }
@@ -122,11 +128,15 @@ func newRollupBoostFrontend(t devtest.T, name string, chainID eth.ChainID, userR
 	return rollupBoost
 }
 
-func newSupernodeFrontend(t devtest.T, name string, userRPC string) *supernodeFrontend {
+func newSupernodeFrontend(t devtest.T, name string, userRPC string, control ...stack.ControlledLifecycle) *supernodeFrontend {
 	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
-	return newPresetSupernode(t, name, rpcCl)
+	supernode := newPresetSupernode(t, name, userRPC, rpcCl)
+	if len(control) > 0 {
+		supernode.control = control[0]
+	}
+	return supernode
 }
 
 func newConductorFrontend(t devtest.T, name string, chainID eth.ChainID, rpcEndpoint string) *conductorFrontend {
