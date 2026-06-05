@@ -91,7 +91,11 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 		sys.L2CLB.AdvancedFn(safety.LocalSafe, 1, 30))
 	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 30)
 
-	preRestartSafeBlock := sys.L2CLB.SafeL2BlockRef().Number
+	// Capture the db's oldest recorded safe head (its "floor") rather than the live safe head:
+	// the live safe head advances continuously and may be sampled mid-L1-block, which races against
+	// the db's per-L1-block granularity (esp. after the initial EL-sync reset). The floor is stable
+	// until the db is truncated, so re-checking it after restart is a sound no-truncation assertion.
+	preRestartSafeBlock := sys.L2CLB.SafeHeadDBFloor()
 	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
 
 	// Restart the verifier op-node, but not the EL so the existing chain data is not deleted.
