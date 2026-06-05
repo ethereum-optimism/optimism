@@ -90,6 +90,7 @@ type mockMetrics struct {
 	actualTerminalCalls        []expectedTerminalCall
 	actualExecutingRangeCalls  []expectedBlockRangeCall
 	actualInitiatingRangeCalls []expectedBlockRangeCall
+	actualInitiatingReorgs     []expectedTerminalCall
 }
 
 func (m *mockMetrics) RecordInfo(version string) {
@@ -153,6 +154,13 @@ func (m *mockMetrics) RecordInitiatingBlockRange(chainID string, min uint64, max
 	}
 }
 
+func (m *mockMetrics) RecordInitiatingReorg(executingChainID string, initiatingChainID string) {
+	m.actualInitiatingReorgs = append(m.actualInitiatingReorgs, expectedTerminalCall{
+		executingChainID:  executingChainID,
+		initiatingChainID: initiatingChainID,
+	})
+}
+
 func jobForTest(
 	executingChainID uint64,
 	executingBlockNum uint64,
@@ -167,6 +175,37 @@ func jobForTest(
 		initiating:     &messages.Identifier{ChainID: eth.ChainIDFromUInt64(initiatingChainID), BlockNumber: initiatingBlockNum},
 		status:         status,
 	}
+}
+
+// TestCollectMetricsExpiredAndReorg verifies the collector counts the expired
+// status and records an initiating-reorg metric when a job has multiple
+// initiating block hashes.
+func TestCollectMetricsExpiredAndReorg(t *testing.T) {
+	job := jobForTest(2, 200, "0xexec", 1, 100, jobStatusExpired)
+	job.SetDidMetrics()
+	job.AddInitiatingHash(common.HexToHash("0x1"))
+	job.AddInitiatingHash(common.HexToHash("0x2"))
+
+	updater := &mockUpdater{collectForMetricsFn: func(m map[JobID]*Job) map[JobID]*Job {
+		m[job.ID()] = job
+		return m
+	}}
+	mm := &mockMetrics{}
+	mc := NewMetricCollector(log.New(), mm, map[eth.ChainID]Updater{
+		eth.ChainIDFromUInt64(1): updater,
+		eth.ChainIDFromUInt64(2): &mockUpdater{},
+	}, nil, false)
+
+	mc.CollectMetrics()
+
+	var expiredCount float64
+	for _, c := range mm.actualMessageStatusCalls {
+		if c.status == "expired" {
+			expiredCount += c.count
+		}
+	}
+	require.Equal(t, float64(1), expiredCount)
+	require.Len(t, mm.actualInitiatingReorgs, 1)
 }
 
 // TestNewMetricCollector tests the creation of a new MetricCollector
@@ -503,7 +542,7 @@ func TestCollectMetrics(t *testing.T) {
 			var expectedMessageStatusCalls []expectedMessageStatusCall
 			for _, executing := range []string{"1", "2", "3"} {
 				for _, initiating := range []string{"1", "2", "3"} {
-					for _, status := range []string{"valid", "invalid", "unknown"} {
+					for _, status := range []string{"valid", "invalid", "expired", "timestamp_mismatch", "unknown"} {
 						call := expectedMessageStatusCall{executing, initiating, status, 0}
 						for _, specific := range tt.expectedMessageStatusCalls {
 							if specific.executingChainID == executing &&

@@ -13,6 +13,7 @@ type InteropMessageMetrics interface {
 	RecordTerminalStatusChange(executingChainID string, initiatingChainID string, count float64)
 	RecordExecutingBlockRange(chainID string, min uint64, max uint64)
 	RecordInitiatingBlockRange(chainID string, min uint64, max uint64)
+	RecordInitiatingReorg(executingChainID string, initiatingChainID string)
 }
 
 type MetricCollector struct {
@@ -112,6 +113,8 @@ func (m *MetricCollector) CollectMetrics() {
 			for _, status := range []string{
 				jobStatusValid.String(),
 				jobStatusInvalid.String(),
+				jobStatusExpired.String(),
+				jobStatusTimestampMismatch.String(),
 				jobStatusUnknown.String(),
 			} {
 				messageStatus[exeChain][initChain][status] = 0
@@ -158,6 +161,7 @@ func (m *MetricCollector) CollectMetrics() {
 				"executing_block_hash", job.executingBlock.Hash,
 				"initiating_hashes", initiatingHashes,
 			)
+			m.m.RecordInitiatingReorg(job.executingChain.String(), job.initiating.ChainID.String())
 		}
 
 		// Collect the statuses of the job

@@ -17,6 +17,7 @@ type Metricer interface {
 	RecordTerminalStatusChange(executingChainID string, initiatingChainID string, count float64)
 	RecordExecutingBlockRange(chainID string, min uint64, max uint64)
 	RecordInitiatingBlockRange(chainID string, min uint64, max uint64)
+	RecordInitiatingReorg(executingChainID string, initiatingChainID string)
 
 	opmetrics.RefMetricer
 	opmetrics.RPCMetricer
@@ -38,6 +39,7 @@ type Metrics struct {
 	terminalStatusChanges prometheus.GaugeVec
 	executingBlockRange   prometheus.GaugeVec
 	initiatingBlockRange  prometheus.GaugeVec
+	initiatingReorgs      prometheus.CounterVec
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -104,6 +106,14 @@ func NewMetrics(procName string) *Metrics {
 			"chain_id",
 			"range_type",
 		}),
+		initiatingReorgs: *factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "initiating_reorgs_total",
+			Help:      "Count of jobs whose initiating block was observed at more than one hash (initiating-chain reorg)",
+		}, []string{
+			"executing_chain_id",
+			"initiating_chain_id",
+		}),
 	}
 }
 
@@ -159,4 +169,9 @@ func (m *Metrics) RecordExecutingBlockRange(chainID string, min uint64, max uint
 func (m *Metrics) RecordInitiatingBlockRange(chainID string, min uint64, max uint64) {
 	m.initiatingBlockRange.WithLabelValues(chainID, "min").Set(float64(min))
 	m.initiatingBlockRange.WithLabelValues(chainID, "max").Set(float64(max))
+}
+
+// RecordInitiatingReorg increments when a job's initiating block is seen at multiple hashes.
+func (m *Metrics) RecordInitiatingReorg(executingChainID string, initiatingChainID string) {
+	m.initiatingReorgs.WithLabelValues(executingChainID, initiatingChainID).Inc()
 }
