@@ -18,6 +18,8 @@ type Metricer interface {
 	RecordExecutingBlockRange(chainID string, min uint64, max uint64)
 	RecordInitiatingBlockRange(chainID string, min uint64, max uint64)
 	RecordInitiatingReorg(executingChainID string, initiatingChainID string)
+	RecordFilterDivergence(executingChainID string, initiatingChainID string, monitorStatus string, filterStatus string)
+	RecordFilterFailsafe(enabled bool)
 
 	opmetrics.RefMetricer
 	opmetrics.RPCMetricer
@@ -40,6 +42,8 @@ type Metrics struct {
 	executingBlockRange   prometheus.GaugeVec
 	initiatingBlockRange  prometheus.GaugeVec
 	initiatingReorgs      prometheus.CounterVec
+	filterDivergence      prometheus.CounterVec
+	filterFailsafe        prometheus.Gauge
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -114,6 +118,21 @@ func NewMetrics(procName string) *Metrics {
 			"executing_chain_id",
 			"initiating_chain_id",
 		}),
+		filterDivergence: *factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "filter_divergence_total",
+			Help:      "Count of executing messages where the interop-filter verdict disagreed with the monitor verdict",
+		}, []string{
+			"executing_chain_id",
+			"initiating_chain_id",
+			"monitor_status",
+			"filter_status",
+		}),
+		filterFailsafe: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "interop_filter_failsafe",
+			Help:      "1 if the observed interop-filter reports failsafe enabled, 0 otherwise",
+		}),
 	}
 }
 
@@ -174,4 +193,18 @@ func (m *Metrics) RecordInitiatingBlockRange(chainID string, min uint64, max uin
 // RecordInitiatingReorg increments when a job's initiating block is seen at multiple hashes.
 func (m *Metrics) RecordInitiatingReorg(executingChainID string, initiatingChainID string) {
 	m.initiatingReorgs.WithLabelValues(executingChainID, initiatingChainID).Inc()
+}
+
+// RecordFilterDivergence increments when the interop-filter verdict disagrees with the monitor's.
+func (m *Metrics) RecordFilterDivergence(executingChainID string, initiatingChainID string, monitorStatus string, filterStatus string) {
+	m.filterDivergence.WithLabelValues(executingChainID, initiatingChainID, monitorStatus, filterStatus).Inc()
+}
+
+// RecordFilterFailsafe records the observed interop-filter failsafe state.
+func (m *Metrics) RecordFilterFailsafe(enabled bool) {
+	if enabled {
+		m.filterFailsafe.Set(1)
+	} else {
+		m.filterFailsafe.Set(0)
+	}
 }

@@ -14,6 +14,8 @@ type InteropMessageMetrics interface {
 	RecordExecutingBlockRange(chainID string, min uint64, max uint64)
 	RecordInitiatingBlockRange(chainID string, min uint64, max uint64)
 	RecordInitiatingReorg(executingChainID string, initiatingChainID string)
+	RecordFilterDivergence(executingChainID string, initiatingChainID string, monitorStatus string, filterStatus string)
+	RecordFilterFailsafe(enabled bool)
 }
 
 type MetricCollector struct {
@@ -28,6 +30,10 @@ type MetricCollector struct {
 
 	// Whether to trigger failsafe API calls
 	triggerFailsafe bool
+
+	// filterObserver, when set, cross-checks the monitor's verdict against the
+	// op-interop-filter (read-only). nil disables the filter observer.
+	filterObserver *FilterObserver
 }
 
 func NewMetricCollector(log log.Logger, m InteropMessageMetrics, updaters map[eth.ChainID]Updater, failsafeClients []FailsafeClient, triggerFailsafe bool) *MetricCollector {
@@ -272,6 +278,12 @@ func (m *MetricCollector) CollectMetrics() {
 		m.TriggerFailsafe()
 	} else if shouldFailsafe && !m.triggerFailsafe {
 		m.log.Debug("Failsafe conditions detected but triggering is disabled")
+	}
+
+	// Optional read-only cross-check against the interop-filter.
+	if m.filterObserver != nil {
+		m.filterObserver.Observe(context.Background(), jobMap)
+		m.filterObserver.PollFailsafe(context.Background())
 	}
 }
 

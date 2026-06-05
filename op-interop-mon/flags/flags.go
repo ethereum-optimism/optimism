@@ -50,6 +50,21 @@ var (
 		Required: false,
 		Value:    true,
 	}
+
+	InteropFilterEndpointFlag = &cli.StringFlag{
+		Name:     "interop-filter-endpoint",
+		Usage:    "Optional op-interop-filter RPC endpoint to cross-check executing-message validity and observe failsafe state (read-only)",
+		EnvVars:  prefixEnvVars("INTEROP_FILTER_ENDPOINT"),
+		Required: false,
+	}
+
+	InteropFilterMinSafetyFlag = &cli.StringFlag{
+		Name:     "interop-filter-min-safety",
+		Usage:    "Minimum safety level requested from the interop-filter checkAccessList cross-check (e.g. cross-unsafe, safe, finalized)",
+		EnvVars:  prefixEnvVars("INTEROP_FILTER_MIN_SAFETY"),
+		Required: false,
+		Value:    "cross-unsafe",
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -60,6 +75,8 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	SupervisorEndpointsFlag,
 	TriggerFailsafeFlag,
+	InteropFilterEndpointFlag,
+	InteropFilterMinSafetyFlag,
 }
 
 func init() {

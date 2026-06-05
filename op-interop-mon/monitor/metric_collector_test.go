@@ -91,6 +91,8 @@ type mockMetrics struct {
 	actualExecutingRangeCalls  []expectedBlockRangeCall
 	actualInitiatingRangeCalls []expectedBlockRangeCall
 	actualInitiatingReorgs     []expectedTerminalCall
+	actualFilterDivergences    []expectedMessageStatusCall
+	lastFilterFailsafe         bool
 }
 
 func (m *mockMetrics) RecordInfo(version string) {
@@ -159,6 +161,19 @@ func (m *mockMetrics) RecordInitiatingReorg(executingChainID string, initiatingC
 		executingChainID:  executingChainID,
 		initiatingChainID: initiatingChainID,
 	})
+}
+
+func (m *mockMetrics) RecordFilterDivergence(executingChainID string, initiatingChainID string, monitorStatus string, filterStatus string) {
+	m.actualFilterDivergences = append(m.actualFilterDivergences, expectedMessageStatusCall{
+		executingChainID:  executingChainID,
+		initiatingChainID: initiatingChainID,
+		status:            monitorStatus,
+		count:             0,
+	})
+}
+
+func (m *mockMetrics) RecordFilterFailsafe(enabled bool) {
+	m.lastFilterFailsafe = enabled
 }
 
 func jobForTest(

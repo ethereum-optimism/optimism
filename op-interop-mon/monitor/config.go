@@ -19,10 +19,15 @@ type CLIConfig struct {
 	PollInterval        time.Duration
 	SupervisorEndpoints []string
 	TriggerFailsafe     bool
-	RPCConfig           oprpc.CLIConfig
-	LogConfig           oplog.CLIConfig
-	MetricsConfig       opmetrics.CLIConfig
-	PprofConfig         oppprof.CLIConfig
+
+	// InteropFilterEndpoint, when set, enables a read-only cross-check against the op-interop-filter.
+	InteropFilterEndpoint  string
+	InteropFilterMinSafety string
+
+	RPCConfig     oprpc.CLIConfig
+	LogConfig     oplog.CLIConfig
+	MetricsConfig opmetrics.CLIConfig
+	PprofConfig   oppprof.CLIConfig
 }
 
 func (c *CLIConfig) Check() error {
@@ -56,9 +61,12 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		// Optional Flags
 		SupervisorEndpoints: ctx.StringSlice(flags.SupervisorEndpointsFlag.Name),
 		TriggerFailsafe:     ctx.Bool(flags.TriggerFailsafeFlag.Name),
-		RPCConfig:           oprpc.ReadCLIConfig(ctx),
-		LogConfig:           oplog.ReadCLIConfig(ctx),
-		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:         oppprof.ReadCLIConfig(ctx),
+
+		InteropFilterEndpoint:  ctx.String(flags.InteropFilterEndpointFlag.Name),
+		InteropFilterMinSafety: ctx.String(flags.InteropFilterMinSafetyFlag.Name),
+		RPCConfig:              oprpc.ReadCLIConfig(ctx),
+		LogConfig:              oplog.ReadCLIConfig(ctx),
+		MetricsConfig:          opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:            oppprof.ReadCLIConfig(ctx),
 	}
 }

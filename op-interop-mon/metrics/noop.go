@@ -20,3 +20,6 @@ func (*noopMetrics) RecordTerminalStatusChange(executingChainID string, initiati
 func (*noopMetrics) RecordExecutingBlockRange(chainID string, min uint64, max uint64)        {}
 func (*noopMetrics) RecordInitiatingBlockRange(chainID string, min uint64, max uint64)       {}
 func (*noopMetrics) RecordInitiatingReorg(executingChainID string, initiatingChainID string) {}
+func (*noopMetrics) RecordFilterDivergence(executingChainID string, initiatingChainID string, monitorStatus string, filterStatus string) {
+}
+func (*noopMetrics) RecordFilterFailsafe(enabled bool) {}

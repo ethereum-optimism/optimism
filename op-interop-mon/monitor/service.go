@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -168,6 +169,19 @@ func (ms *InteropMonitorService) initFromClients(
 	if cfg.MetricsConfig.Enabled {
 		// Initialize the metric collector, with access to all updaters and failsafe client
 		ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters, failsafeClients, cfg.TriggerFailsafe)
+	}
+
+	// Optional read-only interop-filter observer (cross-check + failsafe gauge).
+	if cfg.InteropFilterEndpoint != "" && ms.collector != nil {
+		minSafety := safety.Level(cfg.InteropFilterMinSafety)
+		if !minSafety.Validate() {
+			return fmt.Errorf("invalid interop-filter-min-safety %q", cfg.InteropFilterMinSafety)
+		}
+		filterClient, err := NewFilterClient(cfg.InteropFilterEndpoint, minSafety, ms.Log)
+		if err != nil {
+			return fmt.Errorf("failed to init interop-filter client: %w", err)
+		}
+		ms.collector.filterObserver = NewFilterObserver(filterClient, ms.Metrics, ms.Log)
 	}
 	if err := ms.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to start metrics server: %w", err)
