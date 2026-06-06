@@ -89,15 +89,21 @@ func AsyncGetPrefixedWs[T any, Out any](t devtest.T, node *dsl.L2CLNode, prefix 
 		t.Log("subscribed to websocket - id=", string(a.Result))
 
 		// 3. defer the unsubscribe request
+		readCtx, cancelRead := context.WithCancel(t.Ctx())
 		defer func() {
+			cancelRead()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			require.NoError(t, writeJSON(ctx, conn, rpcRequest{
+			if err := writeJSON(ctx, conn, rpcRequest{
 				JSONRPC: "2.0",
 				ID:      2,
 				Method:  prefix + "_unsubscribe_" + method,
 				Params:  []any{a.Result},
-			}), "unsubscribe")
+			}); err != nil {
+				t.Logf("%s subscriber unsubscribe failed: %v", method, err)
+				return
+			}
 
 			t.Log("gracefully closed websocket connection")
 		}()
@@ -109,14 +115,18 @@ func AsyncGetPrefixedWs[T any, Out any](t devtest.T, node *dsl.L2CLNode, prefix 
 			defer close(msgChan)
 
 			for {
-				_, msg, err := conn.Read(t.Ctx())
+				_, msg, err := conn.Read(readCtx)
 				if err != nil {
 					t.Log("readJSON channel closed")
 					return
 				}
 
 				// Clone the raw payload before the next Read call can reuse the buffer.
-				msgChan <- append(json.RawMessage(nil), msg...)
+				select {
+				case msgChan <- append(json.RawMessage(nil), msg...):
+				case <-readCtx.Done():
+					return
+				}
 			}
 		}()
 

@@ -60,21 +60,41 @@ func TestConnDropSync(gt *testing.T) {
 		// - the node's safe head is advancing and eventually catches up with the unsafe head
 		// - the node's unsafe head is NOT advancing during this time
 		check := func() error {
+			defer func() {
+				close(endSignal)
+				for safeHeads != nil || unsafeHeads != nil {
+					select {
+					case _, ok := <-safeHeads:
+						if !ok {
+							safeHeads = nil
+						}
+					case _, ok := <-unsafeHeads:
+						if !ok {
+							unsafeHeads = nil
+						}
+					}
+				}
+			}()
+
 		outer_loop:
 			for {
 				select {
-				case safeHead := <-safeHeads:
+				case safeHead, ok := <-safeHeads:
+					if !ok {
+						return fmt.Errorf("node %s safe head subscription closed before catching up", clName)
+					}
 					t.Logf("node %s safe head is advancing", clName)
 					if safeHead.Number >= currentUnsafeHead.Number {
 						t.Logf("node %s safe head caught up with unsafe head", clName)
 						break outer_loop
 					}
-				case unsafeHead := <-unsafeHeads:
+				case unsafeHead, ok := <-unsafeHeads:
+					if !ok {
+						return fmt.Errorf("node %s unsafe head subscription closed before safe head caught up", clName)
+					}
 					return fmt.Errorf("node %s unsafe head is advancing: %d", clName, unsafeHead.Number)
 				}
 			}
-
-			endSignal <- struct{}{}
 
 			return nil
 		}
