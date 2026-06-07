@@ -34,16 +34,19 @@ func TestRunCmdKillsGrandchildOnCancel(t *testing.T) {
 	script := fmt.Sprintf(`( echo $$ > %q; sleep 600 ) & sleep 600`, pidFile)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		time.Sleep(200 * time.Millisecond)
-		cancel()
-	}()
+	defer cancel()
 
 	done := make(chan error, 1)
-	start := time.Now()
 	go func() {
 		done <- RunCmd(ctx, logger, "sh", "-c", script)
 	}()
+
+	// Wait until the grandchild has recorded its pid before cancelling. This guarantees the
+	// full process tree is up, so the test exercises the teardown deadlock rather than racing
+	// cancellation against process startup (which could spuriously pass on an overloaded box).
+	grandchildPid := readPid(t, pidFile)
+	start := time.Now()
+	cancel()
 
 	select {
 	case <-done:
@@ -52,7 +55,6 @@ func TestRunCmdKillsGrandchildOnCancel(t *testing.T) {
 		t.Fatal("RunCmd did not return after context cancellation - process tree teardown hung")
 	}
 
-	grandchildPid := readPid(t, pidFile)
 	require.Eventually(t, func() bool {
 		return !processAlive(grandchildPid)
 	}, 5*time.Second, 50*time.Millisecond, "grandchild oracle-server process should be killed with the group")
