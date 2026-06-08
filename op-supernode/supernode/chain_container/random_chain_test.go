@@ -133,3 +133,23 @@ func TestRandomChainL2Provider(t *testing.T) {
 	_, _, err = rc.FetchReceipts(context.Background(), common.HexToHash("0x0"))
 	require.ErrorIs(t, err, ethereum.NotFound)
 }
+
+func TestRandomChainManagerAccessors(t *testing.T) {
+	a := eth.ChainIDFromUInt64(1)
+	b := eth.ChainIDFromUInt64(2)
+	m := &RandomChainManager{
+		chains: map[eth.ChainID]*RandomChain{a: {chainID: a}, b: {chainID: b}},
+		order:  []eth.ChainID{a, b},
+	}
+	m.l1Source = &RandomL1Source{parent: m}
+
+	require.Equal(t, a, m.Chain(a).chainID)
+	require.Nil(t, m.Chain(eth.ChainIDFromUInt64(99)))
+
+	chains := m.Chains()
+	require.Len(t, chains, 2)
+	require.Equal(t, a, chains[0].chainID)
+	require.Equal(t, b, chains[1].chainID)
+
+	require.Same(t, m, m.L1Source().parent)
+}

@@ -76,9 +76,42 @@ type SafeHeadEntry struct {
 	L2 eth.BlockID
 }
 
+// ---------------------------------------------------------------------------
+// RandomChainManager
+// ---------------------------------------------------------------------------
+
+type RandomChainManager struct {
+	chains map[eth.ChainID]*RandomChain
+	order  []eth.ChainID // deterministic iteration
+
+	l1Source *RandomL1Source
+}
+
+func (m *RandomChainManager) Chain(id eth.ChainID) *RandomChain { return m.chains[id] }
+
+func (m *RandomChainManager) Chains() []*RandomChain {
+	out := make([]*RandomChain, 0, len(m.order))
+	for _, id := range m.order {
+		out = append(out, m.chains[id])
+	}
+	return out
+}
+
+func (m *RandomChainManager) L1Source() *RandomL1Source { return m.l1Source }
+
+// RandomL1Source feeds the Phase-1 l1ConsistencyChecker.
+type RandomL1Source struct {
+	parent *RandomChainManager
+}
+
+// ---------------------------------------------------------------------------
+// RandomChain
+// ---------------------------------------------------------------------------
+
 // RandomChain holds one chain's generated model and implements
 // virtual_node.VirtualNode and the engine_controller l2Provider set over it.
 type RandomChain struct {
+	parent  *RandomChainManager
 	chainID eth.ChainID
 	cfg     *rollup.Config
 	vncfg   *opnodecfg.Config
