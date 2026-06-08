@@ -286,9 +286,7 @@ CMD ["op-node"]
 FROM $UBUNTU_TARGET_BASE_IMAGE AS op-challenger-target
 RUN apt-get update && apt-get install -y --no-install-recommends musl openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=op-challenger-builder /app/op-challenger/bin/op-challenger /usr/local/bin/
-# Copy in op-program and cannon
-COPY --from=op-program-builder /app/op-program/bin/op-program /usr/local/bin/
-ENV OP_CHALLENGER_CANNON_SERVER=/usr/local/bin/op-program
+# Copy in cannon
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 ENV OP_CHALLENGER_CANNON_BIN=/usr/local/bin/cannon
 # Copy in kona-host (built from local kona/ source)
