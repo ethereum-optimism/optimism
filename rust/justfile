@@ -468,7 +468,7 @@ build-kona-prestate VARIANT OUTPUT_DIR:
 
 # Build a single reproducible kona prestate variant via Docker.
 # Cannon is built from source as a stage within the Dockerfile.
-# Build context is the monorepo root (same pattern as op-program).
+# Build context is the monorepo root.
 # Set KONA_CUSTOM_CONFIGS_DIR to bake custom chain configs into the prestate.
 build-kona-reproducible-prestate-variant VARIANT OUTPUT_DIR:
     #!/usr/bin/env bash
