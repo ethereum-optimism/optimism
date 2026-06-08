@@ -215,5 +215,9 @@ mod tests {
             blob.blob_gasprice, 1,
             "BLOBBASEFEE must be pinned to 1 on the OP Stack regardless of the parent DA footprint"
         );
+        assert_eq!(
+            blob.excess_blob_gas, 0,
+            "excess blob gas must be pinned to 0 regardless of the parent DA footprint"
+        );
     }
 }
