@@ -45,9 +45,6 @@ parameters:
   c-run_scheduled_cannon_full_tests:
     type: boolean
     default: false
-  c-run_scheduled_preimage_reproducibility:
-    type: boolean
-    default: false
   c-run_scheduled_stale_check:
     type: boolean
     default: false
@@ -1580,15 +1577,13 @@ jobs:
           namespace: sysgo-go-binaries
       - run:
           name: Build Go binaries for sysgo
-          command: just cannon op-program
+          command: just cannon
       - go-save-cache:
           namespace: sysgo-go-binaries
       - persist_to_workspace:
           root: .
           paths:
             - "cannon/bin"
-            - "op-program/bin/op-program"
-            - "op-program/bin/op-program-client"
 
   check-op-geth-version:
     docker:
@@ -1797,14 +1792,6 @@ jobs:
       - go-restore-cache:
           namespace: go-tests-with-fault-proof-deps
       - run:
-          name: build op-program-client
-          command: just op-program-client
-          working_directory: op-program
-      - run:
-          name: build op-program-host
-          command: just op-program-host
-          working_directory: op-program
-      - run:
           name: build cannon
           command: just cannon
       - run:
@@ -1942,31 +1929,6 @@ jobs:
           name: All memory-all tests passed
           command: echo "All memory-all acceptance test variants passed"
 
-  sanitize-op-program:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large.gen2
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - apt-install:
-          packages: "binutils-mips-linux-gnu"
-      - go-restore-cache:
-          namespace: sanitize-op-program
-      - run:
-          name: Build cannon
-          command: just cannon
-      - run:
-          name: Build op-program
-          command: just op-program
-      - run:
-          name: Sanitize op-program client
-          command: GUEST_PROGRAM=../op-program/bin/op-program-client64.elf just sanitize-program
-          working_directory: cannon
-      - go-save-cache:
-          namespace: sanitize-op-program
-
   cannon-prestate:
     machine:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
@@ -1994,8 +1956,6 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - "op-program/bin/prestate*"
-            - "op-program/bin/meta*"
             - "rust/kona/prestate-artifacts-*/"
 
   # Aggregator job - allows downstream jobs to depend on a single job instead of listing all build jobs.
@@ -2009,86 +1969,6 @@ jobs:
           command: echo "All Rust binaries built and persisted to workspace"
 
   # ============================================================================
-
-  publish-cannon-prestates:
-    resource_class: medium.gen2
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - attach_workspace:
-          at: "."
-      - gcp-cli/install
-      - gcp-oidc-authenticate:
-          gcp_cred_config_file_path: /tmp/gcp_cred_config.json
-          oidc_token_file_path: /tmp/oidc_token.json
-      - run:
-          no_output_timeout: 30m
-          name: Upload cannon prestates
-          command: |
-            # Use the actual hash for tags (hash can be found by reading releases.json)
-            PRESTATE_MT64_HASH=$(jq -r .pre ./op-program/bin/prestate-proof-mt64.json)
-            PRESTATE_MT64NEXT_HASH=$(jq -r .pre ./op-program/bin/prestate-proof-mt64Next.json)
-            PRESTATE_INTEROP_HASH=$(jq -r .pre ./op-program/bin/prestate-proof-interop.json)
-            PRESTATE_INTEROP_NEXT_HASH=$(jq -r .pre ./op-program/bin/prestate-proof-interopNext.json)
-
-            BRANCH_NAME=$(echo "<< pipeline.git.branch >>" | tr '/' '-')
-            echo "Publishing ${PRESTATE_MT64_HASH}, ${PRESTATE_MT64NEXT_HASH}, ${PRESTATE_INTEROP_HASH}, ${PRESTATE_INTEROP_NEXT_HASH} as ${BRANCH_NAME}"
-            if [[ "" != "<< pipeline.git.branch >>" ]]
-            then
-              echo "Publishing commit hash data"
-              INFO_FILE=$(mktemp)
-              # Upload the git commit info for each prestate since this won't be recorded in releases.json
-              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_MT64_HASH}") > "${INFO_FILE}"
-              gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/op-program/cannon/${BRANCH_NAME}-mt64.bin.gz.txt"
-              echo "Published commit hash data successfully" # So we know if any uploads worked
-              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_MT64NEXT_HASH}") > "${INFO_FILE}"
-              gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/op-program/cannon/${BRANCH_NAME}-mt64Next.bin.gz.txt"
-              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_INTEROP_HASH}")  > "${INFO_FILE}"
-              gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/op-program/cannon/${BRANCH_NAME}-interop.bin.gz.txt"
-              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_INTEROP_NEXT_HASH}")  > "${INFO_FILE}"
-              gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/op-program/cannon/${BRANCH_NAME}-interopNext.bin.gz.txt"
-              rm "${INFO_FILE}" # keep things tidy
-              echo "All commit info published"
-
-              # Use the branch name for branches to provide a consistent URL
-              PRESTATE_MT64_HASH="${BRANCH_NAME}-mt64"
-              PRESTATE_MT64NEXT_HASH="${BRANCH_NAME}-mt64Next"
-              PRESTATE_INTEROP_HASH="${BRANCH_NAME}-interop"
-              PRESTATE_INTEROP_NEXT_HASH="${BRANCH_NAME}-interopNext"
-            fi
-            gsutil cp ./op-program/bin/prestate-mt64.bin.gz \
-              "gs://oplabs-network-data/proofs/op-program/cannon/${PRESTATE_MT64_HASH}.bin.gz"
-
-            gsutil cp ./op-program/bin/prestate-mt64Next.bin.gz \
-              "gs://oplabs-network-data/proofs/op-program/cannon/${PRESTATE_MT64NEXT_HASH}.bin.gz"
-
-            gsutil cp ./op-program/bin/prestate-interop.bin.gz \
-              "gs://oplabs-network-data/proofs/op-program/cannon/${PRESTATE_INTEROP_HASH}.bin.gz"
-
-            gsutil cp ./op-program/bin/prestate-interopNext.bin.gz \
-              "gs://oplabs-network-data/proofs/op-program/cannon/${PRESTATE_INTEROP_NEXT_HASH}.bin.gz"
-      - notify-failures-on-develop:
-          mentions: "@proofs-team"
-
-  preimage-reproducibility:
-    machine: true
-    resource_class: large.gen2
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - run:
-          name: Verify reproducibility
-          command: just verify-reproducibility
-          working_directory: op-program
-      - store_artifacts:
-          path: ./op-program/temp/logs
-          when: always
-      - notify-failures-on-develop:
-          mentions: "@proofs-team"
 
   cannon-stf-verify:
     docker:
@@ -2155,43 +2035,6 @@ jobs:
           # If semgrep hangs, stop the scan after 20m, to prevent a useless 5h job
           no_output_timeout: 20m
       - notify-failures-on-develop
-
-  analyze-op-program-client:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge.gen2
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - setup_remote_docker
-      - go-restore-cache:
-          namespace: analyze-op-program-client
-      - run:
-          name: Run Analyzer
-          command: |
-            just run-vm-compat
-          working_directory: op-program
-      - go-save-cache:
-          namespace: analyze-op-program-client
-      - store_artifacts:
-          path: op-program/bin/vm-compat-output/vm-compat-findings.json
-          destination: vm-compat-findings.json
-          when: always
-
-  op-program-compat:
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: large.gen2
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - run:
-          name: Verify Compatibility
-          command: |
-            just verify-compat
-          working_directory: op-program
 
   check-generated-mocks-op-node:
     docker:
@@ -2593,21 +2436,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
             - slack
-      - analyze-op-program-client:
-          requires:
-            - prep-go-modules
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - op-program-compat:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - sanitize-op-program:
-          requires:
-            - cannon-prestate
-            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       - check-generated-mocks-op-node:
@@ -2751,10 +2580,7 @@ workflows:
             - cannon-go-lint-and-test: terminal
             - check-generated-mocks-op-node: terminal
             - check-generated-mocks-op-service: terminal
-            - op-program-compat: terminal
-            - sanitize-op-program: terminal
             # Misc checks that run on the merge queue.
-            - analyze-op-program-client: terminal
             - check-nut-locks: terminal
             - check-op-geth-version: terminal
             - op-deployer-forge-version: terminal
@@ -2814,28 +2640,6 @@ workflows:
           filters:
             tags:
               only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
-            branches:
-              ignore: /.*/
-      - cannon-prestate:
-          filters:
-            tags:
-              only: /^op-program\/v.*/
-            branches:
-              ignore: /.*/
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
-      - publish-cannon-prestates:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-            - oplabs-network-optimism-io-bucket
-          requires:
-            - cannon-prestate
-          filters:
-            tags:
-              only: /^op-program\/v.*/
             branches:
               ignore: /.*/
 
@@ -2914,14 +2718,6 @@ workflows:
             - cannon-prestate
             - rust-workspace-binaries
             - prep-go-modules
-      - publish-cannon-prestates:
-          context:
-            - slack
-            - oplabs-network-optimism-io-bucket
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - cannon-prestate
-            - op-e2e-cannon-tests
 
   develop-kontrol-tests:
     when: << pipeline.parameters.c-run_develop_kontrol_tests >>
@@ -2945,14 +2741,6 @@ workflows:
           skip_slow_tests: false
           no_output_timeout: 30m
           notify: true
-          context:
-            - slack
-            - circleci-repo-readonly-authenticated-github-token
-
-  scheduled-preimage-reproducibility:
-    when: << pipeline.parameters.c-run_scheduled_preimage_reproducibility >>
-    jobs:
-      - preimage-reproducibility:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token

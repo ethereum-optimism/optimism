@@ -47,25 +47,12 @@ test-cannon: pre-test
 test-fault-proofs: pre-test
     {{_go_test}} {{_go_test_flags}} ./faultproofs
 
-# Build cannon prestates
-cannon-prestates:
-    cd .. && just cannon-prestates
-
 # Pre-test setup
-pre-test: pre-test-cannon
-
-[private]
-pre-test-cannon:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ ! -e ../op-program/bin ]; then
-        just cannon-prestates
-    fi
+pre-test:
 
 # Clean build artifacts
 clean:
     rm -rf ../.devnet
-    rm -rf ../op-program/bin
 
 # Run fuzz tests
 fuzz:
