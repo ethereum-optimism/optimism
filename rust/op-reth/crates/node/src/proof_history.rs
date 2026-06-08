@@ -34,12 +34,11 @@ pub async fn launch_node(
         return handle.node_exit_future.await;
     }
 
-    let path = args
-        .proofs_history_storage_path
-        .clone()
-        .expect("Path must be provided if not using in-memory storage");
+    // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
+    // [`ProofsHistoryStorageArgs::resolve_storage_path`].
+    let path = args.history.resolve_storage_path(builder.config().datadir().as_ref());
 
-    match args.proofs_history_storage_version {
+    match args.history.storage_version {
         ProofsStorageVersion::V1 => {
             info!(target: "reth::cli", "Using on-disk storage for proofs history (v1)");
             let mdbx = Arc::new(
@@ -73,6 +72,7 @@ where
 
     let RollupArgs { proofs_history_window, proofs_history_verification_interval, .. } =
         args.clone();
+    let proofs_history_window = proofs_history_window.window;
 
     let handle = builder
         .node(OpNode::new(args))

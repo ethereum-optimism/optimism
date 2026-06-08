@@ -5,7 +5,9 @@ use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_node::args::ProofsStorageVersion;
+use reth_optimism_node::args::{
+    ProofsHistoryStorageArgs, ProofsHistoryWindowArg, ProofsStorageVersion,
+};
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
     BackfillJob, OpProofsBackfillStore, OpProofsProviderRO, db::MdbxProofsStorageV2,
@@ -14,7 +16,7 @@ use reth_provider::{
     BlockHashReader, BlockNumReader, ChangeSetReader, DBProvider, DatabaseProviderFactory,
     HeaderProvider, StageCheckpointReader, StorageChangeSetReader, StorageSettingsCache,
 };
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 use tracing::info;
 
 /// Backfills the proofs storage to an older earliest block.
@@ -23,25 +25,14 @@ pub struct BackfillCommand<C: ChainSpecParser> {
     #[command(flatten)]
     env: EnvironmentArgs<C>,
 
-    /// The path to the storage DB for proofs history.
-    #[arg(
-        long = "proofs-history.storage-path",
-        value_name = "PROOFS_HISTORY_STORAGE_PATH",
-        required = true
-    )]
-    pub storage_path: PathBuf,
+    /// Shared proofs-history storage flags (storage path + version).
+    #[command(flatten)]
+    pub history: ProofsHistoryStorageArgs,
 
-    /// Target earliest block number after backfill.
-    #[arg(long = "proofs-history.target-earliest-block", value_name = "TARGET_EARLIEST_BLOCK")]
-    pub target_earliest_block: u64,
-
-    /// Storage schema version. Must match the version used when starting the node.
-    #[arg(
-        long = "proofs-history.storage-version",
-        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
-        default_value = "v1"
-    )]
-    pub storage_version: ProofsStorageVersion,
+    /// Retention window in blocks. Backfill extends the proof window backward
+    /// until `earliest <= latest - window`.
+    #[command(flatten)]
+    pub proofs_history_window: ProofsHistoryWindowArg,
 
     /// Use the trie-state snapshot to accelerate per-block reads during
     /// backfill. If no snapshot exists, one is built at the current
@@ -57,11 +48,13 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
         info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
-        info!(target: "reth::cli", "Backfilling OP proofs storage at: {:?}", self.storage_path);
 
-        let Environment { provider_factory, .. } = self.env.init::<N>(AccessRights::RO, runtime)?;
+        let Environment { provider_factory, data_dir, .. } =
+            self.env.init::<N>(AccessRights::RO, runtime)?;
+        let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
+        info!(target: "reth::cli", "Backfilling OP proofs storage at: {:?}", storage_path);
 
-        match self.storage_version {
+        match self.history.storage_version {
             ProofsStorageVersion::V1 => {
                 return Err(eyre::eyre!(
                     "Backfill is not supported for V1 proofs storage. \
@@ -70,13 +63,13 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
             }
             ProofsStorageVersion::V2 => {
                 let storage: Arc<MdbxProofsStorageV2> = Arc::new(
-                    MdbxProofsStorageV2::new(&self.storage_path)
+                    MdbxProofsStorageV2::new(&storage_path)
                         .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
                 );
                 Self::run_backfill(
                     &provider_factory,
                     storage,
-                    self.target_earliest_block,
+                    self.proofs_history_window.window,
                     self.use_snapshot,
                 )?;
             }
@@ -88,7 +81,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
     fn run_backfill<F, S>(
         provider_factory: &F,
         storage: S,
-        target_earliest_block: u64,
+        window_blocks: u64,
         use_snapshot: bool,
     ) -> eyre::Result<()>
     where
@@ -105,11 +98,15 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
             + Sync,
         S: OpProofsBackfillStore + Clone + Send,
     {
-        let window = storage.provider_ro()?.get_proof_window()?;
+        let proof_window = storage.provider_ro()?.get_proof_window()?;
+        // Mirror prune's semantics: target `earliest = latest - window`,
+        // clamped to 0 if the chain is shorter than the requested window.
+        let target_earliest_block = proof_window.latest.number.saturating_sub(window_blocks);
         info!(
             target: "reth::cli",
-            earliest = ?window.earliest,
-            latest = ?window.latest,
+            earliest = ?proof_window.earliest,
+            latest = ?proof_window.latest,
+            window_blocks,
             target_earliest_block,
             use_snapshot,
             "Starting backfill job"
