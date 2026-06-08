@@ -6,7 +6,11 @@ package chain_container
 
 import (
 	"slices"
+	"sync"
+	"sync/atomic"
 
+	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -62,4 +66,23 @@ func (b *L2Block) Receipts() gethtypes.Receipts {
 type SafeHeadEntry struct {
 	L1 eth.BlockID
 	L2 eth.BlockID
+}
+
+// RandomChain holds one chain's generated model and implements
+// virtual_node.VirtualNode and the engine_controller l2Provider set over it.
+type RandomChain struct {
+	chainID eth.ChainID
+	cfg     *rollup.Config
+	vncfg   *opnodecfg.Config
+
+	mu     sync.RWMutex
+	l2     []L2Block        // index == block number
+	l1     []eth.L1BlockRef // index == block number
+	safeDB []SafeHeadEntry  // sparse, ascending by L1 number
+
+	// head labels as block numbers (indices into l2 / l1)
+	unsafe, safe, finalized uint64 // L2 block numbers
+	currentL1, finalizedL1  uint64 // L1 block numbers
+
+	running atomic.Bool
 }
