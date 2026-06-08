@@ -1,9 +1,12 @@
 package chain_container
 
 import (
+	"context"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -55,4 +58,35 @@ func TestL2BlockOutput(t *testing.T) {
 	require.Equal(t, eth.Bytes32(common.HexToHash("0xdead")), out.StateRoot)
 	require.Equal(t, eth.Bytes32(wRoot), out.MessagePasserStorageRoot)
 	require.Equal(t, common.HexToHash("0xabcd"), out.BlockHash)
+}
+
+func TestRandomChainSafeDB(t *testing.T) {
+	rc := &RandomChain{
+		safeDB: []SafeHeadEntry{
+			{L1: eth.BlockID{Number: 100}, L2: eth.BlockID{Number: 5}},
+			{L1: eth.BlockID{Number: 110}, L2: eth.BlockID{Number: 8}},
+		},
+	}
+
+	_, err := rc.L1AtSafeHead(context.Background(), eth.BlockID{Number: 8})
+	require.ErrorIs(t, err, virtual_node.ErrVirtualNodeNotRunning)
+
+	require.NoError(t, rc.Start(context.Background()))
+
+	l1, err := rc.L1AtSafeHead(context.Background(), eth.BlockID{Number: 8})
+	require.NoError(t, err)
+	require.Equal(t, uint64(110), l1.Number)
+
+	_, err = rc.L1AtSafeHead(context.Background(), eth.BlockID{Number: 9})
+	require.ErrorIs(t, err, safedb.ErrL1AtSafeHeadNotFound)
+
+	gL1, gL2, err := rc.FirstSafeHeadEntry(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(100), gL1.Number)
+	require.Equal(t, uint64(5), gL2.Number)
+
+	aL1, aL2, err := rc.SafeHeadAtL1(context.Background(), 105)
+	require.NoError(t, err)
+	require.Equal(t, uint64(100), aL1.Number)
+	require.Equal(t, uint64(5), aL2.Number)
 }

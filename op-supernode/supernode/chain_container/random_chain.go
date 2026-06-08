@@ -5,13 +5,17 @@ package chain_container
 // virtual_node.VirtualNode and the engine_controller l2Provider set.
 
 import (
+	"context"
 	"slices"
+	"sort"
 	"sync"
 	"sync/atomic"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -85,4 +89,109 @@ type RandomChain struct {
 	currentL1, finalizedL1  uint64 // L1 block numbers
 
 	running atomic.Bool
+}
+
+// --- virtual_node.VirtualNode ----------------------------------------------
+
+func (rc *RandomChain) Start(ctx context.Context) error {
+	rc.running.Store(true)
+	return nil
+}
+
+func (rc *RandomChain) Stop(ctx context.Context) error {
+	rc.running.Store(false)
+	return nil
+}
+
+// SafeHeadAtL1 returns the highest entry whose L1.Number <= l1BlockNum.
+func (rc *RandomChain) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
+	if !rc.running.Load() {
+		return eth.BlockID{}, eth.BlockID{}, virtual_node.ErrVirtualNodeNotRunning
+	}
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+
+	i := sort.Search(len(rc.safeDB), func(i int) bool {
+		return rc.safeDB[i].L1.Number > l1BlockNum
+	})
+	if i == 0 {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
+	}
+	e := rc.safeDB[i-1]
+	return e.L1, e.L2, nil
+}
+
+func (rc *RandomChain) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
+	if !rc.running.Load() {
+		return eth.BlockID{}, virtual_node.ErrVirtualNodeNotRunning
+	}
+	// Genesis is safe at L1 0 (the real VN uses 0, not cfg.Genesis.L1).
+	if rc.cfg != nil && target == rc.cfg.Genesis.L2 {
+		return eth.BlockID{Number: 0}, nil
+	}
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	return rc.safeDBLookup(target)
+}
+
+// safeDBLookup returns the L1 of the first entry whose L2.Number >= l2.Number.
+// Above the latest entry is transient (ErrL1AtSafeHeadNotFound); below the
+// first is permanent (ErrL1AtSafeHeadUnavailable).
+func (rc *RandomChain) safeDBLookup(l2 eth.BlockID) (eth.BlockID, error) {
+	n := len(rc.safeDB)
+	if n == 0 {
+		return eth.BlockID{}, safedb.ErrL1AtSafeHeadNotFound
+	}
+	target := l2.Number
+	if target > rc.safeDB[n-1].L2.Number {
+		return eth.BlockID{}, safedb.ErrL1AtSafeHeadNotFound
+	}
+	if target < rc.safeDB[0].L2.Number {
+		return eth.BlockID{}, safedb.ErrL1AtSafeHeadUnavailable
+	}
+	i := sort.Search(n, func(i int) bool {
+		return rc.safeDB[i].L2.Number >= target
+	})
+	return rc.safeDB[i].L1, nil
+}
+
+func (rc *RandomChain) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	if !rc.running.Load() {
+		return eth.BlockID{}, eth.BlockID{}, virtual_node.ErrVirtualNodeNotRunning
+	}
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+
+	if len(rc.safeDB) == 0 {
+		return eth.BlockID{}, eth.BlockID{}, safedb.ErrNotFound
+	}
+	e := rc.safeDB[0]
+	return e.L1, e.L2, nil
+}
+
+func (rc *RandomChain) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	if !rc.running.Load() {
+		return nil, virtual_node.ErrVirtualNodeNotRunning
+	}
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+
+	ss := &eth.SyncStatus{}
+	if rc.currentL1 < uint64(len(rc.l1)) {
+		ss.CurrentL1 = rc.l1[rc.currentL1]
+	}
+	if rc.finalizedL1 < uint64(len(rc.l1)) {
+		ss.FinalizedL1 = rc.l1[rc.finalizedL1]
+	}
+	if rc.unsafe < uint64(len(rc.l2)) {
+		ss.UnsafeL2 = rc.l2[rc.unsafe].Ref
+	}
+	if rc.safe < uint64(len(rc.l2)) {
+		ss.SafeL2 = rc.l2[rc.safe].Ref
+		ss.LocalSafeL2 = rc.l2[rc.safe].Ref
+	}
+	if rc.finalized < uint64(len(rc.l2)) {
+		ss.FinalizedL2 = rc.l2[rc.finalized].Ref
+	}
+	return ss, nil
 }
