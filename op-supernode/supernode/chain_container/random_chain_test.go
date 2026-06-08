@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -89,4 +90,46 @@ func TestRandomChainSafeDB(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(100), aL1.Number)
 	require.Equal(t, uint64(5), aL2.Number)
+}
+
+func TestRandomChainL2Provider(t *testing.T) {
+	wRoot := common.HexToHash("0x1234")
+	blkHash := common.HexToHash("0xfeed")
+	rc := &RandomChain{
+		safe: 0,
+		l2: []L2Block{{
+			Ref: eth.L2BlockRef{Hash: blkHash, Number: 0, Time: 1234},
+			Payload: &eth.ExecutionPayloadEnvelope{
+				ExecutionPayload: &eth.ExecutionPayload{
+					StateRoot:       eth.Bytes32(common.HexToHash("0xdead")),
+					WithdrawalsRoot: &wRoot,
+					BlockHash:       blkHash,
+				},
+			},
+			ExecMsgs: map[uint32]*supervisortypes.Message{0: newMessage(10, 0, 0, 1234)},
+		}},
+	}
+
+	ref, err := rc.L2BlockRefByNumber(context.Background(), 0)
+	require.NoError(t, err)
+	require.Equal(t, blkHash, ref.Hash)
+
+	labelRef, err := rc.L2BlockRefByLabel(context.Background(), eth.Safe)
+	require.NoError(t, err)
+	require.Equal(t, blkHash, labelRef.Hash)
+
+	_, err = rc.L2BlockRefByNumber(context.Background(), 1)
+	require.ErrorIs(t, err, ethereum.NotFound)
+
+	out, err := rc.OutputV0AtBlock(context.Background(), blkHash)
+	require.NoError(t, err)
+	require.Equal(t, blkHash, out.BlockHash)
+
+	info, rcpts, err := rc.FetchReceipts(context.Background(), blkHash)
+	require.NoError(t, err)
+	require.Equal(t, blkHash, info.Hash())
+	require.Len(t, rcpts[0].Logs, 1)
+
+	_, _, err = rc.FetchReceipts(context.Background(), common.HexToHash("0x0"))
+	require.ErrorIs(t, err, ethereum.NotFound)
 }

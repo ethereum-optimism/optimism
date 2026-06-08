@@ -6,6 +6,7 @@ package chain_container
 
 import (
 	"context"
+	"math/big"
 	"slices"
 	"sort"
 	"sync"
@@ -17,6 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -198,3 +201,112 @@ func (rc *RandomChain) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) 
 		FinalizedL2:        rc.l2[rc.finalized].Ref,
 	}, nil
 }
+
+// --- engine_controller l2Provider set --------------------------------------
+
+func (rc *RandomChain) headNum(label eth.BlockLabel) uint64 {
+	switch label {
+	case eth.Unsafe:
+		return rc.unsafe
+	case eth.Finalized:
+		return rc.finalized
+	default:
+		return rc.safe
+	}
+}
+
+// blockByHash finds the block with the given hash. Assumes rc.mu held.
+func (rc *RandomChain) blockByHash(h common.Hash) (*L2Block, bool) {
+	for i := range rc.l2 {
+		if rc.l2[i].Ref.Hash == h {
+			return &rc.l2[i], true
+		}
+	}
+	return nil, false
+}
+
+func (rc *RandomChain) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	return rc.l2[rc.headNum(label)].Ref, nil
+}
+
+func (rc *RandomChain) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	if num >= uint64(len(rc.l2)) {
+		return eth.L2BlockRef{}, ethereum.NotFound
+	}
+	return rc.l2[num].Ref, nil
+}
+
+func (rc *RandomChain) OutputV0AtBlockNumber(ctx context.Context, blockNum uint64) (*eth.OutputV0, error) {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	if blockNum >= uint64(len(rc.l2)) {
+		return nil, ethereum.NotFound
+	}
+	return rc.l2[blockNum].Output(), nil
+}
+
+func (rc *RandomChain) OutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	blk, ok := rc.blockByHash(blockHash)
+	if !ok {
+		return nil, ethereum.NotFound
+	}
+	return blk.Output(), nil
+}
+
+func (rc *RandomChain) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	if number >= uint64(len(rc.l2)) {
+		return nil, ethereum.NotFound
+	}
+	return rc.l2[number].Payload, nil
+}
+
+func (rc *RandomChain) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	blk, ok := rc.blockByHash(hash)
+	if !ok {
+		return nil, ethereum.NotFound
+	}
+	return blk.Payload, nil
+}
+
+func (rc *RandomChain) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	return &eth.ForkchoiceUpdatedResult{
+		PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
+	}, nil
+}
+
+func (rc *RandomChain) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	return &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil
+}
+
+func (rc *RandomChain) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, gethtypes.Receipts, error) {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	blk, ok := rc.blockByHash(blockHash)
+	if !ok {
+		return nil, nil, ethereum.NotFound
+	}
+	return blockInfoFor(blk), blk.Receipts(), nil
+}
+
+// blockInfoFor returns trusted info so Ref.Hash is used verbatim; the interop
+// seal path reads only Hash/NumberU64/ParentHash/Time.
+func blockInfoFor(blk *L2Block) eth.BlockInfo {
+	h := &gethtypes.Header{
+		ParentHash: blk.Ref.ParentHash,
+		Number:     new(big.Int).SetUint64(blk.Ref.Number),
+		Time:       blk.Ref.Time,
+	}
+	return eth.HeaderBlockInfoTrusted(blk.Ref.Hash, h)
+}
+
+func (rc *RandomChain) Close() {}
