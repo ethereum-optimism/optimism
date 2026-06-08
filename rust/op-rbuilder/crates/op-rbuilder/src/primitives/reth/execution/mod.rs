@@ -115,7 +115,7 @@ impl<T: Debug + Default> ExecutionInfo<T> {
         // *bound* (since `cumulative_evm_gas_used >= cumulative_gas_used`), but this is kept as a
         // distinct diagnostic: it fires only when even canonical gas overflows (the only case with
         // SDM off).
-        if self.cumulative_gas_used + tx_gas_limit > block_gas_limit {
+        if self.cumulative_gas_used.saturating_add(tx_gas_limit) > block_gas_limit {
             return Err(TxnExecutionResult::TransactionGasLimitExceeded(
                 self.cumulative_gas_used,
                 tx_gas_limit,
@@ -127,7 +127,7 @@ impl<T: Debug + Default> ExecutionInfo<T> {
         // Binds across flashblocks because `cumulative_evm_gas_used` persists while the per-
         // flashblock executor accumulator resets. With SDM on, this fires (where the canonical check
         // above did not) when refunds let canonical gas fit but real compute is the binding limit.
-        if self.cumulative_evm_gas_used + tx_gas_limit > block_gas_limit {
+        if self.cumulative_evm_gas_used.saturating_add(tx_gas_limit) > block_gas_limit {
             return Err(TxnExecutionResult::PreRefundGasLimitExceeded(
                 self.cumulative_evm_gas_used,
                 tx_gas_limit,

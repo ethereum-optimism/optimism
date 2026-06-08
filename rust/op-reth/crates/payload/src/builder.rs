@@ -642,6 +642,14 @@ impl ExecutionInfo {
         }
     }
 
+    /// Adds a transaction's gas to both the canonical and pre-refund (real compute) counters,
+    /// saturating to guard against overflow. `evm_gas` equals `canonical_gas` when SDM refunds
+    /// are off. Encapsulated so the saturating add is enforced at every call site.
+    pub fn accumulate_gas(&mut self, canonical_gas: u64, evm_gas: u64) {
+        self.cumulative_gas_used = self.cumulative_gas_used.saturating_add(canonical_gas);
+        self.cumulative_evm_gas_used = self.cumulative_evm_gas_used.saturating_add(evm_gas);
+    }
+
     /// Returns true if the transaction would exceed the block limits:
     /// - block gas limit: ensures the transaction still fits into the block.
     /// - tx DA limit: if configured, ensures the tx does not exceed the maximum allowed DA limit
@@ -680,7 +688,7 @@ impl ExecutionInfo {
         // Inducting off the declared gas limit bounds the actual sum. Since
         // `cumulative_evm_gas_used >= cumulative_gas_used`, this subsumes the canonical
         // block-gas-limit check; with SDM off the two are identical.
-        self.cumulative_evm_gas_used + tx_gas_limit > block_gas_limit
+        self.cumulative_evm_gas_used.saturating_add(tx_gas_limit) > block_gas_limit
     }
 }
 
@@ -833,10 +841,9 @@ where
 
             // add gas used by the transaction to cumulative gas used, before creating the receipt
             let tx_gas_used = gas_used.tx_gas_used();
-            info.cumulative_gas_used += tx_gas_used;
             // Sequencer txs (deposits/system txs) are never SDM-refunded, so pre-refund gas equals
             // canonical gas; track it so the pool-tx pre-refund check starts from the right total.
-            info.cumulative_evm_gas_used += tx_gas_used;
+            info.accumulate_gas(tx_gas_used, tx_gas_used);
 
             // Record the successfully committed transaction for callers that want per-call
             // visibility.
@@ -974,8 +981,7 @@ where
             // add gas used by the transaction to cumulative gas used, before creating the
             // receipt
             let tx_gas_used = gas_used.tx_gas_used();
-            info.cumulative_gas_used += tx_gas_used;
-            info.cumulative_evm_gas_used += evm_gas_used;
+            info.accumulate_gas(tx_gas_used, evm_gas_used);
             info.cumulative_da_bytes_used += tx_da_size;
 
             // update and add to total fees
