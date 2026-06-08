@@ -1,5 +1,7 @@
 //! Implements the Optimism engine API RPC methods.
 
+use std::time::Duration;
+
 use alloy_eips::eip7685::Requests;
 use alloy_primitives::{B256, BlockHash, U64};
 use alloy_rpc_types_engine::{
@@ -37,6 +39,39 @@ pub const OP_ENGINE_CAPABILITIES: &[&str] = &[
     "engine_getPayloadBodiesByHashV1",
     "engine_getPayloadBodiesByRangeV1",
 ];
+
+/// Reads the synthetic Engine API delay (microseconds) from the
+/// `BENCHMARK_ENGINE_API_DELAY_US` env var. Unset or unparseable yields zero, so
+/// a single build serves both the clean baseline and a tunable degraded
+/// candidate without recompiling.
+fn benchmark_engine_api_delay() -> Duration {
+    std::env::var("BENCHMARK_ENGINE_API_DELAY_US")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(Duration::from_micros)
+        .unwrap_or(Duration::ZERO)
+}
+
+/// Injects a synthetic delay into an Engine API call for regression-detection
+/// testing. Busy-spins rather than sleeps: sub-millisecond delays fall below
+/// tokio's timer granularity, and a spin also models a real (CPU-bound)
+/// slowdown more faithfully than a sleep. A no-op when the delay is zero.
+async fn apply_benchmark_engine_api_delay(method: &'static str) {
+    let delay = benchmark_engine_api_delay();
+    if delay.is_zero() {
+        return;
+    }
+    debug!(
+        target: "rpc::engine",
+        method,
+        delay_us = delay.as_micros(),
+        "Applying synthetic benchmark Engine API delay"
+    );
+    let start = std::time::Instant::now();
+    while start.elapsed() < delay {
+        std::hint::spin_loop();
+    }
+}
 
 /// Extension trait that gives access to Optimism engine API RPC methods.
 ///
@@ -272,6 +307,7 @@ where
 {
     async fn new_payload_v2(&self, payload: ExecutionPayloadInputV2) -> RpcResult<PayloadStatus> {
         trace!(target: "rpc::engine", "Serving engine_newPayloadV2");
+        apply_benchmark_engine_api_delay("engine_newPayloadV2").await;
         let payload = OpExecData::from(op_alloy_rpc_types_engine::OpExecutionData::v2(payload));
         Ok(self.inner.new_payload_v2_metered(payload).await?)
     }
@@ -283,6 +319,7 @@ where
         parent_beacon_block_root: B256,
     ) -> RpcResult<PayloadStatus> {
         trace!(target: "rpc::engine", "Serving engine_newPayloadV3");
+        apply_benchmark_engine_api_delay("engine_newPayloadV3").await;
         let payload = OpExecData::from(op_alloy_rpc_types_engine::OpExecutionData::v3(
             payload,
             versioned_hashes,
@@ -300,6 +337,7 @@ where
         execution_requests: Requests,
     ) -> RpcResult<PayloadStatus> {
         trace!(target: "rpc::engine", "Serving engine_newPayloadV4");
+        apply_benchmark_engine_api_delay("engine_newPayloadV4").await;
         let payload = OpExecData::from(op_alloy_rpc_types_engine::OpExecutionData::v4(
             payload,
             versioned_hashes,
@@ -315,6 +353,7 @@ where
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<EngineT::PayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
+        apply_benchmark_engine_api_delay("engine_forkchoiceUpdatedV1").await;
         Ok(self.inner.fork_choice_updated_v1_metered(fork_choice_state, payload_attributes).await?)
     }
 
@@ -324,6 +363,7 @@ where
         payload_attributes: Option<EngineT::PayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
         trace!(target: "rpc::engine", "Serving engine_forkchoiceUpdatedV2");
+        apply_benchmark_engine_api_delay("engine_forkchoiceUpdatedV2").await;
         Ok(self.inner.fork_choice_updated_v2_metered(fork_choice_state, payload_attributes).await?)
     }
 
@@ -333,6 +373,7 @@ where
         payload_attributes: Option<EngineT::PayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
         trace!(target: "rpc::engine", "Serving engine_forkchoiceUpdatedV3");
+        apply_benchmark_engine_api_delay("engine_forkchoiceUpdatedV3").await;
         Ok(self.inner.fork_choice_updated_v3_metered(fork_choice_state, payload_attributes).await?)
     }
 
@@ -341,6 +382,7 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV2> {
         debug!(target: "rpc::engine", id = %payload_id, "Serving engine_getPayloadV2");
+        apply_benchmark_engine_api_delay("engine_getPayloadV2").await;
         Ok(self.inner.get_payload_v2_metered(payload_id).await?)
     }
 
@@ -349,6 +391,7 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV3> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV3");
+        apply_benchmark_engine_api_delay("engine_getPayloadV3").await;
         Ok(self.inner.get_payload_v3_metered(payload_id).await?)
     }
 
@@ -357,6 +400,7 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV4> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV4");
+        apply_benchmark_engine_api_delay("engine_getPayloadV4").await;
         Ok(self.inner.get_payload_v4_metered(payload_id).await?)
     }
 

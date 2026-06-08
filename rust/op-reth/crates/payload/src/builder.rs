@@ -442,6 +442,30 @@ impl<'a, Txs> OpBuilder<'a, Txs> {
     }
 }
 
+/// Applies a synthetic delay to the block-build critical path for
+/// regression-detection testing. The delay (microseconds) is read from the
+/// `BENCHMARK_PAYLOAD_BUILD_DELAY_US` env var on every call; unset means no
+/// delay, so one build serves both the clean baseline and a tunable degraded
+/// candidate. Busy-spins because the delay can be sub-millisecond (below
+/// tokio's timer granularity) and a spin models a CPU-bound slowdown more
+/// faithfully than a sleep. Unlike a per-RPC-handler delay, a delay here sits
+/// on the serial block-build path, so it surfaces as a throughput regression
+/// (lower MGas/s, higher wall-clock) rather than only a latency one.
+fn apply_benchmark_payload_build_delay() {
+    let delay = std::env::var("BENCHMARK_PAYLOAD_BUILD_DELAY_US")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(std::time::Duration::from_micros)
+        .unwrap_or(std::time::Duration::ZERO);
+    if delay.is_zero() {
+        return;
+    }
+    let start = std::time::Instant::now();
+    while start.elapsed() < delay {
+        std::hint::spin_loop();
+    }
+}
+
 impl<Txs> OpBuilder<'_, Txs> {
     /// Builds the payload on top of the state.
     pub fn build<Evm, ChainSpec, N, Attrs>(
@@ -464,6 +488,10 @@ impl<Txs> OpBuilder<'_, Txs> {
     {
         let Self { best } = self;
         debug!(target: "payload_builder", id=%ctx.payload_id(), parent_header = ?ctx.parent().hash(), parent_number = ctx.parent().number(), "building new payload");
+
+        // Synthetic block-build delay for regression-detection testing — no-op
+        // unless BENCHMARK_PAYLOAD_BUILD_DELAY_US is set.
+        apply_benchmark_payload_build_delay();
 
         let mut db = State::builder().with_database(db).with_bundle_update().build();
 
