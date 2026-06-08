@@ -153,3 +153,46 @@ func TestRandomChainManagerAccessors(t *testing.T) {
 
 	require.Same(t, m, m.L1Source().parent)
 }
+
+func TestRandomChainManagerGenerate(t *testing.T) {
+	m := NewRandomChainManager([]byte("seed-abc"))
+	m.Generate()
+
+	chains := m.Chains()
+	require.Len(t, chains, 2)
+
+	for _, rc := range chains {
+		require.Len(t, rc.l2, 8)
+		require.Len(t, rc.l1, 4)
+
+		for i := 1; i < len(rc.l2); i++ {
+			require.Equal(t, rc.l2[i-1].Ref.Hash, rc.l2[i].Ref.ParentHash, "L2 blocks must link")
+		}
+		for i := 1; i < len(rc.safeDB); i++ {
+			require.Greater(t, rc.safeDB[i].L1.Number, rc.safeDB[i-1].L1.Number)
+			require.Greater(t, rc.safeDB[i].L2.Number, rc.safeDB[i-1].L2.Number)
+		}
+		require.Less(t, rc.unsafe, uint64(len(rc.l2)))
+
+		require.NoError(t, rc.Start(context.Background()))
+		l1, err := rc.L1AtSafeHead(context.Background(), rc.safeDB[0].L2)
+		require.NoError(t, err)
+		require.Equal(t, rc.safeDB[0].L1.Number, l1.Number)
+	}
+
+	// all chains share the one canonical L1
+	require.Equal(t, m.l1, chains[0].l1)
+	require.Equal(t, chains[0].l1[0].Hash, chains[1].l1[0].Hash)
+
+	// L1Source serves the canonical L1
+	ref, err := m.L1Source().L1BlockRefByNumber(context.Background(), 1)
+	require.NoError(t, err)
+	require.Equal(t, m.l1[1].Hash, ref.Hash)
+	_, err = m.L1Source().L1BlockRefByNumber(context.Background(), 99)
+	require.ErrorIs(t, err, ethereum.NotFound)
+
+	// same seed -> same data
+	m2 := NewRandomChainManager([]byte("seed-abc"))
+	m2.Generate()
+	require.Equal(t, chains[0].l2[0].Ref.Hash, m2.Chains()[0].l2[0].Ref.Hash)
+}

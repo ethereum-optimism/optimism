@@ -7,7 +7,9 @@ package chain_container
 import (
 	"context"
 	"errors"
+	"hash/fnv"
 	"math/big"
+	"math/rand"
 	"slices"
 	"sort"
 	"sync"
@@ -81,10 +83,126 @@ type SafeHeadEntry struct {
 // ---------------------------------------------------------------------------
 
 type RandomChainManager struct {
+	rng *rand.Rand
+
+	l1     []eth.L1BlockRef // canonical L1, shared by all chains
 	chains map[eth.ChainID]*RandomChain
 	order  []eth.ChainID // deterministic iteration
 
 	l1Source *RandomL1Source
+}
+
+// NewRandomChainManager seeds the generator deterministically from the fuzz
+// input bytes. Call Generate to build the chains.
+func NewRandomChainManager(seed []byte) *RandomChainManager {
+	h := fnv.New64a()
+	_, _ = h.Write(seed)
+	m := &RandomChainManager{rng: rand.New(rand.NewSource(int64(h.Sum64())))}
+	m.l1Source = &RandomL1Source{parent: m}
+	return m
+}
+
+const (
+	genNumChains   = 2
+	genL2Depth     = 8
+	genL1Depth     = 4
+	genL2BlockTime = 2
+	genL1BlockTime = 12
+	genGenesisTime = 1000
+)
+
+// Generate builds a fixed-shape set of valid, internally-consistent chains.
+// Topology is constant; the fuzz input only varies block contents.
+func (m *RandomChainManager) Generate() {
+	m.l1 = m.generateL1()
+	m.chains = make(map[eth.ChainID]*RandomChain, genNumChains)
+	m.order = make([]eth.ChainID, 0, genNumChains)
+	for i := 0; i < genNumChains; i++ {
+		id := uint64(900 + i)
+		rc := m.generateChain(id)
+		m.chains[rc.chainID] = rc
+		m.order = append(m.order, rc.chainID)
+	}
+}
+
+func (m *RandomChainManager) generateL1() []eth.L1BlockRef {
+	l1 := make([]eth.L1BlockRef, genL1Depth)
+	var parent common.Hash
+	for i := range l1 {
+		h := m.randHash()
+		l1[i] = eth.L1BlockRef{
+			Hash:       h,
+			Number:     uint64(i),
+			ParentHash: parent,
+			Time:       genGenesisTime + uint64(i)*genL1BlockTime,
+		}
+		parent = h
+	}
+	return l1
+}
+
+func (m *RandomChainManager) randHash() common.Hash {
+	var h common.Hash
+	_, _ = m.rng.Read(h[:])
+	return h
+}
+
+func (m *RandomChainManager) generateChain(idNum uint64) *RandomChain {
+	l1 := m.l1
+
+	l2 := make([]L2Block, genL2Depth)
+	var l2Parent common.Hash
+	for i := range l2 {
+		h := m.randHash()
+		stateRoot := m.randHash()
+		withdrawals := m.randHash()
+		l2[i] = L2Block{
+			Ref: eth.L2BlockRef{
+				Hash:       h,
+				Number:     uint64(i),
+				ParentHash: l2Parent,
+				Time:       genGenesisTime + uint64(i)*genL2BlockTime,
+				L1Origin:   l1[i*genL1Depth/genL2Depth].ID(),
+			},
+			Payload: &eth.ExecutionPayloadEnvelope{
+				ExecutionPayload: &eth.ExecutionPayload{
+					BlockHash:       h,
+					BlockNumber:     eth.Uint64Quantity(i),
+					StateRoot:       eth.Bytes32(stateRoot),
+					WithdrawalsRoot: &withdrawals,
+				},
+			},
+		}
+		l2Parent = h
+	}
+
+	safeDB := []SafeHeadEntry{
+		{L1: l1[1].ID(), L2: l2[2].Ref.ID()},
+		{L1: l1[2].ID(), L2: l2[4].Ref.ID()},
+		{L1: l1[3].ID(), L2: l2[6].Ref.ID()},
+	}
+
+	return &RandomChain{
+		parent:  m,
+		chainID: eth.ChainIDFromUInt64(idNum),
+		cfg: &rollup.Config{
+			Genesis: rollup.Genesis{
+				L1:     l1[0].ID(),
+				L2:     l2[0].Ref.ID(),
+				L2Time: l2[0].Ref.Time,
+			},
+			BlockTime: genL2BlockTime,
+			L2ChainID: new(big.Int).SetUint64(idNum),
+		},
+		l2:          l2,
+		l1:          l1,
+		safeDB:      safeDB,
+		unsafe:      genL2Depth - 1,
+		safe:        6,
+		finalized:   4,
+		currentL1:   genL1Depth - 1,
+		finalizedL1: 2,
+	}
 }
 
 func (m *RandomChainManager) Chain(id eth.ChainID) *RandomChain { return m.chains[id] }
@@ -99,9 +217,17 @@ func (m *RandomChainManager) Chains() []*RandomChain {
 
 func (m *RandomChainManager) L1Source() *RandomL1Source { return m.l1Source }
 
-// RandomL1Source feeds the Phase-1 l1ConsistencyChecker.
+// RandomL1Source feeds the Phase-1 l1ConsistencyChecker from the canonical L1.
 type RandomL1Source struct {
 	parent *RandomChainManager
+}
+
+func (s *RandomL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
+	l1 := s.parent.l1
+	if num >= uint64(len(l1)) {
+		return eth.L1BlockRef{}, ethereum.NotFound
+	}
+	return l1[num], nil
 }
 
 // ---------------------------------------------------------------------------
