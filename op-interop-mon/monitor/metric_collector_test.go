@@ -86,13 +86,16 @@ type mockMetrics struct {
 	recordInitiatingBlockRangeFn func(chainID string, min uint64, max uint64)
 
 	// Recording slices for test verification
-	actualMessageStatusCalls   []expectedMessageStatusCall
-	actualTerminalCalls        []expectedTerminalCall
-	actualExecutingRangeCalls  []expectedBlockRangeCall
-	actualInitiatingRangeCalls []expectedBlockRangeCall
-	actualInitiatingReorgs     []expectedTerminalCall
-	actualFilterDivergences    []expectedMessageStatusCall
-	lastFilterFailsafe         bool
+	actualMessageStatusCalls    []expectedMessageStatusCall
+	actualTerminalCalls         []expectedTerminalCall
+	actualExecutingRangeCalls   []expectedBlockRangeCall
+	actualInitiatingRangeCalls  []expectedBlockRangeCall
+	actualInitiatingReorgs      []expectedTerminalCall
+	actualFilterDivergences     []expectedMessageStatusCall
+	lastFilterFailsafe          bool
+	lastSupernodeUp             bool
+	actualSupernodeSafeHeads    []expectedBlockRangeCall
+	actualCrossSafetyViolations []expectedTerminalCall
 }
 
 func (m *mockMetrics) RecordInfo(version string) {
@@ -174,6 +177,25 @@ func (m *mockMetrics) RecordFilterDivergence(executingChainID string, initiating
 
 func (m *mockMetrics) RecordFilterFailsafe(enabled bool) {
 	m.lastFilterFailsafe = enabled
+}
+
+func (m *mockMetrics) RecordSupernodeUp(endpoint string, up bool) {
+	m.lastSupernodeUp = up
+}
+
+func (m *mockMetrics) RecordSupernodeSafeHead(chainID string, level string, blockNumber uint64) {
+	m.actualSupernodeSafeHeads = append(m.actualSupernodeSafeHeads, expectedBlockRangeCall{
+		chainID: chainID,
+		min:     blockNumber,
+		max:     blockNumber,
+	})
+}
+
+func (m *mockMetrics) RecordCrossSafetyViolation(executingChainID string, initiatingChainID string, level string) {
+	m.actualCrossSafetyViolations = append(m.actualCrossSafetyViolations, expectedTerminalCall{
+		executingChainID:  executingChainID,
+		initiatingChainID: initiatingChainID,
+	})
 }
 
 func jobForTest(

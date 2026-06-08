@@ -20,6 +20,9 @@ type Metricer interface {
 	RecordInitiatingReorg(executingChainID string, initiatingChainID string)
 	RecordFilterDivergence(executingChainID string, initiatingChainID string, monitorStatus string, filterStatus string)
 	RecordFilterFailsafe(enabled bool)
+	RecordSupernodeUp(endpoint string, up bool)
+	RecordSupernodeSafeHead(chainID string, level string, blockNumber uint64)
+	RecordCrossSafetyViolation(executingChainID string, initiatingChainID string, level string)
 
 	opmetrics.RefMetricer
 	opmetrics.RPCMetricer
@@ -44,6 +47,11 @@ type Metrics struct {
 	initiatingReorgs      prometheus.CounterVec
 	filterDivergence      prometheus.CounterVec
 	filterFailsafe        prometheus.Gauge
+
+	// Supernode observability
+	supernodeUp           prometheus.GaugeVec
+	supernodeSafeHead     prometheus.GaugeVec
+	crossSafetyViolations prometheus.CounterVec
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -133,6 +141,30 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "interop_filter_failsafe",
 			Help:      "1 if the observed interop-filter reports failsafe enabled, 0 otherwise",
 		}),
+		supernodeUp: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "supernode_up",
+			Help:      "1 if the observed supernode answered its heartbeat probe, 0 otherwise",
+		}, []string{
+			"endpoint",
+		}),
+		supernodeSafeHead: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "supernode_safe_head",
+			Help:      "Latest per-chain L2 head block number reported by the supernode, by safety level",
+		}, []string{
+			"chain_id",
+			"level",
+		}),
+		crossSafetyViolations: *factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "cross_safety_violations_total",
+			Help:      "Count of bad executing messages observed at/below the supernode cross-safe head",
+		}, []string{
+			"executing_chain_id",
+			"initiating_chain_id",
+			"level",
+		}),
 	}
 }
 
@@ -207,4 +239,23 @@ func (m *Metrics) RecordFilterFailsafe(enabled bool) {
 	} else {
 		m.filterFailsafe.Set(0)
 	}
+}
+
+// RecordSupernodeUp records whether the observed supernode answered its heartbeat probe.
+func (m *Metrics) RecordSupernodeUp(endpoint string, up bool) {
+	v := 0.0
+	if up {
+		v = 1.0
+	}
+	m.supernodeUp.WithLabelValues(endpoint).Set(v)
+}
+
+// RecordSupernodeSafeHead records the supernode's per-chain L2 head block number at a safety level.
+func (m *Metrics) RecordSupernodeSafeHead(chainID string, level string, blockNumber uint64) {
+	m.supernodeSafeHead.WithLabelValues(chainID, level).Set(float64(blockNumber))
+}
+
+// RecordCrossSafetyViolation increments when a bad executing message is observed at/below the supernode cross-safe head.
+func (m *Metrics) RecordCrossSafetyViolation(executingChainID string, initiatingChainID string, level string) {
+	m.crossSafetyViolations.WithLabelValues(executingChainID, initiatingChainID, level).Inc()
 }

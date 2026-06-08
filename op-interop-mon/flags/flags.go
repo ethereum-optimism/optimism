@@ -65,6 +65,13 @@ var (
 		Required: false,
 		Value:    "cross-unsafe",
 	}
+
+	SupernodeEndpointsFlag = &cli.StringSliceFlag{
+		Name:     "supernode-endpoints",
+		Usage:    "Optional op-supernode CL RPC endpoints to observe liveness, per-chain safe/finalized heads, and cross-safety violations (read-only)",
+		EnvVars:  prefixEnvVars("SUPERNODE_ENDPOINTS"),
+		Required: false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -77,6 +84,7 @@ var optionalFlags = []cli.Flag{
 	TriggerFailsafeFlag,
 	InteropFilterEndpointFlag,
 	InteropFilterMinSafetyFlag,
+	SupernodeEndpointsFlag,
 }
 
 func init() {

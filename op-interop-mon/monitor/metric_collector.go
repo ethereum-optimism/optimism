@@ -16,6 +16,9 @@ type InteropMessageMetrics interface {
 	RecordInitiatingReorg(executingChainID string, initiatingChainID string)
 	RecordFilterDivergence(executingChainID string, initiatingChainID string, monitorStatus string, filterStatus string)
 	RecordFilterFailsafe(enabled bool)
+	RecordSupernodeUp(endpoint string, up bool)
+	RecordSupernodeSafeHead(chainID string, level string, blockNumber uint64)
+	RecordCrossSafetyViolation(executingChainID string, initiatingChainID string, level string)
 }
 
 type MetricCollector struct {
@@ -34,6 +37,10 @@ type MetricCollector struct {
 	// filterObserver, when set, cross-checks the monitor's verdict against the
 	// op-interop-filter (read-only). nil disables the filter observer.
 	filterObserver *FilterObserver
+
+	// supernodeObservers, when non-empty, observe each op-supernode (read-only):
+	// liveness, per-chain heads, and cross-safety violations.
+	supernodeObservers []*SupernodeObserver
 }
 
 func NewMetricCollector(log log.Logger, m InteropMessageMetrics, updaters map[eth.ChainID]Updater, failsafeClients []FailsafeClient, triggerFailsafe bool) *MetricCollector {
@@ -284,6 +291,11 @@ func (m *MetricCollector) CollectMetrics() {
 	if m.filterObserver != nil {
 		m.filterObserver.Observe(context.Background(), jobMap)
 		m.filterObserver.PollFailsafe(context.Background())
+	}
+
+	// Optional read-only observation of each op-supernode.
+	for _, obs := range m.supernodeObservers {
+		obs.Observe(context.Background(), jobMap)
 	}
 }
 

@@ -24,6 +24,10 @@ type CLIConfig struct {
 	InteropFilterEndpoint  string
 	InteropFilterMinSafety string
 
+	// SupernodeEndpoints, when set, enable read-only observation of op-supernode liveness,
+	// per-chain heads, and cross-safety violations.
+	SupernodeEndpoints []string
+
 	RPCConfig     oprpc.CLIConfig
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -64,6 +68,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 
 		InteropFilterEndpoint:  ctx.String(flags.InteropFilterEndpointFlag.Name),
 		InteropFilterMinSafety: ctx.String(flags.InteropFilterMinSafetyFlag.Name),
+		SupernodeEndpoints:     ctx.StringSlice(flags.SupernodeEndpointsFlag.Name),
 		RPCConfig:              oprpc.ReadCLIConfig(ctx),
 		LogConfig:              oplog.ReadCLIConfig(ctx),
 		MetricsConfig:          opmetrics.ReadCLIConfig(ctx),

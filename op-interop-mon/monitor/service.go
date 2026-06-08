@@ -183,6 +183,18 @@ func (ms *InteropMonitorService) initFromClients(
 		}
 		ms.collector.filterObserver = NewFilterObserver(filterClient, ms.Metrics, ms.Log)
 	}
+
+	// Optional read-only supernode observers (liveness, heads, cross-safety violations).
+	if len(cfg.SupernodeEndpoints) > 0 && ms.collector != nil {
+		for _, endpoint := range cfg.SupernodeEndpoints {
+			supernodeClient, err := NewSupernodeClient(endpoint, ms.Log)
+			if err != nil {
+				return fmt.Errorf("failed to init supernode client for %q: %w", endpoint, err)
+			}
+			ms.collector.supernodeObservers = append(ms.collector.supernodeObservers,
+				NewSupernodeObserver(endpoint, supernodeClient, ms.Metrics, ms.Log))
+		}
+	}
 	if err := ms.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to start metrics server: %w", err)
 	}
