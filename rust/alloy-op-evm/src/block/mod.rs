@@ -829,12 +829,7 @@ where
         // pre-refund sum within the limit. Since `evm_gas_used >= gas_used`, this subsumes the
         // canonical block-gas-limit check; with SDM off the two are identical.
         let evm_gas_available = self.evm.block().gas_limit().saturating_sub(self.evm_gas_used);
-        validate_block_gas(
-            transaction_gas_limit,
-            evm_gas_available,
-            self.is_regolith,
-            is_deposit,
-        )?;
+        validate_block_gas(transaction_gas_limit, evm_gas_available, self.is_regolith, is_deposit)?;
 
         if is_post_exec {
             let payload =

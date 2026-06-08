@@ -645,7 +645,7 @@ impl ExecutionInfo {
     /// Adds a transaction's gas to both the canonical and pre-refund (real compute) counters,
     /// saturating to guard against overflow. `evm_gas` equals `canonical_gas` when SDM refunds
     /// are off. Encapsulated so the saturating add is enforced at every call site.
-    pub fn accumulate_gas(&mut self, canonical_gas: u64, evm_gas: u64) {
+    pub const fn accumulate_gas(&mut self, canonical_gas: u64, evm_gas: u64) {
         self.cumulative_gas_used = self.cumulative_gas_used.saturating_add(canonical_gas);
         self.cumulative_evm_gas_used = self.cumulative_evm_gas_used.saturating_add(evm_gas);
     }
