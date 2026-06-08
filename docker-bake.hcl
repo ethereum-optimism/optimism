@@ -53,10 +53,6 @@ variable "OP_DISPUTE_MON_VERSION" {
   default = "${GIT_VERSION}"
 }
 
-variable "OP_PROGRAM_VERSION" {
-  default = "${GIT_VERSION}"
-}
-
 variable "OP_SUPERNODE_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -182,19 +178,6 @@ target "da-server" {
   target = "da-server-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/da-server:${tag}"]
-}
-
-target "op-program" {
-  dockerfile = "ops/docker/op-stack-go/Dockerfile"
-  context = "."
-  args = {
-    GIT_COMMIT = "${GIT_COMMIT}"
-    GIT_DATE = "${GIT_DATE}"
-    OP_PROGRAM_VERSION = "${OP_PROGRAM_VERSION}"
-  }
-  target = "op-program-target"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-program:${tag}"]
 }
 
 target "op-supernode" {
