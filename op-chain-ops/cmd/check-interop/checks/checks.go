@@ -294,7 +294,9 @@ func singleSubmitPlan(cl *sources.EthClient, key *ecdsa.PrivateKey) txplan.Optio
 // destination-chain balance delta over a bridge leg is exactly the bridged amount.
 func randomRecipient() common.Address {
 	var b [20]byte
-	_, _ = rand.Read(b[:])
+	if _, err := rand.Read(b[:]); err != nil {
+		panic(fmt.Errorf("failed to read random recipient address: %w", err))
+	}
 	return common.Address(b)
 }
 
