@@ -105,7 +105,7 @@ func TestJovianBlobBaseFeeMatchesCanonical(gt *testing.T) {
 		probeBlockNum := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash).Number()
 		storedBlobBaseFee, err := l2Cl.StorageAt(t.Ctx(), blobBaseFeeProbeAddr, common.Hash{}, probeBlockNum)
 		require.NoError(t, err)
-		require.EqualValues(t, 1, new(big.Int).SetBytes(storedBlobBaseFee).Uint64(),
+		require.EqualValues(t, 1, bigs.Uint64Strict(new(big.Int).SetBytes(storedBlobBaseFee)),
 			"canonical BLOBBASEFEE on the OP Stack must always be 1")
 
 		// Prove the chain from genesis: the recorded BLOBBASEFEE must match the canonical value through
@@ -116,8 +116,7 @@ func TestJovianBlobBaseFeeMatchesCanonical(gt *testing.T) {
 	}
 
 	matrix := helpers.NewMatrix[helpers.DeployConfigOverride]()
-	matrix.AddDefaultTestCasesWithName(
-		"JovianAtGenesis",
+	matrix.AddDefaultTestCases(
 		func(dc *genesis.DeployConfig) { dc.ActivateForkAtGenesis(forks.Jovian) },
 		helpers.NewForkMatrix(helpers.Isthmus),
 		run,
