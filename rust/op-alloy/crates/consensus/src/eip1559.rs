@@ -67,7 +67,7 @@ const fn validate_extra_data_eip_1559_params(
 /// Decodes the `eip1559` parameters from the `extradata` bytes.
 ///
 /// Both the denominator and elasticity encoded in the header extraData must be non-zero, otherwise
-/// an error is returned. See [`validate_extra_data_eip_1559_params`].
+/// an error is returned.
 ///
 /// Returns (`elasticity`, `denominator`)
 pub fn decode_holocene_extra_data(extra_data: &[u8]) -> Result<(u32, u32), EIP1559ParamError> {
@@ -102,7 +102,7 @@ pub fn encode_holocene_extra_data(
 ///
 /// The Holocene rules apply to the 8 bytes encoding the EIP-1559 parameters, i.e. both the
 /// denominator and elasticity must be non-zero. The encoded minimum base fee can be set
-/// arbitrarily. See [`validate_extra_data_eip_1559_params`].
+/// arbitrarily.
 ///
 /// Returns (`elasticity`, `denominator`, `min_base_fee`)
 pub fn decode_jovian_extra_data(extra_data: &[u8]) -> Result<(u32, u32, u64), EIP1559ParamError> {
