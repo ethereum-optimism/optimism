@@ -64,7 +64,7 @@ jobs:
             [[ -z "${ref}" ]] && continue
             echo "::group::verify ${ref}"
             gh attestation verify "oci://${ref}" \
-              --owner ethereum-optimism \
+              --repo ethereum-optimism/optimism \
               --signer-repo ethereum-optimism/factory \
               --source-ref refs/heads/develop
             echo "::endgroup::"
