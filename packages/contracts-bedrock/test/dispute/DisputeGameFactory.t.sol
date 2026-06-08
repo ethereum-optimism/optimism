@@ -354,8 +354,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             _params.maxProveDuration, // 8 bytes
             _params.challengerBond, // 32 bytes
             anchorStateRegistry, // 20 bytes
-            delayedWeth, // 20 bytes
-            uint256(0) // 32 bytes (l2ChainId, must be 0 for super games)
+            delayedWeth // 20 bytes
         );
 
         // Set respected game type
@@ -977,7 +976,6 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         assertEq(_proxy.challengerBond(), _params.challengerBond);
         assertEq(address(_proxy.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(_proxy.weth()), address(delayedWeth));
-        // `_l2ChainId` is internal always zero for valid super games enforced by `initialize()`
 
         // Bond is held by DelayedWETH, not the game proxy itself.
         assertEq(address(_proxy).balance, 0);
@@ -1088,8 +1086,7 @@ contract DisputeGameFactory_SetImplementation_ZkDisputeGame_Test is DisputeGameF
             _maxProveDuration,
             _challengerBond,
             anchorStateRegistry,
-            delayedWeth,
-            uint256(0) // l2ChainId — must be zero for super games
+            delayedWeth
         );
 
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));

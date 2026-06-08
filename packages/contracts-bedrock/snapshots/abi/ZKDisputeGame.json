@@ -736,10 +736,5 @@
     "inputs": [],
     "name": "UnknownChainId",
     "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ZKDisputeGame_NoChainIdNeeded",
-    "type": "error"
   }
 ]

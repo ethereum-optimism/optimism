@@ -213,7 +213,6 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         assertEq(game.maxProveDuration().raw(), maxProveDuration.raw());
         assertEq(address(game.disputeGameFactory()), address(disputeGameFactory));
         assertEq(game.l2SequenceNumber(), childL2SequenceNumber);
-        // l2ChainId is internal and always 0. see `test_initialize_l2ChainIdNonZero_reverts`
         assertEq(address(game.weth()), address(delayedWeth));
         assertEq(address(game.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(game.parentIndex(), parentGameIndex);
@@ -470,45 +469,6 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         );
         vm.expectRevert(InvalidParentGame.selector);
         disputeGameFactory.create{ value: 1 ether }(gameType, rc, ed);
-        vm.stopPrank();
-    }
-
-    /// @notice The impl-args `l2ChainId` slot must be zero. A non-zero value triggers the
-    ///         `ZKDisputeGame_NoChainIdNeeded` revert in `initialize()`.
-    function test_initialize_l2ChainIdNonZero_reverts() public {
-        // Deploy a new game impl with a non-zero l2ChainId in gameArgs.
-        IZKVerifier zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
-        address newImpl = address(new ZKDisputeGame());
-
-        bytes memory gameArgs = abi.encodePacked(
-            bytes32(0), // absolutePrestate
-            zkVerifier, // verifier
-            maxChallengeDuration, // maxChallengeDuration
-            maxProveDuration, // maxProveDuration
-            uint256(1 ether), // challengerBond
-            anchorStateRegistry, // anchorStateRegistry
-            delayedWeth, // weth
-            uint256(1) // l2ChainId = 1 (any non-zero value)
-        );
-
-        GameType nonZeroChainGameType = GameType.wrap(200);
-
-        vm.prank(superchainConfig.guardian());
-        anchorStateRegistry.setRespectedGameType(nonZeroChainGameType);
-
-        vm.startPrank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(nonZeroChainGameType, IDisputeGame(newImpl), gameArgs);
-        disputeGameFactory.setInitBond(nonZeroChainGameType, 1 ether);
-        vm.stopPrank();
-
-        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(
-            type(uint32).max, uint64(parentL2SequenceNumber), keccak256("non-zero-chain-claim")
-        );
-
-        vm.startPrank(proposer);
-        vm.deal(proposer, 1 ether);
-        vm.expectRevert(ZKDisputeGame.ZKDisputeGame_NoChainIdNeeded.selector);
-        disputeGameFactory.create{ value: 1 ether }(nonZeroChainGameType, rc, ed);
         vm.stopPrank();
     }
 
@@ -812,8 +772,7 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
             maxProveDuration,
             uint256(1 ether),
             anchorStateRegistry,
-            delayedWeth,
-            uint256(0) // l2ChainId must be zero for super games
+            delayedWeth
         );
 
         vm.prank(superchainConfig.guardian());
