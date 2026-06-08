@@ -69,6 +69,9 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/flake-prevention.md](docs/ai/flake-prevention.md) - Guidance for preventing flaky tests
 - [docs/ai/go-dev.md](docs/ai/go-dev.md) - Go service development
 - [docs/ai/rust-dev.md](docs/ai/rust-dev.md) - Rust development (kona, op-reth, alloy crates)
+- [docs/ai/derivation.md](docs/ai/derivation.md) - Derivation pipeline development (op-node)
+- [docs/ai/execution.md](docs/ai/execution.md) - Execution layer development (op-geth / EVM, fees, deposits)
+- [docs/ai/fault-proofs.md](docs/ai/fault-proofs.md) - Fault proof system (Cannon, op-program, dispute games)
 - [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md) - Building and running acceptance tests locally
 - [docs/ai/writing-acceptance-tests.md](docs/ai/writing-acceptance-tests.md) - Writing new acceptance tests: DSL patterns, naming, what to avoid
 - [docs/ai/opgeth-decoupling.md](docs/ai/opgeth-decoupling.md) - op-geth decoupling plan: consult when migrating OP Stack–specific code out of op-geth into `op-core/*` so the monorepo can depend on upstream go-ethereum (scope: op-node, op-service, op-batcher, op-proposer, op-challenger, op-faucet, op-supernode, cannon, op-e2e, op-acceptance-tests, op-devstack)
