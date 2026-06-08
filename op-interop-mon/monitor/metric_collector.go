@@ -228,8 +228,8 @@ func (m *MetricCollector) CollectMetrics() {
 	for executingChainID, initiatingChainMap := range messageStatus {
 		for initiatingChainID, statusMap := range initiatingChainMap {
 			for status, count := range statusMap {
-				if status == jobStatusInvalid.String() {
-					// invalid messages are logged as warnings
+				if status == jobStatusInvalid.String() && count > 0 {
+					// invalid messages are logged as warnings, but only when any exist
 					m.log.Warn("Invalid Executing Messages Detected",
 						"executing_chain_id", executingChainID,
 						"initiating_chain_id", initiatingChainID,
