@@ -51,6 +51,12 @@ The challenger will monitor dispute games and respond to any invalid
 claims by posting the correct trace as the counter-claim. The commands
 below can then be used to create and interact with games.
 
+`--cannon-server` is only required for the `cannon` game type, which runs
+op-program to generate fault proofs. The `permissioned` game type is played
+only by trusted actors and resolves at the output-root level without ever
+reaching `step()`, so it does not run op-program and `--cannon-server` may be
+omitted when only the `permissioned` game type is configured.
+
 #### Devnet Management Commands
 
 ```shell

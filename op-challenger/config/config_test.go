@@ -199,7 +199,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestCannonServerRequired-%v", gameType), func(t *testing.T) {
 			config := validConfig(t, gameType)
 			config.Cannon.Server = ""
-			require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+			if gameType == gameTypes.PermissionedGameType {
+				// The permissioned game never reaches step() so does not run op-program.
+				require.NoError(t, config.Check())
+			} else {
+				require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+			}
 		})
 
 		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateOrBaseURLRequired-%v", gameType), func(t *testing.T) {
@@ -305,7 +310,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestServerExists-%v", gameType), func(t *testing.T) {
 			cfg := validConfig(t, gameType)
 			cfg.Cannon.Server = nonExistingFile
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
+			if gameType == gameTypes.PermissionedGameType {
+				// The permissioned game never reaches step() so does not run op-program.
+				require.NoError(t, cfg.Check())
+			} else {
+				require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
+			}
 		})
 	}
 }
