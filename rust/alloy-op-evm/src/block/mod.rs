@@ -741,6 +741,32 @@ where
     }
 }
 
+/// Ensures a transaction's gas limit fits within the gas still available in the block.
+///
+/// Checks one condition at a time: pre-Regolith deposits are exempt from this check, and any
+/// other transaction must not declare more gas than remains in the block.
+fn validate_block_gas(
+    transaction_gas_limit: u64,
+    block_available_gas: u64,
+    is_regolith: bool,
+    is_deposit: bool,
+) -> Result<(), BlockExecutionError> {
+    // Pre-Regolith deposits are exempt from the available-block-gas check.
+    if is_deposit && !is_regolith {
+        return Ok(());
+    }
+
+    if transaction_gas_limit > block_available_gas {
+        return Err(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+            transaction_gas_limit,
+            block_available_gas,
+        }
+        .into());
+    }
+
+    Ok(())
+}
+
 impl<E, R, Spec> BlockExecutor for OpBlockExecutor<E, R, Spec>
 where
     E: PostExecEvm<
@@ -796,16 +822,6 @@ where
         let tx_index = self.receipts.len() as u64;
 
         let transaction_gas_limit = tx.tx().gas_limit();
-        let validate_block_gas = |block_available_gas| -> Result<(), BlockExecutionError> {
-            if transaction_gas_limit > block_available_gas && (self.is_regolith || !is_deposit) {
-                return Err(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
-                    transaction_gas_limit,
-                    block_available_gas,
-                }
-                .into());
-            }
-            Ok(())
-        };
 
         // Bound the block's *pre-refund* `evm_gas_used` (real compute) rather than canonical
         // `gas_used`, so SDM refunds can't admit more compute than the block gas limit allows.
@@ -813,7 +829,12 @@ where
         // pre-refund sum within the limit. Since `evm_gas_used >= gas_used`, this subsumes the
         // canonical block-gas-limit check; with SDM off the two are identical.
         let evm_gas_available = self.evm.block().gas_limit().saturating_sub(self.evm_gas_used);
-        validate_block_gas(evm_gas_available)?;
+        validate_block_gas(
+            transaction_gas_limit,
+            evm_gas_available,
+            self.is_regolith,
+            is_deposit,
+        )?;
 
         if is_post_exec {
             let payload =
