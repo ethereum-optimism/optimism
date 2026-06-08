@@ -206,7 +206,7 @@ reproducible-prestate:
   (cd rust && just build-kona-reproducible-prestate)
   (cd rust && just output-kona-prestate-hash)
 
-# Builds the kona prestates used by tests.
+# Builds the cannon prestate.
 cannon-prestates:
   cd rust && just build-kona-prestates
 
