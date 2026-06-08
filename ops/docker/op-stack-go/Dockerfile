@@ -115,12 +115,6 @@ COPY --from=cannon-builder-v1-6-0 /usr/local/bin/cannon-7 ./cannon/multicannon/e
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   cd cannon && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION" just cannon
 
-FROM --platform=$BUILDPLATFORM builder AS op-program-builder
-ARG OP_PROGRAM_VERSION=v0.0.0
-# note: we only build the host, that's all the user needs. No Go MIPS cross-build in docker
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  cd op-program && GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION" just op-program-host
-
 FROM --platform=$BUILDPLATFORM builder AS op-wheel-builder
 ARG OP_WHEEL_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
@@ -266,11 +260,6 @@ USER 0
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 COPY --from=cannon-builder /app/cannon/multicannon/embeds/* /usr/local/bin/
 CMD ["cannon"]
-
-FROM $TARGET_BASE_IMAGE AS op-program-target
-USER 0
-COPY --from=op-program-builder /app/op-program/bin/op-program /usr/local/bin/
-CMD ["op-program"]
 
 FROM $TARGET_BASE_IMAGE AS op-wheel-target
 USER 0
