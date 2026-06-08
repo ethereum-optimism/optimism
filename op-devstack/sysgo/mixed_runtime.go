@@ -111,6 +111,17 @@ func devstackL2CLKind() MixedL2CLKind {
 	return MixedL2CLKind(os.Getenv("DEVSTACK_L2CL_KIND"))
 }
 
+// ResolveMixedL2CLKind returns the L2 CL kind requested via DEVSTACK_L2CL_KIND,
+// defaulting to op-node when the variable is unset. Tests that build explicit
+// MixedSingleChainNodeSpec lists use this so they honor the same env-driven CL
+// selection as the higher-level single-chain presets (see startL2CLForKey).
+func ResolveMixedL2CLKind() MixedL2CLKind {
+	if kind := devstackL2CLKind(); kind != "" {
+		return kind
+	}
+	return MixedL2CLOpNode
+}
+
 type MixedSingleChainNodeSpec struct {
 	ELKey       string
 	CLKey       string
@@ -221,6 +232,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				spec.ELKey,
 				spec.IsSequencer,
 				metricsRegistrar,
+				depSet,
 			)
 		default:
 			require.FailNowf("unsupported CL kind", "unsupported mixed CL kind %q", spec.CLKind)
@@ -473,6 +485,7 @@ func startMixedKonaNode(
 	elKey string,
 	isSequencer bool,
 	metricsRegistrar L2MetricsRegistrar,
+	depSet coredepset.DependencySet,
 ) *KonaNode {
 	tempKonaDir := t.TempDir()
 
@@ -506,6 +519,17 @@ func startMixedKonaNode(
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP_PORT", "0"),
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
+	}
+
+	// When Interop/Lagoon is scheduled, kona-node refuses to start without an interop
+	// dependency set (to avoid silent state divergence at activation). Mirror the depset
+	// op-node receives by serializing it to JSON — the format matches what kona expects.
+	if depSet != nil {
+		depSetData, err := json.Marshal(depSet)
+		t.Require().NoError(err, "must marshal interop dependency set")
+		tempDepSetPath := filepath.Join(tempKonaDir, "interop-depset.json")
+		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o644), "must write interop dependency set")
+		envVars = append(envVars, "KONA_NODE_INTEROP_DEPENDENCY_SET="+tempDepSetPath)
 	}
 
 	if areMetricsEnabled() {
