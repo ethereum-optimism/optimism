@@ -22,8 +22,8 @@ build-deps:
     cd {{REPO_ROOT}}
 
     echo "Building cannon dependencies..."
-    cd {{REPO_ROOT}}
-    just cannon-prestates
+    cd {{REPO_ROOT}}/rust
+    just build-kona-prestates
 
     echo "Building Rust binaries (kona-node, kona-host, op-reth, op-rbuilder, rollup-boost)..."
     cd {{REPO_ROOT}}
