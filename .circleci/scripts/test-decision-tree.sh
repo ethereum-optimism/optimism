@@ -167,7 +167,7 @@ run_scenario \
   "Scheduled: build_daily" \
   "scheduled_pipeline" "" "" "build_daily" \
   '{}' \
-  scheduled_stale_check scheduled_heavy_fuzz_tests
+  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests
 
 run_scenario \
   "Scheduled: build_weekly" \

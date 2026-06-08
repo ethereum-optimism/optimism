@@ -210,6 +210,16 @@ reproducible-prestate:
 cannon-prestates:
   cd rust && just build-kona-prestates
 
+# Verifies the reproducibility of released cannon prestates against the
+# superchain-registry standard prestates. Each tagged release (op-program/v*
+# and kona-client/v*) is rebuilt from its own checked-out source, so historical
+# op-program prestates are still checked even though op-program is no longer in
+# the tree.
+verify-reproducibility:
+  rm -rf ops/prestate-reproducibility/temp/states
+  ./ops/prestate-reproducibility/build-prestates.sh
+  env GO111MODULE=on go run ./ops/prestate-reproducibility/prestates/verify/verify.go --input ops/prestate-reproducibility/temp/states/versions.json
+
 # Cleans up unused dependencies in Go modules.
 # Bypasses the Go module proxy for freshly released versions.
 # See https://proxy.golang.org/ for more info.

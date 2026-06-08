@@ -32,6 +32,9 @@ parameters:
   fault_proofs_dispatch:
     type: boolean
     default: false
+  reproducibility_dispatch:
+    type: boolean
+    default: false
   kontrol_dispatch:
     type: boolean
     default: false
@@ -146,6 +149,7 @@ jobs:
           environment:
             c-main_dispatch: << pipeline.parameters.main_dispatch >>
             c-fault_proofs_dispatch: << pipeline.parameters.fault_proofs_dispatch >>
+            c-reproducibility_dispatch: << pipeline.parameters.reproducibility_dispatch >>
             c-kontrol_dispatch: << pipeline.parameters.kontrol_dispatch >>
             c-cannon_full_test_dispatch: << pipeline.parameters.cannon_full_test_dispatch >>
             c-sdk_dispatch: << pipeline.parameters.sdk_dispatch >>
@@ -212,7 +216,7 @@ jobs:
               scheduled_pipeline)
                 case "${SCHEDULE_NAME}" in
                   build_four_hours) run scheduled_todo_issues scheduled_cannon_full_tests ;;
-                  build_daily)      run scheduled_stale_check scheduled_heavy_fuzz_tests ;;
+                  build_daily)      run scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests ;;
                   build_weekly)     run scheduled_weekly_tests scheduled_kona_link_checker ;;
                 esac
                 ;;
@@ -302,6 +306,7 @@ jobs:
                 if is_true fault_proofs_dispatch;     then run develop_fault_proofs; fi
                 if is_true kontrol_dispatch;          then run develop_kontrol_tests; fi
                 if is_true cannon_full_test_dispatch; then run scheduled_cannon_full_tests; fi
+                if is_true reproducibility_dispatch;  then run scheduled_preimage_reproducibility; fi
                 if is_true stale_check_dispatch;      then run scheduled_stale_check; fi
                 if is_true heavy_fuzz_dispatch;       then run scheduled_heavy_fuzz_tests; fi
                 if is_true publish_contract_artifacts_dispatch; then run publish_contract_artifacts; fi

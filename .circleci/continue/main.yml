@@ -45,6 +45,9 @@ parameters:
   c-run_scheduled_cannon_full_tests:
     type: boolean
     default: false
+  c-run_scheduled_preimage_reproducibility:
+    type: boolean
+    default: false
   c-run_scheduled_stale_check:
     type: boolean
     default: false
@@ -1965,6 +1968,22 @@ jobs:
 
   # ============================================================================
 
+  preimage-reproducibility:
+    machine: true
+    resource_class: large.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - run:
+          name: Verify reproducibility
+          command: just verify-reproducibility
+      - store_artifacts:
+          path: ./ops/prestate-reproducibility/temp/logs
+          when: always
+      - notify-failures-on-develop:
+          mentions: "@proofs-team"
+
   cannon-stf-verify:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2736,6 +2755,14 @@ workflows:
           skip_slow_tests: false
           no_output_timeout: 30m
           notify: true
+          context:
+            - slack
+            - circleci-repo-readonly-authenticated-github-token
+
+  scheduled-preimage-reproducibility:
+    when: << pipeline.parameters.c-run_scheduled_preimage_reproducibility >>
+    jobs:
+      - preimage-reproducibility:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
