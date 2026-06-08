@@ -66,11 +66,10 @@ func InteropMonitorServiceFromClients(
 	version string,
 	cfg *CLIConfig,
 	clients map[eth.ChainID]*sources.EthClient,
-	failsafeClients []FailsafeClient,
 	log log.Logger,
 ) (*InteropMonitorService, error) {
 	var ms InteropMonitorService
-	if err := ms.initFromClients(ctx, version, cfg, clients, failsafeClients, log); err != nil {
+	if err := ms.initFromClients(ctx, version, cfg, clients, log); err != nil {
 		return nil, errors.Join(err, ms.Start(ctx))
 	}
 	return &ms, nil
@@ -104,28 +103,7 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 		}
 	}
 
-	// check if failsafe and supervisor endpoints are contradictory
-	if cfg.TriggerFailsafe && len(cfg.SupervisorEndpoints) == 0 {
-		log.Warn("trigger-failsafe is enabled, but no supervisor endpoints are provided")
-	}
-	if !cfg.TriggerFailsafe && len(cfg.SupervisorEndpoints) > 0 {
-		log.Warn("trigger-failsafe is disabled, but supervisor endpoints are provided")
-	}
-
-	// initialize failsafe clients if trigger-failsafe is enabled
-	failsafeClients := make([]FailsafeClient, len(cfg.SupervisorEndpoints))
-	if cfg.TriggerFailsafe {
-		for i, endpoint := range cfg.SupervisorEndpoints {
-			failsafeClient, err := NewSupervisorClient(endpoint, log)
-			if err != nil {
-				return fmt.Errorf("failed to init supervisor client: %w", err)
-			}
-			failsafeClients[i] = failsafeClient
-		}
-
-	}
-
-	return ms.initFromClients(ctx, version, cfg, clients, failsafeClients, log)
+	return ms.initFromClients(ctx, version, cfg, clients, log)
 }
 
 // initFromClients initializes the service with pre-created clients
@@ -134,7 +112,6 @@ func (ms *InteropMonitorService) initFromClients(
 	version string,
 	cfg *CLIConfig,
 	clients map[eth.ChainID]*sources.EthClient,
-	failsafeClients []FailsafeClient,
 	log log.Logger,
 ) error {
 	ms.Version = version
@@ -167,8 +144,8 @@ func (ms *InteropMonitorService) initFromClients(
 	}
 
 	if cfg.MetricsConfig.Enabled {
-		// Initialize the metric collector, with access to all updaters and failsafe client
-		ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters, failsafeClients, cfg.TriggerFailsafe)
+		// Initialize the metric collector, with access to all updaters
+		ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters)
 	}
 
 	// Optional read-only interop-filter observer (cross-check + failsafe gauge).

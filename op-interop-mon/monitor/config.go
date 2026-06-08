@@ -14,11 +14,9 @@ import (
 )
 
 type CLIConfig struct {
-	L2Rpcs              []string
-	DependencySetPath   string
-	PollInterval        time.Duration
-	SupervisorEndpoints []string
-	TriggerFailsafe     bool
+	L2Rpcs            []string
+	DependencySetPath string
+	PollInterval      time.Duration
 
 	// InteropFilterEndpoint, when set, enables a read-only cross-check against the op-interop-filter.
 	InteropFilterEndpoint  string
@@ -63,9 +61,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		DependencySetPath: ctx.String(flags.DependencySetFlag.Name),
 
 		// Optional Flags
-		SupervisorEndpoints: ctx.StringSlice(flags.SupervisorEndpointsFlag.Name),
-		TriggerFailsafe:     ctx.Bool(flags.TriggerFailsafeFlag.Name),
-
 		InteropFilterEndpoint:  ctx.String(flags.InteropFilterEndpointFlag.Name),
 		InteropFilterMinSafety: ctx.String(flags.InteropFilterMinSafetyFlag.Name),
 		SupernodeEndpoints:     ctx.StringSlice(flags.SupernodeEndpointsFlag.Name),

@@ -36,21 +36,6 @@ var (
 	}
 
 	// Optional Flags
-	SupervisorEndpointsFlag = &cli.StringSliceFlag{
-		Name:     "supervisor-endpoints",
-		Usage:    "The RPC endpoints for the supervisors to call admin_setFailsafeEnabled",
-		EnvVars:  prefixEnvVars("SUPERVISOR_ENDPOINTS"),
-		Required: false,
-	}
-
-	TriggerFailsafeFlag = &cli.BoolFlag{
-		Name:     "trigger-failsafe",
-		Usage:    "Enable automatic failsafe triggering when invalid messages are detected",
-		EnvVars:  prefixEnvVars("TRIGGER_FAILSAFE"),
-		Required: false,
-		Value:    true,
-	}
-
 	InteropFilterEndpointFlag = &cli.StringFlag{
 		Name:     "interop-filter-endpoint",
 		Usage:    "Optional op-interop-filter RPC endpoint to cross-check executing-message validity and observe failsafe state (read-only)",
@@ -80,8 +65,6 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
-	SupervisorEndpointsFlag,
-	TriggerFailsafeFlag,
 	InteropFilterEndpointFlag,
 	InteropFilterMinSafetyFlag,
 	SupernodeEndpointsFlag,
