@@ -3,10 +3,6 @@
 //! Tests drive this as a library (Rust action tests, fuzzers, replays) or, via the companion
 //! binary, as a subprocess over a Unix socket (Go action tests). It exists so `op-e2e/actions`
 //! can run an OP-flavored execution layer without embedding op-geth in-process.
-//!
-//! This crate is built in phases. The present surface covers the **ephemeral chain** and its
-//! read-only queries; block execution, the stateful in-flight payload builder, and the UDS
-//! RPC binary land in subsequent changes.
 
 mod chain;
 
@@ -35,10 +31,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 
 /// The in-test OP execution engine.
 ///
-/// The public contract grows over the planned phases; today it constructs an ephemeral
-/// genesis-initialized chain and answers read-only chain queries. The Engine API methods
-/// (`forkchoice_updated`, `new_payload`, `get_payload`) and the `optest_*` extensions are
-/// added in later changes.
+/// Constructs an ephemeral, genesis-initialized chain and answers read-only chain queries.
 #[derive(Debug)]
 pub struct TestEngine {
     chain: EphemeralChain,
