@@ -1,5 +1,8 @@
 FROM cimg/base:2026.03
 
+# Rebuild marker: 2026-06-08 — force a fresh image so `apt-get upgrade` pulls
+# the latest base-image security updates.
+
 LABEL org.opencontainers.image.title="optimism ci-base clang"
 LABEL org.opencontainers.image.description="CircleCI base image with clang, llvm-dev, libclang-dev, and sccache preinstalled for Rust bindgen jobs"
 LABEL org.opencontainers.image.source="https://github.com/ethereum-optimism/optimism"
