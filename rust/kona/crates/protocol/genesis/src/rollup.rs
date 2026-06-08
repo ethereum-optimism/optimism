@@ -176,6 +176,8 @@ impl RollupConfig {
             op_revm::OpSpecId::ISTHMUS
         } else if self.is_holocene_active(timestamp) {
             op_revm::OpSpecId::HOLOCENE
+        } else if self.is_granite_active(timestamp) {
+            op_revm::OpSpecId::GRANITE
         } else if self.is_fjord_active(timestamp) {
             op_revm::OpSpecId::FJORD
         } else if self.is_ecotone_active(timestamp) {
@@ -533,6 +535,8 @@ mod tests {
         assert_eq!(config.spec_id(30), op_revm::OpSpecId::ECOTONE);
         config.hardforks.fjord_time = Some(40);
         assert_eq!(config.spec_id(40), op_revm::OpSpecId::FJORD);
+        config.hardforks.granite_time = Some(45);
+        assert_eq!(config.spec_id(45), op_revm::OpSpecId::GRANITE);
         config.hardforks.holocene_time = Some(50);
         assert_eq!(config.spec_id(50), op_revm::OpSpecId::HOLOCENE);
         config.hardforks.isthmus_time = Some(60);
