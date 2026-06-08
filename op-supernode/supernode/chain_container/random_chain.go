@@ -6,6 +6,7 @@ package chain_container
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"slices"
 	"sort"
@@ -278,14 +279,14 @@ func (rc *RandomChain) PayloadByHash(ctx context.Context, hash common.Hash) (*et
 	return blk.Payload, nil
 }
 
+var errUnexpectedEngineCall = errors.New("random chain: unexpected engine call")
+
 func (rc *RandomChain) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return &eth.ForkchoiceUpdatedResult{
-		PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
-	}, nil
+	return nil, errUnexpectedEngineCall
 }
 
 func (rc *RandomChain) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
-	return &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil
+	return nil, errUnexpectedEngineCall
 }
 
 func (rc *RandomChain) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, gethtypes.Receipts, error) {
@@ -309,4 +310,5 @@ func blockInfoFor(blk *L2Block) eth.BlockInfo {
 	return eth.HeaderBlockInfoTrusted(blk.Ref.Hash, h)
 }
 
+// Close releases resources; RandomChain holds none.
 func (rc *RandomChain) Close() {}
