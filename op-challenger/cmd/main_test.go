@@ -591,6 +591,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 				}
 			})
 
+			t.Run("RequiredWhenCannonAndPermissionedBothEnabled", func(t *testing.T) {
+				gameTypesArg := fmt.Sprintf("%v,%v", gameTypes.CannonGameType.String(), gameTypes.PermissionedGameType.String())
+				args := addRequiredArgsExceptArr(gameTypes.CannonGameType, []string{"--game-types", "--cannon-server"}, "--game-types", gameTypesArg)
+				verifyArgsInvalid(t, "flag cannon-server is required", args)
+			})
+
 			t.Run("Valid", func(t *testing.T) {
 				cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--cannon-server", "--cannon-server=./op-program"))
 				require.Equal(t, "./op-program", cfg.Cannon.Server)

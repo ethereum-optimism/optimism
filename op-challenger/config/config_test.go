@@ -320,6 +320,24 @@ func TestCannonRequiredArgs(t *testing.T) {
 	}
 }
 
+// The op-program server is still required when both the cannon and permissioned game types
+// are enabled, because the cannon game runs op-program even though the permissioned game does not.
+func TestCannonServerRequiredWhenCannonAndPermissionedBothEnabled(t *testing.T) {
+	t.Run("ServerEmpty", func(t *testing.T) {
+		config := validConfig(t, gameTypes.CannonGameType)
+		config.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
+		config.Cannon.Server = ""
+		require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+	})
+
+	t.Run("ServerMissing", func(t *testing.T) {
+		config := validConfig(t, gameTypes.CannonGameType)
+		config.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
+		config.Cannon.Server = nonExistingFile
+		require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+	})
+}
+
 func TestCannonKonaRequiredArgs(t *testing.T) {
 	for _, gameType := range cannonKonaGameTypes {
 		gameType := gameType
