@@ -52,8 +52,8 @@ pub fn decode_eip_1559_params(eip_1559_params: B64) -> (u32, u32) {
 /// may also be zero (at the same time, signalling the default parameters).
 /// See <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/holocene/exec-engine.md#eip-1559-parameters-in-block-header>
 const fn validate_extra_data_eip_1559_params(
-    denominator: u32,
     elasticity: u32,
+    denominator: u32,
 ) -> Result<(), EIP1559ParamError> {
     if denominator == 0 {
         return Err(EIP1559ParamError::ZeroDenominator);
@@ -82,7 +82,7 @@ pub fn decode_holocene_extra_data(extra_data: &[u8]) -> Result<(u32, u32), EIP15
     }
     // skip the first version byte
     let (elasticity, denominator) = decode_eip_1559_params(B64::from_slice(&extra_data[1..9]));
-    validate_extra_data_eip_1559_params(denominator, elasticity)?;
+    validate_extra_data_eip_1559_params(elasticity, denominator)?;
     Ok((elasticity, denominator))
 }
 
@@ -100,9 +100,9 @@ pub fn encode_holocene_extra_data(
 /// Decodes the EIP-1559 parameters from `extra_data`,
 /// as well as the minimum base fee.
 ///
-/// The Holocene rules apply to the 8 bytes encoding the EIP-1559 parameters, i.e. both the
-/// denominator and elasticity must be non-zero. The encoded minimum base fee can be set
-/// arbitrarily.
+/// Jovian inherits the Holocene header rules for the 8 bytes encoding the EIP-1559 parameters,
+/// i.e. both the denominator and elasticity must be non-zero. The encoded minimum base fee can be
+/// set arbitrarily.
 ///
 /// Returns (`elasticity`, `denominator`, `min_base_fee`)
 pub fn decode_jovian_extra_data(extra_data: &[u8]) -> Result<(u32, u32, u64), EIP1559ParamError> {
@@ -121,7 +121,7 @@ pub fn decode_jovian_extra_data(extra_data: &[u8]) -> Result<(u32, u32, u64), EI
 
     let denominator = u32::from_be_bytes(denominator_bytes);
     let elasticity = u32::from_be_bytes(elasticity_bytes);
-    validate_extra_data_eip_1559_params(denominator, elasticity)?;
+    validate_extra_data_eip_1559_params(elasticity, denominator)?;
 
     Ok((elasticity, denominator, u64::from_be_bytes(min_base_fee_bytes)))
 }
