@@ -177,13 +177,24 @@ func (rc *RandomChain) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) 
 	defer rc.mu.RUnlock()
 
 	// Generation guarantees the labels index real blocks; index directly so a
-	// bad label panics rather than reporting a zero-value head as real.
+	// bad label panics rather than reporting a zero-value head as real. Values
+	// describe a fully-synced node (zero confirmation distance) so every field
+	// is internally consistent, not just the ones currently read.
+	curL1 := rc.l1[rc.currentL1]
+	finL1 := rc.l1[rc.finalizedL1]
+	unsafeL2 := rc.l2[rc.unsafe].Ref
+	safeL2 := rc.l2[rc.safe].Ref
 	return &eth.SyncStatus{
-		CurrentL1:   rc.l1[rc.currentL1],
-		FinalizedL1: rc.l1[rc.finalizedL1],
-		UnsafeL2:    rc.l2[rc.unsafe].Ref,
-		SafeL2:      rc.l2[rc.safe].Ref,
-		LocalSafeL2: rc.l2[rc.safe].Ref,
-		FinalizedL2: rc.l2[rc.finalized].Ref,
+		CurrentL1:          curL1,
+		CurrentL1Finalized: finL1,
+		HeadL1:             curL1,
+		SafeL1:             curL1,
+		FinalizedL1:        finL1,
+		UnsafeL2:           unsafeL2,
+		CrossUnsafeL2:      unsafeL2,
+		SafeL2:             safeL2,
+		LocalSafeL2:        safeL2,
+		PendingSafeL2:      safeL2,
+		FinalizedL2:        rc.l2[rc.finalized].Ref,
 	}, nil
 }
