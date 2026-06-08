@@ -30,6 +30,22 @@ makes the cross-chain safety decision), Light CL follower nodes, and `op-interop
 layer, holds the failsafe and answers `interop_checkAccessList`). The monitor optionally cross-checks
 the interop-filter and supernode read-only (see flags) but never depends on them to function.
 
+## Optional cross-checks
+
+These observers are read-only and never gate the monitor's own verdict; they only emit additional
+observability metrics. They degrade gracefully if the observed service is unreachable.
+
+- `--interop-filter-endpoint` (with `--interop-filter-min-safety`, default `cross-unsafe`): replays
+  each terminal job's executing message to `interop_checkAccessList` and records
+  `filter_divergence_total{executing_chain_id,initiating_chain_id,monitor_status,filter_status}` when
+  the filter disagrees with the monitor. Also polls `admin_getFailsafeEnabled` into the
+  `interop_filter_failsafe` gauge.
+- `--supernode-endpoints` (repeatable): for each `op-supernode`, probes `heartbeat_check` into
+  `supernode_up{endpoint}`, records per-chain `supernode_safe_head{chain_id,level}` (levels
+  `cross_safe` and `finalized`) from `supernode_syncStatus`, and increments
+  `cross_safety_violations_total{executing_chain_id,initiating_chain_id,level}` when a bad executing
+  message (`invalid`/`expired`/`timestamp_mismatch`) is observed at or below the supernode's cross-safe head.
+
 ## Architecture
 The service consists of several key components working together:
 
