@@ -5,7 +5,7 @@ package chain_container
 // virtual_node.VirtualNode and the engine_controller l2Provider set.
 
 import (
-	"sort"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -39,7 +39,7 @@ func (b *L2Block) Receipts() gethtypes.Receipts {
 	for k := range b.ExecMsgs {
 		keys = append(keys, k)
 	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	slices.Sort(keys)
 
 	logs := make([]*gethtypes.Log, 0, len(keys))
 	for _, k := range keys {
