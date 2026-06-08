@@ -176,22 +176,14 @@ func (rc *RandomChain) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) 
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
 
-	ss := &eth.SyncStatus{}
-	if rc.currentL1 < uint64(len(rc.l1)) {
-		ss.CurrentL1 = rc.l1[rc.currentL1]
-	}
-	if rc.finalizedL1 < uint64(len(rc.l1)) {
-		ss.FinalizedL1 = rc.l1[rc.finalizedL1]
-	}
-	if rc.unsafe < uint64(len(rc.l2)) {
-		ss.UnsafeL2 = rc.l2[rc.unsafe].Ref
-	}
-	if rc.safe < uint64(len(rc.l2)) {
-		ss.SafeL2 = rc.l2[rc.safe].Ref
-		ss.LocalSafeL2 = rc.l2[rc.safe].Ref
-	}
-	if rc.finalized < uint64(len(rc.l2)) {
-		ss.FinalizedL2 = rc.l2[rc.finalized].Ref
-	}
-	return ss, nil
+	// Generation guarantees the labels index real blocks; index directly so a
+	// bad label panics rather than reporting a zero-value head as real.
+	return &eth.SyncStatus{
+		CurrentL1:   rc.l1[rc.currentL1],
+		FinalizedL1: rc.l1[rc.finalizedL1],
+		UnsafeL2:    rc.l2[rc.unsafe].Ref,
+		SafeL2:      rc.l2[rc.safe].Ref,
+		LocalSafeL2: rc.l2[rc.safe].Ref,
+		FinalizedL2: rc.l2[rc.finalized].Ref,
+	}, nil
 }
