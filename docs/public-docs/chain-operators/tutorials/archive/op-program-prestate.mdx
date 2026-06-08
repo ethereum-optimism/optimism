@@ -9,7 +9,7 @@ description: "Archived: legacy op-program prestate generation flow for chains re
   For all current work, see [Generating absolute prestate and preimage files](/chain-operators/tutorials/absolute-prestate) (kona-client) and, if your chain is not yet in the Superchain Registry, [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate).
 </Warning>
 
-# Overview
+## Overview
 
 Permissionless fault proofs are a critical component of the OP Stack's security model. They allow anyone to challenge invalid state proposals, ensuring the correctness of L2 to L1 withdrawals without relying on trusted third parties. To enable this functionality, chain operators must generate and maintain the necessary absolute prestate and preimage files. The absolute prestate is a commitment to the initial state of the fault proof program, and the preimage is the serialized binary representation of this program state. These files are essential for the op-challenger tool to participate in dispute games when challenging invalid claims.
 
@@ -42,12 +42,12 @@ You can find the latest prestate tags in the [Superchain registry](https://githu
   <Step title="Clone and checkout the tagged version">
     First, clone the Optimism monorepo and check out the appropriate [release tag](https://github.com/ethereum-optimism/optimism/tags) for op-program:
 
-    ```shellscript
+    ```bash
     git clone https://github.com/ethereum-optimism/optimism.git
     cd optimism
-    # For production chains, use the latest finalized release (not an rc)
-    git checkout op-program/v1.6.1  # Use the latest stable version
-    
+    # Check out the op-program version that matches the in-flight CANNON game you
+    # need to resolve. Use the version the game's original prestate was generated with.
+    git checkout op-program/v1.6.1
     ```
   </Step>
   <Step title="(Optional) Provide chain configuration and genesis files">
@@ -63,7 +63,6 @@ You can find the latest prestate tags in the [Superchain registry](https://githu
     You should see the following logs at the end of the command’s output:
 
     ```log
-    
     -------------------- Production Prestates --------------------
     
     Cannon64 Absolute prestate hash: 
@@ -76,7 +75,6 @@ You can find the latest prestate tags in the [Superchain registry](https://githu
     
     Cannon64Next Absolute prestate hash: 
     0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8
-    
     ```
 
     The output will display production and experimental prestate hashes:
@@ -87,12 +85,12 @@ You can find the latest prestate tags in the [Superchain registry](https://githu
   <Step title="Prepare the preimage file">
     After generating the prestate, the preimage file will be located in `op-program/bin/prestate-mt64.bin.gz`. The exact name might vary based on the version. Rename this file to include the prestate hash:
 
-    ```shellscript
+    ```bash
     cd op-program/bin
-    mv prestate-mt64.bin.gz [CANNON64_PRESTATE_HASH].bin.gz
+    mv prestate-mt64.bin.gz <cannon64-prestate-hash>.bin.gz
     ```
 
-    Replace `[CANNON64_PRESTATE_HASH]` with the actual `Cannon64` absolute prestate hash value from the output. This file needs to be uploaded to a location that's accessible by your op-challenger instances.
+    Replace `<cannon64-prestate-hash>` with the actual `Cannon64` absolute prestate hash value from the output. This file needs to be uploaded to a location that's accessible by your op-challenger instances.
   </Step>
 </Steps>
 
@@ -154,12 +152,12 @@ After generating the absolute prestate and preimage files, you'll need to:
 </Steps>
 
 <Info>
-  - Ensure you're using the latest op-challenger version, see the [release page](https://github.com/ethereum-optimism/optimism/release).
+  - Ensure you're using the latest op-challenger version, see the [release page](https://github.com/ethereum-optimism/optimism/releases).
   - If your chain uses interoperability features, you'll need to add a `depsets.json` file to the `op-program/chainconfig/configs` directory.
   - This file contains dependency set configurations. Use the same dependency set definition your interop-enabled chain is already configured with.
 </Info>
 
-## Next Steps
+## Next steps
 
 - Check out the [migrating to permissionless fault proofs guide](/chain-operators/tutorials/migrating-permissionless).
 - Read the [Fault proofs explainer](/op-stack/fault-proofs/explainer).
