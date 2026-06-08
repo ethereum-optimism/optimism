@@ -206,6 +206,10 @@ reproducible-prestate:
   (cd rust && just build-kona-reproducible-prestate)
   (cd rust && just output-kona-prestate-hash)
 
+# Builds the kona prestates used by tests.
+cannon-prestates:
+  cd rust && just build-kona-prestates
+
 # Cleans up unused dependencies in Go modules.
 # Bypasses the Go module proxy for freshly released versions.
 # See https://proxy.golang.org/ for more info.

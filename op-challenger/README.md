@@ -30,16 +30,16 @@ Run the `op-challenger` with:
 ```shell
 DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy .devnet/addresses.json)
 ./op-challenger/bin/op-challenger \
-  --game-types cannon \
+  --game-types cannon-kona \
   --l1-eth-rpc http://localhost:8545 \
   --rollup-rpc http://localhost:9546 \
   --game-factory-address $DISPUTE_GAME_FACTORY \
   --datadir temp/challenger-data \
-  --cannon-rollup-config .devnet/rollup.json  \
-  --cannon-l2-genesis .devnet/genesis-l2.json \
+  --cannon-kona-rollup-config .devnet/rollup.json  \
+  --cannon-kona-l2-genesis .devnet/genesis-l2.json \
   --cannon-bin ./cannon/bin/cannon \
-  --cannon-server ./op-program/bin/op-program \
-  --cannon-prestate ./op-program/bin/prestate.bin.gz \
+  --cannon-kona-server ./rust/target/release/kona-host \
+  --cannon-kona-prestate ./rust/kona/prestate-artifacts-cannon/prestate.bin.gz \
   --l2-eth-rpc http://localhost:9545 \
   --mnemonic "test test test test test test test test test test test junk" \
   --hd-path "m/44'/60'/0'/0/8" \
@@ -51,11 +51,11 @@ The challenger will monitor dispute games and respond to any invalid
 claims by posting the correct trace as the counter-claim. The commands
 below can then be used to create and interact with games.
 
-`--cannon-server` is only required for the `cannon` game type, which runs
-op-program to generate fault proofs. The `permissioned` game type is played
-only by trusted actors and resolves at the output-root level without ever
-reaching `step()`, so it does not run op-program and `--cannon-server` may be
-omitted when only the `permissioned` game type is configured.
+`--cannon-kona-server` provides the kona-host binary used to generate fault
+proofs. The `permissioned` game type (configured via the `--cannon-*` flags)
+is played only by trusted actors and resolves at the output-root level without
+ever reaching `step()`, so it does not run a fault-proof program and its server
+binary may be omitted when only the `permissioned` game type is configured.
 
 #### Devnet Management Commands
 
