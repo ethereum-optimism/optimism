@@ -48,6 +48,9 @@ func NewMetricCollector(log log.Logger, m InteropMessageMetrics, updaters map[et
 		m:        m,
 		updaters: updaters,
 		closed:   make(chan struct{}),
+		// Default so CollectMetrics is safe if invoked before Start (e.g. in tests);
+		// Start replaces this with a cancelable child of the service context.
+		ctx: context.Background(),
 	}
 }
 
