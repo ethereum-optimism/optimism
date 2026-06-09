@@ -19,7 +19,7 @@ import { InvalidAmount } from "src/libraries/errors/CommonErrors.sol";
 /// @title ETHLiquidity
 /// @notice The ETHLiquidity contract allows other contracts to access ETH liquidity without
 ///         needing to modify the EVM to generate new ETH. Contract comes "pre-loaded" with
-///         uint248.max balance to prevent liquidity shortages.
+///         uint128.max balance to prevent liquidity shortages.
 contract ETHLiquidity is ISemver {
     /// @notice Emitted when an address burns ETH liquidity.
     event LiquidityBurned(address indexed caller, uint256 value);
