@@ -164,7 +164,10 @@ func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [3
 }
 
 // startL2CLForKey starts an L2 CL node for the given key, respecting DEVSTACK_L2CL_KIND.
-// This is the single env-aware dispatch point for L2 CL selection.
+// This is the env-aware dispatch point for preset runtimes that don't build explicit node
+// specs. Runtimes constructed from explicit MixedSingleChainNodeSpec.CLKind values (e.g.
+// NewMixedSingleChainRuntime) don't route through here; they resolve the env up front via
+// ResolveMixedL2CLKind instead.
 func startL2CLForKey(
 	t devtest.T,
 	keys devkeys.Keys,
