@@ -325,7 +325,7 @@ func buildMixedOpRethNode(
 	data, err := json.Marshal(l2Net.genesis)
 	t.Require().NoError(err, "must json-encode genesis")
 	chainConfigPath := filepath.Join(tempDir, "genesis.json")
-	t.Require().NoError(os.WriteFile(chainConfigPath, data, 0o644), "must write genesis file")
+	t.Require().NoError(os.WriteFile(chainConfigPath, data, 0o640), "must write genesis file")
 
 	dataDirPath := filepath.Join(tempDir, "data")
 	t.Require().NoError(os.MkdirAll(dataDirPath, 0o755), "must create datadir")
@@ -494,12 +494,12 @@ func startMixedKonaNode(
 	tempRollupCfgPath := filepath.Join(tempKonaDir, "rollup.json")
 	rollupCfgData, err := json.Marshal(l2Net.rollupCfg)
 	t.Require().NoError(err, "must write rollup config")
-	t.Require().NoError(os.WriteFile(tempRollupCfgPath, rollupCfgData, 0o644))
+	t.Require().NoError(os.WriteFile(tempRollupCfgPath, rollupCfgData, 0o640))
 
 	tempL1CfgPath := filepath.Join(tempKonaDir, "l1-chain-config.json")
 	l1CfgData, err := json.Marshal(l1Net.genesis.Config)
 	t.Require().NoError(err, "must write l1 chain config")
-	t.Require().NoError(os.WriteFile(tempL1CfgPath, l1CfgData, 0o644))
+	t.Require().NoError(os.WriteFile(tempL1CfgPath, l1CfgData, 0o640))
 
 	envVars := []string{
 		"KONA_NODE_L1_ETH_RPC=" + l1EL.UserRPC(),
@@ -528,7 +528,7 @@ func startMixedKonaNode(
 		depSetData, err := json.Marshal(depSet)
 		t.Require().NoError(err, "must marshal interop dependency set")
 		tempDepSetPath := filepath.Join(tempKonaDir, "interop-depset.json")
-		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o644), "must write interop dependency set")
+		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o640), "must write interop dependency set")
 		envVars = append(envVars, "KONA_NODE_INTEROP_DEPENDENCY_SET="+tempDepSetPath)
 	}
 
@@ -544,7 +544,7 @@ func startMixedKonaNode(
 		t.Require().NoError(err, "need p2p key for sequencer")
 		p2pKeyHex := "0x" + hex.EncodeToString(crypto.FromECDSA(p2pKey))
 		tempSeqKeyPath := filepath.Join(tempKonaDir, "p2p-sequencer.txt")
-		t.Require().NoError(os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o644))
+		t.Require().NoError(os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o640))
 		envVars = append(envVars,
 			"KONA_NODE_P2P_SEQUENCER_KEY_PATH="+tempSeqKeyPath,
 			"KONA_NODE_SEQUENCER_L1_CONFS=2",
