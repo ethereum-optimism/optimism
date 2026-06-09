@@ -15,7 +15,8 @@ The activated changes introduce a per-transaction gas limit and updated gas cost
 
 [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) introduces a maximum gas limit that any single L2 transaction can request. After Upgrade 19, transactions whose gas limit exceeds this threshold are rejected as invalid by the execution layer.
 
-The EIP-7825 gas limit value is specified in the [Osaka on L2 design document](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md) and is enforced by the execution client (`op-reth`).
+The EIP-7825 limit is 2^24 = **16,777,216 gas**.
+It is enforced by the execution client (`op-reth`).
 
 ### Deposit transactions are exempt
 
@@ -29,30 +30,45 @@ If your application constructs raw transactions programmatically and sets a gas 
 
 ## MODEXP gas cost and input size changes
 
-The `MODEXP` precompile (`0x05`) receives updated gas pricing in Osaka. Additionally, a new maximum input size is enforced: calls with inputs exceeding this limit will fail.
+[EIP-7883](https://eips.ethereum.org/EIPS/eip-7883) raises the `MODEXP` precompile (`0x05`) gas cost floor from 200 to 500 gas.
+[EIP-7823](https://eips.ethereum.org/EIPS/eip-7823) caps the modulus size at 1024 bytes — calls with a larger declared modulus fail.
 
-*   **For contracts using `MODEXP`:** re-run gas benchmarks and update any hardcoded gas values. Verify that your inputs stay within the new size limit.
+*   **For contracts using `MODEXP`:** re-run gas benchmarks and update any hardcoded gas values. Verify that your modulus inputs are within the 1024-byte limit.
 *   **For contracts not using `MODEXP`:** no action required.
 
-Gas pricing details are in the [Osaka on L2 design document](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md).
+## P256VERIFY gas cost change
 
-## P256VERIFY gas cost changes
-
-The `P256VERIFY` precompile (`0x100`) also receives updated gas pricing in Osaka.
+[EIP-7951](https://eips.ethereum.org/EIPS/eip-7951) raises the `P256VERIFY` precompile (`0x100`) gas cost from 3,450 (RIP-7212) to **6,900 gas**.
 
 *   **For contracts using `P256VERIFY`:** re-run gas benchmarks and update any hardcoded gas values.
 *   **For contracts not using `P256VERIFY`:** no action required.
 
+## CLZ opcode
+
+[EIP-7939](https://eips.ethereum.org/EIPS/eip-7939) introduces the Count Leading Zeros opcode (`CLZ`, `0x1e`).
+Given a `uint256`, it returns the number of leading zero bits (0–255).
+
+*   **For contract developers:** the opcode is now available for use. Existing contracts are not affected.
+*   **For toolchain authors:** assemblers and decompilers that treat unknown opcodes as invalid should add `CLZ` support.
+
 ## Summary of changes
 
-| Change | Address | Impact |
-| --- | --- | --- |
-| EIP-7825 per-transaction gas limit | n/a | Transactions above the limit are invalid (deposits exempt) |
-| `MODEXP` gas repricing + new input size limit | `0x05` | Gas cost changes; inputs over new size limit fail |
-| `P256VERIFY` gas repricing | `0x100` | Gas cost changes |
+| Change | EIP | OPCODE | Impact |
+| --- | --- | --- | --- |
+| Per-transaction gas limit (16,777,216 gas) | [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) | n/a | Transactions above the limit are invalid (deposits exempt) |
+| `MODEXP` gas floor increase (200 → 500 gas) | [EIP-7883](https://eips.ethereum.org/EIPS/eip-7883) | `0x05` | Gas cost changes |
+| `MODEXP` modulus size cap (1024 bytes) | [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823) | `0x05` | Inputs over 1024-byte modulus fail |
+| `P256VERIFY` gas cost increase (3,450 → 6,900 gas) | [EIP-7951](https://eips.ethereum.org/EIPS/eip-7951) | `0x100` | Gas cost changes |
+| CLZ (Count Leading Zeros) opcode | [EIP-7939](https://eips.ethereum.org/EIPS/eip-7939) | opcode `0x1e` | New opcode available |
 
 ## References
 
+*   [Karst spec overview](https://specs.optimism.io/protocol/karst/overview.html)
+*   [Karst exec-engine spec](https://specs.optimism.io/protocol/karst/exec-engine.html)
 *   [Osaka on L2 design document](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md)
 *   [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825)
+*   [EIP-7883](https://eips.ethereum.org/EIPS/eip-7883)
+*   [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823)
+*   [EIP-7951](https://eips.ethereum.org/EIPS/eip-7951)
+*   [EIP-7939](https://eips.ethereum.org/EIPS/eip-7939)
 *   [Upgrade 19 notice](/notices/upgrade-19)
