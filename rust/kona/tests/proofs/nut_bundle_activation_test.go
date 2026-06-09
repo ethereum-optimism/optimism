@@ -7,8 +7,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
@@ -82,29 +84,13 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	fork := testCfg.Custom
 	t := actionsHelpers.NewDefaultTesting(gt)
 
-	offset := uint64(4)
-	testSetup := func(dc *genesis.DeployConfig) {
-		dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
-		dc.SetForkTimeOffset(fork, &offset)
-	}
-	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), testSetup)
+	env, actHeader := activateFork(t, testCfg)
 
 	expectedTxs, expectedGas, err := derive.UpgradeTransactions(fork)
 	require.NoError(t, err, "load NUT bundle for %s", fork)
 	require.NotEmpty(t, expectedTxs, "bundle for %s must contain at least one upgrade tx", fork)
 
-	env.Miner.ActEmptyBlock(t)
-	env.Sequencer.ActL1HeadSignal(t)
-	for i := 0; i < int(offset); i++ {
-		env.Sequencer.ActL2EmptyBlock(t)
-	}
-
 	engine := env.Engine
-	actHeader := engine.L2Chain().CurrentHeader()
-	require.True(t,
-		env.Sd.RollupCfg.IsActivationBlockForFork(actHeader.Time, fork),
-		"expected activation block for %s at time %d", fork, actHeader.Time)
-
 	actBlock := engine.L2Chain().GetBlockByHash(actHeader.Hash())
 	txs := actBlock.Transactions()
 	// Index 0 is the L1 info deposit; indices 1.. are the NUT upgrade deposits.
@@ -161,6 +147,46 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	}
 
 	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+}
+
+// activateFork boots a fault-proof env for testCfg.Custom and advances to that
+// fork's activation block, returning the env and the activation block header.
+//
+// When a committed pre-fork state exists for the fork (the state as of the
+// predecessor fork), it is overlaid onto the genesis predeploy set so the locked
+// bundle upgrades the versions it was actually built for, rather than whatever
+// HEAD source happens to be at — see op-core/nuts/state. Forks without one fall
+// back to HEAD-generated allocs.
+//
+// Shared by the validation test (testActivationBlockNUTBundle) and the artifact
+// generator (TestGenerateForkState), so they exercise the same flow.
+func activateFork(t actionsHelpers.Testing, testCfg *helpers.TestCfg[forks.Name]) (*helpers.L2FaultProofEnv, *types.Header) {
+	fork := testCfg.Custom
+
+	offset := uint64(4)
+	testSetup := func(dc *genesis.DeployConfig) {
+		dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
+		dc.SetForkTimeOffset(fork, &offset)
+	}
+
+	if alloc, ok, err := nutsstate.PreForkState(fork); ok {
+		require.NoError(t, err, "load pre-fork state for %s", fork)
+		testCfg.Allocs = &e2eutils.AllocParams{PrefundTestUsers: true, L2Alloc: alloc}
+	}
+
+	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), testSetup)
+
+	env.Miner.ActEmptyBlock(t)
+	env.Sequencer.ActL1HeadSignal(t)
+	for i := 0; i < int(offset); i++ {
+		env.Sequencer.ActL2EmptyBlock(t)
+	}
+
+	actHeader := env.Engine.L2Chain().CurrentHeader()
+	require.True(t,
+		env.Sd.RollupCfg.IsActivationBlockForFork(actHeader.Time, fork),
+		"expected activation block for %s at time %d", fork, actHeader.Time)
+	return env, actHeader
 }
 
 // assertKarstActivation verifies Karst-specific state changes: representative
