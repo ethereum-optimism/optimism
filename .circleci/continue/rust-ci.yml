@@ -898,7 +898,6 @@ workflows:
           requires:
             - rust-fmt: terminal
             - rust-clippy: terminal
-            - rust-deny: terminal
             - rust-typos: terminal
             - rust-zepter: terminal
             - rust-tests: terminal
