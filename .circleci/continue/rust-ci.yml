@@ -117,6 +117,10 @@ jobs:
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
       - rust-save-build-cache: *deny-cache-args
+      # rust-deny only runs on develop (see workflow filter); on failure, ping
+      # @protocol-oncall in Slack since it gates post-merge, not the PR.
+      - notify-failures-on-develop:
+          mentions: "@protocol-oncall"
 
   # Shared zepter feature propagation job
   rust-ci-zepter:
@@ -751,6 +755,11 @@ workflows:
           directory: rust
           command: "just deny"
           context: *rust-ci-context
+          # cargo-deny (advisory/license/ban audit) only gates develop, not
+          # PRs/branches. It is intentionally not part of required-rust-ci.
+          filters:
+            branches:
+              only: develop
 
       - rust-ci-typos:
           name: rust-typos
@@ -898,7 +907,6 @@ workflows:
           requires:
             - rust-fmt: terminal
             - rust-clippy: terminal
-            - rust-deny: terminal
             - rust-typos: terminal
             - rust-zepter: terminal
             - rust-tests: terminal

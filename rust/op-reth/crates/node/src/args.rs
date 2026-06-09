@@ -18,6 +18,68 @@ pub enum ProofsStorageVersion {
     V2,
 }
 
+/// Default proofs history window in blocks: 30 days × 24h × 60min × 60s / 2s
+/// per block = `1_296_000`.
+pub const DEFAULT_PROOFS_HISTORY_WINDOW: u64 = 1_296_000;
+
+/// Subdirectory under reth's chain-specific data dir where the proofs history
+/// DB lives when the user didn't pass `--proofs-history.storage-path`.
+pub const DEFAULT_PROOFS_HISTORY_SUBDIR: &str = "historical-proofs";
+
+/// Shared proofs-history storage args used by both the node's [`RollupArgs`]
+/// and every `op-proofs` CLI subcommand. `storage_path` is `Option<PathBuf>`
+/// because we default to `<reth-data-dir>/historical-proofs` when not
+/// provided — see [`Self::resolve_storage_path`].
+#[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
+pub struct ProofsHistoryStorageArgs {
+    /// Path to the proofs-history storage DB. Defaults to
+    /// `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's
+    /// `--datadir`).
+    #[arg(long = "proofs-history.storage-path", value_name = "PROOFS_HISTORY_STORAGE_PATH")]
+    pub storage_path: Option<PathBuf>,
+
+    /// Storage schema version. Must match the version used when starting the node.
+    #[arg(
+        long = "proofs-history.storage-version",
+        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
+        default_value = "v1"
+    )]
+    pub storage_version: ProofsStorageVersion,
+}
+
+impl ProofsHistoryStorageArgs {
+    /// Resolve the storage path, defaulting to
+    /// `<reth_data_dir>/historical-proofs` when the user didn't pass
+    /// `--proofs-history.storage-path`.
+    pub fn resolve_storage_path(&self, reth_data_dir: &std::path::Path) -> PathBuf {
+        self.storage_path
+            .clone()
+            .unwrap_or_else(|| reth_data_dir.join(DEFAULT_PROOFS_HISTORY_SUBDIR))
+    }
+}
+
+/// Shared proofs-history window arg. Used by both [`RollupArgs`] (the node)
+/// and the `op-proofs prune` subcommand so the flag name and default stay in
+/// sync.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::Args)]
+pub struct ProofsHistoryWindowArg {
+    /// The window to span blocks for proofs history. Value is the number of blocks.
+    /// Default is 1 month of blocks based on 2 seconds block time
+    /// (`30 * 24 * 60 * 60 / 2 = 1_296_000`).
+    #[arg(
+        long = "proofs-history.window",
+        default_value_t = DEFAULT_PROOFS_HISTORY_WINDOW,
+        value_name = "PROOFS_HISTORY_WINDOW"
+    )]
+    pub window: u64,
+}
+
+impl Default for ProofsHistoryWindowArg {
+    fn default() -> Self {
+        Self { window: DEFAULT_PROOFS_HISTORY_WINDOW }
+    }
+}
+
 /// Parameters for rollup configuration
 #[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
 #[command(next_help_heading = "Rollup")]
@@ -124,19 +186,15 @@ pub struct RollupArgs {
     )]
     pub proofs_history: bool,
 
-    /// The path to the storage DB for proofs history.
-    #[arg(long = "proofs-history.storage-path", value_name = "PROOFS_HISTORY_STORAGE_PATH")]
-    pub proofs_history_storage_path: Option<PathBuf>,
+    /// Shared with every `op-proofs` CLI subcommand — see
+    /// [`ProofsHistoryStorageArgs`].
+    #[command(flatten)]
+    pub history: ProofsHistoryStorageArgs,
 
-    /// The window to span blocks for proofs history. Value is the number of blocks.
-    /// Default is 1 month of blocks based on 2 seconds block time.
-    /// 30 * 24 * 60 * 60 / 2 = `1_296_000`
-    #[arg(
-        long = "proofs-history.window",
-        default_value_t = 1_296_000,
-        value_name = "PROOFS_HISTORY_WINDOW"
-    )]
-    pub proofs_history_window: u64,
+    /// Shared with the `op-proofs prune` subcommand — see
+    /// [`ProofsHistoryWindowArg`].
+    #[command(flatten)]
+    pub proofs_history_window: ProofsHistoryWindowArg,
 
     /// Verification interval: perform full block execution every N blocks for data integrity.
     /// - 0: Disabled (Default) (always use fast path with pre-computed data from notifications)
@@ -153,19 +211,6 @@ pub struct RollupArgs {
         default_value_t = 0
     )]
     pub proofs_history_verification_interval: u64,
-
-    /// Storage schema version for proofs history. Defaults to v1.
-    ///
-    /// Use `v2` to enable the changeset + history-bitmap schema, which supports
-    /// history-aware reads at any block number within the proof window.
-    ///
-    /// CLI: `--proofs-history.storage-version v2`
-    #[arg(
-        long = "proofs-history.storage-version",
-        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
-        default_value = "v1"
-    )]
-    pub proofs_history_storage_version: ProofsStorageVersion,
 }
 
 impl Default for RollupArgs {
@@ -185,10 +230,12 @@ impl Default for RollupArgs {
             flashblocks_url: None,
             flashblock_consensus: false,
             proofs_history: false,
-            proofs_history_storage_path: None,
-            proofs_history_window: 1_296_000,
+            history: ProofsHistoryStorageArgs {
+                storage_path: None,
+                storage_version: ProofsStorageVersion::V1,
+            },
+            proofs_history_window: ProofsHistoryWindowArg::default(),
             proofs_history_verification_interval: 0,
-            proofs_history_storage_version: ProofsStorageVersion::V1,
         }
     }
 }

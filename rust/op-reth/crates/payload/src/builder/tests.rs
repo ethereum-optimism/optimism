@@ -158,6 +158,22 @@ where
 }
 
 #[test]
+fn execution_info_pre_refund_limit_uses_evm_gas_not_canonical_gas() {
+    let mut info = ExecutionInfo::new();
+    info.cumulative_gas_used = 50;
+    info.cumulative_evm_gas_used = 90;
+
+    assert!(
+        !info.is_tx_over_limits(0, 100, None, None, 10, None),
+        "tx exactly filling the remaining pre-refund budget should fit"
+    );
+    assert!(
+        info.is_tx_over_limits(0, 100, None, None, 11, None),
+        "tx that fits canonical gas but exceeds pre-refund gas must be skipped"
+    );
+}
+
+#[test]
 fn execute_best_transactions_committed_txs_preserves_execution() {
     let mut committed_txs = Vec::new();
     let signer = Address::repeat_byte(0x11);

@@ -6,15 +6,17 @@ use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_node::args::ProofsStorageVersion;
+use reth_optimism_node::args::{
+    ProofsHistoryStorageArgs, ProofsHistoryWindowArg, ProofsStorageVersion,
+};
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
-    InitializationJob, OpProofsProviderRO, OpProofsStorageError, OpProofsStore,
+    BackfillJob, InitializationJob, OpProofsProviderRO, OpProofsStorageError, OpProofsStore,
     RethTrieStorageLayout,
     db::{MdbxProofsStorage, MdbxProofsStorageV2},
 };
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory, StorageSettingsCache};
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 use tracing::{debug, info};
 
 /// Initializes the proofs storage with the current state of the chain.
@@ -26,24 +28,23 @@ pub struct InitCommand<C: ChainSpecParser> {
     #[command(flatten)]
     env: EnvironmentArgs<C>,
 
-    /// The path to the storage DB for proofs history.
-    ///
-    /// This should match the path used when starting the node with
-    /// `--proofs-history.storage-path`.
-    #[arg(
-        long = "proofs-history.storage-path",
-        value_name = "PROOFS_HISTORY_STORAGE_PATH",
-        required = true
-    )]
-    pub storage_path: PathBuf,
+    /// Shared proofs-history storage flags (storage path + version).
+    #[command(flatten)]
+    pub history: ProofsHistoryStorageArgs,
 
-    /// Storage schema version. Must match the version used when starting the node.
-    #[arg(
-        long = "proofs-history.storage-version",
-        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
-        default_value = "v1"
-    )]
-    pub storage_version: ProofsStorageVersion,
+    /// Skip the post-init backward backfill. By default, after the snapshot of
+    /// the current chain state is captured the proof window is extended back
+    /// by `--proofs-history.window` blocks using the snapshot-accelerated
+    /// path. Set this flag to leave the window at `[latest, latest]` and run
+    /// `op-proofs backfill` later instead. No effect on V1 storage (V1 does
+    /// not support backfill).
+    #[arg(long = "proofs-history.skip-backfill")]
+    pub skip_backfill: bool,
+
+    /// Retention window in blocks. Backfill extends the proof window backward
+    /// until `earliest <= latest - window`.
+    #[command(flatten)]
+    pub proofs_history_window: ProofsHistoryWindowArg,
 }
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
@@ -53,31 +54,60 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
         info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
-        info!(target: "reth::cli", "Initializing OP proofs storage at: {:?}", self.storage_path);
 
         // Initialize the environment with read-only access. We use `RoInconsistent` to skip the
         // static-file/database consistency check.
-        let Environment { provider_factory, .. } =
+        let Environment { provider_factory, data_dir, .. } =
             self.env.init::<N>(AccessRights::RoInconsistent, runtime)?;
+        let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
+        info!(target: "reth::cli", "Initializing OP proofs storage at: {:?}", storage_path);
 
         // Create the proofs storage without the metrics wrapper.
         // During initialization we write billions of entries; the metrics layer's
         // `AtomicBucket::push` (used by `Histogram::record_many`) is append-only and
         // would accumulate ~19 bytes per observation, causing OOM on large chains.
-        match self.storage_version {
+        match self.history.storage_version {
             ProofsStorageVersion::V1 => {
+                if !self.skip_backfill {
+                    return Err(eyre::eyre!(
+                        "V1 proofs storage does not support backfill. \
+                         Re-run with --proofs-history.storage-version v2, \
+                         or with --proofs-history.skip-backfill to initialize without backfilling."
+                    ));
+                }
+
                 let storage: Arc<MdbxProofsStorage> = Arc::new(
-                    MdbxProofsStorage::new(&self.storage_path)
+                    MdbxProofsStorage::new(&storage_path)
                         .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
                 );
                 Self::run_init(&provider_factory, storage)?;
             }
             ProofsStorageVersion::V2 => {
                 let storage: Arc<MdbxProofsStorageV2> = Arc::new(
-                    MdbxProofsStorageV2::new(&self.storage_path)
+                    MdbxProofsStorageV2::new(&storage_path)
                         .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
                 );
-                Self::run_init(&provider_factory, storage)?;
+                Self::run_init(&provider_factory, storage.clone())?;
+
+                if !self.skip_backfill {
+                    let proof_window = storage.provider_ro()?.get_proof_window()?;
+                    let window_blocks = self.proofs_history_window.window;
+                    let target_earliest_block =
+                        proof_window.earliest.number.saturating_sub(window_blocks);
+                    info!(
+                        target: "reth::cli",
+                        latest = ?proof_window.latest,
+                        window_blocks,
+                        target_earliest_block,
+                        "Running snapshot-accelerated backfill"
+                    );
+                    let provider = provider_factory
+                        .database_provider_ro()
+                        .map_err(|e| eyre::eyre!("Failed to open reth DB provider: {e}"))?
+                        .disable_long_read_transaction_safety();
+                    BackfillJob::new(provider, storage).run_with_snapshot(target_earliest_block)?;
+                    info!(target: "reth::cli", "Backfill complete");
+                }
             }
         }
 
