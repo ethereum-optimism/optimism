@@ -431,7 +431,7 @@ mod tests {
     use crate::interop_filter::CROSS_L2_INBOX_ADDRESS;
     use alloy_eips::eip2930::{AccessList, AccessListItem};
     use alloy_primitives::address;
-    use reth_transaction_pool::test_utils::{MockTransaction, testing_pool};
+    use reth_transaction_pool::test_utils::MockTransaction;
     use std::sync::atomic::Ordering;
 
     /// Creates a mock EIP-1559 transaction with the given access list.
