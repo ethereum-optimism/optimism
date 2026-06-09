@@ -9,7 +9,7 @@ This document describes an example configuration for an OP Stack network deploym
 
 ## Sequencers
 
-Sequencers receive transactions from the Tx Ingress Nodes via reth p2p gossip and work with the batcher and proposer to create new blocks.
+Sequencers receive transactions from the Tx Ingress Nodes via execution-layer p2p gossip and work with the batcher and proposer to create new blocks.
 
 ### Node Configuration
 
@@ -40,7 +40,7 @@ op-reth is configured via CLI flags rather than `GETH_*` environment variables:
 
 ## Tx Ingress Nodes
 
-These nodes receive `eth_sendRawTransaction` calls from the public and then gossip the transactions to the internal reth network. This allows the Sequencer to focus on block creation while these nodes handle transaction ingress.
+These nodes receive `eth_sendRawTransaction` calls from the public and then gossip the transactions to the internal execution-layer network. This allows the Sequencer to focus on block creation while these nodes handle transaction ingress.
 
 ### Node Configuration
 
@@ -59,7 +59,7 @@ These nodes receive `eth_sendRawTransaction` calls from the public and then goss
 
 ## Archive RPC Nodes
 
-We recommend setting up some archive nodes for internal RPC usage, primarily used by the challenger, proposer, and security monitoring tools like [monitorism](/operators/chain-operators/tools/chain-monitoring#monitorism).
+We recommend setting up some archive nodes for internal RPC usage, primarily used by the challenger, proposer, and security monitoring tools like [monitorism](/chain-operators/tools/chain-monitoring#monitorism).
 
 ### Node Configuration
 
