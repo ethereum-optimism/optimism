@@ -15,7 +15,7 @@ parameters:
   # Provenance is verified by .github/workflows/security.yml.
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:6b421a05805bc2b7b2b1e72a4418f8984444c1be9ec31d620cabec7acff0a36f
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:758f67c7212e7d05c3d02c34f26766ef86f657d3bb811da07cc01e37b736ebef
   base_image:
     type: string
     default: default
@@ -104,7 +104,7 @@ jobs:
     docker:
       - image: << pipeline.parameters.default_docker_image >>
     environment:
-      BASE_REVISION: devlop
+      BASE_REVISION: develop
     steps:
       - checkout
       # yq is used by the "Merge continuation configs" step to deep-merge YAML files.
@@ -174,7 +174,7 @@ jobs:
           command: .circleci/scripts/collect-params.sh detect
           environment:
             c-rust_files_changed: "^rust/"
-            c-contracts_changed: "^(packages/contracts-bedrock|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
+            c-contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
             c-docs_changes_detected: "^docs/public-docs/"
             c-rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
       # Safer "docs-only" detection: true iff EVERY changed file is under docs/public-docs/.

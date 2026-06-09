@@ -48,6 +48,7 @@ const (
 	MixedL2ELOpGeth   MixedL2ELKind = "op-geth"
 	MixedL2ELOpReth   MixedL2ELKind = "op-reth"
 	MixedL2ELOpRethV2 MixedL2ELKind = "op-reth-proof-v2"
+	MixedOpRbuilder   MixedL2ELKind = "op-rbuilder"
 )
 
 type MixedL2CLKind string
@@ -69,6 +70,12 @@ func SkipOnOpReth(t devtest.T, reason string) {
 	if devstackL2ELKind() == MixedL2ELOpReth {
 		t.Skipf("skipping on op-reth: %s", reason)
 	}
+}
+
+// IsOpRbuilder reports whether the L2 execution layer is op-rbuilder
+// (DEVSTACK_L2EL_KIND=op-rbuilder).
+func IsOpRbuilder() bool {
+	return devstackL2ELKind() == MixedOpRbuilder
 }
 
 // SkipOnKonaNode skips the test when the L2 consensus layer is kona-node

@@ -388,12 +388,11 @@ func CheckEIP7825DepositBypass(
 
 	logger.Info("EIP-7825-deposit: submitting high-gas deposit on L1",
 		"gas", depositGasLimit, "amount", depositAmount, "portal", portalAddr)
-	// Skip eth_estimateGas: the estimator caps its binary search at MaxTxGas,
-	// but ResourceMetering's Burn.gas inside depositTransaction needs to burn
-	// ~depositGasLimit gas on L1. WithGasLimit overrides the estimator.
 	l1Receipt, err := txplan.NewPlannedTx(l1Plan, callPlan,
 		txplan.WithValue(depositAmount),
-		txplan.WithGasLimit(depositGasLimit+1_000_000),
+		// This is the most we can ask for. The tx can still revert when the L1 base fee is low,
+		// which will burn more L1 gas and cause us to exceed the MaxTxGas limit.
+		txplan.WithGasLimit(params.MaxTxGas),
 	).Included.Eval(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("L1 deposit submission: %w", err)

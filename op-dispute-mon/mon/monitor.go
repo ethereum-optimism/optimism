@@ -14,6 +14,7 @@ import (
 )
 
 type ForecastResolution func(games []*types.EnrichedGameData, ignoredCount, failedCount int)
+type AnchorStateCheck func(ctx context.Context, blockHash common.Hash, games []*types.EnrichedGameData)
 type Monitor func(games []*types.EnrichedGameData)
 type HeadBlockFetcher func(ctx context.Context) (eth.L1BlockRef, error)
 type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, int, int, error)
@@ -34,10 +35,11 @@ type gameMonitor struct {
 	gameWindow      time.Duration
 	monitorInterval time.Duration
 
-	forecast       ForecastResolution
-	monitors       []Monitor
-	extract        Extract
-	fetchHeadBlock HeadBlockFetcher
+	forecast         ForecastResolution
+	checkAnchorState AnchorStateCheck
+	monitors         []Monitor
+	extract          Extract
+	fetchHeadBlock   HeadBlockFetcher
 }
 
 func newGameMonitor(
@@ -50,19 +52,21 @@ func newGameMonitor(
 	fetchHeadBlock HeadBlockFetcher,
 	extract Extract,
 	forecast ForecastResolution,
+	checkAnchorState AnchorStateCheck,
 	monitors ...Monitor) *gameMonitor {
 	return &gameMonitor{
-		logger:          logger,
-		clock:           cl,
-		ctx:             ctx,
-		done:            make(chan struct{}),
-		metrics:         metrics,
-		monitorInterval: monitorInterval,
-		gameWindow:      gameWindow,
-		forecast:        forecast,
-		monitors:        monitors,
-		extract:         extract,
-		fetchHeadBlock:  fetchHeadBlock,
+		logger:           logger,
+		clock:            cl,
+		ctx:              ctx,
+		done:             make(chan struct{}),
+		metrics:          metrics,
+		monitorInterval:  monitorInterval,
+		gameWindow:       gameWindow,
+		forecast:         forecast,
+		checkAnchorState: checkAnchorState,
+		monitors:         monitors,
+		extract:          extract,
+		fetchHeadBlock:   fetchHeadBlock,
 	}
 }
 
@@ -79,6 +83,7 @@ func (m *gameMonitor) monitorGames() error {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
 	m.forecast(enrichedGames, ignored, failed)
+	m.checkAnchorState(m.ctx, headBlock.Hash, enrichedGames)
 	for _, monitor := range m.monitors {
 		monitor(enrichedGames)
 	}

@@ -34,11 +34,11 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 	}
 	if !interopAtGenesis {
-		// Karst at genesis, Interop at offset — exercises the activation transition.
+		// Karst at genesis, Lagoon at offset — exercises the activation transition.
 		deployerOpts = append(deployerOpts, func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2Cfg := range builder.L2s() {
 				l2Cfg.WithForkAtGenesis(opforks.Karst)
-				l2Cfg.WithForkAtOffset(opforks.Interop, &delaySeconds)
+				l2Cfg.WithForkAtOffset(opforks.Lagoon, &delaySeconds)
 			}
 		})
 	}
@@ -56,7 +56,7 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	}
 	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 
-	l2EL := startL2ELNode(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
+	l2EL := startSequencerEL(t, l2Net, jwtPath, jwtSecret, NewELNodeIdentity(0))
 	l2CL := startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 		Key:           "sequencer",
 		IsSequencer:   true,

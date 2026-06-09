@@ -94,6 +94,10 @@ const (
 	DecisionRewind
 )
 
+// roundDecisions enumerates every Decision the round loop can emit. Used to
+// pre-initialize the decision counter so all label series exist from startup.
+var roundDecisions = []Decision{DecisionWait, DecisionAdvance, DecisionInvalidate, DecisionRewind}
+
 // Decision is serialized as a self-describing string in the WAL so that the
 // on-disk format survives enum re-ordering or the insertion of new variants.
 func (d Decision) String() string {
@@ -277,6 +281,19 @@ func New(
 	}
 	if metrics == nil {
 		metrics = resources.NewSupernodeMetrics()
+	}
+	// Pre-initialize every decision label series to 0 so the invalidate signal
+	// exists from startup. Without this, the {decision="invalidate"} series only
+	// appears on the first invalidation — already at 1 — and Prometheus
+	// increase()/rate() has no prior 0 sample to diff against, so an alert built
+	// on it misses the very event it guards.
+	for _, d := range roundDecisions {
+		metrics.InteropRoundDecisions.WithLabelValues(d.String())
+	}
+	// Likewise pre-initialize the per-chain invalidation counter to 0 for every
+	// configured chain, so a per-chain invalidate alert has a 0 baseline.
+	for chainID := range chains {
+		metrics.InteropInvalidations.WithLabelValues(chainID.String())
 	}
 	i := &Interop{
 		log:                 log,
@@ -828,7 +845,8 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 				i.metrics.InteropInvalidations.WithLabelValues(p.ChainID.String()).Inc()
 			}
 		}
-		// Resume non-invalidated chains. Invalidated chains are resumed by RewindEngine.
+		// Resume non-invalidated chains. Invalidated chains are resumed by
+		// RewindEngine internally (which also waits for readiness).
 		for chainID, chain := range i.chains {
 			if _, isInvalid := pending.Result.InvalidHeads[chainID]; !isInvalid {
 				if err := chain.Resume(i.ctx); err != nil {
@@ -839,6 +857,22 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		if failedAny {
 			return false, fmt.Errorf("one or more invalidations failed, transition preserved")
 		}
+		// Wait for all resumed chains to be ready for traffic before clearing
+		// the pending transition. Without this barrier the next verifier round
+		// (or external RPC traffic via the shared router gate) hits a chain
+		// whose new VN has not yet reached VNStateRunning. Runs only on the
+		// success path so the error path returns immediately on partial
+		// invalidation failure. Per-chain timeouts are absorbed by the natural
+		// verifier backoff loop, so we log and continue rather than return.
+		waitCtx, cancel := context.WithTimeout(i.ctx, cc.DefaultWaitReadyTimeout)
+		for chainID, chain := range i.chains {
+			if _, isInvalid := pending.Result.InvalidHeads[chainID]; !isInvalid {
+				if err := chain.WaitReady(waitCtx); err != nil {
+					i.log.Error("chain not ready after resume", "chainID", chainID, "err", err)
+				}
+			}
+		}
+		cancel()
 		if err := i.verifiedDB.ClearPendingTransition(); err != nil {
 			return false, fmt.Errorf("clear pending transition: %w", err)
 		}

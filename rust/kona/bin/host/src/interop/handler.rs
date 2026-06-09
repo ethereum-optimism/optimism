@@ -11,8 +11,7 @@ use alloy_op_evm::OpEvmFactory;
 use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_provider::Provider;
 use alloy_rlp::{Decodable, Encodable};
-use alloy_rpc_types::{Block, debug::ExecutionWitness};
-use alloy_transport::{RpcError, TransportErrorKind};
+use alloy_rpc_types::Block;
 use anyhow::{Result, anyhow, ensure};
 use ark_ff::{BigInteger, PrimeField};
 use async_trait::async_trait;
@@ -55,12 +54,6 @@ fn parse_l2_payload_witness_hint(data: &[u8]) -> Result<(B256, &[u8], u64)> {
     let chain_id = u64::from_be_bytes(data[data.len() - 8..].try_into()?);
     let payload_attributes_bytes = &data[32..data.len() - 8];
     Ok((parent_block_hash, payload_attributes_bytes, chain_id))
-}
-
-/// Returns `true` if the RPC error indicates the node does not support the requested method
-/// (JSON-RPC error code -32601: Method not found).
-const fn is_rpc_method_not_found(e: &RpcError<TransportErrorKind>) -> bool {
-    matches!(e, RpcError::ErrorResp(p) if p.code == -32601)
 }
 
 /// The [`HintHandler`] for the [`InteropHost`].
@@ -677,27 +670,13 @@ impl HintHandler for InteropHintHandler {
                 // 2. Route to correct L2 provider
                 let l2_provider = providers.l2(&chain_id)?;
 
-                // 3. Call debug_executePayload RPC
-                let execute_payload_response = match l2_provider
-                    .client()
-                    .request::<(B256, OpPayloadAttributes), ExecutionWitness>(
-                        "debug_executePayload",
-                        (parent_block_hash, payload_attributes),
-                    )
-                    .await
-                {
-                    Ok(response) => response,
-                    Err(e) => {
-                        info!(
-                            target: "interop_hint_handler",
-                            err = %e,
-                            chain_id,
-                            method_not_found = is_rpc_method_not_found(&e),
-                            "debug_executePayload unavailable, skipping witness preimage collection"
-                        );
-                        return Ok(());
-                    }
-                };
+                // 3. Call debug_executePayload RPC.
+                let execute_payload_response = crate::backend::util::fetch_execution_witness(
+                    l2_provider.client(),
+                    parent_block_hash,
+                    payload_attributes,
+                )
+                .await?;
 
                 // 4. Store preimages in KV store
                 let preimages = execute_payload_response
@@ -722,34 +701,6 @@ impl HintHandler for InteropHintHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_json_rpc::ErrorPayload;
-    use alloy_transport::TransportErrorKind;
-
-    #[test]
-    fn test_is_rpc_method_not_found_true() {
-        let e = RpcError::<TransportErrorKind>::ErrorResp(ErrorPayload {
-            code: -32601,
-            message: "method not found".into(),
-            data: None,
-        });
-        assert!(is_rpc_method_not_found(&e));
-    }
-
-    #[test]
-    fn test_is_rpc_method_not_found_false_wrong_code() {
-        let e = RpcError::<TransportErrorKind>::ErrorResp(ErrorPayload {
-            code: -32600,
-            message: "invalid request".into(),
-            data: None,
-        });
-        assert!(!is_rpc_method_not_found(&e));
-    }
-
-    #[test]
-    fn test_is_rpc_method_not_found_false_null_resp() {
-        let e = RpcError::<TransportErrorKind>::NullResp;
-        assert!(!is_rpc_method_not_found(&e));
-    }
 
     fn make_hint(parent_hash: B256, json: &[u8], chain_id: u64) -> Vec<u8> {
         let mut data = Vec::new();

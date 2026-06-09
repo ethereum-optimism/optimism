@@ -156,6 +156,8 @@ func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [3
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
 	case MixedL2ELOpRethV2:
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v2", opts...)
+	case MixedOpRbuilder:
+		return startBuilderEL(t, l2Net, jwtPath, identity)
 	default: // op-reth v1
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1", opts...)
 	}
@@ -285,6 +287,11 @@ type l2CLNodeStartConfig struct {
 	L2FollowSource string
 	DependencySet  depset.DependencySet
 	L2CLOptions    []L2CLOption
+	// SyncMode overrides the sequencer and verifier sync modes; defaults to CLSync if unset.
+	SyncMode nodeSync.Mode
+	// SequencerStopped starts the sequencer in the stopped state (it must be
+	// activated later via the StartSequencer RPC). Only meaningful when IsSequencer.
+	SequencerStopped bool
 }
 
 func startL2CLNode(
@@ -313,6 +320,11 @@ func startL2CLNode(
 			}
 			opt.Apply(t, l2CLTarget, cfg)
 		}
+	}
+
+	if startCfg.SyncMode != 0 {
+		cfg.SequencerSyncMode = startCfg.SyncMode
+		cfg.VerifierSyncMode = startCfg.SyncMode
 	}
 
 	syncMode := cfg.VerifierSyncMode
@@ -388,6 +400,7 @@ func startL2CLNode(
 		},
 		Driver: driver.Config{
 			SequencerEnabled:    cfg.IsSequencer,
+			SequencerStopped:    startCfg.SequencerStopped,
 			SequencerConfDepth:  2,
 			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
 		},
@@ -409,8 +422,10 @@ func startL2CLNode(
 			SkipSyncStartCheck:             false,
 			SupportsPostFinalizationELSync: false,
 			L2FollowSourceEndpoint:         cfg.FollowSource,
-			NeedInitialResetEngine:         false,
-			OffsetELSafe:                   cfg.OffsetELSafe,
+			// Mirror op-node/service.go: a follow-mode sequencer needs a single
+			// initial engine reset to trigger block building (TryInitialResetEngineForSequencer).
+			NeedInitialResetEngine: cfg.IsSequencer && cfg.FollowSource != "",
+			OffsetELSafe:           cfg.OffsetELSafe,
 		},
 		ConfigPersistence:               config.DisabledConfigPersistence{},
 		Metrics:                         opmetrics.CLIConfig{},

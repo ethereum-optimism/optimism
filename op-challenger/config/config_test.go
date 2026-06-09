@@ -199,7 +199,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestCannonServerRequired-%v", gameType), func(t *testing.T) {
 			config := validConfig(t, gameType)
 			config.Cannon.Server = ""
-			require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+			if gameType == gameTypes.PermissionedGameType {
+				// The permissioned game never reaches step() so does not run op-program.
+				require.NoError(t, config.Check())
+			} else {
+				require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+			}
 		})
 
 		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateOrBaseURLRequired-%v", gameType), func(t *testing.T) {
@@ -305,9 +310,32 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestServerExists-%v", gameType), func(t *testing.T) {
 			cfg := validConfig(t, gameType)
 			cfg.Cannon.Server = nonExistingFile
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
+			if gameType == gameTypes.PermissionedGameType {
+				// The permissioned game never reaches step() so does not run op-program.
+				require.NoError(t, cfg.Check())
+			} else {
+				require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
+			}
 		})
 	}
+}
+
+// The op-program server is still required when both the cannon and permissioned game types
+// are enabled, because the cannon game runs op-program even though the permissioned game does not.
+func TestCannonServerRequiredWhenCannonAndPermissionedBothEnabled(t *testing.T) {
+	t.Run("ServerEmpty", func(t *testing.T) {
+		config := validConfig(t, gameTypes.CannonGameType)
+		config.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
+		config.Cannon.Server = ""
+		require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+	})
+
+	t.Run("ServerMissing", func(t *testing.T) {
+		config := validConfig(t, gameTypes.CannonGameType)
+		config.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
+		config.Cannon.Server = nonExistingFile
+		require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+	})
 }
 
 func TestCannonKonaRequiredArgs(t *testing.T) {

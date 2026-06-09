@@ -18,13 +18,13 @@ func TestInteropAtGenesis(t *testing.T) {
 		offset *hexutil.Uint64
 		want   bool
 	}{
-		{"nil offset: Interop not scheduled", nil, false},
-		{"zero offset: Interop active at genesis", &zero, true},
-		{"non-zero offset: Interop delayed activation", &nonzero, false},
+		{"nil offset: Lagoon not scheduled", nil, false},
+		{"zero offset: Lagoon activates interop at genesis", &zero, true},
+		{"non-zero offset: Lagoon delayed activation", &nonzero, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, interopAtGenesis(tt.offset))
+			require.Equal(t, tt.want, lagoonAtGenesis(tt.offset))
 		})
 	}
 }

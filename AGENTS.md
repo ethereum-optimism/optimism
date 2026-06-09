@@ -47,7 +47,7 @@ The OP Stack includes significant Rust implementations:
 ### Fault Proof System
 
 - **cannon**: Onchain MIPS instruction emulator (in Go)
-- **op-program**: Fault proof program (in Go)
+- **rust/kona**: Fault proof program — client and host (in Rust)
 
 ### Development and Testing Infrastructure
 

@@ -437,7 +437,7 @@ mod tests {
                 .chain(10.into())
                 .genesis(Genesis::default())
                 .with_fork(
-                    reth_optimism_forks::OpHardfork::Interop,
+                    reth_optimism_forks::OpHardfork::Lagoon,
                     reth_chainspec::ForkCondition::Timestamp(activation),
                 )
                 .build(),

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	rpcclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
@@ -228,6 +229,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		extract.NewL1HeadBlockNumEnricher(s.l1Client),
 		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.outputRollupClients(), clock.SystemClock),
 		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
+		extract.NewAnchorStateRegistryEnricher(s.logger),
 	)
 	forecast := NewForecast(s.logger, s.metrics)
 	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl)
@@ -243,9 +245,13 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	mixedSafetyMonitor := NewMixedSafetyMonitor(s.logger, s.metrics)
 	differentRootMonitor := NewDifferentRootMonitor(s.logger, s.metrics)
 	gameTypeMonitor := NewGameTypeMonitor(s.metrics)
+	anchorStateMonitor := NewAnchorStateMonitor(s.logger, s.metrics, func(addr common.Address) AnchorRootProvider {
+		return contracts.NewAnchorStateRegistryContract(s.metrics, addr, s.l1Caller)
+	})
 	s.monitor = newGameMonitor(ctx, s.logger, s.cl, s.metrics, cfg.MonitorInterval, cfg.GameWindow, headBlockFetcher,
 		extractor.Extract,
 		forecast.Forecast,
+		anchorStateMonitor.CheckAnchorState,
 		bonds.CheckBonds,
 		resolutions.CheckResolutions,
 		claims.CheckClaims,

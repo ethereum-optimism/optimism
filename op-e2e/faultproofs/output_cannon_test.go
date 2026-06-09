@@ -152,7 +152,7 @@ func testOutputCannonStepWithLargePreimage(t *testing.T, allocType config.AllocT
 	t.Cleanup(sys.Close)
 
 	// Manually send a tx from the correct batcher key to the batcher input with very large (invalid) data
-	// This forces op-program to load a large preimage.
+	// This forces the fault-proof program to load a large preimage.
 	sys.BatcherHelper().SendLargeInvalidBatch(ctx)
 
 	require.NoError(t, sys.BatchSubmitter.Start(ctx))

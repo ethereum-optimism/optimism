@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/olekukonko/tablewriter"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -41,20 +40,40 @@ func NewSubcommands(m Metrics) cli.Commands {
 					return enc.Encode(supportedMetrics)
 				}
 
-				table := tablewriter.NewWriter(os.Stdout)
-				table.SetBorders(tablewriter.Border{Left: true, Top: false, Right: true, Bottom: false})
-				table.SetCenterSeparator("|")
-				table.SetAutoWrapText(false)
-				table.SetHeader([]string{"Metric", "Description", "Labels", "Type"})
-				data := make([][]string, 0, len(supportedMetrics))
+				writeMarkdownTableHeader("Metric", "Description", "Labels", "Type")
 				for _, metric := range supportedMetrics {
 					labels := strings.Join(metric.Labels, ",")
-					data = append(data, []string{metric.Name, metric.Help, labels, metric.Type})
+					writeMarkdownTableRow(metric.Name, metric.Help, labels, metric.Type)
 				}
-				table.AppendBulk(data)
-				table.Render()
 				return nil
 			},
 		},
 	}
+}
+
+func writeMarkdownTableHeader(columns ...string) {
+	writeMarkdownTableRow(columns...)
+	for i := range columns {
+		if i > 0 {
+			fmt.Fprint(os.Stdout, "|")
+		}
+		fmt.Fprint(os.Stdout, "---")
+	}
+	fmt.Fprintln(os.Stdout)
+}
+
+func writeMarkdownTableRow(columns ...string) {
+	for i, column := range columns {
+		if i > 0 {
+			fmt.Fprint(os.Stdout, "|")
+		}
+		fmt.Fprintf(os.Stdout, " %s ", markdownCell(column))
+	}
+	fmt.Fprintln(os.Stdout)
+}
+
+func markdownCell(value string) string {
+	value = strings.ReplaceAll(value, "|", "\\|")
+	value = strings.ReplaceAll(value, "\n", "<br>")
+	return value
 }
