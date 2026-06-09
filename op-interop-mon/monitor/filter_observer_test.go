@@ -49,6 +49,29 @@ func TestFilterObserverDivergence(t *testing.T) {
 	require.Len(t, mm.actualFilterDivergences, 1)
 }
 
+func TestFilterObserverRechecksOnStatusChange(t *testing.T) {
+	// The filter consistently accepts the message (nil error). The monitor first
+	// agrees (valid), then flips to invalid after a reorg. The observer must
+	// re-query on the flip and record the now-divergent verdict, rather than
+	// skipping the job because it was already checked once.
+	job := &Job{
+		initiating:     &messages.Identifier{ChainID: eth.ChainIDFromUInt64(1), BlockNumber: 10},
+		executingChain: eth.ChainIDFromUInt64(2),
+	}
+	job.UpdateStatus(jobStatusValid)
+
+	mm := &mockMetrics{}
+	obs := NewFilterObserver(&mockFilterChecker{}, mm, log.New()) // filter always valid (nil)
+
+	obs.Observe(context.Background(), map[JobID]*Job{job.ID(): job})
+	require.Empty(t, mm.actualFilterDivergences) // monitor valid, filter valid -> agree
+
+	// Monitor verdict flips to invalid (e.g. initiating-chain reorg).
+	job.UpdateStatus(jobStatusInvalid)
+	obs.Observe(context.Background(), map[JobID]*Job{job.ID(): job})
+	require.Len(t, mm.actualFilterDivergences, 1) // monitor invalid, filter valid -> divergence
+}
+
 func TestFilterObserverTransportErrorNoDivergence(t *testing.T) {
 	// monitor says valid, filter call fails with a transport error (not a verdict)
 	// -> no divergence recorded.

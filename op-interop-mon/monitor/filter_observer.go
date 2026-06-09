@@ -32,9 +32,12 @@ func (o *FilterObserver) Observe(ctx context.Context, jobs map[JobID]*Job) {
 		if !status.isTerminal() {
 			continue
 		}
-		// Query each terminal job at most once. Re-checking the same jobs every
-		// cycle would issue one RPC per in-flight terminal job per second.
-		if job.FilterChecked() {
+		// Query the filter only when the monitor verdict for this job is new.
+		// Re-checking an unchanged status every cycle would issue one RPC per
+		// in-flight terminal job per second; gating purely on "ever checked"
+		// would miss divergences that appear after a status flip (e.g. an
+		// initiating-chain reorg turning a valid job invalid).
+		if job.FilterCheckedFor(status) {
 			continue
 		}
 		msg := messages.Message{Identifier: *job.initiating, PayloadHash: job.executingPayload}
@@ -56,8 +59,8 @@ func (o *FilterObserver) Observe(ctx context.Context, jobs map[JobID]*Job) {
 				continue
 			}
 		}
-		// A verdict was returned; do not re-query this job.
-		job.MarkFilterChecked()
+		// A verdict was returned; do not re-query this job until its status changes.
+		job.MarkFilterChecked(status)
 
 		monitorValid := status == jobStatusValid
 		filterValid := err == nil

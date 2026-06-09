@@ -71,9 +71,11 @@ type Job struct {
 	countedReorg     atomic.Bool
 	countedViolation atomic.Bool
 
-	// filterChecked is set once the interop-filter has returned a verdict for this
-	// job, so the observer queries each terminal job once rather than every cycle.
-	filterChecked atomic.Bool
+	// lastFilterCheckedStatus records the monitor status that was most recently
+	// compared against the interop-filter, encoded as int32(status)+1 so the zero
+	// value means "never checked". The observer re-queries the filter only when the
+	// monitor's verdict changes, bounding RPCs without missing post-flip divergences.
+	lastFilterCheckedStatus atomic.Int32
 
 	executingAddress   common.Address
 	executingChain     eth.ChainID
@@ -281,15 +283,16 @@ func (j *Job) CountReorgOnce() bool {
 	return j.countedReorg.CompareAndSwap(false, true)
 }
 
-// FilterChecked reports whether the interop-filter has already returned a verdict
-// for this job, so the observer can skip re-querying it every cycle.
-func (j *Job) FilterChecked() bool {
-	return j.filterChecked.Load()
+// FilterCheckedFor reports whether the interop-filter has already been compared
+// against this exact monitor status, so the observer skips re-querying it until
+// the monitor's verdict changes.
+func (j *Job) FilterCheckedFor(status jobStatus) bool {
+	return j.lastFilterCheckedStatus.Load() == int32(status)+1
 }
 
-// MarkFilterChecked records that the interop-filter has returned a verdict for this job.
-func (j *Job) MarkFilterChecked() {
-	j.filterChecked.Store(true)
+// MarkFilterChecked records the monitor status that was compared against the filter.
+func (j *Job) MarkFilterChecked(status jobStatus) {
+	j.lastFilterCheckedStatus.Store(int32(status) + 1)
 }
 
 // CountViolationOnce reports true exactly once, the first time it is called, so
