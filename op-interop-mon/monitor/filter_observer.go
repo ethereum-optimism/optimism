@@ -32,17 +32,23 @@ func (o *FilterObserver) Observe(ctx context.Context, jobs map[JobID]*Job) {
 		if !status.isTerminal() {
 			continue
 		}
+		// Query each terminal job at most once. Re-checking the same jobs every
+		// cycle would issue one RPC per in-flight terminal job per second.
+		if job.FilterChecked() {
+			continue
+		}
 		msg := messages.Message{Identifier: *job.initiating, PayloadHash: job.executingPayload}
 		cctx, cancel := context.WithTimeout(ctx, o.timeout)
 		err := o.filter.CheckMessage(cctx, msg, job.executingChain, job.executingTimestamp)
 		cancel()
 
 		// Only a structured JSON-RPC response counts as a filter verdict. A transport
-		// or timeout error is not a rejection, so skip it rather than record a false divergence.
+		// or timeout error is not a rejection: leave the job unmarked so it is retried
+		// next cycle, rather than recording a false divergence.
 		if err != nil {
 			var rpcErr rpc.Error
 			if !errors.As(err, &rpcErr) {
-				o.log.Warn("interop-filter check failed (transport error); skipping divergence",
+				o.log.Warn("interop-filter check failed (transport error); will retry",
 					"executing_chain_id", job.executingChain,
 					"initiating_chain_id", job.initiating.ChainID,
 					"error", err,
@@ -50,6 +56,8 @@ func (o *FilterObserver) Observe(ctx context.Context, jobs map[JobID]*Job) {
 				continue
 			}
 		}
+		// A verdict was returned; do not re-query this job.
+		job.MarkFilterChecked()
 
 		monitorValid := status == jobStatusValid
 		filterValid := err == nil
@@ -58,17 +66,14 @@ func (o *FilterObserver) Observe(ctx context.Context, jobs map[JobID]*Job) {
 			if !filterValid {
 				filterStatus = "invalid"
 			}
-			// Record each diverging job once, not on every collection cycle.
-			if job.CountDivergenceOnce() {
-				o.log.Warn("monitor/filter verdict divergence",
-					"executing_chain_id", job.executingChain,
-					"initiating_chain_id", job.initiating.ChainID,
-					"monitor_status", status.String(),
-					"filter_status", filterStatus,
-					"filter_err", err,
-				)
-				o.m.RecordFilterDivergence(job.executingChain.String(), job.initiating.ChainID.String(), status.String(), filterStatus)
-			}
+			o.log.Warn("monitor/filter verdict divergence",
+				"executing_chain_id", job.executingChain,
+				"initiating_chain_id", job.initiating.ChainID,
+				"monitor_status", status.String(),
+				"filter_status", filterStatus,
+				"filter_err", err,
+			)
+			o.m.RecordFilterDivergence(job.executingChain.String(), job.initiating.ChainID.String(), status.String(), filterStatus)
 		}
 	}
 }

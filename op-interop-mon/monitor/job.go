@@ -68,9 +68,12 @@ type Job struct {
 
 	// event-counted flags ensure each observability counter increments at most
 	// once per job, rather than once per collection cycle.
-	countedReorg      atomic.Bool
-	countedDivergence atomic.Bool
-	countedViolation  atomic.Bool
+	countedReorg     atomic.Bool
+	countedViolation atomic.Bool
+
+	// filterChecked is set once the interop-filter has returned a verdict for this
+	// job, so the observer queries each terminal job once rather than every cycle.
+	filterChecked atomic.Bool
 
 	executingAddress   common.Address
 	executingChain     eth.ChainID
@@ -278,10 +281,15 @@ func (j *Job) CountReorgOnce() bool {
 	return j.countedReorg.CompareAndSwap(false, true)
 }
 
-// CountDivergenceOnce reports true exactly once, the first time it is called, so
-// the filter-divergence counter increments per job rather than per cycle.
-func (j *Job) CountDivergenceOnce() bool {
-	return j.countedDivergence.CompareAndSwap(false, true)
+// FilterChecked reports whether the interop-filter has already returned a verdict
+// for this job, so the observer can skip re-querying it every cycle.
+func (j *Job) FilterChecked() bool {
+	return j.filterChecked.Load()
+}
+
+// MarkFilterChecked records that the interop-filter has returned a verdict for this job.
+func (j *Job) MarkFilterChecked() {
+	j.filterChecked.Store(true)
 }
 
 // CountViolationOnce reports true exactly once, the first time it is called, so
