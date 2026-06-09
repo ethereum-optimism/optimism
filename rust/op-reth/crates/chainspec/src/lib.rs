@@ -190,6 +190,8 @@ impl OpChainSpecBuilder {
     /// Enable Isthmus at genesis
     pub fn isthmus_activated(mut self) -> Self {
         self = self.holocene_activated();
+        // Isthmus also activates changes from L1's Prague hardfork
+        self.inner = self.inner.with_fork(EthereumHardfork::Prague, ForkCondition::Timestamp(0));
         self.inner = self.inner.with_fork(OpHardfork::Isthmus, ForkCondition::Timestamp(0));
         self
     }
@@ -204,6 +206,8 @@ impl OpChainSpecBuilder {
     /// Enable Karst at genesis
     pub fn karst_activated(mut self) -> Self {
         self = self.jovian_activated();
+        // Karst also activates changes from L1's Osaka hardfork
+        self.inner = self.inner.with_fork(EthereumHardfork::Osaka, ForkCondition::Timestamp(0));
         self.inner = self.inner.with_fork(OpHardfork::Karst, ForkCondition::Timestamp(0));
         self
     }
@@ -401,6 +405,7 @@ impl From<Genesis> for OpChainSpec {
             (EthereumHardfork::Shanghai.boxed(), genesis_info.canyon_time),
             (EthereumHardfork::Cancun.boxed(), genesis_info.ecotone_time),
             (EthereumHardfork::Prague.boxed(), genesis_info.isthmus_time),
+            (EthereumHardfork::Osaka.boxed(), genesis_info.karst_time),
             // OP
             (OpHardfork::Regolith.boxed(), genesis_info.regolith_time),
             (OpHardfork::Canyon.boxed(), genesis_info.canyon_time),
@@ -912,6 +917,104 @@ mod tests {
     fn is_bedrock_active() {
         let op_mainnet = OpChainSpecBuilder::optimism_mainnet().build();
         assert!(!op_mainnet.is_bedrock_active_at_block(1))
+    }
+
+    /// Each `*_activated()` builder helper must activate the L1 (Ethereum) hardfork its OP fork
+    /// implies, exactly as the genesis `From<Genesis>` conversion does. Guards against a future
+    /// fork silently shipping without its L1 fork — the gap that left Isthmus without Prague.
+    #[test]
+    fn builder_activated_specs_match_genesis_l1_forks() {
+        // Builder spec with every OP fork (through Lagoon) active at genesis.
+        let builder_spec = OpChainSpecBuilder::optimism_mainnet().interop_activated().build();
+
+        // Equivalent genesis: every OP fork active at timestamp 0. `From<Genesis>` derives the
+        // implied L1 forks (Shanghai/Cancun/Prague/Osaka) from these OP timestamps.
+        let geth_genesis = r#"
+        {
+            "config": {
+                "chainId": 10,
+                "homesteadBlock": 0,
+                "eip150Block": 0,
+                "eip155Block": 0,
+                "eip158Block": 0,
+                "byzantiumBlock": 0,
+                "constantinopleBlock": 0,
+                "petersburgBlock": 0,
+                "istanbulBlock": 0,
+                "muirGlacierBlock": 0,
+                "berlinBlock": 0,
+                "londonBlock": 0,
+                "arrowGlacierBlock": 0,
+                "grayGlacierBlock": 0,
+                "mergeNetsplitBlock": 0,
+                "bedrockBlock": 0,
+                "regolithTime": 0,
+                "canyonTime": 0,
+                "ecotoneTime": 0,
+                "fjordTime": 0,
+                "graniteTime": 0,
+                "holoceneTime": 0,
+                "isthmusTime": 0,
+                "jovianTime": 0,
+                "karstTime": 0,
+                "lagoonTime": 0,
+                "terminalTotalDifficulty": 0,
+                "terminalTotalDifficultyPassed": true,
+                "optimism": {
+                    "eip1559Elasticity": 6,
+                    "eip1559Denominator": 50
+                }
+            }
+        }
+        "#;
+        let genesis: Genesis = serde_json::from_str(geth_genesis).unwrap();
+        let genesis_spec = OpChainSpec::from_genesis(genesis);
+
+        // Builder- and genesis-built specs must agree on every OP fork and the L1 fork it implies.
+        macro_rules! assert_parity {
+            ($fork:expr) => {
+                assert_eq!(
+                    builder_spec.hardforks.get($fork),
+                    genesis_spec.hardforks.get($fork),
+                    "builder vs genesis disagree on {:?}",
+                    $fork
+                );
+            };
+        }
+
+        assert_parity!(OpHardfork::Regolith);
+        assert_parity!(OpHardfork::Canyon);
+        assert_parity!(EthereumHardfork::Shanghai);
+        assert_parity!(OpHardfork::Ecotone);
+        assert_parity!(EthereumHardfork::Cancun);
+        assert_parity!(OpHardfork::Fjord);
+        assert_parity!(OpHardfork::Granite);
+        assert_parity!(OpHardfork::Holocene);
+        assert_parity!(OpHardfork::Isthmus);
+        assert_parity!(EthereumHardfork::Prague);
+        assert_parity!(OpHardfork::Jovian);
+        assert_parity!(OpHardfork::Karst);
+        assert_parity!(EthereumHardfork::Osaka);
+        assert_parity!(OpHardfork::Lagoon);
+
+        // Pin the invariant directly on the builder spec: every implied L1 fork is active at
+        // genesis.
+        assert_eq!(
+            builder_spec.hardforks.get(EthereumHardfork::Shanghai),
+            Some(ForkCondition::Timestamp(0))
+        );
+        assert_eq!(
+            builder_spec.hardforks.get(EthereumHardfork::Cancun),
+            Some(ForkCondition::Timestamp(0))
+        );
+        assert_eq!(
+            builder_spec.hardforks.get(EthereumHardfork::Prague),
+            Some(ForkCondition::Timestamp(0))
+        );
+        assert_eq!(
+            builder_spec.hardforks.get(EthereumHardfork::Osaka),
+            Some(ForkCondition::Timestamp(0))
+        );
     }
 
     #[test]
