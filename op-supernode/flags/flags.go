@@ -111,21 +111,26 @@ func init() {
 
 var Flags []cli.Flag
 
-// SupernodeOwnedFlags lists op-node flag names whose resources are owned by the
-// supernode (e.g. the shared L1 client) rather than individual virtual nodes.
-// Setting these at the vn.all.* or vn.<id>.* level has no effect because the
-// supernode injects pre-built resources via InitializationOverrides.
+// SupernodeOwnedFlags lists op-node flag names that remain valid per-VN flags
+// (still cloned into vn.all.* / vn.<id>.* variants) but whose value the supernode
+// may override in some configurations. warnSupernodeOwnedFlags logs a warning
+// when an operator sets one, so it is clear the supernode-level value can win.
 //
-// Extend this list when new shared resources are added to the supernode.
+// Policy: list a flag here only when a per-VN value is still meaningful in some
+// configurations (e.g. interop.dependency-set takes effect unless the supernode's
+// --dependency-set is set). If the supernode *unconditionally* owns the resource
+// so a per-VN value can never take effect, put it in ExcludedVNFlags instead --
+// that removes the flag from the CLI surface entirely; do not also list it here.
 var SupernodeOwnedFlags = []string{
-	opnodeflags.L1HTTPPollInterval.Name,   // "l1.http-poll-interval"
 	opnodeflags.InteropDependencySet.Name, // "interop.dependency-set"
 }
 
 // ExcludedVNFlags lists op-node flag names that should not be cloned into
-// vn.all.* or vn.<id>.* variants. These flags are managed by the supernode
-// and are not configurable per virtual node.
+// vn.all.* or vn.<id>.* variants. The supernode unconditionally owns these
+// resources, so a per-VN value could never take effect -- removing them from the
+// CLI surface entirely avoids exposing flags that are silently ignored.
 // Add entries here as the supernode takes ownership of more op-node resources.
+// See SupernodeOwnedFlags for flags that stay configurable per-VN but warn.
 var ExcludedVNFlags = map[string]bool{
 	// Data paths — derived from --data-dir/<chainID>/...
 	"safedb.path":        true,
