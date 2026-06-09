@@ -4,7 +4,10 @@ use crate::interop_filter::InteropTxValidatorError;
 use op_alloy_rpc_types::SuperchainDAError;
 use reth_metrics::{
     Metrics,
-    metrics::{Counter, Gauge, Histogram, counter, histogram},
+    metrics::{
+        Counter, Gauge, Histogram, Unit, counter, describe_counter, describe_gauge,
+        describe_histogram, gauge, histogram,
+    },
 };
 use std::time::Duration;
 
@@ -12,18 +15,27 @@ use std::time::Duration;
 /// reaches the filter increments this exactly once, labeled by `result` (and `reason`, where a
 /// result carries a sub-classification). It is the one source of truth for the decision taxonomy:
 /// `sum by (result)` is the outcome breakdown (including the former `quorum_*` counters), and
-/// `sum by (reason) (filter_decisions_total{result="rejected_invalid"})` is the DA-reason breakdown
-/// (the former per-reason `*_count` counters).
-const FILTER_DECISIONS: &str = "optimism_transaction_pool.interop.filter_decisions_total";
+/// `sum by (reason) (filter_decisions{result="rejected_invalid"})` is the DA-reason breakdown
+/// (the former per-reason `*_count` counters). No `_total` suffix: the Prometheus recorder does not
+/// append one (unit suffixes are disabled), matching the rest of the reth counter naming.
+const FILTER_DECISIONS: &str = "optimism_transaction_pool.interop.filter_decisions";
 
 /// Fully-qualified name of the per-endpoint verdict counter, labeled by `endpoint` index and
 /// `verdict`. Answers *which* endpoint is returning invalids or going unavailable. Labeled by index
 /// (not the raw URL), since interop-http URLs can carry basic-auth credentials.
-const ENDPOINT_VERDICTS: &str = "optimism_transaction_pool.interop.endpoint.verdicts_total";
+const ENDPOINT_VERDICTS: &str = "optimism_transaction_pool.interop.endpoint.verdicts";
 
 /// Fully-qualified name of the per-endpoint query-latency histogram. Matches the metric the derived
 /// `EndpointMetrics` used to emit, so existing dashboards keep working.
 const ENDPOINT_QUERY_LATENCY: &str = "optimism_transaction_pool.interop.endpoint.query_latency";
+
+/// Fully-qualified name of the per-endpoint health gauge: `1` if the endpoint answered its last
+/// *completed* check (valid or invalid — both mean it responded), `0` if that check was a
+/// non-response. Left untouched when a check is cancelled by fast-accept, so it reflects the last
+/// real outcome. `sum(endpoint.up)` against
+/// [`quorum_min_responses`](InteropMetrics::quorum_min_responses) is the fail-closed headroom: it
+/// drops as endpoints fall away, *before* quorum is lost.
+const ENDPOINT_UP: &str = "optimism_transaction_pool.interop.endpoint.up";
 
 /// `result` label values for [`InteropMetrics::record_decision`]. Every transaction that reaches
 /// the interop filter records exactly one of these. Low-cardinality and stable.
@@ -71,14 +83,9 @@ pub struct InteropMetrics {
     /// rejected/evicted), `0` if disabled. Refreshed on every failsafe poll.
     pub(crate) failsafe_enabled: Gauge,
 
-    /// Distribution of definitive verdicts (valid + invalid) collected per check. Watch the low
-    /// percentile against [`quorum_min_responses`](Self::quorum_min_responses): when it approaches
-    /// the threshold, the filter is one endpoint blip away from failing closed on every interop tx
-    /// — a leading indicator the outcome counts alone cannot give.
-    pub(crate) quorum_verdicts_collected: Histogram,
-
     /// The configured quorum threshold (minimum definitive verdicts required to decide a check).
-    /// Set once at startup so a dashboard can draw the fail-closed line without hardcoding config.
+    /// Set once at startup so a dashboard can draw the fail-closed line for `sum(endpoint.up)`
+    /// without hardcoding config.
     pub(crate) quorum_min_responses: Gauge,
 }
 
@@ -88,7 +95,7 @@ pub struct InteropMetrics {
 /// client.
 ///
 /// Hand-rolled rather than `#[derive(Metrics)]` so the three verdicts collapse into a single
-/// `verdicts_total{verdict=…}` counter instead of three separate metrics.
+/// `verdicts{verdict=…}` counter instead of three separate metrics.
 #[derive(Clone, Debug)]
 pub struct EndpointMetrics {
     /// How long this endpoint took to answer an `interop_checkAccessList` query. Lets an endpoint
@@ -98,9 +105,11 @@ pub struct EndpointMetrics {
     valid: Counter,
     /// Definitive invalid verdicts returned by this endpoint.
     invalid: Counter,
-    /// Non-responses from this endpoint (timeout, transport error, soft out-of-sync,
-    /// cancellation).
+    /// Non-responses from this endpoint (timeout, transport error, soft out-of-sync).
     unavailable: Counter,
+    /// `1` if this endpoint's last completed check produced a verdict, `0` if it was a
+    /// non-response. See [`ENDPOINT_UP`].
+    up: Gauge,
 }
 
 impl EndpointMetrics {
@@ -108,11 +117,16 @@ impl EndpointMetrics {
     /// are resolved once here (not per-call) since each endpoint is built once at startup.
     pub fn for_endpoint(index: usize) -> Self {
         let endpoint = index.to_string();
+        let up = gauge!(ENDPOINT_UP, "endpoint" => endpoint.clone());
+        // Assume healthy until a check proves otherwise, so `sum(endpoint.up)` reads at full quorum
+        // headroom from boot instead of the series being absent until the first failure.
+        up.set(1.0);
         Self {
             query_latency: histogram!(ENDPOINT_QUERY_LATENCY, "endpoint" => endpoint.clone()),
             valid: counter!(ENDPOINT_VERDICTS, "endpoint" => endpoint.clone(), "verdict" => VERDICT_VALID),
             invalid: counter!(ENDPOINT_VERDICTS, "endpoint" => endpoint.clone(), "verdict" => VERDICT_INVALID),
             unavailable: counter!(ENDPOINT_VERDICTS, "endpoint" => endpoint, "verdict" => VERDICT_UNAVAILABLE),
+            up,
         }
     }
 
@@ -122,22 +136,26 @@ impl EndpointMetrics {
         self.query_latency.record(duration.as_secs_f64());
     }
 
-    /// Records this endpoint's definitive valid verdict.
+    /// Records this endpoint's definitive valid verdict (a valid verdict still means it responded).
     #[inline]
     pub fn record_valid(&self) {
         self.valid.increment(1);
+        self.up.set(1.0);
     }
 
-    /// Records this endpoint's definitive invalid verdict.
+    /// Records this endpoint's definitive invalid verdict (an invalid verdict still means it
+    /// responded).
     #[inline]
     pub fn record_invalid(&self) {
         self.invalid.increment(1);
+        self.up.set(1.0);
     }
 
     /// Records this endpoint's non-response (timeout, transport error, soft out-of-sync).
     #[inline]
     pub fn record_unavailable(&self) {
         self.unavailable.increment(1);
+        self.up.set(0.0);
     }
 }
 
@@ -160,11 +178,18 @@ impl InteropMetrics {
         self.quorum_min_responses.set(min_responses as f64);
     }
 
-    /// Records how many definitive verdicts (valid + invalid) a check collected, for the
-    /// fail-closed margin signal. Called once per check.
-    #[inline]
-    pub fn record_quorum_verdicts_collected(&self, collected: usize) {
-        self.quorum_verdicts_collected.record(collected as f64);
+    /// Registers HELP descriptions for the hand-rolled metrics and pre-creates every decision
+    /// series at `0`. Called once at startup.
+    ///
+    /// Both are needed because `counter!`/`gauge!`/`histogram!` (unlike `#[derive(Metrics)]`) carry
+    /// no description and create a series only on first use — so an outcome that has never happened
+    /// would otherwise be *absent*, making `rate(filter_decisions{result="rejected_no_quorum"})`
+    /// return empty instead of `0` and silently breaking fail-closed alerting.
+    pub fn init(&self) {
+        describe_metrics();
+        for (result, reason) in canonical_decisions() {
+            counter!(FILTER_DECISIONS, "result" => result, "reason" => reason).increment(0);
+        }
     }
 
     /// Records a single interop filter decision under the given `result` and `reason` labels.
@@ -225,6 +250,74 @@ pub(crate) const fn decision_for_error(
             (RESULT_ERRORED, REASON_OTHER)
         }
     }
+}
+
+/// Decision pairs that are not sub-classified by a DA reason. Combined with one
+/// `(rejected_invalid, <reason>)` pair per [`CLASSIFIED_DA_REASONS`] entry, this is every series
+/// the filter can emit — the set [`InteropMetrics::init`] pre-creates at `0`. Kept beside
+/// [`decision_for_error`] so the two stay in lockstep.
+const STRUCTURAL_DECISIONS: &[(&str, &str)] = &[
+    (RESULT_ALLOWED, REASON_NONE),
+    (RESULT_REJECTED_PRE_INTEROP, REASON_NONE),
+    (RESULT_REJECTED_FAILSAFE, REASON_NONE),
+    (RESULT_REJECTED_DISAGREEMENT, REASON_NONE),
+    (RESULT_REJECTED_NO_QUORUM, REASON_NONE),
+    (RESULT_ERRORED, REASON_TIMEOUT),
+    (RESULT_ERRORED, REASON_OTHER),
+    // A definitive rejection that carries no recognized DA reason (e.g. a generic `-32602`).
+    (RESULT_REJECTED_INVALID, REASON_OTHER),
+];
+
+/// Every DA error variant [`validation_reason`] maps to a dedicated `reason` label. Drives the
+/// `rejected_invalid` zero-init through `validation_reason` so the reason strings have a single
+/// source of truth. A new, unmapped DA variant falls through to [`REASON_OTHER`] (already covered
+/// by [`STRUCTURAL_DECISIONS`]), so it is never left uncounted.
+const CLASSIFIED_DA_REASONS: &[SuperchainDAError] = &[
+    SuperchainDAError::SkippedData,
+    SuperchainDAError::UnknownChain,
+    SuperchainDAError::ConflictingData,
+    SuperchainDAError::IneffectiveData,
+    SuperchainDAError::OutOfOrder,
+    SuperchainDAError::AwaitingReplacement,
+    SuperchainDAError::OutOfScope,
+    SuperchainDAError::NoParentForFirstBlock,
+    SuperchainDAError::FutureData,
+    SuperchainDAError::MissedData,
+    SuperchainDAError::DataCorruption,
+];
+
+/// Every `(result, reason)` series the filter can emit — the single source of truth for the
+/// zero-init in [`InteropMetrics::init`].
+fn canonical_decisions() -> impl Iterator<Item = (&'static str, &'static str)> {
+    STRUCTURAL_DECISIONS.iter().copied().chain(
+        CLASSIFIED_DA_REASONS
+            .iter()
+            .map(|reason| (RESULT_REJECTED_INVALID, validation_reason(reason))),
+    )
+}
+
+/// Registers HELP text for the metrics created via the `counter!`/`gauge!`/`histogram!` macros (the
+/// `#[derive(Metrics)]` fields get theirs from doc comments). Idempotent; called from
+/// [`InteropMetrics::init`].
+fn describe_metrics() {
+    describe_counter!(
+        FILTER_DECISIONS,
+        "Interop filter decisions, one per interop tx reaching the filter (labels: result, reason)"
+    );
+    describe_counter!(
+        ENDPOINT_VERDICTS,
+        "Per-endpoint interop verdicts (labels: endpoint, verdict)"
+    );
+    describe_histogram!(
+        ENDPOINT_QUERY_LATENCY,
+        Unit::Seconds,
+        "Per-endpoint interop_checkAccessList query latency"
+    );
+    describe_gauge!(
+        ENDPOINT_UP,
+        "1 if an interop endpoint answered its last completed check, else 0; sum vs \
+         quorum_min_responses is the fail-closed headroom (labels: endpoint)"
+    );
 }
 
 #[cfg(test)]
@@ -306,5 +399,44 @@ mod tests {
             (RESULT_ERRORED, REASON_OTHER)
         );
         assert_eq!(decision_for_error(&server_error()), (RESULT_ERRORED, REASON_OTHER));
+    }
+
+    /// Guards [`InteropMetrics::init`] against drift: every decision the filter can emit must be in
+    /// the pre-created set, or its series goes absent until the first occurrence (breaking
+    /// `rate()`-based alerts on never-yet-seen outcomes).
+    #[test]
+    fn canonical_decisions_covers_every_emitted_pair() {
+        let canonical: std::collections::HashSet<_> = canonical_decisions().collect();
+
+        // Pre-filter gates, recorded directly in `is_valid_cross_tx` (not via
+        // `decision_for_error`).
+        for pair in [
+            (RESULT_ALLOWED, REASON_NONE),
+            (RESULT_REJECTED_PRE_INTEROP, REASON_NONE),
+            (RESULT_REJECTED_FAILSAFE, REASON_NONE),
+        ] {
+            assert!(canonical.contains(&pair), "gate decision {pair:?} not pre-created");
+        }
+
+        // Every non-`InvalidEntry` outcome `decision_for_error` can return.
+        let errors = [
+            InteropTxValidatorError::Rejected { code: -32602, message: String::new() },
+            InteropTxValidatorError::Disagreement { valid: 1, invalid: 1 },
+            InteropTxValidatorError::QuorumNotReached { received: 1, required: 2 },
+            InteropTxValidatorError::FailsafeEnabled,
+            InteropTxValidatorError::Timeout(1),
+            InteropTxValidatorError::DataUnavailable { code: -1 },
+            server_error(),
+        ];
+        for err in &errors {
+            let pair = decision_for_error(err);
+            assert!(canonical.contains(&pair), "decision {pair:?} not pre-created");
+        }
+
+        // Every classified DA reason, routed through `decision_for_error` like production does.
+        for reason in CLASSIFIED_DA_REASONS {
+            let pair = decision_for_error(&InteropTxValidatorError::InvalidEntry(*reason));
+            assert!(canonical.contains(&pair), "invalid decision {pair:?} not pre-created");
+        }
     }
 }

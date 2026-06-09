@@ -133,8 +133,6 @@ impl InteropFilterClient {
                 break;
             }
         }
-        // Dropping `futs` here cancels any in-flight slow requests.
-        self.inner.metrics.record_quorum_verdicts_collected(valid + invalid);
 
         if valid + invalid < self.inner.min_responses {
             self.log_degraded_quorum(valid + invalid);
@@ -234,7 +232,7 @@ impl InteropFilterClient {
 
     /// Logs a rate-limited line when a check fails closed because too few endpoints reached the
     /// quorum. A degraded quorum silently rejects every interop tx, so without this the only signal
-    /// is the `filter_decisions_total{result="rejected_no_quorum"}` counter; the log makes the
+    /// is the `filter_decisions{result="rejected_no_quorum"}` counter; the log makes the
     /// halted state visible. Logged
     /// at most once per [`FAILSAFE_HEARTBEAT_INTERVAL`] (and on the first occurrence) to avoid
     /// per-tx spam, and at `info` because the rejection itself is expected, by-design
@@ -484,10 +482,11 @@ impl InteropFilterClientBuilder {
             clients.push(Endpoint { client, metrics });
         }
 
-        // Publish the quorum threshold once so dashboards can draw the fail-closed line against
-        // `quorum_verdicts_collected` without hardcoding config.
+        // Publish the quorum threshold once so dashboards can draw the fail-closed line for
+        // `sum(endpoint.up)` without hardcoding config, and pre-create the decision series at 0.
         let metrics = InteropMetrics::default();
         metrics.set_quorum_min_responses(min_responses);
+        metrics.init();
 
         InteropFilterClient {
             inner: Arc::new(InteropFilterClientInner {
