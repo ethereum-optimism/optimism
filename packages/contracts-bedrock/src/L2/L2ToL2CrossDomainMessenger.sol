@@ -11,9 +11,6 @@ import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 
-/// @notice Thrown when a non-written slot in transient storage is attempted to be read from.
-error NotEntered();
-
 /// @notice Thrown when attempting to relay a message where payload origin is not L2ToL2CrossDomainMessenger.
 error IdOriginNotL2ToL2CrossDomainMessenger();
 
@@ -31,9 +28,6 @@ error MessageTargetL2ToL2CrossDomainMessenger();
 
 /// @notice Thrown when attempting to relay a message that has already been relayed.
 error MessageAlreadyRelayed();
-
-/// @notice Thrown when a reentrant call is detected.
-error ReentrantCall();
 
 /// @notice Thrown when the provided message parameters do not match any hash of a previously sent message.
 error InvalidMessage();
