@@ -208,4 +208,9 @@ func TestChainContainerWiring(t *testing.T) {
 
 	_, err = m.ChainContainer(eth.ChainIDFromUInt64(123456))
 	require.ErrorIs(t, err, ErrUnknownChain)
+
+	all, err := m.ChainContainers()
+	require.NoError(t, err)
+	require.Len(t, all, len(m.Chains()))
+	require.Equal(t, id, all[id].ID())
 }

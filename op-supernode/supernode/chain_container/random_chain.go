@@ -240,6 +240,20 @@ func (m *RandomChainManager) ChainContainer(id eth.ChainID) (*simpleChainContain
 	}, nil
 }
 
+// ChainContainers wires every generated chain, keyed by id — the shape the
+// interop activity's constructor consumes.
+func (m *RandomChainManager) ChainContainers() (map[eth.ChainID]InteropChain, error) {
+	out := make(map[eth.ChainID]InteropChain, len(m.order))
+	for _, id := range m.order {
+		cc, err := m.ChainContainer(id)
+		if err != nil {
+			return nil, err
+		}
+		out[id] = cc
+	}
+	return out, nil
+}
+
 // RandomL1Source feeds the Phase-1 l1ConsistencyChecker from the canonical L1.
 type RandomL1Source struct {
 	parent *RandomChainManager
