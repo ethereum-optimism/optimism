@@ -163,13 +163,20 @@ func (ms *InteropMonitorService) initFromClients(
 
 	// Optional read-only supernode observers (liveness, heads, cross-safety violations).
 	if len(cfg.SupernodeEndpoints) > 0 && ms.collector != nil {
+		// The observer confirms a job's executing block is still canonical (by hash)
+		// on its chain before flagging a cross-safety violation.
+		els := make(map[eth.ChainID]CanonicalBlockSource, len(clients))
+		for chainID, c := range clients {
+			els[chainID] = c
+		}
 		for _, endpoint := range cfg.SupernodeEndpoints {
-			supernodeClient, err := NewSupernodeClient(endpoint, ms.Log)
+			rpcClient, err := client.NewRPC(ctx, ms.Log, endpoint)
 			if err != nil {
-				return fmt.Errorf("failed to init supernode client for %q: %w", endpoint, err)
+				return fmt.Errorf("failed to dial supernode %q: %w", endpoint, err)
 			}
+			supernodeClient := sources.NewSuperNodeClient(rpcClient)
 			ms.collector.supernodeObservers = append(ms.collector.supernodeObservers,
-				NewSupernodeObserver(endpoint, supernodeClient, ms.Metrics, ms.Log))
+				NewSupernodeObserver(endpoint, supernodeClient, els, ms.Metrics, ms.Log))
 		}
 	}
 	if err := ms.initMetricsServer(cfg); err != nil {
@@ -318,7 +325,7 @@ func (ms *InteropMonitorService) initRPCServer(cfg *CLIConfig) error {
 
 func (ms *InteropMonitorService) Start(ctx context.Context) error {
 	if ms.collector != nil {
-		err := ms.collector.Start()
+		err := ms.collector.Start(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to start metric collector: %w", err)
 		}

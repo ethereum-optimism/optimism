@@ -2,10 +2,12 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // FilterObserver cross-checks the monitor's independent verdict against the
@@ -35,6 +37,20 @@ func (o *FilterObserver) Observe(ctx context.Context, jobs map[JobID]*Job) {
 		err := o.filter.CheckMessage(cctx, msg, job.executingChain, job.executingTimestamp)
 		cancel()
 
+		// Only a structured JSON-RPC response counts as a filter verdict. A transport
+		// or timeout error is not a rejection, so skip it rather than record a false divergence.
+		if err != nil {
+			var rpcErr rpc.Error
+			if !errors.As(err, &rpcErr) {
+				o.log.Warn("interop-filter check failed (transport error); skipping divergence",
+					"executing_chain_id", job.executingChain,
+					"initiating_chain_id", job.initiating.ChainID,
+					"error", err,
+				)
+				continue
+			}
+		}
+
 		monitorValid := status == jobStatusValid
 		filterValid := err == nil
 		if monitorValid != filterValid {
@@ -42,14 +58,17 @@ func (o *FilterObserver) Observe(ctx context.Context, jobs map[JobID]*Job) {
 			if !filterValid {
 				filterStatus = "invalid"
 			}
-			o.log.Warn("monitor/filter verdict divergence",
-				"executing_chain_id", job.executingChain,
-				"initiating_chain_id", job.initiating.ChainID,
-				"monitor_status", status.String(),
-				"filter_status", filterStatus,
-				"filter_err", err,
-			)
-			o.m.RecordFilterDivergence(job.executingChain.String(), job.initiating.ChainID.String(), status.String(), filterStatus)
+			// Record each diverging job once, not on every collection cycle.
+			if job.CountDivergenceOnce() {
+				o.log.Warn("monitor/filter verdict divergence",
+					"executing_chain_id", job.executingChain,
+					"initiating_chain_id", job.initiating.ChainID,
+					"monitor_status", status.String(),
+					"filter_status", filterStatus,
+					"filter_err", err,
+				)
+				o.m.RecordFilterDivergence(job.executingChain.String(), job.initiating.ChainID.String(), status.String(), filterStatus)
+			}
 		}
 	}
 }

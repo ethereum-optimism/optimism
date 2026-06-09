@@ -227,6 +227,10 @@ func TestCollectMetricsExpiredAndReorg(t *testing.T) {
 	}
 	require.Equal(t, float64(1), expiredCount)
 	require.Len(t, mm.actualInitiatingReorgs, 1)
+
+	// A subsequent cycle must not re-count the same reorged job.
+	mc.CollectMetrics()
+	require.Len(t, mm.actualInitiatingReorgs, 1)
 }
 
 // TestNewMetricCollector tests the creation of a new MetricCollector
@@ -264,7 +268,7 @@ func TestMetricCollectorStartStop(t *testing.T) {
 	collector := NewMetricCollector(logger, mockMetrics, updaters)
 
 	// Start the collector
-	err := collector.Start()
+	err := collector.Start(context.Background())
 	require.NoError(t, err, "Start should not return an error")
 	require.False(t, collector.Stopped(), "Collector should not be stopped after Start()")
 

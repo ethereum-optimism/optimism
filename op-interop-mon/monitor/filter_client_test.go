@@ -7,6 +7,7 @@ import (
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -43,7 +44,7 @@ func (s *stubRPC) Close() {}
 
 func TestFilterClientGetFailsafeEnabled(t *testing.T) {
 	rpc := &stubRPC{result: true}
-	fc := &FilterClient{client: rpc, minSafety: safety.CrossUnsafe}
+	fc := &FilterClient{rpc: rpc, filter: sources.NewInteropFilterClient(rpc), minSafety: safety.CrossUnsafe}
 	enabled, err := fc.GetFailsafeEnabled(context.Background())
 	require.NoError(t, err)
 	require.True(t, enabled)
@@ -52,7 +53,7 @@ func TestFilterClientGetFailsafeEnabled(t *testing.T) {
 
 func TestFilterClientCheckMessage(t *testing.T) {
 	rpc := &stubRPC{}
-	fc := &FilterClient{client: rpc, minSafety: safety.CrossUnsafe}
+	fc := &FilterClient{rpc: rpc, filter: sources.NewInteropFilterClient(rpc), minSafety: safety.CrossUnsafe}
 	msg := messages.Message{
 		Identifier: messages.Identifier{ChainID: eth.ChainIDFromUInt64(1), BlockNumber: 10, LogIndex: 0, Timestamp: 1000, Origin: common.HexToAddress("0xabc")},
 	}

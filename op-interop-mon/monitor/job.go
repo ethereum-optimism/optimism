@@ -66,6 +66,12 @@ type Job struct {
 	terminalAt    time.Time
 	didMetrics    atomic.Bool
 
+	// event-counted flags ensure each observability counter increments at most
+	// once per job, rather than once per collection cycle.
+	countedReorg      atomic.Bool
+	countedDivergence atomic.Bool
+	countedViolation  atomic.Bool
+
 	executingAddress   common.Address
 	executingChain     eth.ChainID
 	executingBlock     eth.BlockID
@@ -264,6 +270,24 @@ func (j *Job) DidMetrics() bool {
 // SetDidMetrics sets the did metrics flag of the job
 func (j *Job) SetDidMetrics() {
 	j.didMetrics.Store(true)
+}
+
+// CountReorgOnce reports true exactly once, the first time it is called, so the
+// initiating-reorg counter increments per job rather than per collection cycle.
+func (j *Job) CountReorgOnce() bool {
+	return j.countedReorg.CompareAndSwap(false, true)
+}
+
+// CountDivergenceOnce reports true exactly once, the first time it is called, so
+// the filter-divergence counter increments per job rather than per cycle.
+func (j *Job) CountDivergenceOnce() bool {
+	return j.countedDivergence.CompareAndSwap(false, true)
+}
+
+// CountViolationOnce reports true exactly once, the first time it is called, so
+// the cross-safety-violation counter increments per job rather than per cycle.
+func (j *Job) CountViolationOnce() bool {
+	return j.countedViolation.CompareAndSwap(false, true)
 }
 
 // AddInitiatingHash adds a hash to the initiatingHash slice if it hasn't been seen before

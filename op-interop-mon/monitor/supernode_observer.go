@@ -4,8 +4,24 @@ import (
 	"context"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+// SupernodeObserverClient is the read-only op-supernode surface the observer needs.
+// It is satisfied by op-service/sources.SuperNodeClient.
+type SupernodeObserverClient interface {
+	// SyncStatus returns the supernode's aggregate per-chain sync status. A successful
+	// call is also taken as the supernode's liveness signal.
+	SyncStatus(ctx context.Context) (eth.SuperNodeSyncStatusResponse, error)
+	Close()
+}
+
+// CanonicalBlockSource is the minimal execution-layer surface used to confirm a job's
+// executing block is still canonical on its chain. Satisfied by sources.EthClient.
+type CanonicalBlockSource interface {
+	InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error)
+}
 
 // SupernodeObserver watches one op-supernode (read-only). It records liveness,
 // per-chain safe/finalized heads, and the highest-signal check: a bad executing
@@ -14,31 +30,28 @@ import (
 type SupernodeObserver struct {
 	endpoint string
 	client   SupernodeObserverClient
+	els      map[eth.ChainID]CanonicalBlockSource
 	m        InteropMessageMetrics
 	log      log.Logger
 	timeout  time.Duration
 }
 
-func NewSupernodeObserver(endpoint string, c SupernodeObserverClient, m InteropMessageMetrics, log log.Logger) *SupernodeObserver {
-	return &SupernodeObserver{endpoint: endpoint, client: c, m: m, log: log, timeout: 2 * time.Second}
+func NewSupernodeObserver(endpoint string, c SupernodeObserverClient, els map[eth.ChainID]CanonicalBlockSource, m InteropMessageMetrics, log log.Logger) *SupernodeObserver {
+	return &SupernodeObserver{endpoint: endpoint, client: c, els: els, m: m, log: log, timeout: 2 * time.Second}
 }
 
 func (o *SupernodeObserver) Observe(ctx context.Context, jobs map[JobID]*Job) {
+	// A successful syncStatus call doubles as the supernode liveness probe.
 	cctx, cancel := context.WithTimeout(ctx, o.timeout)
-	defer cancel()
-
-	if err := o.client.Heartbeat(cctx); err != nil {
-		o.log.Error("supernode heartbeat failed", "endpoint", o.endpoint, "error", err)
+	status, err := o.client.SyncStatus(cctx)
+	cancel()
+	if err != nil {
+		o.log.Error("supernode syncStatus failed", "endpoint", o.endpoint, "error", err)
 		o.m.RecordSupernodeUp(o.endpoint, false)
 		return
 	}
 	o.m.RecordSupernodeUp(o.endpoint, true)
 
-	status, err := o.client.SyncStatus(cctx)
-	if err != nil {
-		o.log.Error("supernode syncStatus failed", "endpoint", o.endpoint, "error", err)
-		return
-	}
 	for chainID, s := range status.Chains {
 		// Post-interop, SafeL2 is the cross-safe head; FinalizedL2 is irreversible.
 		o.m.RecordSupernodeSafeHead(chainID.String(), "cross_safe", s.SafeL2.Number)
@@ -55,7 +68,38 @@ func (o *SupernodeObserver) Observe(ctx context.Context, jobs map[JobID]*Job) {
 		if !ok {
 			continue
 		}
-		if job.executingBlock.Number <= s.SafeL2.Number {
+		if job.executingBlock.Number > s.SafeL2.Number {
+			continue
+		}
+		// Jobs are keyed by executing block number, not hash. During a reorg an
+		// orphaned block lingers in a bad status until finalization, while the
+		// supernode's cross-safe chain holds the replacement block at that height.
+		// Confirm the supernode actually cross-validated THIS block (by hash) before
+		// flagging a violation, otherwise the metric false-positives on reorgs.
+		el, ok := o.els[job.executingChain]
+		if !ok {
+			o.log.Warn("no execution client for executing chain; skipping cross-safety check",
+				"executing_chain_id", job.executingChain)
+			continue
+		}
+		ictx, icancel := context.WithTimeout(ctx, o.timeout)
+		info, err := el.InfoByNumber(ictx, job.executingBlock.Number)
+		icancel()
+		if err != nil {
+			o.log.Warn("failed to fetch canonical block; skipping cross-safety check",
+				"executing_chain_id", job.executingChain,
+				"executing_block", job.executingBlock.Number,
+				"error", err,
+			)
+			continue
+		}
+		if info.Hash() != job.executingBlock.Hash {
+			// The executing block was reorged out; the supernode validated the
+			// replacement block at this height, not this orphaned one.
+			continue
+		}
+		// Record each violating job once, not on every collection cycle.
+		if job.CountViolationOnce() {
 			o.log.Error("bad executing message at/below supernode cross-safe head",
 				"executing_chain_id", job.executingChain,
 				"initiating_chain_id", job.initiating.ChainID,

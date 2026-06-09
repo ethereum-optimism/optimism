@@ -28,6 +28,11 @@ type MetricCollector struct {
 	log    log.Logger
 	m      InteropMessageMetrics
 
+	// ctx bounds in-flight observer RPCs; cancel is invoked on Stop so shutdown
+	// does not wait on outstanding filter/supernode calls.
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	// filterObserver, when set, cross-checks the monitor's verdict against the
 	// op-interop-filter (read-only). nil disables the filter observer.
 	filterObserver *FilterObserver
@@ -46,8 +51,9 @@ func NewMetricCollector(log log.Logger, m InteropMessageMetrics, updaters map[et
 	}
 }
 
-func (m *MetricCollector) Start() error {
+func (m *MetricCollector) Start(ctx context.Context) error {
 	m.log.Info("Starting metric collector")
+	m.ctx, m.cancel = context.WithCancel(ctx)
 	go m.Run()
 	return nil
 }
@@ -78,6 +84,9 @@ func (m *MetricCollector) Run() {
 
 func (m *MetricCollector) Stop() error {
 	close(m.closed)
+	if m.cancel != nil {
+		m.cancel()
+	}
 	return nil
 }
 
@@ -162,7 +171,10 @@ func (m *MetricCollector) CollectMetrics() {
 				"executing_block_hash", job.executingBlock.Hash,
 				"initiating_hashes", initiatingHashes,
 			)
-			m.m.RecordInitiatingReorg(job.executingChain.String(), job.initiating.ChainID.String())
+			// Count each reorged job once, not on every collection cycle.
+			if job.CountReorgOnce() {
+				m.m.RecordInitiatingReorg(job.executingChain.String(), job.initiating.ChainID.String())
+			}
 		}
 
 		// Collect the statuses of the job
@@ -269,12 +281,12 @@ func (m *MetricCollector) CollectMetrics() {
 
 	// Optional read-only cross-check against the interop-filter.
 	if m.filterObserver != nil {
-		m.filterObserver.Observe(context.Background(), jobMap)
-		m.filterObserver.PollFailsafe(context.Background())
+		m.filterObserver.Observe(m.ctx, jobMap)
+		m.filterObserver.PollFailsafe(m.ctx)
 	}
 
 	// Optional read-only observation of each op-supernode.
 	for _, obs := range m.supernodeObservers {
-		obs.Observe(context.Background(), jobMap)
+		obs.Observe(m.ctx, jobMap)
 	}
 }
