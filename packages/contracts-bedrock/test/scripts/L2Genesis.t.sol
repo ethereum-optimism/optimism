@@ -475,7 +475,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     }
 
     /// @notice Tests that the L2CM genesis path succeeds with custom gas token predeploys.
-    function test_run_l2cm_cgt_succeeds() external {
+    function test_run_l2cmCgt_succeeds() external {
         input.devFeatureBitmap |= DevFeatures.L2CM;
         _setInputCGTEnabled();
         runGenesisAndAssertL2CM();
@@ -490,7 +490,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     }
 
     /// @notice Tests that the L2CM genesis path succeeds with interop predeploys.
-    function test_run_l2cm_interopAtGenesis_succeeds() external {
+    function test_run_l2cmInteropAtGenesis_succeeds() external {
         input.devFeatureBitmap |= DevFeatures.L2CM;
         _setInputInteropEnabled();
         input.fork = uint256(Fork.INTEROP);
@@ -506,7 +506,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     }
 
     /// @notice Tests that the L2CM genesis path succeeds when CGT and interop are both active.
-    function test_run_l2cm_cgtAndInteropAtGenesis_succeeds() external {
+    function test_run_l2cmCgtAndInteropAtGenesis_succeeds() external {
         input.devFeatureBitmap |= DevFeatures.L2CM;
         _setInputCGTEnabled();
         _setInputInteropEnabled();
