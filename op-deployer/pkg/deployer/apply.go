@@ -547,6 +547,20 @@ func ApplyPipeline(
 		},
 	})
 
+	// Validate that the deployed state renders into a valid L2 genesis and rollup
+	// config for every chain, so an invalid intent fails during apply rather than
+	// later at inspect time.
+	for _, chain := range intent.Chains {
+		chainID := chain.ID
+		pline = append(pline, pipelineStage{
+			fmt.Sprintf("validate-l2-genesis-%s", chainID.Hex()),
+			func() error {
+				_, _, err := pipeline.RenderGenesisAndRollup(st, chainID, intent)
+				return err
+			},
+		})
+	}
+
 	// Run through the pipeline.
 	for _, stage := range pline {
 		if err := stage.apply(); err != nil {
