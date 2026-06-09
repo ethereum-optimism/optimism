@@ -84,6 +84,7 @@ parameters:
 
 orbs:
   continuation: circleci/continuation@2.0.1
+  utils: ethereum-optimism/circleci-utils@1.0.28
 
 jobs:
   # --------------------------------------------------------------------------
@@ -106,7 +107,7 @@ jobs:
     environment:
       BASE_REVISION: develop
     steps:
-      - checkout
+      - utils/checkout-code
       # yq is used by the "Merge continuation configs" step to deep-merge YAML files.
       # Keep version in sync with mise.toml.
       - run:
