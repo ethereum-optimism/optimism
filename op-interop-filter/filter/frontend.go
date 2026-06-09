@@ -14,7 +14,7 @@ import (
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
-// QueryFrontend handles supervisor query RPC methods
+// QueryFrontend handles interop query RPC methods.
 type QueryFrontend struct {
 	backend *Backend
 }

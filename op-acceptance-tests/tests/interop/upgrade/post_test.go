@@ -24,7 +24,7 @@ func TestPostInbox(gt *testing.T) {
 	sys := presets.NewTwoL2SupernodeInterop(t, 60)
 	devtest.RunParallel(t, []*dsl.L2Network{sys.L2A, sys.L2B}, func(t devtest.T, net *dsl.L2Network) {
 		require := t.Require()
-		activationBlock := net.AwaitActivation(t, forks.Interop)
+		activationBlock := net.AwaitActivation(t, forks.Lagoon)
 
 		el := net.PrimaryEL()
 		implAddrBytes, err := el.EthClient().GetStorageAt(t.Ctx(), predeploys.CrossL2InboxAddr,
@@ -49,11 +49,13 @@ func TestPostInteropUpgradeComprehensive(gt *testing.T) {
 	sys.L2A.WaitForBlock()
 	sys.L2B.WaitForBlock()
 
-	// Get interop activation time
-	interopTime := sys.L2A.Escape().ChainConfig().InteropTime
-	require.NotNil(interopTime, "InteropTime must be set")
+	// Get Lagoon activation time. The op-geth ChainConfig field is still named
+	// InteropTime — this is a deliberate carveout (op-geth field rename happens
+	// in a follow-up).
+	lagoonTime := sys.L2A.Escape().ChainConfig().InteropTime
+	require.NotNil(lagoonTime, "Lagoon activation time must be set")
 
-	logger.Info("Starting comprehensive post-interop upgrade tests", "interopTime", *interopTime)
+	logger.Info("Starting comprehensive post-interop upgrade tests", "lagoonTime", *lagoonTime)
 
 	// 1. Check that chains reach cross-safe past the activation block
 	logger.Info("Checking cross-safe progression past activation block")
@@ -86,7 +88,7 @@ func testActivationCrossSafe(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 			t.Gate().True(upgradeTime.Before(deadline), "test must not time out before upgrade happens")
 		}
 
-		activationBlock := net.AwaitActivation(t, forks.Interop)
+		activationBlock := net.AwaitActivation(t, forks.Lagoon)
 
 		// Wait for the corresponding CL to reach cross-safe past activation
 		if net.ChainID() == sys.L2A.ChainID() {
@@ -98,7 +100,7 @@ func testActivationCrossSafe(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 		logger.Info("Validating activation block timing",
 			"chainID", net.ChainID(),
 			"derivedBlockNumber", activationBlock.Number,
-			"interopTime", *forkTimestamp)
+			"lagoonTime", *forkTimestamp)
 	})
 
 	logger.Info("Activation cross-safe validation completed successfully")

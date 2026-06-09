@@ -19,7 +19,13 @@ use reth_evm::{
     },
 };
 use reth_execution_types::BlockExecutionOutput;
-use reth_optimism_evm::{ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode};
+use reth_metrics::{
+    Metrics,
+    metrics::{self, Counter, Gauge},
+};
+use reth_optimism_evm::{
+    ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode, PreRefundGasUsed,
+};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction};
 use reth_optimism_txpool::{
@@ -42,6 +48,27 @@ use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, Transac
 use revm::context::{Block, BlockEnv};
 use std::{marker::PhantomData, sync::Arc};
 use tracing::{debug, trace, warn};
+
+/// SDM/PostExec payload-builder metrics.
+#[derive(Metrics, Clone)]
+#[metrics(scope = "optimism_payload_builder")]
+struct OpPayloadBuilderMetrics {
+    /// Total SDM gas refunded by produced `PostExec` payloads.
+    sdm_refund_gas_total: Counter,
+    /// SDM gas refunded by the latest produced block.
+    sdm_refund_gas_per_block: Gauge,
+}
+
+impl OpPayloadBuilderMetrics {
+    fn record_sdm_refund_gas(&self, gas_refund: u64) {
+        self.sdm_refund_gas_total.increment(gas_refund);
+        self.sdm_refund_gas_per_block.set(gas_refund as f64);
+    }
+}
+
+fn sdm_refund_gas(entries: &[SDMGasEntry]) -> u64 {
+    entries.iter().map(|entry| entry.gas_refund).sum()
+}
 
 fn build_post_exec_recovered_tx<Tx>(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<Tx>
 where
@@ -457,13 +484,17 @@ impl<Txs> OpBuilder<'_, Txs> {
             }
         }
 
-        if ctx.sdm_production_enabled() {
+        let sdm_refund_gas = if ctx.sdm_production_enabled() {
             let block_number = builder.evm_mut().block().number().saturating_to();
             let entries = builder.executor_mut().take_post_exec_entries();
+            let refund_gas = self::sdm_refund_gas(&entries);
             try_include_post_exec_tx(block_number, entries, |tx| {
                 builder.execute_transaction(tx).map(|g| g.tx_gas_used())
             })?;
-        }
+            refund_gas
+        } else {
+            0
+        };
 
         let BlockBuilderOutcome {
             execution_result,
@@ -472,6 +503,8 @@ impl<Txs> OpBuilder<'_, Txs> {
             block,
             block_access_list: _,
         } = builder.finish(state_provider, None)?;
+
+        OpPayloadBuilderMetrics::default().record_sdm_refund_gas(sdm_refund_gas);
 
         let sealed_block = Arc::new(block.sealed_block().clone());
         debug!(target: "payload_builder", id=%ctx.attributes().payload_id(), sealed_block_header = ?sealed_block.header(), "sealed built block");
@@ -586,6 +619,12 @@ pub struct ExecutedPayload<N: NodePrimitives> {
 pub struct ExecutionInfo {
     /// All gas used so far
     pub cumulative_gas_used: u64,
+    /// All pre-refund EVM gas (real compute) so far, before any SDM/post-exec refund.
+    ///
+    /// Bounds the block against the block gas limit regardless of refunds, so an honest block
+    /// never trips the executor's consensus check. Equals [`Self::cumulative_gas_used`] with
+    /// SDM off.
+    pub cumulative_evm_gas_used: u64,
     /// Estimated DA size
     pub cumulative_da_bytes_used: u64,
     /// Tracks fees from executed mempool transactions
@@ -595,7 +634,20 @@ pub struct ExecutionInfo {
 impl ExecutionInfo {
     /// Create a new instance with allocated slots.
     pub const fn new() -> Self {
-        Self { cumulative_gas_used: 0, cumulative_da_bytes_used: 0, total_fees: U256::ZERO }
+        Self {
+            cumulative_gas_used: 0,
+            cumulative_evm_gas_used: 0,
+            cumulative_da_bytes_used: 0,
+            total_fees: U256::ZERO,
+        }
+    }
+
+    /// Adds a transaction's gas to both the canonical and pre-refund (real compute) counters,
+    /// saturating to guard against overflow. `evm_gas` equals `canonical_gas` when SDM refunds
+    /// are off. Encapsulated so the saturating add is enforced at every call site.
+    pub const fn accumulate_gas(&mut self, canonical_gas: u64, evm_gas: u64) {
+        self.cumulative_gas_used = self.cumulative_gas_used.saturating_add(canonical_gas);
+        self.cumulative_evm_gas_used = self.cumulative_evm_gas_used.saturating_add(evm_gas);
     }
 
     /// Returns true if the transaction would exceed the block limits:
@@ -632,7 +684,11 @@ impl ExecutionInfo {
             }
         }
 
-        self.cumulative_gas_used + tx_gas_limit > block_gas_limit
+        // Cap real compute (pre-refund EVM gas) at the block gas limit, regardless of SDM refunds.
+        // Inducting off the declared gas limit bounds the actual sum. Since
+        // `cumulative_evm_gas_used >= cumulative_gas_used`, this subsumes the canonical
+        // block-gas-limit check; with SDM off the two are identical.
+        self.cumulative_evm_gas_used.saturating_add(tx_gas_limit) > block_gas_limit
     }
 }
 
@@ -684,10 +740,21 @@ where
         )
     }
 
-    /// Returns whether SDM production is enabled for this payload by the explicit integration-test
-    /// override.
-    pub const fn sdm_production_enabled(&self) -> bool {
-        self.builder_config.sdm_enabled
+    /// Returns whether SDM production should run for this payload.
+    ///
+    /// Two gates must agree:
+    /// - **Protocol**: SDM rides the Interop hardfork, so this requires Interop active at the next
+    ///   block's timestamp per the chain spec.
+    /// - **Operator**: the local opt-in flag on `OpBuilderConfig`, mutated by the `admin_` SDM RPC.
+    ///   Starts disabled at process boot.
+    ///
+    /// Either being false disables production.
+    pub fn sdm_production_enabled(&self) -> bool {
+        let protocol_active = reth_optimism_evm::is_sdm_active_at_timestamp(
+            &self.chain_spec,
+            self.attributes().timestamp(),
+        );
+        protocol_active && self.builder_config.sdm_post_exec_opt_in.enabled()
     }
 
     /// Returns the unique id for this payload job.
@@ -705,9 +772,14 @@ where
         &'a self,
         db: &'a mut State<DB>,
     ) -> Result<
-        impl BlockBuilder<Primitives = Evm::Primitives, Executor: PostExecExecutorExt> + 'a,
+        impl BlockBuilder<
+            Primitives = Evm::Primitives,
+            Executor: PostExecExecutorExt + BlockExecutor<Result: PreRefundGasUsed>,
+        > + 'a,
         PayloadBuilderError,
     > {
+        let post_exec_mode: PostExecMode = self.sdm_production_enabled().into();
+
         self.evm_config
             .post_exec_builder_for_next_block(
                 db,
@@ -718,11 +790,7 @@ where
                     self.chain_spec.as_ref(),
                 )
                 .map_err(PayloadBuilderError::other)?,
-                if self.sdm_production_enabled() {
-                    PostExecMode::Produce
-                } else {
-                    PostExecMode::Disabled
-                },
+                post_exec_mode,
             )
             .map_err(PayloadBuilderError::other)
     }
@@ -772,7 +840,10 @@ where
             };
 
             // add gas used by the transaction to cumulative gas used, before creating the receipt
-            info.cumulative_gas_used += gas_used.tx_gas_used();
+            let tx_gas_used = gas_used.tx_gas_used();
+            // Sequencer txs (deposits/system txs) are never SDM-refunded, so pre-refund gas equals
+            // canonical gas; track it so the pool-tx pre-refund check starts from the right total.
+            info.accumulate_gas(tx_gas_used, tx_gas_used);
 
             // Record the successfully committed transaction for callers that want per-call
             // visibility.
@@ -809,6 +880,7 @@ where
     where
         Builder: BlockBuilder<Primitives = Evm::Primitives>,
         <<Builder::Executor as BlockExecutor>::Evm as AlloyEvm>::DB: Database,
+        <Builder::Executor as BlockExecutor>::Result: PreRefundGasUsed,
     {
         let mut block_gas_limit = builder.evm_mut().block().gas_limit();
         if let Some(gas_limit_config) = self.builder_config.gas_limit_config.gas_limit() {
@@ -828,6 +900,12 @@ where
         while let Some(tx) = best_txs.next(()) {
             let interop = tx.interop_deadline();
             let tx_da_size = tx.estimated_da_size();
+            // Compute the miner fee on the pool tx so downstream pool wrappers can
+            // override `effective_tip_per_gas` (e.g. to convert non-native fee
+            // denominations into a native-wei tip) before the consensus tx is exposed.
+            let miner_fee = tx
+                .effective_tip_per_gas(base_fee)
+                .expect("selected pool transaction must have a valid effective miner tip at the block base fee");
             let tx = tx.into_consensus();
 
             let da_footprint_gas_scalar = self
@@ -873,7 +951,11 @@ where
                 return Ok(Some(()));
             }
 
-            let gas_used = match builder.execute_transaction(tx.clone()) {
+            let mut evm_gas_used = 0;
+            let gas_used = match builder
+                .execute_transaction_with_result_closure(tx.clone(), |result| {
+                    evm_gas_used = result.evm_gas_used()
+                }) {
                 Ok(gas_used) => gas_used,
                 Err(BlockExecutionError::Validation(BlockValidationError::InvalidTx {
                     error,
@@ -899,13 +981,10 @@ where
             // add gas used by the transaction to cumulative gas used, before creating the
             // receipt
             let tx_gas_used = gas_used.tx_gas_used();
-            info.cumulative_gas_used += tx_gas_used;
+            info.accumulate_gas(tx_gas_used, evm_gas_used);
             info.cumulative_da_bytes_used += tx_da_size;
 
             // update and add to total fees
-            let miner_fee = tx
-                .effective_tip_per_gas(base_fee)
-                .expect("fee is always valid; execution succeeded");
             info.total_fees += U256::from(miner_fee) * U256::from(tx_gas_used);
 
             // Record the successfully committed transaction for callers that want per-call

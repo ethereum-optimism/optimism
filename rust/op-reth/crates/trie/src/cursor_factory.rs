@@ -1,7 +1,7 @@
 //! Implements [`TrieCursorFactory`] and [`HashedCursorFactory`] for [`crate::OpProofsStore`] types.
 
 use crate::{
-    api::OpProofsProviderRO,
+    api::{OpProofsProviderRO, OpProofsSnapshotProviderRO},
     cursor::{OpProofsHashedAccountCursor, OpProofsHashedStorageCursor, OpProofsTrieCursor},
 };
 use alloy_primitives::B256;
@@ -55,6 +55,54 @@ where
     }
 }
 
+/// Factory for creating trie cursors backed by a snapshot reader.
+///
+/// Unlike [`OpProofsTrieCursorFactory`] (which reads history-aware cursors at
+/// a given block number), this factory reads directly from the snapshot
+/// tables. It carries no block-number context: the snapshot already reflects
+/// trie state at a fixed anchor block. The caller is responsible for first
+/// resolving that anchor via
+/// [`crate::api::OpProofsSnapshotProviderRO::snapshot_anchor`] and ensuring
+/// the block being queried matches it.
+#[derive(Debug, Clone)]
+pub struct SnapshotTrieCursorFactory<P> {
+    reader: P,
+}
+
+impl<P: OpProofsSnapshotProviderRO> SnapshotTrieCursorFactory<P> {
+    /// Create a new snapshot-backed trie cursor factory.
+    pub const fn new(reader: P) -> Self {
+        Self { reader }
+    }
+}
+
+impl<P> TrieCursorFactory for SnapshotTrieCursorFactory<P>
+where
+    P: OpProofsSnapshotProviderRO,
+{
+    type AccountTrieCursor<'a>
+        = P::SnapshotAccountTrieCursor<'a>
+    where
+        Self: 'a;
+    type StorageTrieCursor<'a>
+        = P::SnapshotStorageTrieCursor<'a>
+    where
+        Self: 'a;
+
+    fn account_trie_cursor(&self) -> Result<Self::AccountTrieCursor<'_>, DatabaseError> {
+        self.reader.snapshot_account_trie_cursor().map_err(Into::<DatabaseError>::into)
+    }
+
+    fn storage_trie_cursor(
+        &self,
+        hashed_address: B256,
+    ) -> Result<Self::StorageTrieCursor<'_>, DatabaseError> {
+        self.reader
+            .snapshot_storage_trie_cursor(hashed_address)
+            .map_err(Into::<DatabaseError>::into)
+    }
+}
+
 /// Factory for creating hashed account cursors for [`OpProofsProviderRO`].
 #[derive(Debug, Clone)]
 pub struct OpProofsHashedAccountCursorFactory<P> {
@@ -99,5 +147,50 @@ where
                 .storage_hashed_cursor(hashed_address, self.block_number)
                 .map_err(Into::<DatabaseError>::into)?,
         ))
+    }
+}
+
+/// Factory for creating hashed leaf cursors backed by the snapshot tables.
+///
+/// Mirrors [`SnapshotTrieCursorFactory`]'s role for hashed leaves: reads
+/// directly from [`crate::db::V2HashedAccountsSnapshot`] and
+/// [`crate::db::V2HashedStoragesSnapshot`] without history merges. Valid only
+/// when the snapshot is `Ready` at the anchor the caller is reading.
+#[derive(Debug, Clone)]
+pub struct SnapshotHashedCursorFactory<P> {
+    reader: P,
+}
+
+impl<P: OpProofsSnapshotProviderRO> SnapshotHashedCursorFactory<P> {
+    /// Create a new snapshot-backed hashed cursor factory.
+    pub const fn new(reader: P) -> Self {
+        Self { reader }
+    }
+}
+
+impl<P> HashedCursorFactory for SnapshotHashedCursorFactory<P>
+where
+    P: OpProofsSnapshotProviderRO,
+{
+    type AccountCursor<'a>
+        = P::SnapshotHashedAccountCursor<'a>
+    where
+        Self: 'a;
+    type StorageCursor<'a>
+        = P::SnapshotHashedStorageCursor<'a>
+    where
+        Self: 'a;
+
+    fn hashed_account_cursor(&self) -> Result<Self::AccountCursor<'_>, DatabaseError> {
+        self.reader.snapshot_hashed_account_cursor().map_err(Into::<DatabaseError>::into)
+    }
+
+    fn hashed_storage_cursor(
+        &self,
+        hashed_address: B256,
+    ) -> Result<Self::StorageCursor<'_>, DatabaseError> {
+        self.reader
+            .snapshot_hashed_storage_cursor(hashed_address)
+            .map_err(Into::<DatabaseError>::into)
     }
 }

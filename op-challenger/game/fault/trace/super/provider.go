@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	types2 "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -19,9 +18,6 @@ import (
 var (
 	ErrGetStepData = errors.New("GetStepData not supported")
 	ErrIndexTooBig = errors.New("trace index is greater than max uint64")
-
-	InvalidTransition     = []byte("invalid")
-	InvalidTransitionHash = crypto.Keccak256Hash(InvalidTransition)
 )
 
 const (
@@ -85,10 +81,10 @@ func (s *SuperNodeTraceProvider) getPreimageBytesAtTimestampBoundary(ctx context
 	}
 	if root.Data == nil {
 		// No block at this timestamp so it must be invalid
-		return InvalidTransition, nil
+		return eth.InvalidTransition, nil
 	}
 	if root.Data.VerifiedRequiredL1.Number > s.l1Head.Number {
-		return InvalidTransition, nil
+		return eth.InvalidTransition, nil
 	}
 	return root.Data.Super.Marshal(), nil
 }
@@ -113,12 +109,12 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 	}
 	if prevRoot.Data == nil {
 		// No block at this timestamp so it must be invalid
-		return InvalidTransition, nil
+		return eth.InvalidTransition, nil
 	}
 	if prevRoot.Data.VerifiedRequiredL1.Number > s.l1Head.Number {
 		// The previous root was not safe at the game L1 head so we must have already transitioned to the invalid hash
 		// prior to this step and it then repeats forever.
-		return InvalidTransition, nil
+		return eth.InvalidTransition, nil
 	}
 	nextTimestamp := timestamp + 1
 	nextRoot, err := s.rootProvider.SuperRootAtTimestamp(ctx, nextTimestamp)
@@ -130,9 +126,9 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 	}
 
 	prevSuper := prevRoot.Data.Super
-	expectedState := interopTypes.TransitionState{
+	expectedState := eth.TransitionState{
 		SuperRoot:       prevSuper.Marshal(),
-		PendingProgress: make([]interopTypes.OptimisticBlock, 0, step),
+		PendingProgress: make([]eth.OptimisticBlock, 0, step),
 		Step:            step,
 	}
 
@@ -146,14 +142,14 @@ func (s *SuperNodeTraceProvider) GetPreimageBytes(ctx context.Context, pos types
 		optimistic, ok := nextRoot.OptimisticAtTimestamp[chainID]
 		if !ok {
 			// No block at this timestamp for a chain that needs to be processed at this step, so return invalid
-			return InvalidTransition, nil
+			return eth.InvalidTransition, nil
 		}
 		if optimistic.RequiredL1.Number > s.l1Head.Number {
 			// Not enough data on L1 to derive the optimistic block, move to invalid transition.
-			return InvalidTransition, nil
+			return eth.InvalidTransition, nil
 		}
 
-		expectedState.PendingProgress = append(expectedState.PendingProgress, interopTypes.OptimisticBlock{
+		expectedState.PendingProgress = append(expectedState.PendingProgress, eth.OptimisticBlock{
 			BlockHash:  optimistic.Output.BlockHash,
 			OutputRoot: optimistic.OutputRoot,
 		})

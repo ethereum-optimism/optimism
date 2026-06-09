@@ -5,7 +5,7 @@ use alloy_evm::{
     block::{BlockExecutor as AlloyBlockExecutor, CommitChanges, TxResult},
     rpc::TryIntoTxEnv,
 };
-use alloy_op_evm::{OpEvm, OpTx};
+use alloy_op_evm::{OpEvm, OpTx, PreRefundGasUsed};
 use alloy_primitives::{
     Address, B256, Bytes, TxKind, U256,
     map::{AddressMap, HashSet},
@@ -188,6 +188,7 @@ pub trait BuilderTransactions<ExtraCtx: Debug + Default = (), Extra: Debug + Def
                 Transaction = OpTransactionSigned,
                 Receipt = OpReceipt,
                 Evm: alloy_evm::Evm<DB: core::ops::Deref<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
             >,
         DB: Database,
     {
@@ -213,11 +214,14 @@ pub trait BuilderTransactions<ExtraCtx: Debug + Default = (), Extra: Debug + Def
             }
 
             let mut gas_used = 0;
+            let mut evm_gas_used = 0;
             let committed = match builder.execute_transaction_with_commit_condition(
                 builder_tx.signed_tx.clone(),
                 |result| {
-                    gas_used = result.result().result.tx_gas_used();
-                    if result.result().result.is_success() {
+                    let execution_result = &result.result().result;
+                    gas_used = execution_result.tx_gas_used();
+                    evm_gas_used = result.evm_gas_used();
+                    if execution_result.is_success() {
                         CommitChanges::Yes
                     } else {
                         warn!(target: "payload_builder", tx_hash = ?builder_tx.signed_tx.tx_hash(), "builder tx reverted");
@@ -254,6 +258,7 @@ pub trait BuilderTransactions<ExtraCtx: Debug + Default = (), Extra: Debug + Def
             }
 
             info.cumulative_gas_used += gas_used;
+            info.cumulative_evm_gas_used += evm_gas_used;
             info.cumulative_da_bytes_used += builder_tx.da_size;
             info.receipts.push(
                 last_receipt_with_cumulative_gas(builder.executor(), info.cumulative_gas_used)

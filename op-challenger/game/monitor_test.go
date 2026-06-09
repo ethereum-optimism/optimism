@@ -143,6 +143,22 @@ func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	require.Equal(t, 1, stubClaimer.scheduledGames)
 }
 
+func TestMonitorSkipsUnsupportedGameTypes(t *testing.T) {
+	addr1 := common.Address{0xaa}
+	addr2 := common.Address{0xbb}
+	monitor, source, sched, _, _, stubClaimer := setupMonitorTest(t, []common.Address{}, 0)
+	source.games = []types.GameMetadata{
+		newTypedFDG(addr1, 9999, types.CannonGameType),
+		newTypedFDG(addr2, 9999, types.SuperPermissionedGameType),
+	}
+
+	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 0))
+
+	require.Len(t, sched.Scheduled(), 1)
+	require.Equal(t, []common.Address{addr1}, sched.Scheduled()[0])
+	require.Equal(t, 1, stubClaimer.scheduledGames)
+}
+
 func TestMinUpdatePeriod(t *testing.T) {
 	tests := []struct {
 		name                   string
@@ -196,8 +212,13 @@ func TestMinUpdatePeriod(t *testing.T) {
 }
 
 func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
+	return newTypedFDG(proxy, timestamp, types.CannonGameType)
+}
+
+func newTypedFDG(proxy common.Address, timestamp uint64, gameType types.GameType) types.GameMetadata {
 	return types.GameMetadata{
 		Proxy:     proxy,
+		GameType:  uint32(gameType),
 		Timestamp: timestamp,
 	}
 }
@@ -221,6 +242,7 @@ func setupMonitorTest(
 		preimages,
 		time.Duration(0),
 		stubClaimer,
+		[]types.GameType{types.CannonGameType},
 		allowedGames,
 		mockHeadSource,
 		time.Duration(minUpdatePeriodSeconds)*time.Second,

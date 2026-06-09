@@ -1957,6 +1957,7 @@
                 ]
               },
               "chain-operators/tutorials/absolute-prestate",
+              "chain-operators/tutorials/kona-custom-prestate",
               "chain-operators/tutorials/adding-derivation-attributes",
               "chain-operators/tutorials/adding-precompiles",
               "chain-operators/tutorials/dispute-games",
@@ -2007,6 +2008,7 @@
                   }
                 ]
               },
+              "chain-operators/tools/op-interop-filter",
               "chain-operators/tools/op-txproxy",
               "chain-operators/tools/op-validator",
               "chain-operators/tools/proxyd"
@@ -2018,6 +2020,12 @@
               "chain-operators/reference/architecture",
               "chain-operators/reference/opcm",
               "chain-operators/reference/standard-configuration"
+            ]
+          },
+          {
+            "group": "Archive",
+            "pages": [
+              "chain-operators/tutorials/archive/op-program-prestate"
             ]
           }
         ]
@@ -2039,7 +2047,6 @@
                 "pages": [
                   "node-operators/guides/configuration/consensus-clients",
                   "node-operators/guides/configuration/execution-clients",
-                  "node-operators/guides/configuration/legacy-geth",
                   "node-operators/guides/configuration/supernode"
                 ]
               },
@@ -2265,7 +2272,9 @@
               "/op-stack/features/custom-gas-token",
               "/op-stack/features/bridged-usdc-standard",
               "/op-stack/features/span-batches",
-              "/op-stack/features/send-raw-transaction-conditional"
+              "/op-stack/features/send-raw-transaction-conditional",
+              "/op-stack/features/l2-contract-manager",
+              "/op-stack/features/osaka-on-l2"
             ]
           },
           {
@@ -2360,6 +2369,12 @@
               "op-mainnet/network-information/snapshots",
               "op-mainnet/network-information/transaction-finality"
             ]
+          },
+          {
+            "group": "Pre-Bedrock History",
+            "pages": [
+              "node-operators/guides/configuration/legacy-geth"
+            ]
           }
         ]
       },
@@ -2381,8 +2396,9 @@
         "tab": "Notices",
         "groups": [
           {
-            "group": "Notices",
+            "group": "Network Notices",
             "pages": [
+              "notices/index",
               "notices/interop-prep",
               "notices/upgrade-19",
               "notices/specialized-node-topology",
@@ -2406,6 +2422,40 @@
                   "notices/archive/upgrade-13",
                   "notices/archive/holocene-changes",
                   "notices/archive/superchain-withdrawal-pause-test"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Releases",
+            "pages": [
+              "releases/index",
+              {
+                "group": "Protocol",
+                "pages": [
+                  "releases/op-node",
+                  "releases/kona-node",
+                  "releases/op-reth",
+                  "releases/op-batcher",
+                  "releases/op-proposer",
+                  "releases/op-challenger",
+                  "releases/op-contracts"
+                ]
+              },
+              {
+                "group": "Fault Proofs",
+                "pages": [
+                  "releases/kona-client",
+                  "releases/kona-host"
+                ]
+              },
+              {
+                "group": "Tooling",
+                "pages": [
+                  "releases/op-deployer",
+                  "releases/op-conductor",
+                  "releases/proxyd",
+                  "releases/op-acceptor"
                 ]
               }
             ]

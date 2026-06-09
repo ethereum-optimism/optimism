@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -115,7 +116,6 @@ func addGameTypesForRuntime(
 	}
 	initBond := eth.GWei(80_000_000).ToBig() // 0.08 ETH
 
-	cannonPrestate := PrestateForGameType(t, gameTypes.CannonGameType)
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 
 	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
@@ -145,15 +145,23 @@ func addGameTypesForRuntime(
 		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t, receipt.ContractAddress)
 	}
 
+	// dummyCannonPrestate is used for the PermissionedCannon game type now that the legacy
+	// fault-proof program is no longer wired into devstack. Permissioned games skip prestate
+	// validation and are never executed by the challenger, so the prestate is never resolved at
+	// claim time.
+	dummyCannonPrestate := common.HexToHash(sharedchallenger.DummyPermissionedPrestate)
+
 	// OPCMv2 requires all 6 game configs in order:
 	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
+	// The CANNON (legacy) game type is permanently disabled, but its config slot must remain present
+	// and in order for the OPCMv2 upgrade.
 	configs := []embedded.DisputeGameConfig{
 		{
-			Enabled:  enabled[gameTypes.CannonGameType],
+			Enabled:  false,
 			InitBond: initBond,
 			GameType: embedded.GameTypeCannon,
 			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
-				AbsolutePrestate: cannonPrestate,
+				AbsolutePrestate: dummyCannonPrestate,
 			},
 		},
 		{
@@ -161,7 +169,7 @@ func addGameTypesForRuntime(
 			InitBond: initBond,
 			GameType: embedded.GameTypePermissionedCannon,
 			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
-				AbsolutePrestate: cannonPrestate,
+				AbsolutePrestate: dummyCannonPrestate,
 				Proposer:         proposer,
 				Challenger:       challenger,
 			},
@@ -221,8 +229,6 @@ func ZKDisputeGameConfigForRuntime(t devtest.CommonT, verifier common.Address) *
 
 func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.Hash {
 	switch gameType {
-	case gameTypes.CannonGameType:
-		return getAbsolutePrestate(t, "op-program/bin/prestate-proof-mt64.json")
 	case gameTypes.CannonKonaGameType:
 		return getCannonKonaAbsolutePrestate(t)
 	default:

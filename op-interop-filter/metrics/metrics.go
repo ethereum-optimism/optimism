@@ -14,6 +14,7 @@ type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 	RecordFailsafeEnabled(enabled bool)
+	RecordFailsafeReason(reason string, active bool)
 	RecordChainHead(chainID uint64, blockNum uint64)
 	RecordChainTip(chainID uint64, blockNum uint64)
 	RecordTipLagBlocks(chainID uint64, lag uint64)
@@ -36,6 +37,7 @@ type Metrics struct {
 	info                     *prometheus.GaugeVec
 	up                       prometheus.Gauge
 	failsafeEnabled          prometheus.Gauge
+	failsafeReason           *prometheus.GaugeVec
 	chainHead                *prometheus.GaugeVec
 	checkAccessTotal         *prometheus.CounterVec
 	checkAccessListDuration  prometheus.Histogram
@@ -87,6 +89,12 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "failsafe_enabled",
 			Help:      "1 if failsafe is enabled",
 		}),
+
+		failsafeReason: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "failsafe_reason_active",
+			Help:      "1 if the given reason is currently forcing failsafe on; multiple reasons may be active at once",
+		}, []string{"reason"}),
 
 		chainHead: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -187,6 +195,14 @@ func (m *Metrics) RecordFailsafeEnabled(enabled bool) {
 	}
 }
 
+func (m *Metrics) RecordFailsafeReason(reason string, active bool) {
+	v := 0.0
+	if active {
+		v = 1.0
+	}
+	m.failsafeReason.WithLabelValues(reason).Set(v)
+}
+
 func (m *Metrics) RecordChainHead(chainID uint64, blockNum uint64) {
 	m.chainHead.WithLabelValues(strconv.FormatUint(chainID, 10)).Set(float64(blockNum))
 }
@@ -247,6 +263,7 @@ type noopMetrics struct{}
 func (n *noopMetrics) RecordInfo(version string)                               {}
 func (n *noopMetrics) RecordUp()                                               {}
 func (n *noopMetrics) RecordFailsafeEnabled(enabled bool)                      {}
+func (n *noopMetrics) RecordFailsafeReason(reason string, active bool)         {}
 func (n *noopMetrics) RecordChainHead(chainID uint64, blockNum uint64)         {}
 func (n *noopMetrics) RecordChainTip(chainID uint64, blockNum uint64)          {}
 func (n *noopMetrics) RecordTipLagBlocks(chainID uint64, lag uint64)           {}

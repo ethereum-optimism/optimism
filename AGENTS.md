@@ -47,7 +47,7 @@ The OP Stack includes significant Rust implementations:
 ### Fault Proof System
 
 - **cannon**: Onchain MIPS instruction emulator (in Go)
-- **op-program**: Fault proof program (in Go)
+- **rust/kona**: Fault proof program — client and host (in Rust)
 
 ### Development and Testing Infrastructure
 
@@ -65,6 +65,7 @@ Some subdirectories have their own CLAUDE.md with domain-specific conventions. R
 More detailed guidance for AI agents can be found in:
 
 - [docs/ai/ci-ops.md](docs/ai/ci-ops.md) - CI/CD operations
+- [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md) - Reviewing changes to CI config (`.circleci/`, `.github/workflows/`): gate coverage, required checks, path filtering, caching, plus general CircleCI/GHA best practices
 - [docs/ai/contract-dev.md](docs/ai/contract-dev.md) - Smart contract development
 - [docs/ai/flake-prevention.md](docs/ai/flake-prevention.md) - Guidance for preventing flaky tests
 - [docs/ai/go-dev.md](docs/ai/go-dev.md) - Go service development

@@ -1,0 +1,58 @@
+---
+title: Osaka on L2
+description: Learn about the Osaka EIP activations on L2, including the EIP-7825 per-transaction gas limit and precompile gas changes.
+---
+
+<Info>
+  This feature ships with [Upgrade 19](/notices/upgrade-19). It is non-functional until the upgrade is approved by governance and activated on Mainnet.
+</Info>
+
+Upgrade 19 activates a subset of the Osaka EIPs on L2 — specifically the changes that are applicable to OP Stack chains. Not every Osaka EIP is relevant to L2 execution; only those that affect L2 transaction processing or precompile behavior are included.
+
+The activated changes introduce a per-transaction gas limit and updated gas costs for two precompiles.
+
+## EIP-7825: Per-transaction gas limit
+
+[EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) introduces a maximum gas limit that any single L2 transaction can request. After Upgrade 19, transactions whose gas limit exceeds this threshold are rejected as invalid by the execution layer.
+
+The EIP-7825 gas limit value is specified in the [Osaka on L2 design document](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md) and is enforced by the execution client (`op-reth`).
+
+### Deposit transactions are exempt
+
+Deposit transactions (L1-to-L2 messages) are **not** subject to the EIP-7825 limit. Deposits are already capped at 20M gas total per L1 block, and rejecting a deposit on L2 that was accepted on L1 would cause permanent ETH loss. System deposit transactions (e.g., network upgrade transactions) are also exempt.
+
+### Impact on app developers
+
+Most transactions will not be affected. The limit is designed to be well above gas requirements for typical application interactions. If your application submits transactions with very high gas limits, verify they remain within the new threshold.
+
+If your application constructs raw transactions programmatically and sets a gas limit above the threshold, those transactions will fail. Update your gas limit logic or rely on standard `eth_estimateGas` responses — estimates will not return a value above the limit.
+
+## MODEXP gas cost and input size changes
+
+The `MODEXP` precompile (`0x05`) receives updated gas pricing in Osaka. Additionally, a new maximum input size is enforced: calls with inputs exceeding this limit will fail.
+
+*   **For contracts using `MODEXP`:** re-run gas benchmarks and update any hardcoded gas values. Verify that your inputs stay within the new size limit.
+*   **For contracts not using `MODEXP`:** no action required.
+
+Gas pricing details are in the [Osaka on L2 design document](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md).
+
+## P256VERIFY gas cost changes
+
+The `P256VERIFY` precompile (`0x100`) also receives updated gas pricing in Osaka.
+
+*   **For contracts using `P256VERIFY`:** re-run gas benchmarks and update any hardcoded gas values.
+*   **For contracts not using `P256VERIFY`:** no action required.
+
+## Summary of changes
+
+| Change | Address | Impact |
+| --- | --- | --- |
+| EIP-7825 per-transaction gas limit | n/a | Transactions above the limit are invalid (deposits exempt) |
+| `MODEXP` gas repricing + new input size limit | `0x05` | Gas cost changes; inputs over new size limit fail |
+| `P256VERIFY` gas repricing | `0x100` | Gas cost changes |
+
+## References
+
+*   [Osaka on L2 design document](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md)
+*   [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825)
+*   [Upgrade 19 notice](/notices/upgrade-19)

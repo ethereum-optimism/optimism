@@ -349,6 +349,9 @@ type mockVNForInvalidation struct {
 
 func (m *mockVNForInvalidation) Start(ctx context.Context) error { return nil }
 func (m *mockVNForInvalidation) Stop(ctx context.Context) error  { return m.stopErr }
+func (m *mockVNForInvalidation) State() virtual_node.VNState {
+	return virtual_node.VNStateRunning
+}
 func (m *mockVNForInvalidation) LatestSafe(ctx context.Context) (eth.BlockID, error) {
 	return eth.BlockID{}, nil
 }

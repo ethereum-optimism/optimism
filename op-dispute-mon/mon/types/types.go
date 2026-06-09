@@ -51,6 +51,10 @@ type EnrichedGameData struct {
 	BlockNumberChallenger common.Address
 	Claims                []EnrichedClaim
 
+	// AnchorStateRegistry is the address of the AnchorStateRegistry this game builds on.
+	// Zero if the game's contract version does not expose it.
+	AnchorStateRegistry common.Address
+
 	AgreeWithClaim    bool
 	ExpectedRootClaim common.Hash
 

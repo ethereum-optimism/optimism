@@ -7,8 +7,10 @@ use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::OpPrimitives;
 use std::sync::Arc;
 
+pub mod backfill;
 pub mod init;
 pub mod prune;
+pub mod snapshot;
 pub mod unwind;
 
 /// `op-reth op-proofs` command
@@ -26,7 +28,9 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> Command<C> {
     ) -> eyre::Result<()> {
         match self.command {
             Subcommands::Init(cmd) => cmd.execute::<N>(runtime).await,
+            Subcommands::Backfill(cmd) => cmd.execute::<N>(runtime).await,
             Subcommands::Prune(cmd) => cmd.execute::<N>(runtime).await,
+            Subcommands::Snapshot(cmd) => cmd.execute::<N>(runtime).await,
             Subcommands::Unwind(cmd) => cmd.execute::<N>(runtime).await,
         }
     }
@@ -37,7 +41,9 @@ impl<C: ChainSpecParser> Command<C> {
     pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
         match &self.command {
             Subcommands::Init(cmd) => cmd.chain_spec(),
+            Subcommands::Backfill(cmd) => cmd.chain_spec(),
             Subcommands::Prune(cmd) => cmd.chain_spec(),
+            Subcommands::Snapshot(cmd) => cmd.chain_spec(),
             Subcommands::Unwind(cmd) => cmd.chain_spec(),
         }
     }
@@ -49,9 +55,15 @@ pub enum Subcommands<C: ChainSpecParser> {
     /// Initialize the proofs storage with the current state of the chain
     #[command(name = "init")]
     Init(init::InitCommand<C>),
+    /// Backfill proofs history to an older earliest block
+    #[command(name = "backfill")]
+    Backfill(backfill::BackfillCommand<C>),
     /// Prune old proof history to reclaim space
     #[command(name = "prune")]
     Prune(prune::PruneCommand<C>),
+    /// Build or drop the trie-state snapshot
+    #[command(name = "snapshot")]
+    Snapshot(snapshot::SnapshotCommand<C>),
     /// Unwind the proofs storage to a specific block
     #[command(name = "unwind")]
     Unwind(unwind::UnwindCommand<C>),

@@ -8,6 +8,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
 
 // Scripts
+import { Config } from "scripts/libraries/Config.sol";
 import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
 import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
@@ -76,22 +77,22 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         // Skip if L2CM dev feature is not enabled
         skipIfDevFeatureDisabled(DevFeatures.L2CM);
 
-        // Initialize scripts
-        executeScript = new ExecuteNUTBundle();
-        generateScript = new GenerateNUTBundle();
+        if (!Config.l2CMActivationTest()) {
+            // Initialize scripts
+            executeScript = new ExecuteNUTBundle();
+            generateScript = new GenerateNUTBundle();
+            // Generate bundle
+            GenerateNUTBundle.Output memory output = generateScript.run();
+            currentFork = output.fork;
+            delete currentBundleTxns;
+            for (uint256 i = 0; i < output.txns.length; i++) {
+                currentBundleTxns.push(output.txns[i]);
+            }
 
-        // Generate bundle
-        GenerateNUTBundle.Output memory output = generateScript.run();
-        currentFork = output.fork;
-        delete currentBundleTxns;
-        for (uint256 i = 0; i < output.txns.length; i++) {
-            currentBundleTxns.push(output.txns[i]);
+            // Apply prior committed NUT bundles so chains missing earlier upgrades match the
+            // predeploy state the current bundle expects (e.g. Karst L2CM on a not-yet-Karst chain).
+            PastNUTBundles.applyPastBundles(output.txns, executeScript);
         }
-
-        // Apply prior committed NUT bundles so chains missing earlier upgrades match the
-        // predeploy state the current bundle expects (e.g. Karst L2CM on a not-yet-Karst chain).
-        PastNUTBundles.applyPastBundles(output.txns, executeScript);
-
         // Capture feature flags
         commonState.isInteropEnabled = forkL2Live.isInteropEnabled();
         commonState.isCustomGasToken = forkL2Live.isCustomGasToken();
@@ -175,15 +176,22 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         if (_predeploy == Predeploys.L1_BLOCK_ATTRIBUTES) {
             // L1Block uses CGT variant on custom gas token networks
             string memory implName = commonState.isCustomGasToken ? "L1BlockCGT" : "L1Block";
-            expectedImpl_ = generateScript.findImplByName(implName);
+            expectedImpl_ = _findImplByName(implName);
         } else if (_predeploy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
             // L2ToL1MessagePasser uses CGT variant on custom gas token networks
             string memory implName = commonState.isCustomGasToken ? "L2ToL1MessagePasserCGT" : "L2ToL1MessagePasser";
-            expectedImpl_ = generateScript.findImplByName(implName);
+            expectedImpl_ = _findImplByName(implName);
         } else {
             // Standard implementation lookup
-            expectedImpl_ = generateScript.findImplByName(_name);
+            expectedImpl_ = _findImplByName(_name);
         }
+    }
+
+    /// @notice Helper to find an implementation address by name.
+    /// @param _name The name of the implementation to find.
+    /// @return expectedImpl_ The implementation address.
+    function _findImplByName(string memory _name) internal view virtual returns (address expectedImpl_) {
+        expectedImpl_ = generateScript.findImplByName(_name);
     }
 
     /// @notice Returns the active proxied predeploys with their pre-upgrade versions.
@@ -672,9 +680,6 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
-        // Get StorageSetter implementation to filter out intermediate upgrade events
-        address storageSetterImpl = generateScript.findImplByName("StorageSetter");
-
         // Execute bundle on forked L2
         _executeCurrentBundle();
 
@@ -735,7 +740,7 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
         skipIfUnoptimized();
 
         // Get StorageSetter implementation to filter out intermediate upgrade events
-        address storageSetterImpl = generateScript.findImplByName("StorageSetter");
+        address storageSetterImpl = _findImplByName("StorageSetter");
 
         // Skip when the bundle is already applied: Upgraded events are historical and cannot be
         // replayed via vm.recordLogs()
@@ -781,7 +786,7 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             string memory name = Predeploys.getName(predeploy);
 
             // Get expected implementation from config
-            address expectedImpl = _getExpectedImplementation(predeploy, name);
+            address expectedImpl = _expectedImpls[i];
 
             // Find the Upgraded event for this predeploy (skip StorageSetter events)
             bool foundEvent = false;

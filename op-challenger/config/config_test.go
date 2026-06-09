@@ -40,7 +40,7 @@ var (
 )
 
 var singleCannonGameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
-var cannonKonaGameTypes = []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType}
+var cannonKonaGameTypes = []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType}
 
 func ensureExists(path string) error {
 	_, err := os.Stat(path)
@@ -103,7 +103,7 @@ func validConfig(t *testing.T, gameType gameTypes.GameType) Config {
 	if gameType == gameTypes.CannonKonaGameType {
 		applyValidConfigForCannonKona(t, &cfg)
 	}
-	if gameType == gameTypes.SuperCannonKonaGameType || gameType == gameTypes.SuperPermissionedGameType {
+	if gameType == gameTypes.SuperCannonKonaGameType {
 		applyValidConfigForSuperCannonKona(t, &cfg)
 	}
 	if gameType == gameTypes.ZKDisputeGameType {
@@ -199,7 +199,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestCannonServerRequired-%v", gameType), func(t *testing.T) {
 			config := validConfig(t, gameType)
 			config.Cannon.Server = ""
-			require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+			if gameType == gameTypes.PermissionedGameType {
+				// The permissioned game never reaches step() so does not run op-program.
+				require.NoError(t, config.Check())
+			} else {
+				require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+			}
 		})
 
 		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateOrBaseURLRequired-%v", gameType), func(t *testing.T) {
@@ -305,9 +310,32 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestServerExists-%v", gameType), func(t *testing.T) {
 			cfg := validConfig(t, gameType)
 			cfg.Cannon.Server = nonExistingFile
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
+			if gameType == gameTypes.PermissionedGameType {
+				// The permissioned game never reaches step() so does not run op-program.
+				require.NoError(t, cfg.Check())
+			} else {
+				require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
+			}
 		})
 	}
+}
+
+// The op-program server is still required when both the cannon and permissioned game types
+// are enabled, because the cannon game runs op-program even though the permissioned game does not.
+func TestCannonServerRequiredWhenCannonAndPermissionedBothEnabled(t *testing.T) {
+	t.Run("ServerEmpty", func(t *testing.T) {
+		config := validConfig(t, gameTypes.CannonGameType)
+		config.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
+		config.Cannon.Server = ""
+		require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+	})
+
+	t.Run("ServerMissing", func(t *testing.T) {
+		config := validConfig(t, gameTypes.CannonGameType)
+		config.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
+		config.Cannon.Server = nonExistingFile
+		require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+	})
 }
 
 func TestCannonKonaRequiredArgs(t *testing.T) {
@@ -435,7 +463,7 @@ func TestCannonKonaRequiredArgs(t *testing.T) {
 }
 
 func TestDepsetConfig(t *testing.T) {
-	for _, gameType := range []gameTypes.GameType{gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType} {
+	for _, gameType := range []gameTypes.GameType{gameTypes.SuperCannonKonaGameType} {
 		gameType := gameType
 		t.Run(fmt.Sprintf("TestCannonKonaNetworkOrDepsetConfigRequired-%v", gameType), func(t *testing.T) {
 			cfg := validConfig(t, gameType)
@@ -490,7 +518,7 @@ func TestHttpPollInterval(t *testing.T) {
 func TestRollupRpcRequired(t *testing.T) {
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonKonaGameType {
 			continue
 		}
 		t.Run(gameType.String(), func(t *testing.T) {
@@ -502,12 +530,6 @@ func TestRollupRpcRequired(t *testing.T) {
 }
 
 func TestRollupRpcNotRequiredForInterop(t *testing.T) {
-	t.Run("SuperPermissioned", func(t *testing.T) {
-		config := validConfig(t, gameTypes.SuperPermissionedGameType)
-		config.RollupRpc = ""
-		require.NoError(t, config.Check())
-	})
-
 	t.Run("SuperCannonKona", func(t *testing.T) {
 		config := validConfig(t, gameTypes.SuperCannonKonaGameType)
 		config.RollupRpc = ""
@@ -518,7 +540,7 @@ func TestRollupRpcNotRequiredForInterop(t *testing.T) {
 func TestSuperRpc(t *testing.T) {
 	for _, gameType := range gameTypes.SupportedGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonKonaGameType {
 			t.Run("RequiredFor"+gameType.String(), func(t *testing.T) {
 				config := validConfig(t, gameType)
 				config.SuperRPC = ""
@@ -532,6 +554,12 @@ func TestSuperRpc(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestSuperPermissionedGameTypeUnsupported(t *testing.T) {
+	config := validConfig(t, gameTypes.CannonGameType)
+	config.GameTypes = []gameTypes.GameType{gameTypes.SuperPermissionedGameType}
+	require.ErrorIs(t, config.Check(), gameTypes.ErrUnknownGameType)
 }
 
 func TestRequireConfigForMultipleGameTypesForCannon(t *testing.T) {

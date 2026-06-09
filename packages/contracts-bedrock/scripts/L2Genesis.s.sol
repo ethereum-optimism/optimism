@@ -305,8 +305,7 @@ contract L2Genesis is Script {
 
         bytes32 _ownerSlot = bytes32(0);
 
-        // TODO(#19182): Remove this once the L2ProxyAdmin is initializable.
-        // there is no initialize() function, so we just set the storage manually.
+        // L2ProxyAdmin has no initializer by design, so we set the proxy owner slot directly.
         vm.store(Predeploys.PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
     }
 

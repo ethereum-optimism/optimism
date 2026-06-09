@@ -51,7 +51,7 @@ hardfork!(
         /// Karst: <https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/karst>
         Karst,
         /// TODO: add interop hardfork overview when available
-        Interop,
+        Lagoon,
     }
 );
 
@@ -235,10 +235,20 @@ pub trait OpHardforks: EthereumHardforks {
         self.op_fork_activation(OpHardfork::Karst).active_at_timestamp(timestamp)
     }
 
-    /// Returns `true` if [`Interop`](OpHardfork::Interop) is active at given block
+    /// Returns `true` if [`Lagoon`](OpHardfork::Lagoon) is active at given block
     /// timestamp.
+    fn is_lagoon_active_at_timestamp(&self, timestamp: u64) -> bool {
+        self.op_fork_activation(OpHardfork::Lagoon).active_at_timestamp(timestamp)
+    }
+
+    /// Returns `true` if the interop feature is active at the given block timestamp.
+    ///
+    /// Currently equivalent to [`Self::is_lagoon_active_at_timestamp`] because Lagoon
+    /// is the hard fork that activates interop. Kept as a separate method so the
+    /// feature toggle can diverge from the hard fork accessor if interop's activation
+    /// is ever decoupled from Lagoon.
     fn is_interop_active_at_timestamp(&self, timestamp: u64) -> bool {
-        self.op_fork_activation(OpHardfork::Interop).active_at_timestamp(timestamp)
+        self.is_lagoon_active_at_timestamp(timestamp)
     }
 }
 
@@ -330,7 +340,7 @@ impl Index<OpHardfork> for OpChainHardforks {
 
     fn index(&self, hf: OpHardfork) -> &Self::Output {
         use OpHardfork::{
-            Bedrock, Canyon, Ecotone, Fjord, Granite, Holocene, Interop, Isthmus, Jovian, Karst,
+            Bedrock, Canyon, Ecotone, Fjord, Granite, Holocene, Isthmus, Jovian, Karst, Lagoon,
             Regolith,
         };
 
@@ -345,7 +355,7 @@ impl Index<OpHardfork> for OpChainHardforks {
             Isthmus => &self.forks[Isthmus.idx()].1,
             Jovian => &self.forks[Jovian.idx()].1,
             Karst => &self.forks[Karst.idx()].1,
-            Interop => &self.forks[Interop.idx()].1,
+            Lagoon => &self.forks[Lagoon.idx()].1,
         }
     }
 }
@@ -398,7 +408,7 @@ mod tests {
     fn check_op_hardfork_from_str() {
         let hardfork_str = [
             "beDrOck", "rEgOlITH", "cAnYoN", "eCoToNe", "FJorD", "GRaNiTe", "hOlOcEnE", "isthMUS",
-            "jOvIaN", "kArSt", "inTerOP",
+            "jOvIaN", "kArSt", "laGoON",
         ];
         let expected_hardforks = [
             OpHardfork::Bedrock,
@@ -411,7 +421,7 @@ mod tests {
             OpHardfork::Isthmus,
             OpHardfork::Jovian,
             OpHardfork::Karst,
-            OpHardfork::Interop,
+            OpHardfork::Lagoon,
         ];
 
         let hardforks: alloc::vec::Vec<OpHardfork> =
@@ -454,7 +464,7 @@ mod tests {
             ForkCondition::Timestamp(OP_MAINNET_ISTHMUS_TIMESTAMP)
         );
         assert_eq!(op_mainnet_forks[Jovian], ForkCondition::Timestamp(OP_MAINNET_JOVIAN_TIMESTAMP));
-        assert_eq!(op_mainnet_forks.op_fork_activation(Interop), ForkCondition::Never);
+        assert_eq!(op_mainnet_forks.op_fork_activation(Lagoon), ForkCondition::Never);
     }
 
     #[test]
@@ -486,7 +496,7 @@ mod tests {
             ForkCondition::Timestamp(OP_SEPOLIA_ISTHMUS_TIMESTAMP)
         );
         assert_eq!(op_sepolia_forks[Jovian], ForkCondition::Timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP));
-        assert_eq!(op_sepolia_forks.op_fork_activation(Interop), ForkCondition::Never);
+        assert_eq!(op_sepolia_forks.op_fork_activation(Lagoon), ForkCondition::Never);
     }
 
     #[test]
@@ -531,7 +541,7 @@ mod tests {
             base_mainnet_forks[Jovian],
             ForkCondition::Timestamp(OP_MAINNET_JOVIAN_TIMESTAMP)
         );
-        assert_eq!(base_mainnet_forks.op_fork_activation(Interop), ForkCondition::Never);
+        assert_eq!(base_mainnet_forks.op_fork_activation(Lagoon), ForkCondition::Never);
     }
 
     #[test]
@@ -576,7 +586,7 @@ mod tests {
             base_sepolia_forks[Jovian],
             ForkCondition::Timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP)
         );
-        assert_eq!(base_sepolia_forks.op_fork_activation(Interop), ForkCondition::Never);
+        assert_eq!(base_sepolia_forks.op_fork_activation(Lagoon), ForkCondition::Never);
     }
 
     #[test]

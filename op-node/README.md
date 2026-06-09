@@ -158,7 +158,7 @@ As _a proof dev_ I want _reusable state-transition code_ so that I _don't reimpl
 
 - Encapsulate the state-transition:
   - Use interfaces to abstract file-IO / concurrency / etc. away from state-transition logic.
-  - Ensure code-sharing with action-tests and op-program.
+  - Ensure code-sharing with action-tests.
 - No critical database:
   - Persisting data is ok, but it should be recoverable from external data without too much work.
   - The best chain "sync" is no sync.

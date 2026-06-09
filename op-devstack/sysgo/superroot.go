@@ -213,14 +213,11 @@ func migrateSuperRootsWithProposal(
 	client := ethclient.NewClient(rpcClient)
 	w3Client := w3.NewClient(rpcClient)
 
-	absoluteCannonPrestate := getInteropCannonAbsolutePrestate(t)
 	absoluteCannonKonaPrestate := getCannonKonaAbsolutePrestate(t)
 
 	permissionedChainOps := devkeys.ChainOperatorKeys(primaryL2.ToBig())
 	proposer, err := keys.Address(permissionedChainOps(devkeys.ProposerRole))
 	require.NoError(err, "must have configured proposer")
-	challenger, err := keys.Address(permissionedChainOps(devkeys.ChallengerRole))
-	require.NoError(err, "must have configured challenger")
 
 	var chainSystemConfigs []common.Address
 	for _, l2Deployment := range migration.l2Deployments {
@@ -232,24 +229,19 @@ func migrateSuperRootsWithProposal(
 	require.NoError(err, "invalid migrator ABI")
 	contract := batching.NewBoundContract(migratorABI, migration.opcmImpl)
 
-	// ABI-encode permissioned game args: (bytes32 absolutePrestate, address proposer, address challenger)
-	bytes32Ty, _ := abi.NewType("bytes32", "", nil)
+	// ABI-encode simplified super-permissioned game args: (address proposer)
 	addressTy, _ := abi.NewType("address", "", nil)
-	permGameArgs, err := abi.Arguments{
-		{Type: bytes32Ty},
-		{Type: addressTy},
-		{Type: addressTy},
-	}.Pack(absoluteCannonPrestate, proposer, challenger)
-	require.NoError(err, "failed to encode permissioned game args")
+	superPermissionedGameArgs, err := abi.Arguments{{Type: addressTy}}.Pack(proposer)
+	require.NoError(err, "failed to encode super permissioned game args")
 
 	migrateInputV2 := MigrateInputV2{
 		ChainSystemConfigs: chainSystemConfigs,
 		DisputeGameConfigs: []DisputeGameConfigV2{
 			{
 				Enabled:  true,
-				InitBond: new(big.Int).Set(defaultInitBond),
+				InitBond: new(big.Int),
 				GameType: superPermissionedCannonGameType,
-				GameArgs: permGameArgs,
+				GameArgs: superPermissionedGameArgs,
 			},
 			{
 				Enabled:  true,
@@ -288,10 +280,6 @@ func migrateSuperRootsWithProposal(
 	}
 	t.Log("Interop migration complete")
 	return sharedDGF
-}
-
-func getInteropCannonAbsolutePrestate(t devtest.CommonT) common.Hash {
-	return getAbsolutePrestate(t, "op-program/bin/prestate-proof-interop.json")
 }
 
 func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {

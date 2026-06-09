@@ -253,6 +253,25 @@ func TestBondDistributionMode(t *testing.T) {
 	}
 }
 
+func TestGetAnchorStateRegistry(t *testing.T) {
+	expected := common.HexToAddress("0x0123456789abcDEF0123456789abCDef01234567")
+	for _, version := range versions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, game := setupFaultDisputeGameTest(t, version)
+			if version.version == vers080 {
+				_, err := game.GetAnchorStateRegistry(context.Background(), rpcblock.Latest)
+				require.ErrorIs(t, err, ErrAnchorStateRegistryNotSupported)
+				return
+			}
+			stubRpc.SetResponse(fdgAddr, methodAnchorStateRegistry, rpcblock.Latest, nil, []interface{}{expected})
+			actual, err := game.GetAnchorStateRegistry(context.Background(), rpcblock.Latest)
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+		})
+	}
+}
+
 func TestClock_EncodingDecoding(t *testing.T) {
 	t.Run("DurationAndTimestamp", func(t *testing.T) {
 		by := common.FromHex("00000000000000050000000000000002")

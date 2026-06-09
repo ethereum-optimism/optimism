@@ -50,6 +50,10 @@ type LockstepCrossValidator struct {
 	errMu sync.RWMutex
 	err   *ValidatorError
 
+	// onFailsafeChange, if set, is invoked after the error state changes so the
+	// backend can refresh the failsafe metric. Set once before Start.
+	onFailsafeChange func()
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -105,13 +109,29 @@ func (v *LockstepCrossValidator) Error() *ValidatorError {
 	return v.err
 }
 
-// setError sets the validation error state.
+// setError sets the validation error state. There is intentionally no clear
+// path today: the cross-validator does not self-recover, so its error — and the
+// failsafe_reason_active{reason="cross_validation"} gauge — clears only on
+// process restart. If a recovery path is ever added, it MUST also fire
+// onFailsafeChange so the failsafe metrics drop back accordingly.
 func (v *LockstepCrossValidator) setError(msg string) {
 	v.errMu.Lock()
-	defer v.errMu.Unlock()
 	v.err = &ValidatorError{
 		Message: msg,
 	}
+	v.errMu.Unlock()
+
+	// Invoke after releasing errMu: the callback recomputes the backend's
+	// combined failsafe state, which reads Error() and would re-acquire errMu.
+	if v.onFailsafeChange != nil {
+		v.onFailsafeChange()
+	}
+}
+
+// SetOnFailsafeChange registers a callback invoked after the error state
+// changes. Used by the backend to keep the failsafe metric in sync.
+func (v *LockstepCrossValidator) SetOnFailsafeChange(fn func()) {
+	v.onFailsafeChange = fn
 }
 
 // CrossValidatedTimestamp returns the global cross-validated timestamp.

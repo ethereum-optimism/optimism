@@ -49,22 +49,38 @@ pub struct RollupArgs {
     #[arg(long = "rollup.enable-tx-conditional", default_value = "false")]
     pub enable_tx_conditional: bool,
 
-    /// Enable experimental SDM support for integration tests.
+    /// HTTP endpoint(s) for the interop filter, used to validate the interop messages referenced
+    /// by incoming transactions. Repeat the flag to configure multiple endpoints; each check is
+    /// fanned out to all of them and combined by quorum agreement (see
+    /// `--rollup.interop-min-responses`). When none are set, interop transaction validation is
+    /// disabled: a node that builds blocks will then include transactions carrying invalid
+    /// interop messages, producing invalid blocks. It is only safe to leave this unset on nodes
+    /// that do not build blocks.
+    #[arg(long = "rollup.interop-http", value_name = "INTEROP_HTTP_URL")]
+    pub interop_http: Vec<String>,
+
+    /// Minimum number of definitive verdicts required to decide an interop check across the
+    /// configured `--rollup.interop-http` endpoints. A transaction is accepted only when this many
+    /// endpoints return a definitive verdict and all of them agree it is valid; if they disagree
+    /// the transaction is rejected.
     ///
-    /// SDM is not scheduled for Jovian or Karst; leave this disabled for production networks.
-    #[arg(long = "rollup.sdm-enabled", default_value = "false")]
-    pub sdm_enabled: bool,
+    /// Defaults to the number of endpoints (unanimity, fail-closed). Note this means any single
+    /// unreachable or out-of-sync endpoint blocks ALL interop admission until it recovers, so
+    /// adding endpoints under the default REDUCES availability. Set a majority quorum (e.g.
+    /// N/2+1) to tolerate a degraded endpoint while still only accepting on unanimous
+    /// agreement among responders.
+    ///
+    /// Disagreement detection is best-effort: once the quorum is reached the remaining endpoints
+    /// are not awaited, so a slow dissenter beyond the quorum may go unseen.
+    #[arg(long = "rollup.interop-min-responses", value_name = "INTEROP_MIN_RESPONSES")]
+    pub interop_min_responses: Option<usize>,
 
-    /// HTTP endpoint for the supervisor. When not set, interop transaction validation is disabled.
-    #[arg(long = "rollup.supervisor-http", value_name = "SUPERVISOR_HTTP_URL")]
-    pub supervisor_http: Option<String>,
-
-    /// Safety level for the supervisor
+    /// Safety level for interop filter validation.
     #[arg(
-        long = "rollup.supervisor-safety-level",
+        long = "rollup.interop-safety-level",
         default_value_t = SafetyLevel::CrossUnsafe,
     )]
-    pub supervisor_safety_level: SafetyLevel,
+    pub interop_safety_level: SafetyLevel,
 
     /// Optional headers to use when connecting to the sequencer.
     #[arg(long = "rollup.sequencer-headers", requires = "sequencer")]
@@ -160,9 +176,9 @@ impl Default for RollupArgs {
             compute_pending_block: false,
             discovery_v4: false,
             enable_tx_conditional: false,
-            sdm_enabled: false,
-            supervisor_http: None,
-            supervisor_safety_level: SafetyLevel::CrossUnsafe,
+            interop_http: Vec::new(),
+            interop_min_responses: None,
+            interop_safety_level: SafetyLevel::CrossUnsafe,
             sequencer_headers: Vec::new(),
             historical_rpc: None,
             min_suggested_priority_fee: 1_000_000,
@@ -240,6 +256,28 @@ mod tests {
         let args =
             CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.enable-tx-conditional"])
                 .args;
+        assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_interop_multiple_endpoints() {
+        let expected_args = RollupArgs {
+            interop_http: vec!["http://a:1".into(), "http://b:2".into(), "http://c:3".into()],
+            interop_min_responses: Some(2),
+            ..Default::default()
+        };
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--rollup.interop-http",
+            "http://a:1",
+            "--rollup.interop-http",
+            "http://b:2",
+            "--rollup.interop-http",
+            "http://c:3",
+            "--rollup.interop-min-responses",
+            "2",
+        ])
+        .args;
         assert_eq!(args, expected_args);
     }
 
