@@ -197,9 +197,14 @@ abstract contract L2Genesis_TestInit is Test {
         return vm.computeCreateAddress(address(genesis), nonce);
     }
 
+    function isGenesisInteropEnabled() internal view returns (bool) {
+        return input.useInterop && input.fork >= uint256(Fork.INTEROP)
+            && DevFeatures.isDevFeatureEnabled(input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    }
+
     function assertL2CMProxyImplementations() internal view {
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
-        bool isInterop = input.useInterop && input.fork >= uint256(Fork.INTEROP);
+        bool isInterop = isGenesisInteropEnabled();
 
         for (uint256 i = 0; i < records.length; i++) {
             if (records[i].isVariant) continue;
@@ -384,7 +389,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     /// @notice Helper function to configure input for interop enabled tests.
     function _setInputInteropEnabled() internal {
         input.useInterop = true;
-        input.devFeatureBitmap = bytes32(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        input.devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
     }
 
     /// @notice Asserts that the interop predeploys are present in genesis.
@@ -503,6 +508,20 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         testFactories();
         testForks();
         testInterop();
+    }
+
+    /// @notice Tests that L2CM skips interop predeploys when interop is scheduled after genesis.
+    function test_run_l2cmInteropScheduledNotActive_succeeds() external {
+        input.devFeatureBitmap |= DevFeatures.L2CM;
+        _setInputInteropEnabled();
+        input.fork = uint256(Fork.ISTHMUS);
+        runGenesisAndAssertL2CM();
+
+        assertEq(
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+            false,
+            "INTEROP runtime flag must not be set at genesis when fork < INTEROP"
+        );
     }
 
     /// @notice Tests that the L2CM genesis path succeeds when CGT and interop are both active.

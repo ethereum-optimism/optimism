@@ -274,10 +274,7 @@ contract L2Genesis is Script {
         setSchemaRegistry(); // 20
         setEAS(); // 21
         setGovernanceToken(_input); // 42: OP (not behind a proxy)
-        if (
-            _input.fork >= uint256(Fork.INTEROP) && _input.useInterop
-                && DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-        ) {
+        if (_isGenesisInteropEnabled(_input)) {
             // Both flags must be explicitly set in order to enable Interop
             setCrossL2Inbox(); // 22
             setL2ToL2CrossDomainMessenger(); // 23
@@ -360,7 +357,7 @@ contract L2Genesis is Script {
             gasPayingTokenSymbol: _input.gasPayingTokenSymbol
         });
         config_.isCustomGasToken = _input.useCustomGasToken;
-        config_.isInterop = _input.useInterop && _input.fork >= uint256(Fork.INTEROP);
+        config_.isInterop = _isGenesisInteropEnabled(_input);
     }
 
     /// @notice Returns the proxies upgraded by the temporary L2ContractsManager, gated by CGT and
@@ -415,6 +412,12 @@ contract L2Genesis is Script {
 
         vm.etch(address(l2cm), "");
         vm.resetNonce(address(l2cm));
+    }
+
+    /// @notice Returns true when interop should be active in the genesis state.
+    function _isGenesisInteropEnabled(Input memory _input) internal pure returns (bool) {
+        return _input.fork >= uint256(Fork.INTEROP) && _input.useInterop
+            && DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
     }
 
     function setInteropPredeployProxies() internal { }
@@ -497,7 +500,7 @@ contract L2Genesis is Script {
         }
         // Only set the runtime INTEROP feature flag at genesis if the chain is being born at or
         // beyond the Interop fork.
-        if (_input.useInterop && _input.fork >= uint256(Fork.INTEROP)) {
+        if (_isGenesisInteropEnabled(_input)) {
             IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.INTEROP);
         }
     }
