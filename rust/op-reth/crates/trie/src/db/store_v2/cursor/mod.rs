@@ -27,11 +27,16 @@
 
 mod account;
 mod account_trie;
+mod snapshot;
 mod storage;
 mod storage_trie;
 
 pub use account::V2AccountCursor;
 pub use account_trie::V2AccountTrieCursor;
+pub use snapshot::{
+    V2AccountTrieSnapshotCursor, V2HashedAccountSnapshotCursor, V2HashedStorageSnapshotCursor,
+    V2StorageTrieSnapshotCursor,
+};
 pub use storage::V2StorageCursor;
 pub use storage_trie::V2StorageTrieCursor;
 
@@ -187,5 +192,7 @@ where
     }
 }
 
+#[cfg(test)]
+mod snapshot_tests;
 #[cfg(test)]
 mod tests;

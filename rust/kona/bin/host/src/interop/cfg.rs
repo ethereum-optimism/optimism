@@ -210,8 +210,8 @@ impl InteropHost {
                 providers,
                 InteropHintHandler,
             )
-            .with_proactive_hint(HintType::L2BlockData)
-            .with_proactive_hint(HintType::L2PayloadWitness);
+            .with_high_level_hint(HintType::L2BlockData)
+            .with_high_level_hint(HintType::L2PayloadWitness);
 
             task::spawn(async {
                 PreimageServer::new(

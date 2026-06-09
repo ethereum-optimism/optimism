@@ -427,7 +427,9 @@ func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 
 // BlockRefWithStatus blocks the driver event loop and captures the syncing status,
 // along with an L2 block reference by number consistent with that same status.
-// If the event loop is too busy and the context expires, a context error is returned.
+// If the event loop is too busy and the context expires before the request is
+// accepted, a context error is returned with a nil status. Otherwise the returned
+// status is non-nil, including when ref lookup fails with ethereum.NotFound.
 func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
 	resp := s.StatusTracker.SyncStatus()
 	if resp.FinalizedL2.Number >= num { // If finalized, we are certain it does not reorg, and don't have to lock.

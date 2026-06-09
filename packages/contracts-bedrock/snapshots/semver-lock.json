@@ -28,8 +28,8 @@
     "sourceCodeHash": "0x58224f9b9403ca597a9aa649757c667396838eee89db2e7553aab755dd5fba26"
   },
   "src/L1/SuperchainConfig.sol:SuperchainConfig": {
-    "initCodeHash": "0xd747690ea1ee01828050e55ad358d443535452a7050dba9d67e419a86798802e",
-    "sourceCodeHash": "0x3899e590445050f6473d4001ac150a41d5e361d4423144e6fe4640f85337d45d"
+    "initCodeHash": "0x68f3fa110e1509bd841932feab438df5b5995ee222fc69a4dd6fcd48428e06f5",
+    "sourceCodeHash": "0x97e17703a4843694a3bc71be2adcd753a0755db34d1fafc674e2b9586435dc76"
   },
   "src/L1/SystemConfig.sol:SystemConfig": {
     "initCodeHash": "0x1701f191d49ba9c27d6ebee63eec095c97c20b66648c01b41aa2ad7b5808861c",

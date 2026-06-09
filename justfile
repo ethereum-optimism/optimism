@@ -6,13 +6,18 @@ PYTHON := env('PYTHON', 'python3')
 
 TEST_TIMEOUT := env('TEST_TIMEOUT', '10m')
 
-TEST_PKGS := "./op-alt-da/... ./op-batcher/... ./op-chain-ops/... ./op-core/... ./op-node/... ./op-proposer/... ./op-challenger/... ./op-faucet/... ./op-dispute-mon/... ./op-conductor/... ./op-program/... ./op-service/... ./op-test-sequencer/... ./op-fetcher/... ./op-e2e/system/... ./op-e2e/e2eutils/... ./op-e2e/opgeth/... ./op-e2e/interop/... ./op-e2e/actions/altda ./op-e2e/actions/batcher ./op-e2e/actions/derivation ./op-e2e/actions/helpers ./op-e2e/actions/proofs ./op-e2e/actions/proposer ./op-e2e/actions/safedb ./op-e2e/actions/sequencer ./op-e2e/actions/sync ./op-e2e/actions/upgrades ./packages/contracts-bedrock/scripts/checks/... ./ops/scripts/... ./op-dripper/... ./op-devstack/... ./op-deployer/pkg/deployer/artifacts/... ./op-deployer/pkg/deployer/broadcaster/... ./op-deployer/pkg/deployer/clean/... ./op-deployer/pkg/deployer/integration_test/ ./op-deployer/pkg/deployer/integration_test/cli/... ./op-deployer/pkg/deployer/standard/... ./op-deployer/pkg/deployer/state/... ./op-deployer/pkg/deployer/verify/... ./op-sync-tester/... ./op-supernode/..."
+# Go test runs cover every package in the module except these, which run in
+# dedicated CI jobs or can't run in the standard go-tests environment:
+#   op-acceptance-tests             dedicated acceptance-test job (needs a running devnet)
+#   cannon                          dedicated cannon job (slow MIPS emulation tests)
+#   rust                            rust-e2e pipeline (needs prebuilt Rust binaries)
+#   op-deployer/pkg/deployer/forge  fails when forge is on PATH (ethereum-optimism/optimism#21200)
+# See the list-test-packages recipe, which expands `go list ./...` minus these.
+EXCLUDED_TEST_PKGS := "op-acceptance-tests cannon rust op-deployer/pkg/deployer/forge"
 
+# Fault-proof packages run in the default go-tests job and again in a dedicated
+# job with Cannon enabled, so they keep a separate list.
 FRAUD_PROOF_TEST_PKGS := "./op-e2e/faultproofs/..."
-
-RPC_TEST_PKGS := "./op-validator/pkg/validations/... ./op-deployer/pkg/deployer/bootstrap/... ./op-deployer/pkg/deployer/manage/... ./op-deployer/pkg/deployer/opcm/... ./op-deployer/pkg/deployer/pipeline/... ./op-deployer/pkg/deployer/upgrade/..."
-
-ALL_TEST_PACKAGES := TEST_PKGS + " " + RPC_TEST_PKGS + " " + FRAUD_PROOF_TEST_PKGS
 
 # Lists all available targets.
 help:
@@ -29,7 +34,7 @@ sync-superchain:
 build: build-go build-contracts
 
 # Builds main Go components.
-build-go: submodules op-node op-proposer op-batcher op-challenger op-dispute-mon op-program cannon
+build-go: submodules op-node op-proposer op-batcher op-challenger op-dispute-mon cannon
 
 # Builds contracts-bedrock.
 build-contracts:
@@ -186,37 +191,34 @@ op-supernode:
 op-interop-filter:
   just ./op-interop-filter/op-interop-filter
 
-# Builds op-program binary.
-op-program:
-  cd op-program && just op-program
-
 # Builds cannon binary.
 cannon:
   cd cannon && just cannon
-
-# Builds reproducible prestate for op-program.
-reproducible-prestate-op-program:
-  cd op-program && just build-reproducible-prestate
 
 # Builds reproducible prestate for kona.
 reproducible-prestate-kona:
   cd rust && just build-kona-reproducible-prestate
 
-# Builds reproducible prestates for op-program and kona in parallel.
+# Builds the reproducible kona prestate and prints its hash.
 [script('bash')]
 reproducible-prestate:
   set -euo pipefail
-  (cd op-program && just build-reproducible-prestate) &
-  pid1=$!
-  (cd rust && just build-kona-reproducible-prestate) &
-  pid2=$!
-  wait "$pid1" "$pid2"
-  (cd op-program && just output-prestate-hash)
+  (cd rust && just build-kona-reproducible-prestate)
   (cd rust && just output-kona-prestate-hash)
 
-# Builds cannon prestates.
-cannon-prestates: cannon op-program
-  go run ./op-program/builder/main.go build-all-prestates
+# Builds the cannon prestate.
+cannon-prestates:
+  cd rust && just build-kona-prestates
+
+# Verifies the reproducibility of released cannon prestates against the
+# superchain-registry standard prestates. Each tagged release (op-program/v*
+# and kona-client/v*) is rebuilt from its own checked-out source, so historical
+# op-program prestates are still checked even though op-program is no longer in
+# the tree.
+verify-reproducibility:
+  rm -rf ops/prestate-reproducibility/temp/states
+  ./ops/prestate-reproducibility/build-prestates.sh
+  env GO111MODULE=on go run ./ops/prestate-reproducibility/prestates/verify/verify.go --input ops/prestate-reproducibility/temp/states/versions.json
 
 # Cleans up unused dependencies in Go modules.
 # Bypasses the Go module proxy for freshly released versions.
@@ -252,39 +254,38 @@ semgrep-ci:
   DEV_REF=$(git rev-parse develop)
   SEMGREP_REPO_NAME=ethereum-optimism/optimism semgrep ci --baseline-commit="$DEV_REF"
 
-# Builds op-program-client binary.
-op-program-client:
-  cd op-program && just op-program-client
-
-# Builds op-program-host binary.
-op-program-host:
-  cd op-program && just op-program-host
-
 # Makes pre-test setup.
 make-pre-test:
   cd op-e2e && just pre-test
 
+# Lists the Go packages under test: every package in the module except those in
+# EXCLUDED_TEST_PKGS (which run in dedicated CI jobs or can't run in this environment).
+[script('bash')]
+list-test-packages:
+  set -euo pipefail
+  go list -e ./... | grep -vE "^github.com/ethereum-optimism/optimism/($(echo '{{EXCLUDED_TEST_PKGS}}' | tr ' ' '|'))(/|$)"
+
 # Runs comprehensive Go tests across all packages.
 [script('bash')]
-go-tests: op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test sync-superchain
+go-tests: cannon build-contracts make-pre-test sync-superchain
   set -euo pipefail
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="false"
   export OP_E2E_USE_HTTP=true
   export ENABLE_ANVIL=true
   export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-  go test -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} {{TEST_PKGS}}
+  go test -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} $(just list-test-packages)
 
 # Runs comprehensive Go tests with -short flag.
 [script('bash')]
-go-tests-short: op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test sync-superchain
+go-tests-short: cannon build-contracts make-pre-test sync-superchain
   set -euo pipefail
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="false"
   export OP_E2E_USE_HTTP=true
   export ENABLE_ANVIL=true
   export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-  go test -short -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} {{TEST_PKGS}}
+  go test -short -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} $(just list-test-packages)
 
 # Internal: runs Go tests with gotestsum for CI.
 [script('bash')]
@@ -303,7 +304,7 @@ _go-tests-ci-internal go_test_flags="": sync-superchain
   source ./ops/scripts/source-ci-archive-rpcs.sh
   export NAT_INTEROP_LOADTEST_TARGET=10
   export NAT_INTEROP_LOADTEST_TIMEOUT=30s
-  ALL_PACKAGES="{{ALL_TEST_PACKAGES}}"
+  ALL_PACKAGES="$(just list-test-packages | tr '\n' ' ')"
   if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
       NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
       NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
@@ -318,7 +319,7 @@ _go-tests-ci-internal go_test_flags="": sync-superchain
               --packages="$PARALLEL_PACKAGES" \
               -- -p=4 -parallel="$PARALLEL" {{go_test_flags}} -timeout={{TEST_TIMEOUT}} -tags="ci"
       else
-          echo "ERROR: Node $NODE_INDEX/$NODE_TOTAL has no packages to run! Perhaps parallelism is set too high? (ALL_TEST_PACKAGES has $(echo "$ALL_PACKAGES" | wc -w) packages)"
+          echo "ERROR: Node $NODE_INDEX/$NODE_TOTAL has no packages to run! Perhaps parallelism is set too high? (package list has $(echo "$ALL_PACKAGES" | wc -w) packages)"
           exit 1
       fi
   else

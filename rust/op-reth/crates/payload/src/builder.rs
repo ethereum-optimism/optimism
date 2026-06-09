@@ -868,6 +868,12 @@ where
         while let Some(tx) = best_txs.next(()) {
             let interop = tx.interop_deadline();
             let tx_da_size = tx.estimated_da_size();
+            // Compute the miner fee on the pool tx so downstream pool wrappers can
+            // override `effective_tip_per_gas` (e.g. to convert non-native fee
+            // denominations into a native-wei tip) before the consensus tx is exposed.
+            let miner_fee = tx
+                .effective_tip_per_gas(base_fee)
+                .expect("selected pool transaction must have a valid effective miner tip at the block base fee");
             let tx = tx.into_consensus();
 
             let da_footprint_gas_scalar = self
@@ -943,9 +949,6 @@ where
             info.cumulative_da_bytes_used += tx_da_size;
 
             // update and add to total fees
-            let miner_fee = tx
-                .effective_tip_per_gas(base_fee)
-                .expect("fee is always valid; execution succeeded");
             info.total_fees += U256::from(miner_fee) * U256::from(tx_gas_used);
 
             // Record the successfully committed transaction for callers that want per-call

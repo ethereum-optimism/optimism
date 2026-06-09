@@ -371,8 +371,7 @@ func startMinimalChallenger(
 	options := []sharedchallenger.Option{
 		sharedchallenger.WithFactoryAddress(l2Net.deployment.DisputeGameFactoryProxyAddr()),
 		sharedchallenger.WithPrivKey(challengerSecret),
-		sharedchallenger.WithCannonConfig(rollupCfgs, l1Net.genesis, l2Geneses, sharedchallenger.MTCannonVariant),
-		sharedchallenger.WithCannonGameType(),
+		sharedchallenger.WithPermissionedCannonConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 		sharedchallenger.WithPermissionedGameType(),
 		sharedchallenger.WithFastGames(),
 		sharedchallenger.WithCannonKonaConfig(rollupCfgs, l1Net.genesis, l2Geneses),

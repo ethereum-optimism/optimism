@@ -1,6 +1,10 @@
 ---
 title: Migrating to permissionless fault proofs on OP Stack
 description: A high-level guide for transitioning from permissioned to permissionless fault proofs on an OP Stack.
+audit-source:
+  - op-challenger/flags/flags.go
+  - op-challenger/game/types/game_type.go
+  - op-challenger/cmd/run_trace.go
 ---
 
 This guide provides a high-level overview for chain operators looking to transition their OP Stack from permissioned to permissionless fault proofs.
@@ -25,7 +29,7 @@ Before beginning this transition, your chain should:
 
 *   Be running a standard OP Stack implementation
 *   It's recommended to use the latest contracts version, minimum required [**v5.0.0**](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv5.0.0).
-*   Be operating with the required infrastructure services including [`op-challenger`](/op-stack/fault-proofs/challenger) and [`op-dispute-mon`](/operators/chain-operators/tools/chain-monitoring#dispute-mon).
+*   Be operating with the required infrastructure services including [`op-challenger`](/op-stack/fault-proofs/challenger) and [`op-dispute-mon`](/chain-operators/tools/chain-monitoring#dispute-mon).
 
 ## Migration steps
 
@@ -53,7 +57,7 @@ Then run the image, for example:
 ```bash
 # Run with all required flags
 docker run -d --name op-challenger \
-  -e OP_CHALLENGER_GAME_TYPES=permissioned,cannon \
+  -e OP_CHALLENGER_GAME_TYPES=permissioned,cannon-kona \
   -e OP_CHALLENGER_PRESTATES_URL=<YOUR_PRESTATES_URL> \
   -e OP_CHALLENGER_L1_ETH_RPC=<YOUR_L1_RPC_URL> \
   -e OP_CHALLENGER_GAME_FACTORY_ADDRESS=<YOUR_DISPUTE_GAME_FACTORY> \
@@ -90,23 +94,23 @@ Even if your chain is not included in the [superchain-registry](/op-stack/protoc
 - `genesis-l2.json` - Your L2 genesis file
 ```
 
-### Enable cannon game type
+### Enable the cannon-kona game type
 
-Configure `op-challenger` to support both permissioned and permissionless games by setting:
+From the Karst upgrade, `cannon-kona` (the kona-client program run inside the Cannon VM) is the respected permissionless game type, replacing op-program. Configure `op-challenger` to support both permissioned and permissionless games by setting:
 
 ```bash
---game-types permissioned,cannon
+--game-types permissioned,cannon-kona
 ```
 
 Or by setting the environment variable:
 
-```
-OP_CHALLENGER_GAME_TYPES=permissioned,cannon
+```bash
+OP_CHALLENGER_GAME_TYPES=permissioned,cannon-kona
 ```
 
 ### Configure prestates access
 
-Replace the `--cannon-prestate` flag with `--prestates-url`, which points to a source containing all required prestates:
+Replace the `--cannon-kona-prestate` flag with `--prestates-url`, which points to a source containing all required prestates:
 
 ```bash
 --prestates-url <URL_TO_PRESTATES_DIRECTORY>
@@ -126,15 +130,13 @@ You'll need a new absolute prestate to register with the `FaultDisputeGame` and 
 
 For chains not in the superchain-registry, you need to build custom prestates with your chain's configuration:
 
-The prestate will typically be generated at:
+Build the kona-client absolute prestate with `just reproducible-prestate-kona` (see the [absolute prestate tutorial](/chain-operators/tutorials/absolute-prestate)). The artifacts are written to:
 
-*   `op-program/bin/prestate.json` (for older versions)
-*   `op-program/bin/prestate.bin.gz` (for intermediate versions)
-*   `op-program/bin/prestate-mt64.bin.gz` (for chains upgraded to Cannon MT64, starting from [upgrade 14](/notices/upgrade-14#whats-included-in-upgrade-14))
+*   `rust/kona/prestate-artifacts-cannon/prestate-proof.json` — the proof file; its `pre` field is the absolute prestate hash (`jq -r .pre ...`)
+*   `rust/kona/prestate-artifacts-cannon/<PRESTATE_HASH>.bin.gz` — the preimage file `op-challenger` loads
 
 <Info>
-  Post-upgrade 14, chains are expected to use `prestate-mt64.bin.gz` due to the Fault Proof VM contract upgrade to `cannon-mt64`.
-  The older `prestate.bin.gz` will eventually be deprecated but is temporarily retained until all chains complete the upgrade.
+  Register the kona-client absolute prestate with your `FaultDisputeGame` and `PermissionedDisputeGame`. The challenger refuses to interact with games whose on-chain absolute prestate doesn't match the one it has, so the hash must match exactly.
 </Info>
 
 ### Ensure sufficient funds for bonds
@@ -156,15 +158,15 @@ As a general guideline:
 Nominally, the challenger does not use disk space as long as there aren’t any invalid proposals being made.
 
 One way to gain more confidence that the op-challenger was configured correctly is to operate the op-challenger in “runner” mode. 
-Using the same op-challenger configuration, invoke the `op-challenger run-trace -run cannon` subcommand. 
-This will run op-challenger in a mode where it runs the op-program in a Cannon VM on live L2 blocks to ensure those were configured correctly. 
+Using the same op-challenger configuration, invoke the `op-challenger run-trace --run cannon-kona` subcommand. 
+This will run op-challenger in a mode where it runs the kona-client program in a Cannon VM on live L2 blocks to ensure those were configured correctly. 
 This command runs forever, checking every couple of L2 blocks. But it suffices to let it run until it has completed one loop and kill it. 
 Wait you see `Successfully verified output root` in the logs before shutting it down. 
 Any errors indicate a misconfiguration.
 
 ### Set up `op-dispute-mon`
 
-Ensure `op-dispute-mon` is properly configured by following the [steps](/operators/chain-operators/tools/chain-monitoring#dispute-mon) in the documentation.
+Ensure `op-dispute-mon` is properly configured by following the [steps](/chain-operators/tools/chain-monitoring#dispute-mon) in the documentation.
 
 ## 2. Deploy and configure smart contracts using OPCM
 

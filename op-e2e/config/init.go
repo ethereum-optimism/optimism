@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -93,9 +92,50 @@ var (
 
 	// mtx is a lock to protect the above variables
 	mtx sync.RWMutex
+
+	// monorepoRoot is resolved once in init and reused by lazy alloc-type
+	// initialization. It is read-only after init.
+	monorepoRoot string
+	// regularLogHandler is the log handler installed after alloc generation;
+	// lazy initialization temporarily lowers the level during generation.
+	regularLogHandler slog.Handler
+	errorLogHandler   slog.Handler
+
+	// allocTypeOnce guards lazy, on-demand generation of each alloc type's
+	// genesis data. Each alloc type runs a full op-deployer genesis pipeline
+	// across every L2 hardfork mode, which is several minutes of CPU work.
+	// Generating only the alloc types a test binary actually requests keeps a
+	// binary that uses a single alloc type (e.g. the opgeth fuzz targets) from
+	// paying for all of them up front.
+	allocTypeOnce = make(map[AllocType]*sync.Once)
 )
 
+// ensureAllocType generates the genesis data for the given alloc type if it has
+// not been generated yet. Generation is expensive (a full op-deployer pipeline
+// per L2 hardfork mode), so it runs lazily and exactly once per alloc type. A
+// test binary therefore only pays for the alloc types its tests actually use,
+// instead of every alloc type up front. Logs are kept at error level during
+// generation, which is heavy on the logs.
+func ensureAllocType(allocType AllocType) {
+	once, ok := allocTypeOnce[allocType]
+	if !ok {
+		// Not a lazily-generated alloc type (e.g. a test-injected one, or any
+		// type outside allocTypes that the original eager loop never generated
+		// either). The getters validate map presence and panic on their own if
+		// the data is genuinely missing.
+		return
+	}
+	once.Do(func() {
+		if errorLogHandler != nil {
+			oplog.SetGlobalLogHandler(errorLogHandler)
+			defer oplog.SetGlobalLogHandler(regularLogHandler)
+		}
+		initAllocType(monorepoRoot, allocType)
+	})
+}
+
 func L1Allocs(allocType AllocType) *foundry.ForgeAllocs {
+	ensureAllocType(allocType)
 	mtx.RLock()
 	defer mtx.RUnlock()
 	allocs, ok := l1AllocsByType[allocType]
@@ -106,6 +146,7 @@ func L1Allocs(allocType AllocType) *foundry.ForgeAllocs {
 }
 
 func L1Deployments(allocType AllocType) *genesis.L1Deployments {
+	ensureAllocType(allocType)
 	mtx.RLock()
 	defer mtx.RUnlock()
 	deployments, ok := l1DeploymentsByType[allocType]
@@ -116,6 +157,7 @@ func L1Deployments(allocType AllocType) *genesis.L1Deployments {
 }
 
 func L2Allocs(allocType AllocType, mode genesis.L2AllocsMode) *foundry.ForgeAllocs {
+	ensureAllocType(allocType)
 	mtx.RLock()
 	defer mtx.RUnlock()
 	allocsByType, ok := l2AllocsByType[allocType]
@@ -135,6 +177,7 @@ func L2Allocs(allocType AllocType, mode genesis.L2AllocsMode) *foundry.ForgeAllo
 // the returned value shares no maps, slices or pointers with any other call.
 // Callers can freely mutate the result without affecting any other test.
 func DeployConfig(allocType AllocType) *genesis.DeployConfig {
+	ensureAllocType(allocType)
 	mtx.RLock()
 	raw, ok := deployConfigBytesByType[allocType]
 	mtx.RUnlock()
@@ -160,6 +203,11 @@ func init() {
 	root, err := op_service.FindMonorepoRoot(cwd)
 	if err != nil {
 		panic(err)
+	}
+	monorepoRoot = root
+
+	for _, allocType := range allocTypes {
+		allocTypeOnce[allocType] = new(sync.Once)
 	}
 
 	// Setup global logger
@@ -189,15 +237,12 @@ func init() {
 		})
 	}
 
-	// Start at warning level since alloc generation is heavy on the logs,
-	// which reduces CI performance.
-	oplog.SetGlobalLogHandler(errHandler)
-
-	for _, allocType := range allocTypes {
-		initAllocType(root, allocType)
-	}
-
-	// Use regular level going forward.
+	// Alloc generation is heavy on the logs, which reduces CI performance.
+	// Generation now happens lazily per alloc type (see ensureAllocType), so
+	// keep the regular handler installed here and let ensureAllocType lower the
+	// level to error only while generating.
+	regularLogHandler = handler
+	errorLogHandler = errHandler
 	oplog.SetGlobalLogHandler(handler)
 }
 
@@ -450,17 +495,6 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 					},
 					{
 						ChainProofParams: state.ChainProofParams{
-							DisputeGameType:         0,
-							DisputeAbsolutePrestate: cannonPrestate(root, allocType),
-							DisputeMaxGameDepth:     50,
-							DisputeSplitDepth:       14,
-							DisputeClockExtension:   0,
-							DisputeMaxClockDuration: 1200,
-						},
-						VMType: cannonVMType(allocType),
-					},
-					{
-						ChainProofParams: state.ChainProofParams{
 							// CANNON_KONA game
 							DisputeGameType:         8,
 							DisputeAbsolutePrestate: konaPrestate(root),
@@ -503,60 +537,8 @@ type prestateFile struct {
 	Pre string `json:"pre"`
 }
 
-var cannonPrestateMT common.Hash
-var cannonPrestateMTNext common.Hash
-var cannonPrestateMTOnce sync.Once
-var cannonPrestateMTNextOnce sync.Once
-
 var konaPrestateHash common.Hash
 var konaPrestateOnce sync.Once
-
-func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
-	var filename string
-
-	var once *sync.Once
-	var cacheVar *common.Hash
-	cannonVmType := cannonVMType(allocType)
-	if cannonVmType == state.VMTypeCannon {
-		filename = "prestate-proof-mt64.json"
-		once = &cannonPrestateMTOnce
-		cacheVar = &cannonPrestateMT
-	} else if cannonVmType == state.VMTypeCannonNext {
-		if versions.GetCurrentVersion() != versions.GetExperimentalVersion() {
-			filename = "prestate-proof-mt64Next.json"
-		} else {
-			filename = "prestate-proof-mt64.json"
-		}
-		once = &cannonPrestateMTNextOnce
-		cacheVar = &cannonPrestateMTNext
-	} else {
-		panic("Unsupported cannon VM type: " + cannonVmType)
-	}
-
-	once.Do(func() {
-		f, err := os.Open(path.Join(monorepoRoot, "op-program", "bin", filename))
-		if err != nil {
-			log.Warn("error opening prestate file. If you're running a test that requires prestates, make sure you've run `make cannon-prestates`", "err", err)
-			return
-		}
-		defer f.Close()
-
-		var prestate prestateFile
-		dec := json.NewDecoder(f)
-		if err := dec.Decode(&prestate); err != nil {
-			log.Error("error decoding prestate file. If you're running a test that requires prestates, make sure you've run `make cannon-prestates`", "err", err)
-			return
-		}
-
-		*cacheVar = common.HexToHash(prestate.Pre)
-	})
-
-	// Provide a dummy value so that the DeployDisputeGame script succeeds. Many tests do not require a dispute game. So this allieviates the need to build prestates during local development.
-	if *cacheVar == (common.Hash{}) {
-		*cacheVar = common.HexToHash("0xc02b59f772cb23a75b6ffb9f7602ba25fdd5d8e75ad88efcc013fec2c63b0895") // keccak("dummy")
-	}
-	return *cacheVar
-}
 
 func konaPrestate(monorepoRoot string) common.Hash {
 	konaPrestateOnce.Do(func() {
