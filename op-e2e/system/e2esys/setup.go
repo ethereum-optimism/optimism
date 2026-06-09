@@ -49,7 +49,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
-	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -395,15 +394,6 @@ type System struct {
 	// clients caches lazily created L1/L2 ethclient.Client
 	// instances so they can be reused and closed
 	clients map[string]*ethclient.Client
-}
-
-func (sys *System) PrestateVariant() shared.PrestateVariant {
-	switch sys.AllocType() {
-	case config.AllocTypeMTCannonNext:
-		return shared.MTCannonNextVariant
-	default:
-		return shared.MTCannonVariant
-	}
 }
 
 func (sys *System) DisputeGameFactoryAddr() common.Address {

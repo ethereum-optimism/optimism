@@ -62,20 +62,6 @@ Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 /
   <Tab title="Default">`1296000`</Tab>
 </Tabs>
 
-### proofs-history.prune-interval
-
-Interval between proof-storage prune runs. Accepts human-friendly durations like "100s", "5m", "1h".
-
-- Shorter intervals prune smaller batches more often.
-- Longer intervals prune larger batches less often.
-
-A shorter interval is preferred so that prune runs stay small and don’t stall writes for too long.
-
-<Tabs>
-  <Tab title="Syntax">`--proofs-history.prune-interval <PROOFS_HISTORY_PRUNE_INTERVAL>`</Tab>
-  <Tab title="Default">`15s`</Tab>
-</Tabs>
-
 ### proofs-history.verification-interval
 
 Verification interval: perform full block execution every N blocks for data integrity.
@@ -130,7 +116,7 @@ op-reth proofs prune --chain <CHAIN> --datadir <DATA_DIR> --proofs-history.stora
 ```
 
 <Info>
-Pruning runs automatically while the node is up, on the cadence set by `--proofs-history.prune-interval`.
+Pruning runs automatically while the node is up, driven by the engine task as new blocks are committed; no separate interval flag is required.
 
 Manual prune is mainly a recovery action, for example if op-reth detects a large mismatch between configured retention and on-disk data and refuses startup. See the [tutorial](/node-operators/tutorials/reth-historical-proofs#manual-prune) for details.
 </Info>

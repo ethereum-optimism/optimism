@@ -4,8 +4,8 @@ use super::{changesets::compute_block_backfill_diff, error::BackfillError};
 use crate::{
     BlockStateDiff, OpProofsBackfillProvider, OpProofsBackfillStore,
     OpProofsHashedAccountCursorFactory, OpProofsProviderRO, OpProofsSnapshotInitProvider,
-    OpProofsSnapshotProviderRO, OpProofsTrieCursorFactory, SnapshotInitJob, SnapshotInitStatus,
-    SnapshotTrieCursorFactory, proof::DatabaseStateRoot,
+    OpProofsSnapshotProviderRO, OpProofsTrieCursorFactory, SnapshotHashedCursorFactory,
+    SnapshotInitJob, SnapshotInitStatus, SnapshotTrieCursorFactory, proof::DatabaseStateRoot,
 };
 use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
 use alloy_primitives::BlockNumber;
@@ -16,7 +16,6 @@ use reth_provider::{
     StageCheckpointReader, StorageChangeSetReader, StorageSettingsCache,
 };
 use reth_trie::{HashedPostState, StateRoot, hashed_cursor::HashedPostStateCursorFactory};
-use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use std::time::{Duration, Instant};
 use tracing::info;
 
@@ -348,7 +347,7 @@ where
         block_number: BlockNumber,
     ) -> Result<PhaseTimings, BackfillError> {
         let block_ref = self.resolve_block_ref(block_number)?;
-        let (trie_updates, post_state, compute) = self.compute_diff_with_snapshot(block_number)?;
+        let (diff, compute) = self.compute_diff_with_snapshot(block_number)?;
 
         // After this iteration the proofs window's earliest moves from E to
         // E-1, so the snapshot anchor advances to the parent block.
@@ -357,11 +356,8 @@ where
 
         // Steps 1+2: advance both the snapshot anchor and the proofs window in one tx.
         let (_, prepend) = timed(|| -> Result<(), BackfillError> {
-            bp.update_snapshot(new_anchor, &trie_updates)?;
-            bp.prepend_block(
-                block_ref,
-                BlockStateDiff { sorted_trie_updates: trie_updates, sorted_post_state: post_state },
-            )?;
+            bp.update_snapshot(new_anchor, &diff)?;
+            bp.prepend_block(block_ref, diff)?;
             Ok(())
         })?;
 
@@ -377,31 +373,29 @@ where
         Ok(PhaseTimings { compute, prepend, validate, commit })
     }
 
-    /// Compute the per-block backfill diff using snapshot trie cursors.
-    ///
-    /// Returns the trie reverts and the leaf post-state separately so the
-    /// caller can pass `&trie_updates` to `update_snapshot` and then move the
-    /// diff into `prepend_block` without an extra clone.
+    /// Compute the per-block backfill diff using snapshot trie + leaf cursors.
     fn compute_diff_with_snapshot(
         &self,
         block_number: BlockNumber,
-    ) -> Result<(TrieUpdatesSorted, HashedPostStateSorted, Duration), BackfillError> {
+    ) -> Result<(BlockStateDiff, Duration), BackfillError> {
+        // `block_number` is unused on the snapshot path: the snapshot reflects
+        // state at its anchor, which the caller guaranteed equals
+        // `block_number` via `ensure_snapshot_ready`.
+        let _ = block_number;
         timed(|| {
             // Read-only snapshot provider — both cursor factories can share it
-            // via cheap `Clone` (no Arc wrapping needed here; the RO assoc-type
-            // bound requires `Clone`).
+            // via cheap `Clone`.
             let sp = self.storage.snapshot_provider_ro()?;
             let trie_factory = SnapshotTrieCursorFactory::new(sp.clone());
-            let hashed_factory = OpProofsHashedAccountCursorFactory::new(sp, block_number);
-            let (trie_updates, post_state) = compute_block_backfill_diff(
+            let hashed_factory = SnapshotHashedCursorFactory::new(sp);
+            let (sorted_trie_updates, sorted_post_state) = compute_block_backfill_diff(
                 &self.provider,
                 trie_factory,
                 hashed_factory,
                 block_number,
             )?;
-            Ok((trie_updates, post_state))
+            Ok(BlockStateDiff { sorted_trie_updates, sorted_post_state })
         })
-        .map(|((trie_updates, post_state), elapsed)| (trie_updates, post_state, elapsed))
     }
 
     /// Validate the just-prepended state at `block_number - 1` using snapshot
@@ -426,7 +420,7 @@ where
             let computed_root = StateRoot::new(
                 SnapshotTrieCursorFactory::new(bp),
                 HashedPostStateCursorFactory::new(
-                    OpProofsHashedAccountCursorFactory::new(bp, block_number - 1),
+                    SnapshotHashedCursorFactory::new(bp),
                     &state_sorted,
                 ),
             )

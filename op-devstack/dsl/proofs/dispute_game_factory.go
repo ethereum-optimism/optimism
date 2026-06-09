@@ -271,10 +271,6 @@ func (f *DisputeGameFactory) awaitMinVerifiedTimestamp(timestamp uint64) {
 	}, 2*time.Minute, 1*time.Second)
 }
 
-func (f *DisputeGameFactory) StartCannonGame(eoa *dsl.EOA, opts ...GameOpt) *FaultDisputeGame {
-	return f.startOutputRootGameOfType(eoa, gameTypes.CannonGameType, f.honestTraceForGame, opts...)
-}
-
 func (f *DisputeGameFactory) StartCannonKonaGame(eoa *dsl.EOA, opts ...GameOpt) *FaultDisputeGame {
 	return f.startOutputRootGameOfType(eoa, gameTypes.CannonKonaGameType, f.honestTraceForGame, opts...)
 }
@@ -285,14 +281,6 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 	}
 	f.require.NotNil(f.challengerCfg, "Challenger config is required to create honest trace")
 	switch game.GameType() {
-	case gameTypes.CannonGameType:
-		return f.honestOutputCannonTrace(
-			game,
-			f.challengerCfg.CannonAbsolutePreStateBaseURL,
-			f.challengerCfg.CannonAbsolutePreState,
-			f.challengerCfg.Cannon,
-			vm.NewOpProgramServerExecutor(f.log),
-		)
 	case gameTypes.CannonKonaGameType:
 		return f.honestOutputCannonTrace(
 			game,

@@ -2,14 +2,20 @@
 
 use super::{
     MdbxProofsProviderV2,
-    cursor::{V2AccountTrieSnapshotCursor, V2StorageTrieSnapshotCursor},
+    cursor::{
+        V2AccountTrieSnapshotCursor, V2HashedAccountSnapshotCursor, V2HashedStorageSnapshotCursor,
+        V2StorageTrieSnapshotCursor,
+    },
 };
 use crate::{
     OpProofsStorageError, OpProofsStorageResult,
     api::{OpProofsSnapshotProviderRO, SnapshotInitStatus},
     db::{
         SnapshotMeta, SnapshotMetaKey, SnapshotStatus,
-        models::{V2AccountsTrieSnapshot, V2SnapshotMeta, V2StoragesTrieSnapshot},
+        models::{
+            V2AccountsTrieSnapshot, V2HashedAccountsSnapshot, V2HashedStoragesSnapshot,
+            V2SnapshotMeta, V2StoragesTrieSnapshot,
+        },
     },
 };
 use alloy_eips::BlockNumHash;
@@ -48,6 +54,18 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotProviderRO
         Self: 'tx,
         TX: 'tx;
 
+    type SnapshotHashedAccountCursor<'tx>
+        = V2HashedAccountSnapshotCursor<TX::Cursor<V2HashedAccountsSnapshot>>
+    where
+        Self: 'tx,
+        TX: 'tx;
+
+    type SnapshotHashedStorageCursor<'tx>
+        = V2HashedStorageSnapshotCursor<TX::DupCursor<V2HashedStoragesSnapshot>>
+    where
+        Self: 'tx,
+        TX: 'tx;
+
     fn snapshot_anchor(&self) -> OpProofsStorageResult<BlockNumHash> {
         match self.read_snapshot_meta() {
             Ok(SnapshotMeta { anchor, status: SnapshotStatus::Ready }) => Ok(anchor),
@@ -77,6 +95,22 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotProviderRO
     ) -> OpProofsStorageResult<Self::SnapshotStorageTrieCursor<'tx>> {
         Ok(V2StorageTrieSnapshotCursor::new(
             self.tx.cursor_dup_read::<V2StoragesTrieSnapshot>()?,
+            hashed_address,
+        ))
+    }
+
+    fn snapshot_hashed_account_cursor<'tx>(
+        &self,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedAccountCursor<'tx>> {
+        Ok(V2HashedAccountSnapshotCursor::new(self.tx.cursor_read::<V2HashedAccountsSnapshot>()?))
+    }
+
+    fn snapshot_hashed_storage_cursor<'tx>(
+        &self,
+        hashed_address: B256,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedStorageCursor<'tx>> {
+        Ok(V2HashedStorageSnapshotCursor::new(
+            self.tx.cursor_dup_read::<V2HashedStoragesSnapshot>()?,
             hashed_address,
         ))
     }

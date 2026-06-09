@@ -1,0 +1,284 @@
+---
+title: "Generating a custom kona-client absolute prestate"
+description: "How to build a kona-client absolute prestate that embeds a chain configuration not yet in the public Superchain Registry."
+---
+
+# Overview
+
+For chains that are part of the public [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry), the standard `kona-client` absolute prestate published in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml) already embeds your chain configuration. No custom build is needed.
+
+This tutorial is for the rarer case: a partner chain whose `RollupConfig` is not yet in the public registry but which still needs to run permissionless fault proofs (`cannon-kona` game type). In that case you must build a custom `kona-client` that embeds your chain's configuration, generate the absolute prestate hash from that build, and host the resulting binary at a URL `op-challenger` can fetch.
+
+<Info>
+  Most chains are in the Superchain Registry and should use the standard prestate. Only follow this tutorial if your chain is **not yet** in the registry. Once the chain is added to the public registry, future releases will cover it via the standard prestate and you can stop maintaining a custom build.
+</Info>
+
+## Prerequisites
+
+Before starting, ensure you have:
+
+- [Docker](https://docs.docker.com/engine/install/) running
+- [`just`](https://github.com/casey/just) installed
+- Your chain's `rollup.json`, L2 genesis, and deployment artifacts (typically produced by `op-deployer`)
+
+## How kona-client picks up custom chain configurations
+
+`kona-client` reads its embedded chain registry from the [`kona-registry` crate](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry). At build time, the crate's `build.rs` can merge additional chains on top of the canonical Superchain Registry snapshot. The merge is gated by two environment variables:
+
+```bash
+KONA_CUSTOM_CONFIGS=true
+KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/your/configs
+```
+
+When set, the build script reads two files from `KONA_CUSTOM_CONFIGS_DIR`:
+
+- `chainList.json` — light-weight `Chain` entries for your custom chains
+- `configs.json` — full `ChainConfig` + `RollupConfig` entries grouped under a `Superchain` bucket
+
+The full schema and an end-to-end example are documented in the [`kona-registry` README](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry#custom-chain-configurations).
+
+The compiled `kona-client` binary embeds the merged registry via `include_str!()`, so the resulting absolute prestate hash differs from the standard one. Any honest challenger participating in your chain's dispute games will need to run this same binary.
+
+## Generating the custom prestate
+
+<Steps>
+  <Step title="Check out a kona-node release tag">
+    Use the same `kona-node/v<VERSION>` tag that your chain's nodes are running. The native `KONA_CUSTOM_CONFIGS_DIR` support documented below requires **`kona-node/v1.5.2` or later**; on older tags, additional justfile patches are needed.
+
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    git checkout kona-node/v<VERSION>
+    ```
+  </Step>
+
+  <Step title="Stage your chain configuration">
+    Create a directory for your custom configs:
+
+    ```bash
+    mkdir -p rust/kona/crates/protocol/registry/etc/custom-configs/<chain-name>
+    ```
+
+    Add two files inside it — `chainList.json` (lightweight chain entry) and `configs.json` (full rollup config). Replace every `<PLACEHOLDER>` with your chain's value. Notes:
+
+    - **`<CHAIN_GROUP>`**: `mainnet` if your L1 is Ethereum mainnet, `sepolia` if your L1 is Sepolia. The bucket groups chains by L1 network, not by governance — your custom-chain status is expressed via `governedByOptimism: false` and `superchainLevel: 0`.
+    - **`faultProofs.status`**: `permissionless` for chains running the `cannon-kona` game type publicly, `permissioned` for chains that only allow whitelisted challengers.
+
+    <Tabs>
+      <Tab title="chainList.json">
+        ```json
+        [
+          {
+            "name": "<YOUR_CHAIN_NAME>",
+            "identifier": "<CHAIN_GROUP>/<YOUR_CHAIN_NAME>",
+            "chainId": <YOUR_L2_CHAIN_ID>,
+            "rpc": [],
+            "explorers": [],
+            "superchainLevel": 0,
+            "governedByOptimism": false,
+            "dataAvailabilityType": "eth-da",
+            "parent": { "type": "L2", "chain": "<CHAIN_GROUP>" },
+            "faultProofs": { "status": "<permissionless | permissioned>" }
+          }
+        ]
+        ```
+      </Tab>
+      <Tab title="configs.json">
+        ```json
+        {
+          "superchains": [
+            {
+              "name": "<CHAIN_GROUP>",
+              "config": {
+                "name": "<CHAIN_GROUP_DISPLAY_NAME>",
+                "l1": {
+                  "chain_id": <L1_CHAIN_ID>,
+                  "public_rpc": "<L1_PUBLIC_RPC>",
+                  "explorer": "<L1_EXPLORER>"
+                },
+                "hardforks": {
+                  "canyon_time": 0,
+                  "delta_time": 0,
+                  "ecotone_time": 0,
+                  "fjord_time": 0,
+                  "granite_time": 0,
+                  "holocene_time": 0,
+                  "isthmus_time": 0,
+                  "jovian_time": 0
+                },
+                "superchain_config_addr": null,
+                "op_contracts_manager_proxy_addr": null
+              },
+              "chains": [
+                {
+                  "Name": "<YOUR_CHAIN_NAME>",
+                  "PublicRPC": "",
+                  "SequencerRPC": "",
+                  "Explorer": "",
+                  "SuperchainLevel": 0,
+                  "GovernedByOptimism": false,
+                  "SuperchainTime": 0,
+                  "DataAvailabilityType": "eth-da",
+                  "l2_chain_id": <YOUR_L2_CHAIN_ID>,
+                  "batch_inbox_address": "<BATCH_INBOX_ADDRESS>",
+                  "block_time": 2,
+                  "seq_window_size": 3600,
+                  "max_sequencer_drift": 600,
+                  "GasPayingToken": null,
+                  "hardfork_configuration": {
+                    "canyon_time": 0,
+                    "delta_time": 0,
+                    "ecotone_time": 0,
+                    "fjord_time": 0,
+                    "granite_time": 0,
+                    "holocene_time": 0,
+                    "isthmus_time": 0,
+                    "jovian_time": 0
+                  },
+                  "optimism": {
+                    "eip1559Elasticity": 6,
+                    "eip1559Denominator": 50,
+                    "eip1559DenominatorCanyon": 250
+                  },
+                  "alt_da": null,
+                  "genesis": {
+                    "l1": {
+                      "number": <L1_GENESIS_BLOCK>,
+                      "hash": "<L1_GENESIS_HASH>"
+                    },
+                    "l2": {
+                      "number": 0,
+                      "hash": "<L2_GENESIS_HASH>"
+                    },
+                    "l2_time": <L2_GENESIS_TIMESTAMP>,
+                    "system_config": {
+                      "batcherAddr": "<BATCHER_ADDRESS>",
+                      "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                      "scalar": "<SCALAR_HEX>",
+                      "gasLimit": 60000000
+                    }
+                  },
+                  "Roles": {
+                    "SystemConfigOwner": "<SYSTEM_CONFIG_OWNER>",
+                    "ProxyAdminOwner": "<PROXY_ADMIN_OWNER>",
+                    "Guardian": "<GUARDIAN>",
+                    "Challenger": "<CHALLENGER>",
+                    "Proposer": "<PROPOSER>",
+                    "UnsafeBlockSigner": "<UNSAFE_BLOCK_SIGNER>",
+                    "BatchSubmitter": "<BATCH_SUBMITTER>"
+                  },
+                  "Addresses": {
+                    "AddressManager": "<ADDRESS_MANAGER>",
+                    "L1CrossDomainMessengerProxy": "<L1_CROSS_DOMAIN_MESSENGER_PROXY>",
+                    "L1Erc721BridgeProxy": "<L1_ERC721_BRIDGE_PROXY>",
+                    "L1StandardBridgeProxy": "<L1_STANDARD_BRIDGE_PROXY>",
+                    "L2OutputOracleProxy": "0x0000000000000000000000000000000000000000",
+                    "OptimismMintableErc20FactoryProxy": "<OPTIMISM_MINTABLE_ERC20_FACTORY_PROXY>",
+                    "OptimismPortalProxy": "<OPTIMISM_PORTAL_PROXY>",
+                    "SystemConfigProxy": "<SYSTEM_CONFIG_PROXY>",
+                    "ProxyAdmin": "<PROXY_ADMIN>",
+                    "AnchorStateRegistryProxy": "<ANCHOR_STATE_REGISTRY_PROXY>",
+                    "DelayedWethProxy": "<DELAYED_WETH_PROXY>",
+                    "DisputeGameFactoryProxy": "<DISPUTE_GAME_FACTORY_PROXY>",
+                    "FaultDisputeGame": "<FAULT_DISPUTE_GAME>",
+                    "PermissionedDisputeGame": "<PERMISSIONED_DISPUTE_GAME>"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+        ```
+      </Tab>
+    </Tabs>
+
+    Source the values from your chain's existing artifacts:
+
+    - `genesis.*`, `block_time`, `seq_window_size`, `max_sequencer_drift`, `batch_inbox_address`, hardfork timestamps → your chain's `rollup.json`
+    - `Addresses.*` → your `op-deployer` state (`opChainDeployments[<i>]`)
+    - `Roles.*` → your `op-deployer` state's per-chain `roles` block
+
+    Cross-check each L1 contract address onchain (`cast call`) before committing.
+  </Step>
+
+  <Step title="Generate the absolute prestate">
+    From the root of the monorepo, point `KONA_CUSTOM_CONFIGS_DIR` at the directory you created in Step 2, then run the canonical build:
+
+    ```bash
+    export KONA_CUSTOM_CONFIGS_DIR="$PWD/rust/kona/crates/protocol/registry/etc/custom-configs/<chain-name>"
+    just reproducible-prestate-kona
+    jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json
+    ```
+
+    The hash printed is your chain's custom kona absolute prestate. The build also writes a hash-named gzipped binary at `rust/kona/prestate-artifacts-cannon/0x<hash>.bin.gz` — this is the file `op-challenger` needs to fetch at dispute time.
+  </Step>
+
+  <Step title="Verify your chain is embedded in the prestate">
+    A custom-config build that silently fails to merge your chain produces the *standard* prestate hash — and an `op-challenger` pointed at it will never agree with your games. Always confirm your chain actually made it in:
+
+    ```bash
+    # 1. The build log must list every custom chain that was merged:
+    #    cargo:warning=...: inserting new custom chain <bucket>: [chain-a,chain-b]
+    #    (or "merging custom chains <bucket>: [...]" if the bucket already exists)
+    #
+    # 2. The chain name must appear inside the prestate image itself:
+    gunzip -c rust/kona/prestate-artifacts-cannon/prestate.bin.gz | strings | grep "<chain-name>"
+    ```
+
+    Run the `grep` once per chain in your `chainList.json` and confirm at least one match for **every** chain — a build that embeds chain A but drops chain B still produces a valid-looking hash. Zero matches means `KONA_CUSTOM_CONFIGS=true` was not set in the build shell, or `KONA_CUSTOM_CONFIGS_DIR` was a relative path.
+  </Step>
+
+  <Step title="Verify reproducibility">
+    From a fresh checkout of the same tag with the same custom-configs files in place, repeat the build and confirm the hash is bit-identical. Anyone who wants to participate as an honest challenger on your chain must be able to reproduce this hash from the same inputs.
+  </Step>
+</Steps>
+
+## Deploying and configuring with the custom prestate
+
+<Steps>
+  <Step title="Host the prestate binary">
+    Upload `0x<hash>.bin.gz` to wherever you serve preimage files for `op-challenger` — typically a GCS bucket or HTTP endpoint. Files must be named by their absolute prestate hash so the challenger can resolve them on demand.
+  </Step>
+
+  <Step title="Register the custom prestate as game type 8">
+    On the current (v2.4+) dispute-game contracts the absolute prestate is **not** a constructor argument — it lives in the `DisputeGameFactory`'s per-game-type `gameArgs`, appended to each game via clones-with-immutable-args. So you do **not** deploy a new implementation for a new prestate. Reuse the existing permissionless `FaultDisputeGame` implementation (a fresh op-deployer chain deploys one but leaves it unregistered) and register it for game type 8 with `gameArgs` that carry your prestate.
+
+    `gameArgs` for a permissionless game is the packed encoding (124 bytes):
+
+    ```
+    abi.encodePacked(absolutePrestate, vm, anchorStateRegistry, weth, l2ChainId)
+    ```
+
+    Reuse `vm` / `anchorStateRegistry` / `weth` / `l2ChainId` from an existing registered game type (e.g. read `gameArgs(1)` and swap in your prestate), then register from the `DisputeGameFactory` owner:
+
+    ```solidity
+    // GAME_TYPE_CANNON_KONA == 8
+    DisputeGameFactory.setImplementation(8, faultDisputeGameImpl, gameArgs);
+    DisputeGameFactory.setInitBond(8, initBond);            // 0 is fine for a dev/test chain
+    ```
+
+    Then make game type 8 the respected type from the Guardian role — `respectedGameType` lives on the `AnchorStateRegistry`, not the `OptimismPortal` (the portal proxies to it):
+
+    ```solidity
+    AnchorStateRegistry.setRespectedGameType(8);
+    ```
+
+    See [Migrating to permissionless fault proofs](/chain-operators/tutorials/migrating-permissionless) for the full role/transaction walkthrough. (On older, pre-v2.4 contracts where `absolutePrestate` was a constructor immutable, each prestate did require a fresh implementation deployment instead.)
+  </Step>
+
+  <Step title="Configure op-challenger">
+    Add the kona-specific env vars to your existing challenger config:
+
+    ```bash
+    OP_CHALLENGER_TRACE_TYPE=cannon-kona,permissioned
+    OP_CHALLENGER_CANNON_KONA_PRESTATES_URL=<HTTP_URL_PATH_TO_PRESTATES>
+    ```
+
+    The challenger appends `/0x<hash>.bin.gz` to `*_PRESTATES_URL` to resolve the right binary per dispute. Your existing `OP_CHALLENGER_ROLLUP_CONFIG`, `OP_CHALLENGER_L2_GENESIS`, and `OP_CHALLENGER_GAME_FACTORY_ADDRESS` continue to apply unchanged.
+  </Step>
+</Steps>
+
+## Next Steps
+
+- [Upgrade 19 notice](/notices/upgrade-19) — the `cannon-kona` game type promotion and reference build commands for the standard prestate.
+- [Generating absolute prestate and preimage files](/chain-operators/tutorials/absolute-prestate) — the equivalent tutorial for `op-program` (cannon, game type 1), kept for chains still running that game type.

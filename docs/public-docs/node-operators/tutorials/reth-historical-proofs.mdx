@@ -122,8 +122,8 @@ When op-reth is run with the `--metrics=<addr>:<port>` flag, the proofs-history 
 ## Operational Commands
 
 ### Manual prune
-
-Pruning runs automatically in the background on the configured `--proofs-history.prune-interval` (default 15s). You should not need to invoke `op-reth proofs prune` under normal operation.
+  
+Pruning runs automatically in the background, driven by the engine task as new blocks are committed, and removes data outside the retention window. You should not need to invoke `op-reth proofs prune` under normal operation.
 
 A manual prune is only required in one situation: at startup, if the proofs database contains more than **1000 blocks** of history beyond the configured `--proofs-history.window`, the node refuses to start rather than stalling on a large prune operation. This typically happens after the node has been offline long enough that the configured window has shifted significantly, or after reducing `--proofs-history.window` to a smaller value than was previously in use.
 

@@ -5,13 +5,15 @@ use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_node::args::ProofsStorageVersion;
+use reth_optimism_node::args::{
+    ProofsHistoryStorageArgs, ProofsHistoryWindowArg, ProofsStorageVersion,
+};
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
     OpProofStoragePruner, OpProofsProviderRO, OpProofsStore,
     db::{MdbxProofsStorage, MdbxProofsStorageV2},
 };
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 use tracing::info;
 
 /// Prunes the proofs storage by removing old proof history and state updates.
@@ -20,23 +22,13 @@ pub struct PruneCommand<C: ChainSpecParser> {
     #[command(flatten)]
     env: EnvironmentArgs<C>,
 
-    /// The path to the storage DB for proofs history.
-    #[arg(
-        long = "proofs-history.storage-path",
-        value_name = "PROOFS_HISTORY_STORAGE_PATH",
-        required = true
-    )]
-    pub storage_path: PathBuf,
+    /// Shared proofs-history storage flags (storage path + version).
+    #[command(flatten)]
+    pub history: ProofsHistoryStorageArgs,
 
-    /// The window to span blocks for proofs history. Value is the number of blocks.
-    /// Default is 1 month of blocks based on 2 seconds block time.
-    /// 30 * 24 * 60 * 60 / 2 = `1_296_000`
-    #[arg(
-        long = "proofs-history.window",
-        default_value_t = 1_296_000,
-        value_name = "PROOFS_HISTORY_WINDOW"
-    )]
-    pub proofs_history_window: u64,
+    /// Shared proofs-history retention window (in blocks).
+    #[command(flatten)]
+    pub proofs_history_window: ProofsHistoryWindowArg,
 
     /// The batch size for pruning operations.
     #[arg(
@@ -45,14 +37,6 @@ pub struct PruneCommand<C: ChainSpecParser> {
         value_name = "PROOFS_HISTORY_PRUNE_BATCH_SIZE"
     )]
     pub proofs_history_prune_batch_size: u64,
-
-    /// Storage schema version. Must match the version used when starting the node.
-    #[arg(
-        long = "proofs-history.storage-version",
-        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
-        default_value = "v1"
-    )]
-    pub storage_version: ProofsStorageVersion,
 }
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneCommand<C> {
@@ -62,35 +46,36 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> PruneCommand<C> {
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
         info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
-        info!(target: "reth::cli", "Pruning OP proofs storage at: {:?}", self.storage_path);
 
         // Initialize the environment with read-only access. We use `RoInconsistent` to skip the
         // static-file/database consistency check.
-        let Environment { provider_factory, .. } =
+        let Environment { provider_factory, data_dir, .. } =
             self.env.init::<N>(AccessRights::RoInconsistent, runtime)?;
+        let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
+        info!(target: "reth::cli", "Pruning OP proofs storage at: {:?}", storage_path);
 
-        match self.storage_version {
+        match self.history.storage_version {
             ProofsStorageVersion::V1 => {
                 let storage: Arc<MdbxProofsStorage> = Arc::new(
-                    MdbxProofsStorage::new(&self.storage_path)
+                    MdbxProofsStorage::new(&storage_path)
                         .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
                 );
                 Self::run_prune(
                     storage,
                     provider_factory,
-                    self.proofs_history_window,
+                    self.proofs_history_window.window,
                     self.proofs_history_prune_batch_size,
                 )?;
             }
             ProofsStorageVersion::V2 => {
                 let storage: Arc<MdbxProofsStorageV2> = Arc::new(
-                    MdbxProofsStorageV2::new(&self.storage_path)
+                    MdbxProofsStorageV2::new(&storage_path)
                         .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
                 );
                 Self::run_prune(
                     storage,
                     provider_factory,
-                    self.proofs_history_window,
+                    self.proofs_history_window.window,
                     self.proofs_history_prune_batch_size,
                 )?;
             }

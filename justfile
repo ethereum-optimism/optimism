@@ -34,7 +34,7 @@ sync-superchain:
 build: build-go build-contracts
 
 # Builds main Go components.
-build-go: submodules op-node op-proposer op-batcher op-challenger op-dispute-mon op-program cannon
+build-go: submodules op-node op-proposer op-batcher op-challenger op-dispute-mon cannon
 
 # Builds contracts-bedrock.
 build-contracts:
@@ -191,37 +191,34 @@ op-supernode:
 op-interop-filter:
   just ./op-interop-filter/op-interop-filter
 
-# Builds op-program binary.
-op-program:
-  cd op-program && just op-program
-
 # Builds cannon binary.
 cannon:
   cd cannon && just cannon
-
-# Builds reproducible prestate for op-program.
-reproducible-prestate-op-program:
-  cd op-program && just build-reproducible-prestate
 
 # Builds reproducible prestate for kona.
 reproducible-prestate-kona:
   cd rust && just build-kona-reproducible-prestate
 
-# Builds reproducible prestates for op-program and kona in parallel.
+# Builds the reproducible kona prestate and prints its hash.
 [script('bash')]
 reproducible-prestate:
   set -euo pipefail
-  (cd op-program && just build-reproducible-prestate) &
-  pid1=$!
-  (cd rust && just build-kona-reproducible-prestate) &
-  pid2=$!
-  wait "$pid1" "$pid2"
-  (cd op-program && just output-prestate-hash)
+  (cd rust && just build-kona-reproducible-prestate)
   (cd rust && just output-kona-prestate-hash)
 
-# Builds cannon prestates.
-cannon-prestates: cannon op-program
-  go run ./op-program/builder/main.go build-all-prestates
+# Builds the cannon prestate.
+cannon-prestates:
+  cd rust && just build-kona-prestates
+
+# Verifies the reproducibility of released cannon prestates against the
+# superchain-registry standard prestates. Each tagged release (op-program/v*
+# and kona-client/v*) is rebuilt from its own checked-out source, so historical
+# op-program prestates are still checked even though op-program is no longer in
+# the tree.
+verify-reproducibility:
+  rm -rf ops/prestate-reproducibility/temp/states
+  ./ops/prestate-reproducibility/build-prestates.sh
+  env GO111MODULE=on go run ./ops/prestate-reproducibility/prestates/verify/verify.go --input ops/prestate-reproducibility/temp/states/versions.json
 
 # Cleans up unused dependencies in Go modules.
 # Bypasses the Go module proxy for freshly released versions.
@@ -257,14 +254,6 @@ semgrep-ci:
   DEV_REF=$(git rev-parse develop)
   SEMGREP_REPO_NAME=ethereum-optimism/optimism semgrep ci --baseline-commit="$DEV_REF"
 
-# Builds op-program-client binary.
-op-program-client:
-  cd op-program && just op-program-client
-
-# Builds op-program-host binary.
-op-program-host:
-  cd op-program && just op-program-host
-
 # Makes pre-test setup.
 make-pre-test:
   cd op-e2e && just pre-test
@@ -278,7 +267,7 @@ list-test-packages:
 
 # Runs comprehensive Go tests across all packages.
 [script('bash')]
-go-tests: op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test sync-superchain
+go-tests: cannon build-contracts make-pre-test sync-superchain
   set -euo pipefail
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="false"
@@ -289,7 +278,7 @@ go-tests: op-program-client op-program-host cannon build-contracts cannon-presta
 
 # Runs comprehensive Go tests with -short flag.
 [script('bash')]
-go-tests-short: op-program-client op-program-host cannon build-contracts cannon-prestates make-pre-test sync-superchain
+go-tests-short: cannon build-contracts make-pre-test sync-superchain
   set -euo pipefail
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="false"

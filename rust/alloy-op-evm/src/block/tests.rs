@@ -269,6 +269,90 @@ fn test_jovian_da_footprint_estimation_maxed_out_da_footprint() {
     assert!(result.blob_gas_used > result.gas_used);
 }
 
+/// Asserts that `err` is a `TransactionGasLimitMoreThanAvailableBlockGas` with the expected fields.
+fn assert_gas_limit_exceeded(
+    err: BlockExecutionError,
+    expected_tx_gas_limit: u64,
+    expected_available: u64,
+) {
+    match err {
+        BlockExecutionError::Validation(
+            BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+                transaction_gas_limit,
+                block_available_gas,
+            },
+        ) => {
+            assert_eq!(transaction_gas_limit, expected_tx_gas_limit);
+            assert_eq!(block_available_gas, expected_available);
+        }
+        other => panic!("expected TransactionGasLimitMoreThanAvailableBlockGas, got: {other:?}"),
+    }
+}
+
+// SDM-off regression: with refunds disabled `evm_gas_used` equals `gas_used`, so a tx over the
+// block gas limit is rejected with the full block gas limit as available gas.
+#[test]
+fn test_pre_refund_gas_limit_never_binds_with_sdm_off() {
+    const BLOCK_GAS_LIMIT: u64 = 100_000;
+    let mut fixture =
+        SDMExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, BLOCK_GAS_LIMIT, JOVIAN_TIMESTAMP);
+    let mut executor = fixture.executor();
+
+    let tx = recovered_legacy(TxLegacy { gas_limit: BLOCK_GAS_LIMIT + 1, ..Default::default() });
+    let err = executor.execute_transaction(&tx).expect_err("tx over the block gas limit");
+
+    assert_gas_limit_exceeded(err, BLOCK_GAS_LIMIT + 1, BLOCK_GAS_LIMIT);
+}
+
+// SDM refunds lower canonical gas but must not increase the real compute admitted into a block:
+// after a refund, a tx that fits canonical `gas_used` while exceeding the pre-refund `evm_gas_used`
+// budget must still be rejected.
+#[test]
+fn test_pre_refund_gas_limit_counts_sdm_refunded_gas() {
+    const BLOCK_GAS_LIMIT: u64 = 100_000;
+    let target = Address::from([0x11; 20]);
+    let tx0 = recovered_legacy(TxLegacy {
+        nonce: 0,
+        gas_limit: 50_000,
+        to: alloy_primitives::TxKind::Call(target),
+        ..Default::default()
+    });
+    let tx1 = recovered_legacy(TxLegacy {
+        nonce: 1,
+        gas_limit: 50_000,
+        to: alloy_primitives::TxKind::Call(target),
+        ..Default::default()
+    });
+
+    let mut fixture =
+        SDMExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, BLOCK_GAS_LIMIT, JOVIAN_TIMESTAMP);
+    let mut executor = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+    executor.execute_transaction(&tx0).expect("first tx fits");
+    executor.execute_transaction(&tx1).expect("second tx fits and receives a refund");
+
+    assert!(executor.evm_gas_used > executor.gas_used, "expected SDM to refund canonical gas");
+    let evm_gas_available = BLOCK_GAS_LIMIT - executor.evm_gas_used;
+    let canonical_gas_available = BLOCK_GAS_LIMIT - executor.gas_used;
+    assert!(evm_gas_available < canonical_gas_available);
+
+    let tx2_gas_limit = evm_gas_available + 1;
+    assert!(
+        tx2_gas_limit <= canonical_gas_available,
+        "test tx should fit canonical gas but exceed pre-refund gas"
+    );
+    let tx2 = recovered_legacy(TxLegacy {
+        nonce: 2,
+        gas_limit: tx2_gas_limit,
+        to: alloy_primitives::TxKind::Call(target),
+        ..Default::default()
+    });
+
+    let err = executor
+        .execute_transaction(&tx2)
+        .expect_err("tx exceeding pre-refund block gas must be rejected");
+    assert_gas_limit_exceeded(err, tx2_gas_limit, evm_gas_available);
+}
+
 mod sdm {
     use super::*;
     use alloy_consensus::Sealable;
@@ -286,12 +370,34 @@ mod sdm {
     }
 
     fn legacy_tx(nonce: u64, to: Address) -> Recovered<OpTxEnvelope> {
+        legacy_tx_with_gas(nonce, to, 50_000)
+    }
+
+    fn legacy_tx_with_gas(nonce: u64, to: Address, gas_limit: u64) -> Recovered<OpTxEnvelope> {
         recovered_legacy(TxLegacy {
             nonce,
-            gas_limit: 50_000,
+            gas_limit,
             to: alloy_primitives::TxKind::Call(to),
             ..Default::default()
         })
+    }
+
+    fn full_refund_for_second_tx(
+        block_gas_limit: u64,
+        tx0: &Recovered<OpTxEnvelope>,
+        tx1: &Recovered<OpTxEnvelope>,
+    ) -> Vec<SDMGasEntry> {
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            block_gas_limit,
+            JOVIAN_TIMESTAMP,
+        );
+        let mut probe = fixture.executor();
+        probe.execute_transaction(tx0).expect("probe first tx");
+        let tx1_evm_gas_used =
+            probe.execute_transaction(tx1).expect("probe second tx").tx_gas_used();
+
+        vec![SDMGasEntry { index: 1, gas_refund: tx1_evm_gas_used }]
     }
 
     fn assert_invalid_post_exec(err: BlockExecutionError, expected_reason: &str) {
@@ -400,6 +506,97 @@ mod sdm {
         assert_eq!(verified.blob_gas_used, produced.blob_gas_used);
         assert_eq!(verified.receipts, produced.receipts);
         assert_eq!(verified.receipts.len(), user_txs.len() + 1);
+    }
+
+    // Demonstrates the accounting the pre-refund cap relies on: under SDM refunds, canonical
+    // `gas_used` falls below `evm_gas_used`, so capping on `evm_gas_used` (not `gas_used`) keeps
+    // tracking the real compute performed.
+    #[test]
+    fn test_evm_gas_used_tracks_pre_refund_gas_under_sdm() {
+        let target = Address::from([0x11; 20]);
+        let user_txs = vec![legacy_tx(0, target), legacy_tx(1, target)];
+
+        let mut fixture = SDMExecutorFixture::default();
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+        for tx in &user_txs {
+            producer.execute_transaction(tx).expect("producer executes user tx");
+        }
+
+        // The second tx reuses block-warmed addresses and earns an SDM refund, so canonical gas is
+        // strictly less than the pre-refund EVM gas spent.
+        assert!(!producer.post_exec_entries().is_empty(), "expected an SDM refund to be produced");
+        assert!(
+            producer.evm_gas_used > producer.gas_used,
+            "pre-refund evm_gas_used ({}) must exceed canonical gas_used ({}) once refunds apply",
+            producer.evm_gas_used,
+            producer.gas_used,
+        );
+        // The gap is exactly the total refund.
+        let total_refund: u64 = producer.post_exec_entries().iter().map(|e| e.gas_refund).sum();
+        assert_eq!(producer.evm_gas_used - producer.gas_used, total_refund);
+    }
+
+    #[test]
+    fn test_verifier_rejects_malicious_payload_whose_refunds_hide_pre_refund_overuse() {
+        const BLOCK_GAS_LIMIT: u64 = 100_000;
+        let target = Address::from([0x11; 20]);
+        let tx0 = legacy_tx(0, target);
+        let tx1 = legacy_tx(1, target);
+
+        // Refund the second tx completely. The verifier accepts refund == evm_gas_used but must not
+        // let that canonical-gas discount buy extra real compute later in the block.
+        let entries = full_refund_for_second_tx(BLOCK_GAS_LIMIT, &tx0, &tx1);
+
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        let mut verifier = fixture.verifier(0, entries);
+        verifier.execute_transaction(&tx0).expect("first tx fits");
+        verifier.execute_transaction(&tx1).expect("second tx is fully refunded canonically");
+
+        let evm_gas_available = BLOCK_GAS_LIMIT - verifier.evm_gas_used;
+        let canonical_gas_available = BLOCK_GAS_LIMIT - verifier.gas_used;
+        assert!(evm_gas_available < canonical_gas_available);
+
+        let tx2_gas_limit = evm_gas_available + 1;
+        assert!(
+            tx2_gas_limit <= canonical_gas_available,
+            "malicious tx should fit canonical gas but exceed pre-refund gas"
+        );
+        let tx2 = legacy_tx_with_gas(2, target, tx2_gas_limit);
+
+        let err = verifier
+            .execute_transaction(&tx2)
+            .expect_err("verifier must reject pre-refund gas overuse even if refunds hide it");
+        assert_gas_limit_exceeded(err, tx2_gas_limit, evm_gas_available);
+    }
+
+    #[test]
+    fn test_verifier_accepts_payload_when_pre_refund_stays_below_limit() {
+        const BLOCK_GAS_LIMIT: u64 = 100_000;
+        let target = Address::from([0x11; 20]);
+        let tx0 = legacy_tx(0, target);
+        let tx1 = legacy_tx(1, target);
+        let entries = full_refund_for_second_tx(BLOCK_GAS_LIMIT, &tx0, &tx1);
+
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        let mut verifier = fixture.verifier(0, entries.clone());
+        verifier.execute_transaction(&tx0).expect("first tx fits");
+        verifier.execute_transaction(&tx1).expect("second tx is fully refunded canonically");
+
+        let tx2 = legacy_tx_with_gas(2, target, BLOCK_GAS_LIMIT - verifier.evm_gas_used);
+        verifier
+            .execute_transaction(&tx2)
+            .expect("tx declared within the remaining pre-refund budget is accepted");
+        let post_exec_recovered = recovered_post_exec(0, entries);
+        verifier.execute_transaction(&post_exec_recovered).expect("post-exec tx verifies");
+        verifier.finish().expect("verifier finishes accepted boundary block");
     }
 
     #[test]

@@ -2,26 +2,31 @@
 
 use super::MdbxProofsProviderV2;
 use crate::{
-    OpProofsStorageError,
+    BlockStateDiff, OpProofsStorageError,
     api::{
         OpProofsBackfillProvider, OpProofsSnapshotInitProvider, OpProofsSnapshotProviderRO,
         SnapshotInitStatus,
     },
     db::{
         SnapshotMeta, SnapshotMetaKey, SnapshotStatus, StorageTrieKey,
-        models::{self, V2AccountsTrieSnapshot, V2SnapshotMeta, V2StoragesTrieSnapshot},
+        models::{
+            self, V2AccountsTrieSnapshot, V2HashedAccountsSnapshot, V2HashedStoragesSnapshot,
+            V2SnapshotMeta, V2StoragesTrieSnapshot,
+        },
     },
 };
 use alloy_eips::BlockNumHash;
-use alloy_primitives::B256;
+use alloy_primitives::{B256, U256, map::B256Map};
 use reth_db::{
     Database, DatabaseEnv,
     cursor::{DbCursorRO, DbDupCursorRO},
     mdbx::{DatabaseArguments, init_db_for},
     transaction::DbTx,
 };
+use reth_primitives_traits::{Account, StorageEntry};
 use reth_trie::{
-    BranchNodeCompact, Nibbles, StoredNibbles, StoredNibblesSubKey,
+    BranchNodeCompact, HashedPostStateSorted, HashedStorageSorted, Nibbles, StoredNibbles,
+    StoredNibblesSubKey,
     updates::{StorageTrieUpdates, TrieUpdates},
 };
 use tempfile::TempDir;
@@ -316,10 +321,16 @@ fn write_update_snapshot_applies_diff_and_advances_anchor() {
         let mut st = StorageTrieUpdates::default();
         st.storage_nodes.insert(stor_path, stor_node.clone());
         updates.storage_tries.insert(addr, st);
-        let sorted = updates.into_sorted();
+        let diff = BlockStateDiff {
+            sorted_trie_updates: updates.into_sorted(),
+            sorted_post_state: HashedPostStateSorted::default(),
+        };
 
-        let n = provider.update_snapshot(new_anchor, &sorted).expect("update");
-        assert_eq!(n, 2, "account + storage node = 2");
+        let counts = provider.update_snapshot(new_anchor, &diff).expect("update");
+        assert_eq!(counts.account_trie_updates_written_total, 1);
+        assert_eq!(counts.storage_trie_updates_written_total, 1);
+        assert_eq!(counts.hashed_accounts_written_total, 0);
+        assert_eq!(counts.hashed_storages_written_total, 0);
         OpProofsBackfillProvider::commit(provider).expect("commit");
     }
 
@@ -368,8 +379,11 @@ fn write_update_snapshot_handles_removals() {
         let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
         let mut updates = TrieUpdates::default();
         updates.removed_nodes.insert(acc_path);
-        let sorted = updates.into_sorted();
-        provider.update_snapshot(new_anchor, &sorted).expect("update");
+        let diff = BlockStateDiff {
+            sorted_trie_updates: updates.into_sorted(),
+            sorted_post_state: HashedPostStateSorted::default(),
+        };
+        provider.update_snapshot(new_anchor, &diff).expect("update");
         OpProofsBackfillProvider::commit(provider).expect("commit");
     }
 
@@ -415,8 +429,11 @@ fn write_update_snapshot_removes_storage_node_and_keeps_sibling() {
         let mut st = StorageTrieUpdates::default();
         st.removed_nodes.insert(dropped_path);
         updates.storage_tries.insert(addr, st);
-        let sorted = updates.into_sorted();
-        provider.update_snapshot(new_anchor, &sorted).expect("update");
+        let diff = BlockStateDiff {
+            sorted_trie_updates: updates.into_sorted(),
+            sorted_post_state: HashedPostStateSorted::default(),
+        };
+        provider.update_snapshot(new_anchor, &diff).expect("update");
         OpProofsBackfillProvider::commit(provider).expect("commit");
     }
 
@@ -450,8 +467,11 @@ fn write_update_snapshot_errors_when_building() {
     }
 
     let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-    let sorted = TrieUpdates::default().into_sorted();
-    let err = provider.update_snapshot(anchor(9, 0x09), &sorted).unwrap_err();
+    let diff = BlockStateDiff {
+        sorted_trie_updates: TrieUpdates::default().into_sorted(),
+        sorted_post_state: HashedPostStateSorted::default(),
+    };
+    let err = provider.update_snapshot(anchor(9, 0x09), &diff).unwrap_err();
     match err {
         OpProofsStorageError::SnapshotUpdateNotReady { status } => {
             assert_eq!(status, SnapshotStatus::Building);
@@ -461,10 +481,293 @@ fn write_update_snapshot_errors_when_building() {
 }
 
 #[test]
+fn write_update_snapshot_upserts_existing_account_leaf() {
+    let db = setup_db();
+    let old_anchor = anchor(10, 0x10);
+    let new_anchor = anchor(9, 0x09);
+    let addr = B256::repeat_byte(0xA1);
+    let old_value = Account { nonce: 1, balance: U256::from(1u64), ..Default::default() };
+    let new_value = Account { nonce: 2, balance: U256::from(2u64), ..Default::default() };
+
+    prepare_ready_snapshot(&db, old_anchor);
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        provider.store_hashed_accounts_snapshot(vec![(addr, old_value)]).expect("seed");
+        OpProofsSnapshotInitProvider::commit(provider).expect("commit seed");
+    }
+
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let sorted_post_state =
+            HashedPostStateSorted::new(vec![(addr, Some(new_value))], B256Map::default());
+        let diff = BlockStateDiff {
+            sorted_trie_updates: TrieUpdates::default().into_sorted(),
+            sorted_post_state,
+        };
+        let counts = provider.update_snapshot(new_anchor, &diff).expect("update");
+        assert_eq!(counts.hashed_accounts_written_total, 1);
+        OpProofsBackfillProvider::commit(provider).expect("commit");
+    }
+
+    let tx = db.tx().expect("ro");
+    let mut cur = tx.cursor_read::<V2HashedAccountsSnapshot>().expect("cur");
+    let (_, got) = cur.seek_exact(addr).expect("seek").expect("row");
+    assert_eq!(got, new_value, "upsert must overwrite the prior value");
+}
+
+#[test]
+fn write_update_snapshot_deletes_destroyed_account_leaf() {
+    let db = setup_db();
+    let old_anchor = anchor(10, 0x10);
+    let new_anchor = anchor(9, 0x09);
+    let addr = B256::repeat_byte(0xA2);
+
+    prepare_ready_snapshot(&db, old_anchor);
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        provider
+            .store_hashed_accounts_snapshot(vec![(
+                addr,
+                Account { nonce: 0, balance: U256::from(5u64), ..Default::default() },
+            )])
+            .expect("seed");
+        OpProofsSnapshotInitProvider::commit(provider).expect("commit seed");
+    }
+
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let sorted_post_state = HashedPostStateSorted::new(vec![(addr, None)], B256Map::default());
+        let diff = BlockStateDiff {
+            sorted_trie_updates: TrieUpdates::default().into_sorted(),
+            sorted_post_state,
+        };
+        let counts = provider.update_snapshot(new_anchor, &diff).expect("update");
+        assert_eq!(counts.hashed_accounts_written_total, 1);
+        OpProofsBackfillProvider::commit(provider).expect("commit");
+    }
+
+    let tx = db.tx().expect("ro");
+    let mut cur = tx.cursor_read::<V2HashedAccountsSnapshot>().expect("cur");
+    assert!(cur.seek_exact(addr).expect("seek").is_none(), "destroyed leaf must be gone");
+}
+
+#[test]
+fn write_update_snapshot_wipes_all_storage_slots() {
+    let db = setup_db();
+    let old_anchor = anchor(10, 0x10);
+    let new_anchor = anchor(9, 0x09);
+    let addr = B256::repeat_byte(0xA3);
+    let slot_1 = B256::repeat_byte(0x01);
+    let slot_2 = B256::repeat_byte(0x02);
+
+    prepare_ready_snapshot(&db, old_anchor);
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        provider
+            .store_hashed_storages_snapshot(
+                addr,
+                vec![(slot_1, U256::from(11u64)), (slot_2, U256::from(22u64))],
+            )
+            .expect("seed");
+        OpProofsSnapshotInitProvider::commit(provider).expect("commit seed");
+    }
+
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let mut storages: B256Map<HashedStorageSorted> = B256Map::default();
+        storages.insert(addr, HashedStorageSorted { storage_slots: vec![], wiped: true });
+        let sorted_post_state = HashedPostStateSorted::new(Vec::new(), storages);
+        let diff = BlockStateDiff {
+            sorted_trie_updates: TrieUpdates::default().into_sorted(),
+            sorted_post_state,
+        };
+        let counts = provider.update_snapshot(new_anchor, &diff).expect("update");
+        assert_eq!(counts.hashed_storages_written_total, 1, "wipe counts once per address");
+        OpProofsBackfillProvider::commit(provider).expect("commit");
+    }
+
+    let tx = db.tx().expect("ro");
+    let mut cur = tx.cursor_dup_read::<V2HashedStoragesSnapshot>().expect("cur");
+    assert!(
+        cur.seek_by_key_subkey(addr, slot_1).expect("seek").is_none_or(|e| e.key != slot_1),
+        "slot 1 must be wiped",
+    );
+    assert!(
+        cur.seek_by_key_subkey(addr, slot_2).expect("seek").is_none_or(|e| e.key != slot_2),
+        "slot 2 must be wiped (delete_current_duplicates drops every dup, not just the first)",
+    );
+}
+
+#[test]
+fn write_update_snapshot_wipes_then_adds_slots_in_same_block() {
+    let db = setup_db();
+    let old_anchor = anchor(10, 0x10);
+    let new_anchor = anchor(9, 0x09);
+    let addr = B256::repeat_byte(0xA6);
+    let slot_old_1 = B256::repeat_byte(0x01);
+    let slot_old_2 = B256::repeat_byte(0x02);
+    // Sorted slot order is required by the per-slot loop's cursor seeks
+    // (later iterations rely on monotonic positioning on the dup cursor).
+    let slot_new_a = B256::repeat_byte(0x10);
+    let slot_new_b = B256::repeat_byte(0x20);
+    let new_value_a = U256::from(111u64);
+    let new_value_b = U256::from(222u64);
+
+    prepare_ready_snapshot(&db, old_anchor);
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        provider
+            .store_hashed_storages_snapshot(
+                addr,
+                vec![(slot_old_1, U256::from(11u64)), (slot_old_2, U256::from(22u64))],
+            )
+            .expect("seed");
+        OpProofsSnapshotInitProvider::commit(provider).expect("commit seed");
+    }
+
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let mut storages: B256Map<HashedStorageSorted> = B256Map::default();
+        storages.insert(
+            addr,
+            HashedStorageSorted {
+                storage_slots: vec![(slot_new_a, new_value_a), (slot_new_b, new_value_b)],
+                wiped: true,
+            },
+        );
+        let sorted_post_state = HashedPostStateSorted::new(Vec::new(), storages);
+        let diff = BlockStateDiff {
+            sorted_trie_updates: TrieUpdates::default().into_sorted(),
+            sorted_post_state,
+        };
+        let counts = provider.update_snapshot(new_anchor, &diff).expect("update");
+        // The wipe counts once + one per new slot.
+        assert_eq!(counts.hashed_storages_written_total, 3);
+        OpProofsBackfillProvider::commit(provider).expect("commit");
+    }
+
+    let tx = db.tx().expect("ro");
+    let mut cur = tx.cursor_dup_read::<V2HashedStoragesSnapshot>().expect("cur");
+
+    // Old slots are gone (wipe phase).
+    assert!(
+        cur.seek_by_key_subkey(addr, slot_old_1).expect("seek").is_none_or(|e| e.key != slot_old_1),
+        "old slot 1 must be wiped",
+    );
+    assert!(
+        cur.seek_by_key_subkey(addr, slot_old_2).expect("seek").is_none_or(|e| e.key != slot_old_2),
+        "old slot 2 must be wiped",
+    );
+
+    // New slots are present with the values from the diff (upsert phase).
+    let got_a = cur
+        .seek_by_key_subkey(addr, slot_new_a)
+        .expect("seek")
+        .expect("new slot A row exists after wipe");
+    assert_eq!(got_a.key, slot_new_a);
+    assert_eq!(got_a.value, new_value_a);
+
+    let got_b = cur
+        .seek_by_key_subkey(addr, slot_new_b)
+        .expect("seek")
+        .expect("new slot B row exists after wipe");
+    assert_eq!(got_b.key, slot_new_b);
+    assert_eq!(got_b.value, new_value_b);
+}
+
+#[test]
+fn write_update_snapshot_deletes_zero_value_storage_slot() {
+    let db = setup_db();
+    let old_anchor = anchor(10, 0x10);
+    let new_anchor = anchor(9, 0x09);
+    let addr = B256::repeat_byte(0xA4);
+    let slot = B256::repeat_byte(0x03);
+
+    prepare_ready_snapshot(&db, old_anchor);
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        provider
+            .store_hashed_storages_snapshot(addr, vec![(slot, U256::from(33u64))])
+            .expect("seed");
+        OpProofsSnapshotInitProvider::commit(provider).expect("commit seed");
+    }
+
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let mut storages: B256Map<HashedStorageSorted> = B256Map::default();
+        storages.insert(
+            addr,
+            HashedStorageSorted { storage_slots: vec![(slot, U256::ZERO)], wiped: false },
+        );
+        let sorted_post_state = HashedPostStateSorted::new(Vec::new(), storages);
+        let diff = BlockStateDiff {
+            sorted_trie_updates: TrieUpdates::default().into_sorted(),
+            sorted_post_state,
+        };
+        let counts = provider.update_snapshot(new_anchor, &diff).expect("update");
+        assert_eq!(counts.hashed_storages_written_total, 1);
+        OpProofsBackfillProvider::commit(provider).expect("commit");
+    }
+
+    let tx = db.tx().expect("ro");
+    let mut cur = tx.cursor_dup_read::<V2HashedStoragesSnapshot>().expect("cur");
+    assert!(
+        cur.seek_by_key_subkey(addr, slot)
+            .expect("seek")
+            .is_none_or(|e: StorageEntry| e.key != slot),
+        "zero-value slot must be deleted and not re-inserted",
+    );
+}
+
+#[test]
+fn write_update_snapshot_deletes_storage_trie_when_is_deleted() {
+    let db = setup_db();
+    let old_anchor = anchor(10, 0x10);
+    let new_anchor = anchor(9, 0x09);
+    let addr = B256::repeat_byte(0xA5);
+    let path = Nibbles::from_nibbles_unchecked([0x0F]);
+
+    prepare_ready_snapshot(&db, old_anchor);
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        provider
+            .store_storage_trie_snapshot_branches(addr, vec![(path, Some(sample_node(0xEE)))])
+            .expect("seed");
+        OpProofsSnapshotInitProvider::commit(provider).expect("commit seed");
+    }
+
+    {
+        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let mut updates = TrieUpdates::default();
+        let st = StorageTrieUpdates { is_deleted: true, ..Default::default() };
+        updates.storage_tries.insert(addr, st);
+        let diff = BlockStateDiff {
+            sorted_trie_updates: updates.into_sorted(),
+            sorted_post_state: HashedPostStateSorted::default(),
+        };
+        let counts = provider.update_snapshot(new_anchor, &diff).expect("update");
+        assert_eq!(counts.storage_trie_updates_written_total, 1, "is_deleted counts once");
+        OpProofsBackfillProvider::commit(provider).expect("commit");
+    }
+
+    let tx = db.tx().expect("ro");
+    let mut cur = tx.cursor_dup_read::<V2StoragesTrieSnapshot>().expect("cur");
+    assert!(
+        cur.seek_by_key_subkey(addr, StoredNibblesSubKey(path))
+            .expect("seek")
+            .is_none_or(|e| e.nibbles != StoredNibblesSubKey(path)),
+        "is_deleted must drop every storage-trie row under the address",
+    );
+}
+
+#[test]
 fn write_update_snapshot_errors_when_missing() {
     let db = setup_db();
     let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
-    let sorted = TrieUpdates::default().into_sorted();
-    let err = provider.update_snapshot(anchor(9, 0x09), &sorted).unwrap_err();
+    let diff = BlockStateDiff {
+        sorted_trie_updates: TrieUpdates::default().into_sorted(),
+        sorted_post_state: HashedPostStateSorted::default(),
+    };
+    let err = provider.update_snapshot(anchor(9, 0x09), &diff).unwrap_err();
     assert!(matches!(err, OpProofsStorageError::SnapshotNotInitialized), "got {err:?}");
 }

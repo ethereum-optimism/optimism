@@ -47,7 +47,9 @@ pub mod tx;
 pub use tx::OpTx;
 
 pub mod block;
-pub use block::{OpBlockExecutionCtx, OpBlockExecutor, OpBlockExecutorFactory, PostExecMode};
+pub use block::{
+    OpBlockExecutionCtx, OpBlockExecutor, OpBlockExecutorFactory, PostExecMode, PreRefundGasUsed,
+};
 
 pub mod post_exec;
 

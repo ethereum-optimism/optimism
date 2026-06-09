@@ -15,13 +15,11 @@ import (
 func TestLightSequencerSupernodeDerivesSafeChain(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 
-	// Skipped: an ELSync follow-mode sequencer cannot bootstrap from genesis. As the chain's sole
-	// block producer it has no peer payload to initial-EL-sync from, so it deadlocks in willStartEL
-	// and the chain never starts. TODO #21164.
-	t.Skip("follow-mode light-sequencer ELSync genesis bootstrap unsupported; TODO #21164")
-
-	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0)
+	// Bootstrap via the supernode VN sequencer, then hand off to the light ELSync sequencers.
+	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0, presets.WithSupernodeVNSequencerForBootstrap())
 	logger := sys.Log.With("Test", "TestLightSequencerSupernodeDerivesSafeChain")
+
+	sys.BootstrapLightSequencersViaVNHandoff()
 
 	lightAActive, err := sys.L2ACL.Escape().RollupAPI().SequencerActive(t.Ctx())
 	t.Require().NoError(err, "chain A light CL sequencer status")

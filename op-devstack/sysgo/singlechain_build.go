@@ -289,6 +289,9 @@ type l2CLNodeStartConfig struct {
 	L2CLOptions    []L2CLOption
 	// SyncMode overrides the sequencer and verifier sync modes; defaults to CLSync if unset.
 	SyncMode nodeSync.Mode
+	// SequencerStopped starts the sequencer in the stopped state (it must be
+	// activated later via the StartSequencer RPC). Only meaningful when IsSequencer.
+	SequencerStopped bool
 }
 
 func startL2CLNode(
@@ -397,6 +400,7 @@ func startL2CLNode(
 		},
 		Driver: driver.Config{
 			SequencerEnabled:    cfg.IsSequencer,
+			SequencerStopped:    startCfg.SequencerStopped,
 			SequencerConfDepth:  2,
 			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
 		},

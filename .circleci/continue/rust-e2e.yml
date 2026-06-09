@@ -13,7 +13,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:758f67c7212e7d05c3d02c34f26766ef86f657d3bb811da07cc01e37b736ebef
   c-go-cache-version:
     type: string
     default: "v0.0"
@@ -204,6 +204,7 @@ workflows:
           persist_to_workspace: true
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       - rust-e2e-sysgo-tests:
           name: rust-e2e-<<matrix.devnet_config>>
           matrix:

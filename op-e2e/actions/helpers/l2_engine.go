@@ -3,8 +3,8 @@ package helpers
 import (
 	"errors"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers/engineapi"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/stretchr/testify/require"
 

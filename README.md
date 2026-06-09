@@ -82,7 +82,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-interop-mon">op-interop-mon</a>: Interoperability monitoring service
 ├── <a href="./op-node">op-node</a>: Rollup consensus-layer client
 ├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
-├── <a href="./op-program">op-program</a>: Fault proof program
 ├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
 ├── <a href="./op-service">op-service</a>: Common codebase utilities
 ├── <a href="./op-supervisor">op-supervisor</a>: Service to monitor chains and determine cross-chain message safety

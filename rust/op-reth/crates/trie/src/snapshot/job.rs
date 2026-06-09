@@ -2,13 +2,14 @@
 
 use super::SnapshotError;
 use crate::{
-    OpProofsHashedAccountCursorFactory, OpProofsProviderRO, OpProofsSnapshotInitProvider,
-    SnapshotInitAnchor, SnapshotInitStatus, SnapshotTrieCursorFactory, db::StorageTrieKey,
+    OpProofsProviderRO, OpProofsSnapshotInitProvider, SnapshotHashedCursorFactory,
+    SnapshotInitAnchor, SnapshotInitStatus, SnapshotTrieCursorFactory,
+    db::{HashedStorageKey, StorageTrieKey},
     initialize::CompletionEstimatable,
 };
 use alloy_eips::BlockNumHash;
-use alloy_primitives::{B256, BlockNumber};
-use reth_primitives_traits::AlloyBlockHeader;
+use alloy_primitives::{B256, BlockNumber, U256};
+use reth_primitives_traits::{Account, AlloyBlockHeader};
 use reth_provider::{BlockHashReader, HeaderProvider, ProviderError};
 use reth_trie::{
     BranchNodeCompact, HashedPostState, Nibbles, StateRoot, StoredNibbles,
@@ -28,6 +29,11 @@ const SNAPSHOT_INIT_CHUNK_SIZE: usize = 50_000;
 /// [`OpProofsSnapshotInitProvider::store_storage_trie_snapshot_branches`].
 type StorageChunk = Vec<(B256, Vec<(Nibbles, Option<BranchNodeCompact>)>)>;
 
+/// Hashed-storage chunk grouped by hashed address. Each inner vec is the
+/// per-address payload accepted by
+/// [`OpProofsSnapshotInitProvider::store_hashed_storages_snapshot`].
+type HashedStorageChunk = Vec<(B256, Vec<(B256, U256)>)>;
+
 /// Output of a successful [`SnapshotInitJob::run`] call.
 ///
 /// Shape mirrors [`crate::api::SnapshotInitAnchor`]: the anchor `block` plus
@@ -44,6 +50,10 @@ pub struct SnapshotInitOutcome {
     pub account_nodes_copied: u64,
     /// Number of storage trie nodes copied during this run.
     pub storage_nodes_copied: u64,
+    /// Number of hashed account leaves copied during this run.
+    pub hashed_accounts_copied: u64,
+    /// Number of hashed storage leaves copied during this run.
+    pub hashed_storages_copied: u64,
 }
 
 /// Builds the one-time trie-state snapshot.
@@ -101,6 +111,10 @@ where
             self.drain_account_trie(target_block, init_anchor.last_account_trie_key)?;
         let storage_nodes_copied =
             self.drain_storage_trie(target_block, init_anchor.last_storage_trie_key)?;
+        let hashed_accounts_copied =
+            self.drain_hashed_accounts(target_block, init_anchor.last_hashed_account_key)?;
+        let hashed_storages_copied =
+            self.drain_hashed_storages(target_block, init_anchor.last_hashed_storage_key)?;
         let copy_elapsed = copy_start.elapsed();
 
         let validate_start = Instant::now();
@@ -114,6 +128,8 @@ where
             block = target_block,
             account_nodes_copied,
             storage_nodes_copied,
+            hashed_accounts_copied,
+            hashed_storages_copied,
             copy_elapsed = ?copy_elapsed,
             validate_elapsed = ?validate_elapsed,
             total_elapsed = ?start.elapsed(),
@@ -125,6 +141,8 @@ where
             status: SnapshotInitStatus::Completed,
             account_nodes_copied,
             storage_nodes_copied,
+            hashed_accounts_copied,
+            hashed_storages_copied,
         })
     }
 
@@ -288,6 +306,92 @@ where
         Ok(copied)
     }
 
+    /// Drain the history-aware hashed-account cursor at `target_block` into
+    /// [`crate::db::V2HashedAccountsSnapshot`], one chunk per rw-tx.
+    fn drain_hashed_accounts(
+        &self,
+        target_block: BlockNumber,
+        mut resume_after: Option<B256>,
+    ) -> Result<u64, SnapshotError> {
+        let phase_start = Instant::now();
+        let mut initial_progress: Option<f64> = None;
+        let mut copied = 0u64;
+
+        loop {
+            let chunk = {
+                let ro = self.storage.provider_ro()?;
+                let mut cursor = ro.account_hashed_cursor(target_block)?;
+                collect_hashed_account_chunk(&mut cursor, resume_after, SNAPSHOT_INIT_CHUNK_SIZE)?
+            };
+            if chunk.is_empty() {
+                break;
+            }
+            let n = chunk.len() as u64;
+            let last_key = chunk.last().expect("non-empty").0;
+            let sp = self.storage.snapshot_initialization_provider()?;
+            sp.store_hashed_accounts_snapshot(chunk)?;
+            OpProofsSnapshotInitProvider::commit(sp)?;
+            copied += n;
+            log_phase_progress(
+                "hashed_accounts",
+                &last_key,
+                &mut initial_progress,
+                phase_start,
+                copied,
+            );
+            resume_after = Some(last_key);
+        }
+        Ok(copied)
+    }
+
+    /// Drain hashed storage leaves at `target_block` into
+    /// [`crate::db::V2HashedStoragesSnapshot`], one chunk per rw-tx. Walks
+    /// accounts via the history-aware account cursor; for each account, drains
+    /// its history-aware storage cursor.
+    fn drain_hashed_storages(
+        &self,
+        target_block: BlockNumber,
+        mut resume_after: Option<HashedStorageKey>,
+    ) -> Result<u64, SnapshotError> {
+        let phase_start = Instant::now();
+        let mut initial_progress: Option<f64> = None;
+        let mut copied = 0u64;
+
+        loop {
+            let chunk = {
+                let ro = self.storage.provider_ro()?;
+                collect_hashed_storage_chunk(
+                    &ro,
+                    target_block,
+                    resume_after.clone(),
+                    SNAPSHOT_INIT_CHUNK_SIZE,
+                )?
+            };
+            if chunk.is_empty() {
+                break;
+            }
+            let n: u64 = chunk.iter().map(|(_, entries)| entries.len() as u64).sum();
+            let (last_addr, last_group) = chunk.last().expect("non-empty");
+            let last_key =
+                HashedStorageKey::new(*last_addr, last_group.last().expect("non-empty group").0);
+            let sp = self.storage.snapshot_initialization_provider()?;
+            for (addr, entries) in chunk {
+                sp.store_hashed_storages_snapshot(addr, entries)?;
+            }
+            OpProofsSnapshotInitProvider::commit(sp)?;
+            copied += n;
+            log_phase_progress(
+                "hashed_storages",
+                &last_key,
+                &mut initial_progress,
+                phase_start,
+                copied,
+            );
+            resume_after = Some(last_key);
+        }
+        Ok(copied)
+    }
+
     /// Compute the state root from the snapshot tables and the live hashed
     /// leaves and compare against `expected_root`.
     ///
@@ -303,7 +407,7 @@ where
         let computed_root = StateRoot::new(
             SnapshotTrieCursorFactory::new(sp.clone()),
             HashedPostStateCursorFactory::new(
-                OpProofsHashedAccountCursorFactory::new(sp.clone(), target_block),
+                SnapshotHashedCursorFactory::new(sp.clone()),
                 &state_sorted,
             ),
         )
@@ -430,8 +534,110 @@ where
     Ok(out)
 }
 
+/// Drain up to `max_entries` rows from a [`HashedCursor<Value = Account>`]
+/// strictly after `resume_after`.
+fn collect_hashed_account_chunk<C>(
+    cursor: &mut C,
+    resume_after: Option<B256>,
+    max_entries: usize,
+) -> Result<Vec<(B256, Account)>, SnapshotError>
+where
+    C: HashedCursor<Value = Account>,
+{
+    if max_entries == 0 {
+        return Ok(Vec::new());
+    }
+    let mut next = match resume_after {
+        None => cursor.seek(B256::ZERO)?,
+        Some(after) => match cursor.seek(after)? {
+            Some((k, _)) if k == after => cursor.next()?,
+            other => other,
+        },
+    };
+    let mut out = Vec::with_capacity(max_entries);
+    while let Some((k, v)) = next {
+        if out.len() >= max_entries {
+            break;
+        }
+        out.push((k, v));
+        next = cursor.next()?;
+    }
+    Ok(out)
+}
+
+/// Collect a chunk of hashed-storage entries grouped by hashed address.
+///
+/// Mirrors [`collect_storage_chunk`] for leaves: walks hashed accounts at
+/// `target_block` and drains each account's storage cursor up to
+/// `max_entries` total entries. The returned vec carries the per-address
+/// payload accepted by
+/// [`OpProofsSnapshotInitProvider::store_hashed_storages_snapshot`].
+fn collect_hashed_storage_chunk<P>(
+    proofs_ro: &P,
+    target_block: BlockNumber,
+    resume_after: Option<HashedStorageKey>,
+    max_entries: usize,
+) -> Result<HashedStorageChunk, SnapshotError>
+where
+    P: OpProofsProviderRO,
+{
+    if max_entries == 0 {
+        return Ok(Vec::new());
+    }
+    let mut out: HashedStorageChunk = Vec::new();
+    let mut total = 0usize;
+
+    let (start_addr, mut subkey_resume) =
+        resume_after.map_or((B256::ZERO, None), |k| (k.hashed_address, Some(k.hashed_storage_key)));
+
+    let mut acc_cursor = proofs_ro.account_hashed_cursor(target_block)?;
+    let mut next_account = acc_cursor.seek(start_addr)?;
+
+    while let Some((addr, _account)) = next_account {
+        let mut stor_cursor = proofs_ro.storage_hashed_cursor(addr, target_block)?;
+
+        // Position past any pending subkey resume (only applies to the first
+        // account on this call).
+        let mut next_stor = match subkey_resume.take() {
+            None => stor_cursor.seek(B256::ZERO)?,
+            Some(p) => match stor_cursor.seek(p)? {
+                Some((k, _)) if k == p => stor_cursor.next()?,
+                other => other,
+            },
+        };
+
+        let mut group: Vec<(B256, U256)> = Vec::new();
+        while let Some((slot, value)) = next_stor {
+            if total >= max_entries {
+                if !group.is_empty() {
+                    out.push((addr, group));
+                }
+                return Ok(out);
+            }
+            group.push((slot, value));
+            total += 1;
+            next_stor = stor_cursor.next()?;
+        }
+        if !group.is_empty() {
+            out.push((addr, group));
+        }
+
+        next_account = acc_cursor.next()?;
+    }
+
+    Ok(out)
+}
+
 impl CompletionEstimatable for StorageTrieKey {
     /// Address dominates ordering, so progress along the storage-trie scan
+    /// tracks the hashed address.
+    fn estimate_progress(&self) -> f64 {
+        self.hashed_address.estimate_progress()
+    }
+}
+
+impl CompletionEstimatable for HashedStorageKey {
+    /// Address dominates ordering, so progress along the hashed-storage scan
     /// tracks the hashed address.
     fn estimate_progress(&self) -> f64 {
         self.hashed_address.estimate_progress()

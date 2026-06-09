@@ -251,7 +251,10 @@ func (c Config) Check() error {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
-		if err := c.validateBaseCannonOptions(); err != nil {
+		// The permissioned game never reaches step() so does not run op-program; only the
+		// legacy Cannon game type requires the op-program server binary.
+		requireServer := c.GameTypeEnabled(gameTypes.CannonGameType)
+		if err := c.validateBaseCannonOptions(requireServer); err != nil {
 			return err
 		}
 	}
@@ -297,8 +300,8 @@ func (c Config) Check() error {
 	return nil
 }
 
-func (c Config) validateBaseCannonOptions() error {
-	if err := c.Cannon.Check(); err != nil {
+func (c Config) validateBaseCannonOptions(requireServer bool) error {
+	if err := c.Cannon.Check(requireServer); err != nil {
 		return fmt.Errorf("cannon: %w", err)
 	}
 	if c.CannonAbsolutePreState == "" && c.CannonAbsolutePreStateBaseURL == nil {
@@ -314,7 +317,7 @@ func (c Config) validateBaseCannonOptions() error {
 }
 
 func (c Config) validateBaseCannonKonaOptions() error {
-	if err := c.CannonKona.Check(); err != nil {
+	if err := c.CannonKona.Check(true); err != nil {
 		return fmt.Errorf("cannon kona: %w", err)
 	}
 	if c.CannonKonaAbsolutePreState == "" && c.CannonKonaAbsolutePreStateBaseURL == nil {

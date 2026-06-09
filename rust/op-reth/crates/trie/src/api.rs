@@ -269,7 +269,7 @@ pub trait OpProofsProviderRw: OpProofsProviderRO {
 /// The typical call sequence for one snapshot-accelerated backfill step is:
 /// ```ignore
 /// let bp = storage.backfill_provider()?;
-/// bp.update_snapshot(new_anchor, &trie_updates)?;
+/// bp.update_snapshot(new_anchor, &diff)?;
 /// bp.prepend_block(block_ref, diff)?;
 /// bp.commit()?;   // commits backfill + snapshot writes atomically
 /// ```
@@ -290,17 +290,26 @@ pub trait OpProofsBackfillProvider: OpProofsSnapshotProviderRO + OpProofsProvide
         diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts>;
 
-    /// Wipe both snapshot tables and the meta row.
+    /// Wipe all snapshot tables and the meta row.
     fn clear_snapshot(&self) -> OpProofsStorageResult<()>;
 
-    /// Project `trie_updates` onto the snapshot and advance the anchor to `new_anchor`
-    /// atomically. Direction is implicit in the diff: `(path, Some(node))` sets,
-    /// `(path, None)` deletes.
+    /// Project `diff` onto the snapshot and advance the anchor to
+    /// `new_anchor` atomically. Trie direction is implicit:
+    /// `(path, Some(node))` sets, `(path, None)` deletes. Leaf direction
+    /// follows the same convention: `Some(value)` upserts the leaf, `None`
+    /// deletes it.
+    ///
+    /// The returned [`WriteCounts`] reports per-table row counts (mirrors
+    /// [`OpProofsBackfillProvider::prepend_block`]'s return shape).
+    ///
+    /// Requires status `Ready`; errors with
+    /// [`OpProofsStorageError::SnapshotUpdateNotReady`](crate::OpProofsStorageError::SnapshotUpdateNotReady)
+    /// otherwise.
     fn update_snapshot(
         &self,
         new_anchor: BlockNumHash,
-        trie_updates: &TrieUpdatesSorted,
-    ) -> OpProofsStorageResult<u64>;
+        diff: &BlockStateDiff,
+    ) -> OpProofsStorageResult<WriteCounts>;
 
     /// Commit the transaction. Consumes the provider. Flushes both the backfill writes
     /// and any pending snapshot writes atomically.
@@ -462,6 +471,16 @@ pub trait OpProofsSnapshotProviderRO: OpProofsProviderRO {
     where
         Self: 'tx;
 
+    /// Cursor over the snapshot's hashed-account leaf table.
+    type SnapshotHashedAccountCursor<'tx>: HashedCursor<Value = Account> + Send + 'tx
+    where
+        Self: 'tx;
+
+    /// Cursor over the snapshot's hashed-storage leaf table.
+    type SnapshotHashedStorageCursor<'tx>: HashedStorageCursor<Value = U256> + Send + 'tx
+    where
+        Self: 'tx;
+
     /// Anchor block of a `Ready` snapshot. Errors with
     /// [`OpProofsStorageError::SnapshotNotReady`](crate::OpProofsStorageError::SnapshotNotReady)
     /// otherwise.
@@ -477,6 +496,17 @@ pub trait OpProofsSnapshotProviderRO: OpProofsProviderRO {
         &self,
         hashed_address: B256,
     ) -> OpProofsStorageResult<Self::SnapshotStorageTrieCursor<'tx>>;
+
+    /// Open a cursor over the snapshot's hashed-account leaf table.
+    fn snapshot_hashed_account_cursor<'tx>(
+        &self,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedAccountCursor<'tx>>;
+
+    /// Open a cursor over the snapshot's hashed-storage leaf table for `hashed_address`.
+    fn snapshot_hashed_storage_cursor<'tx>(
+        &self,
+        hashed_address: B256,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedStorageCursor<'tx>>;
 }
 
 /// Blanket [`OpProofsSnapshotProviderRO`] for shared references — mirrors the
@@ -491,6 +521,16 @@ impl<'a, T: OpProofsSnapshotProviderRO + 'a> OpProofsSnapshotProviderRO for &'a 
         T: 'tx;
     type SnapshotStorageTrieCursor<'tx>
         = T::SnapshotStorageTrieCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+    type SnapshotHashedAccountCursor<'tx>
+        = T::SnapshotHashedAccountCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+    type SnapshotHashedStorageCursor<'tx>
+        = T::SnapshotHashedStorageCursor<'tx>
     where
         Self: 'tx,
         T: 'tx;
@@ -516,6 +556,25 @@ impl<'a, T: OpProofsSnapshotProviderRO + 'a> OpProofsSnapshotProviderRO for &'a 
         'a: 'tx,
     {
         T::snapshot_storage_trie_cursor(self, hashed_address)
+    }
+
+    fn snapshot_hashed_account_cursor<'tx>(
+        &self,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedAccountCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::snapshot_hashed_account_cursor(self)
+    }
+
+    fn snapshot_hashed_storage_cursor<'tx>(
+        &self,
+        hashed_address: B256,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedStorageCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::snapshot_hashed_storage_cursor(self, hashed_address)
     }
 }
 
@@ -543,6 +602,11 @@ pub struct SnapshotInitAnchor {
     pub last_account_trie_key: Option<StoredNibbles>,
     /// Last entry in [`crate::db::V2StoragesTrieSnapshot`]; resumes the storage-trie phase.
     pub last_storage_trie_key: Option<StorageTrieKey>,
+    /// Last key in [`crate::db::V2HashedAccountsSnapshot`]; resumes the hashed-accounts phase.
+    pub last_hashed_account_key: Option<B256>,
+    /// Last entry in [`crate::db::V2HashedStoragesSnapshot`]; resumes the
+    /// hashed-storages phase.
+    pub last_hashed_storage_key: Option<HashedStorageKey>,
 }
 
 /// Init-time read + write surface for the trie-state snapshot. Mirrors
@@ -571,6 +635,23 @@ pub trait OpProofsSnapshotInitProvider: Send + Sync + Debug {
         &self,
         hashed_address: B256,
         storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+    ) -> OpProofsStorageResult<()>;
+
+    /// Append a chunk to [`crate::db::V2HashedAccountsSnapshot`]. Entries must
+    /// be sorted by `hashed_address` and strictly greater than the table's
+    /// current last key.
+    fn store_hashed_accounts_snapshot(
+        &self,
+        entries: Vec<(B256, Account)>,
+    ) -> OpProofsStorageResult<()>;
+
+    /// Append a chunk to [`crate::db::V2HashedStoragesSnapshot`] for
+    /// `hashed_address`. Entries must be sorted by storage key and strictly
+    /// greater than the table's current last entry for this address.
+    fn store_hashed_storages_snapshot(
+        &self,
+        hashed_address: B256,
+        entries: Vec<(B256, U256)>,
     ) -> OpProofsStorageResult<()>;
 
     /// Transition the meta row from `Building` to `Ready`. Errors if no meta

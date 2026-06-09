@@ -1957,6 +1957,7 @@
                 ]
               },
               "chain-operators/tutorials/absolute-prestate",
+              "chain-operators/tutorials/kona-custom-prestate",
               "chain-operators/tutorials/adding-derivation-attributes",
               "chain-operators/tutorials/adding-precompiles",
               "chain-operators/tutorials/dispute-games",
@@ -2019,6 +2020,12 @@
               "chain-operators/reference/architecture",
               "chain-operators/reference/opcm",
               "chain-operators/reference/standard-configuration"
+            ]
+          },
+          {
+            "group": "Archive",
+            "pages": [
+              "chain-operators/tutorials/archive/op-program-prestate"
             ]
           }
         ]
@@ -2087,11 +2094,17 @@
               },
               "node-operators/reference/op-node-config",
               "node-operators/reference/op-node-json-rpc",
-              "node-operators/reference/op-geth-config",
-              "node-operators/reference/op-geth-json-rpc",
               "node-operators/reference/op-reth-config",
+              "node-operators/reference/op-reth-json-rpc",
               "node-operators/reference/op-reth-historical-proof-config",
               "node-operators/reference/consensus-layer-sync"
+            ]
+          },
+          {
+            "group": "Archive",
+            "pages": [
+              "node-operators/reference/op-geth-config",
+              "node-operators/reference/op-geth-json-rpc"
             ]
           }
         ]
@@ -2422,15 +2435,11 @@
                 "pages": [
                   "releases/op-node",
                   "releases/kona-node",
+                  "releases/op-reth",
                   "releases/op-batcher",
                   "releases/op-proposer",
-                  "releases/op-challenger"
-                ]
-              },
-              {
-                "group": "Execution",
-                "pages": [
-                  "releases/op-reth"
+                  "releases/op-challenger",
+                  "releases/op-contracts"
                 ]
               },
               {
@@ -2438,12 +2447,6 @@
                 "pages": [
                   "releases/kona-client",
                   "releases/kona-host"
-                ]
-              },
-              {
-                "group": "Contracts",
-                "pages": [
-                  "releases/op-contracts"
                 ]
               },
               {

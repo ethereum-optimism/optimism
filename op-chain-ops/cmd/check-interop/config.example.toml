@@ -1,0 +1,22 @@
+# Example config for check-interop. Pass with --config <path>.
+# Keys are the flag names. CLI flags and CHECK_INTEROP_* env vars override anything set here.
+# Each command ignores keys it doesn't register, so a single file can serve both.
+
+# --- Used by both `roundtrip` and `failsafe` ---
+l2-a = "http://localhost:9545"
+l2-b = "http://localhost:9546"
+account = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+# Durations are strings parsed by time.ParseDuration.
+relay-timeout = "2m"
+
+# --- Used only by `roundtrip` ---
+# Number of A->B->A round-trips to perform.
+iterations = 3
+
+# --- Used only by `failsafe` ---
+# How long to wait for the initiating message to propagate before the blocked relay.
+propagation-wait = "6s"
+# Dotted flag names (--filter.admin-rpc, --filter.jwt-secret) map to a [filter] table.
+[filter]
+admin-rpc = "http://localhost:8420"
+jwt-secret = "/path/to/jwt.txt"
