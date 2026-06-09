@@ -24,21 +24,25 @@ func (m *mockSupernodeClient) SyncStatus(ctx context.Context) (eth.SuperNodeSync
 }
 func (m *mockSupernodeClient) Close() {}
 
-// mockEL returns a fixed canonical block info (or error) for InfoByNumber.
+// mockEL returns a fixed canonical block info (or error) for InfoByNumber and
+// counts how many times it was queried.
 type mockEL struct {
-	info eth.BlockInfo
-	err  error
+	info  eth.BlockInfo
+	err   error
+	calls int
 }
 
 func (m *mockEL) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
+	m.calls++
 	return m.info, m.err
 }
 
 // canonicalEL builds an EL-client map whose chain reports the given hash as
-// canonical at the given block number.
-func canonicalEL(chain eth.ChainID, number uint64, hash common.Hash) map[eth.ChainID]CanonicalBlockSource {
+// canonical at the given block number, returning the underlying mock too.
+func canonicalEL(chain eth.ChainID, number uint64, hash common.Hash) (map[eth.ChainID]CanonicalBlockSource, *mockEL) {
 	info := eth.HeaderBlockInfoTrusted(hash, &types.Header{Number: new(big.Int).SetUint64(number)})
-	return map[eth.ChainID]CanonicalBlockSource{chain: &mockEL{info: info}}
+	el := &mockEL{info: info}
+	return map[eth.ChainID]CanonicalBlockSource{chain: el}, el
 }
 
 func TestSupernodeObserverCrossSafetyViolation(t *testing.T) {
@@ -57,13 +61,16 @@ func TestSupernodeObserverCrossSafetyViolation(t *testing.T) {
 	badJob.UpdateStatus(jobStatusInvalid)
 
 	mm := &mockMetrics{}
-	obs := NewSupernodeObserver("http://sn", &mockSupernodeClient{status: st}, canonicalEL(execChain, 200, hash), mm, log.New())
+	els, el := canonicalEL(execChain, 200, hash)
+	obs := NewSupernodeObserver("http://sn", &mockSupernodeClient{status: st}, els, mm, log.New())
 	obs.Observe(context.Background(), map[JobID]*Job{badJob.ID(): badJob})
 	require.Len(t, mm.actualCrossSafetyViolations, 1)
+	require.Equal(t, 1, el.calls)
 
-	// A second pass must not double-count the same violating job.
+	// A second pass must neither double-count nor re-fetch the canonical block.
 	obs.Observe(context.Background(), map[JobID]*Job{badJob.ID(): badJob})
 	require.Len(t, mm.actualCrossSafetyViolations, 1)
+	require.Equal(t, 1, el.calls)
 }
 
 func TestSupernodeObserverNoViolationAboveHead(t *testing.T) {
@@ -105,7 +112,7 @@ func TestSupernodeObserverNoViolationOnReorg(t *testing.T) {
 
 	mm := &mockMetrics{}
 	// Canonical block at height 200 now has a different hash than the job's block.
-	els := canonicalEL(execChain, 200, common.HexToHash("0xbb"))
+	els, _ := canonicalEL(execChain, 200, common.HexToHash("0xbb"))
 	obs := NewSupernodeObserver("http://sn", &mockSupernodeClient{status: st}, els, mm, log.New())
 	obs.Observe(context.Background(), map[JobID]*Job{badJob.ID(): badJob})
 	require.Empty(t, mm.actualCrossSafetyViolations)

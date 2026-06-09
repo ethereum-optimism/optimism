@@ -71,6 +71,11 @@ func (o *SupernodeObserver) Observe(ctx context.Context, jobs map[JobID]*Job) {
 		if job.executingBlock.Number > s.SafeL2.Number {
 			continue
 		}
+		// Already flagged: don't re-confirm (and re-fetch the canonical block)
+		// every cycle for a job whose violation has been counted.
+		if job.ViolationCounted() {
+			continue
+		}
 		// Jobs are keyed by executing block number, not hash. During a reorg an
 		// orphaned block lingers in a bad status until finalization, while the
 		// supernode's cross-safe chain holds the replacement block at that height.

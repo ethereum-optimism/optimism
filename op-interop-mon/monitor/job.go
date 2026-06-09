@@ -301,6 +301,12 @@ func (j *Job) CountViolationOnce() bool {
 	return j.countedViolation.CompareAndSwap(false, true)
 }
 
+// ViolationCounted reports whether a cross-safety violation has already been
+// counted for this job, so the observer can skip re-confirming it every cycle.
+func (j *Job) ViolationCounted() bool {
+	return j.countedViolation.Load()
+}
+
 // AddInitiatingHash adds a hash to the initiatingHash slice if it hasn't been seen before
 func (j *Job) AddInitiatingHash(hash common.Hash) {
 	j.rwLock.Lock()
