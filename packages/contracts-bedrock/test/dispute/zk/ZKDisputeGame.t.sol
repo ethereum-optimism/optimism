@@ -396,7 +396,6 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         address newImpl = address(new ZKDisputeGame());
         GameType differentGameType = GameType.wrap(201);
 
-        // l2ChainId must be zero for super-root ZK games.
         bytes memory gameArgs = abi.encodePacked(
             bytes32(0),
             zkVerifier,
@@ -404,8 +403,7 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
             maxProveDuration,
             uint256(1 ether),
             anchorStateRegistry,
-            delayedWeth,
-            uint256(0)
+            delayedWeth
         );
 
         vm.prank(superchainConfig.guardian());
