@@ -89,14 +89,41 @@ here. Treat items 1–4 as **blocking**.
    diff adds a `commands:`/`executors:`/anchor, grep the other fragments for the
    same key.
 
-6. **Cache keys.** Shared content (dependency downloads) → one shared key, not a
-   per-job prefix (avoids each job storing/re-downloading its own copy). Separate
-   caches by invalidation cadence (toolchain keyed on toolchain pins, deps on
-   lockfile, build output on lockfile+profile+features). Fallback `restore` keys
-   are deliberate: a chain restores a near-match and recompiles the delta; no
-   fallback forces a full refresh (right for download caches, so they can't
-   accrete stale versions). Keys carry a version buster (`-v16-`,
-   `go-cache-version`). Check `save` and `restore` keys stay consistent.
+6. **Cache keys.** CircleCI caches are **write-once**: once a key is saved it is
+   immutable, and a later `save_cache` with the same key is a silent no-op — the
+   stale content is served forever. So a key must hash *every* input that affects
+   the cached content; if any such input can change without the key changing, the
+   cache poisons. The classic mistake is keying build output (compiled artifacts)
+   on the lockfile alone: `Cargo.lock`/`go.sum` covers dependency *downloads*, but
+   the compiled output also depends on the source, the toolchain, and the build
+   profile/features — keying it on the lockfile alone serves a stale build whenever
+   source changes but deps don't. Verify the key for each cache covers all of its
+   real inputs:
+   - **dependency downloads** → lockfile (`Cargo.lock`, `go.sum`, etc.) is enough,
+     since the lockfile fully determines what's downloaded;
+   - **build output** → lockfile **plus** something that changes with the source
+     (e.g. a hash of the source tree / `git rev`) plus toolchain pin and
+     profile/features.
+   Shared content (dependency downloads) → one shared key, not a per-job prefix
+   (avoids each job storing/re-downloading its own copy). Separate caches by
+   invalidation cadence (toolchain keyed on toolchain pins, deps on lockfile, build
+   output on lockfile+source+profile+features). Fallback `restore` keys are
+   deliberate: a chain restores a near-match and recompiles the delta; no fallback
+   forces a full refresh (right for download caches, so they can't accrete stale
+   versions). Keys carry a version buster (`-v16-`, `go-cache-version`) for manual
+   invalidation when the key formula itself is wrong. Check `save` and `restore`
+   keys stay consistent.
+
+   Also check **cache coverage**: every job that builds or compiles should restore
+   the relevant dependency cache, at minimum — a Go job should restore the Go
+   module/build cache, a Rust job the cargo registry/git (and ideally build) cache,
+   a Node job the package cache. A job that skips the restore step does a cold build
+   every run: it inflates PR-path time and cost (ties into item 8), and — just as
+   importantly — it re-downloads every dependency over the network on each run,
+   turning transient network failures into CI flakes that a warm cache would have
+   avoided. When a diff adds a new build job or a new build step to an existing job,
+   confirm it restores the appropriate cache rather than relying on another job to
+   have warmed it.
 
 7. **Resource class / concurrency / timeouts.** Right-size `resource_class` with a
    stated reason; bound parallelism and shard memory-hungry suites rather than
@@ -140,8 +167,11 @@ Repo is CircleCI-primary; GitHub Actions footprint is small but these apply ther
 - [both] Never `echo`/CLI-pass secrets; auto-redaction misses transformed values.
 
 **Correctness**
-- [both] Cache keys hash the lockfile with broader fallback `restore-keys`; a key
-  with no hashed input never invalidates.
+- [both] Caches are write-once/immutable per key — a re-save under an existing key
+  is a no-op, so the key must hash every input affecting the content (lockfile for
+  downloads; lockfile+source+toolchain+profile for build output) or it serves stale
+  content forever. Use broader fallback `restore-keys`; a key with no hashed input
+  never invalidates.
 - [GHA] Required check + `paths-ignore` deadlocks the PR (check stays Pending) —
   same class as items 2–4; use an always-passing companion with the required name.
 - [both] Set explicit timeouts — GHA's default job timeout is 6h.
