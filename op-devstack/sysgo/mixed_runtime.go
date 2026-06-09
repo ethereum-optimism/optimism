@@ -384,6 +384,12 @@ func buildMixedOpRethNode(
 		"--proofs-history.storage-path=" + proofHistoryDir,
 		"--proofs-history.storage-version=" + storageVersion,
 	}
+	// `op-proofs init` now runs snapshot-accelerated backfill by default,
+	// which V1 storage does not support — the command rejects v1 + backfill
+	// upfront. Opt out explicitly when targeting v1.
+	if storageVersion == "v1" {
+		initProofsArgs = append(initProofsArgs, "--proofs-history.skip-backfill")
+	}
 	initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
 	t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
 
