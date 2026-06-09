@@ -125,9 +125,10 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
         }
     }
 
-    /// @notice Sends a message to some target address on a destination chain. Note that if the call always reverts,
-    ///         then the message will be unrelayable and any ETH sent will be permanently locked. The same will occur
-    ///         if the target on the other chain is considered unsafe (see the _isUnsafeTarget() function).
+    /// @notice Sends a message to some target address on a destination chain. The destination chain must differ from
+    ///         the current chain, and the target cannot be the L2ToL2CrossDomainMessenger predeploy. This function is
+    ///         not payable, so no ETH can be sent with the message. If the relayed call reverts on the destination
+    ///         chain, the relay transaction reverts and the message can be relayed again later, so it is never stuck.
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message payload to call target with.
