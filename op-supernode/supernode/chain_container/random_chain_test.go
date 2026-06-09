@@ -196,3 +196,16 @@ func TestRandomChainManagerGenerate(t *testing.T) {
 	m2.Generate()
 	require.Equal(t, chains[0].l2[0].Ref.Hash, m2.Chains()[0].l2[0].Ref.Hash)
 }
+
+func TestChainContainerWiring(t *testing.T) {
+	m := NewRandomChainManager([]byte("wire"))
+	m.Generate()
+	id := m.Chains()[0].chainID
+
+	cc, err := m.ChainContainer(id)
+	require.NoError(t, err)
+	require.Equal(t, id, cc.ID())
+
+	_, err = m.ChainContainer(eth.ChainIDFromUInt64(123456))
+	require.ErrorIs(t, err, ErrUnknownChain)
+}

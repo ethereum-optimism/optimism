@@ -19,11 +19,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
+	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -81,6 +84,8 @@ type SafeHeadEntry struct {
 // ---------------------------------------------------------------------------
 // RandomChainManager
 // ---------------------------------------------------------------------------
+
+var ErrUnknownChain = errors.New("random chain: unknown chain id")
 
 type RandomChainManager struct {
 	rng *rand.Rand
@@ -216,6 +221,24 @@ func (m *RandomChainManager) Chains() []*RandomChain {
 }
 
 func (m *RandomChainManager) L1Source() *RandomL1Source { return m.l1Source }
+
+// ChainContainer wires a simpleChainContainer: RandomChain as the VirtualNode
+// and an EngineController wrapping the same RandomChain as l2Provider.
+func (m *RandomChainManager) ChainContainer(id eth.ChainID) (*simpleChainContainer, error) {
+	rc := m.chains[id]
+	if rc == nil {
+		return nil, ErrUnknownChain
+	}
+	return &simpleChainContainer{
+		chainID: id,
+		vn:      rc,
+		engine:  engine_controller.NewEngineControllerWithL2AndRollup(rc, rc.cfg),
+		vncfg:   &opnodecfg.Config{Rollup: *rc.cfg},
+		log:     gethlog.New(),
+		stopped: make(chan struct{}, 1),
+		metrics: resources.NewSupernodeMetrics(),
+	}, nil
+}
 
 // RandomL1Source feeds the Phase-1 l1ConsistencyChecker from the canonical L1.
 type RandomL1Source struct {
@@ -471,3 +494,7 @@ func blockInfoFor(blk *L2Block) eth.BlockInfo {
 
 // Close releases resources; RandomChain holds none.
 func (rc *RandomChain) Close() {}
+
+// l2Provider is unexported; assert conformance via the real constructor.
+var _ virtual_node.VirtualNode = (*RandomChain)(nil)
+var _ = engine_controller.NewEngineControllerWithL2AndRollup((*RandomChain)(nil), nil)
