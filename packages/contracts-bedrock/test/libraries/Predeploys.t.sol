@@ -241,6 +241,18 @@ contract Predeploys_GetAllRecords_Test is Predeploys_TestInit {
             }
         }
     }
+
+    /// @notice Test that only primary, upgradeable records may require initialization.
+    function test_getAllRecords_requiresInitOnlyOnPrimaryUpgradeableRecords_succeeds() external pure {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (!records[i].requiresInit) continue;
+
+            assertTrue(records[i].isProxied, string.concat(records[i].name, ": non-proxied record initializes"));
+            assertFalse(records[i].isDeprecated, string.concat(records[i].name, ": deprecated record initializes"));
+            assertFalse(records[i].isVariant, string.concat(records[i].name, ": variant record initializes"));
+        }
+    }
 }
 
 /// @title Predeploys_Interop_Uncategorized_Test

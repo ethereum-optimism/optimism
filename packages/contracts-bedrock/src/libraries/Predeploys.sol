@@ -131,6 +131,10 @@ library Predeploys {
     ///                          present on-chain for backwards compatibility but are excluded from
     ///                          proxy setup loops, NUT bundles, and upgrade checks.
     /// @param isVariant         True for records that share a proxy address with another (primary) record.
+    /// @param requiresInit      True if L2ContractsManager._apply() upgrades this proxy with upgradeToAndCall
+    ///                          and initializer calldata. Keep false for records upgraded with upgradeTo,
+    ///                          non-proxied records, deprecated records, and variant records that do not
+    ///                          represent an additional initializer call.
     struct PredeployRecord {
         address proxy;
         string name;
@@ -142,6 +146,7 @@ library Predeploys {
         bool isProxied;
         bool isDeprecated;
         bool isVariant;
+        bool requiresInit;
     }
 
     /// @notice Returns the name of the predeploy at the given address.
@@ -183,7 +188,7 @@ library Predeploys {
             isPredeployNamespace(_addr), "Predeploys: can only derive code-namespace address for predeploy addresses"
         );
         return address(
-            uint160(uint256(uint160(_addr)) & 0xffff | uint256(uint160(0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000)))
+            uint160((uint256(uint160(_addr)) & 0xffff) | uint256(uint160(0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000)))
         );
     }
 
@@ -205,6 +210,7 @@ library Predeploys {
     ///           - Add an `address internal immutable` declaration.
     ///           - Assign it via `findImpl()` in the constructor.
     ///           - Call `upgradeTo` or `upgradeToAndCall` for it in `_apply()`.
+    ///           - Set `requiresInit` to match that `_apply()` call path.
     ///           - Add an entry to `getImplementations()` and bump the array count.
     ///        3. scripts/L2Genesis.s.sol
     ///           - Add a `setXxx()` setter function.
@@ -213,6 +219,8 @@ library Predeploys {
     ///      by consumers that operate on proxy/implementation slots (NUT bundle, setPredeployProxies).
     ///      Deprecated records (isDeprecated = true) are appended after non-proxied records and must
     ///      be skipped by consumers that perform proxy setup, NUT bundles, or upgrade checks.
+    ///      Variant records share a proxy address with another record. Leave `requiresInit`
+    ///      false for variants unless the variant adds a separate initializer call in `_apply()`.
     function getAllRecords() internal pure returns (PredeployRecord[] memory records_) {
         records_ = new PredeployRecord[](30);
 
@@ -227,7 +235,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: true
         });
         records_[1] = PredeployRecord({
             proxy: GAS_PRICE_ORACLE,
@@ -239,7 +248,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[2] = PredeployRecord({
             proxy: L2_STANDARD_BRIDGE,
@@ -251,7 +261,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: true
         });
         records_[3] = PredeployRecord({
             proxy: SEQUENCER_FEE_WALLET,
@@ -263,7 +274,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: true
         });
         records_[4] = PredeployRecord({
             proxy: OPTIMISM_MINTABLE_ERC20_FACTORY,
@@ -275,7 +287,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: true
         });
         records_[5] = PredeployRecord({
             proxy: L2_ERC721_BRIDGE,
@@ -287,7 +300,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: true
         });
         records_[6] = PredeployRecord({
             proxy: L1_BLOCK_ATTRIBUTES,
@@ -299,7 +313,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[7] = PredeployRecord({
             proxy: L1_BLOCK_ATTRIBUTES,
@@ -311,7 +326,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: true
+            isVariant: true,
+            requiresInit: false
         });
         records_[8] = PredeployRecord({
             proxy: L2_TO_L1_MESSAGE_PASSER,
@@ -323,7 +339,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[9] = PredeployRecord({
             proxy: L2_TO_L1_MESSAGE_PASSER,
@@ -335,7 +352,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: true
+            isVariant: true,
+            requiresInit: false
         });
         records_[10] = PredeployRecord({
             proxy: OPTIMISM_MINTABLE_ERC721_FACTORY,
@@ -347,7 +365,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: true
         });
         records_[11] = PredeployRecord({
             proxy: PROXY_ADMIN,
@@ -359,7 +378,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[12] = PredeployRecord({
             proxy: BASE_FEE_VAULT,
@@ -371,7 +391,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: true
         });
         records_[13] = PredeployRecord({
             proxy: L1_FEE_VAULT,
@@ -383,7 +404,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: true
         });
         records_[14] = PredeployRecord({
             proxy: OPERATOR_FEE_VAULT,
@@ -395,7 +417,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: true
         });
         records_[15] = PredeployRecord({
             proxy: SCHEMA_REGISTRY,
@@ -407,7 +430,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[16] = PredeployRecord({
             proxy: EAS,
@@ -419,7 +443,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
 
         // ── Interop predeploys ─────────────────────────────────────────────────────────────
@@ -435,7 +460,8 @@ library Predeploys {
             isInterop: true,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[18] = PredeployRecord({
             proxy: L2_TO_L2_CROSS_DOMAIN_MESSENGER,
@@ -447,7 +473,8 @@ library Predeploys {
             isInterop: true,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[19] = PredeployRecord({
             proxy: SUPERCHAIN_ETH_BRIDGE,
@@ -459,7 +486,8 @@ library Predeploys {
             isInterop: true,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[20] = PredeployRecord({
             proxy: ETH_LIQUIDITY,
@@ -471,7 +499,8 @@ library Predeploys {
             isInterop: true,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
 
         // ── CGT predeploys ─────────────────────────────────────────────────────────────────
@@ -485,7 +514,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[22] = PredeployRecord({
             proxy: LIQUIDITY_CONTROLLER,
@@ -497,7 +527,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: true
         });
 
         records_[23] = PredeployRecord({
@@ -510,7 +541,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[24] = PredeployRecord({
             proxy: L2_DEV_FEATURE_FLAGS,
@@ -522,7 +554,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
 
         // ── Non-proxied predeploys ─────────────────────────────────────────────────────────
@@ -538,7 +571,8 @@ library Predeploys {
             isInterop: false,
             isProxied: false,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[26] = PredeployRecord({
             proxy: GOVERNANCE_TOKEN,
@@ -550,7 +584,8 @@ library Predeploys {
             isInterop: false,
             isProxied: false,
             isDeprecated: false,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
 
         // ── Deprecated predeploys ──────────────────────────────────────────────────────────
@@ -566,7 +601,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: true,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[28] = PredeployRecord({
             proxy: DEPLOYER_WHITELIST,
@@ -578,7 +614,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: true,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
         records_[29] = PredeployRecord({
             proxy: L1_BLOCK_NUMBER,
@@ -590,7 +627,8 @@ library Predeploys {
             isInterop: false,
             isProxied: true,
             isDeprecated: true,
-            isVariant: false
+            isVariant: false,
+            requiresInit: false
         });
     }
 
