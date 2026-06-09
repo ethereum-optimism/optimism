@@ -4,8 +4,8 @@ import (
 	"math/big"
 	"testing"
 
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -92,22 +92,11 @@ func TestTxBudgetIncluded(t *testing.T) {
 		BlobHashes: []common.Hash{{}},
 	})
 
-	l1Cost, _ := types.NewL1CostFuncFjord(big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1))(tx.RollupCostData())
-	l1Cost.Add(l1Cost, big.NewInt(1)) // operator fee
-	oracle := mockOPCostOracle{
-		cost: l1Cost,
-	}
-	// gasCost + opCost + 1 * params.BlobTxBlobGasPerBlob
-	cost := big.NewInt(1) // gas cost
-	cost.Add(cost, oracle.cost)
-	cost.Add(cost, big.NewInt(params.BlobTxBlobGasPerBlob))
-	budgetedCost := eth.WeiBig(cost)
-
+	const gasUsed = 21_000 // arbitrary non-zero gas used reported by the receipt
 	receipt := &types.Receipt{
-		EffectiveGasPrice: eth.WeiU64(1).ToBig(),
-		GasUsed:           bigs.Uint64Strict(budgetedCost.ToBig()),
-		Type:              types.DynamicFeeTxType,
-
+		EffectiveGasPrice:   eth.WeiU64(1).ToBig(),
+		GasUsed:             gasUsed,
+		Type:                types.DynamicFeeTxType,
 		L1GasPrice:          big.NewInt(1),
 		L1BaseFeeScalar:     ptr(uint64(1)),
 		L1BlobBaseFee:       big.NewInt(1),
@@ -116,9 +105,17 @@ func TestTxBudgetIncluded(t *testing.T) {
 		OperatorFeeConstant: ptr(uint64(0)),
 	}
 
+	// Reconstruct the cost AfterIncluded computes (gas + L1 + Jovian operator) so the budgeted
+	// cost matches the actual cost exactly and the balance is left unchanged.
+	actualCost := new(big.Int).SetUint64(gasUsed) // gasUsed * EffectiveGasPrice (1)
+	l1Cost, _ := types.NewL1CostFuncFjord(big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1))(tx.RollupCostData())
+	actualCost.Add(actualCost, l1Cost)
+	actualCost.Add(actualCost, opfees.OperatorCostJovian(gasUsed, 1, 0))
+	budgetedCost := eth.WeiBig(actualCost)
+
 	startingBalance := eth.WeiU64(100)
 	inner := accounting.NewBudget(startingBalance)
-	tb := NewTxBudget(inner, WithOPCostOracle(oracle))
+	tb := NewTxBudget(inner)
 	tb.AfterIncluded(budgetedCost, &IncludedTx{
 		Transaction: tx,
 		Receipt:     receipt,

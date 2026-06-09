@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/signer"
@@ -17,10 +18,10 @@ import (
 	"github.com/lmittmann/w3"
 )
 
-var oneMillion = new(big.Int).SetUint64(1_000_000)
-
-// IsthmusCostOracle implements OPCostOracle only for the Isthmus hard fork.
-type IsthmusCostOracle struct {
+// OperatorCostOracle implements OPCostOracle for the operator-fee feature introduced in
+// Isthmus. It uses the Jovian operator-fee formula, which is exact on Jovian chains and a
+// safe over-estimate on pre-Jovian ones (see opfees.OperatorCostJovian).
+type OperatorCostOracle struct {
 	client     RPCClient
 	blockTime  time.Duration
 	costParams atomic.Pointer[costParams]
@@ -35,16 +36,16 @@ type costParams struct {
 	OperatorFeeConstant *big.Int
 }
 
-var _ OPCostOracle = (*IsthmusCostOracle)(nil)
+var _ OPCostOracle = (*OperatorCostOracle)(nil)
 
-func NewIsthmusCostOracle(client RPCClient, blockTime time.Duration) *IsthmusCostOracle {
-	return &IsthmusCostOracle{
+func NewOperatorCostOracle(client RPCClient, blockTime time.Duration) *OperatorCostOracle {
+	return &OperatorCostOracle{
 		client:    client,
 		blockTime: blockTime,
 	}
 }
 
-func (i *IsthmusCostOracle) Start(ctx context.Context) {
+func (i *OperatorCostOracle) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -55,7 +56,7 @@ func (i *IsthmusCostOracle) Start(ctx context.Context) {
 	}
 }
 
-func (i *IsthmusCostOracle) SetParams(ctx context.Context) error {
+func (i *OperatorCostOracle) SetParams(ctx context.Context) error {
 	batch := []rpc.BatchElem{
 		newCall("basefee()"),
 		newCall("baseFeeScalar()"),
@@ -83,16 +84,13 @@ func (i *IsthmusCostOracle) SetParams(ctx context.Context) error {
 	return nil
 }
 
-func (i *IsthmusCostOracle) OPCost(tx *types.Transaction) *big.Int {
+func (i *OperatorCostOracle) OPCost(tx *types.Transaction) *big.Int {
 	params := i.costParams.Load()
 
 	l1CostFunc := types.NewL1CostFuncFjord(params.L1BaseFee, params.L1BlobBaseFee, params.L1BaseFeeScalar, params.L1BlobBaseFeeScalar)
 	l1Cost, _ := l1CostFunc(tx.RollupCostData())
 
-	operatorCost := new(big.Int).SetUint64(tx.Gas())
-	operatorCost.Mul(operatorCost, params.OperatorFeeScalar)
-	operatorCost.Div(operatorCost, oneMillion)
-	operatorCost.Add(operatorCost, params.OperatorFeeConstant)
+	operatorCost := opfees.OperatorCostJovian(tx.Gas(), params.OperatorFeeScalar.Uint64(), params.OperatorFeeConstant.Uint64())
 
 	return l1Cost.Add(l1Cost, operatorCost)
 }
