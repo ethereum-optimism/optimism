@@ -173,7 +173,6 @@ jobs:
           name: Detect file tree changes and store in JSON file
           command: .circleci/scripts/collect-params.sh detect
           environment:
-            c-rust_files_changed: "^rust/"
             c-contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
             c-docs_changes_detected: "^docs/public-docs/"
             c-rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
@@ -320,7 +319,7 @@ jobs:
             esac
 
             # Params to forward to continuation configs (everything else is stripped)
-            finalize "c-default_docker_image,c-rust_base_image,c-base_image,c-github-event-base64,c-go-cache-version,c-rust_files_changed,c-publish_contract_artifacts_ref"
+            finalize "c-default_docker_image,c-rust_base_image,c-base_image,c-github-event-base64,c-go-cache-version,c-publish_contract_artifacts_ref"
       # Deep-merges the 3 continuation YAML configs (main, rust-ci, rust-e2e)
       # into /tmp/merged-config.yml using yq. Later files win on key conflicts.
       # explode(.) resolves YAML anchors/aliases so the output is self-contained.
