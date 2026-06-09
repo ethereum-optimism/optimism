@@ -163,7 +163,7 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 	}
 
 	// Activation invariant: interop must be active for at least one full block on
-	// both the executing chain and the initiating chain. Matches kona and op-program.
+	// both the executing chain and the initiating chain. Matches kona.
 	execChain, ok := i.chains[executingChain]
 	if !ok {
 		return fmt.Errorf("executing chain %s not registered: %w", executingChain, ErrUnknownChain)
