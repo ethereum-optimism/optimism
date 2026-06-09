@@ -20,6 +20,9 @@ ignore = [
   # hickory-proto <0.26.1 O(n^2) name-compression CPU exhaustion in BinEncoder;
   # transitive via reth-network -> reth-dns-discovery. Pending upstream bump.
   "RUSTSEC-2026-0119",
+  # proc-macro-error2 is unmaintained; transitive via alloy-sol-macro ->
+  # alloy-sol-types -> alloy-dyn-abi. Pending upstream alloy migration.
+  "RUSTSEC-2026-0173",
 ]
 
 # This section is considered when running `cargo deny check bans`.
