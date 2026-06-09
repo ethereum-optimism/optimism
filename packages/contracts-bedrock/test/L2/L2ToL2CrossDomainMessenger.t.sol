@@ -181,8 +181,8 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
         // Ensure the destination is not the same as the source, otherwise the function will revert
         vm.assume(_destination != block.chainid);
 
-        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
-        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        // Ensure that the target contract is not the L2ToL2CrossDomainMessenger
+        vm.assume(_target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
         // Get the current message nonce
         uint256 messageNonce = l2ToL2CrossDomainMessenger.messageNonce();
@@ -229,8 +229,8 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
         // Ensure the destination is not the same as the source, otherwise the function will revert
         vm.assume(_destination != block.chainid);
 
-        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
-        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        // Ensure that the target contract is not the L2ToL2CrossDomainMessenger
+        vm.assume(_target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
         // Ensure that _value is greater than 0
         _value = bound(_value, 1, type(uint256).max);
@@ -318,8 +318,8 @@ contract L2ToL2CrossDomainMessenger_ResendMessage_Test is L2ToL2CrossDomainMesse
         // Ensure the destination is not the same as the source, otherwise the function will revert
         vm.assume(_destination != block.chainid);
 
-        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
-        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        // Ensure that the target contract is not the L2ToL2CrossDomainMessenger
+        vm.assume(_target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
         // Get the current message nonce
         uint256 messageNonce = l2ToL2CrossDomainMessenger.messageNonce();
