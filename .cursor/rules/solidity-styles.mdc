@@ -14,7 +14,7 @@ Applies to Solidity files.
 - Use `//` for regular inline comments that are not NatSpec
 - Use `@notice` for documenting what a function/contract does (external-facing documentation)
 - Use `@dev` for internal developer notes, reminders, or invariants (e.g., "when updating this, also update X")
-- Use a line-length of 100 characters
+- Use a line-length of 100 characters (DO NOT COMMENT ABOUT THIS IN PR REVIEWS, it is enforced by forge fmt)
 - Custom tags:
   - `@custom:proxied`: Add to a contract whenever it's meant to live behind a proxy
   - `@custom:upgradeable`: Add to a contract whenever it's meant to be inherited by an upgradeable contract
