@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/params/forks"
 )
 
 func TestEIP7823UpperBoundModExp(gt *testing.T) {
@@ -26,7 +27,7 @@ func TestEIP7823UpperBoundModExp(gt *testing.T) {
 
 	t.Run("pre-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Pre-Karst: the oversized modulus is accepted by the modexp precompile
@@ -42,7 +43,7 @@ func TestEIP7823UpperBoundModExp(gt *testing.T) {
 
 	t.Run("post-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Make sure the chain is past genesis before submitting txs, so the agreed
@@ -65,7 +66,7 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 
 	t.Run("pre-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Empty MODEXP calldata pads to Bsize=Esize=Msize=0, which hits exactly the
@@ -85,7 +86,7 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 
 	t.Run("post-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Make sure the chain is past genesis before submitting txs, so the agreed
@@ -137,7 +138,7 @@ func TestEIP7825TxGasLimitCap(gt *testing.T) {
 			t.Run(tc.name, func(t devtest.T) {
 				t.Parallel()
 				opts := append(
-					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis)},
+					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka))},
 					tc.konaOpts...,
 				)
 				sys := presets.NewMinimalWithKona(t, opts...)
@@ -167,7 +168,7 @@ func TestEIP7825TxGasLimitCap(gt *testing.T) {
 		// Live chain is on Karst — op-reth's RPC rejects a tx with gas > 2^24
 		// at submission time, so it never lands on-chain. Nothing for kona to
 		// validate.
-		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 		t.Require().NoError(karsttest.CheckEIP7825(t.Ctx(), t.Logger(), eoa.Plan()))
 	})
@@ -213,7 +214,7 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 			t.Run(tc.name, func(t devtest.T) {
 				t.Parallel()
 				opts := append(
-					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis)},
+					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka))},
 					tc.konaOpts...,
 				)
 				sys := presets.NewMinimalWithKona(t, opts...)
@@ -239,7 +240,7 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 
 	t.Run("post-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Make sure the chain is past genesis before submitting txs, so the agreed
@@ -296,7 +297,7 @@ func TestKarstBn256PairingInputSizeReduction(gt *testing.T) {
 			t.Run(tc.name, func(t devtest.T) {
 				t.Parallel()
 				opts := append(
-					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis)},
+					[]presets.Option{presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka))},
 					tc.konaOpts...,
 				)
 				sys := presets.NewMinimalWithKona(t, opts...)
@@ -325,7 +326,7 @@ func TestKarstBn256PairingInputSizeReduction(gt *testing.T) {
 
 	t.Run("post-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Make sure the chain is past genesis before submitting txs, so the agreed
@@ -348,7 +349,7 @@ func TestEIP7939CLZ(gt *testing.T) {
 
 	t.Run("pre-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis))
+		sys := presets.NewMinimal(t, presets.WithDeployerOptions(sysgo.WithJovianAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Pre-Karst: CLZ opcode (0x1e) is invalid; the init code aborts and
@@ -363,7 +364,7 @@ func TestEIP7939CLZ(gt *testing.T) {
 
 	t.Run("post-karst", func(t devtest.T) {
 		t.Parallel()
-		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+		sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 		eoa := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 		// Make sure the chain is past genesis before submitting txs, so the agreed
@@ -389,9 +390,15 @@ func TestEIP7825DepositBypassesTxGasLimitCap(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sysgo.SkipOnOpGeth(t, "osaka is not supported in op-geth")
 
-	sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis))
+	sys := presets.NewMinimalWithKona(t, presets.WithDeployerOptions(sysgo.WithKarstAtGenesis, sysgo.WithForkAtL1Genesis(forks.Osaka)))
 	sys.L1Network.WaitForOnline()
 	sys.L2EL.WaitForBlockNumber(1)
+	// Wait for the L1 base fee to rise so the deposit check can work (with a low L1 base fee, it
+	// is impossible to submit deposits that consume a lot of gas).
+	spamL1Txs(sys.Minimal)
+	sys.L1EL.WaitForLabelRef(eth.Unsafe, func(info eth.BlockInfo) (bool, error) {
+		return info.BaseFee().Cmp(eth.GWei(2).ToBig()) >= 0, nil
+	})
 
 	alice := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	portalAddr := sys.L2Chain.Escape().RollupConfig().DepositContractAddress
@@ -421,6 +428,7 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 	sys := presets.NewMinimal(t, presets.WithDeployerOptions(
 		sysgo.WithKarstAtGenesis,
 		sysgo.WithL2GasLimit(120_000_000),
+		sysgo.WithForkAtL1Genesis(forks.Osaka),
 	))
 
 	spamTxs(sys)
@@ -429,32 +437,45 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 	t.Require().NoError(karsttest.CheckEIP7934BlockSizeDisabled(t.Ctx(), t.Logger(), sys.L2EL.EthClient(), l2BlockTime))
 }
 
+// spamTxs floods L2 with large-calldata transactions to drive the L2 base fee up.
 func spamTxs(sys *presets.Minimal) {
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
 	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
+	runSpam(sys.T, eoas, l2BlockTime, predeploys.L1BlockAddr)
+}
+
+// spamL1Txs floods L1 with large-calldata transactions to drive the L1 base fee up.
+func spamL1Txs(sys *presets.Minimal) {
+	l1BlockTime := sys.L1EL.EstimateBlockTime()
+	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l1BlockTime, sys.L1EL, sys.Wallet, sys.FaucetL1)
+	// The target only needs to absorb calldata, so any address works.
+	runSpam(sys.T, eoas, l1BlockTime, common.Address{0x42})
+}
+
+func runSpam(t devtest.T, eoas []*loadtest.SyncEOA, blockTime time.Duration, to common.Address) {
 	eoasRR := loadtest.NewRoundRobin(eoas)
 	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
 		// Max tx size in op-geth and op-reth mempools is 128 kB per tx.
 		// We leave an 8 kB buffer for tx data outside the calldata.
 		const calldataSize = 120 * 1024
 		_, err := eoasRR.Get().Include(t,
-			txplan.WithTo(&predeploys.L1BlockAddr),
+			txplan.WithTo(&to),
 			txplan.WithData(make([]byte, calldataSize)),
 			txplan.WithGasLimit(1_250_000),
 		)
 		return err
 	})
-	schedule := loadtest.NewBurst(l2BlockTime, loadtest.WithBaseRPS(50))
+	schedule := loadtest.NewBurst(blockTime, loadtest.WithBaseRPS(50))
 
-	ctx, cancel := context.WithCancel(sys.T.Ctx())
+	ctx, cancel := context.WithCancel(t.Ctx())
 	var wg sync.WaitGroup
 	wg.Add(1)
-	sys.T.Cleanup(func() {
+	t.Cleanup(func() {
 		cancel()
 		wg.Wait()
 	})
 	go func() {
 		defer wg.Done()
-		schedule.Run(sys.T.WithCtx(ctx), spammer)
+		schedule.Run(t.WithCtx(ctx), spammer)
 	}()
 }

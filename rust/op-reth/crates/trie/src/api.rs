@@ -258,20 +258,22 @@ pub trait OpProofsProviderRw: OpProofsProviderRO {
     fn commit(self) -> OpProofsStorageResult<()>;
 }
 
-/// Provider for writing historical records for blocks older than the current window boundary.
+/// Provider for writing historical records for blocks older than the current window boundary,
+/// and for the snapshot RW operations that ride on the same transaction.
 ///
 /// Unlike [`OpProofsProviderRw::store_trie_updates`], which is strictly append-only (validates
 /// parent hash against `latest` and advances `latest`), this provider is designed for
 /// **prepend-style** writes that extend the window backward.  It does not touch the `latest`
 /// marker, and it does not enforce parent-hash ordering against `latest`.
 ///
-/// The typical call sequence for one backfill step is:
+/// The typical call sequence for one snapshot-accelerated backfill step is:
 /// ```ignore
 /// let bp = storage.backfill_provider()?;
+/// bp.update_snapshot(new_anchor, &diff)?;
 /// bp.prepend_block(block_ref, diff)?;
-/// bp.commit()?;
+/// bp.commit()?;   // commits backfill + snapshot writes atomically
 /// ```
-pub trait OpProofsBackfillProvider: OpProofsProviderRO {
+pub trait OpProofsBackfillProvider: OpProofsSnapshotProviderRO + OpProofsProviderRO {
     /// Write historical changeset and history-bitmap entries for `block_ref`, and move the
     /// `earliest` marker to `block_ref.parent`.
     ///
@@ -288,7 +290,29 @@ pub trait OpProofsBackfillProvider: OpProofsProviderRO {
         diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts>;
 
-    /// Commit the transaction. Consumes the provider.
+    /// Wipe all snapshot tables and the meta row.
+    fn clear_snapshot(&self) -> OpProofsStorageResult<()>;
+
+    /// Project `diff` onto the snapshot and advance the anchor to
+    /// `new_anchor` atomically. Trie direction is implicit:
+    /// `(path, Some(node))` sets, `(path, None)` deletes. Leaf direction
+    /// follows the same convention: `Some(value)` upserts the leaf, `None`
+    /// deletes it.
+    ///
+    /// The returned [`WriteCounts`] reports per-table row counts (mirrors
+    /// [`OpProofsBackfillProvider::prepend_block`]'s return shape).
+    ///
+    /// Requires status `Ready`; errors with
+    /// [`OpProofsStorageError::SnapshotUpdateNotReady`](crate::OpProofsStorageError::SnapshotUpdateNotReady)
+    /// otherwise.
+    fn update_snapshot(
+        &self,
+        new_anchor: BlockNumHash,
+        diff: &BlockStateDiff,
+    ) -> OpProofsStorageResult<WriteCounts>;
+
+    /// Commit the transaction. Consumes the provider. Flushes both the backfill writes
+    /// and any pending snapshot writes atomically.
     fn commit(self) -> OpProofsStorageResult<()>;
 }
 
@@ -320,8 +344,11 @@ pub trait OpProofsStore: Send + Sync + Debug {
     fn initialization_provider<'a>(&'a self) -> OpProofsStorageResult<Self::Initializer<'a>>;
 }
 
-/// Factory extension for stores that support backfill — extending the
-/// `earliest` block of the proof window backward.
+/// Factory extension for stores that support backfill — extending the `earliest` block of
+/// the proof window backward.
+///
+/// Bundles the trie-state snapshot machinery (snapshot RO / RW / init providers) on the
+/// same trait because snapshot is internal infrastructure that accelerates backfill.
 #[auto_impl(Arc)]
 pub trait OpProofsBackfillStore: OpProofsStore {
     /// The backfill provider type created by the factory.
@@ -329,8 +356,28 @@ pub trait OpProofsBackfillStore: OpProofsStore {
     where
         Self: 'a;
 
-    /// Create a backfill provider for prepend-style writes that extend the window backward.
+    /// The snapshot RO provider type created by the factory.
+    type SnapshotProviderRO<'a>: OpProofsSnapshotProviderRO + Clone + 'a
+    where
+        Self: 'a;
+
+    /// Init-time bulk writer (used by [`crate::snapshot::SnapshotInitJob`]).
+    type SnapshotInitializer<'a>: OpProofsSnapshotInitProvider + 'a
+    where
+        Self: 'a;
+
+    /// Open the writer provider for backfill and snapshot RW operations. Backfill writes,
+    /// snapshot updates, and snapshot teardown all share this single tx and commit
+    /// atomically through [`OpProofsBackfillProvider::commit`].
     fn backfill_provider<'a>(&'a self) -> OpProofsStorageResult<Self::BackfillProvider<'a>>;
+
+    /// Open a RO snapshot provider.
+    fn snapshot_provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::SnapshotProviderRO<'a>>;
+
+    /// Open an init-time snapshot provider.
+    fn snapshot_initialization_provider<'a>(
+        &'a self,
+    ) -> OpProofsStorageResult<Self::SnapshotInitializer<'a>>;
 }
 
 /// Status of the initial state anchor.
@@ -405,5 +452,212 @@ pub trait OpProofsInitProvider: Send + Sync + Debug {
 
     /// Commit the changes to the database.
     /// Consumes the provider.
+    fn commit(self) -> OpProofsStorageResult<()>;
+}
+
+/// Read access to the trie-state snapshot.
+///
+/// Cursors read the snapshot tables directly (no history-bitmap lookups) and
+/// are only valid at [`Self::snapshot_anchor`].
+#[auto_impl(Arc)]
+pub trait OpProofsSnapshotProviderRO: OpProofsProviderRO {
+    /// Cursor over the snapshot's account trie table.
+    type SnapshotAccountTrieCursor<'tx>: TrieCursor + 'tx
+    where
+        Self: 'tx;
+
+    /// Cursor over the snapshot's storage trie table.
+    type SnapshotStorageTrieCursor<'tx>: TrieStorageCursor + 'tx
+    where
+        Self: 'tx;
+
+    /// Cursor over the snapshot's hashed-account leaf table.
+    type SnapshotHashedAccountCursor<'tx>: HashedCursor<Value = Account> + Send + 'tx
+    where
+        Self: 'tx;
+
+    /// Cursor over the snapshot's hashed-storage leaf table.
+    type SnapshotHashedStorageCursor<'tx>: HashedStorageCursor<Value = U256> + Send + 'tx
+    where
+        Self: 'tx;
+
+    /// Anchor block of a `Ready` snapshot. Errors with
+    /// [`OpProofsStorageError::SnapshotNotReady`](crate::OpProofsStorageError::SnapshotNotReady)
+    /// otherwise.
+    fn snapshot_anchor(&self) -> OpProofsStorageResult<BlockNumHash>;
+
+    /// Open a cursor over the snapshot's account trie table.
+    fn snapshot_account_trie_cursor<'tx>(
+        &self,
+    ) -> OpProofsStorageResult<Self::SnapshotAccountTrieCursor<'tx>>;
+
+    /// Open a cursor over the snapshot's storage trie table for `hashed_address`.
+    fn snapshot_storage_trie_cursor<'tx>(
+        &self,
+        hashed_address: B256,
+    ) -> OpProofsStorageResult<Self::SnapshotStorageTrieCursor<'tx>>;
+
+    /// Open a cursor over the snapshot's hashed-account leaf table.
+    fn snapshot_hashed_account_cursor<'tx>(
+        &self,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedAccountCursor<'tx>>;
+
+    /// Open a cursor over the snapshot's hashed-storage leaf table for `hashed_address`.
+    fn snapshot_hashed_storage_cursor<'tx>(
+        &self,
+        hashed_address: B256,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedStorageCursor<'tx>>;
+}
+
+/// Blanket [`OpProofsSnapshotProviderRO`] for shared references — mirrors the
+/// equivalent impl on [`OpProofsProviderRO`] above. Lets callers pass `&bp` to
+/// owning cursor factories (e.g., [`crate::SnapshotTrieCursorFactory::new`])
+/// without wrapping in [`std::sync::Arc`].
+impl<'a, T: OpProofsSnapshotProviderRO + 'a> OpProofsSnapshotProviderRO for &'a T {
+    type SnapshotAccountTrieCursor<'tx>
+        = T::SnapshotAccountTrieCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+    type SnapshotStorageTrieCursor<'tx>
+        = T::SnapshotStorageTrieCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+    type SnapshotHashedAccountCursor<'tx>
+        = T::SnapshotHashedAccountCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+    type SnapshotHashedStorageCursor<'tx>
+        = T::SnapshotHashedStorageCursor<'tx>
+    where
+        Self: 'tx,
+        T: 'tx;
+
+    fn snapshot_anchor(&self) -> OpProofsStorageResult<BlockNumHash> {
+        T::snapshot_anchor(self)
+    }
+
+    fn snapshot_account_trie_cursor<'tx>(
+        &self,
+    ) -> OpProofsStorageResult<Self::SnapshotAccountTrieCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::snapshot_account_trie_cursor(self)
+    }
+
+    fn snapshot_storage_trie_cursor<'tx>(
+        &self,
+        hashed_address: B256,
+    ) -> OpProofsStorageResult<Self::SnapshotStorageTrieCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::snapshot_storage_trie_cursor(self, hashed_address)
+    }
+
+    fn snapshot_hashed_account_cursor<'tx>(
+        &self,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedAccountCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::snapshot_hashed_account_cursor(self)
+    }
+
+    fn snapshot_hashed_storage_cursor<'tx>(
+        &self,
+        hashed_address: B256,
+    ) -> OpProofsStorageResult<Self::SnapshotHashedStorageCursor<'tx>>
+    where
+        'a: 'tx,
+    {
+        T::snapshot_hashed_storage_cursor(self, hashed_address)
+    }
+}
+
+/// Lifecycle of the snapshot init job. Mirrors [`InitialStateStatus`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SnapshotInitStatus {
+    /// Init has never run.
+    #[default]
+    NotStarted,
+    /// Init is running; snapshot tables may be partially populated.
+    InProgress,
+    /// Init completed. Use [`OpProofsSnapshotProviderRO::snapshot_anchor`] to read.
+    Completed,
+}
+
+/// Status + anchor block + resume keys for the snapshot init job. Mirrors
+/// [`InitialStateAnchor`]'s shape.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SnapshotInitAnchor {
+    /// Anchor block, or `None` if init has never run.
+    pub block: Option<BlockNumHash>,
+    /// Lifecycle status.
+    pub status: SnapshotInitStatus,
+    /// Last key in [`crate::db::V2AccountsTrieSnapshot`]; resumes the account-trie phase.
+    pub last_account_trie_key: Option<StoredNibbles>,
+    /// Last entry in [`crate::db::V2StoragesTrieSnapshot`]; resumes the storage-trie phase.
+    pub last_storage_trie_key: Option<StorageTrieKey>,
+    /// Last key in [`crate::db::V2HashedAccountsSnapshot`]; resumes the hashed-accounts phase.
+    pub last_hashed_account_key: Option<B256>,
+    /// Last entry in [`crate::db::V2HashedStoragesSnapshot`]; resumes the
+    /// hashed-storages phase.
+    pub last_hashed_storage_key: Option<HashedStorageKey>,
+}
+
+/// Init-time read + write surface for the trie-state snapshot. Mirrors
+/// [`OpProofsInitProvider`]'s role. Driven by [`crate::snapshot::SnapshotInitJob`]
+/// over short chunked rw-tx; meta stays `Building` mid-init so a crash
+/// resumes from [`Self::snapshot_init_anchor`].
+pub trait OpProofsSnapshotInitProvider: Send + Sync + Debug {
+    /// Read status + anchor block + resume keys in one call.
+    fn snapshot_init_anchor(&self) -> OpProofsStorageResult<SnapshotInitAnchor>;
+
+    /// Plant the meta row at `anchor` with status `Building`. Errors if a
+    /// meta row already exists — call
+    /// [`OpProofsBackfillProvider::clear_snapshot`] first to rebuild.
+    fn set_snapshot_init_anchor(&self, anchor: BlockNumHash) -> OpProofsStorageResult<()>;
+
+    /// Append a chunk to [`crate::db::V2AccountsTrieSnapshot`]. Entries must
+    /// be sorted and strictly greater than the table's current last key.
+    fn store_account_trie_snapshot_branches(
+        &self,
+        entries: Vec<(StoredNibbles, BranchNodeCompact)>,
+    ) -> OpProofsStorageResult<()>;
+
+    /// Append a chunk to [`crate::db::V2StoragesTrieSnapshot`]. Entries must
+    /// be sorted and strictly greater than the table's current last entry.
+    fn store_storage_trie_snapshot_branches(
+        &self,
+        hashed_address: B256,
+        storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+    ) -> OpProofsStorageResult<()>;
+
+    /// Append a chunk to [`crate::db::V2HashedAccountsSnapshot`]. Entries must
+    /// be sorted by `hashed_address` and strictly greater than the table's
+    /// current last key.
+    fn store_hashed_accounts_snapshot(
+        &self,
+        entries: Vec<(B256, Account)>,
+    ) -> OpProofsStorageResult<()>;
+
+    /// Append a chunk to [`crate::db::V2HashedStoragesSnapshot`] for
+    /// `hashed_address`. Entries must be sorted by storage key and strictly
+    /// greater than the table's current last entry for this address.
+    fn store_hashed_storages_snapshot(
+        &self,
+        hashed_address: B256,
+        entries: Vec<(B256, U256)>,
+    ) -> OpProofsStorageResult<()>;
+
+    /// Transition the meta row from `Building` to `Ready`. Errors if no meta
+    /// exists or if it isn't `Building`.
+    fn commit_snapshot(&self) -> OpProofsStorageResult<()>;
+
+    /// Commit the transaction. Consumes the provider.
     fn commit(self) -> OpProofsStorageResult<()>;
 }

@@ -86,7 +86,7 @@ COPY --from=planner /workspace/op-rbuilder/recipe.json recipe.json
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
-    cargo chef cook --release --recipe-path recipe.json
+    cargo chef cook --release --locked --recipe-path recipe.json
 COPY . .
 
 
@@ -96,7 +96,7 @@ ARG FEATURES
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
-    cargo build --release --features="$FEATURES" --package=${RBUILDER_BIN}
+    cargo build --release --locked --features="$FEATURES" --package=${RBUILDER_BIN}
 
 #
 # Reproducible builder container (deterministic source-date-epoch, no caching, no incremental builds)

@@ -28,7 +28,7 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 	t.Run("RequireGameTypePresent", func(t *testing.T) {
 		require.Equal(t,
 			optionKindAfterBuild|optionKindProofValidation,
-			RequireGameTypePresent(gameTypes.CannonGameType).optionKinds(),
+			RequireGameTypePresent(gameTypes.CannonKonaGameType).optionKinds(),
 		)
 	})
 
@@ -64,7 +64,7 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			supported: minimalPresetSupportedOptionKinds,
 			opts: Combine(
 				WithTimeTravelEnabled(),
-				RequireGameTypePresent(gameTypes.CannonGameType),
+				RequireGameTypePresent(gameTypes.CannonKonaGameType),
 			),
 			want: 0,
 		},
@@ -120,7 +120,7 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 		{
 			name:      "unsupported proof validation is called out separately from generic after build",
 			supported: optionKindAfterBuild,
-			opts:      RequireGameTypePresent(gameTypes.CannonGameType),
+			opts:      RequireGameTypePresent(gameTypes.CannonKonaGameType),
 			want:      optionKindProofValidation,
 		},
 	}

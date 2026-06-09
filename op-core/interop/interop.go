@@ -66,8 +66,9 @@ var errorCodeMap = map[error]int{
 	ErrUnknownChain:          -320501,
 	ErrUninitialized:         -320400,
 
+	ErrFailsafeEnabled: -320602,
+
 	ErrNoRPCSource:             genericInvalidParamsErr,
-	ErrFailsafeEnabled:         genericInvalidParamsErr,
 	ErrInvalidatedRead:         genericInvalidParamsErr,
 	ErrAlreadyInvalidatingRead: genericInvalidParamsErr,
 	ErrRewindFailed:            genericInvalidParamsErr,

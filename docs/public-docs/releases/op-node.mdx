@@ -37,7 +37,7 @@ When `--syncmode.offset-el-safe` is configured outside `--syncmode=execution-lay
 
 </Update>
 
-<Update label="May 19, 2026" description="v1.18.2" tags={["Latest", "Stable"]}>
+<Update label="May 19, 2026" description="v1.18.2" tags={["Stable"]}>
 
 > [!NOTE]
 > **Optional upgrade.** This upgrade bumps op-geth and contains a few QOL improvements to op-node.
@@ -281,33 +281,6 @@ It also allows L2 chain configs to be passed to NewL1ChainConfig, which was prev
 The corresponding op-geth release is [v1.101603.2](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101603.2)
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.14.3)
-
-</Update>
-
-<Update label="October 8, 2025" description="v1.14.1" tags={["Stable"]}>
-
-> [!WARNING]
-> **This is an essential release to prepare for the L1 Fusaka fork on Sepolia. It supersedes [op-node/v1.14.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.14.0) which had a bug. The corresponding op-geth release is [v1.101603.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101603.1).**
-> Node operators must also upgrade their batcher to [op-batcher/v1.16.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.16.0) before Fusaka activates. See its release notes for further instructions.
-
-With this release of `op-node`, the L1 Chain Configuration (namely, the fork activation times and blob parameters for each fork) form part of L2 consensus. 
-
-This release therefore introduces the `--rollup.l1-chain-config` flag and accompanying `OP_NODE_ROLLUP_L1_CHAIN_CONFIG` environment variable. This is not necessary for chains deriving from Ethereum Mainnet, Sepolia, Holesky or Hoodi -- for those chains, the chain config is already baked into op-node and will be used automatically. 
-
-> [!NOTE]
-> Chains already running on Holesky are not supported since Holesky has already activated Fusaka. New chains deployed to Holesky are supported.
-
-> [!WARNING]
-> For chains deriving from an L1 other than Mainnet, Sepolia, Holesky or Hoodi: an up-to-date `genesis.json` or chain configuration file for the L1 must be provided. New L1 forks, including BPO forks, must be added to this file _before_ they activate on L1. 
-
-For the "known" L1 chains, we will publish op-node releases with updated L1 configurations baked in due course.
-
-This release also modifies the way `op-node` fetches and verifies blobs from beacon endpoints. 
-
-> [!IMPORTANT]
-> It is required that the beacon node passed with `--l1.beacon` is configured to store _all_ blobs.
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.14.1)
 
 </Update>
 

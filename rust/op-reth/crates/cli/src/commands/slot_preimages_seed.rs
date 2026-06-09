@@ -18,7 +18,7 @@
 //! The preimage DB is address-independent and reth deletes it once Ecotone (Cancun) activates.
 //!
 //! NOTE: the MDBX env layout below is replicated from reth's private `SlotPreimages::open` /
-//! `insert_preimages` at rev `81c026181e96ef33a823f3ef4d2a28940e9fa4fe`. It must stay
+//! `insert_preimages` at rev `7680d6d8a931c0af4f4eed26e971596970238b54`. It must stay
 //! byte-compatible with that code; revisit on every reth bump until an upstream helper exists.
 
 use alloy_genesis::GenesisAccount;

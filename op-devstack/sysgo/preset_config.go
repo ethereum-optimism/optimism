@@ -47,6 +47,11 @@ type PresetConfig struct {
 	// exercise Interop-gated consensus features (e.g. SDM PostExec) on the default
 	// single-chain runtime.
 	InteropAtGenesis bool
+	// SupernodeVNSequencerForBootstrap, in the light-sequencer supernode interop preset,
+	// enables sequencing on the supernode VN and starts the light follow-mode ELSync
+	// sequencers stopped, so the VN can bootstrap the chain the light sequencers EL-sync
+	// from before a test hands off sequencing to them.
+	SupernodeVNSequencerForBootstrap bool
 }
 
 func NewPresetConfig() PresetConfig {

@@ -9,9 +9,8 @@
 # It will default to the target platform.
 ARG TARGET_BASE_IMAGE=chainguard/static:latest
 
-# The wolfi target base image is used for the op-challenger build with kona,
-# which links against openssl/ca-certificates at runtime.
-ARG UBUNTU_TARGET_BASE_IMAGE=chainguard/wolfi-base:latest
+# The ubuntu target base image is used for the op-challenger build with kona.
+ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:24.04
 
 # builder_foundry does not need to be built on $BUILDPLATFORM, as foundry produces static binaries.
 FROM alpine:3.21 AS builder_foundry
@@ -51,6 +50,10 @@ RUN forge --version
 
 # We may be cross-building for another platform. Specify which platform we need as builder.
 FROM --platform=$BUILDPLATFORM golang:1.24.13-alpine3.22 AS builder
+
+# Enforce that builds use the committed go.mod/go.sum exactly and never
+# silently mutate them. Fails the build if the lockfile is out of date.
+ENV GOFLAGS=-mod=readonly
 
 RUN apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq yq-go bash just
 
@@ -176,6 +179,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 # Uses BUILDPLATFORM so it runs natively (no QEMU). Contract artifacts are platform-independent.
 FROM --platform=$BUILDPLATFORM golang:1.24.13-bookworm AS op-deployer-contracts
 ARG BUILDARCH
+ENV GOFLAGS=-mod=readonly
 RUN apt-get update && apt-get install -y --no-install-recommends curl jq git && rm -rf /var/lib/apt/lists/*
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
@@ -254,7 +258,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,targe
     *) echo "Unsupported architecture: $TARGETARCH" && exit 1 ;; \
   esac && \
   rustup target add "$RUST_TARGET" && \
-  RUSTFLAGS="-C target-cpu=generic" cargo build --bin kona-host --profile release-perf --target "$RUST_TARGET" && \
+  RUSTFLAGS="-C target-cpu=generic" cargo build --locked --bin kona-host --profile release-perf --target "$RUST_TARGET" && \
   cp "/rust/target/$RUST_TARGET/release-perf/kona-host" /kona-host
 
 FROM dhi.io/alpine-base:3.23 AS cannon-target
@@ -280,7 +284,7 @@ CMD ["op-node"]
 
 # Also produce an op-challenger loaded with kona using ubuntu
 FROM $UBUNTU_TARGET_BASE_IMAGE AS op-challenger-target
-RUN apk add --no-cache openssl libstdc++ ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends musl openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=op-challenger-builder /app/op-challenger/bin/op-challenger /usr/local/bin/
 # Copy in op-program and cannon
 COPY --from=op-program-builder /app/op-program/bin/op-program /usr/local/bin/

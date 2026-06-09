@@ -17,6 +17,7 @@ import (
 	hostcommon "github.com/ethereum-optimism/optimism/op-program/host/common"
 	hosttypes "github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/kzg"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -340,7 +341,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		blobKey := make([]byte, 80)
 		copy(blobKey[:48], kzgCommitment[:])
 		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-			rootOfUnity := l1.RootsOfUnity[i].Bytes()
+			rootOfUnity := kzg.RootsOfUnity[i].Bytes()
 			copy(blobKey[48:], rootOfUnity[:])
 			blobKeyHash := crypto.Keccak256Hash(blobKey)
 			if err := p.kvStore.Put(preimage.Keccak256Key(blobKeyHash).PreimageKey(), blobKey); err != nil {

@@ -159,6 +159,8 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 		L2ELB:                 dsl.NewL2ELNode(components.l2BEL),
 		L2ASupernodeCL:        dsl.NewL2CLNode(l2ASupernodeCL),
 		L2BSupernodeCL:        dsl.NewL2CLNode(l2BSupernodeCL),
+		L2ASupernodeEL:        dsl.NewL2ELNode(l2ASupernodeEL),
+		L2BSupernodeEL:        dsl.NewL2ELNode(l2BSupernodeEL),
 		L2BatcherA:            dsl.NewL2Batcher(components.l2ABatcher),
 		L2BatcherB:            dsl.NewL2Batcher(components.l2BBatcher),
 		FaucetA:               components.faucetA,

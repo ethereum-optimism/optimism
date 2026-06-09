@@ -14,7 +14,6 @@ require (
 	github.com/cockroachdb/pebble v1.1.5
 	github.com/coder/websocket v1.8.13
 	github.com/consensys/gnark-crypto v0.18.1
-	github.com/crate-crypto/go-kzg-4844 v1.1.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.4-0.20251001155152-4eb15ccedf7e
@@ -39,7 +38,6 @@ require (
 	github.com/libp2p/go-libp2p-pubsub v0.12.0
 	github.com/lmittmann/w3 v0.20.7
 	github.com/minio/minio-go/v7 v7.0.85
-	github.com/minio/sha256-simd v1.0.1
 	github.com/multiformats/go-base32 v0.1.0
 	github.com/multiformats/go-multiaddr v0.14.0
 	github.com/multiformats/go-multiaddr-dns v0.4.1
@@ -71,6 +69,7 @@ require (
 	github.com/grafana/pyroscope-go v1.2.7 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.9 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c // indirect
 	golang.org/x/telemetry v0.0.0-20251111182119-bc8e575c7b54 // indirect

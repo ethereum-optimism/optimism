@@ -104,7 +104,7 @@ func TestAlphabetProvider_GetStepData(t *testing.T) {
 	depth := types.Depth(2)
 	startingL2BlockNumber := big.NewInt(1)
 	ap := NewTraceProvider(startingL2BlockNumber, depth)
-	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
+	key := preimage.L2ClaimBlockNumberLocalIndex.PreimageKey()
 	expectedPreimageData := types.NewPreimageOracleData(key[:], startingL2BlockNumber.Bytes(), 0)
 
 	tests := []struct {
