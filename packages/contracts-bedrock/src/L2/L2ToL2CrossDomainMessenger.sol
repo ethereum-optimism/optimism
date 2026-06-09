@@ -192,6 +192,9 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     /// @notice Relays a message that was sent by the other L2ToL2CrossDomainMessenger contract. Can only be executed
     ///         via cross chain call from the other messenger OR if the message was already received once and is
     ///         currently being replayed.
+    /// @dev    If the target has no code when relayed (e.g. an EOA or a not-yet-deployed address), the call is a
+    ///         no-op that still succeeds, permanently consuming the message; it cannot be relayed again once the
+    ///         target is later deployed.
     /// @param _id          Identifier of the SentMessage event to be relayed
     /// @param _sentMessage Payload of the `SentMessage` event
     /// @return returnData_ Return data from the target contract call.
