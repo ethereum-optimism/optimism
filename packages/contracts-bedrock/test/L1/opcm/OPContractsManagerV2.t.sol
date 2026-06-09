@@ -1073,17 +1073,11 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
         runCurrentUpgradeV2(chainPAO);
 
-        // l2ChainId is the last 32 bytes of the ZK CWIA args layout:
+        // ZK CWIA args layout:
         // absolutePrestate(32) + verifier(20) + maxChallengeDuration(8) + maxProveDuration(8)
-        // + challengerBond(32) + anchorStateRegistry(20) + delayedWETH(20) + l2ChainId(32)
+        // + challengerBond(32) + anchorStateRegistry(20) + delayedWETH(20) = 140 bytes
         bytes memory args = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
-        // Assert the total length so the mload offsets below are guaranteed correct.
-        assertEq(args.length, 172, "ZK game args length must be 172 bytes (32+20+8+8+32+20+20+32)");
-        uint256 l2ChainIdFromArgs;
-        assembly {
-            l2ChainIdFromArgs := mload(add(add(args, 0x20), sub(mload(args), 32)))
-        }
-        assertEq(l2ChainIdFromArgs, 0, "ZK game args l2ChainId must be 0 (super game convention)");
+        assertEq(args.length, 140, "ZK game args length must be 140 bytes (32+20+8+8+32+20+20)");
     }
 
     /// @notice Tests that setting ZK config to enabled without the dev feature reverts.

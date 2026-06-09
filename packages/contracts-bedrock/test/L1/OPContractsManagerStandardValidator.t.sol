@@ -2295,13 +2295,6 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
         assertEq("ZKDG-20", _validate(true));
     }
 
-    /// @notice Tests ZKDG-60 when the l2ChainId encoded in the ZK game args is non-zero.
-    ///         ZK_DISPUTE_GAME is a super game: l2ChainId must be 0 in the factory args.
-    function test_validate_zkDisputeGameWrongChainId_succeeds() public {
-        DisputeGames.mockZKGameImplL2ChainId(dgf, GameTypes.ZK_DISPUTE_GAME, l2ChainId);
-        assertEq("ZKDG-60", _validate(true));
-    }
-
     /// @notice Tests ZKDG-70 when the absolutePrestate encoded in the ZK game args is zero.
     function test_validate_zkDisputeGameZeroAbsolutePrestate_succeeds() public {
         // absolutePrestate occupies bytes [0-31] of the packed ZK args.
