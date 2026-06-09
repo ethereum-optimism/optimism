@@ -88,14 +88,20 @@ EIP-150 63/64 forwarding.
 |----------|---------|----------|
 | OptimismPortal2 | L1 deposit/withdrawal portal | `src/L1/` |
 | SystemConfig | On-chain system configuration | `src/L1/` |
+| SuperchainConfig | Global Superchain config (pause, guardian) | `src/L1/` |
+| ETHLockbox | Unified ETH liquidity for authorized portals | `src/L1/` |
 | L1CrossDomainMessenger | L1 cross-domain messaging | `src/L1/` |
 | L1StandardBridge | L1 token bridge | `src/L1/` |
-| OPContractsManager | Manages contract deployments | `src/L1/` |
+| L1ERC721Bridge | L1 ERC-721 bridge | `src/L1/` |
+| OPContractsManager | Manages L1 contract deployments and upgrades (impl: `OPContractsManagerV2`) | `src/L1/opcm/` |
+| L2ContractsManager | L2CM — manages upgrades of the L2 predeploys | `src/L2/` |
 | CrossDomainMessenger | Abstract base messenger | `src/universal/` |
 | StandardBridge | Abstract base bridge | `src/universal/` |
 | Proxy | EIP-1967 transparent proxy | `src/universal/` |
 | ProxyAdmin | Proxy management | `src/universal/` |
+| DisputeGameFactory | Factory creating/registering dispute games | `src/dispute/` |
 | FaultDisputeGame | Fault proof dispute resolution | `src/dispute/` |
+| AnchorStateRegistry | Stores the latest anchor state per game type | `src/dispute/` |
 
 ### Utility Libraries
 
