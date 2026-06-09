@@ -1407,6 +1407,8 @@ jobs:
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
+      # `just check-fast` runs `go run ./scripts/check-runner`, so it builds Go.
+      - restore-go-mod-cache
       - run:
           name: Print forge version
           command: forge --version
@@ -1633,6 +1635,8 @@ jobs:
       - install-contracts-dependencies
       - check-changed:
           patterns: op-core/nuts
+      # The verify script runs `go run ./ops/scripts/nut-provenance-verify`.
+      - restore-go-mod-cache
       - run:
           name: verify NUT bundle provenance
           command: ./ops/scripts/nut-provenance-verify-changed.sh
@@ -1934,6 +1938,8 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      # `just verify-reproducibility` runs `go run ...verify.go` on the host.
+      - restore-go-mod-cache
       - run:
           name: Verify reproducibility
           command: just verify-reproducibility
@@ -2158,6 +2164,8 @@ jobs:
       - utils/checkout-with-mise:
           enable-mise-cache: true
       - attach_workspace: { at: "." }
+      # goreleaser compiles the Go release binaries on the host.
+      - restore-go-mod-cache
       - run:
           name: Configure Docker
           command: |
@@ -2335,6 +2343,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - nut-provenance-verify:
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       - fuzz-golang:
@@ -2974,6 +2984,8 @@ workflows:
             - slack
       - contracts-bedrock-checks-fast:
           name: contracts-bedrock-checks-fast-feature-tests
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack

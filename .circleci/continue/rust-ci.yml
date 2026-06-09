@@ -295,6 +295,10 @@ jobs:
           directory: rust
           prefix: rust-interop-deposits-diff
           profile: debug
+      # The diff script runs `go run ./op-node/cmd/interop-deposits-dump`, so it
+      # builds Go code. Restore the shared Go module cache to avoid a cold
+      # `go mod download` (slow, and a per-pipeline proxy.golang.org flake risk).
+      - restore-go-mod-cache
       - run:
           name: Cross-language Interop activation diff
           command: |
