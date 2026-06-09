@@ -40,8 +40,10 @@ impl OpSpecId {
             Self::BEDROCK | Self::REGOLITH => SpecId::MERGE,
             Self::CANYON => SpecId::SHANGHAI,
             Self::ECOTONE | Self::FJORD | Self::GRANITE | Self::HOLOCENE => SpecId::CANCUN,
-            Self::ISTHMUS | Self::JOVIAN | Self::INTEROP => SpecId::PRAGUE,
-            Self::KARST => SpecId::OSAKA,
+            Self::ISTHMUS | Self::JOVIAN => SpecId::PRAGUE,
+            // Interop (activated by the Lagoon hardfork) is newer than Karst, so its eth base
+            // must not be older than Karst's (OSAKA).
+            Self::KARST | Self::INTEROP => SpecId::OSAKA,
         }
     }
 
@@ -268,5 +270,46 @@ mod tests {
     #[test]
     fn default_op_spec_id() {
         assert_eq!(OpSpecId::default(), OpSpecId::JOVIAN);
+    }
+
+    #[test]
+    fn karst_and_interop_eth_base_is_osaka() {
+        // Interop (activated by the Lagoon hardfork) is newer than Karst, so it must not downgrade
+        // the eth base below Karst's OSAKA.
+        assert_eq!(OpSpecId::KARST.into_eth_spec(), SpecId::OSAKA);
+        assert_eq!(OpSpecId::INTEROP.into_eth_spec(), SpecId::OSAKA);
+    }
+
+    /// Conformance guard: the eth base spec must be non-decreasing across the OP fork chronology
+    /// (oldest to newest). A newer OP fork must never map to an older eth base.
+    #[test]
+    fn eth_base_is_monotonic_across_chronology() {
+        // OP forks in chronological order, oldest first. INTEROP (the Lagoon hardfork's spec) is
+        // newest. This also matches the `OpSpecId` discriminant order, which `is_enabled_in` relies
+        // on.
+        let chronology = [
+            OpSpecId::BEDROCK,
+            OpSpecId::REGOLITH,
+            OpSpecId::CANYON,
+            OpSpecId::ECOTONE,
+            OpSpecId::FJORD,
+            OpSpecId::GRANITE,
+            OpSpecId::HOLOCENE,
+            OpSpecId::ISTHMUS,
+            OpSpecId::JOVIAN,
+            OpSpecId::KARST,
+            OpSpecId::INTEROP,
+        ];
+        for pair in chronology.windows(2) {
+            let [older, newer] = [pair[0], pair[1]];
+            // The chronology must agree with the discriminant ordering.
+            assert!(newer.is_enabled_in(older), "{newer:?} should be newer than {older:?}");
+            assert!(
+                newer.into_eth_spec() >= older.into_eth_spec(),
+                "{newer:?} eth base {:?} is older than {older:?} eth base {:?}",
+                newer.into_eth_spec(),
+                older.into_eth_spec(),
+            );
+        }
     }
 }

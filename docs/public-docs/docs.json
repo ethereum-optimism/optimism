@@ -1957,6 +1957,7 @@
                 ]
               },
               "chain-operators/tutorials/absolute-prestate",
+              "chain-operators/tutorials/kona-custom-prestate",
               "chain-operators/tutorials/adding-derivation-attributes",
               "chain-operators/tutorials/adding-precompiles",
               "chain-operators/tutorials/dispute-games",
@@ -2019,6 +2020,12 @@
               "chain-operators/reference/architecture",
               "chain-operators/reference/opcm",
               "chain-operators/reference/standard-configuration"
+            ]
+          },
+          {
+            "group": "Archive",
+            "pages": [
+              "chain-operators/tutorials/archive/op-program-prestate"
             ]
           }
         ]

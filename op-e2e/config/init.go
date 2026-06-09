@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -496,17 +495,6 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 					},
 					{
 						ChainProofParams: state.ChainProofParams{
-							DisputeGameType:         0,
-							DisputeAbsolutePrestate: cannonPrestate(root, allocType),
-							DisputeMaxGameDepth:     50,
-							DisputeSplitDepth:       14,
-							DisputeClockExtension:   0,
-							DisputeMaxClockDuration: 1200,
-						},
-						VMType: cannonVMType(allocType),
-					},
-					{
-						ChainProofParams: state.ChainProofParams{
 							// CANNON_KONA game
 							DisputeGameType:         8,
 							DisputeAbsolutePrestate: konaPrestate(root),
@@ -549,60 +537,8 @@ type prestateFile struct {
 	Pre string `json:"pre"`
 }
 
-var cannonPrestateMT common.Hash
-var cannonPrestateMTNext common.Hash
-var cannonPrestateMTOnce sync.Once
-var cannonPrestateMTNextOnce sync.Once
-
 var konaPrestateHash common.Hash
 var konaPrestateOnce sync.Once
-
-func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
-	var filename string
-
-	var once *sync.Once
-	var cacheVar *common.Hash
-	cannonVmType := cannonVMType(allocType)
-	if cannonVmType == state.VMTypeCannon {
-		filename = "prestate-proof-mt64.json"
-		once = &cannonPrestateMTOnce
-		cacheVar = &cannonPrestateMT
-	} else if cannonVmType == state.VMTypeCannonNext {
-		if versions.GetCurrentVersion() != versions.GetExperimentalVersion() {
-			filename = "prestate-proof-mt64Next.json"
-		} else {
-			filename = "prestate-proof-mt64.json"
-		}
-		once = &cannonPrestateMTNextOnce
-		cacheVar = &cannonPrestateMTNext
-	} else {
-		panic("Unsupported cannon VM type: " + cannonVmType)
-	}
-
-	once.Do(func() {
-		f, err := os.Open(path.Join(monorepoRoot, "op-program", "bin", filename))
-		if err != nil {
-			log.Warn("error opening prestate file. If you're running a test that requires prestates, make sure you've run `make cannon-prestates`", "err", err)
-			return
-		}
-		defer f.Close()
-
-		var prestate prestateFile
-		dec := json.NewDecoder(f)
-		if err := dec.Decode(&prestate); err != nil {
-			log.Error("error decoding prestate file. If you're running a test that requires prestates, make sure you've run `make cannon-prestates`", "err", err)
-			return
-		}
-
-		*cacheVar = common.HexToHash(prestate.Pre)
-	})
-
-	// Provide a dummy value so that the DeployDisputeGame script succeeds. Many tests do not require a dispute game. So this allieviates the need to build prestates during local development.
-	if *cacheVar == (common.Hash{}) {
-		*cacheVar = common.HexToHash("0xc02b59f772cb23a75b6ffb9f7602ba25fdd5d8e75ad88efcc013fec2c63b0895") // keccak("dummy")
-	}
-	return *cacheVar
-}
 
 func konaPrestate(monorepoRoot string) common.Hash {
 	konaPrestateOnce.Do(func() {

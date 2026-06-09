@@ -370,6 +370,7 @@ fn pool_component(args: &OpRbuilderArgs) -> OpPoolBuilder<FBPooledTransaction> {
         )
         .with_interop(
             rollup_args.interop_http.clone(),
+            rollup_args.interop_min_responses,
             rollup_args.interop_safety_level,
         )
 }

@@ -194,7 +194,7 @@ func TestSuperCannonStepWithLargePreimage(t *testing.T) {
 			require.NoError(t, sys.Batcher(id).Stop(ctx))
 		}
 		// Manually send a tx from the correct batcher key to the batcher input with very large (invalid) data
-		// This forces op-program to load a large preimage.
+		// This forces the fault-proof program to load a large preimage.
 		for _, id := range sys.L2IDs() {
 			batcherKey := sys.L2OperatorKey(id, devkeys.BatcherRole)
 			batcherHelper := batcher.NewHelper(t, &batcherKey, sys.RollupConfig(id), sys.L1GethClient())

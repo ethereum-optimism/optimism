@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /// An [`ExecutingDescriptor`] is a part of the payload to `interop_checkAccessList`
 /// Interop RPC request descriptor.
-#[derive(Default, Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Debug, PartialEq, Eq, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct ExecutingDescriptor {
     /// The chain ID of the executing chain.
     #[serde(rename = "chainID", with = "alloy_serde::quantity")]

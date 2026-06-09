@@ -24,7 +24,7 @@ func TestLocalPreimages(t *testing.T) {
 		{key: preimage.L2ClaimLocalIndex},
 		{key: preimage.L2ClaimBlockNumberLocalIndex},
 		// We don't check client.L2ChainIDLocalIndex because e2e tests use a custom chain configuration
-		// which requires using a custom chain ID indicator so op-program will load the full rollup config and
+		// which requires using a custom chain ID indicator so the fault-proof program will load the full rollup config and
 		// genesis from the preimage oracle
 	}
 	for _, test := range tests {

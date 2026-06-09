@@ -2,11 +2,15 @@
 
 /// Offset before deadline expiry at which a tx becomes "stale" and triggers revalidation.
 const OFFSET_TIME: u64 = 60;
-/// Maximum number of interop filter requests at the same time.
+/// Maximum number of transactions revalidated against the interop filter concurrently. Each
+/// transaction issues up to one request per configured endpoint, so total in-flight interop
+/// requests can reach `MAX_INTEROP_QUERIES * <number of endpoints>`. The bound is on
+/// transactions (per-endpoint load is unchanged by fan-out).
 const MAX_INTEROP_QUERIES: usize = 10;
 /// Interval at which a heartbeat warning is re-logged while failsafe stays enabled, so a
-/// long-lived failsafe keeps surfacing in recent logs rather than only at the transition.
-const FAILSAFE_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(60);
+/// long-lived failsafe keeps surfacing in recent logs rather than only at the transition. Also
+/// reused to rate-limit the degraded-quorum log in [`InteropFilterClient`].
+pub(crate) const FAILSAFE_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(60);
 
 use crate::{
     conditional::MaybeConditionalTransaction,

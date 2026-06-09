@@ -39,14 +39,6 @@
       "target": "op-faucet",
       "paths": ["op-faucet/**"]
     },
-    "op-program": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-program",
-      "paths": ["op-program/**", "op-preimage/**"]
-    },
     "op-proposer": {
       "type": "go",
       "check": "go",
@@ -61,7 +53,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-challenger",
-      "paths": ["op-challenger/**", "op-program/**", "cannon/**", "op-preimage/**", "rust/kona/**"]
+      "paths": ["op-challenger/**", "cannon/**", "op-preimage/**", "rust/kona/**"]
     },
     "op-dispute-mon": {
       "type": "go",

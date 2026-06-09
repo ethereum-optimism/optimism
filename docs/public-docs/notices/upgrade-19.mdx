@@ -94,8 +94,54 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
 <Steps>
   <Step title="Verify the new kona-client absolute prestate">
 
-  The absolute prestate hash and verification instructions will be published once the release candidate is finalized. Prestates can be found in
-  [standard-prestates.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml).
+  The absolute prestate is generated with [`kona-client/v1.6.0`](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.6.0). As of Upgrade 19, the `kona-client` source lives inside the [`ethereum-optimism/optimism`](https://github.com/ethereum-optimism/optimism) monorepo.
+
+  Choose the verification path that matches your chain:
+
+  <Tabs>
+    <Tab title="Chains in the superchain-registry">
+      Two variants ship with this release:
+
+      *   **`cannon64-kona`** (`0x03cdb57a890f7e129d5abbe074f19425f94cf2b84f614aab008a96f91debae65`) — standard variant for chains adopting `CANNON_KONA` (game type 8) as the respected game type.
+      *   **`cannon64-kona-interop`** (`0x039e98f06aa04983d15f8dfce40884c4c93131de8ab4c01d9e647ab38a954894`) — for chains also running the interop fault proof variant.
+
+      These prestates apply to the following chains:
+
+      *   Mainnet and Sepolia: `OP`, `Ink`, `Soneium`, and `Unichain`
+
+      You can verify both absolute prestates by running the following command in the root of the monorepo on the `kona-client/v1.6.0` tag:
+
+      ```shell
+      just reproducible-prestate-kona
+      ```
+
+      Then extract each hash with:
+
+      ```shell
+      jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json          # cannon64-kona
+      jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json  # cannon64-kona-interop
+      ```
+
+      Verify that your target prestate was calculated as expected and matches the corresponding entry in
+      [standard-prestates.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml).
+    </Tab>
+
+    <Tab title="Chains with custom chain configurations">
+      If you generated a custom prestate following the [Custom kona-client prestate tutorial](/chain-operators/tutorials/kona-custom-prestate), the resulting hash is specific to your chain and will not appear in `standard-prestates.toml`. Verify it with these three checks:
+
+      1. **Confirm the inputs.** Open the rollup config files inside the `KONA_CUSTOM_CONFIGS_DIR` you used during the build and confirm the chain ID, fork timestamps (including `karst_time` once it lands), and L1/L2 contract addresses match your chain's actual state. The prestate is only as correct as the configs you fed into the build — once the inputs are right, the build is deterministic.
+
+      2. **Confirm your chain is embedded (pre-deployment).** A custom build that silently fails to merge your chain produces the *standard* prestate hash. Confirm your chain is actually inside the prestate image before you deploy anything:
+
+         ```bash
+         gunzip -c rust/kona/prestate-artifacts-cannon/prestate.bin.gz | strings | grep "<your-chain-name>"
+         ```
+
+         Run it once per chain in your `chainList.json`; every chain must match at least once.
+
+      3. **On-chain match (post-deployment).** After the new game type is registered, confirm the on-chain absolute prestate matches `jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json`. On current (v2.4+) contracts the prestate lives in the `DisputeGameFactory`'s `gameArgs` (the first 32 bytes of `gameArgs(<gameType>)`), so read it there or from a *created game instance* — `absolutePrestate()` on the bare implementation returns zero because the value is a clone-with-immutable-args argument, not a constructor immutable.
+    </Tab>
+  </Tabs>
   </Step>
 
   <Step title="Upload your new preimage files">
