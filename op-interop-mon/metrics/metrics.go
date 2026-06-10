@@ -22,7 +22,7 @@ type Metricer interface {
 	RecordFilterFailsafe(enabled bool)
 	RecordSupernodeUp(endpoint string, up bool)
 	RecordSupernodeSafeHead(chainID string, level string, blockNumber uint64)
-	RecordCrossSafetyViolation(executingChainID string, initiatingChainID string, level string)
+	RecordCrossSafetyViolation(executingChainID string, initiatingChainID string)
 
 	opmetrics.RefMetricer
 	opmetrics.RPCMetricer
@@ -163,7 +163,6 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"executing_chain_id",
 			"initiating_chain_id",
-			"level",
 		}),
 	}
 }
@@ -256,6 +255,6 @@ func (m *Metrics) RecordSupernodeSafeHead(chainID string, level string, blockNum
 }
 
 // RecordCrossSafetyViolation increments when a bad executing message is observed at/below the supernode cross-safe head.
-func (m *Metrics) RecordCrossSafetyViolation(executingChainID string, initiatingChainID string, level string) {
-	m.crossSafetyViolations.WithLabelValues(executingChainID, initiatingChainID, level).Inc()
+func (m *Metrics) RecordCrossSafetyViolation(executingChainID string, initiatingChainID string) {
+	m.crossSafetyViolations.WithLabelValues(executingChainID, initiatingChainID).Inc()
 }

@@ -112,7 +112,7 @@ func (o *SupernodeObserver) Observe(ctx context.Context, jobs map[JobID]*Job) {
 				"cross_safe_head", s.SafeL2.Number,
 				"status", st.String(),
 			)
-			o.m.RecordCrossSafetyViolation(job.executingChain.String(), job.initiating.ChainID.String(), "cross_safe")
+			o.m.RecordCrossSafetyViolation(job.executingChain.String(), job.initiating.ChainID.String())
 		}
 	}
 }

@@ -18,7 +18,7 @@ type InteropMessageMetrics interface {
 	RecordFilterFailsafe(enabled bool)
 	RecordSupernodeUp(endpoint string, up bool)
 	RecordSupernodeSafeHead(chainID string, level string, blockNumber uint64)
-	RecordCrossSafetyViolation(executingChainID string, initiatingChainID string, level string)
+	RecordCrossSafetyViolation(executingChainID string, initiatingChainID string)
 }
 
 type MetricCollector struct {

@@ -25,5 +25,5 @@ func (*noopMetrics) RecordFilterDivergence(executingChainID string, initiatingCh
 func (*noopMetrics) RecordFilterFailsafe(enabled bool)                               {}
 func (*noopMetrics) RecordSupernodeUp(endpoint string, up bool)                      {}
 func (*noopMetrics) RecordSupernodeSafeHead(chainID string, level string, bn uint64) {}
-func (*noopMetrics) RecordCrossSafetyViolation(executingChainID string, initiatingChainID string, level string) {
+func (*noopMetrics) RecordCrossSafetyViolation(executingChainID string, initiatingChainID string) {
 }

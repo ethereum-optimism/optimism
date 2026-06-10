@@ -175,7 +175,7 @@ func (m *mockMetrics) RecordSupernodeSafeHead(chainID string, level string, bloc
 	})
 }
 
-func (m *mockMetrics) RecordCrossSafetyViolation(executingChainID string, initiatingChainID string, level string) {
+func (m *mockMetrics) RecordCrossSafetyViolation(executingChainID string, initiatingChainID string) {
 	m.actualCrossSafetyViolations = append(m.actualCrossSafetyViolations, expectedTerminalCall{
 		executingChainID:  executingChainID,
 		initiatingChainID: initiatingChainID,
