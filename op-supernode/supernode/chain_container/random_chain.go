@@ -26,13 +26,19 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 type L2Block struct {
-	Ref      eth.L2BlockRef
-	Payload  *eth.ExecutionPayloadEnvelope
+	Ref     eth.L2BlockRef
+	Payload *eth.ExecutionPayloadEnvelope
+	// InitLog is a planted plain log other chains can reference as an
+	// initiating message. Always emitted at log index 0.
+	InitLog *gethtypes.Log
+	// ExecMsgs holds executing messages keyed by their flat log index in the
+	// block's receipts.
 	ExecMsgs map[uint32]*supervisortypes.Message
 }
 
@@ -50,7 +56,8 @@ func (b *L2Block) Output() *eth.OutputV0 {
 	}
 }
 
-// Receipts encodes the executing messages as logs the interop decoder accepts.
+// Receipts encodes the init log followed by the executing messages as logs
+// the interop decoder accepts.
 func (b *L2Block) Receipts() gethtypes.Receipts {
 	keys := make([]uint32, 0, len(b.ExecMsgs))
 	for k := range b.ExecMsgs {
@@ -58,7 +65,10 @@ func (b *L2Block) Receipts() gethtypes.Receipts {
 	}
 	slices.Sort(keys)
 
-	logs := make([]*gethtypes.Log, 0, len(keys))
+	logs := make([]*gethtypes.Log, 0, 1+len(keys))
+	if b.InitLog != nil {
+		logs = append(logs, b.InitLog)
+	}
 	for _, k := range keys {
 		topics, data := b.ExecMsgs[k].EncodeEvent()
 		logs = append(logs, &gethtypes.Log{
@@ -128,6 +138,48 @@ func (m *RandomChainManager) Generate() {
 		m.chains[rc.chainID] = rc
 		m.order = append(m.order, rc.chainID)
 	}
+	m.wireExecutingMessages()
+}
+
+// wireExecutingMessages plants one executing message in every block of
+// (first, safe] on each chain, referencing the init log of a strictly earlier
+// block on another chain. Strictly earlier keeps the first cut off the
+// same-timestamp frontier and cycle paths. Referenced blocks start at the
+// first SafeDB-covered block (safeDB[0].L2): earlier blocks are below SafeDB
+// history, so verification can never reach — and therefore never seal — them.
+func (m *RandomChainManager) wireExecutingMessages() {
+	if len(m.order) < 2 {
+		return
+	}
+	for bi, id := range m.order {
+		b := m.chains[id]
+		first := int(b.safeDB[0].L2.Number)
+		for i := first + 1; uint64(i) <= b.safe; i++ {
+			ai := int(m.rng.Int63n(int64(len(m.order) - 1)))
+			if ai >= bi {
+				ai++
+			}
+			a := m.chains[m.order[ai]]
+			aFirst := int(a.safeDB[0].L2.Number)
+			if i <= aFirst {
+				continue
+			}
+			j := aFirst + int(m.rng.Int63n(int64(i-aFirst)))
+			initLog := a.l2[j].InitLog
+			b.l2[i].ExecMsgs = map[uint32]*supervisortypes.Message{
+				1: {
+					Identifier: supervisortypes.Identifier{
+						Origin:      initLog.Address,
+						ChainID:     a.chainID,
+						BlockNumber: uint64(j),
+						LogIndex:    0,
+						Timestamp:   a.l2[j].Ref.Time,
+					},
+					PayloadHash: crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(initLog)),
+				},
+			}
+		}
+	}
 }
 
 func (m *RandomChainManager) generateL1() []eth.L1BlockRef {
@@ -176,6 +228,11 @@ func (m *RandomChainManager) generateChain(idNum uint64) *RandomChain {
 					StateRoot:       eth.Bytes32(stateRoot),
 					WithdrawalsRoot: &withdrawals,
 				},
+			},
+			InitLog: &gethtypes.Log{
+				Address: common.Address(m.randHash().Bytes()[:20]),
+				Topics:  []common.Hash{m.randHash()},
+				Data:    m.randHash().Bytes(),
 			},
 		}
 		l2Parent = h

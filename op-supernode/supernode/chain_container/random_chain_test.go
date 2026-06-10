@@ -11,6 +11,7 @@ import (
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -195,6 +196,43 @@ func TestRandomChainManagerGenerate(t *testing.T) {
 	m2 := NewRandomChainManager([]byte("seed-abc"))
 	m2.Generate()
 	require.Equal(t, chains[0].l2[0].Ref.Hash, m2.Chains()[0].l2[0].Ref.Hash)
+}
+
+func TestGeneratedExecutingMessages(t *testing.T) {
+	m := NewRandomChainManager([]byte("xmsg"))
+	m.Generate()
+	chains := m.Chains()
+	require.Len(t, chains, 2)
+
+	for _, rc := range chains {
+		first := rc.safeDB[0].L2.Number
+		for i, blk := range rc.l2 {
+			if uint64(i) <= first || uint64(i) > rc.safe {
+				require.Empty(t, blk.ExecMsgs)
+				continue
+			}
+			require.Len(t, blk.ExecMsgs, 1)
+			msg := blk.ExecMsgs[1]
+			require.NotEqual(t, rc.chainID, msg.Identifier.ChainID)
+			require.Less(t, msg.Identifier.Timestamp, blk.Ref.Time)
+
+			src := m.Chain(msg.Identifier.ChainID)
+			require.NotNil(t, src)
+			require.GreaterOrEqual(t, msg.Identifier.BlockNumber, src.safeDB[0].L2.Number,
+				"init block must be verifiable on the source chain")
+			initLog := src.l2[msg.Identifier.BlockNumber].InitLog
+			require.Equal(t, initLog.Address, msg.Identifier.Origin)
+			require.Equal(t, uint32(0), msg.Identifier.LogIndex)
+			require.Equal(t,
+				crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(initLog)),
+				msg.PayloadHash)
+		}
+	}
+
+	// init logs must not read as executing-message events
+	em, err := processors.DecodeExecutingMessageLog(chains[0].l2[1].InitLog)
+	require.NoError(t, err)
+	require.Nil(t, em)
 }
 
 func TestChainContainerWiring(t *testing.T) {

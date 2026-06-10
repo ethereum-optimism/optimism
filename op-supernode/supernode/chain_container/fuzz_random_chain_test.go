@@ -50,7 +50,7 @@ func FuzzRandomChainReadPath(f *testing.F) {
 				require.NoError(t, err)
 				require.Equal(t, blk.Ref.Hash, info.Hash())
 				require.Len(t, rcpts, 1) // Receipts packs all logs into one receipt
-				require.Len(t, rcpts[0].Logs, len(blk.ExecMsgs))
+				require.Len(t, rcpts[0].Logs, 1+len(blk.ExecMsgs))
 				for _, lg := range rcpts[0].Logs {
 					_, derr := processors.DecodeExecutingMessageLog(lg)
 					require.NoError(t, derr)
