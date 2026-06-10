@@ -26,7 +26,6 @@ import (
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/prestate"
 	"github.com/ethereum-optimism/optimism/op-validator/pkg/service"
 	"github.com/ethereum-optimism/optimism/op-validator/pkg/validations"
 	"github.com/ethereum/go-ethereum/common"
@@ -45,7 +44,6 @@ type ApplyConfig struct {
 	Logger           log.Logger
 	CacheDir         string
 	privateKeyECDSA  *ecdsa.PrivateKey
-	PreStateBuilder  pipeline.PreStateBuilder
 	UseForge         bool
 }
 
@@ -96,13 +94,6 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 		privateKey := cliCtx.String(PrivateKeyFlagName)
 		cacheDir := cliCtx.String(CacheDirFlagName)
 		depTarget, err := NewDeploymentTarget(cliCtx.String(DeploymentTargetFlag.Name))
-		opProgramSvcUrl := cliCtx.String(OpProgramSvcUrlFlag.Name)
-
-		var preStateBuilder pipeline.PreStateBuilder
-		if opProgramSvcUrl != "" {
-			preStateBuilder = prestate.NewPrestateBuilderClient(opProgramSvcUrl)
-		}
-
 		if err != nil {
 			return fmt.Errorf("failed to parse deployment target: %w", err)
 		}
@@ -116,7 +107,6 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			DeploymentTarget: depTarget,
 			Logger:           l,
 			CacheDir:         cacheDir,
-			PreStateBuilder:  preStateBuilder,
 			UseForge:         cliCtx.Bool(UseForgeFlagName),
 		}); err != nil {
 			return err
@@ -264,7 +254,6 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		Logger:             cfg.Logger,
 		StateWriter:        pipeline.WorkdirStateWriter(cfg.Workdir),
 		CacheDir:           cfg.CacheDir,
-		PreStateBuilder:    cfg.PreStateBuilder,
 		UseForge:           cfg.UseForge,
 		PrivateKey:         cfg.PrivateKey,
 		Workdir:            cfg.Workdir,
@@ -289,7 +278,6 @@ type ApplyPipelineOpts struct {
 	Logger             log.Logger
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
-	PreStateBuilder    pipeline.PreStateBuilder
 	UseForge           bool
 	PrivateKey         string
 	Workdir            string
@@ -559,13 +547,19 @@ func ApplyPipeline(
 		},
 	})
 
-	// Generate the prestate for all chains
-	pline = append(pline, pipelineStage{
-		"deploy-pre-state",
-		func() error {
-			return pipeline.GeneratePreState(ctx, pEnv, intent, st, opts.PreStateBuilder)
-		},
-	})
+	// Validate that the deployed state renders into a valid L2 genesis and rollup
+	// config for every chain, so an invalid intent fails during apply rather than
+	// later at inspect time.
+	for _, chain := range intent.Chains {
+		chainID := chain.ID
+		pline = append(pline, pipelineStage{
+			fmt.Sprintf("validate-l2-genesis-%s", chainID.Hex()),
+			func() error {
+				_, _, err := pipeline.RenderGenesisAndRollup(st, chainID, intent)
+				return err
+			},
+		})
+	}
 
 	// Run through the pipeline.
 	for _, stage := range pline {

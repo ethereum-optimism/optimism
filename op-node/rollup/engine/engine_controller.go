@@ -90,7 +90,8 @@ type OriginSelectorForceResetter interface {
 }
 
 // CrossUpdateHandler handles both cross-unsafe and cross-safe L2 head changes.
-// Nil check required because op-program omits this handler.
+// It is optional: callers that don't track cross-chain safety leave it unset, so
+// consumers must nil-check before invoking it.
 type CrossUpdateHandler interface {
 	OnCrossUnsafeUpdate(ctx context.Context, crossUnsafe eth.L2BlockRef, localUnsafe eth.L2BlockRef)
 	OnCrossSafeUpdate(ctx context.Context, crossSafe eth.L2BlockRef, localSafe eth.L2BlockRef)
@@ -514,14 +515,14 @@ func (e *EngineController) SetCrossUpdateHandler(handler CrossUpdateHandler) {
 }
 
 func (e *EngineController) onUnsafeUpdate(ctx context.Context, crossUnsafe, localUnsafe eth.L2BlockRef) {
-	// Nil check required because op-program omits this handler.
+	// Nil check required because the handler is optional and may be unset.
 	if e.crossUpdateHandler != nil {
 		e.crossUpdateHandler.OnCrossUnsafeUpdate(ctx, crossUnsafe, localUnsafe)
 	}
 }
 
 func (e *EngineController) onSafeUpdate(ctx context.Context, crossSafe, localSafe eth.L2BlockRef) {
-	// Nil check required because op-program omits this handler.
+	// Nil check required because the handler is optional and may be unset.
 	if e.crossUpdateHandler != nil {
 		e.crossUpdateHandler.OnCrossSafeUpdate(ctx, crossSafe, localSafe)
 	}

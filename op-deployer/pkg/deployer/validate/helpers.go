@@ -49,11 +49,6 @@ func DetectValidatorVersion(validateFlag string, appliedIntent *state.Intent, l 
 
 // GetAbsolutePrestate retrieves the absolute prestate for a chain from various sources.
 func GetAbsolutePrestate(globalState *state.State, chainID common.Hash, l log.Logger) common.Hash {
-	if globalState.PrestateManifest != nil {
-		if hash, ok := (*globalState.PrestateManifest)[chainID.Big().String()]; ok {
-			return common.HexToHash(hash)
-		}
-	}
 	if globalState.AppliedIntent != nil {
 		if chainIntent, err := globalState.AppliedIntent.Chain(chainID); err == nil {
 			if proofParams, ok := chainIntent.DeployOverrides["faultGameAbsolutePrestate"]; ok {

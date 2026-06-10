@@ -187,18 +187,23 @@ func (i *Interop) verifyCycleMessages(ts uint64, blocksAtTimestamp map[eth.Chain
 
 		db, ok := i.logsDBs[chainID]
 		if !ok {
-			// Chain not in logsDBs - skip it for cycle verification
+			// Chain not registered with the interop activity - out of scope for
+			// cycle verification, consistent with verifyInteropMessages.
 			continue
 		}
 		blockRef, _, execMsgs, err := db.OpenBlock(blockID.Number)
 		if err != nil {
-			// Can't open block - no EMs to add to the graph for this chain
-			// This can happen if the logsDB is empty or the block hasn't been indexed
-			continue
+			// The block is expected to be available: chain-readiness gating and
+			// the frontier view guarantee it. A read failure means the data the
+			// cycle check needs is missing, not that the chain has no
+			// same-timestamp messages. Surface it so the round retries rather
+			// than silently dropping the chain - and with it every cross-chain
+			// edge that targets it, which could hide a real cycle.
+			return Result{}, fmt.Errorf("chain %s: failed to open block %d for cycle verification: %w", chainID, blockID.Number, err)
 		}
-		// Verify the block has the expected timestamp
+		// A block at a different timestamp legitimately contributes no
+		// same-timestamp executing messages; skip it without error.
 		if blockRef.Time != ts {
-			// Block timestamp mismatch - skip this chain for cycle verification
 			continue
 		}
 		chainEMs[chainID] = execMsgs

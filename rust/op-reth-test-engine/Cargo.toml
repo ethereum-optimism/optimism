@@ -1,0 +1,32 @@
+[package]
+name = "op-reth-test-engine"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Library-first, ephemeral, OP-flavored execution layer for op-e2e/actions parity tests."
+
+[lints]
+workspace = true
+
+[dependencies]
+# op-reth
+reth-optimism-chainspec.workspace = true
+reth-optimism-node.workspace = true
+reth-optimism-primitives.workspace = true
+
+# reth
+reth-provider = { workspace = true, features = ["test-utils"] }
+reth-db = { workspace = true, features = ["test-utils"] }
+reth-db-common.workspace = true
+reth-node-api.workspace = true
+reth-storage-api.workspace = true
+
+# ethereum / alloy
+alloy-genesis.workspace = true
+alloy-primitives.workspace = true
+alloy-consensus.workspace = true
+alloy-eips.workspace = true
+
+# errors
+thiserror.workspace = true

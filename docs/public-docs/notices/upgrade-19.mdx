@@ -3,7 +3,7 @@ title: Upgrade 19 - Karst Hard Fork
 description: Learn how to prepare for the Karst hard fork.
 ---
 
-The Karst hard fork is a proposed network upgrade for OP Stack chains. It **introduces the L2 Contract Manager (L2CM)** enabling governance-approved L2 smart contract upgrades through a new consensus layer mechanism, **promotes `CANNON_KONA` to the respected game type** making the Rust-based `kona-client` the primary fault proof program used for withdrawals, **activates Osaka EIPs on L2** including the EIP-7825 transaction gas limit, and **adds a preemptive Glamsterdam Defense change** reducing the BN256 pairing precompile maximum input size.
+The Karst hard fork is a proposed network upgrade for OP Stack chains. It **introduces the L2 Contract Manager (L2CM)** enabling governance-approved L2 smart contract upgrades through a new consensus layer mechanism, **promotes `CANNON_KONA` to the respected game type** making the Rust-based `kona-client` the primary fault proof program used for withdrawals, **activates Osaka EIPs on L2** including the EIP-7825 transaction gas limit, and **adds a preemptive Glamsterdam Defense change** reducing the BN256 pairing precompile maximum input size from 427 to 300 pairs.
 
 <Warning>
   **`op-geth` and `op-program` will not support Upgrade 19 / Karst.** Migrate to **`op-reth`** (and **`kona-client`** for fault proofs) before activation. End of Support is **May 31, 2026** — see [End of Support for op-geth and op-program](/notices/op-geth-deprecation).
@@ -20,9 +20,9 @@ Upgrade 19 introduces the following changes:
 
 * **L2 Contract Manager (L2CM):** introduces a mechanism for upgrading L2 smart contracts (predeploys) as part of a network upgrade. L2CM enables L2 predeploy upgrades in a structured, auditable way — reducing the need for multisig signing for each individual contract change. This is a prerequisite for interop and future protocol upgrades that need to modify L2 contracts. See the [L2CM feature page](/op-stack/features/l2-contract-manager), [design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md), and [FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md) for details.
 
-* **Osaka on L2:** activates a subset of Osaka EIPs on L2, including [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) which introduces a per-transaction gas limit, gas cost changes for `MODEXP` and `P256VERIFY` precompiles, and a new input size limit for `MODEXP`. See the [Osaka on L2 feature page](/op-stack/features/osaka-on-l2) and [design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md) for details.
+* **Osaka on L2:** activates a subset of Osaka EIPs on L2, including [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) (per-transaction gas limit of 2^24 = 16,777,216 gas), [EIP-7883](https://eips.ethereum.org/EIPS/eip-7883) (MODEXP gas floor increase), [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823) (MODEXP input size cap), [EIP-7951](https://eips.ethereum.org/EIPS/eip-7951) (P256VERIFY gas cost increase), and [EIP-7939](https://eips.ethereum.org/EIPS/eip-7939) (CLZ opcode). See the [Osaka on L2 feature page](/op-stack/features/osaka-on-l2), [design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md), and [Karst spec](https://specs.optimism.io/protocol/karst/overview.html) for details.
 
-* **Glamsterdam Defense (BN256 pairing input size reduction):** as a preemptive measure ahead of the Glamsterdam L1 hard fork, Upgrade 19 includes a hard fork change that reduces the maximum input size for BN256 pairing precompile calls from 427 pairs (81,984 bytes) to 390 pairs (74,880 bytes). This provides additional headroom against potential last-minute gas repricing increases in [EIP-7904](https://eips.ethereum.org/EIPS/eip-7904) that could cause fault proof verification to exceed the [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) L1 transaction gas limit. See [analysis](https://github.com/ethereum-optimism/optimism/issues/20195) for details. The full Glamsterdam Defense smart contract changes (absolute pre-state upgrade) are deferred and will be slotted in once final L1 gas pricing values are confirmed.
+* **Glamsterdam Defense (BN256 pairing input size reduction):** as a preemptive measure ahead of the Glamsterdam L1 hard fork, Upgrade 19 includes a hard fork change that reduces the maximum input size for BN256 pairing precompile calls from 427 pairs (81,984 bytes) to 300 pairs (57,600 bytes). This provides additional headroom against potential last-minute gas repricing increases in [EIP-7904](https://eips.ethereum.org/EIPS/eip-7904) that could cause fault proof verification to exceed the [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) L1 transaction gas limit. See [analysis](https://github.com/ethereum-optimism/optimism/issues/20195) for details. The full Glamsterdam Defense smart contract changes (absolute pre-state upgrade) are deferred and will be slotted in once final L1 gas pricing values are confirmed.
 
 * **`CANNON_KONA` set to respected game type:** changes the respected game type from `CANNON` (0) to `CANNON_KONA` (8), making the Rust-based `kona-client` the primary fault proof program used for withdrawals. The `CANNON` (0) game type is retained only to resolve in flight games created before the upgrade. `op-program` is no longer supported for new fault proofs. This builds on the `CANNON_KONA` game type support introduced in [Upgrade 18](/notices/archive/upgrade-18).
 
@@ -38,7 +38,7 @@ Upgrade 19 introduces the following changes:
 
 ### Osaka on L2: EIP-7825 transaction gas limit, MODEXP and P256VERIFY gas cost changes
 
-After Upgrade 19, L2 transactions are subject to the [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) per-transaction gas limit. Transactions requesting gas above this limit will be invalid. Osaka on L2 also adjusts the gas costs for the `MODEXP` (`0x05`) and `P256VERIFY` (`0x100`) precompiles, and introduces a new input size limit for `MODEXP`.
+After Upgrade 19, L2 transactions are subject to the [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) per-transaction gas limit of 2^24 = 16,777,216 gas. Transactions requesting gas above this limit will be invalid. Osaka on L2 also increases the gas cost for the `MODEXP` (`0x05`) precompile ([EIP-7883](https://eips.ethereum.org/EIPS/eip-7883)) and introduces a new input size cap ([EIP-7823](https://eips.ethereum.org/EIPS/eip-7823)), increases the gas cost for `P256VERIFY` (`0x100`) from 3,450 to 6,900 gas ([EIP-7951](https://eips.ethereum.org/EIPS/eip-7951)), and adds the CLZ (Count Leading Zeros) opcode ([EIP-7939](https://eips.ethereum.org/EIPS/eip-7939)).
 
 * **Deposit transactions are exempt** from the EIP-7825 limit. Deposits are already capped at 20M gas total per L1 block, and rejecting deposits on L2 that were accepted on L1 could cause permanent ETH loss. Deposits will continue to land on L2 even if their gas limit exceeds the EIP-7825 threshold.
 * **For app developers:** if your application submits L2 transactions with very high gas limits (above the EIP-7825 limit), those transactions will no longer be valid after this upgrade. In practice, very few transactions are expected to exceed this limit. If your contracts call `MODEXP` or `P256VERIFY`, verify that your gas estimates account for the updated costs. Contracts relying on hardcoded gas values for these precompiles should be updated. Additionally, `MODEXP` calls with inputs exceeding the new size limit will fail.
@@ -46,12 +46,12 @@ After Upgrade 19, L2 transactions are subject to the [EIP-7825](https://eips.eth
 
 ### Glamsterdam Defense: BN256 pairing input size reduction
 
-Upgrade 19 reduces the maximum input size for `ecPairing` (BN256 pairing, `0x08`) precompile calls from 427 pairs (81,984 bytes) to 390 pairs (74,880 bytes). This is a preemptive change to maintain sufficient headroom for L1 fault proof replayability ahead of potential gas repricing in the upcoming [Glamsterdam L1 hard fork (EIP-7904)](https://eips.ethereum.org/EIPS/eip-7904).
+Upgrade 19 reduces the maximum input size for `ecPairing` (BN256 pairing, `0x08`) precompile calls from 427 pairs (81,984 bytes) to 300 pairs (57,600 bytes). This is a preemptive change to maintain sufficient headroom for L1 fault proof replayability ahead of potential gas repricing in the upcoming [Glamsterdam L1 hard fork (EIP-7904)](https://eips.ethereum.org/EIPS/eip-7904).
 
-*   **For app developers:** if your contracts make calls to the BN256 pairing precompile (`0x08`) with more than 390 pairs, those calls will fail after this upgrade. Standard ZK proof verification (e.g., Groth16) uses a small number of pairings and is not affected.
+*   **For app developers:** if your contracts make calls to the BN256 pairing precompile (`0x08`) with more than 300 pairs, those calls will fail after this upgrade. Standard ZK proof verification (e.g., Groth16) uses a small number of pairings and is not affected.
 
 <Info>
-  BN256 pairing (`0x08`) is the only variable-input precompile affected by Glamsterdam gas repricing that requires an input size limit change. Other repriced precompiles (KZG Point Evaluation, BLS12-381 G1Add, BLS12-381 G2Add) have fixed-size inputs and do not require limit adjustments. See the [precompile gas cost risk analysis](https://github.com/ethereum-optimism/optimism/issues/20195) for details.
+  BN256 pairing (`0x08`) is the only variable-input precompile affected by Glamsterdam gas repricing that requires an input size limit change. Other repriced precompiles (KZG Point Evaluation, BLS12-381 G1Add, BLS12-381 G2Add) have fixed-size inputs and do not require limit adjustments. See the [precompile gas cost risk analysis](https://github.com/ethereum-optimism/optimism/issues/20195) and the [Karst exec-engine spec](https://specs.optimism.io/protocol/karst/exec-engine.html) for details.
 </Info>
 
 ### `CANNON_KONA` as respected game type: withdrawal proving changes
@@ -64,6 +64,27 @@ After Upgrade 19, the respected game type changes from `CANNON` (0) to `CANNON_K
 ### L2CM: new L2 predeploy upgrade mechanism
 
 L2CM introduces a new mechanism for upgrading L2 predeploy contracts. App developers building on OP Stack chains should be aware that predeploy contracts may now be upgraded through L2CM transactions. If your application interacts directly with predeploy contracts, review the changelog for each upgrade to understand new capabilities.
+
+## For node operators: hard fork preparation
+
+Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defense), all node operators must update their execution and consensus clients before the activation timestamp.
+
+<Steps>
+  <Step title="Update to the latest release">
+  Update `op-node` and `op-reth` to the version specified in the component table below. The new version includes consensus rules for the Karst hard fork activation for chains in the superchain-registry.
+  </Step>
+
+  <Step title="Configure the Karst activation timestamp">
+  * Set the `karst_time: <timestamp>` in the `op-node` rollup config.
+  * Set the `"karstTime": <timestamp>` in the `op-reth` genesis file.
+  </Step>
+
+  <Step title="Verify activation configuration">
+  Make the following checks to verify that your node is properly configured.
+    * The configurations will be logged at startup
+    * Check that the Karst time is set to its correct activation timestamp
+  </Step>
+</Steps>
 
 ## For chain operators
 
@@ -186,37 +207,18 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
   </Step>
 </Steps>
 
-### For node operators: hard fork preparation
-
-Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defense), all node operators must update their execution and consensus clients before the activation timestamp.
-
-<Steps>
-  <Step title="Update to the latest release">
-  Update `op-node` and `op-reth` to the version specified in the component table above. The new version includes consensus rules for the Karst hard fork activation for chains in the superchain-registry.
-  </Step>
-
-  <Step title="Configure the Karst activation timestamp">
-  * Set the `karst_time: <timestamp>` in the `op-node` rollup config.
-  * Set the `"karstTime": <timestamp>` in the `op-reth` genesis file.
-  </Step>
-
-  <Step title="Verify activation configuration">
-  Make the following checks to verify that your node is properly configured.
-    * The configurations will be logged at startup
-    * Check that the Karst time is set to its correct activation timestamp
-  </Step>
-</Steps>
-
-## For app developers
-
-* **EIP-7825 transaction gas limit (Osaka on L2):** L2 transactions are now subject to a per-transaction gas limit. If your application submits transactions with very high gas limits, verify they remain within the new threshold. Deposit transactions are exempt. Most applications will not be affected.
-* **MODEXP and P256VERIFY gas changes (Osaka on L2):** the gas costs for `MODEXP` (`0x05`) and `P256VERIFY` (`0x100`) precompiles are updated. A new input size limit is also introduced for `MODEXP`. If your contracts call these precompiles, update your gas estimates and verify inputs are within the new limits.
-* **BN256 pairing input size limit (Glamsterdam Defense):** the maximum input for `ecPairing` (`0x08`) is reduced from 427 to 390 pairs (74,880 bytes). If your contracts call the BN256 pairing precompile with more than 390 pairs, those calls will fail. Standard ZK proof verification (e.g., Groth16) is not affected.
-* **L2 predeploy upgrades:** if your application interacts directly with predeploy contracts (e.g., `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge`), review the changelog for new functions or behavior changes.
-* **Withdrawal proving:** the respected game type changes from `CANNON` (0) to `CANNON_KONA` (8). Standard SDK usage handles this automatically.
-
-## Execute the L1 Contract Upgrade
+### Execute the L1 Contract Upgrade
 
 Once your infrastructure is ready, execute the upgrade transaction. This should be done by making a delegatecall to the `upgrade()` function of the OP Contracts Manager (OPCMv2) at the address that will be listed in [the registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml).
 
 Please simulate and validate the expected output prior to executing the transaction.
+
+## For app developers
+
+* **EIP-7825 transaction gas limit (Osaka on L2):** L2 transactions are now subject to a per-transaction gas limit of 2^24 = 16,777,216 gas. If your application submits transactions with very high gas limits, verify they remain within the new threshold. Deposit transactions are exempt. Most applications will not be affected.
+* **MODEXP gas changes ([EIP-7883](https://eips.ethereum.org/EIPS/eip-7883) + [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823), Osaka on L2):** the gas cost floor for `MODEXP` (`0x05`) increases, and a new input size cap (1024-byte modulus) is enforced. If your contracts call `MODEXP`, update your gas estimates and verify inputs are within the new size limit.
+* **P256VERIFY gas change ([EIP-7951](https://eips.ethereum.org/EIPS/eip-7951), Osaka on L2):** the gas cost for `P256VERIFY` (`0x100`) increases from 3,450 to 6,900 gas. If your contracts call `P256VERIFY`, update your gas estimates.
+* **CLZ opcode ([EIP-7939](https://eips.ethereum.org/EIPS/eip-7939), Osaka on L2):** a new Count Leading Zeros opcode (0x1e) is available. Existing contracts are not affected.
+* **BN256 pairing input size limit (Glamsterdam Defense):** the maximum input for `ecPairing` (`0x08`) is reduced from 427 to 300 pairs (57,600 bytes). If your contracts call the BN256 pairing precompile with more than 300 pairs, those calls will fail. Standard ZK proof verification (e.g., Groth16) is not affected.
+* **L2 predeploy upgrades:** if your application interacts directly with predeploy contracts (e.g., `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge`), review the changelog for new functions or behavior changes.
+* **Withdrawal proving:** the respected game type changes from `CANNON` (0) to `CANNON_KONA` (8). Standard SDK usage handles this automatically.

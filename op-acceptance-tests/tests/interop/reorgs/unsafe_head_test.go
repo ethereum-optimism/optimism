@@ -83,9 +83,6 @@ func TestReorgUnsafeHead(gt *testing.T) {
 		}
 	}
 
-	// start batcher on chain A
-	sys.L2BatcherA.Start()
-
 	// Don't read eth.Unsafe ("latest") for the parent: it can lag the EL's
 	// post-forkchoice canonical swap and return the original head, and building on
 	// that stale parent would forkchoice the EL back onto the original chain,
@@ -126,6 +123,13 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	})
 	waitCancel()
 	require.NoError(t, err, "op-node never observed test-sequencer's committed unsafe head %s", expectedUnsafe.Hash)
+
+	// Only start the batcher now that op-node and the EL agree on the conflicting
+	// chain. Earlier, during the reorg window, the batcher could pick its block
+	// range from op-node's syncStatus (conflicting head) but load block content
+	// by number from the EL (still the original) and anchor the ORIGINAL block to
+	// L1 — pinning it as safe and making the unsafe reorg impossible to keep.
+	sys.L2BatcherA.Start()
 
 	// continue sequencing with consensus node (op-node)
 	sys.L2ACL.StartSequencer()

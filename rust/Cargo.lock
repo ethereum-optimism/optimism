@@ -8054,6 +8054,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "op-reth-test-engine"
+version = "0.1.0"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips 2.0.5",
+ "alloy-genesis",
+ "alloy-primitives",
+ "reth-db",
+ "reth-db-common",
+ "reth-node-api",
+ "reth-optimism-chainspec",
+ "reth-optimism-node",
+ "reth-optimism-primitives",
+ "reth-provider",
+ "reth-storage-api",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "op-revm"
 version = "20.0.0"
 dependencies = [

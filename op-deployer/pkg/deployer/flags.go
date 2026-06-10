@@ -85,11 +85,6 @@ var (
 		EnvVars: PrefixEnvVar("DEPLOYMENT_TARGET"),
 		Value:   string(DeploymentTargetLive),
 	}
-	OpProgramSvcUrlFlag = &cli.StringFlag{
-		Name:    "op-program-svc-url",
-		Usage:   "URL of the OP Program SVC",
-		EnvVars: PrefixEnvVar("OP_PROGRAM_SVC_URL"),
-	}
 	IntentTypeFlag = &cli.StringFlag{
 		Name: IntentTypeFlagName,
 		Usage: fmt.Sprintf("Intent config type to use. Options: %s (default), %s, %s",
@@ -163,7 +158,6 @@ var ApplyFlags = []cli.Flag{
 	WorkdirFlag,
 	PrivateKeyFlag,
 	DeploymentTargetFlag,
-	OpProgramSvcUrlFlag,
 	AutoVerifyFlag,
 	VerifierAPIKeyFlag,
 	VerifierFlag,

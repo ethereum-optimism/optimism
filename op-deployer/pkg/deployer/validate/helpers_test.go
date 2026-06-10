@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-service/prestate"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -22,20 +21,6 @@ func TestGetAbsolutePrestate(t *testing.T) {
 		expected    common.Hash
 		description string
 	}{
-		{
-			name: "from prestate manifest",
-			globalState: &state.State{
-				PrestateManifest: func() *prestate.PrestateManifest {
-					m := prestate.PrestateManifest{
-						"1": "0x1234567890123456789012345678901234567890123456789012345678901234",
-					}
-					return &m
-				}(),
-			},
-			chainID:     common.BigToHash(common.Big1),
-			expected:    common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234"),
-			description: "Should return prestate from manifest when available",
-		},
 		{
 			name: "from deploy overrides",
 			globalState: &state.State{
