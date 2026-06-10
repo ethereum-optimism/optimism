@@ -87,6 +87,7 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-supervisor">op-supervisor</a>: Service to monitor chains and determine cross-chain message safety
 ├── <a href="./op-sync-tester">op-sync-tester</a>: Sync testing utilities
 ├── <a href="./op-test-sequencer">op-test-sequencer</a>: Test sequencer for development
+├── <a href="./op-up">op-up</a>: Deployment and management utilities
 ├── <a href="./op-validator">op-validator</a>: Tool for validating Optimism chain configurations and deployments
 ├── <a href="./op-wheel">op-wheel</a>: Database utilities
 ├── <a href="./ops">ops</a>: Various operational packages
