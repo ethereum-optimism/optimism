@@ -9,7 +9,7 @@ use alloy_rpc_types_engine::{CancunPayloadFields, PraguePayloadFields};
 use alloy_rpc_types_eth::Block as RpcBlock;
 use derive_more::Display;
 use kona_genesis::ChainGenesis;
-use op_alloy_consensus::{OpBlock, OpTxEnvelope};
+use op_alloy_consensus::{OpBlock, OpTransaction};
 use op_alloy_rpc_types_engine::{OpExecutionPayload, OpExecutionPayloadSidecar, OpPayloadError};
 
 /// Block Header Info
@@ -177,7 +177,7 @@ impl L2BlockInfo {
     }
 
     /// Constructs an [`L2BlockInfo`] from a given OP [`Block`] and [`ChainGenesis`].
-    pub fn from_block_and_genesis<T: Typed2718 + AsRef<OpTxEnvelope>>(
+    pub fn from_block_and_genesis<T: Typed2718 + OpTransaction>(
         block: &Block<T>,
         genesis: &ChainGenesis,
     ) -> Result<Self, FromBlockError> {
@@ -193,7 +193,7 @@ impl L2BlockInfo {
                 return Err(FromBlockError::MissingL1InfoDeposit(block_info.hash));
             }
 
-            let tx = block.body.transactions[0].as_ref();
+            let tx = &block.body.transactions[0];
             let Some(tx) = tx.as_deposit() else {
                 return Err(FromBlockError::FirstTxNonDeposit(tx.ty()));
             };
@@ -242,7 +242,7 @@ mod tests {
     use alloc::string::ToString;
     use alloy_consensus::{Header, TxEnvelope};
     use alloy_primitives::b256;
-    use op_alloy_consensus::OpBlock;
+    use op_alloy_consensus::{OpBlock, OpTxEnvelope};
 
     #[test]
     fn test_rpc_block_into_info() {
