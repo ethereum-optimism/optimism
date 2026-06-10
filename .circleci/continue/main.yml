@@ -485,9 +485,14 @@ commands:
         description: "Prefix to add to the cache key"
         type: string
         default: "rust-build"
+      enable_sccache:
+        description: "Whether to set up the sccache GCS compile cache (see rust-prepare)."
+        type: boolean
+        default: true
     steps:
       - rust-prepare:
           needs_clang: << parameters.needs_clang >>
+          enable_sccache: << parameters.enable_sccache >>
       - rust-restore-build-cache:
           version: << parameters.version >>
           directory: << parameters.directory >>

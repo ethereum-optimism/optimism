@@ -680,9 +680,15 @@ jobs:
       - apt-install:
           packages: "clang llvm-dev libclang-dev"
           extra_flags: "--no-install-recommends"
-      - rust-prepare-and-restore-cache: &kona-publish-prestate-cache
+      # No sccache here: the prestate is built reproducibly in Docker
+      # (just build-kona-reproducible-prestate-variant), so the host never
+      # compiles and the job doesn't need the sccache-gcs-optimism context. That
+      # context also defines GCP_SERVICE_ACCOUNT_EMAIL, which would otherwise
+      # shadow the oplabs-network-data publisher SA used by the upload below.
+      - rust-prepare-and-restore-cache:
           directory: rust
           profile: release
+          enable_sccache: false
       - gcp-cli/install
       - gcp-oidc-authenticate:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
@@ -711,7 +717,9 @@ jobs:
             fi
             gsutil cp ./prestate-artifacts-<<parameters.kind>>/prestate.bin.gz "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${PRESTATE_HASH}.bin.gz"
             echo "Successfully published prestates artifacts to GCS"
-      - rust-save-build-cache: *kona-publish-prestate-cache
+      - rust-save-build-cache:
+          directory: rust
+          profile: release
 
   required-rust-ci:
     docker:
@@ -971,9 +979,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
-            # kona-publish builds the prestate via rust-prepare -> rust-sccache-setup,
-            # which now fails loud, so it must carry the sccache context.
-            - sccache-gcs-optimism
 
   # Kona publish prestate artifacts - on kona-client/v* tag push
   kona-publish-prestates-on-tag:
@@ -987,9 +992,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
-            # kona-publish builds the prestate via rust-prepare -> rust-sccache-setup,
-            # which now fails loud, so it must carry the sccache context.
-            - sccache-gcs-optimism
           filters:
             tags:
               only: /^kona-client\/v.*/
