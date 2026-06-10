@@ -14,8 +14,8 @@ The full methodology lives in **[docs/ai/dispute-game-investigation.md](../../do
 1. Identify the actors (proposer / challengers / our node), recalling that a signer
    may be a key pool and anyone can move on any claim.
 2. Enumerate games/claims with `op-challenger list-games`/`list-claims --format json`.
-3. Establish the canonical output root (`op-chain-ops` `check-output-root` /
-   `check-super-root`, or recompute from the Isthmus header `withdrawalsRoot`).
+3. Establish the canonical output root with `op-chain-ops` `check-output-root` /
+   `check-super-root` (EL-only, work against public nodes).
 4. Classify every claim correct-vs-invalid via the trace-index/clamping math.
 5. Diagnose the responsible op-node with `op-challenger/scripts/game-proposal-outputs.sh`
    (output root + safe head at each game's `l1Head`) and `check-game-block-hashes.sh`;

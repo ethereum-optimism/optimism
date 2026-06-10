@@ -19,7 +19,7 @@ description: Investigate an OP Stack fault dispute game — why a challenger is 
 ## Tooling
 
 - `op-challenger list-games`/`list-claims --format json` — enumerate games/claims.
-- `op-chain-ops/cmd/check-output-root` and `check-super-root` — canonical output root.
+- `op-chain-ops/cmd/check-output-root` and `check-super-root` — canonical output root (EL-only, work against public nodes).
 - `op-challenger/scripts/game-proposal-outputs.sh` — per-game `outputAtBlock` +
   `safeHeadAtL1Block` from a node (spots an incomplete safe-head DB).
 - `op-challenger/scripts/check-game-block-hashes.sh` — block-hash cross-check, node vs
