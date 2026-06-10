@@ -1,4 +1,4 @@
-// Command prestate-dump writes the predeploy-scoped L2 state for a given fork
+// Command prefork-state-dump writes the predeploy-scoped L2 state for a given fork
 // level to a JSON file.
 //
 // It is invoked by ops/scripts/gen-seed-state.sh, which copies this file into a git
@@ -50,7 +50,7 @@ func predeployScoped(full *foundry.ForgeAllocs) *foundry.ForgeAllocs {
 
 func main() {
 	if len(os.Args) != 3 {
-		fmt.Fprintln(os.Stderr, "usage: prestate-dump <fork> <out.json>")
+		fmt.Fprintln(os.Stderr, "usage: prefork-state-dump <fork> <out.json>")
 		os.Exit(1)
 	}
 	fork, outPath := os.Args[1], os.Args[2]

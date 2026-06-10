@@ -8,7 +8,7 @@
 # `jovian` (the chain's seed). It requires <fork> to be a generatable alloc mode
 # at <fork>'s commit, which is true for jovian but NOT for karst-era lock commits.
 # Generate every state past the seed with COMPOSE instead — run the fork's
-# activation test with OP_E2E_GEN_PRESTATE=<fork> (see op-core/nuts/state/README.md);
+# activation test with OP_E2E_GEN_PREFORK_STATE=<fork> (see op-core/nuts/state/README.md);
 # compose replays the already-frozen bundle and needs no fork-era build.
 #
 # Why this uses the era's own toolchain in a worktree: the seed must be
@@ -60,7 +60,7 @@ if [[ -z "$COMMIT" ]]; then
 fi
 
 OUT="$ROOT/op-core/nuts/state/${FORK}_state.json"
-WT="$(mktemp -d "${TMPDIR:-/tmp}/prestate-wt.XXXXXX")"
+WT="$(mktemp -d "${TMPDIR:-/tmp}/prefork-state-wt.XXXXXX")"
 
 cleanup() {
   git -C "$ROOT" worktree remove --force "$WT" 2>/dev/null || true
@@ -76,12 +76,12 @@ echo ">>> [2/3] build ${FORK}-era forge-artifacts"
 
 echo ">>> [3/3] dump predeploy-scoped $FORK state with ${FORK}-era toolchain"
 # Copy the committed dumper into the worktree so it compiles against the fork-era
-# packages (see ops/scripts/prestate-dump/main.go).
-mkdir -p "$WT/ops/scripts/prestate-dump"
-cp "$ROOT/ops/scripts/prestate-dump/main.go" "$WT/ops/scripts/prestate-dump/main.go"
+# packages (see ops/scripts/prefork-state-dump/main.go).
+mkdir -p "$WT/ops/scripts/prefork-state-dump"
+cp "$ROOT/ops/scripts/prefork-state-dump/main.go" "$WT/ops/scripts/prefork-state-dump/main.go"
 
 mkdir -p "$ROOT/op-core/nuts/state"
-( cd "$WT" && go run ./ops/scripts/prestate-dump "$FORK" "$OUT" )
+( cd "$WT" && go run ./ops/scripts/prefork-state-dump "$FORK" "$OUT" )
 
 echo ">>> done"
 ls -lh "$OUT"

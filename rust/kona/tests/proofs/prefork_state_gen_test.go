@@ -22,7 +22,7 @@ import (
 )
 
 // genPreForkStateEnv names the fork whose pre-fork state artifact to (re)generate,
-// e.g. OP_E2E_GEN_PRESTATE=karst. It gates TestGenerateForkState, and the engine
+// e.g. OP_E2E_GEN_PREFORK_STATE=karst. It gates TestGenerateForkState, and the engine
 // records trie-key preimages whenever it is set (see
 // op-e2e/actions/helpers/l2_engine.go) so the post-activation state can be
 // enumerated and dumped.
@@ -30,10 +30,10 @@ import (
 // Generate one fork at a time, committing each before the next: the loader embeds
 // states at COMPILE time, so <prev>_state.json must be on disk (and the test
 // binary rebuilt) before generating <fork>_state.json.
-const genPreForkStateEnv = "OP_E2E_GEN_PRESTATE"
+const genPreForkStateEnv = "OP_E2E_GEN_PREFORK_STATE"
 
 // TestGenerateForkState (re)generates op-core/nuts/state/<fork>_state.json for the
-// fork named by OP_E2E_GEN_PRESTATE, and is skipped otherwise (so it never runs in
+// fork named by OP_E2E_GEN_PREFORK_STATE, and is skipped otherwise (so it never runs in
 // normal CI). It reuses the exact activation flow via activateFork — the
 // post-activation state IS the artifact (compose: <fork>_state = <prev>_state +
 // the frozen <fork> bundle) — so generation stays in lockstep with the validation

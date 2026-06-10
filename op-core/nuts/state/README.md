@@ -57,12 +57,12 @@ inside the worktree pairs the era's contracts with the era's tooling.
 
 Every state past the seed is the **post-activation state of its fork**:
 `<fork>_state = <prev>_state + (frozen <fork> bundle applied)`. `TestGenerateForkState`
-reuses the activation flow to produce exactly that — set `OP_E2E_GEN_PRESTATE=<fork>`
+reuses the activation flow to produce exactly that — set `OP_E2E_GEN_PREFORK_STATE=<fork>`
 and run it:
 
 ```bash
 # karst_state.json = jovian_state + karst bundle
-OP_E2E_GEN_PRESTATE=karst go test -run 'TestGenerateForkState' ./rust/kona/tests/proofs/
+OP_E2E_GEN_PREFORK_STATE=karst go test -run 'TestGenerateForkState' ./rust/kona/tests/proofs/
 ```
 
 It boots the predecessor state, applies the frozen bundle at the activation block,

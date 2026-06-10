@@ -84,7 +84,7 @@ func newBackend(t e2eutils.TestingBase, genesis *core.Genesis, jwtPath string, o
 		// Record trie-key preimages when generating pre-fork state artifacts, so
 		// the post-activation state can be enumerated and dumped. Off otherwise to
 		// avoid the recording overhead in normal test runs.
-		Preimages: os.Getenv("OP_E2E_GEN_PRESTATE") != "",
+		Preimages: os.Getenv("OP_E2E_GEN_PREFORK_STATE") != "",
 	}
 	nodeCfg := &node.Config{
 		Name:        "l2-geth",
