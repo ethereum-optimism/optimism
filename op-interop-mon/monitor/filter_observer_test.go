@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
@@ -24,12 +25,15 @@ func (m *mockFilterChecker) GetFailsafeEnabled(ctx context.Context) (bool, error
 }
 func (m *mockFilterChecker) Close() {}
 
-// rpcVerdictErr is a structured JSON-RPC error representing a filter rejection
-// (as opposed to a transport error). It satisfies go-ethereum's rpc.Error.
-type rpcVerdictErr struct{ msg string }
+// rpcVerdictErr is a structured JSON-RPC error carrying an interop error code.
+// It satisfies go-ethereum's rpc.Error.
+type rpcVerdictErr struct {
+	msg  string
+	code int
+}
 
 func (e rpcVerdictErr) Error() string  { return e.msg }
-func (e rpcVerdictErr) ErrorCode() int { return -32000 }
+func (e rpcVerdictErr) ErrorCode() int { return e.code }
 
 func TestFilterObserverDivergence(t *testing.T) {
 	// monitor says valid, filter rejects (structured RPC error) -> divergence recorded
@@ -40,13 +44,31 @@ func TestFilterObserverDivergence(t *testing.T) {
 	job.UpdateStatus(jobStatusValid)
 
 	mm := &mockMetrics{}
-	obs := NewFilterObserver(&mockFilterChecker{checkErr: rpcVerdictErr{msg: "filter rejects"}}, mm, log.New())
+	rejection := rpcVerdictErr{msg: "conflicting data", code: interop.GetErrorCode(interop.ErrConflict)}
+	obs := NewFilterObserver(&mockFilterChecker{checkErr: rejection}, mm, log.New())
 	obs.Observe(context.Background(), map[JobID]*Job{job.ID(): job})
 	require.Len(t, mm.actualFilterDivergences, 1)
 
 	// A subsequent cycle must not re-count the same diverging job.
 	obs.Observe(context.Background(), map[JobID]*Job{job.ID(): job})
 	require.Len(t, mm.actualFilterDivergences, 1)
+}
+
+func TestFilterObserverNoVerdictNotRecorded(t *testing.T) {
+	// The filter is in failsafe and rejects every call. That is not a validity
+	// verdict, so no divergence is recorded and the job is left unmarked for retry.
+	job := &Job{
+		initiating:     &messages.Identifier{ChainID: eth.ChainIDFromUInt64(1), BlockNumber: 10},
+		executingChain: eth.ChainIDFromUInt64(2),
+	}
+	job.UpdateStatus(jobStatusValid)
+
+	failsafe := rpcVerdictErr{msg: "failsafe is enabled", code: interop.GetErrorCode(interop.ErrFailsafeEnabled)}
+	mm := &mockMetrics{}
+	obs := NewFilterObserver(&mockFilterChecker{checkErr: failsafe}, mm, log.New())
+	obs.Observe(context.Background(), map[JobID]*Job{job.ID(): job})
+	require.Empty(t, mm.actualFilterDivergences)
+	require.False(t, job.FilterCheckedFor(jobStatusValid)) // not latched; retried next cycle
 }
 
 func TestFilterObserverRechecksOnStatusChange(t *testing.T) {

@@ -5,10 +5,23 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
+
+// filterNonVerdictCodes are interop-filter JSON-RPC error codes that are not a
+// validity verdict: the filter is operationally unavailable (failsafe) or has not
+// yet ingested/promoted the message to the requested safety level. The monitor
+// decides validity off raw L2 receipts and routinely runs ahead of the filter, so
+// these are transient — the observer retries rather than recording a divergence.
+var filterNonVerdictCodes = map[int]struct{}{
+	interop.GetErrorCode(interop.ErrFailsafeEnabled): {},
+	interop.GetErrorCode(interop.ErrFuture):          {},
+	interop.GetErrorCode(interop.ErrOutOfScope):      {},
+	interop.GetErrorCode(interop.ErrUninitialized):   {},
+}
 
 // FilterObserver cross-checks the monitor's independent verdict against the
 // op-interop-filter (read-only). It never gates monitor behaviour; it only emits
@@ -45,15 +58,27 @@ func (o *FilterObserver) Observe(ctx context.Context, jobs map[JobID]*Job) {
 		err := o.filter.CheckMessage(cctx, msg, job.executingChain, job.executingTimestamp)
 		cancel()
 
-		// Only a structured JSON-RPC response counts as a filter verdict. A transport
-		// or timeout error is not a rejection: leave the job unmarked so it is retried
-		// next cycle, rather than recording a false divergence.
+		// Distinguish a real validity verdict from a non-verdict. A nil error is
+		// "valid"; a definitive rejection (e.g. conflicting data) is "invalid". But a
+		// transport/timeout error, or a not-ready/failsafe RPC code, is not a verdict
+		// at all — leave the job unmarked so it is retried, rather than recording a
+		// false divergence (which would otherwise flood during failsafe or while the
+		// monitor runs ahead of the filter's cross-unsafe horizon).
 		if err != nil {
 			var rpcErr rpc.Error
 			if !errors.As(err, &rpcErr) {
 				o.log.Warn("interop-filter check failed (transport error); will retry",
 					"executing_chain_id", job.executingChain,
 					"initiating_chain_id", job.initiating.ChainID,
+					"error", err,
+				)
+				continue
+			}
+			if _, nonVerdict := filterNonVerdictCodes[rpcErr.ErrorCode()]; nonVerdict {
+				o.log.Debug("interop-filter has no verdict yet; will retry",
+					"executing_chain_id", job.executingChain,
+					"initiating_chain_id", job.initiating.ChainID,
+					"rpc_code", rpcErr.ErrorCode(),
 					"error", err,
 				)
 				continue
