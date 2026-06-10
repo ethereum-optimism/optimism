@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,7 +28,6 @@ import (
 const (
 	formatText = "text"
 	formatJSON = "json"
-	formatCSV  = "csv"
 )
 
 var (
@@ -46,7 +44,7 @@ var (
 	}
 	FormatFlag = &cli.StringFlag{
 		Name:    "format",
-		Usage:   fmt.Sprintf("Output format. One of: %v, %v, %v. json/csv emit full values and are intended for scripting.", formatText, formatJSON, formatCSV),
+		Usage:   fmt.Sprintf("Output format. One of: %v, %v. json emits full values and is intended for scripting.", formatText, formatJSON),
 		Value:   formatText,
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "FORMAT"),
 	}
@@ -96,9 +94,9 @@ func ListClaims(ctx *cli.Context) error {
 	}
 	format := ctx.String(FormatFlag.Name)
 	switch format {
-	case formatText, formatJSON, formatCSV:
+	case formatText, formatJSON:
 	default:
-		return fmt.Errorf("invalid %v %q: must be one of %v, %v, %v", FormatFlag.Name, format, formatText, formatJSON, formatCSV)
+		return fmt.Errorf("invalid %v %q: must be one of %v, %v", FormatFlag.Name, format, formatText, formatJSON)
 	}
 	rpcUrl := ctx.String(flags.L1EthRpcFlag.Name)
 	if rpcUrl == "" {
@@ -127,8 +125,6 @@ func ListClaims(ctx *cli.Context) error {
 	switch format {
 	case formatJSON:
 		return renderJSON(os.Stdout, report)
-	case formatCSV:
-		return renderCSV(os.Stdout, report)
 	default:
 		return renderText(os.Stdout, report, ctx.Bool(VerboseFlag.Name))
 	}
@@ -308,30 +304,6 @@ func renderJSON(out io.Writer, report claimsReport) error {
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
 	return enc.Encode(report)
-}
-
-func renderCSV(out io.Writer, report claimsReport) error {
-	w := csv.NewWriter(out)
-	header := []string{
-		"index", "move", "parentIndex", "depth", "traceIndex", "value", "claimant",
-		"bondWei", "bondEth", "timestamp", "time", "clockUsedSeconds", "counteredBy", "resolved", "resolvableAt",
-	}
-	if err := w.Write(header); err != nil {
-		return err
-	}
-	for _, c := range report.Claims {
-		row := []string{
-			strconv.Itoa(c.Index), c.Move, strconv.Itoa(c.ParentIndex), strconv.FormatUint(c.Depth, 10),
-			c.TraceIndex, c.Value, c.Claimant, c.BondWei, c.BondEth,
-			strconv.FormatInt(c.Timestamp, 10), c.Time, strconv.FormatInt(c.ClockUsedSeconds, 10),
-			c.CounteredBy, strconv.FormatBool(c.Resolved), c.ResolvableAt,
-		}
-		if err := w.Write(row); err != nil {
-			return err
-		}
-	}
-	w.Flush()
-	return w.Error()
 }
 
 func listClaimsFlags() []cli.Flag {

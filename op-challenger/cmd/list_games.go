@@ -3,13 +3,11 @@ package main
 import (
 	"cmp"
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"slices"
-	"strconv"
 	"sync"
 	"time"
 
@@ -68,9 +66,9 @@ func ListGames(ctx *cli.Context) error {
 	}
 	format := ctx.String(FormatFlag.Name)
 	switch format {
-	case formatText, formatJSON, formatCSV:
+	case formatText, formatJSON:
 	default:
-		return fmt.Errorf("invalid %v %q: must be one of %v, %v, %v", FormatFlag.Name, format, formatText, formatJSON, formatCSV)
+		return fmt.Errorf("invalid %v %q: must be one of %v, %v", FormatFlag.Name, format, formatText, formatJSON)
 	}
 
 	gameWindow := ctx.Duration(flags.GameWindowFlag.Name)
@@ -189,8 +187,6 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 	switch format {
 	case formatJSON:
 		return renderGamesJSON(os.Stdout, records)
-	case formatCSV:
-		return renderGamesCSV(os.Stdout, records)
 	default:
 		return renderGamesText(os.Stdout, records)
 	}
@@ -228,24 +224,6 @@ func renderGamesJSON(out io.Writer, games []gameRecord) error {
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
 	return enc.Encode(map[string]any{"games": games})
-}
-
-func renderGamesCSV(out io.Writer, games []gameRecord) error {
-	w := csv.NewWriter(out)
-	if err := w.Write([]string{"index", "game", "gameType", "timestamp", "created", "l2BlockNumber", "outputRoot", "claimCount", "status"}); err != nil {
-		return err
-	}
-	for _, g := range games {
-		if err := w.Write([]string{
-			strconv.FormatUint(g.Index, 10), g.Game, strconv.FormatUint(uint64(g.GameType), 10),
-			strconv.FormatInt(g.Timestamp, 10), g.Created, strconv.FormatUint(g.L2BlockNumber, 10),
-			g.OutputRoot, strconv.FormatUint(g.ClaimCount, 10), g.Status,
-		}); err != nil {
-			return err
-		}
-	}
-	w.Flush()
-	return w.Error()
 }
 
 func listGamesFlags() []cli.Flag {

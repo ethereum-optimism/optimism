@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/csv"
 	"encoding/json"
 	"testing"
 
@@ -41,22 +40,6 @@ func TestRenderGamesJSON(t *testing.T) {
 	require.Equal(t, "In Progress", got.Games[0].Status)
 	require.Equal(t, uint32(1), got.Games[1].GameType)
 	require.Equal(t, "Defender Won", got.Games[1].Status)
-}
-
-func TestRenderGamesCSV(t *testing.T) {
-	var buf bytes.Buffer
-	require.NoError(t, renderGamesCSV(&buf, sampleGames()))
-
-	rows, err := csv.NewReader(&buf).ReadAll()
-	require.NoError(t, err)
-	require.Len(t, rows, 3) // header + 2 games
-	require.Equal(t, []string{
-		"index", "game", "gameType", "timestamp", "created", "l2BlockNumber", "outputRoot", "claimCount", "status",
-	}, rows[0])
-	require.Equal(t, "2188", rows[1][0])
-	require.Equal(t, "0xf63aF5d56AA0aD2331FAcFFb87BF23BA1136880c", rows[1][1])
-	require.Equal(t, "47253642", rows[1][5])
-	require.Equal(t, "Defender Won", rows[2][8])
 }
 
 func TestRenderGamesText(t *testing.T) {

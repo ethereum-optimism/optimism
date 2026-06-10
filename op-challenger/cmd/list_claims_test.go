@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/csv"
 	"encoding/json"
 	"testing"
 
@@ -63,27 +62,6 @@ func TestRenderJSON(t *testing.T) {
 	// Unexported fields must not leak into JSON.
 	require.NotContains(t, buf.String(), "valueTerminal")
 	require.NotContains(t, buf.String(), "resolution")
-}
-
-func TestRenderCSV(t *testing.T) {
-	var buf bytes.Buffer
-	require.NoError(t, renderCSV(&buf, sampleReport()))
-
-	rows, err := csv.NewReader(&buf).ReadAll()
-	require.NoError(t, err)
-	require.Len(t, rows, 3) // header + 2 claims
-	require.Equal(t, []string{
-		"index", "move", "parentIndex", "depth", "traceIndex", "value", "claimant",
-		"bondWei", "bondEth", "timestamp", "time", "clockUsedSeconds", "counteredBy", "resolved", "resolvableAt",
-	}, rows[0])
-
-	require.Equal(t, "0", rows[1][0])
-	require.Equal(t, "Attack", rows[1][1])
-	require.Equal(t, "-1", rows[1][2])
-	require.Equal(t, "80000000000000000", rows[1][7])
-	require.Equal(t, "false", rows[1][13])
-	require.Equal(t, "0xCcCCccCCCCCCcCCcCCCCCccccCcCCCCcCcccccCC", rows[2][12])
-	require.Equal(t, "true", rows[2][13])
 }
 
 func TestRenderText(t *testing.T) {
