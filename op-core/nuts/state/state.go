@@ -18,8 +18,9 @@ import (
 )
 
 // State files are named after the fork they represent (the state as of that
-// fork). They are produced by ops/scripts/gen-jovian-prestate-seed.sh (the jovian
-// seed) and, in future, by composing later bundles onto it. See README.md.
+// fork): the jovian seed via ops/scripts/gen-seed-state.sh, and later states by
+// composing each fork's bundle onto the previous (TestGenerateForkState in
+// rust/kona/tests/proofs). See README.md.
 //
 //go:embed *_state.json
 var stateFS embed.FS
