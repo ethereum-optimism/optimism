@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -28,7 +29,6 @@ import (
 
 var (
 	codeNamespacePrefix = common.HexToAddress("0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000")
-	predeployPrefix     = common.HexToAddress("0x4200000000000000000000000000000000000000")
 
 	conditionalDeployerAddr = common.HexToAddress("0x420000000000000000000000000000000000002C")
 	l2DevFeatureFlagsAddr   = common.HexToAddress("0x420000000000000000000000000000000000002D")
@@ -162,42 +162,20 @@ func assertL2GenesisInvariants(t *testing.T, gen generatedL2Genesis) {
 	t.Helper()
 
 	require.NotEmptyf(t, gen.allocs, "[%s] generated allocs", gen.mode.name)
-	assertGlobalProxySlots(t, gen)
+	// TODO: drop the AllowedEOAs entry once L2Genesis.s.sol stops bumping the proxy admin
+	// owner nonce (pranked CREATE in setEAS and setGovernanceToken).
+	require.NoErrorf(
+		t,
+		genesis.CheckL2GenesisAllocs(&foundry.ForgeAllocs{Accounts: gen.allocs}, genesis.CheckL2AllocsOpts{
+			AllowedEOAs: []common.Address{gen.chainIntent.Roles.L2ProxyAdminOwner},
+		}),
+		"[%s] global alloc invariants",
+		gen.mode.name,
+	)
 	assertActivePredeploys(t, gen)
 	assertInactivePredeploys(t, gen)
 	assertProxyConfig(t, gen)
 	assertInitializerState(t, gen)
-}
-
-func assertGlobalProxySlots(t *testing.T, gen generatedL2Genesis) {
-	t.Helper()
-
-	expectedAdmin := common.BytesToHash(predeploys.ProxyAdminAddr.Bytes())
-	adminSlotCount := 0
-	implSlotCount := 0
-
-	for addr, account := range gen.allocs {
-		if adminVal, ok := account.Storage[genesis.AdminSlot]; ok && adminVal != (common.Hash{}) {
-			adminSlotCount++
-			require.Equalf(t, expectedAdmin, adminVal, "[%s] admin slot for %s", gen.mode.name, addr)
-		}
-
-		if implVal, ok := account.Storage[genesis.ImplementationSlot]; ok && implVal != (common.Hash{}) {
-			implSlotCount++
-			require.Truef(t, isPredeployNamespace(addr), "[%s] non-predeploy %s has an impl slot", gen.mode.name, addr)
-			require.Equalf(
-				t,
-				codeNamespace(addr),
-				common.BytesToAddress(implVal.Bytes()),
-				"[%s] impl slot for %s",
-				gen.mode.name,
-				addr,
-			)
-		}
-	}
-
-	require.Greaterf(t, adminSlotCount, 0, "[%s] no admin slots found", gen.mode.name)
-	require.Greaterf(t, implSlotCount, 0, "[%s] no implementation slots found", gen.mode.name)
 }
 
 func assertActivePredeploys(t *testing.T, gen generatedL2Genesis) {
@@ -531,12 +509,6 @@ func codeNamespace(addr common.Address) common.Address {
 	out[18] = addr[18]
 	out[19] = addr[19]
 	return out
-}
-
-func isPredeployNamespace(addr common.Address) bool {
-	addrPrefix := new(big.Int).Rsh(addr.Big(), 11)
-	expectedPrefix := new(big.Int).Rsh(predeployPrefix.Big(), 11)
-	return addrPrefix.Cmp(expectedPrefix) == 0
 }
 
 func slot(i uint64) common.Hash {
