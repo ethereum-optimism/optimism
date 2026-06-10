@@ -184,17 +184,9 @@ abstract contract L2Genesis_TestInit is Test {
     }
 
     function expectedTemporaryL2CM() internal view returns (address) {
-        uint256 nonce = vm.getNonce(address(genesis));
-
-        // setEAS always deploys one temporary implementation contract before L2CM.
-        nonce++;
-
-        if (input.enableGovernance) {
-            // setGovernanceToken deploys one temporary implementation contract before L2CM.
-            nonce++;
-        }
-
-        return vm.computeCreateAddress(address(genesis), nonce);
+        // The temporary EAS and GovernanceToken deploys are pranked, so they consume the
+        // opChainProxyAdminOwner's nonce. The L2CM is the script's only unpranked CREATE.
+        return vm.computeCreateAddress(address(genesis), vm.getNonce(address(genesis)));
     }
 
     function isGenesisInteropEnabled() internal view returns (bool) {
