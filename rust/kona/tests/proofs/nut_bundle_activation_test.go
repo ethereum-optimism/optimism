@@ -169,10 +169,15 @@ func activateFork(t actionsHelpers.Testing, testCfg *helpers.TestCfg[forks.Name]
 		dc.SetForkTimeOffset(fork, &offset)
 	}
 
-	if alloc, ok, err := nutsstate.PreForkState(fork); ok {
-		require.NoError(t, err, "load pre-fork state for %s", fork)
-		testCfg.Allocs = &e2eutils.AllocParams{PrefundTestUsers: true, L2Alloc: alloc}
-	}
+	// Require a committed pre-fork state. Every fork reaching here has a locked
+	// bundle (forks without one are skipped before the test runs), so its
+	// predecessor's state must already be committed — silently falling back to
+	// HEAD allocs would reintroduce the version drift this guards against and
+	// quietly disable the fix.
+	alloc, ok, err := nutsstate.PreForkState(fork)
+	require.NoError(t, err, "load pre-fork state for %s", fork)
+	require.Truef(t, ok, "no committed pre-fork state for %s — generate the predecessor fork's state (see op-core/nuts/state)", fork)
+	testCfg.Allocs = &e2eutils.AllocParams{PrefundTestUsers: true, L2Alloc: alloc}
 
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), testSetup)
 

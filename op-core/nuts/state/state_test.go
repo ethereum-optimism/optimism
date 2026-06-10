@@ -15,8 +15,10 @@ import (
 // slip by — here we assert each consuming fork resolves one (with a real predeploy
 // present).
 func TestPreForkState(t *testing.T) {
-	// karst boots from jovian_state; lagoon boots from karst_state.
-	for _, fork := range []forks.Name{forks.Karst, forks.Lagoon} {
+	// Every fork from karst onward boots from its predecessor's committed state.
+	// forks.From(karst) auto-covers future forks: adding one without generating
+	// its predecessor's state will fail here (the intended reminder).
+	for _, fork := range forks.From(forks.Karst) {
 		alloc, ok, err := PreForkState(fork)
 		require.NoError(t, err)
 		require.Truef(t, ok, "a pre-fork state should back %s", fork)
