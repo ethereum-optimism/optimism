@@ -259,6 +259,7 @@ impl OpNode {
                         self.args.interop_http.clone(),
                         self.args.interop_min_responses,
                         self.args.interop_safety_level,
+                        self.args.interop_validity_window,
                     ),
             )
             .payload(BasicPayloadServiceBuilder::new(
@@ -1082,6 +1083,10 @@ pub struct OpPoolBuilder<T = crate::txpool::OpPooledTransaction> {
     pub interop_min_responses: Option<usize>,
     /// Safety level for interop filter validation.
     pub interop_safety_level: SafetyLevel,
+    /// Validity window (seconds) applied to admitted interop txs: the pool deadline and the filter
+    /// `ExecutingDescriptor` timeout. See
+    /// [`reth_optimism_txpool::DEFAULT_INTEROP_VALIDITY_WINDOW_SECS`].
+    pub interop_validity_window: u64,
     /// Marker for the pooled transaction type.
     _pd: core::marker::PhantomData<T>,
 }
@@ -1094,6 +1099,7 @@ impl<T> Default for OpPoolBuilder<T> {
             interop_endpoints: Vec::new(),
             interop_min_responses: None,
             interop_safety_level: SafetyLevel::CrossUnsafe,
+            interop_validity_window: reth_optimism_txpool::DEFAULT_INTEROP_VALIDITY_WINDOW_SECS,
             _pd: Default::default(),
         }
     }
@@ -1107,6 +1113,7 @@ impl<T> Clone for OpPoolBuilder<T> {
             interop_endpoints: self.interop_endpoints.clone(),
             interop_min_responses: self.interop_min_responses,
             interop_safety_level: self.interop_safety_level,
+            interop_validity_window: self.interop_validity_window,
             _pd: core::marker::PhantomData,
         }
     }
@@ -1136,10 +1143,12 @@ impl<T> OpPoolBuilder<T> {
         interop_endpoints: Vec<String>,
         interop_min_responses: Option<usize>,
         interop_safety_level: SafetyLevel,
+        interop_validity_window: u64,
     ) -> Self {
         self.interop_endpoints = interop_endpoints;
         self.interop_min_responses = interop_min_responses;
         self.interop_safety_level = interop_safety_level;
+        self.interop_validity_window = interop_validity_window;
         self
     }
 }
@@ -1205,7 +1214,8 @@ where
                     let v = OpTransactionValidator::new(validator)
                         // In --dev mode we can't require gas fees because we're unable to decode
                         // the L1 block info
-                        .require_l1_data_gas_fee(!ctx.config().dev.dev);
+                        .require_l1_data_gas_fee(!ctx.config().dev.dev)
+                        .with_interop_validity_window(self.interop_validity_window);
                     if let Some(client) = interop_client.clone() {
                         v.with_interop(client)
                     } else {
@@ -1256,6 +1266,7 @@ where
                     transaction_pool.clone(),
                     chain_events,
                     interop.clone(),
+                    self.interop_validity_window,
                 ),
             );
             debug!(target: "reth::cli", "Spawned Op interop txpool maintenance task");

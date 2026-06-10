@@ -16,7 +16,6 @@ use crate::{
     conditional::MaybeConditionalTransaction,
     interop::{MaybeInteropTransaction, is_interop_tx, is_stale_interop, is_valid_interop},
     interop_filter::InteropFilterClient,
-    validator::CHECK_ACCESS_LIST_TIMEOUT_SECS,
 };
 use alloy_consensus::{BlockHeader, conditional::BlockConditionalAttributes};
 use futures_util::{FutureExt, Stream, StreamExt, future::BoxFuture};
@@ -24,7 +23,7 @@ use metrics::{Gauge, Histogram};
 use reth_chain_state::CanonStateNotification;
 use reth_metrics::{Metrics, metrics::Counter};
 use reth_primitives_traits::NodePrimitives;
-use reth_transaction_pool::{PoolTransaction, TransactionPool, error::PoolTransactionError};
+use reth_transaction_pool::{PoolTransaction, TransactionPool};
 use std::time::{Duration, Instant};
 use tracing::{info, warn};
 
@@ -139,6 +138,7 @@ pub fn maintain_transaction_pool_interop_future<N, Pool, St>(
     pool: Pool,
     events: St,
     interop_client: InteropFilterClient,
+    validity_window: u64,
 ) -> BoxFuture<'static, ()>
 where
     N: NodePrimitives,
@@ -147,7 +147,7 @@ where
     St: Stream<Item = CanonStateNotification<N>> + Send + Unpin + 'static,
 {
     async move {
-        maintain_transaction_pool_interop(pool, events, interop_client).await;
+        maintain_transaction_pool_interop(pool, events, interop_client, validity_window).await;
     }
     .boxed()
 }
@@ -160,6 +160,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
     pool: Pool,
     mut events: St,
     interop_client: InteropFilterClient,
+    validity_window: u64,
 ) where
     N: NodePrimitives,
     Pool: TransactionPool,
@@ -219,7 +220,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                 let revalidation_stream = interop_client.revalidate_interop_txs_stream(
                     to_revalidate,
                     timestamp,
-                    CHECK_ACCESS_LIST_TIMEOUT_SECS,
+                    validity_window,
                     MAX_INTEROP_QUERIES,
                 );
 
@@ -230,11 +231,14 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                 {
                     match validation_result {
                         Some(Ok(())) => {
-                            tx_item_from_stream
-                                .set_interop_deadline(timestamp + CHECK_ACCESS_LIST_TIMEOUT_SECS);
+                            tx_item_from_stream.set_interop_deadline(timestamp + validity_window);
                         }
                         Some(Err(err)) => {
-                            if err.is_bad_transaction() {
+                            // Evict only on a definitive "message is invalid" verdict; transient or
+                            // out-of-sync verdicts (out of scope, future data, quorum not reached,
+                            // timeout) must keep the tx, or a momentarily-lagging filter would drop
+                            // valid txs.
+                            if err.should_evict_on_revalidation() {
                                 to_remove.push(*tx_item_from_stream.hash());
                             }
                         }

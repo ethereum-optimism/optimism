@@ -95,6 +95,25 @@ impl InteropTxValidatorError {
         matches!(self, Self::FailsafeEnabled)
     }
 
+    /// Returns `true` if this verdict means the referenced interop message is *permanently* invalid
+    /// — it conflicts with canonical data, is ineffective, or is corrupt, and will never become
+    /// valid. This is deliberately narrower than
+    /// [`is_definitive_invalid`](Self::is_definitive_invalid): it excludes out-of-sync / "ask
+    /// later" verdicts (e.g. [`SuperchainDAError::OutOfScope`],
+    /// [`SuperchainDAError::FutureData`]) and unknown-code [`Rejected`](Self::Rejected) responses.
+    /// Used to decide whether to evict an already-pooled interop tx on revalidation: a transient
+    /// verdict must keep the tx, or a momentarily-lagging filter would drop valid transactions.
+    pub const fn is_message_permanently_invalid(&self) -> bool {
+        matches!(
+            self,
+            Self::InvalidEntry(
+                SuperchainDAError::ConflictingData |
+                    SuperchainDAError::IneffectiveData |
+                    SuperchainDAError::DataCorruption
+            )
+        )
+    }
+
     /// Returns a new instance of [`Other`](Self::Other) error variant.
     pub fn other<E>(err: E) -> Self
     where
@@ -152,5 +171,50 @@ impl InteropTxValidatorError {
 
         // Any other error response is a definitive rejection; preserve the real code + message.
         Self::Rejected { code, message: error_payload.message.to_string() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn permanently_invalid_only_for_genuinely_bad_messages() {
+        // Genuinely-invalid verdicts evict.
+        for code in [
+            SuperchainDAError::ConflictingData,
+            SuperchainDAError::IneffectiveData,
+            SuperchainDAError::DataCorruption,
+        ] {
+            assert!(
+                InteropTxValidatorError::InvalidEntry(code).is_message_permanently_invalid(),
+                "{code:?} should be permanently invalid"
+            );
+        }
+
+        // Out-of-sync / "ask later" verdicts must NOT evict, even though some are
+        // `is_definitive_invalid`.
+        for code in [SuperchainDAError::OutOfScope, SuperchainDAError::FutureData] {
+            assert!(
+                !InteropTxValidatorError::InvalidEntry(code).is_message_permanently_invalid(),
+                "{code:?} is transient and must not evict"
+            );
+        }
+
+        // Aggregator outcomes, unknown-code rejections, and soft failures must not evict.
+        assert!(
+            !InteropTxValidatorError::Rejected { code: -32602, message: "x".into() }
+                .is_message_permanently_invalid()
+        );
+        assert!(
+            !InteropTxValidatorError::QuorumNotReached { received: 0, required: 2 }
+                .is_message_permanently_invalid()
+        );
+        assert!(!InteropTxValidatorError::Timeout(2).is_message_permanently_invalid());
+        assert!(
+            !InteropTxValidatorError::DataUnavailable { code: -321401 }
+                .is_message_permanently_invalid()
+        );
+        assert!(!InteropTxValidatorError::FailsafeEnabled.is_message_permanently_invalid());
     }
 }

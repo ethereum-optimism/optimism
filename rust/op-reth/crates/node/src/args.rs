@@ -144,6 +144,21 @@ pub struct RollupArgs {
     )]
     pub interop_safety_level: SafetyLevel,
 
+    /// Validity window, in seconds, for cross-chain (interop) transactions admitted to the pool.
+    ///
+    /// Bounds how long an admitted interop tx may sit in the pool: once it ages past this window
+    /// it is evicted. Within the final 60s before that deadline the tx is revalidated against
+    /// the interop filter on each block, and evicted early if the filter returns a
+    /// permanently-invalid verdict (e.g. conflicting data). The same value is sent to the
+    /// filter as the `ExecutingDescriptor` timeout, requiring it to guarantee the referenced
+    /// source message will not expire within the window.
+    #[arg(
+        long = "rollup.interop-validity-window",
+        value_name = "INTEROP_VALIDITY_WINDOW_SECS",
+        default_value_t = reth_optimism_txpool::DEFAULT_INTEROP_VALIDITY_WINDOW_SECS,
+    )]
+    pub interop_validity_window: u64,
+
     /// Optional headers to use when connecting to the sequencer.
     #[arg(long = "rollup.sequencer-headers", requires = "sequencer")]
     pub sequencer_headers: Vec<String>,
@@ -224,6 +239,7 @@ impl Default for RollupArgs {
             interop_http: Vec::new(),
             interop_min_responses: None,
             interop_safety_level: SafetyLevel::CrossUnsafe,
+            interop_validity_window: reth_optimism_txpool::DEFAULT_INTEROP_VALIDITY_WINDOW_SECS,
             sequencer_headers: Vec::new(),
             historical_rpc: None,
             min_suggested_priority_fee: 1_000_000,
@@ -326,6 +342,25 @@ mod tests {
         ])
         .args;
         assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_interop_validity_window_default_and_parse() {
+        // Default matches the txpool's documented default.
+        let default_args = CommandParser::<RollupArgs>::parse_from(["reth"]).args;
+        assert_eq!(
+            default_args.interop_validity_window,
+            reth_optimism_txpool::DEFAULT_INTEROP_VALIDITY_WINDOW_SECS
+        );
+
+        // Overridable via the flag.
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--rollup.interop-validity-window",
+            "300",
+        ])
+        .args;
+        assert_eq!(args.interop_validity_window, 300);
     }
 
     #[test]

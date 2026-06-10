@@ -16,6 +16,20 @@ pub enum InvalidCrossTx {
     FailsafeEnabled,
 }
 
+impl InvalidCrossTx {
+    /// Whether an already-pooled interop tx should be evicted when revalidation against the filter
+    /// returns this error. Only a permanently-invalid filter verdict (or a cross-chain tx seen
+    /// before interop activation) evicts; transient or out-of-sync verdicts keep the tx, and
+    /// failsafe is handled separately by the global failsafe eviction path.
+    pub const fn should_evict_on_revalidation(&self) -> bool {
+        match self {
+            Self::CrossChainTxPreInterop => true,
+            Self::ValidationError(e) => e.is_message_permanently_invalid(),
+            Self::FailsafeEnabled => false,
+        }
+    }
+}
+
 impl PoolTransactionError for InvalidCrossTx {
     fn is_bad_transaction(&self) -> bool {
         match self {

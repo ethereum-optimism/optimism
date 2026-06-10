@@ -20,8 +20,17 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
-/// The timeout for cross-chain transaction validation against the interop filter.
-pub(crate) const CHECK_ACCESS_LIST_TIMEOUT_SECS: u64 = 7200;
+/// Default validity window for cross-chain (interop) transactions, in seconds.
+///
+/// This single value serves two coupled purposes:
+/// - the pool `interop_deadline`: how long an admitted interop tx may sit in the pool before it is
+///   revalidated against the filter and ultimately evicted (see [`crate::maintain`]); and
+/// - the `ExecutingDescriptor` timeout sent to the interop filter: the filter must guarantee the
+///   referenced source message will not expire within this window.
+///
+/// Holding a tx for as long as the filter guarantees its source stays valid is why the two uses
+/// share one value. Overridable via `--rollup.interop-validity-window`.
+pub const DEFAULT_INTEROP_VALIDITY_WINDOW_SECS: u64 = 120;
 
 /// Tracks additional infos for the current block.
 #[derive(Debug, Default)]
@@ -52,6 +61,10 @@ pub struct OpTransactionValidator<Client, Tx, Evm> {
     require_l1_data_gas_fee: bool,
     /// Client used to check transaction validity with the interop filter.
     interop_client: Option<InteropFilterClient>,
+    /// Validity window (seconds) applied to admitted interop txs: the pool `interop_deadline` and
+    /// the `ExecutingDescriptor` timeout sent to the filter. See
+    /// [`DEFAULT_INTEROP_VALIDITY_WINDOW_SECS`].
+    interop_validity_window: u64,
     /// tracks activated forks relevant for transaction validation
     fork_tracker: Arc<OpForkTracker>,
 }
@@ -123,6 +136,7 @@ where
             block_info: Arc::new(block_info),
             require_l1_data_gas_fee: true,
             interop_client: None,
+            interop_validity_window: DEFAULT_INTEROP_VALIDITY_WINDOW_SECS,
             fork_tracker: Arc::new(OpForkTracker { interop: AtomicBool::from(false) }),
         }
     }
@@ -130,6 +144,13 @@ where
     /// Sets the interop filter client and safety level.
     pub fn with_interop(mut self, interop_client: InteropFilterClient) -> Self {
         self.interop_client = Some(interop_client);
+        self
+    }
+
+    /// Sets the validity window (seconds) applied to admitted interop txs. See
+    /// [`DEFAULT_INTEROP_VALIDITY_WINDOW_SECS`].
+    pub const fn with_interop_validity_window(mut self, secs: u64) -> Self {
+        self.interop_validity_window = secs;
         self
     }
 
@@ -204,7 +225,7 @@ where
             Some(Ok(_)) => {
                 // valid interop tx
                 transaction
-                    .set_interop_deadline(self.block_timestamp() + CHECK_ACCESS_LIST_TIMEOUT_SECS);
+                    .set_interop_deadline(self.block_timestamp() + self.interop_validity_window);
             }
             _ => {}
         }
@@ -283,7 +304,7 @@ where
                 tx.access_list(),
                 tx.hash(),
                 self.block_info.timestamp.load(Ordering::Relaxed),
-                Some(CHECK_ACCESS_LIST_TIMEOUT_SECS),
+                Some(self.interop_validity_window),
                 self.fork_tracker.is_interop_activated(),
             )
             .await
