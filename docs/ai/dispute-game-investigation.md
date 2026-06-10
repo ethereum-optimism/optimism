@@ -9,7 +9,7 @@ proposal is valid and who wins the bonds. Investigate and explain; never `move`,
 
 - L1 EL RPC (games live on L1) and an L2 EL RPC for the chain. The chain's op-node
   rollup RPC is useful but optional.
-- `op-challenger` built locally: `go build -o /tmp/op-challenger ./op-challenger/cmd`.
+- The `op-challenger` binary: `just op-challenger` (builds `./op-challenger/bin/op-challenger`).
 
 ## Steps
 
