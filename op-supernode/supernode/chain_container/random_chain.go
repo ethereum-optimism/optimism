@@ -279,6 +279,20 @@ func (m *RandomChainManager) Chains() []*RandomChain {
 
 func (m *RandomChainManager) L1Source() *RandomL1Source { return m.l1Source }
 
+// MinSafeTimestamp returns the lowest safe-head timestamp across chains — the
+// last timestamp a verification loop over the generated data can reach.
+func (m *RandomChainManager) MinSafeTimestamp() uint64 {
+	min := uint64(0)
+	for i, id := range m.order {
+		rc := m.chains[id]
+		ts := rc.l2[rc.safe].Ref.Time
+		if i == 0 || ts < min {
+			min = ts
+		}
+	}
+	return min
+}
+
 // ChainContainer wires a simpleChainContainer: RandomChain as the VirtualNode
 // and an EngineController wrapping the same RandomChain as l2Provider.
 func (m *RandomChainManager) ChainContainer(id eth.ChainID) (*simpleChainContainer, error) {

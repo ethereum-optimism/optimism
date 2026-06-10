@@ -10,8 +10,10 @@ import (
 
 // FuzzInteropRound generates a set of valid chains over one shared L1, wires
 // them into a real Interop (logsDBs + verifiedDB in a tempdir, real L1
-// consistency checker), and runs one verification round. Since the data is
-// valid by construction the round must advance with no invalid heads.
+// consistency checker), and loops verification rounds until the safe head.
+// Each advancing round seals that timestamp's blocks into the logsDBs, so the
+// cross-chain executing messages of later rounds resolve against sealed init
+// logs. Valid-by-construction data must verify every round cleanly.
 func FuzzInteropRound(f *testing.F) {
 	f.Add([]byte("seed-interop"))
 	f.Add([]byte{})
@@ -35,12 +37,22 @@ func FuzzInteropRound(f *testing.F) {
 		t.Cleanup(func() { _ = i.Stop(ctx) })
 
 		i.ctx = ctx
-		i.verificationStartTimestamp = 1006 // a mid-chain block, past genesis and <= safe head
+		i.verificationStartTimestamp = 1004 // block 2: first SafeDB-covered block; earlier blocks are below SafeDB history
 		i.initialized.Store(true)
 
-		output, _, err := i.progressInterop()
-		require.NoError(t, err)
-		require.Equal(t, DecisionAdvance, output.Decision)
-		require.Empty(t, output.Result.InvalidHeads)
+		for n := 0; ; n++ {
+			require.Less(t, n, 100, "verification loop did not terminate")
+			progress, err := i.progressAndRecord()
+			require.NoError(t, err)
+			if !progress {
+				break
+			}
+		}
+
+		last, ok := i.verifiedDB.LastTimestamp()
+		require.True(t, ok, "no timestamp verified")
+		// The verifier steps timestamps by 1s while blocks span 2s, so the safe
+		// block's slot verifies at both its own timestamp and the next.
+		require.Equal(t, mgr.MinSafeTimestamp()+1, last, "must verify up to the safe head's slot")
 	})
 }
