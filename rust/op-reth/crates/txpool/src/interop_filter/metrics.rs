@@ -195,8 +195,8 @@ impl InteropMetrics {
     /// Records a single interop filter decision under the given `result` and `reason` labels.
     ///
     /// Both must be one of the `RESULT_*` / `REASON_*` constants (or a DA reason from
-    /// [`validation_reason`]) so the label set stays low-cardinality and stable. Use
-    /// [`decision_for_error`] to derive the pair from a validation error.
+    /// `validation_reason`) so the label set stays low-cardinality and stable. Use
+    /// `decision_for_error` to derive the pair from a validation error.
     #[inline]
     pub fn record_decision(&self, result: &'static str, reason: &'static str) {
         counter!(FILTER_DECISIONS, "result" => result, "reason" => reason).increment(1);
