@@ -36,7 +36,7 @@ contracts.
 ## Security Considerations
 
 - VM instruction handling must produce identical results on-chain (Solidity) and
-  off-chain (Go). Memory access in Cannon must be bounds-checked.
+  off-chain (Rust/Go). Memory access in Cannon must be bounds-checked.
 - Preimage key collision resistance.
 - Game clock management and bond economics.
 - Any change to dispute game mechanics requires formal security review.
