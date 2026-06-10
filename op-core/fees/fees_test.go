@@ -20,8 +20,7 @@ var (
 
 	// fjordFee is the cost of the minimum-size transaction:
 	// 100_000_000 * (2 * 1000 * 1e6 * 16 + 3 * 10 * 1e6) / 1e12
-	fjordFee        = big.NewInt(3203000)
-	minimumFjordGas = big.NewInt(1600)
+	fjordFee = big.NewInt(3203000)
 )
 
 func TestNewRollupCostData(t *testing.T) {
@@ -73,7 +72,7 @@ func TestFjordL1CostFuncMinimumBounds(t *testing.T) {
 	// Larger transactions exceed the minimum and cost strictly more.
 	for _, fastLzSize := range []uint64{171, 175, 200} {
 		c := costFunc(RollupCostData{FastLzSize: fastLzSize}, 0)
-		require.Greater(t, c.Uint64(), fjordFee.Uint64(), "fastLzSize=%d should exceed the minimum fee", fastLzSize)
+		require.Positive(t, c.Cmp(fjordFee), "fastLzSize=%d should exceed the minimum fee", fastLzSize)
 	}
 }
 

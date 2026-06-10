@@ -9,6 +9,7 @@ import (
 
 	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum/go-ethereum/common"
@@ -90,7 +91,7 @@ func (i *OperatorCostOracle) OPCost(tx *types.Transaction) *big.Int {
 	l1CostFunc := types.NewL1CostFuncFjord(params.L1BaseFee, params.L1BlobBaseFee, params.L1BaseFeeScalar, params.L1BlobBaseFeeScalar)
 	l1Cost, _ := l1CostFunc(tx.RollupCostData())
 
-	operatorCost := opfees.OperatorCostJovian(tx.Gas(), params.OperatorFeeScalar.Uint64(), params.OperatorFeeConstant.Uint64())
+	operatorCost := opfees.OperatorCostJovian(tx.Gas(), bigs.Uint64Strict(params.OperatorFeeScalar), bigs.Uint64Strict(params.OperatorFeeConstant))
 
 	return l1Cost.Add(l1Cost, operatorCost)
 }
