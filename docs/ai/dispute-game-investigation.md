@@ -29,19 +29,26 @@ proposal is valid and who wins the bonds. Investigate and explain; never `move`,
    - super-root games: `go run ./op-chain-ops/cmd/check-super-root --rpc-endpoints <l2…>`
 
 4. **Classify each claim correct-vs-invalid.** A claim is invalid iff its value differs from
-   the honest value at its position, **clamped to the safe head as of the game's `l1Head`**
-   (`optimism_safeHeadAtL1Block(l1Head)`), not the chain tip — positions beyond that clamp to
-   the safe head's value (why a hash repeats). So a genuinely canonical value for a
-   block/timestamp that was not yet safe at the game's `l1Head` is still **invalid** (e.g.
-   proposing ahead of the safe head) — always clamp to the safe head, not just the claimed tip.
+   the honest value at its position. Validity is bounded by the game's **`l1Head`**: a
+   genuinely canonical value is still **invalid** if it depends on L2 data not yet derivable
+   from L1 at that `l1Head` (e.g. proposing ahead of what L1 has anchored). The exact mechanism
+   differs by game type:
 
    - **Output-root games:** position → L2 block is `traceIdx = (idxAtDepth+1)·2^(splitDepth−depth) − 1`
      (attack child `t − 2^(splitDepth−d−1)`, defend child `t + 2^(splitDepth−d−1)`),
-     `block = rangeStart + traceIdx + 1`; honest value = canonical output root at that block.
-   - **Super-root games:** the trace advances by **timestamp**, not block — each timestamp
-     transition spans multiple steps and a position commits to a **super root over several
-     chains** at a timestamp. The output-root block math does not apply; use `check-super-root`
-     and reason in timestamps / super roots.
+     `block = rangeStart + traceIdx + 1`; the honest value is the canonical output root at that
+     block **clamped to the safe head as of the game's `l1Head`** (`optimism_safeHeadAtL1Block(l1Head)`)
+     — positions beyond it clamp to the safe head's root (why a hash repeats).
+   - **Super-root games:** the trace advances **step by step**; `StepsPerTimestamp` (=128)
+     steps make up one timestamp's transition (`ComputeStep`: `traceIdx = pos.TraceIndex(depth)+1`,
+     `timestamp = prestateTimestamp + traceIdx/128`, `step = traceIdx % 128`). Step 0 is the
+     **super root at that timestamp**; steps 1..N each consolidate the next timestamp's optimistic
+     block for the Nth chain (chains sorted by ID). The honest value is the **invalid-transition
+     hash** (`eth.InvalidTransition`) once the next state can't be derived from L1 ≤ the game's
+     `l1Head` — at step 0 when the timestamp's `VerifiedRequiredL1 > l1Head` (or it has no block),
+     or at the specific step where a chain's `optimistic.RequiredL1 > l1Head` (or that chain has
+     no block) — and it stays invalid thereafter, so the exact step it flips at matters. See
+     `op-challenger/game/fault/trace/super/provider.go`.
 
 5. **Diagnose the responsible op-node** (`op-challenger/scripts/`, chain-agnostic,
    `curl` + `python3`):
@@ -58,11 +65,15 @@ proposal is valid and who wins the bonds. Investigate and explain; never `move`,
    value should be either canonical or the bad node's single clamped value; anything else
    is a different fault.
 
-6. **Uncountered invalid claims are usually correct.** `op-challenger/game/fault/solver/solver.go`
-   `shouldCounter` counters a dishonest claim only when its parent is honest, or the
-   parent was countered by us and the claim is at/left of our counter. It ignores claims
-   to the right of our leftmost counter and all descendants of an ignored claim — avoids
-   wasted bonds and prestate/agreement poisoning.
+6. **Check uncountered invalid claims against the honest actor — don't assume they're fine.**
+   The honest-actor algorithm (`op-challenger/game/fault/solver/solver.go` `shouldCounter`)
+   intentionally leaves many invalid claims uncountered: it counters a dishonest claim only when
+   its parent is honest, or the parent was countered by us and the claim is at/left of our
+   counter; it ignores claims to the right of our leftmost counter and all descendants of an
+   ignored claim (avoids wasted bonds and prestate/agreement poisoning). So an uncountered
+   invalid claim is often expected — but **verify** each one is genuinely one `shouldCounter`
+   would skip. A challenger failing to counter a claim it *should* have is a real and serious
+   failure mode; if an uncountered invalid claim isn't explained by the algorithm, flag it.
 
 7. **Bond outcome.** `packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol`
    `resolveClaim`: a claim's bond goes to its claimant if uncountered, else to the
