@@ -19,10 +19,12 @@ import (
 	"github.com/lmittmann/w3"
 )
 
-// OperatorCostOracle implements OPCostOracle for the operator-fee feature introduced in
-// Isthmus. It uses the Jovian operator-fee formula, which is exact on Jovian chains and a
-// safe over-estimate on pre-Jovian ones (see opfees.OperatorCostJovian).
-type OperatorCostOracle struct {
+// CostOracle implements OPCostOracle, estimating the OP-specific costs of a transaction —
+// the L1 data-availability fee and the operator fee — from parameters it fetches over RPC
+// each block. It uses the Fjord L1 cost function and the Jovian operator-fee formula, the
+// latter being exact on Jovian chains and a safe over-estimate on pre-Jovian ones (see
+// opfees.OperatorCostJovian).
+type CostOracle struct {
 	client     RPCClient
 	blockTime  time.Duration
 	costParams atomic.Pointer[costParams]
@@ -37,16 +39,16 @@ type costParams struct {
 	OperatorFeeConstant *big.Int
 }
 
-var _ OPCostOracle = (*OperatorCostOracle)(nil)
+var _ OPCostOracle = (*CostOracle)(nil)
 
-func NewOperatorCostOracle(client RPCClient, blockTime time.Duration) *OperatorCostOracle {
-	return &OperatorCostOracle{
+func NewCostOracle(client RPCClient, blockTime time.Duration) *CostOracle {
+	return &CostOracle{
 		client:    client,
 		blockTime: blockTime,
 	}
 }
 
-func (i *OperatorCostOracle) Start(ctx context.Context) {
+func (i *CostOracle) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -57,7 +59,7 @@ func (i *OperatorCostOracle) Start(ctx context.Context) {
 	}
 }
 
-func (i *OperatorCostOracle) SetParams(ctx context.Context) error {
+func (i *CostOracle) SetParams(ctx context.Context) error {
 	batch := []rpc.BatchElem{
 		newCall("basefee()"),
 		newCall("baseFeeScalar()"),
@@ -85,7 +87,7 @@ func (i *OperatorCostOracle) SetParams(ctx context.Context) error {
 	return nil
 }
 
-func (i *OperatorCostOracle) OPCost(tx *types.Transaction) *big.Int {
+func (i *CostOracle) OPCost(tx *types.Transaction) *big.Int {
 	params := i.costParams.Load()
 
 	l1CostFunc := types.NewL1CostFuncFjord(params.L1BaseFee, params.L1BlobBaseFee, params.L1BaseFeeScalar, params.L1BlobBaseFeeScalar)

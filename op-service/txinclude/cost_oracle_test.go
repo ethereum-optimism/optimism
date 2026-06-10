@@ -37,10 +37,10 @@ func (m *mockRPCClient) BatchCallContext(ctx context.Context, batch []rpc.BatchE
 	return nil
 }
 
-func TestOperatorCostOracleSetParams(t *testing.T) {
+func TestCostOracleSetParams(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		mock := &mockRPCClient{}
-		oracle := txinclude.NewOperatorCostOracle(mock, time.Millisecond)
+		oracle := txinclude.NewCostOracle(mock, time.Millisecond)
 		require.NoError(t, oracle.SetParams(context.Background()))
 	})
 
@@ -48,7 +48,7 @@ func TestOperatorCostOracleSetParams(t *testing.T) {
 		mock := &mockRPCClient{
 			RPCError: errors.New("the sky is falling"),
 		}
-		oracle := txinclude.NewOperatorCostOracle(mock, time.Millisecond)
+		oracle := txinclude.NewCostOracle(mock, time.Millisecond)
 		require.ErrorIs(t, oracle.SetParams(context.Background()), mock.RPCError)
 	})
 
@@ -56,12 +56,12 @@ func TestOperatorCostOracleSetParams(t *testing.T) {
 		mock := &mockRPCClient{
 			Err: errors.New("the sky is falling"),
 		}
-		oracle := txinclude.NewOperatorCostOracle(mock, time.Millisecond)
+		oracle := txinclude.NewCostOracle(mock, time.Millisecond)
 		require.ErrorIs(t, oracle.SetParams(context.Background()), mock.Err)
 	})
 }
 
-func TestOperatorCostOracleOPCost(t *testing.T) {
+func TestCostOracleOPCost(t *testing.T) {
 	t.Run("account for operator cost", func(t *testing.T) {
 		mock := &mockRPCClient{
 			Results: [6]hexutil.Bytes{
@@ -75,7 +75,7 @@ func TestOperatorCostOracleOPCost(t *testing.T) {
 				big.NewInt(4).Bytes(),
 			},
 		}
-		oracle := txinclude.NewOperatorCostOracle(mock, time.Millisecond)
+		oracle := txinclude.NewCostOracle(mock, time.Millisecond)
 		require.NoError(t, oracle.SetParams(context.Background()))
 		got := oracle.OPCost(types.NewTx(&types.DynamicFeeTx{
 			Gas: 2_000_000,
@@ -96,7 +96,7 @@ func TestOperatorCostOracleOPCost(t *testing.T) {
 				hexutil.Bytes{},
 			},
 		}
-		oracle := txinclude.NewOperatorCostOracle(mock, time.Millisecond)
+		oracle := txinclude.NewCostOracle(mock, time.Millisecond)
 		require.NoError(t, oracle.SetParams(context.Background()))
 		tx := types.NewTx(&types.DynamicFeeTx{})
 		got := oracle.OPCost(tx)
