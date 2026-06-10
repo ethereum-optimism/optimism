@@ -504,14 +504,17 @@ commands:
         type: string
         default: "rust-build"
     steps:
-      - rust-prepare:
-          needs_clang: << parameters.needs_clang >>
+      # Restore the dependency cache before rust-prepare so the cargo fetch it
+      # runs only downloads crates the cache is missing.
       - rust-restore-build-cache:
           version: << parameters.version >>
           directory: << parameters.directory >>
           profile: << parameters.profile >>
           features: << parameters.features >>
           prefix: << parameters.prefix >>
+      - rust-prepare:
+          needs_clang: << parameters.needs_clang >>
+          directory: << parameters.directory >>
 
   rust-build:
     description: "Build a Rust workspace with target directory caching"

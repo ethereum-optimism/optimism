@@ -85,6 +85,10 @@ commands:
         description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)."
         type: boolean
         default: true
+      directory:
+        description: "Cargo workspace directory to fetch dependencies for."
+        type: string
+        default: "rust"
     description: "Prepare the Rust environment for the build."
     steps:
       - rust-setup-env
@@ -96,3 +100,12 @@ commands:
                 command: 'command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }'
       # Shared GCS compile cache (op-rust-sccache).
       - rust-sccache-setup
+      # Download all dependencies up front so the subsequent build/test step does
+      # not interleave network fetches with compilation. Callers that restore the
+      # dependency cache (rust-prepare-and-restore-cache) do so before invoking
+      # this command, so on a cache hit this only fetches crates the cache is
+      # missing. --locked fails fast if Cargo.lock is stale.
+      - run:
+          name: Fetch dependencies
+          working_directory: << parameters.directory >>
+          command: cargo fetch --locked
