@@ -28,16 +28,20 @@ proposal is valid and who wins the bonds. Investigate and explain; never `move`,
    - output-root games: `go run ./op-chain-ops/cmd/check-output-root --l2-eth-rpc <l2> --block-num <n>`
    - super-root games: `go run ./op-chain-ops/cmd/check-super-root --rpc-endpoints <l2…>`
 
-4. **Classify each claim correct-vs-invalid.** Map position → L2 block:
-   `traceIdx = (idxAtDepth+1)·2^(splitDepth−depth) − 1`; attack child `t − 2^(splitDepth−d−1)`,
-   defend child `t + 2^(splitDepth−d−1)`; `block = rangeStart + traceIdx + 1`. The honest
-   value at a position is the canonical output root at that block **clamped to the safe head
-   as of the game's `l1Head`** (`optimism_safeHeadAtL1Block(l1Head)`), not the chain tip —
-   positions beyond that safe head clamp to its output root (why a hash repeats). A claim is
-   invalid iff its value differs. Crucially this means a claim/proposal can carry a genuinely
-   canonical output root and still be **invalid** if its block was not yet safe at the game's
-   `l1Head` (e.g. proposing ahead of the safe head) — so always clamp to the safe head, not
-   just to the claimed block.
+4. **Classify each claim correct-vs-invalid.** A claim is invalid iff its value differs from
+   the honest value at its position, **clamped to the safe head as of the game's `l1Head`**
+   (`optimism_safeHeadAtL1Block(l1Head)`), not the chain tip — positions beyond that clamp to
+   the safe head's value (why a hash repeats). So a genuinely canonical value for a
+   block/timestamp that was not yet safe at the game's `l1Head` is still **invalid** (e.g.
+   proposing ahead of the safe head) — always clamp to the safe head, not just the claimed tip.
+
+   - **Output-root games:** position → L2 block is `traceIdx = (idxAtDepth+1)·2^(splitDepth−depth) − 1`
+     (attack child `t − 2^(splitDepth−d−1)`, defend child `t + 2^(splitDepth−d−1)`),
+     `block = rangeStart + traceIdx + 1`; honest value = canonical output root at that block.
+   - **Super-root games:** the trace advances by **timestamp**, not block — each timestamp
+     transition spans multiple steps and a position commits to a **super root over several
+     chains** at a timestamp. The output-root block math does not apply; use `check-super-root`
+     and reason in timestamps / super roots.
 
 5. **Diagnose the responsible op-node** (`op-challenger/scripts/`, chain-agnostic,
    `curl` + `python3`):
