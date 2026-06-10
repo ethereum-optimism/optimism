@@ -7,8 +7,10 @@ proposal is valid and who wins the bonds. Investigate and explain; never `move`,
 
 ## Inputs
 
-- L1 EL RPC (games live on L1) and an L2 EL RPC for the chain. The chain's op-node
-  rollup RPC is useful but optional.
+- L1 EL RPC (games live on L1) and an L2 EL RPC for the chain. The rollup-node RPC is
+  useful but optional — **op-node** (`optimism_outputAtBlock` / `optimism_safeHeadAtL1Block`)
+  for output-root games; **op-node or op-supernode** (`superroot_atTimestamp`) for super-root
+  games.
 - The `op-challenger` binary: `just op-challenger` (builds `./op-challenger/bin/op-challenger`).
 
 ## Steps
@@ -64,6 +66,12 @@ proposal is valid and who wins the bonds. Investigate and explain; never `move`,
    single challenger emit *both* roots and attack its own claims. Clean test: every claim
    value should be either canonical or the bad node's single clamped value; anything else
    is a different fault.
+
+   These queries (and `game-proposal-outputs.sh`) target **output-root games** via op-node
+   `optimism_outputAtBlock` / `optimism_safeHeadAtL1Block`. For **super-root games** the data
+   source is `superroot_atTimestamp` on the op-node **or op-supernode** — compare per the
+   super-root rules in §4 (the response carries the `RequiredL1` / `VerifiedRequiredL1` that
+   determine when the trace turns invalid).
 
 6. **Check uncountered invalid claims against the honest actor — don't assume they're fine.**
    The honest-actor algorithm (`op-challenger/game/fault/solver/solver.go` `shouldCounter`)
