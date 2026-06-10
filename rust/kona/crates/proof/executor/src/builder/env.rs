@@ -185,6 +185,7 @@ mod tests {
         let builder = StatelessL2Builder::new(
             &config,
             OpEvmFactory::<alloy_op_evm::OpTx>::default(),
+            alloy_op_evm::block::OpAlloyReceiptBuilder::default(),
             NoopTrieDBProvider,
             NoopTrieHinter,
             parent_header.clone().seal_slow(),
