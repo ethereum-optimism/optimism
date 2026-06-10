@@ -80,7 +80,7 @@ func writePreForkState(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, f
 	data, err := json.MarshalIndent(scoped, "", "  ")
 	require.NoError(t, err)
 	data = append(data, '\n')
-	require.NoError(t, os.WriteFile(outPath, data, 0o644))
+	require.NoError(t, os.WriteFile(outPath, data, 0o640))
 	fmt.Printf("wrote %s (%d accounts)\n", outPath, len(scoped.Accounts))
 }
 

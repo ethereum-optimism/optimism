@@ -56,20 +56,20 @@ inside the worktree pairs the era's contracts with the era's tooling.
 ## Generating subsequent states: compose
 
 Every state past the seed is the **post-activation state of its fork**:
-`<fork>_state = <prev>_state + (frozen <fork> bundle applied)`. The activation test
-executes exactly that, so it doubles as the generator — set
-`OP_E2E_GEN_PRESTATE=<fork>` and run it:
+`<fork>_state = <prev>_state + (frozen <fork> bundle applied)`. `TestGenerateForkState`
+reuses the activation flow to produce exactly that — set `OP_E2E_GEN_PRESTATE=<fork>`
+and run it:
 
 ```bash
 # karst_state.json = jovian_state + karst bundle
-OP_E2E_GEN_PRESTATE=karst go test -run 'TestActivationBlockNUTBundle/karst' ./rust/kona/tests/proofs/
+OP_E2E_GEN_PRESTATE=karst go test -run 'TestGenerateForkState' ./rust/kona/tests/proofs/
 ```
 
 It boots the predecessor state, applies the frozen bundle at the activation block,
-dumps the post-activation predeploy-scoped state to `<fork>_state.json`, and stops
-before the fault-proof step. Compose needs **no fork-era contract build** — it only
-re-runs the already-frozen bundle, so current tooling is fine despite the ABI drift
-above.
+and dumps the post-activation predeploy-scoped state to `<fork>_state.json`. (It
+shares `activateFork` with the validation test, so the two stay in lockstep.)
+Compose needs **no fork-era contract build** — it only re-runs the already-frozen
+bundle, so current tooling is fine despite the ABI drift above.
 
 **Generate one fork at a time, committing each first:** the loader embeds states at
 compile time, so `<prev>_state.json` must be on disk before generating
