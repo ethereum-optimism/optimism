@@ -45,7 +45,7 @@ var (
 
 	InteropFilterMinSafetyFlag = &cli.StringFlag{
 		Name:     "interop-filter-min-safety",
-		Usage:    "Minimum safety level requested from the interop-filter checkAccessList cross-check (e.g. cross-unsafe, safe, finalized)",
+		Usage:    "Minimum safety level requested from the interop-filter checkAccessList cross-check; the filter only supports cross-unsafe or unsafe",
 		EnvVars:  prefixEnvVars("INTEROP_FILTER_MIN_SAFETY"),
 		Required: false,
 		Value:    "cross-unsafe",

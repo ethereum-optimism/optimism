@@ -151,8 +151,10 @@ func (ms *InteropMonitorService) initFromClients(
 	// Optional read-only interop-filter observer (cross-check + failsafe gauge).
 	if cfg.InteropFilterEndpoint != "" && ms.collector != nil {
 		minSafety := safety.Level(cfg.InteropFilterMinSafety)
-		if !minSafety.Validate() {
-			return fmt.Errorf("invalid interop-filter-min-safety %q", cfg.InteropFilterMinSafety)
+		// The interop-filter only checks access lists at unsafe or cross-unsafe; any
+		// other level errors on every call. Fail fast rather than flooding divergences.
+		if minSafety != safety.CrossUnsafe && minSafety != safety.LocalUnsafe {
+			return fmt.Errorf("interop-filter-min-safety %q unsupported; the filter only supports %q or %q", cfg.InteropFilterMinSafety, safety.CrossUnsafe, safety.LocalUnsafe)
 		}
 		filterClient, err := NewFilterClient(cfg.InteropFilterEndpoint, minSafety, ms.Log)
 		if err != nil {
