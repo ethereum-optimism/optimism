@@ -82,39 +82,41 @@ func TestSDMPostExecDerivation(gt *testing.T) {
 		env.Sequencer.ActL2EndBlock(t)
 		testBlock := env.Sequencer.L2Unsafe()
 
-		// Buffer the test block, optionally appending a trailing PostExec tx as the
-		// block is encoded into the span batch.
-		var bufferOpts []actionsHelpers.BufferOption
-		switch testCfg.Custom {
-		case validPostExec:
-			// A valid payload anchored to this block, offering a small refund to the
-			// user tx at index 1 (index 0 is the L1-info deposit).
-			pe := postExecTx(t, sdmpkg.PostExecPayload{
-				Version:          sdmpkg.PostExecPayloadVersion,
-				BlockNumber:      testBlock.Number,
-				GasRefundEntries: []sdmpkg.SDMGasEntry{{Index: 1, GasRefund: 1}},
-			})
-			bufferOpts = append(bufferOpts, actionsHelpers.WithBlockModifier(appendTx(pe)))
-		case invalidPostExec:
-			// Wrong block number: kona rejects this as "does not match block number".
-			pe := postExecTx(t, sdmpkg.PostExecPayload{
-				Version:     sdmpkg.PostExecPayloadVersion,
-				BlockNumber: testBlock.Number + 99,
-			})
-			bufferOpts = append(bufferOpts, actionsHelpers.WithBlockModifier(appendTx(pe)))
+		// Submit the test block to L1 and derive it back. The honest block can ride
+		// the BatchMineAndSync helper; the PostExec variants cannot, because the
+		// synthetic PostExec tx must be injected with a batcher block modifier
+		// (op-geth can't sequence it) and BatchMineAndSync / ActSubmitAll buffer
+		// every block unmodified. Those drive the batcher directly, mirroring
+		// holocene_invalid_batch_test.go.
+		if testCfg.Custom == noPostExec {
+			env.BatchMineAndSync(t)
+		} else {
+			var pe *types.Transaction
+			if testCfg.Custom == validPostExec {
+				// Valid payload anchored to this block, offering a small refund to the
+				// user tx at index 1 (index 0 is the L1-info deposit).
+				pe = postExecTx(t, sdmpkg.PostExecPayload{
+					Version:          sdmpkg.PostExecPayloadVersion,
+					BlockNumber:      testBlock.Number,
+					GasRefundEntries: []sdmpkg.SDMGasEntry{{Index: 1, GasRefund: 1}},
+				})
+			} else {
+				// Wrong block number: kona rejects this as "does not match block number".
+				pe = postExecTx(t, sdmpkg.PostExecPayload{
+					Version:     sdmpkg.PostExecPayloadVersion,
+					BlockNumber: testBlock.Number + 99,
+				})
+			}
+
+			env.Batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(appendTx(pe)))
+			env.Batcher.ActL2ChannelClose(t)
+			env.Batcher.ActL2BatchSubmit(t)
+			env.Miner.ActL1StartBlock(helpers.L1BlockTime)(t)
+			env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
+			env.Miner.ActL1EndBlock(t)
+			env.Sequencer.ActL1HeadSignal(t)
+			env.Sequencer.ActL2PipelineFull(t)
 		}
-
-		env.Batcher.ActL2BatchBuffer(t, bufferOpts...)
-		env.Batcher.ActL2ChannelClose(t)
-		env.Batcher.ActL2BatchSubmit(t)
-
-		// Include the batcher tx on L1 and derive.
-		env.Miner.ActL1StartBlock(12)(t)
-		env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
-		env.Miner.ActL1EndBlock(t)
-		env.Miner.ActL1SafeNext(t)
-		env.Sequencer.ActL1HeadSignal(t)
-		env.Sequencer.ActL2PipelineFull(t)
 
 		// In every case the safe head advances to the test block's height.
 		safe := env.Sequencer.L2Safe()
