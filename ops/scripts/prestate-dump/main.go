@@ -64,7 +64,7 @@ func main() {
 		panic(err)
 	}
 	data = append(data, '\n')
-	if err := os.WriteFile(outPath, data, 0o644); err != nil {
+	if err := os.WriteFile(outPath, data, 0o640); err != nil {
 		panic(err)
 	}
 	fmt.Printf("wrote %s (%d accounts)\n", outPath, len(scoped.Accounts))
