@@ -14,7 +14,19 @@ rss: true
 
 **proxyd** is an RPC request router and proxy with method whitelisting, backend load balancing, automatic retries, and consensus state tracking across multiple backend nodes.
 
-<Update label="May 27, 2026" description="v4.27.4" tags={["Latest", "Stable"]}>
+<Update label="June 8, 2026" description="v4.27.5" tags={["Latest", "Stable"]}>
+
+## Changelog
+* 1311f2a834de36a980180414fa5f093714050c44 feat(proxyd): add agreement interop validation strategy (#640)
+* f8ff4e4069bd00f1099d748a161e8b9ba45bf8ac feat(proxyd): add metrics for interop validation outcomes (#643)
+* f803573ccd27d0c906b0b162219b278919e917be feat(proxyd): halt CL consensus on unresolvable output root split (#646)
+* bbb05429712bafdd7be4849951820eca25795abe fix(proxyd): allow CL backends at network genesis (block 0 with valid hash) (#645)
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.27.5)
+
+</Update>
+
+<Update label="May 27, 2026" description="v4.27.4" tags={["Stable"]}>
 
 ## Changelog
 * 7d6b7b2de084d458f0199f3ee23502f10e1120e1 feat(proxyd): switch to InteropFilterClient (interop_checkAccessList) (#635)
