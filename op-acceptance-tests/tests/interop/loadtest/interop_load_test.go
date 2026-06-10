@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum-optimism/optimism/op-service/txspam"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -148,7 +149,7 @@ func setupL2(t devtest.T, wallet *dsl.HDWallet, blockTime time.Duration, config 
 	amountPerEOA := budgetAmount.Div(numEOAsPerChain)
 	innerEOAs := dsl.NewFunder(wallet, faucet, el).NewFundedEOAs(numEOAsPerChain, amountPerEOA)
 	reliableEL := newReliableEL(el.Escape().EthClient(), blockTime, ResubmitterObserver(el.ChainID()))
-	eoas := make([]*SyncEOA, 0, len(innerEOAs))
+	eoas := make([]*txspam.SyncEOA, 0, len(innerEOAs))
 	budget := accounting.NewBudget(budgetAmount)
 	oracle := setupOracle(t, el, blockTime)
 	for _, eoa := range innerEOAs {
@@ -157,12 +158,12 @@ func setupL2(t devtest.T, wallet *dsl.HDWallet, blockTime time.Duration, config 
 			reliableEL,
 			txinclude.WithBudget(txinclude.NewTxBudget(budget, txinclude.WithOPCostOracle(oracle))),
 		)
-		eoas = append(eoas, NewSyncEOA(p, eoa.Plan()))
+		eoas = append(eoas, txspam.NewSyncEOA(p, eoa.Plan()))
 	}
 	return &L2{
 		Config:    config,
 		BlockTime: blockTime,
-		EOAs:      NewRoundRobin(eoas),
+		EOAs:      txspam.NewRoundRobin(eoas),
 		EL:        el,
 		Wallet:    wallet,
 	}

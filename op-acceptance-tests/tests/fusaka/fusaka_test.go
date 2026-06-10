@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -20,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum-optimism/optimism/op-service/txspam"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
@@ -127,7 +127,7 @@ func spamBlobs(t devtest.T, sys *presets.Minimal) {
 	eoa := sys.FunderL1.NewFundedEOA(eth.OneTenthEther)
 	signer := txinclude.NewPkSigner(eoa.Key().Priv(), sys.L1Network.ChainID().ToBig())
 	l1ETHClient := sys.L1EL.EthClient()
-	syncEOA := loadtest.NewSyncEOA(txinclude.NewPersistent(signer, struct {
+	syncEOA := txspam.NewSyncEOA(txinclude.NewPersistent(signer, struct {
 		*txinclude.Monitor
 		*txinclude.Resubmitter
 	}{
@@ -149,7 +149,7 @@ func spamBlobs(t devtest.T, sys *presets.Minimal) {
 	ctx, cancel := context.WithCancel(t.Ctx())
 	tc := t.WithCtx(ctx)
 	spammer := backpressure.TaskFunc(func(context.Context) error {
-		_, err := syncEOA.Include(tc, txplan.WithBlobs([]*eth.Blob{&blob}, l1ChainConfig), txplan.WithTo(&common.Address{}))
+		_, err := syncEOA.Include(tc.Ctx(), txplan.WithBlobs([]*eth.Blob{&blob}, l1ChainConfig), txplan.WithTo(&common.Address{}))
 		return err
 	})
 	aimd := backpressure.NewAIMD(backpressure.WithSlotTime(l1BlockTime), backpressure.WithBaseRPS(uint64(txsPerSlot)))

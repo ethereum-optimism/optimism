@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum-optimism/optimism/op-service/txspam"
 	"github.com/ethereum/go-ethereum/core"
 )
 
@@ -25,9 +26,9 @@ import (
 type InvalidExecMsgSpammer struct {
 	t              devtest.T
 	l2             *L2
-	eoa            *SyncEOA
+	eoa            *txspam.SyncEOA
 	validInitMsg   messages.Message
-	makeInvalidFns *RoundRobin[dsl.InvalidMsgFn]
+	makeInvalidFns *txspam.RoundRobin[dsl.InvalidMsgFn]
 }
 
 var _ backpressure.Task = (*InvalidExecMsgSpammer)(nil)
@@ -58,9 +59,9 @@ func NewInvalidExecMsgSpammer(t devtest.T, l2 *L2, validInitMsg messages.Message
 	return &InvalidExecMsgSpammer{
 		t:            t,
 		l2:           l2,
-		eoa:          NewSyncEOA(includer, eoa.Plan()),
+		eoa:          txspam.NewSyncEOA(includer, eoa.Plan()),
 		validInitMsg: validInitMsg,
-		makeInvalidFns: NewRoundRobin([]dsl.InvalidMsgFn{
+		makeInvalidFns: txspam.NewRoundRobin([]dsl.InvalidMsgFn{
 			dsl.MakeInvalidBlockNumber,
 			dsl.MakeInvalidChainID,
 			dsl.MakeInvalidLogIndex,
@@ -74,7 +75,7 @@ func NewInvalidExecMsgSpammer(t devtest.T, l2 *L2, validInitMsg messages.Message
 func (ie *InvalidExecMsgSpammer) Do(ctx context.Context) error {
 	invalidInitMsg := ie.makeInvalidFns.Get()(ie.validInitMsg)
 	execMsg := planExecMsg(ie.t, &invalidInitMsg, ie.l2.BlockTime, ie.l2.EL.Escape().EthClient())
-	if _, err := ie.eoa.Include(ie.t, execMsg); err == nil {
+	if _, err := ie.eoa.Include(ctx, execMsg); err == nil {
 		ie.t.Require().Failf("included invalid executing message", "message: %v", invalidInitMsg)
 	} else if !strings.Contains(err.Error(), core.ErrTxFilteredOut.Error()) { // TODO(13408): we should be able to use errors.Is.
 		ie.t.Logger().Warn("Invalid message hit an unexpected error", "want", core.ErrTxFilteredOut, "got", err)

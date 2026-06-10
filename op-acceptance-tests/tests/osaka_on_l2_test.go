@@ -6,16 +6,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-karst/karsttest"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/backpressure"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum-optimism/optimism/op-service/txspam"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -441,20 +442,20 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 // spamTxs floods L2 with large-calldata transactions to drive the L2 base fee up.
 func spamTxs(sys *presets.Minimal) {
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
-	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
+	eoas := dsl.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
 	runSpam(sys.T, eoas, l2BlockTime, predeploys.L1BlockAddr)
 }
 
 // spamL1Txs floods L1 with large-calldata transactions to drive the L1 base fee up.
 func spamL1Txs(sys *presets.Minimal) {
 	l1BlockTime := sys.L1EL.EstimateBlockTime()
-	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l1BlockTime, sys.L1EL, sys.Wallet, sys.FaucetL1)
+	eoas := dsl.FundEOAs(sys.T, eth.HundredEther, 50, l1BlockTime, sys.L1EL, sys.Wallet, sys.FaucetL1)
 	// The target only needs to absorb calldata, so any address works.
 	runSpam(sys.T, eoas, l1BlockTime, common.Address{0x42})
 }
 
-func runSpam(t devtest.T, eoas []*loadtest.SyncEOA, blockTime time.Duration, to common.Address) {
-	eoasRR := loadtest.NewRoundRobin(eoas)
+func runSpam(t devtest.T, eoas []*txspam.SyncEOA, blockTime time.Duration, to common.Address) {
+	eoasRR := txspam.NewRoundRobin(eoas)
 
 	ctx, cancel := context.WithCancel(t.Ctx())
 	tc := t.WithCtx(ctx)
@@ -462,7 +463,7 @@ func runSpam(t devtest.T, eoas []*loadtest.SyncEOA, blockTime time.Duration, to 
 		// Max tx size in op-geth and op-reth mempools is 128 kB per tx.
 		// We leave an 8 kB buffer for tx data outside the calldata.
 		const calldataSize = 120 * 1024
-		_, err := eoasRR.Get().Include(tc,
+		_, err := eoasRR.Get().Include(tc.Ctx(),
 			txplan.WithTo(&to),
 			txplan.WithData(make([]byte, calldataSize)),
 			txplan.WithGasLimit(1_250_000),

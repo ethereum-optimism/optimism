@@ -6,17 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	batcherConfig "github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/backpressure"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum-optimism/optimism/op-service/txspam"
 )
 
 const blockSizeLimit = 5_000
@@ -76,13 +77,13 @@ func TestDABlockThrottling(gt *testing.T) {
 
 func spamTxs(sys *presets.Minimal) {
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
-	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
-	eoasRR := loadtest.NewRoundRobin(eoas)
+	eoas := dsl.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
+	eoasRR := txspam.NewRoundRobin(eoas)
 
 	ctx, cancel := context.WithCancel(sys.T.Ctx())
 	tc := sys.T.WithCtx(ctx)
 	spammer := backpressure.TaskFunc(func(context.Context) error {
-		_, err := eoasRR.Get().Include(tc, txplan.WithTo(&predeploys.L1BlockAddr), txplan.WithData(make([]byte, 0)), txplan.WithGasLimit(70_000))
+		_, err := eoasRR.Get().Include(tc.Ctx(), txplan.WithTo(&predeploys.L1BlockAddr), txplan.WithData(make([]byte, 0)), txplan.WithGasLimit(70_000))
 		return err
 	})
 	aimd := backpressure.NewAIMD(backpressure.WithSlotTime(l2BlockTime), backpressure.WithBaseRPS(50))

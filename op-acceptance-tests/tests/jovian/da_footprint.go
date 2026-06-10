@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -20,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum-optimism/optimism/op-service/txspam"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
@@ -27,8 +27,8 @@ import (
 )
 
 func SpamCalldata(t devtest.T, l2BlockTime time.Duration, el *dsl.L2ELNode, wallet *dsl.HDWallet, faucet *dsl.Faucet) {
-	eoas := loadtest.FundEOAs(t, eth.HundredEther, 25, l2BlockTime, el, wallet, faucet)
-	rr := loadtest.NewRoundRobin(eoas)
+	eoas := dsl.FundEOAs(t, eth.HundredEther, 25, l2BlockTime, el, wallet, faucet)
+	rr := txspam.NewRoundRobin(eoas)
 
 	ctx, cancel := context.WithCancel(t.Ctx())
 	var wg sync.WaitGroup
@@ -45,7 +45,7 @@ func SpamCalldata(t devtest.T, l2BlockTime time.Duration, el *dsl.L2ELNode, wall
 			data := make([]byte, 50_000)
 			_, err := rand.Read(data)
 			tc.Require().NoError(err)
-			_, err = rr.Get().Include(tc, txplan.WithTo(&common.Address{}), txplan.WithData(data))
+			_, err = rr.Get().Include(tc.Ctx(), txplan.WithTo(&common.Address{}), txplan.WithData(data))
 			return err
 		}))
 	}()
