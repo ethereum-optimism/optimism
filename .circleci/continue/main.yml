@@ -135,12 +135,9 @@ commands:
       job invoking this command must carry sccache-gcs-optimism).
     parameters:
       enabled:
-        # Disabled in optimism-private: the sccache-gcs-optimism Workload
-        # Identity binding only authorizes the public optimism repo, so
-        # impersonation fails here. Re-enable once IAM grants this project.
         description: "Master switch for the GCS compile cache."
         type: boolean
-        default: false
+        default: true
     steps:
       - when:
           condition: << parameters.enabled >>
