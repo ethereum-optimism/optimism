@@ -44,10 +44,11 @@ When reviewing changes to `initialize()` or its callers:
 
 L1 and L2 smart contracts in the OP Stack live primarily in `packages/contracts-bedrock/`.
 These contracts secure real value — OP Mainnet, Base, and other Superchain members — so every
-change carries risk. The canonical Solidity style guide is at
-`book/src/contributing/style-guide.md`, the interface policy at
-`book/src/contributing/interfaces.md`, and the versioning and upgrade policies under
-`book/src/policies/`.
+change carries risk, especially changes to the implementations in
+`packages/contracts-bedrock/src/`. The canonical Solidity style guide is at
+`packages/contracts-bedrock/book/src/contributing/style-guide.md`, the interface policy at
+`packages/contracts-bedrock/book/src/contributing/interfaces.md`, and the versioning and upgrade
+policies under `packages/contracts-bedrock/book/src/policies/`.
 
 ### Proxy System
 
@@ -223,17 +224,32 @@ contract ContractName is Initializable, ProxyAdminOwnedBase, ReinitializableBase
 
 ### Tooling
 
-- Foundry for building, testing, and scripting.
-- `forge build` must produce zero warnings (`deny_warnings = true` in `foundry.toml`).
-- `forge fmt` for formatting (120-char line length, bracket spacing, multiline func headers).
-- `forge test` for testing (default 64 fuzz runs, CI uses 128).
-- Semgrep for security linting (custom rules in `.semgrep/rules/`).
+- Foundry under the hood, but always drive it through the `just` recipes in
+  `packages/contracts-bedrock/justfile` — never call `forge` directly. The recipes wire up
+  go-ffi, profiles, and the script cache for you.
+- `just build` builds the contracts; `just build-dev` is the faster variant
+  (`FOUNDRY_PROFILE=lite`) for local iteration. Builds must produce zero warnings
+  (`deny_warnings = true` in `foundry.toml`).
+- `just test` runs the suite; `just test-dev` is the faster `lite`-profile variant for local
+  iteration. Default 64 fuzz runs; CI uses 128.
+- `just lint` formats and checks (`forge fmt` under the hood: 120-char line length, bracket
+  spacing, multiline func headers).
+- Semgrep for security linting (custom rules in `.semgrep/rules/`, via `just semgrep`).
 - Slither for static analysis.
+
+In `packages/contracts-bedrock`, run every recipe through `mise` so it uses the pinned toolchain
+(see [Build and Test Commands](#build-and-test-commands) below): e.g. `mise x -- just build-dev`.
 
 ### Pragma
 
-- **Unified Solidity version** across the entire codebase (currently `0.8.15` for most contracts).
-- **Strict pragmas only** — use `pragma solidity 0.8.15;`, not `^0.8.0` (enforced by CI).
+- **Unified Solidity version** across the codebase (currently `0.8.15` for most contracts).
+- **Pin the final derived contracts and scripts** — concrete (non-abstract) production contracts
+  and deploy scripts must use an exact pragma (`pragma solidity 0.8.15;`). The `strict-pragma`
+  CI check enforces this on files containing a concrete contract.
+- **Floating pragmas are fine for reusable libraries** — a `^0.8.0` pragma is common and
+  acceptable for `src/libraries/`, abstract base contracts, and interfaces. These are not pinned
+  because they're consumed by the pinned contracts that derive from them, and CI deliberately
+  exempts libraries, interfaces, and abstract contracts from the strict-pragma check.
 - Never introduce a new Solidity version without a formal design-doc proposal.
 - New versions must be at least 6 months old before adoption.
 
@@ -424,7 +440,10 @@ mise x -- just semver-lock-no-build  # Regenerate from existing artifacts (faste
 ```
 
 `just build` and `just test` run production builds with full optimization — slower. Use
-`just build-dev` and `just test-dev` for day-to-day iteration.
+`just build-dev` and `just test-dev` for day-to-day iteration. Recipes forward extra args to
+`forge`, so pare a run down to what you're working on with `--match-contract` / `--match-test`
+(e.g. `mise x -- just test-dev --match-contract OptimismPortal2_Test`) — much faster than the
+whole suite. Run the full `just test` before opening a PR, since that's what CI runs.
 
 `just test-upgrade` forks mainnet (or Sepolia) at a weekly-pinned block, applies the upgrade
 path, and runs tests in `test/{L1,dispute,cannon}/`. It verifies that upgrades work against
@@ -463,7 +482,11 @@ than leaving any manually-chosen hashes in place.
 
 ## Before Committing Contract Changes
 
-1. `just test-dev` — zero test failures (fast iteration).
+1. `just test-dev` — zero test failures (fast `lite`-profile iteration). While iterating on a
+   specific change, narrow the run with `forge`'s filters to avoid the whole suite, e.g.
+   `just test-dev --match-contract OptimismPortal2_Test` or
+   `just test-dev --match-test test_finalizeWithdrawalTransaction_succeeds`. Run the unfiltered
+   `just test-dev` (and `just test`, the full-optimization variant CI runs) before opening the PR.
 2. `just pr` — full pre-PR suite: build, lint, all checks.
 3. Bump the contract version if bytecode changed (once per PR, not per commit — PRs are
    squash-merged).
