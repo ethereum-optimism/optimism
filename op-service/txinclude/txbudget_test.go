@@ -85,40 +85,52 @@ func TestTxBudgetCanceling(t *testing.T) {
 }
 
 func TestTxBudgetIncluded(t *testing.T) {
+	const (
+		gasLimit          = 30_000
+		gasUsed           = 21_000 // <= gasLimit, as a real receipt reports
+		effectiveGasPrice = 2
+		operatorScalar    = 2
+		operatorConstant  = 7
+		overReserved      = 1_000 // wei the budget reserved beyond the actual cost
+		startBalance      = 5_000 // balance left after the budgeted cost was debited
+	)
+	l1GasPrice := big.NewInt(1_000_000) // large enough that the L1 DA fee is non-zero
+	l1BlobBaseFee := big.NewInt(1)
+
 	tx := types.NewTx(&types.BlobTx{
-		Gas:        1,
-		GasFeeCap:  uint256.NewInt(1),
+		Gas:        gasLimit,
+		GasFeeCap:  uint256.NewInt(effectiveGasPrice),
 		BlobFeeCap: uint256.NewInt(1),
 		BlobHashes: []common.Hash{{}},
 	})
-
-	const gasUsed = 21_000 // arbitrary non-zero gas used reported by the receipt
 	receipt := &types.Receipt{
-		EffectiveGasPrice:   eth.WeiU64(1).ToBig(),
+		EffectiveGasPrice:   eth.WeiU64(effectiveGasPrice).ToBig(),
 		GasUsed:             gasUsed,
 		Type:                types.DynamicFeeTxType,
-		L1GasPrice:          big.NewInt(1),
+		L1GasPrice:          l1GasPrice,
 		L1BaseFeeScalar:     ptr(uint64(1)),
-		L1BlobBaseFee:       big.NewInt(1),
+		L1BlobBaseFee:       l1BlobBaseFee,
 		L1BlobBaseFeeScalar: ptr(uint64(1)),
-		OperatorFeeScalar:   ptr(uint64(1)),
-		OperatorFeeConstant: ptr(uint64(0)),
+		OperatorFeeScalar:   ptr(uint64(operatorScalar)),
+		OperatorFeeConstant: ptr(uint64(operatorConstant)),
 	}
 
-	// Reconstruct the cost AfterIncluded computes (gas + L1 + Jovian operator) so the budgeted
-	// cost matches the actual cost exactly and the balance is left unchanged.
-	actualCost := new(big.Int).SetUint64(gasUsed) // gasUsed * EffectiveGasPrice (1)
-	l1Cost, _ := types.NewL1CostFuncFjord(big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1))(tx.RollupCostData())
+	// The cost AfterIncluded must compute from the receipt: gas + L1 DA fee + Jovian operator
+	// fee. (The L1 term is built from the same Fjord function because it depends on the tx's
+	// FastLZ-compressed size, which isn't practical to hand-pin.)
+	actualCost := new(big.Int).SetUint64(gasUsed * effectiveGasPrice)
+	l1Cost, _ := types.NewL1CostFuncFjord(l1GasPrice, l1BlobBaseFee, big.NewInt(1), big.NewInt(1))(tx.RollupCostData())
 	actualCost.Add(actualCost, l1Cost)
-	actualCost.Add(actualCost, opfees.OperatorCostJovian(gasUsed, 1, 0))
-	budgetedCost := eth.WeiBig(actualCost)
+	actualCost.Add(actualCost, opfees.OperatorCostJovian(gasUsed, operatorScalar, operatorConstant))
 
-	startingBalance := eth.WeiU64(100)
-	inner := accounting.NewBudget(startingBalance)
+	// The budget reserved overReserved wei beyond the actual cost; AfterIncluded must refund
+	// exactly that much, so any error in how it sums gas/L1/operator shows up in the balance.
+	budgetedCost := eth.WeiBig(new(big.Int).Add(actualCost, big.NewInt(overReserved)))
+	inner := accounting.NewBudget(eth.WeiU64(startBalance))
 	tb := NewTxBudget(inner)
 	tb.AfterIncluded(budgetedCost, &IncludedTx{
 		Transaction: tx,
 		Receipt:     receipt,
 	})
-	require.Equal(t, startingBalance, inner.Balance())
+	require.Equal(t, eth.WeiU64(startBalance+overReserved), inner.Balance())
 }
