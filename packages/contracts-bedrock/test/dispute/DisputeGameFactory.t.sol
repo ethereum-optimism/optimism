@@ -345,8 +345,9 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
 
         GameType zkGameType = GameTypes.ZK_DISPUTE_GAME;
 
-        // Encode the gameArgs for CWIA (tightly packed). `l2ChainId` must be zero for the
-        // super-root ZKDisputeGame (enforced by `NoChainIdNeeded` in initialize()).
+        // Encode the gameArgs for CWIA (tightly packed). The super-root ZKDisputeGame derives
+        // chain scoping from the SuperRootProof preimage committed to via rootClaim, so no
+        // l2ChainId field is included in the layout.
         bytes memory gameArgs = abi.encodePacked(
             _params.absolutePrestate, // 32 bytes
             zkVerifier_, // 20 bytes

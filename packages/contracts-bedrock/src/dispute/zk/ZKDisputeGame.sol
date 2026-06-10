@@ -187,7 +187,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice The parent index of the game.
-    /// @dev Stored at a fixed offset (88) inside extraData so we can recover it without first
+    /// @dev Stored at a fixed offset (0x58, 88) inside extraData so we can recover it without first
     ///      parsing the variable-length SuperRootProof that follows.
     /// @return parentIndex_ The index in the factory's game array of this game's parent, or
     ///         `type(uint32).max` if this is a root game with no parent.
