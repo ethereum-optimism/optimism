@@ -31,7 +31,6 @@ Choose the consensus client that best fits your needs:
       --l1.beacon=https://ethereum-beacon-endpoint.example.com \
       --l2=http://localhost:8551 \
       --l2.jwt-secret=/path/to/jwt-secret.txt \
-      --l2.enginekind=reth \
       --network=op-mainnet \
       --rpc.addr=0.0.0.0 \
       --rpc.port=9545
@@ -57,10 +56,10 @@ Choose the consensus client that best fits your needs:
 
     Controls op-node's engine-API behavior to match the connected execution client. Supported values:
 
-    * `reth` — for op-reth (recommended).
-    * `geth` — current default; for op-geth (*deprecated*, see the [op-geth deprecation notice](/notices/op-geth-deprecation)).
+    * `reth` — default; for op-reth.
+    * `geth` — for op-geth (*deprecated*, see the [op-geth deprecation notice](/notices/op-geth-deprecation)).
 
-    Operators running op-reth **must** set `--l2.enginekind=reth` explicitly. The default will change in a future release.
+    The default is `reth`, so op-reth operators do not need to set this flag. Set `--l2.enginekind=geth` only if you are running op-geth.
 
     ### Complete reference
 
