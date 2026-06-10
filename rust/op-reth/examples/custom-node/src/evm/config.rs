@@ -85,6 +85,9 @@ impl ConfigureEvm for CustomEvmConfig {
         Ok(CustomBlockExecutionCtx {
             inner: OpBlockExecutionCtx {
                 parent_hash: block.header().parent_hash(),
+                // No parent header on this path; fork-activation enforcement is deferred to
+                // derivation (see reth-optimism-evm's context_for_block).
+                parent_timestamp: None,
                 parent_beacon_block_root: block.header().parent_beacon_block_root(),
                 extra_data: block.header().extra_data().clone(),
                 post_exec_mode: PostExecMode::default(),
@@ -101,6 +104,7 @@ impl ConfigureEvm for CustomEvmConfig {
         Ok(CustomBlockExecutionCtx {
             inner: OpBlockExecutionCtx {
                 parent_hash: parent.hash(),
+                parent_timestamp: Some(parent.timestamp()),
                 parent_beacon_block_root: attributes.inner.parent_beacon_block_root,
                 extra_data: attributes.inner.extra_data,
                 post_exec_mode: PostExecMode::default(),
@@ -217,6 +221,9 @@ impl ConfigurePostExecEvm for CustomEvmConfig {
         let evm = self.evm_for_block(db, block.header())?;
         let ctx = OpBlockExecutionCtx {
             parent_hash: block.header().parent_hash(),
+            // No parent header on this path; fork-activation enforcement is deferred to
+            // derivation (see reth-optimism-evm's context_for_block).
+            parent_timestamp: None,
             parent_beacon_block_root: block.header().parent_beacon_block_root(),
             extra_data: block.header().extra_data().clone(),
             post_exec_mode,
@@ -254,6 +261,7 @@ impl ConfigurePostExecEvm for CustomEvmConfig {
         let ctx = CustomBlockExecutionCtx {
             inner: OpBlockExecutionCtx {
                 parent_hash: parent.hash(),
+                parent_timestamp: Some(parent.timestamp()),
                 parent_beacon_block_root: attributes.inner.parent_beacon_block_root,
                 extra_data: attributes.inner.extra_data.clone(),
                 post_exec_mode,

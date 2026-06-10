@@ -170,6 +170,16 @@ impl OpHardfork {
     pub const fn idx(&self) -> usize {
         *self as usize
     }
+
+    /// Returns every OP hardfork at or after `self`, in canonical (ascending) order.
+    ///
+    /// Mirrors go-ethereum's `forks.From`: a rule that applies to "this fork and every later fork"
+    /// (e.g. the activation-block "deposits only" rule, which holds for all forks at or after
+    /// Jovian) can iterate this instead of hard-coding a fork list, so future hardforks are
+    /// covered automatically.
+    pub fn forks_from(self) -> impl Iterator<Item = Self> + Clone {
+        Self::VARIANTS.iter().copied().filter(move |fork| fork.idx() >= self.idx())
+    }
 }
 
 /// Extends [`EthereumHardforks`] with optimism helper methods.
@@ -403,6 +413,22 @@ mod tests {
     use core::str::FromStr;
 
     extern crate alloc;
+
+    #[test]
+    fn forks_from_returns_self_and_later_forks_in_order() {
+        let from_jovian: alloc::vec::Vec<_> = OpHardfork::Jovian.forks_from().collect();
+        assert_eq!(from_jovian, [OpHardfork::Jovian, OpHardfork::Karst, OpHardfork::Lagoon]);
+
+        // `self` is included; everything before it is excluded.
+        assert_eq!(
+            OpHardfork::Lagoon.forks_from().collect::<alloc::vec::Vec<_>>(),
+            [OpHardfork::Lagoon]
+        );
+        assert!(OpHardfork::Bedrock.forks_from().eq(OpHardfork::VARIANTS.iter().copied()));
+
+        // Ascending and contiguous: every returned fork has idx >= the anchor's.
+        assert!(from_jovian.iter().all(|f| f.idx() >= OpHardfork::Jovian.idx()));
+    }
 
     #[test]
     fn check_op_hardfork_from_str() {

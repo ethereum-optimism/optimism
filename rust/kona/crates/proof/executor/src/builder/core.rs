@@ -264,6 +264,8 @@ where
         )?;
         let block_env = evm_env.block_env().clone();
         let parent_hash = self.trie_db.parent_block_header().seal();
+        // Captured here, before `self.trie_db` is borrowed mutably below.
+        let parent_timestamp = self.trie_db.parent_block_header().timestamp;
 
         // Attempt to send a payload witness hint to the host. This hint instructs the host to
         // populate its preimage store with the preimages required to statelessly execute
@@ -306,6 +308,7 @@ where
 
         let ctx = OpBlockExecutionCtx {
             parent_hash,
+            parent_timestamp: Some(parent_timestamp),
             parent_beacon_block_root: attrs.payload_attributes.parent_beacon_block_root,
             // This field is unused for individual block building jobs.
             extra_data: Default::default(),
