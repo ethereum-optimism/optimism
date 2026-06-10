@@ -9,9 +9,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 )
 
-// TestPreForkState checks the committed states back the forks that consume them
-// and contain the predeploy at the center of the #20982 downgrade revert
-// (SequencerFeeVault).
+// TestPreForkState guards that the states the activation test relies on are
+// actually committed and load. The test silently falls back to HEAD allocs when
+// PreForkState returns ok=false, so a missing or unembedded state would otherwise
+// slip by — here we assert each consuming fork resolves one (with a real predeploy
+// present).
 func TestPreForkState(t *testing.T) {
 	// karst boots from jovian_state; lagoon boots from karst_state.
 	for _, fork := range []forks.Name{forks.Karst, forks.Lagoon} {
