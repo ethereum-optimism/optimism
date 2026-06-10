@@ -13,7 +13,7 @@ use alloy_rpc_types_engine::{CancunPayloadFields, PraguePayloadFields};
 use alloy_rpc_types_eth::Block as RpcBlock;
 use derive_more::Display;
 use kona_genesis::ChainGenesis;
-use op_alloy_consensus::{OpBlock, OpTxEnvelope};
+use op_alloy_consensus::{OpBlock, OpTransaction, OpTxEnvelope};
 use op_alloy_rpc_types_engine::{OpExecutionPayload, OpExecutionPayloadSidecar, OpPayloadError};
 
 /// Block Header Info
@@ -182,9 +182,9 @@ impl L2BlockInfo {
 
     /// Constructs an [`L2BlockInfo`] from a [`BlockInfo`] and the decoded first transaction of
     /// the block, if any, applying the [`ChainGenesis`] rules.
-    fn from_block_info_and_first_tx(
+    fn from_block_info_and_first_tx<T: Typed2718 + OpTransaction>(
         block_info: BlockInfo,
-        first_tx: Option<&OpTxEnvelope>,
+        first_tx: Option<&T>,
         genesis: &ChainGenesis,
     ) -> Result<Self, FromBlockError> {
         let (l1_origin, sequence_number) = if block_info.number == genesis.l2.number {
@@ -209,13 +209,13 @@ impl L2BlockInfo {
     }
 
     /// Constructs an [`L2BlockInfo`] from a given OP [`Block`] and [`ChainGenesis`].
-    pub fn from_block_and_genesis<T: Typed2718 + AsRef<OpTxEnvelope>>(
+    pub fn from_block_and_genesis<T: Typed2718 + OpTransaction>(
         block: &Block<T>,
         genesis: &ChainGenesis,
     ) -> Result<Self, FromBlockError> {
         Self::from_block_info_and_first_tx(
             BlockInfo::from(block),
-            block.body.transactions.first().map(AsRef::as_ref),
+            block.body.transactions.first(),
             genesis,
         )
     }
