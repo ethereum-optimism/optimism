@@ -1,10 +1,12 @@
 //! Optimism specific types related to transactions.
 
-use alloy_consensus::{Transaction as TransactionTrait, Typed2718, transaction::Recovered};
+use alloy_consensus::{Sealed, Transaction as TransactionTrait, Typed2718, transaction::Recovered};
 use alloy_eips::{Encodable2718, eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{Address, B256, BlockHash, Bytes, ChainId, TxKind, U256};
 use alloy_serde::OtherFields;
-use op_alloy_consensus::{OpTransaction, OpTxEnvelope, transaction::OpTransactionInfo};
+use op_alloy_consensus::{
+    OpTransaction, OpTxEnvelope, TxDeposit, TxPostExec, transaction::OpTransactionInfo,
+};
 use serde::{Deserialize, Serialize};
 
 mod request;
@@ -198,6 +200,20 @@ impl From<OpTransactionFields> for OtherFields {
 impl<T> AsRef<T> for Transaction<T> {
     fn as_ref(&self) -> &T {
         self.inner.as_ref()
+    }
+}
+
+impl<T: OpTransaction> OpTransaction for Transaction<T> {
+    fn is_deposit(&self) -> bool {
+        self.inner.as_ref().is_deposit()
+    }
+
+    fn as_deposit(&self) -> Option<&Sealed<TxDeposit>> {
+        self.inner.as_ref().as_deposit()
+    }
+
+    fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>> {
+        self.inner.as_ref().as_post_exec()
     }
 }
 
