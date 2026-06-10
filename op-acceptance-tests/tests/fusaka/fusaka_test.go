@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/backpressure"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -143,14 +144,16 @@ func spamBlobs(t devtest.T, sys *presets.Minimal) {
 	}
 
 	const maxBlobTxsPerAccountInMempool = 16 // Private policy param in geth.
-	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
-		_, err := syncEOA.Include(t, txplan.WithBlobs([]*eth.Blob{&blob}, l1ChainConfig), txplan.WithTo(&common.Address{}))
-		return err
-	})
 	txsPerSlot := min(l1ChainConfig.BlobScheduleConfig.BPO1.Max*3/4, maxBlobTxsPerAccountInMempool)
-	schedule := loadtest.NewConstant(l1BlockTime, loadtest.WithBaseRPS(uint64(txsPerSlot)))
 
 	ctx, cancel := context.WithCancel(t.Ctx())
+	tc := t.WithCtx(ctx)
+	spammer := backpressure.TaskFunc(func(context.Context) error {
+		_, err := syncEOA.Include(tc, txplan.WithBlobs([]*eth.Blob{&blob}, l1ChainConfig), txplan.WithTo(&common.Address{}))
+		return err
+	})
+	aimd := backpressure.NewAIMD(backpressure.WithSlotTime(l1BlockTime), backpressure.WithBaseRPS(uint64(txsPerSlot)))
+
 	var wg sync.WaitGroup
 	t.Cleanup(func() {
 		cancel()
@@ -159,6 +162,6 @@ func spamBlobs(t devtest.T, sys *presets.Minimal) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		schedule.Run(t.WithCtx(ctx), spammer)
+		backpressure.NewConstant(tc.Logger()).Run(ctx, aimd, spammer)
 	}()
 }

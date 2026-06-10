@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/backpressure"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -77,13 +78,15 @@ func spamTxs(sys *presets.Minimal) {
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
 	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
 	eoasRR := loadtest.NewRoundRobin(eoas)
-	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
-		_, err := eoasRR.Get().Include(t, txplan.WithTo(&predeploys.L1BlockAddr), txplan.WithData(make([]byte, 0)), txplan.WithGasLimit(70_000))
-		return err
-	})
-	schedule := loadtest.NewBurst(l2BlockTime, loadtest.WithBaseRPS(50))
 
 	ctx, cancel := context.WithCancel(sys.T.Ctx())
+	tc := sys.T.WithCtx(ctx)
+	spammer := backpressure.TaskFunc(func(context.Context) error {
+		_, err := eoasRR.Get().Include(tc, txplan.WithTo(&predeploys.L1BlockAddr), txplan.WithData(make([]byte, 0)), txplan.WithGasLimit(70_000))
+		return err
+	})
+	aimd := backpressure.NewAIMD(backpressure.WithSlotTime(l2BlockTime), backpressure.WithBaseRPS(50))
+
 	var wg sync.WaitGroup
 	wg.Add(1)
 	sys.T.Cleanup(func() {
@@ -92,6 +95,6 @@ func spamTxs(sys *presets.Minimal) {
 	})
 	go func() {
 		defer wg.Done()
-		schedule.Run(sys.T.WithCtx(ctx), spammer)
+		backpressure.NewBurst(tc.Logger()).Run(ctx, aimd, spammer)
 	}()
 }

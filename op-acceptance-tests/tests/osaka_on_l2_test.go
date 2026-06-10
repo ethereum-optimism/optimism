@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/backpressure"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -454,20 +455,22 @@ func spamL1Txs(sys *presets.Minimal) {
 
 func runSpam(t devtest.T, eoas []*loadtest.SyncEOA, blockTime time.Duration, to common.Address) {
 	eoasRR := loadtest.NewRoundRobin(eoas)
-	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
+
+	ctx, cancel := context.WithCancel(t.Ctx())
+	tc := t.WithCtx(ctx)
+	spammer := backpressure.TaskFunc(func(context.Context) error {
 		// Max tx size in op-geth and op-reth mempools is 128 kB per tx.
 		// We leave an 8 kB buffer for tx data outside the calldata.
 		const calldataSize = 120 * 1024
-		_, err := eoasRR.Get().Include(t,
+		_, err := eoasRR.Get().Include(tc,
 			txplan.WithTo(&to),
 			txplan.WithData(make([]byte, calldataSize)),
 			txplan.WithGasLimit(1_250_000),
 		)
 		return err
 	})
-	schedule := loadtest.NewBurst(blockTime, loadtest.WithBaseRPS(50))
+	aimd := backpressure.NewAIMD(backpressure.WithSlotTime(blockTime), backpressure.WithBaseRPS(50))
 
-	ctx, cancel := context.WithCancel(t.Ctx())
 	var wg sync.WaitGroup
 	wg.Add(1)
 	t.Cleanup(func() {
@@ -476,6 +479,6 @@ func runSpam(t devtest.T, eoas []*loadtest.SyncEOA, blockTime time.Duration, to 
 	})
 	go func() {
 		defer wg.Done()
-		schedule.Run(t.WithCtx(ctx), spammer)
+		backpressure.NewBurst(tc.Logger()).Run(ctx, aimd, spammer)
 	}()
 }

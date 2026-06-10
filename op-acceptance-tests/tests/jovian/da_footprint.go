@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/backpressure"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
@@ -38,11 +39,13 @@ func SpamCalldata(t devtest.T, l2BlockTime time.Duration, el *dsl.L2ELNode, wall
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		loadtest.NewBurst(l2BlockTime).Run(t.WithCtx(ctx), loadtest.SpammerFunc(func(t devtest.T) error {
+		tc := t.WithCtx(ctx)
+		aimd := backpressure.NewAIMD(backpressure.WithSlotTime(l2BlockTime))
+		backpressure.NewBurst(tc.Logger()).Run(ctx, aimd, backpressure.TaskFunc(func(context.Context) error {
 			data := make([]byte, 50_000)
 			_, err := rand.Read(data)
-			t.Require().NoError(err)
-			_, err = rr.Get().Include(t, txplan.WithTo(&common.Address{}), txplan.WithData(data))
+			tc.Require().NoError(err)
+			_, err = rr.Get().Include(tc, txplan.WithTo(&common.Address{}), txplan.WithData(data))
 			return err
 		}))
 	}()

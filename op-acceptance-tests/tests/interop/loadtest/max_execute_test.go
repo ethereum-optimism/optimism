@@ -1,6 +1,7 @@
 package loadtest
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -9,6 +10,7 @@ import (
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/backpressure"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 )
 
@@ -55,26 +57,28 @@ func (p *messagePool) Append(msg *messages.Message) {
 // ExecMsgSpammer is a spammer that executes messages from a source and sends those executing
 // messages as initiating messages to a sink.
 type ExecMsgSpammer struct {
+	t      devtest.T
 	l2     *L2
 	source messageSource
 	sink   messageSink
 }
 
-var _ Spammer = (*ExecMsgSpammer)(nil)
+var _ backpressure.Task = (*ExecMsgSpammer)(nil)
 
-func NewExecMsgSpammer(source messageSource, sink messageSink, dest *L2) *ExecMsgSpammer {
+func NewExecMsgSpammer(t devtest.T, source messageSource, sink messageSink, dest *L2) *ExecMsgSpammer {
 	return &ExecMsgSpammer{
+		t:      t,
 		l2:     dest,
 		source: source,
 		sink:   sink,
 	}
 }
 
-func (e *ExecMsgSpammer) Spam(t devtest.T) error {
+func (e *ExecMsgSpammer) Do(ctx context.Context) error {
 	// Get an initiating message from the source and execute it.
 	initMsg := e.source.Get()
 	start := time.Now()
-	tx, err := e.l2.Include(t, planExecMsg(t, initMsg, e.l2.BlockTime, e.l2.EL.Escape().EthClient()))
+	tx, err := e.l2.Include(e.t, planExecMsg(e.t, initMsg, e.l2.BlockTime, e.l2.EL.Escape().EthClient()))
 	if err != nil {
 		return fmt.Errorf("include exec msg: %w", err)
 	}
@@ -82,7 +86,7 @@ func (e *ExecMsgSpammer) Spam(t devtest.T) error {
 
 	// All executing messages are initiating messages. Send the executing message to the sink as
 	// an initiating message.
-	initMsg, err = initMsgFromReceipt(t, e.l2, tx.Receipt)
+	initMsg, err = initMsgFromReceipt(e.t, e.l2, tx.Receipt)
 	if err != nil {
 		return err
 	}
@@ -122,12 +126,14 @@ func TestMaxExecutingMessagesBurst(gt *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		NewBurst(l2A.BlockTime, WithAIMDObserver(aimdObserver(l2A.EL.ChainID()))).Run(t, NewExecMsgSpammer(initMsgsFromB, initMsgsFromA, l2A))
+		aimd := backpressure.NewAIMD(backpressure.WithSlotTime(l2A.BlockTime), backpressure.WithAIMDObserver(aimdObserver(l2A.EL.ChainID())))
+		backpressure.NewBurst(t.Logger()).Run(t.Ctx(), aimd, NewExecMsgSpammer(t, initMsgsFromB, initMsgsFromA, l2A))
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		NewBurst(l2B.BlockTime, WithAIMDObserver(aimdObserver(l2B.EL.ChainID()))).Run(t, NewExecMsgSpammer(initMsgsFromA, initMsgsFromB, l2B))
+		aimd := backpressure.NewAIMD(backpressure.WithSlotTime(l2B.BlockTime), backpressure.WithAIMDObserver(aimdObserver(l2B.EL.ChainID())))
+		backpressure.NewBurst(t.Logger()).Run(t.Ctx(), aimd, NewExecMsgSpammer(t, initMsgsFromA, initMsgsFromB, l2B))
 	}()
 }
 

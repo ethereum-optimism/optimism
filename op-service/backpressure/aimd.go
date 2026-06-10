@@ -18,8 +18,7 @@ type AIMD struct {
 
 	cfg *aimdConfig
 
-	slotTime time.Duration
-	ready    chan struct{}
+	ready chan struct{}
 }
 
 var _ Backpressure = (*AIMD)(nil)
@@ -40,6 +39,7 @@ var _ AIMDObserver = NoOpAIMDObserver{}
 func (NoOpAIMDObserver) UpdateRPS(uint64) {}
 
 type aimdConfig struct {
+	slotTime          time.Duration
 	baseRPS           uint64
 	increaseDelta     uint64       // additive delta
 	decreaseFactor    float64      // multiplicative factor
@@ -48,10 +48,11 @@ type aimdConfig struct {
 	observer          AIMDObserver // callback interface for metrics and logging
 }
 
-func NewAIMD(baseRPS uint64, slotTime time.Duration, opts ...AIMDOption) *AIMD {
+func NewAIMD(opts ...AIMDOption) *AIMD {
 	cfg := &aimdConfig{
-		baseRPS:           baseRPS,
-		increaseDelta:     max(baseRPS/10, 1),
+		baseRPS:           100,
+		slotTime:          2 * time.Second,
+		increaseDelta:     max(100/10, 1),
 		decreaseFactor:    0.5,
 		failRateThreshold: 0.05,
 		adjustWindow:      50,
@@ -61,13 +62,12 @@ func NewAIMD(baseRPS uint64, slotTime time.Duration, opts ...AIMDOption) *AIMD {
 		opt(cfg)
 	}
 	aimd := &AIMD{
-		ready:    make(chan struct{}),
-		slotTime: slotTime,
-		metrics:  aimdMetrics{},
-		cfg:      cfg,
+		ready:   make(chan struct{}),
+		metrics: aimdMetrics{},
+		cfg:     cfg,
 	}
 	aimd.rps.Store(cfg.baseRPS)
-	aimd.cfg.observer.UpdateRPS(baseRPS)
+	aimd.cfg.observer.UpdateRPS(100)
 	return aimd
 }
 
@@ -78,6 +78,12 @@ func WithAIMDOptsCombined(opts ...AIMDOption) AIMDOption {
 		for _, opt := range opts {
 			opt(cfg)
 		}
+	}
+}
+
+func WithSlotTime(slotTime time.Duration) AIMDOption {
+	return func(cfg *aimdConfig) {
+		cfg.slotTime = slotTime
 	}
 }
 
@@ -123,7 +129,7 @@ func (c *AIMD) Start(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(c.slotTime / time.Duration(c.rps.Load())):
+		case <-time.After(c.cfg.slotTime / time.Duration(c.rps.Load())):
 			select {
 			case c.ready <- struct{}{}:
 			default: // Skip if readers are not ready.

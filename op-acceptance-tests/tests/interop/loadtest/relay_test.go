@@ -1,6 +1,7 @@
 package loadtest
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -8,40 +9,43 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/backpressure"
 )
 
 // RelaySpammer initiates messages on one chain and executes them on the other.
 type RelaySpammer struct {
+	t      devtest.T
 	source *L2
 	dest   *L2
 }
 
-var _ Spammer = (*RelaySpammer)(nil)
+var _ backpressure.Task = (*RelaySpammer)(nil)
 
-func NewRelaySpammer(source, dest *L2) *RelaySpammer {
+func NewRelaySpammer(t devtest.T, source, dest *L2) *RelaySpammer {
 	return &RelaySpammer{
+		t:      t,
 		source: source,
 		dest:   dest,
 	}
 }
 
-func (r *RelaySpammer) Spam(t devtest.T) error {
+func (r *RelaySpammer) Do(ctx context.Context) error {
 	startE2E := time.Now()
 
 	startInit := startE2E
 	rng := rand.New(rand.NewSource(1234))
-	initTx, err := r.source.Include(t, planCall(t, interop.RandomInitTrigger(rng, r.source.EventLogger, rng.Intn(2), rng.Intn(5))))
+	initTx, err := r.source.Include(r.t, planCall(r.t, interop.RandomInitTrigger(rng, r.source.EventLogger, rng.Intn(2), rng.Intn(5))))
 	if err != nil {
 		return fmt.Errorf("include init msg: %w", err)
 	}
 	messageLatency.WithLabelValues(r.source.Config.ChainID.String(), "init").Observe(time.Since(startInit).Seconds())
-	initMsg, err := initMsgFromReceipt(t, r.source, initTx.Receipt)
+	initMsg, err := initMsgFromReceipt(r.t, r.source, initTx.Receipt)
 	if err != nil {
 		return err
 	}
 
 	startExec := time.Now()
-	if _, err = r.dest.Include(t, planExecMsg(t, initMsg, r.dest.BlockTime, r.dest.EL.Escape().EthClient())); err != nil {
+	if _, err = r.dest.Include(r.t, planExecMsg(r.t, initMsg, r.dest.BlockTime, r.dest.EL.Escape().EthClient())); err != nil {
 		return err
 	}
 	endExec := time.Now()
@@ -56,14 +60,15 @@ func (r *RelaySpammer) Spam(t devtest.T) error {
 // on the destination chain.
 func TestRelaySteady(gt *testing.T) {
 	t, l2A, l2B := setupLoadTest(gt)
-	s := NewSteady(l2B.EL.Escape().EthClient(), l2B.Config.ElasticityMultiplier(), l2B.BlockTime, WithAIMDObserver(aimdObserver{}))
-	s.Run(t, NewRelaySpammer(l2A, l2B))
+	s := backpressure.NewSteady(t.Logger(), l2B.BlockTime, l2B.EL.Escape().EthClient(), l2B.Config.ElasticityMultiplier())
+	aimd := backpressure.NewAIMD(backpressure.WithAIMDObserver(aimdObserver{}))
+	s.Run(t.Ctx(), aimd, NewRelaySpammer(t, l2A, l2B))
 }
 
 // TestRelayBurst runs the Relay spammer on a Burst schedule. See TestRelaySteady for more details
 // on the Relay spammer.
 func TestRelayBurst(gt *testing.T) {
 	t, l2A, l2B := setupLoadTest(gt)
-	burst := NewBurst(l2B.BlockTime, WithAIMDObserver(aimdObserver{}))
-	burst.Run(t, NewRelaySpammer(l2A, l2B))
+	burst := backpressure.NewBurst(t.Logger())
+	burst.Run(t.Ctx(), backpressure.NewAIMD(), NewRelaySpammer(t, l2A, l2B))
 }

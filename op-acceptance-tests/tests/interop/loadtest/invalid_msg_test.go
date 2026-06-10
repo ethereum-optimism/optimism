@@ -11,6 +11,7 @@ import (
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-service/backpressure"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
@@ -22,13 +23,14 @@ import (
 // InvalidExecMsgSpammer spams invalid executing messages, aiming to stress mempool interop
 // filters.
 type InvalidExecMsgSpammer struct {
+	t              devtest.T
 	l2             *L2
 	eoa            *SyncEOA
 	validInitMsg   messages.Message
 	makeInvalidFns *RoundRobin[dsl.InvalidMsgFn]
 }
 
-var _ Spammer = (*InvalidExecMsgSpammer)(nil)
+var _ backpressure.Task = (*InvalidExecMsgSpammer)(nil)
 
 // NewInvalidExecMsgSpammer returns an InvalidExecutor. It assumes  validInitMsg is a valid
 // initiating message on a source chain.
@@ -54,6 +56,7 @@ func NewInvalidExecMsgSpammer(t devtest.T, l2 *L2, validInitMsg messages.Message
 	includer := txinclude.NewPersistent(signer, unreliableSender)
 
 	return &InvalidExecMsgSpammer{
+		t:            t,
 		l2:           l2,
 		eoa:          NewSyncEOA(includer, eoa.Plan()),
 		validInitMsg: validInitMsg,
@@ -68,13 +71,13 @@ func NewInvalidExecMsgSpammer(t devtest.T, l2 *L2, validInitMsg messages.Message
 	}
 }
 
-func (ie *InvalidExecMsgSpammer) Spam(t devtest.T) error {
+func (ie *InvalidExecMsgSpammer) Do(ctx context.Context) error {
 	invalidInitMsg := ie.makeInvalidFns.Get()(ie.validInitMsg)
-	execMsg := planExecMsg(t, &invalidInitMsg, ie.l2.BlockTime, ie.l2.EL.Escape().EthClient())
-	if _, err := ie.eoa.Include(t, execMsg); err == nil {
-		t.Require().Failf("included invalid executing message", "message: %v", invalidInitMsg)
+	execMsg := planExecMsg(ie.t, &invalidInitMsg, ie.l2.BlockTime, ie.l2.EL.Escape().EthClient())
+	if _, err := ie.eoa.Include(ie.t, execMsg); err == nil {
+		ie.t.Require().Failf("included invalid executing message", "message: %v", invalidInitMsg)
 	} else if !strings.Contains(err.Error(), core.ErrTxFilteredOut.Error()) { // TODO(13408): we should be able to use errors.Is.
-		t.Logger().Warn("Invalid message hit an unexpected error", "want", core.ErrTxFilteredOut, "got", err)
+		ie.t.Logger().Warn("Invalid message hit an unexpected error", "want", core.ErrTxFilteredOut, "got", err)
 	}
 	return nil
 }
@@ -113,16 +116,17 @@ func TestRelayWithInvalidMessagesSteady(gt *testing.T) {
 			mps, err = strconv.ParseUint(mpsStr, 10, 64)
 			t.Require().NoError(err)
 		}
-		NewConstant(l2B.BlockTime, WithBaseRPS(mps)).Run(t, NewInvalidExecMsgSpammer(t, l2B, validInitMsg))
+		aimd := backpressure.NewAIMD(backpressure.WithSlotTime(l2B.BlockTime), backpressure.WithBaseRPS(mps))
+		backpressure.NewConstant(t.Logger()).Run(t.Ctx(), aimd, NewInvalidExecMsgSpammer(t, l2B, validInitMsg))
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		defer cancelInvalid()
-		observer := aimdObserver(l2B.EL.ChainID())
-		s := NewSteady(l2B.EL.Escape().EthClient(), l2B.Config.ElasticityMultiplier(), l2B.BlockTime, WithAIMDObserver(observer))
-		s.Run(t, NewRelaySpammer(l2A, l2B))
+		s := backpressure.NewSteady(t.Logger(), l2B.BlockTime, l2B.EL.Escape().EthClient(), l2B.Config.ElasticityMultiplier())
+		aimd := backpressure.NewAIMD(backpressure.WithAIMDObserver(aimdObserver(l2B.EL.ChainID())))
+		s.Run(t.Ctx(), aimd, NewRelaySpammer(t, l2A, l2B))
 	}()
 
 	// Block until the goroutines exit (when t.Ctx() expires after the setupLoadTest

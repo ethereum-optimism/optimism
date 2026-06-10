@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/backpressure"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/prometheus/client_golang/prometheus"
@@ -381,7 +382,7 @@ func savePlot(p *plot.Plot, dir, name string) error {
 
 type aimdObserver eth.ChainID
 
-var _ AIMDObserver = aimdObserver{}
+var _ backpressure.AIMDObserver = aimdObserver{}
 
 func (a aimdObserver) UpdateRPS(rps uint64) {
 	targetMessagesPerBlock.WithLabelValues(eth.ChainID(a).String()).Set(float64(rps))
