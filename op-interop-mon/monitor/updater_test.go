@@ -3,12 +3,13 @@ package monitor
 import (
 	"context"
 	"errors"
+	"math/big"
 	"testing"
 	"time"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -34,7 +35,7 @@ func setupTestUpdater(t *testing.T) (*RPCUpdater, *mockClient) {
 	logger := log.New()
 	client := &mockClient{}
 	expiry := locks.RWMapFromMap(map[eth.ChainID]eth.NumberAndHash{})
-	updater := NewUpdater(eth.ChainIDFromUInt64(1), client, expiry, logger)
+	updater := NewUpdater(eth.ChainIDFromUInt64(1), client, expiry, 604800, logger)
 	return updater, client
 }
 
@@ -42,7 +43,7 @@ func setupTestUpdater(t *testing.T) (*RPCUpdater, *mockClient) {
 func TestUpdaterJobExpiration(t *testing.T) {
 	tests := []struct {
 		name           string
-		initiatingInfo *supervisortypes.Identifier
+		initiatingInfo *messages.Identifier
 		executingInfo  eth.BlockID
 		initExpiry     eth.NumberAndHash
 		execExpiry     eth.NumberAndHash
@@ -52,7 +53,7 @@ func TestUpdaterJobExpiration(t *testing.T) {
 	}{
 		{
 			name: "job should expire - both blocks finalized and metrics counted",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 			},
@@ -67,7 +68,7 @@ func TestUpdaterJobExpiration(t *testing.T) {
 		},
 		{
 			name: "job should not expire - initiating block not finalized",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 			},
@@ -82,7 +83,7 @@ func TestUpdaterJobExpiration(t *testing.T) {
 		},
 		{
 			name: "job should not expire - executing block not finalized",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 			},
@@ -97,7 +98,7 @@ func TestUpdaterJobExpiration(t *testing.T) {
 		},
 		{
 			name: "job should not expire - never evaluated",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 			},
@@ -112,7 +113,7 @@ func TestUpdaterJobExpiration(t *testing.T) {
 		},
 		{
 			name: "job should not expire - metrics not counted",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 			},
@@ -166,7 +167,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 		Index: 0,
 		Data:  []byte{0x01, 0x02, 0x03},
 	}
-	validHash := crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(validLog))
+	validHash := crypto.Keccak256Hash(messages.LogToMessagePayload(validLog))
 
 	invalidLog := &ethtypes.Log{
 		Index: 0,
@@ -175,7 +176,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		initiatingInfo *supervisortypes.Identifier
+		initiatingInfo *messages.Identifier
 		executingInfo  eth.BlockID
 		receipts       ethtypes.Receipts
 		expectedHash   common.Hash
@@ -183,7 +184,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 	}{
 		{
 			name: "valid log found and hash matches",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 				LogIndex:    0,
@@ -201,7 +202,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 		},
 		{
 			name: "log not found - index out of bounds",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 				LogIndex:    1, // Log index 1 doesn't exist in receipts
@@ -219,7 +220,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 		},
 		{
 			name: "log hash mismatch",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 				LogIndex:    0,
@@ -237,7 +238,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 		},
 		{
 			name: "empty receipts",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 				LogIndex:    0,
@@ -251,7 +252,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 		},
 		{
 			name: "fetch receipts error",
-			initiatingInfo: &supervisortypes.Identifier{
+			initiatingInfo: &messages.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
 				LogIndex:    0,
@@ -290,6 +291,106 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 
 			// Verify status
 			require.Equal(t, tt.expectedStatus, job.status, "job status mismatch")
+		})
+	}
+}
+
+// TestUpdaterValidityInvariants exercises the current interop validity model:
+// origin binding, initiating-timestamp binding, payload hash, and message expiry.
+func TestUpdaterValidityInvariants(t *testing.T) {
+	validLog := &ethtypes.Log{Index: 0, Address: common.HexToAddress("0xabc"), Data: []byte{0x01, 0x02, 0x03}}
+	validHash := crypto.Keccak256Hash(messages.LogToMessagePayload(validLog))
+
+	tests := []struct {
+		name           string
+		origin         common.Address
+		initTimestamp  uint64
+		execTimestamp  uint64
+		blockTime      uint64
+		expiryWindow   uint64
+		payload        common.Hash
+		expectedStatus []jobStatus
+	}{
+		{
+			name:           "valid within expiry window",
+			origin:         common.HexToAddress("0xabc"),
+			initTimestamp:  1000,
+			execTimestamp:  1100,
+			blockTime:      1000,
+			expiryWindow:   604800,
+			payload:        validHash,
+			expectedStatus: []jobStatus{jobStatusValid},
+		},
+		{
+			name:           "origin mismatch is invalid",
+			origin:         common.HexToAddress("0xdead"),
+			initTimestamp:  1000,
+			execTimestamp:  1100,
+			blockTime:      1000,
+			expiryWindow:   604800,
+			payload:        validHash,
+			expectedStatus: []jobStatus{jobStatusInvalid},
+		},
+		{
+			name:           "block timestamp mismatch",
+			origin:         common.HexToAddress("0xabc"),
+			initTimestamp:  1000,
+			execTimestamp:  1100,
+			blockTime:      999,
+			expiryWindow:   604800,
+			payload:        validHash,
+			expectedStatus: []jobStatus{jobStatusTimestampMismatch},
+		},
+		{
+			name:           "expired beyond window",
+			origin:         common.HexToAddress("0xabc"),
+			initTimestamp:  1000,
+			execTimestamp:  1000 + 604800 + 1,
+			blockTime:      1000,
+			expiryWindow:   604800,
+			payload:        validHash,
+			expectedStatus: []jobStatus{jobStatusExpired},
+		},
+		{
+			name:           "executing before initiating is invalid",
+			origin:         common.HexToAddress("0xabc"),
+			initTimestamp:  1000,
+			execTimestamp:  999,
+			blockTime:      1000,
+			expiryWindow:   604800,
+			payload:        validHash,
+			expectedStatus: []jobStatus{jobStatusInvalid},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := log.New()
+			client := &mockClient{}
+			expiry := locks.RWMapFromMap(map[eth.ChainID]eth.NumberAndHash{})
+			updater := NewUpdater(eth.ChainIDFromUInt64(1), client, expiry, tt.expiryWindow, logger)
+
+			client.fetchReceiptsByNumber = func(ctx context.Context, number uint64) (eth.BlockInfo, ethtypes.Receipts, error) {
+				blk := eth.HeaderBlockInfo(&ethtypes.Header{Number: big.NewInt(100), Time: tt.blockTime})
+				return blk, ethtypes.Receipts{{Logs: []*ethtypes.Log{validLog}}}, nil
+			}
+
+			job := &Job{
+				initiating: &messages.Identifier{
+					ChainID:     eth.ChainIDFromUInt64(1),
+					BlockNumber: 100,
+					LogIndex:    0,
+					Origin:      tt.origin,
+					Timestamp:   tt.initTimestamp,
+				},
+				executingBlock:     eth.BlockID{Number: 200},
+				executingChain:     eth.ChainIDFromUInt64(2),
+				executingPayload:   tt.payload,
+				executingTimestamp: tt.execTimestamp,
+			}
+
+			updater.UpdateJobStatus(job)
+			require.Equal(t, tt.expectedStatus, job.status)
 		})
 	}
 }

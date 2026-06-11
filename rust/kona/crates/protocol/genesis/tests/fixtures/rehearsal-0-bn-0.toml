@@ -20,7 +20,7 @@ max_sequencer_drift = 600
   granite_time = 0 # Thu 1 Jan 1970 00:00:00 UTC
   holocene_time = 0 # Thu 1 Jan 1970 00:00:00 UTC
   isthmus_time = 0 # Thu 1 Jan 1970 00:00:00 UTC
-  interop_time = 1749150000 # Thu 5 Jun 2025 19:00:00 UTC
+  lagoon_time = 1749150000 # Thu 5 Jun 2025 19:00:00 UTC
 
 [interop]
   [interop.dependencies]

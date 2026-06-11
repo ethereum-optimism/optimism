@@ -201,6 +201,28 @@ func (d *SafeDB) FirstEntry(ctx context.Context) (l1Block eth.BlockID, safeHead 
 	return
 }
 
+// LastEntry returns the highest recorded (L1, L2 safe head) pair, i.e. the safedb tip.
+// Returns ErrNotFound when no entries exist yet.
+func (d *SafeDB) LastEntry(ctx context.Context) (l1Block eth.BlockID, safeHead eth.BlockID, err error) {
+	d.m.RLock()
+	defer d.m.RUnlock()
+	if d.closed {
+		err = ErrClosed
+		return
+	}
+	iter, err := d.db.NewIterWithContext(ctx, safeByL1BlockNumKey.IterRange())
+	if err != nil {
+		return
+	}
+	defer iter.Close()
+	if valid := iter.Last(); !valid {
+		err = ErrNotFound
+		return
+	}
+	l1Block, safeHead, err = decodeEntry(iter)
+	return
+}
+
 func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Block eth.BlockID, safeHead eth.BlockID, err error) {
 	d.m.RLock()
 	defer d.m.RUnlock()

@@ -1,7 +1,9 @@
-use jsonrpsee::core::{RpcResult, async_trait};
-use jsonrpsee::http_client::HttpClient;
-use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::server::Server;
+use jsonrpsee::{
+    core::{RpcResult, async_trait},
+    http_client::HttpClient,
+    proc_macros::rpc,
+    server::Server,
+};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

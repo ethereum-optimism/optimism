@@ -505,6 +505,91 @@
   {
     "inputs": [
       {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "errors",
+            "type": "string"
+          },
+          {
+            "internalType": "contract ISystemConfig",
+            "name": "sysCfg",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "gameAddress",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IAnchorStateRegistry",
+                "name": "asr",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "proposer",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct SuperPermissionedDisputeGameImplementation",
+            "name": "game",
+            "type": "tuple"
+          },
+          {
+            "internalType": "contract IProxyAdmin",
+            "name": "admin",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "expectedProposer",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "errorPrefix",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct SuperPermissionedDisputeGameValidationArgs",
+        "name": "_args",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "expectedGameImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "anchorStateRegistryImpl",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct SuperPermissionedDisputeGameImpls",
+        "name": "_impls",
+        "type": "tuple"
+      }
+    ],
+    "name": "assertValidSuperPermissionedDisputeGame",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "errors_",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "string",
         "name": "_errors",
         "type": "string"

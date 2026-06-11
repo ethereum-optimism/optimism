@@ -24,7 +24,7 @@ use reth_op::{
     evm::primitives::{EvmEnvFor, ExecutionCtxFor},
     node::{OpEvmConfig, OpNextBlockEnvAttributes, OpRethReceiptBuilder},
 };
-use reth_optimism_evm::{ConfigurePostExecEvm, PostExecMode};
+use reth_optimism_evm::{ConfigurePostExecEvm, PostExecMode, PreRefundGasUsed};
 use reth_primitives_traits::{SealedBlock, SealedHeader, SignedTransaction};
 use reth_rpc_api::eth::helpers::pending_block::BuildPendingEnv;
 use revm::database::State;
@@ -239,7 +239,14 @@ impl ConfigurePostExecEvm for CustomEvmConfig {
         attributes: Self::NextBlockEnvCtx,
         post_exec_mode: PostExecMode,
     ) -> Result<
-        impl BlockBuilder<Primitives = CustomNodePrimitives, Executor: PostExecExecutorExt> + 'a,
+        impl BlockBuilder<
+            Primitives = CustomNodePrimitives,
+            Executor: PostExecExecutorExt
+                          + alloy_evm::block::BlockExecutor<
+                Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
+            >,
+        > + 'a,
         Self::Error,
     > {
         let evm_env = self.next_evm_env(parent, &attributes)?;

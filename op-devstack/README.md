@@ -48,7 +48,6 @@ Available components:
   - `L2Proposer`: op-proposer, or equivalent
   - `L2Challenger`: op-challenger, or equivalent
   - `L2MetricsDashboard`: runs prometheus and grafana instances if any component registers metrics endpoints
-- `Supervisor`: op-supervisor service, or equivalent
 - `Faucet`: util to fund eth to test accounts
 
 ### DSL-only components

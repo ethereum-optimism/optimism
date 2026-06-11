@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -16,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -27,25 +27,25 @@ import (
 // Each subtest runs a test with  a different invalid message, by modifying the message in the txModifierFn
 func TestReorgInvalidExecMsgs(gt *testing.T) {
 	gt.Run("invalid log index", func(gt *testing.T) {
-		testReorgInvalidExecMsg(gt, func(msg *suptypes.Message) {
+		testReorgInvalidExecMsg(gt, func(msg *messages.Message) {
 			msg.Identifier.LogIndex = 1024
 		})
 	})
 
 	gt.Run("invalid block number", func(gt *testing.T) {
-		testReorgInvalidExecMsg(gt, func(msg *suptypes.Message) {
+		testReorgInvalidExecMsg(gt, func(msg *messages.Message) {
 			msg.Identifier.BlockNumber = msg.Identifier.BlockNumber - 1
 		})
 	})
 
 	gt.Run("invalid chain id", func(gt *testing.T) {
-		testReorgInvalidExecMsg(gt, func(msg *suptypes.Message) {
+		testReorgInvalidExecMsg(gt, func(msg *messages.Message) {
 			msg.Identifier.ChainID = eth.ChainIDFromUInt64(1024)
 		})
 	})
 }
 
-func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Message)) {
+func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *messages.Message)) {
 	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 

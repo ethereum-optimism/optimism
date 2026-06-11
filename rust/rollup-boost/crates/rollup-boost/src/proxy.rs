@@ -1,10 +1,13 @@
-use crate::client::http::HttpClient;
-use crate::{Request, Response, from_buffered_request, into_buffered_request};
+use crate::{
+    Request, Response, client::http::HttpClient, from_buffered_request, into_buffered_request,
+};
 use http_body_util::BodyExt as _;
-use jsonrpsee::core::BoxError;
-use jsonrpsee::server::HttpBody;
-use std::task::{Context, Poll};
-use std::{future::Future, pin::Pin};
+use jsonrpsee::{core::BoxError, server::HttpBody};
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 use tower::{Layer, Service};
 use tracing::info;
 
@@ -129,33 +132,31 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::probe::ProbeLayer;
-    use crate::{ClientArgs, PayloadSource};
+    use crate::{ClientArgs, PayloadSource, probe::ProbeLayer};
 
     use super::*;
     use alloy_primitives::{B256, Bytes, U64, U128, hex};
-    use alloy_rpc_types_engine::JwtSecret;
     use alloy_rpc_types_eth::erc4337::TransactionConditional;
     use http::{StatusCode, Uri};
     use http_body_util::{BodyExt, Full};
     use hyper::service::service_fn;
-    use hyper_util::client::legacy::Client;
-    use hyper_util::client::legacy::connect::HttpConnector;
-    use hyper_util::rt::{TokioExecutor, TokioIo};
-    use jsonrpsee::server::Server;
-    use jsonrpsee::types::{ErrorCode, ErrorObject};
+    use hyper_util::{
+        client::legacy::{Client, connect::HttpConnector},
+        rt::{TokioExecutor, TokioIo},
+    };
     use jsonrpsee::{
         RpcModule,
         core::{ClientError, client::ClientT},
         http_client::HttpClient,
         rpc_params,
-        server::{ServerBuilder, ServerHandle},
+        server::{Server, ServerBuilder, ServerHandle},
+        types::{ErrorCode, ErrorObject},
     };
+    use reth_rpc_layer::JwtSecret;
     use serde_json::json;
     use serial_test::serial;
     use std::{net::SocketAddr, sync::Arc};
-    use tokio::net::TcpListener;
-    use tokio::task::JoinHandle;
+    use tokio::{net::TcpListener, task::JoinHandle};
 
     // A JSON-RPC error is retriable if error.code ∉ (-32700, -32600]
     fn is_retriable_code(code: i32) -> bool {
@@ -184,7 +185,7 @@ mod tests {
                     url: format!("http://{}:{}", l2.addr.ip(), l2.addr.port()).parse::<Uri>()?,
                     jwt_token: Some(JwtSecret::random()),
                     jwt_path: None,
-                    timeout: 1,
+                    timeout: 2000,
                 }
                 .new_http_client(PayloadSource::L2)
                 .unwrap(),
@@ -193,7 +194,7 @@ mod tests {
                         .parse::<Uri>()?,
                     jwt_token: Some(JwtSecret::random()),
                     jwt_path: None,
-                    timeout: 1,
+                    timeout: 2000,
                 }
                 .new_http_client(PayloadSource::Builder)?,
             ));
@@ -501,7 +502,7 @@ mod tests {
                 url: l2_auth_uri.clone(),
                 jwt_token: Some(jwt),
                 jwt_path: None,
-                timeout: 1,
+                timeout: 2000,
             }
             .new_http_client(PayloadSource::L2)
             .unwrap(),
@@ -509,7 +510,7 @@ mod tests {
                 url: l2_auth_uri.clone(),
                 jwt_token: Some(jwt),
                 jwt_path: None,
-                timeout: 1,
+                timeout: 2000,
             }
             .new_http_client(PayloadSource::Builder)
             .unwrap(),

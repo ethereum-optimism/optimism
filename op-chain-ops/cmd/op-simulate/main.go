@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"os"
 	"path"
+	"runtime/pprof"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/superutil"
@@ -16,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/holiman/uint256"
-	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -316,8 +316,11 @@ func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 	vmConfig := vm.Config{}
 
 	if doProfile {
-		prof := profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile)
-		defer prof.Stop()
+		stopProfile, err := startCPUProfile("cpu.pprof")
+		if err != nil {
+			return err
+		}
+		defer stopProfile()
 	}
 
 	// run the transaction
@@ -334,4 +337,19 @@ func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 		"ok", receipt.Status == types.ReceiptStatusSuccessful, "logs", len(receipt.Logs))
 
 	return nil
+}
+
+func startCPUProfile(path string) (func(), error) {
+	file, err := os.Create(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CPU profile: %w", err)
+	}
+	if err := pprof.StartCPUProfile(file); err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("failed to start CPU profile: %w", err)
+	}
+	return func() {
+		pprof.StopCPUProfile()
+		_ = file.Close()
+	}, nil
 }

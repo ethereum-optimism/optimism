@@ -1,0 +1,33 @@
+[package]
+name = "reth-optimism-post-exec-replay"
+version = "1.11.3"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://paradigmxyz.github.io/reth"
+repository = "https://github.com/paradigmxyz/reth"
+description = "Counterfactual post-exec replay support for op-reth."
+
+[lints]
+workspace = true
+
+[dependencies]
+reth-evm.workspace = true
+reth-execution-errors.workspace = true
+reth-node-api.workspace = true
+reth-optimism-evm = { workspace = true, features = ["std"] }
+reth-primitives-traits.workspace = true
+
+revm.workspace = true
+
+alloy-consensus.workspace = true
+alloy-eips.workspace = true
+alloy-primitives.workspace = true
+op-alloy-consensus.workspace = true
+
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+alloy-primitives.workspace = true
+reth-optimism-primitives = { workspace = true, features = ["serde", "reth-codec"] }

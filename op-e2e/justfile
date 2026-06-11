@@ -47,29 +47,16 @@ test-cannon: pre-test
 test-fault-proofs: pre-test
     {{_go_test}} {{_go_test_flags}} ./faultproofs
 
-# Build cannon prestates
-cannon-prestates:
-    cd .. && just cannon-prestates
-
 # Pre-test setup
-pre-test: pre-test-cannon
-
-[private]
-pre-test-cannon:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ ! -e ../op-program/bin ]; then
-        just cannon-prestates
-    fi
+pre-test:
 
 # Clean build artifacts
 clean:
     rm -rf ../.devnet
-    rm -rf ../op-program/bin
 
 # Run fuzz tests
 fuzz:
-    parallel --tag -N1 "go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz {} ./opgeth" ::: FuzzFjordCostFunction FuzzFastLzGethSolidity FuzzFastLzCgo
+    parallel --line-buffer --tag -N1 "go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz {} ./opgeth" ::: FuzzFjordCostFunction FuzzFastLzGethSolidity FuzzFastLzCgo
 
 # Generate contract bindings
 gen-binding CONTRACT:

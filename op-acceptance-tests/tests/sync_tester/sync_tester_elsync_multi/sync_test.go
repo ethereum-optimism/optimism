@@ -9,7 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func simpleWithSyncTesterOpts() []presets.Option {
@@ -41,7 +42,7 @@ func TestMultiELSync(gt *testing.T) {
 	sys.SyncTester.ResetAllSessions()
 
 	// Advance few blocks to make sure reference node advanced
-	sys.L2CL.Advanced(types.LocalUnsafe, 10, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, 10, 30)
 
 	// Manually trigger multiple EL Syncs using the engine API
 	startNum := sys.SyncTesterL2EL.BlockRefByLabel(eth.Unsafe).Number

@@ -8,7 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 func hash(b byte) common.Hash {
@@ -49,13 +51,13 @@ func TestEmpty(t *testing.T) {
 	_, ok := db.LatestSealedBlock()
 	require.False(t, ok)
 	_, err := db.FirstSealedBlock()
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 	_, err = db.FindSealedBlock(0)
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 	_, _, _, err = db.OpenBlock(1)
-	require.ErrorIs(t, err, types.ErrFuture)
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, Timestamp: 1})
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 1, Timestamp: 1})
+	require.ErrorIs(t, err, interop.ErrFuture)
 }
 
 func TestSealAndOpenBlock(t *testing.T) {
@@ -63,12 +65,12 @@ func TestSealAndOpenBlock(t *testing.T) {
 	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 100))
 
-	em := &types.ExecutingMessage{
+	em := &messages.ExecutingMessage{
 		ChainID:   eth.ChainIDFromUInt64(20),
 		BlockNum:  1,
 		LogIdx:    1,
 		Timestamp: 200,
-		Checksum:  types.MessageChecksum(hash(0xEE)),
+		Checksum:  messages.MessageChecksum(hash(0xEE)),
 	}
 	require.NoError(t, db.AddLog(hash(0x01), parent, 0, nil))
 	require.NoError(t, db.AddLog(hash(0x02), parent, 1, em))
@@ -102,18 +104,18 @@ func TestSealBlock_Validation(t *testing.T) {
 
 	// Wrong parent hash.
 	err := db.SealBlock(hash(0xFF), blockID(1, 0x11), 200)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
 
 	// Wrong block number. Matches old logs DB: state desync on SealBlock is
 	// ErrConflict so op-interop-filter's failsafe (logsdb_chain_ingester.go:793)
 	// trips rather than silently retrying.
 	err = db.SealBlock(parent.Hash, blockID(2, 0x22), 200)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
 
 	// Timestamp regression. Same rationale: regressing timestamps indicate
 	// upstream desync, not a transient out-of-order condition.
 	err = db.SealBlock(parent.Hash, blockID(1, 0x11), 50)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
 }
 
 func TestAddLog_Validation(t *testing.T) {
@@ -123,22 +125,22 @@ func TestAddLog_Validation(t *testing.T) {
 
 	// First log must have index 0.
 	err := db.AddLog(hash(0x01), parent, 1, nil)
-	require.ErrorIs(t, err, types.ErrOutOfOrder)
+	require.ErrorIs(t, err, interop.ErrOutOfOrder)
 
 	// Wrong parent for the first AddLog establishes pendingParent;
 	// subsequent calls must match. Matches old logs DB: parent identity
 	// mismatch in AddLog is ErrOutOfOrder, not ErrConflict.
 	require.NoError(t, db.AddLog(hash(0x01), parent, 0, nil))
 	err = db.AddLog(hash(0x02), blockID(99, 0xFF), 1, nil)
-	require.ErrorIs(t, err, types.ErrOutOfOrder)
+	require.ErrorIs(t, err, interop.ErrOutOfOrder)
 
 	// Duplicate index.
 	err = db.AddLog(hash(0x02), parent, 0, nil)
-	require.ErrorIs(t, err, types.ErrOutOfOrder)
+	require.ErrorIs(t, err, interop.ErrOutOfOrder)
 
 	// Skipping an index.
 	err = db.AddLog(hash(0x02), parent, 2, nil)
-	require.ErrorIs(t, err, types.ErrOutOfOrder)
+	require.ErrorIs(t, err, interop.ErrOutOfOrder)
 }
 
 // TestAddLog_RejectsGenesisParent ensures AddLog refuses logs whose parent is
@@ -149,7 +151,7 @@ func TestAddLog_Validation(t *testing.T) {
 func TestAddLog_RejectsGenesisParent(t *testing.T) {
 	db := tempDB(t)
 	err := db.AddLog(hash(0xAA), eth.BlockID{}, 0, nil)
-	require.ErrorIs(t, err, types.ErrOutOfOrder)
+	require.ErrorIs(t, err, interop.ErrOutOfOrder)
 }
 
 func TestAddLog_WrongParentAgainstLatest(t *testing.T) {
@@ -159,7 +161,7 @@ func TestAddLog_WrongParentAgainstLatest(t *testing.T) {
 	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 	err := db.AddLog(hash(0xAA), blockID(99, 0xFF), 0, nil)
-	require.ErrorIs(t, err, types.ErrOutOfOrder)
+	require.ErrorIs(t, err, interop.ErrOutOfOrder)
 }
 
 func TestContains(t *testing.T) {
@@ -172,34 +174,34 @@ func TestContains(t *testing.T) {
 	blk1 := blockID(1, 0x11)
 	require.NoError(t, db.SealBlock(parent.Hash, blk1, 200))
 
-	good := types.ChecksumArgs{
+	good := messages.ChecksumArgs{
 		BlockNumber: 1, LogIndex: 0, Timestamp: 200, ChainID: chain, LogHash: logHash,
 	}.Checksum()
 
 	// Happy path.
-	seal, err := db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 200, Checksum: good})
+	seal, err := db.Contains(messages.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 200, Checksum: good})
 	require.NoError(t, err)
 	require.Equal(t, blk1.Hash, seal.Hash)
 
 	// Wrong checksum.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 200, Checksum: types.MessageChecksum(hash(0xDE))})
-	require.ErrorIs(t, err, types.ErrConflict)
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 200, Checksum: messages.MessageChecksum(hash(0xDE))})
+	require.ErrorIs(t, err, interop.ErrConflict)
 
 	// Wrong timestamp for the block.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 999, Checksum: good})
-	require.ErrorIs(t, err, types.ErrConflict)
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 1, LogIdx: 0, Timestamp: 999, Checksum: good})
+	require.ErrorIs(t, err, interop.ErrConflict)
 
 	// LogIdx out of range for an existing block.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: 5, Timestamp: 200, Checksum: good})
-	require.ErrorIs(t, err, types.ErrConflict)
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 1, LogIdx: 5, Timestamp: 200, Checksum: good})
+	require.ErrorIs(t, err, interop.ErrConflict)
 
 	// Future block (timestamp consistent with growth): ErrFuture.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 10, LogIdx: 0, Timestamp: 999, Checksum: good})
-	require.ErrorIs(t, err, types.ErrFuture)
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 10, LogIdx: 0, Timestamp: 999, Checksum: good})
+	require.ErrorIs(t, err, interop.ErrFuture)
 
 	// Future block but past timestamp: ErrConflict (cannot be in the future).
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 10, LogIdx: 0, Timestamp: 50, Checksum: good})
-	require.ErrorIs(t, err, types.ErrConflict)
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 10, LogIdx: 0, Timestamp: 50, Checksum: good})
+	require.ErrorIs(t, err, interop.ErrConflict)
 }
 
 func TestContains_Block0(t *testing.T) {
@@ -210,8 +212,8 @@ func TestContains_Block0(t *testing.T) {
 	db := tempDB(t)
 
 	// Empty DB → ErrFuture, regardless of block number.
-	_, err := db.Contains(types.ContainsQuery{BlockNum: 0, LogIdx: 0, Timestamp: 0})
-	require.ErrorIs(t, err, types.ErrFuture)
+	_, err := db.Contains(messages.ContainsQuery{BlockNum: 0, LogIdx: 0, Timestamp: 0})
+	require.ErrorIs(t, err, interop.ErrFuture)
 
 	// Seal block 0 as a logless genesis.
 	genesis := blockID(0, 0xA0)
@@ -229,8 +231,8 @@ func TestContains_Block0(t *testing.T) {
 
 	// Contains on block 0 with logIdx 0 hits the "logIdx >= logCount" check (not
 	// a hard-coded block-0 reject) and returns ErrConflict.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 0, LogIdx: 0, Timestamp: 0})
-	require.ErrorIs(t, err, types.ErrConflict)
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 0, LogIdx: 0, Timestamp: 0})
+	require.ErrorIs(t, err, interop.ErrConflict)
 }
 
 func TestFindSealedBlock(t *testing.T) {
@@ -251,11 +253,11 @@ func TestFindSealedBlock(t *testing.T) {
 
 	// Below first block.
 	_, err = db.FindSealedBlock(50)
-	require.True(t, errors.Is(err, types.ErrSkipped))
+	require.True(t, errors.Is(err, interop.ErrSkipped))
 
 	// Past the latest block.
 	_, err = db.FindSealedBlock(999)
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 }
 
 func TestOpenBlock_Boundaries(t *testing.T) {
@@ -265,11 +267,11 @@ func TestOpenBlock_Boundaries(t *testing.T) {
 
 	// Below first block.
 	_, _, _, err := db.OpenBlock(50)
-	require.ErrorIs(t, err, types.ErrSkipped)
+	require.ErrorIs(t, err, interop.ErrSkipped)
 
 	// Above latest block.
 	_, _, _, err = db.OpenBlock(999)
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 
 	// Block 0 only valid if DB anchors at 0.
 	db2 := tempDB(t)
@@ -281,30 +283,27 @@ func TestOpenBlock_Boundaries(t *testing.T) {
 	require.Empty(t, msgs)
 }
 
-// TestOpenBlock_FirstBlockReturnsSkipped asserts that OpenBlock at the first
-// sealed block number returns ErrSkipped when the first block is not genesis,
-// matching the old op-supervisor logs DB contract. Callers (op-supernode's
-// algo.go fallback) rely on this to identify the anchor and use
-// FirstSealedBlock instead. FirstSealedBlock must still return the block.
-func TestOpenBlock_FirstBlockReturnsSkipped(t *testing.T) {
+// TestOpenBlock_FirstBlockOpens asserts that OpenBlock at the first sealed
+// block number succeeds, returning the block's stored data, even when the
+// first block is not genesis. The first sealed block is no longer treated as
+// an opaque anchor.
+func TestOpenBlock_FirstBlockOpens(t *testing.T) {
 	db := tempDB(t)
 	first := blockID(100, 0x64)
 	require.NoError(t, db.SealBlock(common.Hash{}, first, 1000))
 	sealRange(t, db, first, 101, 103)
 
-	_, _, _, err := db.OpenBlock(100)
-	require.ErrorIs(t, err, types.ErrSkipped, "OpenBlock(firstBlock) must return ErrSkipped when firstBlock > 0")
+	ref, _, _, err := db.OpenBlock(100)
+	require.NoError(t, err)
+	require.Equal(t, uint64(100), ref.Number)
+	require.Equal(t, first.Hash, ref.Hash)
+	require.Equal(t, uint64(1000), ref.Time)
 
 	seal, err := db.FirstSealedBlock()
 	require.NoError(t, err)
 	require.Equal(t, uint64(100), seal.Number)
 	require.Equal(t, first.Hash, seal.Hash)
 	require.Equal(t, uint64(1000), seal.Timestamp)
-
-	// OpenBlock(firstBlock + 1) still succeeds.
-	ref, _, _, err := db.OpenBlock(101)
-	require.NoError(t, err)
-	require.Equal(t, uint64(101), ref.Number)
 }
 
 func TestMultiBlockRoundtrip(t *testing.T) {
@@ -316,14 +315,14 @@ func TestMultiBlockRoundtrip(t *testing.T) {
 	for n := uint64(1); n <= 10; n++ {
 		// 3 logs per block, one carries an execMsg.
 		for idx := uint32(0); idx < 3; idx++ {
-			var em *types.ExecutingMessage
+			var em *messages.ExecutingMessage
 			if idx == 1 {
-				em = &types.ExecutingMessage{
+				em = &messages.ExecutingMessage{
 					ChainID:   eth.ChainIDFromUInt64(42),
 					BlockNum:  n,
 					LogIdx:    idx,
 					Timestamp: n * 10,
-					Checksum:  types.MessageChecksum(hash(byte(n*10 + uint64(idx)))),
+					Checksum:  messages.MessageChecksum(hash(byte(n*10 + uint64(idx)))),
 				}
 			}
 			require.NoError(t, db.AddLog(hash(byte(n*10+uint64(idx))), prev, idx, em))
@@ -364,13 +363,13 @@ func TestRewind(t *testing.T) {
 
 	// Read-after-rewind: deleted blocks are gone, target survives.
 	_, err := db.FindSealedBlock(5)
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 	_, err = db.FindSealedBlock(4)
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 	_, err = db.FindSealedBlock(3)
 	require.NoError(t, err)
 	_, _, _, err = db.OpenBlock(5)
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 }
 
 func TestRewind_HashMismatch(t *testing.T) {
@@ -381,7 +380,7 @@ func TestRewind_HashMismatch(t *testing.T) {
 
 	bogus := eth.BlockID{Hash: hash(0xFF), Number: 2}
 	err := db.Rewind(bogus)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
 }
 
 func TestRewind_Empty(t *testing.T) {
@@ -413,7 +412,7 @@ func TestRewind_AboveLatest(t *testing.T) {
 	_, err := db.FindSealedBlock(0)
 	require.NoError(t, err)
 	err = db.Rewind(blockID(99, 0x99))
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 }
 
 func TestRewind_BeforeFirstClears(t *testing.T) {
@@ -437,7 +436,7 @@ func TestRewind_AtFirstKeepsIt(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, first, latest)
 	_, err := db.FindSealedBlock(101)
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 }
 
 func TestRewind_DropsPendingLogs(t *testing.T) {
@@ -461,9 +460,9 @@ func TestClear_Populated(t *testing.T) {
 	_, ok := db.LatestSealedBlock()
 	require.False(t, ok)
 	_, err := db.FirstSealedBlock()
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 	_, err = db.FindSealedBlock(2)
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 }
 
 func TestClear_Empty(t *testing.T) {
@@ -517,33 +516,33 @@ func TestPreSealCrashLosesPending(t *testing.T) {
 
 	// Block 6 must not exist.
 	_, err = db2.FindSealedBlock(6)
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 }
 
 func TestRecordEncoding_Roundtrip(t *testing.T) {
 	logHashes := []common.Hash{hash(0x11), hash(0x22), hash(0x33)}
 	execMsgs := []struct {
 		localLogIdx uint32
-		msg         types.ExecutingMessage
+		msg         messages.ExecutingMessage
 	}{
 		{
 			localLogIdx: 0,
-			msg: types.ExecutingMessage{
+			msg: messages.ExecutingMessage{
 				ChainID:   eth.ChainIDFromUInt64(8453),
 				BlockNum:  99,
 				LogIdx:    7,
 				Timestamp: 4242,
-				Checksum:  types.MessageChecksum(hash(0x77)),
+				Checksum:  messages.MessageChecksum(hash(0x77)),
 			},
 		},
 		{
 			localLogIdx: 2,
-			msg: types.ExecutingMessage{
+			msg: messages.ExecutingMessage{
 				ChainID:   eth.ChainIDFromUInt64(10),
 				BlockNum:  100,
 				LogIdx:    1,
 				Timestamp: 4243,
-				Checksum:  types.MessageChecksum(hash(0x88)),
+				Checksum:  messages.MessageChecksum(hash(0x88)),
 			},
 		},
 	}
@@ -592,18 +591,18 @@ func TestMultipleExecMsgsInBlock(t *testing.T) {
 	parent := blockID(0, 0xA0)
 	require.NoError(t, db.SealBlock(common.Hash{}, parent, 0))
 
-	want := map[uint32]*types.ExecutingMessage{}
+	want := map[uint32]*messages.ExecutingMessage{}
 	const logCount = 6
 	for idx := uint32(0); idx < logCount; idx++ {
-		var em *types.ExecutingMessage
+		var em *messages.ExecutingMessage
 		// Logs 0, 2, 5 carry exec messages — non-contiguous slots.
 		if idx == 0 || idx == 2 || idx == 5 {
-			em = &types.ExecutingMessage{
+			em = &messages.ExecutingMessage{
 				ChainID:   eth.ChainIDFromUInt64(uint64(100 + idx)),
 				BlockNum:  uint64(idx) + 1,
 				LogIdx:    idx + 10,
 				Timestamp: uint64(idx) * 7,
-				Checksum:  types.MessageChecksum(hash(byte(0xA0 + idx))),
+				Checksum:  messages.MessageChecksum(hash(byte(0xA0 + idx))),
 			}
 			want[idx] = em
 		}
@@ -639,16 +638,16 @@ func TestContains_LastIndexBoundary(t *testing.T) {
 
 	// Last valid logIdx is n-1.
 	lastIdx := uint32(n - 1)
-	good := types.ChecksumArgs{
+	good := messages.ChecksumArgs{
 		BlockNumber: 1, LogIndex: lastIdx, Timestamp: 200, ChainID: chain, LogHash: hashes[lastIdx],
 	}.Checksum()
-	seal, err := db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: lastIdx, Timestamp: 200, Checksum: good})
+	seal, err := db.Contains(messages.ContainsQuery{BlockNum: 1, LogIdx: lastIdx, Timestamp: 200, Checksum: good})
 	require.NoError(t, err)
 	require.Equal(t, blk1.Hash, seal.Hash)
 
 	// logIdx == n is one past the end and must be ErrConflict.
-	_, err = db.Contains(types.ContainsQuery{BlockNum: 1, LogIdx: n, Timestamp: 200, Checksum: good})
-	require.ErrorIs(t, err, types.ErrConflict)
+	_, err = db.Contains(messages.ContainsQuery{BlockNum: 1, LogIdx: n, Timestamp: 200, Checksum: good})
+	require.ErrorIs(t, err, interop.ErrConflict)
 }
 
 func TestPersistence_AfterRewind(t *testing.T) {
@@ -659,7 +658,7 @@ func TestPersistence_AfterRewind(t *testing.T) {
 	db, err := Open(dir, chain)
 	require.NoError(t, err)
 	first := blockID(100, 0x64)
-	require.NoError(t, db.SealBlock(common.Hash{}, first, 1000))
+	require.NoError(t, db.SealBlock(hash(0x63), first, 1000))
 	last := sealRange(t, db, first, 101, 105)
 	require.Equal(t, uint64(105), last.Number)
 
@@ -682,7 +681,7 @@ func TestPersistence_AfterRewind(t *testing.T) {
 
 	// Trimmed blocks are gone.
 	_, err = db2.FindSealedBlock(103)
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 
 	// Surviving blocks are intact.
 	for n := uint64(100); n <= 102; n++ {
@@ -710,7 +709,7 @@ func TestPersistence_AfterClear(t *testing.T) {
 	_, ok := db2.LatestSealedBlock()
 	require.False(t, ok)
 	_, err = db2.FirstSealedBlock()
-	require.ErrorIs(t, err, types.ErrFuture)
+	require.ErrorIs(t, err, interop.ErrFuture)
 
 	// And we can seal fresh blocks after reopen.
 	fresh := blockID(42, 0x2A)

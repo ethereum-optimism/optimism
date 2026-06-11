@@ -1,14 +1,15 @@
 package superfaultproofs
 
 import (
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -63,8 +64,8 @@ func RunOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop, withRepla
 	topic := crypto.Keccak256Hash([]byte("DataEmitted(bytes)"))
 	msgHash := crypto.Keccak256Hash([]byte("optimistic pairing fabricated msg"))
 	fabricatedPayload := append(append(make([]byte, 0, 64), topic.Bytes()...), msgHash.Bytes()...)
-	fabricatedMsg := suptypes.Message{
-		Identifier: suptypes.Identifier{
+	fabricatedMsg := messages.Message{
+		Identifier: messages.Identifier{
 			Origin:      eventLoggerB,
 			BlockNumber: unsafeB.Number + 1,
 			LogIndex:    0,
@@ -96,7 +97,7 @@ func RunOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop, withRepla
 		sys.TestSequencer.SequenceBlock(t, chains[1].ID, unsafeB.Hash)
 		t.Require().Equal(endTimestamp, sys.L2ELB.BlockRefByLabel(eth.Unsafe).Time)
 		advanceSafeToCurrentUnsafe(t, chains[1])
-		sys.L2CLA.Reached(suptypes.CrossSafe, newHeadA.Number, 60)
+		sys.L2CLA.Reached(safety.CrossSafe, newHeadA.Number, 60)
 	}
 
 	// The super root at startTimestamp must be fully verifiable at gameL1Head;
@@ -123,7 +124,7 @@ func RunOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop, withRepla
 		{
 			Name:               "SecondChainOptimisticBlock-Invalid",
 			AgreedClaim:        step1Trace,
-			DisputedClaim:      super.InvalidTransition,
+			DisputedClaim:      eth.InvalidTransition,
 			DisputedTraceIndex: 1,
 			L1Head:             gameL1Head,
 			ClaimTimestamp:     endTimestamp,

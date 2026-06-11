@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // readHandle maintains a lower and upper range view over a chain.
@@ -84,12 +83,12 @@ func (h *readHandle) invalidateSource(blockNum uint64) {
 
 var _ Handle = (*readHandle)(nil)
 
-// Err is a convenience method to return a types.ErrInvalidatedRead whenever the read handle is not valid
+// Err is a convenience method to return a interop.ErrInvalidatedRead whenever the read handle is not valid
 func (h *readHandle) Err() error {
 	if h.IsValid() {
 		return nil
 	}
-	return types.ErrInvalidatedRead
+	return interop.ErrInvalidatedRead
 }
 
 // IsValid inspects the dependencies we have seen so far, and the invalidations we have seen,
@@ -163,7 +162,7 @@ func (r *Registry) TryInvalidate(rule InvalidationRule) (release func(), err err
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.invalidating != nil {
-		return nil, types.ErrAlreadyInvalidatingRead
+		return nil, interop.ErrAlreadyInvalidatingRead
 	}
 	r.invalidating = rule
 	for handle := range r.activeHandles { // invalidate all existing handles

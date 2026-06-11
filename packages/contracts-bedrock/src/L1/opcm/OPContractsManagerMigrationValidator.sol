@@ -24,7 +24,10 @@ import {
     DisputeGameImplementation,
     DisputeGameValidationArgs,
     DisputeGameImpls,
-    DisputeGameConfig
+    DisputeGameConfig,
+    SuperPermissionedDisputeGameImplementation,
+    SuperPermissionedDisputeGameImpls,
+    SuperPermissionedDisputeGameValidationArgs
 } from "src/L1/opcm/StandardValidatorUtils.sol";
 import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPContractsManagerMigrationValidator.sol";
 
@@ -33,7 +36,7 @@ import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPCon
 ///         OPContractsManagerStandardValidator due to EIP-170 contract size limits.
 ///         This validator checks migration-specific state: shared DGF game type registration,
 ///         shared DGF proxy/impl/owner, super game parameters (delegated to StandardValidatorUtils
-///         for full drill-down validation including WETH, ASR, MIPS, PreimageOracle), shared
+///         for game-specific validation), shared
 ///         lockbox proxy/impl, per-chain portal ASR migration, per-chain DGF clearing, and
 ///         lockbox authorization.
 contract OPContractsManagerMigrationValidator {
@@ -45,15 +48,22 @@ contract OPContractsManagerMigrationValidator {
         IETHLockbox lockbox;
     }
 
-    /// @notice Parameters for a single super game type validation.
-    struct SuperGameParams {
+    /// @notice Parameters for shared super permissioned dispute game validation.
+    struct SuperPermissionedGameParams {
+        IDisputeGameFactory dgf;
+        ISystemConfig sysCfg;
+        IProxyAdmin proxyAdmin;
+        address proposer;
+        string prefix;
+        address expectedGameImpl;
+    }
+
+    /// @notice Parameters for shared super permissionless dispute game validation.
+    struct SuperPermissionlessGameParams {
         IDisputeGameFactory dgf;
         ISystemConfig sysCfg;
         IProxyAdmin proxyAdmin;
         bytes32 expectedPrestate;
-        bool isPermissioned;
-        address proposer;
-        address challenger;
         string prefix;
         address discoveredWeth;
         address expectedGameImpl;
@@ -125,35 +135,27 @@ contract OPContractsManagerMigrationValidator {
         ISystemConfig firstCfg =
             _input.chainSystemConfigs.length > 0 ? _input.chainSystemConfigs[0] : ISystemConfig(address(0));
 
-        // Super game checks. Always run — `assertValidSharedSuperGame` handles missing
+        // Super game checks. Always run — the validators handle missing
         // impls/args internally so a partially-broken setup still surfaces all errors.
-        _errors = assertValidSharedSuperGame(
+        _errors = assertValidSharedSuperPermissionedGame(
             _errors,
-            SuperGameParams({
+            SuperPermissionedGameParams({
                 dgf: _input.dgf,
                 sysCfg: firstCfg,
                 proxyAdmin: _sharedContracts.proxyAdmin,
-                expectedPrestate: _input.cannonPrestate,
-                isPermissioned: true,
                 proposer: _input.proposer,
-                challenger: _cfg.challenger,
                 prefix: "MIG-SPDG",
-                discoveredWeth: _sharedContracts.weth,
                 expectedGameImpl: _impls.superPermissionedDisputeGameImpl
             }),
-            _impls,
-            _cfg
+            _impls
         );
-        _errors = assertValidSharedSuperGame(
+        _errors = assertValidSharedSuperPermissionlessGame(
             _errors,
-            SuperGameParams({
+            SuperPermissionlessGameParams({
                 dgf: _input.dgf,
                 sysCfg: firstCfg,
                 proxyAdmin: _sharedContracts.proxyAdmin,
                 expectedPrestate: _input.cannonKonaPrestate,
-                isPermissioned: false,
-                proposer: address(0),
-                challenger: address(0),
                 prefix: "MIG-SCKDG",
                 discoveredWeth: _sharedContracts.weth,
                 expectedGameImpl: _impls.superFaultDisputeGameImpl
@@ -254,12 +256,40 @@ contract OPContractsManagerMigrationValidator {
         return _errors;
     }
 
-    /// @notice Validates a single super game type by decoding its game args, performing
-    ///         migration-unique cross-checks, and delegating the remainder to
-    ///         `standardValidatorUtils.assertValidDisputeGame`.
-    function assertValidSharedSuperGame(
+    /// @notice Validates the shared super permissioned dispute game.
+    function assertValidSharedSuperPermissionedGame(
         string memory _errors,
-        SuperGameParams memory _p,
+        SuperPermissionedGameParams memory _p,
+        IOPContractsManagerMigrationValidator.SharedImplementations memory _impls
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        // If game impl is address(0), skip — already caught by shape checks.
+        address gameImplAddr = address(_p.dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON));
+        if (gameImplAddr == address(0)) return _errors;
+
+        bytes memory gameArgsBytes = _p.dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
+        bool argsOk = LibGameArgs.isValidSuperPermissionedArgs(gameArgsBytes);
+        _errors = internalRequire(argsOk, string.concat(_p.prefix, "-GARGS-10"), _errors);
+        if (!argsOk) return _errors;
+
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs = LibGameArgs.decodeSuperPermissioned(gameArgsBytes);
+
+        // Delegate full fault dispute game validation (impls, drill-downs) to the shared utility.
+        // Skip when we have no sysCfg (empty chain list) — nothing meaningful to validate against.
+        if (address(_p.sysCfg) != address(0)) {
+            _errors = _delegateSuperPermissionedGameValidation(_errors, _p, gameImplAddr, gameArgs, _impls);
+        }
+
+        return _errors;
+    }
+
+    /// @notice Validates the shared super permissionless dispute game.
+    function assertValidSharedSuperPermissionlessGame(
+        string memory _errors,
+        SuperPermissionlessGameParams memory _p,
         IOPContractsManagerMigrationValidator.SharedImplementations memory _impls,
         IOPContractsManagerMigrationValidator.SharedConfig memory _cfg
     )
@@ -267,23 +297,16 @@ contract OPContractsManagerMigrationValidator {
         view
         returns (string memory)
     {
-        GameType gameType = _p.isPermissioned ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.SUPER_CANNON_KONA;
-
         // If game impl is address(0), skip — already caught by shape checks.
-        address gameImplAddr = address(_p.dgf.gameImpls(gameType));
+        address gameImplAddr = address(_p.dgf.gameImpls(GameTypes.SUPER_CANNON_KONA));
         if (gameImplAddr == address(0)) return _errors;
 
-        // Validate game args length and decode.
-        LibGameArgs.GameArgs memory gameArgs;
-        {
-            bytes memory gameArgsBytes = _p.dgf.gameArgs(gameType);
-            bool argsOk = _p.isPermissioned
-                ? LibGameArgs.isValidPermissionedArgs(gameArgsBytes)
-                : LibGameArgs.isValidPermissionlessArgs(gameArgsBytes);
-            _errors = internalRequire(argsOk, string.concat(_p.prefix, "-GARGS-10"), _errors);
-            if (!argsOk) return _errors;
-            gameArgs = LibGameArgs.decode(gameArgsBytes);
-        }
+        bytes memory gameArgsBytes = _p.dgf.gameArgs(GameTypes.SUPER_CANNON_KONA);
+        bool argsOk = LibGameArgs.isValidPermissionlessArgs(gameArgsBytes);
+        _errors = internalRequire(argsOk, string.concat(_p.prefix, "-GARGS-10"), _errors);
+        if (!argsOk) return _errors;
+
+        LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsBytes);
 
         // Migration-unique cross-check: super game's weth must match the first chain's weth.
         if (_p.discoveredWeth != address(0)) {
@@ -291,26 +314,51 @@ contract OPContractsManagerMigrationValidator {
                 internalRequire(gameArgs.weth == _p.discoveredWeth, string.concat(_p.prefix, "-GARGS-30"), _errors);
         }
 
-        // Delegate full dispute game validation (impls, drill-downs) to the shared utility.
+        // Delegate full fault dispute game validation (impls, drill-downs) to the shared utility.
         // Skip when we have no sysCfg (empty chain list) — nothing meaningful to validate against.
         if (address(_p.sysCfg) != address(0)) {
-            _errors = _delegateSuperGameValidation(_errors, _p, gameType, gameImplAddr, gameArgs, _impls, _cfg);
-        }
-
-        // Permissioned-only: proposer/challenger checks.
-        if (_p.isPermissioned) {
-            _errors = internalRequire(gameArgs.challenger == _p.challenger, string.concat(_p.prefix, "-130"), _errors);
-            _errors = internalRequire(gameArgs.proposer == _p.proposer, string.concat(_p.prefix, "-140"), _errors);
+            _errors = _delegateSuperPermissionlessGameValidation(_errors, _p, gameImplAddr, gameArgs, _impls, _cfg);
         }
 
         return _errors;
     }
 
-    /// @notice Builds the struct payloads and calls `standardValidatorUtils.assertValidDisputeGame`.
-    function _delegateSuperGameValidation(
+    /// @notice Calls the simplified super permissioned dispute game validator.
+    function _delegateSuperPermissionedGameValidation(
         string memory _errors,
-        SuperGameParams memory _p,
-        GameType _gameType,
+        SuperPermissionedGameParams memory _p,
+        address _gameImplAddr,
+        LibGameArgs.SuperPermissionedGameArgs memory _gameArgs,
+        IOPContractsManagerMigrationValidator.SharedImplementations memory _impls
+    )
+        private
+        view
+        returns (string memory)
+    {
+        return _impls.standardValidatorUtils.assertValidSuperPermissionedDisputeGame(
+            SuperPermissionedDisputeGameValidationArgs({
+                errors: _errors,
+                sysCfg: _p.sysCfg,
+                game: SuperPermissionedDisputeGameImplementation({
+                    gameAddress: _gameImplAddr,
+                    asr: IAnchorStateRegistry(_gameArgs.anchorStateRegistry),
+                    proposer: _gameArgs.proposer
+                }),
+                admin: _p.proxyAdmin,
+                expectedProposer: _p.proposer,
+                errorPrefix: _p.prefix
+            }),
+            SuperPermissionedDisputeGameImpls({
+                expectedGameImpl: _p.expectedGameImpl,
+                anchorStateRegistryImpl: _impls.anchorStateRegistryImpl
+            })
+        );
+    }
+
+    /// @notice Builds the struct payloads and calls `standardValidatorUtils.assertValidDisputeGame`.
+    function _delegateSuperPermissionlessGameValidation(
+        string memory _errors,
+        SuperPermissionlessGameParams memory _p,
         address _gameImplAddr,
         LibGameArgs.GameArgs memory _gameArgs,
         IOPContractsManagerMigrationValidator.SharedImplementations memory _impls,
@@ -324,11 +372,11 @@ contract OPContractsManagerMigrationValidator {
             DisputeGameValidationArgs({
                 errors: _errors,
                 sysCfg: _p.sysCfg,
-                game: _readSharedSuperGameImpl(_gameType, _gameImplAddr, _gameArgs),
+                game: _readSharedSuperGameImpl(GameTypes.SUPER_CANNON_KONA, _gameImplAddr, _gameArgs),
                 absolutePrestate: _p.expectedPrestate,
                 l2ChainID: 0,
                 admin: _p.proxyAdmin,
-                gameType: _gameType,
+                gameType: GameTypes.SUPER_CANNON_KONA,
                 errorPrefix: _p.prefix
             }),
             DisputeGameImpls({

@@ -29,6 +29,9 @@ type CLIConfig struct {
 	// InteropLogBackfillDepth is the duration (e.g. 168h) to extend initiating-message log ingestion
 	// backward from the tip before interop message validation runs. Set to zero to disable.
 	InteropLogBackfillDepth time.Duration
+	// DependencySetPath is the path to a JSON dependency-set file shared by every chain
+	// managed by the supernode. Empty means fall back to per-chain registry lookup.
+	DependencySetPath string
 }
 
 func (c *CLIConfig) Check() error {
@@ -73,6 +76,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		PprofConfig:             oppprof.ReadCLIConfig(ctx),
 		RawCtx:                  ctx,
 		InteropLogBackfillDepth: ctx.Duration("interop.log-backfill-depth"),
+		DependencySetPath:       ctx.Path(flags.DependencySet.Name),
 	}
 	if ctx.IsSet("interop.activation-timestamp") {
 		ts := ctx.Uint64("interop.activation-timestamp")

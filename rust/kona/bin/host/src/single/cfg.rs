@@ -186,7 +186,7 @@ impl SingleChainHost {
                 providers,
                 SingleChainHintHandler,
             )
-            .with_proactive_hint(HintType::L2PayloadWitness);
+            .with_high_level_hint(HintType::L2PayloadWitness);
 
             task::spawn(async {
                 PreimageServer::new(

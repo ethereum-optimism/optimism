@@ -27,24 +27,22 @@ ENV FEATURES=$FEATURES
 # Allow cook to fail on patched crates (op-alloy-network) whose crates.io
 # version conflicts with alloy 1.8.  All other dependencies are still cached.
 # The real build below uses the workspace [patch.crates-io] sources.
-RUN cargo chef cook --profile $BUILD_PROFILE --features "$FEATURES" --recipe-path recipe.json --manifest-path /app/op-reth/bin/Cargo.toml || true
+RUN cargo chef cook --profile $BUILD_PROFILE --locked --features "$FEATURES" --recipe-path recipe.json --manifest-path /app/op-reth/bin/Cargo.toml || true
 
 COPY . .
-RUN cargo auditable build --profile $BUILD_PROFILE --features "$FEATURES" --bin op-reth --manifest-path /app/op-reth/bin/Cargo.toml
+RUN cargo auditable build --profile $BUILD_PROFILE --locked --features "$FEATURES" --bin op-reth --manifest-path /app/op-reth/bin/Cargo.toml
 
 RUN ls -la /app/target/$BUILD_PROFILE/op-reth
 RUN cp /app/target/$BUILD_PROFILE/op-reth /app/op-reth
 
-FROM ubuntu AS runtime
+FROM chainguard/wolfi-base:latest AS runtime
 
-RUN apt-get update && \
-    apt-get install -y ca-certificates libssl-dev pkg-config strace && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ca-certificates openssl libstdc++ strace
 
 WORKDIR /app
 COPY --from=builder /app/op-reth /usr/local/bin/
 RUN chmod +x /usr/local/bin/op-reth
-COPY LICENSE-* ./
+COPY op-reth/LICENSE-* ./
 
 EXPOSE 30303 30303/udp 9001 8545 8546 7545 8551
 ENTRYPOINT ["/usr/local/bin/op-reth"]

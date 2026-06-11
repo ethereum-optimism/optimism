@@ -49,7 +49,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
-	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -69,7 +68,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -159,7 +157,6 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 					ListenPort:  0,
 					EnableAdmin: true,
 				},
-				InteropConfig:               &interop.Config{},
 				L1EpochPollInterval:         time.Second * 2,
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &config2.DisabledConfigPersistence{},
@@ -176,7 +173,6 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 					ListenPort:  0,
 					EnableAdmin: true,
 				},
-				InteropConfig:               &interop.Config{},
 				L1EpochPollInterval:         time.Second * 4,
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &config2.DisabledConfigPersistence{},
@@ -400,15 +396,6 @@ type System struct {
 	clients map[string]*ethclient.Client
 }
 
-func (sys *System) PrestateVariant() shared.PrestateVariant {
-	switch sys.AllocType() {
-	case config.AllocTypeMTCannonNext:
-		return shared.MTCannonNextVariant
-	default:
-		return shared.MTCannonVariant
-	}
-}
-
 func (sys *System) DisputeGameFactoryAddr() common.Address {
 	return sys.L1Deployments().DisputeGameFactoryProxy
 }
@@ -622,7 +609,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	clk := clock.SystemClock
 	if cfg.SupportL1TimeTravel {
-		sys.TimeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		sys.TimeTravelClock = clock.NewAdvancingClock()
 		clk = sys.TimeTravelClock
 	}
 
@@ -727,7 +714,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			IsthmusTime:            cfg.DeployConfig.IsthmusTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			JovianTime:             cfg.DeployConfig.JovianTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			KarstTime:              cfg.DeployConfig.KarstTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			InteropTime:            cfg.DeployConfig.InteropTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			LagoonTime:             cfg.DeployConfig.LagoonTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			AltDAConfig:            rollupAltDAConfig,
 			ChainOpConfig: &params.OptimismConfig{
 				EIP1559Elasticity:        cfg.DeployConfig.EIP1559Elasticity,

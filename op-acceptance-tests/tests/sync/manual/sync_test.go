@@ -8,7 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum"
 )
 
@@ -36,7 +37,7 @@ func TestVerifierManualSync(gt *testing.T) {
 	logger := t.Logger()
 
 	delta := uint64(7)
-	sys.L2CL.Advanced(types.LocalUnsafe, delta, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, delta, 30)
 
 	// Disable Derivation
 	sys.L2CLB.Stop()

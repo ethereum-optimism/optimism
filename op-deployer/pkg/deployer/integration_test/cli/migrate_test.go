@@ -247,28 +247,19 @@ func TestCLIMigrateV2(t *testing.T) {
 	require.NoError(t, intent.WriteToFile(filepath.Join(workDir, "intent.toml")))
 
 	// Apply deployment
-	// Note: Validation will run automatically but may find expected errors for migration test deployments
-	// (e.g., custom dev features, non-standard configurations). We verify deployment succeeded despite validation errors.
 	applyCtx, applyCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer applyCancel()
 	output, runErr := runner.RunWithNetwork(applyCtx, []string{
 		"apply",
 		"--deployment-target", "live",
 		"--workdir", workDir,
-		"--validate", "auto",
 	}, nil)
+	require.NoError(t, runErr, "apply should succeed: %s", output)
 
-	// Verify deployment succeeded regardless of validation errors
 	st, err = pipeline.ReadState(workDir)
 	require.NoError(t, err, "State should be readable after apply")
 	require.NotNil(t, st.AppliedIntent, "Applied intent should exist")
 	require.Len(t, st.Chains, 1, "Should have one chain deployed")
-
-	// If there was an error, it should be validation-related, not a deployment failure
-	if runErr != nil {
-		require.Contains(t, output, "validation", "Error should be validation-related, not deployment failure")
-		require.Contains(t, runErr.Error(), "validation", "Error should mention validation")
-	}
 
 	systemConfigProxy := st.Chains[0].SystemConfigProxy
 

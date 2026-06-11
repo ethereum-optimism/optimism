@@ -148,6 +148,18 @@ Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.
 
 Op-reth requires `clang` / `libclang-dev` for reth-mdbx-sys bindgen. CI installs this automatically — if you see bindgen errors locally, install clang.
 
+## Updating the reth dependency
+
+The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before bumping the reth rev in `rust/Cargo.toml`.
+
+Agent-specific tips beyond what's in the guide:
+
+- The bump is iterative — run `cargo check --workspace --tests`, fix the first batch of errors, re-run, repeat. Don't try to enumerate every API change up front and don't ask the user to confirm every line of adaptation; just iterate to a green compile and report the diff at the end.
+- If you have a local checkout of `paradigmxyz/reth`, use it to look up upstream trait signatures and run `git log <old-rev>..<new-rev>` to find the commit that changed any given symbol — much faster and more reliable than hand-fetching raw GitHub URLs. If you don't know whether one is available, ask the user. Don't assume a path.
+- For trait methods that gained an ignored parameter, prefix the new param with `_` (e.g. `_block_access_list_hash: Option<B256>`) so it doesn't generate an unused-variable warning. Don't invent a meaningful name unless you're actually plumbing the value through.
+- If upstream removed a trait or re-export that op-reth still uses, vendor it locally with a comment pointing at the upstream removal PR — don't try to refactor op-reth to do without it without first confirming the consumer is actually unused. The "stale" label upstream doesn't mean unused downstream.
+- When the new rev pulls in new transitive deps (visible as `Adding <crate>` lines from `cargo update`), check whether they're from upstream reth's own deps or from a misconfiguration on our side. `cargo tree -i <crate>` traces the path.
+
 ## Skills
 
 - **Fix Rust Formatting** ([`.claude/skills/fix-rust-fmt/SKILL.md`](../../.claude/skills/fix-rust-fmt/SKILL.md)): Fixes `rust-fmt` CI failures by installing the pinned nightly toolchain and running `just fmt-fix`. Invoke with `/fix-rust-fmt`.

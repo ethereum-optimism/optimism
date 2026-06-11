@@ -34,9 +34,12 @@ pub fn spec_by_timestamp_after_bedrock(chain_spec: impl OpHardforks, timestamp: 
             )+
         };
     }
+    // Forks must be checked newest-first. Interop (op-revm's `INTEROP` spec) is activated by the
+    // Lagoon hardfork, which is newer than Karst, so Lagoon is checked before Karst.
     check_forks! {
+        // op-revm still names this spec `INTEROP`; Lagoon is the hard fork that activates it.
+        is_lagoon_active_at_timestamp => INTEROP,
         is_karst_active_at_timestamp => KARST,
-        is_interop_active_at_timestamp => INTEROP,
         is_jovian_active_at_timestamp => JOVIAN,
         is_isthmus_active_at_timestamp => ISTHMUS,
         is_holocene_active_at_timestamp => HOLOCENE,
@@ -205,7 +208,7 @@ mod tests {
     fake_hardfork_constructors! {
         timestamp:
             karst => Karst,
-            interop => Interop,
+            lagoon => Lagoon,
             jovian => Jovian,
             isthmus => Isthmus,
             holocene => Holocene,
@@ -231,7 +234,7 @@ mod tests {
     }
 
     #[test_case::test_case(FakeHardfork::karst(), OpSpecId::KARST; "Karst")]
-    #[test_case::test_case(FakeHardfork::interop(), OpSpecId::INTEROP; "Interop")]
+    #[test_case::test_case(FakeHardfork::lagoon(), OpSpecId::INTEROP; "Lagoon")]
     #[test_case::test_case(FakeHardfork::jovian(), OpSpecId::JOVIAN; "Jovian")]
     #[test_case::test_case(FakeHardfork::isthmus(), OpSpecId::ISTHMUS; "Isthmus")]
     #[test_case::test_case(FakeHardfork::holocene(), OpSpecId::HOLOCENE; "Holocene")]
@@ -262,5 +265,77 @@ mod tests {
         let actual_spec = spec(&fork, &header);
 
         assert_eq!(actual_spec, expected_spec);
+    }
+
+    /// The OP fork chronology, oldest first. `INTEROP` is op-revm's name for the spec activated by
+    /// the `Lagoon` hardfork, which is the newest fork.
+    const FORK_CHRONOLOGY: [(OpHardfork, OpSpecId); 11] = [
+        (OpHardfork::Bedrock, OpSpecId::BEDROCK),
+        (OpHardfork::Regolith, OpSpecId::REGOLITH),
+        (OpHardfork::Canyon, OpSpecId::CANYON),
+        (OpHardfork::Ecotone, OpSpecId::ECOTONE),
+        (OpHardfork::Fjord, OpSpecId::FJORD),
+        (OpHardfork::Granite, OpSpecId::GRANITE),
+        (OpHardfork::Holocene, OpSpecId::HOLOCENE),
+        (OpHardfork::Isthmus, OpSpecId::ISTHMUS),
+        (OpHardfork::Jovian, OpSpecId::JOVIAN),
+        (OpHardfork::Karst, OpSpecId::KARST),
+        (OpHardfork::Lagoon, OpSpecId::INTEROP),
+    ];
+
+    /// Builds a chain config where every fork up to and including `forks[idx]` is active at
+    /// timestamp 1, mirroring a real chain that has progressed through the schedule. This is what
+    /// exercises the newest-first precedence in `spec_by_timestamp_after_bedrock`: with several
+    /// forks simultaneously active, the resolver must return the newest one.
+    fn cumulative_hardforks(idx: usize) -> OpChainHardforks {
+        let activations = FORK_CHRONOLOGY.iter().take(idx + 1).map(|(fork, _)| {
+            let cond = if *fork == OpHardfork::Bedrock {
+                ForkCondition::Block(0)
+            } else {
+                ForkCondition::Timestamp(1)
+            };
+            (*fork, cond)
+        });
+        OpChainHardforks::new(activations)
+    }
+
+    /// Locks in the corrected newest-first fork ordering: when forks are activated cumulatively
+    /// (as on a real chain), the resolver must return the newest active spec, not an older one.
+    /// In particular, a post-Lagoon block resolves to `INTEROP`, not `KARST`.
+    #[test]
+    fn test_spec_resolves_newest_active_fork() {
+        for (idx, (fork, expected_spec)) in FORK_CHRONOLOGY.iter().enumerate() {
+            let chain = cumulative_hardforks(idx);
+            let header = Header { timestamp: 1, ..Default::default() };
+            let actual_spec = spec(&chain, &header);
+            assert_eq!(
+                actual_spec, *expected_spec,
+                "with forks active up to {fork:?}, expected newest spec {expected_spec:?}",
+            );
+        }
+    }
+
+    /// Conformance guard: the eth base spec must be non-decreasing across the OP fork chronology.
+    /// A newer OP fork must never map to an older eth base (e.g. INTEROP must not downgrade Karst's
+    /// OSAKA base back to PRAGUE).
+    #[test]
+    fn test_eth_base_is_monotonic_across_chronology() {
+        let mut prev_eth = SpecId::default();
+        let mut first = true;
+        for (fork, op_spec) in FORK_CHRONOLOGY {
+            let eth = op_spec.into_eth_spec();
+            if !first {
+                assert!(
+                    eth >= prev_eth,
+                    "{fork:?} ({op_spec:?}) eth base {eth:?} is older than the previous fork's {prev_eth:?}",
+                );
+            }
+            prev_eth = eth;
+            first = false;
+        }
+        // Sanity-check the specific pairing the bug was about.
+        assert_eq!(OpSpecId::KARST.into_eth_spec(), SpecId::OSAKA);
+        assert_eq!(OpSpecId::INTEROP.into_eth_spec(), SpecId::OSAKA);
+        assert!(OpSpecId::INTEROP.into_eth_spec() >= OpSpecId::KARST.into_eth_spec());
     }
 }

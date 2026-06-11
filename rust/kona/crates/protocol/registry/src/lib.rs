@@ -209,13 +209,52 @@ mod tests {
         assert_eq!(DEPENDENCY_SETS.get(&test1_chain_id), DEPENDENCY_SETS.get(&test2_chain_id));
     }
 
+    /// Pins the registry-derived interop cluster against the committed
+    /// `etc/depsets.json` snapshot. The snapshot is regenerated from
+    /// `packages/contracts-bedrock/lib/superchain-registry` via
+    /// `KONA_BIND=true cargo build -p kona-registry`.
+    ///
+    /// Today the registry defines a single `[interop]` cluster — `rehearsal-0-bn`
+    /// (chain ids 420120009, 420120010). If the rehearsal TOMLs change upstream,
+    /// regenerate the snapshot and update the expected set below.
     #[test]
-    fn embedded_depsets_empty_by_default() {
-        // Without KONA_CUSTOM_CONFIGS or KONA_BIND, etc/depsets.json is `[]`.
-        if CUSTOM_CONFIGS_TEST_ENABLED == Some("true") {
-            // The custom test path embeds the fixture; skip.
-            return;
-        }
-        assert!(DEPENDENCY_SETS.is_empty(), "default build should not embed any depsets");
+    fn embedded_depset_for_rehearsal_0_bn_cluster() {
+        const REHEARSAL_0: u64 = 420120009;
+        const REHEARSAL_1: u64 = 420120010;
+
+        let depset = DEPENDENCY_SETS.get(&REHEARSAL_0).unwrap_or_else(|| {
+            panic!(
+                "rehearsal-0-bn-0 (chain id {REHEARSAL_0}) missing from embedded DEPENDENCY_SETS",
+            )
+        });
+
+        // Both peers must resolve to the SAME cluster value (cluster identity).
+        assert_eq!(
+            DEPENDENCY_SETS.get(&REHEARSAL_0),
+            DEPENDENCY_SETS.get(&REHEARSAL_1),
+            "rehearsal-0-bn peers must map to the same DependencySet",
+        );
+
+        // The cluster's dependency map must contain exactly the two rehearsal chain ids.
+        let expected: alloc::collections::BTreeSet<u64> =
+            [REHEARSAL_0, REHEARSAL_1].into_iter().collect();
+        let actual: alloc::collections::BTreeSet<u64> =
+            depset.dependencies.keys().copied().collect();
+        assert_eq!(
+            actual, expected,
+            "rehearsal-0-bn cluster membership mismatch (got {actual:?}, want {expected:?})",
+        );
+
+        // Registry-derived clusters never carry an expiry-window override (the chain
+        // TOML schema has no field for it; see `aggregate_clusters`).
+        assert!(
+            depset.override_message_expiry_window.is_none(),
+            "registry-derived depset must not carry an expiry-window override",
+        );
+        assert_eq!(
+            depset.get_message_expiry_window(),
+            MESSAGE_EXPIRY_WINDOW,
+            "registry-derived depset must use the default message expiry window",
+        );
     }
 }

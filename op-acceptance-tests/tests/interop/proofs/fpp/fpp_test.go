@@ -5,7 +5,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func TestFPP(gt *testing.T) {
@@ -40,7 +41,7 @@ func TestNextSuperRootNotFound(gt *testing.T) {
 	sys.SuperRoots.AwaitValidatedTimestamp(chainBLastBlock.Time)
 
 	// Wait for safe head to advance on first chain to be sure the next block is also safe.
-	sys.L2CLA.Advanced(types.LocalSafe, 1, 10)
+	sys.L2CLA.Advanced(safety.LocalSafe, 1, 10)
 
 	startTimestamp := chainBLastBlock.Time
 	endTimestamp := startTimestamp + blockTime

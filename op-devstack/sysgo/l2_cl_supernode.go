@@ -22,18 +22,16 @@ import (
 var errSupernodeNotRunning = errors.New("sysgo: supernode is not running")
 
 type SuperNode struct {
-	mu               sync.Mutex
-	sn               *supernode.Supernode
-	cancel           context.CancelFunc
-	httpProxy        *tcpproxy.Proxy
-	userRPC          string
-	interopEndpoint  string
-	interopJwtSecret eth.Bytes32
-	p                devtest.CommonT
-	logger           log.Logger
-	chains           []eth.ChainID
-	l1UserRPC        string
-	l1BeaconAddr     string
+	mu           sync.Mutex
+	sn           *supernode.Supernode
+	cancel       context.CancelFunc
+	httpProxy    *tcpproxy.Proxy
+	userRPC      string
+	p            devtest.CommonT
+	logger       log.Logger
+	chains       []eth.ChainID
+	l1UserRPC    string
+	l1BeaconAddr string
 
 	// Configs stored for Start()/restart.
 	snCfg  *snconfig.CLIConfig
@@ -44,10 +42,6 @@ var _ L2CLNode = (*SuperNode)(nil)
 
 func (n *SuperNode) UserRPC() string {
 	return n.userRPC
-}
-
-func (n *SuperNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
-	return n.interopEndpoint, n.interopJwtSecret
 }
 
 func (n *SuperNode) Start() {
@@ -74,9 +68,7 @@ func (n *SuperNode) startLocked() {
 		n.p.Cleanup(func() {
 			_ = n.httpProxy.Close()
 		})
-		base := "http://" + n.httpProxy.Addr()
-		n.userRPC = base
-		n.interopEndpoint = base
+		n.userRPC = "http://" + n.httpProxy.Addr()
 	}
 
 	ctx, cancel := context.WithCancel(n.p.Ctx())
@@ -154,11 +146,9 @@ func (n *SuperNode) RestartWithFreshDataDir() error {
 
 // SuperNodeProxy is a thin wrapper that points to a shared supernode instance.
 type SuperNodeProxy struct {
-	p                devtest.CommonT
-	logger           log.Logger
-	userRPC          string
-	interopEndpoint  string
-	interopJwtSecret eth.Bytes32
+	p       devtest.CommonT
+	logger  log.Logger
+	userRPC string
 }
 
 var _ L2CLNode = (*SuperNodeProxy)(nil)
@@ -166,9 +156,6 @@ var _ L2CLNode = (*SuperNodeProxy)(nil)
 func (n *SuperNodeProxy) Start()          {}
 func (n *SuperNodeProxy) Stop()           {}
 func (n *SuperNodeProxy) UserRPC() string { return n.userRPC }
-func (n *SuperNodeProxy) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
-	return n.interopEndpoint, n.interopJwtSecret
-}
 
 // SupernodeConfig holds configuration options for the shared supernode.
 type SupernodeConfig struct {

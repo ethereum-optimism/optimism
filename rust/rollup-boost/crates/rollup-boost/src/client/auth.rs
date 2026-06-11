@@ -1,6 +1,5 @@
-// From reth_rpc_layer
-use alloy_rpc_types_engine::{Claims, JwtSecret};
 use http::{HeaderValue, header::AUTHORIZATION};
+use reth_rpc_layer::{Claims, JwtSecret};
 use std::{
     iter::once,
     task::{Context, Poll},

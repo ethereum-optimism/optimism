@@ -78,7 +78,9 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 		JovianTime:              config.JovianTime(l1StartTime),
 		KarstTime:               config.KarstTime(l1StartTime),
 		PragueTime:              config.IsthmusTime(l1StartTime),
-		InteropTime:             config.InteropTime(l1StartTime),
+		// TODO(#21135): rename this op-geth ChainConfig field to LagoonTime
+		// once op-geth lands the rename. Lagoon is the fork that activates interop.
+		InteropTime: config.LagoonTime(l1StartTime),
 		Optimism: &params.OptimismConfig{
 			EIP1559Denominator:       eip1559Denom,
 			EIP1559Elasticity:        eip1559Elasticity,

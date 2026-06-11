@@ -6,7 +6,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 )
 
@@ -24,7 +25,7 @@ func TestConnDropSync(gt *testing.T) {
 	// Ensure that the nodes are advancing.
 	var preCheckFuns []dsl.CheckFunc
 	for _, node := range out.L2CLNodes() {
-		preCheckFuns = append(preCheckFuns, node.AdvancedFn(types.LocalSafe, 20, 100), node.AdvancedFn(types.LocalUnsafe, 20, 100))
+		preCheckFuns = append(preCheckFuns, node.AdvancedFn(safety.LocalSafe, 20, 100), node.AdvancedFn(safety.LocalUnsafe, 20, 100))
 	}
 	dsl.CheckAll(t, preCheckFuns...)
 
@@ -48,7 +49,7 @@ func TestConnDropSync(gt *testing.T) {
 			t.Require().NotEqual(peer.PeerID, sequencer.PeerInfo().PeerID, "expected node %s to be disconnected from sequencer %s", clName, sequencer.Escape().Name())
 		}
 
-		currentUnsafeHead := node.ChainSyncStatus(node.ChainID(), types.LocalUnsafe)
+		currentUnsafeHead := node.ChainSyncStatus(node.ChainID(), safety.LocalUnsafe)
 
 		endSignal := make(chan struct{})
 
@@ -83,10 +84,10 @@ func TestConnDropSync(gt *testing.T) {
 		// - the node's unsafe head is advancing (through consolidation)
 		// - the node's safe head's number is catching up with the unsafe head's number
 		// - the node's unsafe head is strictly lagging behind the sequencer's unsafe head
-		postDisconnectCheckFuns = append(postDisconnectCheckFuns, node.AdvancedFn(types.LocalSafe, 50, 200), node.AdvancedFn(types.LocalUnsafe, 50, 200), check)
+		postDisconnectCheckFuns = append(postDisconnectCheckFuns, node.AdvancedFn(safety.LocalSafe, 50, 200), node.AdvancedFn(safety.LocalUnsafe, 50, 200), check)
 	}
 
-	postDisconnectCheckFuns = append(postDisconnectCheckFuns, sequencer.AdvancedFn(types.LocalUnsafe, 50, 200))
+	postDisconnectCheckFuns = append(postDisconnectCheckFuns, sequencer.AdvancedFn(safety.LocalUnsafe, 50, 200))
 
 	dsl.CheckAll(t, postDisconnectCheckFuns...)
 
@@ -113,7 +114,7 @@ func TestConnDropSync(gt *testing.T) {
 		t.Require().True(found, "expected node %s to be connected to reference node %s", clName, sequencer.Escape().Name())
 
 		// Check that the node is resyncing with the unsafe head network
-		postReconnectCheckFuns = append(postReconnectCheckFuns, node_utils.MatchedWithinRange(t, node, sequencer, 3, types.LocalSafe, 50), node.AdvancedFn(types.LocalUnsafe, 50, 100), node_utils.MatchedWithinRange(t, node, sequencer, 3, types.LocalUnsafe, 100))
+		postReconnectCheckFuns = append(postReconnectCheckFuns, node_utils.MatchedWithinRange(t, node, sequencer, 3, safety.LocalSafe, 50), node.AdvancedFn(safety.LocalUnsafe, 50, 100), node_utils.MatchedWithinRange(t, node, sequencer, 3, safety.LocalUnsafe, 100))
 	}
 
 	dsl.CheckAll(t, postReconnectCheckFuns...)

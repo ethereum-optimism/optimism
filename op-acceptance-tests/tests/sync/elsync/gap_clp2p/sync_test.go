@@ -7,7 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func TestReachUnsafeTipByAppendingUnsafePayload(gt *testing.T) {
@@ -15,13 +16,13 @@ func TestReachUnsafeTipByAppendingUnsafePayload(gt *testing.T) {
 	sys := newGapCLP2PSystem(t)
 	logger := t.Logger()
 
-	sys.L2CL.Advanced(types.LocalUnsafe, 7, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, 7, 30)
 
 	// First make verifier reach unsafe tip
 	logger.Info("Initial trial for appending payload until tip")
 	sys.L2CLB.AppendUnsafePayloadUntilTip(sys.L2ELB, sys.L2EL, 400)
 
-	sys.L2CL.Advanced(types.LocalUnsafe, 7, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, 7, 30)
 
 	// Try once more to check that filling in the gap works again
 	logger.Info("Second trial for appending payload until tip")
@@ -62,7 +63,7 @@ func TestCLUnsafeNotRewoundOnInvalidDuringELSync(gt *testing.T) {
 	require := t.Require()
 
 	// Advance few blocks to make sure reference node advanced
-	sys.L2CL.Advanced(types.LocalUnsafe, 7, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, 7, 30)
 
 	// Restart L2CLB to always trigger an EL Sync
 	sys.L2CLB.Stop()
@@ -104,7 +105,7 @@ func TestCLUnsafeNotRewoundOnInvalidDuringELSync(gt *testing.T) {
 	_, ok = payload.CheckBlockHash()
 	require.True(ok)
 	sys.L2CLB.PostUnsafePayload(payload)
-	sys.L2CLB.NotAdvanced(types.LocalUnsafe, attempts)
+	sys.L2CLB.NotAdvanced(safety.LocalUnsafe, attempts)
 	sys.L2ELB.NotAdvanced(eth.Unsafe, attempts)
 	// EL did not advance
 	sys.L2ELB.UnsafeHead().NumEqualTo(startNum)

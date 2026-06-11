@@ -208,10 +208,10 @@ impl OpChainSpecBuilder {
         self
     }
 
-    /// Enable Interop at genesis
+    /// Enable Lagoon at genesis
     pub fn interop_activated(mut self) -> Self {
         self = self.karst_activated();
-        self.inner = self.inner.with_fork(OpHardfork::Interop, ForkCondition::Timestamp(0));
+        self.inner = self.inner.with_fork(OpHardfork::Lagoon, ForkCondition::Timestamp(0));
         self
     }
 
@@ -311,9 +311,9 @@ impl EthChainSpec for OpChainSpec {
 
     fn next_block_base_fee(&self, parent: &Header, target_timestamp: u64) -> Option<u64> {
         if self.is_jovian_active_at_timestamp(parent.timestamp()) {
-            compute_jovian_base_fee(self, parent, target_timestamp).ok()
+            compute_jovian_base_fee(parent).ok()
         } else if self.is_holocene_active_at_timestamp(parent.timestamp()) {
-            decode_holocene_base_fee(self, parent, target_timestamp).ok()
+            decode_holocene_base_fee(parent).ok()
         } else {
             self.inner.next_block_base_fee(parent, target_timestamp)
         }
@@ -411,7 +411,7 @@ impl From<Genesis> for OpChainSpec {
             (OpHardfork::Isthmus.boxed(), genesis_info.isthmus_time),
             (OpHardfork::Jovian.boxed(), genesis_info.jovian_time),
             (OpHardfork::Karst.boxed(), genesis_info.karst_time),
-            (OpHardfork::Interop.boxed(), genesis_info.interop_time),
+            (OpHardfork::Lagoon.boxed(), genesis_info.lagoon_time),
         ];
 
         let mut time_hardforks = time_hardfork_opts
@@ -1217,7 +1217,7 @@ mod tests {
             EthereumHardfork::Prague.boxed(),
             OpHardfork::Isthmus.boxed(),
             OpHardfork::Jovian.boxed(),
-            // OpHardfork::Interop.boxed(),
+            // OpHardfork::Lagoon.boxed(),
         ];
 
         for (expected, actual) in expected_hardforks.iter().zip(hardforks.iter()) {

@@ -16,6 +16,10 @@ Archive nodes maintain the entire state history of the blockchain, allowing you 
 
 Archive nodes use execution-layer sync but configure the execution client to retain all historical state data instead of pruning it.
 
+<Info>
+Historical proofs are a lighter-weight alternative to a full archive node when you only need cryptographic state proofs (`eth_getProof`) at historical blocks — the typical case is withdrawal proving and fault proof workloads. If you need historical execution (`eth_call`, `debug_trace*`) or arbitrary historical state queries, you still need a full archive node. See the [historical proofs config](/node-operators/reference/op-reth-historical-proof-config).
+</Info>
+
 ## Requirements
 
 *   **OP Mainnet**: Requires the [bedrock datadir](/node-operators/guides/management/snapshots)
@@ -25,34 +29,29 @@ Archive nodes use execution-layer sync but configure the execution client to ret
 
 ## Configuration
 
-### Configuration for op-node
+Each section below shows the full set of flags needed on both `op-node` and your chosen execution client to run as an archive node. The `op-node` flag `--syncmode=execution-layer` is required in all cases and is not the default — it must be explicitly configured.
 
-Set the following flag on `op-node`:
+### op-reth
+
+op-reth retains full state when run without pruning flags, so the standard op-node + op-reth configuration already produces an archive node.
+
+Set on `op-node`:
 
 ```shell
 --syncmode=execution-layer
 ```
 
-<Info>
-  The `--syncmode=execution-layer` flag is not the default setting and must be explicitly configured.
-</Info>
+Do not pass any `--prune.*` flags to op-reth.
 
-### Configuration for op-geth
+### Nethermind
 
-Set the following flags on `op-geth`:
+Set on `op-node`:
 
 ```shell
---syncmode=full
---gcmode=archive
+--syncmode=execution-layer
 ```
 
-<Info>
-  Both flags are not the default settings and must be explicitly configured. The `--syncmode=full` flag ensures every block is executed, and `--gcmode=archive` disables state pruning.
-</Info>
-
-### Configuration for Nethermind
-
-Archive sync can be enabled by using the archive configuration for your network (configurations with `_archive` suffix):
+Enable archive mode on Nethermind using the archive network configuration:
 
 ```shell
 --config op-mainnet_archive
@@ -62,34 +61,27 @@ Archive sync can be enabled by using the archive configuration for your network 
   Replace `op-mainnet_archive` with the appropriate archive configuration for your network (e.g., `op-sepolia_archive` for OP Sepolia).
 </Info>
 
-## Archive mode with alternative clients
+### op-geth
 
-Alternative execution clients such as `reth` and `op-erigon` are designed as archive nodes by default, which means they always maintain the complete history of the chain. When using these clients with execution-layer sync, they will automatically operate in archive mode.
+<Warning>
+  **op-geth reaches end-of-support on 2026-05-31 and will not support the L1 Glamsterdam hardfork.** New deployments should use op-reth. See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the full migration plan.
+</Warning>
 
-### Configuration for op-node with reth
-
-Set the following flags on `op-node`:
-
-```shell
---syncmode=execution-layer
---l2.enginekind=reth
-```
-
-<Info>
-  Both flags are not the default setting and must be explicitly configured on `op-node`. `reth` operates as an archive node by default.
-</Info>
-
-### Configuration for op-node with op-erigon
-
-Set the following flags on `op-node`:
+Set on `op-node`:
 
 ```shell
 --syncmode=execution-layer
---l2.enginekind=erigon
+```
+
+Set on `op-geth`:
+
+```shell
+--syncmode=full
+--gcmode=archive
 ```
 
 <Info>
-  Both flags are not the default setting and must be explicitly configured on `op-node`. `op-erigon` operates as an archive node by default.
+  Both flags are not the default settings and must be explicitly configured. The `--syncmode=full` flag ensures every block is executed, and `--gcmode=archive` disables state pruning.
 </Info>
 
 ## How archive sync works

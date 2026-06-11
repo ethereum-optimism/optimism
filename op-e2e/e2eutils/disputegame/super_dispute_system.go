@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
-	"github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/interop"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -110,15 +108,6 @@ func (s *SuperDisputeSystem) L2Geneses() []*core.Genesis {
 		cfgs[i] = s.sys.L2Genesis(network)
 	}
 	return cfgs
-}
-
-func (s *SuperDisputeSystem) PrestateVariant() challenger.PrestateVariant {
-	switch s.opts.AllocType {
-	case config.AllocTypeMTCannonNext:
-		return challenger.InteropVariantNext
-	default:
-		return challenger.InteropVariant
-	}
 }
 
 func (s *SuperDisputeSystem) AdvanceTime(duration time.Duration) {

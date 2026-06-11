@@ -69,8 +69,8 @@ func newL2CLFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
-	interopEndpoint, interopJWT := node.InteropRPC()
-	l2CL := newPresetL2CLNode(t, name, chainID, rpcCl, userRPC, interopEndpoint, interopJWT)
+	_ = node // node accessed for lifecycle below
+	l2CL := newPresetL2CLNode(t, name, chainID, rpcCl, userRPC)
 	if lifecycle, ok := any(node).(stack.Lifecycle); ok {
 		l2CL.lifecycle = lifecycle
 	}
