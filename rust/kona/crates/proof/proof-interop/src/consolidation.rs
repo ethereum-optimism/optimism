@@ -261,6 +261,7 @@ where
             let mut executor = StatelessL2Builder::new(
                 rollup_config,
                 self.evm_factory.clone(),
+                OpAlloyReceiptBuilder::default(),
                 l2_provider.clone(),
                 l2_provider.clone(),
                 parent_header.seal_slow(),

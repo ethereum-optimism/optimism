@@ -30,6 +30,10 @@ type observedSdmFlashblock struct {
 	index      uint64
 	postExecTx []byte
 	payload    *sdm.PostExecPayload
+	// blockHash is diff.block_hash: the hash op-rbuilder computed over the materialized view
+	// (base + all diff.transactions + this post_exec_tx). Matches the canonical block hash only
+	// when rollup-boost serves the builder payload, not an EL fallback block.
+	blockHash common.Hash
 }
 
 // TestFlashblocksSDMMaterializesPostExecBlock proves that op-rbuilder publishes the current SDM
@@ -161,6 +165,7 @@ func TestFlashblocksSDMMaterializesPostExecBlock(gt *testing.T) {
 				index:      uint64(fb.Index),
 				postExecTx: raw,
 				payload:    payload,
+				blockHash:  common.HexToHash(fb.Diff.BlockHash),
 			}
 			tryMarkCandidate(blockNum)
 		case result, ok := <-receiptCh:
@@ -195,6 +200,13 @@ func TestFlashblocksSDMMaterializesPostExecBlock(gt *testing.T) {
 
 	block := getFlashblocksBlockWithTxs(t, sys.L2EL, targetBlockNum)
 	t.Require().NotEmpty(block.Transactions, "final materialized block must have transactions")
+
+	// Pin the canonical block to the rollup-boost materialization path: its hash must equal the
+	// builder's diff.block_hash. A plain "block has a trailing PostExec tx" check would also pass
+	// under the EL fallback (the sequencer EL runs SDM too), so it cannot distinguish a dropped
+	// post_exec_tx during materialization from the real builder payload.
+	t.Require().Equal(observed.blockHash, block.Hash,
+		"canonical block must be the rollup-boost-materialized flashblock view (diff.block_hash), not an EL fallback block")
 
 	postExecTx, postExecPos := sdm.FindPostExecTransaction(block)
 	t.Require().NotNil(postExecTx, "final materialized block must contain one PostExec tx")

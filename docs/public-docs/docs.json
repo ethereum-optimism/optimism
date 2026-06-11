@@ -1916,8 +1916,7 @@
                   "chain-operators/guides/features/setting-da-footprint",
                   "chain-operators/guides/features/flashblocks-guide",
                   "chain-operators/guides/features/alt-da-mode-guide",
-                  "chain-operators/guides/features/blobs",
-                  "chain-operators/guides/features/snap-sync"
+                  "chain-operators/guides/features/blobs"
                 ]
               },
               {
@@ -2025,7 +2024,8 @@
           {
             "group": "Archive",
             "pages": [
-              "chain-operators/tutorials/archive/op-program-prestate"
+              "chain-operators/tutorials/archive/op-program-prestate",
+              "chain-operators/guides/features/snap-sync"
             ]
           }
         ]
@@ -2055,8 +2055,7 @@
                 "pages": [
                   "node-operators/guides/management/archive-node",
                   "node-operators/guides/management/blobs",
-                  "node-operators/guides/management/regenesis-history",
-                  "node-operators/guides/management/snap-sync"
+                  "node-operators/guides/management/regenesis-history"
                 ]
               },
               {
@@ -2086,12 +2085,6 @@
                   "node-operators/reference/architecture/rollup-node"
                 ]
               },
-              {
-                "group": "Features",
-                "pages": [
-                  "node-operators/reference/features/snap-sync"
-                ]
-              },
               "node-operators/reference/op-node-config",
               "node-operators/reference/op-node-json-rpc",
               "node-operators/reference/op-reth-config",
@@ -2104,7 +2097,9 @@
             "group": "Archive",
             "pages": [
               "node-operators/reference/op-geth-config",
-              "node-operators/reference/op-geth-json-rpc"
+              "node-operators/reference/op-geth-json-rpc",
+              "node-operators/guides/management/snap-sync",
+              "node-operators/reference/features/snap-sync"
             ]
           }
         ]

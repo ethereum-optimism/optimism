@@ -23,13 +23,13 @@ const (
 	jobStatusUnknown jobStatus = iota
 	jobStatusValid
 	jobStatusInvalid
+	jobStatusExpired
+	jobStatusTimestampMismatch
 )
 
 func (j jobStatus) isTerminal() bool {
 	switch j {
-	case jobStatusValid:
-		return true
-	case jobStatusInvalid:
+	case jobStatusValid, jobStatusInvalid, jobStatusExpired, jobStatusTimestampMismatch:
 		return true
 	default:
 		return false
@@ -44,6 +44,10 @@ func (s jobStatus) String() string {
 		return "valid"
 	case jobStatusInvalid:
 		return "invalid"
+	case jobStatusExpired:
+		return "expired"
+	case jobStatusTimestampMismatch:
+		return "timestamp_mismatch"
 	default:
 		return fmt.Sprintf("unknown status: %d", s)
 	}
@@ -62,11 +66,23 @@ type Job struct {
 	terminalAt    time.Time
 	didMetrics    atomic.Bool
 
-	executingAddress  common.Address
-	executingChain    eth.ChainID
-	executingBlock    eth.BlockID
-	executingLogIndex uint
-	executingPayload  common.Hash
+	// event-counted flags ensure each observability counter increments at most
+	// once per job, rather than once per collection cycle.
+	countedReorg     atomic.Bool
+	countedViolation atomic.Bool
+
+	// lastFilterCheckedStatus records the monitor status that was most recently
+	// compared against the interop-filter, encoded as int32(status)+1 so the zero
+	// value means "never checked". The observer re-queries the filter only when the
+	// monitor's verdict changes, bounding RPCs without missing post-flip divergences.
+	lastFilterCheckedStatus atomic.Int32
+
+	executingAddress   common.Address
+	executingChain     eth.ChainID
+	executingBlock     eth.BlockID
+	executingLogIndex  uint
+	executingPayload   common.Hash
+	executingTimestamp uint64
 
 	initiating     *messages.Identifier
 	initiatingHash []common.Hash
@@ -259,6 +275,36 @@ func (j *Job) DidMetrics() bool {
 // SetDidMetrics sets the did metrics flag of the job
 func (j *Job) SetDidMetrics() {
 	j.didMetrics.Store(true)
+}
+
+// CountReorgOnce reports true exactly once, the first time it is called, so the
+// initiating-reorg counter increments per job rather than per collection cycle.
+func (j *Job) CountReorgOnce() bool {
+	return j.countedReorg.CompareAndSwap(false, true)
+}
+
+// FilterCheckedFor reports whether the interop-filter has already been compared
+// against this exact monitor status, so the observer skips re-querying it until
+// the monitor's verdict changes.
+func (j *Job) FilterCheckedFor(status jobStatus) bool {
+	return j.lastFilterCheckedStatus.Load() == int32(status)+1
+}
+
+// MarkFilterChecked records the monitor status that was compared against the filter.
+func (j *Job) MarkFilterChecked(status jobStatus) {
+	j.lastFilterCheckedStatus.Store(int32(status) + 1)
+}
+
+// CountViolationOnce reports true exactly once, the first time it is called, so
+// the cross-safety-violation counter increments per job rather than per cycle.
+func (j *Job) CountViolationOnce() bool {
+	return j.countedViolation.CompareAndSwap(false, true)
+}
+
+// ViolationCounted reports whether a cross-safety violation has already been
+// counted for this job, so the observer can skip re-confirming it every cycle.
+func (j *Job) ViolationCounted() bool {
+	return j.countedViolation.Load()
 }
 
 // AddInitiatingHash adds a hash to the initiatingHash slice if it hasn't been seen before

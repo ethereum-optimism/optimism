@@ -39,7 +39,6 @@ Set on `op-node`:
 
 ```shell
 --syncmode=execution-layer
---l2.enginekind=reth
 ```
 
 Do not pass any `--prune.*` flags to op-reth.
@@ -61,17 +60,6 @@ Enable archive mode on Nethermind using the archive network configuration:
 <Info>
   Replace `op-mainnet_archive` with the appropriate archive configuration for your network (e.g., `op-sepolia_archive` for OP Sepolia).
 </Info>
-
-### op-erigon
-
-Set on `op-node`:
-
-```shell
---syncmode=execution-layer
---l2.enginekind=erigon
-```
-
-op-erigon operates as an archive node by default; no additional EL flags are required.
 
 ### op-geth
 

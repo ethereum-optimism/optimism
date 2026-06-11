@@ -169,6 +169,7 @@ func (t *RPCFinder) processBlock(blockInfo eth.BlockInfo, receipts types.Receipt
 	firstSeen := time.Now()
 	for _, job := range jobs {
 		job.firstSeen = firstSeen
+		job.executingTimestamp = blockInfo.Time()
 		job.UpdateStatus(jobStatusUnknown)
 		t.newCallback(job)
 	}
