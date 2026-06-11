@@ -38,10 +38,11 @@ ops/scripts/gen-seed-state.sh jovian
 
 That script:
 
-1. Creates a git worktree at the pinned **jovian-era commit**
-   `79cee4ec028db485150db71e64d0921a78960f70` (jovian mainnet activation was
-   2025-12-02, L1 timestamp `1764691201`; this commit is jovian-era source,
-   before karst's contract changes).
+1. Creates a git worktree at the **op-contracts/v5.0.0** release tag
+   (`d09c836f818c73ae139f60b717654c4e53712743`) — the jovian L2 contracts release,
+   before karst's contract changes (jovian mainnet activation was 2025-12-02,
+   L1 timestamp `1764691201`). This is a release tag, not necessarily on
+   `develop`'s mainline, so the generator may need to fetch it first.
 2. Builds the jovian-era contracts there.
 3. Runs a small dumper **inside the worktree** that calls jovian's own
    `op-e2e/config.L2Allocs(DefaultAllocType, L2AllocsJovian)`, filters to
