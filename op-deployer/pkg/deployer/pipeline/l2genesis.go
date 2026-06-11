@@ -132,6 +132,15 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		return fmt.Errorf("failed to dump state: %w", err)
 	}
 
+	if err := genesis.CheckL2GenesisAllocs(dump, genesis.CheckL2AllocsOpts{
+		FundDevAccounts: overrides.FundDevAccounts,
+		// Tagged L2Genesis artifacts predating the #21339 prank nonce reset leave the
+		// proxy admin owner with a bumped nonce, so allow it as a plain EOA.
+		AllowedEOAs: []common.Address{thisIntent.Roles.L2ProxyAdminOwner},
+	}); err != nil {
+		return fmt.Errorf("L2 genesis allocs failed validation: %w", err)
+	}
+
 	thisChainState.Allocs = &state.GzipData[foundry.ForgeAllocs]{
 		Data: dump,
 	}
