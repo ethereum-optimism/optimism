@@ -41,7 +41,6 @@ type allocMode struct {
 	name             string
 	l2cm             bool
 	customGasToken   bool
-	interopAtGenesis bool
 	devFeatureBitmap common.Hash
 	configure        func(t *testing.T, intent *state.Intent)
 }
@@ -193,12 +192,10 @@ func assertInactivePredeploys(t *testing.T, gen generatedL2Genesis) {
 		assertInactiveProxy(t, gen, predeploys.NativeAssetLiquidityAddr)
 		assertInactiveProxy(t, gen, predeploys.LiquidityControllerAddr)
 	}
-	if !gen.mode.interopAtGenesis {
-		assertInactiveProxy(t, gen, predeploys.CrossL2InboxAddr)
-		assertInactiveProxy(t, gen, predeploys.L2toL2CrossDomainMessengerAddr)
-		assertInactiveProxy(t, gen, predeploys.SuperchainETHBridgeAddr)
-		assertInactiveProxy(t, gen, predeploys.ETHLiquidityAddr)
-	}
+	assertInactiveProxy(t, gen, predeploys.CrossL2InboxAddr)
+	assertInactiveProxy(t, gen, predeploys.L2toL2CrossDomainMessengerAddr)
+	assertInactiveProxy(t, gen, predeploys.SuperchainETHBridgeAddr)
+	assertInactiveProxy(t, gen, predeploys.ETHLiquidityAddr)
 }
 
 func activePredeploys(mode allocMode) []common.Address {
@@ -224,14 +221,6 @@ func activePredeploys(mode allocMode) []common.Address {
 	}
 	if mode.customGasToken {
 		proxies = append(proxies, predeploys.LiquidityControllerAddr, predeploys.NativeAssetLiquidityAddr)
-	}
-	if mode.interopAtGenesis {
-		proxies = append(proxies,
-			predeploys.CrossL2InboxAddr,
-			predeploys.L2toL2CrossDomainMessengerAddr,
-			predeploys.SuperchainETHBridgeAddr,
-			predeploys.ETHLiquidityAddr,
-		)
 	}
 	if mode.l2cm {
 		proxies = append(proxies, conditionalDeployerAddr, l2DevFeatureFlagsAddr)
@@ -345,6 +334,9 @@ func assertProxyConfig(t *testing.T, gen generatedL2Genesis) {
 	} else {
 		assertFeatureEnabled(t, gen, predeploys.L1BlockAddr, "CUSTOM_GAS_TOKEN", false)
 	}
+
+	// Off even in the modes that set UseInterop (#20812).
+	assertFeatureEnabled(t, gen, predeploys.L1BlockAddr, "INTEROP", false)
 }
 
 func assertInitializerState(t *testing.T, gen generatedL2Genesis) {
