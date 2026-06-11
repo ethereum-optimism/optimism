@@ -664,6 +664,7 @@ impl ExecutionInfo {
     ///   maximum allowed DA limit per block.
     /// - block uncompressed size limit: if configured, ensures including the transaction would not
     ///   push the block's total uncompressed (EIP-2718 encoded) size past the maximum.
+    #[allow(clippy::too_many_arguments)]
     pub fn is_tx_over_limits(
         &self,
         tx_da_size: u64,
