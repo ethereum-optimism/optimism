@@ -116,7 +116,11 @@ impl FlashblockBuilder {
             transactions.extend(delta.transactions.clone());
             withdrawals.extend(delta.withdrawals.clone());
         }
-        if let Some(tx) = self.flashblocks.last().and_then(|d| d.post_exec_tx.as_ref()) {
+        if let Some(tx) = self
+            .flashblocks
+            .last()
+            .and_then(|d| d.post_exec_tx.as_ref())
+        {
             transactions.push(tx.clone());
         }
 
