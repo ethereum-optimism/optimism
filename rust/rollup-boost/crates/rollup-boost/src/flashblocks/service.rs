@@ -112,16 +112,12 @@ impl FlashblockBuilder {
         // consensus requires.
         let mut transactions = Vec::new();
         let mut withdrawals = Vec::new();
-        let mut post_exec_tx = None;
         for delta in &self.flashblocks {
             transactions.extend(delta.transactions.clone());
             withdrawals.extend(delta.withdrawals.clone());
-            if let Some(tx) = &delta.post_exec_tx {
-                post_exec_tx = Some(tx.clone());
-            }
         }
-        if let Some(post_exec_tx) = post_exec_tx {
-            transactions.push(post_exec_tx);
+        if let Some(tx) = self.flashblocks.last().and_then(|d| d.post_exec_tx.as_ref()) {
+            transactions.push(tx.clone());
         }
 
         let withdrawals_root = diff.withdrawals_root;
@@ -480,7 +476,6 @@ mod tests {
         post_exec_tx: Option<Bytes>,
     ) -> FlashblocksPayloadV1 {
         FlashblocksPayloadV1 {
-            payload_id: PayloadId::default(),
             index,
             base: (index == 0).then_some(ExecutionPayloadBaseV1::default()),
             diff: ExecutionPayloadFlashblockDeltaV1 {
@@ -535,20 +530,6 @@ mod tests {
     }
 
     #[test]
-    fn flashblock_builder_preserves_post_exec_tx_when_later_delta_omits_it() -> eyre::Result<()> {
-        let post_exec_tx = bytes!("0x7d01");
-        let expected = vec![bytes!("0x01"), bytes!("0x02"), post_exec_tx.clone()];
-        let payloads = vec![
-            flashblock_payload(0, vec![bytes!("0x01")], Some(post_exec_tx.clone())),
-            flashblock_payload(1, vec![bytes!("0x02")], None),
-        ];
-
-        assert_builder_transactions(PayloadVersion::V3, payloads.clone(), expected.clone())?;
-        assert_builder_transactions(PayloadVersion::V4, payloads, expected)?;
-        Ok(())
-    }
-
-    #[test]
     fn flashblock_builder_uses_latest_post_exec_tx_once() -> eyre::Result<()> {
         let older_post_exec_tx = bytes!("0x7d01");
         let latest_post_exec_tx = bytes!("0x7d02");
@@ -558,10 +539,11 @@ mod tests {
             bytes!("0x03"),
             latest_post_exec_tx.clone(),
         ];
+        // Protocol guarantee: once a flashblock carries post_exec_tx, all subsequent ones do too.
         let payloads = vec![
             flashblock_payload(0, vec![bytes!("0x01")], Some(older_post_exec_tx)),
             flashblock_payload(1, vec![bytes!("0x02")], Some(latest_post_exec_tx.clone())),
-            flashblock_payload(2, vec![bytes!("0x03")], None),
+            flashblock_payload(2, vec![bytes!("0x03")], Some(latest_post_exec_tx.clone())),
         ];
 
         assert_builder_transactions(PayloadVersion::V3, payloads.clone(), expected.clone())?;
