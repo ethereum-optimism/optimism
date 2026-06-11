@@ -164,13 +164,28 @@ fn execution_info_pre_refund_limit_uses_evm_gas_not_canonical_gas() {
     info.cumulative_evm_gas_used = 90;
 
     assert!(
-        !info.is_tx_over_limits(0, 100, None, None, 10, None),
+        !info.is_tx_over_limits(0, 100, None, None, 10, None, 0, None),
         "tx exactly filling the remaining pre-refund budget should fit"
     );
     assert!(
-        info.is_tx_over_limits(0, 100, None, None, 11, None),
+        info.is_tx_over_limits(0, 100, None, None, 11, None, 0, None),
         "tx that fits canonical gas but exceeds pre-refund gas must be skipped"
     );
+}
+
+#[test]
+fn is_tx_over_limits_enforces_max_uncompressed_block_size() {
+    let mut info = ExecutionInfo::new();
+    info.cumulative_uncompressed_bytes = 100;
+
+    // No limit configured: never over the uncompressed-size limit.
+    assert!(!info.is_tx_over_limits(0, u64::MAX, None, None, 0, None, 1_000, None));
+
+    // Exactly filling the remaining budget fits (100 + 50 == 150).
+    assert!(!info.is_tx_over_limits(0, u64::MAX, None, None, 0, None, 50, Some(150)));
+
+    // One byte over the limit is rejected (100 + 51 > 150).
+    assert!(info.is_tx_over_limits(0, u64::MAX, None, None, 0, None, 51, Some(150)));
 }
 
 #[test]
