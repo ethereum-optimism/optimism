@@ -2,15 +2,13 @@
 
 use crate::{DriverError, DriverPipeline, DriverResult, Executor, PipelineCursor, TipCursor};
 use alloc::{sync::Arc, vec::Vec};
-use alloy_consensus::BlockBody;
 use alloy_primitives::{B256, Bytes};
-use alloy_rlp::Decodable;
 use core::fmt::Debug;
 use kona_derive::{Pipeline, PipelineError, PipelineErrorKind, Signal, SignalReceiver};
 use kona_executor::BlockBuildingOutcome;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use op_alloy_consensus::{OpBlock, OpTxEnvelope, OpTxType};
+use op_alloy_consensus::OpTxType;
 use spin::RwLock;
 
 /// The Rollup Driver entrypoint.
@@ -166,8 +164,8 @@ where
     ///
     /// ## Other Errors
     /// - **`MissingOrigin`**: Pipeline origin not available when expected
-    /// - **`BlockConversion`**: Failed to convert block format
-    /// - **RLP**: Failed to decode transaction data
+    /// - **`FromBlock`**: Failed to derive the L2 block info from the executed header and L1 info
+    ///   deposit
     ///
     /// # Behavior Details
     ///
@@ -177,7 +175,7 @@ where
     /// 2. Produce payload attributes from pipeline
     /// 3. Execute payload with executor
     /// 4. Handle execution failures with retry logic
-    /// 5. Construct complete block and update cursor
+    /// 5. Compute the L2 block info and update cursor
     /// 6. Cache artifacts and continue
     ///
     /// ## Target Handling
@@ -294,26 +292,11 @@ where
                 }
             };
 
-            // Construct the block.
-            let block = OpBlock {
-                header: outcome.header.inner().clone(),
-                body: BlockBody {
-                    transactions: attributes
-                        .transactions
-                        .as_ref()
-                        .unwrap_or(&Vec::new())
-                        .iter()
-                        .map(|tx| OpTxEnvelope::decode(&mut tx.as_ref()).map_err(DriverError::Rlp))
-                        .collect::<DriverResult<Vec<OpTxEnvelope>, E::Error>>()?,
-                    ommers: Vec::new(),
-                    withdrawals: None,
-                },
-            };
-
             // Get the pipeline origin and update the tip cursor.
             let origin = self.pipeline.origin().ok_or(PipelineError::MissingOrigin.crit())?;
-            let l2_info = L2BlockInfo::from_block_and_genesis(
-                &block,
+            let l2_info = L2BlockInfo::from_header_and_first_tx(
+                &outcome.header,
+                attributes.transactions.as_ref().and_then(|txs| txs.first()),
                 &self.pipeline.rollup_config().genesis,
             )?;
             let tip_cursor = TipCursor::new(
