@@ -49,31 +49,6 @@ use crate::post_exec::{
 mod canyon;
 pub mod receipt_builder;
 
-/// Returns whether the block at `block_timestamp` is the activation block of some fork at or after
-/// Jovian, given its parent block's `parent_timestamp`. Such a block must contain only deposit
-/// transactions — no user (non-deposit) txs.
-///
-/// A block is a fork-activation block when a fork becomes active at this block but was not active
-/// at its parent — the same "first block of the fork" definition the derivation layer uses
-/// (kona `is_first_*_block`, op-node `Is*ActivationBlock`) and op-geth's miner uses via
-/// `IsJovian(parent.Time)`.
-///
-/// Iterating [`OpHardfork::forks_from`] (rather than a hard-coded fork list) keeps this rule
-/// applying to every fork at or after Jovian, including future ones, automatically. The matching
-/// derivation-layer rule (kona `single.rs`, op-node `batches.go`) still uses explicit fork lists;
-/// unifying those onto the same dynamic form is tracked as a follow-up.
-fn is_no_user_tx_activation_block<Spec: OpHardforks>(
-    spec: &Spec,
-    parent_timestamp: u64,
-    block_timestamp: u64,
-) -> bool {
-    OpHardfork::Jovian.forks_from().any(|fork| {
-        let activation = spec.op_fork_activation(fork);
-        activation.active_at_timestamp(block_timestamp) &&
-            !activation.active_at_timestamp(parent_timestamp)
-    })
-}
-
 /// Wraps an [`OpBlockExecutionError`] as a block-execution validation error.
 fn validation_error(err: OpBlockExecutionError) -> BlockExecutionError {
     BlockExecutionError::Validation(BlockValidationError::Other(Box::new(err)))
@@ -268,11 +243,8 @@ pub struct OpBlockExecutionCtx {
     pub parent_hash: B256,
     /// Parent block timestamp, when the parent header is available.
     ///
-    /// Used to detect fork-activation blocks (the first L2 block at/after a fork at or after
-    /// Jovian), which must contain only deposit transactions. `None` on execution paths that
-    /// don't carry the parent header (op-reth block import / engine payload); on those paths the
-    /// fork-activation rule is enforced by the derivation layer instead, and the executor skips
-    /// the check.
+    /// Used to detect fork-activation blocks at or after Jovian, which must contain only deposit
+    /// transactions. `None` skips that check.
     pub parent_timestamp: Option<u64>,
     /// Parent beacon block root.
     pub parent_beacon_block_root: Option<B256>,
@@ -383,14 +355,6 @@ pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
     /// This is only set for blocks post-Jovian activation.
     /// See [DA footprint block limit spec](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/jovian/exec-engine.md#da-footprint-block-limit)
     pub da_footprint_used: u64,
-    /// Whether this block is a fork-activation block that must contain only deposit transactions —
-    /// the first L2 block at/after the timestamp of some fork at or after Jovian (Jovian, Karst,
-    /// Lagoon, …).
-    ///
-    /// Computed at construction from the block timestamp and
-    /// [`OpBlockExecutionCtx::parent_timestamp`]. The executor rejects any non-deposit (user)
-    /// transaction in such a block. Always `false` when the parent timestamp is unavailable.
-    pub no_user_tx_activation_block: bool,
     /// Whether Regolith hardfork is active.
     pub is_regolith: bool,
     /// Utility to call system smart contracts.
@@ -412,14 +376,9 @@ where
     /// Creates a new [`OpBlockExecutor`].
     pub fn new(evm: E, ctx: OpBlockExecutionCtx, spec: Spec, receipt_builder: R) -> Self {
         let post_exec = PostExecState::new(ctx.post_exec_mode.clone());
-        let block_timestamp = evm.block().timestamp().saturating_to::<u64>();
-        // Detected once at construction: only the parent timestamp (carried by the ctx) and the
-        // block timestamp are needed, so this does not depend on any transaction.
-        let no_user_tx_activation_block = ctx.parent_timestamp.is_some_and(|parent_ts| {
-            is_no_user_tx_activation_block(&spec, parent_ts, block_timestamp)
-        });
         Self {
-            is_regolith: spec.is_regolith_active_at_timestamp(block_timestamp),
+            is_regolith: spec
+                .is_regolith_active_at_timestamp(evm.block().timestamp().saturating_to()),
             evm,
             system_caller: SystemCaller::new(spec.clone()),
             spec,
@@ -428,7 +387,6 @@ where
             gas_used: 0,
             evm_gas_used: 0,
             da_footprint_used: 0,
-            no_user_tx_activation_block,
             ctx,
             l1_block_info: None,
             post_exec,
@@ -509,12 +467,8 @@ pub enum OpBlockExecutionError {
         available_block_da_footprint: u64,
     },
 
-    /// A fork-activation block (the first L2 block at/after a fork at or after Jovian) contained a
-    /// non-deposit (user) transaction.
-    ///
-    /// Such blocks must contain only deposit transactions (the L1-attributes deposit and the
-    /// network-upgrade automatic deposits). This mirrors the derivation-layer rule (kona
-    /// `single.rs`, op-node `batches.go`) and op-geth's `CalcDAFootprint` Jovian check.
+    /// A fork-activation block at or after Jovian, which must contain only deposit transactions,
+    /// contained a non-deposit (user) transaction.
     #[error("unexpected non-deposit transactions in fork activation block")]
     UnexpectedNonDepositTxInForkActivationBlock,
 
@@ -544,6 +498,21 @@ where
         >,
     Spec: OpHardforks,
 {
+    /// Returns whether this block is the activation block of some fork at or after Jovian. Such
+    /// a block must contain only deposit transactions — no user (non-deposit) txs.
+    ///
+    /// Always `false` when [`OpBlockExecutionCtx::parent_timestamp`] is unavailable; on those
+    /// execution paths the rule is enforced by the derivation layer instead.
+    fn is_no_user_tx_activation_block(&self) -> bool {
+        self.ctx.parent_timestamp.is_some_and(|parent_timestamp| {
+            self.spec.is_fork_activation_block_from(
+                OpHardfork::Jovian,
+                parent_timestamp,
+                self.evm.block().timestamp().saturating_to(),
+            )
+        })
+    }
+
     fn jovian_da_footprint_estimation(
         &mut self,
         tx_env: &E::Tx,
@@ -880,13 +849,10 @@ where
         let is_post_exec = tx.tx().ty() == POST_EXEC_TX_TYPE_ID;
         let tx_index = self.receipts.len() as u64;
 
-        // Fork-activation-block guard: a fork-activation block (first L2 block at/after a fork at
-        // or after Jovian) must contain only deposit transactions. `no_user_tx_activation_block` is
-        // determined at construction from the parent/block timestamps. Deposits (the L1-attributes
-        // deposit and the network-upgrade automatic deposits) precede any user txs, so rejecting
-        // the first non-deposit tx is sufficient. `is_post_exec` is the synthetic SDM tx, not a
-        // user tx, so it is allowed (and only exists post-Karst regardless).
-        if self.no_user_tx_activation_block && !is_deposit && !is_post_exec {
+        // Since Jovian, fork-activation blocks must contain only deposit transactions — before,
+        // the sequencer skipped user txs there by policy, but it wasn't a consensus rule. The
+        // synthetic post-exec SDM tx is not a user tx, so it is allowed.
+        if self.is_no_user_tx_activation_block() && !is_deposit && !is_post_exec {
             return Err(validation_error(
                 OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock,
             ));

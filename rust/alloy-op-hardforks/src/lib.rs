@@ -173,10 +173,9 @@ impl OpHardfork {
 
     /// Returns every OP hardfork at or after `self`, in canonical (ascending) order.
     ///
-    /// Mirrors go-ethereum's `forks.From`: a rule that applies to "this fork and every later fork"
-    /// (e.g. the activation-block "deposits only" rule, which holds for all forks at or after
-    /// Jovian) can iterate this instead of hard-coding a fork list, so future hardforks are
-    /// covered automatically.
+    /// Mirrors go-ethereum's `forks.From`: rules that apply to "this fork and every later fork"
+    /// can iterate this instead of hard-coding a fork list, covering future hardforks
+    /// automatically.
     pub fn forks_from(self) -> impl Iterator<Item = Self> + Clone {
         Self::VARIANTS.iter().copied().filter(move |fork| fork.idx() >= self.idx())
     }
@@ -188,6 +187,22 @@ pub trait OpHardforks: EthereumHardforks {
     /// Retrieves [`ForkCondition`] by an [`OpHardfork`]. If `fork` is not present, returns
     /// [`ForkCondition::Never`].
     fn op_fork_activation(&self, fork: OpHardfork) -> ForkCondition;
+
+    /// Returns `true` if the block at `block_timestamp` is the activation block of `fork` or any
+    /// later fork, given its parent block's `parent_timestamp` — i.e. some fork at or after
+    /// `fork` is active at this block but was not active at its parent.
+    fn is_fork_activation_block_from(
+        &self,
+        fork: OpHardfork,
+        parent_timestamp: u64,
+        block_timestamp: u64,
+    ) -> bool {
+        fork.forks_from().any(|fork| {
+            let activation = self.op_fork_activation(fork);
+            activation.active_at_timestamp(block_timestamp) &&
+                !activation.active_at_timestamp(parent_timestamp)
+        })
+    }
 
     /// Convenience method to check if [`OpHardfork::Bedrock`] is active at a given block
     /// number.
@@ -428,6 +443,22 @@ mod tests {
 
         // Ascending and contiguous: every returned fork has idx >= the anchor's.
         assert!(from_jovian.iter().all(|f| f.idx() >= OpHardfork::Jovian.idx()));
+    }
+
+    #[test]
+    fn is_fork_activation_block_from_detects_first_fork_block() {
+        let forks = OpChainHardforks::op_mainnet();
+        let jovian = OP_MAINNET_JOVIAN_TIMESTAMP;
+
+        // First block at/after the Jovian timestamp is the activation block.
+        assert!(forks.is_fork_activation_block_from(OpHardfork::Jovian, jovian - 2, jovian));
+        assert!(forks.is_fork_activation_block_from(OpHardfork::Jovian, jovian - 2, jovian + 2));
+        // Already active at the parent, or not yet active at the block.
+        assert!(!forks.is_fork_activation_block_from(OpHardfork::Jovian, jovian, jovian + 2));
+        assert!(!forks.is_fork_activation_block_from(OpHardfork::Jovian, jovian - 4, jovian - 2));
+        // Forks before the anchor are excluded: Jovian's activation block is not an activation
+        // block of Karst or later (neither of which is scheduled on this chain).
+        assert!(!forks.is_fork_activation_block_from(OpHardfork::Karst, jovian - 2, jovian));
     }
 
     #[test]

@@ -180,11 +180,8 @@ where
     ) -> OpBlockExecutionCtx {
         OpBlockExecutionCtx {
             parent_hash: block.header().parent_hash(),
-            // No parent timestamp available on this path; the fork-activation rule is enforced by
-            // derivation (op-node batches.go + kona single.rs drop user-tx batches in
-            // fork-activation blocks). Covering it here would require making OpEvmConfig
-            // provider-backed — an invasive upstream divergence we deliberately skip; the
-            // consensus-critical fault-proof path is kona, which carries the parent timestamp.
+            // No parent header on this path, so the executor skips the fork-activation check;
+            // the derivation layer enforces the rule instead.
             parent_timestamp: None,
             parent_beacon_block_root: block.header().parent_beacon_block_root(),
             extra_data: block.header().extra_data().clone(),
@@ -201,8 +198,6 @@ where
     ) -> OpBlockExecutionCtx {
         OpBlockExecutionCtx {
             parent_hash: parent.hash(),
-            // Building path: the parent header is available, so the fork-activation guard is
-            // enforced by the shared executor.
             parent_timestamp: Some(parent.timestamp()),
             parent_beacon_block_root: attributes.parent_beacon_block_root,
             extra_data: attributes.extra_data,
@@ -385,11 +380,8 @@ where
 
         Ok(OpBlockExecutionCtx {
             parent_hash: payload.parent_hash(),
-            // No parent timestamp available on this path; the fork-activation rule is enforced by
-            // derivation (op-node batches.go + kona single.rs drop user-tx batches in
-            // fork-activation blocks). Covering it here would require making OpEvmConfig
-            // provider-backed — an invasive upstream divergence we deliberately skip; the
-            // consensus-critical fault-proof path is kona, which carries the parent timestamp.
+            // No parent header on this path, so the executor skips the fork-activation check;
+            // the derivation layer enforces the rule instead.
             parent_timestamp: None,
             parent_beacon_block_root: payload.sidecar.parent_beacon_block_root(),
             extra_data: payload.payload.as_v1().extra_data.clone(),

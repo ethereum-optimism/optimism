@@ -428,7 +428,7 @@ fn test_no_user_tx_activation_block_rejects_user_tx() {
             Some(fork_timestamp - 1),
         );
         assert!(
-            executor.no_user_tx_activation_block,
+            executor.is_no_user_tx_activation_block(),
             "{fork:?} activation block should be flagged"
         );
 
@@ -462,7 +462,7 @@ fn test_fork_activation_block_accepts_deposits_only() {
         KARST_TIMESTAMP,
         Some(KARST_TIMESTAMP - 1),
     );
-    assert!(executor.no_user_tx_activation_block);
+    assert!(executor.is_no_user_tx_activation_block());
 
     // Deposits (L1-attributes + network-upgrade automatic deposits) are accepted.
     executor
@@ -488,7 +488,7 @@ fn test_normal_post_activation_block_accepts_user_tx() {
         KARST_TIMESTAMP + 2,
         Some(KARST_TIMESTAMP + 1),
     );
-    assert!(!executor.no_user_tx_activation_block);
+    assert!(!executor.is_no_user_tx_activation_block());
 
     let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
     executor.execute_transaction(&user_tx).expect("user tx accepted on a normal Karst block");
@@ -508,7 +508,7 @@ fn test_non_activation_karst_block_not_rejected() {
         KARST_TIMESTAMP + 100,
         Some(KARST_TIMESTAMP + 50),
     );
-    assert!(!executor.no_user_tx_activation_block);
+    assert!(!executor.is_no_user_tx_activation_block());
 
     let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
     executor
@@ -531,7 +531,7 @@ fn test_none_parent_timestamp_skips_check() {
         KARST_TIMESTAMP,
         None,
     );
-    assert!(!executor.no_user_tx_activation_block);
+    assert!(!executor.is_no_user_tx_activation_block());
 
     let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
     executor
