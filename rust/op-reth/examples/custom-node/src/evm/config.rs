@@ -158,9 +158,12 @@ impl From<OpFlashblockPayloadBase> for CustomNextBlockEnvAttributes {
 }
 
 impl BuildPendingEnv<CustomHeader> for CustomNextBlockEnvAttributes {
-    fn build_pending_env(parent: &SealedHeader<CustomHeader>) -> Self {
+    fn build_pending_env(
+        parent: &SealedHeader<CustomHeader>,
+        block_overrides: Option<&alloy_rpc_types_eth::BlockOverrides>,
+    ) -> Self {
         Self {
-            inner: OpNextBlockEnvAttributes::build_pending_env(parent),
+            inner: OpNextBlockEnvAttributes::build_pending_env(parent, block_overrides),
             extension: parent.extension,
         }
     }

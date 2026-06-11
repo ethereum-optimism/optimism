@@ -446,7 +446,7 @@ mod sdm {
         assert_eq!(account.info.balance, U256::from(15));
         // original_info mirrors current info here — State::commit computes the
         // true previous value from its own cache, so the bundle stays correct.
-        assert_eq!(account.original_info.balance, U256::from(15));
+        assert_eq!(account.original_info().balance, U256::from(15));
 
         account.info.balance = account.info.balance.saturating_sub(U256::from(3));
         revm::DatabaseCommit::commit(&mut db, state);

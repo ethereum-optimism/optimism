@@ -1,18 +1,15 @@
 //! Block executor for Optimism.
 
 use crate::{OpEvmFactory, spec_by_timestamp_after_bedrock};
-use alloc::{
-    borrow::Cow, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec,
-};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec};
 use alloy_consensus::{Eip658Value, Header, Transaction, TransactionEnvelope, TxReceipt};
 use alloy_eips::{Encodable2718, Typed2718, eip7685::Requests};
 use alloy_evm::{
     Database, Evm, EvmFactory, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockValidationError, ExecutableTx, GasOutput, OnStateHook, StateChangePostBlockSource,
-        StateChangeSource, StateDB, SystemCaller, TxResult,
-        state_changes::{balance_increment_state, post_block_balance_increments},
+        BlockValidationError, ExecutableTx, GasOutput, StateDB, SystemCaller, TxResult,
+        state_changes::post_block_balance_increments,
     },
     eth::{EthTxResult, receipt_builder::ReceiptBuilderCtx},
 };
@@ -582,16 +579,12 @@ where
             Entry::Vacant(entry) => {
                 let info =
                     db.basic(address).map_err(BlockExecutionError::other)?.unwrap_or_default();
-                let original_info = info.clone();
-                Ok(entry.insert(Account {
-                    info,
-                    // The original_info is not used by State::commit — the
-                    // CacheAccount tracks its own previous state for building
-                    // transitions. Setting it equal to current info is safe.
-                    original_info: Box::new(original_info),
-                    status: AccountStatus::Touched,
-                    ..Default::default()
-                }))
+                // Account::from sets original_info equal to the current info, which is
+                // safe: it is not used by State::commit — the CacheAccount tracks its
+                // own previous state for building transitions.
+                let mut account = Account::from(info);
+                account.status = AccountStatus::Touched;
+                Ok(entry.insert(account))
             }
         }
     }
@@ -1002,8 +995,6 @@ where
             self.warming_events_by_tx.push(warming_events);
         }
 
-        self.system_caller.on_state(StateChangeSource::Transaction(self.receipts.len()), &state);
-
         // add canonical gas used
         self.gas_used += canonical_gas_used;
         // Accumulate pre-refund EVM gas (real compute); bounded against the block gas limit by the
@@ -1074,20 +1065,11 @@ where
 
         let balance_increments =
             post_block_balance_increments::<Header>(&self.spec, self.evm.block(), &[], None);
-        // increment balances
+        // increment balances; the DB-level state hook (if any) fires via the commit inside.
         self.evm
             .db_mut()
-            .increment_balances(balance_increments.clone())
+            .increment_balances(balance_increments)
             .map_err(|_| BlockValidationError::IncrementBalanceFailed)?;
-        // call state hook with changes due to balance increments.
-        self.system_caller.try_on_state_with(|| {
-            balance_increment_state(&balance_increments, self.evm.db_mut()).map(|state| {
-                (
-                    StateChangeSource::PostBlock(StateChangePostBlockSource::BalanceIncrements),
-                    Cow::Owned(state),
-                )
-            })
-        })?;
 
         Ok((
             self.evm,
@@ -1098,10 +1080,6 @@ where
                 blob_gas_used: self.da_footprint_used,
             },
         ))
-    }
-
-    fn set_state_hook(&mut self, hook: Option<Box<dyn OnStateHook>>) {
-        self.system_caller.with_state_hook(hook);
     }
 
     fn evm_mut(&mut self) -> &mut Self::Evm {

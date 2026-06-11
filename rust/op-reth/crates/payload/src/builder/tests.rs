@@ -70,6 +70,7 @@ fn payload_builder_ctx(
         chain_spec,
         config: PayloadConfig {
             parent_header: Arc::new(parent),
+            parent_block_info: None,
             payload_id: attributes.id,
             attributes,
         },
