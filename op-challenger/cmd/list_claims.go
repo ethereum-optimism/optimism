@@ -234,9 +234,13 @@ func buildClaimsReport(ctx context.Context, game contracts.FaultDisputeGameContr
 		}
 		rec.TraceIndex = traceIdx.String()
 
+		// A claim countered by a winning step has counteredBy set the moment the step lands,
+		// but its subgame is only resolved later by a separate resolveClaim call once the clock
+		// expires. Report the on-chain resolution status, independent of the displayed outcome.
+		rec.Resolved = resolved[i]
+
 		if claim.CounteredBy != (common.Address{}) {
 			rec.CounteredBy = claim.CounteredBy.Hex()
-			rec.Resolved = true
 			rec.resolution = "❌ " + claim.CounteredBy.Hex()
 		} else if !resolved[i] {
 			clock := gameState.ChessClock(now, claim)
@@ -244,11 +248,9 @@ func buildClaimsReport(ctx context.Context, game contracts.FaultDisputeGameContr
 			rec.ResolvableAt = resolvableAt.Format(time.RFC3339)
 			rec.resolution = fmt.Sprintf("⏱️  %v", resolvableAt.Format(time.DateTime))
 		} else if claim.IsRoot() && metadata.L2BlockNumberChallenged {
-			rec.Resolved = true
 			rec.CounteredBy = metadata.L2BlockNumberChallenger.Hex()
 			rec.resolution = "❌ " + metadata.L2BlockNumberChallenger.Hex()
 		} else {
-			rec.Resolved = true
 			rec.resolution = "✅"
 		}
 
