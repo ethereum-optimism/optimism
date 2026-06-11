@@ -2,14 +2,18 @@
 
 use crate::{DecodeError, L1BlockInfoTx};
 use alloc::vec::Vec;
-use alloy_consensus::{Block, Transaction, Typed2718};
-use alloy_eips::{BlockNumHash, eip2718::Eip2718Error, eip7685::EMPTY_REQUESTS_HASH};
-use alloy_primitives::B256;
+use alloy_consensus::{Block, Header, Transaction, Typed2718};
+use alloy_eips::{
+    BlockNumHash,
+    eip2718::{Decodable2718, Eip2718Error},
+    eip7685::EMPTY_REQUESTS_HASH,
+};
+use alloy_primitives::{B256, Bytes, Sealed};
 use alloy_rpc_types_engine::{CancunPayloadFields, PraguePayloadFields};
 use alloy_rpc_types_eth::Block as RpcBlock;
 use derive_more::Display;
 use kona_genesis::ChainGenesis;
-use op_alloy_consensus::{OpBlock, OpTxEnvelope};
+use op_alloy_consensus::{DEPOSIT_TX_TYPE_ID, OpBlock, OpTxEnvelope};
 use op_alloy_rpc_types_engine::{OpExecutionPayload, OpExecutionPayloadSidecar, OpPayloadError};
 
 /// Block Header Info
@@ -176,24 +180,22 @@ impl L2BlockInfo {
         Self { block_info, l1_origin, seq_num }
     }
 
-    /// Constructs an [`L2BlockInfo`] from a given OP [`Block`] and [`ChainGenesis`].
-    pub fn from_block_and_genesis<T: Typed2718 + AsRef<OpTxEnvelope>>(
-        block: &Block<T>,
+    /// Constructs an [`L2BlockInfo`] from a [`BlockInfo`] and the decoded first transaction of
+    /// the block, if any, applying the [`ChainGenesis`] rules.
+    fn from_block_info_and_first_tx(
+        block_info: BlockInfo,
+        first_tx: Option<&OpTxEnvelope>,
         genesis: &ChainGenesis,
     ) -> Result<Self, FromBlockError> {
-        let block_info = BlockInfo::from(block);
-
         let (l1_origin, sequence_number) = if block_info.number == genesis.l2.number {
             if block_info.hash != genesis.l2.hash {
                 return Err(FromBlockError::InvalidGenesisHash);
             }
             (genesis.l1, 0)
         } else {
-            if block.body.transactions.is_empty() {
+            let Some(tx) = first_tx else {
                 return Err(FromBlockError::MissingL1InfoDeposit(block_info.hash));
-            }
-
-            let tx = block.body.transactions[0].as_ref();
+            };
             let Some(tx) = tx.as_deposit() else {
                 return Err(FromBlockError::FirstTxNonDeposit(tx.ty()));
             };
@@ -204,6 +206,62 @@ impl L2BlockInfo {
         };
 
         Ok(Self { block_info, l1_origin, seq_num: sequence_number })
+    }
+
+    /// Constructs an [`L2BlockInfo`] from a given OP [`Block`] and [`ChainGenesis`].
+    pub fn from_block_and_genesis<T: Typed2718 + AsRef<OpTxEnvelope>>(
+        block: &Block<T>,
+        genesis: &ChainGenesis,
+    ) -> Result<Self, FromBlockError> {
+        Self::from_block_info_and_first_tx(
+            BlockInfo::from(block),
+            block.body.transactions.first().map(AsRef::as_ref),
+            genesis,
+        )
+    }
+
+    /// Constructs an [`L2BlockInfo`] from a sealed [`Header`] and the raw first transaction of
+    /// the block.
+    ///
+    /// Equivalent to [`Self::from_block_and_genesis`] for callers that hold the sealed header and
+    /// the raw EIP-2718-encoded transaction bytes rather than a decoded block: only the L1 info
+    /// deposit (always the first transaction of a non-genesis L2 block) is decoded, and the
+    /// header hash is taken from the seal instead of being recomputed.
+    ///
+    /// The caller must ensure that `first_tx` is the first transaction committed to by
+    /// `header.transactions_root`; this is not (and cannot be) checked here.
+    pub fn from_header_and_first_tx(
+        header: &Sealed<Header>,
+        first_tx: Option<&Bytes>,
+        genesis: &ChainGenesis,
+    ) -> Result<Self, FromBlockError> {
+        debug_assert_eq!(
+            header.hash(),
+            header.hash_slow(),
+            "the seal must be the header's true hash"
+        );
+        let block_info =
+            BlockInfo::new(header.hash(), header.number, header.parent_hash, header.timestamp);
+        // The genesis block carries no L1-info deposit, so its first transaction is not
+        // inspected, matching `from_block_and_genesis`.
+        let first_tx = if header.number == genesis.l2.number {
+            None
+        } else {
+            first_tx
+                .map(|tx| {
+                    // A typed non-deposit transaction can be reported from its type byte alone;
+                    // only a potential deposit or legacy transaction needs to be decoded.
+                    match OpTxEnvelope::extract_type_byte(&mut tx.as_ref()) {
+                        None | Some(DEPOSIT_TX_TYPE_ID) => {
+                            OpTxEnvelope::decode_2718_exact(tx.as_ref())
+                                .map_err(FromBlockError::TxEnvelopeDecodeError)
+                        }
+                        Some(ty) => Err(FromBlockError::FirstTxNonDeposit(ty)),
+                    }
+                })
+                .transpose()?
+        };
+        Self::from_block_info_and_first_tx(block_info, first_tx.as_ref(), genesis)
     }
 
     /// Constructs an [`L2BlockInfo`] From a given [`OpExecutionPayload`] and [`ChainGenesis`].
@@ -337,6 +395,156 @@ mod tests {
         let block = block.into_consensus();
         let derived = L2BlockInfo::from_block_and_genesis(&block, &genesis).unwrap();
         assert_eq!(derived, expected);
+    }
+
+    #[test]
+    fn test_from_header_and_first_tx() {
+        use crate::test_utils::RAW_BEDROCK_INFO_TX;
+        use alloc::vec;
+        use alloy_consensus::BlockBody;
+        use alloy_eips::eip2718::Encodable2718;
+
+        let genesis = ChainGenesis {
+            l1: BlockNumHash { hash: B256::from([4; 32]), number: 2 },
+            l2: BlockNumHash { hash: B256::from([5; 32]), number: 1 },
+            ..Default::default()
+        };
+        let deposit =
+            OpTxEnvelope::Deposit(alloy_primitives::Sealed::new(op_alloy_consensus::TxDeposit {
+                input: alloy_primitives::Bytes::from(&RAW_BEDROCK_INFO_TX),
+                ..Default::default()
+            }));
+        let header = Header {
+            number: 3,
+            parent_hash: B256::from([2; 32]),
+            timestamp: 1,
+            ..Default::default()
+        };
+        let block = OpBlock {
+            header: header.clone(),
+            body: BlockBody {
+                transactions: vec![deposit.clone()],
+                ommers: vec![],
+                withdrawals: None,
+            },
+        };
+        let expected = L2BlockInfo::from_block_and_genesis(&block, &genesis).unwrap();
+
+        let raw = Bytes::from(deposit.encoded_2718());
+        let sealed = Sealed::new(header);
+        let derived = L2BlockInfo::from_header_and_first_tx(&sealed, Some(&raw), &genesis).unwrap();
+        assert_eq!(derived, expected);
+    }
+
+    #[test]
+    fn test_from_header_and_first_tx_genesis() {
+        let header = Header {
+            number: 1,
+            parent_hash: B256::from([2; 32]),
+            timestamp: 1,
+            ..Default::default()
+        };
+        let sealed = Sealed::new(header);
+        let genesis = ChainGenesis {
+            l1: BlockNumHash { hash: B256::from([4; 32]), number: 2 },
+            l2: BlockNumHash { hash: sealed.hash(), number: 1 },
+            ..Default::default()
+        };
+
+        let derived = L2BlockInfo::from_header_and_first_tx(&sealed, None, &genesis).unwrap();
+        assert_eq!(derived.l1_origin, genesis.l1);
+        assert_eq!(derived.seq_num, 0);
+        assert_eq!(derived.block_info.hash, sealed.hash());
+
+        // The first transaction is not inspected at the genesis block, matching
+        // `from_block_and_genesis`.
+        let malformed = Bytes::from(alloc::vec![0x7B, 0x01, 0x02]);
+        let with_tx =
+            L2BlockInfo::from_header_and_first_tx(&sealed, Some(&malformed), &genesis).unwrap();
+        assert_eq!(with_tx, derived);
+
+        // A mismatched genesis hash is rejected.
+        let wrong_genesis =
+            ChainGenesis { l2: BlockNumHash { hash: B256::from([6; 32]), number: 1 }, ..genesis };
+        let err = L2BlockInfo::from_header_and_first_tx(&sealed, None, &wrong_genesis).unwrap_err();
+        assert_eq!(err, FromBlockError::InvalidGenesisHash);
+    }
+
+    #[test]
+    fn test_from_header_and_first_tx_errors() {
+        use crate::test_utils::RAW_BEDROCK_INFO_TX;
+        use alloy_consensus::{Signed, TxLegacy, constants::LEGACY_TX_TYPE_ID};
+        use alloy_eips::eip2718::Encodable2718;
+        use alloy_primitives::{Signature, U256};
+        use op_alloy_consensus::{DEPOSIT_TX_TYPE_ID, TxDeposit};
+
+        let genesis = ChainGenesis {
+            l1: BlockNumHash { hash: B256::from([4; 32]), number: 2 },
+            l2: BlockNumHash { hash: B256::from([5; 32]), number: 1 },
+            ..Default::default()
+        };
+        let header = Header {
+            number: 3,
+            parent_hash: B256::from([2; 32]),
+            timestamp: 1,
+            ..Default::default()
+        };
+        let sealed = Sealed::new(header);
+
+        // No transactions in the block.
+        let err = L2BlockInfo::from_header_and_first_tx(&sealed, None, &genesis).unwrap_err();
+        assert_eq!(err, FromBlockError::MissingL1InfoDeposit(sealed.hash()));
+
+        // An empty first transaction is a decode failure, not a missing deposit.
+        let empty = Bytes::new();
+        let err =
+            L2BlockInfo::from_header_and_first_tx(&sealed, Some(&empty), &genesis).unwrap_err();
+        assert!(matches!(err, FromBlockError::TxEnvelopeDecodeError(_)));
+
+        // First transaction is not a deposit (e.g. a CIP-64 transaction, type 0x7B).
+        let non_deposit = Bytes::from(alloc::vec![0x7B, 0x01, 0x02]);
+        let err = L2BlockInfo::from_header_and_first_tx(&sealed, Some(&non_deposit), &genesis)
+            .unwrap_err();
+        assert_eq!(err, FromBlockError::FirstTxNonDeposit(0x7B));
+
+        // A valid legacy transaction decodes but is rejected as a non-deposit (type 0).
+        let signature = Signature::new(U256::from(1), U256::from(1), false);
+        let legacy_tx =
+            OpTxEnvelope::Legacy(Signed::new_unchecked(TxLegacy::default(), signature, B256::ZERO));
+        let legacy = Bytes::from(legacy_tx.encoded_2718());
+        let err =
+            L2BlockInfo::from_header_and_first_tx(&sealed, Some(&legacy), &genesis).unwrap_err();
+        assert_eq!(err, FromBlockError::FirstTxNonDeposit(LEGACY_TX_TYPE_ID));
+
+        // Garbage bytes with an RLP list prefix fail to decode as a legacy transaction.
+        let malformed_legacy = Bytes::from(alloc::vec![0xC5, 0x01, 0x02, 0x03, 0x04, 0x05]);
+        let err = L2BlockInfo::from_header_and_first_tx(&sealed, Some(&malformed_legacy), &genesis)
+            .unwrap_err();
+        assert!(matches!(err, FromBlockError::TxEnvelopeDecodeError(_)));
+
+        // An RLP string prefix is neither a valid tx type nor a legacy list prefix.
+        let string_prefix = Bytes::from(alloc::vec![0x85, 0x01, 0x02, 0x03, 0x04, 0x05]);
+        let err = L2BlockInfo::from_header_and_first_tx(&sealed, Some(&string_prefix), &genesis)
+            .unwrap_err();
+        assert!(matches!(err, FromBlockError::TxEnvelopeDecodeError(_)));
+
+        // Correct type byte, but the deposit payload is garbage.
+        let malformed = Bytes::from(alloc::vec![DEPOSIT_TX_TYPE_ID, 0x01, 0x02]);
+        let err =
+            L2BlockInfo::from_header_and_first_tx(&sealed, Some(&malformed), &genesis).unwrap_err();
+        assert!(matches!(err, FromBlockError::TxEnvelopeDecodeError(_)));
+
+        // Trailing bytes after a valid deposit are rejected.
+        let deposit = OpTxEnvelope::Deposit(alloy_primitives::Sealed::new(TxDeposit {
+            input: Bytes::from(&RAW_BEDROCK_INFO_TX),
+            ..Default::default()
+        }));
+        let mut trailing = deposit.encoded_2718();
+        trailing.push(0x00);
+        let trailing = Bytes::from(trailing);
+        let err =
+            L2BlockInfo::from_header_and_first_tx(&sealed, Some(&trailing), &genesis).unwrap_err();
+        assert!(matches!(err, FromBlockError::TxEnvelopeDecodeError(_)));
     }
 
     #[test]
