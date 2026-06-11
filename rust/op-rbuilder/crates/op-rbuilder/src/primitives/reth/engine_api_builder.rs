@@ -191,6 +191,13 @@ where
         self.inner.get_payload_v4(payload_id).await
     }
 
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<OpExecutionPayloadEnvelopeV4> {
+        self.inner.get_payload_v5(payload_id).await
+    }
+
     async fn get_payload_bodies_by_hash_v1(
         &self,
         block_hashes: Vec<BlockHash>,
@@ -369,6 +376,19 @@ pub trait OpRbuilderEngineApi<Engine: EngineTypes> {
         &self,
         payload_id: PayloadId,
     ) -> RpcResult<Engine::ExecutionPayloadEnvelopeV4>;
+
+    /// Returns the most recent version of the payload available for the given build process.
+    ///
+    /// See also <https://github.com/ethereum/execution-apis/blob/main/src/engine/osaka.md#engine_getpayloadv5>
+    ///
+    /// OP modifications:
+    /// - the response type is [`EngineTypes::ExecutionPayloadEnvelopeV5`] (the V4-shaped OP envelope;
+    ///   OP Stack has no blobs, so Osaka adds nothing to the OP payload).
+    #[method(name = "getPayloadV5")]
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<Engine::ExecutionPayloadEnvelopeV5>;
 
     /// Returns the execution payload bodies by the given hash.
     ///
