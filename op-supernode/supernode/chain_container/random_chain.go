@@ -84,6 +84,14 @@ func (b *L2Block) Receipts() gethtypes.Receipts {
 	}}
 }
 
+// addExecMsg appends msg at the next flat log index (the init log occupies 0).
+func (b *L2Block) addExecMsg(msg *supervisortypes.Message) {
+	if b.ExecMsgs == nil {
+		b.ExecMsgs = make(map[uint32]*supervisortypes.Message)
+	}
+	b.ExecMsgs[uint32(1+len(b.ExecMsgs))] = msg
+}
+
 // SafeHeadEntry is one SafeDB row: the L1 block at which an L2 safe head became
 // safe. Sparse, ascending by L1 number.
 type SafeHeadEntry struct {
@@ -141,45 +149,34 @@ func (m *RandomChainManager) Generate() {
 	m.wireExecutingMessages()
 }
 
-// wireExecutingMessages plants one executing message in every block of
-// (first, safe] on each chain, referencing the init log of a strictly earlier
-// block on another chain. Strictly earlier keeps the first cut off the
-// same-timestamp frontier and cycle paths. Referenced blocks start at the
-// first SafeDB-covered block (safeDB[0].L2): earlier blocks are below SafeDB
-// history, so verification can never reach — and therefore never seal — them.
+// wireExecutingMessages plants one executing message in every verifiable block
+// after the first on each chain, referencing the planted init log of an
+// earlier verifiable block on another chain.
 func (m *RandomChainManager) wireExecutingMessages() {
 	if len(m.order) < 2 {
 		return
 	}
 	for bi, id := range m.order {
 		b := m.chains[id]
-		first := int(b.safeDB[0].L2.Number)
-		for i := first + 1; uint64(i) <= b.safe; i++ {
-			ai := int(m.rng.Int63n(int64(len(m.order) - 1)))
-			if ai >= bi {
-				ai++
-			}
-			a := m.chains[m.order[ai]]
-			aFirst := int(a.safeDB[0].L2.Number)
-			if i <= aFirst {
+		for i := b.firstVerifiable() + 1; i <= b.safe; i++ {
+			src := m.randomChainExcept(bi)
+			j, ok := src.randomInitBlockBefore(b.l2[i].Ref.Time)
+			if !ok {
 				continue
 			}
-			j := aFirst + int(m.rng.Int63n(int64(i-aFirst)))
-			initLog := a.l2[j].InitLog
-			b.l2[i].ExecMsgs = map[uint32]*supervisortypes.Message{
-				1: {
-					Identifier: supervisortypes.Identifier{
-						Origin:      initLog.Address,
-						ChainID:     a.chainID,
-						BlockNumber: uint64(j),
-						LogIndex:    0,
-						Timestamp:   a.l2[j].Ref.Time,
-					},
-					PayloadHash: crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(initLog)),
-				},
-			}
+			b.l2[i].addExecMsg(src.initMessage(j))
 		}
 	}
+}
+
+// randomChainExcept returns a uniformly chosen chain other than m.order[i],
+// by drawing from the n-1 other indices and shifting past i.
+func (m *RandomChainManager) randomChainExcept(i int) *RandomChain {
+	j := m.rng.Intn(len(m.order) - 1)
+	if j >= i {
+		j++
+	}
+	return m.chains[m.order[j]]
 }
 
 func (m *RandomChainManager) generateL1() []eth.L1BlockRef {
@@ -360,6 +357,46 @@ type RandomChain struct {
 	currentL1, finalizedL1  uint64 // L1 block numbers
 
 	running atomic.Bool
+}
+
+// firstVerifiable returns the first block verification can reach: the lowest
+// SafeDB-covered block. Earlier blocks are below SafeDB history, so they are
+// never verified and never sealed into a logsDB.
+func (rc *RandomChain) firstVerifiable() uint64 { return rc.safeDB[0].L2.Number }
+
+// randomInitBlockBefore picks a uniform verifiable block with timestamp
+// strictly below ts, to serve as an initiating block. ok is false when no such
+// block exists.
+func (rc *RandomChain) randomInitBlockBefore(ts uint64) (blockNum uint64, ok bool) {
+	if ts == 0 {
+		return 0, false
+	}
+	hi, err := rc.cfg.TargetBlockNumber(ts - 1)
+	if err != nil {
+		return 0, false
+	}
+	hi = min(hi, rc.safe)
+	lo := rc.firstVerifiable()
+	if hi < lo {
+		return 0, false
+	}
+	return lo + uint64(rc.parent.rng.Int63n(int64(hi-lo+1))), true
+}
+
+// initMessage builds the executing-message reference to this chain's planted
+// init log at blockNum.
+func (rc *RandomChain) initMessage(blockNum uint64) *supervisortypes.Message {
+	il := rc.l2[blockNum].InitLog
+	return &supervisortypes.Message{
+		Identifier: supervisortypes.Identifier{
+			Origin:      il.Address,
+			ChainID:     rc.chainID,
+			BlockNumber: blockNum,
+			LogIndex:    0,
+			Timestamp:   rc.l2[blockNum].Ref.Time,
+		},
+		PayloadHash: crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(il)),
+	}
 }
 
 // --- virtual_node.VirtualNode ----------------------------------------------
