@@ -1,0 +1,47 @@
+package types
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/core/types"
+)
+
+// PostExecTxType is the EIP-2718 type byte of OP Stack post-execution transactions.
+const PostExecTxType = byte(0x7D)
+
+// PostExecTx is a synthetic, unsigned OP Stack transaction used to carry
+// post-execution metadata in SDM blocks. Its canonical encoding is
+// PostExecTxType || Data — the payload is opaque bytes, not RLP — matching
+// op-geth's types.PostExecTx wire format.
+type PostExecTx struct {
+	Data []byte
+}
+
+// MarshalBinary returns the canonical EIP-2718 encoding of the post-exec transaction.
+func (p *PostExecTx) MarshalBinary() ([]byte, error) {
+	out := make([]byte, 0, 1+len(p.Data))
+	out = append(out, PostExecTxType)
+	return append(out, p.Data...), nil
+}
+
+// UnmarshalPostExecTx decodes a post-exec transaction from its EIP-2718 encoding.
+// Like op-geth, it rejects an empty payload.
+func UnmarshalPostExecTx(raw []byte) (*PostExecTx, error) {
+	if len(raw) == 0 {
+		return nil, errors.New("empty transaction bytes")
+	}
+	if raw[0] != PostExecTxType {
+		return nil, fmt.Errorf("expected post-exec tx type byte %#x, got %#x", PostExecTxType, raw[0])
+	}
+	if len(raw) == 1 {
+		return nil, errors.New("post-exec tx payload is empty")
+	}
+	return &PostExecTx{Data: bytes.Clone(raw[1:])}, nil
+}
+
+// IsPostExecTx reports whether tx is an OP Stack post-execution transaction.
+func IsPostExecTx(tx *types.Transaction) bool {
+	return tx.Type() == PostExecTxType
+}
