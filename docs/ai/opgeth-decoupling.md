@@ -16,8 +16,8 @@ op-acceptance-tests, op-devstack).
 The op-geth diff vs. upstream go-ethereum (currently based on v1.17.2) can be summarised in three
 kinds of change:
 
-1. **New standalone types/files** – `DepositTx`, `RollupCostData`, the `superchain/` package,
-   eip1559 Holocene/Jovian helpers.
+1. **New standalone types/files** – `DepositTx`, `PostExecTx`, `RollupCostData`, the
+   `superchain/` package, eip1559 Holocene/Jovian helpers.
 2. **Fields/methods added to existing upstream types** – `Transaction` methods (`IsDepositTx`,
    `SourceHash`, `Mint`, `IsSystemTx`, `RollupCostData`), `Receipt` L1-cost fields, `ChainConfig`
    OP hardfork fields and methods, `PayloadAttributes` extensions.
@@ -107,7 +107,7 @@ continue to work and are addressed in §§6–7.
 
 ---
 
-## 1. `core/types` – Deposit transaction
+## 1. `core/types` – OP Stack transaction types (`DepositTx`, `PostExecTx`)
 
 ### Current usage
 
@@ -194,6 +194,28 @@ we go straight from struct to `[]byte`.
 **`UnmarshalDepositLogEvent`** returns `*types.DepositTx` today; change to return
 `*optypes.DepositTx`. `DeriveDeposits` calls `types.NewTx(dep).MarshalBinary()`; replace
 with `dep.MarshalBinary()`.
+
+### `PostExecTx` (type `0x7D`)
+
+op-geth also adds `types.PostExecTx` (`core/types/post_exec_tx.go`), a synthetic unsigned
+transaction carrying post-execution metadata in SDM blocks. Its wire format is
+`0x7D || data` — the payload is **opaque bytes, not RLP**.
+
+Current usage:
+
+- `op-node/rollup/derive/` — span batch encode/decode (`span_batch_tx.go` has its own
+  `spanBatchPostExecTxData`, `span_batch_txs.go` special-cases the synthetic signature),
+  batch validity checks (`batches.go`), and raw type-byte sniffing (`span_batch.go`).
+  Mostly just the `types.PostExecTxType` constant; one site constructs
+  `types.NewTx(&types.PostExecTx{...})`.
+- `op-chain-ops/pkg/sdm/` and `op-service/sources/flashblock_client.go` — handle post-exec
+  payloads as raw/hex bytes only; no type dependency.
+
+Proposed decoupling: define `PostExecTx` in `op-core/types/` next to `DepositTx`, same
+pattern — `MarshalBinary` / `UnmarshalPostExecTx` plus an `IsPostExecTx` free function,
+with a differential test against op-geth. The span-batch construction site goes straight
+from struct to bytes. Note that op-geth (like upstream) rejects typed-tx envelopes of
+`len <= 1`, so an empty payload cannot round-trip; `UnmarshalPostExecTx` mirrors that.
 
 ---
 
@@ -920,6 +942,7 @@ This is a bounded follow-up, unblocked by `op-core/params` + `GethChainConfig()`
 | `DepositTxType` constant | `core/types/deposit_tx.go` | `op-core/types/` | Trivial |
 | `IsDepositTx()` free function | `core/types/transaction.go` | `op-core/types/` | Trivial |
 | `IsSystemTx()`, `SourceHash()`, `Mint()` helpers | `core/types/transaction.go` | `op-core/types/` | Low |
+| `PostExecTx` type + `MarshalBinary`, `PostExecTxType` constant, `IsPostExecTx()` | `core/types/post_exec_tx.go` | `op-core/types/` | Low |
 | `RollupCostData`, `NewRollupCostData`, `EstimatedDASize`, `NewL1CostFuncFjord`, `L1CostFunc` | `core/types/rollup_cost.go` | `op-core/fees/` | Low |
 | `OperatorCost(gasUsed, scalar, constant)` — new helper | n/a (deduplicates inline math) | `op-core/fees/` | Trivial |
 | `TxRollupCostData(tx)` — replaces method | `core/types/transaction.go` | `op-core/fees/` | Trivial |
