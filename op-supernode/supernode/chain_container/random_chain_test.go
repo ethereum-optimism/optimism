@@ -160,11 +160,13 @@ func TestRandomChainManagerGenerate(t *testing.T) {
 	m.Generate()
 
 	chains := m.Chains()
-	require.Len(t, chains, 2)
+	require.GreaterOrEqual(t, len(chains), 2)
+	require.LessOrEqual(t, len(chains), 4)
 
 	for _, rc := range chains {
-		require.Len(t, rc.l2, 8)
-		require.Len(t, rc.l1, 4)
+		require.GreaterOrEqual(t, len(rc.l2), 4)
+		require.LessOrEqual(t, len(rc.l2), 16)
+		require.Zero(t, len(rc.l2)%2, "depths are drawn even")
 
 		for i := 1; i < len(rc.l2); i++ {
 			require.Equal(t, rc.l2[i-1].Ref.Hash, rc.l2[i].Ref.ParentHash, "L2 blocks must link")
@@ -174,6 +176,10 @@ func TestRandomChainManagerGenerate(t *testing.T) {
 			require.Greater(t, rc.safeDB[i].L2.Number, rc.safeDB[i-1].L2.Number)
 		}
 		require.Less(t, rc.unsafe, uint64(len(rc.l2)))
+		require.Equal(t, rc.safe, rc.safeDB[len(rc.safeDB)-1].L2.Number,
+			"SafeDB must reach the safe head")
+		require.Greater(t, rc.currentL1, rc.safeDB[0].L1.Number,
+			"currentL1 must be above the first SafeDB row")
 
 		require.NoError(t, rc.Start(context.Background()))
 		l1, err := rc.L1AtSafeHead(context.Background(), rc.safeDB[0].L2)
@@ -202,7 +208,7 @@ func TestGeneratedExecutingMessages(t *testing.T) {
 	m := NewRandomChainManager([]byte("xmsg"))
 	m.Generate()
 	chains := m.Chains()
-	require.Len(t, chains, 2)
+	require.GreaterOrEqual(t, len(chains), 2)
 
 	for _, rc := range chains {
 		first := rc.safeDB[0].L2.Number

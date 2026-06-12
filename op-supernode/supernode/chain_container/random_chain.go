@@ -126,9 +126,12 @@ func NewRandomChainManager(seed []byte) *RandomChainManager {
 }
 
 const (
-	genNumChains   = 2
-	genL2Depth     = 8
-	genL1Depth     = 4
+	genMinChains = 2
+	genMaxChains = 4
+	// L2 depths are drawn even: safe = depth-2 stays even, so every chain's
+	// SafeDB anchors at block 2 and all verification windows align.
+	genMinL2Depth  = 4
+	genMaxL2Depth  = 16
 	genL2BlockTime = 2
 	genL1BlockTime = 12
 	genGenesisTime = 1000
@@ -137,16 +140,30 @@ const (
 // Generate builds a fixed-shape set of valid, internally-consistent chains.
 // Topology is constant; the fuzz input only varies block contents.
 func (m *RandomChainManager) Generate() {
-	m.l1 = m.generateL1()
-	m.chains = make(map[eth.ChainID]*RandomChain, genNumChains)
-	m.order = make([]eth.ChainID, 0, genNumChains)
-	for i := 0; i < genNumChains; i++ {
-		id := uint64(900 + i)
-		rc := m.generateChain(id)
+	numChains := genMinChains + m.rng.Intn(genMaxChains-genMinChains+1)
+	depths := make([]uint64, numChains)
+	maxSafeDB := uint64(0)
+	for i := range depths {
+		depths[i] = genMinL2Depth + 2*uint64(m.rng.Intn((genMaxL2Depth-genMinL2Depth)/2+1))
+		maxSafeDB = max(maxSafeDB, safeDBLen(depths[i]))
+	}
+	// The shared L1 must hold every chain's SafeDB rows plus a currentL1
+	// above them.
+	m.l1 = m.generateL1(maxSafeDB + 2)
+	m.chains = make(map[eth.ChainID]*RandomChain, numChains)
+	m.order = make([]eth.ChainID, 0, numChains)
+	for i, depth := range depths {
+		rc := m.generateChain(uint64(900+i), depth)
 		m.chains[rc.chainID] = rc
 		m.order = append(m.order, rc.chainID)
 	}
 	m.wireExecutingMessages()
+}
+
+// safeDBLen returns the number of SafeDB rows generateChain plants for a chain
+// of the given depth: one per two blocks, covering 2..safe.
+func safeDBLen(l2Depth uint64) uint64 {
+	return (l2Depth-4)/2 + 1
 }
 
 // wireExecutingMessages plants one executing message in every verifiable block
@@ -179,8 +196,8 @@ func (m *RandomChainManager) randomChainExcept(i int) *RandomChain {
 	return m.chains[m.order[j]]
 }
 
-func (m *RandomChainManager) generateL1() []eth.L1BlockRef {
-	l1 := make([]eth.L1BlockRef, genL1Depth)
+func (m *RandomChainManager) generateL1(depth uint64) []eth.L1BlockRef {
+	l1 := make([]eth.L1BlockRef, depth)
 	var parent common.Hash
 	for i := range l1 {
 		h := m.randHash()
@@ -201,10 +218,10 @@ func (m *RandomChainManager) randHash() common.Hash {
 	return h
 }
 
-func (m *RandomChainManager) generateChain(idNum uint64) *RandomChain {
+func (m *RandomChainManager) generateChain(idNum, l2Depth uint64) *RandomChain {
 	l1 := m.l1
 
-	l2 := make([]L2Block, genL2Depth)
+	l2 := make([]L2Block, l2Depth)
 	var l2Parent common.Hash
 	for i := range l2 {
 		h := m.randHash()
@@ -216,7 +233,7 @@ func (m *RandomChainManager) generateChain(idNum uint64) *RandomChain {
 				Number:     uint64(i),
 				ParentHash: l2Parent,
 				Time:       genGenesisTime + uint64(i)*genL2BlockTime,
-				L1Origin:   l1[i*genL1Depth/genL2Depth].ID(),
+				L1Origin:   l1[uint64(i)*uint64(len(l1))/l2Depth].ID(),
 			},
 			Payload: &eth.ExecutionPayloadEnvelope{
 				ExecutionPayload: &eth.ExecutionPayload{
@@ -235,10 +252,12 @@ func (m *RandomChainManager) generateChain(idNum uint64) *RandomChain {
 		l2Parent = h
 	}
 
-	safeDB := []SafeHeadEntry{
-		{L1: l1[1].ID(), L2: l2[2].Ref.ID()},
-		{L1: l1[2].ID(), L2: l2[4].Ref.ID()},
-		{L1: l1[3].ID(), L2: l2[6].Ref.ID()},
+	safe := l2Depth - 2
+	// Rows must end exactly at safe (depth is even): OptimisticAt at the safe
+	// head has to resolve, or verification stops short of it.
+	safeDB := make([]SafeHeadEntry, 0, safeDBLen(l2Depth))
+	for k, n := uint64(1), uint64(2); n <= safe; k, n = k+1, n+2 {
+		safeDB = append(safeDB, SafeHeadEntry{L1: l1[k].ID(), L2: l2[n].Ref.ID()})
 	}
 
 	return &RandomChain{
@@ -253,14 +272,17 @@ func (m *RandomChainManager) generateChain(idNum uint64) *RandomChain {
 			BlockTime: genL2BlockTime,
 			L2ChainID: new(big.Int).SetUint64(idNum),
 		},
-		l2:          l2,
-		l1:          l1,
-		safeDB:      safeDB,
-		unsafe:      genL2Depth - 1,
-		safe:        6,
-		finalized:   4,
-		currentL1:   genL1Depth - 1,
-		finalizedL1: 2,
+		l2:     l2,
+		l1:     l1,
+		safeDB: safeDB,
+		unsafe: l2Depth - 1,
+		safe:   safe,
+		// finalized stays at or below safe; finalizedL1 below currentL1.
+		finalized: safe / 2,
+		// currentL1 sits above every SafeDB row, else FirstSafeHeadTimestamp
+		// reports the first entry as not yet stable.
+		currentL1:   uint64(len(l1)) - 1,
+		finalizedL1: uint64(len(l1)) / 2,
 	}
 }
 
