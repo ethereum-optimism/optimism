@@ -1,0 +1,120 @@
+---
+title: Recovering From an Invalid Interop Message Reorg
+lang: en-US
+description: Runbook for recovering an OP Stack interop network after an invalid executing message triggers a deep reorg and stalls the chain.
+---
+
+# Recovering From an Invalid Interop Message Reorg
+
+<Warning>Interop is still in development. This is a manual, safety-over-liveness recovery. The interop failsafe — not the stall — is what makes the network safe: while it is engaged, no interop transactions are admitted, so no new invalid executing message can be included and no further interop reorg can be triggered. **Engaging the failsafe is always the correct first step.** When you cannot confidently identify the canonical head, the target node, or the failure mode, halt with the failsafe engaged and get more engineering eyes on it — do not force recovery alone.</Warning>
+
+When an OP Stack interop network includes an **invalid executing message**, cross-chain validation rejects it and the message — together with every block built on it — is reorged out. The invalid block is replaced with a deposit-only block at the same height, and the execution layer rewinds from the tip back to the last common ancestor. This rewind can be deep; recovery is complete when heads reconverge on the canonical chain, not at any fixed depth. Never accepting an invalid message is the correct behavior, so the protocol deliberately stops rather than serve invalid state.
+
+The cost of that safety is that several components do not recover from the resulting deep reorg on their own and need manual operator intervention: the `op-interop-filter` failsafe stays engaged, `op-conductor` can deadlock on a stale unsafe head, a follow-mode sequencer can stay stuck on the wrong chain, and `op-reth`'s interop transaction pool can stay evicted after the failsafe clears. This runbook walks a chain operator or on-call engineer through detecting the stall, recovering each affected component, and restoring normal interop operation.
+
+The recovery follows a single outer loop, the **failsafe-first spine**: keep interop admission blocked while you repair the wedged components, and only re-enable interop once every affected network is canonical and finalizing. The sections below are steps inside that loop.
+
+The failsafe is the thing that makes the network safe, and it is what you engage first. A network that has truly stalled — producing no blocks at all — is incidentally safe because nothing is being admitted, but you should not rely on the stall: the guarantee comes from the failsafe blocking interop-transaction admission, which prevents any new invalid executing message from landing and any further interop reorg from being triggered. Not every failure mode stalls. Some leave the sequencer producing blocks on an **orphaned chain** — the network is live but building on a fork the rest of the dependency set has reorged away. In that case the failsafe is what keeps it safe, so engage the failsafe regardless of whether the sequencer is stalled or still producing.
+
+This runbook targets `op-reth`-based interop deployments. It assumes the validating topology is `op-supernode` driving `op-node`, with `op-interop-filter` enforcing executing-message validity at sequencer ingress.
+
+## Before You Begin
+
+You should be comfortable operating `op-node`, `op-reth`, `op-conductor`, `op-interop-filter`, and the batcher and proposer for the affected network, and reaching each over RPC or `kubectl`. Recovery touches consensus-layer-aware state across multiple components, so confirm your access and inputs before you start.
+
+### Required Tooling
+
+The versions below match the optimism repo's `mise.toml` pins; older `cast` in particular may not parse the RPC syntax used throughout this runbook.
+
+| Tool | Minimum version |
+| --- | --- |
+| `foundry` (`cast`) | `1.2.3` |
+| `curl` | any |
+| `jq` | `1.7.1` |
+| `kubectl` | matches your cluster |
+
+You also need the helper your environment uses to mint a JWT for the `op-interop-filter` admin port (the filter's admin RPC is JWT-authenticated).
+
+### Confirm Access
+
+Confirm you can reach all of the following **before** an incident escalates:
+
+* The JWT secret and a reachable admin port for **every** `op-interop-filter` instance in the deployment.
+* `op-conductor` RPC and `op-node` admin RPC for each sequencer, reachable **directly** — by port-forward or node address, **not** through `proxyd`. During an incident `proxyd` ingress may be returning errors or restarting, and routing your control plane through it can sever your own access mid-recovery.
+* The upstream `op-supernode` RPC for the network. This is the source of truth for the canonical head.
+* `kubectl` or equivalent exec access to restart `op-reth`, `op-rbuilder`, and `op-node`, and to pause, inspect, and restart the batcher, proposer, and `proxyd`.
+
+### Enumerate the Interop Dependency Set
+
+List every network in this interop set. A reorg on one network can cascade a reorg onto a dependent network, so more than one may end up reorged and stalled, and you engage the failsafe across all of them up front.
+
+For each network, have a per-network status check ready so you can tell which networks actually reorged and need recovery:
+
+* The network's `op-interop-filter` failsafe state (and the reason it tripped).
+* The sequencer's `optimism_syncStatus` (`unsafe_l2`, `safe_l2`, `finalized_l2`).
+
+### Gather the Required Inputs
+
+Collect these for the network you are recovering:
+
+* The filter **index-to-URL** map (HA deployments only). When `op-reth` is configured with multiple `op-interop-filter` endpoints, it labels per-endpoint metrics and logs by configuration index (`endpoint="0"`, `"1"`, and so on) rather than URL, because the URLs can carry basic-auth credentials. Keep a mapping from index to physical filter host so you know which filter each metric and command refers to. A single-filter deployment can skip this.
+* The set of sequencer and `op-conductor` nodes for the network.
+* The upstream `op-supernode` RPC (the canonical-head source of truth).
+* How to reach the batcher, proposer, and `proxyd` to pause, inspect, and restart them.
+* Whether the `proxyd` sequencer-ingress backend group uses `routing_strategy = "consensus_aware"`. This determines whether the `proxyd` recovery section applies — confirm it now, because it is hard to determine mid-incident.
+
+### Know When to Stop
+
+A stalled-but-safe network is an acceptable holding state. There is no automatic recovery deadline. Before you take any risky step, know who or what you turn to for additional engineering judgment — your team's on-call or a co-responder. This runbook does not assume a formal escalation tier; "escalate" here means pause and bring in more eyes, not hand off to a separate group.
+
+## Recovery Principles
+
+These principles apply to **every** recovery section below. They are the spine that keeps the per-component steps from becoming a footgun. Read them before you start, and apply them at every mutating step.
+
+* **Failsafe first.** The global order is fixed: (1) engage or keep the failsafe engaged so no interop transaction is admitted while the chain is repaired, (2) recover the wedged components until heads reconverge across every affected network, and (3) clear the failsafe **last** and restart `op-reth`. Every per-component section is a step inside this loop.
+* **Confirm the target before every mutating command.** Interop spans multiple networks, and there are multiple filters, sequencers, conductors, and `op-reth` nodes. Before any write, confirm and echo back which chain ID (`eth_chainId` or `optimism_syncStatus`), which node, which filter index, and which conductor you are about to act on.
+* **One observed confirmation per hazardous step.** Every hazardous step ends with a check you must observe before continuing. Never chain two mutations without confirming the first took effect, and do not proceed when a check does not return what is expected.
+* **Issue recovery RPCs directly to the node, never through `proxyd`.** Every `admin_*`, `conductor_*`, and `optimism_*` recovery call targets the node directly. `proxyd` ingress can be unavailable or restarting during the incident.
+* **Capture the incident baseline first.** Record the **reorg height** (the last common ancestor or replacement height) and the pre-action head numbers and hashes per affected node. The restore gate and the destructive-step rollbacks are evaluated against this baseline; without it you cannot tell when recovery is complete.
+* **The supernode is the source of truth for the correct head.** Derive the canonical post-reorg head from the upstream `op-supernode` and confirm hashes against it. Never hand-enter a head. `admin_postUnsafePayload` performs **no** canonicity check — it validates only the envelope's own block hash — so posting a wrong head and starting on it re-forks the chain.
+* **Destructive steps are flagged and gated.** Execution-layer rewinds, raft re-bootstrap (`OP_CONDUCTOR_RAFT_BOOTSTRAP=true`), and filter wipe-and-restart each discard data irreversibly. Each carries a warning stating exactly what is lost, requires you to capture the pre-action state first, and marks an explicit point of no return.
+* **Unvalidated steps are labeled.** Some procedures here have not yet been exercised against a real wedged chain. Those steps are labeled so you do not treat unverified prose as battle-tested during a live incident.
+
+### On Stopping Safely
+
+This is a safety-over-liveness system: a stalled network with the failsafe engaged is safe. Stopping is always a valid choice.
+
+* **Do not start under uncertainty.** If you cannot confidently identify the canonical head, the target node, or the failure mode, halt and leave the failsafe engaged. The network stays safe, just stalled. Get more eyes on it before taking a risky step rather than forcing recovery alone.
+* **If a step makes things worse, roll back.** Each hazardous section names how to return to the known-safe baseline — failsafe engaged, every sequencer stopped — and stop there. Returning to the safe baseline and pausing is always preferable to improvising mid-incident.
+
+## Symptoms and Alerting
+
+Alerting should detect this situation, not only guide recovery once you are already looking. The signals below are both what you observe during triage and the basis for alert definitions; tune thresholds and panels with your observability owner.
+
+* **Interop failsafe engaged.** The `op-reth` aggregate gauge `optimism_transaction_pool.interop.failsafe_enabled == 1` sustained beyond a few minutes, or any filter's `admin_getFailsafeEnabled == true`. This is the first thing to check.
+* **Sequencer unsafe-head lag.** `optimism_syncStatus.unsafe_l2` time falling behind wallclock or not advancing, and `op-conductor` logging `unsafe head is falling behind the unsafe interval`.
+* **Sequencer on an orphaned chain.** The sequencer's `unsafe_l2` is still advancing — so head-lag and stall alerts stay quiet — but its hash diverges from the upstream `op-supernode`'s canonical chain at the same height. A still-producing sequencer is not safe while it builds on an orphaned fork; engage the failsafe.
+* **Conductor cluster wedged.** `conductor_sequencerHealthy == false` across the cluster, no node reporting `conductor_leader == true`, and a high leadership-transfer rate.
+* **Follower diverged or stalled.** A follow-mode node's head lagging or disagreeing with the upstream `op-supernode`, a rising `FollowSourceRequests{error_*}` rate, or repeated `could not get payload: not found` logs.
+* **Filter quorum rejecting.** Rising `quorum_reject_*` counters on `op-reth`.
+
+Look first at the failsafe state and its **reason**, `optimism_syncStatus` per network, and conductor health. Those three route the rest of triage.
+
+## Triage
+
+Work this decision tree top to bottom. It is explicit about ordering: the failsafe-first spine wraps the whole tree, and sequencer recovery comes before `proxyd` recovery and before the restore gate.
+
+1. **Confirm, contain, and record the baseline.** Confirm the reorg or invalid message from the filter failsafe state, its **reason label**, and the supernode and sync status. **Record the reorg height** (the last common ancestor or replacement height) — the restore gate compares against it. Ensure the failsafe is **engaged** (it usually auto-trips on the reorg; if not, engage it) before anything else.
+   * *Non-reorg branch:* if the failsafe is on but the reason is **not** `reorg` or `cross_validation` — that is, `conflict`, `data_corruption`, or `invalid_log` — this is not an invalid-message reorg. Route to the filter non-reorg remedy (wipe-and-restart, see **Inspect and Control the Interop Filter Failsafe**) and stop. The rest of this runbook does not apply.
+   * *Failsafe-off-but-wedged branch:* if symptoms of trouble are present but the failsafe is off — for example it was cleared too early, or auto-recovery cleared an `ErrorReorg` while the chain stayed wedged — **re-engage the failsafe network-wide** and continue. The symptoms are not only a stall: head lag, conductor churn, or a stuck follower, **but also a sequencer that is still producing blocks on an orphaned chain** (a fork the rest of the dependency set reorged away). A live-but-orphaned sequencer is not safe until the failsafe is engaged, so engage it here regardless of whether blocks are still being produced.
+2. **Engage the failsafe network-wide, then work one network at a time.** This runbook is written from the perspective of a single network whose sequencers got stuck during the reorg. Enable the failsafe across the whole dependency set up front, because a reorg on one network can cascade onto a dependent one. Then recover this one network with the sections below. If a second network in the set also reorged and stalled, **repeat the whole runbook for that network**. There is no cross-network ordering beyond keeping the failsafe engaged everywhere until each affected network is individually recovered and canonical. See **Scope: One Network at a Time**.
+3. **Coordinate the batcher and proposer** for the network under repair — pause the batcher before any head surgery. See **Coordinate the Batcher and Proposer**.
+4. **Recover the wedged sequencer first.** The sequencer and execution-layer heads must stop regressing before `proxyd` or the restore gate can succeed.
+   * Is the sequencer conductor-managed and wedged? Go to **Recover a Conductor-Managed Sequencer**.
+   * Is a follow-mode or light-mode sequencer stuck on the wrong chain or stalled? Go to **Recover a Stuck or Stalled Follow-Mode Sequencer**.
+   * *Combined case:* if the wedged sequencer is **both** conductor-managed and a stalled follower, **re-anchor the follower's head first** (follow-mode section), then run the conductor recovery — otherwise `admin_startSequencer` rejects the pinned stale head.
+5. **Recover the flashblocks builder stack**, if the network runs flashblocks (`rollup-boost` and `op-rbuilder`). Confirm `rollup-boost` fell back to its standard `op-reth` execution client, and check whether the builder is silently dropping interop transactions. The network's safety does not depend on the builder. See **Recover the Flashblocks Builder Stack**.
+6. **Recover `proxyd`**, now that heads are stable. If ingress is still failing for all clients (`ErrNoBackends`), or the ingress group is `consensus_aware` and showing banned backends, go to **Recover proxyd**. Do this **after** the sequencer is recovered — restarting `proxyd` while heads still regress just re-bans backends within about a second. If interop transactions fail but the filter is healthy and the group is **not** `consensus_aware`, that is the `op-reth` interop pool eviction; restart `op-reth` (handled in **Clear the Network-Wide Failsafe and Re-Enable Interop**), not a `proxyd` problem.
+7. **Restore this network.** Once this network's heads are canonical, the batcher and proposer are resumed, and a healthy batch has been posted to L1 and processed, go to **Restore This Network** — the failsafe stays engaged there. The failsafe is cleared only in the single terminal section **Clear the Network-Wide Failsafe and Re-Enable Interop**, run once **every** affected network has reached this point.
+
+At any branch where you are uncertain, stop. Leave the failsafe engaged — the network is safe, just stalled — and get more eyes on it before forcing a risky step. See [On Stopping Safely](#on-stopping-safely).
