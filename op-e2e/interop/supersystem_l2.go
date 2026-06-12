@@ -174,6 +174,7 @@ func (s *interopE2ESystem) newELForL2(id string, node string, l2Out *interopgen.
 		Genesis: l2Out.Genesis,
 		JWTPath: jwtPath,
 		Logger:  s.logger.New("role", name),
+		DataDir: s.t.TempDir(),
 	})
 	require.NoError(s.t, err)
 	s.t.Cleanup(func() {

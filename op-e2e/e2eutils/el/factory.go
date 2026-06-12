@@ -26,6 +26,9 @@ type L2Config struct {
 	// SequencerHTTP, when set, points non-sequencer nodes at the sequencer for
 	// tx forwarding. On op-reth it maps to --rollup.sequencer-http.
 	SequencerHTTP string
+	// DataDir is the op-reth base directory; callers should pass t.TempDir() so
+	// the test framework owns cleanup. Ignored by the in-process op-geth backend.
+	DataDir string
 	// GethOptions are op-geth-only knobs. They cannot apply to op-reth; passing
 	// any on the op-reth path is a hard error (see InitL2).
 	GethOptions []geth.GethOption
@@ -51,6 +54,7 @@ func InitL2(ctx context.Context, cfg L2Config) (services.EthInstance, error) {
 		}
 		return reth.InitL2(ctx, cfg.Logger, cfg.Name, cfg.Genesis, cfg.JWTPath, reth.Config{
 			SequencerHTTP: cfg.SequencerHTTP,
+			DataDir:       cfg.DataDir,
 		})
 	default:
 		return nil, fmt.Errorf("unknown L2 EL kind %q for node %q", cfg.Kind, cfg.Name)

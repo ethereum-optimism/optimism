@@ -802,6 +802,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			JWTPath:       cfg.JWTFilePath,
 			Logger:        nodeLogger,
 			SequencerHTTP: sequencerHTTP,
+			DataDir:       t.TempDir(),
 			GethOptions:   cfg.GethOptions[name],
 		})
 		if err != nil {

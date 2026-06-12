@@ -37,7 +37,7 @@ func TestRethInstance(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	inst, err := InitL2(ctx, lgr, "reth-test", genesis, jwtPath, Config{})
+	inst, err := InitL2(ctx, lgr, "reth-test", genesis, jwtPath, Config{DataDir: t.TempDir()})
 	require.NoError(t, err, "must boot op-reth")
 	t.Cleanup(func() { require.NoError(t, inst.Close()) })
 

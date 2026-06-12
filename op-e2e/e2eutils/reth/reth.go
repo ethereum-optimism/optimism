@@ -38,6 +38,11 @@ type Config struct {
 	SequencerHTTP string
 	// ProofsHistoryVersion selects the proof-history storage version; defaults to v2.
 	ProofsHistoryVersion string
+	// DataDir is the base directory for the op-reth datadir/logs/proof-history.
+	// Callers in tests should pass t.TempDir() so the framework owns cleanup
+	// even if the test panics before Close. When empty, a temp dir is created
+	// and removed on Close.
+	DataDir string
 	// ExtraArgs are appended verbatim to the op-reth `node` invocation.
 	ExtraArgs []string
 }
@@ -117,12 +122,23 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		return nil, fmt.Errorf("op-reth binary not available: %w", err)
 	}
 
-	baseDir, err := os.MkdirTemp("", "op-reth-"+name+"-")
-	if err != nil {
-		return nil, fmt.Errorf("create temp dir: %w", err)
+	// When the caller provides a DataDir (e.g. t.TempDir()), the test framework
+	// owns its removal; otherwise create one we remove ourselves on Close.
+	baseDir := cfg.DataDir
+	ownDataDir := baseDir == ""
+	if ownDataDir {
+		baseDir, err = os.MkdirTemp("", "op-reth-"+name+"-")
+		if err != nil {
+			return nil, fmt.Errorf("create temp dir: %w", err)
+		}
 	}
-	// Any early failure must clean up the temp dir; Close() owns it once we return ok.
-	cleanup := func() { _ = os.RemoveAll(baseDir) }
+	// Any early failure must clean up a temp dir we created; Close() owns it once
+	// we return ok. A caller-provided DataDir is left for the framework to remove.
+	cleanup := func() {
+		if ownDataDir {
+			_ = os.RemoveAll(baseDir)
+		}
+	}
 
 	dataDir := filepath.Join(baseDir, "data")
 	logDir := filepath.Join(baseDir, "logs")
@@ -130,7 +146,7 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 	chainConfigPath := filepath.Join(baseDir, "genesis.json")
 
 	for _, dir := range []string{dataDir, logDir} {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			cleanup()
 			return nil, fmt.Errorf("create dir %s: %w", dir, err)
 		}
@@ -141,7 +157,7 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		cleanup()
 		return nil, fmt.Errorf("marshal genesis: %w", err)
 	}
-	if err := os.WriteFile(chainConfigPath, genesisData, 0o640); err != nil {
+	if err := os.WriteFile(chainConfigPath, genesisData, 0o600); err != nil {
 		cleanup()
 		return nil, fmt.Errorf("write genesis: %w", err)
 	}
@@ -209,8 +225,12 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 	args = append(args, cfg.ExtraArgs...)
 
 	inst := &Instance{
-		logger:  lgr,
-		dataDir: baseDir,
+		logger: lgr,
+	}
+	// Only remove the datadir on Close if we created it; a caller-provided one
+	// is owned by the test framework.
+	if ownDataDir {
+		inst.dataDir = baseDir
 	}
 
 	// op-reth reports the ephemeral http/auth ports via structured logs once the
