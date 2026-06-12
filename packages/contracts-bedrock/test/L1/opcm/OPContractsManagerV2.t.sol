@@ -1053,10 +1053,10 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), 1 ether, "ZK init bond not set");
     }
 
-    /// @notice Tests that enabling the ZK dispute game encodes l2ChainId=0 in the factory game
-    ///         args, enforcing the super-game convention (chain ID is embedded in extraData, not
-    ///         in the immutable args).
-    function test_upgrade_zkGameArgsZeroChainId_succeeds() public {
+    /// @notice Tests that enabling the ZK dispute game encodes the 140-byte CWIA layout in the
+    ///         factory game args. As a super game, chain scoping comes from the SuperRootProof
+    ///         preimage committed to via rootClaim, so no l2ChainId field is included.
+    function test_upgrade_zkGameArgsLayout_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
         v2UpgradeInput.disputeGameConfigs[5].enabled = true;

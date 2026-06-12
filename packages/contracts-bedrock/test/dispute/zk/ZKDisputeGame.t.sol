@@ -1476,6 +1476,6 @@ contract ZKDisputeGame_RevertOnReceive_Harness {
     }
 }
 
-// Import needed for the l2ChainId=0 test
+// Verifier test doubles used by the prove() tests.
 import { ZKMockVerifier } from "test/dispute/zk/ZKMockVerifier.sol";
 import { ZKRejectingVerifier } from "test/dispute/zk/ZKRejectingVerifier.sol";

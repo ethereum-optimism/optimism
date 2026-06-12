@@ -2152,7 +2152,8 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
 
             // ZK game is not deployed on mainnet. Mock it using the same ASR and WETH as CANNON
             // (same on-chain infrastructure) so _assertValidZKGameArgs passes its checks.
-            // ZK_DISPUTE_GAME is a super game: l2ChainId must be 0 in the factory args.
+            // ZK_DISPUTE_GAME is a super game: chain scoping comes from the SuperRootProof
+            // preimage, so the 140-byte layout has no l2ChainId field.
             bytes memory zkArgs = abi.encodePacked(
                 bytes32(keccak256("zkPrestate")),
                 address(0xBEEF),
@@ -2160,8 +2161,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 uint64(3 days),
                 uint256(0.08 ether),
                 cannonArgs.anchorStateRegistry,
-                cannonArgs.weth,
-                uint256(0)
+                cannonArgs.weth
             );
             vm.mockCall(
                 address(dgf),
