@@ -81,6 +81,8 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 	}
 
 	var node services.EthInstance
+	// Intentionally op-geth: this harness exercises op-geth-specific RPC and is
+	// not routed through the el selector. Revisit when op-geth is removed.
 	gethNode, err := geth.InitL2("l2", l2Genesis, cfg.JWTFilePath)
 	require.NoError(t, err)
 	require.NoError(t, gethNode.Node.Start())
