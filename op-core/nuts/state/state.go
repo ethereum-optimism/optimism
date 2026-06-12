@@ -27,22 +27,22 @@ var stateFS embed.FS
 
 // PreForkState returns the frozen L2 predeploy state a chain has immediately
 // before fork activates — i.e. the state as of forks.Prev(fork) — as a set of
-// accounts to overlay onto the genesis predeploy set. ok is false when no state
-// artifact is committed for that predecessor fork yet (callers then fall back to
-// building genesis from current source).
-func PreForkState(fork forks.Name) (alloc types.GenesisAlloc, ok bool, err error) {
+// accounts to overlay onto the genesis predeploy set. The activation test requires
+// one, so a missing state is an error: either fork has no predecessor, or no
+// artifact is committed for that predecessor yet.
+func PreForkState(fork forks.Name) (types.GenesisAlloc, error) {
 	prev := forks.Prev(fork)
 	if prev == forks.None {
-		return nil, false, nil
+		return nil, fmt.Errorf("fork %s has no predecessor fork", fork)
 	}
 	name := fmt.Sprintf("%s_state.json", prev)
 	data, err := stateFS.ReadFile(name)
 	if err != nil {
-		// No committed state for this predecessor fork.
-		return nil, false, nil
+		return nil, fmt.Errorf("no committed pre-fork state for %s (%s): %w", prev, name, err)
 	}
+	var alloc types.GenesisAlloc
 	if err := json.Unmarshal(data, &alloc); err != nil {
-		return nil, true, fmt.Errorf("parsing pre-fork state %s: %w", name, err)
+		return nil, fmt.Errorf("parsing pre-fork state %s: %w", name, err)
 	}
-	return alloc, true, nil
+	return alloc, nil
 }

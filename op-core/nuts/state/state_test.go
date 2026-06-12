@@ -10,18 +10,16 @@ import (
 )
 
 // TestPreForkState guards that the states the activation test relies on are
-// actually committed and load. The test silently falls back to HEAD allocs when
-// PreForkState returns ok=false, so a missing or unembedded state would otherwise
-// slip by — here we assert each consuming fork resolves one (with a real predeploy
-// present).
+// actually committed and load — asserting each consuming fork resolves one, with a
+// real predeploy present. This catches a missing or unembedded state here (a fast,
+// kona-host-free check) rather than only when the activation test runs.
 func TestPreForkState(t *testing.T) {
 	// Every fork from karst onward boots from its predecessor's committed state.
 	// forks.From(karst) auto-covers future forks: adding one without generating
-	// its predecessor's state will fail here (the intended reminder).
+	// its predecessor's state will fail here.
 	for _, fork := range forks.From(forks.Karst) {
-		alloc, ok, err := PreForkState(fork)
-		require.NoError(t, err)
-		require.Truef(t, ok, "a pre-fork state should back %s", fork)
+		alloc, err := PreForkState(fork)
+		require.NoErrorf(t, err, "a pre-fork state should back %s", fork)
 		require.NotEmpty(t, alloc)
 
 		feeVault, found := alloc[predeploys.SequencerFeeVaultAddr]
@@ -30,11 +28,10 @@ func TestPreForkState(t *testing.T) {
 	}
 }
 
-// TestPreForkStateMissing confirms a fork with no committed predecessor state
-// reports ok=false (so callers fall back to building genesis from source).
-func TestPreForkStateMissing(t *testing.T) {
-	// bedrock has no predecessor fork, so there is no state to back it.
-	_, ok, err := PreForkState(forks.Bedrock)
-	require.NoError(t, err)
-	require.False(t, ok)
+// TestPreForkStateNoPredecessor confirms PreForkState errors for a fork with no
+// preceding fork.
+func TestPreForkStateNoPredecessor(t *testing.T) {
+	// bedrock is the first fork, so forks.Prev(bedrock) == forks.None.
+	_, err := PreForkState(forks.Bedrock)
+	require.Error(t, err)
 }
