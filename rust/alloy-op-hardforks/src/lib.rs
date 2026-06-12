@@ -70,7 +70,8 @@ impl OpHardfork {
                 _i if timestamp < OP_MAINNET_HOLOCENE_TIMESTAMP => Self::Granite,
                 _i if timestamp < OP_MAINNET_ISTHMUS_TIMESTAMP => Self::Holocene,
                 _i if timestamp < OP_MAINNET_JOVIAN_TIMESTAMP => Self::Isthmus,
-                _ => Self::Jovian,
+                _i if timestamp < OP_MAINNET_KARST_TIMESTAMP => Self::Jovian,
+                _ => Self::Karst,
             }),
             NamedChain::OptimismSepolia => Some(match timestamp {
                 _i if timestamp < OP_SEPOLIA_CANYON_TIMESTAMP => Self::Regolith,
@@ -80,7 +81,8 @@ impl OpHardfork {
                 _i if timestamp < OP_SEPOLIA_HOLOCENE_TIMESTAMP => Self::Granite,
                 _i if timestamp < OP_SEPOLIA_ISTHMUS_TIMESTAMP => Self::Holocene,
                 _i if timestamp < OP_SEPOLIA_JOVIAN_TIMESTAMP => Self::Isthmus,
-                _ => Self::Jovian,
+                _i if timestamp < OP_SEPOLIA_KARST_TIMESTAMP => Self::Jovian,
+                _ => Self::Karst,
             }),
             NamedChain::Base => Some(match timestamp {
                 _i if timestamp < BASE_MAINNET_CANYON_TIMESTAMP => Self::Regolith,
@@ -107,7 +109,7 @@ impl OpHardfork {
     }
 
     /// Optimism mainnet list of hardforks.
-    pub const fn op_mainnet() -> [(Self, ForkCondition); 9] {
+    pub const fn op_mainnet() -> [(Self, ForkCondition); 10] {
         [
             (Self::Bedrock, ForkCondition::Block(OP_MAINNET_BEDROCK_BLOCK)),
             (Self::Regolith, ForkCondition::Timestamp(OP_MAINNET_REGOLITH_TIMESTAMP)),
@@ -118,11 +120,12 @@ impl OpHardfork {
             (Self::Holocene, ForkCondition::Timestamp(OP_MAINNET_HOLOCENE_TIMESTAMP)),
             (Self::Isthmus, ForkCondition::Timestamp(OP_MAINNET_ISTHMUS_TIMESTAMP)),
             (Self::Jovian, ForkCondition::Timestamp(OP_MAINNET_JOVIAN_TIMESTAMP)),
+            (Self::Karst, ForkCondition::Timestamp(OP_MAINNET_KARST_TIMESTAMP)),
         ]
     }
 
     /// Optimism Sepolia list of hardforks.
-    pub const fn op_sepolia() -> [(Self, ForkCondition); 9] {
+    pub const fn op_sepolia() -> [(Self, ForkCondition); 10] {
         [
             (Self::Bedrock, ForkCondition::Block(OP_SEPOLIA_BEDROCK_BLOCK)),
             (Self::Regolith, ForkCondition::Timestamp(OP_SEPOLIA_REGOLITH_TIMESTAMP)),
@@ -133,6 +136,7 @@ impl OpHardfork {
             (Self::Holocene, ForkCondition::Timestamp(OP_SEPOLIA_HOLOCENE_TIMESTAMP)),
             (Self::Isthmus, ForkCondition::Timestamp(OP_SEPOLIA_ISTHMUS_TIMESTAMP)),
             (Self::Jovian, ForkCondition::Timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP)),
+            (Self::Karst, ForkCondition::Timestamp(OP_SEPOLIA_KARST_TIMESTAMP)),
         ]
     }
 
@@ -169,6 +173,44 @@ impl OpHardfork {
     /// Returns index of `self` in sorted canonical array.
     pub const fn idx(&self) -> usize {
         *self as usize
+    }
+
+    /// Returns the L1 ([`EthereumHardfork`]) hardfork whose L2-relevant changes this OP
+    /// hardfork newly activates, if any.
+    ///
+    /// This is the canonical OP fork → implied L1 fork table. Every other view of the
+    /// relation ([`Self::implied_l1_fork`], [`Self::activating_op_fork`]) derives from it.
+    pub const fn activates_l1_fork(self) -> Option<EthereumHardfork> {
+        match self {
+            Self::Bedrock => Some(EthereumHardfork::Paris),
+            Self::Canyon => Some(EthereumHardfork::Shanghai),
+            Self::Ecotone => Some(EthereumHardfork::Cancun),
+            Self::Isthmus => Some(EthereumHardfork::Prague),
+            Self::Karst => Some(EthereumHardfork::Osaka),
+            _ => None,
+        }
+    }
+
+    /// Returns the latest L1 ([`EthereumHardfork`]) hardfork whose changes are active on L2
+    /// once this OP hardfork is active.
+    ///
+    /// This is the cumulative view of [`Self::activates_l1_fork`]: forks that don't activate
+    /// an L1 fork themselves inherit the one implied by their predecessors.
+    pub fn implied_l1_fork(self) -> EthereumHardfork {
+        Self::VARIANTS[..=self.idx()]
+            .iter()
+            .rev()
+            .find_map(|fork| fork.activates_l1_fork())
+            .expect("Bedrock implies Paris, so every OP fork has an implied L1 fork")
+    }
+
+    /// Returns the OP hardfork that activates the given L1 ([`EthereumHardfork`]) hardfork
+    /// on L2, if any.
+    ///
+    /// This is the inverse view of [`Self::activates_l1_fork`]. L1 forks without an L2
+    /// equivalent (e.g. the blob-parameter-only forks) return `None`.
+    pub fn activating_op_fork(l1_fork: EthereumHardfork) -> Option<Self> {
+        Self::VARIANTS.iter().copied().find(|fork| fork.activates_l1_fork() == Some(l1_fork))
     }
 }
 
@@ -306,22 +348,18 @@ impl OpChainHardforks {
 
 impl EthereumHardforks for OpChainHardforks {
     fn ethereum_fork_activation(&self, fork: EthereumHardfork) -> ForkCondition {
-        use EthereumHardfork::{Cancun, Osaka, Prague, Shanghai};
-        use OpHardfork::{Canyon, Ecotone, Isthmus, Karst};
-
         if self.forks.is_empty() {
             return ForkCondition::Never;
         }
 
-        let forks_len = self.forks.len();
-        // check index out of bounds
-        match fork {
-            Shanghai if forks_len <= Canyon.idx() => ForkCondition::Never,
-            Cancun if forks_len <= Ecotone.idx() => ForkCondition::Never,
-            Prague if forks_len <= Isthmus.idx() => ForkCondition::Never,
-            Osaka if forks_len <= Karst.idx() => ForkCondition::Never,
-            _ => self[fork],
+        // The L1 fork never activates if the OP fork activating it is out of bounds.
+        if let Some(op_fork) = OpHardfork::activating_op_fork(fork) &&
+            self.forks.len() <= op_fork.idx()
+        {
+            return ForkCondition::Never;
         }
+
+        self[fork]
     }
 }
 
@@ -365,15 +403,12 @@ impl Index<EthereumHardfork> for OpChainHardforks {
 
     fn index(&self, hf: EthereumHardfork) -> &Self::Output {
         use EthereumHardfork::{
-            Amsterdam, ArrowGlacier, Berlin, Bpo1, Bpo2, Bpo3, Bpo4, Bpo5, Byzantium, Cancun,
-            Constantinople, Dao, Frontier, GrayGlacier, Homestead, Istanbul, London, MuirGlacier,
-            Osaka, Paris, Petersburg, Prague, Shanghai, SpuriousDragon, Tangerine,
+            ArrowGlacier, Berlin, Byzantium, Constantinople, Frontier, GrayGlacier, Homestead,
+            Istanbul, London, MuirGlacier, Paris, Petersburg, SpuriousDragon, Tangerine,
         };
-        use OpHardfork::{Bedrock, Canyon, Ecotone, Isthmus, Karst};
+        use OpHardfork::Bedrock;
 
         match hf {
-            // Dao Hardfork is not needed for OpChainHardforks
-            Dao | Bpo1 | Bpo2 | Bpo3 | Bpo4 | Bpo5 | Amsterdam => &ForkCondition::Never,
             Berlin if self.is_op_mainnet() => &ForkCondition::Block(OP_MAINNET_BERLIN_BLOCK),
             Frontier | Homestead | Tangerine | SpuriousDragon | Byzantium | Constantinople |
             Petersburg | Istanbul | MuirGlacier | Berlin => &ForkCondition::ZERO_BLOCK,
@@ -388,11 +423,10 @@ impl Index<EthereumHardfork> for OpChainHardforks {
                 fork_block: Some(0),
                 total_difficulty: U256::ZERO,
             },
-            Shanghai => &self[Canyon],
-            Cancun => &self[Ecotone],
-            Prague => &self[Isthmus],
-            Osaka => &self[Karst],
-            _ => unreachable!(),
+            // Timestamp-era L1 forks activate with the OP fork that implies them; L1 forks
+            // without an L2 equivalent (Dao, the BPO forks, Amsterdam, ...) never activate.
+            _ => OpHardfork::activating_op_fork(hf)
+                .map_or(&ForkCondition::Never, |op_fork| &self[op_fork]),
         }
     }
 }
@@ -464,6 +498,7 @@ mod tests {
             ForkCondition::Timestamp(OP_MAINNET_ISTHMUS_TIMESTAMP)
         );
         assert_eq!(op_mainnet_forks[Jovian], ForkCondition::Timestamp(OP_MAINNET_JOVIAN_TIMESTAMP));
+        assert_eq!(op_mainnet_forks[Karst], ForkCondition::Timestamp(OP_MAINNET_KARST_TIMESTAMP));
         assert_eq!(op_mainnet_forks.op_fork_activation(Lagoon), ForkCondition::Never);
     }
 
@@ -496,6 +531,7 @@ mod tests {
             ForkCondition::Timestamp(OP_SEPOLIA_ISTHMUS_TIMESTAMP)
         );
         assert_eq!(op_sepolia_forks[Jovian], ForkCondition::Timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP));
+        assert_eq!(op_sepolia_forks[Karst], ForkCondition::Timestamp(OP_SEPOLIA_KARST_TIMESTAMP));
         assert_eq!(op_sepolia_forks.op_fork_activation(Lagoon), ForkCondition::Never);
     }
 
@@ -634,6 +670,8 @@ mod tests {
             (Chain::optimism_mainnet(), OP_MAINNET_JOVIAN_TIMESTAMP, OpHardfork::Jovian),
             (Chain::optimism_mainnet(), OP_MAINNET_JOVIAN_TIMESTAMP - 1, OpHardfork::Isthmus),
             (Chain::optimism_mainnet(), OP_MAINNET_JOVIAN_TIMESTAMP + 1000, OpHardfork::Jovian),
+            (Chain::optimism_mainnet(), OP_MAINNET_KARST_TIMESTAMP, OpHardfork::Karst),
+            (Chain::optimism_mainnet(), OP_MAINNET_KARST_TIMESTAMP - 1, OpHardfork::Jovian),
             // OP Sepolia
             (Chain::optimism_sepolia(), OP_SEPOLIA_CANYON_TIMESTAMP, OpHardfork::Canyon),
             (Chain::optimism_sepolia(), OP_SEPOLIA_ECOTONE_TIMESTAMP, OpHardfork::Ecotone),
@@ -641,6 +679,8 @@ mod tests {
             (Chain::optimism_sepolia(), OP_SEPOLIA_JOVIAN_TIMESTAMP, OpHardfork::Jovian),
             (Chain::optimism_sepolia(), OP_SEPOLIA_JOVIAN_TIMESTAMP - 1, OpHardfork::Isthmus),
             (Chain::optimism_sepolia(), OP_SEPOLIA_JOVIAN_TIMESTAMP + 1000, OpHardfork::Jovian),
+            (Chain::optimism_sepolia(), OP_SEPOLIA_KARST_TIMESTAMP, OpHardfork::Karst),
+            (Chain::optimism_sepolia(), OP_SEPOLIA_KARST_TIMESTAMP - 1, OpHardfork::Jovian),
             // Base Mainnet
             (Chain::base_mainnet(), BASE_MAINNET_CANYON_TIMESTAMP, OpHardfork::Canyon),
             (Chain::base_mainnet(), BASE_MAINNET_ECOTONE_TIMESTAMP, OpHardfork::Ecotone),
@@ -661,6 +701,71 @@ mod tests {
 
         // Edge cases
         assert_eq!(OpHardfork::from_chain_and_timestamp(Chain::from_id(999999), 1000000), None);
+    }
+
+    #[test]
+    fn implied_l1_fork_table() {
+        use EthereumHardfork::{Cancun, Osaka, Paris, Prague, Shanghai};
+
+        let expected = [
+            (OpHardfork::Bedrock, Paris),
+            (OpHardfork::Regolith, Paris),
+            (OpHardfork::Canyon, Shanghai),
+            (OpHardfork::Ecotone, Cancun),
+            (OpHardfork::Fjord, Cancun),
+            (OpHardfork::Granite, Cancun),
+            (OpHardfork::Holocene, Cancun),
+            (OpHardfork::Isthmus, Prague),
+            (OpHardfork::Jovian, Prague),
+            (OpHardfork::Karst, Osaka),
+            (OpHardfork::Lagoon, Osaka),
+        ];
+        assert_eq!(expected.len(), OpHardfork::VARIANTS.len());
+        for (op_fork, l1_fork) in expected {
+            assert_eq!(op_fork.implied_l1_fork(), l1_fork, "{op_fork}");
+        }
+    }
+
+    #[test]
+    fn implied_l1_fork_is_monotonic() {
+        for window in OpHardfork::VARIANTS.windows(2) {
+            assert!(
+                window[0].implied_l1_fork() <= window[1].implied_l1_fork(),
+                "implied L1 fork must not decrease from {} to {}",
+                window[0],
+                window[1]
+            );
+        }
+    }
+
+    #[test]
+    fn activating_op_fork_inverts_activates_l1_fork() {
+        for op_fork in OpHardfork::VARIANTS.iter().copied() {
+            if let Some(l1_fork) = op_fork.activates_l1_fork() {
+                assert_eq!(OpHardfork::activating_op_fork(l1_fork), Some(op_fork));
+            }
+        }
+        assert_eq!(OpHardfork::activating_op_fork(EthereumHardfork::Bpo1), None);
+        assert_eq!(OpHardfork::activating_op_fork(EthereumHardfork::Amsterdam), None);
+    }
+
+    #[test]
+    fn ethereum_fork_activation_follows_op_fork_activation() {
+        use EthereumHardfork::{Cancun, Osaka, Prague, Shanghai};
+        use OpHardfork::{Canyon, Ecotone, Isthmus, Karst};
+
+        let forks = OpChainHardforks::op_mainnet();
+        for (l1_fork, op_fork) in
+            [(Shanghai, Canyon), (Cancun, Ecotone), (Prague, Isthmus), (Osaka, Karst)]
+        {
+            assert_eq!(
+                forks.ethereum_fork_activation(l1_fork),
+                forks.op_fork_activation(op_fork),
+                "{l1_fork} must activate with {op_fork}"
+            );
+        }
+        // L1 forks without an L2 equivalent never activate.
+        assert_eq!(forks.ethereum_fork_activation(EthereumHardfork::Bpo1), ForkCondition::Never);
     }
 
     // https://github.com/alloy-rs/hardforks/issues/63

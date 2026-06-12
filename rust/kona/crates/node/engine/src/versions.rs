@@ -1,18 +1,22 @@
 //! Engine API version selection based on Optimism hardfork activations.
 //!
 //! Automatically selects the appropriate Engine API method versions based on
-//! the rollup configuration and block timestamps. Different Optimism hardforks
-//! require different Engine API versions to support new features.
+//! the rollup configuration and block timestamps. The required method version
+//! tracks the L1 (Ethereum) hardfork implied by the active OP hardfork, so
+//! versions are selected by querying the L1 fork activations that the rollup
+//! config derives from the canonical OP fork → L1 fork mapping in
+//! `alloy-op-hardforks`.
 //!
 //! # Version Mapping
 //!
-//! - **Bedrock, Canyon, Delta** → V2 methods
-//! - **Ecotone (Cancun)** → V3 methods
-//! - **Isthmus** → V4 methods
-//! - **Karst (Osaka)** → V5 `getPayload` (`newPayload`/`forkchoiceUpdated` stay at their V4/V3)
+//! - **pre-Cancun (Bedrock, Canyon, Delta)** → V2 methods
+//! - **Cancun (Ecotone)** → V3 methods
+//! - **Prague (Isthmus)** → V4 methods
+//! - **Osaka (Karst)** → V5 `getPayload` (`newPayload`/`forkchoiceUpdated` stay at their V4/V3)
 //!
 //! Adapted from the [OP Node version providers](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/rollup/types.go#L546).
 
+use alloy_hardforks::EthereumHardforks;
 use kona_genesis::RollupConfig;
 
 /// Engine API version for `engine_forkchoiceUpdated` method calls.
@@ -30,10 +34,10 @@ pub enum EngineForkchoiceVersion {
 impl EngineForkchoiceVersion {
     /// Returns the appropriate [`EngineForkchoiceVersion`] for the chain at the given attributes.
     ///
-    /// Uses the [`RollupConfig`] to check which hardfork is active at the given timestamp.
+    /// Uses the [`RollupConfig`] to check which L1 hardfork is implied at the given timestamp.
     pub fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
-        if cfg.is_ecotone_active(timestamp) {
-            // Cancun+
+        if cfg.is_cancun_active_at_timestamp(timestamp) {
+            // Ecotone+
             Self::V3
         } else {
             // Bedrock, Canyon, Delta
@@ -61,12 +65,11 @@ pub enum EngineNewPayloadVersion {
 impl EngineNewPayloadVersion {
     /// Returns the appropriate [`EngineNewPayloadVersion`] for the chain at the given timestamp.
     ///
-    /// Uses the [`RollupConfig`] to check which hardfork is active at the given timestamp.
+    /// Uses the [`RollupConfig`] to check which L1 hardfork is implied at the given timestamp.
     pub fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
-        if cfg.is_isthmus_active(timestamp) {
+        if cfg.is_prague_active_at_timestamp(timestamp) {
             Self::V4
-        } else if cfg.is_ecotone_active(timestamp) {
-            // Cancun
+        } else if cfg.is_cancun_active_at_timestamp(timestamp) {
             Self::V3
         } else {
             Self::V2
@@ -93,16 +96,15 @@ pub enum EngineGetPayloadVersion {
 impl EngineGetPayloadVersion {
     /// Returns the appropriate [`EngineGetPayloadVersion`] for the chain at the given timestamp.
     ///
-    /// Uses the [`RollupConfig`] to check which hardfork is active at the given timestamp. Karst
-    /// (Osaka) bumps only `getPayload` to V5; `newPayload`/`forkchoiceUpdated` are unchanged.
+    /// Uses the [`RollupConfig`] to check which L1 hardfork is implied at the given timestamp.
+    /// Osaka (Karst) bumps only `getPayload` to V5; `newPayload`/`forkchoiceUpdated` are
+    /// unchanged.
     pub fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
-        if cfg.is_karst_active(timestamp) {
-            // Osaka
+        if cfg.is_osaka_active_at_timestamp(timestamp) {
             Self::V5
-        } else if cfg.is_isthmus_active(timestamp) {
+        } else if cfg.is_prague_active_at_timestamp(timestamp) {
             Self::V4
-        } else if cfg.is_ecotone_active(timestamp) {
-            // Cancun
+        } else if cfg.is_cancun_active_at_timestamp(timestamp) {
             Self::V3
         } else {
             Self::V2
@@ -125,6 +127,24 @@ mod tests {
             },
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn forkchoice_version_selects_by_active_hardfork() {
+        let cfg = cfg();
+        assert_eq!(EngineForkchoiceVersion::from_cfg(&cfg, 5), EngineForkchoiceVersion::V2);
+        assert_eq!(EngineForkchoiceVersion::from_cfg(&cfg, 10), EngineForkchoiceVersion::V3);
+        assert_eq!(EngineForkchoiceVersion::from_cfg(&cfg, 35), EngineForkchoiceVersion::V3);
+    }
+
+    #[test]
+    fn new_payload_version_selects_by_active_hardfork() {
+        let cfg = cfg();
+        assert_eq!(EngineNewPayloadVersion::from_cfg(&cfg, 5), EngineNewPayloadVersion::V2);
+        assert_eq!(EngineNewPayloadVersion::from_cfg(&cfg, 15), EngineNewPayloadVersion::V3);
+        assert_eq!(EngineNewPayloadVersion::from_cfg(&cfg, 25), EngineNewPayloadVersion::V4);
+        // Karst (Osaka) does not bump newPayload.
+        assert_eq!(EngineNewPayloadVersion::from_cfg(&cfg, 35), EngineNewPayloadVersion::V4);
     }
 
     #[test]
