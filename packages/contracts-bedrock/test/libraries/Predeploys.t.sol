@@ -20,11 +20,13 @@ abstract contract Predeploys_TestInit is CommonTest {
     //////////////////////////////////////////////////////
 
     /// @notice Returns true if the address is a predeploy that has a different code in the
-    ///         custom gas token mode, derived from the registry from `isVariant` && `isCustomGasToken`.
+    ///         custom gas token mode, i.e. its record carries a CGT variant.
     function _customGasTokenCodeDiffer(address _addr) internal pure returns (bool) {
         Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
         for (uint256 i = 0; i < records.length; i++) {
-            if (records[i].proxy == _addr && records[i].isVariant && records[i].isCustomGasToken) return true;
+            if (records[i].proxy == _addr && records[i].variants.length > uint256(Predeploys.VariantKind.CGT)) {
+                return true;
+            }
         }
         return false;
     }
@@ -220,7 +222,7 @@ contract Predeploys_GetAllRecords_Test is Predeploys_TestInit {
             if (seenNonProxied) {
                 assertTrue(
                     !records[i].isProxied || records[i].isDeprecated,
-                    string.concat(records[i].name, ": proxied record appears after non-proxied record")
+                    string.concat(Predeploys.implName(records[i]), ": proxied record appears after non-proxied record")
                 );
             }
         }
@@ -236,7 +238,9 @@ contract Predeploys_GetAllRecords_Test is Predeploys_TestInit {
             if (seenDeprecated) {
                 assertTrue(
                     records[i].isDeprecated,
-                    string.concat(records[i].name, ": non-deprecated record appears after deprecated record")
+                    string.concat(
+                        Predeploys.implName(records[i]), ": non-deprecated record appears after deprecated record"
+                    )
                 );
             }
         }

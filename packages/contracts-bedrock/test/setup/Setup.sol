@@ -512,7 +512,7 @@ abstract contract Setup is FeatureFlags {
                 vm.label(records[i].proxy, "L2ToL1MessagePasser");
                 continue;
             }
-            vm.label(records[i].proxy, records[i].name);
+            vm.label(records[i].proxy, Predeploys.implName(records[i]));
         }
     }
 

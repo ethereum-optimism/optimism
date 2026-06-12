@@ -326,11 +326,9 @@ contract GenerateNUTBundle is Script {
     function _buildImplementationDeploymentConfigs() internal {
         _implementationConfigs.push(_makeConfig("StorageSetter", "StorageSetter.sol:StorageSetter", 498_000));
 
-        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
-        for (uint256 i = 0; i < records.length; i++) {
-            _implementationConfigs.push(
-                _makeConfig(records[i].name, records[i].artifactPath, records[i].deployGasLimit)
-            );
+        Predeploys.Variant[] memory impls = Predeploys.getUpgradeableImpls();
+        for (uint256 i = 0; i < impls.length; i++) {
+            _implementationConfigs.push(_makeConfig(impls[i].name, impls[i].artifactPath, impls[i].deployGasLimit));
         }
     }
 

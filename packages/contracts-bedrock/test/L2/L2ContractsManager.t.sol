@@ -107,10 +107,10 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             L2ContractsManagerTypes.ImplRecord({ name: "StorageSetter", impl: address(new StorageSetter()) })
         );
 
-        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
-        for (uint256 i = 0; i < records.length; i++) {
+        Predeploys.Variant[] memory impls = Predeploys.getUpgradeableImpls();
+        for (uint256 i = 0; i < impls.length; i++) {
             _implRecords.push(
-                L2ContractsManagerTypes.ImplRecord({ name: records[i].name, impl: deployCode(records[i].artifactPath) })
+                L2ContractsManagerTypes.ImplRecord({ name: impls[i].name, impl: deployCode(impls[i].artifactPath) })
             );
         }
     }
@@ -696,7 +696,7 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
         // 1 StorageSetter + one entry per upgradeable predeploy record (including variants).
         assertEq(
             implementationRecords.length,
-            Predeploys.getUpgradeableRecords().length + 1,
+            Predeploys.getUpgradeableImpls().length + 1,
             "ImplRecord count must equal upgradeable predeploy count + 1 (StorageSetter)"
         );
         for (uint256 i = 0; i < implementationRecords.length; i++) {
@@ -889,12 +889,8 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
 
         for (uint256 i = 0; i < records.length; i++) {
-            if (records[i].isVariant) {
-                console.log("Skipping variant predeploy", records[i].name);
-                continue;
-            }
             if (_isFeaturePredeployAndDisabled(records[i].proxy)) {
-                console.log("Skipping feature predeploy and feature disabled", records[i].name);
+                console.log("Skipping feature predeploy and feature disabled", Predeploys.implName(records[i]));
                 continue;
             }
             address predeploy = records[i].proxy;
@@ -1059,20 +1055,15 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
 
     /// @dev Reverts when `_predeploy` has no entry in the registry, so new predeploys cannot
     ///      slip past this test without being added to `Predeploys.getAllRecords()`.
-    ///      For predeploys with CGT variants the CGT record takes priority on CGT chains;
-    ///      the non-CGT primary record is used on all other chains.
+    ///      For predeploys with CGT variants the CGT impl takes priority on CGT chains;
+    ///      the default impl is used on all other chains.
     function _getTargetImpl(address _predeploy) internal view returns (address) {
         bool isCGT = Config.sysFeatureCustomGasToken();
         Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
-        string memory fallbackName;
         for (uint256 i = 0; i < records.length; i++) {
             if (records[i].proxy != _predeploy) continue;
-            if (records[i].isCustomGasToken && isCGT) return _findImplByName(records[i].name);
-            if (!records[i].isVariant) {
-                fallbackName = records[i].name;
-            }
+            return _findImplByName(Predeploys.resolveVariant(records[i], isCGT).name);
         }
-        if (bytes(fallbackName).length > 0) return _findImplByName(fallbackName);
         revert("L2ContractsManager_Upgrade_Atomicity_Test: unmapped predeploy");
     }
 

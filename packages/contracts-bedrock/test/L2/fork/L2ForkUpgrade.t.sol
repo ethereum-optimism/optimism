@@ -195,17 +195,16 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     }
 
     /// @notice Returns the active proxied predeploys with their pre-upgrade versions.
-    /// @dev Uses getUpgradeableRecords() which already filters non-proxied and deprecated records.
-    ///      Variant records (isVariant = true, e.g. L1BlockCGT) are skipped so each proxy appears
-    ///      once. Feature-gated predeploys disabled for the current chain config are also excluded.
-    ///      Disabled predeploys must be excluded before calling _getVersion: their proxy has an
-    ///      implementation slot pointing to a code namespace with no code, so the delegatecall
-    ///      returns empty bytes and Solidity's ABI decoder for `string` fails outside try/catch.
+    /// @dev Uses getUpgradeableRecords() which already filters non-proxied and deprecated records
+    ///      and returns one entry per proxy. Feature-gated predeploys disabled for the current chain
+    ///      config are excluded. Disabled predeploys must be excluded before calling _getVersion:
+    ///      their proxy has an implementation slot pointing to a code namespace with no code, so the
+    ///      delegatecall returns empty bytes and Solidity's ABI decoder for `string` fails outside
+    ///      try/catch.
     function _getPreUpgradePredeploys() internal view returns (PredeployState[] memory predeploys_) {
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
         uint256 count = 0;
         for (uint256 i = 0; i < records.length; i++) {
-            if (records[i].isVariant) continue;
             if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
             count++;
         }
@@ -213,7 +212,6 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         predeploys_ = new PredeployState[](count);
         uint256 j = 0;
         for (uint256 i = 0; i < records.length; i++) {
-            if (records[i].isVariant) continue;
             if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
             predeploys_[j].predeploy = records[i].proxy;
             predeploys_[j].version = _getVersion(records[i].proxy);
