@@ -144,8 +144,6 @@ func TestSystemP2PAltSync(t *testing.T) {
 		},
 	}
 	e2esys.ConfigureL1(syncNodeCfg, sys.EthInstances["l1"], sys.L1BeaconEndpoint())
-	// Build the extra syncer EL with the same kind as the rest of the system so a
-	// uniform topology avoids the op-reth<->op-geth peering issue.
 	syncerL2Engine, err := el.InitL2(ctx, el.L2Config{
 		Kind:    cfg.L2ELKind,
 		Name:    "syncer",
@@ -178,8 +176,6 @@ func TestSystemP2PAltSync(t *testing.T) {
 	_, err = sys.Mocknet.ConnectPeers(sys.RollupNodes["bob"].P2P().Host().ID(), syncerNode.P2P().Host().ID())
 	require.NoError(t, err)
 
-	// Dial over the URL rather than extracting an in-process client: op-reth's
-	// UserRPC() does not implement endpoint.ClientRPC, so a type assertion would panic.
 	l2Verif, err := ethclient.Dial(syncerL2Engine.UserRPC().RPC())
 	require.NoError(t, err)
 
