@@ -34,6 +34,7 @@ var (
 	ErrVirtualNodeAlreadyRunning = errors.New("virtual node already running")
 	ErrVirtualNodeNotRunning     = errors.New("virtual node not running")
 	ErrVirtualNodeCantStart      = errors.New("virtual node cannot be started in this state")
+	ErrVirtualNodeStartGated     = errors.New("virtual node start gated (chain paused/stopping)")
 )
 
 type VirtualNode interface {
@@ -48,6 +49,12 @@ type VirtualNode interface {
 	FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	State() VNState
+	// SetBeforeStart installs a predicate consulted under the VN's lock,
+	// atomically with the NotStarted->Running transition. If it returns false,
+	// Start aborts with ErrVirtualNodeStartGated without running the inner node.
+	// The chain container uses this to close the freeze race: a VN created but
+	// not yet started cannot slip past a concurrent PauseAndStopVN.
+	SetBeforeStart(fn func() bool)
 }
 
 type innerNode interface {
@@ -77,9 +84,10 @@ type simpleVirtualNode struct {
 	initOverload     *rollupNode.InitializationOverrides // Shared resources which are overridden by the supernode
 	innerNodeFactory innerNodeFactory                    // Factory function to create inner node (overloadable for testing)
 
-	mu     sync.Mutex   // Coordinates Start/Stop transitions and protects cancel.
-	state  atomic.Int32 // Current lifecycle state; stores VNState values.
-	cancel context.CancelFunc
+	mu          sync.Mutex   // Coordinates Start/Stop transitions and protects cancel + beforeStart.
+	state       atomic.Int32 // Current lifecycle state; stores VNState values.
+	cancel      context.CancelFunc
+	beforeStart func() bool // Optional gate checked under mu before NotStarted->Running.
 }
 
 func generateVirtualNodeID() string {
@@ -108,6 +116,17 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 		v.mu.Unlock()
 		v.log.Debug("virtual node not in a valid state to start", "state", state)
 		return ErrVirtualNodeCantStart
+	}
+	// Consult the start gate under the same lock that Stop() takes, atomically
+	// with the NotStarted->Running transition below. This closes the freeze
+	// race: PauseAndStopVN sets the chain's pause flag before calling Stop(), so
+	// this VN either observes the pause here and aborts, or completes its
+	// transition under the lock and is then reliably stopped by that Stop().
+	if v.beforeStart != nil && !v.beforeStart() {
+		v.setState(VNStateStopped)
+		v.mu.Unlock()
+		v.log.Info("virtual node start gated by chain pause/stop")
+		return ErrVirtualNodeStartGated
 	}
 	if v.cfg == nil {
 		v.mu.Unlock()
@@ -138,10 +157,14 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 	v.mu.Unlock()
 
 	// Run inner node in goroutine
-	// and await any signal to exit (Stop(), parent ctx, or inner error)
-	var innerErr error = nil
+	// and await any signal to exit (Stop(), parent ctx, or inner error).
+	// The result is delivered over a channel rather than a shared variable: the
+	// parent reads innerErr (and cancelErr, written via the Cancel callback
+	// during n.Start) only after receiving below, which establishes
+	// happens-before with the goroutine and avoids a data race on those reads.
+	innerErrCh := make(chan error, 1)
 	go func() {
-		innerErr = n.Start(runCtx)
+		innerErrCh <- n.Start(runCtx)
 	}()
 	<-runCtx.Done()
 
@@ -161,6 +184,10 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 	if err := n.Stop(stopCtx); err != nil {
 		v.log.Error("error stopping inner node", "err", err)
 	}
+
+	// Wait for n.Start to return before reading its result; this receive
+	// synchronizes the innerErr/cancelErr reads below with the goroutine.
+	innerErr := <-innerErrCh
 
 	// Return inner error if that's what caused the cancellation, otherwise context error
 	if cancelErr != nil {
@@ -203,6 +230,16 @@ func (v *simpleVirtualNode) Stop(ctx context.Context) error {
 }
 
 // State returns the current state of the virtual node (for testing and monitoring)
+// SetBeforeStart installs the start gate. Must be called before Start; the
+// chain container sets it once per VN (in the same goroutine that then calls
+// Start), so the field is written-before-read without contention. Guarded by mu
+// for safety against any future concurrent caller.
+func (v *simpleVirtualNode) SetBeforeStart(fn func() bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.beforeStart = fn
+}
+
 func (v *simpleVirtualNode) State() VNState {
 	return VNState(v.state.Load())
 }

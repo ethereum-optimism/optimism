@@ -400,6 +400,13 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		if vn == nil {
 			return virtual_node.ErrVirtualNodeNotRunning
 		}
+		// Gate the VN's start on the chain not being paused/stopping, checked
+		// atomically with the VN's own NotStarted->Running transition. This
+		// closes the freeze race: a VN created here but not yet started can no
+		// longer slip past a concurrent PauseAndStopVN (whose Stop() is a no-op
+		// on a not-yet-started VN). The loop's c.pause check below still handles
+		// the common case; this is the race backstop.
+		vn.SetBeforeStart(func() bool { return !c.pause.Load() && !c.stop.Load() })
 		// Install before Start so the RPC gate can observe this VN entering running state.
 		c.setVN(vn)
 		if c.pause.Load() {
@@ -420,7 +427,11 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 
 		// start the virtual node
 		err := vn.Start(ctx)
-		if err != nil {
+		if errors.Is(err, virtual_node.ErrVirtualNodeStartGated) {
+			// Expected: a pause/stop landed in the create->start window. Loop
+			// back; the c.pause check at the top parks the loop until Resume.
+			c.log.Debug("virtual node start gated by pause/stop, re-checking", "vn_id", vn)
+		} else if err != nil {
 			c.log.Warn("virtual node exited with error", "vn_id", vn, "error", err)
 		} else {
 			c.log.Info("virtual node exited", "vn_id", vn)

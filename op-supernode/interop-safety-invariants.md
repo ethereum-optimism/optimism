@@ -29,6 +29,7 @@ Each hardening change and bug fix has a regression test, runnable with
 | Rewind error terminal-vs-transient classification | `TestIsCriticalRewindError` | `.../chain_container/chain_container_test.go` |
 | Cross-replica divergence detection + edge cases | `TestCompareSuperRoots`, `TestCollectOnce_*` | `op-interop-mon/monitor/divergence_collector_test.go` |
 | `op-interop-mon` Stop() nil-deref with metrics disabled | `TestStop_MetricsDisabledDoesNotPanic` | `op-interop-mon/monitor/service_test.go` |
+| VN start gate (restart-loop freeze race) | `TestVirtualNode_Lifecycle/Start_gated_by_beforeStart_*` | `op-supernode/supernode/chain_container/virtual_node/virtual_node_test.go` |
 
 ## Background: the one load-bearing assumption
 
@@ -266,18 +267,36 @@ engine rewind state machine. Outcomes:
   deterministically reject, and none are in operation. The residual `0xff` edge
   is covered by the `rewind_rejected` halt above.
 
-### Recommended (real, but delicate — warrant design + acceptance-test validation)
+### Fixed: restart-loop freeze race + two production data races it surfaced
 
-- **Restart-loop freeze race (chain_container).** `PauseAndStopVN` sets the
-  `pause` flag and stops the current VN, but the restart loop checks `pause`
-  *before* `vn.Start` with a check-then-act window: a freeze landing in that
-  window can leave a peer VN running during a multi-chain rewind, violating the
-  freeze-before-rewind invariant the invalidation path relies on. Narrow window,
-  indirect consequence (a later transitive-invalidation rewind could be
-  rejected). The fix is non-trivial: the loop blocks inside `vn.Start`, so a
-  naive mutex around the critical section would deadlock `Pause`; needs a
-  generation/re-check scheme. Related: `pause` is a non-nestable bool, so a
-  `RewindEngine` deferred `Resume` can lift a concurrent freeze (last-writer-wins).
+- **Restart-loop freeze race (chain_container).** `PauseAndStopVN` set the
+  `pause` flag and stopped the current VN, but the restart loop checked `pause`
+  *before* `vn.Start` (a check-then-act window), and `vn.Stop` is a no-op on a
+  not-yet-started VN — so a VN created in that window started anyway, leaving a
+  peer VN running during a multi-chain rewind. Fixed with a **start gate**:
+  `vn.Start` consults `beforeStart` (`= !paused && !stopping`) under its own
+  lock, atomically with the NotStarted→Running transition (virtual_node.go;
+  wired in the restart loop via `SetBeforeStart`). Because that transition and
+  `vn.Stop`'s state check both serialize on the VN lock, and `PauseAndStopVN`
+  sets `pause` *before* calling `Stop`, the VN either observes the pause and
+  aborts (`ErrVirtualNodeStartGated`) or completes its transition and is then
+  reliably stopped — the window is closed. Deterministic repros:
+  `TestVirtualNode_Lifecycle/Start_gated_by_beforeStart_*` (virtual_node_test.go).
+- **Production data race in `virtualNode.Start` (pre-existing, surfaced by
+  `-race`).** `innerErr`/`cancelErr` were written by the inner-node goroutine
+  but read by the parent after `<-runCtx.Done()` with no happens-before. Fixed
+  by delivering the inner result over a channel and receiving it after
+  `n.Stop()`, which synchronizes both reads.
+- **Production bounds-corruption in `VerifiedDB.Rewind` (pre-existing).** See the
+  code-review section above — fixed and regression-tested
+  (`TestVerifiedDB_RewindMultiPage`).
+
+Still open: `pause` is a non-nestable bool, so a `RewindEngine` deferred
+`Resume` can lift a concurrent multi-chain freeze (last-writer-wins). Fixing it
+cleanly needs converting `pause` to a balanced counter with a Pause/Resume
+pairing audit — tracked as a follow-up. Both packages also carry pre-existing
+test-only data races (mocks reading shared fields across goroutines) that keep
+them from running `-race`-clean; tracked separately.
 - **Superroot optimistic branch reads (output, requiredL1) from two
   un-snapshotted calls** (`OptimisticOutputAtTimestamp` then `OptimisticAt`),
   which can pin to different L2 blocks if the safe head moves between them →

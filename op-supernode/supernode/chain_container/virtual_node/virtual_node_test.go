@@ -318,6 +318,41 @@ func TestVirtualNode_Lifecycle(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	// The start gate is the freeze-race fix: when the chain is paused/stopping,
+	// the gate (checked under the VN lock, atomically with NotStarted->Running)
+	// aborts Start so a VN created in the restart loop's create->start window
+	// cannot slip past a concurrent PauseAndStopVN.
+	t.Run("Start gated by beforeStart aborts without running inner node", func(t *testing.T) {
+		mock := newMockInnerNode()
+		started := false
+		mock.startFunc = func(ctx context.Context) { started = true; <-ctx.Done() }
+
+		vn := NewVirtualNode(cfg, log, initOverload, appVersion)
+		vn.innerNodeFactory = createMockFactory(mock)
+		vn.SetBeforeStart(func() bool { return false }) // frozen
+
+		err := vn.Start(context.Background())
+		require.ErrorIs(t, err, ErrVirtualNodeStartGated)
+		require.Equal(t, VNStateStopped, vn.State())
+		require.False(t, started, "inner node must not start when gated")
+	})
+
+	t.Run("Start proceeds when beforeStart permits", func(t *testing.T) {
+		mock := newMockInnerNode()
+		mock.startFunc = func(ctx context.Context) { <-ctx.Done() }
+
+		vn := NewVirtualNode(cfg, log, initOverload, appVersion)
+		vn.innerNodeFactory = createMockFactory(mock)
+		vn.SetBeforeStart(func() bool { return true }) // not frozen
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() { _ = vn.Start(ctx) }()
+		require.Eventually(t, func() bool {
+			return vn.State() == VNStateRunning
+		}, 1*time.Second, 10*time.Millisecond)
+	})
+
 	t.Run("Stop causes Start to exit", func(t *testing.T) {
 		mock := newMockInnerNode()
 		mock.startFunc = func(ctx context.Context) {

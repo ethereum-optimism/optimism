@@ -348,6 +348,7 @@ type mockVNForInvalidation struct {
 }
 
 func (m *mockVNForInvalidation) Start(ctx context.Context) error { return nil }
+func (m *mockVNForInvalidation) SetBeforeStart(func() bool)        {}
 func (m *mockVNForInvalidation) Stop(ctx context.Context) error  { return m.stopErr }
 func (m *mockVNForInvalidation) State() virtual_node.VNState {
 	return virtual_node.VNStateRunning

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -44,6 +45,7 @@ type mockVirtualNode struct {
 	stopFunc     func(ctx context.Context) error
 	blockOnStart bool
 	startSignal  chan struct{}
+	beforeStart  func() bool // mirrors the real VN start gate
 	// latest safe mock behavior
 	latestSafe eth.BlockID
 	latestErr  error
@@ -73,8 +75,21 @@ func newMockVirtualNode() *mockVirtualNode {
 	}
 }
 
+func (m *mockVirtualNode) SetBeforeStart(fn func() bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.beforeStart = fn
+}
+
 func (m *mockVirtualNode) Start(ctx context.Context) error {
 	m.mu.Lock()
+	if m.beforeStart != nil && !m.beforeStart() {
+		// Gated: do not count as a real run (mirrors the real VN, which aborts
+		// before NotStarted->Running).
+		m.state = virtual_node.VNStateStopped
+		m.mu.Unlock()
+		return virtual_node.ErrVirtualNodeStartGated
+	}
 	m.startCalled++
 	m.state = virtual_node.VNStateRunning
 	callCount := m.startCalled
@@ -788,9 +803,9 @@ func TestChainContainer_PauseResume(t *testing.T) {
 			_ = container.Start(ctx)
 		}()
 
-		// Wait for VN to be created
+		// Wait for VN to be created (read through the vnMu-guarded getter).
 		require.Eventually(t, func() bool {
-			return impl.vn != nil
+			return impl.getVN() != nil
 		}, 1*time.Second, 10*time.Millisecond)
 
 		// VN should be created but not started
@@ -1301,14 +1316,15 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
-		restartCount := 0
+		// atomic: written by startFunc (restart-loop goroutine) and read by
+		// Eventually (test goroutine).
+		var restartCount atomic.Int32
 		mockVN := &mockVirtualNode{
 			startSignal: make(chan struct{}),
 		}
 
 		mockVN.startFunc = func(ctx context.Context) error {
-			restartCount++
-			if restartCount < 3 {
+			if restartCount.Add(1) < 3 {
 				return nil // Exit immediately to trigger restart
 			}
 			<-ctx.Done()
@@ -1327,7 +1343,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		}()
 
 		require.Eventually(t, func() bool {
-			return restartCount >= 3
+			return restartCount.Load() >= 3
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 
@@ -1339,11 +1355,10 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
-		restartCount := 0
+		var restartCount atomic.Int32
 		mockVN := &mockVirtualNode{startSignal: make(chan struct{})}
 		mockVN.startFunc = func(ctx context.Context) error {
-			restartCount++
-			if restartCount < 3 {
+			if restartCount.Add(1) < 3 {
 				return nil
 			}
 			<-ctx.Done()
@@ -1357,7 +1372,7 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 		defer cancel()
 		go func() { _ = container.Start(ctx) }()
 
-		require.Eventually(t, func() bool { return restartCount >= 3 }, 1*time.Second, 10*time.Millisecond)
+		require.Eventually(t, func() bool { return restartCount.Load() >= 3 }, 1*time.Second, 10*time.Millisecond)
 		// The first start is not a restart; restarts 2 and 3 should be counted.
 		var dto dto.Metric
 		require.NoError(t, metrics.VNRestarts.WithLabelValues(chainID.String()).Write(&dto))
@@ -1385,9 +1400,9 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 
 		<-mockVN.startSignal
 
-		// Ensure VN is set in container
+		// Ensure VN is set in container (read through the vnMu-guarded getter).
 		require.Eventually(t, func() bool {
-			return impl.vn != nil
+			return impl.getVN() != nil
 		}, 1*time.Second, 10*time.Millisecond)
 
 		stopCtx := context.Background()
@@ -1561,6 +1576,7 @@ type mockVNForL1AtSafeHeadError struct {
 }
 
 func (m *mockVNForL1AtSafeHeadError) Start(ctx context.Context) error { return nil }
+func (m *mockVNForL1AtSafeHeadError) SetBeforeStart(func() bool)        {}
 func (m *mockVNForL1AtSafeHeadError) Stop(ctx context.Context) error  { return nil }
 func (m *mockVNForL1AtSafeHeadError) State() virtual_node.VNState {
 	return virtual_node.VNStateRunning
