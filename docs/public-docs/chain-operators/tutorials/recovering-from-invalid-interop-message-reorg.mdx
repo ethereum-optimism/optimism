@@ -118,3 +118,112 @@ Work this decision tree top to bottom. It is explicit about ordering: the failsa
 7. **Restore this network.** Once this network's heads are canonical, the batcher and proposer are resumed, and a healthy batch has been posted to L1 and processed, go to **Restore This Network** — the failsafe stays engaged there. The failsafe is cleared only in the single terminal section **Clear the Network-Wide Failsafe and Re-Enable Interop**, run once **every** affected network has reached this point.
 
 At any branch where you are uncertain, stop. Leave the failsafe engaged — the network is safe, just stalled — and get more eyes on it before forcing a risky step. See [On Stopping Safely](#on-stopping-safely).
+
+## Inspect and Control the Interop Filter Failsafe
+
+`op-interop-filter` validates interop executing messages at sequencer ingress and answers `interop_checkAccessList`. Its **failsafe** is the master switch for interop admission: while engaged, the filter rejects every interop access-list check with JSON-RPC error code `-320602`, so no executing-message transaction is admitted. Non-interop transactions are unaffected. The failsafe is the first lever in the failsafe-first spine — engage it before any recovery, and clear it only at the very end.
+
+The failsafe turns on in two ways:
+
+* **Automatically.** Any chain reorg the filter ingests trips it (reason `reorg`), as do `conflict`, `data_corruption`, `invalid_log`, and a cross-validation failure (reason `cross_validation`). During an invalid-message reorg it has almost certainly already tripped before you look.
+* **Manually.** You set it with `admin_setFailsafeEnabled` (reason `manual`).
+
+The filter exposes two RPC servers:
+
+* **Public RPC** (default port `8545`, no auth): `interop_checkAccessList` and the read-only `admin_getFailsafeEnabled`. This is the port `op-reth` and `proxyd` poll.
+* **Admin RPC** (default port `8546`, JWT-authenticated): the write toggle `admin_setFailsafeEnabled`, plus `admin_getFailsafeEnabled`. It is enabled only when `admin.rpc.addr` is configured; the JWT secret is the path given by `--admin.jwt-secret`.
+
+### Query the Failsafe State
+
+Read the boolean from the public port, with no auth:
+
+```bash
+cast rpc --rpc-url http://<FILTER_HOST>:8545 admin_getFailsafeEnabled
+# Expect: false  (validating normally)  |  true  (failsafe engaged, rejecting all interop txs)
+```
+
+The boolean does not tell you **why** the failsafe tripped. Read the reason from the filter's metrics or logs:
+
+* Metric: the filter's `failsafe_reason_active` gauge (namespace `op_interop_filter`), labeled `reason="manual"`, `"reorg"`, `"conflict"`, `"data_corruption"`, `"invalid_log"`, or `"cross_validation"`, with value `1` for each currently active reason. More than one reason can be active at once.
+* Log: while the failsafe is engaged the filter re-logs the active reason at `WARN` on a heartbeat (`--failsafe-log-interval`, default `1m`).
+
+The reason routes triage. `reorg` or `cross_validation` is the invalid-message-reorg path this runbook covers. `conflict`, `data_corruption`, or `invalid_log` is a different failure with a different remedy — see [Non-Reorg Failsafe Trips](#non-reorg-failsafe-trips).
+
+### Engage the Failsafe
+
+If the failsafe has not already auto-tripped — or you are containing a still-producing sequencer on an orphaned chain — engage it on the JWT admin port:
+
+```bash
+curl -s http://<FILTER_HOST>:8546 \
+  -H "Authorization: Bearer $JWT" \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"admin_setFailsafeEnabled","params":[true]}'
+```
+
+Confirm it took effect from the public port:
+
+```bash
+cast rpc --rpc-url http://<FILTER_HOST>:8545 admin_getFailsafeEnabled
+# Expect: true
+```
+
+`$JWT` is an HS256 token signed with the 32-byte hex secret at the `--admin.jwt-secret` path; mint it with your environment's helper. Engaging the failsafe is always safe — it only blocks interop admission — so when in doubt, engage it first.
+
+Clearing the failsafe is the **last** step of recovery, owned by the terminal **Clear the Network-Wide Failsafe and Re-Enable Interop** section, because clearing it also requires restarting `op-reth` to undo a transaction-pool eviction. Do not clear it mid-recovery.
+
+### Verify the Filter Is Validating
+
+To confirm the filter process itself is healthy and answering — independent of failsafe state — call `interop_checkAccessList` with an empty access list on the public port:
+
+```bash
+cast rpc --rpc-url http://<FILTER_HOST>:8545 interop_checkAccessList '[]' '"unsafe"' '{}'
+# Expect: null  (healthy and not in failsafe)
+# Expect: an error with code -320602  (failsafe engaged)
+```
+
+<Note>The exact encoding of the `minSafety` and executing-descriptor arguments is version-specific; pin it against your deployment during validation. An empty inbox-entries list is enough to tell a healthy filter (`null`) from one in failsafe (`-320602`).</Note>
+
+<Note>The filter's `/healthz` probe reports process liveness only — it is **not** failsafe-aware. Never infer failsafe state from `/healthz`.</Note>
+
+When the filter returns a transient HTTP 5xx, `proxyd` marks that backend unhealthy and re-probes after about 10 seconds (`load_balancing_unhealthiness_timeout`). A `-320602` failsafe rejection is **not** treated as backend-unhealthy — the filter is healthy, just rejecting — so it is returned to the caller as a genuine rejection. Do not mistake the roughly 10-second re-probe window for a stuck filter.
+
+### HA Setups With Multiple Interop Filters
+
+When `op-reth` is configured with multiple filters (`--rollup.interop-http` repeated, with `--rollup.interop-min-responses` as the quorum threshold), `op-reth` aggregates across them and the failsafe behaves as **any-trips-all** and **clear-requires-unanimity-and-reachability**.
+
+* **Engage (any-trips-all).** The moment **any** filter reports failsafe — on a transaction check, or on `op-reth`'s roughly 1-second background poll, which short-circuits on the first `true` — `op-reth` halts all interop admission. A failsafe on one filter cannot be outvoted by healthy ones. So to stop admission across the set, engaging the failsafe on **any one** filter is enough.
+* **Disengage (clear-requires-unanimity-and-reachability).** `op-reth` clears its gate only when **every** filter replies `false`. If any filter is silent or unreachable, the gate stays closed — a silent filter might be the one in failsafe. So clearing requires setting `admin_setFailsafeEnabled false` on **every** filter instance, then confirming each is reachable and returns `false`. Loop over all filter hosts; do not stop after the first.
+
+Read the aggregate state:
+
+* There is no single aggregate RPC. Per-filter truth is each instance's own `admin_getFailsafeEnabled`.
+* `op-reth`'s OR-aggregate view is the gauge `optimism_transaction_pool.interop.failsafe_enabled` (`1` or `0`); it reads `0` only when the gate is truly clear across every filter.
+* Per-endpoint metrics live under `optimism_transaction_pool.interop.endpoint`, labeled `endpoint="<index>"` by **configuration index, not URL**, exposing `valid`, `invalid`, `unavailable`, and `query_latency`. Use the index-to-URL map from [Before You Begin](#before-you-begin) to know which filter each label refers to.
+
+Degraded quorum can block admission even with the failsafe off:
+
+* Watch the `op-reth` counters `quorum_reject_disagreement` (filters returned mixed verdicts) and `quorum_reject_not_reached` (too few definitive verdicts — fail-closed), plus the rate-limited "failing closed" log. These clear automatically once enough filters return definitive, agreeing verdicts.
+* Under the `--rollup.interop-min-responses` default (unanimity, fail-closed), a single unreachable or out-of-sync filter blocks all interop admission. A majority quorum (`N/2 + 1`) tolerates one degraded filter while still only admitting on unanimous agreement among responders.
+
+Confirm the filter emits the dedicated failsafe code. The any-trips-all and clear-requires-unanimity model holds only if the filter emits JSON-RPC code `-320602` for a failsafe rejection. `op-reth` recognizes failsafe **only** by `-320602`, never by message text; an older filter emitting `-32602` is degraded to a generic rejection (still fail-closed, but the aggregate model no longer applies). Confirm it as a deployment prerequisite — engage the failsafe on one filter and check the rejection code:
+
+```bash
+cast rpc --rpc-url http://<FILTER_HOST>:8545 interop_checkAccessList '[]' '"unsafe"' '{}'
+# Expect: error code -320602 while that filter is in failsafe (not -32602)
+```
+
+<Note>`proxyd` does not yet enforce quorum or honor the filter failsafe; that is a separate, not-yet-landed change. Do not treat `proxyd` as failsafe-aware — the aggregation described here is `op-reth`'s.</Note>
+
+<Note>Toggling one filter while `op-reth`'s roughly 1-second poll is mid-flight can briefly flap the gate. A filter you restart to clear errors reads as `unavailable` and holds the gate closed for the whole set until it finishes resyncing. Sequence filter restarts expecting the set to stay closed until the last one is back.</Note>
+
+### Non-Reorg Failsafe Trips
+
+If the failsafe reason is `conflict`, `data_corruption`, or `invalid_log` rather than `reorg` or `cross_validation`, this is **not** an invalid-message reorg and the rest of this runbook does not apply.
+
+`admin_rewind` is not implemented — it returns an error directing you to wipe and restart — and the filter's automatic recovery clears only a `reorg` error. So the remedy for these reasons is to **wipe the filter's data directory and restart it**, letting it re-ingest from its sources.
+
+<Warning>Wiping the filter's data directory discards its ingested state and is irreversible; the filter rebuilds by re-ingesting from its configured sources on restart. Confirm you have targeted the correct filter instance before deleting anything. In an HA set, wipe and restart one filter at a time — a restarting filter reads as `unavailable` and holds the gate closed for the whole set until it resyncs.</Warning>
+
+The filter also has an opt-in `--reorg-recovery-enabled` flag (default off). When enabled, a background loop rewinds each errored chain's local state to its finalized point and clears **only** the `reorg` error, so a pure-reorg failsafe trip can self-clear without operator action. Manual failsafe and non-reorg errors are never auto-cleared.
+
+<Note>This `op-interop-filter` `--reorg-recovery-enabled` flag is a shipped filter feature and is unrelated to any experimental `op-conductor` reorg-recovery work. Do not conflate the two.</Note>
