@@ -298,6 +298,21 @@ func (m *RandomChainManager) Chains() []*RandomChain {
 
 func (m *RandomChainManager) L1Source() *RandomL1Source { return m.l1Source }
 
+// FirstVerifiableTimestamp returns the earliest timestamp every chain can
+// answer OptimisticAt for: the latest first-verifiable block time across
+// chains. Starting verification below it is a hard error (history
+// unavailable), not a wait.
+func (m *RandomChainManager) FirstVerifiableTimestamp() uint64 {
+	max := uint64(0)
+	for _, id := range m.order {
+		rc := m.chains[id]
+		if ts := rc.l2[rc.firstVerifiable()].Ref.Time; ts > max {
+			max = ts
+		}
+	}
+	return max
+}
+
 // MinSafeTimestamp returns the lowest safe-head timestamp across chains — the
 // last timestamp a verification loop over the generated data can reach.
 func (m *RandomChainManager) MinSafeTimestamp() uint64 {

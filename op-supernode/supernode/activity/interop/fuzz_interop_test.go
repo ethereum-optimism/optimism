@@ -37,7 +37,7 @@ func FuzzInteropRound(f *testing.F) {
 		t.Cleanup(func() { _ = i.Stop(ctx) })
 
 		i.ctx = ctx
-		i.verificationStartTimestamp = 1004 // block 2: first SafeDB-covered block; earlier blocks are below SafeDB history
+		i.verificationStartTimestamp = mgr.FirstVerifiableTimestamp()
 		i.initialized.Store(true)
 
 		for n := 0; ; n++ {
