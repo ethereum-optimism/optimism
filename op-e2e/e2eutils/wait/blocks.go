@@ -121,6 +121,27 @@ func ForOutputAtBlock(ctx context.Context, rollupClient OutputAtBlockCaller, n u
 	return output, err
 }
 
+func ForOutputAtBlockRPC(ctx context.Context, client *rpc.Client, blockNum any) error {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	var lastErr error
+	_, err := AndGet(ctx, 500*time.Millisecond, func() (bool, error) {
+		var output eth.OutputResponse
+		if err := client.CallContext(ctx, &output, "optimism_outputAtBlock", blockNum); err != nil {
+			lastErr = err
+			return false, nil
+		}
+		return true, nil
+	}, func(success bool) bool {
+		return success
+	})
+	if err != nil && lastErr != nil {
+		return fmt.Errorf("timed out waiting for L2 output at block %v: %w: %w", blockNum, lastErr, err)
+	}
+	return err
+}
+
 func ForNextSafeBlock(ctx context.Context, client BlockCaller) (*types.Block, error) {
 	safeBlockNumber := big.NewInt(rpc.SafeBlockNumber.Int64())
 	var current *types.Block
