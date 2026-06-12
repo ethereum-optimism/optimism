@@ -18,10 +18,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
-	config "github.com/	ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	config "github.com/ethereum-optimism/optimism/op-e2e/config"
 )
 
 // predeployScoped keeps every predeploy and preinstall, plus the
