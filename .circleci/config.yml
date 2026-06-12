@@ -326,6 +326,9 @@ jobs:
       - run:
           name: Merge continuation configs
           command: .circleci/scripts/merge-configs.sh
+      - run:
+          name: Test continuation parameter compatibility
+          command: .circleci/scripts/test-continuation-params.sh
       # Calls the CircleCI continuation API with the merged config + JSON params.
       # This triggers the actual CI pipeline where only workflows with their
       # c-run_* flag set to true will execute.
