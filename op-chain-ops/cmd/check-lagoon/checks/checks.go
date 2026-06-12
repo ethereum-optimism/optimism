@@ -32,6 +32,9 @@ const (
 	// execGasLimit is a fixed gas limit for the failsafe-blocked relay, so we
 	// skip eth_estimateGas and let the txpool rejection surface on submission.
 	execGasLimit = 300_000
+	// failsafeRelayAttempts is how many times we try the relay while failsafe
+	// is enabled, to confirm consistent rejection rather than a transient error.
+	failsafeRelayAttempts = 3
 )
 
 // bridgeAmount is the ETH moved across chains on each leg.
@@ -55,9 +58,9 @@ type CheckInteropConfig struct {
 	// RelayTimeout bounds each bridge leg (the send and its self-relay).
 	RelayTimeout time.Duration
 
-	// FilterAdmin is the JWT-authenticated admin RPC of the op-interop-filter,
+	// FilterAdmins are the JWT-authenticated admin RPCs of each op-interop-filter instance,
 	// required only by CheckFailsafe.
-	FilterAdmin client.RPC
+	FilterAdmins []client.RPC
 	// PropagationWait is how long to wait after the initiating send before the
 	// expected-to-be-blocked relay, so that absent failsafe it would be admittable.
 	PropagationWait time.Duration
@@ -71,8 +74,8 @@ func (cfg *CheckInteropConfig) Close() {
 	if cfg.L2B != nil {
 		cfg.L2B.Close()
 	}
-	if cfg.FilterAdmin != nil {
-		cfg.FilterAdmin.Close()
+	for _, f := range cfg.FilterAdmins {
+		f.Close()
 	}
 }
 
@@ -129,7 +132,7 @@ func CheckRoundTrip(ctx context.Context, cfg *CheckInteropConfig, iterations int
 // bridge succeeds, its relay is rejected while failsafe is enabled, and bridging
 // succeeds again once failsafe is disabled.
 func CheckFailsafe(ctx context.Context, cfg *CheckInteropConfig) error {
-	if cfg.FilterAdmin == nil {
+	if len(cfg.FilterAdmins) == 0 {
 		return errors.New("failsafe check requires --filter.admin-rpc and --filter.jwt-secret")
 	}
 	recipient := randomRecipient()
@@ -139,8 +142,11 @@ func CheckFailsafe(ctx context.Context, cfg *CheckInteropConfig) error {
 		return err
 	}
 
-	cfg.Log.Info("step 1: bridge before failsafe (expect success)")
+	cfg.Log.Info("step 1: bridge A→B and B→A before failsafe (expect success)")
 	if err := cfg.bridgeETH(ctx, "A", "B", recipient); err != nil {
+		return err
+	}
+	if err := cfg.bridgeETH(ctx, "B", "A", recipient); err != nil {
 		return err
 	}
 
@@ -149,9 +155,13 @@ func CheckFailsafe(ctx context.Context, cfg *CheckInteropConfig) error {
 		return err
 	}
 
-	cfg.Log.Info("step 3: relay with failsafe enabled (expect rejection)")
+	cfg.Log.Info("step 3: relay A→B and B→A with failsafe enabled (expect rejection)")
 	if err := cfg.expectBlocked(ctx, "A", "B", recipient); err != nil {
-		_ = cfg.setFailsafe(ctx, false) // best-effort: leave the filter disabled
+		_ = cfg.setFailsafe(ctx, false)
+		return err
+	}
+	if err := cfg.expectBlocked(ctx, "B", "A", recipient); err != nil {
+		_ = cfg.setFailsafe(ctx, false)
 		return err
 	}
 
@@ -160,10 +170,11 @@ func CheckFailsafe(ctx context.Context, cfg *CheckInteropConfig) error {
 		return err
 	}
 
-	// The retrying plan tolerates the brief window during which the execution
-	// client's cached failsafe flag is still refreshing.
-	cfg.Log.Info("step 5: bridge after failsafe disabled (expect success)")
+	cfg.Log.Info("step 5: bridge A→B and B→A after failsafe disabled (expect success)")
 	if err := cfg.bridgeETH(ctx, "A", "B", recipient); err != nil {
+		return err
+	}
+	if err := cfg.bridgeETH(ctx, "B", "A", recipient); err != nil {
 		return err
 	}
 
@@ -235,29 +246,43 @@ func (cfg *CheckInteropConfig) expectBlocked(ctx context.Context, src, dst strin
 		return ctx.Err()
 	}
 
-	relay := txintent.NewIntent[*txintent.RelayTrigger, *txintent.InteropOutput](singleSubmitPlan(dstCl, cfg.Key))
-	relay.Content.DependOn(&send.Result)
-	relay.Content.Fn(txintent.RelayIndexed(predeploys.L2toL2CrossDomainMessengerAddr, &send.Result, &send.PlannedTx.Included, 1))
-	if _, err := relay.PlannedTx.Submitted.Eval(ctx); err == nil {
-		return fmt.Errorf("relay on %s was accepted while failsafe enabled, expected rejection", dst)
-	} else if !interopTxRejected(err) {
-		return fmt.Errorf("relay on %s failed but not with a recognized interop filter rejection: %w", dst, err)
+	for attempt := 1; attempt <= failsafeRelayAttempts; attempt++ {
+		relay := txintent.NewIntent[*txintent.RelayTrigger, *txintent.InteropOutput](singleSubmitPlan(dstCl, cfg.Key))
+		relay.Content.DependOn(&send.Result)
+		relay.Content.Fn(txintent.RelayIndexed(predeploys.L2toL2CrossDomainMessengerAddr, &send.Result, &send.PlannedTx.Included, 1))
+		_, err := relay.PlannedTx.Submitted.Eval(ctx)
+		if err == nil {
+			return fmt.Errorf("relay attempt %d/%d on %s accepted while failsafe enabled, expected rejection",
+				attempt, failsafeRelayAttempts, dst)
+		}
+		if !interopTxRejected(err) {
+			return fmt.Errorf("relay attempt %d/%d on %s failed with unrecognized error:\n  %v",
+				attempt, failsafeRelayAttempts, dst, err)
+		}
+		cfg.Log.Info("relay correctly rejected while failsafe enabled",
+			"attempt", fmt.Sprintf("%d/%d", attempt, failsafeRelayAttempts),
+			"chain", dst,
+			"error", err)
+		if attempt < failsafeRelayAttempts {
+			time.Sleep(time.Second)
+		}
 	}
-	cfg.Log.Info("relay correctly rejected while failsafe enabled", "chain", dst)
 	return nil
 }
 
 // setFailsafe toggles failsafe mode on the interop filter and confirms it took effect.
 func (cfg *CheckInteropConfig) setFailsafe(ctx context.Context, enabled bool) error {
-	if err := cfg.FilterAdmin.CallContext(ctx, nil, "admin_setFailsafeEnabled", enabled); err != nil {
-		return fmt.Errorf("admin_setFailsafeEnabled(%v): %w", enabled, err)
-	}
-	var got bool
-	if err := cfg.FilterAdmin.CallContext(ctx, &got, "admin_getFailsafeEnabled"); err != nil {
-		return fmt.Errorf("admin_getFailsafeEnabled: %w", err)
-	}
-	if got != enabled {
-		return fmt.Errorf("failsafe state did not update: wanted %v, got %v", enabled, got)
+	for i, f := range cfg.FilterAdmins {
+		if err := f.CallContext(ctx, nil, "admin_setFailsafeEnabled", enabled); err != nil {
+			return fmt.Errorf("filter %d: admin_setFailsafeEnabled(%v): %w", i, enabled, err)
+		}
+		var got bool
+		if err := f.CallContext(ctx, &got, "admin_getFailsafeEnabled"); err != nil {
+			return fmt.Errorf("filter %d: admin_getFailsafeEnabled: %w", i, err)
+		}
+		if got != enabled {
+			return fmt.Errorf("filter %d: failsafe state mismatch: want %v got %v", i, enabled, got)
+		}
 	}
 	return nil
 }
