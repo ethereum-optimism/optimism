@@ -16,7 +16,7 @@ use alloy_evm::{
     },
     eth::{EthTxResult, receipt_builder::ReceiptBuilderCtx},
 };
-use alloy_op_hardforks::{OpChainHardforks, OpHardfork, OpHardforks};
+use alloy_op_hardforks::{OpChainHardforks, OpHardforks};
 use alloy_primitives::{Address, B256, Bytes, U256};
 use canyon::ensure_create2_deployer;
 use op_alloy::consensus::{
@@ -241,11 +241,12 @@ impl PostExecState {
 pub struct OpBlockExecutionCtx {
     /// Parent block hash.
     pub parent_hash: B256,
-    /// Parent block timestamp, when the parent header is available.
+    /// Whether this block is the activation block of some fork at or after Jovian, which must
+    /// contain only deposit transactions.
     ///
-    /// Used to detect fork-activation blocks at or after Jovian, which must contain only deposit
-    /// transactions. `None` skips that check.
-    pub parent_timestamp: Option<u64>,
+    /// Compute via [`OpHardforks::is_no_user_tx_activation_block`] where the parent timestamp is
+    /// available; `false` skips the executor's check.
+    pub no_user_tx_activation_block: bool,
     /// Parent beacon block root.
     pub parent_beacon_block_root: Option<B256>,
     /// The block's extra data.
@@ -498,21 +499,6 @@ where
         >,
     Spec: OpHardforks,
 {
-    /// Returns whether this block is the activation block of some fork at or after Jovian. Such
-    /// a block must contain only deposit transactions — no user (non-deposit) txs.
-    ///
-    /// Always `false` when [`OpBlockExecutionCtx::parent_timestamp`] is unavailable; on those
-    /// execution paths the rule is enforced by the derivation layer instead.
-    fn is_no_user_tx_activation_block(&self) -> bool {
-        self.ctx.parent_timestamp.is_some_and(|parent_timestamp| {
-            self.spec.is_fork_activation_block_from(
-                OpHardfork::Jovian,
-                parent_timestamp,
-                self.evm.block().timestamp().saturating_to(),
-            )
-        })
-    }
-
     fn jovian_da_footprint_estimation(
         &mut self,
         tx_env: &E::Tx,
@@ -852,7 +838,7 @@ where
         // Since Jovian, fork-activation blocks must contain only deposit transactions — before,
         // the sequencer skipped user txs there by policy, but it wasn't a consensus rule. The
         // synthetic post-exec SDM tx is not a user tx, so it is allowed.
-        if self.is_no_user_tx_activation_block() && !is_deposit && !is_post_exec {
+        if self.ctx.no_user_tx_activation_block && !is_deposit && !is_post_exec {
             return Err(validation_error(
                 OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock,
             ));

@@ -180,9 +180,9 @@ where
     ) -> OpBlockExecutionCtx {
         OpBlockExecutionCtx {
             parent_hash: block.header().parent_hash(),
-            // No parent header on this path, so the executor skips the fork-activation check;
-            // the derivation layer enforces the rule instead.
-            parent_timestamp: None,
+            // No parent header on this path to detect fork-activation blocks, so the executor's
+            // check is skipped; the derivation layer enforces the rule instead.
+            no_user_tx_activation_block: false,
             parent_beacon_block_root: block.header().parent_beacon_block_root(),
             extra_data: block.header().extra_data().clone(),
             post_exec_mode: post_exec_mode.unwrap_or_default(),
@@ -198,7 +198,9 @@ where
     ) -> OpBlockExecutionCtx {
         OpBlockExecutionCtx {
             parent_hash: parent.hash(),
-            parent_timestamp: Some(parent.timestamp()),
+            no_user_tx_activation_block: self
+                .chain_spec()
+                .is_no_user_tx_activation_block(parent.timestamp(), attributes.timestamp),
             parent_beacon_block_root: attributes.parent_beacon_block_root,
             extra_data: attributes.extra_data,
             post_exec_mode,
@@ -380,9 +382,9 @@ where
 
         Ok(OpBlockExecutionCtx {
             parent_hash: payload.parent_hash(),
-            // No parent header on this path, so the executor skips the fork-activation check;
-            // the derivation layer enforces the rule instead.
-            parent_timestamp: None,
+            // No parent header on this path to detect fork-activation blocks, so the executor's
+            // check is skipped; the derivation layer enforces the rule instead.
+            no_user_tx_activation_block: false,
             parent_beacon_block_root: payload.sidecar.parent_beacon_block_root(),
             extra_data: payload.payload.as_v1().extra_data.clone(),
             post_exec_mode,

@@ -188,16 +188,12 @@ pub trait OpHardforks: EthereumHardforks {
     /// [`ForkCondition::Never`].
     fn op_fork_activation(&self, fork: OpHardfork) -> ForkCondition;
 
-    /// Returns `true` if the block at `block_timestamp` is the activation block of `fork` or any
-    /// later fork, given its parent block's `parent_timestamp` — i.e. some fork at or after
-    /// `fork` is active at this block but was not active at its parent.
-    fn is_fork_activation_block_from(
-        &self,
-        fork: OpHardfork,
-        parent_timestamp: u64,
-        block_timestamp: u64,
-    ) -> bool {
-        fork.forks_from().any(|fork| {
+    /// Returns `true` if the block at `block_timestamp` is the activation block of some fork at
+    /// or after Jovian, given its parent block's `parent_timestamp` — i.e. such a fork is active
+    /// at this block but was not active at its parent. Since Jovian, fork-activation blocks must
+    /// contain only deposit transactions — no user (non-deposit) txs.
+    fn is_no_user_tx_activation_block(&self, parent_timestamp: u64, block_timestamp: u64) -> bool {
+        OpHardfork::Jovian.forks_from().any(|fork| {
             let activation = self.op_fork_activation(fork);
             activation.active_at_timestamp(block_timestamp) &&
                 !activation.active_at_timestamp(parent_timestamp)
@@ -446,19 +442,19 @@ mod tests {
     }
 
     #[test]
-    fn is_fork_activation_block_from_detects_first_fork_block() {
+    fn is_no_user_tx_activation_block_detects_first_fork_block() {
         let forks = OpChainHardforks::op_mainnet();
         let jovian = OP_MAINNET_JOVIAN_TIMESTAMP;
 
         // First block at/after the Jovian timestamp is the activation block.
-        assert!(forks.is_fork_activation_block_from(OpHardfork::Jovian, jovian - 2, jovian));
-        assert!(forks.is_fork_activation_block_from(OpHardfork::Jovian, jovian - 2, jovian + 2));
+        assert!(forks.is_no_user_tx_activation_block(jovian - 2, jovian));
+        assert!(forks.is_no_user_tx_activation_block(jovian - 2, jovian + 2));
         // Already active at the parent, or not yet active at the block.
-        assert!(!forks.is_fork_activation_block_from(OpHardfork::Jovian, jovian, jovian + 2));
-        assert!(!forks.is_fork_activation_block_from(OpHardfork::Jovian, jovian - 4, jovian - 2));
-        // Forks before the anchor are excluded: Jovian's activation block is not an activation
-        // block of Karst or later (neither of which is scheduled on this chain).
-        assert!(!forks.is_fork_activation_block_from(OpHardfork::Karst, jovian - 2, jovian));
+        assert!(!forks.is_no_user_tx_activation_block(jovian, jovian + 2));
+        assert!(!forks.is_no_user_tx_activation_block(jovian - 4, jovian - 2));
+        // Pre-Jovian fork activations don't count.
+        let isthmus = OP_MAINNET_ISTHMUS_TIMESTAMP;
+        assert!(!forks.is_no_user_tx_activation_block(isthmus - 2, isthmus));
     }
 
     #[test]

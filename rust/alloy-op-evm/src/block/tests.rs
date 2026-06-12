@@ -3,7 +3,7 @@ use alloy_consensus::{Sealed, SignableTransaction, TxLegacy, transaction::Recove
 use alloy_eips::eip2718::WithEncoded;
 use alloy_evm::{EvmEnv, ToTxEnv};
 use alloy_hardforks::ForkCondition;
-use alloy_op_hardforks::OpHardfork;
+use alloy_op_hardforks::{OpHardfork, OpHardforks};
 use alloy_primitives::{Address, B256, Bytes, Signature, TxKind, U256, uint};
 use op_alloy::consensus::{OpTxEnvelope, TxDeposit};
 use op_revm::{
@@ -145,9 +145,15 @@ fn build_executor<'a>(
 
     let evm = OpEvm::new(ctx.build_op_with_inspector(NoOpInspector {}), true);
 
+    // Like production call sites, the activation-block flag is computed where the parent
+    // timestamp is available and left `false` where it isn't.
+    let no_user_tx_activation_block = parent_timestamp.is_some_and(|parent_timestamp| {
+        op_chain_hardforks.is_no_user_tx_activation_block(parent_timestamp, block_timestamp)
+    });
+
     OpBlockExecutor::new(
         evm,
-        OpBlockExecutionCtx { parent_timestamp, ..Default::default() },
+        OpBlockExecutionCtx { no_user_tx_activation_block, ..Default::default() },
         op_chain_hardforks,
         receipt_builder,
     )
@@ -428,7 +434,7 @@ fn test_no_user_tx_activation_block_rejects_user_tx() {
             Some(fork_timestamp - 1),
         );
         assert!(
-            executor.is_no_user_tx_activation_block(),
+            executor.ctx.no_user_tx_activation_block,
             "{fork:?} activation block should be flagged"
         );
 
@@ -462,7 +468,7 @@ fn test_fork_activation_block_accepts_deposits_only() {
         KARST_TIMESTAMP,
         Some(KARST_TIMESTAMP - 1),
     );
-    assert!(executor.is_no_user_tx_activation_block());
+    assert!(executor.ctx.no_user_tx_activation_block);
 
     // Deposits (L1-attributes + network-upgrade automatic deposits) are accepted.
     executor
@@ -488,7 +494,7 @@ fn test_normal_post_activation_block_accepts_user_tx() {
         KARST_TIMESTAMP + 2,
         Some(KARST_TIMESTAMP + 1),
     );
-    assert!(!executor.is_no_user_tx_activation_block());
+    assert!(!executor.ctx.no_user_tx_activation_block);
 
     let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
     executor.execute_transaction(&user_tx).expect("user tx accepted on a normal Karst block");
@@ -508,7 +514,7 @@ fn test_non_activation_karst_block_not_rejected() {
         KARST_TIMESTAMP + 100,
         Some(KARST_TIMESTAMP + 50),
     );
-    assert!(!executor.is_no_user_tx_activation_block());
+    assert!(!executor.ctx.no_user_tx_activation_block);
 
     let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
     executor
@@ -531,7 +537,7 @@ fn test_none_parent_timestamp_skips_check() {
         KARST_TIMESTAMP,
         None,
     );
-    assert!(!executor.is_no_user_tx_activation_block());
+    assert!(!executor.ctx.no_user_tx_activation_block);
 
     let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
     executor
