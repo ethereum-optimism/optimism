@@ -43,10 +43,10 @@ This copies `current-upgrade-bundle.json` to `op-core/nuts/bundles/<fork>_nut_bu
 Then generate this fork's **pre-fork state** and commit it alongside the lock, so the *next* fork's activation test has it to boot from:
 
 ```bash
-OP_E2E_GEN_PREFORK_STATE=<fork> go test -run TestGenerateForkState ./rust/kona/tests/proofs/
+just nut-prefork-state-for <fork>
 ```
 
-This writes `op-core/nuts/state/<fork>_state.json` (= the previous fork's state with this fork's bundle applied). `check-nut-locks` requires it. The chain is seeded by `jovian_state` (built differently — see `op-core/nuts/state/README.md`).
+This writes `op-core/nuts/state/<fork>_state.json` (= the previous fork's state with this fork's bundle applied), which `check-nut-locks` requires. See [`op-core/nuts/state/README.md`](state/README.md) for details.
 
 ### Verifying a bundle
 

@@ -389,6 +389,10 @@ nut-snapshot-for fork:
 nut-provenance-verify fork:
   go run ./ops/scripts/nut-provenance-verify {{fork}}
 
+# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
+nut-prefork-state-for fork:
+  OP_E2E_GEN_PREFORK_STATE={{fork}} go test -run TestGenerateForkState ./rust/kona/tests/proofs/
+
 
 # Checks that TODO comments have corresponding issues.
 todo-checker:
