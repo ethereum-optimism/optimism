@@ -187,8 +187,8 @@ func collectMetrics(t devtest.T, blockTime time.Duration) {
 	})
 }
 
-func setupOracle(t devtest.T, el *dsl.L2ELNode, blockTime time.Duration) *txinclude.IsthmusCostOracle {
-	oracle := txinclude.NewIsthmusCostOracle(&batchRPCClient{
+func setupOracle(t devtest.T, el *dsl.L2ELNode, blockTime time.Duration) *txinclude.CostOracle {
+	oracle := txinclude.NewCostOracle(&batchRPCClient{
 		multicaller: el.Escape().EthClient().NewMultiCaller(3),
 	}, blockTime)
 	t.Require().NoError(oracle.SetParams(t.Ctx()))

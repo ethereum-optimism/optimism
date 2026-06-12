@@ -10,7 +10,7 @@ use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{L1BlockInfo, OpBuilder, OpHaltReason, OpSpecId, OpTransaction};
 use revm::{
     Context, Inspector, MainContext,
-    context::{BlockEnv, CfgEnv, result::EVMError},
+    context::{BlockEnv, CfgEnv, DBErrorMarker, result::EVMError},
     inspector::NoOpInspector,
 };
 
@@ -91,7 +91,7 @@ where
         OpEvm<DB, I, OpFpvmPrecompiles<H, O>, FpvmOpTx>;
     type Context<DB: Database> = OpEvmContext<DB>;
     type Tx = FpvmOpTx;
-    type Error<DBError: core::error::Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
+    type Error<DBError: DBErrorMarker> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type Precompiles = OpFpvmPrecompiles<H, O>;

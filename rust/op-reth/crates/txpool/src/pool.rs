@@ -15,13 +15,15 @@ use alloy_consensus::Transaction;
 use alloy_eips::eip7594::BlobTransactionSidecarVariant;
 use alloy_primitives::{Address, B256, TxHash};
 use metrics::Counter;
+use reth_eth_wire_types::HandleMempoolData;
 use reth_metrics::Metrics;
 use reth_transaction_pool::{
     AllPoolTransactions, AllTransactionsEvents, BestTransactions, BestTransactionsAttributes,
-    BlobStoreError, BlockInfo, GetPooledTransactionLimit, NewTransactionEvent, PoolResult,
-    PoolSize, PoolTransaction, PoolUpdateKind, PropagatedTransactions, TransactionEvents,
-    TransactionListenerKind, TransactionOrigin, TransactionPool, TransactionPoolExt,
-    ValidPoolTransaction,
+    BlobStore, BlobStoreError, BlockInfo, EthPoolTransaction, GetPooledTransactionLimit,
+    NewTransactionEvent, Pool, PoolConfig, PoolResult, PoolSize, PoolTransaction, PoolUpdateKind,
+    PropagatedTransactions, TransactionEvents, TransactionListenerKind, TransactionOrdering,
+    TransactionOrigin, TransactionPool, TransactionPoolExt, TransactionValidationOutcome,
+    TransactionValidator, ValidPoolTransaction,
 };
 use tokio::sync::mpsc::Receiver;
 use tracing::debug;
@@ -139,6 +141,16 @@ where
         Self { inner, reorg_state, metrics: OpPoolMetrics::default() }
     }
 
+    /// Number of transactions in the entire pool.
+    pub fn len(&self) -> usize {
+        self.inner.pool_size().total
+    }
+
+    /// Whether the pool is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns true if interop filtering should fire on this
     /// `add_external_transactions` call.
     ///
@@ -190,6 +202,43 @@ where
             self.metrics.reorg_interop_txs_filtered.increment(removed as u64);
         }
         filtered
+    }
+}
+
+impl<V, T, S> OpPool<Pool<V, T, S>>
+where
+    V: TransactionValidator,
+    V::Transaction: EthPoolTransaction,
+    T: TransactionOrdering<Transaction = V::Transaction>,
+    S: BlobStore + Clone,
+{
+    /// Get the config the pool was configured with.
+    pub fn config(&self) -> &PoolConfig {
+        self.inner.config()
+    }
+
+    /// Get the validator reference.
+    pub fn validator(&self) -> &V {
+        self.inner.validator()
+    }
+
+    /// Validates the given transaction.
+    pub async fn validate(
+        &self,
+        origin: TransactionOrigin,
+        transaction: V::Transaction,
+    ) -> TransactionValidationOutcome<V::Transaction> {
+        self.validator().validate_transaction(origin, transaction).await
+    }
+
+    /// Returns whether or not the pool is over its configured size and transaction count limits.
+    pub fn is_exceeded(&self) -> bool {
+        self.inner.is_exceeded()
+    }
+
+    /// Returns the configured blob store.
+    pub fn blob_store(&self) -> &S {
+        self.inner.blob_store()
     }
 }
 
@@ -287,6 +336,15 @@ where
     delegate!(fn pending_transactions_listener_for(&self, kind: TransactionListenerKind) -> Receiver<TxHash>);
     delegate!(fn blob_transaction_sidecars_listener(&self) -> Receiver<reth_transaction_pool::NewBlobSidecar>);
     delegate!(fn new_transactions_listener_for(&self, kind: TransactionListenerKind) -> Receiver<NewTransactionEvent<Self::Transaction>>);
+    delegate!(fn blob_store(&self) -> Box<dyn BlobStore>);
+
+    fn retain_contains<A>(&self, announcement: &mut A)
+    where
+        A: HandleMempoolData,
+    {
+        self.inner.retain_contains(announcement)
+    }
+
     delegate!(fn pooled_transaction_hashes(&self) -> Vec<TxHash>);
     delegate!(fn pooled_transaction_hashes_max(&self, max: usize) -> Vec<TxHash>);
     delegate!(fn pooled_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);

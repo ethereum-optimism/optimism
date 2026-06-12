@@ -20,21 +20,6 @@ It means that the `op-node` is unable to authenticate with `execution client`'s 
 1.  Check that the JWT secret is correct in both services.
 2.  Check that `execution client`'s authenticated RPC is enabled, and that the URL is correct.
 
-## 403 Forbidden: Invalid Host Specified
-
-If you see a log that looks like this in `op-node`:
-
-```
-{"err":"403 Forbidden: invalid host specified\n","lvl":"error","msg":"error getting latest header","t":"2022-12-13T22:29:18.932833159Z"}
-```
-
-It means that you have not whitelisted `op-node`'s host with `execution client`.
-
-### Solution
-
-1.  Make sure that the `--authrpc.vhosts` parameter in `execution client` is either set to the correct host, or `*`.
-2.  Check that `execution client`'s authenticated RPC is enabled, and that the URL is correct.
-
 ## Failed to Load P2P Config
 
 If you see a log that looks like this in `op-node`:
@@ -69,7 +54,7 @@ It means that the `op-node` is pointing to the wrong chain.
 
 ## Error: `eth_sendRawTransaction` Does Not Exist
 
-If an RPC call to your execution client (`op-geth`, Nethermind, etc.) returns a response like:
+If an RPC call to your execution client (`op-reth`, Nethermind, etc.) returns a response like:
 
 ```json
 {
@@ -85,9 +70,9 @@ If an RPC call to your execution client (`op-geth`, Nethermind, etc.) returns a 
 This `-32601` JSON-RPC error means the sequencer endpoint you configured does not expose `eth_sendRawTransaction`. The request path looks like:
 
 ```
-Client → eth_sendRawTransaction → op-geth:8545
+Client → eth_sendRawTransaction → execution client:8545
                                 ↓
-                      op-geth forwards to sequencer
+                  EL forwards to sequencer (--rollup.sequencer URL)
                                 ↓
               eth_sendRawTransaction → op-node:8547
                                 ↓
@@ -95,65 +80,36 @@ Client → eth_sendRawTransaction → op-geth:8545
                  (op-node has no eth namespace!)
 ```
 
-Because `op-node` only exposes rollup-specific RPC methods—there is no `eth_*` namespace—it cannot accept raw transaction submissions. When `op-geth` forwards the transaction to an `op-node` URL it immediately fails with `-32601`.
+Because `op-node` only exposes rollup-specific RPC methods—there is no `eth_*` namespace—it cannot accept raw transaction submissions. When your execution client forwards the transaction to an `op-node` URL it immediately fails with `-32601`.
 
-This situation almost always happens when:
-
-*   `--rollup.sequencerhttp` (or `ROLLUP_SEQUENCER_HTTP`) is pointed to your own `op-node` instead of the hosted public sequencer.
-*   The sequencer container was launched with that flag by mistake, so your node tries to submit transactions to itself.
-
-For canonical Optimism networks you must point `--rollup.sequencerhttp` at the public sequencer endpoint published in the network config. For user-deployed L2s that host their own sequencer, do not set this option at all so the execution client talks directly to your local sequencer and never forwards to an `op-node`.
+This situation almost always happens when op-reth's `--rollup.sequencer` (aliases `--rollup.sequencer-http`, `--rollup.sequencer-ws`) is misconfigured to point at your own `op-node` rather than the chain's actual sequencer.
 
 ### Solution
 
-1.  Confirm your execution client exposes the `eth` namespace on its HTTP API (`--http.api eth,net,engine,...` for geth/`op-geth`). If `eth` is disabled, raw transactions will be rejected before they reach the sequencer.
-2.  Inspect the environment/CLI flags of every component that speaks to the sequencer (`op-node`, `execution client`, `op-batcher`, `op-proposer`, scripts). The `--rollup.sequencerhttp` flag must point to the public sequencer URL for the chain (for example, `https://mainnet-sequencer.optimism.io`), **not** to your own `op-node`.
-3.  For user-deployed L2s where you run the sequencer yourself, leave `--rollup.sequencerhttp` unset so the client forwards locally and never falls back to an `op-node` endpoint.
-4.  If you templated docker-compose or systemd files, make sure `ROLLUP_SEQUENCER_HTTP` is not being overwritten by another `.env` file or compose override. Remove any accidental references to your local node.
-5.  Restart the affected services after correcting the flag so they pick up the new endpoint. The error should disappear as soon as they can reach the proper sequencer RPC.
+1.  Confirm op-reth exposes the `eth` namespace on its HTTP API (the standard set is `--http.api=eth,net,web3,debug`). If `eth` is disabled, raw transactions will be rejected before they reach the sequencer.
+2.  Inspect the CLI flags and environment variables of every component that talks to the sequencer (`op-node`, `op-reth`, `op-batcher`, `op-proposer`, scripts). The `--rollup.sequencer` flag must point to the chain's public sequencer endpoint (for example, `https://mainnet-sequencer.optimism.io`), **not** to your own `op-node`.
+3.  For user-deployed L2s where you run the sequencer yourself, leave `--rollup.sequencer` unset so op-reth forwards locally and never falls back to an `op-node` endpoint.
+4.  Restart the affected services after correcting the flag so they pick up the new endpoint. The error should disappear as soon as they can reach the proper sequencer RPC.
 
 ## Unclean Shutdowns
 
-If you see a log that looks like this in `execution client`:
+An unclean shutdown occurs when the execution client stops without completing its normal shutdown procedure — for example, a `SIGKILL`, a power loss, or a container killed past its grace period. The impact depends on which database backend your EL uses.
 
-```
-WARN [03-05|16:18:11.238] Unclean shutdown detected                booted=2023-03-05T11:09:26+0000 age=5h8m45s
-```
+To minimize risk, always shut down gracefully: `Ctrl-C` for foreground processes, `docker stop -t 300 <container>` for Docker, or `systemctl stop` for systemd (override the default 90s timeout if your EL has a large in-memory write to flush).
 
-It means `execution client` has experienced an unclean shutdown. The [geth docs](https://geth.ethereum.org/docs/fundamentals/databases#unclean-shutdowns)
-say if Geth stops unexpectedly, the database can be corrupted. This is known as an
-"unclean shutdown" and it can lead to a variety of problems for the node when
-it is restarted.
+### For op-reth
 
-### For op-geth
+op-reth uses MDBX, which is crash-safe by design. After an unclean shutdown the node typically restarts cleanly with no operator intervention required.
 
-It is always best to shut down Geth gracefully, i.e. using a
-shutdown command such as `ctrl-c`, `docker stop -t 300 <container ID>` or
-`systemctl stop` (although please note that `systemctl stop` has a default timeout
-of 90s - if Geth takes longer than this to gracefully shut down it will quit
-forcefully. Update the `TimeoutSecs` variable in `systemd.service` to override this
-value to something larger, at least 300s).
+If startup fails after an unclean shutdown, options include:
 
-This way, Geth knows to write all relevant information into the database to
-allow the node to restart properly later. This can involve >1GB of information
-being written to the LevelDB database which can take several minutes.
+*   **Stage unwind** — roll back to the last consistent stage checkpoint:
 
-**Solution**
+    ```bash
+    op-reth stage unwind to-block <BLOCK_NUMBER> --datadir=<path>
+    ```
 
-In most cases, `op-geth` can recover automatically from an unclean shutdown when you restart it. The warning message is informational and doesn't necessarily indicate a problem.
-
-However, if `op-geth` fails to restart properly after an unclean shutdown, you can use the `removedb` subcommand as a last resort:
-
-```bash
-geth removedb --datadir=<path to data directory>
-```
-
-<Warning>
-  This command will delete all state database data. After running `removedb`,
-  you must manually restart the node to begin the resync process from the ancient database,
-  which can take significant time. Only use this when the node actually fails to restart,
-  not for every unclean shutdown warning.
-</Warning>
+*   **Full resync** — as a last resort, delete the datadir and resync from genesis or a [snapshot](https://datadirs.optimism.io/).
 
 ### For Nethermind
 

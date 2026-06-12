@@ -145,6 +145,7 @@ where
             cached_reads,
             config: reth_basic_payload_builder::PayloadConfig {
                 parent_header: config.parent_header,
+                parent_block_info: config.parent_block_info,
                 attributes: builder_attrs,
                 payload_id,
             },
@@ -182,6 +183,7 @@ where
         let args = BuildArguments {
             config: reth_basic_payload_builder::PayloadConfig {
                 parent_header: config.parent_header,
+                parent_block_info: config.parent_block_info,
                 attributes: builder_attrs,
                 payload_id,
             },

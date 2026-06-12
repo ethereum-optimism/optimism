@@ -27,30 +27,47 @@ var (
 		Required: true,
 	}
 
+	DependencySetFlag = &cli.StringFlag{
+		Name:      "dependency-set",
+		Usage:     "Path to the interop dependency-set JSON file (sources the chain set and message expiry window)",
+		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
+		Required:  true,
+		TakesFile: true,
+	}
+
 	// Optional Flags
-	SupervisorEndpointsFlag = &cli.StringSliceFlag{
-		Name:     "supervisor-endpoints",
-		Usage:    "The RPC endpoints for the supervisors to call admin_setFailsafeEnabled",
-		EnvVars:  prefixEnvVars("SUPERVISOR_ENDPOINTS"),
+	InteropFilterEndpointFlag = &cli.StringFlag{
+		Name:     "interop-filter-endpoint",
+		Usage:    "Optional op-interop-filter RPC endpoint to cross-check executing-message validity and observe failsafe state (read-only)",
+		EnvVars:  prefixEnvVars("INTEROP_FILTER_ENDPOINT"),
 		Required: false,
 	}
 
-	TriggerFailsafeFlag = &cli.BoolFlag{
-		Name:     "trigger-failsafe",
-		Usage:    "Enable automatic failsafe triggering when invalid messages are detected",
-		EnvVars:  prefixEnvVars("TRIGGER_FAILSAFE"),
+	InteropFilterMinSafetyFlag = &cli.StringFlag{
+		Name:     "interop-filter-min-safety",
+		Usage:    "Minimum safety level requested from the interop-filter checkAccessList cross-check; the filter only supports cross-unsafe or unsafe",
+		EnvVars:  prefixEnvVars("INTEROP_FILTER_MIN_SAFETY"),
 		Required: false,
-		Value:    true,
+		Value:    "cross-unsafe",
+	}
+
+	SupernodeEndpointsFlag = &cli.StringSliceFlag{
+		Name:     "supernode-endpoints",
+		Usage:    "Optional op-supernode CL RPC endpoints to observe liveness, per-chain safe/finalized heads, and cross-safety violations (read-only)",
+		EnvVars:  prefixEnvVars("SUPERNODE_ENDPOINTS"),
+		Required: false,
 	}
 )
 
 var requiredFlags = []cli.Flag{
 	L2RpcsFlag,
+	DependencySetFlag,
 }
 
 var optionalFlags = []cli.Flag{
-	SupervisorEndpointsFlag,
-	TriggerFailsafeFlag,
+	InteropFilterEndpointFlag,
+	InteropFilterMinSafetyFlag,
+	SupernodeEndpointsFlag,
 }
 
 func init() {

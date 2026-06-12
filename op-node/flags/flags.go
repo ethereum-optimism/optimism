@@ -221,7 +221,7 @@ var (
 			openum.EnumString(engine.Kinds),
 		EnvVars: prefixEnvVars("L2_ENGINE_KIND"),
 		Value: func() *engine.Kind {
-			out := engine.Geth
+			out := engine.Reth
 			return &out
 		}(),
 		Category: RollupCategory,

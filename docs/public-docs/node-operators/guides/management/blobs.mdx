@@ -1,112 +1,38 @@
 ---
 title: Using blobs
-description: Learn how to handle blobs for your node.
+description: Configure op-node to fetch L1 batcher blob data, including blobs older than the beacon retention window.
 ---
 
-The proposed Ecotone upgrade impacts node operators because of the new Beacon 
-endpoint for `op-node`. Soon after the Ecotone activation, batch transactions 
-will be sent as 4844 blobs, and blobs can only be retrieved from Beacon nodes. 
-This means node operators will need access to a beacon node/consensus client 
-(i.e. Lighthouse, Lodestar, Nimbus, Prysm, Teku, etc.).
+OP Stack rollups post batch data to L1 as [EIP-4844 blobs](https://eips.ethereum.org/EIPS/eip-4844). To retrieve this data, `op-node` requires access to an L1 beacon endpoint. Run your own beacon node ([Lighthouse](https://lighthouse-book.sigmaprime.io/run_a_node.html), Lodestar, Nimbus, Prysm, or Teku) or use a third-party service like [QuickNode](https://www.quicknode.com/docs/ethereum/eth-v1-beacon-genesis).
 
-## Preparing your node
-
-These steps are necessary for EVERY node operator:
-
-<Steps>
-  <Step title="Update to the latest release">
-    Update both your execution client and consensus client to the latest releases.
-  </Step>
-
-  <Step title="Configure the Ecotone activation date">
-  *   If you are operating a node for an OP Chain that has an entry in the [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json), 
-  the Ecotone activation date is handled automatically by both execution clients:
-  
-  <Tabs>
-    <Tab title="op-geth">
-      The activation date is part of the node configuration. No action needed after upgrading to the latest release.
-    </Tab>
-    <Tab title="Nethermind">
-      The activation date is included in the built-in chain configuration. No action needed after upgrading to the latest release.
-    </Tab>
-  </Tabs>
-  
-  *   For node operators of custom chains not included in the [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json):
-  
-  <Tabs>
-    <Tab title="op-geth">
-      Set the activation time in `rollup.json` (`ecotone_time`) and via CLI overrides
-    </Tab>
-    <Tab title="Nethermind">
-      Use the chain configuration examples in `src/Nethermind/Chains` as templates for your custom chain configuration
-    </Tab>
-  </Tabs>
-  
-  <Info>
-    When using `op-geth`, even if the ecotone activation is configured via the `rollup.json`, it still 
-    needs to be configured separately via command line flag.
-  </Info>
-  
-  <Tabs>
-    <Tab title="op-node">
-      ```shell
-      --override.ecotone value            (default: 0)                       ($OP_NODE_OVERRIDE_ECOTONE)
-                Manually specify the Ecotone fork timestamp, overriding the bundled setting
-      ```
-    </Tab>
-  
-    <Tab title="op-geth">
-      ```shell
-      --override.ecotone value            (default: 0)                       ($GETH_OVERRIDE_ECOTONE)
-                Manually specify the Optimism Ecotone fork timestamp, overriding the bundled
-                setting
-      ```
-    </Tab>
-  </Tabs>
-  </Step>
-
-  <Step title="Prepare for activation">
-  *   All node operators must set an L1 beacon value in your `op-node` as soon as you update to the latest release.
-  
-  ```shell
-  --l1.beacon value                                                      ($OP_NODE_L1_BEACON)
-            HTTP endpoint Address of L1 Beacon-node.
-  ```
-  
-  *   Either run your own L1 beacon node like [Lighthouse](https://lighthouse-book.sigmaprime.io/run_a_node.html) or use a third-party beacon node RPC service, like [Quicknode](https://www.quicknode.com/docs/ethereum/eth-v1-beacon-genesis).
-  </Step>
-</Steps>
-
-## Configure a blob archiver
-
-There is a configurable `beacon-archiver` that will allow nodes to sync blob data that is older than 18 days - after blobs are 18 days old, normal beacon nodes will "prune" or remove them. If your node is already in sync with the head of the chain, you won't need to use a `beacon-archiver`.
-
-*   If you're spinning up a new node, if you load it from a snapshot that's within 18 days (the amount of time until blobs are pruned) you will not need to use a `beacon-archiver` at all as long as your node does not fall offline for more than 18 days.
-*   If you're running a new node that is syncing more than 18 days (the amount of time until blobs are pruned) after Ecotone launch, then you will need to configure a `beacon-archiver` on the `op-node`.
+Pass the beacon endpoint to op-node:
 
 ```shell
---l1.beacon-archiver value                                                      ($OP_NODE_L1_BEACON)
-          HTTP Endpoint of a Blob Archiver or an L1 Beacon-node that does not prune blobs 
+--l1.beacon value                                                      ($OP_NODE_L1_BEACON)
+          HTTP endpoint Address of L1 Beacon-node.
 ```
 
-Choose one of the following options to access a beacon archiver endpoint:
+## Configuring a blob archiver
 
-*   **Option 1:** Run a beacon node with blobs pruning disabled. For example, you can run your own L1 beacon node like [Lighthouse](https://lighthouse-book.sigmaprime.io/run_a_node.html) and configure it to retain all blobs and use that endpoint here.
+Standard beacon nodes prune blobs after 18 days. If your node is synced within the last 18 days and stays online, the default beacon endpoint is sufficient. You need a blob archiver if either of these is true:
+
+*   You're syncing a new node from a snapshot or genesis older than 18 days
+*   Your node has been offline for more than 18 days
+
+Pass one or more fallback endpoints to op-node:
 
 ```shell
-# lighthouse
---prune-blobs=false
+--l1.beacon-fallbacks value                                            ($OP_NODE_L1_BEACON_FALLBACKS)
+          Addresses of L1 Beacon-API compatible HTTP fallback endpoints. Used to fetch blob sidecars
+          not available at the l1.beacon (e.g. expired blobs).
 ```
 
-*   **Option 2:**  Run a `blob-archiver` and configure `op-node` to use the `blob-archiver` API service with `--l1.beacon-archiver`.
-    Running a `blob-archiver` is lighter weight than running a beacon node that does not prune blobs: [https://github.com/base-org/blob-archiver](https://github.com/base-org/blob-archiver). There is a configurable `beacon-archiver` that will allow nodes to sync blob data that is older than 18 days - after blobs are 18 days old, normal beacon nodes will  "prune" or remove them. If your node is already in sync with the head of the chain, you won't need to use a `beacon-archiver`.
-    *   If you're spinning up a new node, if you load it from a snapshot that's within 18 days (the amount of time until blobs are pruned) you will not need to use a `beacon-archiver`  at all as long as your node does not fall offline for more than 18 days.
-    *   If you're running a new node that is syncing more than 18 days (the amount of time until blobs are pruned) after Ecotone launch, then you will need to configure a `beacon-archiver` on the `op-node`.
+<Info>
+  `--l1.beacon-fallbacks` was previously called `--l1.beacon-archiver`. The old name still works as an alias, and so does the legacy env var `$OP_NODE_L1_BEACON_ARCHIVER`.
+</Info>
 
-```shell
---l1.beacon-archiver value                                                      ($OP_NODE_L1_BEACON)
-          HTTP Endpoint of a Blob Archiver or an L1 Beacon-node that does not prune blobs 
-```
+Choose one of these options for the archiver endpoint:
 
-*   **Option 3:** If you don't want to operate any Beacon infrastructure, you can use an external service that provides access to pruned Blobs.
-
+*   **Option 1 — Run a beacon node with blob pruning disabled.** For Lighthouse, set `--prune-blobs=false` and point `--l1.beacon-fallbacks` at it.
+*   **Option 2 — Run a dedicated blob archiver service** such as [base-org/blob-archiver](https://github.com/base-org/blob-archiver), and point `--l1.beacon-fallbacks` at its API endpoint. Lighter weight than running a full no-prune beacon node.
+*   **Option 3 — Use a third-party blob-archiver service.** Useful if you don't want to operate any beacon infrastructure.

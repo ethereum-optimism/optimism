@@ -868,6 +868,9 @@ func (m *SimpleTxManager) waitForTx(ctx context.Context, tx *types.Transaction, 
 	// Poll for the transaction to be ready & then send the result to receiptChan
 	receipt, err := m.waitMined(ctx, tx, sendState)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
 		// this will happen if the tx was successfully replaced by a tx with bumped fees
 		m.txLogger(tx, true).Info("Transaction receipt not found", "err", err)
 		return

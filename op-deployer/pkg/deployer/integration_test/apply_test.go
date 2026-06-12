@@ -262,9 +262,8 @@ func TestEndToEndApply(t *testing.T) {
 		validateOPChainDeployment(t, cg, st, intent, false)
 	})
 
-	t.Run("with calldata broadcasts and prestate generation", func(t *testing.T) {
+	t.Run("with calldata broadcasts", func(t *testing.T) {
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
-		mockPreStateBuilder := devnet.NewMockPreStateBuilder()
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -277,18 +276,10 @@ func TestEndToEndApply(t *testing.T) {
 				Logger:             lgr,
 				StateWriter:        pipeline.NoopStateWriter(),
 				CacheDir:           testCacheDir,
-				PreStateBuilder:    mockPreStateBuilder,
 			},
 		))
 
 		require.Greater(t, len(st.DeploymentCalldata), 0)
-		require.Equal(t, 1, mockPreStateBuilder.Invocations())
-		require.Equal(t, len(intent.Chains), mockPreStateBuilder.LastOptsCount())
-		require.NotNil(t, st.PrestateManifest)
-		for _, val := range *st.PrestateManifest {
-			_, err := hexutil.Decode(val) // the not-empty val check is covered here as well
-			require.NoError(t, err)
-		}
 	})
 
 	t.Run("with custom gas token", func(t *testing.T) {
@@ -685,13 +676,9 @@ func TestInvalidL2Genesis(t *testing.T) {
 			opts, intent, _ := setupGenesisChain(t, devnet.DefaultChainID)
 			intent.GlobalDeployOverrides = tt.overrides
 
-			mockPreStateBuilder := devnet.NewMockPreStateBuilder()
-			opts.PreStateBuilder = mockPreStateBuilder
-
 			err := deployer.ApplyPipeline(ctx, opts)
 			require.Error(t, err)
 			require.ErrorContains(t, err, "failed to combine L2 init config")
-			require.Equal(t, 0, mockPreStateBuilder.Invocations())
 		})
 	}
 }

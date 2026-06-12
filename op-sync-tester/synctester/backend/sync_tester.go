@@ -227,6 +227,7 @@ func (s *SyncTester) ExchangeCapabilities(ctx context.Context, _ []string) []str
 		"engine_getPayloadV2",
 		"engine_getPayloadV3",
 		"engine_getPayloadV4",
+		"engine_getPayloadV5",
 
 		// forkchoiceUpdated
 		"engine_forkchoiceUpdatedV1",
@@ -278,6 +279,19 @@ func (s *SyncTester) GetPayloadV3(ctx context.Context, payloadID eth.PayloadID) 
 func (s *SyncTester) GetPayloadV4(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
 		logger.Debug("GetPayloadV4", "payloadID", payloadID)
+		if !payloadID.Is(engine.PayloadV3) {
+			return nil, engine.UnsupportedFork
+		}
+		return s.getPayload(session, logger, payloadID)
+	})
+}
+
+// GetPayloadV5 must be only called when Osaka (Karst) activated. The payload is built via
+// forkchoiceUpdatedV3 (which stays V3 through Osaka), so the payloadID carries the V3 marker;
+// only the getPayload method version bumps to V5 (the envelope is the V4-shaped one).
+func (s *SyncTester) GetPayloadV5(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
+	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
+		logger.Debug("GetPayloadV5", "payloadID", payloadID)
 		if !payloadID.Is(engine.PayloadV3) {
 			return nil, engine.UnsupportedFork
 		}

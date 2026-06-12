@@ -9,9 +9,9 @@ use revm::{
         self, EthPrecompileResult, Precompile, PrecompileHalt, PrecompileId, Precompiles, bn254,
         eth_precompile_fn, modexp, secp256r1,
     },
-    primitives::{Address, OnceLock, hardfork::SpecId},
+    primitives::{Address, AddressSet, OnceLock, hardfork::SpecId},
 };
-use std::{boxed::Box, string::String};
+use std::string::String;
 
 /// Optimism precompile provider
 #[derive(Debug, Clone)]
@@ -157,7 +157,7 @@ where
     }
 
     #[inline]
-    fn warm_addresses(&self) -> Box<impl Iterator<Item = Address>> {
+    fn warm_addresses(&self) -> &AddressSet {
         self.inner.warm_addresses()
     }
 

@@ -117,14 +117,16 @@ func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
 	// strings (and therefore source hashes). It is decoupled from the fork
 	// name so a hard-fork rename (e.g., Interop → Lagoon) does not break
 	// source-hash determinism with kona's bundle codegen, which embeds
-	// the bundle's concept-level name ("interop" → "Interop").
+	// the bundle's concept-level name ("interop" → "Interop"). The bundle
+	// file on disk has been renamed to lagoon_nut_bundle.json, but the
+	// label fed into the qualified intent stays "interop" for compat.
 	var bundleLabel forks.Name
 	switch fork {
 	case forks.Karst:
 		bundleJSON = nuts.KarstNUTBundleJSON
 		bundleLabel = forks.Karst
 	case forks.Lagoon:
-		bundleJSON = nuts.InteropNUTBundleJSON
+		bundleJSON = nuts.LagoonNUTBundleJSON
 		bundleLabel = "interop"
 	default:
 		return nil, 0, fmt.Errorf("no NUT bundle for fork %s", fork)
