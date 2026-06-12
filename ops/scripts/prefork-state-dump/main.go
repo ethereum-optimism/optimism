@@ -18,14 +18,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
+	config "github.com/	ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
-	config "github.com/ethereum-optimism/optimism/op-e2e/config"
 )
 
-// predeployScoped keeps only predeploy proxies + the implementations they point
-// at via their EIP-1967 implementation slot, preserving full per-account storage.
+// predeployScoped keeps every predeploy and preinstall, plus the
+// impls they point at via their EIP-1967 slot — with full per-account storage.
+// Everything else (e.g. prefunded EOAs) is dropped.
 func predeployScoped(full *foundry.ForgeAllocs) *foundry.ForgeAllocs {
 	out := &foundry.ForgeAllocs{Accounts: make(types.GenesisAlloc)}
 	for _, p := range predeploys.Predeploys {

@@ -103,8 +103,9 @@ func canonicalizeL1Block(allocs *foundry.ForgeAllocs) {
 	}
 }
 
-// predeployScoped keeps only predeploy proxies + the implementations they point
-// at via their EIP-1967 implementation slot, preserving full per-account storage.
+// predeployScoped keeps every predeploy and preinstall, plus the
+// impls they point at via their EIP-1967 slot — with full per-account storage.
+// Everything else (e.g. prefunded EOAs) is dropped.
 func predeployScoped(full *foundry.ForgeAllocs) *foundry.ForgeAllocs {
 	out := &foundry.ForgeAllocs{Accounts: make(types.GenesisAlloc)}
 	for _, p := range predeploys.Predeploys {
