@@ -1763,13 +1763,6 @@ jobs:
         description: Number machines to distribute the tests across
         type: integer
         default: 1
-      use_reth_workspace:
-        description: >-
-          Point op-e2e at the prebuilt op-reth binary persisted by
-          rust-workspace-binaries. Requires that the job also lists
-          rust-workspace-binaries in its `requires:`.
-        type: boolean
-        default: false
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
@@ -1780,14 +1773,11 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
-      - when:
-          condition: <<parameters.use_reth_workspace>>
-          steps:
-            - run:
-                name: Configure op-reth binary path
-                command: |
-                  ROOT_DIR="$(pwd)"
-                  echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
+      - run:
+          name: Configure op-reth binary path
+          command: |
+            ROOT_DIR="$(pwd)"
+            echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
       - go-restore-cache:
           namespace: go-tests
       - run:
@@ -2494,10 +2484,6 @@ workflows:
           parallelism: 12
           no_output_timeout: 19m
           test_timeout: 20m
-          # op-e2e defaults its L2 EL to external op-reth; reuse the prebuilt
-          # release binary persisted by rust-workspace-binaries instead of
-          # rebuilding it here.
-          use_reth_workspace: true
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -2518,10 +2504,6 @@ workflows:
           no_output_timeout: 89m # Longer timeout for full tests
           test_timeout: 90m
           notify: true
-          # op-e2e defaults its L2 EL to external op-reth; reuse the prebuilt
-          # release binary persisted by rust-workspace-binaries instead of
-          # rebuilding it here.
-          use_reth_workspace: true
           filters:
             branches:
               only: develop # Only runs on develop branch (post-merge)
