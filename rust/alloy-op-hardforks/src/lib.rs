@@ -766,13 +766,21 @@ mod tests {
 
     #[test]
     fn ethereum_fork_activation_follows_op_fork_activation() {
-        use EthereumHardfork::{Cancun, Osaka, Prague, Shanghai};
-        use OpHardfork::{Canyon, Ecotone, Isthmus, Karst};
+        use EthereumHardfork::{
+            ArrowGlacier, Cancun, GrayGlacier, London, Osaka, Prague, Shanghai,
+        };
+        use OpHardfork::{Bedrock, Canyon, Ecotone, Isthmus, Karst};
 
         let forks = OpChainHardforks::op_mainnet();
-        for (l1_fork, op_fork) in
-            [(Shanghai, Canyon), (Cancun, Ecotone), (Prague, Isthmus), (Osaka, Karst)]
-        {
+        for (l1_fork, op_fork) in [
+            (London, Bedrock),
+            (ArrowGlacier, Bedrock),
+            (GrayGlacier, Bedrock),
+            (Shanghai, Canyon),
+            (Cancun, Ecotone),
+            (Prague, Isthmus),
+            (Osaka, Karst),
+        ] {
             assert_eq!(
                 forks.ethereum_fork_activation(l1_fork),
                 forks.op_fork_activation(op_fork),
