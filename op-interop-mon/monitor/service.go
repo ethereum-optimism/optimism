@@ -33,10 +33,12 @@ type InteropMonitorService struct {
 
 	InteropMonitorConfig
 
-	finders   map[eth.ChainID]Finder
-	updaters  map[eth.ChainID]Updater
-	collector *MetricCollector
-	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash]
+	finders             map[eth.ChainID]Finder
+	updaters            map[eth.ChainID]Updater
+	collector           *MetricCollector
+	divergenceCollector *ReplicaDivergenceCollector
+	replicaClients      []ReplicaClient
+	finalized           *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
 	Version string
 
@@ -136,6 +138,24 @@ func (ms *InteropMonitorService) initFromClients(
 	if cfg.MetricsConfig.Enabled {
 		// Initialize the metric collector, with access to all updaters and failsafe client
 		ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters, failsafeClients, cfg.TriggerFailsafe)
+	}
+
+	// Initialize the cross-replica divergence collector when at least two
+	// supernode replica endpoints are configured. Read-only: it only compares
+	// super roots across replicas; a mismatch indicates a determinism violation.
+	if len(cfg.SupernodeReplicaEndpoints) >= 2 {
+		ms.replicaClients = make([]ReplicaClient, 0, len(cfg.SupernodeReplicaEndpoints))
+		for _, ep := range cfg.SupernodeReplicaEndpoints {
+			rc, err := NewSupernodeReplicaClient(ep, log)
+			if err != nil {
+				return fmt.Errorf("failed to init supernode replica client %s: %w", ep, err)
+			}
+			ms.replicaClients = append(ms.replicaClients, rc)
+		}
+		ms.divergenceCollector = NewReplicaDivergenceCollector(
+			ms.replicaClients, cfg.PollInterval, ms.Log, ms.Metrics, failsafeClients, cfg.TriggerFailsafe)
+	} else if len(cfg.SupernodeReplicaEndpoints) == 1 {
+		log.Warn("only one supernode replica endpoint configured; divergence detection needs at least two")
 	}
 	if err := ms.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to start metrics server: %w", err)
@@ -288,6 +308,11 @@ func (ms *InteropMonitorService) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to start metric collector: %w", err)
 		}
 	}
+	if ms.divergenceCollector != nil {
+		if err := ms.divergenceCollector.Start(); err != nil {
+			return fmt.Errorf("failed to start replica divergence collector: %w", err)
+		}
+	}
 	for _, updater := range ms.updaters {
 		if err := updater.Start(ctx); err != nil {
 			return fmt.Errorf("failed to start updater: %w", err)
@@ -332,10 +357,26 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 		}
 	}
 
-	ms.Log.Info("stopping metric collector")
-	if err := ms.collector.Stop(); err != nil {
-		result = errors.Join(result, fmt.Errorf("failed to stop metric collector: %w", err))
-		ms.Log.Error("failed to stop metric collector", "error", err)
+	// ms.collector is only created when metrics are enabled (the default is
+	// disabled), so guard the nil case — mirrors the guard in Start(). Without
+	// it, a clean shutdown with metrics off panics here, before the divergence
+	// collector and replica clients below are cleaned up.
+	if ms.collector != nil {
+		ms.Log.Info("stopping metric collector")
+		if err := ms.collector.Stop(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop metric collector: %w", err))
+			ms.Log.Error("failed to stop metric collector", "error", err)
+		}
+	}
+
+	if ms.divergenceCollector != nil {
+		ms.Log.Info("stopping replica divergence collector")
+		if err := ms.divergenceCollector.Stop(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop replica divergence collector: %w", err))
+		}
+	}
+	for _, rc := range ms.replicaClients {
+		rc.Close()
 	}
 
 	ms.Log.Info("stopping rpc server")

@@ -42,6 +42,13 @@ var (
 		Required: false,
 		Value:    true,
 	}
+
+	SupernodeReplicaEndpointsFlag = &cli.StringSliceFlag{
+		Name:     "supernode-replica-endpoints",
+		Usage:    "RPC endpoints of supernode replicas to cross-check for super-root divergence. Two or more enables the divergence monitor.",
+		EnvVars:  prefixEnvVars("SUPERNODE_REPLICA_ENDPOINTS"),
+		Required: false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -51,6 +58,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	SupervisorEndpointsFlag,
 	TriggerFailsafeFlag,
+	SupernodeReplicaEndpointsFlag,
 }
 
 func init() {

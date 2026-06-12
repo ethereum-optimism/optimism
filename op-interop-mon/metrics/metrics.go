@@ -17,6 +17,11 @@ type Metricer interface {
 	RecordTerminalStatusChange(executingChainID string, initiatingChainID string, count float64)
 	RecordExecutingBlockRange(chainID string, min uint64, max uint64)
 	RecordInitiatingBlockRange(chainID string, min uint64, max uint64)
+	// RecordReplicaDivergence reports the outcome of one cross-replica
+	// super-root comparison: diverged=true when two replicas disagreed on the
+	// super root at the same timestamp, comparedReplicas = how many replicas
+	// were compared this round.
+	RecordReplicaDivergence(diverged bool, comparedReplicas int, atTimestamp uint64)
 
 	opmetrics.RefMetricer
 	opmetrics.RPCMetricer
@@ -38,6 +43,12 @@ type Metrics struct {
 	terminalStatusChanges prometheus.GaugeVec
 	executingBlockRange   prometheus.GaugeVec
 	initiatingBlockRange  prometheus.GaugeVec
+
+	// Replica-divergence metrics
+	replicaDivergence       prometheus.Gauge
+	replicaDivergenceTotal  prometheus.Counter
+	replicaComparedReplicas prometheus.Gauge
+	replicaComparedAt       prometheus.Gauge
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -104,6 +115,26 @@ func NewMetrics(procName string) *Metrics {
 			"chain_id",
 			"range_type",
 		}),
+		replicaDivergence: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "replica_superroot_divergence",
+			Help:      "1 if the most recent cross-replica super-root comparison found a disagreement, else 0",
+		}),
+		replicaDivergenceTotal: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "replica_superroot_divergence_total",
+			Help:      "Total number of cross-replica super-root comparisons that found a disagreement",
+		}),
+		replicaComparedReplicas: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "replica_compared_replicas",
+			Help:      "Number of supernode replicas compared in the most recent comparison round",
+		}),
+		replicaComparedAt: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "replica_compared_timestamp",
+			Help:      "L2 timestamp at which the most recent cross-replica super-root comparison ran",
+		}),
 	}
 }
 
@@ -159,4 +190,16 @@ func (m *Metrics) RecordExecutingBlockRange(chainID string, min uint64, max uint
 func (m *Metrics) RecordInitiatingBlockRange(chainID string, min uint64, max uint64) {
 	m.initiatingBlockRange.WithLabelValues(chainID, "min").Set(float64(min))
 	m.initiatingBlockRange.WithLabelValues(chainID, "max").Set(float64(max))
+}
+
+// RecordReplicaDivergence records the outcome of one cross-replica super-root comparison.
+func (m *Metrics) RecordReplicaDivergence(diverged bool, comparedReplicas int, atTimestamp uint64) {
+	m.replicaComparedReplicas.Set(float64(comparedReplicas))
+	m.replicaComparedAt.Set(float64(atTimestamp))
+	if diverged {
+		m.replicaDivergence.Set(1)
+		m.replicaDivergenceTotal.Inc()
+	} else {
+		m.replicaDivergence.Set(0)
+	}
 }

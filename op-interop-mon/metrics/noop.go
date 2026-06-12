@@ -19,3 +19,5 @@ func (*noopMetrics) RecordTerminalStatusChange(executingChainID string, initiati
 }
 func (*noopMetrics) RecordExecutingBlockRange(chainID string, min uint64, max uint64)  {}
 func (*noopMetrics) RecordInitiatingBlockRange(chainID string, min uint64, max uint64) {}
+func (*noopMetrics) RecordReplicaDivergence(diverged bool, comparedReplicas int, atTimestamp uint64) {
+}
