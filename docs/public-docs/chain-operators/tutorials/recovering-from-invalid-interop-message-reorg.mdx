@@ -44,6 +44,29 @@ Confirm you can reach all of the following **before** an incident escalates:
 * The upstream `op-supernode` RPC for the network. This is the source of truth for the canonical head.
 * `kubectl` or equivalent exec access to restart `op-reth`, `op-rbuilder`, and `op-node`, and to pause, inspect, and restart the batcher, proposer, and `proxyd`.
 
+### Sign a JWT for Admin Endpoints
+
+Some admin endpoints in this runbook are JWT-authenticated — the `op-interop-filter` admin port most prominently, but the same pattern applies to any JWT-protected OP Stack RPC. Each protected service has its own 32-byte hex secret in a file passed to that service (for the filter, the `--admin.jwt-secret` path); read each from the right file rather than assuming one shared secret.
+
+The token is a standard HS256 JWT whose only required claim is `iat` (issued-at), which must be within 60 seconds of the server's clock, so sign a fresh one just before each call. Sign it from the hex secret:
+
+```bash
+JWT_SECRET_HEX=$(cat <PATH_TO_JWT_SECRET>)   # e.g. the filter's --admin.jwt-secret file
+JWT=$(python3 - "$JWT_SECRET_HEX" <<'EOF'
+import sys, hmac, hashlib, base64, json, time
+h = sys.argv[1].strip()
+secret = bytes.fromhex(h[2:] if h.startswith("0x") else h)
+b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=")
+header = b64(b'{"alg":"HS256","typ":"JWT"}')
+payload = b64(json.dumps({"iat": int(time.time())}, separators=(",", ":")).encode())
+sig = b64(hmac.new(secret, header + b"." + payload, hashlib.sha256).digest())
+print((header + b"." + payload + b"." + sig).decode())
+EOF
+)
+```
+
+Pass `$JWT` as a bearer token (`-H "Authorization: Bearer $JWT"`), as the filter commands below do. If a call fails with an authentication error after a delay, re-sign `$JWT` — the freshness window is short.
+
 ### Enumerate the Interop Dependency Set
 
 List every network in this interop set. A reorg on one network can cascade a reorg onto a dependent network, so more than one may end up reorged and stalled, and you engage the failsafe across all of them up front.
@@ -167,7 +190,7 @@ cast rpc --rpc-url http://<FILTER_HOST>:8545 admin_getFailsafeEnabled
 # Expect: true
 ```
 
-`$JWT` is an HS256 token signed with the 32-byte hex secret at the `--admin.jwt-secret` path; mint it with your environment's helper. Engaging the failsafe is always safe — it only blocks interop admission — so when in doubt, engage it first.
+`$JWT` is the bearer token from [Sign a JWT for Admin Endpoints](#sign-a-jwt-for-admin-endpoints), signed with the filter's `--admin.jwt-secret`. Engaging the failsafe is always safe — it only blocks interop admission — so when in doubt, engage it first.
 
 Clearing the failsafe is the **last** step of recovery, owned by the terminal **Clear the Network-Wide Failsafe and Re-Enable Interop** section, because clearing it also requires restarting `op-reth` to undo a transaction-pool eviction. Do not clear it mid-recovery.
 
@@ -205,13 +228,6 @@ Degraded quorum can block admission even with the failsafe off:
 * Watch the `op-reth` counters `quorum_reject_disagreement` (filters returned mixed verdicts) and `quorum_reject_not_reached` (too few definitive verdicts — fail-closed), plus the rate-limited "failing closed" log. These clear automatically once enough filters return definitive, agreeing verdicts.
 * Under the `--rollup.interop-min-responses` default (unanimity, fail-closed), a single unreachable or out-of-sync filter blocks all interop admission. A majority quorum (`N/2 + 1`) tolerates one degraded filter while still only admitting on unanimous agreement among responders.
 
-Confirm the filter emits the dedicated failsafe code. The any-trips-all and clear-requires-unanimity model holds only if the filter emits JSON-RPC code `-320602` for a failsafe rejection. `op-reth` recognizes failsafe **only** by `-320602`, never by message text; an older filter emitting `-32602` is degraded to a generic rejection (still fail-closed, but the aggregate model no longer applies). Confirm it as a deployment prerequisite — engage the failsafe on one filter and check the rejection code:
-
-```bash
-cast rpc --rpc-url http://<FILTER_HOST>:8545 interop_checkAccessList '[]' '"unsafe"' '{}'
-# Expect: error code -320602 while that filter is in failsafe (not -32602)
-```
-
 <Note>`proxyd` does not yet enforce quorum or honor the filter failsafe; that is a separate, not-yet-landed change. Do not treat `proxyd` as failsafe-aware — the aggregation described here is `op-reth`'s.</Note>
 
 <Note>Toggling one filter while `op-reth`'s roughly 1-second poll is mid-flight can briefly flap the gate. A filter you restart to clear errors reads as `unavailable` and holds the gate closed for the whole set until it finishes resyncing. Sequence filter restarts expecting the set to stay closed until the last one is back.</Note>
@@ -225,5 +241,3 @@ If the failsafe reason is `conflict`, `data_corruption`, or `invalid_log` rather
 <Warning>Wiping the filter's data directory discards its ingested state and is irreversible; the filter rebuilds by re-ingesting from its configured sources on restart. Confirm you have targeted the correct filter instance before deleting anything. In an HA set, wipe and restart one filter at a time — a restarting filter reads as `unavailable` and holds the gate closed for the whole set until it resyncs.</Warning>
 
 The filter also has an opt-in `--reorg-recovery-enabled` flag (default off). When enabled, a background loop rewinds each errored chain's local state to its finalized point and clears **only** the `reorg` error, so a pure-reorg failsafe trip can self-clear without operator action. Manual failsafe and non-reorg errors are never auto-cleared.
-
-<Note>This `op-interop-filter` `--reorg-recovery-enabled` flag is a shipped filter feature and is unrelated to any experimental `op-conductor` reorg-recovery work. Do not conflate the two.</Note>
