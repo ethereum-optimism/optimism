@@ -22,7 +22,15 @@ var (
 	ErrNotFound         = errors.New("timestamp not found")
 	ErrNonSequential    = errors.New("timestamps must be committed sequentially with no gaps")
 	ErrAlreadyCommitted = errors.New("timestamp already committed")
-	u64Len              = 8
+	// ErrHeadRegression is returned when a result's per-chain L2 head moves
+	// backwards relative to the previous entry, or changes hash at an
+	// unchanged height. Verified heads are monotone by construction (block
+	// numbers are derived arithmetically from timestamps and hashes extend
+	// sealed history), so a regression means the observation layer captured
+	// chain state that contradicts already-verified history. The verifier
+	// treats this as terminal (see isDivergenceError).
+	ErrHeadRegression = errors.New("verified head regression: result conflicts with previous entry")
+	u64Len            = 8
 )
 
 // bucketName is the name of the bbolt bucket used to store verified results.
@@ -152,6 +160,26 @@ func (v *VerifiedDB) Commit(result VerifiedResult) error {
 			}
 			return fmt.Errorf("%w: expected %d, got %d", ErrNonSequential, v.lastTimestamp+1, ts)
 		}
+		// Defense in depth, mirroring the Dafny model's Commit precondition:
+		// for chains present in both consecutive entries, the head number
+		// must not regress, and an unchanged height must carry an unchanged
+		// hash. Chains may join or leave the set between entries (dependency
+		// set changes), so only the intersection is compared.
+		prev, err := v.getLocked(v.lastTimestamp)
+		if err != nil {
+			return fmt.Errorf("failed to read previous verified result at %d: %w", v.lastTimestamp, err)
+		}
+		for chainID, prevHead := range prev.L2Heads {
+			newHead, ok := result.L2Heads[chainID]
+			if !ok {
+				continue
+			}
+			if newHead.Number < prevHead.Number ||
+				(newHead.Number == prevHead.Number && newHead.Hash != prevHead.Hash) {
+				return fmt.Errorf("%w: chain %s head %v at ts=%d, previous head %v at ts=%d",
+					ErrHeadRegression, chainID, newHead, ts, prevHead, v.lastTimestamp)
+			}
+		}
 	}
 
 	value, err := json.Marshal(result)
@@ -183,7 +211,11 @@ func (v *VerifiedDB) Commit(result VerifiedResult) error {
 func (v *VerifiedDB) Get(ts uint64) (VerifiedResult, error) {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
+	return v.getLocked(ts)
+}
 
+// getLocked is Get without lock acquisition, for callers already holding v.mu.
+func (v *VerifiedDB) getLocked(ts uint64) (VerifiedResult, error) {
 	key := timestampToKey(ts)
 	var value []byte
 
@@ -256,28 +288,25 @@ func (v *VerifiedDB) Rewind(timestamp uint64) (bool, error) {
 	defer v.mu.Unlock()
 
 	var deleted bool
-	var nextFirstTimestamp uint64
-	var nextLastTimestamp uint64
-	var nextInitialized bool
-
 	err := v.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucketName)
 		c := b.Cursor()
 
-		// Start from the timestamp and delete all entries at or after it
+		// Collect the keys to delete first, then delete them. Deleting during
+		// Seek/Next iteration is unsafe in bbolt — a delete can shift inodes so
+		// Next() skips an entry, leaving keys >= timestamp behind.
 		startKey := timestampToKey(timestamp)
+		var toDelete [][]byte
 		for k, _ := c.Seek(startKey); k != nil; k, _ = c.Next() {
+			key := make([]byte, len(k))
+			copy(key, k)
+			toDelete = append(toDelete, key)
+		}
+		for _, k := range toDelete {
 			if err := b.Delete(k); err != nil {
 				return err
 			}
 			deleted = true
-		}
-		firstKey, _ := c.First()
-		lastKey, _ := c.Last()
-		if len(firstKey) == u64Len && len(lastKey) == u64Len {
-			nextFirstTimestamp = binary.BigEndian.Uint64(firstKey)
-			nextLastTimestamp = binary.BigEndian.Uint64(lastKey)
-			nextInitialized = true
 		}
 		return nil
 	})
@@ -285,13 +314,38 @@ func (v *VerifiedDB) Rewind(timestamp uint64) (bool, error) {
 		return false, fmt.Errorf("failed to rewind verifiedDB: %w", err)
 	}
 
-	if deleted {
-		v.firstTimestamp = nextFirstTimestamp
-		v.lastTimestamp = nextLastTimestamp
-		v.initialized = nextInitialized
+	if !deleted {
+		return false, nil
 	}
 
-	return deleted, nil
+	// Re-derive the bounds in a SEPARATE read transaction, after the delete
+	// transaction has committed and the b-tree has rebalanced. Reading
+	// First()/Last() inside the mutating transaction is unreliable: after a
+	// multi-page tail delete, Cursor.Last() can return nil before commit-time
+	// rebalancing, which would wrongly zero the in-memory bounds (reporting the
+	// DB as empty while entries remain on disk).
+	var nextFirst, nextLast uint64
+	var nextInitialized bool
+	err = v.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketName)
+		c := b.Cursor()
+		firstKey, _ := c.First()
+		lastKey, _ := c.Last()
+		if len(firstKey) == u64Len && len(lastKey) == u64Len {
+			nextFirst = binary.BigEndian.Uint64(firstKey)
+			nextLast = binary.BigEndian.Uint64(lastKey)
+			nextInitialized = true
+		}
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to read bounds after rewind: %w", err)
+	}
+
+	v.firstTimestamp = nextFirst
+	v.lastTimestamp = nextLast
+	v.initialized = nextInitialized
+	return true, nil
 }
 
 // SetPendingTransition persists a generic interop transition as a write-ahead log.

@@ -465,6 +465,64 @@ func (d *DB) Rewind(newHead eth.BlockID) error {
 	return nil
 }
 
+// Prune removes sealed blocks whose timestamp is strictly below beforeTimestamp,
+// truncating the head (oldest entries) of the WAL and advancing firstBlock.
+// Returns the number of blocks pruned.
+//
+// Safety, independent of the caller's horizon:
+//   - never removes the latest sealed block — the search is bounded to
+//     [firstBlock, latest-1], so the DB always keeps a tip to chain new seals onto;
+//   - only ever removes a contiguous prefix [firstBlock, target];
+//   - a no-op when empty, single-block, or nothing is below the horizon.
+//
+// Callers must pass a horizon at or below the message-expiry window relative to
+// the verifier's executing frontier. An initiating-message entry older than that
+// can never be referenced again: verifyExecutingMessage rejects any message whose
+// initiating timestamp is older than the expiry window (ErrMessageExpired) BEFORE
+// it calls Contains, so a pruned entry can never change a validation outcome.
+func (d *DB) Prune(beforeTimestamp uint64) (uint64, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if !d.hasBlocks || d.firstBlock >= d.latest.Number {
+		return 0, nil
+	}
+
+	// Block timestamps are non-decreasing in block number (SealBlock enforces
+	// timestamp >= latestTS), so binary-search for the highest block strictly
+	// below latest whose timestamp < beforeTimestamp.
+	lo, hi := d.firstBlock, d.latest.Number-1
+	var target uint64
+	found := false
+	for lo <= hi {
+		mid := lo + (hi-lo)/2
+		rec, err := d.readBlockAt(indexFor(mid))
+		if err != nil {
+			return 0, err
+		}
+		if rec.Timestamp < beforeTimestamp {
+			target, found = mid, true
+			lo = mid + 1
+		} else {
+			if mid == 0 {
+				break
+			}
+			hi = mid - 1
+		}
+	}
+	if !found {
+		return 0, nil
+	}
+
+	pruned := target - d.firstBlock + 1
+	// DeleteRange with min == FirstIndex routes to a raft-wal head truncation.
+	if err := d.w.DeleteRange(indexFor(d.firstBlock), indexFor(target)); err != nil {
+		return 0, fmt.Errorf("failed to prune raft-wal head: %w", err)
+	}
+	d.firstBlock = target + 1
+	return pruned, nil
+}
+
 func (d *DB) Clear() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()

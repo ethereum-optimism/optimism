@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
@@ -170,9 +171,23 @@ type Interop struct {
 	// Only read/written by the main loop goroutine; no mutex needed.
 	waitingForSync bool
 
+	// resumeChecked is true once the one-shot resume consistency check has
+	// passed (or been satisfied by cold-start init, whose backfill path
+	// reconciles the logsDB tail itself). Only read/written by the main loop
+	// goroutine; no mutex needed.
+	resumeChecked bool
+
 	dataDir string
 
 	messageExpiryWindow uint64
+
+	// logsDBRetentionWindow is how many seconds of logsDB history to retain
+	// below the verifier's executing frontier before pruning. Set in New to a
+	// conservative multiple of messageExpiryWindow; 0 disables pruning. Safe
+	// because the expiry check in verifyExecutingMessage rejects messages older
+	// than one expiry window before any logsDB read, so entries beyond the
+	// window can never affect a validation outcome.
+	logsDBRetentionWindow uint64
 
 	verifiedDB *VerifiedDB
 	logsDBs    map[eth.ChainID]LogsDB
@@ -243,6 +258,32 @@ func (i *Interop) firstVerifiableTimestamp() (uint64, error) {
 	return i.verificationStartTimestamp, nil
 }
 
+// recordHandoffGap publishes the startup-handoff window width
+// (firstVerifiableTimestamp - activationTimestamp) as a gauge and, when the gap
+// is non-zero, logs it prominently. That window is reported "verified" by
+// VerifiedAtTimestamp without ever being verified — it rests on the
+// pre-activation / startup-handoff trust assumption — so its size is a safety-
+// relevant quantity an operator should be able to see and alert on. Called once
+// per Start, after verificationStartTimestamp is finalized.
+func (i *Interop) recordHandoffGap() {
+	first, err := i.firstVerifiableTimestamp()
+	if err != nil {
+		return
+	}
+	var gap uint64
+	if first > i.activationTimestamp {
+		gap = first - i.activationTimestamp
+	}
+	i.metrics.InteropHandoffGapSeconds.Set(float64(gap))
+	if gap > 0 {
+		i.log.Warn("interop startup-handoff window is non-empty: this timestamp range is reported verified without being verified",
+			"activationTimestamp", i.activationTimestamp,
+			"firstVerifiableTimestamp", first,
+			"gapSeconds", gap,
+			"note", "covered only by the startup-handoff trust assumption; a large gap usually means a chain's first SafeDB entry is far past activation (e.g. a reseeded node)")
+	}
+}
+
 // New constructs a new Interop activity.
 func New(
 	log log.Logger,
@@ -296,16 +337,17 @@ func New(
 		metrics.InteropInvalidations.WithLabelValues(chainID.String())
 	}
 	i := &Interop{
-		log:                 log,
-		chains:              chains,
-		verifiedDB:          verifiedDB,
-		logsDBs:             logsDBs,
-		dataDir:             dataDir,
-		activationTimestamp: activationTimestamp,
-		messageExpiryWindow: messageExpiryWindow,
-		logBackfillDepth:    logBackfillDepth,
-		metrics:             metrics,
-		clock:               clock.SystemClock,
+		log:                   log,
+		chains:                chains,
+		verifiedDB:            verifiedDB,
+		logsDBs:               logsDBs,
+		dataDir:               dataDir,
+		activationTimestamp:   activationTimestamp,
+		messageExpiryWindow:   messageExpiryWindow,
+		logsDBRetentionWindow: logsDBRetentionFactor * messageExpiryWindow,
+		logBackfillDepth:      logBackfillDepth,
+		metrics:               metrics,
+		clock:                 clock.SystemClock,
 	}
 	// default to using the verifyInteropMessages function
 	// (can be overridden by tests)
@@ -341,6 +383,7 @@ func (i *Interop) tryInitFromVerifiedDB() {
 		i.verificationStartTimestamp = lastTS + 1
 		i.initialized.Store(true)
 		i.backfillCompleted.Store(true) // resume skips backfill
+		i.recordHandoffGap()
 		i.metrics.InteropActivityState.Set(InteropStateRunning)
 		i.log.Info("interop resuming from verifiedDB",
 			"verificationStartTimestamp", i.verificationStartTimestamp,
@@ -354,9 +397,10 @@ func (i *Interop) tryInitFromVerifiedDB() {
 }
 
 // runLoop drives initialization and verification. Each iteration performs
-// exactly one of two actions and then sleeps for the duration the action
+// exactly one of three actions and then sleeps for the duration the action
 // chose: waitForColdStartInit while cold-start initialization is in
-// progress, otherwise progress to verify the next round.
+// progress, checkResumeConsistency once on the resume path, otherwise
+// progress to verify the next round.
 func (i *Interop) runLoop() error {
 	for {
 		var (
@@ -365,6 +409,8 @@ func (i *Interop) runLoop() error {
 		)
 		if i.waitingForSync {
 			sleep, err = i.waitForColdStartInit()
+		} else if !i.resumeChecked {
+			sleep, err = i.checkResumeConsistency()
 		} else {
 			sleep, err = i.progress()
 		}
@@ -403,12 +449,44 @@ func (i *Interop) waitForColdStartInit() (time.Duration, error) {
 		return backoffPeriod, nil
 	}
 	i.waitingForSync = false
+	// Cold-start backfill already reconciled the logsDB tail against
+	// canonical (reconcileLogsDBTail), so the resume consistency check is
+	// redundant on this path.
+	i.resumeChecked = true
 	i.initialized.Store(true)
+	i.recordHandoffGap()
 	i.metrics.InteropActivityState.Set(InteropStateRunning)
 	i.log.Info("interop cold start complete",
 		"activationTimestamp", i.activationTimestamp,
 		"verificationStartTimestamp", i.verificationStartTimestamp)
 	return 0, nil
+}
+
+// halt transitions the activity into the terminal halted state: it records
+// the error metric under category, flips the activity-state gauge to halted,
+// logs the remediation, and returns the terminal error that stops the run
+// loop. Any pending transition is deliberately preserved in the WAL so an
+// operator (or a restart after remediation) sees the exact state that failed.
+func (i *Interop) halt(category, msg string, err error, remediation string) error {
+	i.metrics.ActivityErrors.WithLabelValues("interop", category).Inc()
+	i.metrics.InteropActivityState.Set(InteropStateHalted)
+	i.log.Error("interop activity halted: "+msg, "err", err, "remediation", remediation)
+	return fmt.Errorf("interop halted: %s: %w", msg, err)
+}
+
+// isDivergenceError reports whether err means durable local state (logsDB,
+// verifiedDB, or a WAL'd transition derived from them) contradicts the chain
+// or itself. The round loop's detect-and-unwind machinery cannot heal these:
+// the conflicting data is pinned in local storage, and while a pending
+// transition keeps failing, observeRound — where reorg detection lives — never
+// runs. Every such error is therefore terminal in the verification loop.
+// Cold-start backfill intentionally does NOT halt on the seal errors below:
+// reconcileLogsDBTail self-heals divergence there, so retrying is correct.
+func isDivergenceError(err error) bool {
+	return errors.Is(err, ErrStaleLogsDB) ||
+		errors.Is(err, ErrParentHashMismatch) ||
+		errors.Is(err, ErrHeadRegression) ||
+		errors.Is(err, ErrRewindChainSetMismatch)
 }
 
 // progress runs one verification step. Returns (0, nil) when forward progress
@@ -420,11 +498,32 @@ func (i *Interop) progress() (time.Duration, error) {
 	madeProgress, err := i.progressAndRecord()
 	if err != nil {
 		if errors.Is(err, cc.ErrHistoryUnavailable) {
-			i.metrics.ActivityErrors.WithLabelValues("interop", "history_unavailable").Inc()
-			i.metrics.InteropActivityState.Set(InteropStateHalted)
-			i.log.Error("interop activity halted: SafeDB history unavailable on this node", "err", err,
-				"remediation", "reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
-			return 0, fmt.Errorf("interop halted due to unavailable history: %w", err)
+			return 0, i.halt("history_unavailable", "SafeDB history unavailable on this node", err,
+				"reseed data dir, advance interop.activation-timestamp past the gap, or rederive from L1")
+		}
+		if isDivergenceError(err) {
+			return 0, i.halt("state_divergence", "locally persisted state conflicts with the chain", err,
+				"if the environment was reset (devnet re-genesis, EL restore) wipe the supernode data dir; otherwise investigate L2 derivation divergence before restarting")
+		}
+		// A rewind that cannot proceed over the finalized head is permanent:
+		// the finalized head never moves backward, so replaying the pending
+		// transition can only fail again. This is reachable via transitive
+		// invalidation — a block finalized in an earlier round becoming invalid
+		// in a later one. Halt rather than retry every backoff forever.
+		if errors.Is(err, engine_controller.ErrRewindOverFinalizedHead) {
+			return 0, i.halt("rewind_over_finalized", "invalidation requires rewinding a finalized block", err,
+				"a finalized block was found invalid — investigate the cross-chain dependency that caused a finalized block to be invalidated; this indicates finality was advanced over unverified state")
+		}
+		// The engine declared a rewind payload or forkchoice invalid. This is
+		// deterministic — replaying the WAL'd transition re-submits identical
+		// inputs and is rejected identically — so halt rather than retry every
+		// backoff forever. Subsumes the rare case where a synthetic rewind block
+		// fails header validation (e.g. extraData params).
+		if errors.Is(err, engine_controller.ErrRewindSyntheticPayloadRejected) ||
+			errors.Is(err, engine_controller.ErrRewindCanonicalPayloadRejected) ||
+			errors.Is(err, engine_controller.ErrRewindFCURejected) {
+			return 0, i.halt("rewind_rejected", "engine rejected a rewind payload or forkchoice as invalid", err,
+				"the WAL'd rewind target conflicts with the engine's view — investigate chain divergence or a stale/incompatible target payload before restarting")
 		}
 		i.metrics.ActivityErrors.WithLabelValues("interop", "progress").Inc()
 		i.log.Error("failed to progress and record interop", "err", err)
@@ -456,11 +555,59 @@ func (i *Interop) progress() (time.Duration, error) {
 		fields = append(fields,
 			"lastVerifiedTimestamp", lastTS, "tipTimestamp", tipTS, "behindSeconds", behind)
 		i.log.Info("interop verification progress", fields...)
+
+		// Drop logsDB entries older than the retention window, then publish the
+		// per-chain retained-entry counts.
+		i.pruneLogsDBs()
+		for chainID, db := range i.logsDBs {
+			latest, hasLatest := db.LatestSealedBlock()
+			if !hasLatest {
+				i.metrics.LogsDBEntries.WithLabelValues(chainID.String()).Set(0)
+				continue
+			}
+			first, err := db.FirstSealedBlock()
+			if err != nil {
+				continue
+			}
+			i.metrics.LogsDBEntries.WithLabelValues(chainID.String()).
+				Set(float64(latest.Number - first.Number + 1))
+		}
 	}
 	if !madeProgress {
 		return backoffPeriod, nil
 	}
 	return 0, nil
+}
+
+// pruneLogsDBs drops logsDB entries older than the retention window below the
+// verifier's executing frontier (the last verified timestamp). Safe because an
+// initiating message older than one expiry window is already rejected by
+// verifyExecutingMessage (ErrMessageExpired) before any logsDB read, and the
+// retention window is a conservative multiple of that; so pruned entries can
+// never change a validation outcome. Best-effort: a per-chain failure is logged
+// and skipped, never fatal.
+func (i *Interop) pruneLogsDBs() {
+	if i.logsDBRetentionWindow == 0 {
+		return
+	}
+	lastTS, ok := i.verifiedDB.LastTimestamp()
+	if !ok || lastTS <= i.logsDBRetentionWindow {
+		return // not enough verified history above the window to prune anything
+	}
+	horizon := lastTS - i.logsDBRetentionWindow
+	i.metrics.LogsDBPruneHorizon.Set(float64(horizon))
+	for chainID, db := range i.logsDBs {
+		n, err := db.Prune(horizon)
+		if err != nil {
+			i.log.Warn("logsDB prune failed", "chain", chainID, "err", err)
+			continue
+		}
+		if n > 0 {
+			i.metrics.LogsDBPruned.WithLabelValues(chainID.String()).Add(float64(n))
+			i.log.Debug("pruned logsDB entries below retention horizon",
+				"chain", chainID, "pruned", n, "horizonTimestamp", horizon)
+		}
+	}
 }
 
 // Stop stops the Interop activity.
@@ -793,6 +940,12 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		return false, nil
 
 	case DecisionInvalidate:
+		// Invalidation rewinds each bad chain to its parent; derivation then
+		// rebuilds the height as a deposit-only block. Deposit-only blocks
+		// cannot contain valid executing messages (deposits carry no EIP-2930
+		// access list, so CrossL2Inbox.validateMessage always reverts), so the
+		// replacement is never message- or cycle-invalid and the same height is
+		// never denied twice. See interop-safety-invariants.md.
 		if pending.Result == nil {
 			if err := i.verifiedDB.ClearPendingTransition(); err != nil {
 				return false, fmt.Errorf("clear empty invalidation transition: %w", err)
@@ -825,7 +978,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 				i.log.Error("failed to freeze chain before rewind", "chainID", chainID, "err", err)
 			}
 		}
-		var failedAny bool
+		var invalidationErrs []error
 		for _, p := range invalidations {
 			parentPayload, ok := pending.InvalidationParentPayloads[p.ChainID]
 			if !ok || parentPayload == nil {
@@ -834,17 +987,19 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 				// surface and preserve the transition for operator intervention.
 				i.log.Error("invalidation parent payload missing from WAL — invalidation cannot proceed",
 					"chain", p.ChainID, "block", p.BlockID)
-				failedAny = true
+				invalidationErrs = append(invalidationErrs,
+					fmt.Errorf("chain %s: invalidation parent payload missing from WAL", p.ChainID))
 				continue
 			}
 			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot, parentPayload); err != nil {
 				i.log.Error("invalidation failed, transition preserved for retry on restart",
 					"chain", p.ChainID, "block", p.BlockID, "err", err)
-				failedAny = true
+				invalidationErrs = append(invalidationErrs, fmt.Errorf("chain %s: %w", p.ChainID, err))
 			} else {
 				i.metrics.InteropInvalidations.WithLabelValues(p.ChainID.String()).Inc()
 			}
 		}
+		failedAny := len(invalidationErrs) > 0
 		// Resume non-invalidated chains. Invalidated chains are resumed by
 		// RewindEngine internally (which also waits for readiness).
 		for chainID, chain := range i.chains {
@@ -855,7 +1010,11 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			}
 		}
 		if failedAny {
-			return false, fmt.Errorf("one or more invalidations failed, transition preserved")
+			// Preserve the underlying errors so progress() can halt-classify a
+			// permanent failure (e.g. ErrRewindOverFinalizedHead) instead of
+			// retrying it forever.
+			return false, fmt.Errorf("one or more invalidations failed, transition preserved: %w",
+				errors.Join(invalidationErrs...))
 		}
 		// Wait for all resumed chains to be ready for traffic before clearing
 		// the pending transition. Without this barrier the next verifier round
@@ -919,6 +1078,18 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 	return false, nil
 }
 
+// ErrRewindChainSetMismatch is returned when a rewind plan that must reset
+// chain engines targets a verified entry whose chain set differs from the
+// configured one (a chain was added or removed after that entry was
+// committed). An engine reset needs a WAL'd target payload for every
+// configured chain, and a chain with no verified history at the target has no
+// defined reset target — and its logsDB content (sealed under deny-list
+// decisions the reset will undo) cannot be repaired in-stream either. Failing
+// the build loudly (halt-classified, see isDivergenceError) beats the
+// alternative: a plan that wedges forever in resetChainEnginesIfNeeded while
+// the pending transition starves the observe loop.
+var ErrRewindChainSetMismatch = errors.New("rewind target chain set does not match configured chains")
+
 func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 	plan := RewindPlan{
 		RewindAtOrAfter: lastTS,
@@ -961,6 +1132,23 @@ func (i *Interop) buildRewindPlan(lastTS uint64) (RewindPlan, error) {
 	// Capture each chain's target payload while it is still canonical. Any failure aborts
 	// the build; the decision will be re-evaluated next round.
 	if plan.ResetAllChainsTo != nil && len(plan.TargetHeads) > 0 {
+		// An engine reset must cover every configured chain, so the target
+		// entry's chain set has to match the configured set exactly. A plain
+		// rewind (no reset) tolerates drift: extra TargetHeads entries are
+		// ignored by the logsDB loop and missing ones leave canonical-and-
+		// still-valid sealed content in place.
+		for chainID := range i.chains {
+			if _, ok := plan.TargetHeads[chainID]; !ok {
+				return RewindPlan{}, fmt.Errorf("chain %s configured but absent from verified entry at %d: %w",
+					chainID, rewindTargetTS, ErrRewindChainSetMismatch)
+			}
+		}
+		for chainID := range plan.TargetHeads {
+			if _, ok := i.chains[chainID]; !ok {
+				return RewindPlan{}, fmt.Errorf("chain %s in verified entry at %d but no longer configured: %w",
+					chainID, rewindTargetTS, ErrRewindChainSetMismatch)
+			}
+		}
 		payloads, err := i.captureRewindPayloadsForHeads(plan.TargetHeads, rewindTargetTS)
 		if err != nil {
 			return RewindPlan{}, err

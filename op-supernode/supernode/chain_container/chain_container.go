@@ -734,8 +734,13 @@ func (c *simpleChainContainer) attachInProcRollupClient() error {
 	return nil
 }
 
-// isCriticalRewindError returns true if the error is a critical configuration error
-// that should not be retried.
+// isCriticalRewindError returns true if the error must not be retried: either a
+// configuration error, or a deterministic engine rejection (the engine declared
+// our synthetic/canonical payload or forkchoice invalid — retrying the identical
+// input cannot succeed). Transient failures (transport errors, FCU
+// non-convergence) are intentionally excluded so they keep retrying. Returning a
+// critical error promptly lets the verifier loop halt-classify it instead of
+// looping every backoff forever (see Interop.progress).
 func isCriticalRewindError(err error) bool {
 	return errors.Is(err, engine_controller.ErrNoEngineClient) ||
 		errors.Is(err, engine_controller.ErrNoRollupConfig) ||
@@ -743,7 +748,10 @@ func isCriticalRewindError(err error) bool {
 		errors.Is(err, engine_controller.ErrRewindTargetMismatch) ||
 		errors.Is(err, engine_controller.ErrRewindComputeTargetsFailed) ||
 		errors.Is(err, engine_controller.ErrRewindTimestampToBlockConversion) ||
-		errors.Is(err, engine_controller.ErrRewindOverFinalizedHead)
+		errors.Is(err, engine_controller.ErrRewindOverFinalizedHead) ||
+		errors.Is(err, engine_controller.ErrRewindSyntheticPayloadRejected) ||
+		errors.Is(err, engine_controller.ErrRewindCanonicalPayloadRejected) ||
+		errors.Is(err, engine_controller.ErrRewindFCURejected)
 }
 
 // RewindEngine is part of the InteropChain interface — callers must hold that

@@ -490,3 +490,84 @@ func TestVerifiedDB_PendingTransition(t *testing.T) {
 		require.Equal(t, transition.Rewind.RewindAtOrAfter, got.Rewind.RewindAtOrAfter)
 	})
 }
+
+// TestVerifiedDB_RewindMultiPage exercises Rewind on a database large enough to
+// span many bbolt pages — the regime existing rewind tests (≤6 entries, single
+// leaf page) never reach. It guards against the bounds being re-derived from a
+// cursor inside the delete transaction, where a multi-page tail delete can make
+// Cursor.Last() return nil before the tree rebalances at commit (which would
+// zero the in-memory bounds and silently disable the Commit head-regression
+// guard). The decisive assertions are the in-memory bounds right after Rewind.
+func TestVerifiedDB_RewindMultiPage(t *testing.T) {
+	t.Parallel()
+	dataDir := t.TempDir()
+	db, err := OpenVerifiedDB(dataDir)
+	require.NoError(t, err)
+
+	c1 := eth.ChainIDFromUInt64(10)
+	c2 := eth.ChainIDFromUInt64(20)
+	c3 := eth.ChainIDFromUInt64(8453)
+	mkHeads := func(ts uint64) map[eth.ChainID]eth.BlockID {
+		return map[eth.ChainID]eth.BlockID{
+			c1: {Hash: common.BytesToHash([]byte("chain10-head-padding")), Number: ts},
+			c2: {Hash: common.BytesToHash([]byte("chain20-head-padding")), Number: ts},
+			c3: {Hash: common.BytesToHash([]byte("chain8453-head-padding")), Number: ts},
+		}
+	}
+
+	const n = 800
+	for ts := uint64(1); ts <= n; ts++ {
+		require.NoError(t, db.Commit(VerifiedResult{
+			Timestamp:   ts,
+			L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte("l1-inclusion-padding")), Number: ts},
+			L2Heads:     mkHeads(ts),
+		}))
+	}
+	lastTs, ok := db.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(n), lastTs)
+
+	// Rewind into the middle (removes [400, 800]).
+	deleted, err := db.Rewind(400)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	// Decisive checks: in-memory bounds must be correct, not zeroed.
+	gotLast, ok := db.LastTimestamp()
+	require.True(t, ok, "must remain initialized after a multi-page rewind")
+	require.Equal(t, uint64(399), gotLast, "lastTimestamp must be rewindAt-1, not zeroed")
+	gotFirst, ok := db.FirstTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(1), gotFirst, "firstTimestamp must be unchanged")
+
+	// Content checks.
+	has, err := db.Has(399)
+	require.NoError(t, err)
+	require.True(t, has)
+	has, err = db.Has(400)
+	require.NoError(t, err)
+	require.False(t, has)
+	has, err = db.Has(800)
+	require.NoError(t, err)
+	require.False(t, has)
+
+	// The next sequential Commit must succeed — it reads the previous entry
+	// (399) for the head-regression guard, which requires correct bounds.
+	require.NoError(t, db.Commit(VerifiedResult{
+		Timestamp:   400,
+		L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte("l1-inclusion-padding")), Number: 400},
+		L2Heads:     mkHeads(400),
+	}))
+
+	// Reopen: on-disk bounds must agree with the in-memory ones.
+	require.NoError(t, db.Close())
+	db2, err := OpenVerifiedDB(dataDir)
+	require.NoError(t, err)
+	defer db2.Close()
+	l2, ok := db2.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(400), l2)
+	f2, ok := db2.FirstTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(1), f2)
+}

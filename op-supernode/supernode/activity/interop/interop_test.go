@@ -2659,7 +2659,8 @@ func (m *mockLogsDBWithState) Clear() error {
 	m.clearCalled++
 	return nil
 }
-func (m *mockLogsDBWithState) Close() error { return nil }
+func (m *mockLogsDBWithState) Prune(uint64) (uint64, error) { return 0, nil }
+func (m *mockLogsDBWithState) Close() error                 { return nil }
 
 var _ LogsDB = (*mockLogsDBWithState)(nil)
 
@@ -2763,7 +2764,8 @@ func (m *mockLogsDBForInterop) Clear() error {
 	m.clearCalls++
 	return nil
 }
-func (m *mockLogsDBForInterop) Close() error { return nil }
+func (m *mockLogsDBForInterop) Prune(uint64) (uint64, error) { return 0, nil }
+func (m *mockLogsDBForInterop) Close() error                 { return nil }
 
 var _ LogsDB = (*mockLogsDBForInterop)(nil)
 

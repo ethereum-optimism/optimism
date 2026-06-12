@@ -23,6 +23,22 @@ type SupernodeMetrics struct {
 	// InteropActivityState tracks the interop activity lifecycle:
 	// 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.
 	InteropActivityState prometheus.Gauge
+	// InteropHandoffGapSeconds is firstVerifiableTimestamp - activationTimestamp:
+	// the width of the startup-handoff window reported "verified" without ever
+	// being verified (covered only by the pre-activation / startup-handoff trust
+	// assumption). Should be ~0 on a clean cold start at activation; a large
+	// value means a chain's first SafeDB entry is far past activation (e.g. a
+	// reseeded node), widening the trusted-but-unverified window.
+	InteropHandoffGapSeconds prometheus.Gauge
+	// LogsDBEntries is the current number of sealed blocks retained in each
+	// chain's logsDB (latest - first + 1), after pruning.
+	LogsDBEntries *prometheus.GaugeVec
+	// LogsDBPruned counts sealed blocks dropped from each chain's logsDB by the
+	// retention-window pruner.
+	LogsDBPruned *prometheus.CounterVec
+	// LogsDBPruneHorizon is the timestamp below which logsDB entries are pruned
+	// (verifier frontier minus the retention window). 0 until pruning engages.
+	LogsDBPruneHorizon prometheus.Gauge
 
 	registry *prometheus.Registry
 }
@@ -98,6 +114,26 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 			Name:      "interop_activity_state",
 			Help:      "Interop activity lifecycle state: 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.",
 		}),
+		InteropHandoffGapSeconds: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "interop_handoff_gap_seconds",
+			Help:      "firstVerifiableTimestamp - activationTimestamp: width of the startup-handoff window reported verified without being verified. ~0 on a clean cold start; large means a chain's first SafeDB entry is far past activation.",
+		}),
+		LogsDBEntries: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "logsdb_entries",
+			Help:      "Number of sealed blocks retained in each chain's logsDB (after retention-window pruning).",
+		}, []string{"chain_id"}),
+		LogsDBPruned: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "supernode",
+			Name:      "logsdb_pruned_total",
+			Help:      "Total sealed blocks pruned from each chain's logsDB below the retention horizon.",
+		}, []string{"chain_id"}),
+		LogsDBPruneHorizon: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "logsdb_prune_horizon_timestamp",
+			Help:      "Timestamp below which logsDB entries are pruned (verifier frontier minus retention window).",
+		}),
 		registry: reg,
 	}
 	reg.MustRegister(
@@ -114,6 +150,10 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 		m.LogBackfillRetries,
 		m.ActivityErrors,
 		m.InteropActivityState,
+		m.InteropHandoffGapSeconds,
+		m.LogsDBEntries,
+		m.LogsDBPruned,
+		m.LogsDBPruneHorizon,
 	)
 	return m
 }

@@ -553,6 +553,7 @@ func (m *mockLogsDB) SealBlock(parentHash common.Hash, block eth.BlockID, timest
 
 func (m *mockLogsDB) Rewind(newHead eth.BlockID) error { return nil }
 func (m *mockLogsDB) Clear() error                     { return nil }
+func (m *mockLogsDB) Prune(uint64) (uint64, error)     { return 0, nil }
 func (m *mockLogsDB) Close() error                     { return nil }
 
 var _ LogsDB = (*mockLogsDB)(nil)

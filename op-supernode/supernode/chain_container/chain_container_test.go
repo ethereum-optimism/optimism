@@ -3,6 +3,7 @@ package chain_container
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/big"
 	"net/http"
@@ -2046,4 +2047,34 @@ func TestChainContainer_FirstSafeHeadTimestamp_SamplesSyncStatusFirst(t *testing
 	require.NotEqual(t, -1, firstIdx, "FirstSafeHeadEntry should have been called")
 	require.Less(t, syncIdx, firstIdx,
 		"SyncStatus must be sampled before FirstSafeHeadEntry — the reverse order admits a race; methodCalls=%v", mockVN.methodCalls)
+}
+
+// TestIsCriticalRewindError classifies rewind errors as terminal (deterministic
+// engine rejection or config error) vs transient (transport / FCU
+// non-convergence, which should keep retrying rather than wedge or halt).
+func TestIsCriticalRewindError(t *testing.T) {
+	terminal := []error{
+		engine_controller.ErrNoEngineClient,
+		engine_controller.ErrRewindNilTarget,
+		engine_controller.ErrRewindTargetMismatch,
+		engine_controller.ErrRewindOverFinalizedHead,
+		engine_controller.ErrRewindSyntheticPayloadRejected,
+		engine_controller.ErrRewindCanonicalPayloadRejected,
+		engine_controller.ErrRewindFCURejected,
+	}
+	for _, e := range terminal {
+		require.Truef(t, isCriticalRewindError(e), "%v should be terminal", e)
+		// Must survive wrapping, as it does through the real call chain.
+		require.Truef(t, isCriticalRewindError(fmt.Errorf("rewind engine: %w", e)), "%v should be terminal when wrapped", e)
+	}
+
+	transient := []error{
+		engine_controller.ErrRewindInsertSyntheticFailed,
+		engine_controller.ErrRewindReinsertCanonicalFailed,
+		engine_controller.ErrRewindFCUHeadMismatch,
+		errors.New("connection refused"),
+	}
+	for _, e := range transient {
+		require.Falsef(t, isCriticalRewindError(e), "%v should be retried, not terminal", e)
+	}
 }

@@ -14,6 +14,13 @@ import (
 // The actual value used is read from the dependency set at construction time.
 const defaultMessageExpiryWindow = 604800
 
+// logsDBRetentionFactor sets the logsDB retention window to this multiple of the
+// message-expiry window. An initiating message can only be referenced within one
+// expiry window, so one window is the correctness floor; the extra factor is a
+// deliberately conservative margin against frontier/skew before any pruning of
+// provably-dead entries. Retains ~factor*7 days of per-chain history.
+const logsDBRetentionFactor = 2
+
 var (
 	// ErrUnknownChain is returned when an executing message references
 	// a chain that is not registered with the interop activity.

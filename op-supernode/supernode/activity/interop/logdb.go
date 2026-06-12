@@ -37,6 +37,12 @@ type LogsDB interface {
 	Rewind(newHead eth.BlockID) error
 	// Clear removes all data from the database.
 	Clear() error
+	// Prune removes sealed blocks whose timestamp is below beforeTimestamp,
+	// truncating the oldest entries. Never removes the latest sealed block.
+	// Returns the number of blocks pruned. On the interface so that any logsDB
+	// implementation is obligated to support retention pruning at compile time,
+	// rather than silently growing unbounded.
+	Prune(beforeTimestamp uint64) (uint64, error)
 	// Close closes the database.
 	Close() error
 }
