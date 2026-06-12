@@ -580,6 +580,51 @@ func (el *L2ELNode) FinalizedHead() *BlockRefResult {
 	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Finalized)}
 }
 
+// GasLimitAt returns the gas limit of the L2 block at the given height, waiting for
+// that block to be produced first. A block's gas limit is immutable once the block
+// exists, so the read is deterministic and needs no further retrying.
+func (el *L2ELNode) GasLimitAt(blockNumber uint64) uint64 {
+	info := el.WaitForBlockNumber(blockNumber)
+	el.log.Info("read block gas limit", "chain", el.ChainID(), "blockNumber", blockNumber, "gasLimit", info.GasLimit())
+	return info.GasLimit()
+}
+
+// VerifyActivationGasLimitBump asserts the one-time block-gas-limit increase that
+// op-node applies at a fork activation block. Starting with Karst, network-upgrade
+// transactions are injected from a NUT bundle and the activation block's gas limit is
+// raised by the bundle's gas (gasLimit = sysConfig.GasLimit + upgradeGas) so those
+// transactions execute outside the regular per-block gas budget. The bump is
+// transient: the very next block reverts to the parent block's gas limit.
+//
+// blockNumber must be the activation block, which can never be genesis — a fork
+// activated at genesis has no activation block and therefore no bump.
+func (el *L2ELNode) VerifyActivationGasLimitBump(blockNumber uint64) {
+	el.require.Greater(blockNumber, uint64(0), "activation block must not be genesis")
+	parent := el.GasLimitAt(blockNumber - 1)
+	activation := el.GasLimitAt(blockNumber)
+	el.require.Greaterf(activation, parent,
+		"expected activation block %d gas limit (%d) to exceed parent block %d gas limit (%d)",
+		blockNumber, activation, blockNumber-1, parent)
+	after := el.GasLimitAt(blockNumber + 1)
+	el.require.Equalf(parent, after,
+		"expected the gas-limit bump at activation block %d to last exactly one block, but block %d gas limit (%d) != parent (%d)",
+		blockNumber, blockNumber+1, after, parent)
+}
+
+// VerifyUniformGasLimit asserts that every block in [from, to] shares the same gas
+// limit, demonstrating that no block received a one-time activation bump. This is the
+// expected shape when a fork is activated at genesis: there is no activation block to
+// elevate, so the gas limit never changes.
+func (el *L2ELNode) VerifyUniformGasLimit(from, to uint64) {
+	el.require.GreaterOrEqual(to, from, "block range must be non-empty")
+	expected := el.GasLimitAt(from)
+	for num := from + 1; num <= to; num++ {
+		el.require.Equalf(expected, el.GasLimitAt(num),
+			"expected uniform gas limit across blocks %d-%d, but block %d differs from block %d (%d)",
+			from, to, num, from, expected)
+	}
+}
+
 func (el *L2ELNode) AssertExecMessageNotInBlock(execMessage *ExecMessage) {
 	el.AssertTxNotInBlock(bigs.Uint64Strict(execMessage.BlockNumber()), execMessage.TxHash())
 }
