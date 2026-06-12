@@ -152,6 +152,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 		Genesis: sys.L2GenesisCfg,
 		JWTPath: cfg.JWTFilePath,
 		Logger:  testlog.Logger(t, log.LevelInfo).New("role", "syncer-el"),
+		DataDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {

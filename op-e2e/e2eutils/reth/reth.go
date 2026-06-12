@@ -39,9 +39,8 @@ type Config struct {
 	// ProofsHistoryVersion selects the proof-history storage version; defaults to v2.
 	ProofsHistoryVersion string
 	// DataDir is the base directory for the op-reth datadir/logs/proof-history.
-	// Callers in tests should pass t.TempDir() so the framework owns cleanup
-	// even if the test panics before Close. When empty, a temp dir is created
-	// and removed on Close.
+	// Callers should pass t.TempDir() so the test framework owns cleanup even if
+	// the test panics before Close.
 	DataDir string
 	// ExtraArgs are appended verbatim to the op-reth `node` invocation.
 	ExtraArgs []string
@@ -60,8 +59,6 @@ type Instance struct {
 
 	stdoutPipe *logpipe.LineBuffer
 	stderrPipe *logpipe.LineBuffer
-
-	dataDir string
 }
 
 var _ services.EthInstance = (*Instance)(nil)
@@ -70,8 +67,7 @@ func (i *Instance) UserRPC() endpoint.RPC { return i.userRPC }
 
 func (i *Instance) AuthRPC() endpoint.RPC { return i.authRPC }
 
-// Close interrupts the process, waits for it to exit, closes the log pipes, and
-// removes the temp datadir.
+// Close interrupts the process, waits for it to exit, and closes the log pipes.
 func (i *Instance) Close() error {
 	var errs []error
 	if i.cmd != nil && i.cmd.Process != nil {
@@ -96,17 +92,12 @@ func (i *Instance) Close() error {
 	if i.stderrPipe != nil {
 		_ = i.stderrPipe.Close()
 	}
-	if i.dataDir != "" {
-		if err := os.RemoveAll(i.dataDir); err != nil {
-			errs = append(errs, fmt.Errorf("remove datadir: %w", err))
-		}
-	}
 	return errors.Join(errs...)
 }
 
 // InitL2 resolves the op-reth binary, initializes a chain + proof-history DB
 // from the given genesis, starts an op-reth node, and waits for its RPCs to come
-// up. The returned Instance owns a temp datadir that is removed on Close.
+// up. cfg.DataDir must be created with t.TempDir() by the caller.
 func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Genesis, jwtPath string, cfg Config) (*Instance, error) {
 	proofsVersion := cfg.ProofsHistoryVersion
 	if proofsVersion == "" {
@@ -122,22 +113,9 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		return nil, fmt.Errorf("op-reth binary not available: %w", err)
 	}
 
-	// When the caller provides a DataDir (e.g. t.TempDir()), the test framework
-	// owns its removal; otherwise create one we remove ourselves on Close.
 	baseDir := cfg.DataDir
-	ownDataDir := baseDir == ""
-	if ownDataDir {
-		baseDir, err = os.MkdirTemp("", "op-reth-"+name+"-")
-		if err != nil {
-			return nil, fmt.Errorf("create temp dir: %w", err)
-		}
-	}
-	// Any early failure must clean up a temp dir we created; Close() owns it once
-	// we return ok. A caller-provided DataDir is left for the framework to remove.
-	cleanup := func() {
-		if ownDataDir {
-			_ = os.RemoveAll(baseDir)
-		}
+	if baseDir == "" {
+		return nil, errors.New("op-reth DataDir must be set with t.TempDir()")
 	}
 
 	dataDir := filepath.Join(baseDir, "data")
@@ -147,18 +125,15 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 
 	for _, dir := range []string{dataDir, logDir} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
-			cleanup()
 			return nil, fmt.Errorf("create dir %s: %w", dir, err)
 		}
 	}
 
 	genesisData, err := json.Marshal(genesis)
 	if err != nil {
-		cleanup()
 		return nil, fmt.Errorf("marshal genesis: %w", err)
 	}
 	if err := os.WriteFile(chainConfigPath, genesisData, 0o600); err != nil {
-		cleanup()
 		return nil, fmt.Errorf("write genesis: %w", err)
 	}
 
@@ -167,7 +142,6 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		"--datadir="+dataDir,
 		"--chain="+chainConfigPath,
 	); err != nil {
-		cleanup()
 		return nil, fmt.Errorf("op-reth init: %w", err)
 	}
 
@@ -184,7 +158,6 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		proofsInitArgs = append(proofsInitArgs, "--proofs-history.skip-backfill")
 	}
 	if err := runToCompletion(ctx, execPath, proofsInitArgs...); err != nil {
-		cleanup()
 		return nil, fmt.Errorf("op-reth proofs init: %w", err)
 	}
 
@@ -227,11 +200,6 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 	inst := &Instance{
 		logger: lgr,
 	}
-	// Only remove the datadir on Close if we created it; a caller-provided one
-	// is owned by the test framework.
-	if ownDataDir {
-		inst.dataDir = baseDir
-	}
 
 	// op-reth reports the ephemeral http/auth ports via structured logs once the
 	// servers bind; capture both URLs from those readiness lines.
@@ -272,7 +240,6 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 	cmd.Stdout = inst.stdoutPipe
 	cmd.Stderr = inst.stderrPipe
 	if err := cmd.Start(); err != nil {
-		cleanup()
 		return nil, fmt.Errorf("start op-reth node: %w", err)
 	}
 	inst.cmd = cmd
@@ -282,7 +249,7 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		close(inst.exited)
 	}()
 
-	// From here on, Close() owns process + datadir cleanup.
+	// From here on, Close() owns process cleanup.
 	closeOnErr := func(cause error) (*Instance, error) {
 		_ = inst.Close()
 		return nil, cause

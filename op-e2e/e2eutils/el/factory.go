@@ -26,8 +26,8 @@ type L2Config struct {
 	// SequencerHTTP, when set, points non-sequencer nodes at the sequencer for
 	// tx forwarding. On op-reth it maps to --rollup.sequencer-http.
 	SequencerHTTP string
-	// DataDir is the op-reth base directory; callers should pass t.TempDir() so
-	// the test framework owns cleanup. Ignored by the in-process op-geth backend.
+	// DataDir is the op-reth base directory. Callers must pass t.TempDir() so the
+	// test framework owns cleanup. Ignored by the in-process op-geth backend.
 	DataDir string
 	// GethOptions are op-geth-only knobs. They cannot apply to op-reth; passing
 	// any on the op-reth path is a hard error (see InitL2).
