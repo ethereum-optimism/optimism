@@ -241,3 +241,49 @@ If the failsafe reason is `conflict`, `data_corruption`, or `invalid_log` rather
 <Warning>Wiping the filter's data directory discards its ingested state and is irreversible; the filter rebuilds by re-ingesting from its configured sources on restart. Confirm you have targeted the correct filter instance before deleting anything. In an HA set, wipe and restart one filter at a time — a restarting filter reads as `unavailable` and holds the gate closed for the whole set until it resyncs.</Warning>
 
 The filter also has an opt-in `--reorg-recovery-enabled` flag (default off). When enabled, a background loop rewinds each errored chain's local state to its finalized point and clears **only** the `reorg` error, so a pure-reorg failsafe trip can self-clear without operator action. Manual failsafe and non-reorg errors are never auto-cleared.
+
+## Scope: One Network at a Time
+
+This runbook is written from the perspective of a **single network** whose sequencers got stuck during the reorg — the network where the invalid executing message landed. It does not prescribe a cross-network ordering algorithm.
+
+Enable the failsafe **network-wide** across the whole interop dependency set up front, before recovering anything. A reorg on one network can cascade onto a dependent network, so more than one may end up reorged and stalled. Keeping the failsafe engaged everywhere blocks interop admission across the set while any single network is still being repaired.
+
+Resuming this network's batcher and sequencer is safe even while a neighbor is still stalled. The failsafe gates only interop **executing-message admission** — it has no effect on block production, batching, or derivation (it is not referenced anywhere in `op-batcher` or `op-proposer`). So this network can produce blocks, batch to L1, and advance its safe and finalized heads while a neighbor is down, and it still cannot emit a cross-network executing message, because admission stays blocked network-wide. Resuming one network does not re-open cross-network interop.
+
+There is no cross-network coordination beyond that:
+
+* Recover this one network with the sections below.
+* If a second network in the dependency set also reorged and stalled, **repeat the whole runbook for that network**.
+* Completion is per-network canonicity — validate by canonicity, never by a reorg-depth bound. Interop reorgs can be deep.
+* The network-wide failsafe stays engaged until **every** affected network has individually recovered and is canonical. It is cleared only once, in the terminal **Clear the Network-Wide Failsafe and Re-Enable Interop** section.
+
+## Coordinate the Batcher and Proposer
+
+Before any head surgery on the wedged sequencer, settle the two services that read from it and write to L1. Both run independently of the failsafe, so neither stops on its own when interop admission is blocked.
+
+### Pause the Batcher Before Head Surgery
+
+The batcher loads **unsafe** blocks from the sequencer and submits them to L1. It has safe-chain reorg detection and rebuilds its channel state from the recovered chain on resume (`clearState`), but it has two windows where it can write bad data to L1:
+
+* Between the reorg and the manual head set, it can submit data for blocks that have just been reorged out.
+* After a force-set head, it can submit data that conflicts with the recovered chain.
+
+So pause or stop the batcher **before** the head surgery in **Recover a Conductor-Managed Sequencer** (or the follow-mode recovery), and resume it **only after** the unsafe head has converged on the supernode-confirmed canonical head. On resume, confirm the batcher is tracking the recovered chain rather than a stale channel.
+
+**Re-pause guard.** If, after resuming the batcher, the unsafe head changes again — a re-reorg, or a cascade from another network — **immediately re-pause the batcher** and return to the safe baseline before bad data is batched. The healthy-batch check in **Restore This Network** guards against this by comparing the batched `safe_l2` **hash** against the supernode-canonical hash, not merely the block number: a wrong-fork batch can advance the number too.
+
+### The Proposer Stalls Safely
+
+The proposer proposes from `FinalizedL2`, or from `SafeL2` when `AllowNonFinalized` is set. It does not read the unsafe head, so head surgery cannot directly corrupt a proposal. It naturally stalls during the wedge — that is expected — and resumes on its own once safe and finalized advance past the reorg.
+
+The one case that needs a check is `AllowNonFinalized`: the proposer reads `SafeL2`, which can briefly track a wrong fork.
+
+* **Detection:** compare the proposed outputs or super-roots already on L1 against the recovered safe chain at the reorg height, to see whether the proposer submitted across the reorg discontinuity.
+* **Routing:** if a stale root reached L1, route it to the dispute-games owner as tracked follow-up. Do not gate recovery on it — but do not leave it undetected either.
+
+## How the Corrected Head Propagates
+
+A payload set on the sequencer with `admin_postUnsafePayload` is fed into the local derivation pipeline **and gossiped over P2P** to verifiers and replicas — this is intended; it is the same path conductor failover uses. Two consequences for recovery:
+
+* **Before** setting the head, confirm the **supernode** is on the canonical chain. If you re-anchor onto a head the supernode will reorg again, the corrected payload gossips a head that is itself about to be replaced.
+* **After** setting it, verify the payload propagated to downstream replicas, and re-anchor by hand any node still pinned on the pre-reorg branch.
