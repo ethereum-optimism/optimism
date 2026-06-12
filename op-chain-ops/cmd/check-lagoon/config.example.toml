@@ -1,5 +1,5 @@
 # Example config for check-lagoon. Pass with --config <path>.
-# Keys are the flag names. CLI flags and CHECK_INTEROP_* env vars override anything set here.
+# Keys are the flag names. CLI flags and CHECK_LAGOON_* env vars override anything set here.
 # Each command ignores keys it doesn't register, so a single file can serve both.
 
 # --- Used by both `roundtrip` and `failsafe` ---

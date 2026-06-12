@@ -49,17 +49,18 @@ import (
 const smokeWaitTimeout = 60 * time.Second
 
 const (
-	l2AURLFlagName          = "l2a-rpc"
-	l2BURLFlagName          = "l2b-rpc"
-	privateKeyFlagName      = "private-key"
-	configFlagName          = "config"
-	filterAdminRPCsFlagName = "filter.admin-rpc"
+	l2AURLFlagName           = "l2a-rpc"
+	l2BURLFlagName           = "l2b-rpc"
+	privateKeyFlagName       = "private-key"
+	configFlagName           = "config"
+	filterAdminRPCsFlagName  = "filter.admin-rpc"
 	filterJWTSecretsFlagName = "filter.jwt-secret"
-	testFailsafeFlagName    = "test-failsafe"
-)
+	testFailsafeFlagName     = "test-failsafe"
 
-const failsafePropagationWait = 6 * time.Second
-const failsafeRelayAttempts = 3
+	failsafePropagationWait = 6 * time.Second
+	failsafeRelayAttempts   = 3
+	failsafeSubmitGasLimit  = uint64(300_000)
+)
 
 // rpcErrOutOfScope is the JSON-RPC error code for ErrOutOfScope from op-alloy (-321100).
 // Returned by op-reth when the relay tx references a block not yet in scope on the target chain.
@@ -1023,7 +1024,7 @@ func expectBridgeBlocked(env *smokeEnv, amount eth.ETH) error {
 		txplan.WithPrivateKey(env.userB.privKey),
 		txplan.WithPendingNonce(env.userB.chain.ethClient),
 		txplan.WithAgainstLatestBlock(env.userB.chain.ethClient),
-		txplan.WithGasLimit(300_000),
+		txplan.WithGasLimit(failsafeSubmitGasLimit),
 		txplan.WithTransactionSubmitter(env.userB.chain.ethClient),
 	)
 	for attempt := 1; attempt <= failsafeRelayAttempts; attempt++ {

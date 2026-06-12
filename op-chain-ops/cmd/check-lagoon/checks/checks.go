@@ -223,8 +223,8 @@ func (cfg *CheckInteropConfig) bridgeETH(ctx context.Context, src, dst string, r
 	return nil
 }
 
-// expectBlocked sends ETH on src, then submits the relay on dst once, asserting
-// it is rejected by the interop filter (failsafe).
+// expectBlocked sends ETH on src, then submits the relay on dst failsafeRelayAttempts
+// times, asserting each attempt is rejected by the interop filter failsafe.
 func (cfg *CheckInteropConfig) expectBlocked(ctx context.Context, src, dst string, recipient common.Address) error {
 	srcCl, _ := cfg.chain(src)
 	dstCl, dstChainID := cfg.chain(dst)
