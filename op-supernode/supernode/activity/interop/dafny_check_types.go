@@ -68,7 +68,7 @@ func modelParamsFromInterop(i *Interop) ModelParams {
 
 // checkChainIDCoverage reports a violation unless the key set of m equals
 // CHAIN_IDS (model expression `<field>.Keys == CHAIN_IDS`).
-func checkChainIDCoverage(predicate, conjunct, field string, m map[eth.ChainID]eth.BlockID, chainIDs map[eth.ChainID]struct{}) error {
+func checkChainIDCoverage[V any](predicate, conjunct, field string, m map[eth.ChainID]V, chainIDs map[eth.ChainID]struct{}) error {
 	var missing, extra []string
 	for id := range chainIDs {
 		if _, ok := m[id]; !ok {
