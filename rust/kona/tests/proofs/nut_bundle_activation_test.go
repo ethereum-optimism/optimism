@@ -151,13 +151,8 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 
 // activateFork boots a fault-proof env for testCfg.Custom and advances to that
 // fork's activation block, returning the env and the activation block header.
-//
-// When a committed pre-fork state exists for the fork (the state as of the
-// predecessor fork), it is overlaid onto the genesis predeploy set so the locked
-// bundle upgrades the versions it was actually built for, rather than whatever
-// HEAD source happens to be at — see op-core/nuts/state. Forks without one fall
-// back to HEAD-generated allocs.
-//
+// It requires a committed pre-fork state for the fork (the state as of the
+// predecessor fork) and overlays it onto the genesis predeploy set.
 // Shared by the validation test (testActivationBlockNUTBundle) and the artifact
 // generator (TestGenerateForkState), so they exercise the same flow.
 func activateFork(t actionsHelpers.Testing, testCfg *helpers.TestCfg[forks.Name]) (*helpers.L2FaultProofEnv, *types.Header) {
@@ -169,11 +164,6 @@ func activateFork(t actionsHelpers.Testing, testCfg *helpers.TestCfg[forks.Name]
 		dc.SetForkTimeOffset(fork, &offset)
 	}
 
-	// Require a committed pre-fork state. Every fork reaching here has a locked
-	// bundle (forks without one are skipped before the test runs), so its
-	// predecessor's state must already be committed — silently falling back to
-	// HEAD allocs would reintroduce the version drift this guards against and
-	// quietly disable the fix.
 	alloc, ok, err := nutsstate.PreForkState(fork)
 	require.NoError(t, err, "load pre-fork state for %s", fork)
 	require.Truef(t, ok, "no committed pre-fork state for %s — generate the predecessor fork's state (see op-core/nuts/state)", fork)
