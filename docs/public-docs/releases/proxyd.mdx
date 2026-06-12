@@ -14,7 +14,21 @@ rss: true
 
 **proxyd** is an RPC request router and proxy with method whitelisting, backend load balancing, automatic retries, and consensus state tracking across multiple backend nodes.
 
-<Update label="June 8, 2026" description="v4.27.5" tags={["Latest", "Stable"]}>
+<Update label="June 11, 2026" description="v4.28.0" tags={["Latest", "Stable"]}>
+
+## Changelog
+* ac43a3cc9b2f9af79aadefe55c7bba7137e560f1 chore(proxyd): run golangci-lint in make lint target to match CI (#650)
+* 327f5f5412f55413f13cbe4321232b7b9021ce61 feat(proxyd): fail-closed-by-default interop filtering (#649)
+* a2097d08e8fe3b82ff1630e7e894341d4390103d fix(proxyd): synchronize AvgSlidingWindow access (#653)
+* a6db36e7e601ca104bbe3d3296407bb440f472e3 refactor(proxyd): rename supervisor terminology to interop-filter (#648)
+* 8b84dab92db7e20d843e482190db528592324811 refactor(proxyd): unified transaction filter on the submission path (#654)
+* 0341b6abe5bbcde18985a1e1b58f7824fb8d311a test(proxyd): fix race in TestMulticall request-count assertion (#652)
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.28.0)
+
+</Update>
+
+<Update label="June 8, 2026" description="v4.27.5" tags={["Stable"]}>
 
 ## Changelog
 * 1311f2a834de36a980180414fa5f093714050c44 feat(proxyd): add agreement interop validation strategy (#640)
