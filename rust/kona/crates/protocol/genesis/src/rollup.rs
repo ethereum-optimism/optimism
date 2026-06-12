@@ -423,14 +423,9 @@ impl EthereumHardforks for RollupConfig {
         if fork <= EthereumHardfork::Berlin {
             // We assume that OP chains were launched with all forks before Berlin activated.
             ForkCondition::Block(0)
-        } else if fork <= EthereumHardfork::Paris {
-            // Bedrock activates the whole range of hardforks up to and including Paris
-            // (London, ArrowGlacier, GrayGlacier, Paris), so this can't be covered by the
-            // exact per-fork lookup below.
-            self.op_fork_activation(OpHardfork::Bedrock)
         } else {
-            // Later L1 forks activate with the OP fork that implies them; L1 forks without
-            // an L2 equivalent never activate.
+            // Every later L1 fork activates with the OP fork that implies it (Bedrock for
+            // London through Paris); L1 forks without an L2 equivalent never activate.
             OpHardfork::activating_op_fork(fork)
                 .map(|op_fork| self.op_fork_activation(op_fork))
                 .unwrap_or(ForkCondition::Never)

@@ -204,13 +204,17 @@ impl OpHardfork {
             .expect("Bedrock implies Paris, so every OP fork has an implied L1 fork")
     }
 
-    /// Returns the OP hardfork that activates the given L1 ([`EthereumHardfork`]) hardfork
-    /// on L2, if any.
+    /// Returns the OP hardfork that activates the given L1 ([`EthereumHardfork`]) hardfork's
+    /// changes on L2, if any: the earliest OP fork whose [`Self::implied_l1_fork`] is at
+    /// least the given fork. In particular, every L1 fork up to and including Paris is
+    /// activated by Bedrock. L1 forks newer than the latest implied one (e.g. the
+    /// blob-parameter-only forks) return `None`.
     ///
-    /// This is the inverse view of [`Self::activates_l1_fork`]. L1 forks without an L2
-    /// equivalent (e.g. the blob-parameter-only forks) return `None`.
+    /// Note that this ignores L2 chain history: pre-Bedrock L1 forks activated on OP chains
+    /// at chain-specific blocks (or not at all, like Dao), which only the chain's own fork
+    /// schedule can answer.
     pub fn activating_op_fork(l1_fork: EthereumHardfork) -> Option<Self> {
-        Self::VARIANTS.iter().copied().find(|fork| fork.activates_l1_fork() == Some(l1_fork))
+        Self::VARIANTS.iter().copied().find(|fork| fork.implied_l1_fork() >= l1_fork)
     }
 }
 
@@ -403,16 +407,16 @@ impl Index<EthereumHardfork> for OpChainHardforks {
 
     fn index(&self, hf: EthereumHardfork) -> &Self::Output {
         use EthereumHardfork::{
-            ArrowGlacier, Berlin, Byzantium, Constantinople, Frontier, GrayGlacier, Homestead,
-            Istanbul, London, MuirGlacier, Paris, Petersburg, SpuriousDragon, Tangerine,
+            Berlin, Byzantium, Constantinople, Dao, Frontier, Homestead, Istanbul, MuirGlacier,
+            Paris, Petersburg, SpuriousDragon, Tangerine,
         };
-        use OpHardfork::Bedrock;
 
         match hf {
+            // Dao Hardfork is not needed for OpChainHardforks
+            Dao => &ForkCondition::Never,
             Berlin if self.is_op_mainnet() => &ForkCondition::Block(OP_MAINNET_BERLIN_BLOCK),
             Frontier | Homestead | Tangerine | SpuriousDragon | Byzantium | Constantinople |
             Petersburg | Istanbul | MuirGlacier | Berlin => &ForkCondition::ZERO_BLOCK,
-            London | ArrowGlacier | GrayGlacier => &self[Bedrock],
             Paris if self.is_op_mainnet() => &ForkCondition::TTD {
                 activation_block_number: OP_MAINNET_BEDROCK_BLOCK,
                 fork_block: Some(OP_MAINNET_BEDROCK_BLOCK),
@@ -423,8 +427,9 @@ impl Index<EthereumHardfork> for OpChainHardforks {
                 fork_block: Some(0),
                 total_difficulty: U256::ZERO,
             },
-            // Timestamp-era L1 forks activate with the OP fork that implies them; L1 forks
-            // without an L2 equivalent (Dao, the BPO forks, Amsterdam, ...) never activate.
+            // Everything else activates with the OP fork that implies it (Bedrock for
+            // London through GrayGlacier); L1 forks without an L2 equivalent (the BPO
+            // forks, Amsterdam, ...) never activate.
             _ => OpHardfork::activating_op_fork(hf)
                 .map_or(&ForkCondition::Never, |op_fork| &self[op_fork]),
         }
@@ -745,6 +750,16 @@ mod tests {
                 assert_eq!(OpHardfork::activating_op_fork(l1_fork), Some(op_fork));
             }
         }
+        // Bedrock activates the whole pre-merge range up to and including Paris.
+        assert_eq!(
+            OpHardfork::activating_op_fork(EthereumHardfork::London),
+            Some(OpHardfork::Bedrock)
+        );
+        assert_eq!(
+            OpHardfork::activating_op_fork(EthereumHardfork::GrayGlacier),
+            Some(OpHardfork::Bedrock)
+        );
+        // L1 forks newer than the latest implied one are not activated by any OP fork.
         assert_eq!(OpHardfork::activating_op_fork(EthereumHardfork::Bpo1), None);
         assert_eq!(OpHardfork::activating_op_fork(EthereumHardfork::Amsterdam), None);
     }
@@ -764,6 +779,13 @@ mod tests {
                 "{l1_fork} must activate with {op_fork}"
             );
         }
+        // Paris is absent above: although Bedrock activates it, it doesn't share Bedrock's
+        // ForkCondition — on OP mainnet, Paris activates via a TTD condition while Bedrock
+        // activates by block number.
+        assert!(matches!(
+            forks.ethereum_fork_activation(EthereumHardfork::Paris),
+            ForkCondition::TTD { .. }
+        ));
         // L1 forks without an L2 equivalent never activate.
         assert_eq!(forks.ethereum_fork_activation(EthereumHardfork::Bpo1), ForkCondition::Never);
     }
