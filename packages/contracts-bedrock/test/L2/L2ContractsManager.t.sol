@@ -863,6 +863,10 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
             vm.expectCall(_record.proxy, abi.encodePacked(IProxy.upgradeToAndCall.selector));
         } else {
             vm.expectCall(_record.proxy, abi.encodePacked(IProxy.upgradeTo.selector));
+            // A wrongly false `requiresInit` would still satisfy the `upgradeTo` expectation above
+            // via the intermediate StorageSetter upgrade, so also require that the init path is
+            // never taken for this proxy.
+            vm.expectCall(_record.proxy, abi.encodePacked(IProxy.upgradeToAndCall.selector), 0);
         }
     }
 
