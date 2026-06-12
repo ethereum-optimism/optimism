@@ -201,6 +201,30 @@ func TestSupernode_SyncStatus_UsesMinimumCurrentL1(t *testing.T) {
 	require.Equal(t, eth.BlockID{Number: 100, Hash: common.Hash{0x11}}, out.CurrentL1)
 }
 
+// A chain that just started derivation reports CurrentL1 == {0, 0x00}, which is
+// the true minimum. Aggregate must report 0, not let the other chain's value
+// win because zero collided with an "uninitialized" sentinel. Looped to defeat
+// Go's randomized map-iteration order (the bug surfaced order-dependently).
+func TestSupernode_SyncStatus_ZeroCurrentL1NotOverstated(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			status: &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 0}}, // just started
+		},
+		eth.ChainIDFromUInt64(11): &mockCC{
+			status: &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 100, Hash: common.Hash{0x22}}},
+		},
+	}
+	s := New(gethlog.New(), chains)
+	api := &api{a: s}
+	for i := 0; i < 64; i++ {
+		out, err := api.SyncStatus(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, uint64(0), out.CurrentL1.Number,
+			"aggregate CurrentL1 must be the true minimum (0), never overstated")
+	}
+}
+
 func TestSupernode_SyncStatus_UsesMinimumVerifierCurrentL1(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{

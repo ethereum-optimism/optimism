@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
@@ -33,7 +34,7 @@ type Supernode struct {
 	log         gethlog.Logger
 	version     string
 	requestStop context.CancelCauseFunc
-	stopped     bool
+	stopped     atomic.Bool
 	cfg         *config.CLIConfig
 	chains      map[eth.ChainID]cc.InteropChain
 	// activitiesMu guards reads and writes of the activities slice.
@@ -281,8 +282,13 @@ func (s *Supernode) Start(ctx context.Context) error {
 }
 
 func (s *Supernode) Stop(ctx context.Context) error {
+	// Idempotent: a second Stop must not re-close the L1 client / DBs (double
+	// Close) — CAS so only the first call performs teardown.
+	if !s.stopped.CompareAndSwap(false, true) {
+		s.log.Info("supernode already stopped")
+		return nil
+	}
 	s.log.Info("supernode stopping")
-	s.stopped = true
 
 	// Cancel the lifecycle context before anything else. This guarantees that
 	// activity and chain goroutines will observe a canceled context even if
@@ -379,7 +385,7 @@ func (s *Supernode) onChainReset(chainID eth.ChainID, timestamp uint64, invalida
 	}
 }
 
-func (s *Supernode) Stopped() bool { return s.stopped }
+func (s *Supernode) Stopped() bool { return s.stopped.Load() }
 
 // RPCAddr returns the bound RPC address (host:port) if the server is listening.
 // ok is false if the listener has not been created yet.

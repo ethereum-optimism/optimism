@@ -3,6 +3,7 @@ package heartbeat
 import (
 	"context"
 	"crypto/rand"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -21,6 +22,7 @@ var (
 type Heartbeat struct {
 	log      gethlog.Logger
 	interval time.Duration
+	mu       sync.Mutex // guards cancel against the Start(goroutine)/Stop(caller) race
 	ctx      context.Context
 	cancel   context.CancelFunc
 }
@@ -39,13 +41,16 @@ func (h *Heartbeat) Start(ctx context.Context) error {
 	if h.interval <= 0 {
 		h.interval = time.Second
 	}
+	h.mu.Lock()
 	h.ctx, h.cancel = context.WithCancel(ctx)
+	hctx := h.ctx
+	h.mu.Unlock()
 	ticker := time.NewTicker(h.interval)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-h.ctx.Done():
-			return h.ctx.Err()
+		case <-hctx.Done():
+			return hctx.Err()
 		case <-ticker.C:
 			h.log.Info("heartbeat")
 		}
@@ -54,8 +59,11 @@ func (h *Heartbeat) Start(ctx context.Context) error {
 
 // Stop stops the heartbeat loop.
 func (h *Heartbeat) Stop(ctx context.Context) error {
-	if h.cancel != nil {
-		h.cancel()
+	h.mu.Lock()
+	cancel := h.cancel
+	h.mu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 	return nil
 }

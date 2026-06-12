@@ -2616,6 +2616,35 @@ func TestRewindAccepted(t *testing.T) {
 		require.Equal(t, []uint64{999}, mock.rewindEngineCalls)
 		require.Same(t, plan.TargetPayloads[chainID], mock.lastRewindEngineTarget)
 	})
+
+	// A malformed/older-format WAL can decode a TargetPayloads entry as a
+	// non-nil envelope with a nil ExecutionPayload. resetChainEnginesIfNeeded
+	// must surface that as an error (graceful halt), not dereference it and panic.
+	t.Run("empty target payload errors, does not panic", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.pruneDeniedResult = map[uint64][]common.Hash{1000: {common.HexToHash("0xdenied")}}
+			}).
+			Build()
+		chainID := h.Mock(10).id
+		require.NoError(t, h.commitVerified(VerifiedResult{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 50},
+			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Number: 1000, Hash: common.BigToHash(big.NewInt(1000))}},
+		}))
+		h.interop.logsDBs[chainID] = &mockLogsDBWithState{latestBlock: eth.BlockID{Number: 1000}, hasBlocks: true}
+
+		plan, err := h.interop.buildRewindPlan(1000)
+		require.NoError(t, err)
+		require.NotNil(t, plan.ResetAllChainsTo)
+		// Corrupt the captured payload to the malformed shape.
+		plan.TargetPayloads[chainID] = &eth.ExecutionPayloadEnvelope{}
+
+		require.NotPanics(t, func() {
+			err = h.interop.applyRewindPlan(plan)
+			require.Error(t, err, "empty target payload must error, not panic")
+		})
+	})
 }
 
 // =============================================================================

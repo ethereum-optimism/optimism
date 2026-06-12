@@ -1289,12 +1289,14 @@ func (i *Interop) resetChainEnginesIfNeeded(plan RewindPlan, sortedChainIDs []et
 	}
 	for _, chainID := range sortedChainIDs {
 		target, ok := plan.TargetPayloads[chainID]
-		if !ok {
-			// The build path guarantees a TargetPayloads entry for every chain in TargetHeads.
-			// If we get here, the WAL record is malformed (older format or corruption) — surface
-			// it rather than re-deriving from the live EL, which could pick up a stale synthetic
-			// block from a prior crashed attempt.
-			recordErr(fmt.Errorf("chain %s: missing target payload in WAL'd rewind plan (rewindToTimestamp=%d)",
+		// Treat a present-but-empty payload (non-nil envelope with a nil
+		// ExecutionPayload — how an older-format/corrupt WAL record decodes) the
+		// same as a missing one: surface it as an error rather than dereferencing
+		// target.ExecutionPayload below and panicking. The build path guarantees a
+		// full payload for every chain in TargetHeads, so reaching here means a
+		// malformed WAL; we want a clean halt, not a crash.
+		if !ok || target == nil || target.ExecutionPayload == nil {
+			recordErr(fmt.Errorf("chain %s: missing/empty target payload in WAL'd rewind plan (rewindToTimestamp=%d)",
 				chainID, *plan.ResetAllChainsTo))
 			continue
 		}

@@ -448,6 +448,35 @@ errors on chains whose rollup `Genesis.L2.Number != 0` (e.g. bedrock-migrated
 chains), aborting backfill. Not reachable for genesis-0 interop chains; a clean
 fix needs a genesis-block-number accessor — left for the chain-config owner.
 
+## Convergence sweep round 2
+
+Re-swept the orchestration/lifecycle layer, the apply paths + WAL JSON
+round-trip, and the consumer-facing RPC accessors. The accessors (incl. the
+`VerifiedBlockAtL1` descending-loop underflow guard), the Commit
+idempotent-replay path, `SameL1Chain`, the WAL JSON round-trip (incl. ChainID
+map keys and the `*uint64`/payload-map fields), and the invalidate
+freeze/resume/clear ordering all came back **clean**. Fixed:
+
+- **`syncstatus.Aggregate` could overstate aggregate `CurrentL1`.** It used a
+  zero-`BlockID` sentinel to detect "uninitialized", but a chain that just
+  started derivation legitimately reports `CurrentL1 == {0,0x00}` — colliding
+  with the sentinel and letting a later chain's value win, nondeterministically
+  (map order). Switched to an explicit `currentL1Initialized` flag (matching the
+  timestamp folds / `collectCurrentL1`). Repro:
+  `TestSupernode_SyncStatus_ZeroCurrentL1NotOverstated` (looped to defeat map
+  order). Overstating L1 progress is the unsafe direction for consumers.
+- **Nil-deref panic in `resetChainEnginesIfNeeded` on a malformed WAL.** A
+  rewind-reset record can decode a `TargetPayloads` entry as a non-nil envelope
+  with a nil `ExecutionPayload`; the code dereferenced `target.ExecutionPayload`
+  and panicked instead of the intended graceful halt. Now treated like a
+  missing entry (error + continue). Repro:
+  `TestRewindAccepted/empty_target_payload_errors,_does_not_panic`.
+- **Data race on `Heartbeat.ctx/cancel`** (written in `Start` goroutine, read in
+  `Stop`) — guarded with a mutex, mirroring the interop activity.
+- **`Supernode.Stop` not idempotent** (a second call double-closed the L1
+  client/DBs; `stopped` was also a lockless `bool`) — `stopped` is now an
+  `atomic.Bool` with a CAS guard at the top of `Stop`.
+
 ## Deferred / out of scope here
 
 - **Interop `Reset` is a no-op.** `onChainReset` broadcasts to activities, but
