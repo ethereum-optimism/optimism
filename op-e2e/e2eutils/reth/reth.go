@@ -26,14 +26,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
 )
 
-const defaultProofsHistoryVersion = "v1"
+const (
+	proofsHistoryVersionV1      = "v1"
+	defaultProofsHistoryVersion = "v2"
+)
 
 // Config carries the op-e2e-level EL knobs that translate onto the op-reth CLI.
 type Config struct {
 	// SequencerHTTP, when non-empty, wires op-reth to forward transactions to the
 	// sequencer via --rollup.sequencer-http (sentry tx-forwarding).
 	SequencerHTTP string
-	// ProofsHistoryVersion selects the proof-history storage version; defaults to v1.
+	// ProofsHistoryVersion selects the proof-history storage version; defaults to v2.
 	ProofsHistoryVersion string
 	// ExtraArgs are appended verbatim to the op-reth `node` invocation.
 	ExtraArgs []string
@@ -161,7 +164,7 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 	}
 	// `proofs init` runs snapshot-accelerated backfill by default, which v1
 	// storage does not support, so opt out explicitly for v1 (mirrors sysgo).
-	if proofsVersion == defaultProofsHistoryVersion {
+	if proofsVersion == proofsHistoryVersionV1 {
 		proofsInitArgs = append(proofsInitArgs, "--proofs-history.skip-backfill")
 	}
 	if err := runToCompletion(ctx, execPath, proofsInitArgs...); err != nil {
