@@ -59,6 +59,26 @@ func TestUnmarshalPostExecTxErrors(t *testing.T) {
 	require.ErrorContains(t, err, "payload is empty")
 }
 
+// TestPostExecTxEmptyData pins the marshal/unmarshal asymmetry for an empty
+// payload: both implementations produce the bare type byte, and neither
+// accepts it back.
+func TestPostExecTxEmptyData(t *testing.T) {
+	bareTypeByte := []byte{optypes.PostExecTxType}
+
+	ours, err := (&optypes.PostExecTx{Data: nil}).MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, bareTypeByte, ours)
+
+	theirs, err := gethtypes.NewTx(&gethtypes.PostExecTx{Data: nil}).MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, bareTypeByte, theirs)
+
+	var gethTx gethtypes.Transaction
+	require.Error(t, gethTx.UnmarshalBinary(bareTypeByte))
+	_, err = optypes.UnmarshalPostExecTx(bareTypeByte)
+	require.Error(t, err)
+}
+
 func TestIsPostExecTx(t *testing.T) {
 	raw, err := gethtypes.NewTx(&gethtypes.PostExecTx{Data: []byte{0x42}}).MarshalBinary()
 	require.NoError(t, err)

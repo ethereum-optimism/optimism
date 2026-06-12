@@ -1,6 +1,7 @@
 package types_test
 
 import (
+	"encoding/json"
 	"math/big"
 	"testing"
 
@@ -203,6 +204,47 @@ func TestDepositTxHelpers(t *testing.T) {
 			require.Equal(t, tc.tx.IsSystemTransaction, isSystemTx)
 		})
 	}
+}
+
+// TestDepositTxHelpersJSONDecoded checks the helpers on deposits decoded from
+// JSON-RPC responses, where op-geth uses a different inner type that carries
+// the deposit nonce (depositTxWithNonce). The nonce must not leak into the
+// re-encoded wire bytes the helpers decode.
+func TestDepositTxHelpersJSONDecoded(t *testing.T) {
+	tc := depositTxTestCases()[0]
+	gethTx := tc.gethTx()
+
+	rpcJSON, err := gethTx.MarshalJSON()
+	require.NoError(t, err)
+	var obj map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(rpcJSON, &obj))
+	obj["nonce"] = json.RawMessage(`"0x7"`)
+	rpcJSON, err = json.Marshal(obj)
+	require.NoError(t, err)
+
+	tx := new(gethtypes.Transaction)
+	require.NoError(t, tx.UnmarshalJSON(rpcJSON))
+	nonce := tx.EffectiveNonce()
+	require.NotNil(t, nonce)
+	require.EqualValues(t, 7, *nonce) // proves we hit the depositTxWithNonce path
+
+	raw, err := tx.MarshalBinary()
+	require.NoError(t, err)
+	canonical, err := tc.tx.MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, canonical, raw)
+
+	sourceHash, err := optypes.SourceHash(tx)
+	require.NoError(t, err)
+	require.Equal(t, tx.SourceHash(), sourceHash)
+
+	mint, err := optypes.Mint(tx)
+	require.NoError(t, err)
+	require.Equal(t, tx.Mint(), mint)
+
+	isSystemTx, err := optypes.IsSystemTx(tx)
+	require.NoError(t, err)
+	require.Equal(t, tx.IsSystemTx(), isSystemTx)
 }
 
 func TestDepositTxHelpersNonDeposit(t *testing.T) {

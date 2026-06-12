@@ -26,7 +26,8 @@ type DepositTx struct {
 	From common.Address
 	// To is the recipient; nil means contract creation.
 	To *common.Address `rlp:"nil"`
-	// Mint is minted on L2, locked on L1; nil if no minting.
+	// Mint is minted on L2, locked on L1; nil if no minting. Note that nil and
+	// zero share the same wire encoding and decode to zero.
 	Mint *big.Int `rlp:"nil"`
 	// Value is transferred from the L2 balance, executed after Mint (if any).
 	Value *big.Int
@@ -78,7 +79,9 @@ func SourceHash(tx *types.Transaction) (common.Hash, error) {
 	return d.SourceHash, nil
 }
 
-// Mint returns the ETH minted by a deposit transaction, nil if it mints nothing.
+// Mint returns the ETH minted by a deposit transaction. A deposit that mints
+// nothing yields zero, never nil: the wire encoding does not distinguish a nil
+// from a zero mint, and the transaction is decoded from its wire bytes.
 // It errors if tx is not a deposit transaction.
 func Mint(tx *types.Transaction) (*big.Int, error) {
 	d, err := asDepositTx(tx)

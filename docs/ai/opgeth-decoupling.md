@@ -296,14 +296,26 @@ and a custom JSON unmarshaler:
 // in op-core/types, called simply Receipt; consumers import as optypes
 type Receipt struct {
     types.Receipt
-    L1GasPrice          *big.Int `json:"l1GasPrice,omitempty"`
-    L1BlobBaseFee       *big.Int `json:"l1BlobBaseFee,omitempty"`
-    L1BaseFeeScalar     *uint64  `json:"l1BaseFeeScalar,omitempty"`
-    L1BlobBaseFeeScalar *uint64  `json:"l1BlobBaseFeeScalar,omitempty"`
-    OperatorFeeScalar   *uint64  `json:"operatorFeeScalar,omitempty"`
-    OperatorFeeConstant *uint64  `json:"operatorFeeConstant,omitempty"`
+    DepositNonce          *uint64    `json:"depositNonce,omitempty"`
+    DepositReceiptVersion *uint64    `json:"depositReceiptVersion,omitempty"`
+    L1GasPrice            *big.Int   `json:"l1GasPrice,omitempty"`
+    L1BlobBaseFee         *big.Int   `json:"l1BlobBaseFee,omitempty"`
+    L1GasUsed             *big.Int   `json:"l1GasUsed,omitempty"`
+    L1Fee                 *big.Int   `json:"l1Fee,omitempty"`
+    FeeScalar             *big.Float `json:"l1FeeScalar,omitempty"`
+    L1BaseFeeScalar       *uint64    `json:"l1BaseFeeScalar,omitempty"`
+    L1BlobBaseFeeScalar   *uint64    `json:"l1BlobBaseFeeScalar,omitempty"`
+    OperatorFeeScalar     *uint64    `json:"operatorFeeScalar,omitempty"`
+    OperatorFeeConstant   *uint64    `json:"operatorFeeConstant,omitempty"`
+    DAFootprintGasScalar  *uint64    `json:"daFootprintGasScalar,omitempty"`
 }
 ```
+
+The type carries op-geth's **complete** OP receipt field set, not just the six fields
+`txinclude` reads: the e2e/acceptance suites also read `L1Fee`, `L1GasUsed`, `DepositNonce`,
+etc. (§13), and a partial set would silently drop those fields from receipt JSON at cutover
+— while the go.mod replace still points at op-geth, the embedded receipt masks the gap, so
+no differential test can catch it.
 
 The `EL` interface in `txinclude` returns `*optypes.Receipt` instead of `*types.Receipt`.
 `IncludedTx.Receipt` becomes `*optypes.Receipt`. This contains all the changes within
