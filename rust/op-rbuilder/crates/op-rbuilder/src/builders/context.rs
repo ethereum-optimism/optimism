@@ -549,6 +549,9 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
             let mut tx_succeeded = false;
             let mut gas_limit_exceeded = false;
             let mut address_limit_exceeded = false;
+            // Declining a candidate (CommitChanges::No, below) must not leak SDM block-warming into
+            // a later committed tx; that rollback lives in alloy-op-evm's
+            // execute_transaction_with_commit_condition override (ethereum-optimism/optimism#21354).
             let committed = match builder.execute_transaction_with_commit_condition(
                 tx.clone(),
                 |result| {

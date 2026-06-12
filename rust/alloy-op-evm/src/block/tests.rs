@@ -728,4 +728,43 @@ mod sdm {
             "unexpected post-exec tx at index 0: SDM not active for this block",
         );
     }
+
+    // A candidate that is executed but declined (`CommitChanges::No`) must not leave behind
+    // block-scoped warming: without rollback, an uncommitted candidate would grant a later
+    // committed tx a phantom refund, diverging the producer's payload from derivation
+    // (ethereum-optimism/optimism#21354).
+    #[test]
+    fn test_declined_candidate_does_not_warm_later_committed_tx() {
+        let target = Address::from([0x11; 20]);
+
+        let mut fixture = SDMExecutorFixture::default();
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+        // Execute a candidate that warms `target` but decline to commit it, as the payload builder
+        // does when a candidate exceeds a limit or is reverted-and-excluded.
+        let outcome = producer
+            .execute_transaction_with_commit_condition(&legacy_tx(0, target), |_| CommitChanges::No)
+            .expect("declined candidate still executes");
+        assert!(outcome.is_none(), "candidate must not be committed");
+        assert!(
+            producer.post_exec_entries().is_empty(),
+            "a declined candidate emits no SDM refund entries",
+        );
+
+        // The first committed tx touching `target` must be its first toucher: the declined
+        // candidate's warming was rolled back, so no refund.
+        producer.execute_transaction(&legacy_tx(0, target)).expect("first committed tx executes");
+        assert!(
+            producer.post_exec_entries().is_empty(),
+            "an uncommitted candidate must not warm a later committed tx (no phantom SDM refund)",
+        );
+
+        // Sanity: committed warmth still accumulates — a second committed tx re-warms the
+        // now-committed address and earns a refund.
+        producer.execute_transaction(&legacy_tx(1, target)).expect("second committed tx executes");
+        let entries = producer.post_exec_entries();
+        assert_eq!(entries.len(), 1, "second committed tx re-warms the block-warmed address");
+        assert_eq!(entries[0].index, 1, "refund is attributed to the second committed tx");
+        assert!(entries[0].gas_refund > 0);
+    }
 }
