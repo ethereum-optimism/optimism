@@ -81,7 +81,7 @@ contract ETHLiquidity_User is StdUtils {
 ///         (mints). mint/burn/fund only move ETH between accounts; they never create or destroy it.
 contract ETHLiquidity_MintBurn_Invariant is CommonTest {
     /// @notice Starting balance handed to the bridge and the actor as spending money.
-    uint256 internal constant STARTING_BALANCE = type(uint248).max;
+    uint256 internal constant STARTING_BALANCE = type(uint128).max;
 
     /// @notice The ETHLiquidity_User actor.
     ETHLiquidity_User internal actor;
