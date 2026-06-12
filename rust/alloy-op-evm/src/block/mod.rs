@@ -8,7 +8,8 @@ use alloy_evm::{
     Database, Evm, EvmFactory, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockValidationError, ExecutableTx, GasOutput, StateDB, SystemCaller, TxResult,
+        BlockValidationError, CommitChanges, ExecutableTx, GasOutput, StateDB, SystemCaller,
+        TxResult,
         state_changes::post_block_balance_increments,
     },
     eth::{EthTxResult, receipt_builder::ReceiptBuilderCtx},
@@ -803,6 +804,41 @@ where
         .map_err(BlockExecutionError::other)?;
 
         Ok(())
+    }
+
+    fn execute_transaction_with_commit_condition(
+        &mut self,
+        tx: impl ExecutableTx<Self>,
+        f: impl FnOnce(&Self::Result) -> CommitChanges,
+    ) -> Result<Option<GasOutput>, BlockExecutionError> {
+        // SDM warming refunds are *block*-scoped and are recorded by an inspector whose maps are
+        // mutated during EVM execution (inside `execute_transaction_without_commit`) — i.e. *before*
+        // the commit decision below — and are not part of the journaled state, so they are not
+        // rolled back when a transaction's changes are discarded. A caller (e.g. the op-rbuilder
+        // payload builder) that executes a candidate transaction and then declines to commit it
+        // (`CommitChanges::No`: over a builder gas/DA/address limit, or reverted-and-excluded) would
+        // otherwise leave behind "phantom" warming provenance: a later *committed* transaction would
+        // claim a block-warming refund attributed to a transaction that never enters the block. The
+        // canonical single-pass paths — block import and `debug_replaySDMBlock` derivation — only
+        // ever commit transactions (`execute_transaction`), so they never observe that warmth and
+        // derive a strictly smaller refund set, diverging from the producer's payload.
+        //
+        // Snapshot the block-scoped warming state before execution and restore it whenever the
+        // transaction is not committed, so the producer's accumulated `SDMGasEntry` set stays
+        // identical to a commit-only canonical pass. Only `Producing` mode tracks warming, so the
+        // snapshot (a clone of the warming maps) is taken solely on that path.
+        let warming_snapshot = self.post_exec.is_producing().then(|| self.warming_state());
+
+        let output = self.execute_transaction_without_commit(tx)?;
+
+        if !f(&output).should_commit() {
+            if let Some(snapshot) = warming_snapshot {
+                self.seed_warming_state(snapshot);
+            }
+            return Ok(None);
+        }
+
+        Ok(Some(self.commit_transaction(output)))
     }
 
     fn execute_transaction_without_commit(

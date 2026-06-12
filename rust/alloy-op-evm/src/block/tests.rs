@@ -508,6 +508,52 @@ mod sdm {
         assert_eq!(verified.receipts.len(), user_txs.len() + 1);
     }
 
+    // A candidate transaction that is executed but declined (`CommitChanges::No`) must not leave
+    // behind block-scoped warming provenance: the SDM warming maps are mutated during EVM
+    // execution, before the commit decision, and are not journaled, so without an explicit
+    // rollback an uncommitted candidate would grant a later *committed* tx a phantom re-warming
+    // refund. Block import and `debug_replaySDMBlock` derivation only ever commit transactions, so
+    // such phantom entries would make the producer's payload diverge from derivation
+    // (ethereum-optimism/optimism#21354).
+    #[test]
+    fn test_uncommitted_candidate_does_not_warm_later_committed_tx() {
+        let target = Address::from([0x11; 20]);
+
+        let mut fixture = SDMExecutorFixture::default();
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+        // Execute a candidate that touches `target` (warming it) but decline to commit it, as the
+        // payload builder does when a candidate exceeds a builder limit or is reverted-and-excluded.
+        let outcome = producer
+            .execute_transaction_with_commit_condition(&legacy_tx(0, target), |_| CommitChanges::No)
+            .expect("declined candidate still executes");
+        assert!(outcome.is_none(), "candidate must not be committed");
+        assert!(
+            producer.post_exec_entries().is_empty(),
+            "a declined candidate emits no SDM refund entries",
+        );
+
+        // The first *committed* tx touching `target` must be treated as its first toucher: the
+        // declined candidate's warming must have been rolled back, so no refund is produced.
+        producer
+            .execute_transaction(&legacy_tx(0, target))
+            .expect("first committed tx executes");
+        assert!(
+            producer.post_exec_entries().is_empty(),
+            "an uncommitted candidate must not warm a later committed tx (no phantom SDM refund)",
+        );
+
+        // Sanity: committed warmth still accumulates through the overridden commit path — a second
+        // committed tx re-warms the now-committed address and earns a refund at its tx index.
+        producer
+            .execute_transaction(&legacy_tx(1, target))
+            .expect("second committed tx executes");
+        let entries = producer.post_exec_entries();
+        assert_eq!(entries.len(), 1, "second committed tx re-warms the block-warmed address");
+        assert_eq!(entries[0].index, 1, "refund is attributed to the second committed tx");
+        assert!(entries[0].gas_refund > 0);
+    }
+
     // Demonstrates the accounting the pre-refund cap relies on: under SDM refunds, canonical
     // `gas_used` falls below `evm_gas_used`, so capping on `evm_gas_used` (not `gas_used`) keeps
     // tracking the real compute performed.
