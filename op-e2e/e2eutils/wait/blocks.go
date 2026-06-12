@@ -21,6 +21,10 @@ type BlockCaller interface {
 	BlockNumber(ctx context.Context) (uint64, error)
 }
 
+type OutputAtBlockCaller interface {
+	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
+}
+
 func ForBlock(ctx context.Context, client BlockCaller, n uint64) error {
 	for {
 		select {
@@ -94,6 +98,27 @@ func ForSafeBlock(ctx context.Context, rollupClient dial.RollupClientInterface, 
 		return syncStatus.SafeL2.Number >= n
 	})
 	return err
+}
+
+func ForOutputAtBlock(ctx context.Context, rollupClient OutputAtBlockCaller, n uint64) (*eth.OutputResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	var lastErr error
+	output, err := AndGet(ctx, 500*time.Millisecond, func() (*eth.OutputResponse, error) {
+		output, err := rollupClient.OutputAtBlock(ctx, n)
+		if err != nil {
+			lastErr = err
+			return nil, nil
+		}
+		return output, nil
+	}, func(output *eth.OutputResponse) bool {
+		return output != nil
+	})
+	if err != nil && lastErr != nil {
+		return nil, fmt.Errorf("timed out waiting for L2 output at block %d: %w: %w", n, lastErr, err)
+	}
+	return output, err
 }
 
 func ForNextSafeBlock(ctx context.Context, client BlockCaller) (*types.Block, error) {

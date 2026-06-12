@@ -40,6 +40,11 @@ var (
 	ErrNewPayloadNotValid = errors.New("newPayload status was not valid")
 )
 
+func opGethSystemConfig(t testing.TB, opts ...e2esys.SystemConfigOpt) e2esys.SystemConfig {
+	opts = append(opts, e2esys.WithL2ELKind(services.ELKindOpGeth))
+	return e2esys.DefaultSystemConfig(t, opts...)
+}
+
 // OpGeth is an actor that functions as a l2 op-geth node
 // It provides useful functions for advancing and querying the chain
 type OpGeth struct {

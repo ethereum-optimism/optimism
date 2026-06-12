@@ -40,7 +40,11 @@ type L2Config struct {
 func InitL2(ctx context.Context, cfg L2Config) (services.EthInstance, error) {
 	switch cfg.Kind {
 	case services.ELKindOpGeth:
-		inst, err := geth.InitL2(cfg.Name, cfg.Genesis, cfg.JWTPath, cfg.GethOptions...)
+		gethOptions := append([]geth.GethOption{}, cfg.GethOptions...)
+		if cfg.SequencerHTTP != "" {
+			gethOptions = append(gethOptions, geth.WithSequencerHTTP(cfg.SequencerHTTP))
+		}
+		inst, err := geth.InitL2(cfg.Name, cfg.Genesis, cfg.JWTPath, gethOptions...)
 		if err != nil {
 			return nil, err
 		}

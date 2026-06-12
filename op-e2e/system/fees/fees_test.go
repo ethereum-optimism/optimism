@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -48,7 +49,7 @@ func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) co
 func TestFees(t *testing.T) {
 	t.Run("pre-regolith", func(t *testing.T) {
 		op_e2e.InitParallel(t)
-		cfg := e2esys.RegolithSystemConfig(t, nil)
+		cfg := e2esys.RegolithSystemConfig(t, nil, e2esys.WithL2ELKind(services.ELKindOpGeth))
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
 		testFees(t, cfg)
