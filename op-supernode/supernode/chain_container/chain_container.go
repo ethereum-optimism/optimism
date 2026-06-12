@@ -865,6 +865,12 @@ retryLoop:
 // This must be called before a multi-chain rewind to prevent a peer chain's VN from
 // issuing forkchoice updates that race with the rewind operation.
 // RewindEngine's own Pause+Stop calls are idempotent when called after this.
+//
+// Invariant (load-bearing for the VN start gate): Pause() — which sets the
+// pause flag — must run BEFORE vn.Stop(). The VN's start gate reads that flag
+// under v.mu atomically with its NotStarted->Running transition, so setting it
+// first guarantees a VN caught in the create->start window either aborts or is
+// stopped here. Reordering Stop before Pause reopens the freeze race.
 func (c *simpleChainContainer) PauseAndStopVN(ctx context.Context) error {
 	if err := c.Pause(ctx); err != nil {
 		return err

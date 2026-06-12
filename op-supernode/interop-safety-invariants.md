@@ -387,6 +387,38 @@ read guards prevent any pruned-block leak); the Commit guard vs idempotent-repla
 ordering; the `resumeChecked` lifecycle; and the prune-vs-rewind single-goroutine
 exclusion.
 
+## Re-review pass 2 (the since-last-review changes)
+
+A second adversarial pass over the divergence-collector rewrite, the VN
+start-gate / innerErr-channel changes, the `rollupClientMu`, and the
+`VerifiedDB.Rewind` fix.
+
+**Confirmed correct (no bugs):** the `rollupClientMu` guarding (no unguarded
+access, no lock-ordering cycle — `rollupClient` is a pure lifecycle handle never
+used for an RPC), `VerifiedDB.Rewind` atomicity (whole method under `v.mu`; the
+separate read-txn can't interleave a Commit), the finalized-height guard, and
+the VN start-gate interleaving (every lock ordering checked) + `innerErrCh`
+buffering (no goroutine-leak path).
+
+**Fixed:**
+- *Divergence collector failsafe ran under the nearly-exhausted per-tick
+  context.* The diagnostic RPCs could consume the round's timeout budget,
+  cancelling the failsafe-enable RPC — the most safety-critical action. Now uses
+  a fresh `context.WithTimeout(c.ctx, …)`.
+- *Misleading `innerErr`/`cancelErr` comment.* `cancelErr`'s happens-before is
+  established by `n.Stop()`→`eventSys.Stop()` joining the op-node event loop, not
+  by the channel receive. Comment corrected (and warns not to reorder the read
+  above `n.Stop()`).
+- Documented the load-bearing "Pause before vn.Stop" invariant at
+  `PauseAndStopVN`.
+
+**Documented monitoring limitations (defense-in-depth, not changed):** the
+divergence collector compares at the minimum finalized timestamp, so a
+divergence that manifests only above the slowest replica's frontier is detected
+with latency (not permanently missed — caught as the laggard advances); and a
+diverging replica that errors only on the super-root call can dodge a given
+round. Acceptable for a monitor; noted for operators.
+
 ## Deferred / out of scope here
 
 - **Interop `Reset` is a no-op.** `onChainReset` broadcasts to activities, but

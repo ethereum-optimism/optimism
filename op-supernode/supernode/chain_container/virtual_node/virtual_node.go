@@ -156,12 +156,14 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 	v.setState(VNStateRunning)
 	v.mu.Unlock()
 
-	// Run inner node in goroutine
-	// and await any signal to exit (Stop(), parent ctx, or inner error).
-	// The result is delivered over a channel rather than a shared variable: the
-	// parent reads innerErr (and cancelErr, written via the Cancel callback
-	// during n.Start) only after receiving below, which establishes
-	// happens-before with the goroutine and avoids a data race on those reads.
+	// Run inner node in goroutine and await any signal to exit (Stop(), parent
+	// ctx, or inner error). innerErr (n.Start's return) is delivered over a
+	// buffered channel rather than a shared variable, so the read below
+	// happens-after the goroutine. cancelErr is written by the Cancel callback
+	// on the op-node event-loop goroutine (not from within n.Start); its
+	// happens-before for the read below is established separately by n.Stop()
+	// → eventSys.Stop() joining that event loop. Do NOT move the cancelErr read
+	// above n.Stop() — the channel receive alone does not synchronize it.
 	innerErrCh := make(chan error, 1)
 	go func() {
 		innerErrCh <- n.Start(runCtx)

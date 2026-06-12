@@ -159,7 +159,7 @@ func (c *ReplicaDivergenceCollector) collectOnce(parent context.Context) {
 		"timestamp", result.timestamp,
 		"distinctRoots", len(result.groups),
 		"groups", formatGroups(result.groups))
-	c.maybeTriggerFailsafe(ctx)
+	c.maybeTriggerFailsafe()
 }
 
 // minFinalizedTimestamp returns the minimum finalized L2 timestamp across
@@ -236,10 +236,16 @@ func (c *ReplicaDivergenceCollector) collectSuperRoots(ctx context.Context, ts u
 	return roots
 }
 
-func (c *ReplicaDivergenceCollector) maybeTriggerFailsafe(ctx context.Context) {
+func (c *ReplicaDivergenceCollector) maybeTriggerFailsafe() {
 	if !c.triggerFailsafe {
 		return
 	}
+	// Use a FRESH timeout, not the per-tick context: the diagnostic RPCs above
+	// may have nearly exhausted that budget, and tripping the failsafe is the
+	// most safety-critical action here — it must not be cancelled because
+	// divergence detection was slow.
+	ctx, cancel := context.WithTimeout(c.ctx, replicaRPCTimeout)
+	defer cancel()
 	for _, fc := range c.failsafeClients {
 		if err := fc.SetFailsafeEnabled(ctx, true); err != nil {
 			c.log.Error("failed to enable failsafe after replica divergence", "err", err)
