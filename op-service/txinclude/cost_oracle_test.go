@@ -37,10 +37,10 @@ func (m *mockRPCClient) BatchCallContext(ctx context.Context, batch []rpc.BatchE
 	return nil
 }
 
-func TestIsthmusCostOracleSetParams(t *testing.T) {
+func TestCostOracleSetParams(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		mock := &mockRPCClient{}
-		oracle := txinclude.NewIsthmusCostOracle(mock, time.Millisecond)
+		oracle := txinclude.NewCostOracle(mock, time.Millisecond)
 		require.NoError(t, oracle.SetParams(context.Background()))
 	})
 
@@ -48,7 +48,7 @@ func TestIsthmusCostOracleSetParams(t *testing.T) {
 		mock := &mockRPCClient{
 			RPCError: errors.New("the sky is falling"),
 		}
-		oracle := txinclude.NewIsthmusCostOracle(mock, time.Millisecond)
+		oracle := txinclude.NewCostOracle(mock, time.Millisecond)
 		require.ErrorIs(t, oracle.SetParams(context.Background()), mock.RPCError)
 	})
 
@@ -56,12 +56,12 @@ func TestIsthmusCostOracleSetParams(t *testing.T) {
 		mock := &mockRPCClient{
 			Err: errors.New("the sky is falling"),
 		}
-		oracle := txinclude.NewIsthmusCostOracle(mock, time.Millisecond)
+		oracle := txinclude.NewCostOracle(mock, time.Millisecond)
 		require.ErrorIs(t, oracle.SetParams(context.Background()), mock.Err)
 	})
 }
 
-func TestIsthmusCostOracleOPCost(t *testing.T) {
+func TestCostOracleOPCost(t *testing.T) {
 	t.Run("account for operator cost", func(t *testing.T) {
 		mock := &mockRPCClient{
 			Results: [6]hexutil.Bytes{
@@ -75,12 +75,12 @@ func TestIsthmusCostOracleOPCost(t *testing.T) {
 				big.NewInt(4).Bytes(),
 			},
 		}
-		oracle := txinclude.NewIsthmusCostOracle(mock, time.Millisecond)
+		oracle := txinclude.NewCostOracle(mock, time.Millisecond)
 		require.NoError(t, oracle.SetParams(context.Background()))
 		got := oracle.OPCost(types.NewTx(&types.DynamicFeeTx{
 			Gas: 2_000_000,
 		}))
-		require.Equal(t, big.NewInt(10), got, "3 * 2_000_00 / 1_000_000 + 4 = 10")
+		require.Equal(t, big.NewInt(600_000_004), got, "2_000_000 * 3 * 100 + 4 = 600_000_004")
 	})
 
 	t.Run("account for l1 cost", func(t *testing.T) {
@@ -96,7 +96,7 @@ func TestIsthmusCostOracleOPCost(t *testing.T) {
 				hexutil.Bytes{},
 			},
 		}
-		oracle := txinclude.NewIsthmusCostOracle(mock, time.Millisecond)
+		oracle := txinclude.NewCostOracle(mock, time.Millisecond)
 		require.NoError(t, oracle.SetParams(context.Background()))
 		tx := types.NewTx(&types.DynamicFeeTx{})
 		got := oracle.OPCost(tx)

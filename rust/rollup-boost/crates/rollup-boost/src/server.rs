@@ -485,6 +485,12 @@ pub trait EngineApi {
         payload_id: PayloadId,
     ) -> RpcResult<OpExecutionPayloadEnvelopeV4>;
 
+    #[method(name = "engine_getPayloadV5")]
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<OpExecutionPayloadEnvelopeV4>;
+
     #[method(name = "engine_newPayloadV4")]
     async fn new_payload_v4(
         &self,
@@ -691,6 +697,35 @@ impl<T: EngineApiExt> EngineApiServer for RollupBoostServer<T> {
             OpExecutionPayloadEnvelope::V3(_) => Err(ErrorObject::owned(
                 INVALID_REQUEST_CODE,
                 "Payload version 4 not supported",
+                None::<String>,
+            )),
+        }
+    }
+
+    #[instrument(
+        skip_all,
+        err,
+        fields(
+            otel.kind = ?SpanKind::Server,
+            %payload_id,
+            payload_source,
+            gas_delta,
+            tx_count_delta,
+        )
+    )]
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<OpExecutionPayloadEnvelopeV4> {
+        info!("received get_payload_v5");
+
+        // Osaka reuses the V4-shaped OP envelope (OP Stack has no blobs); only the engine
+        // method version bumps to V5.
+        match self.get_payload(payload_id, PayloadVersion::V5).await? {
+            OpExecutionPayloadEnvelope::V4(v4) => Ok(v4),
+            OpExecutionPayloadEnvelope::V3(_) => Err(ErrorObject::owned(
+                INVALID_REQUEST_CODE,
+                "Payload version 3 not supported",
                 None::<String>,
             )),
         }

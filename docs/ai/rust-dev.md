@@ -129,17 +129,23 @@ just deny
 
 Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.
 
-1. **Lint** — this checks formatting, clippy, and doc lints:
+1. **Format** — only after the final edit, never between edits:
+   ```bash
+   just fmt-fix
+   ```
+   The nightly formatter has opinions (e.g., collapsing multi-line `let` bindings onto one line) that the Edit tool doesn't replicate — running it mid-session and then editing again leaves unformatted code behind and fails the `rust-fmt` CI check. After formatting, run `git diff --stat` to confirm the working tree matches what you're about to commit.
+
+2. **Lint** — this checks formatting, clippy, and doc lints:
    ```bash
    just lint
    ```
 
-2. **Test** — run tests for changed packages:
+3. **Test** — run tests for changed packages:
    ```bash
    just test-unit
    ```
 
-3. **no_std** — if you changed any proof, protocol, or alloy crate:
+4. **no_std** — if you changed any proof, protocol, or alloy crate:
    ```bash
    just check-no-std
    ```

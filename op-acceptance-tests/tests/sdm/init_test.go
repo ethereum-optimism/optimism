@@ -62,20 +62,24 @@ func newSDMRethSystemWithInteropOffset(
 func buildSDMRethSystem(t devtest.T, interopAtGenesis bool, deployerOpts []sysgo.DeployerOption, batcherOpts ...sysgo.BatcherOption) *sdmRethSystem {
 	sysgo.SkipOnOpGeth(t, "SDM acceptance tests require op-reth post-exec support")
 
+	// Honor DEVSTACK_L2CL_KIND so the kona acceptance suite exercises this test with
+	// kona-node on both the sequencer and verifier (defaults to op-node when unset).
+	clKind := sysgo.ResolveMixedL2CLKind()
+
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
 		NodeSpecs: []sysgo.MixedSingleChainNodeSpec{
 			{
 				ELKey:       "sequencer-op-reth",
 				CLKey:       "sequencer",
 				ELKind:      sysgo.MixedL2ELOpReth,
-				CLKind:      sysgo.MixedL2CLOpNode,
+				CLKind:      clKind,
 				IsSequencer: true,
 			},
 			{
 				ELKey:       "verifier-op-reth",
 				CLKey:       "verifier",
 				ELKind:      sysgo.MixedL2ELOpReth,
-				CLKind:      sysgo.MixedL2CLOpNode,
+				CLKind:      clKind,
 				IsSequencer: false,
 			},
 		},

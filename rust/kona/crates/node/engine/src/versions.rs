@@ -9,6 +9,7 @@
 //! - **Bedrock, Canyon, Delta** → V2 methods
 //! - **Ecotone (Cancun)** → V3 methods
 //! - **Isthmus** → V4 methods
+//! - **Karst (Osaka)** → V5 `getPayload` (`newPayload`/`forkchoiceUpdated` stay at their V4/V3)
 //!
 //! Adapted from the [OP Node version providers](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/rollup/types.go#L546).
 
@@ -85,14 +86,20 @@ pub enum EngineGetPayloadVersion {
     V3,
     /// Version 4: Extended payload format for Isthmus.
     V4,
+    /// Version 5: Osaka (`engine_getPayloadV5`); reuses the V4-shaped envelope.
+    V5,
 }
 
 impl EngineGetPayloadVersion {
     /// Returns the appropriate [`EngineGetPayloadVersion`] for the chain at the given timestamp.
     ///
-    /// Uses the [`RollupConfig`] to check which hardfork is active at the given timestamp.
+    /// Uses the [`RollupConfig`] to check which hardfork is active at the given timestamp. Karst
+    /// (Osaka) bumps only `getPayload` to V5; `newPayload`/`forkchoiceUpdated` are unchanged.
     pub fn from_cfg(cfg: &RollupConfig, timestamp: u64) -> Self {
-        if cfg.is_isthmus_active(timestamp) {
+        if cfg.is_karst_active(timestamp) {
+            // Osaka
+            Self::V5
+        } else if cfg.is_isthmus_active(timestamp) {
             Self::V4
         } else if cfg.is_ecotone_active(timestamp) {
             // Cancun
@@ -100,5 +107,34 @@ impl EngineGetPayloadVersion {
         } else {
             Self::V2
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kona_genesis::HardForkConfig;
+
+    fn cfg() -> RollupConfig {
+        RollupConfig {
+            hardforks: HardForkConfig {
+                ecotone_time: Some(10),
+                isthmus_time: Some(20),
+                karst_time: Some(30),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn get_payload_version_selects_by_active_hardfork() {
+        let cfg = cfg();
+        assert_eq!(EngineGetPayloadVersion::from_cfg(&cfg, 5), EngineGetPayloadVersion::V2);
+        assert_eq!(EngineGetPayloadVersion::from_cfg(&cfg, 15), EngineGetPayloadVersion::V3);
+        assert_eq!(EngineGetPayloadVersion::from_cfg(&cfg, 25), EngineGetPayloadVersion::V4);
+        // Karst (Osaka) selects the new V5 getPayload, at and after its activation timestamp.
+        assert_eq!(EngineGetPayloadVersion::from_cfg(&cfg, 30), EngineGetPayloadVersion::V5);
+        assert_eq!(EngineGetPayloadVersion::from_cfg(&cfg, 35), EngineGetPayloadVersion::V5);
     }
 }

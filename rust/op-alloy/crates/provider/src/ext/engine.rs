@@ -133,6 +133,17 @@ pub trait OpEngineApi<N, T> {
         payload_id: PayloadId,
     ) -> TransportResult<OpExecutionPayloadEnvelopeV4>;
 
+    /// This function will return the execution payload for the Osaka hardfork (Karst on the OP
+    /// Stack) via `engine_getPayloadV5`.
+    ///
+    /// OP modifications:
+    /// - the response type is the V4-shaped [`OpExecutionPayloadEnvelopeV4`]; Osaka does not add
+    ///   new payload fields on the OP Stack, it only bumps the engine method version.
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> TransportResult<OpExecutionPayloadEnvelopeV4>;
+
     /// Returns the execution payload bodies by the given hash.
     ///
     /// See also <https://github.com/ethereum/execution-apis/blob/6452a6b194d7db269bf1dbd087a267251d3cc7f8/src/engine/shanghai.md#engine_getpayloadbodiesbyhashv1>
@@ -264,6 +275,13 @@ where
         payload_id: PayloadId,
     ) -> TransportResult<OpExecutionPayloadEnvelopeV4> {
         self.client().request("engine_getPayloadV4", (payload_id,)).await
+    }
+
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> TransportResult<OpExecutionPayloadEnvelopeV4> {
+        self.client().request("engine_getPayloadV5", (payload_id,)).await
     }
 
     async fn get_payload_bodies_by_hash_v1(

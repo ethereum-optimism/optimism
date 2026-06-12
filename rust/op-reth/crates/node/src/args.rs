@@ -160,6 +160,15 @@ pub struct RollupArgs {
     #[arg(long, default_value_t = 1_000_000)]
     pub min_suggested_priority_fee: u64,
 
+    /// Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes.
+    ///
+    /// When set, the payload builder stops including mempool transactions once the block's total
+    /// uncompressed transaction size would exceed this value. This bounds the size of the
+    /// `engine_getPayload` response so it stays within the limits assumed by consensus-layer
+    /// clients (e.g. the common 10 MiB JSON payload cap). Unset means no limit.
+    #[arg(long = "rollup.max-uncompressed-block-size", value_name = "MAX_UNCOMPRESSED_BLOCK_SIZE")]
+    pub max_uncompressed_block_size: Option<u64>,
+
     /// A URL pointing to a secure websocket subscription that streams out flashblocks.
     ///
     /// If given, the flashblocks are received to build pending block. All request with "pending"
@@ -227,6 +236,7 @@ impl Default for RollupArgs {
             sequencer_headers: Vec::new(),
             historical_rpc: None,
             min_suggested_priority_fee: 1_000_000,
+            max_uncompressed_block_size: None,
             flashblocks_url: None,
             flashblock_consensus: false,
             proofs_history: false,
@@ -323,6 +333,19 @@ mod tests {
             "http://c:3",
             "--rollup.interop-min-responses",
             "2",
+        ])
+        .args;
+        assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_max_uncompressed_block_size() {
+        let expected_args =
+            RollupArgs { max_uncompressed_block_size: Some(7_340_032), ..Default::default() };
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--rollup.max-uncompressed-block-size",
+            "7340032",
         ])
         .args;
         assert_eq!(args, expected_args);

@@ -237,6 +237,10 @@ func (ea *L2EngineAPI) GetPayloadV4(ctx context.Context, payloadId eth.PayloadID
 	return ea.getPayload(ctx, payloadId)
 }
 
+func (ea *L2EngineAPI) GetPayloadV5(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
+	return ea.getPayload(ctx, payloadId)
+}
+
 func (ea *L2EngineAPI) config() *params.ChainConfig {
 	return ea.backend.Config()
 }

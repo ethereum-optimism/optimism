@@ -38,18 +38,17 @@ WARN [02-16|21:22:02.868] Derivation process temporary error       attempts=14 e
 
 ### Solution
 
-This error can occur when the data directory for `op-geth` becomes corrupted (for example, as a result of a computer crash).
+This error can occur when the data directory for `op-reth` becomes corrupted (for example, as a result of a computer crash).
 You will need to reinitialize the data directory.
 
-If you are following the tutorial for [Creating Your Own L2 Rollup](/chain-operators/tutorials/create-l2-rollup/create-l2-rollup), make sure to rerun the commands within the [Initialize `op-geth`](/operators/chain-operators/tutorials/create-l2-rollup#initialize-op-geth) section.
+If you are following the tutorial for [Creating Your Own L2 Rollup](/chain-operators/tutorials/create-l2-rollup/create-l2-rollup), make sure to rerun the commands within the [Spin up sequencer](/chain-operators/tutorials/create-l2-rollup/op-reth-setup) section.
 
 If you are not following the tutorial, make sure to take the following steps:
 
-1.  Stop `op-node` and `op-geth`.
-2.  Delete the corresponding `op-geth` data directory.
-3.  If running a Sequencer node, import the Sequencer key into the `op-geth` keychain.
-4.  Reinitialize `op-geth` with the `genesis.json` file.
-5.  Restart `op-geth` and `op-node`.
+1.  Stop `op-node` and `op-reth`.
+2.  Delete the corresponding `op-reth` data directory.
+3.  Reinitialize `op-reth` with the `genesis.json` file: `op-reth init --chain=./genesis.json --datadir=./datadir`.
+4.  Restart `op-reth` and `op-node`.
 
 ## Batcher unable to publish transaction
 

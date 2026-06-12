@@ -359,6 +359,18 @@ where
         record_call_time(call, Metrics::GET_PAYLOAD_METHOD).await
     }
 
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> TransportResult<OpExecutionPayloadEnvelopeV4> {
+        let call = <L2Provider as OpEngineApi<Optimism, Http<HyperAuthClient>>>::get_payload_v5(
+            &self.engine,
+            payload_id,
+        );
+
+        record_call_time(call, Metrics::GET_PAYLOAD_METHOD).await
+    }
+
     async fn get_payload_bodies_by_hash_v1(
         &self,
         block_hashes: Vec<BlockHash>,

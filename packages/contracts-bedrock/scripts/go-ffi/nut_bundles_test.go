@@ -14,17 +14,17 @@ import (
 func TestOrderedNUTBundlesFromLocks(t *testing.T) {
 	root := mockMonorepo(t)
 	writeBundle(t, root, "op-core/nuts/bundles/karst_nut_bundle.json")
-	writeBundle(t, root, "op-core/nuts/bundles/interop_nut_bundle.json")
+	writeBundle(t, root, "op-core/nuts/bundles/lagoon_nut_bundle.json")
 
 	bundles, err := orderedNUTBundlesFromLocks(nuts.ForkLock{
-		"lagoon": {Bundle: "op-core/nuts/bundles/interop_nut_bundle.json"},
+		"lagoon": {Bundle: "op-core/nuts/bundles/lagoon_nut_bundle.json"},
 		"karst":  {Bundle: "op-core/nuts/bundles/karst_nut_bundle.json"},
 	}, root)
 
 	require.NoError(t, err)
 	require.Equal(t, []NUTBundleEncoded{
 		{Fork: "karst", Path: "../../op-core/nuts/bundles/karst_nut_bundle.json"},
-		{Fork: "lagoon", Path: "../../op-core/nuts/bundles/interop_nut_bundle.json"},
+		{Fork: "lagoon", Path: "../../op-core/nuts/bundles/lagoon_nut_bundle.json"},
 	}, bundles)
 }
 
@@ -105,7 +105,7 @@ func TestNUTBundleABIRoundTrip(t *testing.T) {
 	args := abi.Arguments{{Type: nutBundleType}}
 	original := []NUTBundleEncoded{
 		{Fork: "karst", Path: "../../op-core/nuts/bundles/karst_nut_bundle.json"},
-		{Fork: "lagoon", Path: "../../op-core/nuts/bundles/interop_nut_bundle.json"},
+		{Fork: "lagoon", Path: "../../op-core/nuts/bundles/lagoon_nut_bundle.json"},
 	}
 
 	encoded, err := args.Pack(original)

@@ -7,7 +7,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,10 +19,12 @@ import (
 	"github.com/lmittmann/w3"
 )
 
-var oneMillion = new(big.Int).SetUint64(1_000_000)
-
-// IsthmusCostOracle implements OPCostOracle only for the Isthmus hard fork.
-type IsthmusCostOracle struct {
+// CostOracle implements OPCostOracle, estimating the OP-specific costs of a transaction —
+// the L1 data-availability fee and the operator fee — from parameters it fetches over RPC
+// each block. It uses the Fjord L1 cost function and the Jovian operator-fee formula, the
+// latter being exact on Jovian chains and a safe over-estimate on pre-Jovian ones (see
+// opfees.OperatorCostJovian).
+type CostOracle struct {
 	client     RPCClient
 	blockTime  time.Duration
 	costParams atomic.Pointer[costParams]
@@ -35,16 +39,16 @@ type costParams struct {
 	OperatorFeeConstant *big.Int
 }
 
-var _ OPCostOracle = (*IsthmusCostOracle)(nil)
+var _ OPCostOracle = (*CostOracle)(nil)
 
-func NewIsthmusCostOracle(client RPCClient, blockTime time.Duration) *IsthmusCostOracle {
-	return &IsthmusCostOracle{
+func NewCostOracle(client RPCClient, blockTime time.Duration) *CostOracle {
+	return &CostOracle{
 		client:    client,
 		blockTime: blockTime,
 	}
 }
 
-func (i *IsthmusCostOracle) Start(ctx context.Context) {
+func (i *CostOracle) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -55,7 +59,7 @@ func (i *IsthmusCostOracle) Start(ctx context.Context) {
 	}
 }
 
-func (i *IsthmusCostOracle) SetParams(ctx context.Context) error {
+func (i *CostOracle) SetParams(ctx context.Context) error {
 	batch := []rpc.BatchElem{
 		newCall("basefee()"),
 		newCall("baseFeeScalar()"),
@@ -83,16 +87,13 @@ func (i *IsthmusCostOracle) SetParams(ctx context.Context) error {
 	return nil
 }
 
-func (i *IsthmusCostOracle) OPCost(tx *types.Transaction) *big.Int {
+func (i *CostOracle) OPCost(tx *types.Transaction) *big.Int {
 	params := i.costParams.Load()
 
 	l1CostFunc := types.NewL1CostFuncFjord(params.L1BaseFee, params.L1BlobBaseFee, params.L1BaseFeeScalar, params.L1BlobBaseFeeScalar)
 	l1Cost, _ := l1CostFunc(tx.RollupCostData())
 
-	operatorCost := new(big.Int).SetUint64(tx.Gas())
-	operatorCost.Mul(operatorCost, params.OperatorFeeScalar)
-	operatorCost.Div(operatorCost, oneMillion)
-	operatorCost.Add(operatorCost, params.OperatorFeeConstant)
+	operatorCost := opfees.OperatorCostJovian(tx.Gas(), bigs.Uint64Strict(params.OperatorFeeScalar), bigs.Uint64Strict(params.OperatorFeeConstant))
 
 	return l1Cost.Add(l1Cost, operatorCost)
 }

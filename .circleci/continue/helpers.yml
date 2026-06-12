@@ -85,6 +85,13 @@ commands:
         description: "Whether to install clang (needed by bindgen for reth-mdbx-sys)."
         type: boolean
         default: true
+      enable_sccache:
+        description: >
+          Whether to set up the sccache GCS compile cache. Disable for jobs that
+          don't compile on the host (e.g. the reproducible prestate build runs in
+          Docker) so they don't need the sccache-gcs-optimism context.
+        type: boolean
+        default: true
     description: "Prepare the Rust environment for the build."
     steps:
       - rust-setup-env
@@ -95,4 +102,5 @@ commands:
                 name: Ensure clang available
                 command: 'command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }'
       # Shared GCS compile cache (op-rust-sccache).
-      - rust-sccache-setup
+      - rust-sccache-setup:
+          enabled: << parameters.enable_sccache >>
