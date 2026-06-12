@@ -667,6 +667,15 @@ jobs:
       directory:
         description: "Directory containing the Cargo workspace"
         type: string
+      hash_paths:
+        description: >
+          Space-separated git paths whose tree hash keys the binary cache. MUST cover the full
+          dependency closure the binary compiles, not just `directory`: these vendored workspaces
+          path-depend on sibling crates under rust/ (e.g. alloy-op-evm, op-revm, op-reth), so hashing
+          only `directory` reuses a stale binary when a dependency outside it changes. Defaults to
+          `directory`. Keep in sync with the workspace's `path = "../<crate>"` dependencies.
+        type: string
+        default: ""
       binaries:
         description: "Space-separated list of binary names to copy from target/release into the cache"
         type: string
@@ -688,14 +697,26 @@ jobs:
           name: Get << parameters.directory >> content HASH
           command: |
             mkdir -p .circleci-cache
-            git ls-tree -r HEAD << parameters.directory >> | sha256sum | awk '{print $1}' > .circleci-cache/expected-submod-sha.txt
+            HASH_PATHS="<< parameters.hash_paths >>"
+            [ -z "$HASH_PATHS" ] && HASH_PATHS="<< parameters.directory >>"
+            echo "Hashing paths: $HASH_PATHS"
+            # Fail fast on a stale/typo'd path: `git ls-tree` emits nothing (exit 0) for a
+            # non-existent path, which would silently shrink the hash and reintroduce the stale-binary
+            # bug this keying is meant to prevent.
+            for p in $HASH_PATHS; do
+              if ! git cat-file -e "HEAD:$p" 2>/dev/null; then
+                echo "ERROR: hash_paths entry '$p' does not exist at HEAD — fix hash_paths in main.yml" >&2
+                exit 1
+              fi
+            done
+            git ls-tree -r HEAD $HASH_PATHS | sha256sum | awk '{print $1}' > .circleci-cache/expected-submod-sha.txt
             echo "Content HASH: $(cat .circleci-cache/expected-submod-sha.txt)"
             echo "<< parameters.binaries >>" | tr ' ' '\n' | awk 'NF' | sort -u > .circleci-cache/expected-binaries.txt
             echo "Expected binaries: $(tr '\n' ' ' < .circleci-cache/expected-binaries.txt)"
       - restore_cache:
           name: Restore << parameters.directory >> cache
           keys:
-            - rust-<< parameters.directory >>-v8-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
+            - rust-<< parameters.directory >>-v9-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
       - run:
           name: Build << parameters.directory >> (if needed)
           command: |
@@ -746,7 +767,7 @@ jobs:
             done
           no_output_timeout: 30m
       - save_cache:
-          key: rust-<< parameters.directory >>-v8-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
+          key: rust-<< parameters.directory >>-v9-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
           name: Save << parameters.directory >> cache
           paths:
             - ".circleci-cache/rust-binaries"
@@ -2471,6 +2492,10 @@ workflows:
       - rust-build-vendored: &rust-build-op-rbuilder
           name: rust-build-op-rbuilder
           directory: rust/op-rbuilder
+          # Full vendored-crate closure op-rbuilder compiles (its `path = "../<crate>"` deps and
+          # their shared siblings). Without op-reth/op-revm/alloy-op-evm/etc. here, a change to one
+          # of those reuses a stale op-rbuilder binary in the sysgo acceptance jobs.
+          hash_paths: "rust/op-rbuilder rust/rollup-boost rust/op-reth rust/op-revm rust/op-alloy rust/alloy-op-evm rust/alloy-op-hardforks"
           binaries: "op-rbuilder"
           build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
           needs_clang: true
@@ -2480,6 +2505,9 @@ workflows:
       - rust-build-vendored: &rust-build-rollup-boost
           name: rust-build-rollup-boost
           directory: rust/rollup-boost
+          # rollup-boost path-depends on op-reth/op-alloy (and their siblings transitively); hash the
+          # same shared vendored-crate closure so a sibling change rebuilds it instead of going stale.
+          hash_paths: "rust/op-rbuilder rust/rollup-boost rust/op-reth rust/op-revm rust/op-alloy rust/alloy-op-evm rust/alloy-op-hardforks"
           binaries: "rollup-boost"
           build_command: cargo build --release -p rollup-boost --bin rollup-boost
           context:
