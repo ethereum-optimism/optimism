@@ -74,7 +74,21 @@ List every network in this interop set. A reorg on one network can cascade a reo
 For each network, have a per-network status check ready so you can tell which networks actually reorged and need recovery:
 
 * The network's `op-interop-filter` failsafe state (and the reason it tripped).
-* The sequencer's `optimism_syncStatus` (`unsafe_l2`, `safe_l2`, `finalized_l2`).
+* The sequencer's heads, from its own `op-node`:
+
+```bash
+cast rpc --rpc-url http://<SEQ_NODE_RPC> optimism_syncStatus \
+  | jq '{unsafe: .unsafe_l2, cross_unsafe: .cross_unsafe_l2, local_safe: .local_safe_l2, safe: .safe_l2, finalized: .finalized_l2}'
+```
+
+* The **canonical** heads for that chain, from the upstream `op-supernode` — this is the source of truth you compare every node against:
+
+```bash
+cast rpc --rpc-url http://<SUPERNODE_RPC> supernode_syncStatus \
+  | jq '.chains["<CHAIN_ID>"] | {unsafe: .unsafe_l2, cross_unsafe: .cross_unsafe_l2, local_safe: .local_safe_l2, safe: .safe_l2, finalized: .finalized_l2}'
+```
+
+A network has reorged and needs recovery when a node's `unsafe_l2` (or `local_safe_l2`) hash diverges from the supernode's canonical hash at the same height, or when its heads have stopped advancing. Post-interop, `safe_l2` is the **cross-safe** head — already cross-validated — so it is the most trustworthy field to compare.
 
 ### Gather the Required Inputs
 
@@ -261,6 +275,8 @@ There is no cross-network coordination beyond that:
 
 Before any head surgery on the wedged sequencer, settle the two services that read from it and write to L1. Both run independently of the failsafe, so neither stops on its own when interop admission is blocked.
 
+Both services expose their `admin_*` controls on a plain-HTTP admin RPC — **no JWT** — that is enabled only when the service runs with `--rpc.enable-admin` (or `OP_BATCHER_RPC_ENABLE_ADMIN=true` / `OP_PROPOSER_RPC_ENABLE_ADMIN=true`). The commands below target that admin RPC directly, not `proxyd`.
+
 ### Pause the Batcher Before Head Surgery
 
 The batcher loads **unsafe** blocks from the sequencer and submits them to L1. It has safe-chain reorg detection and rebuilds its channel state from the recovered chain on resume (`clearState`), but it has two windows where it can write bad data to L1:
@@ -268,18 +284,43 @@ The batcher loads **unsafe** blocks from the sequencer and submits them to L1. I
 * Between the reorg and the manual head set, it can submit data for blocks that have just been reorged out.
 * After a force-set head, it can submit data that conflicts with the recovered chain.
 
-So pause or stop the batcher **before** the head surgery in **Recover a Conductor-Managed Sequencer** (or the follow-mode recovery), and resume it **only after** the unsafe head has converged on the supernode-confirmed canonical head. On resume, confirm the batcher is tracking the recovered chain rather than a stale channel.
+So pause the batcher **before** the head surgery in **Recover a Conductor-Managed Sequencer** (or the follow-mode recovery). Pause it:
 
-**Re-pause guard.** If, after resuming the batcher, the unsafe head changes again — a re-reorg, or a cascade from another network — **immediately re-pause the batcher** and return to the safe baseline before bad data is batched. The healthy-batch check in **Restore This Network** guards against this by comparing the batched `safe_l2` **hash** against the supernode-canonical hash, not merely the block number: a wrong-fork batch can advance the number too.
+```bash
+cast rpc --rpc-url http://<BATCHER_ADMIN_RPC> admin_stopBatcher
+# Expect: null  (now stopped)  |  error "batcher is not running"  (it was already stopped)
+```
 
-### The Proposer Stalls Safely
+The error doubles as a state check: `admin_stopBatcher` reports `batcher is not running` if it was already stopped, and `admin_startBatcher` reports `batcher is already running` if it was already running. There is no separate read-only state RPC.
 
-The proposer proposes from `FinalizedL2`, or from `SafeL2` when `AllowNonFinalized` is set. It does not read the unsafe head, so head surgery cannot directly corrupt a proposal. It naturally stalls during the wedge — that is expected — and resumes on its own once safe and finalized advance past the reorg.
+Resume the batcher **only after** the unsafe head has converged on the supernode-confirmed canonical head. Confirm convergence first, then resume:
 
-The one case that needs a check is `AllowNonFinalized`: the proposer reads `SafeL2`, which can briefly track a wrong fork.
+```bash
+# 1. Sequencer head vs supernode canonical head — hashes must match at the same height:
+cast rpc --rpc-url http://<SEQ_NODE_RPC> optimism_syncStatus | jq '.unsafe_l2'
+cast rpc --rpc-url http://<SUPERNODE_RPC> supernode_syncStatus | jq '.chains["<CHAIN_ID>"].unsafe_l2'
 
-* **Detection:** compare the proposed outputs or super-roots already on L1 against the recovered safe chain at the reorg height, to see whether the proposer submitted across the reorg discontinuity.
-* **Routing:** if a stale root reached L1, route it to the dispute-games owner as tracked follow-up. Do not gate recovery on it — but do not leave it undetected either.
+# 2. Once they agree, resume:
+cast rpc --rpc-url http://<BATCHER_ADMIN_RPC> admin_startBatcher
+# Expect: null  (now running)
+```
+
+After resuming, confirm the batcher is tracking the recovered chain rather than a stale channel: the sequencer's `safe_l2` should advance on the recovered hash within a few L1 blocks, and the batcher logs `building L2 block` / `publishing` lines for blocks at or above the recovered head.
+
+**Re-pause guard.** If, after resuming the batcher, the unsafe head changes again — a re-reorg, or a cascade from another network — **immediately re-pause the batcher** (`admin_stopBatcher`) and return to the safe baseline before bad data is batched. The healthy-batch check in **Restore This Network** guards against this by comparing the batched `safe_l2` **hash** against the supernode-canonical hash, not merely the block number: a wrong-fork batch can advance the number too.
+
+### The Proposer Needs No Action
+
+The proposer requires no intervention, because it proposes only **validated** state. It proposes from `FinalizedL2`, or from `SafeL2` when `AllowNonFinalized` is set, and never reads the unsafe head.
+
+Post-interop, `SafeL2` is the **cross-safe** head: a block becomes cross-safe only after the supernode's cross-L2 validation passes, so an invalid executing message is rejected at the local-safe-to-cross-safe boundary and never reaches the proposer's input. (`SafeL2` reorgs only on an L1 reorg — a different scenario than the invalid-message reorg this runbook covers.) The proposer therefore cannot propose across an invalid-message reorg discontinuity, with or without `AllowNonFinalized`. It simply stalls while cross-safe is held back during the wedge, and resumes on its own once cross-safe and finalized advance past the reorg. Confirm it resumes at the restore gate; no detection or remediation step is needed.
+
+If you prefer to pause it anyway as a precaution during head surgery, `admin_stopProposer` and `admin_startProposer` on its admin RPC do so — it is not required:
+
+```bash
+cast rpc --rpc-url http://<PROPOSER_ADMIN_RPC> admin_stopProposer
+cast rpc --rpc-url http://<PROPOSER_ADMIN_RPC> admin_startProposer
+```
 
 ## How the Corrected Head Propagates
 
