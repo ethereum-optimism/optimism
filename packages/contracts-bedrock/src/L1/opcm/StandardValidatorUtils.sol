@@ -192,6 +192,9 @@ contract StandardValidatorUtils {
         );
         _errors =
             internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0), "SCKDG-NOSHAPE", _errors);
+        // TODO: add ZKDG-NOSHAPE check here once the legacy isolated ZKDisputeGame (per-chain
+        // output roots, pre-super-root) is gone from code AND from live deployments. After that,
+        // ZK_DISPUTE_GAME must never be registered on non-super-root chains.
         _errors = internalRequire(
             address(dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) != address(0), "PDDG-NOSHAPE", _errors
         );

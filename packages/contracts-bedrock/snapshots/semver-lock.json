@@ -20,11 +20,11 @@
     "sourceCodeHash": "0x0ef8461e8bc55314e61e60924465574db17bdf30bbbfe9739b52cac623bba2db"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0x002389ee8ad24f5bc971303d183c7e95bbe87438dfb319039ac1cd06a736f318",
-    "sourceCodeHash": "0xdff962f1c5de7863a05634f201e5dd09aea507fd06ed4a3cc534b9ad36bb01c0"
+    "initCodeHash": "0xbee6a0dd4f6ac928b1bcdc903db399326e6408290c890146ae356683a30db201",
+    "sourceCodeHash": "0x334e1e3a2083faca8572c3a5fe122420be10fdb5ba7ffd2cbfb2cf86de3c5bbf"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
-    "initCodeHash": "0xf09c4037bec1e0fbf679f1250e8d21d4a208829be24e16a83711e94c9b4b1004",
+    "initCodeHash": "0x8e4c3129d8c0cb5a5c301d06cac94bab724b5b72c1268ba106c8d196ec48b959",
     "sourceCodeHash": "0x58224f9b9403ca597a9aa649757c667396838eee89db2e7553aab755dd5fba26"
   },
   "src/L1/SuperchainConfig.sol:SuperchainConfig": {

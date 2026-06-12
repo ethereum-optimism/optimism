@@ -2152,6 +2152,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
 
             // ZK game is not deployed on mainnet. Mock it using the same ASR and WETH as CANNON
             // (same on-chain infrastructure) so _assertValidZKGameArgs passes its checks.
+            // ZK_DISPUTE_GAME is a super game: l2ChainId must be 0 in the factory args.
             bytes memory zkArgs = abi.encodePacked(
                 bytes32(keccak256("zkPrestate")),
                 address(0xBEEF),
@@ -2160,7 +2161,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 uint256(0.08 ether),
                 cannonArgs.anchorStateRegistry,
                 cannonArgs.weth,
-                l2ChainId
+                uint256(0)
             );
             vm.mockCall(
                 address(dgf),
@@ -2292,12 +2293,6 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
         bytes32 slot = bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "zkDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
         assertEq("ZKDG-20", _validate(true));
-    }
-
-    /// @notice Tests ZKDG-60 when the l2ChainId encoded in the ZK game args does not match.
-    function test_validate_zkDisputeGameWrongChainId_succeeds() public {
-        DisputeGames.mockZKGameImplL2ChainId(dgf, GameTypes.ZK_DISPUTE_GAME, l2ChainId + 1);
-        assertEq("ZKDG-60", _validate(true));
     }
 
     /// @notice Tests ZKDG-70 when the absolutePrestate encoded in the ZK game args is zero.
