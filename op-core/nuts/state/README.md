@@ -33,42 +33,29 @@ predecessor bundle and is built from jovian-era source.
 built from jovian-era source:
 
 ```bash
-ops/scripts/gen-seed-state.sh jovian
+ops/scripts/gen-seed-state.sh
 ```
 
-That script:
-
-1. Creates a git worktree at the **op-contracts/v5.0.0** release tag
-   (`d09c836f818c73ae139f60b717654c4e53712743`) — the jovian L2 contracts release,
-   before karst's contract changes (jovian mainnet activation was 2025-12-02,
-   L1 timestamp `1764691201`). This is a release tag, not necessarily on
-   `develop`'s mainline, so the generator may need to fetch it first.
-2. Builds the jovian-era contracts there.
-3. Runs a small dumper **inside the worktree** that calls jovian's own
-   `op-e2e/config.L2Allocs(DefaultAllocType, L2AllocsJovian)`, filters to
-   predeploy proxies + their implementations, and writes this file.
-
 **Why jovian's own toolchain (not the current op-deployer):** the current
-op-deployer cannot consume jovian/karst-era contracts — their ABIs have drifted
-(e.g. `DeployImplementations` dropped its `protocolVersionsProxy` input field, so
-the current Go expects 15 input fields where the old contract has 16). Building
+op-deployer cannot consume jovian era contracts. Building
 inside the worktree pairs the era's contracts with the era's tooling.
 
 ## Generating subsequent states: compose
 
 Every state past the seed is the **post-activation state of its fork**:
-`<fork>_state = <prev>_state + (frozen <fork> bundle applied)`. `TestGenerateForkState`
-reuses the activation flow to produce exactly that — set `OP_E2E_GEN_PREFORK_STATE=<fork>`
-and run it:
+`<fork>_state = <prev>_state + (frozen <fork> bundle applied)`:
 
 ```bash
 # karst_state.json = jovian_state + karst bundle
-OP_E2E_GEN_PREFORK_STATE=karst go test -run 'TestGenerateForkState' ./rust/kona/tests/proofs/
+just nut-prefork-state-for karst
 ```
 
 It boots the predecessor state, applies the frozen bundle at the activation block,
-and dumps the post-activation predeploy-scoped state to `<fork>_state.json`. (It
-shares `activateFork` with the validation test, so the two stay in lockstep.)
+and dumps the post-activation predeploy-scoped state to `<fork>_state.json`.
+
+Under the hood this runs the env-gated `TestGenerateForkState`, which reuses the
+validation test's `activateFork` so generation and validation stay in lockstep —
+hence it lives in the proofs test suite rather than as a standalone binary.
 Compose needs **no fork-era contract build** — it only re-runs the already-frozen
 bundle, so current tooling is fine despite the ABI drift above.
 
