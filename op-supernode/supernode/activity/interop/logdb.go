@@ -236,18 +236,24 @@ func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts 
 		sealParentHash = common.Hash{}
 	}
 
+	// Genesis carries no logs: the EVM never executes block 0, and AddLog
+	// rejects a zero parentBlock. Skip the log loop so a (malformed) genesis
+	// receipt set can't turn into an ErrOutOfOrder, matching the "no logs
+	// allowed" invariant above.
 	var logIndex uint32
-	for _, receipt := range receipts {
-		for _, l := range receipt.Logs {
-			logHash := messages.LogToLogHash(l)
+	if blockNum != 0 {
+		for _, receipt := range receipts {
+			for _, l := range receipt.Logs {
+				logHash := messages.LogToLogHash(l)
 
-			// Decode executing message if present (nil if not an executing message)
-			execMsg, _ := messages.DecodeExecutingMessageLog(l)
+				// Decode executing message if present (nil if not an executing message)
+				execMsg, _ := messages.DecodeExecutingMessageLog(l)
 
-			if err := db.AddLog(logHash, parentBlock, logIndex, execMsg); err != nil {
-				return fmt.Errorf("failed to add log %d: %w", logIndex, err)
+				if err := db.AddLog(logHash, parentBlock, logIndex, execMsg); err != nil {
+					return fmt.Errorf("failed to add log %d: %w", logIndex, err)
+				}
+				logIndex++
 			}
-			logIndex++
 		}
 	}
 

@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	coreinterop "github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -486,7 +487,13 @@ func isDivergenceError(err error) bool {
 	return errors.Is(err, ErrStaleLogsDB) ||
 		errors.Is(err, ErrParentHashMismatch) ||
 		errors.Is(err, ErrHeadRegression) ||
-		errors.Is(err, ErrRewindChainSetMismatch)
+		errors.Is(err, ErrRewindChainSetMismatch) ||
+		// A logsDB rewind whose target's stored hash doesn't match the WAL'd
+		// head (raftwallogdb returns op-core/interop.ErrConflict), or a seal
+		// that conflicts with already-sealed data, is a durable
+		// logsDB-vs-verifiedDB divergence. Reaching progress() (not swallowed
+		// as an invalidation), it can only be re-submitted identically, so halt.
+		errors.Is(err, coreinterop.ErrConflict)
 }
 
 // progress runs one verification step. Returns (0, nil) when forward progress

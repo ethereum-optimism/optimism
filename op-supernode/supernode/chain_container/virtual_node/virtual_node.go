@@ -231,7 +231,6 @@ func (v *simpleVirtualNode) Stop(ctx context.Context) error {
 	return nil
 }
 
-// State returns the current state of the virtual node (for testing and monitoring)
 // SetBeforeStart installs the start gate. Must be called before Start; the
 // chain container sets it once per VN (in the same goroutine that then calls
 // Start), so the field is written-before-read without contention. Guarded by mu
@@ -242,6 +241,7 @@ func (v *simpleVirtualNode) SetBeforeStart(fn func() bool) {
 	v.beforeStart = fn
 }
 
+// State returns the current state of the virtual node (for testing and monitoring)
 func (v *simpleVirtualNode) State() VNState {
 	return VNState(v.state.Load())
 }

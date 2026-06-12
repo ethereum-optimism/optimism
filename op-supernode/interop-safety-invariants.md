@@ -419,6 +419,35 @@ with latency (not permanently missed — caught as the laggard advances); and a
 diverging replica that errors only on the super-root call can dodge a given
 round. Acceptable for a monitor; noted for operators.
 
+## Convergence sweep round 1
+
+A full re-sweep over the byte-level logsDB code, the validity/cycle algorithms,
+the backfill math, and the whole accumulated diff. The validity/cycle logic and
+the backfill window math came back **clean**. Fixed:
+
+- **logsDB rewind `ErrConflict` retried forever.** `applyRewindPlan`'s
+  `db.Rewind` returns `op-core/interop.ErrConflict` when the target height's
+  stored hash ≠ the WAL'd head — a durable logsDB/verifiedDB divergence the halt
+  ladder missed. Added to `isDivergenceError` (`TestIsDivergenceError`).
+- **`Prune` always errored on a pre-#20726 (virtual-parent) DB.** The compat
+  shim bumps `firstBlock` past a vestigial entry still at the WAL's `FirstIndex`,
+  so `DeleteRange(indexFor(firstBlock), …)` was an unsupported middle-range
+  delete → pruning silently never ran (unbounded growth). `Prune` now deletes
+  from the real `FirstIndex` (no-op for normal DBs).
+  Repro: `TestCompat_PruneAcrossVirtualParent`.
+- **`Clear`/deep-`Rewind` resurrected the virtual-parent ghost.** On a compat DB
+  the tail truncation kept the vestigial entry, which reappeared on reopen as a
+  fake frontier block. `clearLocked` now deletes from `FirstIndex` too.
+  Repro: `TestCompat_ClearRemovesVirtualParent`.
+- **`processBlockLogs` genesis branch** now skips the log loop for block 0
+  (matches the "no logs allowed" invariant `AddLog` enforces).
+- Cosmetic: fixed an orphaned `State()` doc comment displaced by an earlier edit.
+
+Latent / scoped: `runColdStartBackfill` calls `BlockNumberToTimestamp(0)`, which
+errors on chains whose rollup `Genesis.L2.Number != 0` (e.g. bedrock-migrated
+chains), aborting backfill. Not reachable for genesis-0 interop chains; a clean
+fix needs a genesis-block-number accessor — left for the chain-config owner.
+
 ## Deferred / out of scope here
 
 - **Interop `Reset` is a no-op.** `onChainReset` broadcasts to activities, but

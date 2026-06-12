@@ -515,8 +515,18 @@ func (d *DB) Prune(beforeTimestamp uint64) (uint64, error) {
 	}
 
 	pruned := target - d.firstBlock + 1
-	// DeleteRange with min == FirstIndex routes to a raft-wal head truncation.
-	if err := d.w.DeleteRange(indexFor(d.firstBlock), indexFor(target)); err != nil {
+	// Delete from the WAL's actual FirstIndex, not indexFor(d.firstBlock): the
+	// pre-virtual-parent compat shim (hidePreVirtualParentLayout) bumps
+	// d.firstBlock past a vestigial entry that physically remains at FirstIndex,
+	// so indexFor(d.firstBlock) would be FirstIndex+1 — a middle-range delete
+	// raft-wal rejects. For a normal DB FirstIndex == indexFor(d.firstBlock), so
+	// this is a no-op there; for a compat DB it head-truncates the vestigial
+	// entry too. Either way the range stays a valid prefix (head) truncation.
+	first, err := d.w.FirstIndex()
+	if err != nil {
+		return 0, fmt.Errorf("prune: read FirstIndex: %w", err)
+	}
+	if err := d.w.DeleteRange(first, indexFor(target)); err != nil {
 		return 0, fmt.Errorf("failed to prune raft-wal head: %w", err)
 	}
 	d.firstBlock = target + 1
@@ -531,7 +541,17 @@ func (d *DB) Clear() error {
 
 func (d *DB) clearLocked() error {
 	if d.hasBlocks {
-		if err := d.w.DeleteRange(indexFor(d.firstBlock), indexFor(d.latest.Number)); err != nil {
+		// Delete from the WAL's actual FirstIndex (not indexFor(d.firstBlock)):
+		// on a pre-virtual-parent compat DB the shim bumped d.firstBlock past a
+		// vestigial entry that still sits at FirstIndex, so starting at
+		// indexFor(d.firstBlock) would leave that entry behind — and it would
+		// resurface as a ghost frontier block on the next Open. FirstIndex
+		// equals indexFor(d.firstBlock) for normal DBs, so this is a no-op there.
+		first, err := d.w.FirstIndex()
+		if err != nil {
+			return fmt.Errorf("clear: read FirstIndex: %w", err)
+		}
+		if err := d.w.DeleteRange(first, indexFor(d.latest.Number)); err != nil {
 			return fmt.Errorf("failed to clear raft-wal: %w", err)
 		}
 	}

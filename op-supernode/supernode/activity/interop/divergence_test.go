@@ -1,10 +1,12 @@
 package interop
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"testing"
 
+	coreinterop "github.com/ethereum-optimism/optimism/op-core/interop"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
@@ -40,6 +42,27 @@ func requireHalted(t *testing.T, h *interopTestHarness) {
 	v, found := gatheredGauge(t, h.interop.metrics, "supernode_interop_activity_state")
 	require.True(t, found, "activity state gauge must exist")
 	require.Equal(t, float64(InteropStateHalted), v, "activity state gauge must be halted")
+}
+
+// TestIsDivergenceError pins the terminal-vs-transient classification: every
+// durable-divergence sentinel (including op-core/interop.ErrConflict from a
+// logsDB rewind hash mismatch) is terminal, survives wrapping, and ordinary
+// errors are not terminal.
+func TestIsDivergenceError(t *testing.T) {
+	terminal := []error{
+		ErrStaleLogsDB,
+		ErrParentHashMismatch,
+		ErrHeadRegression,
+		ErrRewindChainSetMismatch,
+		coreinterop.ErrConflict,
+	}
+	for _, e := range terminal {
+		require.Truef(t, isDivergenceError(e), "%v should be terminal", e)
+		require.Truef(t, isDivergenceError(fmt.Errorf("rewind logsDB: %w", e)), "%v should be terminal when wrapped", e)
+	}
+	for _, e := range []error{errors.New("connection refused"), coreinterop.ErrFuture} {
+		require.Falsef(t, isDivergenceError(e), "%v should be transient/non-terminal", e)
+	}
 }
 
 // TestProgress_HaltsOnStaleLogsDBConflict: a WAL'd Advance whose block

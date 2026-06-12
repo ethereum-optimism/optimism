@@ -115,3 +115,64 @@ func TestCompat_GenesisAnchor_NotHidden(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(0), seal.Number)
 }
+
+// Prune on a pre-#20726 DB must not hit raft-wal's "suffix/prefix only"
+// rejection: the vestigial virtual-parent entry sits at FirstIndex while
+// d.firstBlock points past it, so Prune must delete from the real FirstIndex.
+func TestCompat_PruneAcrossVirtualParent(t *testing.T) {
+	dir := t.TempDir()
+	activation := blockID(100, 0x64)
+	parentHash := hash(0x63)
+	seedPreVirtualParentDB(t, dir, activation, parentHash, 1000)
+
+	db, err := Open(dir, eth.ChainIDFromUInt64(10))
+	require.NoError(t, err)
+	// Extend: blocks 101..105 with timestamps 1001..1005.
+	prev := activation
+	for n := uint64(101); n <= 105; n++ {
+		blk := blockID(n, byte(n))
+		require.NoError(t, db.SealBlock(prev.Hash, blk, 1000+(n-100)))
+		prev = blk
+	}
+
+	// Horizon 1003 prunes blocks with ts<1003 (100,101,102). Pre-fix this
+	// errored ("only suffix or prefix ranges may be deleted").
+	pruned, err := db.Prune(1003)
+	require.NoError(t, err)
+	require.Greater(t, pruned, uint64(0))
+	first, err := db.FirstSealedBlock()
+	require.NoError(t, err)
+	require.Equal(t, uint64(103), first.Number)
+	require.NoError(t, db.Close())
+
+	// Reopen: the virtual parent is gone, so no ghost block resurfaces.
+	db2, err := Open(dir, eth.ChainIDFromUInt64(10))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db2.Close() })
+	first2, err := db2.FirstSealedBlock()
+	require.NoError(t, err)
+	require.Equal(t, uint64(103), first2.Number)
+	_, _, _, err = db2.OpenBlock(99)
+	require.ErrorIs(t, err, interop.ErrSkipped)
+}
+
+// Clear on a pre-#20726 DB must remove the vestigial virtual-parent entry too,
+// or it resurfaces as a ghost frontier block on the next Open.
+func TestCompat_ClearRemovesVirtualParent(t *testing.T) {
+	dir := t.TempDir()
+	activation := blockID(100, 0x64)
+	parentHash := hash(0x63)
+	seedPreVirtualParentDB(t, dir, activation, parentHash, 1000)
+
+	db, err := Open(dir, eth.ChainIDFromUInt64(10))
+	require.NoError(t, err)
+	require.NoError(t, db.Clear())
+	require.NoError(t, db.Close())
+
+	// Reopen: must be empty, not resurrect the virtual parent as block 99.
+	db2, err := Open(dir, eth.ChainIDFromUInt64(10))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db2.Close() })
+	_, ok := db2.LatestSealedBlock()
+	require.False(t, ok, "Clear must leave the DB empty, with no virtual-parent ghost")
+}
