@@ -328,3 +328,173 @@ A payload set on the sequencer with `admin_postUnsafePayload` is fed into the lo
 
 * **Before** setting the head, confirm the **supernode** is on the canonical chain. If you re-anchor onto a head the supernode will reorg again, the corrected payload gossips a head that is itself about to be replaced.
 * **After** setting it, verify the payload propagated to downstream replicas, and re-anchor by hand any node still pinned on the pre-reorg branch.
+
+## Recover a Conductor-Managed Sequencer
+
+When the sequencer is `op-conductor`-managed and the cluster has wedged — no healthy leader, heads frozen — you manually resume sequencing on one chosen node. This is the most hazardous procedure in this runbook: while the conductor's leadership guard is overridden, nothing but your own discipline prevents two active sequencers forking the unsafe chain. Work the steps in order and do not skip a confirmation.
+
+All commands target the conductor RPC and the `op-node` admin RPC **directly** (not through `proxyd`). The `op-node` admin calls require the node started with `--rpc.enable-admin`. Throughout, keep the interop failsafe **engaged** — none of these steps clear it.
+
+Confirm your target before any mutation. Echo the chain ID and the node you are about to act on:
+
+```bash
+cast rpc --rpc-url http://<NODE_RPC> eth_chainId
+# Expect: the hex chain ID of the network you intend to recover — re-check if it is any other chain
+```
+
+### Recognize the Deadlock
+
+The cluster is wedged when leadership has collapsed and the unsafe head has stopped advancing. Confirm all three:
+
+```bash
+# No node thinks it is leader (run against every conductor — expect true on none):
+cast rpc --rpc-url http://<CONDUCTOR_RPC> conductor_leader
+# Expect: false on every conductor (a wedged cluster has no leader)
+
+# The cluster reports itself unhealthy:
+cast rpc --rpc-url http://<CONDUCTOR_RPC> conductor_sequencerHealthy
+# Expect: false
+
+# The unsafe head is frozen — read twice, a few seconds apart:
+cast rpc --rpc-url http://<SEQ_NODE_RPC> optimism_syncStatus | jq '.unsafe_l2.number'
+# Expect: the same number both times (a healthy chain advances)
+```
+
+Corroborating log signatures: `op-conductor` logging `unsafe head is falling behind the unsafe interval` and a high leadership-transfer rate; no node logging that it has become leader.
+
+<Warning>This procedure overrides the conductor leadership guard. `conductor_overrideLeader` is only a flag — it provides **no** mutual exclusion between sequencers. The only thing preventing a split-brain forked chain is Step 2 having stopped sequencing on every other node. Complete and verify Step 2 before any override.</Warning>
+
+### Step 1: Pause Every Conductor
+
+Pause the conductor on **every** node in the cluster so none tries to start or stop a sequencer underneath you. Loop over every conductor RPC:
+
+```bash
+cast rpc --rpc-url http://<CONDUCTOR_RPC> conductor_pause
+# Expect: null
+
+cast rpc --rpc-url http://<CONDUCTOR_RPC> conductor_paused
+# Expect: true
+```
+
+Confirm `conductor_paused` returns `true` on each before continuing.
+
+### Step 2: Stop Sequencing on Every Node and Verify
+
+This is a standalone, fully-completed gate. Stop sequencing on **every** node, then positively confirm each is inactive — do not merely issue the stop. On each node:
+
+```bash
+cast rpc --rpc-url http://<NODE_RPC> admin_stopSequencer
+# Expect: a block hash (the last block it sequenced) — record it
+
+cast rpc --rpc-url http://<NODE_RPC> admin_sequencerActive
+# Expect: false
+```
+
+<Warning>A single node left sequencing here becomes a second active sequencer the moment you override leadership in Step 3, forking the unsafe chain. Confirm `admin_sequencerActive == false` on **every** enumerated node before proceeding. If any node does not return `false`, stop and resolve it first.</Warning>
+
+### Step 3: Override Leadership on Exactly One Node
+
+Choose one node to resume sequencing. Override leadership on **only** that node's conductor:
+
+```bash
+cast rpc --rpc-url http://<CHOSEN_CONDUCTOR_RPC> conductor_overrideLeader true
+# Expect: null
+
+cast rpc --rpc-url http://<CHOSEN_CONDUCTOR_RPC> conductor_leaderOverridden
+# Expect: true
+```
+
+If no conductor is functioning at all, override on the `op-node` instead (this call takes no argument and forces the node into non-HA mode):
+
+```bash
+cast rpc --rpc-url http://<CHOSEN_NODE_RPC> admin_overrideLeader
+# Expect: null
+```
+
+Confirm no **other** node is overridden — `conductor_leaderOverridden` must be `false` everywhere except the one you chose.
+
+### Step 4: Confirm the Chosen Node Is on the Canonical Head
+
+The chosen node must already be on the supernode-canonical head before you start sequencing — `admin_startSequencer` only starts at the node's current head, and `admin_postUnsafePayload` performs **no** canonicity check, so a wrong head here re-forks the chain. Compare hashes:
+
+```bash
+# Canonical head (source of truth):
+cast rpc --rpc-url http://<SUPERNODE_RPC> supernode_syncStatus | jq '.chains["<CHAIN_ID>"].unsafe_l2'
+
+# Chosen node's head:
+cast rpc --rpc-url http://<CHOSEN_NODE_RPC> optimism_syncStatus | jq '.unsafe_l2'
+# Expect: identical hash and number to the supernode's
+```
+
+If the chosen node is behind or on a different hash, do **not** force a head onto it. The corrected head gossips over P2P, so a healthy node converges on its own — wait and re-check. If it will not converge, the node itself is stuck: re-anchor it with **Recover a Stuck or Stalled Follow-Mode Sequencer** first, then return here.
+
+<Note>`admin_postUnsafePayload` exists to feed a payload directly, but it takes a full execution-payload envelope and is normally used only programmatically by `op-conductor` during failover. Hand-posting is not a routine recovery lever — prefer P2P convergence or the follow-mode re-anchor above. If you must use it, source the envelope from a node already on the canonical head and confirm the hash against the supernode first.</Note>
+
+### Step 5: Start Sequencing on the Chosen Node
+
+Start the chosen node at its **current** unsafe head — `admin_startSequencer` validates that the hash you pass equals the node's latest head:
+
+```bash
+HEAD=$(cast rpc --rpc-url http://<CHOSEN_NODE_RPC> optimism_syncStatus | jq -r '.unsafe_l2.hash')
+
+cast rpc --rpc-url http://<CHOSEN_NODE_RPC> admin_startSequencer "$HEAD"
+# Expect: null
+# Expect on mismatch: error "block hash does not match" — the head moved; re-read $HEAD and retry
+
+cast rpc --rpc-url http://<CHOSEN_NODE_RPC> admin_sequencerActive
+# Expect: true
+
+# Confirm the head is advancing — read twice, a few seconds apart:
+cast rpc --rpc-url http://<CHOSEN_NODE_RPC> optimism_syncStatus | jq '.unsafe_l2.number'
+# Expect: an increasing number
+```
+
+### Step 6: Re-Bootstrap Raft and Resume the Cluster
+
+With one node sequencing, rebuild the raft cluster around it.
+
+<Warning>Restarting the chosen conductor with `OP_CONDUCTOR_RAFT_BOOTSTRAP=true` **discards the existing raft cluster state** — it is irreversible. This is the point of no return for the old cluster membership. Confirm you are bootstrapping from the node that is actively and correctly sequencing, and set `OP_CONDUCTOR_RAFT_BOOTSTRAP=false` again before the next redeploy so it does not re-bootstrap.</Warning>
+
+Restart the chosen node's conductor with `OP_CONDUCTOR_RAFT_BOOTSTRAP=true` and `OP_CONDUCTOR_PAUSED=true`, then resume it and re-add the other nodes as voters. The voter `id` and `addr` are each server's raft ID and consensus address; the `version` is the current cluster version from `conductor_clusterMembership`:
+
+```bash
+# On the freshly bootstrapped leader, read the current membership and version:
+cast rpc --rpc-url http://<LEADER_CONDUCTOR_RPC> conductor_clusterMembership | jq
+# Expect: {"servers":[{"id":...,"addr":...,"suffrage":...}],"version":<N>}
+
+# Re-add each other node as a voter (version = the N above):
+cast rpc --rpc-url http://<LEADER_CONDUCTOR_RPC> conductor_addServerAsVoter "<server-id>" "<consensus-addr>" <version>
+# Expect: null
+
+# Resume the conductor on each node once it is a member again:
+cast rpc --rpc-url http://<CONDUCTOR_RPC> conductor_resume
+# Expect: null
+```
+
+### Exit Gate
+
+Do not leave this section until the deadlock is positively gone:
+
+```bash
+# Every expected voter is present:
+cast rpc --rpc-url http://<LEADER_CONDUCTOR_RPC> conductor_clusterMembership | jq '.servers'
+# Expect: all nodes in the cluster, with the expected suffrage
+
+# Exactly one leader (run against every conductor):
+cast rpc --rpc-url http://<CONDUCTOR_RPC> conductor_leader
+# Expect: true on exactly one node, false on all others
+
+# Healthy cluster-wide:
+cast rpc --rpc-url http://<CONDUCTOR_RPC> conductor_sequencerHealthy
+# Expect: true on every node
+
+# Head advancing:
+cast rpc --rpc-url http://<SEQ_NODE_RPC> optimism_syncStatus | jq '.unsafe_l2.number'
+# Expect: an increasing number across reads
+```
+
+The interop failsafe stays engaged — clearing it is the terminal **Clear the Network-Wide Failsafe and Re-Enable Interop** step, not part of this section.
+
+### If a Step Makes Things Worse
+
+If churn continues, two nodes appear active, or the head forks again, return to the known-safe baseline rather than improvising: re-engage the failsafe if it was somehow cleared, `admin_stopSequencer` on every node and confirm `admin_sequencerActive == false` on each, leave the conductors paused, and escalate. A stopped, failsafe-engaged cluster is safe; a half-recovered one with an ambiguous leader is not.
