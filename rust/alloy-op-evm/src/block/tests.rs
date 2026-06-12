@@ -523,7 +523,8 @@ mod sdm {
         let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
 
         // Execute a candidate that touches `target` (warming it) but decline to commit it, as the
-        // payload builder does when a candidate exceeds a builder limit or is reverted-and-excluded.
+        // payload builder does when a candidate exceeds a builder limit or is
+        // reverted-and-excluded.
         let outcome = producer
             .execute_transaction_with_commit_condition(&legacy_tx(0, target), |_| CommitChanges::No)
             .expect("declined candidate still executes");
@@ -535,9 +536,7 @@ mod sdm {
 
         // The first *committed* tx touching `target` must be treated as its first toucher: the
         // declined candidate's warming must have been rolled back, so no refund is produced.
-        producer
-            .execute_transaction(&legacy_tx(0, target))
-            .expect("first committed tx executes");
+        producer.execute_transaction(&legacy_tx(0, target)).expect("first committed tx executes");
         assert!(
             producer.post_exec_entries().is_empty(),
             "an uncommitted candidate must not warm a later committed tx (no phantom SDM refund)",
@@ -545,9 +544,7 @@ mod sdm {
 
         // Sanity: committed warmth still accumulates through the overridden commit path — a second
         // committed tx re-warms the now-committed address and earns a refund at its tx index.
-        producer
-            .execute_transaction(&legacy_tx(1, target))
-            .expect("second committed tx executes");
+        producer.execute_transaction(&legacy_tx(1, target)).expect("second committed tx executes");
         let entries = producer.post_exec_entries();
         assert_eq!(entries.len(), 1, "second committed tx re-warms the block-warmed address");
         assert_eq!(entries[0].index, 1, "refund is attributed to the second committed tx");
