@@ -124,6 +124,13 @@ func (s *Superroot) buildOptimisticBranch(ctx context.Context, timestamp uint64)
 			s.log.Warn("failed to get optimistic block", "chain_id", chainID.String(), "err", err)
 			return nil, fmt.Errorf("failed to get optimistic block at timestamp %v for chain ID %v: %w", timestamp, chainID, err)
 		}
+		// Defensive: eth.OutputRoot(optimisticOut) below dereferences the output
+		// (Marshal panics on nil). A nil-without-error result is unexpected, but
+		// it crosses a process boundary into dispute-critical code — fail the
+		// call rather than panic the RPC.
+		if optimisticOut == nil {
+			return nil, fmt.Errorf("nil optimistic output without error at timestamp %v for chain ID %v", timestamp, chainID)
+		}
 		_, optimisticL1, err := chain.OptimisticAt(ctx, timestamp)
 		if errors.Is(err, ethereum.NotFound) {
 			continue

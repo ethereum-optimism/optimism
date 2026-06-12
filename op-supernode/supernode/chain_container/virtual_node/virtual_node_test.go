@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"regexp"
 	"sort"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,7 +27,7 @@ type mockInnerNode struct {
 	startErr  error
 	stopErr   error
 	startFunc func(ctx context.Context)
-	started   bool
+	started   atomic.Bool // written in Start (goroutine), read by tests
 	safeTs    uint64
 	haveSafe  bool
 	db        rollupNode.SafeDBReader
@@ -40,7 +41,7 @@ func newMockInnerNode() *mockInnerNode {
 }
 
 func (m *mockInnerNode) Start(ctx context.Context) error {
-	m.started = true
+	m.started.Store(true)
 	if m.startCh != nil {
 		close(m.startCh)
 	}
@@ -426,7 +427,7 @@ func TestVirtualNode_InnerNodeIntegration(t *testing.T) {
 		}()
 
 		require.Eventually(t, func() bool {
-			return vn.State() == VNStateRunning && mock.started
+			return vn.State() == VNStateRunning && mock.started.Load()
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 
@@ -511,6 +512,9 @@ func TestVirtualNode_InnerNodeIntegration(t *testing.T) {
 		}()
 
 		require.Eventually(t, func() bool {
+			// cfg.Cancel is written under v.mu in Start; read it the same way.
+			vn.mu.Lock()
+			defer vn.mu.Unlock()
 			return vn.cfg.Cancel != nil
 		}, 1*time.Second, 10*time.Millisecond)
 		cancel()

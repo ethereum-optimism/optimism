@@ -42,6 +42,11 @@ func TestEngineController_Rewind(t *testing.T) {
 		// finalizedAheadOfTarget puts the finalized head ahead of the target — rewind must refuse.
 		finalizedAheadOfTarget bool
 
+		// finalizedSameHeightDiffHash puts the finalized head at the target's
+		// height but a different hash — rewinding there would replace a
+		// finalized block, so rewind must refuse.
+		finalizedSameHeightDiffHash bool
+
 		// payloadTimestampMismatch sabotages the target envelope so its timestamp does not
 		// correspond to its block number per the rollup config.
 		payloadTimestampMismatch bool
@@ -121,6 +126,11 @@ func TestEngineController_Rewind(t *testing.T) {
 			name:                   "target before finalized",
 			finalizedAheadOfTarget: true,
 			expectedError:          ErrRewindOverFinalizedHead,
+		},
+		{
+			name:                        "target at finalized height with different hash",
+			finalizedSameHeightDiffHash: true,
+			expectedError:               ErrRewindOverFinalizedHead,
 		},
 		{
 			name:                    "no-op when unsafe head matches target",
@@ -203,6 +213,9 @@ func TestEngineController_Rewind(t *testing.T) {
 			}
 			if tc.finalizedAheadOfTarget {
 				l2.refsByLabel[eth.Finalized] = eth.L2BlockRef{Number: targetBlockNum + 1, Hash: common.Hash{0xff}}
+			}
+			if tc.finalizedSameHeightDiffHash {
+				l2.refsByLabel[eth.Finalized] = eth.L2BlockRef{Number: targetBlockNum, Hash: common.Hash{0x77}}
 			}
 			if tc.unsafeMatchesTarget {
 				l2.refsByLabel[eth.Unsafe] = eth.L2BlockRef{Number: targetBlockNum, Hash: targetHash}

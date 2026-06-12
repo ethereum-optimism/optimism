@@ -37,6 +37,7 @@ type mockCC struct {
 	byHashFallback eth.Bytes32
 	byHashErr      error
 	optimisticErr  error
+	forceNilOutput bool // OptimisticOutputAtTimestamp returns (nil, nil)
 	syncStatusErr  error
 	status         *eth.SyncStatus
 	verifierL1     *eth.BlockID
@@ -86,6 +87,9 @@ func (m *mockCC) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.H
 func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
 	if m.optimisticErr != nil {
 		return nil, m.optimisticErr
+	}
+	if m.forceNilOutput {
+		return nil, nil // pathological: nil output without error
 	}
 	if m.optOutput != nil {
 		return m.optOutput, nil
@@ -238,6 +242,24 @@ func TestSuperroot_AtTimestamp_VerifierL1HigherThanDerivationDoesNotIncrease(t *
 	out, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
 	require.NoError(t, err)
 	require.Equal(t, uint64(2000), out.CurrentL1.Number)
+}
+
+// A nil optimistic output without an error must fail the call, not panic the
+// RPC (eth.OutputRoot dereferences the output).
+func TestSuperroot_AtTimestamp_NilOptimisticOutputFailsNotPanic(t *testing.T) {
+	t.Parallel()
+	chains := map[eth.ChainID]cc.ChainContainer{
+		eth.ChainIDFromUInt64(10): &mockCC{
+			forceNilOutput: true,
+			optL1:          eth.BlockID{Number: 1000},
+			status:         &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: 2000}},
+		},
+	}
+	s := newSuperroot(chains, preInteropReader())
+	require.NotPanics(t, func() {
+		_, err := (&superrootAPI{s: s}).AtTimestamp(context.Background(), 123)
+		require.Error(t, err)
+	})
 }
 
 func TestSuperroot_AtTimestamp_EmptyChains(t *testing.T) {

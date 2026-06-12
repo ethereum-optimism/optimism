@@ -294,9 +294,39 @@ engine rewind state machine. Outcomes:
 Still open: `pause` is a non-nestable bool, so a `RewindEngine` deferred
 `Resume` can lift a concurrent multi-chain freeze (last-writer-wins). Fixing it
 cleanly needs converting `pause` to a balanced counter with a Pause/Resume
-pairing audit — tracked as a follow-up. Both packages also carry pre-existing
-test-only data races (mocks reading shared fields across goroutines) that keep
-them from running `-race`-clean; tracked separately.
+pairing audit — tracked as a follow-up.
+
+### `-race` cleanup surfaced two more production races
+
+Making `chain_container` and `virtual_node` run `-race`-clean (mostly guarding
+test mocks' shared fields) surfaced two more real production races:
+
+- **Logging a VirtualNode value dumped the whole struct.** `c.log.Warn(...,
+  "vn_id", vn, ...)` had no `String()` on `*simpleVirtualNode`, so the logger
+  reflectively read every field (mutex, atomic state, inner) while the run
+  goroutine mutated them. Added a stable `String()` returning the immutable
+  `vnID` (also stops giant struct dumps in logs).
+- **`c.rollupClient` close/replace was unguarded.** The restart loop's
+  `attachInProcRollupClient` (close-old + assign-new) raced `Stop()`'s
+  close. Guarded with a dedicated `rollupClientMu`.
+
+Both `op-supernode` (all sub-packages) and `op-interop-mon` now pass
+`go test -race`.
+
+### Remaining superroot / rewind items scoped for owner review
+
+- **Superroot optimistic (output, requiredL1) consistency.** Fixed the nil-output
+  panic (`TestSuperroot_AtTimestamp_NilOptimisticOutputFailsNotPanic`). The
+  remaining TOCTOU between the two reads is entangled with deny-list semantics
+  (a denied height legitimately pairs the *original* optimistic output with the
+  *replacement* L1; the original block's derivation L1 may be gone from SafeDB),
+  so making it strictly atomic is a product decision — left for the owner.
+- **Rewind no-op guard ancestry check.** The equal-height-different-hash
+  finalized guard is fixed (`computeRewindTargets`,
+  `TestEngineController_Rewind/target_at_finalized_height_with_different_hash`).
+  The `unsafe.Number < target` no-op guard (which can skip a rewind when unsafe
+  is on a wrong fork below target) needs real-EL ancestry validation — scoped
+  for acceptance-test-backed work.
 - **Superroot optimistic branch reads (output, requiredL1) from two
   un-snapshotted calls** (`OptimisticOutputAtTimestamp` then `OptimisticAt`),
   which can pin to different L2 blocks if the safe head moves between them →

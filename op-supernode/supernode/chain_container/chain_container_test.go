@@ -75,6 +75,10 @@ func newMockVirtualNode() *mockVirtualNode {
 	}
 }
 
+// String gives the mock a stable identifier so logging it ("vn_id", vn) does
+// not reflectively dump (and race on) its fields — mirrors the real VN.
+func (m *mockVirtualNode) String() string { return "mockVN" }
+
 func (m *mockVirtualNode) SetBeforeStart(fn func() bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

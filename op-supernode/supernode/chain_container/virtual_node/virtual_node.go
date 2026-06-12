@@ -244,6 +244,15 @@ func (v *simpleVirtualNode) State() VNState {
 	return VNState(v.state.Load())
 }
 
+// String returns a stable identifier for logging. Without it, logging a
+// VirtualNode value ("vn_id", vn) reflectively dumps the whole struct —
+// reading the mutex/atomic state/fields while the run goroutine mutates them,
+// a data race (and a giant log line). vnID is set once at construction and
+// never mutated, so reading it here is race-free.
+func (v *simpleVirtualNode) String() string {
+	return "vn:" + v.vnID
+}
+
 func (v *simpleVirtualNode) setState(state VNState) {
 	v.state.Store(int32(state))
 }

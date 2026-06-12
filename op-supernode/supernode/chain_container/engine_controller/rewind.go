@@ -164,6 +164,13 @@ func (e *simpleEngineController) computeRewindTargets(ctx context.Context, targe
 	if targetBlock.Number < currentFinalized.Number {
 		return eth.L2BlockRef{}, eth.L2BlockRef{}, ErrRewindOverFinalizedHead
 	}
+	// Rewinding to a different block at the finalized height is also a finality
+	// violation: it would replace an already-finalized block. The number-only
+	// check above misses this (N < N is false); reject it explicitly.
+	if targetBlock.Number == currentFinalized.Number && targetBlock.Hash != currentFinalized.Hash {
+		return eth.L2BlockRef{}, eth.L2BlockRef{}, fmt.Errorf("%w: target %s at finalized height %d differs from finalized %s",
+			ErrRewindOverFinalizedHead, targetBlock.Hash, targetBlock.Number, currentFinalized.Hash)
+	}
 
 	return earliest(currentSafe, targetBlock), earliest(currentFinalized, targetBlock), nil
 }

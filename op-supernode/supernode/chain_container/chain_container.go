@@ -190,6 +190,7 @@ type simpleChainContainer struct {
 	addMetricsRegistry func(key string, g prometheus.Gatherer) // Set the metrics registry on the global metrics server
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
+	rollupClientMu     sync.Mutex            // guards rollupClient against restart-loop/Stop races
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	metrics            *resources.SupernodeMetrics
 
@@ -472,10 +473,13 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Close in-proc rollup RPC resources
+	// Close in-proc rollup RPC resources (guarded against the restart loop's
+	// concurrent attachInProcRollupClient).
+	c.rollupClientMu.Lock()
 	if c.rollupClient != nil {
 		c.rollupClient.Close()
 	}
+	c.rollupClientMu.Unlock()
 
 	if vn := c.getVN(); vn != nil {
 		if err := vn.Stop(stopCtx); err != nil {
@@ -737,7 +741,10 @@ func (c *simpleChainContainer) attachInProcRollupClient() error {
 	if err != nil {
 		return err
 	}
-	// Close previous rollup client if present
+	// Close previous rollup client if present and install the new one under the
+	// lock: the restart loop calls this concurrently with Stop()'s close.
+	c.rollupClientMu.Lock()
+	defer c.rollupClientMu.Unlock()
 	if c.rollupClient != nil {
 		c.rollupClient.Close()
 	}

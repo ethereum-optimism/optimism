@@ -201,8 +201,12 @@ func (m *mockL2) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (e
 	if m.refByLabelErr != nil {
 		return eth.L2BlockRef{}, m.refByLabelErr
 	}
-	// Test-injected overrides take priority — used to simulate incorrect engine state.
-	if m.labelOverrides != nil {
+	// Test-injected overrides simulate a wrong *post-FCU* engine state for
+	// verifyRewindState, so they apply only after the first forkchoice update.
+	// Applying them to pre-FCU reads (e.g. computeRewindTargets) would conflate
+	// "engine reflected the rewind incorrectly" with "initial state conflicts
+	// with the target" — two distinct failures with distinct sentinels.
+	if m.labelOverrides != nil && m.lastFCUState != nil {
 		if ref, ok := m.labelOverrides[label]; ok {
 			return ref, nil
 		}
