@@ -3,7 +3,7 @@ use super::{
 };
 use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig};
 use alloy_consensus::{
-    Header, SignableTransaction, Transaction, TxEip1559, Typed2718,
+    Header, Sealable, SignableTransaction, Transaction, TxEip1559, Typed2718,
     transaction::{Recovered, TxHashRef},
 };
 use alloy_eips::{
@@ -12,14 +12,14 @@ use alloy_eips::{
     eip7702::SignedAuthorization,
 };
 use alloy_evm::RecoveredTx;
-use alloy_primitives::{Address, B256, Bytes, Signature, TxHash, TxKind, U256};
+use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxHash, TxKind, U256};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
-use op_alloy_consensus::SDMGasEntry;
+use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::MIN_TRANSACTION_GAS;
 use reth_evm::execute::{BlockBuilder, BlockExecutionError};
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
-use reth_optimism_evm::OpEvmConfig;
+use reth_optimism_evm::{OpEvmConfig, PostExecMode};
 use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
 use reth_optimism_txpool::{
     OpPooledTransaction, OpPooledTx, conditional::MaybeConditionalTransaction,
@@ -34,6 +34,74 @@ use std::{borrow::Cow, cell::Cell, sync::Arc};
 
 fn entries(specs: &[(u64, u64)]) -> Vec<SDMGasEntry> {
     specs.iter().map(|&(index, gas_refund)| SDMGasEntry { index, gas_refund }).collect()
+}
+
+/// Wraps a block-level post-exec (`0x7D`) tx in a `WithEncoded` exactly as it would arrive in
+/// derived payload attributes (op-node embeds it into the batch).
+fn post_exec_with_encoded(
+    block_number: u64,
+    payload_entries: Vec<SDMGasEntry>,
+) -> WithEncoded<OpTransactionSigned> {
+    let tx =
+        OpTransactionSigned::from(build_post_exec_tx(block_number, payload_entries).seal_slow());
+    let encoded = Bytes::from(tx.encoded_2718());
+    WithEncoded::new(encoded, tx)
+}
+
+/// Builds a payload-builder ctx on an SDM-active (Interop/Lagoon at genesis) chain.
+///
+/// `no_tx_pool` picks local sequencing (`false`) vs rebuilding a derived block (`true`); `opt_in`
+/// sets the sequencer-only production flag; `embedded_post_exec` optionally embeds a `0x7D` tx
+/// (anchored to block 1) into the attributes, as op-node does for a derived block with refunds.
+fn interop_ctx(
+    no_tx_pool: bool,
+    opt_in: bool,
+    embedded_post_exec: Option<Vec<SDMGasEntry>>,
+) -> OpPayloadBuilderCtx<
+    OpEvmConfig<OpChainSpec, OpPrimitives>,
+    OpChainSpec,
+    OpPayloadBuilderAttributes<OpTransactionSigned>,
+> {
+    let gas_limit = 1_000_000;
+    let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().interop_activated().build());
+    let parent = SealedHeader::seal_slow(Header {
+        gas_limit,
+        number: 0,
+        timestamp: 0,
+        ..Default::default()
+    });
+    // Parent is block 0, so the block being built — and any embedded payload — anchors to block 1.
+    let transactions =
+        embedded_post_exec.map(|e| vec![post_exec_with_encoded(1, e)]).unwrap_or_default();
+    let attributes = OpPayloadBuilderAttributes {
+        timestamp: 1,
+        gas_limit: Some(gas_limit),
+        no_tx_pool,
+        transactions,
+        // Holocene/Jovian are active under Interop; supply default EIP-1559 params (zero means
+        // "use chain defaults", matching op-node) so next-env construction succeeds.
+        eip_1559_params: Some(B64::ZERO),
+        min_base_fee: Some(0),
+        ..Default::default()
+    };
+    let builder_config = OpBuilderConfig::default();
+    if opt_in {
+        builder_config.sdm_post_exec_opt_in.set(true);
+    }
+
+    OpPayloadBuilderCtx {
+        evm_config: OpEvmConfig::optimism(chain_spec.clone()),
+        builder_config,
+        chain_spec,
+        config: PayloadConfig {
+            parent_header: Arc::new(parent),
+            parent_block_info: None,
+            payload_id: attributes.id,
+            attributes,
+        },
+        cancel: Default::default(),
+        best_payload: None,
+    }
 }
 
 fn unwrap_post_exec(tx: Recovered<OpTransactionSigned>) -> (u8, u64, Vec<SDMGasEntry>) {
@@ -156,6 +224,66 @@ where
         .collect();
 
     (info, included_tx_hashes)
+}
+
+/// The opt-in is a sequencer-only control: a following node verifies the embedded `0x7D` whatever
+/// the flag, and only local sequencing consults it. Pins [`OpPayloadBuilderCtx::post_exec_mode`].
+#[test]
+fn post_exec_mode_follows_chain_regardless_of_opt_in() {
+    // Follow path with an embedded 0x7D: Verify for either opt-in value.
+    for opt_in in [false, true] {
+        let ctx = interop_ctx(true, opt_in, Some(entries(&[(0, 7)])));
+        let PostExecMode::Verify(payload) = ctx.post_exec_mode().expect("mode resolves") else {
+            panic!("expected Verify mode on the follow path with opt_in={opt_in}");
+        };
+        assert_eq!(payload.block_number, 1);
+        assert_eq!(payload.gas_refund_entries, entries(&[(0, 7)]));
+    }
+
+    // Follow path with no embedded 0x7D: disabled even with the opt-in on (nothing to reproduce).
+    assert!(matches!(
+        interop_ctx(true, true, None).post_exec_mode().expect("mode resolves"),
+        PostExecMode::Disabled
+    ));
+
+    // Local sequencing is the only path that consults the opt-in.
+    assert!(matches!(
+        interop_ctx(false, true, None).post_exec_mode().expect("mode resolves"),
+        PostExecMode::Produce
+    ));
+    assert!(matches!(
+        interop_ctx(false, false, None).post_exec_mode().expect("mode resolves"),
+        PostExecMode::Disabled
+    ));
+}
+
+/// End-to-end regression test for the derived-attrs verify path: rebuilding a block whose
+/// attributes embed a `0x7D` (`no_tx_pool = true`) must succeed for either opt-in value.
+///
+/// `block_builder()` previously picked the mode from the opt-in alone (never `Verify`), so with
+/// the opt-in off the executor fatally rejected the embedded `0x7D` ("unexpected post-exec tx ...
+/// SDM not active") and a verifier could not reproduce the block. Empty entries keep the fixture
+/// deterministic; the executor's own tests cover refund-matching.
+#[test]
+fn rebuilds_derived_block_with_embedded_post_exec_tx_regardless_of_opt_in() {
+    for opt_in in [false, true] {
+        let ctx = interop_ctx(true, opt_in, Some(Vec::new()));
+
+        let state_provider = StateProviderTest::default();
+        let mut db = State::builder()
+            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_bundle_update()
+            .build();
+        let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
+
+        let result = ctx.execute_sequencer_transactions(&mut builder, None);
+
+        assert!(
+            result.is_ok(),
+            "rebuilding a derived block whose attributes embed a 0x7D post-exec tx must succeed \
+             in Verify mode (opt_in={opt_in}); got {result:?}",
+        );
+    }
 }
 
 #[test]
