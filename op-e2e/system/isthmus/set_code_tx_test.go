@@ -61,8 +61,8 @@ func TestSetCodeInTxPool(t *testing.T) {
 				require.Error(t, err, "SetCode tx should fail")
 				errMsg := err.Error()
 				require.Truef(t,
-					strings.Contains(errMsg, "not yet in Prague") ||
-						strings.Contains(errMsg, "transaction type not supported"),
+					strings.Contains(errMsg, "not yet in Prague") || // op-geth
+						strings.Contains(errMsg, "transaction type not supported"), // op-reth
 					"expected SetCode tx rejection before Isthmus, got %q", errMsg)
 				require.Nil(t, receipt)
 			}

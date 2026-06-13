@@ -201,16 +201,24 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		logger: lgr,
 	}
 
-	// op-reth reports the ephemeral http/auth ports via structured logs once the
-	// servers bind; capture both URLs from those readiness lines.
-	userRPCChan := make(chan string, 1)
+	// op-reth reports the ephemeral http/ws/auth ports via structured logs once
+	// the servers bind; capture the URLs from those readiness lines.
+	userHTTPRPCChan := make(chan string, 1)
+	userWSRPCChan := make(chan string, 1)
 	authRPCChan := make(chan string, 1)
 	onLogEntry := func(e logpipe.LogEntry) {
 		switch e.LogMessage() {
+		case "RPC HTTP server started":
+			if u, ok := e.FieldValue("url").(string); ok {
+				select {
+				case userHTTPRPCChan <- u:
+				default:
+				}
+			}
 		case "RPC WS server started":
 			if u, ok := e.FieldValue("url").(string); ok {
 				select {
-				case userRPCChan <- u:
+				case userWSRPCChan <- u:
 				default:
 				}
 			}
@@ -255,17 +263,20 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		return nil, cause
 	}
 
-	var userURL, authURL string
-	if err := tasks.Await(ctx, userRPCChan, &userURL); err != nil {
-		return closeOnErr(fmt.Errorf("waiting for op-reth user RPC: %w", err))
+	var userHTTPURL, userWSURL, authURL string
+	if err := tasks.Await(ctx, userHTTPRPCChan, &userHTTPURL); err != nil {
+		return closeOnErr(fmt.Errorf("waiting for op-reth user HTTP RPC: %w", err))
+	}
+	if err := tasks.Await(ctx, userWSRPCChan, &userWSURL); err != nil {
+		return closeOnErr(fmt.Errorf("waiting for op-reth user WS RPC: %w", err))
 	}
 	if err := tasks.Await(ctx, authRPCChan, &authURL); err != nil {
 		return closeOnErr(fmt.Errorf("waiting for op-reth auth RPC: %w", err))
 	}
 
 	inst.userRPC = endpoint.WsOrHttpRPC{
-		WsURL:   "ws://" + userURL,
-		HttpURL: "http://" + userURL,
+		WsURL:   "ws://" + userWSURL,
+		HttpURL: "http://" + userHTTPURL,
 	}
 	inst.authRPC = endpoint.WsOrHttpRPC{
 		WsURL:   "ws://" + authURL,
@@ -281,7 +292,7 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		return closeOnErr(fmt.Errorf("op-reth did not come up: %w", err))
 	}
 
-	lgr.Info("op-reth is ready", "name", name, "userRPC", userURL, "authRPC", authURL)
+	lgr.Info("op-reth is ready", "name", name, "userHTTPRPC", userHTTPURL, "userWSRPC", userWSURL, "authRPC", authURL)
 	return inst, nil
 }
 
