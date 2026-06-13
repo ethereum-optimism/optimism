@@ -47,6 +47,15 @@ func WithJWTSecret(secret []byte) Option {
 	}
 }
 
+// WithHTTPBodyLimit overrides the maximum HTTP request body size (in bytes)
+// accepted by the RPC servers created by this handler. If not set, the
+// go-ethereum default is used.
+func WithHTTPBodyLimit(limit int) Option {
+	return func(b *Handler) {
+		b.httpBodyLimit = limit
+	}
+}
+
 func WithHTTPRecorder(recorder opmetrics.HTTPRecorder) Option {
 	return func(b *Handler) {
 		b.httpRecorder = recorder

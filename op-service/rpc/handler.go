@@ -40,6 +40,9 @@ type Handler struct {
 	jwtSecret      []byte
 	wsEnabled      bool
 	httpRecorder   opmetrics.HTTPRecorder
+	// httpBodyLimit overrides the max HTTP request body size for RPC servers
+	// created by this handler. If 0, the go-ethereum default is used.
+	httpBodyLimit int
 
 	log         log.Logger
 	middlewares []Middleware
@@ -160,6 +163,9 @@ func (b *Handler) AddRPCWithAuthentication(route string, isAuthenticated *bool) 
 
 	srv := rpc.NewServer()
 	srv.SetRecorder(b.recorder)
+	if b.httpBodyLimit > 0 {
+		srv.SetHTTPBodyLimit(b.httpBodyLimit)
+	}
 
 	if err := srv.RegisterName("health", &healthzAPI{
 		appVersion: b.appVersion,

@@ -274,6 +274,9 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 		oc.version,
 		oprpc.WithLogger(oc.log),
 		oprpc.WithRPCRecorder(oc.metrics.NewRecorder("main")),
+		// op-node commits unsafe payloads via conductor_commitUnsafePayload; raise the
+		// HTTP body limit above the go-ethereum default to accommodate large payloads.
+		oprpc.WithHTTPBodyLimit(15*1024*1024),
 	)
 	api := conductorrpc.NewAPIBackend(oc.log, oc)
 	server.AddAPI(rpc.API{
