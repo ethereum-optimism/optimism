@@ -1348,9 +1348,11 @@ func TestProgressAndRecord(t *testing.T) {
 					}, nil
 				}
 
+				AssertInvariants(t, h.interop)
 				madeProgress, err := h.interop.progressAndRecord()
 				require.NoError(t, err)
 				require.False(t, madeProgress, "invalid result should not advance verified timestamp")
+				AssertInvariants(t, h.interop)
 
 				require.Equal(t, initialL1.Number, h.interop.currentL1.Number)
 				require.Equal(t, initialL1.Hash, h.interop.currentL1.Hash)
@@ -1471,16 +1473,24 @@ func TestInterop_ProgressAndRecord_MultiAdvance(t *testing.T) {
 		return Result{}, nil
 	}
 
+	AssertInvariants(t, h.interop)
+
 	const cycles = 3
 	for i := 0; i < cycles; i++ {
 		made, err := h.interop.progressAndRecord()
 		require.NoError(t, err)
 		require.True(t, made, "cycle %d should advance", i)
+		AssertInvariants(t, h.interop)
 
 		pending, err := h.interop.verifiedDB.GetPendingTransition()
 		require.NoError(t, err)
 		require.Nil(t, pending, "pending transition should be cleared after cycle %d", i)
 	}
+
+	obs, err := h.interop.observeRound()
+	require.NoError(t, err)
+	AssertObservationConsistentWithVerified(t, h.interop, obs)
+	AssertObservationConsistentWithLogs(t, h.interop, obs)
 
 	lastTS, ok := h.interop.verifiedDB.LastTimestamp()
 	require.True(t, ok)
@@ -1530,6 +1540,7 @@ func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
 	lastTS, ok := h.interop.verifiedDB.LastTimestamp()
 	require.True(t, ok)
 	require.Equal(t, uint64(102), lastTS)
+	AssertInvariants(t, h.interop)
 
 	// Flip the L1 checker so observeRound returns L1Consistent=false, which
 	// drives checkPreconditions into DecisionRewind.
@@ -1538,6 +1549,7 @@ func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
 	made, err := h.interop.progressAndRecord()
 	require.NoError(t, err)
 	require.False(t, made, "rewind does not advance the verified timestamp")
+	AssertInvariants(t, h.interop)
 
 	// Rewind removed the last-committed entry and left the first verified timestamp in place.
 	lastTS, ok = h.interop.verifiedDB.LastTimestamp()
@@ -2798,6 +2810,7 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 			},
 		}
 
+		AssertInvariants(t, h.interop)
 		pending, err := h.interop.buildPendingTransition(
 			StepOutput{Decision: DecisionInvalidate, Result: invalidResult},
 			RoundObservation{},
@@ -2806,6 +2819,7 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 		require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
 		_, err = h.interop.applyPendingTransition(pending)
 		require.NoError(t, err)
+		AssertInvariants(t, h.interop)
 
 		entries := cl.snapshot()
 
