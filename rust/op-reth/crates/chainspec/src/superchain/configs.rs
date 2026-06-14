@@ -295,4 +295,70 @@ mod tests {
             }
         }
     }
+
+    /// The well-known OP chains resolved by the CLI (`--chain optimism` / `optimism-sepolia`) are
+    /// built from the embedded superchain registry: their genesis hashes are canonical and Karst
+    /// (=> the L1 Osaka feature set) activates at exactly the registry-scheduled timestamp. This is
+    /// the guarantee that a running op-reth node follows the SCR-scheduled fork.
+    #[test]
+    fn op_well_known_chains_follow_scr() {
+        use alloy_op_hardforks::{
+            OP_MAINNET_KARST_TIMESTAMP, OP_SEPOLIA_KARST_TIMESTAMP, OpHardforks,
+        };
+        use alloy_primitives::b256;
+        use reth_chainspec::{EthChainSpec, EthereumHardforks};
+        use reth_ethereum_forks::{EthereumHardfork, ForkCondition};
+
+        let cases = [
+            (
+                "optimism",
+                OP_MAINNET_KARST_TIMESTAMP,
+                b256!("0x7ca38a1916c42007829c55e69d3e9a73265554b586a499015373241b8a3fa48b"),
+            ),
+            (
+                "optimism-sepolia",
+                OP_SEPOLIA_KARST_TIMESTAMP,
+                b256!("0x102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d"),
+            ),
+        ];
+        for (name, karst, genesis_hash) in cases {
+            let spec = generated_chain_value_parser(name).expect("known chain");
+            // Genesis identity is preserved when building from the registry.
+            assert_eq!(spec.genesis_hash(), genesis_hash, "{name}: genesis hash");
+            // Karst (and the L1 Osaka fork it implies) activates exactly at the SCR timestamp.
+            assert!(!spec.is_karst_active_at_timestamp(karst - 1), "{name}: karst active too early");
+            assert!(spec.is_karst_active_at_timestamp(karst), "{name}: karst inactive at SCR time");
+            assert_eq!(
+                spec.ethereum_fork_activation(EthereumHardfork::Osaka),
+                ForkCondition::Timestamp(karst),
+                "{name}: osaka not scheduled at karst time",
+            );
+        }
+    }
+
+    /// The registry → chainspec pipeline maps a chain's `karst_time` to both Karst and the implied
+    /// Osaka fork.
+    #[test]
+    fn scr_genesis_pipeline_schedules_karst_and_osaka() {
+        use crate::OpChainSpec;
+        use alloy_op_hardforks::OpHardforks;
+        use reth_chainspec::EthereumHardforks;
+        use reth_ethereum_forks::{EthereumHardfork, ForkCondition};
+
+        let genesis = read_superchain_genesis("op", "sepolia").unwrap();
+        // `to_genesis_chain_config` maps SCR `karst_time` -> `osaka_time`.
+        let karst = genesis.config.osaka_time.expect("karst_time maps to osaka_time");
+        let spec = OpChainSpec::from(genesis);
+
+        assert_eq!(
+            spec.op_fork_activation(OpHardfork::Karst),
+            ForkCondition::Timestamp(karst),
+        );
+        assert_eq!(
+            spec.ethereum_fork_activation(EthereumHardfork::Osaka),
+            ForkCondition::Timestamp(karst),
+        );
+        assert!(!spec.is_karst_active_at_timestamp(karst - 1));
+        assert!(spec.is_karst_active_at_timestamp(karst));
+    }
 }

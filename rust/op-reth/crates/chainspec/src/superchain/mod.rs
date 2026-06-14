@@ -6,6 +6,9 @@ mod chain_specs;
 mod configs;
 
 pub use chain_specs::*;
+/// Re-exported so the well-known OP chain specs ([`crate::OP_MAINNET`], [`crate::OP_SEPOLIA`]) can be
+/// built from the embedded registry instead of a hand-coded fork list.
+pub(crate) use configs::read_superchain_genesis;
 
 #[cfg(test)]
 mod tests {
