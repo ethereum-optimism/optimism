@@ -503,7 +503,6 @@ abstract contract Setup is FeatureFlags {
             // TODO: Remove this once the deprecated predeploys are removed.
             // if (records[i].isDeprecated) continue;
 
-            // Default to normal for CGT variants
             if (records[i].proxy == Predeploys.L1_BLOCK_NUMBER) {
                 vm.label(records[i].proxy, "L1Block");
                 continue;
@@ -512,7 +511,7 @@ abstract contract Setup is FeatureFlags {
                 vm.label(records[i].proxy, "L2ToL1MessagePasser");
                 continue;
             }
-            vm.label(records[i].proxy, records[i].name);
+            vm.label(records[i].proxy, Predeploys.implName(records[i]));
         }
     }
 

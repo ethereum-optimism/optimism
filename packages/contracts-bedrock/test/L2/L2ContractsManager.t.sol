@@ -106,10 +106,10 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             L2ContractsManagerTypes.ImplRecord({ name: "StorageSetter", impl: address(new StorageSetter()) })
         );
 
-        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
-        for (uint256 i = 0; i < records.length; i++) {
+        Predeploys.Variant[] memory impls = Predeploys.getUpgradeableImpls();
+        for (uint256 i = 0; i < impls.length; i++) {
             _implRecords.push(
-                L2ContractsManagerTypes.ImplRecord({ name: records[i].name, impl: deployCode(records[i].artifactPath) })
+                L2ContractsManagerTypes.ImplRecord({ name: impls[i].name, impl: deployCode(impls[i].artifactPath) })
             );
         }
     }
@@ -516,7 +516,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         return impl != address(0) && impl.code.length > 0;
     }
 
-    /// @notice Returns true if a primary registry record should receive an upgrade call for this config.
+    /// @notice Returns true if a registry record should receive an upgrade call for this config.
     function _isActiveUpgradeRecord(
         Predeploys.PredeployRecord memory _record,
         L2ContractsManagerTypes.FullConfig memory _config
@@ -525,10 +525,18 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         view
         returns (bool)
     {
-        if (_record.isVariant) return false;
         if (_record.isCustomGasToken && !_config.isCustomGasToken) return false;
         if (_record.isInterop && !_config.isInterop) return false;
         return _isPredeployUpgradeable(_record.proxy);
+    }
+
+    /// @notice Returns true if L2CM upgrades this proxy through `upgradeToAndCall`.
+    function _requiresInit(address _proxy) internal pure returns (bool) {
+        return _proxy == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _proxy == Predeploys.L2_STANDARD_BRIDGE
+            || _proxy == Predeploys.SEQUENCER_FEE_WALLET || _proxy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
+            || _proxy == Predeploys.L2_ERC721_BRIDGE || _proxy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY
+            || _proxy == Predeploys.BASE_FEE_VAULT || _proxy == Predeploys.L1_FEE_VAULT
+            || _proxy == Predeploys.OPERATOR_FEE_VAULT || _proxy == Predeploys.LIQUIDITY_CONTROLLER;
     }
 }
 
@@ -696,11 +704,11 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
     ///         every entry has a non-empty name and a non-zero implementation address.
     function test_implRecords_areWellFormed_succeeds() public view {
         L2ContractsManagerTypes.ImplRecord[] memory implementationRecords = l2cm.getImplementations();
-        // 1 StorageSetter + one entry per upgradeable predeploy record (including variants).
+        // 1 StorageSetter + one entry per upgradeable implementation variant.
         assertEq(
             implementationRecords.length,
-            Predeploys.getUpgradeableRecords().length + 1,
-            "ImplRecord count must equal upgradeable predeploy count + 1 (StorageSetter)"
+            Predeploys.getUpgradeableImpls().length + 1,
+            "ImplRecord count must equal upgradeable impl count + 1 (StorageSetter)"
         );
         for (uint256 i = 0; i < implementationRecords.length; i++) {
             assertTrue(bytes(implementationRecords[i].name).length > 0, "ImplRecord name is empty");
@@ -857,15 +865,12 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
     }
 
-    /// @notice Expects the proxy call path recorded in the predeploy registry.
+    /// @notice Expects the proxy call path used by L2CM.
     function _expectUpgradeCall(Predeploys.PredeployRecord memory _record) internal {
-        if (_record.requiresInit) {
+        if (_requiresInit(_record.proxy)) {
             vm.expectCall(_record.proxy, abi.encodePacked(IProxy.upgradeToAndCall.selector));
         } else {
             vm.expectCall(_record.proxy, abi.encodePacked(IProxy.upgradeTo.selector));
-            // A wrongly false `requiresInit` would still satisfy the `upgradeTo` expectation above
-            // via the intermediate StorageSetter upgrade, so also require that the init path is
-            // never taken for this proxy.
             vm.expectCall(_record.proxy, abi.encodePacked(IProxy.upgradeToAndCall.selector), 0);
         }
     }
@@ -1018,11 +1023,11 @@ contract L2ContractsManager_Reverter_Harness {
 ///         `_apply()` aborts the whole upgrade, covering both the `upgradeToAndCall` and
 ///         `upgradeTo` paths.
 contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade_Test {
-    function _countUpgradeablePredeploys(bool _requiresInit) internal view returns (uint256 count_) {
+    function _countUpgradeablePredeploys(bool _shouldRequireInit) internal view returns (uint256 count_) {
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
         L2ContractsManagerTypes.FullConfig memory config = l2cm.loadFullConfig();
         for (uint256 i; i < records.length; i++) {
-            if (_isActiveUpgradeRecord(records[i], config) && records[i].requiresInit == _requiresInit) {
+            if (_isActiveUpgradeRecord(records[i], config) && _requiresInit(records[i].proxy) == _shouldRequireInit) {
                 count_++;
             }
         }
@@ -1030,20 +1035,14 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
 
     /// @dev Reverts when `_predeploy` has no entry in the registry, so new predeploys cannot
     ///      slip past this test without being added to `Predeploys.getAllRecords()`.
-    ///      For predeploys with CGT variants the CGT record takes priority on CGT chains;
-    ///      the non-CGT primary record is used on all other chains.
+    ///      For predeploys with CGT variants, the active variant is selected from the registry.
     function _getTargetImpl(address _predeploy) internal view returns (address) {
         bool isCGT = Config.sysFeatureCustomGasToken();
         Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
-        string memory fallbackName;
         for (uint256 i = 0; i < records.length; i++) {
             if (records[i].proxy != _predeploy) continue;
-            if (records[i].isCustomGasToken && isCGT) return _findImplByName(records[i].name);
-            if (!records[i].isVariant) {
-                fallbackName = records[i].name;
-            }
+            return _findImplByName(Predeploys.resolveVariant(records[i], isCGT).name);
         }
-        if (bytes(fallbackName).length > 0) return _findImplByName(fallbackName);
         revert("L2ContractsManager_Upgrade_Atomicity_Test: unmapped predeploy");
     }
 
@@ -1058,7 +1057,7 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
 
         for (uint256 i = 0; i < records.length; i++) {
             if (!_isActiveUpgradeRecord(records[i], config)) continue;
-            if (!records[i].requiresInit) continue;
+            if (!_requiresInit(records[i].proxy)) continue;
 
             uint256 snapshotId = vm.snapshotState();
             vm.etch(_getTargetImpl(records[i].proxy), address(new L2ContractsManager_Reverter_Harness()).code);
@@ -1085,7 +1084,7 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
 
         for (uint256 i = 0; i < records.length; i++) {
             if (!_isActiveUpgradeRecord(records[i], config)) continue;
-            if (records[i].requiresInit) continue;
+            if (_requiresInit(records[i].proxy)) continue;
 
             uint256 snapshotId = vm.snapshotState();
             address targetImpl = _getTargetImpl(records[i].proxy);
