@@ -633,11 +633,14 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
                 continue;
             }
 
-            if committed.is_none() {
+            let Some(committed) = committed else {
                 continue;
-            }
+            };
 
-            info.cumulative_gas_used += gas_used;
+            // Use the canonical (post-SDM-refund) gas from `committed`, not the pre-refund EVM
+            // result gas, which would put wrong cumulative gas into receipts and fail op-reth's
+            // receipt-root verification. Mirrors `execute_sequencer_transactions`.
+            info.cumulative_gas_used += committed.tx_gas_used();
             info.cumulative_evm_gas_used += evm_gas_used;
             info.cumulative_da_bytes_used += tx_da_size;
 

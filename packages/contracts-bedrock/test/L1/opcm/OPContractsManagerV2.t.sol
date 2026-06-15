@@ -2482,6 +2482,61 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_SuperchainConfigMismatch.selector);
     }
 
+    /// @notice Tests that the migration function reverts when the first chain's SystemConfig
+    ///         reports a zero l2ChainId. Zero would collide on the shared super-root system.
+    function test_migrate_zeroL2ChainId_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        vm.mockCall(
+            address(input.chainSystemConfigs[0]), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(uint256(0))
+        );
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ZeroL2ChainId.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when two chains share the same
+    ///         l2ChainId. Duplicates would let a single L2 withdrawal proof finalize through
+    ///         multiple portals.
+    /// @param _id The chain ID to use for both chains.
+    function testFuzz_migrate_duplicateL2ChainIds_reverts(uint256 _id) public {
+        vm.assume(_id != 0);
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        vm.mockCall(address(input.chainSystemConfigs[0]), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(_id));
+        vm.mockCall(address(input.chainSystemConfigs[1]), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(_id));
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_DuplicateL2ChainId.selector);
+    }
+
+    /// @notice Tests that the migration function reverts when chainSystemConfigs are not
+    ///         provided in ascending l2ChainId order.
+    /// @param _idA The first chain's l2ChainId (must be greater than _idB).
+    /// @param _idB The second chain's l2ChainId.
+    function testFuzz_migrate_unsortedL2ChainIds_reverts(uint256 _idA, uint256 _idB) public {
+        vm.assume(_idB != 0);
+        vm.assume(_idA > _idB);
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        vm.mockCall(address(input.chainSystemConfigs[0]), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(_idA));
+        vm.mockCall(address(input.chainSystemConfigs[1]), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(_idB));
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ChainIdsNotAscending.selector);
+    }
+
+    /// @notice Tests that a single-chain migration still rejects a zero l2ChainId. The
+    ///         strictly-ascending duplicate check is a no-op for N==1, but the non-zero check
+    ///         must still fire.
+    function test_migrate_singleChainZeroL2ChainId_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+        ISystemConfig[] memory single = new ISystemConfig[](1);
+        single[0] = input.chainSystemConfigs[0];
+        input.chainSystemConfigs = single;
+
+        vm.mockCall(address(single[0]), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(uint256(0)));
+
+        _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_ZeroL2ChainId.selector);
+    }
+
     /// @notice Tests that the migration function reverts when no chains are provided.
     function test_migrate_noChains_reverts() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();

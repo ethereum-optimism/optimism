@@ -1099,10 +1099,6 @@
       "destination": "/chain-operators/tools/op-txproxy"
     },
     {
-      "source": "/operators/chain-operators/tools/op-validator",
-      "destination": "/chain-operators/tools/op-validator"
-    },
-    {
       "source": "/operators/chain-operators/tools/proxyd",
       "destination": "/chain-operators/tools/proxyd"
     },
@@ -1731,10 +1727,6 @@
       "destination": "/chain-operators/tools/op-deployer"
     },
     {
-      "source": "/chain-operators/guides/deployment/validate-deployment",
-      "destination": "/chain-operators/tools/op-validator"
-    },
-    {
       "source": "/chain-operators/guides/deployment/sequencer-node",
       "destination": "/chain-operators/tutorials/op-geth-setup"
     },
@@ -2009,7 +2001,6 @@
               },
               "chain-operators/tools/op-interop-filter",
               "chain-operators/tools/op-txproxy",
-              "chain-operators/tools/op-validator",
               "chain-operators/tools/proxyd"
             ]
           },

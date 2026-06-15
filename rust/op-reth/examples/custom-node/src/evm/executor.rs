@@ -10,7 +10,7 @@ use alloy_evm::{
     RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        ExecutableTx, GasOutput, OnStateHook, StateDB,
+        ExecutableTx, GasOutput, StateDB,
     },
     precompiles::PrecompilesMap,
 };
@@ -71,10 +71,6 @@ where
 
     fn finish(self) -> Result<(Self::Evm, BlockExecutionResult<OpReceipt>), BlockExecutionError> {
         self.inner.finish()
-    }
-
-    fn set_state_hook(&mut self, _hook: Option<Box<dyn OnStateHook>>) {
-        self.inner.set_state_hook(_hook)
     }
 
     fn evm_mut(&mut self) -> &mut Self::Evm {

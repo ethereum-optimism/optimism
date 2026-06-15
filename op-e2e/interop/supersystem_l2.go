@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/el"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
@@ -26,10 +26,8 @@ import (
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +36,7 @@ import (
 // supernode and is reached via a supernode-prefixed CL URL.
 type l2Node struct {
 	name         string
-	l2Geth       *geth.GethInstance
+	l2EL         services.EthInstance
 	rollupClient *sources.RollupClient
 	gethClient   *ethclient.Client
 }
@@ -56,7 +54,7 @@ type l2Net struct {
 
 func (s *interopE2ESystem) L2GethEndpoint(id string, name string) endpoint.RPC {
 	net := s.l2s[id]
-	return net.nodes[name].l2Geth.UserRPC()
+	return net.nodes[name].l2EL.UserRPC()
 }
 func (s *interopE2ESystem) L2GethClient(id string, name string) *ethclient.Client {
 	net := s.l2s[id]
@@ -64,7 +62,7 @@ func (s *interopE2ESystem) L2GethClient(id string, name string) *ethclient.Clien
 	if node.gethClient != nil {
 		return node.gethClient
 	}
-	var ethClient services.EthInstance = node.l2Geth
+	ethClient := node.l2EL
 	rpcEndpoint := ethClient.UserRPC()
 	rpcCl := endpoint.DialRPC(
 		endpoint.PreferAnyRPC,
@@ -107,11 +105,11 @@ func (s *interopE2ESystem) L2RollupClient(id string, name string) *sources.Rollu
 // the supernode; the batcher is started after the supernode is up.
 func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Net {
 	operatorKeys := s.newOperatorKeysForL2(l2Out)
-	l2Geth := s.newGethForL2(id, "sequencer", l2Out)
+	l2EL := s.newELForL2(id, "sequencer", l2Out)
 	return l2Net{
 		l2Out:        l2Out,
 		chainID:      l2Out.Genesis.Config.ChainID,
-		nodes:        map[string]*l2Node{"sequencer": {name: "sequencer", l2Geth: l2Geth}},
+		nodes:        map[string]*l2Node{"sequencer": {name: "sequencer", l2EL: l2EL}},
 		operatorKeys: operatorKeys,
 		userKeys:     make(map[string]ecdsa.PrivateKey),
 		contracts:    make(map[string]interface{}),
@@ -124,7 +122,7 @@ func (s *interopE2ESystem) newSupernodeNodeConfig(l2 l2Net, depSet depset.Depend
 	p2pKey := l2.operatorKeys[devkeys.SequencerP2PRole]
 	p2pSigner := &p2p.PreparedSigner{Signer: opsigner.NewLocalSigner(&p2pKey)}
 
-	l2Geth := l2.nodes["sequencer"].l2Geth
+	l2EL := l2.nodes["sequencer"].l2EL
 
 	cfg := &opnodeconfig.Config{
 		L1: &opnodeconfig.L1EndpointConfig{
@@ -137,7 +135,7 @@ func (s *interopE2ESystem) newSupernodeNodeConfig(l2 l2Net, depSet depset.Depend
 		},
 		L1ChainConfig: s.l1.Backend.BlockChain().Config(),
 		L2: &opnodeconfig.L2EndpointConfig{
-			L2EngineAddr:      l2Geth.AuthRPC().RPC(),
+			L2EngineAddr:      l2EL.AuthRPC().RPC(),
 			L2EngineJWTSecret: testingJWTSecret,
 		},
 		Beacon: &opnodeconfig.L1BeaconEndpointConfig{
@@ -166,29 +164,32 @@ func (s *interopE2ESystem) newSupernodeNodeConfig(l2 l2Net, depSet depset.Depend
 	return cfg
 }
 
-// newGethForL2 creates a new Geth instance for an L2 chain.
-func (s *interopE2ESystem) newGethForL2(id string, node string, l2Out *interopgen.L2Output) *geth.GethInstance {
+// newELForL2 creates a new L2 execution-layer instance for an L2 chain.
+func (s *interopE2ESystem) newELForL2(id string, node string, l2Out *interopgen.L2Output) services.EthInstance {
 	jwtPath := writeDefaultJWT(s.t)
 	name := "l2-" + id + "-" + node
-	l2Geth, err := geth.InitL2(name, l2Out.Genesis, jwtPath,
-		func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
-			return nil
-		})
-	require.NoError(s.t, err)
-	require.NoError(s.t, l2Geth.Node.Start())
-	s.t.Cleanup(func() {
-		s.t.Logf("Closing L2 geth of chain %s", id)
-		closeErr := l2Geth.Close()
-		s.t.Logf("Closed L2 geth of chain %s: %v", id, closeErr)
+	l2EL, err := el.InitL2(context.Background(), el.L2Config{
+		Kind:    s.config.L2ELKind,
+		Name:    name,
+		Genesis: l2Out.Genesis,
+		JWTPath: jwtPath,
+		Logger:  s.logger.New("role", name),
+		DataDir: s.t.TempDir(),
 	})
-	return l2Geth
+	require.NoError(s.t, err)
+	s.t.Cleanup(func() {
+		s.t.Logf("Closing L2 EL of chain %s", id)
+		closeErr := l2EL.Close()
+		s.t.Logf("Closed L2 EL of chain %s: %v", id, closeErr)
+	})
+	return l2EL
 }
 
 // startBatcherForL2 starts the batcher for the given L2. Must be called after the supernode is
 // running, because the batcher needs the supernode-routed CL RPC URL.
 func (s *interopE2ESystem) startBatcherForL2(id string) {
 	l2 := s.l2s[id]
-	l2Geth := l2.nodes["sequencer"].l2Geth
+	l2EL := l2.nodes["sequencer"].l2EL
 	batcherSecret := l2.operatorKeys[devkeys.BatcherRole]
 	logger := s.logger.New("role", "batcher"+id)
 	daType := batcherFlags.CalldataType
@@ -197,7 +198,7 @@ func (s *interopE2ESystem) startBatcherForL2(id string) {
 	}
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 s.l1.UserRPC().RPC(),
-		L2EthRpc:                 []string{l2Geth.UserRPC().RPC()},
+		L2EthRpc:                 []string{l2EL.UserRPC().RPC()},
 		RollupRpc:                []string{s.chainURL(l2.chainID)},
 		MaxPendingTransactions:   1,
 		MaxChannelDuration:       1,

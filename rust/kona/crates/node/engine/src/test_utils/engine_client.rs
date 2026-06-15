@@ -603,6 +603,19 @@ impl OpEngineApi<Optimism, Http<HyperAuthClient>> for MockEngineClient {
         })
     }
 
+    async fn get_payload_v5(
+        &self,
+        _payload_id: PayloadId,
+    ) -> TransportResult<OpExecutionPayloadEnvelopeV4> {
+        // Osaka reuses the V4-shaped envelope; serve the stored V4 payload.
+        let storage = self.storage.read().await;
+        storage.execution_payload_v4.clone().ok_or_else(|| {
+            TransportError::from(TransportErrorKind::custom_str(
+                "No execution payload v4 set in mock",
+            ))
+        })
+    }
+
     async fn get_payload_bodies_by_hash_v1(
         &self,
         _block_hashes: Vec<BlockHash>,

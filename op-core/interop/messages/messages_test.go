@@ -223,7 +223,7 @@ func TestHashing(t *testing.T) {
 	payloadHash := keccak256("payloadHash", []byte("example payload")) // aka msgHash
 	logHash := keccak256("logHash", id.Origin[:], payloadHash[:])
 	x := PayloadHashToLogHash(payloadHash, id.Origin)
-	require.Equal(t, logHash, x, "check op-supervisor version of log-hashing matches intermediate value")
+	require.Equal(t, logHash, x, "check supernode version of log-hashing matches intermediate value")
 
 	var idPacked []byte
 	idPacked = append(idPacked, make([]byte, 12)...)

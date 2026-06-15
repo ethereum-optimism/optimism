@@ -1,18 +1,15 @@
 //! Block executor for Optimism.
 
 use crate::{OpEvmFactory, spec_by_timestamp_after_bedrock};
-use alloc::{
-    borrow::Cow, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec,
-};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec};
 use alloy_consensus::{Eip658Value, Header, Transaction, TransactionEnvelope, TxReceipt};
 use alloy_eips::{Encodable2718, Typed2718, eip7685::Requests};
 use alloy_evm::{
     Database, Evm, EvmFactory, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockValidationError, ExecutableTx, GasOutput, OnStateHook, StateChangePostBlockSource,
-        StateChangeSource, StateDB, SystemCaller, TxResult,
-        state_changes::{balance_increment_state, post_block_balance_increments},
+        BlockValidationError, ExecutableTx, GasOutput, StateDB, SystemCaller, TxResult,
+        state_changes::post_block_balance_increments,
     },
     eth::{EthTxResult, receipt_builder::ReceiptBuilderCtx},
 };
@@ -48,6 +45,11 @@ use crate::post_exec::{
 
 mod canyon;
 pub mod receipt_builder;
+
+/// Wraps an [`OpBlockExecutionError`] as a block-execution validation error.
+fn validation_error(err: OpBlockExecutionError) -> BlockExecutionError {
+    BlockExecutionError::Validation(BlockValidationError::Other(Box::new(err)))
+}
 
 /// Trait for OP transaction environments. Allows to recover the transaction encoded bytes if
 /// they're available.
@@ -236,6 +238,12 @@ impl PostExecState {
 pub struct OpBlockExecutionCtx {
     /// Parent block hash.
     pub parent_hash: B256,
+    /// Whether this block is the activation block of some fork at or after Jovian, which must
+    /// contain only deposit transactions.
+    ///
+    /// Compute via [`OpHardforks::is_no_user_tx_activation_block`] where the parent timestamp is
+    /// available; `false` skips the executor's check.
+    pub no_user_tx_activation_block: bool,
     /// Parent beacon block root.
     pub parent_beacon_block_root: Option<B256>,
     /// The block's extra data.
@@ -457,6 +465,11 @@ pub enum OpBlockExecutionError {
         available_block_da_footprint: u64,
     },
 
+    /// A fork-activation block at or after Jovian, which must contain only deposit transactions,
+    /// contained a non-deposit (user) transaction.
+    #[error("unexpected non-deposit transactions in fork activation block")]
+    UnexpectedNonDepositTxInForkActivationBlock,
+
     /// The block contained an invalid post-exec payload.
     #[error("invalid post-exec payload: {0}")]
     InvalidPostExecPayload(String),
@@ -509,9 +522,7 @@ where
     }
 
     fn invalid_post_exec_payload(reason: impl Into<String>) -> BlockExecutionError {
-        BlockExecutionError::Validation(BlockValidationError::Other(Box::new(
-            OpBlockExecutionError::InvalidPostExecPayload(reason.into()),
-        )))
+        validation_error(OpBlockExecutionError::InvalidPostExecPayload(reason.into()))
     }
 
     fn verifier_post_exec_refund_for_tx(
@@ -582,16 +593,12 @@ where
             Entry::Vacant(entry) => {
                 let info =
                     db.basic(address).map_err(BlockExecutionError::other)?.unwrap_or_default();
-                let original_info = info.clone();
-                Ok(entry.insert(Account {
-                    info,
-                    // The original_info is not used by State::commit — the
-                    // CacheAccount tracks its own previous state for building
-                    // transitions. Setting it equal to current info is safe.
-                    original_info: Box::new(original_info),
-                    status: AccountStatus::Touched,
-                    ..Default::default()
-                }))
+                // Account::from sets original_info equal to the current info, which is
+                // safe: it is not used by State::commit — the CacheAccount tracks its
+                // own previous state for building transitions.
+                let mut account = Account::from(info);
+                account.status = AccountStatus::Touched;
+                Ok(entry.insert(account))
             }
         }
     }
@@ -821,6 +828,15 @@ where
         let is_post_exec = tx.tx().ty() == POST_EXEC_TX_TYPE_ID;
         let tx_index = self.receipts.len() as u64;
 
+        // Since Jovian, fork-activation blocks must contain only deposit transactions — before,
+        // the sequencer skipped user txs there by policy, but it wasn't a consensus rule. The
+        // synthetic post-exec SDM tx is not a user tx, so it is allowed.
+        if self.ctx.no_user_tx_activation_block && !is_deposit && !is_post_exec {
+            return Err(validation_error(
+                OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock,
+            ));
+        }
+
         let transaction_gas_limit = tx.tx().gas_limit();
 
         // Bound the block's *pre-refund* `evm_gas_used` (real compute) rather than canonical
@@ -877,12 +893,12 @@ where
             let tx_da_footprint = self.jovian_da_footprint_estimation(&tx_env, &tx)?;
 
             if tx_da_footprint > da_footprint_available {
-                return Err(BlockExecutionError::Validation(BlockValidationError::Other(
-                    Box::new(OpBlockExecutionError::TransactionDaFootprintAboveGasLimit {
+                return Err(validation_error(
+                    OpBlockExecutionError::TransactionDaFootprintAboveGasLimit {
                         transaction_da_footprint: tx_da_footprint,
                         available_block_da_footprint: da_footprint_available,
-                    }),
-                )));
+                    },
+                ));
             }
 
             tx_da_footprint
@@ -1002,8 +1018,6 @@ where
             self.warming_events_by_tx.push(warming_events);
         }
 
-        self.system_caller.on_state(StateChangeSource::Transaction(self.receipts.len()), &state);
-
         // add canonical gas used
         self.gas_used += canonical_gas_used;
         // Accumulate pre-refund EVM gas (real compute); bounded against the block gas limit by the
@@ -1074,20 +1088,11 @@ where
 
         let balance_increments =
             post_block_balance_increments::<Header>(&self.spec, self.evm.block(), &[], None);
-        // increment balances
+        // increment balances; the DB-level state hook (if any) fires via the commit inside.
         self.evm
             .db_mut()
-            .increment_balances(balance_increments.clone())
+            .increment_balances(balance_increments)
             .map_err(|_| BlockValidationError::IncrementBalanceFailed)?;
-        // call state hook with changes due to balance increments.
-        self.system_caller.try_on_state_with(|| {
-            balance_increment_state(&balance_increments, self.evm.db_mut()).map(|state| {
-                (
-                    StateChangeSource::PostBlock(StateChangePostBlockSource::BalanceIncrements),
-                    Cow::Owned(state),
-                )
-            })
-        })?;
 
         Ok((
             self.evm,
@@ -1098,10 +1103,6 @@ where
                 blob_gas_used: self.da_footprint_used,
             },
         ))
-    }
-
-    fn set_state_hook(&mut self, hook: Option<Box<dyn OnStateHook>>) {
-        self.system_caller.with_state_hook(hook);
     }
 
     fn evm_mut(&mut self) -> &mut Self::Evm {
