@@ -1,10 +1,9 @@
 //! Local SDM PostExec opt-in for op-rbuilder.
 //!
-//! The protocol gate (chain spec Interop activation) controls *whether* a block may
-//! carry a PostExec tx — that's a consensus rule shared by every node. This module
-//! adds an orthogonal *operator* gate: even on an SDM-active chain, the local
-//! builder produces PostExec txs only when the operator has explicitly opted in
-//! via [`admin_setSdmPostExecOptIn`]. Both gates must be true.
+//! The protocol gate (Lagoon activation) is a consensus rule shared by every node. This module
+//! adds an orthogonal *operator* gate: even on an SDM-active chain, the local builder produces
+//! PostExec txs only when the operator has opted in via [`admin_setSdmPostExecOptIn`]. Both must
+//! be true.
 //!
 //! State is in-memory and starts disabled on every process boot; persistence is
 //! deliberately out of scope.
@@ -42,7 +41,7 @@ pub struct SdmStatus {
     /// AND of the above — the actual decision the builder will make for a block
     /// at `query_timestamp`.
     pub effective: bool,
-    /// Activation timestamp of the protocol gate (Interop) if scheduled.
+    /// Activation timestamp of the protocol gate (Lagoon) if scheduled.
     pub activation_time: Option<u64>,
 }
 

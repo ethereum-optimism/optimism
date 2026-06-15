@@ -1,9 +1,9 @@
 //! Local SDM `PostExec` opt-in admin RPC for op-reth's payload builder.
 //!
-//! The protocol gate (chain spec Interop activation) is a consensus rule shared by every node.
-//! This module adds an orthogonal *operator* gate: even on an SDM-active chain, op-reth's
-//! standard payload builder produces `PostExec` txs only when the operator has explicitly opted
-//! in via `admin_setSdmPostExecOptIn`. Both gates must be true.
+//! The protocol gate (Lagoon activation) is a consensus rule shared by every node. This module
+//! adds an orthogonal *operator* gate: even on an SDM-active chain, op-reth's standard payload
+//! builder produces `PostExec` txs only when the operator has opted in via
+//! `admin_setSdmPostExecOptIn`. Both must be true.
 //!
 //! State is in-memory and starts disabled on every process boot; persistence is deliberately
 //! out of scope.
@@ -29,7 +29,7 @@ pub struct SdmStatus {
     pub protocol_active: bool,
     /// AND of the two gates.
     pub effective: bool,
-    /// Activation timestamp of the protocol gate (Interop) if scheduled.
+    /// Activation timestamp of the protocol gate (Lagoon) if scheduled.
     pub activation_time: Option<u64>,
 }
 
