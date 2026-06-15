@@ -128,6 +128,11 @@ type MixedSingleChainNodeSpec struct {
 	ELKind      MixedL2ELKind
 	CLKind      MixedL2CLKind
 	IsSequencer bool
+	// IsolateFromL2P2P keeps this node off the L2 CL/EL P2P mesh: it is never peered with the
+	// other nodes, so it receives no gossiped or req-resp'd unsafe blocks and must advance purely
+	// by deriving from L1. Used to exercise the derivation/force-build path (FCU-with-attributes)
+	// rather than the consolidation path. Defaults to false (fully peered).
+	IsolateFromL2P2P bool
 }
 
 type MixedSingleChainPresetConfig struct {
@@ -246,7 +251,12 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	}
 
 	for i := range nodes {
-		for j := 0; j < i; j++ {
+		for j := range i {
+			// Skip peering any pair involving an isolated node, so it stays off the L2 P2P mesh
+			// and can only learn the chain by deriving it from L1.
+			if nodes[i].spec.IsolateFromL2P2P || nodes[j].spec.IsolateFromL2P2P {
+				continue
+			}
 			connectL2CLPeers(t, t.Logger(), nodes[i].cl, nodes[j].cl)
 			connectL2ELPeers(t, t.Logger(), nodes[i].el.UserRPC(), nodes[j].el.UserRPC(), false)
 		}

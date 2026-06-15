@@ -26,7 +26,15 @@ main's CI actually validated.
    `gh pr view <N> --repo paradigmxyz/reth --json mergeCommit`). Otherwise take
    the current head of `paradigmxyz/reth` `main`.
 
-2. Update the pin. The ref is pinned in **four** manifests, not just the main
+2. Audit what the current pin carries before moving off it. If the current pin
+   is **not an ancestor of the target** (e.g. it was an unmerged-PR commit),
+   find what it carried — the monorepo commit that introduced it
+   (`git log -S '<pin>' -- rust/Cargo.toml`) and the upstream PR
+   (`gh api repos/paradigmxyz/reth/commits/<sha>/pulls`) — and verify each
+   carried change is contained in, or explicitly superseded by, the target.
+   Never silently drop a fix the pin was carrying.
+
+3. Update the pin. The ref is pinned in **four** manifests, not just the main
    workspace: `op-rbuilder` and `rollup-boost` are separate Cargo workspaces
    that path-depend on the op-reth crates while also pinning reth directly.
    Bumping only `rust/Cargo.toml` leaves them on the old ref, so their
@@ -50,7 +58,7 @@ main's CI actually validated.
    The lockfiles record the resolved commit either way, so builds stay
    reproducible even if an upstream tag were to move.
 
-3. Sync shared dependency versions to the new rev's pins. reth and the OP Stack
+4. Sync shared dependency versions to the new rev's pins. reth and the OP Stack
    share the `revm`/`revm-*`, `alloy-*` (core and main), `alloy-eip7928`, and
    the published reth-core crate families (`reth-primitives-traits`,
    `reth-codecs`, `reth-rpc-traits`, `reth-zstd-compressors`). reth pins them
@@ -89,7 +97,7 @@ main's CI actually validated.
    keeps the manifest honest about what we actually build against and signals
    the sync to downstream consumers (e.g. Hardhat tracking `op-revm`).
 
-4. Refresh the lockfiles — all three workspaces have their own. `cargo update
+5. Refresh the lockfiles — all three workspaces have their own. `cargo update
    -p reth` does **not** work — there is no top-level crate literally named
    `reth` in the dep graph; the workspace depends on `reth-*` subcrates. Pass
    any real reth subcrate; cargo cascades to every git dep sharing the same
@@ -101,7 +109,7 @@ main's CI actually validated.
    done
    ```
 
-5. Revisit the slot-preimage layout reference.
+6. Revisit the slot-preimage layout reference.
    `op-reth/crates/cli/src/commands/slot_preimages_seed.rs` replicates reth's
    private `SlotPreimages` MDBX layout and carries the rev it was copied from.
    Diff the upstream source between the revs; if unchanged, just update the rev
@@ -112,7 +120,7 @@ main's CI actually validated.
      crates/stages/stages/src/stages/execution/slot_preimages.rs
    ```
 
-6. Compile and adapt:
+7. Compile and adapt:
 
    ```bash
    mise exec -- cargo check --workspace --tests
@@ -126,6 +134,13 @@ main's CI actually validated.
    default/eth implementation does, found in the new rev's sources or the
    cargo registry sources under `~/.cargo/registry/src/`.
 
+   **Gas accounting and other consensus-adjacent overrides** deserve extra
+   rigor: derive the change as *(old upstream default → new upstream default)*
+   applied onto our override, leaving the OP-specific branches byte-identical —
+   never invent logic. Any new semantic branch (even fork-gated and inert
+   today) gets a unit test, verified red against a deliberately broken variant
+   and green against the real code.
+
    Then repeat for the vendored workspaces:
 
    ```bash
@@ -133,13 +148,18 @@ main's CI actually validated.
    (cd rollup-boost && mise exec -- cargo check --workspace --tests)
    ```
 
-7. Build, format, and test before pushing:
+8. Build, format, and test before pushing:
 
    ```bash
    mise exec -- cargo build -p op-reth
    just fmt-fix && just lint
    just test   # unit + doc tests — CI runs both, and doc examples call reth APIs too
    ```
+
+   Only the `just` recipes use the repo-pinned nightly rustfmt — a bare
+   `cargo fmt` on the stable toolchain reformats unrelated files and fails
+   CI's `rust-fmt` gate. Also run the test suites of any vendored-workspace
+   crate whose source you touched.
 
 ## Expect upstream churn beyond your target change
 

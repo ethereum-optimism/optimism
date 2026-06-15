@@ -156,7 +156,7 @@ Op-reth requires `clang` / `libclang-dev` for reth-mdbx-sys bindgen. CI installs
 
 ## Updating the reth dependency
 
-The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before bumping the reth rev in `rust/Cargo.toml`.
+The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before bumping the reth pin in `rust/Cargo.toml` — or run the `/update-reth` skill (`.claude/skills/update-reth/`), which wraps the guide in an end-to-end agent workflow.
 
 Agent-specific tips beyond what's in the guide:
 

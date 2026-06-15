@@ -32,7 +32,26 @@ func newSDMRethSystemWithBatcherOptions(t devtest.T, sdmEnabled bool, batcherOpt
 	// op-node derivation, op-reth execution, and the op-rbuilder payload builder. The
 	// runtime also provisions a DependencySet for op-node, required whenever Interop is
 	// scheduled, even in single-chain setups without a supervisor.
-	return buildSDMRethSystem(t, sdmEnabled, nil, batcherOpts...)
+	return buildSDMRethSystem(t, sdmEnabled, false, nil, batcherOpts...)
+}
+
+// newSDMRethSystemWithIsolatedVerifier builds the SDM system (Interop/SDM at genesis) with the
+// verifier kept off the L2 P2P mesh. The verifier receives no gossiped unsafe blocks and must
+// advance its safe head purely by deriving from L1, which forces op-node down the force-build path
+// (FCU-with-attributes, `no_tx_pool = true`) instead of consolidating against an already-present
+// unsafe block. That is the only path on which the verifier's EL rebuilds a derived PostExec block
+// locally.
+func newSDMRethSystemWithIsolatedVerifier(t devtest.T) *sdmRethSystem {
+	// kona-node gates derivation behind EL-sync completion, and a verifier only marks EL-sync
+	// complete after its first engine forkchoiceUpdated — which is bootstrapped by an unsafe
+	// payload received over L2 P2P. With P2P fully isolated, that bootstrap never happens: the
+	// derivation actor stays in AwaitingELSyncCompletion, the EL gets no engine calls, and the
+	// safe head never leaves genesis. kona-node has no L1-only bootstrap of the force-build path
+	// today, so this test cannot pass under kona-node and is op-node-only for now.
+	if sysgo.ResolveMixedL2CLKind() == sysgo.MixedL2CLKona {
+		t.Skip("isolated-verifier force-build path is not supported by kona-node (no L1-only EL-sync bootstrap); op-node only")
+	}
+	return buildSDMRethSystem(t, true, true, nil)
 }
 
 // newSDMRethSystemWithInteropOffset builds the SDM system with Interop scheduled at the given
@@ -54,12 +73,12 @@ func newSDMRethSystemWithInteropOffset(
 				l2Cfg.WithForkAtOffset(forks.Lagoon, &offset)
 			}
 		})
-		return buildSDMRethSystem(t, true, deployerOpts, batcherOpts...)
+		return buildSDMRethSystem(t, true, false, deployerOpts, batcherOpts...)
 	}
-	return buildSDMRethSystem(t, false, deployerOpts, batcherOpts...)
+	return buildSDMRethSystem(t, false, false, deployerOpts, batcherOpts...)
 }
 
-func buildSDMRethSystem(t devtest.T, interopAtGenesis bool, deployerOpts []sysgo.DeployerOption, batcherOpts ...sysgo.BatcherOption) *sdmRethSystem {
+func buildSDMRethSystem(t devtest.T, interopAtGenesis bool, isolateVerifier bool, deployerOpts []sysgo.DeployerOption, batcherOpts ...sysgo.BatcherOption) *sdmRethSystem {
 	sysgo.SkipOnOpGeth(t, "SDM acceptance tests require op-reth post-exec support")
 
 	// Honor DEVSTACK_L2CL_KIND so the kona acceptance suite exercises this test with
@@ -76,11 +95,12 @@ func buildSDMRethSystem(t devtest.T, interopAtGenesis bool, deployerOpts []sysgo
 				IsSequencer: true,
 			},
 			{
-				ELKey:       "verifier-op-reth",
-				CLKey:       "verifier",
-				ELKind:      sysgo.MixedL2ELOpReth,
-				CLKind:      clKind,
-				IsSequencer: false,
+				ELKey:            "verifier-op-reth",
+				CLKey:            "verifier",
+				ELKind:           sysgo.MixedL2ELOpReth,
+				CLKind:           clKind,
+				IsSequencer:      false,
+				IsolateFromL2P2P: isolateVerifier,
 			},
 		},
 		BatcherOptions:   batcherOpts,

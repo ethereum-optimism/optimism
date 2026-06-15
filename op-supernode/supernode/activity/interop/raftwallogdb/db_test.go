@@ -206,9 +206,9 @@ func TestContains(t *testing.T) {
 
 func TestContains_Block0(t *testing.T) {
 	// Block 0 must flow through the same validation paths as any other block —
-	// no special-case rejection. Matches op-supervisor's logs.DB. The supernode
-	// only seals block 0 as a logless genesis (see processBlockLogs in
-	// op-supernode/.../logdb.go), so we test that shape here.
+	// no special-case rejection. The supernode only seals block 0 as a logless
+	// genesis (see processBlockLogs in op-supernode/.../logdb.go), so we test
+	// that shape here.
 	db := tempDB(t)
 
 	// Empty DB → ErrFuture, regardless of block number.

@@ -20,6 +20,72 @@ parameters:
   c-publish_contract_artifacts_ref:
     type: string
     default: ""
+  # CircleCI forwards user-supplied setup params into continuation validation.
+  # These aliases are transformed into c-* params by config.yml and are not
+  # referenced by jobs in the continuation config.
+  default_docker_image:
+    type: string
+    default: cimg/base:2026.03
+  rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:d79c625a042269c64b2444ef1edf9bb4a399d1c892caee57f9021be067da5617
+  base_image:
+    type: string
+    default: default
+  main_dispatch:
+    type: boolean
+    default: true
+  fault_proofs_dispatch:
+    type: boolean
+    default: false
+  reproducibility_dispatch:
+    type: boolean
+    default: false
+  kontrol_dispatch:
+    type: boolean
+    default: false
+  cannon_full_test_dispatch:
+    type: boolean
+    default: false
+  sdk_dispatch:
+    type: boolean
+    default: false
+  publish_contract_artifacts_dispatch:
+    type: boolean
+    default: false
+  publish_contract_artifacts_ref:
+    type: string
+    default: ""
+  stale_check_dispatch:
+    type: boolean
+    default: false
+  contracts_coverage_dispatch:
+    type: boolean
+    default: false
+  heavy_fuzz_dispatch:
+    type: boolean
+    default: false
+  rust_ci_dispatch:
+    type: boolean
+    default: false
+  rust_e2e_dispatch:
+    type: boolean
+    default: false
+  l2_fork_test_dispatch:
+    type: boolean
+    default: false
+  github-event-type:
+    type: string
+    default: "__not_set__"
+  github-event-action:
+    type: string
+    default: "__not_set__"
+  github-event-base64:
+    type: string
+    default: "__not_set__"
+  go-cache-version:
+    type: string
+    default: "v0.0"
   # Workflow activation flags (set by the decision tree in config.yml)
   c-run_main:
     type: boolean
@@ -1707,6 +1773,11 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - run:
+          name: Configure op-reth binary path
+          command: |
+            ROOT_DIR="$(pwd)"
+            echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
       - go-restore-cache:
           namespace: go-tests
       - run:
@@ -2419,6 +2490,7 @@ workflows:
             - go-binaries-for-sysgo
             - prep-superchain
             - prep-go-modules
+            - rust-workspace-binaries
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
@@ -2441,6 +2513,7 @@ workflows:
             - go-binaries-for-sysgo
             - prep-superchain
             - prep-go-modules
+            - rust-workspace-binaries
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets

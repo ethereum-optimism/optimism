@@ -46,6 +46,11 @@ use crate::post_exec::{
 mod canyon;
 pub mod receipt_builder;
 
+/// Wraps an [`OpBlockExecutionError`] as a block-execution validation error.
+fn validation_error(err: OpBlockExecutionError) -> BlockExecutionError {
+    BlockExecutionError::Validation(BlockValidationError::Other(Box::new(err)))
+}
+
 /// Trait for OP transaction environments. Allows to recover the transaction encoded bytes if
 /// they're available.
 pub trait OpTxEnv {
@@ -233,6 +238,12 @@ impl PostExecState {
 pub struct OpBlockExecutionCtx {
     /// Parent block hash.
     pub parent_hash: B256,
+    /// Whether this block is the activation block of some fork at or after Jovian, which must
+    /// contain only deposit transactions.
+    ///
+    /// Compute via [`OpHardforks::is_no_user_tx_activation_block`] where the parent timestamp is
+    /// available; `false` skips the executor's check.
+    pub no_user_tx_activation_block: bool,
     /// Parent beacon block root.
     pub parent_beacon_block_root: Option<B256>,
     /// The block's extra data.
@@ -454,6 +465,11 @@ pub enum OpBlockExecutionError {
         available_block_da_footprint: u64,
     },
 
+    /// A fork-activation block at or after Jovian, which must contain only deposit transactions,
+    /// contained a non-deposit (user) transaction.
+    #[error("unexpected non-deposit transactions in fork activation block")]
+    UnexpectedNonDepositTxInForkActivationBlock,
+
     /// The block contained an invalid post-exec payload.
     #[error("invalid post-exec payload: {0}")]
     InvalidPostExecPayload(String),
@@ -506,9 +522,7 @@ where
     }
 
     fn invalid_post_exec_payload(reason: impl Into<String>) -> BlockExecutionError {
-        BlockExecutionError::Validation(BlockValidationError::Other(Box::new(
-            OpBlockExecutionError::InvalidPostExecPayload(reason.into()),
-        )))
+        validation_error(OpBlockExecutionError::InvalidPostExecPayload(reason.into()))
     }
 
     fn verifier_post_exec_refund_for_tx(
@@ -814,6 +828,15 @@ where
         let is_post_exec = tx.tx().ty() == POST_EXEC_TX_TYPE_ID;
         let tx_index = self.receipts.len() as u64;
 
+        // Since Jovian, fork-activation blocks must contain only deposit transactions — before,
+        // the sequencer skipped user txs there by policy, but it wasn't a consensus rule. The
+        // synthetic post-exec SDM tx is not a user tx, so it is allowed.
+        if self.ctx.no_user_tx_activation_block && !is_deposit && !is_post_exec {
+            return Err(validation_error(
+                OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock,
+            ));
+        }
+
         let transaction_gas_limit = tx.tx().gas_limit();
 
         // Bound the block's *pre-refund* `evm_gas_used` (real compute) rather than canonical
@@ -870,12 +893,12 @@ where
             let tx_da_footprint = self.jovian_da_footprint_estimation(&tx_env, &tx)?;
 
             if tx_da_footprint > da_footprint_available {
-                return Err(BlockExecutionError::Validation(BlockValidationError::Other(
-                    Box::new(OpBlockExecutionError::TransactionDaFootprintAboveGasLimit {
+                return Err(validation_error(
+                    OpBlockExecutionError::TransactionDaFootprintAboveGasLimit {
                         transaction_da_footprint: tx_da_footprint,
                         available_block_da_footprint: da_footprint_available,
-                    }),
-                )));
+                    },
+                ));
             }
 
             tx_da_footprint

@@ -9,7 +9,10 @@ use alloy_evm::Evm as AlloyEvm;
 use alloy_primitives::{Address, B256, Sealed, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
-use op_alloy_consensus::{SDMGasEntry, TxPostExec, build_post_exec_tx};
+use op_alloy_consensus::{
+    ParsedPostExecPayload, SDMGasEntry, TxPostExec, build_post_exec_tx,
+    parse_post_exec_payload_from_transactions,
+};
 use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
@@ -491,7 +494,9 @@ impl<Txs> OpBuilder<'_, Txs> {
             }
         }
 
-        let sdm_refund_gas = if ctx.sdm_production_enabled() {
+        // Only locally-sequenced blocks append a post-exec tx; a derived block (force_empty)
+        // already carries its own `0x7D`, so appending would duplicate it. See `post_exec_mode`.
+        let sdm_refund_gas = if !ctx.force_empty() && ctx.sdm_production_enabled() {
             let block_number = builder.evm_mut().block().number().saturating_to();
             let entries = builder.executor_mut().take_post_exec_entries();
             let refund_gas = self::sdm_refund_gas(&entries);
@@ -785,6 +790,54 @@ where
         protocol_active && self.builder_config.sdm_post_exec_opt_in.enabled()
     }
 
+    /// Returns true when the tx pool is excluded and the block must be reproduced
+    /// deterministically from forced transactions only (i.e. `no_tx_pool = true`).
+    ///
+    /// Mirrors op-geth's `l2ForceEmpty` / `ForcedEmpty()` concept for cross-client consistency.
+    pub fn force_empty(&self) -> bool {
+        self.attributes().no_tx_pool()
+    }
+
+    /// Parses the `0x7D` post-exec tx embedded by op-node into derived payload attributes.
+    ///
+    /// Returns `Ok(None)` when no such tx is present; errors if the embedded payload is
+    /// structurally invalid (present before SDM activation, duplicated, not last, or anchored
+    /// to the wrong block number).
+    fn parse_embedded_post_exec(
+        &self,
+    ) -> Result<Option<ParsedPostExecPayload>, PayloadBuilderError> {
+        let sdm_active = reth_optimism_evm::is_sdm_active_at_timestamp(
+            &self.chain_spec,
+            self.attributes().timestamp(),
+        );
+        let next_block_number = self.parent().number().saturating_add(1);
+        parse_post_exec_payload_from_transactions(
+            self.attributes().sequencer_transactions().iter().map(|tx| tx.value()),
+            next_block_number,
+            sdm_active,
+        )
+        .map_err(PayloadBuilderError::other)
+    }
+
+    /// Decides this payload's SDM post-exec mode: *produce*, *verify*, or `Disabled`.
+    ///
+    /// The deciding factor is whether we're sequencing the block or rebuilding one
+    /// that CL already derived (`force_empty` / `no_tx_pool`):
+    ///
+    /// - **Local sequencing**: *produce* the post-exec tx when [`Self::sdm_production_enabled`],
+    ///   otherwise `Disabled`.
+    /// - **Rebuilding a derived block**: never produce — instead *verify* against the `0x7D`
+    ///   post-exec tx that CL embedded in the attributes, or `Disabled` if there is none. This
+    ///   holds regardless of the local opt-in, since the chain has already committed to it.
+    pub fn post_exec_mode(&self) -> Result<PostExecMode, PayloadBuilderError> {
+        if !self.force_empty() {
+            return Ok(self.sdm_production_enabled().into());
+        }
+
+        let parsed = self.parse_embedded_post_exec()?;
+        Ok(parsed.map_or(PostExecMode::Disabled, |p| PostExecMode::Verify(p.payload)))
+    }
+
     /// Returns the unique id for this payload job.
     pub fn payload_id(&self) -> PayloadId {
         self.attributes().payload_id()
@@ -806,7 +859,7 @@ where
         > + 'a,
         PayloadBuilderError,
     > {
-        let post_exec_mode: PostExecMode = self.sdm_production_enabled().into();
+        let post_exec_mode = self.post_exec_mode()?;
 
         self.evm_config
             .post_exec_builder_for_next_block(
