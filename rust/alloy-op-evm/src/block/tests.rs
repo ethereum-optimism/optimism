@@ -125,6 +125,7 @@ fn build_executor<'a>(
     gas_limit: u64,
     block_timestamp: u64,
     parent_timestamp: Option<u64>,
+    base_fee: u64,
 ) -> SDMTestExecutor<'a> {
     let ctx = Context::mainnet()
         .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
@@ -139,6 +140,7 @@ fn build_executor<'a>(
         .with_block(BlockEnv {
             timestamp: U256::from(block_timestamp),
             gas_limit,
+            basefee: base_fee,
             ..Default::default()
         })
         .modify_cfg_chained(|cfg| cfg.spec = OpSpecId::JOVIAN);
@@ -166,6 +168,7 @@ struct SDMExecutorFixture {
     gas_limit: u64,
     jovian_timestamp: u64,
     parent_timestamp: Option<u64>,
+    base_fee: u64,
 }
 
 impl SDMExecutorFixture {
@@ -183,6 +186,8 @@ impl SDMExecutorFixture {
             // SDM/post-exec tests run normal (non-activation) blocks; leaving the parent timestamp
             // unset skips the fork-activation guard, matching op-reth's parentless import path.
             parent_timestamp: None,
+            // Default to a zero base fee; settlement tests opt into a non-zero one.
+            base_fee: 0,
         }
     }
 
@@ -194,6 +199,7 @@ impl SDMExecutorFixture {
             self.gas_limit,
             self.jovian_timestamp,
             self.parent_timestamp,
+            self.base_fee,
         )
     }
 
@@ -432,6 +438,7 @@ fn test_no_user_tx_activation_block_rejects_user_tx() {
             DEFAULT_GAS_LIMIT,
             fork_timestamp,
             Some(fork_timestamp - 1),
+            0,
         );
         assert!(
             executor.ctx.no_user_tx_activation_block,
@@ -467,6 +474,7 @@ fn test_fork_activation_block_accepts_deposits_only() {
         DEFAULT_GAS_LIMIT,
         KARST_TIMESTAMP,
         Some(KARST_TIMESTAMP - 1),
+        0,
     );
     assert!(executor.ctx.no_user_tx_activation_block);
 
@@ -493,6 +501,7 @@ fn test_normal_post_activation_block_accepts_user_tx() {
         DEFAULT_GAS_LIMIT,
         KARST_TIMESTAMP + 2,
         Some(KARST_TIMESTAMP + 1),
+        0,
     );
     assert!(!executor.ctx.no_user_tx_activation_block);
 
@@ -513,6 +522,7 @@ fn test_non_activation_karst_block_not_rejected() {
         DEFAULT_GAS_LIMIT,
         KARST_TIMESTAMP + 100,
         Some(KARST_TIMESTAMP + 50),
+        0,
     );
     assert!(!executor.ctx.no_user_tx_activation_block);
 
@@ -536,6 +546,7 @@ fn test_none_parent_timestamp_skips_check() {
         DEFAULT_GAS_LIMIT,
         KARST_TIMESTAMP,
         None,
+        0,
     );
     assert!(!executor.ctx.no_user_tx_activation_block);
 
@@ -569,6 +580,23 @@ mod sdm {
         recovered_legacy(TxLegacy {
             nonce,
             gas_limit,
+            to: alloy_primitives::TxKind::Call(to),
+            ..Default::default()
+        })
+    }
+
+    /// A legacy tx with an explicit gas price, so post-exec settlement deltas (which scale with
+    /// `effective_gas_price - basefee`) are non-trivial.
+    fn legacy_tx_with_price(
+        nonce: u64,
+        to: Address,
+        gas_limit: u64,
+        gas_price: u128,
+    ) -> Recovered<OpTxEnvelope> {
+        recovered_legacy(TxLegacy {
+            nonce,
+            gas_limit,
+            gas_price,
             to: alloy_primitives::TxKind::Call(to),
             ..Default::default()
         })
@@ -650,6 +678,129 @@ mod sdm {
             .expect("bundle must contain the base fee recipient");
         assert_eq!(bundle_account.original_info.as_ref().unwrap().balance, U256::from(10));
         assert_eq!(bundle_account.info.as_ref().unwrap().balance, U256::from(12));
+    }
+
+    // "Where the rebate money comes from": settling a refund credits the sender exactly the sum of
+    // three recipient debits (beneficiary priority fee, base-fee vault, operator-fee vault), so
+    // total ETH supply is conserved — no value is minted. Pins each per-recipient share against the
+    // spec formula and the conservation identity.
+    #[test]
+    fn test_post_exec_settlement_deltas_conserve_value() {
+        const BASE_FEE: u64 = 7;
+        const GAS_PRICE: u128 = 100;
+        const EVM_GAS_USED: u64 = 50_000;
+        const REFUND: u64 = 1_000;
+
+        let mut fixture = SDMExecutorFixture::default();
+        fixture.base_fee = BASE_FEE;
+        let mut executor = fixture.executor();
+
+        let tx = legacy_tx_with_price(0, Address::from([0x11; 20]), DEFAULT_GAS_LIMIT, GAS_PRICE);
+        let deltas = executor
+            .post_exec_settlement_deltas(&tx, EVM_GAS_USED, REFUND, false, false)
+            .expect("settlement deltas computed");
+
+        let refund = U256::from(REFUND);
+        // Base-fee share: refund * basefee.
+        assert_eq!(deltas.base_fee_balance_delta, refund * U256::from(BASE_FEE));
+        // Beneficiary (priority) share: refund * (effective_gas_price - basefee).
+        assert_eq!(
+            deltas.beneficiary_balance_delta,
+            refund * U256::from(GAS_PRICE - u128::from(BASE_FEE)),
+        );
+        // Operator-fee share is non-zero post-Isthmus (the Jovian fixture sets operator-fee
+        // scalars).
+        assert!(
+            deltas.operator_fee_balance_delta > U256::ZERO,
+            "operator-fee delta should be charged post-Isthmus",
+        );
+
+        // Conservation ("no infinite mint"): the sender credit equals the sum of the three
+        // recipient debits, so settlement neither creates nor destroys ETH.
+        assert_eq!(
+            deltas.sender_balance_delta,
+            deltas.beneficiary_balance_delta +
+                deltas.base_fee_balance_delta +
+                deltas.operator_fee_balance_delta,
+        );
+        // Cross-check the sender credit against the spec formula directly.
+        assert_eq!(
+            deltas.sender_balance_delta,
+            refund * U256::from(GAS_PRICE) + deltas.operator_fee_balance_delta,
+        );
+    }
+
+    // Settlement only moves money for refunding standard txs. Deposits, the post-exec tx itself,
+    // and zero-refund txs produce no balance deltas, regardless of gas price / basefee.
+    #[test]
+    fn test_post_exec_settlement_deltas_skip_non_refunding_txs() {
+        let mut fixture = SDMExecutorFixture::default();
+        fixture.base_fee = 7;
+        let mut executor = fixture.executor();
+        let tx = legacy_tx_with_price(0, Address::from([0x11; 20]), DEFAULT_GAS_LIMIT, 100);
+
+        let is_no_op = |d: PostExecAdjustment| {
+            d.sender_balance_delta.is_zero() &&
+                d.beneficiary_balance_delta.is_zero() &&
+                d.base_fee_balance_delta.is_zero() &&
+                d.operator_fee_balance_delta.is_zero()
+        };
+
+        // Deposit: warms state for later txs but is never refunded.
+        assert!(
+            is_no_op(
+                executor.post_exec_settlement_deltas(&tx, 50_000, 1_000, true, false).unwrap()
+            ),
+            "deposits never settle a refund",
+        );
+        // The post-exec (0x7D) tx itself never claims.
+        assert!(
+            is_no_op(
+                executor.post_exec_settlement_deltas(&tx, 50_000, 1_000, false, true).unwrap()
+            ),
+            "the post-exec tx never settles a refund",
+        );
+        // Zero refund: nothing to settle.
+        assert!(
+            is_no_op(executor.post_exec_settlement_deltas(&tx, 50_000, 0, false, false).unwrap()),
+            "a zero refund produces no settlement",
+        );
+    }
+
+    // A settlement debit larger than a recipient's balance invalidates the block via
+    // PostExecSettlementUnderflow rather than silently saturating — this is the guard against a
+    // malformed/adversarial payload minting ETH out of an underfunded vault.
+    #[test]
+    fn test_post_exec_settlement_underflow_is_rejected() {
+        let mut fixture = SDMExecutorFixture::default();
+        let mut executor = fixture.executor();
+
+        // BASE_FEE_RECIPIENT is unfunded in the test DB, so any base-fee debit underflows.
+        let deltas = PostExecAdjustment {
+            refund: 1,
+            sender_balance_delta: U256::from(5),
+            base_fee_balance_delta: U256::from(5),
+            ..Default::default()
+        };
+
+        let sender = Address::from([0x22; 20]);
+        let mut state = EvmState::default();
+        let err = executor
+            .apply_post_exec_refund_to_state(&mut state, sender, &deltas)
+            .expect_err("settlement must reject an unfunded recipient debit");
+
+        match err {
+            BlockExecutionError::Validation(BlockValidationError::Other(inner)) => {
+                match inner.downcast_ref::<OpBlockExecutionError>() {
+                    Some(OpBlockExecutionError::PostExecSettlementUnderflow { address, delta }) => {
+                        assert_eq!(*address, BASE_FEE_RECIPIENT);
+                        assert_eq!(*delta, U256::from(5));
+                    }
+                    other => panic!("expected PostExecSettlementUnderflow, got: {other:?}"),
+                }
+            }
+            other => panic!("expected a validation error, got: {other:?}"),
+        }
     }
 
     // End-to-end executor coverage for SDM: a producer emits refund entries and appends a
