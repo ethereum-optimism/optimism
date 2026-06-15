@@ -24,13 +24,13 @@ You should be comfortable operating `op-node`, `op-reth`, `op-conductor`, `op-in
 
 ### Required Tooling
 
-The versions below match the optimism repo's `mise.toml` pins; older `cast` in particular may not parse the RPC syntax used throughout this runbook.
+Match the tool versions pinned in `mise.toml` in the optimism monorepo on the branch you deploy; that file is the source of truth and tracks each release. Older `cast` in particular may not parse the RPC syntax used throughout this runbook.
 
-| Tool | Minimum version |
+| Tool | Version |
 | --- | --- |
-| `foundry` (`cast`) | `1.2.3` |
+| `foundry` (`cast`) | see `mise.toml` |
 | `curl` | any |
-| `jq` | `1.7.1` |
+| `jq` | see `mise.toml` |
 | `kubectl` | matches your cluster |
 
 You also need the helper your environment uses to mint a JWT for the `op-interop-filter` admin port (the filter's admin RPC is JWT-authenticated).
@@ -188,7 +188,7 @@ The reason routes triage. `reorg` or `cross_validation` is the invalid-message-r
 
 ### Engage the Failsafe
 
-If the failsafe has not already auto-tripped — or you are containing a still-producing sequencer on an orphaned chain — engage it on the JWT admin port:
+If the failsafe has not already auto-tripped — or the sequencer is still producing blocks on an orphaned fork — engage it on the JWT admin port:
 
 ```bash
 curl -s http://<FILTER_HOST>:8546 \
@@ -674,7 +674,7 @@ curl -s http://<BUILDER_METRICS_HOST>:<METRICS_PORT>/metrics | grep -E 'removed_
 # Expect: removed_tx_interop incremented during the incident; failsafe_enabled back to 0 after clearing
 ```
 
-Recovery is to **restart the `op-rbuilder` pod** (the same fix and version-dependent caveat as the `op-reth` restart in **Clear the Network-Wide Failsafe and Re-Enable Interop**):
+Recovery is the same fallback restart as for `op-reth` (see **Clear the Network-Wide Failsafe and Re-Enable Interop**): **restart the `op-rbuilder` pod**.
 
 ```bash
 kubectl -n <NAMESPACE> rollout restart deploy/<OP_RBUILDER>
@@ -765,7 +765,7 @@ kubectl -n <NAMESPACE> rollout status deploy/<PROXYD>
 | --- | --- | --- |
 | `ErrNoBackends` and `consensus_backend_banned = 1` | `proxyd` consensus routing | This section (wait out the ban or restart) |
 | Interop validations failing (`result="failsafe"` or `"errored"`), filter unhealthy | `op-interop-filter` | **Inspect and Control the Interop Filter Failsafe** |
-| Both clean but interop transactions still rejected | `op-reth` shared-pool eviction (older builds only) | See the version-conditional restart in **Clear the Network-Wide Failsafe and Re-Enable Interop** |
+| Both clean but interop transactions still rejected | `op-reth` shared pool not resuming admission | See the fallback restart in **Clear the Network-Wide Failsafe and Re-Enable Interop** |
 
 ## Restore This Network (Failsafe Stays Engaged)
 
@@ -838,11 +838,11 @@ A silent or unreachable filter keeps admission closed — a network blip is not 
 
 ### Admission Resumes Automatically
 
-Once every filter reports clear, `op-reth` resumes admitting interop transactions on its own: its ingress gate reads the filter failsafe state on a roughly one-second poll, so it flips back to admitting within about a second of the gauge reaching `0`. No node restart is required on current `op-reth`.
+Once every filter reports clear, `op-reth` resumes admitting interop transactions on its own: its ingress gate reads the filter failsafe state on a roughly one-second poll, so it flips back to admitting within about a second of the gauge reaching `0`. No node restart is required.
 
 Interop transactions that were already pooled when the failsafe engaged were evicted and not re-added, so the clients that submitted them must resubmit. That is expected mempool behavior, not a node fault.
 
-<Note>On **older** `op-reth` builds the interop transaction pool could remain evicted after the failsafe cleared and silently drop interop transactions until the process was restarted (observed on `op-reth v2.2.6-rc.3`). If, several seconds after the aggregate gauge reads `0`, a test interop transaction is still not admitted (see the next step), fall back to restarting `op-reth` — and every `op-rbuilder`, which shares the pool. Do this only **after** the failsafe is cleared (a node restarted while the failsafe is still engaged just re-evicts on boot) and **after** finalization (so restarting an execution client cannot lose the just-set head). Restart **rolling**, one node at a time, confirming `admin_sequencerActive` and a re-anchored head per node, and handle the **active sequencer's execution client last**. For `op-rbuilder`, heed the leadership-transfer caution in **Recover the Flashblocks Builder Stack** (restart non-leaders first). A build that has fixed the post-failsafe eviction does not need this step.</Note>
+<Note>`op-reth` resumes admission automatically on its roughly one-second poll, so a restart should not normally be necessary. As a fallback for a node that fails to pick the cleared state back up — if, several seconds after the aggregate gauge reads `0`, a test interop transaction is still not admitted (see the next step) — restart `op-reth`, and every `op-rbuilder`, which shares the pool. Do this only **after** the failsafe is cleared (a node restarted while the failsafe is still engaged just re-evicts on boot) and **after** finalization (so restarting an execution client cannot lose the just-set head). Restart **rolling**, one node at a time, confirming `admin_sequencerActive` and a re-anchored head per node, and handle the **active sequencer's execution client last**. For `op-rbuilder`, heed the leadership-transfer caution in **Recover the Flashblocks Builder Stack** (restart non-leaders first).</Note>
 
 ### Confirm Interop End to End
 
