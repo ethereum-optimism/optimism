@@ -67,7 +67,10 @@ binary_signer = "1.0.4"
 forge = "github:foundry-rs/foundry[bin=forge,version_prefix=v]"
 cast = "github:foundry-rs/foundry[bin=cast,version_prefix=v]"
 anvil = "github:foundry-rs/foundry[bin=anvil,version_prefix=v]"
-just = "github:casey/just"
+# just resolves via the default registry (aqua), which fetches a pinned version by
+# its exact tag. Do not alias it to github:/ubi: just's tags have no `v` prefix, so
+# once the pinned version ages out of the GitHub releases listing, ubi's fallback
+# direct-fetches a `v`-prefixed tag that doesn't exist and the build 404s.
 goreleaser-pro = "github:goreleaser/goreleaser-pro[bin=goreleaser,version_prefix=v]"
 gotestsum = "github:gotestyourself/gotestsum[version_prefix=v]"
 mockery = "github:vektra/mockery[version_prefix=v]"
