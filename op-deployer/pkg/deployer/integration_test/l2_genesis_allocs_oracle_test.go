@@ -161,13 +161,11 @@ func assertL2GenesisInvariants(t *testing.T, gen generatedL2Genesis) {
 	t.Helper()
 
 	require.NotEmptyf(t, gen.allocs, "[%s] generated allocs", gen.mode.name)
-	// TODO(#21339): drop the AllowedEOAs entry once L2Genesis.s.sol resets the proxy admin
-	// owner nonce bumped by the pranked CREATEs in setEAS and setGovernanceToken.
+	// L2Genesis.s.sol resets the proxy admin owner nonce (#21339) so it no longer leaks
+	// into the dump. The empty opts guards against that regressing.
 	require.NoErrorf(
 		t,
-		genesis.CheckL2GenesisAllocs(&foundry.ForgeAllocs{Accounts: gen.allocs}, genesis.CheckL2AllocsOpts{
-			AllowedEOAs: []common.Address{gen.chainIntent.Roles.L2ProxyAdminOwner},
-		}),
+		genesis.CheckL2GenesisAllocs(&foundry.ForgeAllocs{Accounts: gen.allocs}, genesis.CheckL2AllocsOpts{}),
 		"[%s] global alloc invariants",
 		gen.mode.name,
 	)
