@@ -141,7 +141,7 @@ Look first at the failsafe state and its **reason**, `optimism_syncStatus` per n
 
 Work this decision tree top to bottom. It is explicit about ordering: the failsafe-first spine wraps the whole tree, and sequencer recovery comes before `proxyd` recovery and before the restore gate.
 
-1. **Confirm, contain, and record the baseline.** Confirm the reorg or invalid message from the filter failsafe state, its **reason label**, and the supernode and sync status. **Record the reorg height** (the last common ancestor or replacement height) — the restore gate compares against it. Ensure the failsafe is **engaged** (it usually auto-trips on the reorg; if not, engage it) before anything else.
+1. **Confirm, contain, and record the baseline.** Confirm the reorg or invalid message from the filter failsafe state, its **reason label**, and the supernode and sync status. **Record the reorg height** (the last common ancestor or replacement height) — the restore gate compares against it. If it is not obvious from the failsafe logs, determine it by walking back from the diverged head, comparing block hashes against a node already on the supernode-canonical chain until they agree (the walk-back command is in **Recover a Stuck or Stalled Follow-Mode Sequencer**, Rung 3). Ensure the failsafe is **engaged** (it usually auto-trips on the reorg; if not, engage it) before anything else.
    * *Non-reorg branch:* if the failsafe is on but the reason is **not** `reorg` or `cross_validation` — that is, `conflict`, `data_corruption`, or `invalid_log` — this is not an invalid-message reorg. Route to the filter non-reorg remedy (wipe-and-restart, see **Inspect and Control the Interop Filter Failsafe**) and stop. The rest of this runbook does not apply.
    * *Failsafe-off-but-wedged branch:* if symptoms of trouble are present but the failsafe is off — for example it was cleared too early, or auto-recovery cleared an `ErrorReorg` while the chain stayed wedged — **re-engage the failsafe network-wide** and continue. The symptoms are not only a stall: head lag, conductor churn, or a stuck follower, **but also a sequencer that is still producing blocks on an orphaned chain** (a fork the rest of the dependency set reorged away). A live-but-orphaned sequencer is not safe until the failsafe is engaged, so engage it here regardless of whether blocks are still being produced.
 2. **Engage the failsafe network-wide, then work one network at a time.** This runbook is written from the perspective of a single network whose sequencers got stuck during the reorg. Enable the failsafe across the whole dependency set up front, because a reorg on one network can cascade onto a dependent one. Then recover this one network with the sections below. If a second network in the set also reorged and stalled, **repeat the whole runbook for that network**. There is no cross-network ordering beyond keeping the failsafe engaged everywhere until each affected network is individually recovered and canonical. See **Scope: One Network at a Time**.
@@ -222,7 +222,7 @@ cast rpc --rpc-url http://<FILTER_HOST>:8545 interop_checkAccessList '[]' '"unsa
 
 <Note>The filter's `/healthz` probe reports process liveness only — it is **not** failsafe-aware. Never infer failsafe state from `/healthz`.</Note>
 
-When the filter returns a transient HTTP 5xx, `proxyd` marks that backend unhealthy and re-probes after about 10 seconds (`load_balancing_unhealthiness_timeout`). A `-320602` failsafe rejection is **not** treated as backend-unhealthy — the filter is healthy, just rejecting — so it is returned to the caller as a genuine rejection. Do not mistake the roughly 10-second re-probe window for a stuck filter.
+Under `proxyd`'s default `agreement` interop-validation strategy, a `-320602` failsafe rejection is recognized by its error **code** and returned to the caller as a genuine rejection — the filter is healthy, just rejecting, so it is **not** counted as a backend-health failure. (Only the alternative `health-aware-load-balancing` strategy treats an HTTP 5xx — which includes the failsafe's `503` — as a transient unhealthy signal and re-probes the backend after about 10 seconds, `load_balancing_unhealthiness_timeout`; do not mistake that re-probe window for a stuck filter.)
 
 ### HA Setups With Multiple Interop Filters
 
@@ -324,10 +324,15 @@ cast rpc --rpc-url http://<PROPOSER_ADMIN_RPC> admin_startProposer
 
 ## How the Corrected Head Propagates
 
-A payload set on the sequencer with `admin_postUnsafePayload` is fed into the local derivation pipeline **and gossiped over P2P** to verifiers and replicas — this is intended; it is the same path conductor failover uses. Two consequences for recovery:
+Recovery depends on two distinct P2P facts, and conflating them causes mistakes.
 
-* **Before** setting the head, confirm the **supernode** is on the canonical chain. If you re-anchor onto a head the supernode will reorg again, the corrected payload gossips a head that is itself about to be replaced.
-* **After** setting it, verify the payload propagated to downstream replicas, and re-anchor by hand any node still pinned on the pre-reorg branch.
+* `admin_postUnsafePayload` feeds a payload **only** into the receiving node's local derivation pipeline and engine — it does **not** re-gossip that payload to peers. It is the same ingress path a node uses for a payload received over P2P, and the same path `op-conductor` uses to hand a node a payload during failover.
+* What actually propagates the corrected chain to verifiers and replicas is the chosen node **resuming sequencing** (Step 5): the blocks it seals are gossiped over P2P to the rest of the network. The sequencer producing canonical blocks — not the post call — is what pulls healthy downstream nodes onto the corrected chain.
+
+Two consequences for recovery:
+
+* **Before** you resume sequencing, confirm the **supernode** is on the canonical chain. If you start the chosen node on a non-canonical head, it gossips a fork that is itself about to be replaced.
+* **After** the chosen node is sequencing, verify the corrected head reached downstream replicas, and re-anchor by hand any node still pinned on the pre-reorg branch — an `admin_postUnsafePayload` to the sequencer will not pull them over on its own.
 
 ## Recover a Conductor-Managed Sequencer
 
@@ -426,7 +431,7 @@ cast rpc --rpc-url http://<CHOSEN_NODE_RPC> optimism_syncStatus | jq '.unsafe_l2
 # Expect: identical hash and number to the supernode's
 ```
 
-If the chosen node is behind or on a different hash, do **not** force a head onto it. The corrected head gossips over P2P, so a healthy node converges on its own — wait and re-check. If it will not converge, the node itself is stuck: re-anchor it with **Recover a Stuck or Stalled Follow-Mode Sequencer** first, then return here.
+If the chosen node is behind or on a different hash, do **not** force a head onto it. Canonical unsafe blocks propagate over P2P from whatever node is producing them, so a healthy node converges on its own — wait and re-check. If it will not converge, the node itself is stuck: re-anchor it with **Recover a Stuck or Stalled Follow-Mode Sequencer** first, then return here.
 
 <Note>`admin_postUnsafePayload` exists to feed a payload directly, but it takes a full execution-payload envelope and is normally used only programmatically by `op-conductor` during failover. Hand-posting is not a routine recovery lever — prefer P2P convergence or the follow-mode re-anchor above. If you must use it, source the envelope from a node already on the canonical head and confirm the hash against the supernode first.</Note>
 
@@ -458,23 +463,39 @@ With one node sequencing, rebuild the raft cluster around it.
 Stop the chosen node's conductor, wipe its raft storage (the irreversible step above), then restart it with `OP_CONDUCTOR_RAFT_BOOTSTRAP=true` and `OP_CONDUCTOR_PAUSED=true`. After it bootstraps, resume it and re-add the other nodes as voters. The voter `id` and `addr` are each server's raft ID and consensus address; the `version` is the current cluster version from `conductor_clusterMembership`:
 
 ```bash
-# Stop the chosen node's conductor, then clear its raft storage so bootstrap takes effect
-# (--raft.storage.dir / OP_CONDUCTOR_RAFT_STORAGE_DIR — point this at the configured path):
-rm -rf <RAFT_STORAGE_DIR>/*
-# Restart the conductor with OP_CONDUCTOR_RAFT_BOOTSTRAP=true and OP_CONDUCTOR_PAUSED=true,
-# then proceed below.
+# 1. Stop the chosen node's conductor so nothing holds the raft store open (deployment-specific:
+#    scale the workload down, or stop the conductor container if it is a sidecar):
+kubectl -n <NAMESPACE> scale deploy/<CONDUCTOR> --replicas=0
+kubectl -n <NAMESPACE> rollout status deploy/<CONDUCTOR>   # confirm it is fully stopped
 
-# On the freshly bootstrapped leader, read the current membership and version:
+# 2. With the conductor stopped, clear its raft storage (the irreversible step above) on the node's
+#    storage volume — via a maintenance pod or direct volume access. --raft.storage.dir /
+#    OP_CONDUCTOR_RAFT_STORAGE_DIR points at the path:
+rm -rf <RAFT_STORAGE_DIR>/*
+
+# 3. Set bootstrap + paused and bring the conductor back (set these via your deployment's env config;
+#    kubectl set env shown for illustration):
+kubectl -n <NAMESPACE> set env deploy/<CONDUCTOR> OP_CONDUCTOR_RAFT_BOOTSTRAP=true OP_CONDUCTOR_PAUSED=true
+kubectl -n <NAMESPACE> scale deploy/<CONDUCTOR> --replicas=1
+kubectl -n <NAMESPACE> rollout status deploy/<CONDUCTOR>
+
+# 4. On the freshly bootstrapped leader, read the current membership and version:
 cast rpc --rpc-url http://<LEADER_CONDUCTOR_RPC> conductor_clusterMembership | jq
 # Expect: {"servers":[{"id":...,"addr":...,"suffrage":...}],"version":<N>}
 
-# Re-add each other node as a voter (version = the N above):
+# 5. Re-add each other node as a voter (version = the N above):
 cast rpc --rpc-url http://<LEADER_CONDUCTOR_RPC> conductor_addServerAsVoter "<server-id>" "<consensus-addr>" <version>
 # Expect: null
 
-# Resume the conductor on each node once it is a member again:
+# 6. Resume the conductor on each node once it is a member again:
 cast rpc --rpc-url http://<CONDUCTOR_RPC> conductor_resume
 # Expect: null
+
+# 7. Clear the bootstrap flag in the deployment config so a later redeploy does not re-bootstrap.
+#    Updating it via kubectl set env rolls the pod now, which is safe — bootstrap is a no-op on the
+#    existing raft state at this point. (You already resumed via conductor_resume above; setting
+#    PAUSED=false just aligns the stored config with that runtime state.)
+kubectl -n <NAMESPACE> set env deploy/<CONDUCTOR> OP_CONDUCTOR_RAFT_BOOTSTRAP=false OP_CONDUCTOR_PAUSED=false
 ```
 
 ### Exit Gate
@@ -698,7 +719,7 @@ curl -s http://<PROXYD_METRICS_HOST>:<METRICS_PORT>/metrics | grep -E 'proxyd_rp
 # Expect: rpc_interop_validations_total{result="failsafe"} climbing while the filter failsafe is engaged
 ```
 
-`proxyd` logs `interop access list validation failed` for each rejected transaction. This points at `op-interop-filter` (see **Inspect and Control the Interop Filter Failsafe**), not `proxyd` — restarting `proxyd` does not help, and a filter backend returning 5xx is automatically re-probed after about ten seconds. This path self-heals once the filter is healthy and its failsafe is cleared.
+`proxyd` logs `interop access list validation failed` for each rejected transaction. This points at `op-interop-filter` (see **Inspect and Control the Interop Filter Failsafe**), not `proxyd` — restarting `proxyd` does not help. This path self-heals once the filter is healthy and its failsafe is cleared (under the `health-aware-load-balancing` strategy a filter backend returning 5xx is also re-probed after about ten seconds).
 
 ### Consensus-Aware Routing Can Stall During a Deep Reorg
 
@@ -833,5 +854,7 @@ Do not stop at `admin_getFailsafeEnabled == false`. Submit a test interop (execu
 cast receipt <TX_HASH> --rpc-url http://<OP_RETH_RPC>
 # Expect: a receipt with status 1 from every op-reth and op-rbuilder node
 ```
+
+<Note>There is no canonical one-liner to **construct** the test executing message — it requires an initiating message on another chain in the dependency set and an access list referencing it, which is specific to your deployment and tooling. Use whatever interop-transaction helper your environment already has to submit it (directly to a node's ingress, not via `proxyd`); the verifiable, deployment-independent part is the `cast receipt` check above, confirmed against every node.</Note>
 
 When a test interop transaction is included and confirmed across every node, every affected network is canonical and finalizing, and the failsafe is clear network-wide, the incident is recovered.
