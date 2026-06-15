@@ -92,7 +92,7 @@ Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defen
   * **OP Sepolia**: [Download genesis.json](https://drive.google.com/file/d/13aHDba8O25KPq6uSbzS3ix7abKHjE48q/view)
 
   <Warning>
-    With `op-reth v2.3.1`, the genesis file must **not** include an `osakaTime` field. The pre-built file linked above is compatible with `op-reth v2.3.1` as-is. Both the SCR loading bug and this restriction will be fixed in a following op-reth release.
+    With `op-reth v2.3.1`, the genesis file must **not** include an `osakaTime` field. The pre-built file linked above is compatible with `op-reth v2.3.1` as-is. Both the SCR loading bug and this restriction will be fixed in a following op-reth release so this won't be necessary for OP Mainnet.
   </Warning>
 
   `op-node` is not affected by this bug — `--network op-sepolia` will correctly activate Karst for op-node.
