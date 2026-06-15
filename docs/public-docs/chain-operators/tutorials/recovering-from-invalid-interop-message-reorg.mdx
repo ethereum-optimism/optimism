@@ -611,3 +611,68 @@ If both a restart and an EL rewind fail to converge the follower, this is the en
     If the stuck follower is also part of a conductor cluster, re-anchor its head **first** with the remedy ladder above, then run **Recover a Conductor-Managed Sequencer**. Overriding leadership does not fix a pinned or wrong head — `admin_startSequencer` validates the head hash and rejects a stale one, so the head must be correct before the conductor recovery's start step can succeed.
   </Tab>
 </Tabs>
+
+## Recover the Flashblocks Builder Stack
+
+This section applies **only** to chains running flashblocks. The builder is a **secondary path**: `op-node` talks to `rollup-boost`, which sits in front of two execution clients — a standard non-builder `op-reth` (the fallback) and `op-rbuilder` (the builder) — and `rollup-boost` automatically falls back to the standard `op-reth` when the builder is unhealthy. `op-conductor` also health-checks `rollup-boost` and fails leadership over. So a builder problem **degrades flashblocks; it does not halt the chain**, and there is no bespoke reorg state in the builder that can wedge — in-flight flashblocks are cancelled and rebuilt on the new head, and `op-reth`'s flashblocks cache reconciles reorgs on its own. Recovery is therefore "confirm the fallback happened, restart if unhealthy", plus two interop-specific wrinkles.
+
+<Note>`rollup-boost` and `op-rbuilder` have **no** interop failsafe of their own — there is no `admin_setFailsafeEnabled` to call on them. The failsafe lives on `op-interop-filter` (see **Inspect and Control the Interop Filter Failsafe**) and the shared `op-reth` transaction-pool gate. Keep that failsafe engaged through this section.</Note>
+
+Confirm your target first: the chain, and which `rollup-boost` / `op-rbuilder` instances you are acting on (an HA setup has one builder per sequencer).
+
+### Confirm the Chain Is Safe Without the Builder
+
+The chain's safety does not depend on the builder. Confirm the sequencer is still producing on its fallback execution client and that conductor leadership sits on a healthy node:
+
+```bash
+# The sequencer's unsafe head keeps advancing even with the builder down — read twice:
+cast rpc --rpc-url http://<SEQ_NODE_RPC> optimism_syncStatus | jq '.unsafe_l2.number'
+# Expect: an increasing number (rollup-boost is serving blocks from the fallback op-reth)
+
+# Leadership is on a healthy node:
+cast rpc --rpc-url http://<CONDUCTOR_RPC> conductor_sequencerHealthy
+# Expect: true
+```
+
+If in doubt, the safe action is to run on the fallback `op-reth` and leave the builder out — do not fight the builder mid-incident.
+
+### Wrinkle 1: The Shared Interop Pool Stuck State Affects the Builder Too
+
+`op-rbuilder` runs `op-reth`'s **shared** interop transaction pool, so the same post-failsafe pool issue that affects `op-reth` affects the builder: after the filter's failsafe clears, the builder can keep **silently excluding interop (executing-message) transactions** from the blocks it produces.
+
+Detect it: interop transactions are accepted by RPC but never land in builder-produced blocks, and the shared-pool eviction counter `optimism_transaction_pool` `removed_tx_interop` climbed while the failsafe was engaged:
+
+```bash
+curl -s http://<BUILDER_METRICS_HOST>:<METRICS_PORT>/metrics | grep -E 'removed_tx_interop|interop.*failsafe_enabled'
+# Expect: removed_tx_interop incremented during the incident; failsafe_enabled back to 0 after clearing
+```
+
+Recovery is to **restart the `op-rbuilder` pod** (the same fix and version-dependent caveat as the `op-reth` restart in **Clear the Network-Wide Failsafe and Re-Enable Interop**):
+
+```bash
+kubectl -n <NAMESPACE> rollout restart deploy/<OP_RBUILDER>
+kubectl -n <NAMESPACE> rollout status deploy/<OP_RBUILDER>
+```
+
+<Warning>Restarting `op-rbuilder` on the **active conductor leader** can trigger a leadership transfer. The conductor health-checks `rollup-boost`; a builder-down window that exceeds its partial-health tolerance returns `ErrRollupBoostPartiallyHealthy` (builder down, fallback execution client up), which makes the leader stop sequencing and transfer leadership rather than wait. Restart builders on **non-leaders first**; for the leader, either pause its conductor or expect and confirm a clean transfer. Afterward, confirm a single stable leader and an active sequencer.</Warning>
+
+```bash
+# After a builder restart, confirm leadership is settled (exactly one leader, head advancing):
+cast rpc --rpc-url http://<CONDUCTOR_RPC> conductor_leader        # Expect: true on exactly one node
+cast rpc --rpc-url http://<SEQ_NODE_RPC> admin_sequencerActive    # Expect: true on the leader
+```
+
+### Wrinkle 2: Set a Conservative Interop Safety Level During Recovery
+
+While the network is unstable, consider building only on **finalized** initiating messages so the builder's blocks are less likely to be reorged out by asynchronous interop validation. The builder's `--rollup.interop-safety-level` defaults to `cross-unsafe`; set it to `finalized` (this is an `op-reth` rollup argument that `op-rbuilder` shares) and restart the builder:
+
+```bash
+# Set --rollup.interop-safety-level=finalized on the op-rbuilder deployment, then restart it.
+kubectl -n <NAMESPACE> rollout restart deploy/<OP_RBUILDER>
+```
+
+<Note>This is a **temporary recovery setting**. Leaving `--rollup.interop-safety-level=finalized` on after the incident is a silent flashblocks latency and inclusion regression. Add reverting it to `cross-unsafe` (and restarting the builder) to your incident close-out checklist.</Note>
+
+### No Manual Flush Is Needed
+
+You do **not** need to clear in-flight flashblocks or any pending builder state. The builder cancels in-flight flashblocks and rebuilds on the new head automatically, and `op-reth`'s flashblocks cache reconciles the reorg on its own. If the builder stack is misbehaving and recovery is uncertain, leave it down, run on the fallback `op-reth`, and escalate.
