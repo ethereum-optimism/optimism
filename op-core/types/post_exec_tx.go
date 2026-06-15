@@ -42,6 +42,12 @@ func UnmarshalPostExecTx(raw []byte) (*PostExecTx, error) {
 }
 
 // IsPostExecTx reports whether tx is an OP Stack post-execution transaction.
+//
+// Like the deposit helpers in deposit_tx.go, this is transition-only: a
+// go-ethereum *types.Transaction can hold a post-exec tx only while the build
+// resolves to op-geth. After the cutover to upstream go-ethereum the 0x7D type
+// is rejected on decode, so this is removed; the durable shape decodes raw
+// bytes via [UnmarshalPostExecTx].
 func IsPostExecTx(tx *types.Transaction) bool {
 	return tx.Type() == PostExecTxType
 }

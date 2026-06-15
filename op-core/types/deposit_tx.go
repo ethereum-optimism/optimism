@@ -64,6 +64,17 @@ func UnmarshalDepositTx(raw []byte) (*DepositTx, error) {
 	return d, nil
 }
 
+// The helpers below operate on a go-ethereum *types.Transaction. They exist
+// only for the decoupling transition: while the build still resolves
+// go-ethereum to op-geth, a *types.Transaction can hold a deposit, so these let
+// call sites drop their dependency on op-geth's Transaction methods before the
+// underlying transaction representation is migrated. Once the build moves to
+// upstream go-ethereum a *types.Transaction can never hold a deposit (the
+// 0x7E type is rejected on decode), making these dead — they are removed at the
+// cutover, together with the differential test. The durable shape decodes raw
+// bytes into a [DepositTx] (via [UnmarshalDepositTx]) and reads its fields
+// directly; see op-service/sources accessors (#20264).
+
 // IsDepositTx reports whether tx is an OP Stack deposit transaction.
 func IsDepositTx(tx *types.Transaction) bool {
 	return tx.Type() == DepositTxType
