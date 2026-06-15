@@ -256,7 +256,7 @@ func (cfg *CheckInteropConfig) expectBlocked(ctx context.Context, src, dst strin
 				attempt, failsafeRelayAttempts, dst)
 		}
 		if !interopTxRejected(err) {
-			return fmt.Errorf("relay attempt %d/%d on %s failed with unrecognized error:\n  %v",
+			return fmt.Errorf("relay attempt %d/%d on %s failed with unrecognized error:\n  %w",
 				attempt, failsafeRelayAttempts, dst, err)
 		}
 		cfg.Log.Info("relay correctly rejected while failsafe enabled",

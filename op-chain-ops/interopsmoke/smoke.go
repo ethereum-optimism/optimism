@@ -1042,7 +1042,7 @@ func expectBridgeBlocked(env *smokeEnv, amount eth.ETH) error {
 				attempt, failsafeRelayAttempts, env.chainA.chainID, env.chainB.chainID)
 		}
 		if !isFailsafeRejection(err) {
-			return fmt.Errorf("relay attempt %d/%d (chain %s → chain %s) failed with unrecognized error:\n  %v",
+			return fmt.Errorf("relay attempt %d/%d (chain %s → chain %s) failed with unrecognized error:\n  %w",
 				attempt, failsafeRelayAttempts, env.chainA.chainID, env.chainB.chainID, err)
 		}
 		fmt.Fprintf(env.stderr, "    relay attempt %d/%d (chain %s → chain %s) correctly rejected:\n      %v\n",
