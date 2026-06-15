@@ -819,12 +819,16 @@ where
         .map_err(PayloadBuilderError::other)
     }
 
-    /// Resolves the canonical post-exec mode for this payload.
+    /// Decides this payload's SDM post-exec mode: *produce*, *verify*, or `Disabled`.
     ///
-    /// - **`force_empty` (rebuilding a derived block)**: *verify* against any `0x7D` op-node
-    ///   embedded in the attributes, regardless of the opt-in; `Disabled` if there is none. Never
-    ///   produce.
-    /// - **otherwise (local sequencing)**: *produce* iff [`Self::sdm_production_enabled`].
+    /// The deciding factor is whether we're sequencing the block or rebuilding one
+    /// that CL already derived (`force_empty` / `no_tx_pool`):
+    ///
+    /// - **Local sequencing**: *produce* the post-exec tx when [`Self::sdm_production_enabled`],
+    ///   otherwise `Disabled`.
+    /// - **Rebuilding a derived block**: never produce — instead *verify* against the `0x7D`
+    ///   post-exec tx that CL embedded in the attributes, or `Disabled` if there is none. This
+    ///   holds regardless of the local opt-in, since the chain has already committed to it.
     pub fn post_exec_mode(&self) -> Result<PostExecMode, PayloadBuilderError> {
         if !self.force_empty() {
             return Ok(self.sdm_production_enabled().into());
