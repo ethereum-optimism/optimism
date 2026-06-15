@@ -20,7 +20,7 @@ extern crate alloc;
 
 use alloy_op_hardforks::{
     BASE_MAINNET_JOVIAN_TIMESTAMP, BASE_SEPOLIA_JOVIAN_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP,
-    OP_SEPOLIA_JOVIAN_TIMESTAMP,
+    OP_MAINNET_KARST_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP, OP_SEPOLIA_KARST_TIMESTAMP,
 };
 // Re-export alloy-op-hardforks types.
 pub use alloy_op_hardforks::{OpHardfork, OpHardforks};
@@ -104,6 +104,7 @@ pub static OP_MAINNET_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1746806401)),
         (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1746806401)),
         (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(OP_MAINNET_JOVIAN_TIMESTAMP)),
+        (OpHardfork::Karst.boxed(), ForkCondition::Timestamp(OP_MAINNET_KARST_TIMESTAMP)),
     ])
 });
 /// Optimism Sepolia list of hardforks.
@@ -142,6 +143,7 @@ pub static OP_SEPOLIA_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1744905600)),
         (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1744905600)),
         (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP)),
+        (OpHardfork::Karst.boxed(), ForkCondition::Timestamp(OP_SEPOLIA_KARST_TIMESTAMP)),
     ])
 });
 
