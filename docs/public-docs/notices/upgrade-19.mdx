@@ -229,13 +229,27 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
 
   Build `kona-host` from the same release as the configured cannon-kona prestate.
   </Step>
+
+  <Step title="Execute the L1 Contract Upgrade">
+  Once your infrastructure is ready, execute the upgrade transaction. This should be done by making a delegatecall to the `upgrade()` function of the OP Contracts Manager (OPCMv2) at the address that will be listed in [the registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml).
+
+  Please simulate and validate the expected output prior to executing the transaction.
+  </Step>
+
+  <Step title="Update op-proposer to use CANNON_KONA game type">
+  After the L1 contract upgrade executes, the respected game type changes from `CANNON` (0) to `CANNON_KONA` (8) on-chain. `op-proposer` must be reconfigured to submit proposals against the new game type, or it will begin failing immediately after the upgrade.
+
+  Set the game type to `8` in your proposer configuration:
+
+  ```bash
+  OP_PROPOSER_GAME_TYPE=8
+  # or
+  --game-type=8
+  ```
+
+  Update this before or immediately after the contract upgrade executes to avoid a gap in proposal submissions.
+  </Step>
 </Steps>
-
-### Execute the L1 Contract Upgrade
-
-Once your infrastructure is ready, execute the upgrade transaction. This should be done by making a delegatecall to the `upgrade()` function of the OP Contracts Manager (OPCMv2) at the address that will be listed in [the registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml).
-
-Please simulate and validate the expected output prior to executing the transaction.
 
 ## For app developers
 
