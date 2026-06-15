@@ -69,6 +69,10 @@ L2CM introduces a new mechanism for upgrading L2 predeploy contracts. App develo
 
 Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defense), all node operators must update their execution and consensus clients before the activation timestamp.
 
+<Warning>
+  **Action required for node operators on OP Sepolia.** There is a known bug in op-reth where nodes running `--chain op-sepolia` **will not** activate Karst automatically via the Superchain Registry. You must manually configure the Karst timestamp. See Step 2 below for instructions.
+</Warning>
+
 <Steps>
   <Step title="Update to the latest release">
   Update `op-node` and `op-reth` to the version specified in the component table below. The new version includes consensus rules for the Karst hard fork activation for chains in the superchain-registry.
@@ -77,10 +81,16 @@ Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defen
   <Step title="Configure the Karst activation timestamp">
   How you configure the Karst activation timestamp depends on whether your chain is in the superchain-registry.
 
-  **Chains in the superchain-registry** (e.g. `OP`, `Soneium`, `Ink`, `Unichain`, `Mode`, `Metal`, `Zora`):
+  **Chains in the superchain-registry** (e.g. `Soneium`, `Ink`, `Unichain`, `Mode`, `Metal`, `Zora`):
   The Karst activation timestamp is built into the updated releases — no manual timestamp configuration is needed. Make sure you are using the network flag so that op-node and op-reth load chain config from the superchain-registry:
-  * `op-node`: [`--network <network>`](/node-operators/reference/op-node-config#network) (e.g. `--network op-mainnet`, `--network soneium-mainnet`, `--network op-sepolia`)
-  * `op-reth`: [`--chain <network>`](/node-operators/reference/op-reth-config#chain) (e.g. `--chain op`, `--chain soneium`, `--chain unichain`)
+  * `op-node`: [`--network <network>`](/node-operators/reference/op-node-config#network) (e.g. `--network soneium-mainnet`, `--network op-sepolia`)
+  * `op-reth`: [`--chain <network>`](/node-operators/reference/op-reth-config#chain) (e.g. `--chain soneium`, `--chain unichain`)
+
+  **OP Sepolia:**
+  Due to a bug in op-reth, the Karst activation timestamp is **not** loaded from the Superchain Registry for `op-sepolia` and `op`. You must configure it manually by providing a genesis file with `"karstTime"` set and passing it via `--chain <path-to-genesis.json>`:
+  * **OP Sepolia**: `"karstTime": 1781712001`
+
+  `op-node` is not affected by this bug — `--network op-sepolia` will correctly activate Karst for op-node.
 
   **Chains not in the superchain-registry:**
   Set the activation timestamp manually in each client's config:
