@@ -24,6 +24,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopbridge"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -39,7 +40,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	txIntentBindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	"github.com/lmittmann/w3"
 )
 
 const smokeWaitTimeout = 60 * time.Second
@@ -50,7 +50,8 @@ const (
 	privateKeyFlagName = "private-key"
 )
 
-var sendETHFn = w3.MustNewFunc("sendETH(address,uint256)", "bytes32")
+// bridgeTimeout bounds a single A->B bridge (send, relay, and balance check).
+const bridgeTimeout = 2 * time.Minute
 
 func smokeFlags(envPrefix string) []cli.Flag {
 	return cliapp.ProtectFlags([]cli.Flag{
@@ -72,24 +73,6 @@ func smokeFlags(envPrefix string) []cli.Flag {
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_KEY"),
 		},
 	})
-}
-
-type sendETHTrigger struct {
-	Recipient   common.Address
-	Destination eth.ChainID
-}
-
-func (t *sendETHTrigger) To() (*common.Address, error) {
-	addr := predeploys.SuperchainETHBridgeAddr
-	return &addr, nil
-}
-
-func (t *sendETHTrigger) EncodeInput() ([]byte, error) {
-	return sendETHFn.EncodeArgs(t.Recipient, t.Destination.ToBig())
-}
-
-func (t *sendETHTrigger) AccessList() (types.AccessList, error) {
-	return nil, nil
 }
 
 type remoteChain struct {
@@ -120,6 +103,7 @@ type execMessage struct {
 type smokeEnv struct {
 	ctx    context.Context
 	stderr io.Writer
+	logger log.Logger
 	chainA *remoteChain
 	chainB *remoteChain
 	userA  *remoteUser
@@ -288,6 +272,7 @@ func newSmokeEnv(ctx context.Context, stderr io.Writer, l2AURL, l2BURL, privateK
 	env := &smokeEnv{
 		ctx:    ctx,
 		stderr: stderr,
+		logger: logger,
 		chainA: chainA,
 		chainB: chainB,
 		userA:  &remoteUser{chain: chainA, privKey: privKey, address: address},
@@ -511,38 +496,10 @@ func smokeTransfer(env *smokeEnv) error {
 }
 
 func smokeBridge(env *smokeEnv) error {
-	recipient := randomAddress()
-	amount := eth.OneHundredthEther
-
-	sendTx := txintent.NewIntent[*sendETHTrigger, *txintent.InteropOutput](
-		env.userA.plan(),
-		txplan.WithValue(amount),
-	)
-	sendTx.Content.Set(&sendETHTrigger{
-		Recipient:   recipient,
-		Destination: env.chainB.chainID,
-	})
-
-	sendReceipt, err := sendTx.PlannedTx.Included.Eval(env.ctx)
-	if err != nil {
-		return fmt.Errorf("sendETH failed: %w", err)
-	}
-	if sendReceipt.Status != types.ReceiptStatusSuccessful {
-		return fmt.Errorf("sendETH tx reverted")
-	}
-	fmt.Fprintf(env.stderr, "    sendETH tx included: %s\n", sendReceipt.TxHash)
-
-	relayReceipt, err := waitForRelaySuccess(env, sendTx)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(env.stderr, "    relayETH tx included: %s\n", relayReceipt.TxHash)
-
-	if err := waitForBalance(env.ctx, env.chainB, recipient, amount); err != nil {
-		return err
-	}
-	fmt.Fprintf(env.stderr, "    Recipient received %s ETH on Chain B\n", amount)
-	return nil
+	ctx, cancel := context.WithTimeout(env.ctx, bridgeTimeout)
+	defer cancel()
+	return interopbridge.BridgeETH(ctx, env.logger, env.chainA.ethClient, env.chainB.ethClient,
+		env.chainB.chainID, env.userA.privKey, eth.OneHundredthEther, randomAddress())
 }
 
 func smokeValidMessage(env *smokeEnv) error {
@@ -626,37 +583,6 @@ func smokeInvalidMessage(env *smokeEnv) error {
 	}
 	fmt.Fprintf(env.stderr, "    Invalid tx was reorged out after block %d was replaced\n", invalidBlockNum)
 	return nil
-}
-
-func waitForRelaySuccess(env *smokeEnv, sendTx *txintent.IntentTx[*sendETHTrigger, *txintent.InteropOutput]) (*types.Receipt, error) {
-	deadline := time.Now().Add(smokeWaitTimeout)
-	for attempt := 0; ; attempt++ {
-		relayTx := txintent.NewIntent[*txintent.RelayTrigger, *txintent.InteropOutput](env.userB.plan())
-		relayTx.Content.DependOn(&sendTx.Result)
-		relayTx.Content.Fn(txintent.RelayIndexed(
-			predeploys.L2toL2CrossDomainMessengerAddr,
-			&sendTx.Result,
-			&sendTx.PlannedTx.Included,
-			1,
-		))
-
-		relayReceipt, err := relayTx.PlannedTx.Included.Eval(env.ctx)
-		if err == nil && relayReceipt.Status == types.ReceiptStatusSuccessful {
-			return relayReceipt, nil
-		}
-		if time.Now().After(deadline) {
-			if err != nil {
-				return nil, fmt.Errorf("relayETH failed before timeout: %w", err)
-			}
-			return nil, fmt.Errorf("relayETH tx kept reverting until timeout")
-		}
-		if err != nil {
-			fmt.Fprintf(env.stderr, "    Waiting for relayability: attempt %d failed: %v\n", attempt+1, err)
-		} else {
-			fmt.Fprintf(env.stderr, "    Waiting for relayability: attempt %d reverted in tx %s\n", attempt+1, relayReceipt.TxHash)
-		}
-		time.Sleep(time.Second)
-	}
 }
 
 func waitForBalance(ctx context.Context, chain *remoteChain, addr common.Address, want eth.ETH) error {

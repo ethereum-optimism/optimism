@@ -6,29 +6,22 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/big"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/lmittmann/w3"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopbridge"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
 const (
-	// maxRelayRetries caps submission/inclusion retry attempts. The effective
-	// bound is the per-leg context deadline (RelayTimeout); this is just large
-	// enough not to give up before that deadline ends the retries.
-	maxRelayRetries = 1024
 	// execGasLimit is a fixed gas limit for the failsafe-blocked relay, so we
 	// skip eth_estimateGas and let the txpool rejection surface on submission.
 	execGasLimit = 300_000
@@ -39,9 +32,6 @@ const (
 
 // bridgeAmount is the ETH moved across chains on each leg.
 var bridgeAmount = eth.OneHundredthEther
-
-// sendETHFn is the SuperchainETHBridge.sendETH(to, chainId) entrypoint.
-var sendETHFn = w3.MustNewFunc("sendETH(address,uint256)", "bytes32")
 
 // CheckInteropConfig holds the dependencies shared by the interop checks.
 type CheckInteropConfig struct {
@@ -85,26 +75,6 @@ func (cfg *CheckInteropConfig) chain(name string) (*sources.EthClient, eth.Chain
 		return cfg.L2A, cfg.L2AChainID
 	}
 	return cfg.L2B, cfg.L2BChainID
-}
-
-// sendETHTrigger initiates a cross-chain ETH transfer through the
-// SuperchainETHBridge predeploy. The bridged amount is the tx value.
-type sendETHTrigger struct {
-	Recipient   common.Address
-	Destination eth.ChainID
-}
-
-func (t *sendETHTrigger) To() (*common.Address, error) {
-	addr := predeploys.SuperchainETHBridgeAddr
-	return &addr, nil
-}
-
-func (t *sendETHTrigger) EncodeInput() ([]byte, error) {
-	return sendETHFn.EncodeArgs(t.Recipient, t.Destination.ToBig())
-}
-
-func (t *sendETHTrigger) AccessList() (types.AccessList, error) {
-	return nil, nil
 }
 
 // CheckRoundTrip bridges ETH A -> B and then B -> A through the
@@ -192,35 +162,8 @@ func (cfg *CheckInteropConfig) bridgeETH(ctx context.Context, src, dst string, r
 	srcCl, _ := cfg.chain(src)
 	dstCl, dstChainID := cfg.chain(dst)
 
-	before, err := dstCl.BalanceAt(ctx, recipient, nil)
-	if err != nil {
-		return fmt.Errorf("read recipient balance on %s: %w", dst, err)
-	}
-
-	send := txintent.NewIntent[*sendETHTrigger, *txintent.InteropOutput](retryPlan(srcCl, cfg.Key), txplan.WithValue(bridgeAmount))
-	send.Content.Set(&sendETHTrigger{Recipient: recipient, Destination: dstChainID})
-	if _, err := send.PlannedTx.Success.Eval(ctx); err != nil {
-		return fmt.Errorf("send ETH %s -> %s: %w", src, dst, err)
-	}
-	cfg.Log.Info("sent ETH", "from", src, "to", dst, "tx", send.PlannedTx.Included.Value().TxHash)
-
-	relay := txintent.NewIntent[*txintent.RelayTrigger, *txintent.InteropOutput](retryPlan(dstCl, cfg.Key))
-	relay.Content.DependOn(&send.Result)
-	relay.Content.Fn(txintent.RelayIndexed(predeploys.L2toL2CrossDomainMessengerAddr, &send.Result, &send.PlannedTx.Included, 1))
-	if _, err := relay.PlannedTx.Success.Eval(ctx); err != nil {
-		return fmt.Errorf("relay ETH on %s: %w", dst, err)
-	}
-	cfg.Log.Info("relayed ETH", "chain", dst, "tx", relay.PlannedTx.Included.Value().TxHash)
-
-	after, err := dstCl.BalanceAt(ctx, recipient, nil)
-	if err != nil {
-		return fmt.Errorf("read recipient balance on %s: %w", dst, err)
-	}
-	if credited := new(big.Int).Sub(after, before); credited.Cmp(bridgeAmount.ToBig()) != 0 {
-		return fmt.Errorf("recipient on %s credited %s wei, want %s wei", dst, credited, bridgeAmount.ToBig())
-	}
-	cfg.Log.Info("bridged ETH", "from", src, "to", dst, "amount", bridgeAmount, "recipient", recipient)
-	return nil
+	cfg.Log.Info("bridging ETH", "from", src, "to", dst, "amount", bridgeAmount, "recipient", recipient)
+	return interopbridge.BridgeETH(ctx, cfg.Log, srcCl, dstCl, dstChainID, cfg.Key, bridgeAmount, recipient)
 }
 
 // expectBlocked sends ETH on src, then submits the relay on dst failsafeRelayAttempts
@@ -229,8 +172,8 @@ func (cfg *CheckInteropConfig) expectBlocked(ctx context.Context, src, dst strin
 	srcCl, _ := cfg.chain(src)
 	dstCl, dstChainID := cfg.chain(dst)
 
-	send := txintent.NewIntent[*sendETHTrigger, *txintent.InteropOutput](retryPlan(srcCl, cfg.Key), txplan.WithValue(bridgeAmount))
-	send.Content.Set(&sendETHTrigger{Recipient: recipient, Destination: dstChainID})
+	send := txintent.NewIntent[*interopbridge.SendETHTrigger, *txintent.InteropOutput](interopbridge.BridgePlan(srcCl, cfg.Key), txplan.WithValue(bridgeAmount))
+	send.Content.Set(&interopbridge.SendETHTrigger{Recipient: recipient, Destination: dstChainID})
 	sendCtx, cancel := context.WithTimeout(ctx, cfg.RelayTimeout)
 	_, err := send.PlannedTx.Success.Eval(sendCtx)
 	cancel()
@@ -285,21 +228,6 @@ func (cfg *CheckInteropConfig) setFailsafe(ctx context.Context, enabled bool) er
 		}
 	}
 	return nil
-}
-
-// retryPlan estimates gas and retries submission and inclusion to ride out
-// cross-chain propagation; the overall wait is capped by the caller's context.
-func retryPlan(cl *sources.EthClient, key *ecdsa.PrivateKey) txplan.Option {
-	return txplan.Combine(
-		txplan.WithChainID(cl),
-		txplan.WithPrivateKey(key),
-		txplan.WithPendingNonce(cl),
-		txplan.WithAgainstLatestBlock(cl),
-		txplan.WithEstimator(cl, true),
-		txplan.WithRetrySubmission(cl, maxRelayRetries, retry.Exponential()),
-		txplan.WithRetryInclusion(cl, maxRelayRetries, retry.Exponential()),
-		txplan.WithBlockInclusionInfo(cl),
-	)
 }
 
 // singleSubmitPlan submits once with a fixed gas limit (skipping eth_estimateGas)

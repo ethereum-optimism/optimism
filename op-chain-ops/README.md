@@ -14,6 +14,7 @@ Packages:
 - `devkeys`: generate OP-Stack development keys from a common source.
 - `foundry`: utils to read foundry artifacts.
 - `genesis`: OP Stack genesis-configs generation, pre OPCM.
+- `interopbridge`: shared cross-chain ETH bridge used by the interop test tools (check-lagoon, interop-smoke).
 - `interopgen`: interop test-chain genesis config generation.
 - `interopsmoke`: interop smoke tests against live chain RPCs (bridging, executing-message validation).
 - `script`: foundry-like solidity scripting environment in Go.
