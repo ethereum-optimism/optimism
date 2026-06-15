@@ -75,7 +75,12 @@ pub struct HardForkConfig {
     /// `lagoon_time` sets the activation time for the Lagoon network upgrade.
     /// Active if `lagoon_time` != None && L2 block timestamp >= `Some(lagoon_time)`, inactive
     /// otherwise.
+    ///
+    /// The `interop_time` alias is retained so kona can keep reading
+    /// superchain-registry chain TOMLs that still use the pre-rename key.
+    /// Drop the alias once the registry migrates to `lagoon_time`.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    #[cfg_attr(feature = "serde", serde(alias = "interop_time"))]
     pub lagoon_time: Option<u64>,
 }
 
