@@ -204,7 +204,7 @@ where
         filtered
     }
 
-    fn inner(&self) -> &P {
+    const fn inner(&self) -> &P {
         &self.inner
     }
 }
