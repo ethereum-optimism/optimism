@@ -132,7 +132,7 @@ impl ChainBuilder {
         self.modify_rollup_cfg(|cfg| cfg.block_time = block_time)
     }
 
-    pub fn with_interop_activation_time(&mut self, activation: u64) -> &mut Self {
+    pub fn with_lagoon_activation_time(&mut self, activation: u64) -> &mut Self {
         self.modify_rollup_cfg(|cfg| cfg.hardforks.lagoon_time = Some(activation))
     }
 
