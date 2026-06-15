@@ -676,3 +676,66 @@ kubectl -n <NAMESPACE> rollout restart deploy/<OP_RBUILDER>
 ### No Manual Flush Is Needed
 
 You do **not** need to clear in-flight flashblocks or any pending builder state. The builder cancels in-flight flashblocks and rebuilds on the new head automatically, and `op-reth`'s flashblocks cache reconciles the reorg on its own. If the builder stack is misbehaving and recovery is uncertain, leave it down, run on the fallback `op-reth`, and escalate.
+
+## Recover proxyd
+
+`proxyd` is the ingress proxy in front of the network's RPC backends. Recover it **after** the sequencer and execution-layer heads have stabilized (the recovery sections above) — restarting its consensus poller while heads are still regressing just re-bans every backend within about a second. There is no urgency to touch `proxyd` mid-surgery: it fronts **new** transactions, which the interop failsafe is blocking anyway, and every recovery command in this runbook goes **directly** to the nodes, never through `proxyd`, so a `proxyd` problem cannot sever your control path.
+
+Two independent subsystems can each look like a `proxyd` failure. Triage them separately — only one is actually a `proxyd` problem.
+
+### The Interop Filter Validation Path Is Self-Healing
+
+If executing-message transactions are rejected at ingress, that is `proxyd`'s interop-filter validation path doing its job, not a `proxyd` fault:
+
+```bash
+curl -s http://<PROXYD_METRICS_HOST>:<METRICS_PORT>/metrics | grep -E 'proxyd_rpc_interop_validations_total|proxyd_rpc_interop_filter_checks_total'
+# Expect: rpc_interop_validations_total{result="failsafe"} climbing while the filter failsafe is engaged
+```
+
+`proxyd` logs `interop access list validation failed` for each rejected transaction. This points at `op-interop-filter` (see **Inspect and Control the Interop Filter Failsafe**), not `proxyd` — restarting `proxyd` does not help, and a filter backend returning 5xx is automatically re-probed after about ten seconds. This path self-heals once the filter is healthy and its failsafe is cleared.
+
+### Consensus-Aware Routing Can Stall During a Deep Reorg
+
+This applies **only** if the ingress backend group uses `routing_strategy = "consensus_aware"` (older deployments express the same thing as the now-deprecated `consensus_aware = true`). If the group is `fallback` or `multicall`, `proxyd` runs no consensus poller, a reorg has no special effect on it, and it is stateless — restart only if it is independently unhealthy. Confirm the strategy in the backend group's config before proceeding.
+
+**Why it stalls.** A deep reorg rewinds the `safe` and `finalized` heads backwards. With the default `safe_block_drift_threshold` and `finalized_block_drift_threshold` of `0`, any backwards movement bans the backend for `consensus_ban_period` (default five minutes). If every backend is banned, the consensus group empties and `proxyd` returns `ErrNoBackends` to **all** clients — not just interop traffic — until the bans expire.
+
+**Detect:**
+
+```bash
+curl -s http://<PROXYD_METRICS_HOST>:<METRICS_PORT>/metrics | grep -E 'proxyd_group_consensus_count|proxyd_consensus_backend_banned|proxyd_backend_unexpected_block_tags'
+# Expect during the stall: group_consensus_count = 0, consensus_backend_banned = 1, backend_unexpected_block_tags rising
+```
+
+Corroborating logs: `backend banned - unexpected block tags` and `consensus broken`; clients receiving `ErrNoBackends`.
+
+**Recover — only after heads are stable.** The bans are time-bounded and self-heal in about five minutes once the heads stop regressing. There is **no operator-facing unban endpoint**, so the only two levers are to wait out the ban or to restart `proxyd` — a restart builds a fresh consensus poller (`NewConsensusPoller` calls `Reset`) that re-polls every backend from scratch.
+
+Capture the diagnostics **before** restarting, because a restart resets the ban state and wipes the evidence:
+
+```bash
+curl -s http://<PROXYD_METRICS_HOST>:<METRICS_PORT>/metrics \
+  | grep -E 'proxyd_group_consensus_count|proxyd_consensus_backend_banned|proxyd_backend_unexpected_block_tags' \
+  > proxyd-consensus-diagnostics.txt
+```
+
+Then restart (set `graceful_shutdown_seconds` to drain first if `proxyd` is behind a load balancer):
+
+```bash
+kubectl -n <NAMESPACE> rollout restart deploy/<PROXYD>
+kubectl -n <NAMESPACE> rollout status deploy/<PROXYD>
+```
+
+**Prevention (a config change, not an emergency lever).** If interop reorgs are expected to rewind `safe`/`finalized` on this network, raising `safe_block_drift_threshold` and `finalized_block_drift_threshold` above `0` keeps the expected regression from banning backends in the first place. Apply this between incidents, not mid-recovery.
+
+**Exit gate.** `group_consensus_count` back above `0`, `consensus_backend_banned` cleared, and clients served again (no `ErrNoBackends`). If heads are stable but bans keep re-applying after a restart, stop and escalate — do not loop restarts.
+
+**Abort / safe baseline.** If restarting `proxyd` worsens the incident — for example dropping all ingress under load — stop. Leave the failsafe engaged (interop is not being admitted anyway) and get more eyes on it rather than repeatedly cycling a customer-facing component.
+
+### Which Component Is Actually Stuck
+
+| Symptom | Stuck component | Where to go |
+| --- | --- | --- |
+| `ErrNoBackends` and `consensus_backend_banned = 1` | `proxyd` consensus routing | This section (wait out the ban or restart) |
+| Interop validations failing (`result="failsafe"` or `"errored"`), filter unhealthy | `op-interop-filter` | **Inspect and Control the Interop Filter Failsafe** |
+| Both clean but interop transactions still rejected | `op-reth` shared-pool eviction | Restart `op-reth` in **Clear the Network-Wide Failsafe and Re-Enable Interop** |
