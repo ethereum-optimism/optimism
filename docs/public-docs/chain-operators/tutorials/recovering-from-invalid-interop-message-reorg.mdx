@@ -498,3 +498,116 @@ The interop failsafe stays engaged — clearing it is the terminal **Clear the N
 ### If a Step Makes Things Worse
 
 If churn continues, two nodes appear active, or the head forks again, return to the known-safe baseline rather than improvising: re-engage the failsafe if it was somehow cleared, `admin_stopSequencer` on every node and confirm `admin_sequencerActive == false` on each, leave the conductors paused, and escalate. A stopped, failsafe-engaged cluster is safe; a half-recovered one with an ambiguous leader is not.
+
+## Recover a Stuck or Stalled Follow-Mode Sequencer
+
+A follow-mode (light-mode) sequencer runs `op-node` with `--l2.follow.source` pointed at an upstream consensus-layer RPC — the network's `op-supernode` or its `op-node` — and tracks that upstream's heads instead of deriving independently. After an interop reorg, a follower can be left on a branch the upstream reorged away, or stalled and not advancing. This section detects which of those happened and walks a least-to-most-invasive remedy ladder.
+
+Keep the interop failsafe **engaged** throughout. Confirm the chain and node first:
+
+```bash
+cast rpc --rpc-url http://<FOLLOWER_NODE_RPC> eth_chainId
+# Expect: the hex chain ID of the network you intend to recover
+```
+
+The light-sequencer invalid-message-replacement path is **op-reth-only**; the EL-specific steps below assume an `op-reth` execution client.
+
+### Recognize the Two Failure States
+
+Distinguish the two states — they need different remedies:
+
+* **Stuck on the wrong chain.** The follower's head is at (or near) the upstream's height but on a **different hash** — a branch the upstream reorged away.
+* **Stalled / not producing.** The follower's head **number is flat** while the upstream's advances.
+
+Compare the follower against the upstream canonical head:
+
+```bash
+# Follower's heads:
+cast rpc --rpc-url http://<FOLLOWER_NODE_RPC> optimism_syncStatus | jq '{unsafe: .unsafe_l2, local_safe: .local_safe_l2, safe: .safe_l2}'
+
+# Upstream canonical heads for this chain (source of truth):
+cast rpc --rpc-url http://<SUPERNODE_RPC> supernode_syncStatus | jq '.chains["<CHAIN_ID>"] | {unsafe: .unsafe_l2, local_safe: .local_safe_l2, safe: .safe_l2}'
+```
+
+Read it as: same `unsafe_l2.number` but different `unsafe_l2.hash` means **wrong chain**; a follower `unsafe_l2.number` that does not change across reads while the upstream's climbs means **stalled**.
+
+The follower's follow loop also exposes its own signal. The metric labels the wrong-chain case distinctly:
+
+```bash
+curl -s http://<FOLLOWER_METRICS_HOST>:7300/metrics | grep op_node_follow_source_requests_total
+# Expect: rising result="error_l1_mismatch"  (follower's L1 origin disagrees with the upstream — wrong chain)
+#         rising result="error_fetch_status"  (follower cannot reach the upstream)
+```
+
+Corroborating `op-node` logs (the loop logs under the `Follow Upstream` prefix): an `Follow Upstream: Invalid external local safe: L1 origin of external local safe head mismatch` warning is the wrong-chain signature; a periodic `Follow Upstream` info line with `eSafe`/`eLocalSafe`/`eFinalized` that never moves the follower's own head is the stalled signature.
+
+### Remedy Ladder
+
+Work these rungs in order. Stop as soon as the follower converges (see the convergence check at the end); only escalate to the next rung if the current one does not un-stick it.
+
+**Rung 1: Confirm the upstream canonical head and target.** Use the two `syncStatus` commands above. Fix in your mind the canonical `unsafe_l2` hash you expect the follower to reach, and the chain ID and node you are acting on.
+
+**Rung 2: Restart `op-node`.** A follow-mode sequencer forces an initial engine reset on startup and re-runs head discovery, which is the primary un-stick for both states:
+
+```bash
+kubectl -n <NAMESPACE> rollout restart deploy/<FOLLOWER_OP_NODE>
+kubectl -n <NAMESPACE> rollout status deploy/<FOLLOWER_OP_NODE>
+
+# Then watch the follower move toward the upstream:
+cast rpc --rpc-url http://<FOLLOWER_NODE_RPC> optimism_syncStatus | jq '.unsafe_l2'
+# Expect: hash/number converging on the upstream canonical head
+```
+
+**Rung 3: Rewind the execution layer offline, then restart `op-node`.** If the follower is still on the wrong chain after a restart, its `op-reth` holds reorged-away blocks that must be removed. `op-reth` has **no online rewind** — the node must be stopped, because the unwind opens the database exclusively.
+
+<Warning>An execution-layer unwind permanently discards every block above the target; it is not reversible without a resync. Record the current head height and the target ancestor first, and confirm `op-reth` is fully stopped before unwinding. This is a point of no return for the discarded blocks.</Warning>
+
+The target is the **last common ancestor** — the reorg height you recorded during triage. To confirm it, walk back from the follower's head comparing block hashes against a known-canonical execution client (the recovered sequencer's `op-reth`) until they agree:
+
+```bash
+cast block <HEIGHT> --rpc-url http://<FOLLOWER_EL_RPC> --json | jq -r '.hash'
+cast block <HEIGHT> --rpc-url http://<CANONICAL_EL_RPC> --json | jq -r '.hash'
+# The highest <HEIGHT> where these hashes match is the last common ancestor.
+```
+
+Then unwind and restart:
+
+```bash
+# 1. Record the current head for your incident log:
+cast rpc --rpc-url http://<FOLLOWER_EL_RPC> eth_blockNumber
+
+# 2. Stop op-reth (the unwind needs exclusive DB access):
+kubectl -n <NAMESPACE> scale deploy/<FOLLOWER_OP_RETH> --replicas=0
+
+# 3. Unwind to the last common ancestor (removes every block above it):
+op-reth stage unwind to-block <LAST_COMMON_ANCESTOR> --chain <CHAIN> --datadir <DATADIR>
+
+# 4. Bring op-reth back, confirm the new tip, then restart op-node:
+kubectl -n <NAMESPACE> scale deploy/<FOLLOWER_OP_RETH> --replicas=1
+cast rpc --rpc-url http://<FOLLOWER_EL_RPC> eth_blockNumber
+# Expect: at or just below the last common ancestor
+kubectl -n <NAMESPACE> rollout restart deploy/<FOLLOWER_OP_NODE>
+```
+
+<Note>The offline EL-rewind rung has not been exercised against a real wedged follower; treat it as unvalidated and double-check the resulting tip before restarting `op-node`.</Note>
+
+**Convergence and escalation.** The follower has converged when its `unsafe_l2.hash` matches the upstream's at the same height **and** its head number resumes advancing within a few block times:
+
+```bash
+cast rpc --rpc-url http://<FOLLOWER_NODE_RPC> optimism_syncStatus | jq '.unsafe_l2'
+cast rpc --rpc-url http://<SUPERNODE_RPC> supernode_syncStatus | jq '.chains["<CHAIN_ID>"].unsafe_l2'
+# Expect: identical hash and number, and the follower's number climbing on re-reads
+```
+
+If both a restart and an EL rewind fail to converge the follower, this is the end of the documented remedy. Halt, leave the failsafe engaged, and escalate — do not keep improvising.
+
+### Conductor-Operated Followers
+
+<Tabs>
+  <Tab title="Standalone follower">
+    A follower that is not conductor-managed is always active; apply the remedy ladder above directly. No leadership coordination is involved.
+  </Tab>
+  <Tab title="Conductor-operated">
+    If the stuck follower is also part of a conductor cluster, re-anchor its head **first** with the remedy ladder above, then run **Recover a Conductor-Managed Sequencer**. Overriding leadership does not fix a pinned or wrong head — `admin_startSequencer` validates the head hash and rejects a stale one, so the head must be correct before the conductor recovery's start step can succeed.
+  </Tab>
+</Tabs>
