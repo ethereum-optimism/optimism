@@ -114,7 +114,7 @@ These principles apply to **every** recovery section below. They are the spine t
 * **Issue recovery RPCs directly to the node, never through `proxyd`.** Every `admin_*`, `conductor_*`, and `optimism_*` recovery call targets the node directly. `proxyd` ingress can be unavailable or restarting during the incident.
 * **Capture the incident baseline first.** Record the **reorg height** (the last common ancestor or replacement height) and the pre-action head numbers and hashes per affected node. The restore gate and the destructive-step rollbacks are evaluated against this baseline; without it you cannot tell when recovery is complete.
 * **The supernode is the source of truth for the correct head.** Derive the canonical post-reorg head from the upstream `op-supernode` and confirm hashes against it. Never hand-enter a head. `admin_postUnsafePayload` performs **no** canonicity check — it validates only the envelope's own block hash — so posting a wrong head and starting on it re-forks the chain.
-* **Destructive steps are flagged and gated.** Execution-layer rewinds, raft re-bootstrap (`OP_CONDUCTOR_RAFT_BOOTSTRAP=true`), and filter wipe-and-restart each discard data irreversibly. Each carries a warning stating exactly what is lost, requires you to capture the pre-action state first, and marks an explicit point of no return.
+* **Destructive steps are flagged and gated.** Execution-layer rewinds, raft re-bootstrap (clearing `--raft.storage.dir` then setting `OP_CONDUCTOR_RAFT_BOOTSTRAP=true`), and filter wipe-and-restart each discard data irreversibly. Each carries a warning stating exactly what is lost, requires you to capture the pre-action state first, and marks an explicit point of no return.
 * **Steps that are not validated are labeled.** Some procedures here have not yet been exercised against a real wedged chain. Those steps are labeled so you do not treat unverified prose as battle-tested during a live incident.
 
 ### On Stopping Safely
@@ -132,8 +132,8 @@ Alerting should detect this situation, not only guide recovery once you are alre
 * **Sequencer unsafe-head lag.** `optimism_syncStatus.unsafe_l2` time falling behind wallclock or not advancing, and `op-conductor` logging `unsafe head is falling behind the unsafe interval`.
 * **Sequencer on an orphaned chain.** The sequencer's `unsafe_l2` is still advancing — so head-lag and stall alerts stay quiet — but its hash diverges from the upstream `op-supernode`'s canonical chain at the same height. A still-producing sequencer is not safe while it builds on an orphaned fork; engage the failsafe.
 * **Conductor cluster wedged.** `conductor_sequencerHealthy == false` across the cluster, no node reporting `conductor_leader == true`, and a high leadership-transfer rate.
-* **Follower diverged or stalled.** A follow-mode node's head lagging or disagreeing with the upstream `op-supernode`, a rising `FollowSourceRequests{error_*}` rate, or repeated `could not get payload: not found` logs.
-* **Filter quorum rejecting.** Rising `quorum_reject_*` counters on `op-reth`.
+* **Follower diverged or stalled.** A follow-mode node's head lagging or disagreeing with the upstream `op-supernode`, a rising `follow_source_requests_total{result="error_*"}` rate, or repeated `Follow Upstream:` warnings (notably `L1 origin of external local safe head mismatch`).
+* **Filter quorum rejecting.** Rising `optimism_transaction_pool.interop.filter_decisions{result="rejected_*"}` counts on `op-reth`.
 
 Look first at the failsafe state and its **reason**, `optimism_syncStatus` per network, and conductor health. Those three route the rest of triage.
 
@@ -181,7 +181,7 @@ cast rpc --rpc-url http://<FILTER_HOST>:8545 admin_getFailsafeEnabled
 
 The boolean does not tell you **why** the failsafe tripped. Read the reason from the filter's metrics or logs:
 
-* Metric: the filter's `failsafe_reason_active` gauge (namespace `op_interop_filter`), labeled `reason="manual"`, `"reorg"`, `"conflict"`, `"data_corruption"`, `"invalid_log"`, or `"cross_validation"`, with value `1` for each currently active reason. More than one reason can be active at once.
+* Metric: the filter's `failsafe_reason_active` gauge (exported as `op_interop_filter_<process>_failsafe_reason_active`, where `<process>` defaults to `default`), labeled `reason="manual"`, `"reorg"`, `"conflict"`, `"data_corruption"`, `"invalid_log"`, or `"cross_validation"`, with value `1` for each currently active reason. More than one reason can be active at once.
 * Log: while the failsafe is engaged the filter re-logs the active reason at `WARN` on a heartbeat (`--failsafe-log-interval`, default `1m`).
 
 The reason routes triage. `reorg` or `cross_validation` is the invalid-message-reorg path this runbook covers. `conflict`, `data_corruption`, or `invalid_log` is a different failure with a different remedy — see [Non-Reorg Failsafe Trips](#non-reorg-failsafe-trips).
@@ -235,14 +235,14 @@ Read the aggregate state:
 
 * There is no single aggregate RPC. Per-filter truth is each instance's own `admin_getFailsafeEnabled`.
 * `op-reth`'s OR-aggregate view is the gauge `optimism_transaction_pool.interop.failsafe_enabled` (`1` or `0`); it reads `0` only when the gate is truly clear across every filter.
-* Per-endpoint metrics live under `optimism_transaction_pool.interop.endpoint`, labeled `endpoint="<index>"` by **configuration index, not URL**, exposing `valid`, `invalid`, `unavailable`, and `query_latency`. Use the index-to-URL map from [Before You Begin](#before-you-begin) to know which filter each label refers to.
+* Per-endpoint metrics live under `optimism_transaction_pool.interop.endpoint`, labeled `endpoint="<index>"` by **configuration index, not URL** (URLs can carry basic-auth credentials). The per-endpoint verdict counter is `endpoint.verdicts`, labeled `verdict="valid"`, `"invalid"`, or `"unavailable"`; there is also a per-endpoint `endpoint.up` gauge and an `endpoint.query_latency`. Use the index-to-URL map from [Before You Begin](#before-you-begin) to know which filter each label refers to.
 
 Degraded quorum can block admission even with the failsafe off:
 
-* Watch the `op-reth` counters `quorum_reject_disagreement` (filters returned mixed verdicts) and `quorum_reject_not_reached` (too few definitive verdicts — fail-closed), plus the rate-limited "failing closed" log. These clear automatically once enough filters return definitive, agreeing verdicts.
+* Watch the `op-reth` counter `optimism_transaction_pool.interop.filter_decisions`, labeled `result="rejected_disagreement"` (filters returned mixed verdicts) and `result="rejected_no_quorum"` (too few definitive verdicts — fail-closed), plus the rate-limited "interop failing closed" log. These clear automatically once enough filters return definitive, agreeing verdicts.
 * Under the `--rollup.interop-min-responses` default (unanimity, fail-closed), a single unreachable or out-of-sync filter blocks all interop admission. A majority quorum (`N/2 + 1`) tolerates one degraded filter while still only admitting on unanimous agreement among responders.
 
-<Note>`proxyd` does not yet enforce quorum or honor the filter failsafe; that is a separate, not-yet-landed change. Do not treat `proxyd` as failsafe-aware — the aggregation described here is `op-reth`'s.</Note>
+<Note>The any-trips-all aggregation described here is `op-reth`'s. `proxyd` has its own, independent interop-filter validation path that is also fail-closed and failsafe-aware — it rejects on a `-320602` failsafe verdict from any filter and applies its own quorum across the filter endpoints — described in **Recover proxyd**. That path is separate from this `op-reth` gate, and `proxyd`'s consensus poller (block-tag routing) is **not** failsafe-aware. Recover each independently.</Note>
 
 <Note>Toggling one filter while `op-reth`'s roughly 1-second poll is mid-flight can briefly flap the gate. A filter you restart to clear errors reads as `unavailable` and holds the gate closed for the whole set until it finishes resyncing. Sequence filter restarts expecting the set to stay closed until the last one is back.</Note>
 
@@ -453,11 +453,17 @@ cast rpc --rpc-url http://<CHOSEN_NODE_RPC> optimism_syncStatus | jq '.unsafe_l2
 
 With one node sequencing, rebuild the raft cluster around it.
 
-<Warning>Restarting the chosen conductor with `OP_CONDUCTOR_RAFT_BOOTSTRAP=true` **discards the existing raft cluster state** — it is irreversible. This is the point of no return for the old cluster membership. Confirm you are bootstrapping from the node that is actively and correctly sequencing, and set `OP_CONDUCTOR_RAFT_BOOTSTRAP=false` again before the next redeploy so it does not re-bootstrap.</Warning>
+<Warning>`OP_CONDUCTOR_RAFT_BOOTSTRAP=true` only takes effect on **empty** raft storage. If the node still has raft state, the conductor logs `Raft cluster already exists, skipping bootstrap` and keeps the old membership — the flag alone does **not** rebuild the cluster. To genuinely re-bootstrap a fresh single-node cluster you must **delete the chosen node's `--raft.storage.dir` contents while its conductor is stopped**, which **discards the existing raft cluster state irreversibly**. This is the point of no return for the old cluster membership. Confirm you are bootstrapping from the node that is actively and correctly sequencing, and set `OP_CONDUCTOR_RAFT_BOOTSTRAP=false` again before the next redeploy so it does not attempt to bootstrap on a normal restart.</Warning>
 
-Restart the chosen node's conductor with `OP_CONDUCTOR_RAFT_BOOTSTRAP=true` and `OP_CONDUCTOR_PAUSED=true`, then resume it and re-add the other nodes as voters. The voter `id` and `addr` are each server's raft ID and consensus address; the `version` is the current cluster version from `conductor_clusterMembership`:
+Stop the chosen node's conductor, wipe its raft storage (the irreversible step above), then restart it with `OP_CONDUCTOR_RAFT_BOOTSTRAP=true` and `OP_CONDUCTOR_PAUSED=true`. After it bootstraps, resume it and re-add the other nodes as voters. The voter `id` and `addr` are each server's raft ID and consensus address; the `version` is the current cluster version from `conductor_clusterMembership`:
 
 ```bash
+# Stop the chosen node's conductor, then clear its raft storage so bootstrap takes effect
+# (--raft.storage.dir / OP_CONDUCTOR_RAFT_STORAGE_DIR — point this at the configured path):
+rm -rf <RAFT_STORAGE_DIR>/*
+# Restart the conductor with OP_CONDUCTOR_RAFT_BOOTSTRAP=true and OP_CONDUCTOR_PAUSED=true,
+# then proceed below.
+
 # On the freshly bootstrapped leader, read the current membership and version:
 cast rpc --rpc-url http://<LEADER_CONDUCTOR_RPC> conductor_clusterMembership | jq
 # Expect: {"servers":[{"id":...,"addr":...,"suffrage":...}],"version":<N>}
@@ -534,7 +540,7 @@ Read it as: same `unsafe_l2.number` but different `unsafe_l2.hash` means **wrong
 The follower's follow loop also exposes its own signal. The metric labels the wrong-chain case distinctly:
 
 ```bash
-curl -s http://<FOLLOWER_METRICS_HOST>:7300/metrics | grep op_node_follow_source_requests_total
+curl -s http://<FOLLOWER_METRICS_HOST>:7300/metrics | grep follow_source_requests_total
 # Expect: rising result="error_l1_mismatch"  (follower's L1 origin disagrees with the upstream — wrong chain)
 #         rising result="error_fetch_status"  (follower cannot reach the upstream)
 ```
@@ -640,7 +646,7 @@ If in doubt, the safe action is to run on the fallback `op-reth` and leave the b
 
 `op-rbuilder` runs `op-reth`'s **shared** interop transaction pool, so the same post-failsafe pool issue that affects `op-reth` affects the builder: after the filter's failsafe clears, the builder can keep **silently excluding interop (executing-message) transactions** from the blocks it produces.
 
-Detect it: interop transactions are accepted by RPC but never land in builder-produced blocks, and the shared-pool eviction counter `optimism_transaction_pool` `removed_tx_interop` climbed while the failsafe was engaged:
+Detect it: interop transactions are accepted by RPC but never land in builder-produced blocks, and the shared-pool eviction counter `removed_tx_interop` (metrics scope `transaction_pool`, exported `transaction_pool_removed_tx_interop`) climbed while the failsafe was engaged:
 
 ```bash
 curl -s http://<BUILDER_METRICS_HOST>:<METRICS_PORT>/metrics | grep -E 'removed_tx_interop|interop.*failsafe_enabled'
