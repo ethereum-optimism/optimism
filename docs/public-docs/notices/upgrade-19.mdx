@@ -87,8 +87,11 @@ Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defen
   * `op-reth`: [`--chain <network>`](/node-operators/reference/op-reth-config#chain) (e.g. `--chain soneium`, `--chain unichain`)
 
   **OP Sepolia:**
-  Due to a bug in op-reth, the Karst activation timestamp is **not** loaded from the Superchain Registry for `op-sepolia` and `op`. You must configure it manually by providing a genesis file with `"karstTime"` set and passing it via `--chain <path-to-genesis.json>`:
-  * **OP Sepolia**: `"karstTime": 1781712001`
+  Due to a bug in op-reth, the Karst activation timestamp is **not** loaded from the Superchain Registry for `op-sepolia` and `op`. You must configure it manually by providing a genesis file passed via `--chain <path-to-genesis.json>`. Download the pre-built genesis file for your chain and pass it directly — do not edit the file.
+
+  <Warning>
+    With `op-reth v2.3.1`, the genesis file must **not** include an `osakaTime` field. The pre-built file linked above is compatible with `op-reth v2.3.1` as-is. Both the SCR loading bug and this restriction will be fixed in a following op-reth release.
+  </Warning>
 
   `op-node` is not affected by this bug — `--network op-sepolia` will correctly activate Karst for op-node.
 
