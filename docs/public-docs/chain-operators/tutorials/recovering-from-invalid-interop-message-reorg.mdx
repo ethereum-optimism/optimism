@@ -738,4 +738,94 @@ kubectl -n <NAMESPACE> rollout status deploy/<PROXYD>
 | --- | --- | --- |
 | `ErrNoBackends` and `consensus_backend_banned = 1` | `proxyd` consensus routing | This section (wait out the ban or restart) |
 | Interop validations failing (`result="failsafe"` or `"errored"`), filter unhealthy | `op-interop-filter` | **Inspect and Control the Interop Filter Failsafe** |
-| Both clean but interop transactions still rejected | `op-reth` shared-pool eviction | Restart `op-reth` in **Clear the Network-Wide Failsafe and Re-Enable Interop** |
+| Both clean but interop transactions still rejected | `op-reth` shared-pool eviction (older builds only) | See the version-conditional restart in **Clear the Network-Wide Failsafe and Re-Enable Interop** |
+
+## Restore This Network (Failsafe Stays Engaged)
+
+This section restores **one** network. It does **not** clear the failsafe — that happens once, at the very end, in **Clear the Network-Wide Failsafe and Re-Enable Interop**, after every affected network has reached the end state below. Keeping the failsafe engaged here is what lets you restore each network independently without re-opening cross-network interop.
+
+Work the gates in order. Each must be positively confirmed; if any is unmet, stop in the safe state (failsafe engaged) and get more eyes on it.
+
+**Gate 1 — Heads are canonical.** This network's unsafe head matches the supernode, and the conductor cluster is healthy (the exit gate from **Recover a Conductor-Managed Sequencer**):
+
+```bash
+cast rpc --rpc-url http://<SEQ_NODE_RPC> optimism_syncStatus | jq '.unsafe_l2'
+cast rpc --rpc-url http://<SUPERNODE_RPC> supernode_syncStatus | jq '.chains["<CHAIN_ID>"].unsafe_l2'
+# Expect: identical hash and number
+```
+
+**Gate 2 — The batcher is resumed and tracking the recovered chain.** Confirm the batcher is running and that the re-pause guard from **Coordinate the Batcher and Proposer** did not fire (the unsafe head has not changed forks again since you resumed it):
+
+```bash
+cast rpc --rpc-url http://<BATCHER_ADMIN_RPC> admin_startBatcher
+# Expect: error "batcher is already running"  (it should already be running from the coordination step)
+```
+
+**Gate 3 — A healthy batch has been posted to L1 and processed.** This is the key gate; wait for it rather than trusting the unsafe tip. After the batcher resumes, the recovered chain must be batched to L1 and derived back so the **safe** head advances **past the reorg height you recorded at triage**, with a hash that matches the supernode. A wrong-fork batch can advance the number too, so check the **hash**, not just the number:
+
+```bash
+cast rpc --rpc-url http://<SEQ_NODE_RPC> optimism_syncStatus | jq '{safe: .safe_l2, finalized: .finalized_l2}'
+cast rpc --rpc-url http://<SUPERNODE_RPC> supernode_syncStatus | jq '.chains["<CHAIN_ID>"] | {safe: .safe_l2, finalized: .finalized_l2}'
+# Expect: safe_l2.number > <recorded reorg height>, and safe_l2.hash matches the supernode's safe_l2.hash
+```
+
+<Note>`finalized_l2` lags `safe_l2` by L1 finality — roughly two epochs (about 13 minutes), and longer under adverse L1 conditions. A `finalized_l2` that has not yet caught up is **expected**; do not read it as failure. Confirm `finalized_l2` is advancing on the recovered chain, then wait for it to pass the reorg height before the terminal failsafe clear.</Note>
+
+**Gate 4 — The triggering condition is gone.** The filter failsafe reason is no longer auto-tripping (it is not re-asserting `reorg` or `cross_validation`), and the invalid message and its source are not about to re-trigger the reorg. Re-read the reason as in **Query the Failsafe State**; it must be stable, not re-firing.
+
+**End state for this network:** canonical, batched to L1, and finalizing — but the failsafe is **still engaged**. Do not clear it here. Loop back to **Triage** for any other affected network in the dependency set. Only when every affected network has reached this same end state do you proceed to the terminal section below.
+
+## Clear the Network-Wide Failsafe and Re-Enable Interop
+
+This is the **only** place the failsafe is cleared, and it is run **once**, after **every** affected network has individually passed the gates in **Restore This Network**.
+
+<Warning>Before clearing, list every network that reorged during this incident and confirm each one is individually canonical, batched to L1, and finalizing. The failsafe is network-wide: clearing it re-opens interop admission across the entire dependency set at once. If even one affected network has not reached the **Restore This Network** end state, stop — do not clear.</Warning>
+
+### Disable the Failsafe on Every Filter
+
+Clear the failsafe on **every** `op-interop-filter` instance. In an HA set, `op-reth` keeps admission closed until **all** filters report clear (the any-trips-all / clear-requires-unanimity behavior from **HA Setups With Multiple Interop Filters**), so a single missed or unreachable filter holds interop closed for the whole network. Loop over every filter:
+
+```bash
+# Disable on each filter's JWT admin port (re-sign $JWT per Sign a JWT for Admin Endpoints):
+curl -s http://<FILTER_HOST>:8546 \
+  -H "Authorization: Bearer $JWT" \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"admin_setFailsafeEnabled","params":[false]}'
+
+# Confirm each filter is reachable and clear:
+cast rpc --rpc-url http://<FILTER_HOST>:8545 admin_getFailsafeEnabled
+# Expect: false on every filter
+
+cast rpc --rpc-url http://<FILTER_HOST>:8545 interop_checkAccessList '[]' '"unsafe"' '{}'
+# Expect: null on every filter
+```
+
+Confirm `op-reth`'s aggregate view has actually opened — not just that you issued the disables:
+
+```bash
+curl -s http://<OP_RETH_METRICS_HOST>:<METRICS_PORT>/metrics | grep -E 'interop.*failsafe_enabled|interop.*endpoint'
+# Expect: optimism_transaction_pool.interop.failsafe_enabled = 0, and no endpoint stuck "unavailable"
+```
+
+A silent or unreachable filter keeps admission closed — a network blip is not a healthy filter. Do not proceed until the aggregate gauge reads `0`.
+
+### Admission Resumes Automatically
+
+Once every filter reports clear, `op-reth` resumes admitting interop transactions on its own: its ingress gate reads the filter failsafe state on a roughly one-second poll, so it flips back to admitting within about a second of the gauge reaching `0`. No node restart is required on current `op-reth`.
+
+Interop transactions that were already pooled when the failsafe engaged were evicted and not re-added, so the clients that submitted them must resubmit. That is expected mempool behavior, not a node fault.
+
+<Note>On **older** `op-reth` builds the interop transaction pool could remain evicted after the failsafe cleared and silently drop interop transactions until the process was restarted (observed on `op-reth v2.2.6-rc.3`). If, several seconds after the aggregate gauge reads `0`, a test interop transaction is still not admitted (see the next step), fall back to restarting `op-reth` — and every `op-rbuilder`, which shares the pool. Do this only **after** the failsafe is cleared (a node restarted while the failsafe is still engaged just re-evicts on boot) and **after** finalization (so restarting an execution client cannot lose the just-set head). Restart **rolling**, one node at a time, confirming `admin_sequencerActive` and a re-anchored head per node, and handle the **active sequencer's execution client last**. For `op-rbuilder`, heed the leadership-transfer caution in **Recover the Flashblocks Builder Stack** (restart non-leaders first). A build that has fixed the post-failsafe eviction does not need this step.</Note>
+
+### Confirm Interop End to End
+
+Do not stop at `admin_getFailsafeEnabled == false`. Submit a test interop (executing-message) transaction and confirm it is actually **included**, checked through **every** `op-reth` and `op-rbuilder` node — in an HA set, seeing a test message land via one node can hide another still rejecting interop traffic:
+
+```bash
+# Submit the test executing-message transaction directly to a node's ingress (not via proxyd),
+# then confirm a receipt from each node in turn:
+cast receipt <TX_HASH> --rpc-url http://<OP_RETH_RPC>
+# Expect: a receipt with status 1 from every op-reth and op-rbuilder node
+```
+
+When a test interop transaction is included and confirmed across every node, every affected network is canonical and finalizing, and the failsafe is clear network-wide, the incident is recovered.
