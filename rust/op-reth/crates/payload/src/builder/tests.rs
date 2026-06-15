@@ -63,7 +63,7 @@ fn interop_ctx(
     OpPayloadBuilderAttributes<OpTransactionSigned>,
 > {
     let gas_limit = 1_000_000;
-    let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().interop_activated().build());
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().interop_activated().build());
     let parent = SealedHeader::seal_slow(Header {
         gas_limit,
         number: 0,
@@ -149,7 +149,7 @@ fn payload_builder_ctx(
 
 fn op_pooled_tx(nonce: u64, signer: Address, recipient: Address) -> OpPooledTransaction {
     let tx: OpTransactionSigned = TxEip1559 {
-        chain_id: 8453,
+        chain_id: 10,
         nonce,
         gas_limit: MIN_TRANSACTION_GAS,
         max_fee_per_gas: 1,
@@ -179,7 +179,7 @@ where
     T: PoolTransaction<Consensus = OpTransactionSigned> + OpPooledTx,
 {
     let gas_limit = 1_000_000;
-    let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().regolith_activated().build());
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
     let ctx = payload_builder_ctx(chain_spec, gas_limit);
 
     let mut state_provider = StateProviderTest::default();
