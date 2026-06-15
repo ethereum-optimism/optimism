@@ -115,7 +115,7 @@ These principles apply to **every** recovery section below. They are the spine t
 * **Capture the incident baseline first.** Record the **reorg height** (the last common ancestor or replacement height) and the pre-action head numbers and hashes per affected node. The restore gate and the destructive-step rollbacks are evaluated against this baseline; without it you cannot tell when recovery is complete.
 * **The supernode is the source of truth for the correct head.** Derive the canonical post-reorg head from the upstream `op-supernode` and confirm hashes against it. Never hand-enter a head. `admin_postUnsafePayload` performs **no** canonicity check — it validates only the envelope's own block hash — so posting a wrong head and starting on it re-forks the chain.
 * **Destructive steps are flagged and gated.** Execution-layer rewinds, raft re-bootstrap (`OP_CONDUCTOR_RAFT_BOOTSTRAP=true`), and filter wipe-and-restart each discard data irreversibly. Each carries a warning stating exactly what is lost, requires you to capture the pre-action state first, and marks an explicit point of no return.
-* **Unvalidated steps are labeled.** Some procedures here have not yet been exercised against a real wedged chain. Those steps are labeled so you do not treat unverified prose as battle-tested during a live incident.
+* **Steps that are not validated are labeled.** Some procedures here have not yet been exercised against a real wedged chain. Those steps are labeled so you do not treat unverified prose as battle-tested during a live incident.
 
 ### On Stopping Safely
 
@@ -589,7 +589,7 @@ cast rpc --rpc-url http://<FOLLOWER_EL_RPC> eth_blockNumber
 kubectl -n <NAMESPACE> rollout restart deploy/<FOLLOWER_OP_NODE>
 ```
 
-<Note>The offline EL-rewind rung has not been exercised against a real wedged follower; treat it as unvalidated and double-check the resulting tip before restarting `op-node`.</Note>
+<Note>The offline EL-rewind rung has not been exercised against a real wedged follower; treat it as not validated and double-check the resulting tip before restarting `op-node`.</Note>
 
 **Convergence and escalation.** The follower has converged when its `unsafe_l2.hash` matches the upstream's at the same height **and** its head number resumes advancing within a few block times:
 
