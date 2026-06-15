@@ -9,7 +9,6 @@ package interopsmoke
 import (
 	"context"
 	"crypto/ecdsa"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -22,10 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	gn "github.com/ethereum/go-ethereum/node"
-	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
-	"github.com/urfave/cli/v2/altsrc"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -49,35 +45,10 @@ import (
 const smokeWaitTimeout = 60 * time.Second
 
 const (
-	l2AURLFlagName           = "l2a-rpc"
-	l2BURLFlagName           = "l2b-rpc"
-	privateKeyFlagName       = "private-key"
-	configFlagName           = "config"
-	filterAdminRPCsFlagName  = "filter.admin-rpc"
-	filterJWTSecretsFlagName = "filter.jwt-secret"
-	testFailsafeFlagName     = "test-failsafe"
-
-	failsafePropagationWait = 6 * time.Second
-	failsafeRelayAttempts   = 3
-	failsafeSubmitGasLimit  = uint64(300_000)
+	l2AURLFlagName     = "l2a-rpc"
+	l2BURLFlagName     = "l2b-rpc"
+	privateKeyFlagName = "private-key"
 )
-
-// rpcErrOutOfScope is the JSON-RPC error code for ErrOutOfScope from op-alloy (-321100).
-// Returned by op-reth when the relay tx references a block not yet in scope on the target chain.
-const rpcErrOutOfScope = -321100
-
-// rpcErrCode extracts the JSON-RPC error code from err, if present.
-// Uses an explicit unwrap loop with direct type assertion because errors.As
-// does not reliably match non-error interface targets across all Go versions.
-func rpcErrCode(err error) (int, bool) {
-	for err != nil {
-		if e, ok := err.(interface{ ErrorCode() int }); ok {
-			return e.ErrorCode(), true
-		}
-		err = errors.Unwrap(err)
-	}
-	return 0, false
-}
 
 var sendETHFn = w3.MustNewFunc("sendETH(address,uint256)", "bytes32")
 
@@ -428,49 +399,6 @@ func Command(envPrefix string) *cli.Command {
 // top level of a standalone CLI.
 func Subcommands(envPrefix string) []*cli.Command {
 	flags := smokeFlags(envPrefix)
-	bridgeFlags := cliapp.ProtectFlags([]cli.Flag{
-		&cli.StringFlag{
-			Name:  configFlagName,
-			Usage: "Path to TOML config file. CLI flags and env vars override it.",
-		},
-		altsrc.NewStringFlag(&cli.StringFlag{
-			Name:    l2AURLFlagName,
-			Usage:   "RPC URL for chain A.",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2A_RPC"),
-			Value:   "http://localhost:8545",
-		}),
-		altsrc.NewStringFlag(&cli.StringFlag{
-			Name:    l2BURLFlagName,
-			Usage:   "RPC URL for chain B.",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2B_RPC"),
-			Value:   "http://localhost:8546",
-		}),
-		altsrc.NewStringFlag(&cli.StringFlag{
-			Name:    privateKeyFlagName,
-			Usage:   "Private key (hex, no 0x). If empty, uses the default dev key.",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_KEY"),
-		}),
-		altsrc.NewIntFlag(&cli.IntFlag{
-			Name:    "loops",
-			Usage:   "number of round-trip loops (0 = one one-way A→B trip; N = N*2 trips alternating A→B and B→A)",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_BRIDGE_LOOPS"),
-			Value:   10,
-		}),
-		altsrc.NewStringSliceFlag(&cli.StringSliceFlag{
-			Name:    filterAdminRPCsFlagName,
-			Usage:   "op-interop-filter admin RPC URLs (repeat for multiple filters). Required with --test-failsafe.",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_FILTER_ADMIN_RPC"),
-		}),
-		altsrc.NewStringSliceFlag(&cli.StringSliceFlag{
-			Name:    filterJWTSecretsFlagName,
-			Usage:   "32-byte hex JWT secrets (one per --filter.admin-rpc entry, in matching order). 0x prefix optional.",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_FILTER_JWT_SECRET"),
-		}),
-		altsrc.NewBoolFlag(&cli.BoolFlag{
-			Name:  testFailsafeFlagName,
-			Usage: "Run failsafe lifecycle test: bridge succeeds, enable failsafe, verify relay blocked, disable failsafe, bridge succeeds.",
-		}),
-	})
 
 	return []*cli.Command{
 		{
@@ -498,72 +426,11 @@ func Subcommands(envPrefix string) []*cli.Command {
 			},
 		},
 		{
-			Name:   "bridge",
-			Usage:  "bridge ETH from chain A to chain B via SuperchainETHBridge",
-			Flags:  bridgeFlags,
-			Before: altsrc.InitInputSourceWithContext(bridgeFlags, altsrc.NewTomlSourceFromFlagFunc(configFlagName)),
+			Name:  "bridge",
+			Usage: "bridge ETH from chain A to chain B via SuperchainETHBridge",
+			Flags: flags,
 			Action: func(cliCtx *cli.Context) error {
-				srcURL := cliCtx.String(l2AURLFlagName)
-				dstURL := cliCtx.String(l2BURLFlagName)
-				privateKey := cliCtx.String(privateKeyFlagName)
-				stderr := cliCtx.App.ErrWriter
-				ctx := cliCtx.Context
-
-				if cliCtx.Bool(testFailsafeFlagName) {
-					adminRPCs := cliCtx.StringSlice(filterAdminRPCsFlagName)
-					jwtSecrets := cliCtx.StringSlice(filterJWTSecretsFlagName)
-					if len(adminRPCs) == 0 {
-						return fmt.Errorf("--test-failsafe requires at least one --filter.admin-rpc")
-					}
-					envAB, cleanupAB, err := newSmokeEnv(ctx, stderr, srcURL, dstURL, privateKey)
-					if err != nil {
-						return err
-					}
-					defer cleanupAB()
-					envBA, cleanupBA, err := newSmokeEnv(ctx, stderr, dstURL, srcURL, privateKey)
-					if err != nil {
-						return err
-					}
-					defer cleanupBA()
-					logger := newLogger(ctx, stderr)
-					filterClients, filterCleanup, err := dialFilterAdmins(ctx, logger, adminRPCs, jwtSecrets)
-					if err != nil {
-						return err
-					}
-					defer filterCleanup()
-					return smokeFailsafe(envAB, envBA, filterClients)
-				}
-
-				loops := cliCtx.Int("loops")
-				trips := loops * 2
-				if loops == 0 {
-					trips = 1
-				}
-				rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-				for trip := 1; trip <= trips; trip++ {
-					l2AURL, l2BURL := srcURL, dstURL
-					if trip%2 == 0 {
-						l2AURL, l2BURL = dstURL, srcURL
-					}
-					amount := eth.GWei(uint64(rng.Int63n(9_999_999)) + 1)
-
-					env, cleanup, err := newSmokeEnv(ctx, stderr, l2AURL, l2BURL, privateKey)
-					if err != nil {
-						return err
-					}
-					fmt.Fprintf(stderr, "\nBridge trip %d/%d: chain %s → chain %s  amount: %s ETH\n",
-						trip, trips, env.chainA.chainID, env.chainB.chainID, amount.EtherString())
-
-					err = smokeBridge(env, amount)
-					cleanup()
-					if err != nil {
-						fmt.Fprintf(stderr, "FAIL: bridge trip %d/%d: %v\n", trip, trips, err)
-						return err
-					}
-					fmt.Fprintf(stderr, "PASS: bridge trip %d/%d\n", trip, trips)
-				}
-				return nil
+				return withSmokeEnv(cliCtx, "Cross-Chain ETH Bridge", smokeBridge)
 			},
 		},
 		{
@@ -592,7 +459,7 @@ func smokeAll(env *smokeEnv) error {
 	}{
 		{"Chain Identity", smokeIdentity},
 		{"ETH Transfers", smokeTransfer},
-		{"Cross-Chain ETH Bridge", func(env *smokeEnv) error { return smokeBridge(env, eth.OneHundredthEther) }},
+		{"Cross-Chain ETH Bridge", smokeBridge},
 		{"Valid Exec Message", smokeValidMessage},
 		{"Invalid Exec Message (reorg)", smokeInvalidMessage},
 	}
@@ -643,19 +510,9 @@ func smokeTransfer(env *smokeEnv) error {
 	return nil
 }
 
-func smokeBridge(env *smokeEnv, amount eth.ETH) error {
+func smokeBridge(env *smokeEnv) error {
 	recipient := randomAddress()
-
-	senderBefore, err := env.chainA.ethClient.BalanceAt(env.ctx, env.userA.address, nil)
-	if err != nil {
-		return fmt.Errorf("fetch sender balance before bridge: %w", err)
-	}
-	recipientBefore, err := env.chainB.ethClient.BalanceAt(env.ctx, recipient, nil)
-	if err != nil {
-		return fmt.Errorf("fetch recipient balance before bridge: %w", err)
-	}
-	fmt.Fprintf(env.stderr, "    Sender    chain %s balance before: %s ETH\n", env.chainA.chainID, eth.WeiBig(senderBefore).EtherString())
-	fmt.Fprintf(env.stderr, "    Recipient chain %s balance before: %s ETH\n", env.chainB.chainID, eth.WeiBig(recipientBefore).EtherString())
+	amount := eth.OneHundredthEther
 
 	sendTx := txintent.NewIntent[*sendETHTrigger, *txintent.InteropOutput](
 		env.userA.plan(),
@@ -684,13 +541,7 @@ func smokeBridge(env *smokeEnv, amount eth.ETH) error {
 	if err := waitForBalance(env.ctx, env.chainB, recipient, amount); err != nil {
 		return err
 	}
-
-	senderAfter, err := env.chainA.ethClient.BalanceAt(env.ctx, env.userA.address, nil)
-	if err != nil {
-		return fmt.Errorf("fetch sender balance after bridge: %w", err)
-	}
-	fmt.Fprintf(env.stderr, "    Sender    chain %s balance after:  %s ETH\n", env.chainA.chainID, eth.WeiBig(senderAfter).EtherString())
-	fmt.Fprintf(env.stderr, "    Recipient chain %s balance after:  %s ETH (received %s ETH)\n", env.chainB.chainID, amount.EtherString(), amount.EtherString())
+	fmt.Fprintf(env.stderr, "    Recipient received %s ETH on Chain B\n", amount)
 	return nil
 }
 
@@ -795,23 +646,14 @@ func waitForRelaySuccess(env *smokeEnv, sendTx *txintent.IntentTx[*sendETHTrigge
 		}
 		if time.Now().After(deadline) {
 			if err != nil {
-				return nil, fmt.Errorf("timed out waiting for relay: init tx not yet cross-unsafe on chain B after %s: %w", smokeWaitTimeout, err)
+				return nil, fmt.Errorf("relayETH failed before timeout: %w", err)
 			}
-			return nil, fmt.Errorf("timed out waiting for relay: relay tx kept reverting on chain B after %s", smokeWaitTimeout)
+			return nil, fmt.Errorf("relayETH tx kept reverting until timeout")
 		}
 		if err != nil {
-			if errors.Is(err, ethereum.NotFound) {
-				// Tx submitted but never included: still pending in chain B's pool,
-				// waiting for the init tx on chain A to become cross-unsafe on chain B.
-				fmt.Fprintf(env.stderr, "    Relay attempt %d: tx pending in chain B pool (init tx not yet cross-unsafe on chain B)\n", attempt+1)
-			} else if code, ok := rpcErrCode(err); ok && code == rpcErrOutOfScope {
-				// op-reth hard-rejected the relay: init tx block not yet in scope on chain B.
-				fmt.Fprintf(env.stderr, "    Relay attempt %d: out of scope (RPC %d): init tx block not yet in scope on chain B\n", attempt+1, code)
-			} else {
-				fmt.Fprintf(env.stderr, "    Relay attempt %d: chain B rejected relay tx: %v\n", attempt+1, err)
-			}
+			fmt.Fprintf(env.stderr, "    Waiting for relayability: attempt %d failed: %v\n", attempt+1, err)
 		} else {
-			fmt.Fprintf(env.stderr, "    Relay attempt %d: relay tx reverted (tx %s)\n", attempt+1, relayReceipt.TxHash)
+			fmt.Fprintf(env.stderr, "    Waiting for relayability: attempt %d reverted in tx %s\n", attempt+1, relayReceipt.TxHash)
 		}
 		time.Sleep(time.Second)
 	}
@@ -931,178 +773,6 @@ func assertTxNotInBlock(ctx context.Context, chain *remoteChain, blockNum uint64
 			return fmt.Errorf("tx %s still present in block %d on %s", txHash, blockNum, chain.name)
 		}
 	}
-	return nil
-}
-
-// dialFilterAdmins creates JWT-authenticated RPC clients for each filter admin endpoint.
-func dialFilterAdmins(ctx context.Context, logger log.Logger, adminRPCs, jwtSecrets []string) ([]opclient.RPC, func(), error) {
-	if len(adminRPCs) != len(jwtSecrets) {
-		return nil, nil, fmt.Errorf("--filter.admin-rpc and --filter.jwt-secret must have equal counts (got %d and %d)", len(adminRPCs), len(jwtSecrets))
-	}
-	clients := make([]opclient.RPC, 0, len(adminRPCs))
-	for i, url := range adminRPCs {
-		raw, err := hex.DecodeString(strings.TrimPrefix(jwtSecrets[i], "0x"))
-		if err != nil || len(raw) != 32 {
-			for _, c := range clients {
-				c.Close()
-			}
-			return nil, nil, fmt.Errorf("filter jwt secret %d: must be a 32-byte hex string", i)
-		}
-		cl, err := opclient.NewRPC(ctx, logger, url,
-			opclient.WithGethRPCOptions(gethrpc.WithHTTPAuth(gn.NewJWTAuth([32]byte(raw)))))
-		if err != nil {
-			for _, c := range clients {
-				c.Close()
-			}
-			return nil, nil, fmt.Errorf("dial filter admin %d (%s): %w", i, url, err)
-		}
-		clients = append(clients, cl)
-	}
-	return clients, func() {
-		for _, c := range clients {
-			c.Close()
-		}
-	}, nil
-}
-
-// setFailsafeAll toggles failsafe on all filters and verifies each updated.
-func setFailsafeAll(ctx context.Context, filters []opclient.RPC, enabled bool) error {
-	for i, f := range filters {
-		if err := f.CallContext(ctx, nil, "admin_setFailsafeEnabled", enabled); err != nil {
-			return fmt.Errorf("filter %d: admin_setFailsafeEnabled(%v): %w", i, enabled, err)
-		}
-		var got bool
-		if err := f.CallContext(ctx, &got, "admin_getFailsafeEnabled"); err != nil {
-			return fmt.Errorf("filter %d: admin_getFailsafeEnabled: %w", i, err)
-		}
-		if got != enabled {
-			return fmt.Errorf("filter %d: failsafe state mismatch: want %v got %v", i, enabled, got)
-		}
-	}
-	return nil
-}
-
-// isFailsafeRejection reports whether err is a known interop-tx rejection from a failsafe.
-func isFailsafeRejection(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "transaction filtered out") ||
-		strings.Contains(msg, "interop failsafe is active") ||
-		strings.Contains(msg, "failsafe is enabled") ||
-		strings.Contains(msg, "failed to parse access entry")
-}
-
-// expectBridgeBlocked sends ETH from chain A and asserts the relay on chain B is rejected by the failsafe.
-func expectBridgeBlocked(env *smokeEnv, amount eth.ETH) error {
-	recipient := randomAddress()
-
-	sendTx := txintent.NewIntent[*sendETHTrigger, *txintent.InteropOutput](
-		env.userA.plan(),
-		txplan.WithValue(amount),
-	)
-	sendTx.Content.Set(&sendETHTrigger{
-		Recipient:   recipient,
-		Destination: env.chainB.chainID,
-	})
-	sendReceipt, err := sendTx.PlannedTx.Included.Eval(env.ctx)
-	if err != nil {
-		return fmt.Errorf("sendETH: %w", err)
-	}
-	if sendReceipt.Status != types.ReceiptStatusSuccessful {
-		return fmt.Errorf("sendETH tx reverted")
-	}
-	fmt.Fprintf(env.stderr, "    sendETH tx included: %s\n", sendReceipt.TxHash)
-
-	// Wait for propagation so rejection is attributable to failsafe, not timing.
-	select {
-	case <-time.After(failsafePropagationWait):
-	case <-env.ctx.Done():
-		return env.ctx.Err()
-	}
-
-	singlePlan := txplan.Combine(
-		txplan.WithChainID(env.userB.chain.ethClient),
-		txplan.WithPrivateKey(env.userB.privKey),
-		txplan.WithPendingNonce(env.userB.chain.ethClient),
-		txplan.WithAgainstLatestBlock(env.userB.chain.ethClient),
-		txplan.WithGasLimit(failsafeSubmitGasLimit),
-		txplan.WithTransactionSubmitter(env.userB.chain.ethClient),
-	)
-	for attempt := 1; attempt <= failsafeRelayAttempts; attempt++ {
-		relayTx := txintent.NewIntent[*txintent.RelayTrigger, *txintent.InteropOutput](singlePlan)
-		relayTx.Content.DependOn(&sendTx.Result)
-		relayTx.Content.Fn(txintent.RelayIndexed(
-			predeploys.L2toL2CrossDomainMessengerAddr,
-			&sendTx.Result,
-			&sendTx.PlannedTx.Included,
-			1,
-		))
-		_, err = relayTx.PlannedTx.Submitted.Eval(env.ctx)
-		if err == nil {
-			return fmt.Errorf("relay attempt %d/%d accepted while failsafe enabled (chain %s → chain %s), expected rejection",
-				attempt, failsafeRelayAttempts, env.chainA.chainID, env.chainB.chainID)
-		}
-		if !isFailsafeRejection(err) {
-			return fmt.Errorf("relay attempt %d/%d (chain %s → chain %s) failed with unrecognized error:\n  %w",
-				attempt, failsafeRelayAttempts, env.chainA.chainID, env.chainB.chainID, err)
-		}
-		fmt.Fprintf(env.stderr, "    relay attempt %d/%d (chain %s → chain %s) correctly rejected:\n      %v\n",
-			attempt, failsafeRelayAttempts, env.chainA.chainID, env.chainB.chainID, err)
-		if attempt < failsafeRelayAttempts {
-			time.Sleep(time.Second)
-		}
-	}
-	return nil
-}
-
-// smokeFailsafe runs the failsafe lifecycle in both directions:
-// bridge A↔B succeeds, failsafe blocks both relays, bridge A↔B succeeds again.
-func smokeFailsafe(envAB, envBA *smokeEnv, filters []opclient.RPC) error {
-	stderr := envAB.stderr
-	ctx := envAB.ctx
-	amount := eth.OneHundredthEther
-
-	// Ensure we start from a known-disabled state.
-	if err := setFailsafeAll(ctx, filters, false); err != nil {
-		return err
-	}
-
-	fmt.Fprintf(stderr, "\nStep 1: bridge A→B and B→A before failsafe (expect success)\n")
-	if err := smokeBridge(envAB, amount); err != nil {
-		return fmt.Errorf("step 1 A→B: %w", err)
-	}
-	if err := smokeBridge(envBA, amount); err != nil {
-		return fmt.Errorf("step 1 B→A: %w", err)
-	}
-
-	fmt.Fprintf(stderr, "\nStep 2: enabling failsafe on %d filter(s)\n", len(filters))
-	if err := setFailsafeAll(ctx, filters, true); err != nil {
-		return err
-	}
-
-	fmt.Fprintf(stderr, "\nStep 3: relay A→B and B→A with failsafe enabled (expect rejection)\n")
-	if err := expectBridgeBlocked(envAB, amount); err != nil {
-		_ = setFailsafeAll(ctx, filters, false)
-		return fmt.Errorf("step 3 A→B: %w", err)
-	}
-	if err := expectBridgeBlocked(envBA, amount); err != nil {
-		_ = setFailsafeAll(ctx, filters, false)
-		return fmt.Errorf("step 3 B→A: %w", err)
-	}
-
-	fmt.Fprintf(stderr, "\nStep 4: disabling failsafe on %d filter(s)\n", len(filters))
-	if err := setFailsafeAll(ctx, filters, false); err != nil {
-		return err
-	}
-
-	fmt.Fprintf(stderr, "\nStep 5: bridge A→B and B→A after failsafe disabled (expect success)\n")
-	if err := smokeBridge(envAB, amount); err != nil {
-		return fmt.Errorf("step 5 A→B: %w", err)
-	}
-	if err := smokeBridge(envBA, amount); err != nil {
-		return fmt.Errorf("step 5 B→A: %w", err)
-	}
-
-	fmt.Fprintf(stderr, "\nPASS: failsafe lifecycle test\n")
 	return nil
 }
 
