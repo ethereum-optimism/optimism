@@ -33,7 +33,7 @@ Match the tool versions pinned in `mise.toml` in the optimism monorepo on the br
 | `jq` | see `mise.toml` |
 | `kubectl` | matches your cluster |
 
-You also need the helper your environment uses to mint a JWT for the `op-interop-filter` admin port (the filter's admin RPC is JWT-authenticated).
+The `op-interop-filter` admin RPC is JWT-authenticated; `cast` mints the token for you from the secret file (see **Authenticate to Admin Endpoints**), so no separate JWT helper is needed.
 
 ### Confirm Access
 
@@ -44,28 +44,17 @@ Confirm you can reach all of the following **before** an incident escalates:
 * The upstream `op-supernode` RPC for the network. This is the source of truth for the canonical head.
 * `kubectl` or equivalent exec access to restart `op-reth`, `op-rbuilder`, and `op-node`, and to pause, inspect, and restart the batcher, proposer, and `proxyd`.
 
-### Sign a JWT for Admin Endpoints
+### Authenticate to Admin Endpoints
 
-Some admin endpoints in this runbook are JWT-authenticated — the `op-interop-filter` admin port most prominently, but the same pattern applies to any JWT-protected OP Stack RPC. Each protected service has its own 32-byte hex secret in a file passed to that service (for the filter, the `--admin.jwt-secret` path); read each from the right file rather than assuming one shared secret.
+Some admin endpoints in this runbook are JWT-authenticated — the `op-interop-filter` admin port most prominently, but the same pattern applies to any JWT-protected OP Stack RPC. Each protected service has its own 32-byte hex secret in a file passed to that service (for the filter, the `--admin.jwt-secret` path); use the right file for each service rather than assuming one shared secret.
 
-The token is a standard HS256 JWT whose only required claim is `iat` (issued-at), which must be within 60 seconds of the server's clock, so sign a fresh one just before each call. Sign it from the hex secret:
+`cast rpc` mints the token for you. Point `--jwt-secret` at that secret file and `cast` signs a fresh HS256 JWT — with the required `iat` (issued-at) claim, valid for the server's 60-second window — on every call:
 
 ```bash
-JWT_SECRET_HEX=$(cat <PATH_TO_JWT_SECRET>)   # e.g. the filter's --admin.jwt-secret file
-JWT=$(python3 - "$JWT_SECRET_HEX" <<'EOF'
-import sys, hmac, hashlib, base64, json, time
-h = sys.argv[1].strip()
-secret = bytes.fromhex(h[2:] if h.startswith("0x") else h)
-b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=")
-header = b64(b'{"alg":"HS256","typ":"JWT"}')
-payload = b64(json.dumps({"iat": int(time.time())}, separators=(",", ":")).encode())
-sig = b64(hmac.new(secret, header + b"." + payload, hashlib.sha256).digest())
-print((header + b"." + payload + b"." + sig).decode())
-EOF
-)
+cast rpc <method> [params...] --jwt-secret <PATH_TO_JWT_SECRET> -r http://<HOST>:<ADMIN_PORT>
 ```
 
-Pass `$JWT` as a bearer token (`-H "Authorization: Bearer $JWT"`), as the filter commands below do. If a call fails with an authentication error after a delay, re-sign `$JWT` — the freshness window is short.
+No manual token minting is needed. If a call ever fails with an authentication error, just re-run it — `cast` signs a new token each time, so a stale-token failure cannot persist. Throughout this runbook `<PATH_TO_JWT_SECRET>` is the filter's `--admin.jwt-secret` file.
 
 ### Enumerate the Interop Dependency Set
 
@@ -191,10 +180,7 @@ The reason routes triage. `reorg` or `cross_validation` is the invalid-message-r
 If the failsafe has not already auto-tripped — or the sequencer is still producing blocks on an orphaned fork — engage it on the JWT admin port:
 
 ```bash
-curl -s http://<FILTER_HOST>:8546 \
-  -H "Authorization: Bearer $JWT" \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"admin_setFailsafeEnabled","params":[true]}'
+cast rpc admin_setFailsafeEnabled true --jwt-secret <PATH_TO_JWT_SECRET> -r http://<FILTER_HOST>:8546
 ```
 
 Confirm it took effect from the public port:
@@ -204,7 +190,7 @@ cast rpc --rpc-url http://<FILTER_HOST>:8545 admin_getFailsafeEnabled
 # Expect: true
 ```
 
-`$JWT` is the bearer token from [Sign a JWT for Admin Endpoints](#sign-a-jwt-for-admin-endpoints), signed with the filter's `--admin.jwt-secret`. Engaging the failsafe is always safe — it only blocks interop admission — so when in doubt, engage it first.
+`--jwt-secret` points at the filter's `--admin.jwt-secret` file (see [Authenticate to Admin Endpoints](#authenticate-to-admin-endpoints)). Engaging the failsafe is always safe — it only blocks interop admission — so when in doubt, engage it first.
 
 Clearing the failsafe is the **last** step of recovery, owned by the terminal **Clear the Network-Wide Failsafe and Re-Enable Interop** section, because clearing it also requires restarting `op-reth` to undo a transaction-pool eviction. Do not clear it mid-recovery.
 
@@ -796,6 +782,13 @@ cast rpc --rpc-url http://<SUPERNODE_RPC> supernode_syncStatus | jq '.chains["<C
 # Expect: safe_l2.number > <recorded reorg height>, and safe_l2.hash matches the supernode's safe_l2.hash
 ```
 
+On a quiet chain the safe head only bumps when the batcher closes a channel, which can be slow. To force the batcher to publish what it has buffered now — so the safe head advances past the reorg height without waiting out `MAX_CHANNEL_DURATION` — flush it on its admin RPC:
+
+```bash
+cast rpc --rpc-url http://<BATCHER_ADMIN_RPC> admin_flushBatcher
+# Then re-check safe_l2 above; it should advance within a few L1 blocks.
+```
+
 <Note>`finalized_l2` lags `safe_l2` by L1 finality — roughly two epochs (about 13 minutes), and longer under adverse L1 conditions. A `finalized_l2` that has not yet caught up is **expected**; do not read it as failure. Confirm `finalized_l2` is advancing on the recovered chain, then wait for it to pass the reorg height before the terminal failsafe clear.</Note>
 
 **Gate 4 — The triggering condition is gone.** The filter failsafe reason is no longer auto-tripping (it is not re-asserting `reorg` or `cross_validation`), and the invalid message and its source are not about to re-trigger the reorg. Re-read the reason as in **Query the Failsafe State**; it must be stable, not re-firing.
@@ -813,11 +806,8 @@ This is the **only** place the failsafe is cleared, and it is run **once**, afte
 Clear the failsafe on **every** `op-interop-filter` instance. In an HA set, `op-reth` keeps admission closed until **all** filters report clear (the any-trips-all / clear-requires-unanimity behavior from **HA Setups With Multiple Interop Filters**), so a single missed or unreachable filter holds interop closed for the whole network. Loop over every filter:
 
 ```bash
-# Disable on each filter's JWT admin port (re-sign $JWT per Sign a JWT for Admin Endpoints):
-curl -s http://<FILTER_HOST>:8546 \
-  -H "Authorization: Bearer $JWT" \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"admin_setFailsafeEnabled","params":[false]}'
+# Disable on each filter's JWT admin port (cast mints the JWT per Authenticate to Admin Endpoints):
+cast rpc admin_setFailsafeEnabled false --jwt-secret <PATH_TO_JWT_SECRET> -r http://<FILTER_HOST>:8546
 
 # Confirm each filter is reachable and clear:
 cast rpc --rpc-url http://<FILTER_HOST>:8545 admin_getFailsafeEnabled
