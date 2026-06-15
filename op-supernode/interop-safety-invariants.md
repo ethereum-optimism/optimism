@@ -287,9 +287,20 @@ engine rewind state machine. Outcomes:
   but read by the parent after `<-runCtx.Done()` with no happens-before. Fixed
   by delivering the inner result over a channel and receiving it after
   `n.Stop()`, which synchronizes both reads.
-- **Production bounds-corruption in `VerifiedDB.Rewind` (pre-existing).** See the
-  code-review section above — fixed and regression-tested
-  (`TestVerifiedDB_RewindMultiPage`).
+- **`VerifiedDB.Rewind` bounds-corruption on a *bulk* delete (pre-existing,
+  LATENT — not reachable today).** Re-deriving bounds with `Cursor.Last()`
+  inside the delete transaction returns nil after a bulk tail delete leaves
+  empty trailing pages → zeroed bounds. **Reachability correction:** the
+  production rewind path only ever deletes a *single* timestamp per call
+  (`RewindAtOrAfter = lastTS`, so `Rewind(lastTS)` removes just the frontier
+  entry), and a single-entry tail delete never trips the bug — verified
+  empirically by 1,499 single-deletes walking every page boundary (0 triggers).
+  So this was NOT a live corruption; only a bulk delete (hundreds of entries,
+  as in `TestVerifiedDB_RewindMultiPage`) triggers it. The fix (separate
+  read-txn for bounds + collect-then-delete) is retained as defense /
+  future-proofing — it would bite the day any multi-timestamp rewind is added,
+  and the collect-then-delete half independently fixes a delete-during-iteration
+  hazard.
 
 Still open: `pause` is a non-nestable bool, so a `RewindEngine` deferred
 `Resume` can lift a concurrent multi-chain freeze (last-writer-wins). Fixing it
@@ -350,17 +361,21 @@ Both `op-supernode` (all sub-packages) and `op-interop-mon` now pass
 A `/code-review` pass over the diff, then a deeper pass over the *existing* code
 the new code depends on, found and fixed:
 
-- **`VerifiedDB.Rewind` zeroed its bounds on multi-page databases (pre-existing,
-  high severity).** Rewind re-derived `firstTimestamp`/`lastTimestamp` with
-  `Cursor.Last()` *inside* the delete transaction. After a tail delete large
-  enough to leave empty trailing b-tree pages (which only rebalance at commit),
-  `Cursor.Last()` returns nil, so the bounds were set to "empty / not
-  initialized" while entries remained on disk — silently corrupting
-  `FirstTimestamp()` and disabling the new Commit head-regression guard on the
-  next re-verification. Existing tests used ≤6 entries (single page) and never
-  hit it. Fixed: collect-then-delete (avoids the bbolt delete-during-iteration
-  skip), then re-derive bounds in a *separate read transaction* after commit.
-  Regression test: `TestVerifiedDB_RewindMultiPage` (800 entries).
+- **`VerifiedDB.Rewind` could zero its bounds on a bulk multi-page delete
+  (pre-existing, but LATENT — see reachability note).** Rewind re-derived
+  `firstTimestamp`/`lastTimestamp` with `Cursor.Last()` *inside* the delete
+  transaction. After a tail delete large enough to leave empty trailing b-tree
+  pages (which only rebalance at commit), `Cursor.Last()` returns nil, so the
+  bounds would be set to "empty / not initialized" while entries remained on
+  disk — silently corrupting `FirstTimestamp()` and disabling the Commit
+  head-regression guard. **Reachability:** the production rewind path deletes
+  only a *single* timestamp per call (`Rewind(lastTS)`), and a single-entry tail
+  delete never trips this (verified by 1,499 single-deletes across every page
+  boundary, 0 triggers). Only a *bulk* delete reproduces it
+  (`TestVerifiedDB_RewindMultiPage` deletes 400/800). So it was not a live
+  corruption; the fix (collect-then-delete + a *separate read transaction* for
+  bounds) is retained as defense for any future multi-timestamp rewind and to
+  remove the delete-during-iteration hazard.
 - **`op-interop-mon` `Stop()` nil-deref panic (pre-existing, newly exposed).**
   `ms.collector.Stop()` had no nil guard, but the collector is only built when
   metrics are enabled (off by default). Running the new divergence collector
