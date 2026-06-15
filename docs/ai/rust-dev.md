@@ -154,6 +154,10 @@ Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.
 
 Op-reth requires `clang` / `libclang-dev` for reth-mdbx-sys bindgen. CI installs this automatically — if you see bindgen errors locally, install clang.
 
+## Hardforks
+
+The OP fork → implied L1 (Ethereum) fork mapping is defined once, in `OpHardfork::activates_l1_fork` in `rust/alloy-op-hardforks/src/lib.rs`. When a new OP hardfork rides an L1 fork (e.g. Isthmus → Prague, Karst → Osaka), add the single match arm there; the cumulative (`implied_l1_fork`) and inverse (`activating_op_fork`) views and all downstream consumers (op-revm, op-reth chainspec, kona) derive from it.
+
 ## Updating the reth dependency
 
 The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before bumping the reth pin in `rust/Cargo.toml` — or run the `/update-reth` skill (`.claude/skills/update-reth/`), which wraps the guide in an end-to-end agent workflow.
