@@ -4,11 +4,15 @@ use crate::{
     error::OpPayloadBuilderError, payload::OpBuiltPayload,
 };
 use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
+use alloy_eips::eip2718::Encodable2718;
 use alloy_evm::Evm as AlloyEvm;
 use alloy_primitives::{Address, B256, Sealed, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
-use op_alloy_consensus::{SDMGasEntry, TxPostExec, build_post_exec_tx};
+use op_alloy_consensus::{
+    ParsedPostExecPayload, SDMGasEntry, TxPostExec, build_post_exec_tx,
+    parse_post_exec_payload_from_transactions,
+};
 use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
@@ -284,7 +288,12 @@ where
         let attributes = Attrs::try_new(parent.hash(), attributes, 3)?;
         let payload_id = attributes.payload_id();
 
-        let config = PayloadConfig { parent_header: Arc::new(parent), attributes, payload_id };
+        let config = PayloadConfig {
+            parent_header: Arc::new(parent),
+            parent_block_info: None,
+            attributes,
+            payload_id,
+        };
         let ctx = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
             builder_config: self.config.clone(),
@@ -386,6 +395,7 @@ fn convert_build_args<N: OpPayloadPrimitives>(
     Ok(BuildArguments {
         config: PayloadConfig {
             parent_header: config.parent_header,
+            parent_block_info: config.parent_block_info,
             attributes: builder_attrs,
             payload_id,
         },
@@ -484,7 +494,9 @@ impl<Txs> OpBuilder<'_, Txs> {
             }
         }
 
-        let sdm_refund_gas = if ctx.sdm_production_enabled() {
+        // Only locally-sequenced blocks append a post-exec tx; a derived block (force_empty)
+        // already carries its own `0x7D`, so appending would duplicate it. See `post_exec_mode`.
+        let sdm_refund_gas = if !ctx.force_empty() && ctx.sdm_production_enabled() {
             let block_number = builder.evm_mut().block().number().saturating_to();
             let entries = builder.executor_mut().take_post_exec_entries();
             let refund_gas = self::sdm_refund_gas(&entries);
@@ -627,6 +639,10 @@ pub struct ExecutionInfo {
     pub cumulative_evm_gas_used: u64,
     /// Estimated DA size
     pub cumulative_da_bytes_used: u64,
+    /// Cumulative uncompressed (EIP-2718 encoded) size of every transaction included in the block
+    /// so far, in bytes. Bounds the block against the configured
+    /// [`max_uncompressed_block_size`](crate::config::OpBuilderConfig::max_uncompressed_block_size).
+    pub cumulative_uncompressed_bytes: u64,
     /// Tracks fees from executed mempool transactions
     pub total_fees: U256,
 }
@@ -638,6 +654,7 @@ impl ExecutionInfo {
             cumulative_gas_used: 0,
             cumulative_evm_gas_used: 0,
             cumulative_da_bytes_used: 0,
+            cumulative_uncompressed_bytes: 0,
             total_fees: U256::ZERO,
         }
     }
@@ -656,6 +673,9 @@ impl ExecutionInfo {
     ///   per tx.
     /// - block DA limit: if configured, ensures the transaction's DA size does not exceed the
     ///   maximum allowed DA limit per block.
+    /// - block uncompressed size limit: if configured, ensures including the transaction would not
+    ///   push the block's total uncompressed (EIP-2718 encoded) size past the maximum.
+    #[allow(clippy::too_many_arguments)]
     pub fn is_tx_over_limits(
         &self,
         tx_da_size: u64,
@@ -664,6 +684,8 @@ impl ExecutionInfo {
         block_data_limit: Option<u64>,
         tx_gas_limit: u64,
         da_footprint_gas_scalar: Option<u16>,
+        tx_uncompressed_size: u64,
+        max_uncompressed_block_size: Option<u64>,
     ) -> bool {
         if tx_data_limit.is_some_and(|da_limit| tx_da_size > da_limit) {
             return true;
@@ -673,6 +695,17 @@ impl ExecutionInfo {
 
         if block_data_limit.is_some_and(|da_limit| total_da_bytes_used > da_limit) {
             return true;
+        }
+
+        // Stop including transactions once the block's uncompressed (EIP-2718 encoded) size would
+        // exceed the configured maximum. This keeps the built payload within the size assumed by
+        // consensus-layer clients.
+        if let Some(max_uncompressed_block_size) = max_uncompressed_block_size {
+            let total_uncompressed_bytes =
+                self.cumulative_uncompressed_bytes.saturating_add(tx_uncompressed_size);
+            if total_uncompressed_bytes > max_uncompressed_block_size {
+                return true;
+            }
         }
 
         // Post Jovian: the tx DA footprint must be less than the block gas limit
@@ -757,6 +790,54 @@ where
         protocol_active && self.builder_config.sdm_post_exec_opt_in.enabled()
     }
 
+    /// Returns true when the tx pool is excluded and the block must be reproduced
+    /// deterministically from forced transactions only (i.e. `no_tx_pool = true`).
+    ///
+    /// Mirrors op-geth's `l2ForceEmpty` / `ForcedEmpty()` concept for cross-client consistency.
+    pub fn force_empty(&self) -> bool {
+        self.attributes().no_tx_pool()
+    }
+
+    /// Parses the `0x7D` post-exec tx embedded by op-node into derived payload attributes.
+    ///
+    /// Returns `Ok(None)` when no such tx is present; errors if the embedded payload is
+    /// structurally invalid (present before SDM activation, duplicated, not last, or anchored
+    /// to the wrong block number).
+    fn parse_embedded_post_exec(
+        &self,
+    ) -> Result<Option<ParsedPostExecPayload>, PayloadBuilderError> {
+        let sdm_active = reth_optimism_evm::is_sdm_active_at_timestamp(
+            &self.chain_spec,
+            self.attributes().timestamp(),
+        );
+        let next_block_number = self.parent().number().saturating_add(1);
+        parse_post_exec_payload_from_transactions(
+            self.attributes().sequencer_transactions().iter().map(|tx| tx.value()),
+            next_block_number,
+            sdm_active,
+        )
+        .map_err(PayloadBuilderError::other)
+    }
+
+    /// Decides this payload's SDM post-exec mode: *produce*, *verify*, or `Disabled`.
+    ///
+    /// The deciding factor is whether we're sequencing the block or rebuilding one
+    /// that CL already derived (`force_empty` / `no_tx_pool`):
+    ///
+    /// - **Local sequencing**: *produce* the post-exec tx when [`Self::sdm_production_enabled`],
+    ///   otherwise `Disabled`.
+    /// - **Rebuilding a derived block**: never produce — instead *verify* against the `0x7D`
+    ///   post-exec tx that CL embedded in the attributes, or `Disabled` if there is none. This
+    ///   holds regardless of the local opt-in, since the chain has already committed to it.
+    pub fn post_exec_mode(&self) -> Result<PostExecMode, PayloadBuilderError> {
+        if !self.force_empty() {
+            return Ok(self.sdm_production_enabled().into());
+        }
+
+        let parsed = self.parse_embedded_post_exec()?;
+        Ok(parsed.map_or(PostExecMode::Disabled, |p| PostExecMode::Verify(p.payload)))
+    }
+
     /// Returns the unique id for this payload job.
     pub fn payload_id(&self) -> PayloadId {
         self.attributes().payload_id()
@@ -778,7 +859,7 @@ where
         > + 'a,
         PayloadBuilderError,
     > {
-        let post_exec_mode: PostExecMode = self.sdm_production_enabled().into();
+        let post_exec_mode = self.post_exec_mode()?;
 
         self.evm_config
             .post_exec_builder_for_next_block(
@@ -844,6 +925,9 @@ where
             // Sequencer txs (deposits/system txs) are never SDM-refunded, so pre-refund gas equals
             // canonical gas; track it so the pool-tx pre-refund check starts from the right total.
             info.accumulate_gas(tx_gas_used, tx_gas_used);
+            // Count the sequencer tx towards the block's uncompressed size so the pool-tx
+            // uncompressed-size check starts from the right total.
+            info.cumulative_uncompressed_bytes += sequencer_tx.encode_2718_len() as u64;
 
             // Record the successfully committed transaction for callers that want per-call
             // visibility.
@@ -895,6 +979,7 @@ where
         }
         let block_da_limit = self.builder_config.da_config.max_da_block_size();
         let tx_da_limit = self.builder_config.da_config.max_da_tx_size();
+        let max_uncompressed_block_size = self.builder_config.max_uncompressed_block_size;
         let base_fee = builder.evm_mut().block().basefee();
 
         while let Some(tx) = best_txs.next(()) {
@@ -907,6 +992,7 @@ where
                 .effective_tip_per_gas(base_fee)
                 .expect("selected pool transaction must have a valid effective miner tip at the block base fee");
             let tx = tx.into_consensus();
+            let tx_uncompressed_size = tx.encode_2718_len() as u64;
 
             let da_footprint_gas_scalar = self
                 .chain_spec
@@ -924,6 +1010,8 @@ where
                 block_da_limit,
                 tx.gas_limit(),
                 da_footprint_gas_scalar,
+                tx_uncompressed_size,
+                max_uncompressed_block_size,
             ) {
                 // we can't fit this transaction into the block, so we need to mark it as
                 // invalid which also removes all dependent transaction from
@@ -983,6 +1071,7 @@ where
             let tx_gas_used = gas_used.tx_gas_used();
             info.accumulate_gas(tx_gas_used, evm_gas_used);
             info.cumulative_da_bytes_used += tx_da_size;
+            info.cumulative_uncompressed_bytes += tx_uncompressed_size;
 
             // update and add to total fees
             info.total_fees += U256::from(miner_fee) * U256::from(tx_gas_used);

@@ -1057,6 +1057,7 @@ where
             cached_reads: args.cached_reads,
             config: PayloadConfig {
                 parent_header: args.config.parent_header,
+                parent_block_info: args.config.parent_block_info,
                 attributes: builder_attrs,
                 payload_id,
             },

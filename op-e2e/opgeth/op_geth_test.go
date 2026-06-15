@@ -39,7 +39,7 @@ var (
 // TestMissingGasLimit tests that op-geth cannot build a block without gas limit while optimism is active in the chain config.
 func TestMissingGasLimit(t *testing.T) {
 	op_e2e.InitParallel(t)
-	cfg := e2esys.DefaultSystemConfig(t)
+	cfg := opGethSystemConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	opGeth, err := NewOpGeth(t, ctx, &cfg)
@@ -63,7 +63,7 @@ func TestMissingGasLimit(t *testing.T) {
 // The L1 Info deposit always takes gas so the effective gas limit is lower than the full block gas limit.
 func TestTxGasSameAsBlockGasLimit(t *testing.T) {
 	op_e2e.InitParallel(t)
-	cfg := e2esys.DefaultSystemConfig(t)
+	cfg := opGethSystemConfig(t)
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 
@@ -83,7 +83,7 @@ func TestTxGasSameAsBlockGasLimit(t *testing.T) {
 // This tests that deposits must always allow the block to be built even if they are invalid.
 func TestInvalidDepositInFCU(t *testing.T) {
 	op_e2e.InitParallel(t)
-	cfg := e2esys.DefaultSystemConfig(t)
+	cfg := opGethSystemConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	opGeth, err := NewOpGeth(t, ctx, &cfg)
@@ -123,7 +123,7 @@ func TestInvalidDepositInFCU(t *testing.T) {
 // for stability and tx-privacy.
 func TestGethOnlyPendingBlockIsLatest(t *testing.T) {
 	op_e2e.InitParallel(t)
-	cfg := e2esys.DefaultSystemConfig(t)
+	cfg := opGethSystemConfig(t)
 	cfg.DeployConfig.FundDevAccounts = true
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()

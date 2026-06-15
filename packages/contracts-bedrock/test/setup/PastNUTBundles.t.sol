@@ -21,8 +21,8 @@ abstract contract PastNUTBundles_TestInit is Test {
     /// @notice Path to the committed Karst NUT bundle, relative to `packages/contracts-bedrock`.
     string internal constant KARST_BUNDLE_PATH = "../../op-core/nuts/bundles/karst_nut_bundle.json";
 
-    /// @notice Path to the committed Interop NUT bundle, relative to `packages/contracts-bedrock`.
-    string internal constant INTEROP_BUNDLE_PATH = "../../op-core/nuts/bundles/interop_nut_bundle.json";
+    /// @notice Path to the committed Lagoon NUT bundle, relative to `packages/contracts-bedrock`.
+    string internal constant LAGOON_BUNDLE_PATH = "../../op-core/nuts/bundles/lagoon_nut_bundle.json";
 
     /// @notice L2ContractsManager address encoded by the committed Karst NUT bundle.
     address internal constant KARST_L2CM = 0x5398A70Eb0929dd7bfc73c59E7137d8C7CDF6669;
@@ -317,15 +317,15 @@ contract PastNUTBundles_applyPastBundles_Test is PastNUTBundles_TestInit {
         ExecuteNUTBundle script = new ExecuteNUTBundle();
 
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory interopTxns = NetworkUpgradeTxns.readArtifact(INTEROP_BUNDLE_PATH);
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory lagoonTxns = NetworkUpgradeTxns.readArtifact(LAGOON_BUNDLE_PATH);
 
         PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](2);
         entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
-        entries[1] = PastNUTBundles.NUTBundle({ fork: "interop", path: INTEROP_BUNDLE_PATH });
+        entries[1] = PastNUTBundles.NUTBundle({ fork: "lagoon", path: LAGOON_BUNDLE_PATH });
 
         vm.mockCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), "");
         vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (karstTxns)), 0);
-        vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (interopTxns)), 1);
+        vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (lagoonTxns)), 1);
 
         PastNUTBundles.applyPastBundles(karstTxns, script, entries);
     }

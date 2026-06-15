@@ -31,14 +31,18 @@ The following are the most popular implementations:
 For nodes running multiple chains as part of an [interop](/op-stack/interop/explainer) dependency set, deploy the consensus layer as **[op-supernode](/op-stack/interop/supernode)**, which hosts an op-node instance for every chain in one process and adds cross-chain message verification.
 See the [supernode configuration guide](/node-operators/guides/configuration/supernode) for the flag reference.
 
-### Execution Layer 
+### Execution Layer
 
-The execution layer provides the evm execution environment. 
-The following are the most popular implementations:
+The execution layer provides the EVM execution environment.
+The following are the supported implementations:
 
-* **[op-geth](https://github.com/ethereum-optimism/op-geth)** 
-* **[op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth)**
-* **[Nethermind](https://github.com/NethermindEth/nethermind)** 
+* **[op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth)** — primary supported execution client.
+* **[Nethermind](https://github.com/NethermindEth/nethermind)** — alternative execution client.
+* **[op-geth](https://github.com/ethereum-optimism/op-geth)** — *deprecated*, end-of-support **2026-05-31**.
+
+<Warning>
+  **op-geth reaches end-of-support on 2026-05-31 and will not support the L1 Glamsterdam hardfork.** New deployments should use op-reth. See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the full migration plan.
+</Warning>
 
 ## Node Types
 
@@ -50,5 +54,7 @@ Different node types serve different purposes:
 
 ## Next steps
 
-*   [**Run a Node from Docker**](/node-operators/tutorials/node-from-docker)
+*   [**Run a node with Docker**](/node-operators/tutorials/node-from-docker) — recommended path; uses the official op-reth + op-node images.
+*   [**Build and run a node from source**](/node-operators/tutorials/run-node-from-source) — covers op-reth and Nethermind.
 *   [**Supernode configuration**](/node-operators/guides/configuration/supernode) — flag reference for running op-supernode in an interop dependency set.
+*   [**Architecture reference**](/node-operators/reference/architecture/architecture) — deeper detail on the two-client architecture.

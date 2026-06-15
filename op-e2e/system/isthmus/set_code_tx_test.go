@@ -3,6 +3,7 @@ package isthmus
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
@@ -58,7 +59,11 @@ func TestSetCodeInTxPool(t *testing.T) {
 				require.Equal(t, receipt.Status, uint64(1), "SetCode tx should be successful")
 			} else {
 				require.Error(t, err, "SetCode tx should fail")
-				require.ErrorContains(t, err, "not yet in Prague")
+				errMsg := err.Error()
+				require.Truef(t,
+					strings.Contains(errMsg, "not yet in Prague") || // op-geth
+						strings.Contains(errMsg, "transaction type not supported"), // op-reth
+					"expected SetCode tx rejection before Isthmus, got %q", errMsg)
 				require.Nil(t, receipt)
 			}
 		})

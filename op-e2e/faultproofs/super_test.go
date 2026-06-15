@@ -766,7 +766,7 @@ func createSuperRoot(t *testing.T, ctx context.Context, sys interop.SuperSystem,
 		require.NoError(t, err)
 
 		client := sys.L2RollupClient(id, "sequencer")
-		output, err := client.OutputAtBlock(ctx, blockNum)
+		output, err := wait.ForOutputAtBlock(ctx, client, blockNum)
 		require.NoError(t, err)
 		chains[eth.ChainIDFromBig(rollupCfg.L2ChainID)] = output.OutputRoot
 	}

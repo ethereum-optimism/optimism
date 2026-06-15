@@ -15,6 +15,7 @@ use alloy_consensus::Transaction;
 use alloy_eips::eip7594::BlobTransactionSidecarVariant;
 use alloy_primitives::{Address, B256, TxHash};
 use metrics::Counter;
+use reth_eth_wire_types::HandleMempoolData;
 use reth_metrics::Metrics;
 use reth_transaction_pool::{
     AllPoolTransactions, AllTransactionsEvents, BestTransactions, BestTransactionsAttributes,
@@ -22,7 +23,7 @@ use reth_transaction_pool::{
     NewTransactionEvent, Pool, PoolConfig, PoolResult, PoolSize, PoolTransaction, PoolUpdateKind,
     PropagatedTransactions, TransactionEvents, TransactionListenerKind, TransactionOrdering,
     TransactionOrigin, TransactionPool, TransactionPoolExt, TransactionValidationOutcome,
-    TransactionValidator, ValidPoolTransaction,
+    TransactionValidator, ValidPoolTransaction, ValidatingPool,
 };
 use tokio::sync::mpsc::Receiver;
 use tracing::debug;
@@ -202,6 +203,10 @@ where
         }
         filtered
     }
+
+    const fn inner(&self) -> &P {
+        &self.inner
+    }
 }
 
 impl<V, T, S> OpPool<Pool<V, T, S>>
@@ -209,7 +214,7 @@ where
     V: TransactionValidator,
     V::Transaction: EthPoolTransaction,
     T: TransactionOrdering<Transaction = V::Transaction>,
-    S: BlobStore,
+    S: BlobStore + Clone,
 {
     /// Get the config the pool was configured with.
     pub fn config(&self) -> &PoolConfig {
@@ -335,6 +340,15 @@ where
     delegate!(fn pending_transactions_listener_for(&self, kind: TransactionListenerKind) -> Receiver<TxHash>);
     delegate!(fn blob_transaction_sidecars_listener(&self) -> Receiver<reth_transaction_pool::NewBlobSidecar>);
     delegate!(fn new_transactions_listener_for(&self, kind: TransactionListenerKind) -> Receiver<NewTransactionEvent<Self::Transaction>>);
+    delegate!(fn blob_store(&self) -> Box<dyn BlobStore>);
+
+    fn retain_contains<A>(&self, announcement: &mut A)
+    where
+        A: HandleMempoolData,
+    {
+        self.inner.retain_contains(announcement)
+    }
+
     delegate!(fn pooled_transaction_hashes(&self) -> Vec<TxHash>);
     delegate!(fn pooled_transaction_hashes_max(&self, max: usize) -> Vec<TxHash>);
     delegate!(fn pooled_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
@@ -423,6 +437,18 @@ where
     delegate!(fn delete_blob(&self, tx: B256));
     delegate!(fn delete_blobs(&self, txs: Vec<B256>));
     delegate!(fn cleanup_blobs(&self));
+}
+
+impl<P> ValidatingPool for OpPool<P>
+where
+    P: ValidatingPool,
+    P::Transaction: Transaction,
+{
+    type Validator = P::Validator;
+
+    fn validator(&self) -> &Self::Validator {
+        self.inner().validator()
+    }
 }
 
 #[cfg(test)]

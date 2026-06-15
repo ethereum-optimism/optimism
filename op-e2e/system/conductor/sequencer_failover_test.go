@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
@@ -257,7 +258,7 @@ func TestSequencerFailover_DisasterRecovery_OverrideLeader(t *testing.T) {
 	var block map[string]any
 	err = proxy.CallContext(ctx, &block, "eth_getBlockByNumber", "latest", false)
 	require.NoError(t, err)
-	err = proxy.CallContext(ctx, nil, "optimism_outputAtBlock", block["number"])
+	err = wait.ForOutputAtBlockRPC(ctx, proxy, block["number"])
 	require.NoError(t, err)
 	err = proxy.CallContext(ctx, nil, "optimism_rollupConfig")
 	require.NoError(t, err)
