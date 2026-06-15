@@ -2,11 +2,7 @@
 //!
 //! This defines the [`ChainHardforks`] for certain op chains.
 //! It keeps L2 hardforks that correspond to L1 hardforks in sync by defining both at the same
-//! activation timestamp, this includes:
-//!  - Canyon : Shanghai
-//!  - Ecotone : Cancun
-//!  - Isthmus : Prague
-//!  - Karst : Osaka
+//! activation timestamp.
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/reth/main/assets/reth-docs.png",
