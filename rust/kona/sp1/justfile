@@ -9,12 +9,14 @@ build-range-elfs:
     #!/usr/bin/env bash
 
     cd programs/range
-    ~/.sp1/bin/cargo-prove prove build --elf-name range-elf-bump --docker --tag v6.2.4 --output-directory ../../elf
-    ~/.sp1/bin/cargo-prove prove build --elf-name range-elf-embedded --docker --tag v6.2.4 --output-directory ../../elf
+    # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
+    ~/.sp1/bin/cargo-prove prove build --elf-name range-elf-bump --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
+    ~/.sp1/bin/cargo-prove prove build --elf-name range-elf-embedded --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
 
 # Build ELF file for aggregation program.
 build-agg-elf:
     #!/usr/bin/env bash
 
     cd programs/aggregation
-    ~/.sp1/bin/cargo-prove prove build --elf-name aggregation-elf --docker --tag v6.2.4 --output-directory ../../elf
+    # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
+    ~/.sp1/bin/cargo-prove prove build --elf-name aggregation-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
