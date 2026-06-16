@@ -10,8 +10,7 @@ build-range-elfs:
 
     cd programs/range
     # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
-    ~/.sp1/bin/cargo-prove prove build --elf-name range-elf-bump --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
-    ~/.sp1/bin/cargo-prove prove build --elf-name range-elf-embedded --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
+    ~/.sp1/bin/cargo-prove prove build --elf-name range-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
 
 # Build ELF file for aggregation program.
 build-agg-elf:

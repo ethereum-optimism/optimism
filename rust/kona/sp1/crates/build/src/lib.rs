@@ -32,6 +32,5 @@ fn build_program(program_name: &str, elf_name: &str, features: Option<Vec<String
 #[allow(unused)]
 pub fn build_all() {
     build_program("aggregation", "aggregation-elf", None);
-    build_program("range", "range-elf-bump", None);
-    build_program("range", "range-elf-embedded", None);
+    build_program("range", "range-elf", None);
 }
