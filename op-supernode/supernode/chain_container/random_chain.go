@@ -327,6 +327,41 @@ func (m *RandomChainManager) MinSafeTimestamp() uint64 {
 	return min
 }
 
+// BreakOneExecMsg corrupts one executing message's PayloadHash so its
+// recomputed checksum no longer matches the initiating chain's sealed log,
+// forcing an InvalidHead. Returns the affected chain and the executing block's
+// timestamp; ok is false when no chain carries a reachable executing message
+// (every chain too shallow for a verifiable window). Run after Generate.
+func (m *RandomChainManager) BreakOneExecMsg() (chainID eth.ChainID, ts uint64, ok bool) {
+	// Verification is gated by the shallowest chain, so only blocks at or below
+	// the min safe head are ever reached. Corrupting a later block would never
+	// be verified.
+	reachable := m.MinSafeTimestamp()
+	type site struct {
+		id  eth.ChainID
+		blk uint64
+	}
+	var sites []site
+	for _, id := range m.order {
+		rc := m.chains[id]
+		for i := range rc.l2 {
+			if len(rc.l2[i].ExecMsgs) > 0 && rc.l2[i].Ref.Time <= reachable {
+				sites = append(sites, site{id, uint64(i)})
+			}
+		}
+	}
+	if len(sites) == 0 {
+		return eth.ChainID{}, 0, false
+	}
+	s := sites[m.rng.Intn(len(sites))]
+	rc := m.chains[s.id]
+	for _, msg := range rc.l2[s.blk].ExecMsgs {
+		msg.PayloadHash[0] ^= 0xff
+		break // one executing message per block in this model
+	}
+	return s.id, rc.l2[s.blk].Ref.Time, true
+}
+
 // ChainContainer wires a simpleChainContainer: RandomChain as the VirtualNode
 // and an EngineController wrapping the same RandomChain as l2Provider.
 func (m *RandomChainManager) ChainContainer(id eth.ChainID) (*simpleChainContainer, error) {
