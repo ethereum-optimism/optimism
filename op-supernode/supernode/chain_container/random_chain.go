@@ -327,15 +327,12 @@ func (m *RandomChainManager) MinSafeTimestamp() uint64 {
 	return min
 }
 
-// BreakOneExecMsg corrupts one executing message's PayloadHash so its
-// recomputed checksum no longer matches the initiating chain's sealed log,
-// forcing an InvalidHead. Returns the affected chain and the executing block's
-// timestamp; ok is false when no chain carries a reachable executing message
-// (every chain too shallow for a verifiable window). Run after Generate.
+// BreakOneExecMsg corrupts one executing message's PayloadHash so its checksum
+// no longer matches the initiating chain's sealed log, forcing an InvalidHead.
+// Returns the affected chain and block timestamp; ok is false when no chain has
+// a reachable executing message. Run after Generate.
 func (m *RandomChainManager) BreakOneExecMsg() (chainID eth.ChainID, ts uint64, ok bool) {
-	// Verification is gated by the shallowest chain, so only blocks at or below
-	// the min safe head are ever reached. Corrupting a later block would never
-	// be verified.
+	// Verification is gated by the shallowest chain; later blocks never verify.
 	reachable := m.MinSafeTimestamp()
 	type site struct {
 		id  eth.ChainID

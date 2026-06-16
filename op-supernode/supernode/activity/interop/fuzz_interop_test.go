@@ -35,10 +35,9 @@ func buildInterop(t *testing.T, data []byte) (*Interop, *cc.RandomChainManager) 
 	return i, mgr
 }
 
-// FuzzInteropRound loops verification rounds over a valid chain set until the
-// safe head. Each advancing round seals that timestamp's blocks into the
-// logsDBs, so the cross-chain executing messages of later rounds resolve
-// against sealed init logs. Valid-by-construction data must verify cleanly.
+// FuzzInteropRound loops verification rounds over a valid chain set to the safe
+// head. Each round seals its blocks, so later rounds' executing messages
+// resolve against sealed init logs. Valid data must verify cleanly.
 func FuzzInteropRound(f *testing.F) {
 	f.Add([]byte("seed-interop"))
 	f.Add([]byte{})
