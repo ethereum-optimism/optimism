@@ -144,6 +144,7 @@ const DEFAULT_DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
 const DEFAULT_GAS_LIMIT: u64 = 100_000;
 const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
 
+#[allow(clippy::too_many_arguments)]
 fn build_executor<'a>(
     db: &'a mut State<InMemoryDB>,
     receipt_builder: &'a OpAlloyReceiptBuilder,
@@ -152,6 +153,7 @@ fn build_executor<'a>(
     block_timestamp: u64,
     parent_timestamp: Option<u64>,
     base_fee: u64,
+    beneficiary: Address,
 ) -> SDMTestExecutor<'a> {
     let ctx = Context::mainnet()
         .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
@@ -167,6 +169,7 @@ fn build_executor<'a>(
             timestamp: U256::from(block_timestamp),
             gas_limit,
             basefee: base_fee,
+            beneficiary,
             ..Default::default()
         })
         .modify_cfg_chained(|cfg| cfg.spec = OpSpecId::JOVIAN);
@@ -195,6 +198,7 @@ struct SDMExecutorFixture {
     jovian_timestamp: u64,
     parent_timestamp: Option<u64>,
     base_fee: u64,
+    beneficiary: Address,
 }
 
 impl SDMExecutorFixture {
@@ -214,6 +218,9 @@ impl SDMExecutorFixture {
             parent_timestamp: None,
             // Default to a zero base fee; settlement tests opt into a non-zero one.
             base_fee: 0,
+            // Default beneficiary is the zero address; coinbase-warmth tests opt into a distinct
+            // one so the block beneficiary is separable from the (also-zero) default tx sender.
+            beneficiary: Address::ZERO,
         }
     }
 
@@ -226,6 +233,7 @@ impl SDMExecutorFixture {
             self.jovian_timestamp,
             self.parent_timestamp,
             self.base_fee,
+            self.beneficiary,
         )
     }
 
@@ -468,6 +476,7 @@ fn test_no_user_tx_activation_block_rejects_user_tx() {
             fork_timestamp,
             Some(fork_timestamp - 1),
             0,
+            Address::ZERO,
         );
         assert!(
             executor.ctx.no_user_tx_activation_block,
@@ -504,6 +513,7 @@ fn test_fork_activation_block_accepts_deposits_only() {
         KARST_TIMESTAMP,
         Some(KARST_TIMESTAMP - 1),
         0,
+        Address::ZERO,
     );
     assert!(executor.ctx.no_user_tx_activation_block);
 
@@ -531,6 +541,7 @@ fn test_normal_post_activation_block_accepts_user_tx() {
         KARST_TIMESTAMP + 2,
         Some(KARST_TIMESTAMP + 1),
         0,
+        Address::ZERO,
     );
     assert!(!executor.ctx.no_user_tx_activation_block);
 
@@ -552,6 +563,7 @@ fn test_non_activation_karst_block_not_rejected() {
         KARST_TIMESTAMP + 100,
         Some(KARST_TIMESTAMP + 50),
         0,
+        Address::ZERO,
     );
     assert!(!executor.ctx.no_user_tx_activation_block);
 
@@ -576,6 +588,7 @@ fn test_none_parent_timestamp_skips_check() {
         KARST_TIMESTAMP,
         None,
         0,
+        Address::ZERO,
     );
     assert!(!executor.ctx.no_user_tx_activation_block);
 
@@ -587,7 +600,8 @@ fn test_none_parent_timestamp_skips_check() {
 
 mod sdm {
     use super::*;
-    use alloy_consensus::Sealable;
+    use alloy_consensus::{Sealable, TxEip7702};
+    use alloy_eips::eip7702::{Authorization, SignedAuthorization};
     use op_alloy::consensus::build_post_exec_tx;
 
     /// Builds a recovered post-exec (0x7D) tx with a zero signer.
@@ -969,9 +983,9 @@ mod sdm {
 
     // End-to-end companion to the inspector-level settlement test: the OP fee vaults (L1/base-fee/
     // operator-fee recipients) are warmed by the protocol's per-tx fee settlement write in
-    // `transact_raw`, not by a user opcode access, so no cold EIP-2929 access is ever paid for them.
-    // Regression test: a second non-deposit tx must not claim a warming rebate for them just because
-    // the first tx's settlement warmed them.
+    // `transact_raw`, not by a user opcode access, so no cold EIP-2929 access is ever paid for
+    // them. Regression test: a second non-deposit tx must not claim a warming rebate for them
+    // just because the first tx's settlement warmed them.
     #[test]
     fn test_fee_recipient_settlement_touch_is_not_rebated() {
         // Two plain transfers to distinct fresh recipients: the only accounts tx1 re-touches that
@@ -1270,6 +1284,257 @@ mod sdm {
         assert_invalid_post_exec(
             err,
             "unexpected post-exec tx at index 0: SDM not active for this block",
+        );
+    }
+
+    /// Bytecode that runs `BALANCE` against each address in turn, warming it through a genuine
+    /// cold EIP-2929 access: `PUSH20 <addr>; BALANCE; POP` per address, then `STOP`. Unlike a
+    /// plain transfer (which only touches the intrinsically-warm sender/`to`), calling this
+    /// contract lets a test warm arbitrary accounts the way a real opcode access would.
+    fn balance_probe_account(addrs: &[Address]) -> AccountInfo {
+        let mut code = Vec::new();
+        for addr in addrs {
+            code.push(0x73); // PUSH20
+            code.extend_from_slice(addr.as_slice());
+            code.push(0x31); // BALANCE
+            code.push(0x50); // POP
+        }
+        code.push(0x00); // STOP
+        let raw = Bytes::from(code);
+        let code_hash = alloy_primitives::keccak256(&raw);
+        AccountInfo { code_hash, code: Some(Bytecode::new_raw(raw)), ..Default::default() }
+    }
+
+    /// Builds a recovered EIP-7702 (set-code) tx signed with the zero signer, carrying a single
+    /// authorization. Used to exercise the authority intrinsic-warm path.
+    fn recovered_7702(
+        nonce: u64,
+        to: Address,
+        auth: SignedAuthorization,
+    ) -> Recovered<OpTxEnvelope> {
+        let tx = TxEip7702 {
+            chain_id: 1,
+            nonce,
+            gas_limit: 200_000,
+            max_fee_per_gas: 0,
+            max_priority_fee_per_gas: 0,
+            to,
+            value: U256::ZERO,
+            access_list: Default::default(),
+            authorization_list: vec![auth],
+            input: Bytes::new(),
+        };
+        Recovered::new_unchecked(
+            OpTxEnvelope::Eip7702(tx.into_signed(Signature::new(
+                Default::default(),
+                Default::default(),
+                false,
+            ))),
+            Address::ZERO,
+        )
+    }
+
+    /// Sums the ETH balance of each address (absent accounts count as zero).
+    fn sum_balances(db: &mut State<InMemoryDB>, addrs: &[Address]) -> U256 {
+        addrs.iter().fold(U256::ZERO, |acc, addr| {
+            let balance = revm::Database::basic(db, *addr)
+                .expect("load account")
+                .map(|info| info.balance)
+                .unwrap_or_default();
+            acc + balance
+        })
+    }
+
+    /// Returns every warming rebate event the producer attributed, flattened across txs.
+    fn all_warming_events(producer: &SDMTestExecutor<'_>) -> Vec<WarmingRefundEvent> {
+        producer.warming_events_by_tx.iter().flatten().copied().collect()
+    }
+
+    // The block beneficiary (coinbase) is in every transaction's EIP-2929 intrinsically-warm set,
+    // billed warm and never cold, so it must never earn a warming rebate — even after an earlier
+    // tx warmed it. Regression test for the `collect_intrinsic_warmth` beneficiary insert: a
+    // control account warmed the same way (a genuine cold BALANCE) still earns its rebate, proving
+    // the assertion isn't vacuous.
+    #[test]
+    fn test_intrinsic_warm_beneficiary_is_not_rebated() {
+        const BLOCK_GAS_LIMIT: u64 = 1_000_000;
+        let beneficiary = Address::from([0x99; 20]);
+        let control = Address::from([0xcc; 20]);
+        let probe = Address::from([0x88; 20]);
+
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        fixture.beneficiary = beneficiary;
+        fixture.db.insert_account(probe, balance_probe_account(&[beneficiary, control]));
+
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+        producer
+            .execute_transaction(&legacy_tx(0, probe))
+            .expect("tx0 warms beneficiary + control");
+        producer.execute_transaction(&legacy_tx(1, probe)).expect("tx1 re-touches both");
+
+        let events = all_warming_events(&producer);
+        assert!(
+            !events.iter().any(|e| e.address == beneficiary),
+            "the block beneficiary was rebated despite being intrinsically warm: {events:#?}",
+        );
+        assert!(
+            events.iter().any(|e| e.address == control && e.amount == 2_500),
+            "a control account warmed across txs must still be rebated: {events:#?}",
+        );
+    }
+
+    // A precompile address is added to every transaction's intrinsically-warm set (it is in the
+    // journal's precompile set), billed warm and never cold, so it must never earn a warming
+    // rebate. Regression test for the `collect_intrinsic_warmth` precompile-set extension.
+    #[test]
+    fn test_intrinsic_warm_precompile_is_not_rebated() {
+        const BLOCK_GAS_LIMIT: u64 = 1_000_000;
+        let precompile = Address::with_last_byte(1); // ecrecover — always in the precompile set.
+        let control = Address::from([0xcd; 20]);
+        let probe = Address::from([0x8a; 20]);
+
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        fixture.db.insert_account(probe, balance_probe_account(&[precompile, control]));
+
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+        producer.execute_transaction(&legacy_tx(0, probe)).expect("tx0 warms precompile + control");
+        producer.execute_transaction(&legacy_tx(1, probe)).expect("tx1 re-touches both");
+
+        let events = all_warming_events(&producer);
+        assert!(
+            !events.iter().any(|e| e.address == precompile),
+            "a precompile was rebated despite being intrinsically warm: {events:#?}",
+        );
+        assert!(
+            events.iter().any(|e| e.address == control && e.amount == 2_500),
+            "a control account warmed across txs must still be rebated: {events:#?}",
+        );
+    }
+
+    // An EIP-7702 authorization authority is pre-warmed for the transaction that lists it (added to
+    // the accessed set at tx start), so that tx must not earn a warming rebate for it — even though
+    // an earlier tx warmed the same account through a genuine cold access. Regression test for the
+    // `collect_intrinsic_warmth` authorization-list loop.
+    #[test]
+    fn test_intrinsic_warm_7702_authority_is_not_rebated() {
+        const BLOCK_GAS_LIMIT: u64 = 2_000_000;
+        let delegate = Address::from([0xde; 20]);
+        let auth = Authorization { chain_id: U256::ZERO, address: delegate, nonce: 0 }
+            .into_signed(Signature::test_signature());
+        let authority = auth.recover_authority().expect("authority recovers");
+        let control = Address::from([0xce; 20]);
+        let probe = Address::from([0x8b; 20]);
+        // Guard against an accidental address collision making the assertion vacuous.
+        assert!(![Address::ZERO, delegate, control, probe].contains(&authority));
+
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        fixture.db.insert_account(probe, balance_probe_account(&[authority, control]));
+
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+        // tx0: a normal tx warms `authority` and `control` via genuine cold BALANCE accesses.
+        producer.execute_transaction(&legacy_tx(0, probe)).expect("tx0 warms authority + control");
+        // tx1: a 7702 tx listing `authority`, which makes `authority` intrinsically warm for it.
+        producer
+            .execute_transaction(&recovered_7702(1, probe, auth))
+            .expect("tx1 (7702) re-touches both");
+
+        let events = all_warming_events(&producer);
+        assert!(
+            !events.iter().any(|e| e.address == authority),
+            "a 7702 authority was rebated despite being intrinsically warm: {events:#?}",
+        );
+        assert!(
+            events.iter().any(|e| e.address == control && e.amount == 2_500),
+            "a control account warmed across txs must still be rebated: {events:#?}",
+        );
+    }
+
+    /// The set of accounts that can hold ETH in the SDM fixture: the sender, the block
+    /// beneficiary, the three OP fee vaults, the `L1Block` predeploy and the called contract.
+    fn eth_holding_universe(beneficiary: Address, target: Address) -> [Address; 7] {
+        [
+            Address::ZERO,
+            beneficiary,
+            target,
+            L1_BLOCK_CONTRACT,
+            L1_FEE_RECIPIENT,
+            BASE_FEE_RECIPIENT,
+            OPERATOR_FEE_RECIPIENT,
+        ]
+    }
+
+    /// Runs a two-tx warming block in Produce mode and, when `settle` is set, appends the produced
+    /// post-exec (0x7D) tx so its SDM settlement is applied. Returns the total ETH balance over
+    /// `universe` after the block finishes, plus the produced refund entries.
+    fn run_block_and_total(
+        beneficiary: Address,
+        target: Address,
+        settle: bool,
+        universe: &[Address],
+    ) -> (U256, Vec<SDMGasEntry>) {
+        let mut fixture =
+            SDMExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, 1_000_000, JOVIAN_TIMESTAMP);
+        fixture.beneficiary = beneficiary;
+        fixture.base_fee = 7;
+        fixture.db.insert_account(target, warming_contract_account());
+
+        // Two txs sharing a warmed SLOAD slot, priced above basefee so the priority-fee share that
+        // settlement moves between the sender and the beneficiary is non-trivial.
+        let tx0 = legacy_tx_with_price(0, target, 50_000, 100);
+        let tx1 = legacy_tx_with_price(1, target, 50_000, 100);
+        let entries = {
+            let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+            producer.execute_transaction(&tx0).expect("tx0 executes");
+            producer.execute_transaction(&tx1).expect("tx1 earns a refund");
+            let entries = producer.take_post_exec_entries();
+            if settle {
+                let post_exec = recovered_post_exec(0, entries.clone());
+                producer.execute_transaction(&post_exec).expect("post-exec settles the refund");
+            }
+            // Dropping the EVM releases its borrow of `fixture.db` so the audit can read balances.
+            let (evm, _result) = producer.finish().expect("producer finishes the block");
+            drop(evm);
+            entries
+        };
+        (sum_balances(&mut fixture.db, universe), entries)
+    }
+
+    // State-level ETH-supply audit of post-exec settlement ("audit total balances before and after
+    // refund blocks"). The per-delta test pins that one settlement credit equals the sum of its
+    // debits; this pins the same conservation on real account state. We run the identical two-tx
+    // block twice — once applying the SDM refund settlement, once not — and sum every account that
+    // can hold ETH. Settlement only moves ETH between the sender and the fee recipients, so the
+    // total must match the un-settled run exactly: no ETH is minted or burned ("no infinite mint").
+    // Comparing the two runs cancels block-level effects (e.g. the test harness' coinbase reward)
+    // so the assertion isolates the settlement.
+    #[test]
+    fn test_post_exec_settlement_conserves_total_eth_supply() {
+        let beneficiary = Address::from([0x99; 20]);
+        let target = warming_contract();
+        let universe = eth_holding_universe(beneficiary, target);
+
+        let (total_settled, entries) = run_block_and_total(beneficiary, target, true, &universe);
+        let (total_unsettled, _) = run_block_and_total(beneficiary, target, false, &universe);
+
+        assert!(
+            entries.iter().any(|e| e.gas_refund > 0),
+            "the block under audit must actually settle a non-zero refund",
+        );
+        assert_eq!(
+            total_settled, total_unsettled,
+            "SDM post-exec settlement minted or burned ETH relative to the unsettled block",
         );
     }
 }
