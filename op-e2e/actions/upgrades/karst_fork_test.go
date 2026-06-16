@@ -50,10 +50,11 @@ func TestKarstActivationBlockGasLimit(gt *testing.T) {
 
 	// The activation block gas limit is bumped by the NUT gas allocation.
 	activationGasLimit := env.SeqEngine.L2Chain().CurrentBlock().GasLimit
-	require.Greater(t, activationGasLimit, normalGasLimit,
-		"Karst activation block should have an increased gas limit")
-	require.Equal(t, normalGasLimit+nutGas, activationGasLimit,
-		"Karst activation block gas limit should be the system config gas limit plus the NUT gas")
+	require.Greaterf(t, activationGasLimit, normalGasLimit,
+		"Karst activation block should have an increased gas limit: activation=%d normal=%d", activationGasLimit, normalGasLimit)
+	require.Equalf(t, normalGasLimit+nutGas, activationGasLimit,
+		"Karst activation block gas limit should be the system config gas limit plus the NUT gas: want=%d (normal=%d + nut=%d) got=%d",
+		normalGasLimit+nutGas, normalGasLimit, nutGas, activationGasLimit)
 
 	// The very next block returns to the normal system config gas limit.
 	env.Seq.ActL2EmptyBlock(t)
@@ -61,6 +62,6 @@ func TestKarstActivationBlockGasLimit(gt *testing.T) {
 	require.False(t, env.SetupData.RollupCfg.IsKarstActivationBlock(nextBlock.Time),
 		"the block after activation should not be the activation block")
 	postActivationGasLimit := env.SeqEngine.L2Chain().CurrentBlock().GasLimit
-	require.Equal(t, normalGasLimit, postActivationGasLimit,
-		"gas limit should return to the system config value after the activation block")
+	require.Equalf(t, normalGasLimit, postActivationGasLimit,
+		"gas limit should return to the system config value after the activation block: want=%d got=%d", normalGasLimit, postActivationGasLimit)
 }
