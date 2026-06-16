@@ -8,37 +8,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// FuzzInteropRound generates a set of valid chains over one shared L1, wires
-// them into a real Interop (logsDBs + verifiedDB in a tempdir, real L1
-// consistency checker), and loops verification rounds until the safe head.
-// Each advancing round seals that timestamp's blocks into the logsDBs, so the
-// cross-chain executing messages of later rounds resolve against sealed init
-// logs. Valid-by-construction data must verify every round cleanly.
+// buildInterop generates a chain set from data and wires it into a real Interop
+// (logsDBs + verifiedDB in a tempdir, real L1 consistency checker), started and
+// positioned at the first verifiable slot.
+func buildInterop(t *testing.T, data []byte) (*Interop, *cc.RandomChainManager) {
+	ctx := context.Background()
+	mgr := cc.NewRandomChainManager(data)
+	mgr.Generate()
+
+	for _, rc := range mgr.Chains() {
+		require.NoError(t, rc.Start(ctx))
+	}
+
+	chains, err := mgr.ChainContainers()
+	require.NoError(t, err)
+
+	const activationTS = 1000 // matches the generated genesis L2 time
+
+	i := New(testLogger(), activationTS, 0, chains, t.TempDir(), mgr.L1Source(), 0, nil)
+	require.NotNil(t, i)
+	t.Cleanup(func() { _ = i.Stop(ctx) })
+
+	i.ctx = ctx
+	i.verificationStartTimestamp = mgr.FirstVerifiableTimestamp()
+	i.initialized.Store(true)
+	return i, mgr
+}
+
+// FuzzInteropRound loops verification rounds over a valid chain set until the
+// safe head. Each advancing round seals that timestamp's blocks into the
+// logsDBs, so the cross-chain executing messages of later rounds resolve
+// against sealed init logs. Valid-by-construction data must verify cleanly.
 func FuzzInteropRound(f *testing.F) {
 	f.Add([]byte("seed-interop"))
 	f.Add([]byte{})
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		ctx := context.Background()
-		mgr := cc.NewRandomChainManager(data)
-		mgr.Generate()
-
-		for _, rc := range mgr.Chains() {
-			require.NoError(t, rc.Start(ctx))
-		}
-
-		chains, err := mgr.ChainContainers()
-		require.NoError(t, err)
-
-		const activationTS = 1000 // matches the generated genesis L2 time
-
-		i := New(testLogger(), activationTS, 0, chains, t.TempDir(), mgr.L1Source(), 0, nil)
-		require.NotNil(t, i)
-		t.Cleanup(func() { _ = i.Stop(ctx) })
-
-		i.ctx = ctx
-		i.verificationStartTimestamp = mgr.FirstVerifiableTimestamp()
-		i.initialized.Store(true)
+		i, mgr := buildInterop(t, data)
 
 		for n := 0; ; n++ {
 			require.Less(t, n, 100, "verification loop did not terminate")
@@ -54,5 +60,41 @@ func FuzzInteropRound(f *testing.F) {
 		// The verifier steps timestamps by 1s while blocks span 2s, so the safe
 		// block's slot verifies at both its own timestamp and the next.
 		require.Equal(t, mgr.MinSafeTimestamp()+1, last, "must verify up to the safe head's slot")
+	})
+}
+
+// FuzzInteropInvalid corrupts one executing message, then drives rounds up to
+// that block and asserts the verifier flags exactly that chain's head invalid.
+func FuzzInteropInvalid(f *testing.F) {
+	f.Add([]byte("seed-invalid"))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		i, mgr := buildInterop(t, data)
+
+		badChain, badTS, ok := mgr.BreakOneExecMsg()
+		if !ok {
+			t.Skip("no executing message to corrupt")
+		}
+
+		next := func() uint64 {
+			if last, ok := i.verifiedDB.LastTimestamp(); ok {
+				return last + 1
+			}
+			return mgr.FirstVerifiableTimestamp()
+		}
+
+		for n := 0; ; n++ {
+			require.Less(t, n, 1000, "did not reach the corrupted block")
+			if next() == badTS {
+				out, _, err := i.progressInterop()
+				require.NoError(t, err)
+				require.Equal(t, DecisionInvalidate, out.Decision)
+				require.Contains(t, out.Result.InvalidHeads, badChain)
+				return
+			}
+			progress, err := i.progressAndRecord()
+			require.NoError(t, err)
+			require.True(t, progress, "valid rounds before the corrupted block must advance")
+		}
 	})
 }
