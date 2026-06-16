@@ -302,8 +302,7 @@ impl RollupConfig {
 
     /// Returns true if SDM post-exec transactions are active at the given timestamp.
     ///
-    /// SDM activates at the Lagoon hardfork, matching op-node's `IsSDM`. Gated directly on
-    /// Lagoon (not the interop toggle) so the two can't drift apart.
+    /// Defers to the hardfork where SDM is activated, matching op-node's `IsSDM`.
     #[must_use]
     pub fn is_sdm_active(&self, timestamp: u64) -> bool {
         self.is_lagoon_active(timestamp)
@@ -346,10 +345,9 @@ impl RollupConfig {
 
     /// Returns true if the interop feature is active at the given timestamp.
     ///
-    /// Equivalent to [`Self::is_lagoon_active`] today (interop rides Lagoon), but kept as a
-    /// separate feature gate — mirroring op-node's `IsInterop` — so interop can diverge from the
-    /// fork if its activation is ever decoupled. Interop-feature code should gate on this, not on
-    /// the raw Lagoon accessor.
+    /// Defers to the hardfork where interop is activated, but kept as a separate feature gate —
+    /// mirroring op-node's `IsInterop` — so interop can diverge from the fork if its activation is
+    /// ever decoupled. Interop-feature code should gate on this, not on the raw fork accessor.
     pub fn is_interop_active(&self, timestamp: u64) -> bool {
         self.is_lagoon_active(timestamp)
     }

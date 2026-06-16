@@ -776,7 +776,7 @@ where
     /// Returns whether SDM production should run for this payload.
     ///
     /// Both gates must agree (either being false disables production):
-    /// - **Protocol**: SDM active per the chain spec at the next block's timestamp (rides Lagoon).
+    /// - **Protocol**: SDM active per the chain spec at the next block's timestamp.
     /// - **Operator**: the local opt-in flag on `OpBuilderConfig`, mutated by the `admin_` SDM RPC;
     ///   starts disabled at process boot.
     pub fn sdm_production_enabled(&self) -> bool {

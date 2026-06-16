@@ -129,11 +129,11 @@ impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, 
 
 /// Returns true when SDM post-exec transactions are consensus-active at `timestamp`.
 ///
-/// SDM activates at the Lagoon hardfork, matching op-node's `IsSDM` and kona's `is_sdm_active`.
-/// Gated directly on Lagoon (not the interop toggle) so the two can't drift apart.
+/// Defers to the hardfork where SDM is activated, matching op-node's `IsSDM` and kona's
+/// `is_sdm_active`.
 ///
 /// Single source of truth for the SDM protocol gate: call sites holding only a chain spec should
-/// route through this rather than calling [`OpHardforks::is_lagoon_active_at_timestamp`] directly.
+/// route through this rather than calling the underlying fork accessor directly.
 pub fn is_sdm_active_at_timestamp(chain_spec: &impl OpHardforks, timestamp: u64) -> bool {
     chain_spec.is_lagoon_active_at_timestamp(timestamp)
 }
