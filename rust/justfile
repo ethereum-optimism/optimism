@@ -6,6 +6,7 @@ NIGHTLY := `grep -oE 'nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}' ../mise.toml | head -1
 alias t := test
 alias l := lint
 alias f := fmt-fix
+alias fmt := fmt-fix
 alias b := build
 
 # default recipe to display help information
@@ -49,6 +50,13 @@ build-no-examples *args='':
 # Build the workspace in release mode
 build-release *args='':
   cargo build --workspace --release {{args}}
+
+# Build the kona-sp1 crates under the host toolchain.
+build-sp1:
+  cargo build -p kona-sp1-host-utils -p kona-sp1-client-utils \
+    -p kona-sp1-ethereum-host-utils -p kona-sp1-ethereum-client-utils \
+    -p kona-sp1-proof-utils -p kona-sp1-build-utils -p kona-sp1-elfs \
+    -p kona-sp1-aggregation -p kona-sp1-range
 
 # Build kona-node
 build-kona-node:
@@ -283,7 +291,7 @@ release TARGET VERSION MODE="dry" *ARGS="":
     KONA_BATCH_1="kona-genesis kona-macros kona-mpt kona-preimage kona-serde kona-sources kona-registry kona-std-fpvm kona-cli kona-peers kona-protocol kona-std-fpvm-proc kona-disc kona-engine kona-executor kona-hardforks"
     KONA_BATCH_2="kona-interop example-discovery kona-gossip execution-fixture kona-derive kona-rpc kona-driver kona-providers-alloy kona-providers-local kona-proof kona-node-service kona-proof-interop example-gossip kona-node kona-client kona-host"
 
-    ACTUAL_KONA=$(echo "$METADATA" | jq -r '.packages[] | select(.manifest_path | contains("/rust/kona/")) | .name' | sort -u)
+    ACTUAL_KONA=$(echo "$METADATA" | jq -r '.packages[] | select((.manifest_path | contains("/rust/kona/")) and (.manifest_path | contains("/rust/kona/sp1/") | not)) | .name' | sort -u)
     EXPECTED_KONA=$(echo "$KONA_BATCH_1 $KONA_BATCH_2" | tr ' ' '\n' | sort -u)
     if [[ "$ACTUAL_KONA" != "$EXPECTED_KONA" ]]; then
       echo "error: hardcoded kona batches don't match actual kona crates." >&2
