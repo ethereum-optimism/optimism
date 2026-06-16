@@ -439,7 +439,7 @@ mod tests {
         context::CfgEnv,
         database::{EmptyDB, InMemoryDB},
         precompile::PrecompileHalt,
-        state::AccountInfo,
+        state::{AccountInfo, Bytecode},
     };
 
     use super::*;
@@ -467,6 +467,18 @@ mod tests {
         db.insert_account_info(
             caller,
             AccountInfo { balance: U256::from(1_000_000_000u64), ..Default::default() },
+        );
+        // `target` is a contract that reads (warms) storage slot 0: `PUSH1 0x00; SLOAD; POP; STOP`.
+        // The second tx re-touches that slot cross-tx and earns a genuine warming rebate — a plain
+        // value transfer would touch only intrinsic accounts (sender/`to`) and earn nothing.
+        db.insert_account_info(
+            target,
+            AccountInfo {
+                code: Some(Bytecode::new_raw(alloy_primitives::Bytes::from_static(&[
+                    0x60, 0x00, 0x54, 0x50, 0x00,
+                ]))),
+                ..Default::default()
+            },
         );
         let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
             db,

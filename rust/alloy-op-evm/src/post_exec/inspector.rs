@@ -195,9 +195,17 @@ impl SDMWarmingInspector {
         self.warmed_slots = state.warmed_slots;
     }
 
-    /// Notes an account touch that happened outside opcode stepping.
+    /// Notes an account touch that happened outside opcode stepping — i.e. a protocol-level state
+    /// access such as the per-transaction fee-vault settlement write in `OpEvm::transact_raw`.
+    ///
+    /// Such a touch is **not** a user EIP-2929 opcode access: the transaction is never charged a
+    /// cold account-access cost for it, so no cold->warm surcharge is ever paid and no warming
+    /// rebate is owed. It therefore records the account as warmed (so a *later* tx that genuinely
+    /// accesses it via an opcode — a real cold access — still earns its rebate) but never itself
+    /// claims one. Passing `allow_refund = false` gives exactly that: `observe_account_touch` still
+    /// records the warm in `warmed_accounts`, but suppresses the refund.
     pub fn note_account_touch(&mut self, address: Address) {
-        self.observe_account_touch(address, true);
+        self.observe_account_touch(address, false);
     }
 
     /// Finishes the current transaction and stores the extracted result.

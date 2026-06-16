@@ -10,7 +10,7 @@ use op_revm::{
     L1BlockInfo, OpBuilder, OpSpecId, OpTransaction,
     constants::{
         BASE_FEE_SCALAR_OFFSET, ECOTONE_L1_BLOB_BASE_FEE_SLOT, ECOTONE_L1_FEE_SCALARS_SLOT,
-        L1_BASE_FEE_SLOT, L1_BLOCK_CONTRACT, OPERATOR_FEE_SCALARS_SLOT,
+        L1_BASE_FEE_SLOT, L1_BLOCK_CONTRACT, L1_FEE_RECIPIENT, OPERATOR_FEE_SCALARS_SLOT,
     },
 };
 use revm::{
@@ -19,7 +19,7 @@ use revm::{
     database::{CacheDB, EmptyDB, InMemoryDB, State},
     inspector::NoOpInspector,
     primitives::HashMap,
-    state::AccountInfo,
+    state::{AccountInfo, Bytecode},
 };
 
 use crate::OpEvm;
@@ -46,6 +46,27 @@ fn recovered_legacy_from(sender: Address, tx: TxLegacy) -> Recovered<OpTxEnvelop
 /// Build the standard verifier payload (version 1) used by every test.
 fn post_exec_payload(block_number: u64, gas_refund_entries: Vec<SDMGasEntry>) -> PostExecPayload {
     PostExecPayload { version: 1, block_number, gas_refund_entries }
+}
+
+/// Runtime of a contract that reads (warms) its own storage slot 0: `PUSH1 0x00; SLOAD; POP; STOP`.
+///
+/// Two transactions that *call* this contract warm the same storage slot across the block, so the
+/// second tx earns a genuine, non-intrinsic SLOAD warming rebate — the kind of cross-tx warming SDM
+/// exists to rebate, as opposed to the intrinsic sender/`to`/fee-vault touches a plain value
+/// transfer makes (which are correctly never rebated).
+const WARMING_CONTRACT_CODE: [u8; 5] = [0x60, 0x00, 0x54, 0x50, 0x00];
+
+fn warming_contract() -> Address {
+    Address::from([0x77; 20])
+}
+
+fn warming_contract_account() -> AccountInfo {
+    let code = Bytecode::new_raw(Bytes::from_static(&WARMING_CONTRACT_CODE));
+    AccountInfo {
+        code_hash: alloy_primitives::keccak256(WARMING_CONTRACT_CODE),
+        code: Some(code),
+        ..Default::default()
+    }
 }
 
 #[test]
@@ -338,7 +359,9 @@ fn test_pre_refund_gas_limit_never_binds_with_sdm_off() {
 #[test]
 fn test_pre_refund_gas_limit_counts_sdm_refunded_gas() {
     const BLOCK_GAS_LIMIT: u64 = 100_000;
-    let target = Address::from([0x11; 20]);
+    // Both txs call a contract that SLOADs a shared slot, so tx1 earns a genuine cross-tx warming
+    // rebate and canonical gas falls below pre-refund EVM gas.
+    let target = warming_contract();
     let tx0 = recovered_legacy(TxLegacy {
         nonce: 0,
         gas_limit: 50_000,
@@ -354,6 +377,7 @@ fn test_pre_refund_gas_limit_counts_sdm_refunded_gas() {
 
     let mut fixture =
         SDMExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, BLOCK_GAS_LIMIT, JOVIAN_TIMESTAMP);
+    fixture.db.insert_account(target, warming_contract_account());
     let mut executor = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
     executor.execute_transaction(&tx0).expect("first tx fits");
     executor.execute_transaction(&tx1).expect("second tx fits and receives a refund");
@@ -950,14 +974,50 @@ mod sdm {
         );
     }
 
+    // End-to-end companion to the inspector-level settlement test: the OP fee vaults (L1/base-fee/
+    // operator-fee recipients) are warmed by the protocol's per-tx fee settlement write in
+    // `transact_raw`, not by a user opcode access. The tx is never charged a cold EIP-2929 access
+    // for them, so a second non-deposit tx must not claim a warming rebate for them just because
+    // the first tx's settlement warmed them. Fails before the fix (settlement touch uses
+    // allow_refund).
+    #[test]
+    fn test_fee_recipient_settlement_touch_is_not_rebated() {
+        // Two plain transfers to distinct fresh recipients: the only accounts tx1 re-touches that
+        // tx0 warmed are the fee vaults, via each tx's settlement write.
+        let txs =
+            vec![legacy_tx(0, Address::from([0xc1; 20])), legacy_tx(1, Address::from([0xc2; 20]))];
+
+        let mut fixture = SDMExecutorFixture::default();
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+        for tx in &txs {
+            producer.execute_transaction(tx).expect("producer executes user tx");
+        }
+
+        let fee_recipients = [L1_FEE_RECIPIENT, BASE_FEE_RECIPIENT, OPERATOR_FEE_RECIPIENT];
+        let claimed: Vec<Address> = producer
+            .warming_events_by_tx
+            .iter()
+            .flatten()
+            .map(|event| event.address)
+            .filter(|address| fee_recipients.contains(address))
+            .collect();
+        assert!(
+            claimed.is_empty(),
+            "fee recipients were rebated for a settlement-only touch (no cold access paid): {claimed:?}",
+        );
+    }
+
     // End-to-end executor coverage for SDM: a producer emits refund entries and appends a
     // post-exec tx, then a verifier replays the same tx stream and consumes the payload.
     #[test]
     fn test_post_exec_producer_verifier_roundtrip() {
-        let target = Address::from([0x11; 20]);
+        // Both txs call a contract that SLOADs a shared slot, so tx1 earns a genuine cross-tx
+        // (non-intrinsic) warming rebate.
+        let target = warming_contract();
         let user_txs = vec![legacy_tx(0, target), legacy_tx(1, target)];
 
         let mut producer_fixture = SDMExecutorFixture::default();
+        producer_fixture.db.insert_account(target, warming_contract_account());
         let mut producer = producer_fixture.executor_with_post_exec_mode(PostExecMode::Produce);
         let first_user_gas = producer
             .execute_transaction(&user_txs[0])
@@ -985,6 +1045,7 @@ mod sdm {
         let (_, produced) = producer.finish().expect("producer finishes block");
 
         let mut verifier_fixture = SDMExecutorFixture::default();
+        verifier_fixture.db.insert_account(target, warming_contract_account());
         let mut verifier = verifier_fixture.verifier(0, entries);
         for tx in &user_txs {
             verifier.execute_transaction(tx).expect("verifier executes user tx");
@@ -1003,10 +1064,11 @@ mod sdm {
     // tracking the real compute performed.
     #[test]
     fn test_evm_gas_used_tracks_pre_refund_gas_under_sdm() {
-        let target = Address::from([0x11; 20]);
+        let target = warming_contract();
         let user_txs = vec![legacy_tx(0, target), legacy_tx(1, target)];
 
         let mut fixture = SDMExecutorFixture::default();
+        fixture.db.insert_account(target, warming_contract_account());
         let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
         for tx in &user_txs {
             producer.execute_transaction(tx).expect("producer executes user tx");
