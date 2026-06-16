@@ -27,7 +27,10 @@ go run . failsafe --config <config.toml>
 
 ## Config
 
-Copy `config.example.toml`, fill in your values, and pass with `--config`:
+Copy `config.example.toml` to a local file, fill in your values, and pass with
+`--config`. The config holds live secrets (the `account` private key and filter
+`jwt-secret`s), so every `*.toml` in this directory is gitignored except
+`config.example.toml` — your copy can use any name and won't be committed:
 
 ```toml
 l2-a = "https://your-chain-a-rpc"
