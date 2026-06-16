@@ -7827,6 +7827,7 @@ dependencies = [
  "alloy-provider",
  "alloy-rlp",
  "alloy-sol-types",
+ "alloy-trie",
  "anyhow",
  "async-trait",
  "c-kzg",

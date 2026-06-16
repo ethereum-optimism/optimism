@@ -3,6 +3,7 @@
 use std::fmt;
 
 use crate::fetcher::BlockInfo;
+use kona_sp1_client_utils::precompiles::cycle_tracker::keys;
 use num_format::{Locale, ToFormattedString};
 use serde::{Deserialize, Serialize};
 use sp1_sdk::ExecutionReport;
@@ -89,6 +90,10 @@ impl ExecutionStats {
         witness_generation_time_sec: u64,
         total_execution_time_sec: u64,
     ) -> Self {
+        if block_data.is_empty() {
+            return Self::default();
+        }
+
         // Sort the block data by block number.
         let mut block_data = block_data.to_vec();
         block_data.sort_by_key(|b| b.block_number);
@@ -98,6 +103,9 @@ impl ExecutionStats {
         let nb_blocks = block_data.len() as u64;
         let nb_transactions = block_data.iter().map(|b| b.transaction_count).sum();
         let total_gas_used: u64 = block_data.iter().map(|b| b.gas_used).sum();
+        let total_instructions = report.total_instruction_count();
+
+        let safe_div = |a: u64, b: u64| if b > 0 { a / b } else { 0 };
 
         Self {
             l1_head,
@@ -106,28 +114,28 @@ impl ExecutionStats {
             // blockhash they're proving from.
             batch_start: block_data[0].block_number - 1,
             batch_end: block_data[block_data.len() - 1].block_number,
-            total_instruction_count: report.total_instruction_count(),
+            total_instruction_count: total_instructions,
             total_sp1_gas: report.gas().unwrap_or(0),
             block_execution_instruction_count: get_cycles("block-execution"),
             oracle_verify_instruction_count: get_cycles("oracle-verify"),
             derivation_instruction_count: get_cycles("payload-derivation"),
             blob_verification_instruction_count: get_cycles("blob-verification"),
-            bn_add_cycles: get_cycles("precompile-bn-add"),
-            bn_mul_cycles: get_cycles("precompile-bn-mul"),
-            bn_pair_cycles: get_cycles("precompile-bn-pair"),
-            kzg_eval_cycles: get_cycles("precompile-kzg-eval"),
-            ec_recover_cycles: get_cycles("precompile-ec-recover"),
-            p256_verify_cycles: get_cycles("precompile-p256-verify"),
+            bn_add_cycles: get_cycles(keys::BN_ADD),
+            bn_mul_cycles: get_cycles(keys::BN_MUL),
+            bn_pair_cycles: get_cycles(keys::BN_PAIR),
+            kzg_eval_cycles: get_cycles(keys::KZG_EVAL),
+            ec_recover_cycles: get_cycles(keys::EC_RECOVER),
+            p256_verify_cycles: get_cycles(keys::P256_VERIFY),
             nb_transactions,
             eth_gas_used: block_data.iter().map(|b| b.gas_used).sum(),
             l1_fees: block_data.iter().map(|b| b.total_l1_fees).sum(),
             total_tx_fees: block_data.iter().map(|b| b.total_tx_fees).sum(),
             nb_blocks,
-            cycles_per_block: report.total_instruction_count() / nb_blocks,
-            cycles_per_transaction: report.total_instruction_count() / nb_transactions,
-            transactions_per_block: nb_transactions / nb_blocks,
-            gas_used_per_block: total_gas_used / nb_blocks,
-            gas_used_per_transaction: total_gas_used / nb_transactions,
+            cycles_per_block: safe_div(total_instructions, nb_blocks),
+            cycles_per_transaction: safe_div(total_instructions, nb_transactions),
+            transactions_per_block: safe_div(nb_transactions, nb_blocks),
+            gas_used_per_block: safe_div(total_gas_used, nb_blocks),
+            gas_used_per_transaction: safe_div(total_gas_used, nb_transactions),
             witness_generation_time_sec,
             total_execution_time_sec,
         }
@@ -173,5 +181,38 @@ impl fmt::Display for MarkdownExecutionStats {
         write_stat(f, "KZG Eval Cycles", self.0.kzg_eval_cycles)?;
         write_stat(f, "EC Recover Cycles", self.0.ec_recover_cycles)?;
         write_stat(f, "P256 Verify Cycles", self.0.p256_verify_cycles)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn empty_report() -> ExecutionReport {
+        ExecutionReport::default()
+    }
+
+    #[test]
+    fn stats_default_when_block_data_empty() {
+        let stats = ExecutionStats::new(100, &[], &empty_report(), 1, 2);
+        assert_eq!(stats.nb_blocks, 0);
+        assert_eq!(stats.batch_start, 0);
+        assert_eq!(stats.batch_end, 0);
+    }
+
+    #[test]
+    fn stats_handles_zero_transaction_ranges() {
+        let block_data = [BlockInfo {
+            block_number: 10,
+            transaction_count: 0,
+            gas_used: 0,
+            total_l1_fees: 0,
+            total_tx_fees: 0,
+        }];
+
+        let stats = ExecutionStats::new(100, &block_data, &empty_report(), 1, 2);
+        assert_eq!(stats.nb_transactions, 0);
+        assert_eq!(stats.cycles_per_transaction, 0);
+        assert_eq!(stats.gas_used_per_transaction, 0);
     }
 }

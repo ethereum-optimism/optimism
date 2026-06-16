@@ -199,6 +199,15 @@ pub trait WitnessExecutor {
             ));
         }
 
+        // Bind the committed l2BlockNumber to the actual derived safe-head number. Without this
+        // check, a non-interop EndOfSource that triggers the silent target downgrade in
+        // advance_to_target can let an adversarial witness commit (l2PostRoot, l2BlockNumber)
+        // pairs that refer to different L2 blocks. See GHSA-5jh4-3p33-85xc.
+        ensure_derived_block_matches_claim(
+            safe_head.block_info.number,
+            boot.claimed_l2_block_number,
+        )?;
+
         info!(
             target: "client",
             "Successfully validated L2 block #{number} with output root {output_root}",
@@ -216,6 +225,25 @@ pub trait WitnessExecutor {
     }
 }
 
+/// Ensures the derived L2 safe-head block number matches the boot's claimed L2 block number.
+///
+/// This is the postcondition that closes GHSA-5jh4-3p33-85xc: a non-interop `EndOfSource` inside
+/// `advance_to_target` silently downgrades the local target to the current safe head, so a
+/// successful return does not by itself prove the requested target was reached.
+fn ensure_derived_block_matches_claim(
+    safe_head_number: u64,
+    claimed_block_number: u64,
+) -> Result<()> {
+    if safe_head_number != claimed_block_number {
+        return Err(anyhow!(
+            "Derived safe head L2 block #{derived} does not match claimed L2 block number #{claimed}",
+            derived = safe_head_number,
+            claimed = claimed_block_number,
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -228,6 +256,25 @@ mod tests {
 
     use super::get_inputs_for_pipeline;
     use crate::witness::preimage_store::PreimageStore;
+
+    #[test]
+    fn derived_block_must_match_claimed_block() {
+        assert!(super::ensure_derived_block_matches_claim(0, 0).is_ok());
+        assert!(super::ensure_derived_block_matches_claim(123_456, 123_456).is_ok());
+        assert!(super::ensure_derived_block_matches_claim(u64::MAX, u64::MAX).is_ok());
+
+        let err = super::ensure_derived_block_matches_claim(50, 100)
+            .expect_err("mismatched derived and claimed block numbers must fail");
+        let msg = err.to_string();
+        assert!(msg.contains("#50"), "missing derived block number in: {msg}");
+        assert!(msg.contains("#100"), "missing claimed block number in: {msg}");
+
+        let err = super::ensure_derived_block_matches_claim(150, 100)
+            .expect_err("mismatched derived and claimed block numbers must fail");
+        let msg = err.to_string();
+        assert!(msg.contains("#150"), "missing derived block number in: {msg}");
+        assert!(msg.contains("#100"), "missing claimed block number in: {msg}");
+    }
 
     fn b256(fill: u8) -> B256 {
         B256::from([fill; 32])
@@ -242,16 +289,20 @@ mod tests {
         let agreed_root = B256::from(keccak256(output_preimage));
 
         let mut oracle = PreimageStore::default();
-        oracle.save_preimage(PreimageKey::new_local(1), b256(0x11).as_slice().to_vec());
-        oracle.save_preimage(PreimageKey::new_local(2), agreed_root.as_slice().to_vec());
-        oracle.save_preimage(PreimageKey::new_local(3), claimed_root.as_slice().to_vec());
-        oracle.save_preimage(PreimageKey::new_local(4), safe_head.number.to_be_bytes().to_vec());
-        oracle.save_preimage(PreimageKey::new_local(5), 10u64.to_be_bytes().to_vec());
-        oracle.save_preimage(PreimageKey::new_keccak256(*agreed_root), output_preimage.to_vec());
+        oracle.save_preimage(PreimageKey::new_local(1), b256(0x11).as_slice().to_vec()).unwrap();
+        oracle.save_preimage(PreimageKey::new_local(2), agreed_root.as_slice().to_vec()).unwrap();
+        oracle.save_preimage(PreimageKey::new_local(3), claimed_root.as_slice().to_vec()).unwrap();
+        oracle
+            .save_preimage(PreimageKey::new_local(4), safe_head.number.to_be_bytes().to_vec())
+            .unwrap();
+        oracle.save_preimage(PreimageKey::new_local(5), 10u64.to_be_bytes().to_vec()).unwrap();
+        oracle
+            .save_preimage(PreimageKey::new_keccak256(*agreed_root), output_preimage.to_vec())
+            .unwrap();
 
         let mut header_rlp = Vec::new();
         safe_head.encode(&mut header_rlp);
-        oracle.save_preimage(PreimageKey::new_keccak256(*safe_head_hash), header_rlp);
+        oracle.save_preimage(PreimageKey::new_keccak256(*safe_head_hash), header_rlp).unwrap();
 
         (Arc::new(oracle), agreed_root)
     }
