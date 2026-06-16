@@ -7,7 +7,7 @@ use alloc::{vec, vec::Vec};
 use alloy_primitives::{Bytes, ChainId, Log, keccak256};
 use alloy_sol_types::{SolEvent, sol};
 use derive_more::{AsRef, Constructor, From};
-use kona_protocol::Predeploys;
+use kona_genesis::Predeploys;
 use op_alloy_consensus::OpReceiptEnvelope;
 
 sol! {
