@@ -249,18 +249,18 @@ func TestBreakOneExecMsg(t *testing.T) {
 		blk int
 	}
 	var m *RandomChainManager
-	var before map[key]common.Hash
+	var before map[key]supervisortypes.Message
 	var id eth.ChainID
 	var ts uint64
 	var ok bool
 	for s := 0; s < 50 && !ok; s++ {
 		m = NewRandomChainManager([]byte{byte(s)})
 		m.Generate()
-		before = map[key]common.Hash{}
+		before = map[key]supervisortypes.Message{}
 		for _, rc := range m.Chains() {
 			for i := range rc.l2 {
 				if msg := rc.l2[i].ExecMsgs[1]; msg != nil {
-					before[key{rc.chainID, i}] = msg.PayloadHash
+					before[key{rc.chainID, i}] = *msg
 				}
 			}
 		}
@@ -268,7 +268,7 @@ func TestBreakOneExecMsg(t *testing.T) {
 	}
 	require.True(t, ok, "no seed produced a reachable executing message in 50 tries")
 
-	// exactly one payload hash changed, on chain id at time ts
+	// exactly one message changed (any breaker), on chain id at time ts
 	changed := 0
 	for _, rc := range m.Chains() {
 		for i := range rc.l2 {
@@ -276,7 +276,7 @@ func TestBreakOneExecMsg(t *testing.T) {
 			if msg == nil {
 				continue
 			}
-			if msg.PayloadHash != before[key{rc.chainID, i}] {
+			if *msg != before[key{rc.chainID, i}] {
 				changed++
 				require.Equal(t, id, rc.chainID)
 				require.Equal(t, ts, rc.l2[i].Ref.Time)

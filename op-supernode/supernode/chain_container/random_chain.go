@@ -327,10 +327,20 @@ func (m *RandomChainManager) MinSafeTimestamp() uint64 {
 	return min
 }
 
-// BreakOneExecMsg corrupts one executing message's PayloadHash so its checksum
-// no longer matches the initiating chain's sealed log, forcing an InvalidHead.
-// Returns the affected chain and block timestamp; ok is false when no chain has
-// a reachable executing message. Run after Generate.
+// execMsgBreakers are the ways to make one executing message fail verification.
+// Each leaves the message's timestamp intact, so it clears the ordering, expiry,
+// and activation gates and is rejected at the initiating-log lookup — every kind
+// surfaces as the same InvalidHead.
+var execMsgBreakers = []func(*supervisortypes.Message){
+	func(m *supervisortypes.Message) { m.PayloadHash[0] ^= 0xff },       // checksum: payload no longer hashes to the sealed log
+	func(m *supervisortypes.Message) { m.Identifier.LogIndex++ },        // dangling: no matching log at that index
+	func(m *supervisortypes.Message) { m.Identifier.Origin[0] ^= 0xff }, // wrong origin: address mismatch shifts the derived checksum
+}
+
+// BreakOneExecMsg corrupts one reachable executing message with a uniformly
+// chosen breaker, forcing an InvalidHead. Returns the affected chain and block
+// timestamp; ok is false when no chain has a reachable executing message. Run
+// after Generate.
 func (m *RandomChainManager) BreakOneExecMsg() (chainID eth.ChainID, ts uint64, ok bool) {
 	// Verification is gated by the shallowest chain; later blocks never verify.
 	reachable := m.MinSafeTimestamp()
@@ -352,8 +362,9 @@ func (m *RandomChainManager) BreakOneExecMsg() (chainID eth.ChainID, ts uint64, 
 	}
 	s := sites[m.rng.Intn(len(sites))]
 	rc := m.chains[s.id]
+	corrupt := execMsgBreakers[m.rng.Intn(len(execMsgBreakers))]
 	for _, msg := range rc.l2[s.blk].ExecMsgs {
-		msg.PayloadHash[0] ^= 0xff
+		corrupt(msg)
 		break // one executing message per block in this model
 	}
 	return s.id, rc.l2[s.blk].Ref.Time, true
