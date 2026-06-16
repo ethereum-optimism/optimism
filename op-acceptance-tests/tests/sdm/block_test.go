@@ -408,6 +408,86 @@ func testSDMPostExecBlockDerivesAndChainProgresses(t devtest.T, batchType string
 		"l1_after_batching", l1AfterBatching.ID())
 }
 
+// TestSDMPostExecBlockDerivesOnIsolatedVerifier checks that a verifier with no L2 P2P connectivity
+// — one that can only learn the chain by deriving it from L1 — still reproduces a PostExec block
+// and keeps its safe head moving.
+//
+// This exercises the force-build path: with no gossiped unsafe block to consolidate against,
+// op-node hands the derived attributes (which embed the block's 0x7D tx) to the EL to rebuild via
+// FCU-with-attributes (`no_tx_pool = true`). The verifier never opts into SDM production, so its EL
+// must still rebuild the block in Verify mode purely from the embedded payload. The
+// consolidation-path test (TestSDMPostExecBlockDerivesAndChainProgresses) cannot catch a
+// regression here because its verifier receives the block over P2P first and only consolidates.
+func TestSDMPostExecBlockDerivesOnIsolatedVerifier(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := newSDMRethSystemWithIsolatedVerifier(t)
+	verifyOpReth(t, sys.L2EL)
+	verifyOpReth(t, sys.L2ELVerifier)
+
+	// Produce a PostExec block on the sequencer, plus a sentinel after it so derivation must carry
+	// the verifier past the PostExec block to succeed.
+	block, included, targetBlockNum := mustFindRepeatedSlotBlock(t, sys, 2, 3)
+	t.Require().NotEmpty(included, "target block must include workload transactions")
+	postExecTx, _ := findPostExecTransaction(block)
+	t.Require().NotNil(postExecTx, "SDM-enabled sequencer must include a post-exec tx before batching")
+	payload, err := sdmpkg.DecodePayload(postExecTx.Input)
+	t.Require().NoError(err, "post-exec payload must decode")
+	t.Require().NotEmpty(payload.GasRefundEntries,
+		"post-exec payload must be non-empty for repeated-slot workload")
+	targetRef := sys.L2EL.BlockRefByNumber(targetBlockNum)
+	t.Require().Equal(block.Hash, targetRef.Hash,
+		"selected post-exec block must match canonical sequencer block")
+
+	alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
+	sentinel := txplan.NewPlannedTx(
+		alice.Plan(),
+		txplan.WithTo(addrPtr(common.HexToAddress("0x000000000000000000000000000000000000dEaD"))),
+		txplan.WithValue(eth.OneHundredthEther),
+	)
+	sentinelReceipt, err := sentinel.Included.Eval(t.Ctx())
+	t.Require().NoError(err, "sentinel tx after the post-exec block must be included")
+	t.Require().Equal(types.ReceiptStatusSuccessful, sentinelReceipt.Status, "sentinel tx must succeed")
+	sentinelBlockNum := bigs.Uint64Strict(sentinelReceipt.BlockNumber)
+	t.Require().Greater(sentinelBlockNum, targetBlockNum, "sentinel must land after the post-exec block")
+	sentinelRef := sys.L2EL.BlockRefByNumber(sentinelBlockNum)
+
+	// Precondition that makes this test meaningful: with the batcher stopped and the verifier off
+	// the P2P mesh, the verifier has learned nothing — its unsafe head is still at genesis while
+	// the sequencer is well ahead. So any safe progress below comes from L1 derivation + force-build,
+	// not from gossip + consolidation.
+	sequencerUnsafeBefore := sys.L2EL.BlockRefByLabel(eth.Unsafe)
+	verifierUnsafeBefore := sys.L2ELVerifier.BlockRefByLabel(eth.Unsafe)
+	t.Require().GreaterOrEqual(sequencerUnsafeBefore.Number, targetBlockNum,
+		"sequencer must have built the post-exec block locally before batching")
+	t.Require().Equal(uint64(0), verifierUnsafeBefore.Number,
+		"isolated verifier must not receive any unsafe blocks over P2P; it should still be at genesis")
+
+	// Start batching: the verifier can now derive from L1. With no unsafe block to consolidate
+	// against, op-node force-builds each derived block — including the PostExec block — through the
+	// EL payload builder.
+	sys.L2Batcher.Start()
+	dsl.CheckAll(t,
+		sys.L2CLVerifier.ReachedRefFn(safety.CrossSafe, sentinelRef.ID(), 120),
+		sys.L2ELVerifier.ReachedFn(eth.Safe, sentinelBlockNum, 120),
+	)
+
+	// The verifier rebuilt the PostExec block (and the blocks around it) byte-for-byte: a Verify-mode
+	// rejection or a duplicated 0x7D would change the block hash and stall safe progress.
+	verifierPostExecRef := sys.L2ELVerifier.BlockRefByNumber(targetBlockNum)
+	t.Require().Equal(targetRef.Hash, verifierPostExecRef.Hash,
+		"isolated verifier must rebuild the same post-exec block as the sequencer")
+	verifierSentinelRef := sys.L2ELVerifier.BlockRefByNumber(sentinelBlockNum)
+	t.Require().Equal(sentinelRef.Hash, verifierSentinelRef.Hash,
+		"isolated verifier must rebuild blocks after the post-exec block")
+
+	t.Logger().Info("TestSDMPostExecBlockDerivesOnIsolatedVerifier passed",
+		"post_exec_block", targetBlockNum,
+		"post_exec_block_hash", targetRef.Hash,
+		"sentinel_block", sentinelBlockNum,
+		"payload_entries", len(payload.GasRefundEntries),
+		"verifier_unsafe_before_batching", verifierUnsafeBefore.Number)
+}
+
 func TestSDMStorageRefundBreakdown(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := newSDMRethSystem(t, true)

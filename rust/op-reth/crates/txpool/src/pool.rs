@@ -23,7 +23,7 @@ use reth_transaction_pool::{
     NewTransactionEvent, Pool, PoolConfig, PoolResult, PoolSize, PoolTransaction, PoolUpdateKind,
     PropagatedTransactions, TransactionEvents, TransactionListenerKind, TransactionOrdering,
     TransactionOrigin, TransactionPool, TransactionPoolExt, TransactionValidationOutcome,
-    TransactionValidator, ValidPoolTransaction,
+    TransactionValidator, ValidPoolTransaction, ValidatingPool,
 };
 use tokio::sync::mpsc::Receiver;
 use tracing::debug;
@@ -202,6 +202,10 @@ where
             self.metrics.reorg_interop_txs_filtered.increment(removed as u64);
         }
         filtered
+    }
+
+    const fn inner(&self) -> &P {
+        &self.inner
     }
 }
 
@@ -433,6 +437,18 @@ where
     delegate!(fn delete_blob(&self, tx: B256));
     delegate!(fn delete_blobs(&self, txs: Vec<B256>));
     delegate!(fn cleanup_blobs(&self));
+}
+
+impl<P> ValidatingPool for OpPool<P>
+where
+    P: ValidatingPool,
+    P::Transaction: Transaction,
+{
+    type Validator = P::Validator;
+
+    fn validator(&self) -> &Self::Validator {
+        self.inner().validator()
+    }
 }
 
 #[cfg(test)]

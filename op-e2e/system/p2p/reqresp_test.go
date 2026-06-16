@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/el"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -145,9 +144,18 @@ func TestSystemP2PAltSync(t *testing.T) {
 		},
 	}
 	e2esys.ConfigureL1(syncNodeCfg, sys.EthInstances["l1"], sys.L1BeaconEndpoint())
-	syncerL2Engine, err := geth.InitL2("syncer", sys.L2GenesisCfg, cfg.JWTFilePath)
+	syncerL2Engine, err := el.InitL2(ctx, el.L2Config{
+		Kind:    cfg.L2ELKind,
+		Name:    "syncer",
+		Genesis: sys.L2GenesisCfg,
+		JWTPath: cfg.JWTFilePath,
+		Logger:  testlog.Logger(t, log.LevelInfo).New("role", "syncer-el"),
+		DataDir: t.TempDir(),
+	})
 	require.NoError(t, err)
-	require.NoError(t, syncerL2Engine.Node.Start())
+	t.Cleanup(func() {
+		_ = syncerL2Engine.Close()
+	})
 
 	e2esys.ConfigureL2(syncNodeCfg, syncerL2Engine, cfg.JWTSecret)
 
@@ -168,8 +176,8 @@ func TestSystemP2PAltSync(t *testing.T) {
 	_, err = sys.Mocknet.ConnectPeers(sys.RollupNodes["bob"].P2P().Host().ID(), syncerNode.P2P().Host().ID())
 	require.NoError(t, err)
 
-	rpc := syncerL2Engine.UserRPC().(endpoint.ClientRPC).ClientRPC()
-	l2Verif := ethclient.NewClient(rpc)
+	l2Verif, err := ethclient.Dial(syncerL2Engine.UserRPC().RPC())
+	require.NoError(t, err)
 
 	// It may take a while to sync, but eventually we should see the sequenced data show up
 	receiptVerif, err := wait.ForReceiptOK(ctx, l2Verif, receiptSeq.TxHash)

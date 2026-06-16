@@ -1,11 +1,11 @@
 use alloc::{string::ToString, vec};
-use alloy_consensus::{SignableTransaction, TxLegacy, transaction::Recovered};
+use alloy_consensus::{Sealed, SignableTransaction, TxLegacy, transaction::Recovered};
 use alloy_eips::eip2718::WithEncoded;
 use alloy_evm::{EvmEnv, ToTxEnv};
 use alloy_hardforks::ForkCondition;
-use alloy_op_hardforks::OpHardfork;
-use alloy_primitives::{Address, Signature, U256, uint};
-use op_alloy::consensus::OpTxEnvelope;
+use alloy_op_hardforks::{OpHardfork, OpHardforks};
+use alloy_primitives::{Address, B256, Bytes, Signature, TxKind, U256, uint};
+use op_alloy::consensus::{OpTxEnvelope, TxDeposit};
 use op_revm::{
     L1BlockInfo, OpBuilder, OpSpecId, OpTransaction,
     constants::{
@@ -123,7 +123,8 @@ fn build_executor<'a>(
     receipt_builder: &'a OpAlloyReceiptBuilder,
     op_chain_hardforks: &'a OpChainHardforks,
     gas_limit: u64,
-    jovian_timestamp: u64,
+    block_timestamp: u64,
+    parent_timestamp: Option<u64>,
 ) -> SDMTestExecutor<'a> {
     let ctx = Context::mainnet()
         .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
@@ -136,7 +137,7 @@ fn build_executor<'a>(
             ..Default::default()
         })
         .with_block(BlockEnv {
-            timestamp: U256::from(jovian_timestamp),
+            timestamp: U256::from(block_timestamp),
             gas_limit,
             ..Default::default()
         })
@@ -144,7 +145,18 @@ fn build_executor<'a>(
 
     let evm = OpEvm::new(ctx.build_op_with_inspector(NoOpInspector {}), true);
 
-    OpBlockExecutor::new(evm, OpBlockExecutionCtx::default(), op_chain_hardforks, receipt_builder)
+    // Like production call sites, the activation-block flag is computed where the parent
+    // timestamp is available and left `false` where it isn't.
+    let no_user_tx_activation_block = parent_timestamp.is_some_and(|parent_timestamp| {
+        op_chain_hardforks.is_no_user_tx_activation_block(parent_timestamp, block_timestamp)
+    });
+
+    OpBlockExecutor::new(
+        evm,
+        OpBlockExecutionCtx { no_user_tx_activation_block, ..Default::default() },
+        op_chain_hardforks,
+        receipt_builder,
+    )
 }
 
 struct SDMExecutorFixture {
@@ -153,6 +165,7 @@ struct SDMExecutorFixture {
     op_chain_hardforks: OpChainHardforks,
     gas_limit: u64,
     jovian_timestamp: u64,
+    parent_timestamp: Option<u64>,
 }
 
 impl SDMExecutorFixture {
@@ -167,6 +180,9 @@ impl SDMExecutorFixture {
             ),
             gas_limit,
             jovian_timestamp,
+            // SDM/post-exec tests run normal (non-activation) blocks; leaving the parent timestamp
+            // unset skips the fork-activation guard, matching op-reth's parentless import path.
+            parent_timestamp: None,
         }
     }
 
@@ -177,6 +193,7 @@ impl SDMExecutorFixture {
             &self.op_chain_hardforks,
             self.gas_limit,
             self.jovian_timestamp,
+            self.parent_timestamp,
         )
     }
 
@@ -351,6 +368,181 @@ fn test_pre_refund_gas_limit_counts_sdm_refunded_gas() {
         .execute_transaction(&tx2)
         .expect_err("tx exceeding pre-refund block gas must be rejected");
     assert_gas_limit_exceeded(err, tx2_gas_limit, evm_gas_available);
+}
+/// A deposit transaction emulating the L1-attributes / network-upgrade deposits that a
+/// fork-activation block legitimately contains. Detection is parent-timestamp based, so the
+/// calldata contents are irrelevant here.
+fn recovered_deposit() -> Recovered<OpTxEnvelope> {
+    // A depositor distinct from `Address::ZERO` (the signer of the user legacy txs) so the deposit
+    // doesn't bump the user's nonce.
+    let deposit = TxDeposit {
+        source_hash: B256::ZERO,
+        from: Address::with_last_byte(1),
+        to: TxKind::Call(L1_BLOCK_CONTRACT),
+        mint: 0,
+        value: U256::ZERO,
+        gas_limit: 50_000,
+        is_system_transaction: false,
+        input: Bytes::new(),
+    };
+    Recovered::new_unchecked(
+        OpTxEnvelope::Deposit(Sealed::new_unchecked(deposit, B256::ZERO)),
+        Address::with_last_byte(1),
+    )
+}
+
+const KARST_TIMESTAMP: u64 = JOVIAN_TIMESTAMP + 1_000;
+
+/// Builds a chain scheduling every fork at or after Jovian at a distinct, increasing timestamp,
+/// returned alongside the `(fork, activation_timestamp)` schedule.
+///
+/// Driven by [`OpHardfork::forks_from`], so a future hardfork variant is scheduled — and, via the
+/// rejection test's loop over the returned schedule, exercised — automatically. `KARST_TIMESTAMP`
+/// (`JOVIAN_TIMESTAMP + 1_000`) is the schedule's second entry, used by the single-fork tests.
+///
+/// `OpChainHardforks` indexes by `OpHardfork::idx()`, so the fork list must hold exactly one entry
+/// per fork in canonical order. We keep `op_mainnet()`'s pre-Jovian forks and schedule everything
+/// from Jovian onward ourselves.
+fn no_user_tx_activation_hardforks() -> (OpChainHardforks, Vec<(OpHardfork, u64)>) {
+    let mut forks: Vec<(OpHardfork, ForkCondition)> = OpHardfork::op_mainnet()
+        .into_iter()
+        .filter(|(fork, _)| fork.idx() < OpHardfork::Jovian.idx())
+        .collect();
+    let mut schedule = Vec::new();
+    for (i, fork) in OpHardfork::Jovian.forks_from().enumerate() {
+        let timestamp = JOVIAN_TIMESTAMP + i as u64 * 1_000;
+        forks.push((fork, ForkCondition::Timestamp(timestamp)));
+        schedule.push((fork, timestamp));
+    }
+    (OpChainHardforks::new(forks), schedule)
+}
+
+#[test]
+fn test_no_user_tx_activation_block_rejects_user_tx() {
+    // Loops over every fork >= Jovian. Forwards-compatible: adding a hardfork variant schedules
+    // and exercises it here automatically, without editing this test.
+    let (hardforks, schedule) = no_user_tx_activation_hardforks();
+    for (fork, fork_timestamp) in schedule {
+        let mut db = prepare_jovian_db(0);
+        let receipt_builder = OpAlloyReceiptBuilder::default();
+        let mut executor = build_executor(
+            &mut db,
+            &receipt_builder,
+            &hardforks,
+            DEFAULT_GAS_LIMIT,
+            fork_timestamp,
+            Some(fork_timestamp - 1),
+        );
+        assert!(
+            executor.ctx.no_user_tx_activation_block,
+            "{fork:?} activation block should be flagged"
+        );
+
+        let user_tx = recovered_legacy(TxLegacy { gas_limit: 21_000, ..Default::default() });
+        let err = executor
+            .execute_transaction(&user_tx)
+            .expect_err("user tx must be rejected on a fork-activation block");
+        match err {
+            BlockExecutionError::Validation(BlockValidationError::Other(inner)) => assert!(
+                matches!(
+                    inner.downcast_ref::<OpBlockExecutionError>(),
+                    Some(OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock)
+                ),
+                "expected UnexpectedNonDepositTxInForkActivationBlock for {fork:?}, got {inner}"
+            ),
+            other => panic!("expected a validation error for {fork:?}, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn test_fork_activation_block_accepts_deposits_only() {
+    let mut db = prepare_jovian_db(0);
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let (hardforks, _) = no_user_tx_activation_hardforks();
+    let mut executor = build_executor(
+        &mut db,
+        &receipt_builder,
+        &hardforks,
+        DEFAULT_GAS_LIMIT,
+        KARST_TIMESTAMP,
+        Some(KARST_TIMESTAMP - 1),
+    );
+    assert!(executor.ctx.no_user_tx_activation_block);
+
+    // Deposits (L1-attributes + network-upgrade automatic deposits) are accepted.
+    executor
+        .execute_transaction(&recovered_deposit())
+        .expect("deposit executes on activation block");
+
+    let (_, result) = executor.finish().expect("activation block finishes");
+    // With no user transactions the DA footprint stays at zero.
+    assert_eq!(result.blob_gas_used, 0);
+}
+
+#[test]
+fn test_normal_post_activation_block_accepts_user_tx() {
+    // Parent already in Karst -> this is NOT an activation block, so user txs are allowed.
+    let mut db = prepare_jovian_db(DEFAULT_DA_FOOTPRINT_GAS_SCALAR);
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let (hardforks, _) = no_user_tx_activation_hardforks();
+    let mut executor = build_executor(
+        &mut db,
+        &receipt_builder,
+        &hardforks,
+        DEFAULT_GAS_LIMIT,
+        KARST_TIMESTAMP + 2,
+        Some(KARST_TIMESTAMP + 1),
+    );
+    assert!(!executor.ctx.no_user_tx_activation_block);
+
+    let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
+    executor.execute_transaction(&user_tx).expect("user tx accepted on a normal Karst block");
+}
+
+#[test]
+fn test_non_activation_karst_block_not_rejected() {
+    // False-trigger guard: a Karst block whose parent is also in Karst is NOT an activation block.
+    let mut db = prepare_jovian_db(DEFAULT_DA_FOOTPRINT_GAS_SCALAR);
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let (hardforks, _) = no_user_tx_activation_hardforks();
+    let mut executor = build_executor(
+        &mut db,
+        &receipt_builder,
+        &hardforks,
+        DEFAULT_GAS_LIMIT,
+        KARST_TIMESTAMP + 100,
+        Some(KARST_TIMESTAMP + 50),
+    );
+    assert!(!executor.ctx.no_user_tx_activation_block);
+
+    let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
+    executor
+        .execute_transaction(&user_tx)
+        .expect("user tx accepted on a non-activation Karst block");
+}
+
+#[test]
+fn test_none_parent_timestamp_skips_check() {
+    // With no parent timestamp (op-reth import path), the guard is skipped even though the
+    // block/parent would otherwise make this the Karst activation block.
+    let mut db = prepare_jovian_db(0);
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let (hardforks, _) = no_user_tx_activation_hardforks();
+    let mut executor = build_executor(
+        &mut db,
+        &receipt_builder,
+        &hardforks,
+        DEFAULT_GAS_LIMIT,
+        KARST_TIMESTAMP,
+        None,
+    );
+    assert!(!executor.ctx.no_user_tx_activation_block);
+
+    let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
+    executor
+        .execute_transaction(&user_tx)
+        .expect("check skipped when the parent timestamp is unavailable");
 }
 
 mod sdm {

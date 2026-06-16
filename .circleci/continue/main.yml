@@ -1773,6 +1773,11 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - run:
+          name: Configure op-reth binary path
+          command: |
+            ROOT_DIR="$(pwd)"
+            echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
       - go-restore-cache:
           namespace: go-tests
       - run:
@@ -2485,6 +2490,7 @@ workflows:
             - go-binaries-for-sysgo
             - prep-superchain
             - prep-go-modules
+            - rust-workspace-binaries
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
@@ -2507,6 +2513,7 @@ workflows:
             - go-binaries-for-sysgo
             - prep-superchain
             - prep-go-modules
+            - rust-workspace-binaries
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
