@@ -85,11 +85,6 @@ var (
 		EnvVars: PrefixEnvVar("DEPLOYMENT_TARGET"),
 		Value:   string(DeploymentTargetLive),
 	}
-	OpProgramSvcUrlFlag = &cli.StringFlag{
-		Name:    "op-program-svc-url",
-		Usage:   "URL of the OP Program SVC",
-		EnvVars: PrefixEnvVar("OP_PROGRAM_SVC_URL"),
-	}
 	IntentTypeFlag = &cli.StringFlag{
 		Name: IntentTypeFlagName,
 		Usage: fmt.Sprintf("Intent config type to use. Options: %s (default), %s, %s",
@@ -141,12 +136,6 @@ var (
 		EnvVars: PrefixEnvVar("USE_FORGE"),
 		Value:   false,
 	}
-	ValidateFlag = &cli.StringFlag{
-		Name:    "validate",
-		Usage:   "automatically validate deployment after apply. Specify validator version (e.g., v2.0.0) or 'auto' to auto-detect from state.json. If not specified, validation is skipped.",
-		EnvVars: PrefixEnvVar("VALIDATE"),
-		Value:   "",
-	}
 )
 
 var GlobalFlags = append([]cli.Flag{CacheDirFlag}, oplog.CLIFlags(EnvVarPrefix)...)
@@ -163,13 +152,11 @@ var ApplyFlags = []cli.Flag{
 	WorkdirFlag,
 	PrivateKeyFlag,
 	DeploymentTargetFlag,
-	OpProgramSvcUrlFlag,
 	AutoVerifyFlag,
 	VerifierAPIKeyFlag,
 	VerifierFlag,
 	VerifierUrlFlag,
 	UseForgeFlag,
-	ValidateFlag,
 }
 
 var UpgradeFlags = []cli.Flag{

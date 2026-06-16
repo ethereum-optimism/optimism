@@ -93,8 +93,22 @@ func (k *KonaNode) Start() {
 	err := k.sub.Start(k.execPath, k.args, k.env)
 	k.p.Require().NoError(err, "Must start")
 
+	// Wait for kona-node to log its RPC address, but fail fast if the process exits first
+	// (e.g. a crash on boot) rather than blocking on the context until the test times out.
 	var userRPCAddr string
-	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
+	select {
+	case userRPCAddr = <-userRPCChan:
+	case <-k.sub.Exited():
+		// Re-check the RPC channel in case the address was logged in the same instant the
+		// process exited; otherwise the process died before becoming ready.
+		select {
+		case userRPCAddr = <-userRPCChan:
+		default:
+			k.p.Require().FailNow("kona-node exited before its RPC server became ready")
+		}
+	case <-k.p.Ctx().Done():
+		k.p.Require().NoError(k.p.Ctx().Err(), "need user RPC")
+	}
 
 	if areMetricsEnabled() {
 		var metricsTarget PrometheusMetricsTarget

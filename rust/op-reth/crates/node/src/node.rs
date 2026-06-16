@@ -265,7 +265,8 @@ impl OpNode {
                 OpPayloadBuilder::new(compute_pending_block)
                     .with_da_config(self.da_config.clone())
                     .with_gas_limit_config(self.gas_limit_config.clone())
-                    .with_sdm_post_exec_opt_in(self.sdm_post_exec_opt_in.clone()),
+                    .with_sdm_post_exec_opt_in(self.sdm_post_exec_opt_in.clone())
+                    .with_max_uncompressed_block_size(self.args.max_uncompressed_block_size),
             ))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
@@ -1301,6 +1302,11 @@ pub struct OpPayloadBuilder<Txs = ()> {
     pub gas_limit_config: OpGasLimitConfig,
     /// Operator opt-in flag for SDM `PostExec` production. Shared with the admin RPC.
     pub sdm_post_exec_opt_in: SdmPostExecOptIn,
+    /// Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes.
+    ///
+    /// `None` disables the limit. See
+    /// [`OpBuilderConfig::max_uncompressed_block_size`](reth_optimism_payload_builder::config::OpBuilderConfig::max_uncompressed_block_size).
+    pub max_uncompressed_block_size: Option<u64>,
 }
 
 impl OpPayloadBuilder {
@@ -1313,12 +1319,22 @@ impl OpPayloadBuilder {
             da_config: OpDAConfig::default(),
             gas_limit_config: OpGasLimitConfig::default(),
             sdm_post_exec_opt_in: SdmPostExecOptIn::default(),
+            max_uncompressed_block_size: None,
         }
     }
 
     /// Configure the data availability configuration for the OP payload builder.
     pub fn with_da_config(mut self, da_config: OpDAConfig) -> Self {
         self.da_config = da_config;
+        self
+    }
+
+    /// Configure the maximum uncompressed (EIP-2718 encoded) block size for the OP payload builder.
+    pub const fn with_max_uncompressed_block_size(
+        mut self,
+        max_uncompressed_block_size: Option<u64>,
+    ) -> Self {
+        self.max_uncompressed_block_size = max_uncompressed_block_size;
         self
     }
 
@@ -1341,7 +1357,12 @@ impl<Txs> OpPayloadBuilder<Txs> {
     /// payload.
     pub fn with_transactions<T>(self, best_transactions: T) -> OpPayloadBuilder<T> {
         let Self {
-            compute_pending_block, da_config, gas_limit_config, sdm_post_exec_opt_in, ..
+            compute_pending_block,
+            da_config,
+            gas_limit_config,
+            sdm_post_exec_opt_in,
+            max_uncompressed_block_size,
+            ..
         } = self;
         OpPayloadBuilder {
             compute_pending_block,
@@ -1349,6 +1370,7 @@ impl<Txs> OpPayloadBuilder<Txs> {
             da_config,
             gas_limit_config,
             sdm_post_exec_opt_in,
+            max_uncompressed_block_size,
         }
     }
 }
@@ -1399,6 +1421,7 @@ where
                 da_config: self.da_config.clone(),
                 gas_limit_config: self.gas_limit_config.clone(),
                 sdm_post_exec_opt_in: self.sdm_post_exec_opt_in.clone(),
+                max_uncompressed_block_size: self.max_uncompressed_block_size,
             },
         )
         .with_transactions(self.best_transactions.clone())

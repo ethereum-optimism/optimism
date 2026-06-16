@@ -135,6 +135,29 @@ func TestRPCFinder_processBlock(t *testing.T) {
 	require.Equal(t, 2, callbackInvocations)
 }
 
+// TestProcessBlockSetsExecutingTimestamp confirms processBlock stamps each job
+// with the executing block's timestamp, which the updater needs for expiry checks.
+func TestProcessBlockSetsExecutingTimestamp(t *testing.T) {
+	logger := testlog.Logger(t, slog.LevelDebug)
+	var got *Job
+	finder := NewFinder(
+		eth.ChainIDFromUInt64(1),
+		&mockClient{},
+		func(receipts []*types.Receipt, executingChain eth.ChainID) []*Job {
+			return []*Job{{}}
+		},
+		func(j *Job) { got = j },
+		mockFinalizedCallback,
+		10,
+		logger,
+	)
+
+	blockInfo := eth.HeaderBlockInfo(&types.Header{Number: big.NewInt(5), Time: 1234})
+	require.NoError(t, finder.processBlock(blockInfo, types.Receipts{}))
+	require.NotNil(t, got)
+	require.Equal(t, uint64(1234), got.executingTimestamp)
+}
+
 func TestRPCFinder_walkback(t *testing.T) {
 	client := &mockClient{}
 

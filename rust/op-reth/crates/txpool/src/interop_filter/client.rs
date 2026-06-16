@@ -4,7 +4,10 @@ use crate::{
     InvalidCrossTx,
     interop_filter::{
         ExecutingDescriptor, InteropTxValidatorError,
-        metrics::{EndpointMetrics, InteropMetrics},
+        metrics::{
+            EndpointMetrics, InteropMetrics, REASON_NONE, RESULT_ALLOWED, RESULT_REJECTED_FAILSAFE,
+            RESULT_REJECTED_PRE_INTEROP, decision_for_error,
+        },
         parse_access_list_items_to_inbox_entries,
     },
     maintain::FAILSAFE_HEARTBEAT_INTERVAL,
@@ -130,8 +133,6 @@ impl InteropFilterClient {
                 break;
             }
         }
-        // Dropping `futs` here cancels any in-flight slow requests.
-        self.inner.metrics.record_quorum_outcome(valid, invalid, self.inner.min_responses);
 
         if valid + invalid < self.inner.min_responses {
             self.log_degraded_quorum(valid + invalid);
@@ -186,11 +187,13 @@ impl InteropFilterClient {
         // Interop check
         if !is_interop_active {
             // No cross chain tx allowed before interop
+            self.inner.metrics.record_decision(RESULT_REJECTED_PRE_INTEROP, REASON_NONE);
             return Some(Err(InvalidCrossTx::CrossChainTxPreInterop));
         }
 
         // Fast-path: reject immediately if failsafe is active (no RPC round-trip)
         if self.is_failsafe_enabled() {
+            self.inner.metrics.record_decision(RESULT_REJECTED_FAILSAFE, REASON_NONE);
             return Some(Err(InvalidCrossTx::FailsafeEnabled));
         }
 
@@ -203,28 +206,34 @@ impl InteropFilterClient {
         {
             // A failsafe reported by any endpoint maps to the same rejection the fast-path uses.
             if err.is_failsafe() {
+                self.inner.metrics.record_decision(RESULT_REJECTED_FAILSAFE, REASON_NONE);
                 trace!(target: "txpool", hash=%hash, "Cross chain transaction rejected: endpoint failsafe active");
                 return Some(Err(InvalidCrossTx::FailsafeEnabled));
             }
-            self.inner.metrics.increment_metrics_for_error(&err);
+            // Classify the rejection on the single decision counter: a genuine invalid verdict, a
+            // disagreement, and a fail-closed quorum miss are all distinguishable via the labels.
+            let (result, reason) = decision_for_error(&err);
+            self.inner.metrics.record_decision(result, reason);
             trace!(target: "txpool", hash=%hash, err=%err, "Cross chain transaction invalid");
             return Some(Err(InvalidCrossTx::ValidationError(err)));
         }
+        self.inner.metrics.record_decision(RESULT_ALLOWED, REASON_NONE);
         Some(Ok(()))
     }
 
-    /// Records a hard failsafe rejection and flips the cached gate (and gauge) on immediately, so a
-    /// failsafe detected on a check stops admission and is visible on the dashboard right away
-    /// rather than only after the next ~1s failsafe poll. The poll re-confirms or clears it.
+    /// Flips the cached failsafe gate (and gauge) on immediately when a failsafe is detected on a
+    /// check, so admission stops and the dashboard reflects it right away rather than only after
+    /// the next ~1s failsafe poll. The poll re-confirms or clears it. The rejection itself is
+    /// counted on the decision counter by [`is_valid_cross_tx`](Self::is_valid_cross_tx).
     fn reject_failsafe(&self) -> InteropTxValidatorError {
-        self.inner.metrics.record_failsafe_reject();
         self.apply_failsafe_state(true);
         InteropTxValidatorError::FailsafeEnabled
     }
 
     /// Logs a rate-limited line when a check fails closed because too few endpoints reached the
     /// quorum. A degraded quorum silently rejects every interop tx, so without this the only signal
-    /// is the `quorum_reject_not_reached` counter; the log makes the halted state visible. Logged
+    /// is the `filter_decisions{result="rejected_no_quorum"}` counter; the log makes the
+    /// halted state visible. Logged
     /// at most once per [`FAILSAFE_HEARTBEAT_INTERVAL`] (and on the first occurrence) to avoid
     /// per-tx spam, and at `info` because the rejection itself is expected, by-design
     /// fail-closed behavior.
@@ -473,6 +482,12 @@ impl InteropFilterClientBuilder {
             clients.push(Endpoint { client, metrics });
         }
 
+        // Publish the quorum threshold once so dashboards can draw the fail-closed line for
+        // `sum(endpoint.up)` without hardcoding config, and pre-create the decision series at 0.
+        let metrics = InteropMetrics::default();
+        metrics.set_quorum_min_responses(min_responses);
+        metrics.init();
+
         InteropFilterClient {
             inner: Arc::new(InteropFilterClientInner {
                 endpoints: clients,
@@ -480,7 +495,7 @@ impl InteropFilterClientBuilder {
                 chain_id,
                 safety,
                 timeout,
-                metrics: InteropMetrics::default(),
+                metrics,
                 failsafe_enabled: AtomicBool::new(false),
                 created_at: Instant::now(),
                 last_degraded_log_ms: AtomicU64::new(0),

@@ -423,20 +423,12 @@ impl EthereumHardforks for RollupConfig {
         if fork <= EthereumHardfork::Berlin {
             // We assume that OP chains were launched with all forks before Berlin activated.
             ForkCondition::Block(0)
-        } else if fork <= EthereumHardfork::Paris {
-            // Bedrock activates all hardforks up to Paris.
-            self.op_fork_activation(OpHardfork::Bedrock)
-        } else if fork <= EthereumHardfork::Shanghai {
-            // Canyon activates Shanghai hardfork.
-            self.op_fork_activation(OpHardfork::Canyon)
-        } else if fork <= EthereumHardfork::Cancun {
-            // Ecotone activates Cancun hardfork.
-            self.op_fork_activation(OpHardfork::Ecotone)
-        } else if fork <= EthereumHardfork::Prague {
-            // Isthmus activates Prague hardfork.
-            self.op_fork_activation(OpHardfork::Isthmus)
         } else {
-            ForkCondition::Never
+            // Every later L1 fork activates with the OP fork that implies it (Bedrock for
+            // London through Paris); L1 forks without an L2 equivalent never activate.
+            OpHardfork::activating_op_fork(fork)
+                .map(|op_fork| self.op_fork_activation(op_fork))
+                .unwrap_or(ForkCondition::Never)
         }
     }
 }
@@ -547,6 +539,48 @@ mod tests {
         assert_eq!(config.spec_id(80), op_revm::OpSpecId::KARST);
         config.hardforks.lagoon_time = Some(90);
         assert_eq!(config.spec_id(90), op_revm::OpSpecId::INTEROP);
+    }
+
+    #[test]
+    fn test_ethereum_fork_activation_follows_op_forks() {
+        let config = RollupConfig {
+            hardforks: HardForkConfig {
+                canyon_time: Some(10),
+                ecotone_time: Some(20),
+                isthmus_time: Some(30),
+                karst_time: Some(40),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        // Bedrock activates all L1 forks up to and including Paris.
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::London),
+            ForkCondition::Block(0)
+        );
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Paris),
+            config.op_fork_activation(OpHardfork::Bedrock)
+        );
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Shanghai),
+            ForkCondition::Timestamp(10)
+        );
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Cancun),
+            ForkCondition::Timestamp(20)
+        );
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Prague),
+            ForkCondition::Timestamp(30)
+        );
+        // Karst activates the Osaka hardfork.
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Osaka),
+            ForkCondition::Timestamp(40)
+        );
+        // L1 forks without an L2 equivalent never activate.
+        assert_eq!(config.ethereum_fork_activation(EthereumHardfork::Bpo1), ForkCondition::Never);
     }
 
     #[test]

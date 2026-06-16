@@ -3,7 +3,7 @@
 use crate::fpvm_evm::precompiles::{
     ecrecover::ECRECOVER_ADDR, kzg_point_eval::KZG_POINT_EVAL_ADDR,
 };
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use alloc::{string::String, vec, vec::Vec};
 use alloy_primitives::{Address, Bytes};
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{
@@ -17,7 +17,7 @@ use revm::{
     precompile::{
         EthPrecompileResult, PrecompileError, PrecompileOutput, Precompiles, bls12_381_const, bn254,
     },
-    primitives::{hardfork::SpecId, hash_map::HashMap},
+    primitives::{AddressSet, hardfork::SpecId, hash_map::HashMap},
 };
 
 /// The FPVM-accelerated precompiles.
@@ -154,7 +154,7 @@ where
     }
 
     #[inline]
-    fn warm_addresses(&self) -> Box<impl Iterator<Item = Address>> {
+    fn warm_addresses(&self) -> &AddressSet {
         self.inner.warm_addresses()
     }
 
@@ -343,6 +343,7 @@ mod test {
             value: revm::interpreter::CallValue::Transfer(alloy_primitives::U256::ZERO),
             scheme: revm::interpreter::CallScheme::Call,
             is_static: false,
+            charged_new_account_state_gas: false,
         }
     }
 
@@ -685,6 +686,7 @@ mod test {
             value: revm::interpreter::CallValue::Transfer(alloy_primitives::U256::ZERO),
             scheme: revm::interpreter::CallScheme::Call,
             is_static: false,
+            charged_new_account_state_gas: false,
         };
 
         let result = precompiles.run(&mut ctx, &call_inputs).unwrap();

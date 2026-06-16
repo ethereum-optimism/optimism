@@ -13,6 +13,12 @@ type InteropMessageMetrics interface {
 	RecordTerminalStatusChange(executingChainID string, initiatingChainID string, count float64)
 	RecordExecutingBlockRange(chainID string, min uint64, max uint64)
 	RecordInitiatingBlockRange(chainID string, min uint64, max uint64)
+	RecordInitiatingReorg(executingChainID string, initiatingChainID string)
+	RecordFilterDivergence(executingChainID string, initiatingChainID string, monitorStatus string, filterStatus string)
+	RecordFilterFailsafe(enabled bool)
+	RecordSupernodeUp(endpoint string, up bool)
+	RecordSupernodeSafeHead(chainID string, level string, blockNumber uint64)
+	RecordCrossSafetyViolation(executingChainID string, initiatingChainID string)
 }
 
 type MetricCollector struct {
@@ -22,27 +28,35 @@ type MetricCollector struct {
 	log    log.Logger
 	m      InteropMessageMetrics
 
-	// Failsafe clients for triggering failsafe enable/disable
-	failsafeClients []FailsafeClient
+	// ctx bounds in-flight observer RPCs; cancel is invoked on Stop so shutdown
+	// does not wait on outstanding filter/supernode calls.
+	ctx    context.Context
+	cancel context.CancelFunc
 
-	// Whether to trigger failsafe API calls
-	triggerFailsafe bool
+	// filterObserver, when set, cross-checks the monitor's verdict against the
+	// op-interop-filter (read-only). nil disables the filter observer.
+	filterObserver *FilterObserver
+
+	// supernodeObservers, when non-empty, observe each op-supernode (read-only):
+	// liveness, per-chain heads, and cross-safety violations.
+	supernodeObservers []*SupernodeObserver
 }
 
-func NewMetricCollector(log log.Logger, m InteropMessageMetrics, updaters map[eth.ChainID]Updater, failsafeClients []FailsafeClient, triggerFailsafe bool) *MetricCollector {
+func NewMetricCollector(log log.Logger, m InteropMessageMetrics, updaters map[eth.ChainID]Updater) *MetricCollector {
 	return &MetricCollector{
-		log:             log,
-		m:               m,
-		updaters:        updaters,
-		failsafeClients: failsafeClients,
-		triggerFailsafe: triggerFailsafe,
-		closed:          make(chan struct{}),
+		log:      log,
+		m:        m,
+		updaters: updaters,
+		closed:   make(chan struct{}),
+		// Default so CollectMetrics is safe if invoked before Start (e.g. in tests);
+		// Start replaces this with a cancelable child of the service context.
+		ctx: context.Background(),
 	}
 }
 
-func (m *MetricCollector) Start() error {
+func (m *MetricCollector) Start(ctx context.Context) error {
 	m.log.Info("Starting metric collector")
-	m.CheckFailsafeStatus()
+	m.ctx, m.cancel = context.WithCancel(ctx)
 	go m.Run()
 	return nil
 }
@@ -73,6 +87,9 @@ func (m *MetricCollector) Run() {
 
 func (m *MetricCollector) Stop() error {
 	close(m.closed)
+	if m.cancel != nil {
+		m.cancel()
+	}
 	return nil
 }
 
@@ -84,9 +101,6 @@ func (m *MetricCollector) CollectMetrics() {
 		chains = append(chains, chainID)
 		jobMap = updater.CollectForMetrics(jobMap)
 	}
-
-	// Track if we should enable failsafe
-	shouldFailsafe := false
 
 	// Initialize all metrics with zero values
 	// Message Status: [executingChainID][initiatingChainID][status]
@@ -112,6 +126,8 @@ func (m *MetricCollector) CollectMetrics() {
 			for _, status := range []string{
 				jobStatusValid.String(),
 				jobStatusInvalid.String(),
+				jobStatusExpired.String(),
+				jobStatusTimestampMismatch.String(),
 				jobStatusUnknown.String(),
 			} {
 				messageStatus[exeChain][initChain][status] = 0
@@ -158,6 +174,10 @@ func (m *MetricCollector) CollectMetrics() {
 				"executing_block_hash", job.executingBlock.Hash,
 				"initiating_hashes", initiatingHashes,
 			)
+			// Count each reorged job once, not on every collection cycle.
+			if job.CountReorgOnce() {
+				m.m.RecordInitiatingReorg(job.executingChain.String(), job.initiating.ChainID.String())
+			}
 		}
 
 		// Collect the statuses of the job
@@ -168,7 +188,7 @@ func (m *MetricCollector) CollectMetrics() {
 		}
 		current := statuses[len(statuses)-1]
 
-		// Log invalid statuses and trigger failsafe
+		// Log invalid statuses (observe-only: no actuation)
 		if current == jobStatusInvalid {
 			m.log.Warn("Invalid Executing Message Detected",
 				"executing_chain_id", job.executingChain,
@@ -177,7 +197,6 @@ func (m *MetricCollector) CollectMetrics() {
 				"initiating_block_height", job.initiating.BlockNumber,
 				"executing_block_hash", job.executingBlock.Hash,
 			)
-			shouldFailsafe = true
 		}
 
 		// Increment the message status metrics
@@ -203,7 +222,6 @@ func (m *MetricCollector) CollectMetrics() {
 				"executing_block_hash", job.executingBlock.Hash,
 			)
 			terminalStatusChanges[job.executingChain][job.initiating.ChainID]++
-			shouldFailsafe = true
 		}
 	}
 
@@ -211,8 +229,8 @@ func (m *MetricCollector) CollectMetrics() {
 	for executingChainID, initiatingChainMap := range messageStatus {
 		for initiatingChainID, statusMap := range initiatingChainMap {
 			for status, count := range statusMap {
-				if status == jobStatusInvalid.String() {
-					// invalid messages are logged as warnings
+				if status == jobStatusInvalid.String() && count > 0 {
+					// invalid messages are logged as warnings, but only when any exist
 					m.log.Warn("Invalid Executing Messages Detected",
 						"executing_chain_id", executingChainID,
 						"initiating_chain_id", initiatingChainID,
@@ -264,30 +282,14 @@ func (m *MetricCollector) CollectMetrics() {
 		)
 	}
 
-	if shouldFailsafe && m.triggerFailsafe {
-		m.TriggerFailsafe()
-	} else if shouldFailsafe && !m.triggerFailsafe {
-		m.log.Debug("Failsafe conditions detected but triggering is disabled")
+	// Optional read-only cross-check against the interop-filter.
+	if m.filterObserver != nil {
+		m.filterObserver.Observe(m.ctx, jobMap)
+		m.filterObserver.PollFailsafe(m.ctx)
 	}
-}
 
-func (m *MetricCollector) CheckFailsafeStatus() {
-	m.log.Info("Checking failsafe status for all supervisor clients")
-	for _, failsafeClient := range m.failsafeClients {
-		status, err := failsafeClient.GetFailsafeEnabled(context.Background())
-		if err != nil {
-			m.log.Error("Failed to get failsafe status", "error", err)
-		}
-		m.log.Info("Failsafe status", "status", status)
-	}
-}
-func (m *MetricCollector) TriggerFailsafe() {
-	m.log.Error("Triggering failsafe for all supervisor clients!")
-	for _, failsafeClient := range m.failsafeClients {
-		if err := failsafeClient.SetFailsafeEnabled(context.Background(), true); err != nil {
-			m.log.Error("Failed to enable failsafe", "error", err)
-		} else {
-			m.log.Warn("Successfully enabled failsafe")
-		}
+	// Optional read-only observation of each op-supernode.
+	for _, obs := range m.supernodeObservers {
+		obs.Observe(m.ctx, jobMap)
 	}
 }

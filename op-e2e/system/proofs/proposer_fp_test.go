@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -63,7 +64,7 @@ func TestL2OutputSubmitterFaultProofs(t *testing.T) {
 			defer cancel()
 			_, gameBlockNumber, err := proxy.GetGameRange(ctx)
 			require.Nil(t, err)
-			l2Output, err := rollupClient.OutputAtBlock(ctx, gameBlockNumber)
+			l2Output, err := wait.ForOutputAtBlock(ctx, rollupClient, gameBlockNumber)
 			require.Nil(t, err)
 			require.EqualValues(t, l2Output.OutputRoot, claim.Value)
 			break

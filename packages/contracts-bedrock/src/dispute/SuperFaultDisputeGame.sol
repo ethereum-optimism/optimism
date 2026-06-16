@@ -145,10 +145,27 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
+    /// @notice The byte count of the data before the extra data in the CWIA payload.
+    /// Expected length: 88 bytes
+    /// - 20 bytes: creator address
+    /// - 32 bytes: root claim
+    /// - 32 bytes: l1 head
+    /// - 4 bytes: game type
+    uint256 internal constant PRE_EXTRA_DATA_BYTE_COUNT = 88;
+
+    /// @notice The byte count of the game implementation args for this contract.
+    /// Expected length: 124 bytes
+    /// - 32 bytes: absolutePrestate
+    /// - 20 bytes: vm address
+    /// - 20 bytes: anchorStateRegistry address
+    /// - 20 bytes: weth address
+    /// - 32 bytes: l2ChainId (unused)
+    uint256 internal constant GAME_IMPL_ARGS_BYTE_COUNT = 124;
+
     /// @notice Semantic version.
-    /// @custom:semver 0.7.2
+    /// @custom:semver 0.8.0
     function version() public pure virtual returns (string memory) {
-        return "0.7.2";
+        return "0.8.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -325,7 +342,6 @@ contract SuperFaultDisputeGame is Clone, ISemver {
 
     /// @notice Validates the expected length of msg.data for the initialize() call.
     /// @dev    This function must only be called by initialize().
-    ///         Note that implementations may override the expected game impl args (see SuperPermissionedDisputeGame).
     ///
     ///      Expected msg.data structure:
     ///      ┌────────────────────────────────────────────────────────────────────┐
@@ -344,28 +360,13 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     ///      │ 124 bytes         │ game impl args                                 │
     ///      └────────────────────────────────────────────────────────────────────┘
     function _verifyInitCallDataLength() internal pure returns (bool) {
-        uint256 preExtraDataLen = 4 + 2 + _preExtraDataByteCount();
-        if (msg.data.length < preExtraDataLen) {
-            return false;
-        }
+        uint256 preExtraDataLen = 4 + 2 + PRE_EXTRA_DATA_BYTE_COUNT;
+        uint256 minLen = preExtraDataLen + 9 + GAME_IMPL_ARGS_BYTE_COUNT;
+        if (msg.data.length < minLen) return false;
 
-        uint256 postExtraDataLen = gameImplArgsByteCount();
-        uint256 extraDataAndGameArgsLength = msg.data.length - preExtraDataLen;
-        // ensure we have enough data for the game impl args
-        if (extraDataAndGameArgsLength < postExtraDataLen) {
-            return false;
-        }
-
-        uint256 superLen = extraDataAndGameArgsLength - postExtraDataLen;
-        if (superLen < 9) {
-            return false;
-        }
+        uint256 superLen = msg.data.length - preExtraDataLen - GAME_IMPL_ARGS_BYTE_COUNT;
         uint256 rem = superLen - 9;
-        // there must be at least one (chainId, outputRoot) tuple
-        if (rem == 0) {
-            return false;
-        }
-        return (rem % 64) == 0;
+        return rem != 0 && rem % 64 == 0;
     }
 
     /// @notice Returns the length of the super extra data in the initialize() call.
@@ -374,28 +375,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         // The CWIA runtime appends the immutable args and a 2-byte length suffix to every call;
         // strip the original calldata and suffix so offsets stay correct for functions with params.
         uint256 immutableArgsLength = msg.data.length - _getImmutableArgsOffset() - 2;
-        return immutableArgsLength - _preExtraDataByteCount() - gameImplArgsByteCount();
-    }
-
-    /// @notice Returns the byte count of the data before the extra data (super) in the initialize() call.
-    function _preExtraDataByteCount() internal pure returns (uint256) {
-        // Expected length: 88 bytes
-        // - 20 bytes: creator address
-        // - 32 bytes: root claim
-        // - 32 bytes: l1 head
-        // - 4 bytes: game type
-        return 88;
-    }
-
-    /// @notice Returns the byte count of the game implementation args for this contract.
-    function gameImplArgsByteCount() internal pure virtual returns (uint256) {
-        // Expected length: 124 bytes
-        // - 32 bytes: absolutePrestate
-        // - 20 bytes: vm address
-        // - 20 bytes: anchorStateRegistry address
-        // - 20 bytes: weth address
-        // - 32 bytes: l2ChainId (unused)
-        return 124;
+        return immutableArgsLength - PRE_EXTRA_DATA_BYTE_COUNT - GAME_IMPL_ARGS_BYTE_COUNT;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -667,7 +647,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
 
     /// @notice The l2SequenceNumber (timestamp) of the disputed super root in game root claim.
     function l2SequenceNumber() public pure returns (uint256 l2SequenceNumber_) {
-        l2SequenceNumber_ = _getArgUint64(89);
+        l2SequenceNumber_ = _getArgUint64(PRE_EXTRA_DATA_BYTE_COUNT + 1);
     }
 
     /// @notice Only the starting sequence number (timestamp) of the game.
@@ -856,42 +836,42 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     /// @dev `clones-with-immutable-args` argument #4
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function extraData() public pure returns (bytes memory extraData_) {
-        extraData_ = _getArgBytes(88, _extraDataByteCount());
+        extraData_ = _getArgBytes(PRE_EXTRA_DATA_BYTE_COUNT, _extraDataByteCount());
     }
 
     /// @notice Getter for the absolute prestate of the instruction trace.
     /// @dev `clones-with-immutable-args` argument #6
     /// @return absolutePrestate_ The absolute prestate of the instruction trace.
     function absolutePrestate() public pure returns (Claim absolutePrestate_) {
-        absolutePrestate_ = Claim.wrap(_getArgBytes32(_preExtraDataByteCount() + _extraDataByteCount()));
+        absolutePrestate_ = Claim.wrap(_getArgBytes32(PRE_EXTRA_DATA_BYTE_COUNT + _extraDataByteCount()));
     }
 
     /// @notice Getter for the VM implementation.
     /// @dev `clones-with-immutable-args` argument #7
     /// @return vm_ The onchain VM implementation address.
     function vm() public pure returns (IBigStepper vm_) {
-        vm_ = IBigStepper(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 32));
+        vm_ = IBigStepper(_getArgAddress(PRE_EXTRA_DATA_BYTE_COUNT + _extraDataByteCount() + 32));
     }
 
     /// @notice Getter for the anchor state registry.
     /// @dev `clones-with-immutable-args` argument #8
     /// @return registry_ The anchor state registry contract address.
     function anchorStateRegistry() public pure returns (IAnchorStateRegistry registry_) {
-        registry_ = IAnchorStateRegistry(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 52));
+        registry_ = IAnchorStateRegistry(_getArgAddress(PRE_EXTRA_DATA_BYTE_COUNT + _extraDataByteCount() + 52));
     }
 
     /// @notice Getter for the WETH contract.
     /// @dev `clones-with-immutable-args` argument #9
     /// @return weth_ The WETH contract for holding ETH.
     function weth() public pure returns (IDelayedWETH weth_) {
-        weth_ = IDelayedWETH(payable(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 72)));
+        weth_ = IDelayedWETH(payable(_getArgAddress(PRE_EXTRA_DATA_BYTE_COUNT + _extraDataByteCount() + 72)));
     }
 
     /// @notice Getter for the L2 chain ID.
     /// @dev `clones-with-immutable-args` argument #10
     /// @return l2ChainId_ The L2 chain ID.
     function _l2ChainId() internal pure returns (uint256 l2ChainId_) {
-        l2ChainId_ = _getArgUint256(_preExtraDataByteCount() + _extraDataByteCount() + 92);
+        l2ChainId_ = _getArgUint256(PRE_EXTRA_DATA_BYTE_COUNT + _extraDataByteCount() + 92);
     }
 
     /// @notice A compliant implementation of this interface should return the components of the

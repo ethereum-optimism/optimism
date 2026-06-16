@@ -45,4 +45,10 @@ impl OpReceiptBuilder for OpRethReceiptBuilder {
     fn build_deposit_receipt(&self, inner: OpDepositReceipt) -> Self::Receipt {
         OpReceipt::Deposit(inner)
     }
+
+    fn strip_deposit_nonce(&self, receipt: &mut Self::Receipt) {
+        if let OpReceipt::Deposit(d) = receipt {
+            d.deposit_nonce = None;
+        }
+    }
 }

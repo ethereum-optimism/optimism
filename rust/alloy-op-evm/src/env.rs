@@ -283,6 +283,34 @@ mod tests {
         (OpHardfork::Lagoon, OpSpecId::INTEROP),
     ];
 
+    /// The revm [`SpecId`] equivalent of the given L1 hardfork, for the L1 forks that OP forks
+    /// imply. The enums use different names for the merge fork (`Paris`/`MERGE`).
+    fn eth_spec_id(l1_fork: EthereumHardfork) -> SpecId {
+        match l1_fork {
+            EthereumHardfork::Paris => SpecId::MERGE,
+            EthereumHardfork::Shanghai => SpecId::SHANGHAI,
+            EthereumHardfork::Cancun => SpecId::CANCUN,
+            EthereumHardfork::Prague => SpecId::PRAGUE,
+            EthereumHardfork::Osaka => SpecId::OSAKA,
+            _ => panic!("not an L1 fork implied by an OP fork: {l1_fork}"),
+        }
+    }
+
+    /// Pins op-revm's hand-written `OpSpecId::into_eth_spec` to the canonical
+    /// OP fork → implied L1 fork mapping in alloy-op-hardforks. op-revm deliberately has no
+    /// alloy dependencies, so divergence between the two is caught here, where both crates
+    /// meet.
+    #[test]
+    fn op_spec_eth_base_matches_canonical_implied_l1_fork() {
+        for (hardfork, spec_id) in FORK_CHRONOLOGY {
+            assert_eq!(
+                spec_id.into_eth_spec(),
+                eth_spec_id(hardfork.implied_l1_fork()),
+                "{hardfork}: OpSpecId::into_eth_spec diverges from OpHardfork::implied_l1_fork"
+            );
+        }
+    }
+
     /// Builds a chain config where every fork up to and including `forks[idx]` is active at
     /// timestamp 1, mirroring a real chain that has progressed through the schedule. This is what
     /// exercises the newest-first precedence in `spec_by_timestamp_after_bedrock`: with several

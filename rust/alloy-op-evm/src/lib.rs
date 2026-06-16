@@ -33,7 +33,7 @@ use op_revm::{
 };
 use revm::{
     Context, ExecuteEvm, InspectEvm, Inspector, Journal, MainContext, SystemCallEvm,
-    context::{BlockEnv, CfgEnv, TxEnv},
+    context::{BlockEnv, CfgEnv, DBErrorMarker, TxEnv},
     context_interface::{
         Transaction,
         result::{EVMError, ResultAndState},
@@ -47,7 +47,9 @@ pub mod tx;
 pub use tx::OpTx;
 
 pub mod block;
-pub use block::{OpBlockExecutionCtx, OpBlockExecutor, OpBlockExecutorFactory, PostExecMode};
+pub use block::{
+    OpBlockExecutionCtx, OpBlockExecutor, OpBlockExecutorFactory, PostExecMode, PreRefundGasUsed,
+};
 
 pub mod post_exec;
 
@@ -373,7 +375,7 @@ where
     type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> = OpEvm<DB, I, Self::Precompiles, Tx>;
     type Context<DB: Database> = OpEvmContext<DB>;
     type Tx = Tx;
-    type Error<DBError: core::error::Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
+    type Error<DBError: DBErrorMarker> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type BlockEnv = BlockEnv;

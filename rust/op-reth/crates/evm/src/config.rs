@@ -25,15 +25,30 @@ pub struct OpNextBlockEnvAttributes {
 impl<H: alloy_consensus::BlockHeader> reth_rpc_eth_api::helpers::pending_block::BuildPendingEnv<H>
     for OpNextBlockEnvAttributes
 {
-    fn build_pending_env(parent: &crate::SealedHeader<H>) -> Self {
-        Self {
+    fn build_pending_env(
+        parent: &crate::SealedHeader<H>,
+        block_overrides: Option<&alloy_rpc_types_eth::BlockOverrides>,
+    ) -> Self {
+        let mut attributes = Self {
             timestamp: parent.timestamp().saturating_add(12),
             suggested_fee_recipient: parent.beneficiary(),
             prev_randao: B256::random(),
             gas_limit: parent.gas_limit(),
             parent_beacon_block_root: parent.parent_beacon_block_root(),
             extra_data: parent.extra_data().clone(),
+        };
+
+        // Only the beacon root override must be applied here: it is consumed during EVM
+        // environment construction. All other `BlockOverrides` fields are applied directly
+        // to the constructed environment by the caller, matching the upstream
+        // `NextBlockEnvAttributes::build_pending_env` behavior.
+        if attributes.parent_beacon_block_root.is_some() &&
+            let Some(beacon_root) = block_overrides.and_then(|overrides| overrides.beacon_root)
+        {
+            attributes.parent_beacon_block_root = Some(beacon_root);
         }
+
+        attributes
     }
 }
 

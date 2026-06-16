@@ -30,6 +30,7 @@ pub const OP_ENGINE_CAPABILITIES: &[&str] = &[
     "engine_getPayloadV2",
     "engine_getPayloadV3",
     "engine_getPayloadV4",
+    "engine_getPayloadV5",
     "engine_newPayloadV2",
     "engine_newPayloadV3",
     "engine_newPayloadV4",
@@ -178,6 +179,22 @@ pub trait OpEngineApi<Engine: EngineTypes> {
         &self,
         payload_id: PayloadId,
     ) -> RpcResult<Engine::ExecutionPayloadEnvelopeV4>;
+
+    /// Returns the most recent version of the payload that is available in the corresponding
+    /// payload build process at the time of receiving this call.
+    ///
+    /// See also <https://github.com/ethereum/execution-apis/blob/main/src/engine/osaka.md#engine_getpayloadv5>
+    ///
+    /// Note:
+    /// > Provider software MAY stop the corresponding build process after serving this call.
+    ///
+    /// OP modifications:
+    /// - the response type is extended to [`EngineTypes::ExecutionPayloadEnvelopeV5`].
+    #[method(name = "getPayloadV5")]
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<Engine::ExecutionPayloadEnvelopeV5>;
 
     /// Returns the execution payload bodies by the given hash.
     ///
@@ -343,6 +360,14 @@ where
         Ok(self.inner.get_payload_v4_metered(payload_id).await?)
     }
 
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV5> {
+        trace!(target: "rpc::engine", "Serving engine_getPayloadV5");
+        Ok(self.inner.get_payload_v5_metered(payload_id).await?)
+    }
+
     async fn get_payload_bodies_by_hash_v1(
         &self,
         block_hashes: Vec<BlockHash>,
@@ -381,5 +406,19 @@ where
 {
     fn into_rpc_module(self) -> RpcModule<()> {
         self.into_rpc().remove_context()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OP_ENGINE_CAPABILITIES;
+
+    /// Osaka `engine_getPayloadV5` must be advertised: once Osaka/Karst is active the CL fetches
+    /// payloads via V5, and an unadvertised method is rejected with -38005 "Unsupported fork".
+    /// V4 stays advertised — V5 is additive (`newPayload` remains V4).
+    #[test]
+    fn advertises_get_payload_v5() {
+        assert!(OP_ENGINE_CAPABILITIES.contains(&"engine_getPayloadV5"));
+        assert!(OP_ENGINE_CAPABILITIES.contains(&"engine_getPayloadV4"));
     }
 }
