@@ -61,7 +61,7 @@ pub trait WitnessGenerator {
         });
         let beacon = OnlineBlobStore { provider: blob_provider.clone(), store: blob_data.clone() };
 
-        let (boot_info, input) = get_inputs_for_pipeline(oracle.clone()).await.unwrap();
+        let (boot_info, input) = get_inputs_for_pipeline(oracle.clone()).await?;
         if let Some((cursor, l1_provider, l2_provider)) = input {
             let rollup_config = Arc::new(boot_info.rollup_config.clone());
             let l1_config = Arc::new(boot_info.l1_config.clone());
@@ -76,14 +76,19 @@ pub trait WitnessGenerator {
                     l1_provider.clone(),
                     l2_provider.clone(),
                 )
-                .await
-                .unwrap();
-            self.get_executor().run(boot_info, pipeline, cursor, l2_provider).await.unwrap();
+                .await?;
+            self.get_executor().run(boot_info, pipeline, cursor, l2_provider).await?;
         }
 
         let witness = Self::WitnessData::from_parts(
-            preimage_witness_store.lock().unwrap().clone(),
-            blob_data.lock().unwrap().clone(),
+            preimage_witness_store
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Failed to acquire preimage_witness_store lock"))?
+                .clone(),
+            blob_data
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Failed to acquire blob_data lock"))?
+                .clone(),
         );
 
         Ok(witness)

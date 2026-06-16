@@ -5,14 +5,13 @@ use std::{
     cmp::{Ordering, min},
     env, fs,
     path::PathBuf,
-    str::FromStr,
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use alloy_consensus::{BlockHeader, Header};
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_primitives::{Address, B256, Bytes, U64, U256, keccak256};
+use alloy_primitives::{Address, B256, Bytes, U64, U256, address, keccak256};
 use alloy_provider::{Provider, ProviderBuilder, RootProvider};
 use alloy_rlp::Decodable;
 use alloy_sol_types::SolValue;
@@ -23,7 +22,7 @@ use kona_host::{DataFormat, single::SingleChainHost};
 use kona_protocol::L2BlockInfo;
 use kona_registry::L1_CONFIGS;
 use kona_rpc::{OutputResponse, SafeHeadResponse};
-use kona_sp1_client_utils::boot::BootInfoStruct;
+use kona_sp1_client_utils::boot::{BootInfoStruct, hash_rollup_config};
 use op_alloy_consensus::OpBlock;
 use op_alloy_network::{BlockResponse, Network, Optimism, primitives::HeaderResponse};
 use reqwest::Url;
@@ -31,6 +30,136 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::L2Output;
+
+/// `L2ToL1MessagePasser` predeploy address.
+const L2_TO_L1_MESSAGE_PASSER: Address = address!("0x4200000000000000000000000000000000000016");
+
+/// JSON-RPC "method not found" error code defined by the JSON-RPC 2.0 spec.
+const JSON_RPC_METHOD_NOT_FOUND: i64 = -32601;
+
+/// Resolve the `L2ToL1MessagePasser` storage root from a block.
+///
+/// Post-Isthmus, the header's `withdrawals_root` field carries this value directly. Pre-Isthmus,
+/// it is `EMPTY_ROOT_HASH`, so callers must fall back to `eth_getProof`.
+async fn l2_to_l1_message_passer_storage_root(
+    provider: &RootProvider<Optimism>,
+    header: &Header,
+    block_number: u64,
+) -> Result<B256> {
+    match header.withdrawals_root {
+        Some(root) if root != alloy_trie::EMPTY_ROOT_HASH => Ok(root),
+        _ => Ok(provider
+            .get_proof(L2_TO_L1_MESSAGE_PASSER, Vec::new())
+            .block_id(block_number.into())
+            .await?
+            .storage_hash),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::classify_safe_db_probe_outcome;
+
+    #[test]
+    fn safe_db_classifier_active_on_parseable_result() {
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "l1Block": {
+                    "hash": "0x0000000000000000000000000000000000000000000000000000000000000001",
+                    "number": 100,
+                },
+                "safeHead": {
+                    "hash": "0x0000000000000000000000000000000000000000000000000000000000000002",
+                    "number": 42,
+                },
+            },
+        });
+        assert!(classify_safe_db_probe_outcome(&response).unwrap());
+    }
+
+    #[test]
+    fn safe_db_classifier_inactive_on_method_not_found() {
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+                "code": -32601,
+                "message": "the method optimism_safeHeadAtL1Block does not exist",
+            },
+        });
+        assert!(!classify_safe_db_probe_outcome(&response).unwrap());
+    }
+
+    #[test]
+    fn safe_db_classifier_inactive_on_disabled_safedb_message() {
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+                "code": -32000,
+                "message": "safeDB is not enabled",
+            },
+        });
+        assert!(!classify_safe_db_probe_outcome(&response).unwrap());
+    }
+
+    #[test]
+    fn safe_db_classifier_errs_on_unrelated_rpc_error() {
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+                "code": -32000,
+                "message": "unauthorized",
+            },
+        });
+        let err = classify_safe_db_probe_outcome(&response).unwrap_err();
+        assert!(err.to_string().contains("unauthorized"), "error = {err}");
+    }
+
+    #[test]
+    fn safe_db_classifier_errs_on_malformed_response() {
+        let response = json!({ "jsonrpc": "2.0", "id": 1 });
+        assert!(classify_safe_db_probe_outcome(&response).is_err());
+    }
+
+    #[test]
+    fn safe_db_classifier_errs_on_malformed_result_shape() {
+        let response = json!({ "jsonrpc": "2.0", "id": 1, "result": null });
+        assert!(classify_safe_db_probe_outcome(&response).is_err());
+
+        let response = json!({ "jsonrpc": "2.0", "id": 1, "result": {} });
+        assert!(classify_safe_db_probe_outcome(&response).is_err());
+    }
+}
+
+/// Classify a raw JSON-RPC response body from `optimism_safeHeadAtL1Block`.
+fn classify_safe_db_probe_outcome(response: &serde_json::Value) -> Result<bool> {
+    if let Some(error) = response.get("error") {
+        let code = error.get("code").and_then(|v| v.as_i64());
+        let message = error.get("message").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+
+        if code == Some(JSON_RPC_METHOD_NOT_FOUND) || message.to_lowercase().contains("safedb") {
+            return Ok(false);
+        }
+        return Err(anyhow!("Error calling optimism_safeHeadAtL1Block: {message}"));
+    }
+
+    let Some(result) = response.get("result") else {
+        return Err(anyhow!(
+            "Malformed JSON-RPC response for optimism_safeHeadAtL1Block: neither `result` nor `error` present"
+        ));
+    };
+
+    let _: SafeHeadResponse = serde_json::from_value(result.clone()).with_context(|| {
+        "Malformed optimism_safeHeadAtL1Block result: expected SafeHeadResponse".to_string()
+    })?;
+    Ok(true)
+}
 
 #[expect(missing_debug_implementations)]
 #[derive(Clone)]
@@ -223,20 +352,38 @@ impl OPSuccinctDataFetcher {
             .map(|block_number| async move {
                 let block =
                     self.l2_provider.get_block_by_number(block_number.into()).await?.unwrap();
-                let receipts =
-                    self.l2_provider.get_block_receipts(block_number.into()).await?.unwrap();
-                let total_l1_fees: u128 =
-                    receipts.iter().map(|tx| tx.l1_block_info.l1_fee.unwrap_or(0)).sum();
-                let total_tx_fees: u128 = receipts
-                    .iter()
-                    .map(|tx| {
-                        // tx.inner.effective_gas_price * tx.inner.gas_used +
-                        // tx.l1_block_info.l1_fee is the total fee for the transaction.
-                        // tx.inner.effective_gas_price * tx.inner.gas_used is the tx fee on L2.
-                        tx.inner.effective_gas_price * tx.inner.gas_used as u128 +
-                            tx.l1_block_info.l1_fee.unwrap_or(0)
-                    })
-                    .sum();
+                let (total_l1_fees, total_tx_fees) =
+                    match self.l2_provider.get_block_receipts(block_number.into()).await {
+                        Ok(Some(receipts)) => {
+                            let l1_fees: u128 = receipts
+                                .iter()
+                                .map(|tx| tx.l1_block_info.l1_fee.unwrap_or(0))
+                                .sum();
+                            let tx_fees: u128 = receipts
+                                .iter()
+                                .map(|tx| {
+                                    tx.inner.effective_gas_price * tx.inner.gas_used as u128 +
+                                        tx.l1_block_info.l1_fee.unwrap_or(0)
+                                })
+                                .sum();
+                            (l1_fees, tx_fees)
+                        }
+                        Ok(None) => {
+                            tracing::warn!(
+                                block_number,
+                                "eth_getBlockReceipts returned None; fee data will be zero"
+                            );
+                            (0u128, 0u128)
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                block_number,
+                                error = %e,
+                                "eth_getBlockReceipts failed; fee data will be zero"
+                            );
+                            (0u128, 0u128)
+                        }
+                    };
 
                 Ok(BlockInfo {
                     block_number,
@@ -343,27 +490,113 @@ impl OPSuccinctDataFetcher {
         }
     }
 
-    /// Fetch and save the rollup config to a temporary file.
+    /// Load the rollup config from cache when available, otherwise fetch it from RPC and cache it.
     async fn fetch_and_save_rollup_config(
         rpc_config: &RPCConfig,
     ) -> Result<(RollupConfig, PathBuf)> {
+        let chain_id_hex: String = Self::fetch_rpc_data(&rpc_config.l2_rpc, "eth_chainId", vec![])
+            .await
+            .context("Failed to fetch chain ID from L2 RPC - is L2_RPC reachable?")?;
+        let chain_id_stripped = chain_id_hex
+            .strip_prefix("0x")
+            .or_else(|| chain_id_hex.strip_prefix("0X"))
+            .unwrap_or(&chain_id_hex);
+        let chain_id = u64::from_str_radix(chain_id_stripped, 16).with_context(|| {
+            format!("Failed to parse chain ID from eth_chainId response: {chain_id_hex}")
+        })?;
+
+        let rollup_config_dir = env::var("L2_CONFIG_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("configs/L2"));
+        let rollup_config_path = rollup_config_dir.join(format!("{chain_id}.json"));
+
+        if rollup_config_path.exists() {
+            let file_contents = fs::read_to_string(&rollup_config_path)?;
+            match serde_json::from_str::<RollupConfig>(&file_contents) {
+                Ok(rollup_config) => {
+                    if rollup_config.l2_chain_id.id() != chain_id {
+                        bail!(
+                            "Cached rollup config at {} has chain ID {} but L2 RPC reports {}. Delete the cached file and restart.",
+                            rollup_config_path.display(),
+                            rollup_config.l2_chain_id.id(),
+                            chain_id
+                        );
+                    }
+
+                    tracing::info!(
+                        chain_id,
+                        path = %rollup_config_path.display(),
+                        "Loaded rollup config from cached file"
+                    );
+                    Self::compare_config_with_rpc(&rollup_config, rpc_config).await;
+                    return Ok((rollup_config, rollup_config_path));
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        path = %rollup_config_path.display(),
+                        "Cached rollup config is corrupted, fetching from RPC"
+                    );
+                    if let Err(del_err) = fs::remove_file(&rollup_config_path) {
+                        tracing::warn!(error = %del_err, "Failed to delete corrupted cache file");
+                    }
+                }
+            }
+        }
+
         let rollup_config: RollupConfig =
             Self::fetch_rpc_data(&rpc_config.l2_node_rpc, "optimism_rollupConfig", vec![]).await?;
 
-        // Create configs directory if it doesn't exist
-        let rollup_config_dir = PathBuf::from("configs/L2");
-        fs::create_dir_all(&rollup_config_dir)?;
+        if rollup_config.l2_chain_id.id() != chain_id {
+            bail!(
+                "Rollup config from op-node has chain ID {} but L2 execution RPC reports {}. Check that L2_RPC and L2_NODE_RPC point to the same chain.",
+                rollup_config.l2_chain_id.id(),
+                chain_id
+            );
+        }
 
-        // Save rollup config to a file named by chain ID
-        let rollup_config_path =
-            rollup_config_dir.join(format!("{}.json", rollup_config.l2_chain_id));
+        fs::create_dir_all(&rollup_config_dir)
+            .with_context(|| format!("Failed to create {}", rollup_config_dir.display()))?;
+        fs::write(&rollup_config_path, serde_json::to_string_pretty(&rollup_config)?)
+            .with_context(|| format!("Failed to write {}", rollup_config_path.display()))?;
+        tracing::info!(
+            chain_id,
+            path = %rollup_config_path.display(),
+            "Cached rollup config from RPC"
+        );
 
-        // Write the rollup config to the file
-        let rollup_config_str = serde_json::to_string_pretty(&rollup_config)?;
-        fs::write(&rollup_config_path, rollup_config_str)?;
-
-        // Return both the rollup config and the path to the temporary file
         Ok((rollup_config, rollup_config_path))
+    }
+
+    /// Best-effort: compare cached config against node RPC and warn on mismatch.
+    async fn compare_config_with_rpc(cached: &RollupConfig, rpc_config: &RPCConfig) {
+        let rpc_fetch = Self::fetch_rpc_data::<RollupConfig>(
+            &rpc_config.l2_node_rpc,
+            "optimism_rollupConfig",
+            vec![],
+        );
+
+        match tokio::time::timeout(Duration::from_secs(5), rpc_fetch).await {
+            Ok(Ok(rpc_rollup_config)) => {
+                let cached_hash = hash_rollup_config(cached);
+                let rpc_hash = hash_rollup_config(&rpc_rollup_config);
+                if cached_hash == rpc_hash {
+                    tracing::info!("Cached rollup config matches node RPC");
+                } else {
+                    tracing::warn!(
+                        cached_hash = %cached_hash,
+                        rpc_hash = %rpc_hash,
+                        "Cached rollup config differs from node RPC - expected during hardfork transitions"
+                    );
+                }
+            }
+            Ok(Err(e)) => {
+                tracing::warn!(error = %e, "Could not fetch RPC config for comparison");
+            }
+            Err(_) => {
+                tracing::warn!("RPC config comparison timed out (5s)");
+            }
+        }
     }
 
     /// Fetch and save the L1 config based on the rollup config's L1 chain ID.
@@ -421,6 +654,30 @@ impl OPSuccinctDataFetcher {
         }
 
         serde_json::from_value(response["result"].clone()).map_err(Into::into)
+    }
+
+    /// Execute a JSON-RPC call and return the raw response body without collapsing JSON-RPC
+    /// `error` objects into `Err`.
+    async fn fetch_rpc_data_raw(
+        url: &Url,
+        method: &str,
+        params: Vec<Value>,
+    ) -> Result<serde_json::Value> {
+        let client = reqwest::Client::new();
+        let response = client
+            .post(url.clone())
+            .json(&json!({
+                "jsonrpc": "2.0",
+                "method": method,
+                "params": params,
+                "id": 1
+            }))
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<serde_json::Value>()
+            .await?;
+        Ok(response)
     }
 
     /// Fetch arbitrary data from the RPC.
@@ -635,11 +892,10 @@ impl OPSuccinctDataFetcher {
 
     /// Get the L2 block info by number.
     pub async fn l2_block_info_by_number(&self, block_number: u64) -> Result<L2BlockInfo> {
-        // If the rollup config is not already loaded, fetch and save it.
-        if self.rollup_config.is_none() {
+        let Some(rollup_config) = &self.rollup_config else {
             return Err(anyhow::anyhow!("Rollup config not loaded."));
-        }
-        let genesis = self.rollup_config.as_ref().unwrap().genesis;
+        };
+        let genesis = rollup_config.genesis;
         let block = self.get_l2_block_by_number(block_number).await?;
         Ok(L2BlockInfo::from_block_and_genesis(&block, &genesis)?)
     }
@@ -662,14 +918,14 @@ impl OPSuccinctDataFetcher {
     pub async fn is_safe_db_activated(&self) -> Result<bool> {
         let finalized_l1_header = self.get_l1_header(BlockId::finalized()).await?;
         let l1_block_number_hex = format!("0x{:x}", finalized_l1_header.number);
-        let result: Result<SafeHeadResponse, _> = self
-            .fetch_rpc_data_with_mode(
-                RPCMode::L2Node,
-                "optimism_safeHeadAtL1Block",
-                vec![l1_block_number_hex.into()],
-            )
-            .await;
-        Ok(result.is_ok())
+        let url = self.get_rpc_url(RPCMode::L2Node)?;
+        let response = Self::fetch_rpc_data_raw(
+            url,
+            "optimism_safeHeadAtL1Block",
+            vec![l1_block_number_hex.into()],
+        )
+        .await?;
+        classify_safe_db_probe_outcome(&response)
     }
 
     /// Get the L2 output data for a given block number and save the boot info to a file in the data
@@ -681,10 +937,9 @@ impl OPSuccinctDataFetcher {
         l2_end_block: u64,
         l1_head_hash: B256,
     ) -> Result<SingleChainHost> {
-        // If the rollup config is not already loaded, fetch and save it.
-        if self.rollup_config.is_none() {
+        let Some(rollup_config) = &self.rollup_config else {
             return Err(anyhow::anyhow!("Rollup config not loaded."));
-        }
+        };
 
         if l2_start_block >= l2_end_block {
             return Err(anyhow::anyhow!(
@@ -701,11 +956,12 @@ impl OPSuccinctDataFetcher {
             .ok_or_else(|| anyhow::anyhow!("Block not found for block number {l2_start_block}"))?;
         let l2_output_state_root = l2_output_block.header.state_root;
         let agreed_l2_head_hash = l2_output_block.header.hash;
-        let l2_output_storage_hash = l2_provider
-            .get_proof(Address::from_str("0x4200000000000000000000000000000000000016")?, Vec::new())
-            .block_id(l2_start_block.into())
-            .await?
-            .storage_hash;
+        let l2_output_storage_hash = l2_to_l1_message_passer_storage_root(
+            l2_provider.as_ref(),
+            &l2_output_block.header.inner,
+            l2_start_block,
+        )
+        .await?;
 
         let l2_output_encoded = L2Output {
             zero: 0,
@@ -719,11 +975,12 @@ impl OPSuccinctDataFetcher {
         let l2_claim_block = l2_provider.get_block_by_number(l2_end_block.into()).await?.unwrap();
         let l2_claim_state_root = l2_claim_block.header.state_root;
         let l2_claim_hash = l2_claim_block.header.hash;
-        let l2_claim_storage_hash = l2_provider
-            .get_proof(Address::from_str("0x4200000000000000000000000000000000000016")?, Vec::new())
-            .block_id(l2_end_block.into())
-            .await?
-            .storage_hash;
+        let l2_claim_storage_hash = l2_to_l1_message_passer_storage_root(
+            l2_provider.as_ref(),
+            &l2_claim_block.header.inner,
+            l2_end_block,
+        )
+        .await?;
 
         let l2_claim_encoded = L2Output {
             zero: 0,
@@ -745,7 +1002,7 @@ impl OPSuccinctDataFetcher {
             agreed_l2_head_hash,
             claimed_l2_output_root,
             claimed_l2_block_number: l2_end_block,
-            l2_chain_id: None,
+            l2_chain_id: Some(rollup_config.l2_chain_id.id()),
             // Trim the trailing slash to avoid double slashes in the URL.
             l2_node_address: Some(
                 self.rpc_config.l2_rpc.as_str().trim_end_matches('/').to_string(),

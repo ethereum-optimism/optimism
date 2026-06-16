@@ -93,7 +93,7 @@ where
 
                 // If we are in interop mode, this error must be handled by the caller.
                 // Otherwise, we continue the loop to halt derivation on the next iteration.
-                if cfg.is_interop_active(driver.cursor.read().l2_safe_head().block_info.number) {
+                if cfg.is_interop_active(driver.cursor.read().l2_safe_head().block_info.timestamp) {
                     return Err(PipelineError::EndOfSource.crit().into());
                 }
                 continue;
@@ -205,7 +205,9 @@ mod tests {
 
         let agreed_root = B256::from(keccak256(output_preimage));
         let mut oracle = PreimageStore::default();
-        oracle.save_preimage(PreimageKey::new_keccak256(*agreed_root), output_preimage.to_vec());
+        oracle
+            .save_preimage(PreimageKey::new_keccak256(*agreed_root), output_preimage.to_vec())
+            .unwrap();
 
         let err = block_on(fetch_safe_head_hash(&oracle, agreed_root)).unwrap_err();
         match err {

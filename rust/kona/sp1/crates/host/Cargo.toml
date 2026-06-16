@@ -39,6 +39,7 @@ alloy-primitives.workspace = true
 alloy-provider.workspace = true
 alloy-rlp.workspace = true
 alloy-sol-types.workspace = true
+alloy-trie.workspace = true
 
 # general
 anyhow.workspace = true

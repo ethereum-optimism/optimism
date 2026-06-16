@@ -8,17 +8,14 @@ use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::{ExportConfig, LogExporter, Protocol, WithExportConfig};
 use opentelemetry_sdk::{Resource, logs::SdkLoggerProvider, propagation::TraceContextPropagator};
 use tracing_subscriber::{
-    EnvFilter, Layer, Registry, layer::SubscriberExt, util::SubscriberInitExt,
+    EnvFilter, Layer, Registry, fmt::format::JsonFields, layer::SubscriberExt,
+    util::SubscriberInitExt,
 };
 
 static INIT: OnceLock<Result<()>> = OnceLock::new();
 
 fn build_env_filter() -> EnvFilter {
-    EnvFilter::try_from_default_env()
-        .unwrap_or_else(|e| {
-            println!("failed to setup env filter: {e:?}");
-            EnvFilter::new("info")
-        })
+    let mut filter = EnvFilter::new("info")
         .add_directive("single_hint_handler=error".parse().unwrap())
         .add_directive("execute=error".parse().unwrap())
         .add_directive("sp1_prover=error".parse().unwrap())
@@ -34,7 +31,18 @@ fn build_env_filter() -> EnvFilter {
         .add_directive("host_server=error".parse().unwrap())
         .add_directive("kona_protocol=error".parse().unwrap())
         .add_directive("sp1_core_executor=off".parse().unwrap())
-        .add_directive("sp1_core_machine=error".parse().unwrap())
+        .add_directive("sp1_core_machine=error".parse().unwrap());
+
+    if let Ok(var) = env::var(EnvFilter::DEFAULT_ENV) {
+        for directive in var.split(',') {
+            match directive.trim().parse() {
+                Ok(d) => filter = filter.add_directive(d),
+                Err(e) => eprintln!("ignoring invalid RUST_LOG directive {directive:?}: {e}"),
+            }
+        }
+    }
+
+    filter
 }
 
 /// Set up the logger with optional `OpenTelemetry` export.
@@ -74,6 +82,7 @@ pub fn setup_logger() {
                     Some(Box::new(
                         tracing_subscriber::fmt::layer()
                             .event_format(tracing_subscriber::fmt::format().json())
+                            .fmt_fields(JsonFields::new())
                             .with_filter(build_env_filter()),
                     ))
                 }

@@ -4,7 +4,8 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use kona_preimage::{
-    CommsClient, HintWriterClient, PreimageKey, PreimageOracleClient, errors::PreimageOracleResult,
+    CommsClient, HintWriterClient, PreimageKey, PreimageOracleClient,
+    errors::{PreimageOracleError, PreimageOracleResult},
 };
 use kona_proof::FlushableCache;
 use kona_sp1_client_utils::witness::preimage_store::PreimageStore;
@@ -25,13 +26,13 @@ where
 {
     async fn get(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
         let value = self.preimage_oracle.get(key).await?;
-        self.save(key, &value);
+        self.save(key, &value)?;
         Ok(value)
     }
 
     async fn get_exact(&self, key: PreimageKey, buf: &mut [u8]) -> PreimageOracleResult<()> {
         self.preimage_oracle.get_exact(key, buf).await?;
-        self.save(key, buf);
+        self.save(key, buf)?;
         Ok(())
     }
 }
@@ -60,7 +61,10 @@ where
     P: CommsClient + FlushableCache + Send + Sync + Clone,
 {
     /// Saves a preimage to the witness store.
-    pub fn save(&self, key: PreimageKey, value: &[u8]) {
-        self.preimage_witness_store.lock().unwrap().save_preimage(key, value.to_vec());
+    pub fn save(&self, key: PreimageKey, value: &[u8]) -> PreimageOracleResult<()> {
+        let mut witness_store_lock = self.preimage_witness_store.lock().map_err(|_| {
+            PreimageOracleError::Other("Failed to acquire preimage_witness_store lock".to_string())
+        })?;
+        witness_store_lock.save_preimage(key, value.to_vec())
     }
 }

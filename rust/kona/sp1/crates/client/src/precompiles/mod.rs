@@ -1,20 +1,17 @@
 //! [`PrecompileProvider`] for FPVM-accelerated OP Stack precompiles.
 
-use alloc::{boxed::Box, format, string::String, vec::Vec};
-use alloy_primitives::{Address, Bytes};
-use op_revm::{
-    OpSpecId,
-    precompiles::{fjord, granite, isthmus, jovian, karst},
-};
+use alloc::{format, string::String};
+use alloy_primitives::Address;
+use op_revm::{OpSpecId, precompiles::OpPrecompiles};
+#[cfg(target_os = "zkvm")]
+use revm::precompile::PrecompileId;
 use revm::{
-    context::{Cfg, ContextTr},
-    handler::{EthPrecompiles, PrecompileProvider},
-    interpreter::{CallInputs, Gas, InstructionResult, InterpreterResult},
-    precompile::{
-        Precompile as PrecompileWithAddress, PrecompileError, PrecompileOutput, Precompiles, bn254,
-        kzg_point_evaluation, secp256k1, secp256r1,
-    },
-    primitives::{AddressSet, hardfork::SpecId},
+    context::{Cfg, ContextTr, LocalContextTr},
+    context_interface::JournalTr,
+    handler::{EthPrecompiles, PrecompileProvider, precompile_output_to_interpreter_result},
+    interpreter::{CallInput, CallInputs, InterpreterResult},
+    precompile::PrecompileError,
+    primitives::AddressSet,
 };
 
 mod custom;
@@ -23,38 +20,54 @@ pub use custom::CustomCrypto;
 mod factory;
 pub use factory::ZkvmOpEvmFactory;
 
-/// Get the ZKVM-accelerated precompiles.
-fn get_precompiles() -> Vec<PrecompileWithAddress> {
-    vec![
-        bn254::add::ISTANBUL,
-        bn254::mul::ISTANBUL,
-        bn254::pair::ISTANBUL,
-        secp256k1::ECRECOVER,
-        secp256r1::P256VERIFY,
-        kzg_point_evaluation::POINT_EVALUATION,
-    ]
+/// Tracker names for accelerated precompiles.
+pub mod cycle_tracker {
+    /// Individual tracker names without the prefix.
+    pub mod names {
+        /// BN254 add tracker name.
+        pub const BN_ADD: &str = "bn-add";
+        /// BN254 mul tracker name.
+        pub const BN_MUL: &str = "bn-mul";
+        /// BN254 pairing tracker name.
+        pub const BN_PAIR: &str = "bn-pair";
+        /// ECRECOVER tracker name.
+        pub const EC_RECOVER: &str = "ec-recover";
+        /// P256 verify tracker name.
+        pub const P256_VERIFY: &str = "p256-verify";
+        /// KZG eval tracker name.
+        pub const KZG_EVAL: &str = "kzg-eval";
+    }
+
+    /// Full cycle tracker keys with the `precompile-` prefix.
+    pub mod keys {
+        /// BN254 add cycle-tracker key.
+        pub const BN_ADD: &str = "precompile-bn-add";
+        /// BN254 mul cycle-tracker key.
+        pub const BN_MUL: &str = "precompile-bn-mul";
+        /// BN254 pairing cycle-tracker key.
+        pub const BN_PAIR: &str = "precompile-bn-pair";
+        /// ECRECOVER cycle-tracker key.
+        pub const EC_RECOVER: &str = "precompile-ec-recover";
+        /// P256 verify cycle-tracker key.
+        pub const P256_VERIFY: &str = "precompile-p256-verify";
+        /// KZG eval cycle-tracker key.
+        pub const KZG_EVAL: &str = "precompile-kzg-eval";
+    }
 }
 
-/// Get the cycle tracker name for a precompile address.
-/// Returns None if the address is not a tracked precompile.
+/// Get the cycle tracker name for a precompile by its ID.
+/// Returns None if the precompile is not accelerated/tracked.
 #[cfg(target_os = "zkvm")]
 #[inline]
-fn get_precompile_tracker_name(address: &Address) -> Option<&'static str> {
-    // Compare against actual precompile constants
-    if *address == *bn254::add::ISTANBUL.address() {
-        Some("bn-add")
-    } else if *address == *bn254::mul::ISTANBUL.address() {
-        Some("bn-mul")
-    } else if *address == *bn254::pair::ISTANBUL.address() {
-        Some("bn-pair")
-    } else if *address == *secp256k1::ECRECOVER.address() {
-        Some("ec-recover")
-    } else if *address == *secp256r1::P256VERIFY.address() {
-        Some("p256-verify")
-    } else if *address == *kzg_point_evaluation::POINT_EVALUATION.address() {
-        Some("kzg-eval")
-    } else {
-        None
+fn get_precompile_tracker_name(id: &PrecompileId) -> Option<&'static str> {
+    match id {
+        PrecompileId::Bn254Add => Some(cycle_tracker::names::BN_ADD),
+        PrecompileId::Bn254Mul => Some(cycle_tracker::names::BN_MUL),
+        PrecompileId::Bn254Pairing => Some(cycle_tracker::names::BN_PAIR),
+        PrecompileId::EcRec => Some(cycle_tracker::names::EC_RECOVER),
+        PrecompileId::P256Verify => Some(cycle_tracker::names::P256_VERIFY),
+        PrecompileId::KzgPointEvaluation => Some(cycle_tracker::names::KZG_EVAL),
+        _ => None,
     }
 }
 
@@ -71,22 +84,9 @@ impl OpZkvmPrecompiles {
     /// Create a new precompile provider with the given [`OpSpecId`].
     #[inline]
     pub fn new_with_spec(spec: OpSpecId) -> Self {
-        let precompiles = match spec {
-            spec @ (OpSpecId::BEDROCK |
-            OpSpecId::REGOLITH |
-            OpSpecId::CANYON |
-            OpSpecId::ECOTONE) => Precompiles::new(spec.into_eth_spec().into()),
-            OpSpecId::FJORD => fjord(),
-            OpSpecId::GRANITE | OpSpecId::HOLOCENE => granite(),
-            OpSpecId::ISTHMUS => isthmus(),
-            OpSpecId::JOVIAN => jovian(),
-            OpSpecId::KARST | OpSpecId::INTEROP => karst(),
-        };
-        let mut precompiles_owned = precompiles.clone();
-        precompiles_owned.extend(get_precompiles());
-        let precompiles = Box::leak(Box::new(precompiles_owned));
+        let precompiles = OpPrecompiles::new_with_spec(spec).precompiles();
 
-        Self { inner: EthPrecompiles { precompiles, spec: SpecId::default() }, spec }
+        Self { inner: EthPrecompiles { precompiles, spec: spec.into_eth_spec() }, spec }
     }
 }
 
@@ -111,67 +111,51 @@ where
         context: &mut CTX,
         inputs: &CallInputs,
     ) -> Result<Option<Self::Output>, String> {
-        let mut result = InterpreterResult {
-            result: InstructionResult::Return,
-            gas: Gas::new(inputs.gas_limit),
-            output: Bytes::new(),
+        let Some(precompile) = self.inner.precompiles.get(&inputs.bytecode_address) else {
+            return Ok(None);
         };
 
-        use revm::context::LocalContextTr;
-        let input = match &inputs.input {
-            revm::interpreter::CallInput::Bytes(bytes) => bytes.clone(),
-            revm::interpreter::CallInput::SharedBuffer(range) => context
-                .local()
-                .shared_memory_buffer_slice(range.clone())
-                .map(|b| Bytes::from(b.to_vec()))
-                .unwrap_or_default(),
-        };
+        #[cfg(target_os = "zkvm")]
+        let tracker_name = get_precompile_tracker_name(precompile.id());
 
-        // Priority:
-        // 1. If the precompile has an accelerated version, use that.
-        // 2. If the precompile is not accelerated, use the default version.
-        // 3. If the precompile is not found, return None.
-        let output = if let Some(precompile) = self.inner.precompiles.get(&inputs.bytecode_address)
-        {
-            // Track cycles for accelerated precompiles
-            #[cfg(target_os = "zkvm")]
-            let tracker_name = get_precompile_tracker_name(&inputs.bytecode_address);
+        let output = {
+            let shared_buffer;
+            let input_bytes = match &inputs.input {
+                CallInput::Bytes(bytes) => bytes.as_ref(),
+                CallInput::SharedBuffer(range) => {
+                    shared_buffer = context.local().shared_memory_buffer_slice(range.clone());
+                    shared_buffer.as_deref().unwrap_or(&[])
+                }
+            };
 
             #[cfg(target_os = "zkvm")]
             if let Some(name) = tracker_name {
                 println!("cycle-tracker-report-start: precompile-{}", name);
             }
 
-            let result = match precompile.execute(&input, inputs.gas_limit, inputs.reservoir) {
-                Ok(output) => output,
-                Err(PrecompileError::Fatal(e)) => return Err(e),
-                Err(PrecompileError::FatalAny(e)) => return Err(format!("{e:?}")),
-            };
+            let output = precompile
+                .execute(input_bytes, inputs.gas_limit, inputs.reservoir)
+                .map_err(|e| match e {
+                    PrecompileError::Fatal(e) => e,
+                    PrecompileError::FatalAny(e) => format!("{e:?}"),
+                })?;
 
             #[cfg(target_os = "zkvm")]
             if let Some(name) = tracker_name {
                 println!("cycle-tracker-report-end: precompile-{}", name);
             }
 
-            result
-        } else {
-            return Ok(None);
+            output
         };
 
-        let output: PrecompileOutput = output;
-        if output.is_halt() {
-            result.result = if output.halt_reason().is_some_and(|r| r.is_oog()) {
-                InstructionResult::PrecompileOOG
-            } else {
-                InstructionResult::PrecompileError
-            };
-        } else {
-            let underflow = result.gas.record_regular_cost(output.gas_used);
-            assert!(underflow, "Gas underflow is not possible");
-            result.result = InstructionResult::Return;
-            result.output = output.bytes;
+        if let Some(halt_reason) = output.halt_reason() &&
+            !halt_reason.is_oog() &&
+            context.journal().depth() == 1
+        {
+            context.local_mut().set_precompile_error_context(halt_reason.to_string());
         }
 
+        let result = precompile_output_to_interpreter_result(output, inputs.gas_limit);
         Ok(Some(result))
     }
 
@@ -183,5 +167,71 @@ where
     #[inline]
     fn contains(&self, address: &Address) -> bool {
         self.inner.contains(address)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec;
+
+    use op_revm::{DefaultOp, precompiles::bn254_pair};
+    use revm::{
+        Context,
+        bytecode::Bytecode,
+        context::CfgEnv,
+        handler::PrecompileProvider,
+        interpreter::{CallInput, CallInputs, CallScheme, CallValue, InstructionResult},
+        precompile::{PrecompileHalt, PrecompileStatus, bn254},
+        primitives::{B256, U256},
+    };
+
+    use super::*;
+
+    #[test]
+    fn karst_bn254_pairing_uses_fork_input_cap() {
+        let precompiles = OpZkvmPrecompiles::new_with_spec(OpSpecId::KARST);
+        let bn254_pair_precompile =
+            precompiles.inner.precompiles.get(&bn254::pair::ADDRESS).unwrap();
+
+        let bad_input_len = bn254_pair::KARST_MAX_INPUT_SIZE + 1;
+        assert!(bad_input_len < bn254_pair::JOVIAN_MAX_INPUT_SIZE);
+        let input = vec![0u8; bad_input_len];
+
+        let res = bn254_pair_precompile.execute(&input, u64::MAX, 0).unwrap();
+        assert!(matches!(res.status, PrecompileStatus::Halt(PrecompileHalt::Bn254PairLength)));
+    }
+
+    #[test]
+    fn karst_bn254_pairing_wrapper_preserves_halt_gas_semantics() {
+        let bad_input_len = bn254_pair::KARST_MAX_INPUT_SIZE + 1;
+        let gas_limit = 1_000_000;
+        let mut context = Context::op().with_cfg(CfgEnv::new_with_spec(OpSpecId::KARST));
+        let mut precompiles = OpZkvmPrecompiles::new_with_spec(OpSpecId::KARST);
+
+        let result = precompiles
+            .run(
+                &mut context,
+                &CallInputs {
+                    input: CallInput::Bytes(vec![0u8; bad_input_len].into()),
+                    return_memory_offset: 0..0,
+                    gas_limit,
+                    reservoir: 0,
+                    bytecode_address: bn254::pair::ADDRESS,
+                    known_bytecode: (B256::ZERO, Bytecode::default()),
+                    target_address: bn254::pair::ADDRESS,
+                    caller: Address::ZERO,
+                    value: CallValue::Transfer(U256::ZERO),
+                    scheme: CallScheme::Call,
+                    is_static: false,
+                    charged_new_account_state_gas: false,
+                },
+            )
+            .unwrap()
+            .expect("bn254 pairing address should be a precompile");
+
+        assert_eq!(result.result, InstructionResult::PrecompileError);
+        assert_eq!(result.gas.remaining(), 0, "non-OOG precompile halt must spend all gas");
+        assert_eq!(result.gas.total_gas_spent(), gas_limit);
+        assert!(result.output.is_empty());
     }
 }

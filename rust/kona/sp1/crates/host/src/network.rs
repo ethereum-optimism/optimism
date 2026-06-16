@@ -2,16 +2,21 @@
 
 use std::env;
 
-use anyhow::{Context, Result, anyhow};
-use sp1_sdk::network::{FulfillmentStrategy, NetworkMode, signer::NetworkSigner};
+use anyhow::{Context, Result, anyhow, bail};
+use sp1_sdk::{
+    NetworkProver, ProverClient,
+    network::{FulfillmentStrategy, NetworkMode, signer::NetworkSigner},
+};
 
 /// Parse a fulfillment strategy from a string.
-pub fn parse_fulfillment_strategy(value: String) -> FulfillmentStrategy {
+pub fn parse_fulfillment_strategy(value: String) -> Result<FulfillmentStrategy> {
     match value.to_ascii_lowercase().as_str() {
-        "reserved" => FulfillmentStrategy::Reserved,
-        "hosted" => FulfillmentStrategy::Hosted,
-        "auction" => FulfillmentStrategy::Auction,
-        _ => FulfillmentStrategy::UnspecifiedFulfillmentStrategy,
+        "reserved" => Ok(FulfillmentStrategy::Reserved),
+        "hosted" => Ok(FulfillmentStrategy::Hosted),
+        "auction" => Ok(FulfillmentStrategy::Auction),
+        _ => bail!(
+            "Invalid fulfillment strategy '{value}': must be 'reserved', 'hosted', or 'auction'"
+        ),
     }
 }
 
@@ -65,4 +70,24 @@ pub async fn get_network_signer(use_kms_requester: bool) -> Result<NetworkSigner
     };
 
     Ok(network_signer)
+}
+
+/// Build a network prover from `USE_KMS_REQUESTER`, using the provided fulfillment strategy.
+pub async fn build_network_prover_from_env(strategy: FulfillmentStrategy) -> Result<NetworkProver> {
+    let use_kms_requester = env::var("USE_KMS_REQUESTER")
+        .unwrap_or_else(|_| "false".to_string())
+        .parse::<bool>()
+        .context("USE_KMS_REQUESTER must be true or false")?;
+    let network_signer = get_network_signer(use_kms_requester).await?;
+
+    let network_mode = match strategy {
+        FulfillmentStrategy::Auction => NetworkMode::Mainnet,
+        FulfillmentStrategy::Hosted | FulfillmentStrategy::Reserved => NetworkMode::Reserved,
+        _ => bail!("Fulfillment strategy must be 'reserved', 'hosted', or 'auction'"),
+    };
+
+    let prover =
+        ProverClient::builder().network_for(network_mode).signer(network_signer).build().await;
+
+    Ok(prover)
 }
