@@ -104,7 +104,7 @@ commands:
       - run:
           name: Ensure protobuf compiler available
           command: |
-            if command -v protoc >/dev/null 2>&1; then
+            if command -v protoc >/dev/null 2>&1 && [ -f /usr/include/google/protobuf/empty.proto ]; then
               protoc --version
               exit 0
             fi
@@ -121,7 +121,7 @@ commands:
               sleep 10
             done
 
-            sudo -E apt-get install -y --no-install-recommends protobuf-compiler
+            sudo -E apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev
             protoc --version
       # Shared GCS compile cache (op-rust-sccache).
       - rust-sccache-setup:
