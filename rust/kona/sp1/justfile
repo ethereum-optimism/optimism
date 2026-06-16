@@ -1,0 +1,20 @@
+default:
+  @just --list
+
+# Build all ELF files.
+build-elfs: build-range-elfs build-agg-elf
+
+# Build ELF files for range programs.
+build-range-elfs:
+    #!/usr/bin/env bash
+
+    cd programs/range
+    ~/.sp1/bin/cargo-prove prove build --elf-name range-elf-bump --docker --tag v6.2.4 --output-directory ../../elf
+    ~/.sp1/bin/cargo-prove prove build --elf-name range-elf-embedded --docker --tag v6.2.4 --output-directory ../../elf
+
+# Build ELF file for aggregation program.
+build-agg-elf:
+    #!/usr/bin/env bash
+
+    cd programs/aggregation
+    ~/.sp1/bin/cargo-prove prove build --elf-name aggregation-elf --docker --tag v6.2.4 --output-directory ../../elf
