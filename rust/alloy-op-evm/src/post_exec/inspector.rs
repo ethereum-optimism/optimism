@@ -240,6 +240,19 @@ impl SDMWarmingInspector {
             .intrinsic_warm_accounts
             .extend(context.journal_ref().precompile_addresses().iter().copied());
 
+        // EIP-2929 pre-warms the transaction's own sender and call target: they are added to the
+        // accessed-address set at the start of the tx, so the tx is billed the warm access cost
+        // (100) for them and never the cold cost (2600). No cold->warm surcharge is ever paid for a
+        // tx's own sender/to, so a later tx must not claim a warming rebate for them — even when an
+        // earlier tx in the block already warmed the address. They are still recorded in
+        // `warmed_accounts` (via `observe_account_touch`), so a *different* later tx that accesses
+        // them through a normal opcode (genuinely cold for that tx) still earns its rebate.
+        // The `TxKind::Create` created-contract address is handled in the `create` hook.
+        self.current_tx.intrinsic_warm_accounts.insert(context.tx().caller());
+        if let TxKind::Call(target) = context.tx().kind() {
+            self.current_tx.intrinsic_warm_accounts.insert(target);
+        }
+
         if let Some(access_list) = context.tx().access_list() {
             for item in access_list {
                 let address = *item.address();
@@ -363,7 +376,8 @@ where
         context: &mut CTX,
         inputs: &mut CreateInputs,
     ) -> Option<revm::interpreter::CreateOutcome> {
-        if context.journal().depth() == 0 {
+        let top_level = context.journal().depth() == 0;
+        if top_level {
             self.ensure_top_level_initialized(context);
         }
 
@@ -382,6 +396,16 @@ where
             }
             _ => inputs.created_address(0),
         };
+
+        // For a top-level CREATE transaction the created-contract address is the tx's intrinsic
+        // "to" under EIP-2929: it is pre-warmed at tx start, billed warm, never cold. Like a Call
+        // target it must not earn a warming rebate, even if an earlier tx warmed the address. It is
+        // still recorded in `warmed_accounts`, so a later tx that accesses it via a normal opcode
+        // (genuinely cold for that tx) still earns its rebate. Inner (depth > 0) creations are
+        // ordinary execution-time touches and keep claiming.
+        if top_level {
+            self.current_tx.intrinsic_warm_accounts.insert(created_address);
+        }
         self.observe_account_touch(created_address, true);
         None
     }

@@ -28,13 +28,18 @@ use super::*;
 
 /// Wraps a `TxLegacy` in an `OpTxEnvelope::Legacy` recovered with a zero signer.
 fn recovered_legacy(tx: TxLegacy) -> Recovered<OpTxEnvelope> {
+    recovered_legacy_from(Address::ZERO, tx)
+}
+
+/// Wraps a `TxLegacy` in an `OpTxEnvelope::Legacy` recovered with the given signer.
+fn recovered_legacy_from(sender: Address, tx: TxLegacy) -> Recovered<OpTxEnvelope> {
     Recovered::new_unchecked(
         OpTxEnvelope::Legacy(tx.into_signed(Signature::new(
             Default::default(),
             Default::default(),
             Default::default(),
         ))),
-        Address::ZERO,
+        sender,
     )
 }
 
@@ -602,6 +607,28 @@ mod sdm {
         })
     }
 
+    fn legacy_tx_from(sender: Address, nonce: u64, to: Address) -> Recovered<OpTxEnvelope> {
+        recovered_legacy_from(
+            sender,
+            TxLegacy {
+                nonce,
+                gas_limit: 50_000,
+                to: alloy_primitives::TxKind::Call(to),
+                ..Default::default()
+            },
+        )
+    }
+
+    /// A top-level CREATE tx with empty init code (deploys an empty contract).
+    fn create_tx(nonce: u64) -> Recovered<OpTxEnvelope> {
+        recovered_legacy(TxLegacy {
+            nonce,
+            gas_limit: 100_000,
+            to: alloy_primitives::TxKind::Create,
+            ..Default::default()
+        })
+    }
+
     fn full_refund_for_second_tx(
         block_gas_limit: u64,
         tx0: &Recovered<OpTxEnvelope>,
@@ -801,6 +828,126 @@ mod sdm {
             }
             other => panic!("expected a validation error, got: {other:?}"),
         }
+    }
+
+    // FAILING (known bug): a transaction's own `to` address is *intrinsically warm* under EIP-2929
+    // — it is pre-added to the tx's accessed-address set, so the tx is billed the 100-gas warm cost
+    // and never the 2600-gas cold cost. No cold->warm surcharge is ever paid for it, so it must
+    // never earn a warming rebate, even when an earlier tx in the block already warmed it.
+    //
+    // The inspector observes the top-level `to` (and `caller`) with refunds enabled
+    // (`ensure_top_level_initialized` -> `observe_account_touch(target, true)`) but omits them from
+    // the per-tx intrinsic-warm set (`collect_intrinsic_warmth` covers only the beneficiary,
+    // precompiles, access list, and 7702 authorities). So a second tx to the same `to` wrongly
+    // claims ACCOUNT_REWARM_REFUND for its own `to`. The same flaw hits `tx.sender` via the
+    // identical code path. Fix: add `caller` and the Call `target` to `intrinsic_warm_accounts`.
+    #[test]
+    fn test_intrinsic_warm_to_address_is_not_rebated() {
+        let target = Address::from([0x11; 20]);
+        // Two txs to the same `to`. The first warms `target`; the second touches it only as its own
+        // (intrinsically warm) `to`, so it must not claim a rebate for it.
+        let user_txs = vec![legacy_tx(0, target), legacy_tx(1, target)];
+
+        let mut fixture = SDMExecutorFixture::default();
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+        for tx in &user_txs {
+            producer.execute_transaction(tx).expect("producer executes user tx");
+        }
+
+        // No tx may claim a warming rebate for `target`: it is the `to` of every tx, hence
+        // intrinsically warm for each. (Fee-recipient touches, a separate concern, target other
+        // addresses and are unaffected by this assertion.)
+        let claimed_own_to =
+            producer.warming_events_by_tx.iter().flatten().find(|event| event.address == target);
+        assert!(
+            claimed_own_to.is_none(),
+            "a tx claimed a warming rebate for its own intrinsically-warm `to` ({target}): {:#?}",
+            producer.warming_events_by_tx,
+        );
+    }
+
+    // Companion to the `to` case: a tx's own `sender` is also intrinsically warm under EIP-2929, so
+    // a later tx from the same sender must not claim a warming rebate for it. Uses a non-zero
+    // sender distinct from the block beneficiary (separately excluded) and distinct recipients,
+    // so the shared sender is the only warmed account under test.
+    #[test]
+    fn test_intrinsic_warm_sender_is_not_rebated() {
+        let sender = Address::from([0x55; 20]);
+        let txs = vec![
+            legacy_tx_from(sender, 0, Address::from([0xa1; 20])),
+            legacy_tx_from(sender, 1, Address::from([0xa2; 20])),
+        ];
+
+        let mut fixture = SDMExecutorFixture::default();
+        // Fund the sender so it can cover the operator fee charged on each tx.
+        fixture.db.insert_account(
+            sender,
+            AccountInfo { balance: U256::from(400_000_000), ..Default::default() },
+        );
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+        for tx in &txs {
+            producer.execute_transaction(tx).expect("producer executes user tx");
+        }
+
+        let claimed_own_sender =
+            producer.warming_events_by_tx.iter().flatten().find(|event| event.address == sender);
+        assert!(
+            claimed_own_sender.is_none(),
+            "a tx claimed a warming rebate for its own intrinsically-warm sender ({sender}): {:#?}",
+            producer.warming_events_by_tx,
+        );
+    }
+
+    // Open item 2 (`TxKind::Create`): a top-level CREATE's created-contract address is the tx's
+    // intrinsic "to" under EIP-2929 — pre-warmed, billed warm. A CREATE tx whose created address an
+    // earlier tx already warmed must not claim a rebate for it.
+    #[test]
+    fn test_intrinsic_warm_created_address_is_not_rebated() {
+        // A block gas limit large enough to fit the dummy tx plus the CREATE.
+        const BLOCK_GAS_LIMIT: u64 = 1_000_000;
+
+        // Probe the deterministic created address by running the same (dummy tx, CREATE) sequence.
+        let created = {
+            let mut probe_fixture = SDMExecutorFixture::new(
+                DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+                BLOCK_GAS_LIMIT,
+                JOVIAN_TIMESTAMP,
+            );
+            let mut probe = probe_fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+            probe
+                .execute_transaction(&legacy_tx(0, Address::from([0x33; 20])))
+                .expect("probe dummy tx");
+            let mut created = None;
+            probe
+                .execute_transaction_with_result_closure(&create_tx(1), |res| {
+                    if let ExecutionResult::Success {
+                        output: Output::Create(_, Some(addr)), ..
+                    } = &res.result().result
+                    {
+                        created = Some(*addr);
+                    }
+                })
+                .expect("probe create tx");
+            created.expect("create produced a contract address")
+        };
+
+        // Real run: tx0 warms `created` (as its `to`); tx1 creates at `created`.
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+        producer.execute_transaction(&legacy_tx(0, created)).expect("tx0 warms the create address");
+        producer.execute_transaction(&create_tx(1)).expect("tx1 creates at the warmed address");
+
+        let claimed_created =
+            producer.warming_events_by_tx.iter().flatten().find(|event| event.address == created);
+        assert!(
+            claimed_created.is_none(),
+            "a CREATE tx claimed a warming rebate for its own created address ({created}): {:#?}",
+            producer.warming_events_by_tx,
+        );
     }
 
     // End-to-end executor coverage for SDM: a producer emits refund entries and appends a
