@@ -35,10 +35,9 @@ Supporting libraries for the SP1 fault proof system:
 Compiled ELF binaries for the zkVM programs, used by the prover:
 
 - **`aggregation-elf`**: Compiled aggregation program
-- **`range-elf-bump`**: Range program with built with a bump allocator
-- **`range-elf-embedded`**: Upstream-compatible range program artifact name. SP1
-  v6.2.4 no longer exposes the removed embedded feature, so this port builds it
-  through the same v6.2.4 range program path.
+- **`range-elf`**: Compiled range program. SP1 v6.2.4 no longer exposes a
+  separate bump-allocator feature, so this port keeps one range artifact instead
+  of separate bump and embedded variants.
 
 In the optimism monorepo port, these files are committed as empty placeholders
 instead of carrying the upstream PR's pre-port binaries. Regenerate real v6.2.4
