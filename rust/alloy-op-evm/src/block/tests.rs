@@ -854,17 +854,10 @@ mod sdm {
         }
     }
 
-    // FAILING (known bug): a transaction's own `to` address is *intrinsically warm* under EIP-2929
-    // — it is pre-added to the tx's accessed-address set, so the tx is billed the 100-gas warm cost
-    // and never the 2600-gas cold cost. No cold->warm surcharge is ever paid for it, so it must
-    // never earn a warming rebate, even when an earlier tx in the block already warmed it.
-    //
-    // The inspector observes the top-level `to` (and `caller`) with refunds enabled
-    // (`ensure_top_level_initialized` -> `observe_account_touch(target, true)`) but omits them from
-    // the per-tx intrinsic-warm set (`collect_intrinsic_warmth` covers only the beneficiary,
-    // precompiles, access list, and 7702 authorities). So a second tx to the same `to` wrongly
-    // claims ACCOUNT_REWARM_REFUND for its own `to`. The same flaw hits `tx.sender` via the
-    // identical code path. Fix: add `caller` and the Call `target` to `intrinsic_warm_accounts`.
+    // A transaction's own `to` is intrinsically warm under EIP-2929 (pre-added to the accessed set,
+    // billed warm, never cold), so it must never earn a warming rebate even when an earlier tx
+    // warmed it. Regression test: `collect_intrinsic_warmth` now marks `caller` and the Call
+    // `target` warm, so a later tx no longer claims a rebate for its own `to`/sender.
     #[test]
     fn test_intrinsic_warm_to_address_is_not_rebated() {
         let target = Address::from([0x11; 20]);
@@ -922,9 +915,9 @@ mod sdm {
         );
     }
 
-    // Open item 2 (`TxKind::Create`): a top-level CREATE's created-contract address is the tx's
-    // intrinsic "to" under EIP-2929 — pre-warmed, billed warm. A CREATE tx whose created address an
-    // earlier tx already warmed must not claim a rebate for it.
+    // A top-level CREATE's created-contract address is the tx's intrinsic "to" under EIP-2929 —
+    // pre-warmed, billed warm. Regression test: a CREATE tx whose created address an earlier tx
+    // warmed must not claim a rebate for it.
     #[test]
     fn test_intrinsic_warm_created_address_is_not_rebated() {
         // A block gas limit large enough to fit the dummy tx plus the CREATE.
@@ -976,10 +969,9 @@ mod sdm {
 
     // End-to-end companion to the inspector-level settlement test: the OP fee vaults (L1/base-fee/
     // operator-fee recipients) are warmed by the protocol's per-tx fee settlement write in
-    // `transact_raw`, not by a user opcode access. The tx is never charged a cold EIP-2929 access
-    // for them, so a second non-deposit tx must not claim a warming rebate for them just because
-    // the first tx's settlement warmed them. Fails before the fix (settlement touch uses
-    // allow_refund).
+    // `transact_raw`, not by a user opcode access, so no cold EIP-2929 access is ever paid for them.
+    // Regression test: a second non-deposit tx must not claim a warming rebate for them just because
+    // the first tx's settlement warmed them.
     #[test]
     fn test_fee_recipient_settlement_touch_is_not_rebated() {
         // Two plain transfers to distinct fresh recipients: the only accounts tx1 re-touches that

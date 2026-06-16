@@ -79,7 +79,7 @@ fn intrinsic_access_list_warmth_does_not_claim() {
 // `OpEvm::transact_raw`), not a user opcode access. The tx is never charged a cold EIP-2929 access
 // for it, so it must warm the account for later txs WITHOUT itself ever claiming a rebate — exactly
 // like a deposit. A genuine opcode access (`observe_account_touch(.., true)`) to the same account,
-// once warmed, is still rebated. This fails before the fix (the settlement re-touch claims 2500).
+// once warmed, is still rebated.
 #[test]
 fn settlement_note_warms_without_claiming_but_opcode_access_still_rebates() {
     let mut insp = SDMWarmingInspector::default();
