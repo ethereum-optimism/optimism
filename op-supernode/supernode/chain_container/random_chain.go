@@ -341,6 +341,14 @@ func (m *RandomChainManager) MinSafeTimestamp() uint64 {
 	return min
 }
 
+// Rejection is the verifier outcome a planted violation should produce.
+type Rejection int
+
+const (
+	RejectInvalidHead Rejection = iota // exec-msg corruption -> DecisionInvalidate
+	RejectWait                         // L1 frontier divergence -> DecisionWait
+)
+
 // execMsgBreakers are the ways to make one executing message fail verification.
 // The first three leave the message's timestamp intact, so they clear the ordering,
 // expiry, and activation gates and are rejected at the initiating-log lookup. The
@@ -384,6 +392,58 @@ func (m *RandomChainManager) BreakOneExecMsg() (chainID eth.ChainID, ts uint64, 
 		break // one executing message per block in this model
 	}
 	return s.id, rc.l2[s.blk].Ref.Time, true
+}
+
+// BreakOneL1Divergence diverges one reachable chain's frontier L1 head from the
+// canonical L1 by corrupting a safeDB row's L1 hash, forcing a Phase-1 Wait.
+// Returns the affected chain and the timestamp the divergence is first observed;
+// ok is false when no chain has a reachable safeDB row. Run after Generate.
+func (m *RandomChainManager) BreakOneL1Divergence() (chainID eth.ChainID, ts uint64, ok bool) {
+	reachable := m.MinSafeTimestamp()
+	type site struct {
+		id    eth.ChainID
+		row   int
+		badTS uint64
+	}
+	var sites []site
+	for _, id := range m.order {
+		rc := m.chains[id]
+		for i := range rc.safeDB {
+			firstBlk := rc.firstVerifiable()
+			if i > 0 {
+				firstBlk = rc.safeDB[i-1].L2.Number + 1
+			}
+			badTS := rc.l2[firstBlk].Ref.Time
+			if badTS <= reachable {
+				sites = append(sites, site{id, i, badTS})
+			}
+		}
+	}
+	if len(sites) == 0 {
+		return eth.ChainID{}, 0, false
+	}
+	s := sites[m.rng.Intn(len(sites))]
+	m.chains[s.id].safeDB[s.row].L1.Hash[0] ^= 0xff // diverge from canonical; .Number kept
+	return s.id, s.badTS, true
+}
+
+// BreakOne plants one violation drawn across all classes with a reachable site,
+// returning the affected chain, the timestamp the verifier should reject at, the
+// expected rejection, and ok=false when no class has a reachable site.
+func (m *RandomChainManager) BreakOne() (chainID eth.ChainID, ts uint64, r Rejection, ok bool) {
+	first, second := m.BreakOneExecMsg, m.BreakOneL1Divergence
+	firstR, secondR := RejectInvalidHead, RejectWait
+	if m.rng.Intn(2) == 0 {
+		first, second = second, first
+		firstR, secondR = secondR, firstR
+	}
+	if id, t, ok := first(); ok {
+		return id, t, firstR, true
+	}
+	if id, t, ok := second(); ok {
+		return id, t, secondR, true
+	}
+	return eth.ChainID{}, 0, 0, false
 }
 
 // ChainContainer wires a simpleChainContainer: RandomChain as the VirtualNode

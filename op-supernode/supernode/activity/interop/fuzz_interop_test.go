@@ -60,19 +60,21 @@ func FuzzInteropRound(f *testing.F) {
 	})
 }
 
-// FuzzInteropInvalid corrupts one executing message, then drives rounds up to
-// that block and asserts the verifier flags exactly that chain's head invalid.
+// FuzzInteropInvalid plants one violation (exec-msg corruption or L1 divergence),
+// drives rounds up to the bad timestamp, and asserts the verifier rejects correctly.
 func FuzzInteropInvalid(f *testing.F) {
 	f.Add([]byte("seed-invalid"))
 	f.Add([]byte("seed-expiry"))
 	f.Add([]byte("seed-exp2"))
+	f.Add([]byte("seed-l1div"))
+	f.Add([]byte("seed-l1div2"))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		i, mgr := buildInterop(t, data)
 
-		badChain, badTS, ok := mgr.BreakOneExecMsg()
+		badChain, badTS, rej, ok := mgr.BreakOne()
 		if !ok {
-			t.Skip("no executing message to corrupt")
+			t.Skip("no violation site reachable")
 		}
 
 		next := func() uint64 {
@@ -83,17 +85,22 @@ func FuzzInteropInvalid(f *testing.F) {
 		}
 
 		for n := 0; ; n++ {
-			require.Less(t, n, 1000, "did not reach the corrupted block")
+			require.Less(t, n, 1000, "did not reach the bad block")
 			if next() == badTS {
 				out, _, err := i.progressInterop()
 				require.NoError(t, err)
-				require.Equal(t, DecisionInvalidate, out.Decision)
-				require.Contains(t, out.Result.InvalidHeads, badChain)
+				switch rej {
+				case cc.RejectInvalidHead:
+					require.Equal(t, DecisionInvalidate, out.Decision)
+					require.Contains(t, out.Result.InvalidHeads, badChain)
+				case cc.RejectWait:
+					require.Equal(t, DecisionWait, out.Decision)
+				}
 				return
 			}
 			progress, err := i.progressAndRecord()
 			require.NoError(t, err)
-			require.True(t, progress, "valid rounds before the corrupted block must advance")
+			require.True(t, progress, "valid rounds before the bad block must advance")
 		}
 	})
 }

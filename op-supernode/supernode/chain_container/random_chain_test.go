@@ -286,6 +286,39 @@ func TestBreakOneExecMsg(t *testing.T) {
 	require.Equal(t, 1, changed)
 }
 
+func TestBreakOneL1Divergence(t *testing.T) {
+	var m *RandomChainManager
+	var l1Snap []eth.L1BlockRef
+	var id eth.ChainID
+	var ts uint64
+	var ok bool
+	for s := 0; s < 20 && !ok; s++ {
+		m = NewRandomChainManager([]byte{byte(s)})
+		m.Generate()
+		l1Snap = make([]eth.L1BlockRef, len(m.l1))
+		copy(l1Snap, m.l1)
+		id, ts, ok = m.BreakOneL1Divergence()
+	}
+	require.True(t, ok, "no seed produced a reachable safeDB row in 20 tries")
+
+	// Mutation is chain-local: the canonical L1 the L1Source serves is untouched.
+	require.Equal(t, l1Snap, m.l1, "canonical L1 must be unchanged")
+	require.LessOrEqual(t, ts, m.MinSafeTimestamp(), "badTS must be reachable")
+
+	// Exactly one safeDB row diverges from canonical, on the returned chain.
+	diverged := 0
+	for _, rc := range m.Chains() {
+		for _, row := range rc.safeDB {
+			if row.L1.Hash != l1Snap[row.L1.Number].Hash {
+				diverged++
+				require.Equal(t, id, rc.chainID, "diverged row must be on the returned chain")
+				require.Less(t, row.L1.Number, uint64(len(l1Snap)), "diverged row still indexes a canonical block")
+			}
+		}
+	}
+	require.Equal(t, 1, diverged, "exactly one safeDB row must diverge")
+}
+
 func TestChainContainerWiring(t *testing.T) {
 	m := NewRandomChainManager([]byte("wire"))
 	m.Generate()
