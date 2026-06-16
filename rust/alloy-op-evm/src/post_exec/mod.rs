@@ -9,7 +9,7 @@ use core::{
     ops::{Deref, DerefMut},
 };
 use op_alloy::consensus::post_exec::SDMGasEntry;
-use revm::{Inspector, inspector::NoOpInspector};
+use revm::{Inspector, context::DBErrorMarker, inspector::NoOpInspector};
 
 pub use inspector::{
     PostExecCompositeInspector, PostExecExecutedTx, PostExecTxContext, PostExecTxKind,
@@ -218,7 +218,7 @@ where
         PostExecEvmAdapter<F::Evm<DB, I>, F, DB, I>;
     type Context<DB: Database> = F::Context<DB>;
     type Tx = F::Tx;
-    type Error<DBError: core::error::Error + Send + Sync + 'static> = F::Error<DBError>;
+    type Error<DBError: DBErrorMarker> = F::Error<DBError>;
     type HaltReason = F::HaltReason;
     type Spec = F::Spec;
     type BlockEnv = F::BlockEnv;

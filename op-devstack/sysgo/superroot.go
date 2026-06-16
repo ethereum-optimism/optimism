@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -219,9 +220,17 @@ func migrateSuperRootsWithProposal(
 	proposer, err := keys.Address(permissionedChainOps(devkeys.ProposerRole))
 	require.NoError(err, "must have configured proposer")
 
-	var chainSystemConfigs []common.Address
-	for _, l2Deployment := range migration.l2Deployments {
-		chainSystemConfigs = append(chainSystemConfigs, l2Deployment.SystemConfigProxyAddr())
+	// Migrator requires chainSystemConfigs sorted ascending by l2ChainId.
+	sortedChainIDs := make([]eth.ChainID, 0, len(migration.l2Deployments))
+	for chainID := range migration.l2Deployments {
+		sortedChainIDs = append(sortedChainIDs, chainID)
+	}
+	sort.Slice(sortedChainIDs, func(i, j int) bool {
+		return sortedChainIDs[i].Cmp(sortedChainIDs[j]) < 0
+	})
+	chainSystemConfigs := make([]common.Address, 0, len(sortedChainIDs))
+	for _, chainID := range sortedChainIDs {
+		chainSystemConfigs = append(chainSystemConfigs, migration.l2Deployments[chainID].SystemConfigProxyAddr())
 	}
 
 	// Use the v2 migrator ABI directly (v1 OPCM is deleted, bindings are stale)

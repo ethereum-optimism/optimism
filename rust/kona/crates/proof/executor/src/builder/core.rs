@@ -16,6 +16,7 @@ use alloy_op_evm::{
     OpBlockExecutionCtx, OpBlockExecutorFactory, PostExecMode,
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
 };
+use alloy_op_hardforks::OpHardforks;
 use core::fmt::Debug;
 use kona_genesis::RollupConfig;
 use kona_mpt::TrieHinter;
@@ -264,6 +265,11 @@ where
         )?;
         let block_env = evm_env.block_env().clone();
         let parent_hash = self.trie_db.parent_block_header().seal();
+        // Computed here, before `self.trie_db` is borrowed mutably below.
+        let no_user_tx_activation_block = self.config.is_no_user_tx_activation_block(
+            self.trie_db.parent_block_header().timestamp,
+            attrs.payload_attributes.timestamp,
+        );
 
         // Attempt to send a payload witness hint to the host. This hint instructs the host to
         // populate its preimage store with the preimages required to statelessly execute
@@ -306,6 +312,7 @@ where
 
         let ctx = OpBlockExecutionCtx {
             parent_hash,
+            no_user_tx_activation_block,
             parent_beacon_block_root: attrs.payload_attributes.parent_beacon_block_root,
             // This field is unused for individual block building jobs.
             extra_data: Default::default(),

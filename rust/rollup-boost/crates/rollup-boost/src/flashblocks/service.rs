@@ -160,7 +160,7 @@ impl FlashblockBuilder {
                     execution_payload,
                 },
             )),
-            PayloadVersion::V4 => Ok(OpExecutionPayloadEnvelope::V4(
+            PayloadVersion::V4 | PayloadVersion::V5 => Ok(OpExecutionPayloadEnvelope::V4(
                 OpExecutionPayloadEnvelopeV4 {
                     parent_beacon_block_root: base.parent_beacon_block_root,
                     block_value: U256::ZERO,

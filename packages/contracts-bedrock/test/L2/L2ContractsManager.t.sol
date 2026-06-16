@@ -15,7 +15,6 @@ import { Features } from "src/libraries/Features.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
-import { console } from "forge-std/console.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -107,10 +106,10 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             L2ContractsManagerTypes.ImplRecord({ name: "StorageSetter", impl: address(new StorageSetter()) })
         );
 
-        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
-        for (uint256 i = 0; i < records.length; i++) {
+        Predeploys.Variant[] memory impls = Predeploys.getUpgradeableImpls();
+        for (uint256 i = 0; i < impls.length; i++) {
             _implRecords.push(
-                L2ContractsManagerTypes.ImplRecord({ name: records[i].name, impl: deployCode(records[i].artifactPath) })
+                L2ContractsManagerTypes.ImplRecord({ name: impls[i].name, impl: deployCode(impls[i].artifactPath) })
             );
         }
     }
@@ -517,15 +516,27 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         return impl != address(0) && impl.code.length > 0;
     }
 
-    /// @notice Checks if a predeploy requires initialization.
-    /// @dev Returns true for predeploys that have an initializer and need upgradeToAndCall.
-    ///      This determines the upgrade method, not coverage.
-    function _requiresInitialization(address _predeploy) internal pure returns (bool) {
-        return _predeploy == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _predeploy == Predeploys.L2_STANDARD_BRIDGE
-            || _predeploy == Predeploys.L2_ERC721_BRIDGE || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
-            || _predeploy == Predeploys.SEQUENCER_FEE_WALLET || _predeploy == Predeploys.BASE_FEE_VAULT
-            || _predeploy == Predeploys.L1_FEE_VAULT || _predeploy == Predeploys.OPERATOR_FEE_VAULT
-            || _predeploy == Predeploys.LIQUIDITY_CONTROLLER || _predeploy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY;
+    /// @notice Returns true if a registry record should receive an upgrade call for this config.
+    function _isActiveUpgradeRecord(
+        Predeploys.PredeployRecord memory _record,
+        L2ContractsManagerTypes.FullConfig memory _config
+    )
+        internal
+        view
+        returns (bool)
+    {
+        if (_record.isCustomGasToken && !_config.isCustomGasToken) return false;
+        if (_record.isInterop && !_config.isInterop) return false;
+        return _isPredeployUpgradeable(_record.proxy);
+    }
+
+    /// @notice Returns true if L2CM upgrades this proxy through `upgradeToAndCall`.
+    function _requiresInit(address _proxy) internal pure returns (bool) {
+        return _proxy == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _proxy == Predeploys.L2_STANDARD_BRIDGE
+            || _proxy == Predeploys.SEQUENCER_FEE_WALLET || _proxy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
+            || _proxy == Predeploys.L2_ERC721_BRIDGE || _proxy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY
+            || _proxy == Predeploys.BASE_FEE_VAULT || _proxy == Predeploys.L1_FEE_VAULT
+            || _proxy == Predeploys.OPERATOR_FEE_VAULT || _proxy == Predeploys.LIQUIDITY_CONTROLLER;
     }
 }
 
@@ -693,11 +704,11 @@ contract L2ContractsManager_GetImplementations_Test is L2ContractsManager_Upgrad
     ///         every entry has a non-empty name and a non-zero implementation address.
     function test_implRecords_areWellFormed_succeeds() public view {
         L2ContractsManagerTypes.ImplRecord[] memory implementationRecords = l2cm.getImplementations();
-        // 1 StorageSetter + one entry per upgradeable predeploy record (including variants).
+        // 1 StorageSetter + one entry per upgradeable implementation variant.
         assertEq(
             implementationRecords.length,
-            Predeploys.getUpgradeableRecords().length + 1,
-            "ImplRecord count must equal upgradeable predeploy count + 1 (StorageSetter)"
+            Predeploys.getUpgradeableImpls().length + 1,
+            "ImplRecord count must equal upgradeable impl count + 1 (StorageSetter)"
         );
         for (uint256 i = 0; i < implementationRecords.length; i++) {
             assertTrue(bytes(implementationRecords[i].name).length > 0, "ImplRecord name is empty");
@@ -854,32 +865,14 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
     }
 
-    /// @notice Checks if a predeploy is an interop predeploy gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
-    function _isInteropPredeploy(address _predeploy) internal pure returns (bool) {
-        return _predeploy == Predeploys.CROSS_L2_INBOX || _predeploy == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
-            || _predeploy == Predeploys.SUPERCHAIN_ETH_BRIDGE || _predeploy == Predeploys.ETH_LIQUIDITY;
-    }
-
-    /// @notice Returns CGT-only predeploys that require initialization.
-    /// @dev These are separate because they're only deployed on CGT networks.
-    function _getCGTInitializablePredeploys() internal pure returns (address[] memory predeploys_) {
-        predeploys_ = new address[](1);
-        predeploys_[0] = Predeploys.LIQUIDITY_CONTROLLER;
-    }
-
-    /// @notice Returns true if a predeploy is a feature predeploy and is disabled.
-    /// @param _predeploy The predeploy to check.
-    /// @return True if the predeploy is a feature predeploy and feature is disabled, false otherwise.
-    function _isFeaturePredeployAndDisabled(address _predeploy) internal view returns (bool) {
-        if (!isSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
-            if (_predeploy == Predeploys.NATIVE_ASSET_LIQUIDITY || _predeploy == Predeploys.LIQUIDITY_CONTROLLER) {
-                return true;
-            }
+    /// @notice Expects the proxy call path used by L2CM.
+    function _expectUpgradeCall(Predeploys.PredeployRecord memory _record) internal {
+        if (_requiresInit(_record.proxy)) {
+            vm.expectCall(_record.proxy, abi.encodePacked(IProxy.upgradeToAndCall.selector));
+        } else {
+            vm.expectCall(_record.proxy, abi.encodePacked(IProxy.upgradeTo.selector));
+            vm.expectCall(_record.proxy, abi.encodePacked(IProxy.upgradeToAndCall.selector), 0);
         }
-        if (!isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP) && _isInteropPredeploy(_predeploy)) {
-            return true;
-        }
-        return false;
     }
 
     /// @notice Tests that all predeploys from the registry receive the expected upgrade call.
@@ -887,26 +880,11 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
     /// @dev If L2CM misses a predeploy that exists in PredeployRegistry, this test will fail.
     function test_allPredeploysReceiveUpgradeCall_succeeds() public {
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        L2ContractsManagerTypes.FullConfig memory config = l2cm.loadFullConfig();
 
         for (uint256 i = 0; i < records.length; i++) {
-            if (records[i].isVariant) {
-                console.log("Skipping variant predeploy", records[i].name);
-                continue;
-            }
-            if (_isFeaturePredeployAndDisabled(records[i].proxy)) {
-                console.log("Skipping feature predeploy and feature disabled", records[i].name);
-                continue;
-            }
-            address predeploy = records[i].proxy;
-
-            // Expect the appropriate upgrade call based on whether initialization is required
-            if (_requiresInitialization(predeploy)) {
-                // nosemgrep:sol-style-use-abi-encodecall
-                vm.expectCall(predeploy, abi.encodeWithSelector(IProxy.upgradeToAndCall.selector));
-            } else {
-                // nosemgrep:sol-style-use-abi-encodecall
-                vm.expectCall(predeploy, abi.encodeWithSelector(IProxy.upgradeTo.selector));
-            }
+            if (!_isActiveUpgradeRecord(records[i], config)) continue;
+            _expectUpgradeCall(records[i]);
         }
 
         _executeUpgrade();
@@ -917,16 +895,15 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
     function test_cgtPredeploysReceiveUpgradeCall_whenCGTEnabled_succeeds() public {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
 
-        // Get CGT-only predeploys that require initialization
-        address[] memory cgtInitPredeploys = _getCGTInitializablePredeploys();
-        for (uint256 i = 0; i < cgtInitPredeploys.length; i++) {
-            // nosemgrep:sol-style-use-abi-encodecall
-            vm.expectCall(cgtInitPredeploys[i], abi.encodeWithSelector(IProxy.upgradeToAndCall.selector));
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        L2ContractsManagerTypes.FullConfig memory config = l2cm.loadFullConfig();
+        uint256 expectedCalls;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (!records[i].isCustomGasToken || !_isActiveUpgradeRecord(records[i], config)) continue;
+            _expectUpgradeCall(records[i]);
+            expectedCalls++;
         }
-
-        // NativeAssetLiquidity uses upgradeTo
-        // nosemgrep:sol-style-use-abi-encodecall
-        vm.expectCall(Predeploys.NATIVE_ASSET_LIQUIDITY, abi.encodeWithSelector(IProxy.upgradeTo.selector));
+        assertGt(expectedCalls, 0, "no CGT predeploys expected");
 
         _executeUpgrade();
     }
@@ -1046,12 +1023,11 @@ contract L2ContractsManager_Reverter_Harness {
 ///         `_apply()` aborts the whole upgrade, covering both the `upgradeToAndCall` and
 ///         `upgradeTo` paths.
 contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade_Test {
-    function _countUpgradeablePredeploys(bool _initializable) internal view returns (uint256 count_) {
+    function _countUpgradeablePredeploys(bool _shouldRequireInit) internal view returns (uint256 count_) {
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        L2ContractsManagerTypes.FullConfig memory config = l2cm.loadFullConfig();
         for (uint256 i; i < records.length; i++) {
-            if (
-                _requiresInitialization(records[i].proxy) == _initializable && _isPredeployUpgradeable(records[i].proxy)
-            ) {
+            if (_isActiveUpgradeRecord(records[i], config) && _requiresInit(records[i].proxy) == _shouldRequireInit) {
                 count_++;
             }
         }
@@ -1059,20 +1035,14 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
 
     /// @dev Reverts when `_predeploy` has no entry in the registry, so new predeploys cannot
     ///      slip past this test without being added to `Predeploys.getAllRecords()`.
-    ///      For predeploys with CGT variants the CGT record takes priority on CGT chains;
-    ///      the non-CGT primary record is used on all other chains.
+    ///      For predeploys with CGT variants, the active variant is selected from the registry.
     function _getTargetImpl(address _predeploy) internal view returns (address) {
         bool isCGT = Config.sysFeatureCustomGasToken();
         Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
-        string memory fallbackName;
         for (uint256 i = 0; i < records.length; i++) {
             if (records[i].proxy != _predeploy) continue;
-            if (records[i].isCustomGasToken && isCGT) return _findImplByName(records[i].name);
-            if (!records[i].isVariant) {
-                fallbackName = records[i].name;
-            }
+            return _findImplByName(Predeploys.resolveVariant(records[i], isCGT).name);
         }
-        if (bytes(fallbackName).length > 0) return _findImplByName(fallbackName);
         revert("L2ContractsManager_Upgrade_Atomicity_Test: unmapped predeploy");
     }
 
@@ -1082,11 +1052,12 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
     ///         the outer revert is therefore the Proxy's string error.
     function test_upgrade_initializerRevertPropagates_reverts() public {
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        L2ContractsManagerTypes.FullConfig memory config = l2cm.loadFullConfig();
         uint256 coveredCount;
 
         for (uint256 i = 0; i < records.length; i++) {
-            if (!_requiresInitialization(records[i].proxy)) continue;
-            if (!_isPredeployUpgradeable(records[i].proxy)) continue;
+            if (!_isActiveUpgradeRecord(records[i], config)) continue;
+            if (!_requiresInit(records[i].proxy)) continue;
 
             uint256 snapshotId = vm.snapshotState();
             vm.etch(_getTargetImpl(records[i].proxy), address(new L2ContractsManager_Reverter_Harness()).code);
@@ -1108,11 +1079,12 @@ contract L2ContractsManager_Upgrade_Atomicity_Test is L2ContractsManager_Upgrade
     ///         Mirrors the initializer test for the `upgradeTo` path.
     function test_upgrade_emptyImplementationPropagates_reverts() public {
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        L2ContractsManagerTypes.FullConfig memory config = l2cm.loadFullConfig();
         uint256 coveredCount;
 
         for (uint256 i = 0; i < records.length; i++) {
-            if (_requiresInitialization(records[i].proxy)) continue;
-            if (!_isPredeployUpgradeable(records[i].proxy)) continue;
+            if (!_isActiveUpgradeRecord(records[i], config)) continue;
+            if (_requiresInit(records[i].proxy)) continue;
 
             uint256 snapshotId = vm.snapshotState();
             address targetImpl = _getTargetImpl(records[i].proxy);

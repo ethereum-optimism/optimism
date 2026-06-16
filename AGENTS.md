@@ -74,6 +74,7 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/derivation.md](docs/ai/derivation.md) - Derivation pipeline development (op-node, kona-node)
 - [docs/ai/execution-layer.md](docs/ai/execution-layer.md) - Execution layer development (op-reth / EVM, fees, deposits)
 - [docs/ai/fault-proofs.md](docs/ai/fault-proofs.md) - Fault proof system (Cannon, kona-client, dispute games)
+- [docs/ai/devfeatures.md](docs/ai/devfeatures.md) - The `DevFeatures` bitmap system gating in-development smart contract features: where the bitmap is supplied, composed, propagated, and read. Only relevant for contract development and op-deployer — not needed for client (op-node / op-reth / kona) work
 - [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md) - Building and running acceptance tests locally
 - [docs/ai/writing-acceptance-tests.md](docs/ai/writing-acceptance-tests.md) - Writing new acceptance tests: DSL patterns, naming, what to avoid
 - [docs/ai/opgeth-decoupling.md](docs/ai/opgeth-decoupling.md) - op-geth decoupling plan: consult when migrating OP Stack–specific code out of op-geth into `op-core/*` so the monorepo can depend on upstream go-ethereum (scope: op-node, op-service, op-batcher, op-proposer, op-challenger, op-faucet, op-supernode, cannon, op-e2e, op-acceptance-tests, op-devstack)

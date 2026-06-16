@@ -40,6 +40,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -106,10 +107,16 @@ type SuperSystem interface {
 type SuperSystemConfig struct {
 	SupportTimeTravel bool
 	BatcherUsesBlobs  bool
+	// L2ELKind selects the L2 execution-layer backend (op-geth or op-reth).
+	// Defaults to services.DefaultELKind() when unset.
+	L2ELKind services.ELKind
 }
 
 // NewSuperSystem creates a new SuperSystem from a recipe. It creates an interopE2ESystem.
 func NewSuperSystem(t *testing.T, recipe *interopgen.InteropDevRecipe, w WorldResourcePaths, config SuperSystemConfig) SuperSystem {
+	if config.L2ELKind == "" {
+		config.L2ELKind = services.DefaultELKind()
+	}
 	s2 := &interopE2ESystem{recipe: recipe, config: &config}
 	s2.prepare(t, w)
 	return s2

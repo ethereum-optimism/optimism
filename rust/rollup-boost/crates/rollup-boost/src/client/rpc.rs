@@ -258,6 +258,18 @@ impl RpcClient {
             .set_code()?)
     }
 
+    pub async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> ClientResult<OpExecutionPayloadEnvelopeV4> {
+        info!("Sending get_payload_v5 to {}", self.payload_source);
+        Ok(self
+            .auth_client
+            .get_payload_v5(payload_id)
+            .await
+            .set_code()?)
+    }
+
     pub async fn get_payload(
         &self,
         payload_id: PayloadId,
@@ -269,6 +281,9 @@ impl RpcClient {
             )),
             PayloadVersion::V4 => Ok(OpExecutionPayloadEnvelope::V4(
                 self.get_payload_v4(payload_id).await.set_code()?,
+            )),
+            PayloadVersion::V5 => Ok(OpExecutionPayloadEnvelope::V4(
+                self.get_payload_v5(payload_id).await.set_code()?,
             )),
         }
     }

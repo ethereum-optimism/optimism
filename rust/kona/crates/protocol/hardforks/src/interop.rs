@@ -8,7 +8,7 @@
 use alloc::{string::String, vec::Vec};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Bytes, TxKind, U256, address, keccak256};
-use kona_protocol::Predeploys;
+use kona_genesis::Predeploys;
 use op_alloy_consensus::{TxDeposit, UpgradeDepositSource};
 
 use crate::Hardfork;

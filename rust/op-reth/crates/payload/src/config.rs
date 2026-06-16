@@ -14,12 +14,26 @@ pub struct OpBuilderConfig {
     pub gas_limit_config: OpGasLimitConfig,
     /// Local SDM `PostExec` production opt-in. Shared with the admin RPC.
     pub sdm_post_exec_opt_in: SdmPostExecOptIn,
+    /// Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes.
+    ///
+    /// `None` disables the limit (the historical behavior). When set, the payload builder stops
+    /// pulling mempool transactions once including the next one would push the block's total
+    /// EIP-2718 encoded transaction size past this value. This bounds the size of the
+    /// `engine_getPayload` response so it does not exceed the limits assumed by consensus-layer
+    /// clients (e.g. the common 10 MiB JSON payload cap). op-geth enforces an equivalent but
+    /// non-configurable cap via `params.MaxBlockSize`.
+    pub max_uncompressed_block_size: Option<u64>,
 }
 
 impl OpBuilderConfig {
     /// Creates a new OP builder configuration with the given data availability configuration.
     pub fn new(da_config: OpDAConfig, gas_limit_config: OpGasLimitConfig) -> Self {
-        Self { da_config, gas_limit_config, sdm_post_exec_opt_in: SdmPostExecOptIn::default() }
+        Self {
+            da_config,
+            gas_limit_config,
+            sdm_post_exec_opt_in: SdmPostExecOptIn::default(),
+            max_uncompressed_block_size: None,
+        }
     }
 
     /// Returns the Data Availability configuration for the OP builder, if it has configured

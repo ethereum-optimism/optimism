@@ -19,14 +19,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get upgrade -y \
  && apt-get install -y --no-install-recommends \
-      build-essential \
       clang \
-      llvm \
       llvm-dev \
       libclang-dev \
-      libsqlite3-dev \
-      libtss2-dev \
-      pkg-config \
+      mold \
+ && apt clean \
  && rm -rf /var/lib/apt/lists/*
 
 # Install sccache (statically linked musl build works on glibc cimg/base).

@@ -69,18 +69,42 @@ L2CM introduces a new mechanism for upgrading L2 predeploy contracts. App develo
 
 Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defense), all node operators must update their execution and consensus clients before the activation timestamp.
 
+<Warning>
+  **Action required for node operators on OP Sepolia.** There is a known bug in op-reth where nodes running `--chain op-sepolia` **will not** activate Karst automatically via the Superchain Registry. You must manually configure the Karst timestamp. See Step 2 below for instructions.
+</Warning>
+
 <Steps>
   <Step title="Update to the latest release">
   Update `op-node` and `op-reth` to the version specified in the component table below. The new version includes consensus rules for the Karst hard fork activation for chains in the superchain-registry.
   </Step>
 
   <Step title="Configure the Karst activation timestamp">
-  * Set the `karst_time: <timestamp>` in the `op-node` rollup config.
-  * Set the `"karstTime": <timestamp>` in the `op-reth` genesis file.
+  How you configure the Karst activation timestamp depends on whether your chain is in the superchain-registry.
+
+  **Chains in the superchain-registry** (e.g. `Soneium`, `Ink`, `Unichain`, `Mode`, `Metal`, `Zora`):
+  The Karst activation timestamp is built into the updated releases — no manual timestamp configuration is needed. Make sure you are using the network flag so that op-node and op-reth load chain config from the superchain-registry:
+  * `op-node`: [`--network <network>`](/node-operators/reference/op-node-config#network) (e.g. `--network soneium-mainnet`, `--network op-sepolia`)
+  * `op-reth`: [`--chain <network>`](/node-operators/reference/op-reth-config#chain) (e.g. `--chain soneium`, `--chain unichain`)
+
+  **OP Sepolia:**
+  Due to a bug in op-reth, the Karst activation timestamp is **not** loaded from the Superchain Registry for `op-sepolia` and `op`. You must configure it manually by providing a genesis file passed via `--chain <path-to-genesis.json>`. Download the pre-built genesis file and pass it directly — do not edit the file.
+
+  * **OP Sepolia**: [Download genesis.json](https://storage.googleapis.com/oplabs-opc-artifacts/chains/op-sepolia/genesis-karst.json)
+
+  <Warning>
+    With `op-reth v2.3.1`, the genesis file must **not** include an `osakaTime` field. The pre-built file linked above is compatible with `op-reth v2.3.1` as-is. Both the SCR loading bug and this restriction will be fixed in a following op-reth release so this won't be necessary for OP Mainnet.
+  </Warning>
+
+  `op-node` is not affected by this bug — `--network op-sepolia` will correctly activate Karst for op-node.
+
+  **Chains not in the superchain-registry:**
+  Set the activation timestamp manually in each client's config:
+  * `op-node`: set `karst_time: <timestamp>` in the rollup config
+  * `op-reth`: set `"karstTime": <timestamp>` in the genesis file
   </Step>
 
   <Step title="Verify activation configuration">
-  Make the following checks to verify that your node is properly configured.
+  Make the following checks to verify that your node is properly configured:
     * The configurations will be logged at startup
     * Check that the Karst time is set to its correct activation timestamp
   </Step>
@@ -115,7 +139,7 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
 <Steps>
   <Step title="Verify the new kona-client absolute prestate">
 
-  The absolute prestate is generated with [`kona-client/v1.6.0`](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.6.0). As of Upgrade 19, the `kona-client` source lives inside the [`ethereum-optimism/optimism`](https://github.com/ethereum-optimism/optimism) monorepo.
+  The absolute prestate is generated with [`kona-client/v1.6.0-rc.2`](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.6.0-rc.2). As of Upgrade 19, the `kona-client` source lives inside the [`ethereum-optimism/optimism`](https://github.com/ethereum-optimism/optimism) monorepo.
 
   Choose the verification path that matches your chain:
 
@@ -123,14 +147,14 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
     <Tab title="Chains in the superchain-registry">
       Two variants ship with this release:
 
-      *   **`cannon64-kona`** (`0x03cdb57a890f7e129d5abbe074f19425f94cf2b84f614aab008a96f91debae65`) — standard variant for chains adopting `CANNON_KONA` (game type 8) as the respected game type.
-      *   **`cannon64-kona-interop`** (`0x039e98f06aa04983d15f8dfce40884c4c93131de8ab4c01d9e647ab38a954894`) — for chains also running the interop fault proof variant.
+      *   **`cannon64-kona`** (`0x0337ecb3604c0b40c352e0c7711beb17a212d583f4fe956fd8d66e29ad5f9025`) — standard variant for chains adopting `CANNON_KONA` (game type 8) as the respected game type.
+      *   **`cannon64-kona-interop`** (`0x03e3a42cf9a1d116f414206c465c6cdb74556136090e7c9556329403da0f310f`) — for chains also running the interop fault proof variant.
 
       These prestates apply to the following chains:
 
       *   Mainnet and Sepolia: `OP`, `Ink`, `Soneium`, and `Unichain`
 
-      You can verify both absolute prestates by running the following command in the root of the monorepo on the `kona-client/v1.6.0` tag:
+      You can verify both absolute prestates by running the following command in the root of the monorepo on the `kona-client/v1.6.0-rc.2` tag:
 
       ```shell
       just reproducible-prestate-kona
@@ -205,13 +229,27 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
 
   Build `kona-host` from the same release as the configured cannon-kona prestate.
   </Step>
+
+  <Step title="Execute the L1 Contract Upgrade">
+  Once your infrastructure is ready, execute the upgrade transaction. This should be done by making a delegatecall to the `upgrade()` function of the OP Contracts Manager (OPCMv2) at the address that will be listed in [the registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml).
+
+  Please simulate and validate the expected output prior to executing the transaction.
+  </Step>
+
+  <Step title="Update op-proposer to use CANNON_KONA game type">
+  After the L1 contract upgrade executes, the respected game type changes from `CANNON` (0) to `CANNON_KONA` (8) on-chain. `op-proposer` must be reconfigured to submit proposals against the new game type, or it will begin failing immediately after the upgrade.
+
+  Set the game type to `8` in your proposer configuration:
+
+  ```bash
+  OP_PROPOSER_GAME_TYPE=8
+  # or
+  --game-type=8
+  ```
+
+  Update this before or immediately after the contract upgrade executes to avoid a gap in proposal submissions.
+  </Step>
 </Steps>
-
-### Execute the L1 Contract Upgrade
-
-Once your infrastructure is ready, execute the upgrade transaction. This should be done by making a delegatecall to the `upgrade()` function of the OP Contracts Manager (OPCMv2) at the address that will be listed in [the registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml).
-
-Please simulate and validate the expected output prior to executing the transaction.
 
 ## For app developers
 

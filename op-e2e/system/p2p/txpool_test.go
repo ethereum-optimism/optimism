@@ -10,13 +10,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTxGossip(t *testing.T) {
 	op_e2e.InitParallel(t)
-	cfg := e2esys.DefaultSystemConfig(t)
+	// Pinned to op-geth: relies on in-process geth EL-level P2P gossip
+	// (geth.WithP2P / geth.ConnectP2P), which has no op-reth equivalent here.
+	cfg := e2esys.DefaultSystemConfig(t, e2esys.WithL2ELKind(services.ELKindOpGeth))
 	gethOpts := []geth.GethOption{
 		geth.WithP2P(),
 	}

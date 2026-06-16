@@ -3,6 +3,7 @@ package txinclude
 import (
 	"math/big"
 
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -93,16 +94,12 @@ func (b *TxBudget) AfterIncluded(budgetedCost eth.ETH, tx *IncludedTx) {
 		actualCost.Add(actualCost, l1Cost)
 	}
 
-	// operatorCost
+	// operatorCost. We always use the Jovian formula: it is exact on Jovian chains (all
+	// production chains) and strictly >= the Isthmus formula, so on a pre-Jovian chain it only
+	// over-estimates the cost, which over-reserves budget rather than under-budgeting.
+	// See https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-fee
 	if receipt.OperatorFeeScalar != nil {
-		// https://github.com/ethereum-optimism/op-geth/blob/6005dd53e1b50fe5a3f59764e3e2056a639eff2f/core/types/rollup_cost.go#L244-L247
-		// Also see: https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-fee
-		// TODO(17817): This currently uses the Isthmus formula (divide by 1e6). Need to update to handle both
-		// Isthmus and Jovian formulas based on fork activation. Jovian formula multiplies by 100 instead.
-		operatorCost := new(big.Int).SetUint64(receipt.GasUsed)
-		operatorCost.Mul(operatorCost, new(big.Int).SetUint64(*receipt.OperatorFeeScalar))
-		operatorCost = operatorCost.Div(operatorCost, oneMillion)
-		operatorCost = operatorCost.Add(operatorCost, new(big.Int).SetUint64(*receipt.OperatorFeeConstant))
+		operatorCost := opfees.OperatorCostJovian(receipt.GasUsed, *receipt.OperatorFeeScalar, *receipt.OperatorFeeConstant)
 		actualCost.Add(actualCost, operatorCost)
 	}
 

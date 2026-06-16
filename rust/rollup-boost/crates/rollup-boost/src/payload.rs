@@ -198,6 +198,7 @@ impl From<NewPayload> for ExecutionPayload {
 pub enum PayloadVersion {
     V3,
     V4,
+    V5,
 }
 
 impl PayloadVersion {
@@ -205,6 +206,7 @@ impl PayloadVersion {
         match self {
             PayloadVersion::V3 => "v3",
             PayloadVersion::V4 => "v4",
+            PayloadVersion::V5 => "v5",
         }
     }
 }

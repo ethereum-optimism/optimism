@@ -23,15 +23,15 @@ func (c *Config) IsL2CMActivationBlock(l2BlockTime uint64) bool {
 	return c.IsKarstActivationBlock(l2BlockTime)
 }
 
-// IsSDM gates Sequencer-Defined Metering. When this returns false, span batches
-// carrying PostExec transactions are rejected during derivation.
+// IsSDM gates Sequencer-Defined Metering: when false, batches carrying PostExec
+// transactions are rejected during derivation. Defers to the hardfork where SDM is activated.
 func (c *Config) IsSDM(time uint64) bool {
-	return c.IsInterop(time)
+	return c.IsLagoon(time)
 }
 
 // IsInterop returns true if the interoperability feature is active at or past the given timestamp.
-// The feature is currently gated on the Lagoon hard fork; this toggle exists so the feature can
-// be decoupled from the fork if needed.
+// The feature defers to the hardfork where interop is activated; this toggle exists so the feature
+// can be decoupled from the fork if needed.
 func (c *Config) IsInterop(timestamp uint64) bool {
 	return c.IsLagoon(timestamp)
 }

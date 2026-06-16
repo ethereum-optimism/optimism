@@ -73,6 +73,18 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
 
         let get_payload_version = EngineGetPayloadVersion::from_cfg(cfg, payload_timestamp);
         let payload_envelope = match get_payload_version {
+            EngineGetPayloadVersion::V5 => {
+                // Osaka (Karst) reuses the V4-shaped envelope; only the engine method bumps to V5.
+                let payload = engine.get_payload_v5(payload_id).await.map_err(|e| {
+                    error!(target: "engine", "Payload fetch failed: {e}");
+                    SealTaskError::GetPayloadFailed(e)
+                })?;
+
+                OpExecutionPayloadEnvelope {
+                    parent_beacon_block_root: Some(payload.parent_beacon_block_root),
+                    execution_payload: OpExecutionPayload::V4(payload.execution_payload),
+                }
+            }
             EngineGetPayloadVersion::V4 => {
                 let payload = engine.get_payload_v4(payload_id).await.map_err(|e| {
                     error!(target: "engine", "Payload fetch failed: {e}");

@@ -9,6 +9,9 @@
 
 extern crate alloc;
 
+mod predeploys;
+pub use predeploys::Predeploys;
+
 mod params;
 pub use params::{
     BASE_MAINNET_BASE_FEE_CONFIG, BASE_MAINNET_EIP1559_BASE_FEE_MAX_CHANGE_DENOMINATOR_CANYON,
