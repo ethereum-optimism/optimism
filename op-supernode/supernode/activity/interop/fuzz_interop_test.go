@@ -23,9 +23,7 @@ func buildInterop(t *testing.T, data []byte) (*Interop, *cc.RandomChainManager) 
 	chains, err := mgr.ChainContainers()
 	require.NoError(t, err)
 
-	const activationTS = 1000 // matches the generated genesis L2 time
-
-	i := New(testLogger(), activationTS, 0, chains, t.TempDir(), mgr.L1Source(), 0, nil)
+	i := New(testLogger(), cc.GenInteropActivation, cc.GenExpiryWindow, chains, t.TempDir(), mgr.L1Source(), 0, nil)
 	require.NotNil(t, i)
 	t.Cleanup(func() { _ = i.Stop(ctx) })
 
@@ -66,6 +64,8 @@ func FuzzInteropRound(f *testing.F) {
 // that block and asserts the verifier flags exactly that chain's head invalid.
 func FuzzInteropInvalid(f *testing.F) {
 	f.Add([]byte("seed-invalid"))
+	f.Add([]byte("seed-expiry"))
+	f.Add([]byte("seed-exp2"))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		i, mgr := buildInterop(t, data)

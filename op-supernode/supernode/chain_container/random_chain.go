@@ -137,6 +137,20 @@ const (
 	genGenesisTime = 1000
 )
 
+// Fuzz-harness interop params. Expiry needs one init->exec gap to exceed the
+// window while every valid gap (<= ~24s for the current fixed shape) stays under
+// it. Activation is pushed below all block times so the expiry breaker can stamp
+// a legal post-activation but ancient initiating timestamp.
+//
+//	GenInteropActivation + genL2BlockTime <= genExpiredInitTimestamp     (clears too-early gate)
+//	genExpiredInitTimestamp + GenExpiryWindow < first reachable exec time (expires)
+//	GenExpiryWindow > max valid gap (~24)                                (valid never expires)
+const (
+	GenInteropActivation    = 0
+	GenExpiryWindow         = 100
+	genExpiredInitTimestamp = GenInteropActivation + genL2BlockTime
+)
+
 // Generate builds a fixed-shape set of valid, internally-consistent chains.
 // Topology is constant; the fuzz input only varies block contents.
 func (m *RandomChainManager) Generate() {
@@ -328,13 +342,15 @@ func (m *RandomChainManager) MinSafeTimestamp() uint64 {
 }
 
 // execMsgBreakers are the ways to make one executing message fail verification.
-// Each leaves the message's timestamp intact, so it clears the ordering, expiry,
-// and activation gates and is rejected at the initiating-log lookup — every kind
-// surfaces as the same InvalidHead.
+// The first three leave the message's timestamp intact, so they clear the ordering,
+// expiry, and activation gates and are rejected at the initiating-log lookup. The
+// fourth trips the expiry gate by stamping an ancient initiating timestamp. Every
+// kind surfaces as the same InvalidHead.
 var execMsgBreakers = []func(*supervisortypes.Message){
-	func(m *supervisortypes.Message) { m.PayloadHash[0] ^= 0xff },       // checksum: payload no longer hashes to the sealed log
-	func(m *supervisortypes.Message) { m.Identifier.LogIndex++ },        // dangling: no matching log at that index
-	func(m *supervisortypes.Message) { m.Identifier.Origin[0] ^= 0xff }, // wrong origin: address mismatch shifts the derived checksum
+	func(m *supervisortypes.Message) { m.PayloadHash[0] ^= 0xff },                         // checksum: payload no longer hashes to the sealed log
+	func(m *supervisortypes.Message) { m.Identifier.LogIndex++ },                          // dangling: no matching log at that index
+	func(m *supervisortypes.Message) { m.Identifier.Origin[0] ^= 0xff },                   // wrong origin: address mismatch shifts the derived checksum
+	func(m *supervisortypes.Message) { m.Identifier.Timestamp = genExpiredInitTimestamp }, // expiry: initiating message too old for the window
 }
 
 // BreakOneExecMsg corrupts one reachable executing message with a uniformly
