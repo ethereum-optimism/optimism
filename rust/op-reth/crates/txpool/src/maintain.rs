@@ -24,7 +24,7 @@ use metrics::{Gauge, Histogram};
 use reth_chain_state::CanonStateNotification;
 use reth_metrics::{Metrics, metrics::Counter};
 use reth_primitives_traits::NodePrimitives;
-use reth_transaction_pool::{PoolTransaction, TransactionPool, error::PoolTransactionError};
+use reth_transaction_pool::{PoolTransaction, TransactionPool};
 use std::time::{Duration, Instant};
 use tracing::{info, warn};
 
@@ -172,9 +172,6 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
         let Some(event) = events.next().await else { break };
         if let CanonStateNotification::Commit { new } = event {
             let timestamp = new.tip().timestamp();
-            let mut to_remove = Vec::new();
-            let mut to_revalidate = Vec::new();
-            let mut interop_count = 0;
 
             // If failsafe is active, evict ALL interop txs and skip revalidation.
             // Belt-and-suspenders with poll_failsafe: catches any tx that raced past
@@ -198,65 +195,92 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                 continue;
             }
 
-            // scan all pooled interop transactions
-            for pooled_tx in pool.pooled_transactions() {
-                if let Some(interop_deadline_val) = pooled_tx.transaction.interop_deadline() {
-                    interop_count += 1;
-                    if !is_valid_interop(interop_deadline_val, timestamp) {
-                        to_remove.push(*pooled_tx.transaction.hash());
-                    } else if is_stale_interop(interop_deadline_val, timestamp, OFFSET_TIME) {
-                        to_revalidate.push(pooled_tx.transaction.clone());
-                    }
-                }
-            }
+            revalidate_stale_interop_txs(&pool, &interop_client, timestamp, &metrics).await;
+        }
+    }
+}
 
-            metrics.set_interop_txs_in_pool(interop_count);
+/// Revalidates the stale interop txs in the pool against the interop filter for a single block and
+/// evicts those that are no longer admissible. Split out of the event loop so the eviction
+/// decision can be exercised against a real pool in tests.
+///
+/// A pooled interop tx is evicted when its deadline has passed, when it is no longer a cross-chain
+/// tx (`None`), or when revalidation returns a decisive invalid verdict
+/// ([`is_now_invalid`](crate::InvalidCrossTx::is_now_invalid)). A still-valid tx has its deadline
+/// refreshed; a
+/// transient/non-decisive verdict leaves the tx in place so a flapping or unreachable interop
+/// filter cannot drain the pool.
+async fn revalidate_stale_interop_txs<Pool>(
+    pool: &Pool,
+    interop_client: &InteropFilterClient,
+    timestamp: u64,
+    metrics: &MaintainPoolInteropMetrics,
+) where
+    Pool: TransactionPool,
+    Pool::Transaction: MaybeInteropTransaction,
+{
+    let mut to_remove = Vec::new();
+    let mut to_revalidate = Vec::new();
+    let mut interop_count = 0;
 
-            if !to_revalidate.is_empty() {
-                metrics.inc_stale_tx_interop(to_revalidate.len());
-
-                let revalidation_start = Instant::now();
-                let revalidation_stream = interop_client.revalidate_interop_txs_stream(
-                    to_revalidate,
-                    timestamp,
-                    CHECK_ACCESS_LIST_TIMEOUT_SECS,
-                    MAX_INTEROP_QUERIES,
-                );
-
-                futures_util::pin_mut!(revalidation_stream);
-
-                while let Some((tx_item_from_stream, validation_result)) =
-                    revalidation_stream.next().await
-                {
-                    match validation_result {
-                        Some(Ok(())) => {
-                            tx_item_from_stream
-                                .set_interop_deadline(timestamp + CHECK_ACCESS_LIST_TIMEOUT_SECS);
-                        }
-                        Some(Err(err)) => {
-                            if err.is_bad_transaction() {
-                                to_remove.push(*tx_item_from_stream.hash());
-                            }
-                        }
-                        None => {
-                            warn!(
-                                target: "txpool",
-                                hash = %tx_item_from_stream.hash(),
-                                "Interop transaction no longer considered cross-chain during revalidation; removing."
-                            );
-                            to_remove.push(*tx_item_from_stream.hash());
-                        }
-                    }
-                }
-
-                metrics.record_interop_duration(revalidation_start.elapsed());
-            }
-
-            if !to_remove.is_empty() {
-                let removed = pool.remove_transactions(to_remove);
-                metrics.inc_removed_tx_interop(removed.len());
+    // scan all pooled interop transactions
+    for pooled_tx in pool.pooled_transactions() {
+        if let Some(interop_deadline_val) = pooled_tx.transaction.interop_deadline() {
+            interop_count += 1;
+            if !is_valid_interop(interop_deadline_val, timestamp) {
+                to_remove.push(*pooled_tx.transaction.hash());
+            } else if is_stale_interop(interop_deadline_val, timestamp, OFFSET_TIME) {
+                to_revalidate.push(pooled_tx.transaction.clone());
             }
         }
+    }
+
+    metrics.set_interop_txs_in_pool(interop_count);
+
+    if !to_revalidate.is_empty() {
+        metrics.inc_stale_tx_interop(to_revalidate.len());
+
+        let revalidation_start = Instant::now();
+        let revalidation_stream = interop_client.revalidate_interop_txs_stream(
+            to_revalidate,
+            timestamp,
+            CHECK_ACCESS_LIST_TIMEOUT_SECS,
+            MAX_INTEROP_QUERIES,
+        );
+
+        futures_util::pin_mut!(revalidation_stream);
+
+        while let Some((tx_item_from_stream, validation_result)) = revalidation_stream.next().await
+        {
+            match validation_result {
+                Some(Ok(())) => {
+                    tx_item_from_stream
+                        .set_interop_deadline(timestamp + CHECK_ACCESS_LIST_TIMEOUT_SECS);
+                }
+                // Evict only on a decisive invalid verdict; transient or non-decisive results
+                // keep the tx so an unreachable interop filter cannot drain the pool.
+                Some(Err(err)) => {
+                    if err.is_now_invalid() {
+                        to_remove.push(*tx_item_from_stream.hash());
+                    }
+                }
+                None => {
+                    warn!(
+                        target: "txpool",
+                        hash = %tx_item_from_stream.hash(),
+                        "Interop transaction no longer considered cross-chain during revalidation; removing."
+                    );
+                    to_remove.push(*tx_item_from_stream.hash());
+                }
+            }
+        }
+
+        metrics.record_interop_duration(revalidation_start.elapsed());
+    }
+
+    if !to_remove.is_empty() {
+        let removed = pool.remove_transactions(to_remove);
+        metrics.inc_removed_tx_interop(removed.len());
     }
 }
 
@@ -336,4 +360,147 @@ where
     Pool::Transaction: MaybeInteropTransaction,
 {
     Box::pin(poll_failsafe(interop_client, pool))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{OpPooledTransaction, interop_filter::CROSS_L2_INBOX_ADDRESS};
+    use alloy_consensus::{SignableTransaction, TxEip1559, transaction::Recovered};
+    use alloy_eips::eip2930::{AccessList, AccessListItem};
+    use alloy_primitives::{Address, B256, Signature, TxKind, U256};
+    use jsonrpsee::types::ErrorObjectOwned;
+    use jsonrpsee_server::{RpcModule, ServerBuilder, ServerHandle};
+    use op_alloy_rpc_types::SuperchainDAError;
+    use reth_transaction_pool::{
+        CoinbaseTipOrdering, Pool, PoolConfig, TransactionOrigin, blobstore::InMemoryBlobStore,
+        noop::MockTransactionValidator,
+    };
+    use std::net::SocketAddr;
+
+    /// A pool of [`OpPooledTransaction`] backed by the always-valid mock validator, so a built tx
+    /// lands in the pending subpool and is visible to the maintenance sweep.
+    type TestOpPool = Pool<
+        MockTransactionValidator<OpPooledTransaction>,
+        CoinbaseTipOrdering<OpPooledTransaction>,
+        InMemoryBlobStore,
+    >;
+
+    fn build_pool() -> TestOpPool {
+        Pool::new(
+            MockTransactionValidator::default(),
+            CoinbaseTipOrdering::default(),
+            InMemoryBlobStore::default(),
+            PoolConfig::default(),
+        )
+    }
+
+    /// Builds an interop [`OpPooledTransaction`]: an EIP-1559 tx whose access list targets the
+    /// cross-L2 inbox. The signature is a dummy; the mock validator does not verify it and the
+    /// sender is set explicitly.
+    fn interop_pooled_tx() -> OpPooledTransaction {
+        let tx = TxEip1559 {
+            chain_id: 10,
+            nonce: 0,
+            gas_limit: 21_000,
+            max_fee_per_gas: 20_000_000_000,
+            max_priority_fee_per_gas: 1,
+            to: TxKind::Call(Address::ZERO),
+            value: U256::ZERO,
+            access_list: AccessList(vec![AccessListItem {
+                address: CROSS_L2_INBOX_ADDRESS,
+                storage_keys: vec![B256::ZERO],
+            }]),
+            input: Default::default(),
+        };
+        let signed = tx.into_signed(Signature::new(U256::from(1u64), U256::from(1u64), false));
+        OpPooledTransaction::from_pooled(Recovered::new_unchecked(
+            op_alloy_consensus::OpPooledTransaction::Eip1559(signed),
+            Address::with_last_byte(1),
+        ))
+    }
+
+    struct MockFilter {
+        url: String,
+        _handle: ServerHandle,
+    }
+
+    /// A single mock interop-filter endpoint whose `interop_checkAccessList` always answers with
+    /// the given JSON-RPC error code/message.
+    async fn mock_filter(code: i32, message: &'static str) -> MockFilter {
+        let server = ServerBuilder::default()
+            .build("127.0.0.1:0".parse::<SocketAddr>().unwrap())
+            .await
+            .unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut module = RpcModule::new(());
+        module
+            .register_async_method("interop_checkAccessList", move |_p, _c, _| async move {
+                Err::<(), _>(ErrorObjectOwned::owned(code, message, None::<()>))
+            })
+            .unwrap();
+        module
+            .register_async_method("admin_getFailsafeEnabled", |_p, _c, _| async move {
+                Ok::<bool, ErrorObjectOwned>(false)
+            })
+            .unwrap();
+        let handle = server.start(module);
+        MockFilter { url: format!("http://{addr}"), _handle: handle }
+    }
+
+    async fn client_for(filter: &MockFilter) -> InteropFilterClient {
+        InteropFilterClient::builder(vec![filter.url.clone()], 10)
+            .timeout(Duration::from_millis(300))
+            .build()
+            .await
+    }
+
+    /// Adds a stale-but-still-valid interop tx to the pool and runs the sweep against `filter`,
+    /// returning whether the tx survived.
+    async fn sweep_retains_stale_interop_tx(filter: &MockFilter) -> bool {
+        let pool = build_pool();
+        let tx = interop_pooled_tx();
+        let hash = *tx.hash();
+        let timestamp = 1_000;
+        // Deadline in (timestamp, timestamp + OFFSET_TIME]: stale (triggers revalidation) yet still
+        // valid (not expired), so the sweep revalidates rather than expiry-evicts it.
+        tx.set_interop_deadline(timestamp + 30);
+        pool.add_transaction(TransactionOrigin::External, tx).await.unwrap();
+        assert!(pool.get(&hash).is_some(), "tx should be pooled before the sweep");
+
+        let client = client_for(filter).await;
+        revalidate_stale_interop_txs(
+            &pool,
+            &client,
+            timestamp,
+            &MaintainPoolInteropMetrics::default(),
+        )
+        .await;
+
+        pool.get(&hash).is_some()
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sweep_evicts_definitive_invalid_tx() {
+        // The filter returns a definitive invalid verdict (InvalidEntry). The sweep must remove the
+        // tx from the pool. This fails if eviction is gated on `is_bad_transaction`.
+        let filter =
+            mock_filter(SuperchainDAError::ConflictingData as i32, "conflicting data").await;
+        assert!(
+            !sweep_retains_stale_interop_tx(&filter).await,
+            "a definitive invalid verdict must be evicted from the pool by the sweep"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sweep_retains_tx_on_transient_failure() {
+        // A JSON-RPC internal error (-32603) is a non-response: with a single endpoint the quorum
+        // is not reached. A flapping/unreachable interop filter must not drain the pool, so the
+        // tx stays.
+        let filter = mock_filter(-32603, "internal error").await;
+        assert!(
+            sweep_retains_stale_interop_tx(&filter).await,
+            "a transient/non-decisive verdict must NOT evict the tx"
+        );
+    }
 }
