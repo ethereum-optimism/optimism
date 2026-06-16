@@ -49,6 +49,13 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when chainSystemConfigs are not provided in ascending order by l2ChainId.
     error OPContractsManagerMigrator_ChainIdsNotAscending();
 
+    /// @notice Thrown when the ZK_DISPUTE_GAME dev feature is not enabled.
+    error OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
+
+    /// @notice Thrown when the supplied chains do not all share the same AnchorStateRegistry, i.e.
+    ///         they are not a single already-interop set.
+    error OPContractsManagerMigrator_NotSharedInteropSet();
+
     /// @notice Returns the container of blueprint and implementation contract addresses.
     function contractsContainer() external view returns (IOPContractsManagerContainer);
 
@@ -59,6 +66,11 @@ interface IOPContractsManagerMigrator {
     ///         dispute game contracts.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) external;
+
+    /// @notice Re-points the shared dispute games of an already-interop set to a new respected
+    ///         super game.
+    /// @param _input The input parameters for the dispute game re-point.
+    function setInteropDisputeGames(MigrateInput calldata _input) external;
 
     function __constructor__(IOPContractsManagerUtils _utils) external;
 }

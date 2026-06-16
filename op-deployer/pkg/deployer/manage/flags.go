@@ -105,6 +105,34 @@ var (
 		EnvVars: deployer.PrefixEnvVar("DISPUTE_GAME_ENABLED"),
 		Value:   true,
 	}
+	SystemConfigProxyAddressesFlag = &cli.StringFlag{
+		Name:    "system-config-proxy-addresses",
+		Usage:   "Comma-separated list of SystemConfig proxy addresses for the interop set.",
+		EnvVars: deployer.PrefixEnvVar("SYSTEM_CONFIG_PROXY_ADDRESSES"),
+	}
+	SourceGameTypesFlag = &cli.StringFlag{
+		Name: "source-game-types",
+		Usage: "Comma-separated numeric type identifiers of the source super games to retire " +
+			"(cleared by the swap). Defaults to both super fault types registered by migrate: " +
+			"5 (SUPER_PERMISSIONED_CANNON) and 9 (SUPER_CANNON_KONA).",
+		EnvVars: deployer.PrefixEnvVar("SOURCE_GAME_TYPES"),
+		Value:   "5,9",
+	}
+	ZKVerifierFlag = &cli.StringFlag{
+		Name:    "zk-verifier-address",
+		Usage:   "Address of the IZKVerifier contract for the ZK dispute game.",
+		EnvVars: deployer.PrefixEnvVar("ZK_VERIFIER_ADDRESS"),
+	}
+	ZKMaxChallengeDurationFlag = &cli.Uint64Flag{
+		Name:    "zk-max-challenge-duration",
+		Usage:   "Max challenge duration (seconds) for the ZK dispute game.",
+		EnvVars: deployer.PrefixEnvVar("ZK_MAX_CHALLENGE_DURATION"),
+	}
+	ZKMaxProveDurationFlag = &cli.Uint64Flag{
+		Name:    "zk-max-prove-duration",
+		Usage:   "Max prove duration (seconds) for the ZK dispute game.",
+		EnvVars: deployer.PrefixEnvVar("ZK_MAX_PROVE_DURATION"),
+	}
 )
 
 var Commands = cli.Commands{
@@ -140,5 +168,27 @@ var Commands = cli.Commands{
 			DisputeAbsolutePrestateFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: MigrateCLI,
+	},
+	&cli.Command{
+		Name:  "set-interop-dispute-games",
+		Usage: "swaps the shared dispute games of an already-interop set to the ZK dispute game.",
+		Flags: append([]cli.Flag{
+			deployer.CacheDirFlag,
+			deployer.L1RPCURLFlag,
+			deployer.PrivateKeyFlag,
+			deployer.ArtifactsLocatorFlag,
+			L1ProxyAdminOwnerFlag,
+			OPCMImplFlag,
+			SystemConfigProxyAddressesFlag,
+			StartingAnchorRootFlag,
+			StartingAnchorL2SequenceNumberFlag,
+			InitialBondFlag,
+			SourceGameTypesFlag,
+			DisputeAbsolutePrestateFlag,
+			ZKVerifierFlag,
+			ZKMaxChallengeDurationFlag,
+			ZKMaxProveDurationFlag,
+		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
+		Action: SetInteropDisputeGamesCLI,
 	},
 }

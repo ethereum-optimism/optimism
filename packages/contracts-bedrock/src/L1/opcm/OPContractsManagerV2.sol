@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.1.22
+    /// @custom:semver 7.1.23
     function version() public pure returns (string memory) {
-        return "7.1.22";
+        return "7.1.23";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -289,6 +289,27 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // Delegatecall to the migrator contract.
         (bool success, bytes memory result) =
             address(opcmMigrator).delegatecall(abi.encodeCall(IOPContractsManagerMigrator.migrate, (_input)));
+        if (!success) {
+            assembly {
+                revert(add(result, 0x20), mload(result))
+            }
+        }
+    }
+
+    /// @notice Re-points the shared dispute games of an already-interop set to a new respected
+    ///         super game, running shared-infra steps exactly once. General across super game
+    ///         types (the current use case is the post-migration transition to shared ZK proofs).
+    ///         Does not deploy new infra or touch per-chain portals.
+    /// @dev Like migrate(), this is a transitional function delegated to the migrator. It does NOT
+    ///      look or function like the standard chain upgrade.
+    /// @param _input The input parameters for the dispute game re-point.
+    function setInteropDisputeGames(IOPContractsManagerMigrator.MigrateInput calldata _input) public {
+        _onlyDelegateCall();
+
+        // Delegatecall to the migrator contract.
+        (bool success, bytes memory result) = address(opcmMigrator).delegatecall(
+            abi.encodeCall(IOPContractsManagerMigrator.setInteropDisputeGames, (_input))
+        );
         if (!success) {
             assembly {
                 revert(add(result, 0x20), mload(result))
