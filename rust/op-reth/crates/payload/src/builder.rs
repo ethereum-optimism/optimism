@@ -775,13 +775,10 @@ where
 
     /// Returns whether SDM production should run for this payload.
     ///
-    /// Two gates must agree:
-    /// - **Protocol**: SDM rides the Interop hardfork, so this requires Interop active at the next
-    ///   block's timestamp per the chain spec.
-    /// - **Operator**: the local opt-in flag on `OpBuilderConfig`, mutated by the `admin_` SDM RPC.
-    ///   Starts disabled at process boot.
-    ///
-    /// Either being false disables production.
+    /// Both gates must agree (either being false disables production):
+    /// - **Protocol**: SDM active per the chain spec at the next block's timestamp.
+    /// - **Operator**: the local opt-in flag on `OpBuilderConfig`, mutated by the `admin_` SDM RPC;
+    ///   starts disabled at process boot.
     pub fn sdm_production_enabled(&self) -> bool {
         let protocol_active = reth_optimism_evm::is_sdm_active_at_timestamp(
             &self.chain_spec,

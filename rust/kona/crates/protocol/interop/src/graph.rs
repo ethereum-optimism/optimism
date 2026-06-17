@@ -384,7 +384,7 @@ where
 
         // Timestamp invariant: The timestamp at the time of inclusion of the initiating message
         // MUST be less than or equal to the timestamp of the executing message as well as greater
-        // than the Lagoon activation block's timestamp.
+        // than the interop activation block's timestamp.
         if initiating_timestamp > message.executing_timestamp {
             return Err(MessageGraphError::MessageInFuture {
                 max: message.executing_timestamp,
@@ -840,7 +840,7 @@ mod test {
 
         // Init chain (A): `lagoon_time = None`. Simulates a chain whose rollup config
         // (bundled registry stale, oracle-supplied, or genuinely pre-interop but
-        // incorrectly included in the dep set) has no Lagoon (interop) activation.
+        // incorrectly included in the dep set) has no interop activation.
         superchain.chain(CHAIN_A_ID).modify_rollup_cfg(|cfg| cfg.hardforks.lagoon_time = None);
         // Sanity-check the precondition; otherwise we'd be testing the wrong thing.
         assert!(
@@ -893,8 +893,8 @@ mod test {
         let chain_b_time = superchain.chain(CHAIN_B_ID).header.timestamp;
 
         // Move CHAIN_B (the executing chain) activation to t=50, so its block at t=2 is
-        // pre-interop. CHAIN_A (initiating) stays at the default (interop_time=0, well
-        // past activation). The executing-chain guard must reject via `!is_interop_active`.
+        // pre-interop. CHAIN_A (initiating) stays at the default (interop active from t=0,
+        // well past activation). The executing-chain guard must reject via `!is_interop_active`.
         superchain.chain(CHAIN_B_ID).with_interop_activation_time(50);
         superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
         superchain.chain(CHAIN_B_ID).add_executing_message(

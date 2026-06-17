@@ -129,14 +129,13 @@ impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, 
 
 /// Returns true when SDM post-exec transactions are consensus-active at `timestamp`.
 ///
-/// SDM rides the Interop hardfork: it is active iff Interop is active at `timestamp`
-/// per the chain spec. This matches op-node's `IsSDM` (see `op-node/rollup/toggles.go`).
+/// Defers to the hardfork where SDM is activated, matching op-node's `IsSDM` and kona's
+/// `is_sdm_active`.
 ///
-/// This is the single source of truth for the SDM protocol gate. Call sites that only hold a
-/// chain spec should route through this helper rather than calling
-/// [`OpHardforks::is_interop_active_at_timestamp`] directly, so the gate cannot drift.
+/// Single source of truth for the SDM protocol gate: call sites holding only a chain spec should
+/// route through this rather than calling the underlying fork accessor directly.
 pub fn is_sdm_active_at_timestamp(chain_spec: &impl OpHardforks, timestamp: u64) -> bool {
-    chain_spec.is_interop_active_at_timestamp(timestamp)
+    chain_spec.is_lagoon_active_at_timestamp(timestamp)
 }
 
 fn post_exec_mode_from_transactions<'a, I, T>(
@@ -441,7 +440,7 @@ mod tests {
         OpEvmConfig::optimism(BASE_MAINNET.clone())
     }
 
-    fn interop_at_timestamp_chain_spec(activation: u64) -> Arc<OpChainSpec> {
+    fn lagoon_at_timestamp_chain_spec(activation: u64) -> Arc<OpChainSpec> {
         Arc::new(
             OpChainSpecBuilder::default()
                 .chain(10.into())
@@ -455,10 +454,9 @@ mod tests {
     }
 
     #[test]
-    fn sdm_rides_interop_activation() {
-        // SDM follows Interop: inactive before the Interop activation timestamp,
-        // active at and after it. This matches op-node's `IsSDM == IsInterop`.
-        let evm_config = OpEvmConfig::optimism(interop_at_timestamp_chain_spec(100));
+    fn sdm_rides_lagoon_activation() {
+        // SDM follows Lagoon: inactive before activation, active at and after it.
+        let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(100));
 
         assert!(!evm_config.is_sdm_active_at_timestamp(0));
         assert!(!evm_config.is_sdm_active_at_timestamp(99));
@@ -468,17 +466,15 @@ mod tests {
     }
 
     #[test]
-    fn sdm_inactive_without_interop_schedule() {
-        // A chain spec that never activates Interop must never activate SDM, even at far
-        // future timestamps.
+    fn sdm_inactive_without_lagoon_schedule() {
+        // Without a Lagoon schedule, SDM never activates — even at far-future timestamps.
         let chain_spec = Arc::new(
             OpChainSpecBuilder::default().chain(10.into()).genesis(Genesis::default()).build(),
         );
         let evm_config = OpEvmConfig::optimism(chain_spec);
 
         assert!(!evm_config.is_sdm_active_at_timestamp(0));
-        // SDM inactivity is a consequence of the Interop precondition: assert it explicitly.
-        assert!(!evm_config.chain_spec().is_interop_active_at_timestamp(u64::MAX));
+        assert!(!evm_config.chain_spec().is_lagoon_active_at_timestamp(u64::MAX));
         assert!(!evm_config.is_sdm_active_at_timestamp(u64::MAX));
     }
 
@@ -503,7 +499,7 @@ mod tests {
     }
 
     // Covers Interop-driven SDM activation for imported blocks: pre-Interop blocks reject 0x7d,
-    // Interop-active blocks enter Verify mode, and malformed payload anchors are rejected.
+    // Lagoon-active blocks enter Verify mode, and malformed payload anchors are rejected.
     #[test]
     fn context_for_block_applies_sdm_post_exec_mode() {
         let disabled_err = test_evm_config()
@@ -511,7 +507,7 @@ mod tests {
             .expect_err("SDM disabled rejects 0x7d");
         assert!(matches!(disabled_err, EIP1559ParamError::InvalidPostExecPayload));
 
-        let evm_config = OpEvmConfig::optimism(interop_at_timestamp_chain_spec(0));
+        let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
         let ctx = evm_config
             .context_for_block(&block_with_post_exec_tx(7, 123, 7))
             .expect("SDM-enabled block parses");
