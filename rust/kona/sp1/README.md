@@ -66,6 +66,31 @@ The SP1 integration follows the same fault proof workflow as the native Kona imp
 2. **Proof Aggregation**: The `aggregation` program combines multiple range proofs into a single proof for efficient on-chain verification
 3. **On-chain Verification**: Proofs are submitted to the dispute game contract and verified on L1
 
+### Benchmarking
+
+The local range benchmark runs the range program against real RPC data with the
+SP1 CPU prover:
+
+```bash
+export L1_RPC=<l1-rpc-url>
+export L2_RPC=<l2-rpc-url>
+export L2_NODE_RPC=<op-node-rpc-url>
+# Required for post-Ecotone/blob-backed ranges:
+export L1_BEACON_RPC=<l1-beacon-rpc-url>
+
+just build-elfs
+just bench --start <l2-start-block> --end <l2-end-block>
+```
+
+By default, `just bench` executes the guest and prints cycle/SP1-gas statistics.
+Pass `--prove` to additionally produce a local compressed CPU proof and report
+the proving wall-clock time. The committed ELF files are placeholders, so a real
+`range-elf` must be generated with `just build-elfs` before running the
+benchmark.
+
+The benchmark crate is a native host tool. It is intentionally outside the
+zkVM/no-std and WASM target allowlists.
+
 ## Building
 
 Build utilities are provided in the `build` crate. Programs can be compiled for the zkVM target using the SP1 toolchain.

@@ -19,3 +19,8 @@ build-agg-elf:
     cd programs/aggregation
     # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
     ~/.sp1/bin/cargo-prove prove build --elf-name aggregation-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
+
+# Run the local range-program benchmark. Build the ELF first with `just build-elfs`.
+# Usage: just bench --start <N> --end <M> [--prove]
+bench *ARGS:
+    cargo run --release -p kona-sp1-range-bench -- {{ARGS}}

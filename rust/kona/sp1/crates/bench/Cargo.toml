@@ -1,0 +1,25 @@
+[package]
+name = "kona-sp1-range-bench"
+version = "0.0.1"
+publish = false
+license.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "range-bench"
+path = "src/main.rs"
+
+[dependencies]
+sp1-sdk.workspace = true
+
+kona-sp1-proof-utils.workspace = true
+kona-sp1-host-utils.workspace = true
+
+anyhow.workspace = true
+tracing.workspace = true
+clap = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+url.workspace = true
+
+[lints]
+workspace = true
