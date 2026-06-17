@@ -177,8 +177,11 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
             // Belt-and-suspenders with poll_failsafe: catches any tx that raced past
             // the ingress check or was added between poll_failsafe transition ticks.
             if interop_client.is_failsafe_enabled() {
-                let interop_hashes: Vec<_> = pool
-                    .pooled_transactions()
+                // Scan all transactions, not just propagatable ones: non-propagatable interop txs
+                // (e.g. `Private`-origin conditional txs) are buildable yet hidden from
+                // `pooled_transactions()`, so failsafe must reach them too.
+                let all = pool.all_transactions();
+                let interop_hashes: Vec<_> = all
                     .iter()
                     .filter(|tx| is_interop_tx(&tx.transaction))
                     .map(|tx| *tx.hash())
@@ -223,8 +226,12 @@ async fn revalidate_stale_interop_txs<Pool>(
     let mut to_revalidate = Vec::new();
     let mut interop_count = 0;
 
-    // scan all pooled interop transactions
-    for pooled_tx in pool.pooled_transactions() {
+    // Scan all transactions, not just propagatable ones: non-propagatable interop txs (e.g.
+    // `Private`-origin conditional txs) are still selected by the builder but are hidden from
+    // `pooled_transactions()`, so revalidation/eviction must iterate the whole pool.
+    // `all_transactions()` covers the pending/basefee/queued subpools; the blob subpool is excluded
+    // but irrelevant here since interop txs are never type-3 (EIP-4844 is rejected at ingress).
+    for pooled_tx in pool.all_transactions() {
         if let Some(interop_deadline_val) = pooled_tx.transaction.interop_deadline() {
             interop_count += 1;
             if !is_valid_interop(interop_deadline_val, timestamp) {
@@ -304,9 +311,11 @@ where
                 if enabled && !was_enabled {
                     // Transition to enabled: log unconditionally (so the state change is
                     // visible even when no interop txs are pooled) and evict all interop
-                    // txs immediately.
-                    let interop_hashes: Vec<_> = pool
-                        .pooled_transactions()
+                    // txs immediately. Scan all transactions, not just propagatable ones, so
+                    // non-propagatable interop txs (e.g. `Private`-origin conditional txs) are
+                    // evicted too.
+                    let all = pool.all_transactions();
+                    let interop_hashes: Vec<_> = all
                         .iter()
                         .filter(|tx| is_interop_tx(&tx.transaction))
                         .map(|tx| *tx.hash())
@@ -455,9 +464,12 @@ mod tests {
             .await
     }
 
-    /// Adds a stale-but-still-valid interop tx to the pool and runs the sweep against `filter`,
-    /// returning whether the tx survived.
-    async fn sweep_retains_stale_interop_tx(filter: &MockFilter) -> bool {
+    /// Adds a stale-but-still-valid interop tx with the given `origin` to the pool and runs the
+    /// sweep against `filter`, returning whether the tx survived.
+    async fn stale_interop_tx_survives_sweep(
+        filter: &MockFilter,
+        origin: TransactionOrigin,
+    ) -> bool {
         let pool = build_pool();
         let tx = interop_pooled_tx();
         let hash = *tx.hash();
@@ -465,7 +477,7 @@ mod tests {
         // Deadline in (timestamp, timestamp + OFFSET_TIME]: stale (triggers revalidation) yet still
         // valid (not expired), so the sweep revalidates rather than expiry-evicts it.
         tx.set_interop_deadline(timestamp + 30);
-        pool.add_transaction(TransactionOrigin::External, tx).await.unwrap();
+        pool.add_transaction(origin, tx).await.unwrap();
         assert!(pool.get(&hash).is_some(), "tx should be pooled before the sweep");
 
         let client = client_for(filter).await;
@@ -487,8 +499,22 @@ mod tests {
         let filter =
             mock_filter(SuperchainDAError::ConflictingData as i32, "conflicting data").await;
         assert!(
-            !sweep_retains_stale_interop_tx(&filter).await,
+            !stale_interop_tx_survives_sweep(&filter, TransactionOrigin::External).await,
             "a definitive invalid verdict must be evicted from the pool by the sweep"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sweep_evicts_non_propagatable_invalid_tx() {
+        // A `Private`-origin tx (e.g. one submitted via eth_sendRawTransactionConditional) is
+        // marked non-propagatable, so it is invisible to `pooled_transactions()`. The builder can
+        // still include it, so the sweep must revalidate and evict it on a definitive invalid
+        // verdict. This fails if the scan iterates only propagatable transactions.
+        let filter =
+            mock_filter(SuperchainDAError::ConflictingData as i32, "conflicting data").await;
+        assert!(
+            !stale_interop_tx_survives_sweep(&filter, TransactionOrigin::Private).await,
+            "a non-propagatable invalid interop tx must be evicted from the pool by the sweep"
         );
     }
 
@@ -499,7 +525,7 @@ mod tests {
         // tx stays.
         let filter = mock_filter(-32603, "internal error").await;
         assert!(
-            sweep_retains_stale_interop_tx(&filter).await,
+            stale_interop_tx_survives_sweep(&filter, TransactionOrigin::External).await,
             "a transient/non-decisive verdict must NOT evict the tx"
         );
     }
