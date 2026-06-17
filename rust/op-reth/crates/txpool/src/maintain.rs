@@ -170,37 +170,63 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
 
     loop {
         let Some(event) = events.next().await else { break };
-        if let CanonStateNotification::Commit { new } = event {
-            let timestamp = new.tip().timestamp();
-
-            // If failsafe is active, evict ALL interop txs and skip revalidation.
-            // Belt-and-suspenders with poll_failsafe: catches any tx that raced past
-            // the ingress check or was added between poll_failsafe transition ticks.
-            if interop_client.is_failsafe_enabled() {
-                // Scan all transactions, not just propagatable ones: non-propagatable interop txs
-                // (e.g. `Private`-origin conditional txs) are buildable yet hidden from
-                // `pooled_transactions()`, so failsafe must reach them too.
-                let all = pool.all_transactions();
-                let interop_hashes: Vec<_> = all
-                    .iter()
-                    .filter(|tx| is_interop_tx(&tx.transaction))
-                    .map(|tx| *tx.hash())
-                    .collect();
-                if !interop_hashes.is_empty() {
+        match event {
+            // A reorg can invalidate the initiating message a pooled executing tx depends on, and
+            // source-chain reorgs are invisible here, so drop every interop tx.
+            CanonStateNotification::Reorg { .. } => {
+                let evicted = evict_all_interop_txs(&pool, &metrics);
+                if evicted > 0 {
                     info!(
                         target: "txpool::interop",
-                        count = interop_hashes.len(),
-                        "failsafe active on block event: evicting all interop transactions"
+                        count = evicted,
+                        "reorg detected: evicting all interop transactions"
                     );
-                    let removed = pool.remove_transactions(interop_hashes);
-                    metrics.inc_removed_tx_interop(removed.len());
                 }
-                continue;
             }
-
-            revalidate_stale_interop_txs(&pool, &interop_client, timestamp, &metrics).await;
+            CanonStateNotification::Commit { new } => {
+                if interop_client.is_failsafe_enabled() {
+                    let evicted = evict_all_interop_txs(&pool, &metrics);
+                    if evicted > 0 {
+                        info!(
+                            target: "txpool::interop",
+                            count = evicted,
+                            "failsafe active on block event: evicting all interop transactions"
+                        );
+                    }
+                } else {
+                    revalidate_stale_interop_txs(
+                        &pool,
+                        &interop_client,
+                        new.tip().timestamp(),
+                        &metrics,
+                    )
+                    .await;
+                }
+            }
         }
     }
+}
+
+/// Evicts every interop tx from the pool, returning the number removed. Scans `all_transactions()`
+/// so non-propagatable interop txs (`Private` origin), hidden from `pooled_transactions()` but
+/// still buildable, are reached too.
+fn evict_all_interop_txs<Pool>(pool: &Pool, metrics: &MaintainPoolInteropMetrics) -> usize
+where
+    Pool: TransactionPool,
+    Pool::Transaction: MaybeInteropTransaction,
+{
+    let interop_hashes: Vec<_> = pool
+        .all_transactions()
+        .iter()
+        .filter(|tx| is_interop_tx(&tx.transaction))
+        .map(|tx| *tx.hash())
+        .collect();
+    if interop_hashes.is_empty() {
+        return 0;
+    }
+    let removed = pool.remove_transactions(interop_hashes).len();
+    metrics.inc_removed_tx_interop(removed);
+    removed
 }
 
 /// Revalidates the stale interop txs in the pool against the interop filter for a single block and
@@ -309,24 +335,10 @@ where
         match interop_client.query_failsafe().await {
             Ok(enabled) => {
                 if enabled && !was_enabled {
-                    // Transition to enabled: log unconditionally (so the state change is
-                    // visible even when no interop txs are pooled) and evict all interop
-                    // txs immediately. Scan all transactions, not just propagatable ones, so
-                    // non-propagatable interop txs (e.g. `Private`-origin conditional txs) are
-                    // evicted too.
-                    let all = pool.all_transactions();
-                    let interop_hashes: Vec<_> = all
-                        .iter()
-                        .filter(|tx| is_interop_tx(&tx.transaction))
-                        .map(|tx| *tx.hash())
-                        .collect();
-                    let evicted = if interop_hashes.is_empty() {
-                        0
-                    } else {
-                        let removed = pool.remove_transactions(interop_hashes).len();
-                        metrics.inc_removed_tx_interop(removed);
-                        removed
-                    };
+                    // Transition to enabled: evict all interop txs immediately and log
+                    // unconditionally, so the state change is visible even when no interop txs
+                    // are pooled.
+                    let evicted = evict_all_interop_txs(&pool, &metrics);
                     warn!(
                         target: "txpool::interop",
                         evicted,
@@ -381,11 +393,14 @@ mod tests {
     use jsonrpsee::types::ErrorObjectOwned;
     use jsonrpsee_server::{RpcModule, ServerBuilder, ServerHandle};
     use op_alloy_rpc_types::SuperchainDAError;
+    use reth_execution_types::{Chain, ExecutionOutcome};
+    use reth_optimism_primitives::{OpBlock, OpPrimitives};
+    use reth_primitives_traits::RecoveredBlock;
     use reth_transaction_pool::{
         CoinbaseTipOrdering, Pool, PoolConfig, TransactionOrigin, blobstore::InMemoryBlobStore,
         noop::MockTransactionValidator,
     };
-    use std::net::SocketAddr;
+    use std::{collections::BTreeMap, net::SocketAddr, sync::Arc};
 
     /// A pool of [`OpPooledTransaction`] backed by the always-valid mock validator, so a built tx
     /// lands in the pending subpool and is visible to the maintenance sweep.
@@ -427,6 +442,43 @@ mod tests {
             op_alloy_consensus::OpPooledTransaction::Eip1559(signed),
             Address::with_last_byte(1),
         ))
+    }
+
+    /// Builds a non-interop EIP-1559 [`OpPooledTransaction`]: same shape as [`interop_pooled_tx`]
+    /// but with an empty access list, so `is_interop_tx` is false and the reorg sweep must leave it
+    /// in place. Uses a distinct sender so it shares no nonce sequence with the interop tx.
+    fn non_interop_pooled_tx() -> OpPooledTransaction {
+        let tx = TxEip1559 {
+            chain_id: 10,
+            nonce: 0,
+            gas_limit: 21_000,
+            max_fee_per_gas: 20_000_000_000,
+            max_priority_fee_per_gas: 1,
+            to: TxKind::Call(Address::ZERO),
+            value: U256::ZERO,
+            access_list: AccessList::default(),
+            input: Default::default(),
+        };
+        let signed = tx.into_signed(Signature::new(U256::from(1u64), U256::from(1u64), false));
+        OpPooledTransaction::from_pooled(Recovered::new_unchecked(
+            op_alloy_consensus::OpPooledTransaction::Eip1559(signed),
+            Address::with_last_byte(2),
+        ))
+    }
+
+    /// A minimal reorg notification. The interop reorg sweep evicts unconditionally and never
+    /// inspects the reverted/committed chains, so a single default block on both sides suffices.
+    fn reorg_event() -> CanonStateNotification<OpPrimitives> {
+        let block: RecoveredBlock<OpBlock> = Default::default();
+        let chain = Arc::new(Chain::new([block], ExecutionOutcome::default(), BTreeMap::new()));
+        CanonStateNotification::Reorg { old: chain.clone(), new: chain }
+    }
+
+    /// A minimal commit notification with a single default block.
+    fn commit_event() -> CanonStateNotification<OpPrimitives> {
+        let block: RecoveredBlock<OpBlock> = Default::default();
+        let chain = Arc::new(Chain::new([block], ExecutionOutcome::default(), BTreeMap::new()));
+        CanonStateNotification::Commit { new: chain }
     }
 
     struct MockFilter {
@@ -516,6 +568,76 @@ mod tests {
             !stale_interop_tx_survives_sweep(&filter, TransactionOrigin::Private).await,
             "a non-propagatable invalid interop tx must be evicted from the pool by the sweep"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn reorg_evicts_pooled_interop_txs() {
+        // The filter answers transient errors, so passing proves eviction is independent of
+        // revalidation: the interop tx must go, the plain tx must stay.
+        let pool = build_pool();
+        let interop = interop_pooled_tx();
+        let interop_hash = *interop.hash();
+        let plain = non_interop_pooled_tx();
+        let plain_hash = *plain.hash();
+        pool.add_transaction(TransactionOrigin::External, interop).await.unwrap();
+        pool.add_transaction(TransactionOrigin::External, plain).await.unwrap();
+        assert!(pool.get(&interop_hash).is_some(), "interop tx should be pooled before the reorg");
+        assert!(pool.get(&plain_hash).is_some(), "plain tx should be pooled before the reorg");
+
+        let filter = mock_filter(-32603, "internal error").await;
+        let client = client_for(&filter).await;
+        let events = futures_util::stream::iter(vec![reorg_event()]);
+
+        maintain_transaction_pool_interop(pool.clone(), events, client).await;
+
+        assert!(pool.get(&interop_hash).is_none(), "interop tx must be evicted on reorg");
+        assert!(pool.get(&plain_hash).is_some(), "non-interop tx must survive the reorg");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn reorg_evicts_non_propagatable_interop_tx() {
+        // A `Private`-origin interop tx is hidden from `pooled_transactions()` but still buildable,
+        // so the reorg sweep must reach it via `all_transactions()` and evict it too.
+        let pool = build_pool();
+        let interop = interop_pooled_tx();
+        let interop_hash = *interop.hash();
+        pool.add_transaction(TransactionOrigin::Private, interop).await.unwrap();
+        assert!(pool.get(&interop_hash).is_some(), "interop tx should be pooled before the reorg");
+
+        let filter = mock_filter(-32603, "internal error").await;
+        let client = client_for(&filter).await;
+        let events = futures_util::stream::iter(vec![reorg_event()]);
+
+        maintain_transaction_pool_interop(pool.clone(), events, client).await;
+
+        assert!(
+            pool.get(&interop_hash).is_none(),
+            "non-propagatable interop tx must be evicted on reorg"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn commit_with_failsafe_evicts_all_interop_txs() {
+        // With failsafe active, a block commit must evict every interop tx, not revalidate. The
+        // interop tx carries no deadline, so the revalidation path would leave it untouched;
+        // requiring it to be gone proves the commit arm took the failsafe branch.
+        let pool = build_pool();
+        let interop = interop_pooled_tx();
+        let interop_hash = *interop.hash();
+        let plain = non_interop_pooled_tx();
+        let plain_hash = *plain.hash();
+        pool.add_transaction(TransactionOrigin::External, interop).await.unwrap();
+        pool.add_transaction(TransactionOrigin::External, plain).await.unwrap();
+
+        let filter = mock_filter(-32603, "internal error").await;
+        let client = client_for(&filter).await;
+        client.apply_failsafe_state(true);
+        let events = futures_util::stream::iter(vec![commit_event()]);
+
+        maintain_transaction_pool_interop(pool.clone(), events, client).await;
+
+        assert!(pool.get(&interop_hash).is_none(), "failsafe commit must evict the interop tx");
+        assert!(pool.get(&plain_hash).is_some(), "non-interop tx must survive the failsafe commit");
     }
 
     #[tokio::test(flavor = "multi_thread")]
