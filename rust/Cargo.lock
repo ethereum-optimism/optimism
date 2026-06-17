@@ -7895,6 +7895,7 @@ dependencies = [
 name = "kona-sp1-range-bench"
 version = "0.0.1"
 dependencies = [
+ "alloy-consensus 2.0.5",
  "alloy-primitives",
  "alloy-sol-types",
  "anyhow",
@@ -7903,6 +7904,7 @@ dependencies = [
  "kona-sp1-client-utils",
  "kona-sp1-host-utils",
  "kona-sp1-proof-utils",
+ "serde_cbor",
  "sp1-sdk",
  "tokio",
  "tracing",

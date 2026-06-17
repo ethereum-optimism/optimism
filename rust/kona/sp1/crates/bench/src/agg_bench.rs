@@ -1,8 +1,13 @@
 //! Local aggregation-program benchmark entrypoint for kona-sp1.
 
-use std::{env, path::PathBuf, time::Instant};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
-use alloy_primitives::Address;
+use alloy_consensus::Header;
+use alloy_primitives::{Address, B256};
 use alloy_sol_types::SolValue;
 use anyhow::Context;
 use clap::Parser;
@@ -25,6 +30,14 @@ struct Args {
     /// Also produce a compressed aggregation proof after the execute-only stats pass.
     #[arg(long, default_value_t = false)]
     prove: bool,
+
+    /// Save the RPC-derived aggregation inputs to this path for later offline proving.
+    #[arg(long, conflicts_with = "load_agg_inputs")]
+    save_agg_inputs: Option<PathBuf>,
+
+    /// Load RPC-derived aggregation inputs from this path instead of fetching from RPC.
+    #[arg(long)]
+    load_agg_inputs: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -37,7 +50,9 @@ async fn main() -> anyhow::Result<()> {
     let range_elf = get_range_elf();
     let agg_elf = get_agg_elf();
     ensure_non_empty_elfs(range_elf, agg_elf)?;
-    ensure_required_rpc_env()?;
+    if args.load_agg_inputs.is_none() {
+        ensure_required_rpc_env()?;
+    }
 
     // Backend selected by the SP1_PROVER env var (default: cpu).
     let prover = ProverClient::from_env().await;
@@ -68,18 +83,31 @@ async fn main() -> anyhow::Result<()> {
         boot_infos.push(boot_info);
     }
 
-    let fetcher = OPSuccinctDataFetcher::new_with_rollup_config()
-        .await
-        .context("failed to initialize RPC data fetcher from environment")?;
-    let checkpoint = fetcher
-        .get_latest_l1_head_in_batch(&boot_infos)
-        .await
-        .context("failed to find latest L1 head across range proofs")?;
-    let checkpoint_hash = checkpoint.hash_slow();
-    let headers = fetcher
-        .get_header_preimages(&boot_infos, checkpoint_hash)
-        .await
-        .context("failed to fetch L1 header preimages for aggregation")?;
+    let (checkpoint_hash, headers) = if let Some(path) = &args.load_agg_inputs {
+        let inputs = load_agg_inputs(path)?;
+        tracing::info!("loaded aggregation inputs from {}", path.display());
+        inputs
+    } else {
+        let fetcher = OPSuccinctDataFetcher::new_with_rollup_config()
+            .await
+            .context("failed to initialize RPC data fetcher from environment")?;
+        let checkpoint = fetcher
+            .get_latest_l1_head_in_batch(&boot_infos)
+            .await
+            .context("failed to find latest L1 head across range proofs")?;
+        let checkpoint_hash = checkpoint.hash_slow();
+        let headers = fetcher
+            .get_header_preimages(&boot_infos, checkpoint_hash)
+            .await
+            .context("failed to fetch L1 header preimages for aggregation")?;
+
+        if let Some(path) = &args.save_agg_inputs {
+            save_agg_inputs(checkpoint_hash, &headers, path)?;
+            tracing::info!("saved aggregation inputs to {}", path.display());
+        }
+
+        (checkpoint_hash, headers)
+    };
 
     let stdin = get_agg_proof_stdin(
         proofs,
@@ -135,6 +163,20 @@ fn ensure_non_empty_elfs(range_elf: &[u8], agg_elf: &[u8]) -> anyhow::Result<()>
          cd rust/kona/sp1 && just build-elfs"
     );
     Ok(())
+}
+
+fn save_agg_inputs(checkpoint_hash: B256, headers: &[Header], path: &Path) -> anyhow::Result<()> {
+    let bytes = serde_cbor::to_vec(&(checkpoint_hash, headers))
+        .context("failed to serialize aggregation inputs")?;
+    std::fs::write(path, bytes)
+        .with_context(|| format!("failed to write aggregation inputs to {}", path.display()))?;
+    Ok(())
+}
+
+fn load_agg_inputs(path: &Path) -> anyhow::Result<(B256, Vec<Header>)> {
+    let bytes = std::fs::read(path)
+        .with_context(|| format!("failed to read aggregation inputs from {}", path.display()))?;
+    serde_cbor::from_slice(&bytes).context("failed to deserialize aggregation inputs")
 }
 
 fn ensure_required_rpc_env() -> anyhow::Result<()> {
@@ -209,6 +251,47 @@ mod tests {
 
         let err = ensure_non_empty_elfs(&[1], &[]).unwrap_err();
         assert!(err.to_string().contains("missing or empty"));
+    }
+
+    #[test]
+    fn agg_inputs_round_trip() {
+        let checkpoint = B256::repeat_byte(7);
+        let headers = vec![Header::default(), Header::default()];
+        let path = std::env::temp_dir()
+            .join(format!("kona-sp1-agg-inputs-roundtrip-{}.cbor", std::process::id()));
+
+        save_agg_inputs(checkpoint, &headers, &path).unwrap();
+        let (loaded_hash, loaded_headers) = load_agg_inputs(&path).unwrap();
+        assert_eq!(loaded_hash, checkpoint);
+        assert_eq!(loaded_headers, headers);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn load_agg_inputs_missing_file_errors() {
+        let err = load_agg_inputs(Path::new("/nonexistent/kona-sp1-missing.cbor")).unwrap_err();
+
+        assert!(err.to_string().contains("failed to read aggregation inputs"));
+    }
+
+    #[test]
+    fn save_and_load_agg_inputs_conflict() {
+        let err = Args::try_parse_from([
+            "agg-bench",
+            "--proofs",
+            "a.bin",
+            "--save-agg-inputs",
+            "s.cbor",
+            "--load-agg-inputs",
+            "l.cbor",
+        ])
+        .unwrap_err();
+        let message = err.to_string();
+
+        assert!(
+            message.to_lowercase().contains("cannot be used with") || message.contains("conflict")
+        );
     }
 
     #[test]

@@ -121,6 +121,27 @@ root is the next proof's pre root. Pass `--prove` to produce the compressed
 recursion aggregation proof. The execute cycle report excludes recursive proof
 verification, which appears in the `--prove` wall-clock time.
 
+The aggregation benchmark can also split RPC input assembly from proving. On a
+machine with RPC access, save the L1 checkpoint and header preimages derived from
+the range proofs:
+
+```bash
+just agg-bench --proofs /tmp/r1.bin,/tmp/r2.bin --save-agg-inputs /tmp/agg.cbor
+```
+
+On another machine, load those inputs and prove without any RPC environment
+variables:
+
+```bash
+just agg-bench --proofs /tmp/r1.bin,/tmp/r2.bin --load-agg-inputs /tmp/agg.cbor --prove
+```
+
+The proving machine needs both the compressed range proof files and the saved
+aggregation-inputs file. Pass `--proofs` in the same order used when the inputs
+were saved; mismatched or non-consecutive proofs fail while rebuilding the
+aggregation stdin or inside the aggregation program. `--save-agg-inputs` and
+`--load-agg-inputs` are mutually exclusive.
+
 Produce the final PLONK aggregation proof with:
 
 ```bash
