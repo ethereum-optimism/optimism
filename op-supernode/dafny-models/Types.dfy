@@ -103,10 +103,11 @@ module Types {
     checksum: nat
   )
 
-  // The log data for a block: executing messages keyed by log index.
-  // Corresponds to the executing-message subset of types.Receipts returned by
-  // ChainContainer.FetchReceipts. Non-executing logs are omitted from the model.
-  datatype BlockLogs = BlockLogs(execMsgs: map<nat, ExecutingMessage>)
+  datatype Log = Log(data: nat, checksum: nat)
+
+  // The log data for a block: full list plus executing messages keyed by log index.
+  // Corresponds to types.Receipts returned by ChainContainer.FetchReceipts.
+  datatype BlockLogs = BlockLogs(fullLogs: seq<Log>, execMsgs: map<nat, ExecutingMessage>)
 
   // ----- System configuration constants -----------------------------------
 
@@ -185,7 +186,8 @@ module Types {
   ghost predicate ValidRoundObservation(obs: RoundObservation)
   {
     (!obs.l1Consistent ==> obs.lastVerifiedTS.Some?) &&
-    (obs.chainsReady ==> obs.blocksAtTS.Keys == CHAIN_IDS)
+    (obs.chainsReady ==> obs.blocksAtTS.Keys == CHAIN_IDS) &&
+    (0 < |obs.blocksAtTS| ==> obs.chainsReady)
   }
 
   // Converts a set of ChainIDs to a sequence containing exactly those elements.

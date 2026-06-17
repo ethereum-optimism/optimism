@@ -150,5 +150,14 @@ module VerifiedDB {
       pendingTransition := None;
     }
 
+    // When the backing map hasn't changed, Get returns the same result in both states.
+    // Used by twostate lemmas to bridge old(Get(ts)) and Get(ts) without triggering
+    // fuel exhaustion from nesting depth.
+    twostate lemma GetStableIfDBUnchanged(ts: nat)
+      requires db == old(db)
+      requires ts in db
+      ensures Get(ts) == old(Get(ts))
+    {}
+
   }
 }

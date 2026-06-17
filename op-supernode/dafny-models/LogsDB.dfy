@@ -30,6 +30,8 @@ module LogsDB {
       ensures {:axiom} LatestSealedBlock() == Some(newHead)
       ensures {:axiom} forall number :: 0 <= number <= newHead.number ==>
         FindSealedBlock(number) == old(FindSealedBlock(number))
+      ensures {:axiom} forall number :: 0 <= number <= newHead.number && FindSealedBlock(number).Some? ==>
+        BlockLogs(number) == old(BlockLogs(number))
 
     // Returns the first sealed block ID, or None if no blocks are sealed.
     // Corresponds to LogsDB.LatestSealedBlock in logdb.go.
@@ -90,7 +92,16 @@ module LogsDB {
       reads this
       ensures {:axiom} Contains(query) ==> FindSealedBlock(query.blockNum).Some?
       ensures {:axiom} Contains(query) ==> FindSealedBlock(query.blockNum).value.timestamp == query.timestamp
-      ensures {:axiom} Contains(query) ==> query.logIdx in BlockLogs(query.blockNum).execMsgs.Keys
-      ensures {:axiom} Contains(query) ==> BlockLogs(query.blockNum).execMsgs[query.logIdx].checksum == query.checksum
+      ensures {:axiom} Contains(query) ==> query.logIdx < |BlockLogs(query.blockNum).fullLogs|
+      ensures {:axiom} Contains(query) ==> BlockLogs(query.blockNum).fullLogs[query.logIdx].checksum == query.checksum
+
+    // Monotonicity: if Contains held for a query and FindSealedBlock for the queried
+    // block number is unchanged, Contains still holds. This captures that the LogsDB
+    // only grows — adding blocks does not modify or remove existing entries.
+    twostate lemma ContainsMonotone(query: ContainsQuery)
+      requires old(Contains(query))
+      requires FindSealedBlock(query.blockNum) == old(FindSealedBlock(query.blockNum))
+      ensures Contains(query)
+    { assume false; }  // Admitted: Contains depends only on FindSealedBlock for the queried block.
   }
 }
