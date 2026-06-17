@@ -39,10 +39,11 @@ Compiled ELF binaries for the zkVM programs, used by the prover:
   separate bump-allocator feature, so this port keeps one range artifact instead
   of separate bump and embedded variants.
 
-In the optimism monorepo port, these files are committed as empty placeholders
-instead of carrying the upstream PR's pre-port binaries. Regenerate real v6.2.4
-ELFs with `just build-elfs`; host-toolchain workspace builds only require the
-files to exist for `include_bytes!`.
+In the optimism monorepo port, these files are generated on demand and ignored
+by git, matching the Cannon prestate artifact workflow. Generate real v6.2.4
+ELFs with `just build-elfs`. Host-toolchain workspace builds embed empty
+build-output placeholders when generated ELFs are absent, so benchmarks fail fast
+until the real artifacts are built.
 
 ## CI TODOs
 
@@ -117,9 +118,9 @@ gnark container (`SP1_GNARK_IMAGE` overrides the default image) and outbound
 network on first run to download circuit artifacts to `~/.sp1`
 (`SP1_PLONK_CIRCUIT_PATH` overrides the cache path).
 
-The committed ELF files are placeholders, so real `range-elf` and
-`aggregation-elf` artifacts must be generated with `just build-elfs` before
-running the benchmarks.
+The generated ELF files are ignored by git, so real `range-elf` and
+`aggregation-elf` artifacts must be generated locally with `just build-elfs`
+before running the benchmarks.
 
 The benchmark crate is a native host tool. It is intentionally outside the
 zkVM/no-std and WASM target allowlists.

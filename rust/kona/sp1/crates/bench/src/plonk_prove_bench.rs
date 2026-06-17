@@ -150,7 +150,7 @@ fn validate_proofs(proofs: &[PathBuf]) -> anyhow::Result<()> {
 fn ensure_non_empty_elfs(range_elf: &[u8], agg_elf: &[u8]) -> anyhow::Result<()> {
     anyhow::ensure!(
         !range_elf.is_empty() && !agg_elf.is_empty(),
-        "range-elf or aggregation-elf is an empty placeholder. Build real ELFs first with: \
+        "range-elf or aggregation-elf is missing or empty. Build real ELFs first with: \
          cd rust/kona/sp1 && just build-elfs"
     );
     Ok(())
@@ -220,14 +220,14 @@ mod tests {
     }
 
     #[test]
-    fn ensure_non_empty_elfs_rejects_placeholder() {
+    fn ensure_non_empty_elfs_rejects_missing_or_empty_elfs() {
         assert!(ensure_non_empty_elfs(&[1], &[1]).is_ok());
 
         let err = ensure_non_empty_elfs(&[], &[1]).unwrap_err();
-        assert!(err.to_string().contains("empty placeholder"));
+        assert!(err.to_string().contains("missing or empty"));
 
         let err = ensure_non_empty_elfs(&[1], &[]).unwrap_err();
-        assert!(err.to_string().contains("empty placeholder"));
+        assert!(err.to_string().contains("missing or empty"));
     }
 
     #[test]

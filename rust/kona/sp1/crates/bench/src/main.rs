@@ -124,7 +124,7 @@ fn validate_block_range(start: u64, end: u64) -> anyhow::Result<()> {
 fn ensure_non_empty_elf(elf: &[u8]) -> anyhow::Result<()> {
     anyhow::ensure!(
         !elf.is_empty(),
-        "range-elf is an empty placeholder. Build a real ELF first with: \
+        "range-elf is missing or empty. Build a real ELF first with: \
          cd rust/kona/sp1 && just build-elfs"
     );
     Ok(())
@@ -193,11 +193,11 @@ mod tests {
     }
 
     #[test]
-    fn ensure_non_empty_elf_rejects_placeholder() {
+    fn ensure_non_empty_elf_rejects_missing_or_empty_elf() {
         assert!(ensure_non_empty_elf(&[1]).is_ok());
 
         let err = ensure_non_empty_elf(&[]).unwrap_err();
-        assert!(err.to_string().contains("range-elf is an empty placeholder"));
+        assert!(err.to_string().contains("range-elf is missing or empty"));
     }
 
     #[test]
