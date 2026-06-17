@@ -22,7 +22,7 @@ struct Args {
     #[arg(long, value_delimiter = ',')]
     proofs: Vec<PathBuf>,
 
-    /// Also produce a local compressed CPU aggregation proof after the execute-only stats pass.
+    /// Also produce a compressed aggregation proof after the execute-only stats pass.
     #[arg(long, default_value_t = false)]
     prove: bool,
 }
@@ -39,7 +39,8 @@ async fn main() -> anyhow::Result<()> {
     ensure_non_empty_elfs(range_elf, agg_elf)?;
     ensure_required_rpc_env()?;
 
-    let prover = ProverClient::builder().cpu().build().await;
+    // Backend selected by the SP1_PROVER env var (default: cpu).
+    let prover = ProverClient::from_env().await;
 
     let range_proving_key =
         prover.setup(Elf::Static(range_elf)).await.context("failed to set up range proving key")?;
@@ -110,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
             .prove(&agg_proving_key, stdin)
             .compressed()
             .await
-            .context("failed to produce compressed CPU aggregation proof")?;
+            .context("failed to produce compressed aggregation proof")?;
         tracing::info!("aggregation compressed prove wall-clock: {:?}", prove_start.elapsed());
         let verify_start = Instant::now();
         prover

@@ -26,7 +26,7 @@ struct Args {
     #[arg(long)]
     end: u64,
 
-    /// Also produce a local compressed CPU proof after the execute-only stats pass.
+    /// Also produce a compressed proof after the execute-only stats pass.
     #[arg(long, default_value_t = false)]
     prove: bool,
 
@@ -70,7 +70,8 @@ async fn main() -> anyhow::Result<()> {
         .context("failed to serialize witness into SP1 stdin")?;
     let witness_secs = witness_start.elapsed().as_secs();
 
-    let prover = ProverClient::builder().cpu().build().await;
+    // Backend selected by the SP1_PROVER env var (default: cpu).
+    let prover = ProverClient::from_env().await;
 
     let execute_start = Instant::now();
     let (_public_values, report) = prover
@@ -96,8 +97,8 @@ async fn main() -> anyhow::Result<()> {
             .prove(&proving_key, stdin)
             .compressed()
             .await
-            .context("failed to produce compressed CPU proof")?;
-        tracing::info!("local CPU prove wall-clock: {:?}", prove_start.elapsed());
+            .context("failed to produce compressed proof")?;
+        tracing::info!("prove wall-clock: {:?}", prove_start.elapsed());
         let verify_start = Instant::now();
         prover
             .verify(&proof, proving_key.verifying_key(), None)

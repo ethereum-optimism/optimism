@@ -16,7 +16,7 @@ const REQUIRED_RPC_ENV: [&str; 3] = ["L1_RPC", "L2_RPC", "L2_NODE_RPC"];
 const OPTIONAL_RPC_ENV: [&str; 1] = ["L1_BEACON_RPC"];
 
 #[derive(Debug, Parser)]
-#[command(about = "Produce and verify a local PLONK aggregation proof")]
+#[command(about = "Produce and verify a PLONK aggregation proof")]
 struct Args {
     /// Saved compressed range proofs, comma-separated, in ascending chain order.
     #[arg(long, value_delimiter = ',')]
@@ -39,7 +39,8 @@ async fn main() -> anyhow::Result<()> {
     ensure_non_empty_elfs(range_elf, agg_elf)?;
     ensure_required_rpc_env()?;
 
-    let prover = ProverClient::builder().cpu().build().await;
+    // Backend selected by the SP1_PROVER env var (default: cpu).
+    let prover = ProverClient::from_env().await;
 
     let range_proving_key =
         prover.setup(Elf::Static(range_elf)).await.context("failed to set up range proving key")?;
@@ -106,16 +107,16 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::warn!(
         "PLONK proving runs the full aggregation pipeline (core -> compress -> shrink -> wrap -> \
-         gnark) on CPU and requires Docker for the gnark wrap. The first run may download PLONK \
-         circuit artifacts to ~/.sp1."
+         gnark). The default local CPU backend uses SP1's gnark Docker wrapper and the first run \
+         may download PLONK circuit artifacts to ~/.sp1. SP1_PROVER=cuda sends PLONK proving to \
+         sp1-gpu-server; SP1_PROVER=network or hosted uses the SP1 prover network instead."
     );
 
     let prove_start = Instant::now();
-    let proof = prover
-        .prove(&agg_proving_key, stdin)
-        .plonk()
-        .await
-        .context("failed to produce PLONK aggregation proof (is Docker running?)")?;
+    let proof = prover.prove(&agg_proving_key, stdin).plonk().await.context(
+        "failed to produce PLONK aggregation proof (check the selected SP1_PROVER backend; \
+             local CPU PLONK requires Docker for gnark unless native gnark is enabled)",
+    )?;
     let prove_elapsed = prove_start.elapsed();
 
     let verify_start = Instant::now();
