@@ -66,7 +66,7 @@ where
     DP: DriverPipeline<P> + Send + Sync + Debug,
     P: Pipeline + SignalReceiver + Send + Sync + Debug,
 {
-    // TODO(kona-sp1): Dedup logic in kona_proof::driver::core::advance_to_target
+    // TODO(#18494): Dedup logic in kona_proof::driver::core::advance_to_target
     loop {
         // Check if we have reached the target block number.
         let pipeline_cursor = driver.cursor.read();
