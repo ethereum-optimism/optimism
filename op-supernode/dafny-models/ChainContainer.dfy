@@ -26,7 +26,7 @@ module ChainContainer {
     method OptimisticAt(ts: nat) returns (result: Option<OptimisticAtResult>)
       ensures {:axiom} result.Some? ==>
         BlockInfo(result.value.l2Block).Some? &&
-        BlockInfo(result.value.l2Block).value.timestamp == ts
+        BlockInfo(result.value.l2Block).value.timestamp <= ts
 
     // Prunes deny-list entries at or after the given timestamp.
     // Pure I/O with no modeled state changes.
