@@ -8,7 +8,7 @@ use alloy_consensus::{
 };
 use alloy_eips::{
     eip2718::{Encodable2718, WithEncoded},
-    eip2930::AccessList,
+    eip2930::{AccessList, AccessListItem},
     eip7702::SignedAuthorization,
 };
 use alloy_evm::RecoveredTx;
@@ -24,6 +24,7 @@ use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
 use reth_optimism_txpool::{
     OpPooledTransaction, OpPooledTx, conditional::MaybeConditionalTransaction,
     estimated_da_size::DataAvailabilitySized, interop::MaybeInteropTransaction,
+    interop_filter::CROSS_L2_INBOX_ADDRESS,
 };
 use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_util::PayloadTransactionsFixed;
@@ -165,6 +166,31 @@ fn op_pooled_tx(nonce: u64, signer: Address, recipient: Address) -> OpPooledTran
     OpPooledTransaction::new(Recovered::new_unchecked(tx, signer), encoded_len)
 }
 
+/// Builds an interop pool tx: an EIP-1559 tx whose access list targets `CROSS_L2_INBOX_ADDRESS`
+/// with a storage key, matching the intrinsic detection used by `is_interop_tx`. The gas limit
+/// covers the access-list intrinsic cost so the tx executes when the failsafe is off.
+fn op_interop_pooled_tx(nonce: u64, signer: Address, recipient: Address) -> OpPooledTransaction {
+    let tx: OpTransactionSigned = TxEip1559 {
+        chain_id: 8453,
+        nonce,
+        gas_limit: 100_000,
+        max_fee_per_gas: 1,
+        max_priority_fee_per_gas: 1,
+        to: TxKind::Call(recipient),
+        value: U256::ZERO,
+        access_list: AccessList(vec![AccessListItem {
+            address: CROSS_L2_INBOX_ADDRESS,
+            storage_keys: vec![B256::ZERO],
+        }]),
+        ..Default::default()
+    }
+    .into_signed(Signature::test_signature())
+    .into();
+    let encoded_len = tx.encode_2718_len();
+
+    OpPooledTransaction::new(Recovered::new_unchecked(tx, signer), encoded_len)
+}
+
 fn tx_hashes<'a>(txs: impl IntoIterator<Item = &'a Recovered<OpTransactionSigned>>) -> Vec<TxHash> {
     txs.into_iter().map(|tx| *TxHashRef::tx_hash(tx)).collect()
 }
@@ -181,7 +207,23 @@ where
     let gas_limit = 1_000_000;
     let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().regolith_activated().build());
     let ctx = payload_builder_ctx(chain_spec, gas_limit);
+    run_execute_best_transactions_with_ctx(ctx, signer, txs, gas_limit_cap, committed_txs)
+}
 
+fn run_execute_best_transactions_with_ctx<T>(
+    ctx: OpPayloadBuilderCtx<
+        OpEvmConfig<OpChainSpec, OpPrimitives>,
+        OpChainSpec,
+        OpPayloadBuilderAttributes<OpTransactionSigned>,
+    >,
+    signer: Address,
+    txs: Vec<T>,
+    gas_limit_cap: Option<u64>,
+    committed_txs: Option<&mut Vec<Recovered<OpTransactionSigned>>>,
+) -> (ExecutionInfo, Vec<TxHash>)
+where
+    T: PoolTransaction<Consensus = OpTransactionSigned> + OpPooledTx,
+{
     let mut state_provider = StateProviderTest::default();
     state_provider.insert_account(
         signer,
@@ -599,4 +641,38 @@ fn miner_fee_uses_pool_wrapper_tip() {
     // somebody later tweaks the helper's fee fields and happens to land on `forced_priority_fee`.
     assert_eq!(info.total_fees, expected_fees);
     assert_ne!(info.total_fees, natural_fees);
+}
+
+/// When the interop failsafe is active, the builder must exclude interop transactions (detected by
+/// their `CrossL2Inbox` access list) while still including normal transactions. With the failsafe
+/// off, the same interop tx is included — proving the gate is conditional on the flag rather than a
+/// blanket exclusion, and that it does not depend on the pool's interop-deadline marker.
+#[test]
+fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
+    let signer = Address::repeat_byte(0x11);
+    let normal = op_pooled_tx(0, signer, Address::repeat_byte(0x22));
+    let interop = op_interop_pooled_tx(1, signer, Address::repeat_byte(0x33));
+    let normal_hash = *normal.hash();
+    let interop_hash = *interop.hash();
+
+    let gas_limit = 1_000_000;
+    let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().regolith_activated().build());
+
+    // Failsafe off: both the normal and the interop tx are included.
+    let ctx = payload_builder_ctx(chain_spec.clone(), gas_limit);
+    let (_info, included) = run_execute_best_transactions_with_ctx(
+        ctx,
+        signer,
+        vec![normal.clone(), interop.clone()],
+        None,
+        None,
+    );
+    assert_eq!(included, vec![normal_hash, interop_hash]);
+
+    // Failsafe on: the interop tx is excluded, the normal tx is still included.
+    let ctx = payload_builder_ctx(chain_spec, gas_limit);
+    ctx.builder_config.interop_failsafe.set(true);
+    let (_info, included) =
+        run_execute_best_transactions_with_ctx(ctx, signer, vec![normal, interop], None, None);
+    assert_eq!(included, vec![normal_hash]);
 }

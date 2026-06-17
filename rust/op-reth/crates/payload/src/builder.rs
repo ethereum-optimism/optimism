@@ -35,7 +35,7 @@ use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction};
 use reth_optimism_txpool::{
     OpPooledTx,
     estimated_da_size::DataAvailabilitySized,
-    interop::{MaybeInteropTransaction, is_valid_interop},
+    interop::{MaybeInteropTransaction, is_interop_tx, is_valid_interop},
 };
 use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_primitives::{BuildNextEnv, BuiltPayloadExecutedBlock};
@@ -978,6 +978,12 @@ where
         let tx_da_limit = self.builder_config.da_config.max_da_tx_size();
         let max_uncompressed_block_size = self.builder_config.max_uncompressed_block_size;
         let base_fee = builder.evm_mut().block().basefee();
+        // Snapshot the interop failsafe once for this build. When the supervisor failsafe is
+        // active, no interop transaction may be sealed into an unsafe block. Gating here, rather
+        // than relying solely on asynchronous pool eviction, means a tx that bypassed the interop
+        // filter (e.g. a private or locally-submitted tx) is still excluded the moment the gate
+        // flips on, and the builder no longer races pool eviction to drain interop txs.
+        let interop_failsafe_active = self.builder_config.interop_failsafe.enabled();
 
         while let Some(tx) = best_txs.next(()) {
             let interop = tx.interop_deadline();
@@ -1019,6 +1025,13 @@ where
 
             // A sequencer's block should never contain blob or deposit transactions from the pool.
             if tx.is_eip4844() || tx.is_deposit() {
+                best_txs.mark_invalid(tx.signer(), tx.nonce());
+                continue;
+            }
+
+            // While the interop failsafe is active, exclude every interop tx (identified by its
+            // CrossL2Inbox access list) regardless of whether it carries an interop deadline.
+            if interop_failsafe_active && is_interop_tx(&*tx) {
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
                 continue;
             }
