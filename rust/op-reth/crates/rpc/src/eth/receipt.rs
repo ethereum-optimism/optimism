@@ -342,6 +342,21 @@ impl OpReceiptBuilder {
             core_receipt.blob_gas_used = Some(da_size);
         }
 
+        // op-geth parity: `build_receipt` derives `contract_address` from `tx.nonce()`, which is
+        // hard-coded to 0 for deposit transactions. For a deposit contract-creation tx
+        // (`to == nil`, `isCreation == true`), op-geth instead derives the address from the
+        // sender's actual L2 nonce, persisted on the receipt as the deposit nonce (see
+        // go-ethereum `core/types/receipt.go` `DeriveFields`). Without this override the RPC
+        // `contractAddress` is `CREATE(from, 0)` while the contract is actually deployed at
+        // `CREATE(from, depositNonce)`, so `eth_getCode(receipt.contractAddress)` returns `0x`
+        // whenever the deposit sender's L2 nonce > 0.
+        if core_receipt.contract_address.is_some()
+            && let OpReceipt::Deposit(deposit_receipt) = &core_receipt.inner.receipt
+            && let Some(deposit_nonce) = deposit_receipt.deposit_nonce
+        {
+            core_receipt.contract_address = Some(core_receipt.from.create(deposit_nonce));
+        }
+
         let op_receipt_fields = OpReceiptFieldsBuilder::new(timestamp, block_number)
             .l1_block_info(chain_spec, tx_signed, l1_block_info)?
             .op_gas_refund(op_gas_refund)
