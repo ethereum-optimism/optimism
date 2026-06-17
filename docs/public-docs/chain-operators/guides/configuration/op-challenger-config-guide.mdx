@@ -1,12 +1,22 @@
 ---
 title: How to configure challenger for your chain
 description: Learn how to configure challenger for your OP Stack chain.
+audit-source:
+  - op-challenger/flags/flags.go
+  - op-challenger/flags/vm_flag.go
+  - op-challenger/config/config.go
+  - op-challenger/game/types/game_type.go
+  - rust/op-reth/crates/node/src/args.rs
 ---
 
 
 This guide provides step-by-step instructions for setting up the configuration and monitoring options for `op-challenger`. The challenger is a critical fault proofs component that monitors dispute games and challenges invalid claims to protect your OP Stack chain.
 
 See the [OP-Challenger Explainer](/op-stack/fault-proofs/challenger) for a general overview of this fault proofs feature.
+
+<Warning>
+  **From the Karst upgrade, `cannon-kona` is the respected fault-proof game type, replacing op-program.** Configure `op-challenger` with the `cannon-kona` trace type and a kona-client absolute prestate — a challenger still running the `cannon` / op-program trace type past Karst will not defend your chain. Separately, op-geth reached **end-of-support on 2026-05-31**; run **op-reth** as your L2 execution client. See the [op-geth deprecation notice](/notices/op-geth-deprecation).
+</Warning>
 
 The challenger is responsible for:
 
@@ -26,7 +36,7 @@ Before configuring your challenger, complete the following steps:
   *   L1 contracts deployed with dispute game factory
   *   Fault proof system active on your chain
   *   Access to your chain's contract addresses
-  *   [Generate an absolute prestate](/operators/chain-operators/tutorials/absolute-prestate#generating-the-absolute-prestate) for your network version - This is critical as the challenger will refuse to interact with games if it doesn't have the matching prestate
+  *   [Generate an absolute prestate](/chain-operators/tutorials/absolute-prestate#generating-the-absolute-prestate) for your network version - This is critical as the challenger will refuse to interact with games if it doesn't have the matching prestate
   </Step>
 
   <Step title="Set up required infrastructure access">
@@ -56,17 +66,21 @@ To ensure you're using the latest compatible versions of OP Stack components, al
 
 [OP Stack releases page](https://github.com/ethereum-optimism/optimism/releases)
 
-Look for the latest `op-challenger/v*` release. The challenger version used in this guide (op-challenger/v1.5.0) is a verified stable version.
+This guide is verified against the following versions:
 
-Always check the release notes to ensure you're using compatible versions with your chain's deployment.
+*   **op-challenger** — `op-challenger/v1.9.3` (look for the latest `op-challenger/v*`).
+*   **op-reth** — `v2.2.5` (look for the latest [op-reth release](https://github.com/ethereum-optimism/optimism/releases?q=op-reth)). op-reth is both the sequencer's execution client and the archive node the challenger reads withdrawal proofs from.
+*   **kona-client** — the absolute prestate is built from a tagged `kona-client/v*` release (e.g. `kona-client/v1.6.0-rc.1`). Use the tag matching the prestate registered on your chain; for governance-approved upgrades the version is named in the upgrade notice. See the [kona-client prestate tutorial](/chain-operators/tutorials/kona-custom-prestate).
+
+Always check the release notes to ensure you're using compatible versions with your chain's deployment. Using the op-challenger and kona-client versions named in the upgrade notice (or the latest matching releases) is the supported path.
 
 ## Software installation
 
 For challenger deployment, you can either build from source (recommended for better control and debugging) or use Docker for a containerized setup.
 
-<Tabs items={['Build from Source', 'Using Docker']}>
-<Tab>
-### Build and Configure
+<Tabs>
+<Tab title="Build from source">
+### Build and configure
 
 Building from source gives you full control over the binaries and is the preferred approach for production deployments.
 
@@ -78,7 +92,7 @@ git clone https://github.com/ethereum-optimism/optimism.git
 cd optimism
 
 # Check out the latest release of op-challenger
-git checkout op-challenger/v1.5.0
+git checkout op-challenger/v1.9.3
 
 # Install dependencies and build
 just op-challenger
@@ -138,7 +152,7 @@ Check that you have properly installed the challenger component:
   
   **L2 network access:**
   
-  *   L2 RPC URL: Your op-geth archive node endpoint
+  *   L2 RPC URL: Your op-reth archive node endpoint
   *   Rollup RPC URL: Your op-node endpoint with historical data
   
   **Challenger wallet:**
@@ -172,21 +186,21 @@ Check that you have properly installed the challenger component:
   NETWORK=op-sepolia
   GAME_FACTORY_ADDRESS=0xYOUR_GAME_FACTORY_ADDRESS
   
-  # Trace configuration
-  TRACE_TYPE=permissioned,cannon
+  # Trace configuration (cannon-kona is the respected game type from the Karst upgrade)
+  TRACE_TYPE=permissioned,cannon-kona
   
   # Data directory
   DATADIR=./challenger-data
   
-  # Cannon configuration
-  # Path to the cannon binary (built from optimism repo)
+  # Cannon VM binary (shared by cannon and cannon-kona; built from the optimism repo)
   CANNON_BIN=<PATH_TO_OPTIMISM_REPO>/cannon/bin/cannon
   
   # Configuration files
   CANNON_ROLLUP_CONFIG=<PATH_TO_YOUR_ROLLUP_CONFIG>
   CANNON_L2_GENESIS=<PATH_TO_YOUR_L2_GENESIS>
-  CANNON_SERVER=<PATH_TO_OPTIMISM_REPO>/op-program/bin/op-program
-  CANNON_PRESTATE=<PATH_TO_YOUR_PRESTATE_FILE>
+  # kona executable used as the pre-image oracle server, and the kona-client absolute prestate
+  CANNON_KONA_SERVER=<PATH_TO_KONA_EXECUTABLE>
+  CANNON_KONA_PRESTATE=<PATH_TO_YOUR_KONA_PRESTATE_FILE>
   EOF
   ```
   
@@ -210,8 +224,10 @@ Check that you have properly installed the challenger component:
   
   <Expandable title="--l2-eth-rpc">
   
-  *   This needs to be `op-geth` archive node, with `debug` enabled.
+  *   This needs to be an `op-reth` archive node, with `debug` enabled.
   *   Technically doesn't need to go to bedrock, but needs to have access to the start of any game that is still in progress.
+  *   The withdrawal-proof data the challenger reads via `eth_getProof` is served by op-reth's historical-proofs store. Enable it with `--proofs-history --proofs-history.storage-version v2`, set a persistent `--proofs-history.storage-path`, and size `--proofs-history.window` to cover the dispute game window (≥ 28 days). On permissioned chains, `--rpc.eth-proof-window` bounds how far back `eth_getProof` will serve. See [Running op-reth with historical proofs](/node-operators/tutorials/reth-historical-proofs).
+  *   **Seed the proofs storage once before starting the node with `--proofs-history`**, or op-reth refuses to start (the `proofs-history` ExEx panics with `Proofs storage not initialized`). With the node stopped, run `op-reth proofs init --chain <chain-or-genesis> --datadir <reth-datadir> --proofs-history.storage-path <proofs-db-path> --proofs-history.storage-version v2`. It snapshots the chain's current state to seed the sidecar; the ExEx then indexes forward as the node syncs. Initialize at (or near) genesis so the whole fault-proof window is covered — a node seeded at the current tip only serves proofs for blocks after that point.
   </Expandable>
   
   <Expandable title="--rollup-rpc">
@@ -226,7 +242,7 @@ Check that you have properly installed the challenger component:
   
       *   Example Configuration:
   
-          ```
+          ```bash
           --safedb.path <path-to-safe-head-db>   # Replace <path-to-safe-head-db> with your actual path
           ```
   
@@ -240,12 +256,12 @@ Check that you have properly installed the challenger component:
   
   2.  Ensuring Historical Data Availability:
   
-      *   Both `op-node` and `op-geth` must have data from the start of the games to maintain network consistency and allow nodes to reference historical state and transactions.
+      *   Both `op-node` and `op-reth` must have data from the start of the games to maintain network consistency and allow nodes to reference historical state and transactions.
       *   For `op-node`: Configure it to maintain a sufficient history of blockchain data locally or use an archive node.
-      *   For `op-geth`: Similarly, configure to store or access historical data.
+      *   For `op-reth`: Similarly, configure to store or access historical data.
       *   Example Configuration:
   
-          ```
+          ```bash
           op-node \
           --rollup-rpc <op-node-archive-node-url> \
           --safedb.path <path-to-safe-head-db>
@@ -269,28 +285,28 @@ Check that you have properly installed the challenger component:
   
   *   This identifies the L2 network `op-challenger` is running for, e.g., `op-sepolia` or `op-mainnet`.
   *   When using the `--network` flag, the `--game-factory-address` will be automatically pulled from the [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json).
-  *   When cannon is executed, challenger needs the roll-up config and the L2 Genesis, which is op-geth's Genesis file. Both files are automatically loaded when Cannon Network is used, but custom networks will need to specify both Cannon L2 Genesis and Cannon rollup config.
+  *   When the trace is generated, challenger needs the rollup config and the L2 genesis file. Both files are automatically loaded when a registry `--network` is used, but custom networks must specify both the L2 genesis and rollup config.
   *   For custom networks not in the [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json), the `--game-factory-address` and rollup must be specified, as follows:
   
-      ```
-      --cannon-rollup-config rollup.json  \
-      --cannon-l2-genesis genesis-l2.json \
+      ```bash
+      --cannon-kona-rollup-config rollup.json  \
+      --cannon-kona-l2-genesis genesis-l2.json \
       # use this if running challenger outside of the docker image
-      --cannon-server ./op-program/bin/op-program \
-      # json or url, version of op-program deployed on chain
+      --cannon-kona-server ./kona \
+      # version of kona-client deployed on chain
       # if you use the wrong one, you will lose the game
       # if you deploy your own contracts, you specify the hash, the root of the json file
-      # op mainnet are tagged versions of op-program
-      # make reproducible prestate
+      # OP Mainnet uses tagged versions of kona-client
+      # build with: just reproducible-prestate-kona
       # challenger verifies that onchain
-       --cannon-prestate ./op-program/bin/prestate.json \
+       --cannon-kona-prestate ./prestate.json \
       # load the game factory address from system config or superchain registry
       # point the game factory address at the dispute game factory proxy
        --game-factory-address
       ```
   
   <Info>
-    These options vary based on which `--network` is specified. Chain operators always need to specify a way to load prestates and must also specify the cannon-server whenever the docker image isn't being used.
+    These options vary based on which `--network` is specified. Chain operators always need to specify a way to load prestates and must also specify the `--cannon-kona-server` whenever the docker image isn't being used.
   </Info>
   </Expandable>
   
@@ -300,22 +316,22 @@ Check that you have properly installed the challenger component:
   *   If running in docker, it should point to a docker volume or mount point, so the data isn't lost on every restart. The data can be recreated if needed but particularly if challenger has executed cannon as part of responding to a game it may mean a lot of extra processing.
   </Expandable>
   
-  <Expandable title="--cannon-prestates-url">
+  <Expandable title="--cannon-kona-prestate / --cannon-kona-prestates-url">
   
-  The pre-state is effectively the version of `op-program` that is deployed on chain. And chain operators must use the right version. `op-challenger` will refuse to interact with games that have a different absolute prestate hash to avoid making invalid claims. If deploying your own contracts, chain operators must specify an absolute prestate hash taken from the `make reproducible-prestate` command during contract deployment, which will also build the required prestate json file.
+  The prestate is effectively the version of `kona-client` that is deployed on chain (run inside the Cannon VM as the `cannon-kona` game type). And chain operators must use the right version. `op-challenger` will refuse to interact with games that have a different absolute prestate hash to avoid making invalid claims. If deploying your own contracts, chain operators must specify an absolute prestate hash taken from the `just reproducible-prestate-kona` command during contract deployment, which will also build the required prestate file.
   
-  All governance approved releases use a tagged version of `op-program`. These can be rebuilt by checking out the version tag and running `make reproducible-prestate`.
+  All governance approved releases use a tagged version of `kona-client`. These can be rebuilt by checking out the version tag and running `just reproducible-prestate-kona`.
   
   *   There are two ways to specify the prestate to use:
-      *   `--cannon-prestate`: specifies a path to a single Cannon pre-state Json file
-      *   `--cannon-prestates-url`: specifies a URL to load pre-states from. This enables participating in games that use different prestates, for example due to a network upgrade. The prestates are stored in this directory named by their hash.
+      *   `--cannon-kona-prestate`: specifies a path to a single kona-client absolute-prestate file
+      *   `--cannon-kona-prestates-url`: specifies a URL to load prestates from. This enables participating in games that use different prestates, for example due to a network upgrade. The prestates are stored in this directory named by their hash.
   *   Example final URL for a prestate:
       *   [https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.json](https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.json)
       *   This file contains the cannon memory state.
   
   <Info>
     Challenger will refuse to interact with any games if it doesn't have the matching prestate.
-    Check this [guide](/operators/chain-operators/tutorials/absolute-prestate#generating-the-absolute-prestate) on how to generate a absolute prestate.
+    Check this [guide](/chain-operators/tutorials/absolute-prestate#generating-the-absolute-prestate) on how to generate a absolute prestate.
   </Info>
   </Expandable>
   </Step>
@@ -331,7 +347,7 @@ source .env
 
 # Path to the challenger binary
 ../optimism/op-challenger/bin/op-challenger \
-  --trace-type permissioned,cannon \
+  --trace-type permissioned,cannon-kona \
   --l1-eth-rpc=$L1_RPC_URL \
   --l2-eth-rpc=$L2_RPC_URL \
   --l1-beacon=$L1_BEACON \
@@ -339,10 +355,10 @@ source .env
   --game-factory-address $GAME_FACTORY_ADDRESS \
   --datadir=$DATADIR \
   --cannon-bin=$CANNON_BIN \
-  --cannon-rollup-config=$CANNON_ROLLUP_CONFIG \
-  --cannon-l2-genesis=$CANNON_L2_GENESIS \
-  --cannon-server=$CANNON_SERVER \
-  --cannon-prestate=$CANNON_PRESTATE \
+  --cannon-kona-rollup-config=$CANNON_ROLLUP_CONFIG \
+  --cannon-kona-l2-genesis=$CANNON_L2_GENESIS \
+  --cannon-kona-server=$CANNON_KONA_SERVER \
+  --cannon-kona-prestate=$CANNON_KONA_PRESTATE \
   --mnemonic "$MNEMONIC" \
   --hd-path "$HD_PATH"
 ```
@@ -380,10 +396,10 @@ The challenger should show logs indicating:
 *   Monitoring of dispute games
 
 </Tab>
-<Tab>
-### Docker Setup
+<Tab title="Use docker">
+### Docker setup
 
-The Docker setup provides a containerized environment for running the challenger. This method uses the official Docker image that includes embedded `op-program` server and Cannon executable.
+The Docker setup provides a containerized environment for running the challenger. This method uses the official Docker image that includes the embedded `kona` server and Cannon executable.
 
 <Steps>
   <Step title="Create environment file">
@@ -431,8 +447,10 @@ The Docker setup provides a containerized environment for running the challenger
   
   <Expandable title="--l2-eth-rpc">
   
-  *   This needs to be `op-geth` archive node, with `debug` enabled.
+  *   This needs to be an `op-reth` archive node, with `debug` enabled.
   *   Technically doesn't need to go to bedrock, but needs to have access to the start of any game that is still in progress.
+  *   The withdrawal-proof data the challenger reads via `eth_getProof` is served by op-reth's historical-proofs store. Enable it with `--proofs-history --proofs-history.storage-version v2`, set a persistent `--proofs-history.storage-path`, and size `--proofs-history.window` to cover the dispute game window (≥ 28 days). On permissioned chains, `--rpc.eth-proof-window` bounds how far back `eth_getProof` will serve. See [Running op-reth with historical proofs](/node-operators/tutorials/reth-historical-proofs).
+  *   **Seed the proofs storage once before starting the node with `--proofs-history`**, or op-reth refuses to start (the `proofs-history` ExEx panics with `Proofs storage not initialized`). With the node stopped, run `op-reth proofs init --chain <chain-or-genesis> --datadir <reth-datadir> --proofs-history.storage-path <proofs-db-path> --proofs-history.storage-version v2`. It snapshots the chain's current state to seed the sidecar; the ExEx then indexes forward as the node syncs. Initialize at (or near) genesis so the whole fault-proof window is covered — a node seeded at the current tip only serves proofs for blocks after that point.
   </Expandable>
   
   <Expandable title="--rollup-rpc">
@@ -447,7 +465,7 @@ The Docker setup provides a containerized environment for running the challenger
   
       *   Example Configuration:
   
-          ```
+          ```bash
           --safedb.path <path-to-safe-head-db>   # Replace <path-to-safe-head-db> with your actual path
           ```
   
@@ -461,12 +479,12 @@ The Docker setup provides a containerized environment for running the challenger
   
   2.  Ensuring Historical Data Availability:
   
-      *   Both `op-node` and `op-geth` must have data from the start of the games to maintain network consistency and allow nodes to reference historical state and transactions.
+      *   Both `op-node` and `op-reth` must have data from the start of the games to maintain network consistency and allow nodes to reference historical state and transactions.
       *   For `op-node`: Configure it to maintain a sufficient history of blockchain data locally or use an archive node.
-      *   For `op-geth`: Similarly, configure to store or access historical data.
+      *   For `op-reth`: Similarly, configure to store or access historical data.
       *   Example Configuration:
   
-          ```
+          ```bash
           op-node \
           --rollup-rpc <op-node-archive-node-url> \
           --safedb.path <path-to-safe-head-db>
@@ -490,28 +508,28 @@ The Docker setup provides a containerized environment for running the challenger
   
   *   This identifies the L2 network `op-challenger` is running for, e.g., `op-sepolia` or `op-mainnet`.
   *   When using the `--network` flag, the `--game-factory-address` will be automatically pulled from the [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json).
-  *   When cannon is executed, challenger needs the roll-up config and the L2 Genesis, which is op-geth's Genesis file. Both files are automatically loaded when Cannon Network is used, but custom networks will need to specify both Cannon L2 Genesis and Cannon rollup config.
+  *   When the trace is generated, challenger needs the rollup config and the L2 genesis file. Both files are automatically loaded when a registry `--network` is used, but custom networks must specify both the L2 genesis and rollup config.
   *   For custom networks not in the [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json), the `--game-factory-address` and rollup must be specified, as follows:
   
-      ```
-      --cannon-rollup-config rollup.json  \
-      --cannon-l2-genesis genesis-l2.json \
+      ```bash
+      --cannon-kona-rollup-config rollup.json  \
+      --cannon-kona-l2-genesis genesis-l2.json \
       # use this if running challenger outside of the docker image
-      --cannon-server ./op-program/bin/op-program \
-      # json or url, version of op-program deployed on chain
+      --cannon-kona-server ./kona \
+      # version of kona-client deployed on chain
       # if you use the wrong one, you will lose the game
       # if you deploy your own contracts, you specify the hash, the root of the json file
-      # op mainnet are tagged versions of op-program
-      # make reproducible prestate
+      # OP Mainnet uses tagged versions of kona-client
+      # build with: just reproducible-prestate-kona
       # challenger verifies that onchain
-       --cannon-prestate ./op-program/bin/prestate.json \
+       --cannon-kona-prestate ./prestate.json \
       # load the game factory address from system config or superchain registry
       # point the game factory address at the dispute game factory proxy
        --game-factory-address
       ```
   
   <Info>
-    These options vary based on which `--network` is specified. Chain operators always need to specify a way to load prestates and must also specify the cannon-server whenever the docker image isn't being used.
+    These options vary based on which `--network` is specified. Chain operators always need to specify a way to load prestates and must also specify the `--cannon-kona-server` whenever the docker image isn't being used.
   </Info>
   </Expandable>
   
@@ -521,22 +539,22 @@ The Docker setup provides a containerized environment for running the challenger
   *   If running in docker, it should point to a docker volume or mount point, so the data isn't lost on every restart. The data can be recreated if needed but particularly if challenger has executed cannon as part of responding to a game it may mean a lot of extra processing.
   </Expandable>
   
-  <Expandable title="--cannon-prestates-url">
+  <Expandable title="--cannon-kona-prestate / --cannon-kona-prestates-url">
   
-  The pre-state is effectively the version of `op-program` that is deployed on chain. And chain operators must use the right version. `op-challenger` will refuse to interact with games that have a different absolute prestate hash to avoid making invalid claims. If deploying your own contracts, chain operators must specify an absolute prestate hash taken from the `make reproducible-prestate` command during contract deployment, which will also build the required prestate json file.
+  The prestate is effectively the version of `kona-client` that is deployed on chain (run inside the Cannon VM as the `cannon-kona` game type). And chain operators must use the right version. `op-challenger` will refuse to interact with games that have a different absolute prestate hash to avoid making invalid claims. If deploying your own contracts, chain operators must specify an absolute prestate hash taken from the `just reproducible-prestate-kona` command during contract deployment, which will also build the required prestate file.
   
-  All governance approved releases use a tagged version of `op-program`. These can be rebuilt by checking out the version tag and running `make reproducible-prestate`.
+  All governance approved releases use a tagged version of `kona-client`. These can be rebuilt by checking out the version tag and running `just reproducible-prestate-kona`.
   
   *   There are two ways to specify the prestate to use:
-      *   `--cannon-prestate`: specifies a path to a single Cannon pre-state Json file
-      *   `--cannon-prestates-url`: specifies a URL to load pre-states from. This enables participating in games that use different prestates, for example due to a network upgrade. The prestates are stored in this directory named by their hash.
+      *   `--cannon-kona-prestate`: specifies a path to a single kona-client absolute-prestate file
+      *   `--cannon-kona-prestates-url`: specifies a URL to load prestates from. This enables participating in games that use different prestates, for example due to a network upgrade. The prestates are stored in this directory named by their hash.
   *   Example final URL for a prestate:
       *   [https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.json](https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.json)
       *   This file contains the cannon memory state.
   
   <Info>
     Challenger will refuse to interact with any games if it doesn't have the matching prestate.
-    Check this [guide](/operators/chain-operators/tutorials/absolute-prestate#generating-the-absolute-prestate) on how to generate a absolute prestate.
+    Check this [guide](/chain-operators/tutorials/absolute-prestate#generating-the-absolute-prestate) on how to generate a absolute prestate.
   </Info>
   </Expandable>
   </Step>
@@ -549,7 +567,7 @@ The Docker setup provides a containerized environment for running the challenger
   
   services:
     challenger:
-      image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.5.0
+      image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.3
       user: "1000"
       volumes:
         - ./challenger-data:/data
@@ -576,7 +594,8 @@ The Docker setup provides a containerized environment for running the challenger
         - "--network=${NETWORK}"
         - "--game-factory-address=${GAME_FACTORY_ADDRESS}"
         - "--datadir=/data"
-        - "--cannon-prestate=/workspace/prestate-proof.json"
+        - "--trace-type=cannon-kona"
+        - "--cannon-kona-prestate=/workspace/prestate-proof.json"
       restart: unless-stopped
       ports:
         - "8548:8548"  # If challenger exposes metrics endpoint
@@ -601,7 +620,7 @@ The Docker setup provides a containerized environment for running the challenger
 
 ### Monitoring with op-dispute-mon
 
-Consider running [`op-dispute-mon`](/operators/chain-operators/tools/chain-monitoring#dispute-mon) for enhanced security monitoring:
+Consider running [`op-dispute-mon`](/chain-operators/tools/chain-monitoring#dispute-mon) for enhanced security monitoring:
 
 *   Provides visibility into all game statuses for the last 28 days
 *   Essential for production challenger deployments

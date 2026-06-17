@@ -32,6 +32,24 @@ import (
 
 const virtualNodeVersion = "0.1.0"
 
+const (
+	// defaultWaitReadyPoll is the polling interval used by
+	// simpleChainContainer.WaitReady. Matches the RPC router's
+	// defaultGatePoll (25ms) so a WaitReady'ed container becomes
+	// routable on the very next router gate tick.
+	defaultWaitReadyPoll = 25 * time.Millisecond
+	// DefaultWaitReadyTimeout is the default upper bound on WaitReady when
+	// callers do not supply a ctx with their own deadline. Bounded so a
+	// stuck Resume cannot wedge the interop activity loop indefinitely;
+	// matches the RPC router's defaultGateTimeout (60s). Exported so
+	// callers in adjacent packages (e.g. interop activity) can derive
+	// their own ctx deadlines from a single source of truth.
+	DefaultWaitReadyTimeout = 60 * time.Second
+)
+
+// newEngineControllerFromConfig is the engine-controller constructor, overridable in tests.
+var newEngineControllerFromConfig = engine_controller.NewEngineControllerFromConfig
+
 // ErrHistoryUnavailable is the permanent counterpart of ethereum.NotFound:
 // SafeDB on this node cannot and will not contain the requested history
 // (e.g. snap/CL-sync bootstrap gap). Interop halts on this rather than
@@ -125,9 +143,23 @@ type InteropChain interface {
 	// callers must capture it at build time, before the rewind starts. Returns true if
 	// a rewind was triggered, false otherwise.
 	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error)
+	// WaitReady blocks until IsRPCReady() returns true or ctx is cancelled / times out.
+	// Used by callers that must not return until the chain is actually ready to serve
+	// traffic after a Pause/Resume cycle. Returns ctx.Err() on cancellation or timeout;
+	// returns nil as soon as readiness is observed.
+	WaitReady(ctx context.Context) error
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode
+
+// RPCRouterGate is the chain container's narrow view of the shared RPC router.
+// It lets containers swap per-chain handlers while also controlling when the
+// router may dispatch requests to them.
+type RPCRouterGate interface {
+	SetHandler(chainID string, h http.Handler)
+	SetReadinessCheck(chainID string, fn func() bool)
+	RemoveHandler(chainID string)
+}
 
 // ResetCallback is called when the chain container resets due to an invalidated block.
 // The supernode uses this to notify activities about the reset.
@@ -154,7 +186,7 @@ type simpleChainContainer struct {
 	chainID            eth.ChainID
 	initOverload       *rollupNode.InitializationOverrides     // Base shared resources for all virtual nodes
 	rpcHandler         *oprpc.Handler                          // Current per-chain RPC handler instance
-	setHandler         func(chainID string, h http.Handler)    // Set the RPC handler on the router for the chain
+	rpcRouter          RPCRouterGate                           // Gates and dispatches RPC traffic for this chain
 	addMetricsRegistry func(key string, g prometheus.Gatherer) // Set the metrics registry on the global metrics server
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
@@ -181,10 +213,10 @@ func NewChainContainer(
 	cfg config.CLIConfig,
 	initOverload *rollupNode.InitializationOverrides,
 	rpcHandler *oprpc.Handler,
-	setHandler func(chainID string, h http.Handler),
+	rpcRouter RPCRouterGate,
 	addMetricsRegistry func(key string, g prometheus.Gatherer),
 	metrics *resources.SupernodeMetrics,
-) InteropChain {
+) (InteropChain, error) {
 	if metrics == nil {
 		metrics = resources.NewSupernodeMetrics()
 	}
@@ -196,7 +228,7 @@ func NewChainContainer(
 		stopped:            make(chan struct{}, 1),
 		initOverload:       initOverload,
 		rpcHandler:         rpcHandler,
-		setHandler:         setHandler,
+		rpcRouter:          rpcRouter,
 		addMetricsRegistry: addMetricsRegistry,
 		appVersion:         virtualNodeVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
@@ -217,7 +249,25 @@ func NewChainContainer(
 	} else {
 		c.denyList = denyList
 	}
-	return c
+	// Set up the interop engine controller. The connection is dialed lazily, so setup never
+	// blocks on or fails because of an unreachable L2 engine at startup -- the client connects
+	// on first use and reconnects on demand. This is what lets interop recover once the EL comes
+	// up, without restarting the virtual node. engine is written only here, before the container
+	// is published to other goroutines, so later reads need no synchronization. Chains without an
+	// L2 engine configured leave engine nil and surface ErrNoEngineClient to callers.
+	//
+	// Because the dial is lazy, the only way this fails is an unrecoverable misconfiguration
+	// (e.g. an empty engine address); that must abort startup rather than run a chain that can
+	// never reach its engine.
+	if vncfg.L2 != nil {
+		engLog := log.New("chain_id", chainID.String(), "component", "engine_controller")
+		eng, err := newEngineControllerFromConfig(context.Background(), engLog, vncfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to set up engine controller for chain %s: %w", chainID, err)
+		}
+		c.engine = eng
+	}
+	return c, nil
 }
 
 func (c *simpleChainContainer) ID() eth.ChainID {
@@ -272,20 +322,60 @@ func (c *simpleChainContainer) setVN(vn virtual_node.VirtualNode) {
 	c.vn = vn
 }
 
+// IsRPCReady reports whether the chain's router handler may serve requests.
+// Pause and stop close the gate immediately; otherwise the current virtual node
+// must be installed and running.
+func (c *simpleChainContainer) IsRPCReady() bool {
+	if c.pause.Load() || c.stop.Load() {
+		return false
+	}
+	vn := c.getVN()
+	return vn != nil && vn.State() == virtual_node.VNStateRunning
+}
+
+// WaitReady polls IsRPCReady() until true or ctx is done. If ctx has no
+// deadline, applies DefaultWaitReadyTimeout as a safety bound so a stuck
+// container cannot wedge the caller indefinitely.
+func (c *simpleChainContainer) WaitReady(ctx context.Context) error {
+	if c.IsRPCReady() {
+		return nil
+	}
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, DefaultWaitReadyTimeout)
+		defer cancel()
+	}
+	ticker := time.NewTicker(defaultWaitReadyPoll)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("WaitReady: %w", ctx.Err())
+		case <-ticker.C:
+			if c.IsRPCReady() {
+				return nil
+			}
+		}
+	}
+}
+
 func (c *simpleChainContainer) subPath(path string) string {
 	return filepath.Join(c.cfg.DataDir, c.chainID.String(), path)
 }
 
 func (c *simpleChainContainer) Start(ctx context.Context) error {
 	defer func() { c.stopped <- struct{}{} }()
+	if c.rpcRouter != nil {
+		c.rpcRouter.SetReadinessCheck(c.chainID.String(), c.IsRPCReady)
+	}
 	for {
 		// Refresh per-start derived fields
 		c.vncfg.SafeDBPath = c.subPath("safe_db")
 		c.vncfg.RPC = c.cfg.RPCConfig
 		// create a fresh handler per (re)start, swap it into the router, and inject into overload
 		h := oprpc.NewHandler("", oprpc.WithLogger(c.log.New("chain_id", c.chainID.String())))
-		if c.setHandler != nil {
-			c.setHandler(c.chainID.String(), h)
+		if c.rpcRouter != nil {
+			c.rpcRouter.SetHandler(c.chainID.String(), h)
 		}
 		c.initOverload.RPCHandler = h
 		c.rpcHandler = h
@@ -310,6 +400,7 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		if vn == nil {
 			return virtual_node.ErrVirtualNodeNotRunning
 		}
+		// Install before Start so the RPC gate can observe this VN entering running state.
 		c.setVN(vn)
 		if c.pause.Load() {
 			// Check for stop/cancellation even while paused, so teardown doesn't hang.
@@ -325,18 +416,6 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 		if c.stop.Load() {
 			break
-		}
-
-		// Initialize engine controller if not yet connected (retries on each VN restart)
-		if c.engine == nil && c.vncfg.L2 != nil {
-			setupCtx, setupCancel := context.WithTimeout(ctx, 10*time.Second)
-			engLog := c.log.New("chain_id", c.chainID.String(), "component", "engine_controller")
-			if eng, engErr := engine_controller.NewEngineControllerFromConfig(setupCtx, engLog, c.vncfg); engErr != nil {
-				c.log.Error("failed to setup engine controller", "err", engErr)
-			} else {
-				c.engine = eng
-			}
-			setupCancel()
 		}
 
 		// start the virtual node
@@ -375,6 +454,10 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 
 func (c *simpleChainContainer) Stop(ctx context.Context) error {
 	c.stop.Store(true)
+	if c.rpcRouter != nil {
+		defer c.rpcRouter.RemoveHandler(c.chainID.String())
+	}
+
 	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -738,7 +821,16 @@ retryLoop:
 	if err != nil {
 		return err
 	}
-	c.log.Info("chain_container/RewindEngine: resumed container")
+
+	// Block until the new VN is installed and running. Without this barrier
+	// callers see RewindEngine return while the next Start() iteration is
+	// still constructing/starting the VN — any RPC traffic submitted in
+	// that window 503s on the router gate. Symmetric with the post-Resume
+	// barrier in interop.applyPendingTransition.
+	if err := c.WaitReady(ctx); err != nil {
+		return fmt.Errorf("RewindEngine: VN not ready after resume: %w", err)
+	}
+	c.log.Info("chain_container/RewindEngine: resumed container, VN ready")
 
 	return nil
 }

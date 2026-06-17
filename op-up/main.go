@@ -164,7 +164,9 @@ func newMinimalSystem(t *testingT) (sys *presets.Minimal, err error) {
 			panic(recovered)
 		}
 	}()
-	return presets.NewMinimal(t), nil
+	// op-up exposes a lightweight devnet; it does not need dispute-game helpers,
+	// and go-tests-short does not build kona-host for the challenger.
+	return presets.NewMinimalNoFaultProofs(t), nil
 }
 
 func newSupernodeInteropSystem(t *testingT) (sys *presets.TwoL2SupernodeInterop, err error) {

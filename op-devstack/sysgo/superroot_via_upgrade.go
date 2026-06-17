@@ -41,14 +41,11 @@ func upgradeToSuperRoots(
 	defer rpcClient.Close()
 	client := ethclient.NewClient(rpcClient)
 
-	absoluteCannonPrestate := getInteropCannonAbsolutePrestate(t)
 	absoluteCannonKonaPrestate := getCannonKonaAbsolutePrestate(t)
 
 	l2Ops := devkeys.ChainOperatorKeys(primaryL2.ToBig())
 	proposer, err := keys.Address(l2Ops(devkeys.ProposerRole))
 	require.NoError(err, "must have configured proposer")
-	challenger, err := keys.Address(l2Ops(devkeys.ChallengerRole))
-	require.NoError(err, "must have configured challenger")
 
 	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
@@ -65,7 +62,7 @@ func upgradeToSuperRoots(
 			UpgradeInputV2: &embedded.UpgradeInputV2{
 				SystemConfig: l2Deployment.SystemConfigProxyAddr(),
 				DisputeGameConfigs: buildSuperRootUpgradeGameConfigs(
-					absoluteCannonPrestate, absoluteCannonKonaPrestate, proposer, challenger,
+					absoluteCannonKonaPrestate, proposer,
 				),
 				ExtraInstructions: []embedded.ExtraInstruction{
 					{Key: "overrides.cfg.startingAnchorRoot", Data: anchorRootData},
@@ -78,21 +75,17 @@ func upgradeToSuperRoots(
 }
 
 func buildSuperRootUpgradeGameConfigs(
-	absoluteCannonPrestate common.Hash,
 	absoluteCannonKonaPrestate common.Hash,
 	proposer common.Address,
-	challenger common.Address,
 ) []embedded.DisputeGameConfig {
 	return []embedded.DisputeGameConfig{
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannon},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypePermissionedCannon},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannonKona},
 		{
-			Enabled: true, InitBond: new(big.Int).Set(defaultInitBond), GameType: embedded.GameTypeSuperPermCannon,
-			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
-				AbsolutePrestate: absoluteCannonPrestate,
-				Proposer:         proposer,
-				Challenger:       challenger,
+			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon,
+			SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
+				Proposer: proposer,
 			},
 		},
 		{

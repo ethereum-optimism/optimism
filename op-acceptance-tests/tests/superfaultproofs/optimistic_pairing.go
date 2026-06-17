@@ -1,7 +1,6 @@
 package superfaultproofs
 
 import (
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -125,7 +124,7 @@ func RunOptimisticPairingTest(t devtest.T, sys *presets.SimpleInterop, withRepla
 		{
 			Name:               "SecondChainOptimisticBlock-Invalid",
 			AgreedClaim:        step1Trace,
-			DisputedClaim:      super.InvalidTransition,
+			DisputedClaim:      eth.InvalidTransition,
 			DisputedTraceIndex: 1,
 			L1Head:             gameL1Head,
 			ClaimTimestamp:     endTimestamp,

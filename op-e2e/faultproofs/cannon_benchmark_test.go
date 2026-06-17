@@ -70,14 +70,14 @@ func testBenchmarkCannonFPP(t *testing.T, allocType config.AllocType) {
 	t.Log("Capture the latest L2 head that precedes contract creations as agreed starting point")
 	agreedBlock, err := l2Seq.BlockByNumber(ctx, new(big.Int).Sub(receipt.BlockNumber, big.NewInt(1)))
 	require.NoError(t, err)
-	agreedL2Output, err := rollupClient.OutputAtBlock(ctx, agreedBlock.NumberU64())
+	agreedL2Output, err := wait.ForOutputAtBlock(ctx, rollupClient, agreedBlock.NumberU64())
 	require.NoError(t, err, "could not retrieve l2 agreed block")
 	l2Head := agreedL2Output.BlockRef.Hash
 	l2OutputRoot := agreedL2Output.OutputRoot
 
 	t.Log("Determine L2 claim")
 	l2ClaimBlockNumber := receipt.BlockNumber
-	l2Output, err := rollupClient.OutputAtBlock(ctx, bigs.Uint64Strict(l2ClaimBlockNumber))
+	l2Output, err := wait.ForOutputAtBlock(ctx, rollupClient, bigs.Uint64Strict(l2ClaimBlockNumber))
 	require.NoError(t, err, "could not get expected output")
 	l2Claim := l2Output.OutputRoot
 

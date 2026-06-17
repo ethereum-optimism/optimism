@@ -1,5 +1,9 @@
 FROM golang:1.24.13-alpine3.22 AS builder
 
+# Enforce that builds use the committed go.mod/go.sum exactly and never
+# silently mutate them. Fails the build if the lockfile is out of date.
+ENV GOFLAGS=-mod=readonly
+
 # Install just from GitHub releases to match the version pinned in mise.toml.
 # The Alpine package is too old and doesn't support the [script] attribute
 # used in testdata justfiles.

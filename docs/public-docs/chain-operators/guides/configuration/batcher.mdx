@@ -92,8 +92,8 @@ There are two throttling knobs:
 
 **Feature requirements**
 
-*   This new feature is enabled by default and requires running op-geth version `v1.101411.1` or later. It can be disabled by setting `--throttle-threshold` to 0. The sequencer's op-geth node has to be updated first, before updating the batcher, so that the new required RPC is available at the time of the batcher restart.
-*   It is required to upgrade to `op-conductor/v0.2.0` if you are using conductor's leader-aware rpc proxy feature. This conductor release includes support for the `miner_setMaxDASize` op-geth rpc proxy.
+*   This feature is enabled by default and requires the sequencer's `op-reth` node to expose the `miner_setMaxDASize` RPC (enable the `miner` namespace, below). It can be disabled by setting `--throttle-threshold` to 0. The sequencer's `op-reth` node has to be updated first, before updating the batcher, so that the required RPC is available at the time of the batcher restart.
+*   It is required to upgrade to `op-conductor/v0.2.0` if you are using conductor's leader-aware rpc proxy feature. This conductor release includes support for proxying the `miner_setMaxDASize` RPC.
 
 **Configuration**
 
@@ -110,21 +110,21 @@ The batcher is configured for throttling by default with the parameters describe
 
 For full details, see the [readme](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/readme.md).
 
-If the batcher at startup has throttling enabled and the sequencer's `op-geth` instance to which it's talking doesn't have the `miner_setMaxDASize` RPC enabled, it will fail with an error message like:
+If the batcher at startup has throttling enabled and the sequencer's `op-reth` node to which it's talking doesn't have the `miner_setMaxDASize` RPC enabled, it will fail with an error message like:
 
 ```
 lvl=warn msg="Served miner_setMaxDASize" reqid=1 duration=11.22µs err="the method miner_setMaxDASize does not exist/is not available"
 In this case, make sure the miner API namespace is enabled for the correct transport protocol (HTTP or WS), see next paragraph.
 ```
 
-The new RPC `miner_setMaxDASize` is available in `op-geth` since `v1.101411.1`. It has to be enabled by adding the miner namespace to the correct API flags, like
+The `miner_setMaxDASize` RPC has to be enabled by adding the `miner` namespace to `op-reth`'s API flags:
 
 ```
-GETH_HTTP_API: web3,debug,eth,txpool,net,miner
-GETH_WS_API: debug,eth,txpool,net,miner
+--http.api=web3,debug,eth,txpool,net,miner
+--ws.api=web3,debug,eth,txpool,net,miner
 ```
 
-It is recommended to add it to both, HTTP and WS.
+It is recommended to add it to both HTTP and WS.
 
 ## Example configuration
 

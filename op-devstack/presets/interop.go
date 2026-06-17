@@ -134,7 +134,7 @@ func WithSuggestedInteropActivationOffset(offset uint64) Option {
 	return WithDeployerOptions(
 		func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2Cfg := range builder.L2s() {
-				l2Cfg.WithForkAtOffset(forks.Interop, &offset)
+				l2Cfg.WithForkAtOffset(forks.Lagoon, &offset)
 			}
 		},
 	)

@@ -7,8 +7,7 @@ use alloy_consensus::{Header, Receipt, ReceiptWithBloom, Sealed};
 use alloy_primitives::{Address, B256, Bytes, Log, LogData, U256, map::HashMap};
 use alloy_sol_types::{SolEvent, SolValue};
 use async_trait::async_trait;
-use kona_genesis::RollupConfig;
-use kona_protocol::Predeploys;
+use kona_genesis::{Predeploys, RollupConfig};
 use op_alloy_consensus::OpReceiptEnvelope;
 
 #[derive(Debug, Clone, Default)]
@@ -133,7 +132,7 @@ impl ChainBuilder {
     }
 
     pub fn with_interop_activation_time(&mut self, activation: u64) -> &mut Self {
-        self.modify_rollup_cfg(|cfg| cfg.hardforks.interop_time = Some(activation))
+        self.modify_rollup_cfg(|cfg| cfg.hardforks.lagoon_time = Some(activation))
     }
 
     pub fn modify_header(&mut self, f: impl FnOnce(&mut Header)) -> &mut Self {

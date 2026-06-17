@@ -10,7 +10,6 @@ linters:
 
     # Only enabled in specific cases. See settings and exclusions below
     - exhaustruct
-    - err113
 
     # Enabled by default but be explicit so it's easy to see what we're running
     - errcheck
@@ -59,10 +58,6 @@ linters:
       - legacy
       - std-error-handling
     rules:
-      # Only apply err113 to op-program/client
-      - linters:
-          - err113
-        path-except: op-program/client/.*
       - path: (.+)\.go$
         text: errors.As
       - path: (.+)\.go$

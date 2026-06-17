@@ -129,17 +129,23 @@ just deny
 
 Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.
 
-1. **Lint** — this checks formatting, clippy, and doc lints:
+1. **Format** — only after the final edit, never between edits:
+   ```bash
+   just fmt-fix
+   ```
+   The nightly formatter has opinions (e.g., collapsing multi-line `let` bindings onto one line) that the Edit tool doesn't replicate — running it mid-session and then editing again leaves unformatted code behind and fails the `rust-fmt` CI check. After formatting, run `git diff --stat` to confirm the working tree matches what you're about to commit.
+
+2. **Lint** — this checks formatting, clippy, and doc lints:
    ```bash
    just lint
    ```
 
-2. **Test** — run tests for changed packages:
+3. **Test** — run tests for changed packages:
    ```bash
    just test-unit
    ```
 
-3. **no_std** — if you changed any proof, protocol, or alloy crate:
+4. **no_std** — if you changed any proof, protocol, or alloy crate:
    ```bash
    just check-no-std
    ```
@@ -148,9 +154,13 @@ Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.
 
 Op-reth requires `clang` / `libclang-dev` for reth-mdbx-sys bindgen. CI installs this automatically — if you see bindgen errors locally, install clang.
 
+## Hardforks
+
+The OP fork → implied L1 (Ethereum) fork mapping is defined once, in `OpHardfork::activates_l1_fork` in `rust/alloy-op-hardforks/src/lib.rs`. When a new OP hardfork rides an L1 fork (e.g. Isthmus → Prague, Karst → Osaka), add the single match arm there; the cumulative (`implied_l1_fork`) and inverse (`activating_op_fork`) views and all downstream consumers (op-revm, op-reth chainspec, kona) derive from it.
+
 ## Updating the reth dependency
 
-The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before bumping the reth rev in `rust/Cargo.toml`.
+The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before bumping the reth pin in `rust/Cargo.toml` — or run the `/update-reth` skill (`.claude/skills/update-reth/`), which wraps the guide in an end-to-end agent workflow.
 
 Agent-specific tips beyond what's in the guide:
 

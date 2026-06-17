@@ -44,6 +44,9 @@ packages/contracts-bedrock/deployments/anvil
 
 .claude/worktrees
 
+# Local AI planning docs (op-claude and similar agent tooling)
+.claude/plans
+
 # Ignore local fuzzing results
 **/testdata/fuzz/
 

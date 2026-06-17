@@ -1831,6 +1831,10 @@ func (m *mockChainContainer) Resume(ctx context.Context) error {
 	return m.resumeErr
 }
 
+// WaitReady is a no-op for the mock: ordering tests assert
+// Resume/InvalidateBlock/PauseAndStopVN ordering, not readiness semantics.
+func (m *mockChainContainer) WaitReady(_ context.Context) error { return nil }
+
 func (m *mockChainContainer) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
 	if m.blockNumberToTimestampOverride != nil {
 		return m.blockNumberToTimestampOverride(ctx, blocknum)
@@ -2095,7 +2099,7 @@ func (m *mockChainContainer) IsDenied(height uint64, payloadHash common.Hash) (b
 }
 func (m *mockChainContainer) SetResetCallback(cb cc.ResetCallback) {}
 
-var _ cc.ChainContainer = (*mockChainContainer)(nil)
+var _ cc.InteropChain = (*mockChainContainer)(nil)
 
 func testLogger() gethlog.Logger {
 	return gethlog.New()

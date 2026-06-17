@@ -4,8 +4,8 @@
   "description": "Optimism Documentation",
   "main": "index.js",
   "scripts": {
-    "prebuild": "tsx scripts/generate-actions-components.ts",
-    "prebuild:local": "tsx scripts/generate-actions-components.ts --local",
+    "prebuild": "tsx scripts/generate-actions-components.ts && tsx scripts/generate-releases.ts",
+    "prebuild:local": "tsx scripts/generate-actions-components.ts --local && tsx scripts/generate-releases.ts",
     "dev": "mint dev"
   },
   "dependencies": {
@@ -14,6 +14,7 @@
   },
   "devDependencies": {
     "@eth-optimism/actions-sdk": "^0.4.0",
+    "@types/node": "^25.9.1",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
     "ts-morph": "^21.0.0",

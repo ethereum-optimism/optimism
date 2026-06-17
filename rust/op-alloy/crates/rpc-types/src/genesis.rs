@@ -52,8 +52,11 @@ pub struct OpGenesisInfo {
     pub holocene_time: Option<u64>,
     /// isthmus hardfork timestamp
     pub isthmus_time: Option<u64>,
-    /// interop hardfork timestamp
-    pub interop_time: Option<u64>,
+    /// lagoon hardfork timestamp (formerly "interop"). Accepts the legacy `interopTime` key
+    /// in genesis JSON because op-geth's `params.ChainConfig.InteropTime` is still serialized
+    /// as `interopTime`. Mirrors the Go-side carveout.
+    #[serde(alias = "interopTime")]
+    pub lagoon_time: Option<u64>,
     /// jovian hardfork timestamp
     pub jovian_time: Option<u64>,
     /// karst hardfork timestamp
@@ -136,7 +139,7 @@ mod tests {
                 granite_time: None,
                 holocene_time: None,
                 isthmus_time: None,
-                interop_time: None,
+                lagoon_time: None,
                 jovian_time: None,
                 karst_time: None,
             }
@@ -198,7 +201,7 @@ mod tests {
                     granite_time: None,
                     holocene_time: None,
                     isthmus_time: None,
-                    interop_time: None,
+                    lagoon_time: None,
                     jovian_time: None,
                     karst_time: None,
                 }),
@@ -224,7 +227,7 @@ mod tests {
                     granite_time: None,
                     holocene_time: None,
                     isthmus_time: None,
-                    interop_time: None,
+                    lagoon_time: None,
                     jovian_time: None,
                     karst_time: None,
                 }),
@@ -268,7 +271,7 @@ mod tests {
                     granite_time: Some(0),
                     holocene_time: Some(0),
                     isthmus_time: Some(0),
-                    interop_time: None,
+                    lagoon_time: None,
                     jovian_time: Some(0),
                     karst_time: None,
                 }),

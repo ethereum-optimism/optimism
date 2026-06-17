@@ -152,7 +152,7 @@ func testOutputCannonStepWithLargePreimage(t *testing.T, allocType config.AllocT
 	t.Cleanup(sys.Close)
 
 	// Manually send a tx from the correct batcher key to the batcher input with very large (invalid) data
-	// This forces op-program to load a large preimage.
+	// This forces the fault-proof program to load a large preimage.
 	sys.BatcherHelper().SendLargeInvalidBatch(ctx)
 
 	require.NoError(t, sys.BatchSubmitter.Start(ctx))
@@ -558,7 +558,7 @@ func testInvalidateCorrectProposalFutureBlock(t *testing.T, allocType config.All
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 
 	// No batches submitted so safe head is genesis
-	output, err := sys.RollupClient("sequencer").OutputAtBlock(ctx, 0)
+	output, err := wait.ForOutputAtBlock(ctx, sys.RollupClient("sequencer"), 0)
 	require.NoError(t, err, "Failed to get output at safe head")
 	// Create a dispute game with an output root that is valid at `safeHead`, but that claims to correspond to block
 	// `safeHead.Number + 10000`. This is dishonest, because this block does not exist yet.
@@ -688,7 +688,7 @@ func testAgreeFirstBlockWithOriginOf1(t *testing.T, allocType config.AllocType) 
 	limit := uint64(100)
 	for ; blockNum <= limit; blockNum++ {
 		require.NoError(t, wait.ForBlock(ctx, sys.NodeClient("sequencer"), blockNum))
-		output, err := rollupClient.OutputAtBlock(ctx, blockNum)
+		output, err := wait.ForOutputAtBlock(ctx, rollupClient, blockNum)
 		require.NoError(t, err)
 		if output.BlockRef.L1Origin.Number == 1 {
 			break

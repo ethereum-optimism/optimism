@@ -247,7 +247,7 @@ func Auto(
 					continue
 				}
 				log.Info("status", "head", status.Head, "safe", status.Safe, "finalized", status.Finalized,
-					"head_time", status.Head.Time, "txs", status.Txs, "gas", status.Gas, "basefee", status.Gas)
+					"head_time", status.Head.Time, "txs", status.Txs, "gas", status.Gas, "basefee", status.BaseFee)
 
 				// On a mocked "beacon epoch transition", update finalization and justification checkpoints.
 				// There are no gap slots, so we just go back 32 blocks.

@@ -619,6 +619,14 @@ func registerAPIs(cfg *config.Config, node *OpNode, handler *oprpc.Handler) erro
 		return fmt.Errorf("failed to add Optimism API: %w", err)
 	}
 
+	// `superroot_atTimestamp` for non-interop chains; always-on, harmless until games activate.
+	if err := handler.AddAPI(rpc.API{
+		Namespace: "superroot",
+		Service:   NewSuperrootAPI(&cfg.Rollup, node.l2Source.L2Client, node.l2Driver, node.safeDB),
+	}); err != nil {
+		return fmt.Errorf("failed to add Superroot API: %w", err)
+	}
+
 	if p2pNode := node.getP2PNodeIfEnabled(); p2pNode != nil {
 		if err := handler.AddAPI(rpc.API{
 			Namespace: p2p.NamespaceRPC,

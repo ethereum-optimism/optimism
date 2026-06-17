@@ -1,6 +1,8 @@
 use alloy_chains::NamedChain;
 use alloy_genesis::ChainConfig;
 use alloy_primitives::{ChainId, U256};
+use reth_ethereum_forks::EthereumHardfork;
+use reth_optimism_forks::OpHardfork;
 use serde::{Deserialize, Serialize};
 
 /// The chain metadata stored in a superchain toml config file.
@@ -28,6 +30,31 @@ pub(crate) struct HardforkConfig {
     pub isthmus_time: Option<u64>,
     pub jovian_time: Option<u64>,
     pub karst_time: Option<u64>,
+}
+
+impl HardforkConfig {
+    /// Returns the activation time of the given OP hardfork, if scheduled. Forks that have no
+    /// timestamp field in the superchain metadata (Bedrock and Regolith, which predate it, and
+    /// Lagoon) return `None`.
+    const fn op_fork_time(&self, fork: OpHardfork) -> Option<u64> {
+        match fork {
+            OpHardfork::Canyon => self.canyon_time,
+            OpHardfork::Ecotone => self.ecotone_time,
+            OpHardfork::Fjord => self.fjord_time,
+            OpHardfork::Granite => self.granite_time,
+            OpHardfork::Holocene => self.holocene_time,
+            OpHardfork::Isthmus => self.isthmus_time,
+            OpHardfork::Jovian => self.jovian_time,
+            OpHardfork::Karst => self.karst_time,
+            _ => None,
+        }
+    }
+
+    /// Returns the activation time of the given L1 hardfork, i.e. the activation time of the
+    /// OP hardfork that implies it according to [`OpHardfork::activating_op_fork`].
+    fn l1_fork_time(&self, l1_fork: EthereumHardfork) -> Option<u64> {
+        OpHardfork::activating_op_fork(l1_fork).and_then(|op_fork| self.op_fork_time(op_fork))
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -108,10 +135,10 @@ pub(crate) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConf
         arrow_glacier_block: Some(0),
         gray_glacier_block: Some(0),
         merge_netsplit_block: Some(0),
-        shanghai_time: chain_config.hardforks.canyon_time, // Shanghai activates with Canyon
-        cancun_time: chain_config.hardforks.ecotone_time,  // Cancun activates with Ecotone
-        prague_time: chain_config.hardforks.isthmus_time,  // Prague activates with Isthmus
-        osaka_time: chain_config.hardforks.karst_time,     // Osaka activates with Karst
+        shanghai_time: chain_config.hardforks.l1_fork_time(EthereumHardfork::Shanghai),
+        cancun_time: chain_config.hardforks.l1_fork_time(EthereumHardfork::Cancun),
+        prague_time: chain_config.hardforks.l1_fork_time(EthereumHardfork::Prague),
+        osaka_time: chain_config.hardforks.l1_fork_time(EthereumHardfork::Osaka),
         terminal_total_difficulty: Some(U256::ZERO),
         terminal_total_difficulty_passed: true,
         ethash: None,

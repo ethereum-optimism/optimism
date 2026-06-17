@@ -7,10 +7,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-interop-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -38,6 +40,9 @@ type InteropMonitorService struct {
 	collector *MetricCollector
 	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
+	// messageExpiryWindow (seconds) is sourced from the dependency set and passed to updaters.
+	messageExpiryWindow uint64
+
 	Version string
 
 	pprofService *oppprof.Service
@@ -61,11 +66,10 @@ func InteropMonitorServiceFromClients(
 	version string,
 	cfg *CLIConfig,
 	clients map[eth.ChainID]*sources.EthClient,
-	failsafeClients []FailsafeClient,
 	log log.Logger,
 ) (*InteropMonitorService, error) {
 	var ms InteropMonitorService
-	if err := ms.initFromClients(ctx, version, cfg, clients, failsafeClients, log); err != nil {
+	if err := ms.initFromClients(ctx, version, cfg, clients, log); err != nil {
 		return nil, errors.Join(err, ms.Start(ctx))
 	}
 	return &ms, nil
@@ -78,28 +82,28 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 		return fmt.Errorf("failed to init clients: %w", err)
 	}
 
-	// check if failsafe and supervisor endpoints are contradictory
-	if cfg.TriggerFailsafe && len(cfg.SupervisorEndpoints) == 0 {
-		log.Warn("trigger-failsafe is enabled, but no supervisor endpoints are provided")
+	// Load the dependency set: it provides the authoritative chain set and the
+	// message expiry window used for executing-message validity checks.
+	loader := &depset.JSONDependencySetLoader{Path: cfg.DependencySetPath}
+	depSet, err := loader.LoadDependencySet()
+	if err != nil {
+		return fmt.Errorf("failed to load dependency set: %w", err)
 	}
-	if !cfg.TriggerFailsafe && len(cfg.SupervisorEndpoints) > 0 {
-		log.Warn("trigger-failsafe is disabled, but supervisor endpoints are provided")
-	}
+	ms.messageExpiryWindow = depSet.MessageExpiryWindow()
 
-	// initialize failsafe clients if trigger-failsafe is enabled
-	failsafeClients := make([]FailsafeClient, len(cfg.SupervisorEndpoints))
-	if cfg.TriggerFailsafe {
-		for i, endpoint := range cfg.SupervisorEndpoints {
-			failsafeClient, err := NewSupervisorClient(endpoint, log)
-			if err != nil {
-				return fmt.Errorf("failed to init supervisor client: %w", err)
-			}
-			failsafeClients[i] = failsafeClient
+	// Reconcile configured RPCs against the dependency set.
+	for chainID := range clients {
+		if !depSet.HasChain(chainID) {
+			log.Warn("configured L2 RPC chain is not in the dependency set", "chain_id", chainID)
 		}
-
+	}
+	for _, chainID := range depSet.Chains() {
+		if _, ok := clients[chainID]; !ok {
+			return fmt.Errorf("dependency set chain %s has no configured L2 RPC; cannot validate its initiating messages", chainID)
+		}
 	}
 
-	return ms.initFromClients(ctx, version, cfg, clients, failsafeClients, log)
+	return ms.initFromClients(ctx, version, cfg, clients, log)
 }
 
 // initFromClients initializes the service with pre-created clients
@@ -108,7 +112,6 @@ func (ms *InteropMonitorService) initFromClients(
 	version string,
 	cfg *CLIConfig,
 	clients map[eth.ChainID]*sources.EthClient,
-	failsafeClients []FailsafeClient,
 	log log.Logger,
 ) error {
 	ms.Version = version
@@ -120,6 +123,13 @@ func (ms *InteropMonitorService) initFromClients(
 
 	// Initialize the expiry map
 	ms.finalized = locks.RWMapFromMap(make(map[eth.ChainID]eth.NumberAndHash))
+
+	// Default the message expiry window when not sourced from a dependency set
+	// (e.g. the pre-built-clients constructor used in tests). The CLI path sets
+	// this from the dependency set before calling initFromClients.
+	if ms.messageExpiryWindow == 0 {
+		ms.messageExpiryWindow = depset.MessageExpiryTimeSecondsInterop
+	}
 
 	// Initialize all updaters
 	ms.updaters = make(map[eth.ChainID]Updater)
@@ -134,8 +144,42 @@ func (ms *InteropMonitorService) initFromClients(
 	}
 
 	if cfg.MetricsConfig.Enabled {
-		// Initialize the metric collector, with access to all updaters and failsafe client
-		ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters, failsafeClients, cfg.TriggerFailsafe)
+		// Initialize the metric collector, with access to all updaters
+		ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters)
+	}
+
+	// Optional read-only interop-filter observer (cross-check + failsafe gauge).
+	if cfg.InteropFilterEndpoint != "" && ms.collector != nil {
+		minSafety := safety.Level(cfg.InteropFilterMinSafety)
+		// The interop-filter only checks access lists at unsafe or cross-unsafe; any
+		// other level errors on every call. Fail fast rather than flooding divergences.
+		if minSafety != safety.CrossUnsafe && minSafety != safety.LocalUnsafe {
+			return fmt.Errorf("interop-filter-min-safety %q unsupported; the filter only supports %q or %q", cfg.InteropFilterMinSafety, safety.CrossUnsafe, safety.LocalUnsafe)
+		}
+		filterClient, err := NewFilterClient(cfg.InteropFilterEndpoint, minSafety, ms.Log)
+		if err != nil {
+			return fmt.Errorf("failed to init interop-filter client: %w", err)
+		}
+		ms.collector.filterObserver = NewFilterObserver(filterClient, ms.Metrics, ms.Log)
+	}
+
+	// Optional read-only supernode observers (liveness, heads, cross-safety violations).
+	if len(cfg.SupernodeEndpoints) > 0 && ms.collector != nil {
+		// The observer confirms a job's executing block is still canonical (by hash)
+		// on its chain before flagging a cross-safety violation.
+		els := make(map[eth.ChainID]CanonicalBlockSource, len(clients))
+		for chainID, c := range clients {
+			els[chainID] = c
+		}
+		for _, endpoint := range cfg.SupernodeEndpoints {
+			rpcClient, err := client.NewRPC(ctx, ms.Log, endpoint)
+			if err != nil {
+				return fmt.Errorf("failed to dial supernode %q: %w", endpoint, err)
+			}
+			supernodeClient := sources.NewSuperNodeClient(rpcClient)
+			ms.collector.supernodeObservers = append(ms.collector.supernodeObservers,
+				NewSupernodeObserver(endpoint, supernodeClient, els, ms.Metrics, ms.Log))
+		}
 	}
 	if err := ms.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to start metrics server: %w", err)
@@ -188,7 +232,7 @@ func (ms *InteropMonitorService) dial(ctx context.Context, l2Rpc string) (*sourc
 // initUpdaters initializes the updaters for the given clients
 func (ms *InteropMonitorService) initUpdaters(clients map[eth.ChainID]*sources.EthClient) error {
 	for chainID, ethClient := range clients {
-		updater := NewUpdater(chainID, ethClient, ms.finalized, ms.Log)
+		updater := NewUpdater(chainID, ethClient, ms.finalized, ms.messageExpiryWindow, ms.Log)
 		ms.updaters[chainID] = updater
 	}
 	return nil
@@ -283,7 +327,7 @@ func (ms *InteropMonitorService) initRPCServer(cfg *CLIConfig) error {
 
 func (ms *InteropMonitorService) Start(ctx context.Context) error {
 	if ms.collector != nil {
-		err := ms.collector.Start()
+		err := ms.collector.Start(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to start metric collector: %w", err)
 		}

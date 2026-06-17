@@ -15,7 +15,7 @@ parameters:
   # Provenance is verified by .github/workflows/security.yml.
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:6b421a05805bc2b7b2b1e72a4418f8984444c1be9ec31d620cabec7acff0a36f
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:d79c625a042269c64b2444ef1edf9bb4a399d1c892caee57f9021be067da5617
   base_image:
     type: string
     default: default
@@ -47,6 +47,9 @@ parameters:
   publish_contract_artifacts_dispatch:
     type: boolean
     default: false
+  publish_contract_artifacts_ref:
+    type: string
+    default: ""
   stale_check_dispatch:
     type: boolean
     default: false
@@ -101,7 +104,7 @@ jobs:
     docker:
       - image: << pipeline.parameters.default_docker_image >>
     environment:
-      BASE_REVISION: devlop
+      BASE_REVISION: develop
     steps:
       - checkout
       # yq is used by the "Merge continuation configs" step to deep-merge YAML files.
@@ -134,6 +137,7 @@ jobs:
             c-github-event-action: << pipeline.parameters.github-event-action >>
             c-github-event-base64: << pipeline.parameters.github-event-base64 >>
             c-go-cache-version: << pipeline.parameters.go-cache-version >>
+            c-publish_contract_artifacts_ref: << pipeline.parameters.publish_contract_artifacts_ref >>
       # Same as above but for booleans. Separate step because CircleCI renders
       # boolean pipeline params as 0/1 in environment blocks — the "bool" mode
       # normalizes them to JSON true/false.
@@ -169,8 +173,7 @@ jobs:
           name: Detect file tree changes and store in JSON file
           command: .circleci/scripts/collect-params.sh detect
           environment:
-            c-rust_files_changed: "^rust/"
-            c-contracts_changed: "^(packages/contracts-bedrock|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
+            c-contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
             c-docs_changes_detected: "^docs/public-docs/"
             c-rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
       # Safer "docs-only" detection: true iff EVERY changed file is under docs/public-docs/.
@@ -278,6 +281,7 @@ jobs:
                 elif [[ "${BRANCH}" == "develop" ]]; then
                   run main
                   run release
+                  run publish_contract_artifacts
                   run develop_fault_proofs
                   run develop_kontrol_tests
                   run contracts_feature_tests
@@ -304,6 +308,7 @@ jobs:
                 if is_true reproducibility_dispatch;  then run scheduled_preimage_reproducibility; fi
                 if is_true stale_check_dispatch;      then run scheduled_stale_check; fi
                 if is_true heavy_fuzz_dispatch;       then run scheduled_heavy_fuzz_tests; fi
+                if is_true publish_contract_artifacts_dispatch; then run publish_contract_artifacts; fi
                 if is_true l2_fork_test_dispatch;     then run l2_fork_test; fi
                 if is_true rust_ci_dispatch;          then run rust_ci; fi
                 if is_true rust_e2e_dispatch;         then run rust_e2e_ci; fi
@@ -314,13 +319,16 @@ jobs:
             esac
 
             # Params to forward to continuation configs (everything else is stripped)
-            finalize "c-default_docker_image,c-rust_base_image,c-base_image,c-github-event-base64,c-go-cache-version,c-rust_files_changed"
+            finalize "c-default_docker_image,c-rust_base_image,c-base_image,c-github-event-base64,c-go-cache-version,c-publish_contract_artifacts_ref"
       # Deep-merges the 3 continuation YAML configs (main, rust-ci, rust-e2e)
       # into /tmp/merged-config.yml using yq. Later files win on key conflicts.
       # explode(.) resolves YAML anchors/aliases so the output is self-contained.
       - run:
           name: Merge continuation configs
           command: .circleci/scripts/merge-configs.sh
+      - run:
+          name: Test continuation parameter compatibility
+          command: .circleci/scripts/test-continuation-params.sh
       # Calls the CircleCI continuation API with the merged config + JSON params.
       # This triggers the actual CI pipeline where only workflows with their
       # c-run_* flag set to true will execute.

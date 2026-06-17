@@ -4,13 +4,13 @@ use super::{precompiles::OpFpvmPrecompiles, tx::FpvmOpTx};
 use alloy_evm::{Database, EvmEnv, EvmFactory};
 use alloy_op_evm::{
     OpEvm, OpEvmContext, OpTx, OpTxError,
-    post_exec::{PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext},
+    post_exec::{PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext, WarmingState},
 };
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{L1BlockInfo, OpBuilder, OpHaltReason, OpSpecId, OpTransaction};
 use revm::{
     Context, Inspector, MainContext,
-    context::{BlockEnv, CfgEnv, result::EVMError},
+    context::{BlockEnv, CfgEnv, DBErrorMarker, result::EVMError},
     inspector::NoOpInspector,
 };
 
@@ -64,6 +64,22 @@ where
     {
         evm.take_last_post_exec_tx_result()
     }
+
+    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> WarmingState
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.warming_state()
+    }
+
+    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: WarmingState)
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.seed_warming_state(state);
+    }
 }
 
 impl<H, O> EvmFactory for FpvmOpEvmFactory<H, O>
@@ -75,7 +91,7 @@ where
         OpEvm<DB, I, OpFpvmPrecompiles<H, O>, FpvmOpTx>;
     type Context<DB: Database> = OpEvmContext<DB>;
     type Tx = FpvmOpTx;
-    type Error<DBError: core::error::Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
+    type Error<DBError: DBErrorMarker> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type Precompiles = OpFpvmPrecompiles<H, O>;

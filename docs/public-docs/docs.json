@@ -1099,10 +1099,6 @@
       "destination": "/chain-operators/tools/op-txproxy"
     },
     {
-      "source": "/operators/chain-operators/tools/op-validator",
-      "destination": "/chain-operators/tools/op-validator"
-    },
-    {
       "source": "/operators/chain-operators/tools/proxyd",
       "destination": "/chain-operators/tools/proxyd"
     },
@@ -1731,10 +1727,6 @@
       "destination": "/chain-operators/tools/op-deployer"
     },
     {
-      "source": "/chain-operators/guides/deployment/validate-deployment",
-      "destination": "/chain-operators/tools/op-validator"
-    },
-    {
       "source": "/chain-operators/guides/deployment/sequencer-node",
       "destination": "/chain-operators/tutorials/op-geth-setup"
     },
@@ -1916,8 +1908,7 @@
                   "chain-operators/guides/features/setting-da-footprint",
                   "chain-operators/guides/features/flashblocks-guide",
                   "chain-operators/guides/features/alt-da-mode-guide",
-                  "chain-operators/guides/features/blobs",
-                  "chain-operators/guides/features/snap-sync"
+                  "chain-operators/guides/features/blobs"
                 ]
               },
               {
@@ -1957,6 +1948,7 @@
                 ]
               },
               "chain-operators/tutorials/absolute-prestate",
+              "chain-operators/tutorials/kona-custom-prestate",
               "chain-operators/tutorials/adding-derivation-attributes",
               "chain-operators/tutorials/adding-precompiles",
               "chain-operators/tutorials/dispute-games",
@@ -2007,8 +1999,8 @@
                   }
                 ]
               },
+              "chain-operators/tools/op-interop-filter",
               "chain-operators/tools/op-txproxy",
-              "chain-operators/tools/op-validator",
               "chain-operators/tools/proxyd"
             ]
           },
@@ -2018,6 +2010,13 @@
               "chain-operators/reference/architecture",
               "chain-operators/reference/opcm",
               "chain-operators/reference/standard-configuration"
+            ]
+          },
+          {
+            "group": "Archive",
+            "pages": [
+              "chain-operators/tutorials/archive/op-program-prestate",
+              "chain-operators/guides/features/snap-sync"
             ]
           }
         ]
@@ -2047,8 +2046,7 @@
                 "pages": [
                   "node-operators/guides/management/archive-node",
                   "node-operators/guides/management/blobs",
-                  "node-operators/guides/management/regenesis-history",
-                  "node-operators/guides/management/snap-sync"
+                  "node-operators/guides/management/regenesis-history"
                 ]
               },
               {
@@ -2078,19 +2076,21 @@
                   "node-operators/reference/architecture/rollup-node"
                 ]
               },
-              {
-                "group": "Features",
-                "pages": [
-                  "node-operators/reference/features/snap-sync"
-                ]
-              },
               "node-operators/reference/op-node-config",
               "node-operators/reference/op-node-json-rpc",
-              "node-operators/reference/op-geth-config",
-              "node-operators/reference/op-geth-json-rpc",
               "node-operators/reference/op-reth-config",
+              "node-operators/reference/op-reth-json-rpc",
               "node-operators/reference/op-reth-historical-proof-config",
               "node-operators/reference/consensus-layer-sync"
+            ]
+          },
+          {
+            "group": "Archive",
+            "pages": [
+              "node-operators/reference/op-geth-config",
+              "node-operators/reference/op-geth-json-rpc",
+              "node-operators/guides/management/snap-sync",
+              "node-operators/reference/features/snap-sync"
             ]
           }
         ]
@@ -2258,7 +2258,9 @@
               "/op-stack/features/custom-gas-token",
               "/op-stack/features/bridged-usdc-standard",
               "/op-stack/features/span-batches",
-              "/op-stack/features/send-raw-transaction-conditional"
+              "/op-stack/features/send-raw-transaction-conditional",
+              "/op-stack/features/l2-contract-manager",
+              "/op-stack/features/osaka-on-l2"
             ]
           },
           {
@@ -2380,8 +2382,9 @@
         "tab": "Notices",
         "groups": [
           {
-            "group": "Notices",
+            "group": "Network Notices",
             "pages": [
+              "notices/index",
               "notices/interop-prep",
               "notices/upgrade-19",
               "notices/specialized-node-topology",
@@ -2405,6 +2408,40 @@
                   "notices/archive/upgrade-13",
                   "notices/archive/holocene-changes",
                   "notices/archive/superchain-withdrawal-pause-test"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Releases",
+            "pages": [
+              "releases/index",
+              {
+                "group": "Protocol",
+                "pages": [
+                  "releases/op-node",
+                  "releases/kona-node",
+                  "releases/op-reth",
+                  "releases/op-batcher",
+                  "releases/op-proposer",
+                  "releases/op-challenger",
+                  "releases/op-contracts"
+                ]
+              },
+              {
+                "group": "Fault Proofs",
+                "pages": [
+                  "releases/kona-client",
+                  "releases/kona-host"
+                ]
+              },
+              {
+                "group": "Tooling",
+                "pages": [
+                  "releases/op-deployer",
+                  "releases/op-conductor",
+                  "releases/proxyd",
+                  "releases/op-acceptor"
                 ]
               }
             ]

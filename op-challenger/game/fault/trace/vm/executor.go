@@ -62,19 +62,21 @@ type Config struct {
 	DepsetConfigPath  string
 }
 
-func (c *Config) Check() error {
+func (c *Config) Check(requireServer bool) error {
 	if c.VmBin == "" {
 		return ErrMissingBin
 	}
-	if c.Server == "" {
+	if requireServer && c.Server == "" {
 		return ErrMissingServer
 	}
 
 	if _, err := os.Stat(c.VmBin); err != nil {
 		return fmt.Errorf("%w: %w", ErrMissingBin, err)
 	}
-	if _, err := os.Stat(c.Server); err != nil {
-		return fmt.Errorf("%w: %w", ErrMissingServer, err)
+	if requireServer {
+		if _, err := os.Stat(c.Server); err != nil {
+			return fmt.Errorf("%w: %w", ErrMissingServer, err)
+		}
 	}
 
 	if len(c.Networks) == 0 {

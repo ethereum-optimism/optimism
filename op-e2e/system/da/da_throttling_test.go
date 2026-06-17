@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -147,7 +148,7 @@ func TestDABlockThrottling(t *testing.T) {
 }
 
 func setupTest(t *testing.T, maxTxSize, maxBlockSize uint64) (e2esys.SystemConfig, *sources.RollupClient, *ethclient.Client, *ethclient.Client, *batcher.TestBatchSubmitter) {
-	cfg := e2esys.DefaultSystemConfig(t)
+	cfg := e2esys.DefaultSystemConfig(t, e2esys.WithL2ELKind(services.ELKindOpGeth))
 	cfg.GethOptions["sequencer"] = append(cfg.GethOptions["sequencer"], []geth.GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.Miner.GasCeil = 30_000_000

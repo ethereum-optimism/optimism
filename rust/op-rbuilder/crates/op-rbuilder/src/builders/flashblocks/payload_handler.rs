@@ -234,11 +234,19 @@ where
         .wrap_err("failed to execute flashblock transactions")?;
     }
 
+    // The syncer replays a received flashblock to rebuild it locally; it never produces the
+    // canonical PostExec tx, so there are no PostExec inputs. The turbofish only pins the unused
+    // state-provider type parameter.
     let (built_payload, fb_payload) = crate::builders::flashblocks::payload::build_block(
         &mut state,
         &builder_ctx,
         &mut info,
         true,
+        None::<
+            crate::builders::flashblocks::payload::PostExecInputs<
+                &reth::providers::StateProviderBox,
+            >,
+        >,
     )
     .wrap_err("failed to build flashblock")?;
 
