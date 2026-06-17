@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/interop"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum/go-ethereum/common"
@@ -37,7 +38,7 @@ func (o *outputGameArena) L1Client() *ethclient.Client {
 }
 
 func (o *outputGameArena) GetProposalRoot(ctx context.Context, l2SequenceNumber uint64) common.Hash {
-	output, err := o.sys.RollupClient("sequencer").OutputAtBlock(ctx, l2SequenceNumber)
+	output, err := wait.ForOutputAtBlock(ctx, o.sys.RollupClient("sequencer"), l2SequenceNumber)
 	require.NoError(o.t, err)
 	return common.Hash(output.OutputRoot)
 }

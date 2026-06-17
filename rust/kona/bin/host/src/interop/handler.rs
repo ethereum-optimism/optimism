@@ -606,6 +606,7 @@ impl HintHandler for InteropHintHandler {
                             l2_provider.clone(),
                             l2_provider,
                             OpEvmFactory::<alloy_op_evm::OpTx>::default(),
+                            alloy_op_evm::block::OpAlloyReceiptBuilder::default(),
                             None,
                         );
                         let mut driver = Driver::new(cursor, executor, pipeline);

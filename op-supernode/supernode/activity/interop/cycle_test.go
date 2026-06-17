@@ -1,8 +1,11 @@
 package interop
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
+	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
@@ -489,4 +492,52 @@ func TestBuildCycleGraph(t *testing.T) {
 			}
 		})
 	}
+}
+
+// =============================================================================
+// verifyCycleMessages data-availability handling
+// =============================================================================
+
+// A failed logsDB read means the block data the cycle check needs is
+// unavailable. That must surface as an error so the round retries, not be
+// silently swallowed - dropping a chain removes its nodes and every cross-chain
+// edge targeting it, which can hide a real cycle.
+func TestVerifyCycleMessages_OpenBlockErrorReturnsError(t *testing.T) {
+	t.Parallel()
+	chainID := eth.ChainIDFromUInt64(10)
+	block := eth.BlockID{Number: 100, Hash: common.HexToHash("0x123")}
+
+	mockDB := &algoMockLogsDB{openBlockErr: errors.New("database read failed")}
+
+	i := &Interop{
+		log:     gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
+	}
+
+	// A nil view forces the logsDB branch (view.block returns false on nil).
+	_, err := i.verifyCycleMessages(testTS, map[eth.ChainID]eth.BlockID{chainID: block}, nil)
+	require.Error(t, err, "unavailable block data must surface as an error, not silently drop the chain")
+	require.Contains(t, err.Error(), "database read failed")
+}
+
+// A block that opens successfully but sits at a different timestamp legitimately
+// contributes no same-timestamp executing messages. That is not a data-
+// availability failure, so it must be skipped without error.
+func TestVerifyCycleMessages_BlockNotAtTimestampSkippedWithoutError(t *testing.T) {
+	t.Parallel()
+	chainID := eth.ChainIDFromUInt64(10)
+	block := eth.BlockID{Number: 100, Hash: common.HexToHash("0x123")}
+
+	mockDB := &algoMockLogsDB{
+		openBlockRef: eth.BlockRef{Hash: block.Hash, Number: 100, Time: testTS + 1},
+	}
+
+	i := &Interop{
+		log:     gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
+	}
+
+	result, err := i.verifyCycleMessages(testTS, map[eth.ChainID]eth.BlockID{chainID: block}, nil)
+	require.NoError(t, err)
+	require.Empty(t, result.InvalidHeads)
 }

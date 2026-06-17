@@ -142,77 +142,66 @@ impl OpChainSpecBuilder {
         self
     }
 
-    /// Enable Regolith at genesis
-    pub fn regolith_activated(mut self) -> Self {
-        self = self.bedrock_activated();
-        self.inner = self.inner.with_fork(OpHardfork::Regolith, ForkCondition::Timestamp(0));
+    /// Enable the given timestamp-activated OP fork, and the L1 fork it activates if any, at
+    /// genesis. Bedrock is handled by [`Self::bedrock_activated`] instead: it activates by
+    /// block number, and its implied L1 fork (Paris) needs a TTD condition rather than the
+    /// `Timestamp(0)` used here.
+    fn op_fork_activated(mut self, fork: OpHardfork) -> Self {
+        if let Some(l1_fork) = fork.activates_l1_fork() {
+            self.inner = self.inner.with_fork(l1_fork, ForkCondition::Timestamp(0));
+        }
+        self.inner = self.inner.with_fork(fork, ForkCondition::Timestamp(0));
         self
+    }
+
+    /// Enable Regolith at genesis
+    pub fn regolith_activated(self) -> Self {
+        self.bedrock_activated().op_fork_activated(OpHardfork::Regolith)
     }
 
     /// Enable Canyon at genesis
-    pub fn canyon_activated(mut self) -> Self {
-        self = self.regolith_activated();
-        // Canyon also activates changes from L1's Shanghai hardfork
-        self.inner = self.inner.with_fork(EthereumHardfork::Shanghai, ForkCondition::Timestamp(0));
-        self.inner = self.inner.with_fork(OpHardfork::Canyon, ForkCondition::Timestamp(0));
-        self
+    pub fn canyon_activated(self) -> Self {
+        self.regolith_activated().op_fork_activated(OpHardfork::Canyon)
     }
 
     /// Enable Ecotone at genesis
-    pub fn ecotone_activated(mut self) -> Self {
-        self = self.canyon_activated();
-        self.inner = self.inner.with_fork(EthereumHardfork::Cancun, ForkCondition::Timestamp(0));
-        self.inner = self.inner.with_fork(OpHardfork::Ecotone, ForkCondition::Timestamp(0));
-        self
+    pub fn ecotone_activated(self) -> Self {
+        self.canyon_activated().op_fork_activated(OpHardfork::Ecotone)
     }
 
     /// Enable Fjord at genesis
-    pub fn fjord_activated(mut self) -> Self {
-        self = self.ecotone_activated();
-        self.inner = self.inner.with_fork(OpHardfork::Fjord, ForkCondition::Timestamp(0));
-        self
+    pub fn fjord_activated(self) -> Self {
+        self.ecotone_activated().op_fork_activated(OpHardfork::Fjord)
     }
 
     /// Enable Granite at genesis
-    pub fn granite_activated(mut self) -> Self {
-        self = self.fjord_activated();
-        self.inner = self.inner.with_fork(OpHardfork::Granite, ForkCondition::Timestamp(0));
-        self
+    pub fn granite_activated(self) -> Self {
+        self.fjord_activated().op_fork_activated(OpHardfork::Granite)
     }
 
     /// Enable Holocene at genesis
-    pub fn holocene_activated(mut self) -> Self {
-        self = self.granite_activated();
-        self.inner = self.inner.with_fork(OpHardfork::Holocene, ForkCondition::Timestamp(0));
-        self
+    pub fn holocene_activated(self) -> Self {
+        self.granite_activated().op_fork_activated(OpHardfork::Holocene)
     }
 
     /// Enable Isthmus at genesis
-    pub fn isthmus_activated(mut self) -> Self {
-        self = self.holocene_activated();
-        self.inner = self.inner.with_fork(OpHardfork::Isthmus, ForkCondition::Timestamp(0));
-        self
+    pub fn isthmus_activated(self) -> Self {
+        self.holocene_activated().op_fork_activated(OpHardfork::Isthmus)
     }
 
     /// Enable Jovian at genesis
-    pub fn jovian_activated(mut self) -> Self {
-        self = self.isthmus_activated();
-        self.inner = self.inner.with_fork(OpHardfork::Jovian, ForkCondition::Timestamp(0));
-        self
+    pub fn jovian_activated(self) -> Self {
+        self.isthmus_activated().op_fork_activated(OpHardfork::Jovian)
     }
 
     /// Enable Karst at genesis
-    pub fn karst_activated(mut self) -> Self {
-        self = self.jovian_activated();
-        self.inner = self.inner.with_fork(OpHardfork::Karst, ForkCondition::Timestamp(0));
-        self
+    pub fn karst_activated(self) -> Self {
+        self.jovian_activated().op_fork_activated(OpHardfork::Karst)
     }
 
     /// Enable Lagoon at genesis
-    pub fn interop_activated(mut self) -> Self {
-        self = self.karst_activated();
-        self.inner = self.inner.with_fork(OpHardfork::Lagoon, ForkCondition::Timestamp(0));
-        self
+    pub fn interop_activated(self) -> Self {
+        self.karst_activated().op_fork_activated(OpHardfork::Lagoon)
     }
 
     /// Build the resulting [`OpChainSpec`].
@@ -394,28 +383,31 @@ impl From<Genesis> for OpChainSpec {
         ));
 
         // Time-based hardforks
-        let time_hardfork_opts = [
-            // L1
-            // we need to map the L1 hardforks to the activation timestamps of the correspondong op
-            // hardforks
-            (EthereumHardfork::Shanghai.boxed(), genesis_info.canyon_time),
-            (EthereumHardfork::Cancun.boxed(), genesis_info.ecotone_time),
-            (EthereumHardfork::Prague.boxed(), genesis_info.isthmus_time),
-            // OP
-            (OpHardfork::Regolith.boxed(), genesis_info.regolith_time),
-            (OpHardfork::Canyon.boxed(), genesis_info.canyon_time),
-            (OpHardfork::Ecotone.boxed(), genesis_info.ecotone_time),
-            (OpHardfork::Fjord.boxed(), genesis_info.fjord_time),
-            (OpHardfork::Granite.boxed(), genesis_info.granite_time),
-            (OpHardfork::Holocene.boxed(), genesis_info.holocene_time),
-            (OpHardfork::Isthmus.boxed(), genesis_info.isthmus_time),
-            (OpHardfork::Jovian.boxed(), genesis_info.jovian_time),
-            (OpHardfork::Karst.boxed(), genesis_info.karst_time),
-            (OpHardfork::Lagoon.boxed(), genesis_info.lagoon_time),
+        let op_time_hardfork_opts = [
+            (OpHardfork::Regolith, genesis_info.regolith_time),
+            (OpHardfork::Canyon, genesis_info.canyon_time),
+            (OpHardfork::Ecotone, genesis_info.ecotone_time),
+            (OpHardfork::Fjord, genesis_info.fjord_time),
+            (OpHardfork::Granite, genesis_info.granite_time),
+            (OpHardfork::Holocene, genesis_info.holocene_time),
+            (OpHardfork::Isthmus, genesis_info.isthmus_time),
+            (OpHardfork::Jovian, genesis_info.jovian_time),
+            (OpHardfork::Karst, genesis_info.karst_time),
+            (OpHardfork::Lagoon, genesis_info.lagoon_time),
         ];
 
-        let mut time_hardforks = time_hardfork_opts
-            .into_iter()
+        // `Hardfork::boxed` borrows, so it can't box the iterator-local copies below.
+        fn boxed(fork: impl Hardfork + 'static) -> Box<dyn Hardfork> {
+            Box::new(fork)
+        }
+
+        // An OP hardfork's implied L1 hardfork activates at the OP fork's timestamp.
+        let l1_time_hardfork_opts = op_time_hardfork_opts.iter().filter_map(|(op_fork, time)| {
+            op_fork.activates_l1_fork().map(|l1_fork| (boxed(l1_fork), *time))
+        });
+
+        let mut time_hardforks = l1_time_hardfork_opts
+            .chain(op_time_hardfork_opts.iter().map(|(op_fork, time)| (boxed(*op_fork), *time)))
             .filter_map(|(hardfork, opt)| {
                 opt.map(|time| (hardfork, ForkCondition::Timestamp(time)))
             })
@@ -912,6 +904,104 @@ mod tests {
     fn is_bedrock_active() {
         let op_mainnet = OpChainSpecBuilder::optimism_mainnet().build();
         assert!(!op_mainnet.is_bedrock_active_at_block(1))
+    }
+
+    /// Each `*_activated()` builder helper must activate the L1 (Ethereum) hardfork its OP fork
+    /// implies, exactly as the genesis `From<Genesis>` conversion does. Guards against a future
+    /// fork silently shipping without its L1 fork — the gap that left Isthmus without Prague.
+    #[test]
+    fn builder_activated_specs_match_genesis_l1_forks() {
+        // Builder spec with every OP fork (through Lagoon) active at genesis.
+        let builder_spec = OpChainSpecBuilder::optimism_mainnet().interop_activated().build();
+
+        // Equivalent genesis: every OP fork active at timestamp 0. `From<Genesis>` derives the
+        // implied L1 forks (Shanghai/Cancun/Prague/Osaka) from these OP timestamps.
+        let geth_genesis = r#"
+        {
+            "config": {
+                "chainId": 10,
+                "homesteadBlock": 0,
+                "eip150Block": 0,
+                "eip155Block": 0,
+                "eip158Block": 0,
+                "byzantiumBlock": 0,
+                "constantinopleBlock": 0,
+                "petersburgBlock": 0,
+                "istanbulBlock": 0,
+                "muirGlacierBlock": 0,
+                "berlinBlock": 0,
+                "londonBlock": 0,
+                "arrowGlacierBlock": 0,
+                "grayGlacierBlock": 0,
+                "mergeNetsplitBlock": 0,
+                "bedrockBlock": 0,
+                "regolithTime": 0,
+                "canyonTime": 0,
+                "ecotoneTime": 0,
+                "fjordTime": 0,
+                "graniteTime": 0,
+                "holoceneTime": 0,
+                "isthmusTime": 0,
+                "jovianTime": 0,
+                "karstTime": 0,
+                "lagoonTime": 0,
+                "terminalTotalDifficulty": 0,
+                "terminalTotalDifficultyPassed": true,
+                "optimism": {
+                    "eip1559Elasticity": 6,
+                    "eip1559Denominator": 50
+                }
+            }
+        }
+        "#;
+        let genesis: Genesis = serde_json::from_str(geth_genesis).unwrap();
+        let genesis_spec = OpChainSpec::from_genesis(genesis);
+
+        // Builder- and genesis-built specs must agree on every OP fork and the L1 fork it implies.
+        macro_rules! assert_parity {
+            ($fork:expr) => {
+                assert_eq!(
+                    builder_spec.hardforks.get($fork),
+                    genesis_spec.hardforks.get($fork),
+                    "builder vs genesis disagree on {:?}",
+                    $fork
+                );
+            };
+        }
+
+        assert_parity!(OpHardfork::Regolith);
+        assert_parity!(OpHardfork::Canyon);
+        assert_parity!(EthereumHardfork::Shanghai);
+        assert_parity!(OpHardfork::Ecotone);
+        assert_parity!(EthereumHardfork::Cancun);
+        assert_parity!(OpHardfork::Fjord);
+        assert_parity!(OpHardfork::Granite);
+        assert_parity!(OpHardfork::Holocene);
+        assert_parity!(OpHardfork::Isthmus);
+        assert_parity!(EthereumHardfork::Prague);
+        assert_parity!(OpHardfork::Jovian);
+        assert_parity!(OpHardfork::Karst);
+        assert_parity!(EthereumHardfork::Osaka);
+        assert_parity!(OpHardfork::Lagoon);
+
+        // Pin the invariant directly on the builder spec: every implied L1 fork is active at
+        // genesis.
+        assert_eq!(
+            builder_spec.hardforks.get(EthereumHardfork::Shanghai),
+            Some(ForkCondition::Timestamp(0))
+        );
+        assert_eq!(
+            builder_spec.hardforks.get(EthereumHardfork::Cancun),
+            Some(ForkCondition::Timestamp(0))
+        );
+        assert_eq!(
+            builder_spec.hardforks.get(EthereumHardfork::Prague),
+            Some(ForkCondition::Timestamp(0))
+        );
+        assert_eq!(
+            builder_spec.hardforks.get(EthereumHardfork::Osaka),
+            Some(ForkCondition::Timestamp(0))
+        );
     }
 
     #[test]

@@ -24,7 +24,7 @@ use reth_optimism_primitives::OpPrimitives;
 use reth_provider::providers::BlockchainProvider;
 use revm::{
     Inspector,
-    context::{BlockEnv, ContextTr},
+    context::{BlockEnv, ContextTr, DBErrorMarker},
     context_interface::result::EVMError,
     inspector::NoOpInspector,
     interpreter::interpreter::EthInterpreter,
@@ -97,8 +97,7 @@ fn test_setup_custom_precompiles() {
             OpEvm<DB, I, Self::Precompiles, OpTx>;
         type Context<DB: Database> = OpEvmContext<DB>;
         type Tx = OpTx;
-        type Error<DBError: core::error::Error + Send + Sync + 'static> =
-            EVMError<DBError, OpTxError>;
+        type Error<DBError: DBErrorMarker> = EVMError<DBError, OpTxError>;
         type HaltReason = OpHaltReason;
         type Spec = OpSpecId;
         type BlockEnv = BlockEnv;

@@ -2,7 +2,7 @@ use alloc::{sync::Arc, vec::Vec};
 use alloy_consensus::Header;
 use alloy_evm::{FromRecoveredTx, FromTxWithEncoded, block::BlockExecutor};
 use alloy_op_evm::{
-    OpBlockExecutor,
+    OpBlockExecutor, PreRefundGasUsed,
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
     post_exec::{PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutorExt},
 };
@@ -60,6 +60,7 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
             Executor: PostExecExecutorExt
                           + BlockExecutor<
                 Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
             >,
         > + 'a,
         Self::Error,
@@ -123,6 +124,7 @@ where
             Executor: PostExecExecutorExt
                           + BlockExecutor<
                 Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
             >,
         > + 'a,
         Self::Error,
@@ -226,6 +228,7 @@ where
             Executor: PostExecExecutorExt
                           + BlockExecutor<
                 Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
             >,
         > + 'a,
         Self::Error,

@@ -9,7 +9,7 @@ import (
 //go:embed bundles/karst_nut_bundle.json
 var KarstNUTBundleJSON []byte
 
-// InteropNUTBundleJSON is the embedded Interop NUT bundle.
+// LagoonNUTBundleJSON is the embedded Lagoon NUT bundle.
 //
-//go:embed bundles/interop_nut_bundle.json
-var InteropNUTBundleJSON []byte
+//go:embed bundles/lagoon_nut_bundle.json
+var LagoonNUTBundleJSON []byte

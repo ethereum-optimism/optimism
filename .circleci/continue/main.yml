@@ -13,12 +13,6 @@ parameters:
   c-github-event-base64:
     type: string
     default: "__not_set__"
-  # Set to true by path-filtering when files under rust/ change.
-  # When false on feature branches, kona-build-release skips cargo build and
-  # reuses cached binaries — saving ~9 minutes on PRs that don't touch Rust.
-  c-rust_files_changed:
-    type: boolean
-    default: false
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   c-go-cache-version:
     type: string
@@ -26,6 +20,72 @@ parameters:
   c-publish_contract_artifacts_ref:
     type: string
     default: ""
+  # CircleCI forwards user-supplied setup params into continuation validation.
+  # These aliases are transformed into c-* params by config.yml and are not
+  # referenced by jobs in the continuation config.
+  default_docker_image:
+    type: string
+    default: cimg/base:2026.03
+  rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:d79c625a042269c64b2444ef1edf9bb4a399d1c892caee57f9021be067da5617
+  base_image:
+    type: string
+    default: default
+  main_dispatch:
+    type: boolean
+    default: true
+  fault_proofs_dispatch:
+    type: boolean
+    default: false
+  reproducibility_dispatch:
+    type: boolean
+    default: false
+  kontrol_dispatch:
+    type: boolean
+    default: false
+  cannon_full_test_dispatch:
+    type: boolean
+    default: false
+  sdk_dispatch:
+    type: boolean
+    default: false
+  publish_contract_artifacts_dispatch:
+    type: boolean
+    default: false
+  publish_contract_artifacts_ref:
+    type: string
+    default: ""
+  stale_check_dispatch:
+    type: boolean
+    default: false
+  contracts_coverage_dispatch:
+    type: boolean
+    default: false
+  heavy_fuzz_dispatch:
+    type: boolean
+    default: false
+  rust_ci_dispatch:
+    type: boolean
+    default: false
+  rust_e2e_dispatch:
+    type: boolean
+    default: false
+  l2_fork_test_dispatch:
+    type: boolean
+    default: false
+  github-event-type:
+    type: string
+    default: "__not_set__"
+  github-event-action:
+    type: string
+    default: "__not_set__"
+  github-event-base64:
+    type: string
+    default: "__not_set__"
+  go-cache-version:
+    type: string
+    default: "v0.0"
   # Workflow activation flags (set by the decision tree in config.yml)
   c-run_main:
     type: boolean
@@ -383,7 +443,7 @@ commands:
 
   # --- Rust environment setup commands ---
   rust-restore-build-cache:
-    description: "Restore the target directory cache for a Rust workspace"
+    description: "Restore the dependency and toolchain caches for a Rust workspace"
     parameters:
       directory:
         description: "Directory containing the Cargo workspace"
@@ -405,12 +465,6 @@ commands:
         type: string
         default: "rust-build"
     steps:
-      - restore_cache:
-          name: Restore << parameters.directory >> target cache
-          keys:
-            - << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>-<< parameters.features >>
-            - << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>
-            - << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}
       # Shared across every Rust job: the downloaded crate set is identical
       # for a given Cargo.lock regardless of job, profile, or features, so a
       # single key avoids each job downloading and storing its own copy.
@@ -430,7 +484,7 @@ commands:
             - rust-toolchain-v<< parameters.version >>-{{ checksum "mise.toml" }}-{{ checksum "rust/rust-toolchain.toml" }}
 
   rust-save-build-cache:
-    description: "Save the target directory cache for a Rust workspace"
+    description: "Save the dependency and toolchain caches for a Rust workspace"
     parameters:
       directory:
         description: "Directory containing the Cargo workspace"
@@ -470,11 +524,6 @@ commands:
           paths:
             - /data/mise-data/.cargo/bin
             - /data/mise-data/.rustup
-      - save_cache:
-          key: << parameters.prefix >>-v<< parameters.version >>-{{ checksum "<< parameters.directory >>/Cargo.lock" }}-<< parameters.profile >>-<< parameters.features >>
-          name: Save << parameters.directory >> target cache
-          paths:
-            - << parameters.directory >>/target/<< parameters.profile >>
 
   rust-prepare-and-restore-cache:
     description: "Prepare the Rust environment and restore the cache"
@@ -502,9 +551,14 @@ commands:
         description: "Prefix to add to the cache key"
         type: string
         default: "rust-build"
+      enable_sccache:
+        description: "Whether to set up the sccache GCS compile cache (see rust-prepare)."
+        type: boolean
+        default: true
     steps:
       - rust-prepare:
           needs_clang: << parameters.needs_clang >>
+          enable_sccache: << parameters.enable_sccache >>
       - rust-restore-build-cache:
           version: << parameters.version >>
           directory: << parameters.directory >>
@@ -546,10 +600,6 @@ commands:
         description: "Whether to save the cache at the end of the build"
         type: boolean
         default: false
-      rust_files_changed:
-        description: "Set to false to skip cargo build and reuse cached binaries (feature branches only)."
-        type: boolean
-        default: true
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -565,21 +615,6 @@ commands:
             PWD=$(pwd)
             export CARGO_TARGET_DIR="$PWD/<< parameters.directory >>/target"
             echo "CARGO_TARGET_DIR: $CARGO_TARGET_DIR"
-
-            # On feature branches where rust/ hasn't changed, reuse binaries from
-            # the restored target cache instead of running cargo build (~9 min saving).
-            # Always build on develop/main as a safety backstop.
-            if [ "<< parameters.rust_files_changed >>" = "false" ] \
-                && [ "$CIRCLE_BRANCH" != "develop" ] \
-                && [ "$CIRCLE_BRANCH" != "main" ]; then
-              binary_dir="$CARGO_TARGET_DIR/<< parameters.profile >>"
-              if [ -d "$binary_dir" ] && ls "$binary_dir"/* >/dev/null 2>&1; then
-                echo "No rust/ changes on feature branch — skipping cargo build"
-                ls -lh "$binary_dir"/ | head -20 || true
-                exit 0
-              fi
-              echo "WARNING: no cached binaries found, building from source"
-            fi
 
             export PROFILE="--profile << parameters.profile >>"
 
@@ -669,10 +704,6 @@ jobs:
         description: "Whether to persist the built binaries to the CircleCI workspace"
         type: boolean
         default: false
-      rust_files_changed:
-        description: "Set to false to skip cargo build and reuse cached binaries (feature branches only)."
-        type: boolean
-        default: true
     steps:
       - rust-build:
           directory: << parameters.directory >>
@@ -683,7 +714,6 @@ jobs:
           package: << parameters.package >>
           binary: << parameters.binary >>
           save_cache: << parameters.save_cache >>
-          rust_files_changed: << parameters.rust_files_changed >>
       - when:
           condition: << parameters.persist_to_workspace >>
           steps:
@@ -703,6 +733,15 @@ jobs:
       directory:
         description: "Directory containing the Cargo workspace"
         type: string
+      hash_paths:
+        description: >
+          Space-separated git paths whose tree hash keys the binary cache. MUST cover the full
+          dependency closure the binary compiles, not just `directory`: these vendored workspaces
+          path-depend on sibling crates under rust/ (e.g. alloy-op-evm, op-revm, op-reth), so hashing
+          only `directory` reuses a stale binary when a dependency outside it changes. Defaults to
+          `directory`. Keep in sync with the workspace's `path = "../<crate>"` dependencies.
+        type: string
+        default: ""
       binaries:
         description: "Space-separated list of binary names to copy from target/release into the cache"
         type: string
@@ -724,14 +763,26 @@ jobs:
           name: Get << parameters.directory >> content HASH
           command: |
             mkdir -p .circleci-cache
-            git ls-tree -r HEAD << parameters.directory >> | sha256sum | awk '{print $1}' > .circleci-cache/expected-submod-sha.txt
+            HASH_PATHS="<< parameters.hash_paths >>"
+            [ -z "$HASH_PATHS" ] && HASH_PATHS="<< parameters.directory >>"
+            echo "Hashing paths: $HASH_PATHS"
+            # Fail fast on a stale/typo'd path: `git ls-tree` emits nothing (exit 0) for a
+            # non-existent path, which would silently shrink the hash and reintroduce the stale-binary
+            # bug this keying is meant to prevent.
+            for p in $HASH_PATHS; do
+              if ! git cat-file -e "HEAD:$p" 2>/dev/null; then
+                echo "ERROR: hash_paths entry '$p' does not exist at HEAD — fix hash_paths in main.yml" >&2
+                exit 1
+              fi
+            done
+            git ls-tree -r HEAD $HASH_PATHS | sha256sum | awk '{print $1}' > .circleci-cache/expected-submod-sha.txt
             echo "Content HASH: $(cat .circleci-cache/expected-submod-sha.txt)"
             echo "<< parameters.binaries >>" | tr ' ' '\n' | awk 'NF' | sort -u > .circleci-cache/expected-binaries.txt
             echo "Expected binaries: $(tr '\n' ' ' < .circleci-cache/expected-binaries.txt)"
       - restore_cache:
           name: Restore << parameters.directory >> cache
           keys:
-            - rust-<< parameters.directory >>-v8-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
+            - rust-<< parameters.directory >>-v9-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
       - run:
           name: Build << parameters.directory >> (if needed)
           command: |
@@ -782,7 +833,7 @@ jobs:
             done
           no_output_timeout: 30m
       - save_cache:
-          key: rust-<< parameters.directory >>-v8-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
+          key: rust-<< parameters.directory >>-v9-{{ checksum ".circleci-cache/expected-submod-sha.txt" }}-{{ checksum ".circleci-cache/expected-binaries.txt" }}
           name: Save << parameters.directory >> cache
           paths:
             - ".circleci-cache/rust-binaries"
@@ -1448,6 +1499,8 @@ jobs:
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
+      # `just check-fast` runs `go run ./scripts/check-runner`, so it builds Go.
+      - restore-go-mod-cache
       - run:
           name: Print forge version
           command: forge --version
@@ -1674,6 +1727,8 @@ jobs:
       - install-contracts-dependencies
       - check-changed:
           patterns: op-core/nuts
+      # The verify script runs `go run ./ops/scripts/nut-provenance-verify`.
+      - restore-go-mod-cache
       - run:
           name: verify NUT bundle provenance
           command: ./ops/scripts/nut-provenance-verify-changed.sh
@@ -1718,6 +1773,11 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - run:
+          name: Configure op-reth binary path
+          command: |
+            ROOT_DIR="$(pwd)"
+            echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
       - go-restore-cache:
           namespace: go-tests
       - run:
@@ -1861,7 +1921,7 @@ jobs:
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
 
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
-            echo "export OP_RETH_EXEC_PATH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
       - run:
@@ -1975,6 +2035,8 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      # `just verify-reproducibility` runs `go run ...verify.go` on the host.
+      - restore-go-mod-cache
       - run:
           name: Verify reproducibility
           command: just verify-reproducibility
@@ -2199,6 +2261,8 @@ jobs:
       - utils/checkout-with-mise:
           enable-mise-cache: true
       - attach_workspace: { at: "." }
+      # goreleaser compiles the Go release binaries on the host.
+      - restore-go-mod-cache
       - run:
           name: Configure Docker
           command: |
@@ -2376,6 +2440,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - nut-provenance-verify:
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
       - fuzz-golang:
@@ -2424,6 +2490,7 @@ workflows:
             - go-binaries-for-sysgo
             - prep-superchain
             - prep-go-modules
+            - rust-workspace-binaries
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
@@ -2446,6 +2513,7 @@ workflows:
             - go-binaries-for-sysgo
             - prep-superchain
             - prep-go-modules
+            - rust-workspace-binaries
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
@@ -2491,13 +2559,16 @@ workflows:
           profile: "release"
           save_cache: true
           persist_to_workspace: true
-          rust_files_changed: << pipeline.parameters.c-rust_files_changed >>
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
       - rust-build-vendored: &rust-build-op-rbuilder
           name: rust-build-op-rbuilder
           directory: rust/op-rbuilder
+          # Full vendored-crate closure op-rbuilder compiles (its `path = "../<crate>"` deps and
+          # their shared siblings). Without op-reth/op-revm/alloy-op-evm/etc. here, a change to one
+          # of those reuses a stale op-rbuilder binary in the sysgo acceptance jobs.
+          hash_paths: "rust/op-rbuilder rust/rollup-boost rust/op-reth rust/op-revm rust/op-alloy rust/alloy-op-evm rust/alloy-op-hardforks"
           binaries: "op-rbuilder"
           build_command: cargo build --release -p op-rbuilder --bin op-rbuilder
           needs_clang: true
@@ -2507,6 +2578,9 @@ workflows:
       - rust-build-vendored: &rust-build-rollup-boost
           name: rust-build-rollup-boost
           directory: rust/rollup-boost
+          # rollup-boost path-depends on op-reth/op-alloy (and their siblings transitively); hash the
+          # same shared vendored-crate closure so a sibling change rebuilds it instead of going stale.
+          hash_paths: "rust/op-rbuilder rust/rollup-boost rust/op-reth rust/op-revm rust/op-alloy rust/alloy-op-evm rust/alloy-op-hardforks"
           binaries: "rollup-boost"
           build_command: cargo build --release -p rollup-boost --bin rollup-boost
           context:
@@ -2645,6 +2719,31 @@ workflows:
           requires:
             - build-contracts-go-release-op-deployer
 
+  go-release-op-up:
+    jobs:
+      - contracts-bedrock-build:
+          name: build-contracts-go-release-op-up
+          filters:
+            tags:
+              only: /^op-up.*/
+            branches:
+              ignore: /.*/
+          build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - go-release:
+          filters:
+            tags:
+              only: /^op-up.*/
+            branches:
+              ignore: /.*/
+          module: op-up
+          context:
+            - oplabs-gcr-release
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - build-contracts-go-release-op-up
+
   release:
     when: << pipeline.parameters.c-run_release >>
     jobs:
@@ -2712,7 +2811,6 @@ workflows:
           profile: "release"
           save_cache: true
           persist_to_workspace: true
-          rust_files_changed: << pipeline.parameters.c-rust_files_changed >>
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -3017,6 +3115,8 @@ workflows:
             - slack
       - contracts-bedrock-checks-fast:
           name: contracts-bedrock-checks-fast-feature-tests
+          requires:
+            - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack

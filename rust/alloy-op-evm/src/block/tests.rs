@@ -1,11 +1,11 @@
 use alloc::{string::ToString, vec};
-use alloy_consensus::{SignableTransaction, TxLegacy, transaction::Recovered};
+use alloy_consensus::{Sealed, SignableTransaction, TxLegacy, transaction::Recovered};
 use alloy_eips::eip2718::WithEncoded;
 use alloy_evm::{EvmEnv, ToTxEnv};
 use alloy_hardforks::ForkCondition;
-use alloy_op_hardforks::OpHardfork;
-use alloy_primitives::{Address, Signature, U256, uint};
-use op_alloy::consensus::OpTxEnvelope;
+use alloy_op_hardforks::{OpHardfork, OpHardforks};
+use alloy_primitives::{Address, B256, Bytes, Signature, TxKind, U256, uint};
+use op_alloy::consensus::{OpTxEnvelope, TxDeposit};
 use op_revm::{
     L1BlockInfo, OpBuilder, OpSpecId, OpTransaction,
     constants::{
@@ -123,7 +123,8 @@ fn build_executor<'a>(
     receipt_builder: &'a OpAlloyReceiptBuilder,
     op_chain_hardforks: &'a OpChainHardforks,
     gas_limit: u64,
-    jovian_timestamp: u64,
+    block_timestamp: u64,
+    parent_timestamp: Option<u64>,
 ) -> SDMTestExecutor<'a> {
     let ctx = Context::mainnet()
         .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
@@ -136,7 +137,7 @@ fn build_executor<'a>(
             ..Default::default()
         })
         .with_block(BlockEnv {
-            timestamp: U256::from(jovian_timestamp),
+            timestamp: U256::from(block_timestamp),
             gas_limit,
             ..Default::default()
         })
@@ -144,7 +145,18 @@ fn build_executor<'a>(
 
     let evm = OpEvm::new(ctx.build_op_with_inspector(NoOpInspector {}), true);
 
-    OpBlockExecutor::new(evm, OpBlockExecutionCtx::default(), op_chain_hardforks, receipt_builder)
+    // Like production call sites, the activation-block flag is computed where the parent
+    // timestamp is available and left `false` where it isn't.
+    let no_user_tx_activation_block = parent_timestamp.is_some_and(|parent_timestamp| {
+        op_chain_hardforks.is_no_user_tx_activation_block(parent_timestamp, block_timestamp)
+    });
+
+    OpBlockExecutor::new(
+        evm,
+        OpBlockExecutionCtx { no_user_tx_activation_block, ..Default::default() },
+        op_chain_hardforks,
+        receipt_builder,
+    )
 }
 
 struct SDMExecutorFixture {
@@ -153,6 +165,7 @@ struct SDMExecutorFixture {
     op_chain_hardforks: OpChainHardforks,
     gas_limit: u64,
     jovian_timestamp: u64,
+    parent_timestamp: Option<u64>,
 }
 
 impl SDMExecutorFixture {
@@ -167,6 +180,9 @@ impl SDMExecutorFixture {
             ),
             gas_limit,
             jovian_timestamp,
+            // SDM/post-exec tests run normal (non-activation) blocks; leaving the parent timestamp
+            // unset skips the fork-activation guard, matching op-reth's parentless import path.
+            parent_timestamp: None,
         }
     }
 
@@ -177,6 +193,7 @@ impl SDMExecutorFixture {
             &self.op_chain_hardforks,
             self.gas_limit,
             self.jovian_timestamp,
+            self.parent_timestamp,
         )
     }
 
@@ -269,6 +286,265 @@ fn test_jovian_da_footprint_estimation_maxed_out_da_footprint() {
     assert!(result.blob_gas_used > result.gas_used);
 }
 
+/// Asserts that `err` is a `TransactionGasLimitMoreThanAvailableBlockGas` with the expected fields.
+fn assert_gas_limit_exceeded(
+    err: BlockExecutionError,
+    expected_tx_gas_limit: u64,
+    expected_available: u64,
+) {
+    match err {
+        BlockExecutionError::Validation(
+            BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+                transaction_gas_limit,
+                block_available_gas,
+            },
+        ) => {
+            assert_eq!(transaction_gas_limit, expected_tx_gas_limit);
+            assert_eq!(block_available_gas, expected_available);
+        }
+        other => panic!("expected TransactionGasLimitMoreThanAvailableBlockGas, got: {other:?}"),
+    }
+}
+
+// SDM-off regression: with refunds disabled `evm_gas_used` equals `gas_used`, so a tx over the
+// block gas limit is rejected with the full block gas limit as available gas.
+#[test]
+fn test_pre_refund_gas_limit_never_binds_with_sdm_off() {
+    const BLOCK_GAS_LIMIT: u64 = 100_000;
+    let mut fixture =
+        SDMExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, BLOCK_GAS_LIMIT, JOVIAN_TIMESTAMP);
+    let mut executor = fixture.executor();
+
+    let tx = recovered_legacy(TxLegacy { gas_limit: BLOCK_GAS_LIMIT + 1, ..Default::default() });
+    let err = executor.execute_transaction(&tx).expect_err("tx over the block gas limit");
+
+    assert_gas_limit_exceeded(err, BLOCK_GAS_LIMIT + 1, BLOCK_GAS_LIMIT);
+}
+
+// SDM refunds lower canonical gas but must not increase the real compute admitted into a block:
+// after a refund, a tx that fits canonical `gas_used` while exceeding the pre-refund `evm_gas_used`
+// budget must still be rejected.
+#[test]
+fn test_pre_refund_gas_limit_counts_sdm_refunded_gas() {
+    const BLOCK_GAS_LIMIT: u64 = 100_000;
+    let target = Address::from([0x11; 20]);
+    let tx0 = recovered_legacy(TxLegacy {
+        nonce: 0,
+        gas_limit: 50_000,
+        to: alloy_primitives::TxKind::Call(target),
+        ..Default::default()
+    });
+    let tx1 = recovered_legacy(TxLegacy {
+        nonce: 1,
+        gas_limit: 50_000,
+        to: alloy_primitives::TxKind::Call(target),
+        ..Default::default()
+    });
+
+    let mut fixture =
+        SDMExecutorFixture::new(DEFAULT_DA_FOOTPRINT_GAS_SCALAR, BLOCK_GAS_LIMIT, JOVIAN_TIMESTAMP);
+    let mut executor = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+    executor.execute_transaction(&tx0).expect("first tx fits");
+    executor.execute_transaction(&tx1).expect("second tx fits and receives a refund");
+
+    assert!(executor.evm_gas_used > executor.gas_used, "expected SDM to refund canonical gas");
+    let evm_gas_available = BLOCK_GAS_LIMIT - executor.evm_gas_used;
+    let canonical_gas_available = BLOCK_GAS_LIMIT - executor.gas_used;
+    assert!(evm_gas_available < canonical_gas_available);
+
+    let tx2_gas_limit = evm_gas_available + 1;
+    assert!(
+        tx2_gas_limit <= canonical_gas_available,
+        "test tx should fit canonical gas but exceed pre-refund gas"
+    );
+    let tx2 = recovered_legacy(TxLegacy {
+        nonce: 2,
+        gas_limit: tx2_gas_limit,
+        to: alloy_primitives::TxKind::Call(target),
+        ..Default::default()
+    });
+
+    let err = executor
+        .execute_transaction(&tx2)
+        .expect_err("tx exceeding pre-refund block gas must be rejected");
+    assert_gas_limit_exceeded(err, tx2_gas_limit, evm_gas_available);
+}
+/// A deposit transaction emulating the L1-attributes / network-upgrade deposits that a
+/// fork-activation block legitimately contains. Detection is parent-timestamp based, so the
+/// calldata contents are irrelevant here.
+fn recovered_deposit() -> Recovered<OpTxEnvelope> {
+    // A depositor distinct from `Address::ZERO` (the signer of the user legacy txs) so the deposit
+    // doesn't bump the user's nonce.
+    let deposit = TxDeposit {
+        source_hash: B256::ZERO,
+        from: Address::with_last_byte(1),
+        to: TxKind::Call(L1_BLOCK_CONTRACT),
+        mint: 0,
+        value: U256::ZERO,
+        gas_limit: 50_000,
+        is_system_transaction: false,
+        input: Bytes::new(),
+    };
+    Recovered::new_unchecked(
+        OpTxEnvelope::Deposit(Sealed::new_unchecked(deposit, B256::ZERO)),
+        Address::with_last_byte(1),
+    )
+}
+
+const KARST_TIMESTAMP: u64 = JOVIAN_TIMESTAMP + 1_000;
+
+/// Builds a chain scheduling every fork at or after Jovian at a distinct, increasing timestamp,
+/// returned alongside the `(fork, activation_timestamp)` schedule.
+///
+/// Driven by [`OpHardfork::forks_from`], so a future hardfork variant is scheduled — and, via the
+/// rejection test's loop over the returned schedule, exercised — automatically. `KARST_TIMESTAMP`
+/// (`JOVIAN_TIMESTAMP + 1_000`) is the schedule's second entry, used by the single-fork tests.
+///
+/// `OpChainHardforks` indexes by `OpHardfork::idx()`, so the fork list must hold exactly one entry
+/// per fork in canonical order. We keep `op_mainnet()`'s pre-Jovian forks and schedule everything
+/// from Jovian onward ourselves.
+fn no_user_tx_activation_hardforks() -> (OpChainHardforks, Vec<(OpHardfork, u64)>) {
+    let mut forks: Vec<(OpHardfork, ForkCondition)> = OpHardfork::op_mainnet()
+        .into_iter()
+        .filter(|(fork, _)| fork.idx() < OpHardfork::Jovian.idx())
+        .collect();
+    let mut schedule = Vec::new();
+    for (i, fork) in OpHardfork::Jovian.forks_from().enumerate() {
+        let timestamp = JOVIAN_TIMESTAMP + i as u64 * 1_000;
+        forks.push((fork, ForkCondition::Timestamp(timestamp)));
+        schedule.push((fork, timestamp));
+    }
+    (OpChainHardforks::new(forks), schedule)
+}
+
+#[test]
+fn test_no_user_tx_activation_block_rejects_user_tx() {
+    // Loops over every fork >= Jovian. Forwards-compatible: adding a hardfork variant schedules
+    // and exercises it here automatically, without editing this test.
+    let (hardforks, schedule) = no_user_tx_activation_hardforks();
+    for (fork, fork_timestamp) in schedule {
+        let mut db = prepare_jovian_db(0);
+        let receipt_builder = OpAlloyReceiptBuilder::default();
+        let mut executor = build_executor(
+            &mut db,
+            &receipt_builder,
+            &hardforks,
+            DEFAULT_GAS_LIMIT,
+            fork_timestamp,
+            Some(fork_timestamp - 1),
+        );
+        assert!(
+            executor.ctx.no_user_tx_activation_block,
+            "{fork:?} activation block should be flagged"
+        );
+
+        let user_tx = recovered_legacy(TxLegacy { gas_limit: 21_000, ..Default::default() });
+        let err = executor
+            .execute_transaction(&user_tx)
+            .expect_err("user tx must be rejected on a fork-activation block");
+        match err {
+            BlockExecutionError::Validation(BlockValidationError::Other(inner)) => assert!(
+                matches!(
+                    inner.downcast_ref::<OpBlockExecutionError>(),
+                    Some(OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock)
+                ),
+                "expected UnexpectedNonDepositTxInForkActivationBlock for {fork:?}, got {inner}"
+            ),
+            other => panic!("expected a validation error for {fork:?}, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn test_fork_activation_block_accepts_deposits_only() {
+    let mut db = prepare_jovian_db(0);
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let (hardforks, _) = no_user_tx_activation_hardforks();
+    let mut executor = build_executor(
+        &mut db,
+        &receipt_builder,
+        &hardforks,
+        DEFAULT_GAS_LIMIT,
+        KARST_TIMESTAMP,
+        Some(KARST_TIMESTAMP - 1),
+    );
+    assert!(executor.ctx.no_user_tx_activation_block);
+
+    // Deposits (L1-attributes + network-upgrade automatic deposits) are accepted.
+    executor
+        .execute_transaction(&recovered_deposit())
+        .expect("deposit executes on activation block");
+
+    let (_, result) = executor.finish().expect("activation block finishes");
+    // With no user transactions the DA footprint stays at zero.
+    assert_eq!(result.blob_gas_used, 0);
+}
+
+#[test]
+fn test_normal_post_activation_block_accepts_user_tx() {
+    // Parent already in Karst -> this is NOT an activation block, so user txs are allowed.
+    let mut db = prepare_jovian_db(DEFAULT_DA_FOOTPRINT_GAS_SCALAR);
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let (hardforks, _) = no_user_tx_activation_hardforks();
+    let mut executor = build_executor(
+        &mut db,
+        &receipt_builder,
+        &hardforks,
+        DEFAULT_GAS_LIMIT,
+        KARST_TIMESTAMP + 2,
+        Some(KARST_TIMESTAMP + 1),
+    );
+    assert!(!executor.ctx.no_user_tx_activation_block);
+
+    let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
+    executor.execute_transaction(&user_tx).expect("user tx accepted on a normal Karst block");
+}
+
+#[test]
+fn test_non_activation_karst_block_not_rejected() {
+    // False-trigger guard: a Karst block whose parent is also in Karst is NOT an activation block.
+    let mut db = prepare_jovian_db(DEFAULT_DA_FOOTPRINT_GAS_SCALAR);
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let (hardforks, _) = no_user_tx_activation_hardforks();
+    let mut executor = build_executor(
+        &mut db,
+        &receipt_builder,
+        &hardforks,
+        DEFAULT_GAS_LIMIT,
+        KARST_TIMESTAMP + 100,
+        Some(KARST_TIMESTAMP + 50),
+    );
+    assert!(!executor.ctx.no_user_tx_activation_block);
+
+    let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
+    executor
+        .execute_transaction(&user_tx)
+        .expect("user tx accepted on a non-activation Karst block");
+}
+
+#[test]
+fn test_none_parent_timestamp_skips_check() {
+    // With no parent timestamp (op-reth import path), the guard is skipped even though the
+    // block/parent would otherwise make this the Karst activation block.
+    let mut db = prepare_jovian_db(0);
+    let receipt_builder = OpAlloyReceiptBuilder::default();
+    let (hardforks, _) = no_user_tx_activation_hardforks();
+    let mut executor = build_executor(
+        &mut db,
+        &receipt_builder,
+        &hardforks,
+        DEFAULT_GAS_LIMIT,
+        KARST_TIMESTAMP,
+        None,
+    );
+    assert!(!executor.ctx.no_user_tx_activation_block);
+
+    let user_tx = recovered_legacy(TxLegacy { gas_limit: DEFAULT_GAS_LIMIT, ..Default::default() });
+    executor
+        .execute_transaction(&user_tx)
+        .expect("check skipped when the parent timestamp is unavailable");
+}
+
 mod sdm {
     use super::*;
     use alloy_consensus::Sealable;
@@ -286,12 +562,34 @@ mod sdm {
     }
 
     fn legacy_tx(nonce: u64, to: Address) -> Recovered<OpTxEnvelope> {
+        legacy_tx_with_gas(nonce, to, 50_000)
+    }
+
+    fn legacy_tx_with_gas(nonce: u64, to: Address, gas_limit: u64) -> Recovered<OpTxEnvelope> {
         recovered_legacy(TxLegacy {
             nonce,
-            gas_limit: 50_000,
+            gas_limit,
             to: alloy_primitives::TxKind::Call(to),
             ..Default::default()
         })
+    }
+
+    fn full_refund_for_second_tx(
+        block_gas_limit: u64,
+        tx0: &Recovered<OpTxEnvelope>,
+        tx1: &Recovered<OpTxEnvelope>,
+    ) -> Vec<SDMGasEntry> {
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            block_gas_limit,
+            JOVIAN_TIMESTAMP,
+        );
+        let mut probe = fixture.executor();
+        probe.execute_transaction(tx0).expect("probe first tx");
+        let tx1_evm_gas_used =
+            probe.execute_transaction(tx1).expect("probe second tx").tx_gas_used();
+
+        vec![SDMGasEntry { index: 1, gas_refund: tx1_evm_gas_used }]
     }
 
     fn assert_invalid_post_exec(err: BlockExecutionError, expected_reason: &str) {
@@ -340,7 +638,7 @@ mod sdm {
         assert_eq!(account.info.balance, U256::from(15));
         // original_info mirrors current info here — State::commit computes the
         // true previous value from its own cache, so the bundle stays correct.
-        assert_eq!(account.original_info.balance, U256::from(15));
+        assert_eq!(account.original_info().balance, U256::from(15));
 
         account.info.balance = account.info.balance.saturating_sub(U256::from(3));
         revm::DatabaseCommit::commit(&mut db, state);
@@ -400,6 +698,97 @@ mod sdm {
         assert_eq!(verified.blob_gas_used, produced.blob_gas_used);
         assert_eq!(verified.receipts, produced.receipts);
         assert_eq!(verified.receipts.len(), user_txs.len() + 1);
+    }
+
+    // Demonstrates the accounting the pre-refund cap relies on: under SDM refunds, canonical
+    // `gas_used` falls below `evm_gas_used`, so capping on `evm_gas_used` (not `gas_used`) keeps
+    // tracking the real compute performed.
+    #[test]
+    fn test_evm_gas_used_tracks_pre_refund_gas_under_sdm() {
+        let target = Address::from([0x11; 20]);
+        let user_txs = vec![legacy_tx(0, target), legacy_tx(1, target)];
+
+        let mut fixture = SDMExecutorFixture::default();
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+        for tx in &user_txs {
+            producer.execute_transaction(tx).expect("producer executes user tx");
+        }
+
+        // The second tx reuses block-warmed addresses and earns an SDM refund, so canonical gas is
+        // strictly less than the pre-refund EVM gas spent.
+        assert!(!producer.post_exec_entries().is_empty(), "expected an SDM refund to be produced");
+        assert!(
+            producer.evm_gas_used > producer.gas_used,
+            "pre-refund evm_gas_used ({}) must exceed canonical gas_used ({}) once refunds apply",
+            producer.evm_gas_used,
+            producer.gas_used,
+        );
+        // The gap is exactly the total refund.
+        let total_refund: u64 = producer.post_exec_entries().iter().map(|e| e.gas_refund).sum();
+        assert_eq!(producer.evm_gas_used - producer.gas_used, total_refund);
+    }
+
+    #[test]
+    fn test_verifier_rejects_malicious_payload_whose_refunds_hide_pre_refund_overuse() {
+        const BLOCK_GAS_LIMIT: u64 = 100_000;
+        let target = Address::from([0x11; 20]);
+        let tx0 = legacy_tx(0, target);
+        let tx1 = legacy_tx(1, target);
+
+        // Refund the second tx completely. The verifier accepts refund == evm_gas_used but must not
+        // let that canonical-gas discount buy extra real compute later in the block.
+        let entries = full_refund_for_second_tx(BLOCK_GAS_LIMIT, &tx0, &tx1);
+
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        let mut verifier = fixture.verifier(0, entries);
+        verifier.execute_transaction(&tx0).expect("first tx fits");
+        verifier.execute_transaction(&tx1).expect("second tx is fully refunded canonically");
+
+        let evm_gas_available = BLOCK_GAS_LIMIT - verifier.evm_gas_used;
+        let canonical_gas_available = BLOCK_GAS_LIMIT - verifier.gas_used;
+        assert!(evm_gas_available < canonical_gas_available);
+
+        let tx2_gas_limit = evm_gas_available + 1;
+        assert!(
+            tx2_gas_limit <= canonical_gas_available,
+            "malicious tx should fit canonical gas but exceed pre-refund gas"
+        );
+        let tx2 = legacy_tx_with_gas(2, target, tx2_gas_limit);
+
+        let err = verifier
+            .execute_transaction(&tx2)
+            .expect_err("verifier must reject pre-refund gas overuse even if refunds hide it");
+        assert_gas_limit_exceeded(err, tx2_gas_limit, evm_gas_available);
+    }
+
+    #[test]
+    fn test_verifier_accepts_payload_when_pre_refund_stays_below_limit() {
+        const BLOCK_GAS_LIMIT: u64 = 100_000;
+        let target = Address::from([0x11; 20]);
+        let tx0 = legacy_tx(0, target);
+        let tx1 = legacy_tx(1, target);
+        let entries = full_refund_for_second_tx(BLOCK_GAS_LIMIT, &tx0, &tx1);
+
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        let mut verifier = fixture.verifier(0, entries.clone());
+        verifier.execute_transaction(&tx0).expect("first tx fits");
+        verifier.execute_transaction(&tx1).expect("second tx is fully refunded canonically");
+
+        let tx2 = legacy_tx_with_gas(2, target, BLOCK_GAS_LIMIT - verifier.evm_gas_used);
+        verifier
+            .execute_transaction(&tx2)
+            .expect("tx declared within the remaining pre-refund budget is accepted");
+        let post_exec_recovered = recovered_post_exec(0, entries);
+        verifier.execute_transaction(&post_exec_recovered).expect("post-exec tx verifies");
+        verifier.finish().expect("verifier finishes accepted boundary block");
     }
 
     #[test]

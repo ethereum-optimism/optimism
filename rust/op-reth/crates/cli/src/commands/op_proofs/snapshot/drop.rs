@@ -2,15 +2,15 @@
 
 use clap::Parser;
 use reth_cli::chainspec::ChainSpecParser;
-use reth_cli_commands::common::{AccessRights, CliNodeTypes, EnvironmentArgs};
+use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_node::args::ProofsStorageVersion;
+use reth_optimism_node::args::{ProofsHistoryStorageArgs, ProofsStorageVersion};
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
     OpProofsBackfillProvider, OpProofsBackfillStore, db::MdbxProofsStorageV2,
 };
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 use tracing::info;
 
 /// Wipes the snapshot tables and meta row, returning status to `NotStarted`.
@@ -19,21 +19,9 @@ pub struct SnapshotDropCommand<C: ChainSpecParser> {
     #[command(flatten)]
     env: EnvironmentArgs<C>,
 
-    /// The path to the storage DB for proofs history.
-    #[arg(
-        long = "proofs-history.storage-path",
-        value_name = "PROOFS_HISTORY_STORAGE_PATH",
-        required = true
-    )]
-    pub storage_path: PathBuf,
-
-    /// Storage schema version. Snapshot is only supported on v2.
-    #[arg(
-        long = "proofs-history.storage-version",
-        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
-        default_value = "v1"
-    )]
-    pub storage_version: ProofsStorageVersion,
+    /// Shared proofs-history storage flags (storage path + version).
+    #[command(flatten)]
+    pub history: ProofsHistoryStorageArgs,
 }
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> SnapshotDropCommand<C> {
@@ -43,19 +31,20 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> SnapshotDropCommand<C> {
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
         info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
-        info!(target: "reth::cli", "Dropping OP proofs snapshot at: {:?}", self.storage_path);
 
         // Initialize the reth environment for arg consistency with sibling
         // op-proofs commands; drop only touches the proofs storage itself.
-        let _ = self.env.init::<N>(AccessRights::RO, runtime)?;
+        let Environment { data_dir, .. } = self.env.init::<N>(AccessRights::RO, runtime)?;
+        let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
+        info!(target: "reth::cli", "Dropping OP proofs snapshot at: {:?}", storage_path);
 
-        match self.storage_version {
+        match self.history.storage_version {
             ProofsStorageVersion::V1 => Err(eyre::eyre!(
                 "Snapshot is not supported for V1 proofs storage. \
                  Re-run with --proofs-history.storage-version v2."
             )),
             ProofsStorageVersion::V2 => {
-                let storage = MdbxProofsStorageV2::new(&self.storage_path)
+                let storage = MdbxProofsStorageV2::new(&storage_path)
                     .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorageV2: {e}"))?;
 
                 let sp = storage.backfill_provider()?;

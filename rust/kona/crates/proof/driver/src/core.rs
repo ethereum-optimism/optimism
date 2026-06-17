@@ -73,7 +73,7 @@ where
     /// This cache contains the [`BlockBuildingOutcome`] and raw transaction data
     /// from the last successfully executed block. It's used for efficiency and
     /// debugging purposes. `None` when no block has been executed yet.
-    pub safe_head_artifacts: Option<(BlockBuildingOutcome, Vec<Bytes>)>,
+    pub safe_head_artifacts: Option<(BlockBuildingOutcome<E::Receipt>, Vec<Bytes>)>,
 }
 
 impl<E, DP, P> Driver<E, DP, P>
