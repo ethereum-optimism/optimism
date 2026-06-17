@@ -22,8 +22,10 @@ use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_evm::{OpEvmConfig, PostExecMode};
 use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
 use reth_optimism_txpool::{
-    OpPooledTransaction, OpPooledTx, conditional::MaybeConditionalTransaction,
-    estimated_da_size::DataAvailabilitySized, interop::MaybeInteropTransaction,
+    OpPooledTransaction, OpPooledTx,
+    conditional::MaybeConditionalTransaction,
+    estimated_da_size::DataAvailabilitySized,
+    interop::{InteropFailsafe, MaybeInteropTransaction},
     interop_filter::CROSS_L2_INBOX_ADDRESS,
 };
 use reth_payload_builder_primitives::PayloadBuilderError;
@@ -645,7 +647,9 @@ fn miner_fee_uses_pool_wrapper_tip() {
 
 /// With the failsafe active the builder excludes interop txs but keeps normal txs; with it off the
 /// same interop tx is included — proving the gate is flag-driven, not a blanket exclusion, and does
-/// not depend on the pool's interop-deadline marker.
+/// not depend on the pool's interop-deadline marker. Clearing the flag and rebuilding includes the
+/// interop tx again, proving the exclusion is a per-build decision and the `mark_invalid` it
+/// triggers does not stick across builds.
 #[test]
 fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
     let signer = Address::repeat_byte(0x11);
@@ -657,21 +661,32 @@ fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
     let gas_limit = 1_000_000;
     let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().regolith_activated().build());
 
-    // Failsafe off: both the normal and the interop tx are included.
-    let ctx = payload_builder_ctx(chain_spec.clone(), gas_limit);
-    let (_info, included) = run_execute_best_transactions_with_ctx(
-        ctx,
-        signer,
-        vec![normal.clone(), interop.clone()],
-        None,
-        None,
-    );
-    assert_eq!(included, vec![normal_hash, interop_hash]);
+    // One shared handle drives every build, mirroring the single failsafe threaded through node
+    // setup; toggling it is what flips the gate, not building a fresh config each time.
+    let failsafe = InteropFailsafe::default();
+    let build = |failsafe: &InteropFailsafe| {
+        let mut ctx = payload_builder_ctx(chain_spec.clone(), gas_limit);
+        ctx.builder_config.interop_failsafe = failsafe.clone();
+        let (_info, included) = run_execute_best_transactions_with_ctx(
+            ctx,
+            signer,
+            vec![normal.clone(), interop.clone()],
+            None,
+            None,
+        );
+        included
+    };
 
-    // Failsafe on: the interop tx is excluded, the normal tx is still included.
-    let ctx = payload_builder_ctx(chain_spec, gas_limit);
-    ctx.builder_config.interop_failsafe.set(true);
-    let (_info, included) =
-        run_execute_best_transactions_with_ctx(ctx, signer, vec![normal, interop], None, None);
-    assert_eq!(included, vec![normal_hash]);
+    // Failsafe off: both the normal and the interop tx are included.
+    failsafe.set(false);
+    assert_eq!(build(&failsafe), vec![normal_hash, interop_hash]);
+
+    // Failsafe on: the interop tx is excluded (marked invalid), the normal tx is still included.
+    failsafe.set(true);
+    assert_eq!(build(&failsafe), vec![normal_hash]);
+
+    // Failsafe cleared again: the same interop tx is included once more, confirming the previous
+    // build's `mark_invalid` did not permanently exclude it.
+    failsafe.set(false);
+    assert_eq!(build(&failsafe), vec![normal_hash, interop_hash]);
 }
