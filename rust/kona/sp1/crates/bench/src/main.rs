@@ -9,7 +9,7 @@ use kona_sp1_host_utils::{
     witness_generation::traits::WitnessGenerator,
 };
 use kona_sp1_proof_utils::{get_range_elf, initialize_host};
-use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient};
+use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, ProvingKey};
 use url::Url;
 
 const REQUIRED_RPC_ENV: [&str; 3] = ["L1_RPC", "L2_RPC", "L2_NODE_RPC"];
@@ -98,6 +98,11 @@ async fn main() -> anyhow::Result<()> {
             .await
             .context("failed to produce compressed CPU proof")?;
         tracing::info!("local CPU prove wall-clock: {:?}", prove_start.elapsed());
+        let verify_start = Instant::now();
+        prover
+            .verify(&proof, proving_key.verifying_key(), None)
+            .context("compressed range proof failed local verification")?;
+        tracing::info!("local verify: {:?}", verify_start.elapsed());
         if let Some(path) = &args.save_proof {
             proof.save(path).context("failed to save compressed range proof")?;
             tracing::info!("saved compressed range proof to {}", path.display());

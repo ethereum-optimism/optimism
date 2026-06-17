@@ -31,3 +31,12 @@ range-bench *ARGS:
 # Usage: just agg-bench --proofs a.bin,b.bin [--prove]
 agg-bench *ARGS:
     cargo run --release -p kona-sp1-range-bench --bin agg-bench -- {{ARGS}}
+
+# Benchmark local CPU PLONK compression of the final aggregation proof.
+# Always proves. Generate compressed range proofs first, e.g.:
+#   just range-bench --start A --end B --prove --save-proof a.bin
+#   just range-bench --start B --end C --prove --save-proof b.bin
+# Usage: just plonk-prove-bench --proofs a.bin,b.bin [--save-proof agg.plonk.bin]
+# Requires Docker running for the gnark wrap and outbound network on first run for artifacts.
+plonk-prove-bench *ARGS:
+    cargo run --release -p kona-sp1-range-bench --bin plonk-prove-bench -- {{ARGS}}

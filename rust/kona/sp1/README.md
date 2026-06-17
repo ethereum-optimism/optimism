@@ -98,9 +98,25 @@ just agg-bench --proofs /tmp/r1.bin,/tmp/r2.bin
 `agg-bench` expects compressed range proofs in ascending chain order. The ranges
 must be consecutive, because the aggregation program asserts each proof's post
 root is the next proof's pre root. Pass `--prove` to produce the compressed
-recursion aggregation proof; PLONK/Groth16 wrapping is a later benchmark. The
-execute cycle report excludes recursive proof verification, which appears in the
-`--prove` wall-clock time.
+recursion aggregation proof. The execute cycle report excludes recursive proof
+verification, which appears in the `--prove` wall-clock time.
+
+Produce the final PLONK aggregation proof locally with:
+
+```bash
+just plonk-prove-bench --proofs /tmp/r1.bin,/tmp/r2.bin --save-proof /tmp/agg.plonk.bin
+```
+
+`plonk-prove-bench` consumes the same consecutive compressed range proofs as
+`agg-bench`, always proves, verifies the PLONK proof in-process, and reports the
+prove wall-clock, local verify time, and on-chain calldata size. SP1 runs the full
+pipeline for PLONK (core -> compress -> shrink -> wrap -> gnark), so estimate the
+PLONK wrapping cost as the delta between `plonk-prove-bench` and
+`agg-bench --prove` on the same inputs. Local CPU PLONK requires Docker for the
+gnark container (`SP1_GNARK_IMAGE` overrides the default image) and outbound
+network on first run to download circuit artifacts to `~/.sp1`
+(`SP1_PLONK_CIRCUIT_PATH` overrides the cache path). Groth16 is not benchmarked
+here.
 
 The committed ELF files are placeholders, so real `range-elf` and
 `aggregation-elf` artifacts must be generated with `just build-elfs` before

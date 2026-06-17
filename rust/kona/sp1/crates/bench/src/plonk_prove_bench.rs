@@ -1,4 +1,4 @@
-//! Local aggregation-program benchmark entrypoint for kona-sp1.
+//! Local PLONK aggregation-proof benchmark entrypoint for kona-sp1.
 
 use std::{env, path::PathBuf, time::Instant};
 
@@ -16,15 +16,15 @@ const REQUIRED_RPC_ENV: [&str; 3] = ["L1_RPC", "L2_RPC", "L2_NODE_RPC"];
 const OPTIONAL_RPC_ENV: [&str; 1] = ["L1_BEACON_RPC"];
 
 #[derive(Debug, Parser)]
-#[command(about = "Aggregate saved kona-sp1 compressed range proofs")]
+#[command(about = "Produce and verify a local PLONK aggregation proof")]
 struct Args {
     /// Saved compressed range proofs, comma-separated, in ascending chain order.
     #[arg(long, value_delimiter = ',')]
     proofs: Vec<PathBuf>,
 
-    /// Also produce a local compressed CPU aggregation proof after the execute-only stats pass.
-    #[arg(long, default_value_t = false)]
-    prove: bool,
+    /// Persist the verified PLONK aggregation proof to this path.
+    #[arg(long)]
+    save_proof: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -104,19 +104,39 @@ async fn main() -> anyhow::Result<()> {
         execute_start.elapsed()
     );
 
-    if args.prove {
-        let prove_start = Instant::now();
-        let proof = prover
-            .prove(&agg_proving_key, stdin)
-            .compressed()
-            .await
-            .context("failed to produce compressed CPU aggregation proof")?;
-        tracing::info!("aggregation compressed prove wall-clock: {:?}", prove_start.elapsed());
-        let verify_start = Instant::now();
-        prover
-            .verify(&proof, agg_proving_key.verifying_key(), None)
-            .context("compressed aggregation proof failed local verification")?;
-        tracing::info!("local verify: {:?}", verify_start.elapsed());
+    tracing::warn!(
+        "PLONK proving runs the full aggregation pipeline (core -> compress -> shrink -> wrap -> \
+         gnark) on CPU and requires Docker for the gnark wrap. The first run may download PLONK \
+         circuit artifacts to ~/.sp1."
+    );
+
+    let prove_start = Instant::now();
+    let proof = prover
+        .prove(&agg_proving_key, stdin)
+        .plonk()
+        .await
+        .context("failed to produce PLONK aggregation proof (is Docker running?)")?;
+    let prove_elapsed = prove_start.elapsed();
+
+    let verify_start = Instant::now();
+    prover
+        .verify(&proof, agg_proving_key.verifying_key(), None)
+        .context("PLONK aggregation proof failed local verification")?;
+    let verify_elapsed = verify_start.elapsed();
+
+    let calldata_size = proof.bytes().len();
+    tracing::info!(
+        "PLONK aggregation prove wall-clock: {:?}; local verify: {:?}; on-chain calldata: {} bytes",
+        prove_elapsed,
+        verify_elapsed,
+        calldata_size
+    );
+
+    if let Some(path) = &args.save_proof {
+        proof
+            .save(path)
+            .with_context(|| format!("failed to save PLONK proof to {}", path.display()))?;
+        tracing::info!("saved PLONK aggregation proof to {}", path.display());
     }
 
     Ok(())
