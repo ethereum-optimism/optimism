@@ -69,7 +69,7 @@ impl OPSuccinctHost for SingleChainOPSuccinctHost {
         // For Ethereum DA, use a simple approach with minimal offset.
         let (_, l1_head_number) = fetcher.get_l1_head(l2_end_block, safe_db_fallback).await?;
 
-        // TODO(kona-sp1): Investigate requirement for L1 head offset beyond batch posting block
+        // TODO(#18503): Investigate requirement for L1 head offset beyond batch posting block
         // with safe head > L2 end block.
         // Add a small buffer for Ethereum DA.
         let l1_head_number = l1_head_number + 20;

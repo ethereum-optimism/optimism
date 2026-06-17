@@ -46,7 +46,7 @@ files to exist for `include_bytes!`.
 
 ## CI TODOs
 
-TODO(kona-sp1 port from op-rs/kona#3051): the monorepo's CircleCI runs the
+TODO(#21418): the monorepo's CircleCI runs the
 workspace-wide build, clippy, tests, cargo-hack, udeps, docs, typos, and zepter
 gates over the SP1 crates now that they are workspace members. The following
 standalone-kona GitHub workflow behavior is not yet reproduced:
