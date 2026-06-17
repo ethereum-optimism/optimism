@@ -21,6 +21,13 @@ build-agg-elf:
     ~/.sp1/bin/cargo-prove prove build --elf-name aggregation-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
 
 # Run the local range-program benchmark. Build the ELF first with `just build-elfs`.
-# Usage: just bench --start <N> --end <M> [--prove]
-bench *ARGS:
-    cargo run --release -p kona-sp1-range-bench -- {{ARGS}}
+# Usage: just range-bench --start <N> --end <M> [--prove] [--save-proof <PATH>]
+range-bench *ARGS:
+    cargo run --release -p kona-sp1-range-bench --bin range-bench -- {{ARGS}}
+
+# Aggregate saved compressed range proofs. Generate them first with:
+#   just range-bench --start A --end B --prove --save-proof a.bin
+#   just range-bench --start B --end C --prove --save-proof b.bin
+# Usage: just agg-bench --proofs a.bin,b.bin [--prove]
+agg-bench *ARGS:
+    cargo run --release -p kona-sp1-range-bench --bin agg-bench -- {{ARGS}}

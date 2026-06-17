@@ -9,13 +9,20 @@ edition.workspace = true
 name = "range-bench"
 path = "src/main.rs"
 
+[[bin]]
+name = "agg-bench"
+path = "src/agg_bench.rs"
+
 [dependencies]
 sp1-sdk.workspace = true
 
+kona-sp1-client-utils.workspace = true
 kona-sp1-proof-utils.workspace = true
 kona-sp1-host-utils.workspace = true
 
 anyhow.workspace = true
+alloy-primitives.workspace = true
+alloy-sol-types.workspace = true
 tracing.workspace = true
 clap = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

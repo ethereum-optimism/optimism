@@ -79,14 +79,32 @@ export L2_NODE_RPC=<op-node-rpc-url>
 export L1_BEACON_RPC=<l1-beacon-rpc-url>
 
 just build-elfs
-just bench --start <l2-start-block> --end <l2-end-block>
+just range-bench --start <l2-start-block> --end <l2-end-block>
 ```
 
-By default, `just bench` executes the guest and prints cycle/SP1-gas statistics.
-Pass `--prove` to additionally produce a local compressed CPU proof and report
-the proving wall-clock time. The committed ELF files are placeholders, so a real
-`range-elf` must be generated with `just build-elfs` before running the
-benchmark.
+By default, `just range-bench` executes the guest and prints cycle/SP1-gas
+statistics. Pass `--prove` to additionally produce a local compressed CPU proof
+and report the proving wall-clock time. Pass `--save-proof <path>` with
+`--prove` to persist the compressed range proof for aggregation.
+
+Aggregate consecutive saved range proofs with:
+
+```bash
+just range-bench --start <a> --end <b> --prove --save-proof /tmp/r1.bin
+just range-bench --start <b> --end <c> --prove --save-proof /tmp/r2.bin
+just agg-bench --proofs /tmp/r1.bin,/tmp/r2.bin
+```
+
+`agg-bench` expects compressed range proofs in ascending chain order. The ranges
+must be consecutive, because the aggregation program asserts each proof's post
+root is the next proof's pre root. Pass `--prove` to produce the compressed
+recursion aggregation proof; PLONK/Groth16 wrapping is a later benchmark. The
+execute cycle report excludes recursive proof verification, which appears in the
+`--prove` wall-clock time.
+
+The committed ELF files are placeholders, so real `range-elf` and
+`aggregation-elf` artifacts must be generated with `just build-elfs` before
+running the benchmarks.
 
 The benchmark crate is a native host tool. It is intentionally outside the
 zkVM/no-std and WASM target allowlists.

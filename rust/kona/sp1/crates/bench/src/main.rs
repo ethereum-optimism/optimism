@@ -1,6 +1,6 @@
 //! Local range-program benchmark entrypoint for kona-sp1.
 
-use std::{env, sync::Arc, time::Instant};
+use std::{env, path::PathBuf, sync::Arc, time::Instant};
 
 use anyhow::Context;
 use clap::Parser;
@@ -29,6 +29,10 @@ struct Args {
     /// Also produce a local compressed CPU proof after the execute-only stats pass.
     #[arg(long, default_value_t = false)]
     prove: bool,
+
+    /// Persist the compressed range proof to this path.
+    #[arg(long, requires = "prove")]
+    save_proof: Option<PathBuf>,
 
     /// Allow timestamp-based L1-head fallback when `SafeDB` is unavailable.
     #[arg(long, default_value_t = false)]
@@ -88,12 +92,16 @@ async fn main() -> anyhow::Result<()> {
         let proving_key =
             prover.setup(Elf::Static(elf)).await.context("failed to set up proving key")?;
         let prove_start = Instant::now();
-        let _proof = prover
+        let proof = prover
             .prove(&proving_key, stdin)
             .compressed()
             .await
             .context("failed to produce compressed CPU proof")?;
         tracing::info!("local CPU prove wall-clock: {:?}", prove_start.elapsed());
+        if let Some(path) = &args.save_proof {
+            proof.save(path).context("failed to save compressed range proof")?;
+            tracing::info!("saved compressed range proof to {}", path.display());
+        }
     }
 
     Ok(())
@@ -223,5 +231,21 @@ mod tests {
             ("L1_BEACON_RPC", ""),
         ];
         validate_rpc_env_vars(|key| get_var(&values, key)).unwrap();
+    }
+
+    #[test]
+    fn save_proof_requires_prove() {
+        let err = Args::try_parse_from([
+            "range-bench",
+            "--start",
+            "1",
+            "--end",
+            "2",
+            "--save-proof",
+            "r.bin",
+        ])
+        .unwrap_err();
+
+        assert!(err.to_string().contains("--prove"));
     }
 }
