@@ -2451,12 +2451,6 @@ dependencies = [
 
 [[package]]
 name = "base64"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
-
-[[package]]
-name = "base64"
 version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
@@ -3406,7 +3400,7 @@ checksum = "958c5d6ecf1f214b4c2bbbbf6ab9523a864bd136dcf71a7e8904799acfe1ad47"
 dependencies = [
  "crossterm",
  "unicode-segmentation",
- "unicode-width 0.2.2",
+ "unicode-width",
 ]
 
 [[package]]
@@ -3470,15 +3464,9 @@ dependencies = [
  "encode_unicode",
  "libc",
  "once_cell",
- "unicode-width 0.2.2",
+ "unicode-width",
  "windows-sys 0.59.0",
 ]
-
-[[package]]
-name = "const-default"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b396d1f76d455557e1218ec8066ae14bba60b4b36ecd55577ba979f5db7ecaa"
 
 [[package]]
 name = "const-hex"
@@ -4543,7 +4531,6 @@ dependencies = [
  "ff",
  "generic-array 0.14.7",
  "group",
- "hkdf",
  "pem-rfc7468",
  "pkcs8",
  "rand_core 0.6.4",
@@ -4551,18 +4538,6 @@ dependencies = [
  "serdect",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "embedded-alloc"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f2de9133f68db0d4627ad69db767726c99ff8585272716708227008d3f1bddd"
-dependencies = [
- "const-default",
- "critical-section",
- "linked_list_allocator",
- "rlsf",
 ]
 
 [[package]]
@@ -6388,7 +6363,7 @@ dependencies = [
  "console",
  "number_prefix",
  "portable-atomic",
- "unicode-width 0.2.2",
+ "unicode-width",
  "web-time",
 ]
 
@@ -7723,20 +7698,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kona-sp1-aggregation"
-version = "0.0.1"
-dependencies = [
- "alloy-consensus 2.0.5",
- "alloy-primitives",
- "alloy-sol-types",
- "kona-sp1-client-utils",
- "serde_cbor",
- "sha2 0.10.9",
- "sp1-lib",
- "sp1-zkvm",
-]
-
-[[package]]
 name = "kona-sp1-build-utils"
 version = "0.0.1"
 dependencies = [
@@ -7875,20 +7836,6 @@ dependencies = [
  "kona-sp1-ethereum-host-utils",
  "kona-sp1-host-utils",
  "tracing",
-]
-
-[[package]]
-name = "kona-sp1-range"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "kona-proof",
- "kona-sp1-client-utils",
- "kona-sp1-ethereum-client-utils",
- "rkyv",
- "sp1-zkvm",
- "tracing",
- "tracing-subscriber 0.3.23",
 ]
 
 [[package]]
@@ -8497,12 +8444,6 @@ dependencies = [
  "linked-hash-map",
  "serde_core",
 ]
-
-[[package]]
-name = "linked_list_allocator"
-version = "0.10.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b23ac50abb8261cb38c6e2a7192d3302e0836dac1628f6a93b82b4fad185897"
 
 [[package]]
 name = "linux-raw-sys"
@@ -10114,7 +10055,7 @@ checksum = "6978128c8b51d8f4080631ceb2302ab51e32cc6e8615f735ee2f83fd269ae3f1"
 dependencies = [
  "bytecount",
  "fnv",
- "unicode-width 0.2.2",
+ "unicode-width",
 ]
 
 [[package]]
@@ -11080,7 +11021,7 @@ dependencies = [
  "thiserror 2.0.18",
  "unicode-segmentation",
  "unicode-truncate",
- "unicode-width 0.2.2",
+ "unicode-width",
 ]
 
 [[package]]
@@ -11111,7 +11052,7 @@ dependencies = [
  "strum",
  "time",
  "unicode-segmentation",
- "unicode-width 0.2.2",
+ "unicode-width",
 ]
 
 [[package]]
@@ -15070,19 +15011,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rlsf"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1646a59a9734b8b7a0ac51689388a60fe1625d4b956348e9de07591a1478457a"
-dependencies = [
- "cfg-if",
- "const-default",
- "libc",
- "rustversion",
- "svgbobdoc",
-]
-
-[[package]]
 name = "rmp"
 version = "0.8.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16883,7 +16811,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9281c105496b6b8d20b25f0be936242e5b747cc7711a68706ffbb3719d16145d"
 dependencies = [
  "bincode 1.3.3",
- "elliptic-curve",
  "serde",
  "sp1-primitives",
 ]
@@ -17211,26 +17138,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-zkvm"
-version = "6.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecd04e9c2b82cb6621116e7aebad425f98cc2f9c51b349265caec447f7041a37"
-dependencies = [
- "cfg-if",
- "critical-section",
- "embedded-alloc",
- "getrandom 0.2.17",
- "getrandom 0.3.4",
- "lazy_static",
- "libm",
- "rand 0.8.6",
- "sha2 0.10.9",
- "slop-algebra",
- "sp1-lib",
- "sp1-primitives",
-]
-
-[[package]]
 name = "sp1_bls12_381"
 version = "0.8.0-sp1-6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -17389,19 +17296,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
-name = "svgbobdoc"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2c04b93fc15d79b39c63218f15e3fdffaa4c227830686e3b7c5f41244eb3e50"
-dependencies = [
- "base64 0.13.1",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
- "unicode-width 0.1.14",
-]
-
-[[package]]
 name = "symlink"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -17541,7 +17435,7 @@ version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fce91f2f0ec87dff7e6bcbbeb267439aa1188703003c6055193c821487400432"
 dependencies = [
- "unicode-width 0.2.2",
+ "unicode-width",
 ]
 
 [[package]]
@@ -17642,7 +17536,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f8daae29995a24f65619e19d8d31dea5b389f3d853d8bf297bbf607cd0014cc"
 dependencies = [
- "unicode-width 0.2.2",
+ "unicode-width",
 ]
 
 [[package]]
@@ -18581,14 +18475,8 @@ checksum = "16b380a1238663e5f8a691f9039c73e1cdae598a30e9855f541d29b08b53e9a5"
 dependencies = [
  "itertools 0.14.0",
  "unicode-segmentation",
- "unicode-width 0.2.2",
+ "unicode-width",
 ]
-
-[[package]]
-name = "unicode-width"
-version = "0.1.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
 
 [[package]]
 name = "unicode-width"

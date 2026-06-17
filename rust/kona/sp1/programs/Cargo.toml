@@ -1,0 +1,52 @@
+[workspace]
+members = ["range", "aggregation"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.94"
+authors = ["Op Stack Contributors"]
+homepage = "https://github.com/ethereum-optimism/optimism"
+repository = "https://github.com/ethereum-optimism/optimism"
+
+# Keep this nested workspace intentionally lightweight; host-side SP1 crates
+# remain covered by the full monorepo lint set in rust/Cargo.toml.
+[workspace.lints.rust]
+unreachable_pub = "warn"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[workspace.dependencies]
+# Guest path dependencies. Paths are relative to rust/kona/sp1/programs.
+kona-proof = { path = "../../crates/proof/proof", version = "0.3.0", default-features = false }
+kona-sp1-client-utils = { path = "../crates/client" }
+kona-sp1-ethereum-client-utils = { path = "../crates/ethereum/client" }
+
+# Feature anchor only: revm's `bn` forwards to revm-precompile/bn so the guest
+# build uses the SP1-patched substrate-bn backend for bn128.
+revm = { version = "40.0.3", default-features = false, features = ["bn"] }
+
+alloy-primitives = { version = "1.6.0", default-features = false, features = [
+  "map-foldhash",
+] }
+alloy-sol-types = { version = "1.6.0", default-features = false }
+alloy-consensus = { version = "2.0.5", default-features = false }
+sp1-lib = { version = "6.2.4", features = ["verify"] }
+sp1-zkvm = { version = "6.2.4", features = ["verify"] }
+sha2 = { version = "0.10.9", default-features = false }
+rkyv = "0.8.15"
+serde_cbor = "0.11.2"
+tracing = { version = "0.1.44", default-features = false }
+tracing-subscriber = { version = "0.3.22", default-features = false }
+anyhow = { version = "1.0.101", default-features = false }
+
+[patch.crates-io]
+sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.10.9-sp1-6.2.0" }
+sha3 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", tag = "patch-sha3-0.11.0-sp1-6.0.0" }
+crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag = "patch-0.5.5-sp1-6.2.0" }
+k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-6.2.0" }
+p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.2.0" }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.2.0-substrate-bn" }

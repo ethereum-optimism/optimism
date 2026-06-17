@@ -56,7 +56,7 @@ build-sp1:
   cargo build -p kona-sp1-host-utils -p kona-sp1-client-utils \
     -p kona-sp1-ethereum-host-utils -p kona-sp1-ethereum-client-utils \
     -p kona-sp1-proof-utils -p kona-sp1-build-utils -p kona-sp1-elfs \
-    -p kona-sp1-range-bench -p kona-sp1-aggregation -p kona-sp1-range
+    -p kona-sp1-range-bench
 
 # Build kona-node
 build-kona-node:
