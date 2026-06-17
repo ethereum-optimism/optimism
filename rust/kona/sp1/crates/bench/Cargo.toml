@@ -32,6 +32,7 @@ kona-sp1-host-utils.workspace = true
 anyhow.workspace = true
 alloy-primitives.workspace = true
 alloy-sol-types.workspace = true
+bincode.workspace = true
 tracing.workspace = true
 clap = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

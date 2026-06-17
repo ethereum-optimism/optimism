@@ -7898,6 +7898,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "anyhow",
+ "bincode 2.0.1",
  "clap",
  "kona-sp1-client-utils",
  "kona-sp1-host-utils",

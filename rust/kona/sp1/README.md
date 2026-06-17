@@ -88,6 +88,25 @@ statistics. Pass `--prove` to additionally produce a compressed proof
 and report the proving wall-clock time. Pass `--save-proof <path>` with
 `--prove` to persist the compressed range proof for aggregation.
 
+The range benchmark can also split RPC witness generation from proving. On a
+machine with RPC access, save the generated SP1 stdin:
+
+```bash
+just range-bench --start <l2-start-block> --end <l2-end-block> --save-stdin /tmp/range.stdin
+```
+
+On another machine, load that stdin and prove it without any RPC environment
+variables or block-range flags:
+
+```bash
+just range-bench --load-stdin /tmp/range.stdin --prove --save-proof /tmp/range.bin
+```
+
+`--save-stdin` can be combined with `--prove`, and it can also re-save a stdin
+loaded with `--load-stdin`. When `--load-stdin` is used, per-block execution
+statistics are skipped because they require RPC; the bench still reports
+execution cycles and SP1 gas.
+
 Aggregate consecutive saved range proofs with:
 
 ```bash

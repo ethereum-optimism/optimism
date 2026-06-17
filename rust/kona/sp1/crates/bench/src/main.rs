@@ -1,6 +1,11 @@
 //! Local range-program benchmark entrypoint for kona-sp1.
 
-use std::{env, path::PathBuf, sync::Arc, time::Instant};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Instant,
+};
 
 use anyhow::Context;
 use clap::Parser;
@@ -9,22 +14,24 @@ use kona_sp1_host_utils::{
     witness_generation::traits::WitnessGenerator,
 };
 use kona_sp1_proof_utils::{get_range_elf, initialize_host};
-use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, ProvingKey};
+use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, ProvingKey, SP1Stdin};
 use url::Url;
 
 const REQUIRED_RPC_ENV: [&str; 3] = ["L1_RPC", "L2_RPC", "L2_NODE_RPC"];
 const OPTIONAL_RPC_ENV: [&str; 1] = ["L1_BEACON_RPC"];
 
 #[derive(Debug, Parser)]
-#[command(about = "Run the kona-sp1 range program against real RPC data")]
+#[command(about = "Run the kona-sp1 range program against real RPC data, or a prebuilt SP1 stdin")]
 struct Args {
-    /// Inclusive starting L2 block number. The block hash at this height is the pre-state.
-    #[arg(long)]
-    start: u64,
+    /// Inclusive starting L2 block number. The block hash at this height is the
+    /// pre-state. Required unless --load-stdin is set.
+    #[arg(long, required_unless_present = "load_stdin")]
+    start: Option<u64>,
 
     /// Inclusive ending L2 block number. This block is the claimed post-state.
-    #[arg(long)]
-    end: u64,
+    /// Required unless --load-stdin is set.
+    #[arg(long, required_unless_present = "load_stdin")]
+    end: Option<u64>,
 
     /// Also produce a compressed proof after the execute-only stats pass.
     #[arg(long, default_value_t = false)]
@@ -37,6 +44,15 @@ struct Args {
     /// Allow timestamp-based L1-head fallback when `SafeDB` is unavailable.
     #[arg(long, default_value_t = false)]
     safe_db_fallback: bool,
+
+    /// Save the obtained SP1 stdin to this path, then continue.
+    #[arg(long)]
+    save_stdin: Option<PathBuf>,
+
+    /// Load a prebuilt SP1 stdin from this path instead of fetching from RPC.
+    /// Needs no RPC env vars; --start and --end are not required.
+    #[arg(long)]
+    load_stdin: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -44,31 +60,45 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     setup_logger();
 
-    validate_block_range(args.start, args.end)?;
-
     let elf = get_range_elf();
     ensure_non_empty_elf(elf)?;
 
-    ensure_required_rpc_env()?;
+    let (stdin, stats_ctx) = if let Some(path) = &args.load_stdin {
+        let stdin = load_stdin(path)?;
+        tracing::info!("loaded SP1 stdin from {}", path.display());
+        (stdin, None)
+    } else {
+        let start = args.start.expect("--start is required unless --load-stdin is set");
+        let end = args.end.expect("--end is required unless --load-stdin is set");
+        validate_block_range(start, end)?;
+        ensure_required_rpc_env()?;
 
-    let fetcher = Arc::new(
-        OPSuccinctDataFetcher::new_with_rollup_config()
+        let fetcher = Arc::new(
+            OPSuccinctDataFetcher::new_with_rollup_config()
+                .await
+                .context("failed to initialize RPC data fetcher from environment")?,
+        );
+        let host = initialize_host(fetcher.clone());
+
+        let witness_start = Instant::now();
+        let host_args = host
+            .fetch(start, end, None, args.safe_db_fallback)
             .await
-            .context("failed to initialize RPC data fetcher from environment")?,
-    );
-    let host = initialize_host(fetcher.clone());
+            .context("failed to fetch host arguments")?;
+        let witness = host.run(&host_args).await.context("failed to generate witness data")?;
+        let stdin = host
+            .witness_generator()
+            .get_sp1_stdin(witness)
+            .context("failed to serialize witness into SP1 stdin")?;
+        let witness_secs = witness_start.elapsed().as_secs();
 
-    let witness_start = Instant::now();
-    let host_args = host
-        .fetch(args.start, args.end, None, args.safe_db_fallback)
-        .await
-        .context("failed to fetch host arguments")?;
-    let witness = host.run(&host_args).await.context("failed to generate witness data")?;
-    let stdin = host
-        .witness_generator()
-        .get_sp1_stdin(witness)
-        .context("failed to serialize witness into SP1 stdin")?;
-    let witness_secs = witness_start.elapsed().as_secs();
+        (stdin, Some((fetcher, start, end, witness_secs)))
+    };
+
+    if let Some(path) = &args.save_stdin {
+        save_stdin(&stdin, path)?;
+        tracing::info!("saved SP1 stdin to {}", path.display());
+    }
 
     // Backend selected by the SP1_PROVER env var (default: cpu).
     let prover = ProverClient::from_env().await;
@@ -82,12 +112,23 @@ async fn main() -> anyhow::Result<()> {
         .context("failed to execute range program")?;
     let execute_secs = execute_start.elapsed().as_secs();
 
-    let block_data = fetcher
-        .get_l2_block_data_range(args.start, args.end)
-        .await
-        .context("failed to fetch L2 block stats")?;
-    let stats = ExecutionStats::new(0, &block_data, &report, witness_secs, execute_secs);
-    println!("{stats}");
+    match stats_ctx {
+        Some((fetcher, start, end, witness_secs)) => {
+            let block_data = fetcher
+                .get_l2_block_data_range(start, end)
+                .await
+                .context("failed to fetch L2 block stats")?;
+            let stats = ExecutionStats::new(0, &block_data, &report, witness_secs, execute_secs);
+            println!("{stats}");
+        }
+        None => {
+            tracing::info!(
+                "execute: {} cycles, gas {:?}, {execute_secs}s (per-block stats skipped: --load-stdin has no RPC)",
+                report.total_instruction_count(),
+                report.gas(),
+            );
+        }
+    }
 
     if args.prove {
         let proving_key =
@@ -111,6 +152,23 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn save_stdin(stdin: &SP1Stdin, path: &Path) -> anyhow::Result<()> {
+    let bytes = bincode::serde::encode_to_vec(stdin, bincode::config::standard())
+        .context("failed to serialize SP1 stdin")?;
+    std::fs::write(path, bytes)
+        .with_context(|| format!("failed to write SP1 stdin to {}", path.display()))?;
+    Ok(())
+}
+
+fn load_stdin(path: &Path) -> anyhow::Result<SP1Stdin> {
+    let bytes = std::fs::read(path)
+        .with_context(|| format!("failed to read SP1 stdin from {}", path.display()))?;
+    let (stdin, _): (SP1Stdin, usize) =
+        bincode::serde::decode_from_slice(&bytes, bincode::config::standard())
+            .context("failed to deserialize SP1 stdin")?;
+    Ok(stdin)
 }
 
 fn ensure_required_rpc_env() -> anyhow::Result<()> {
@@ -253,5 +311,36 @@ mod tests {
         .unwrap_err();
 
         assert!(err.to_string().contains("--prove"));
+    }
+
+    #[test]
+    fn save_then_load_stdin_round_trips() {
+        let mut stdin = SP1Stdin::new();
+        stdin.write_slice(&[9, 8, 7, 6]);
+        let path = std::env::temp_dir()
+            .join(format!("kona-sp1-range-stdin-roundtrip-{}.bin", std::process::id()));
+
+        save_stdin(&stdin, &path).unwrap();
+        let loaded = load_stdin(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(loaded.buffer, stdin.buffer);
+        assert_eq!(loaded.ptr, stdin.ptr);
+        assert!(loaded.proofs.is_empty());
+    }
+
+    #[test]
+    fn load_stdin_missing_file_errors() {
+        let err = load_stdin(Path::new("/nonexistent/kona-sp1-missing.bin")).unwrap_err();
+        assert!(err.to_string().contains("failed to read SP1 stdin"));
+    }
+
+    #[test]
+    fn load_stdin_allows_missing_block_range() {
+        Args::try_parse_from(["range-bench", "--load-stdin", "s.bin"]).unwrap();
+
+        let err = Args::try_parse_from(["range-bench"]).unwrap_err();
+        let message = err.to_string();
+        assert!(message.contains("--start") || message.contains("start"));
     }
 }
