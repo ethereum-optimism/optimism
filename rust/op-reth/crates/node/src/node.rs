@@ -209,9 +209,8 @@ pub struct OpNode {
     /// Local operator opt-in for SDM `PostExec` production. Shared (via Arc clones) between the
     /// payload builder and the `admin_setSdmPostExecOptIn` RPC handler.
     pub sdm_post_exec_opt_in: SdmPostExecOptIn,
-    /// Interop failsafe gate. Shared (via clones) between the txpool's interop filter client,
-    /// which sets it, and the payload builder, which reads it to exclude interop txs while it
-    /// is active.
+    /// Interop failsafe gate, shared between the txpool's interop filter client (writer) and the
+    /// payload builder (reader, to exclude interop txs while it is active).
     pub interop_failsafe: InteropFailsafe,
 }
 
@@ -1092,8 +1091,7 @@ pub struct OpPoolBuilder<T = crate::txpool::OpPooledTransaction> {
     pub interop_min_responses: Option<usize>,
     /// Safety level for interop filter validation.
     pub interop_safety_level: SafetyLevel,
-    /// Shared interop failsafe gate. The interop filter client writes it; the payload builder
-    /// reads it. Threaded in so both observe the same live state.
+    /// Shared interop failsafe gate, passed to the interop filter client this builder constructs.
     pub interop_failsafe: InteropFailsafe,
     /// Marker for the pooled transaction type.
     _pd: core::marker::PhantomData<T>,
@@ -1158,8 +1156,7 @@ impl<T> OpPoolBuilder<T> {
         self
     }
 
-    /// Shares the interop failsafe gate with the pool builder, so the interop filter client it
-    /// constructs writes the same flag the payload builder reads.
+    /// Shares the interop failsafe gate, written by the interop filter client this builder builds.
     pub fn with_interop_failsafe(mut self, interop_failsafe: InteropFailsafe) -> Self {
         self.interop_failsafe = interop_failsafe;
         self
@@ -1324,8 +1321,7 @@ pub struct OpPayloadBuilder<Txs = ()> {
     pub gas_limit_config: OpGasLimitConfig,
     /// Operator opt-in flag for SDM `PostExec` production. Shared with the admin RPC.
     pub sdm_post_exec_opt_in: SdmPostExecOptIn,
-    /// Interop failsafe gate. Shared with the txpool interop filter client; read by the payload
-    /// builder to exclude interop txs from blocks while it is active.
+    /// Interop failsafe gate, read by the builder to exclude interop txs while it is active.
     pub interop_failsafe: InteropFailsafe,
     /// Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes.
     ///
@@ -1377,8 +1373,7 @@ impl OpPayloadBuilder {
         self
     }
 
-    /// Provide the shared interop failsafe gate, read by the builder to exclude interop txs while
-    /// the failsafe is active.
+    /// Provide the shared interop failsafe gate read by the builder.
     #[must_use]
     pub fn with_interop_failsafe(mut self, interop_failsafe: InteropFailsafe) -> Self {
         self.interop_failsafe = interop_failsafe;

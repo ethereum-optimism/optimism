@@ -265,8 +265,8 @@ impl InteropFilterClient {
         self.inner.failsafe.enabled()
     }
 
-    /// Returns a clone of the shared failsafe handle, so other components (e.g. the payload
-    /// builder) can read the same live state this client writes.
+    /// Returns a clone of the shared failsafe handle, so other components can read the state this
+    /// client writes.
     pub fn failsafe(&self) -> InteropFailsafe {
         self.inner.failsafe.clone()
     }
@@ -403,8 +403,7 @@ pub(crate) struct InteropFilterClientInner {
     /// Metrics for tracking interop RPC operations.
     metrics: InteropMetrics,
     /// Cached failsafe state (OR across endpoints), polled by the background failsafe task. Shared
-    /// (via [`InteropFailsafe`] clones) with the payload builder so it can gate block building on
-    /// the same live state.
+    /// with the payload builder so it gates block building on the same state.
     failsafe: InteropFailsafe,
     /// Reference instant for rate-limiting the degraded-quorum log.
     created_at: Instant,
@@ -447,8 +446,8 @@ impl InteropFilterClientBuilder {
         }
     }
 
-    /// Shares an externally-owned failsafe handle with the client, so other components (e.g. the
-    /// payload builder) read the same live state. Defaults to a freshly-created handle when unset.
+    /// Shares an externally-owned failsafe handle with the client. Defaults to a fresh handle when
+    /// unset.
     pub fn failsafe(mut self, failsafe: InteropFailsafe) -> Self {
         self.failsafe = Some(failsafe);
         self

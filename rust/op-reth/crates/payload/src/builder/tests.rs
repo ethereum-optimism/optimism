@@ -166,9 +166,9 @@ fn op_pooled_tx(nonce: u64, signer: Address, recipient: Address) -> OpPooledTran
     OpPooledTransaction::new(Recovered::new_unchecked(tx, signer), encoded_len)
 }
 
-/// Builds an interop pool tx: an EIP-1559 tx whose access list targets `CROSS_L2_INBOX_ADDRESS`
-/// with a storage key, matching the intrinsic detection used by `is_interop_tx`. The gas limit
-/// covers the access-list intrinsic cost so the tx executes when the failsafe is off.
+/// Builds an interop pool tx: a `CROSS_L2_INBOX_ADDRESS` access-list entry makes `is_interop_tx`
+/// match it; the gas limit covers the access-list intrinsic cost so it executes when failsafe is
+/// off.
 fn op_interop_pooled_tx(nonce: u64, signer: Address, recipient: Address) -> OpPooledTransaction {
     let tx: OpTransactionSigned = TxEip1559 {
         chain_id: 8453,
@@ -643,10 +643,9 @@ fn miner_fee_uses_pool_wrapper_tip() {
     assert_ne!(info.total_fees, natural_fees);
 }
 
-/// When the interop failsafe is active, the builder must exclude interop transactions (detected by
-/// their `CrossL2Inbox` access list) while still including normal transactions. With the failsafe
-/// off, the same interop tx is included — proving the gate is conditional on the flag rather than a
-/// blanket exclusion, and that it does not depend on the pool's interop-deadline marker.
+/// With the failsafe active the builder excludes interop txs but keeps normal txs; with it off the
+/// same interop tx is included — proving the gate is flag-driven, not a blanket exclusion, and does
+/// not depend on the pool's interop-deadline marker.
 #[test]
 fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
     let signer = Address::repeat_byte(0x11);

@@ -8,12 +8,9 @@ use std::sync::{
 
 use crate::interop_filter::CROSS_L2_INBOX_ADDRESS;
 
-/// Returns true if the transaction's access list targets `CROSS_L2_INBOX_ADDRESS`
-/// with at least one storage key.
-///
-/// Detection is intrinsic to the transaction (its access list) rather than the pool's
-/// interop-deadline marker, so it identifies interop transactions even when they never went
-/// through interop validation (e.g. private or locally-submitted transactions).
+/// Returns true if the transaction's access list targets `CROSS_L2_INBOX_ADDRESS` with at least
+/// one storage key. Detection is intrinsic to the tx, so it also catches interop txs that never
+/// went through interop validation (e.g. private or locally-submitted txs).
 pub fn is_interop_tx<T>(tx: &T) -> bool
 where
     T: Transaction,
@@ -26,13 +23,9 @@ where
         .unwrap_or(false)
 }
 
-/// Shareable interop failsafe gate.
-///
-/// `false` on construction. The interop filter client writes it (the background poll task and the
-/// admission fast-path), while the payload builder reads it. When enabled, no interop transaction
-/// may be admitted to the pool or sealed into a block. Cloning shares the underlying flag, so a
-/// single handle threaded through node setup keeps the filter (writer) and the builder (reader) in
-/// sync.
+/// Shareable interop failsafe gate. The interop filter client writes it; the payload builder reads
+/// it to exclude interop txs while it is enabled. Cloning shares the flag, so one handle keeps the
+/// writer and reader in sync.
 #[derive(Debug, Clone, Default)]
 pub struct InteropFailsafe {
     inner: Arc<AtomicBool>,

@@ -15,8 +15,8 @@ pub struct OpBuilderConfig {
     pub gas_limit_config: OpGasLimitConfig,
     /// Local SDM `PostExec` production opt-in. Shared with the admin RPC.
     pub sdm_post_exec_opt_in: SdmPostExecOptIn,
-    /// Interop failsafe gate. Shared with the interop filter client, which sets it; the payload
-    /// builder reads it and excludes interop transactions from blocks while it is enabled.
+    /// Interop failsafe gate. Set by the interop filter client; read by the builder to exclude
+    /// interop txs from blocks while it is enabled.
     pub interop_failsafe: InteropFailsafe,
     /// Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes.
     ///
