@@ -115,8 +115,7 @@ PLONK wrapping cost as the delta between `plonk-prove-bench` and
 `agg-bench --prove` on the same inputs. Local CPU PLONK requires Docker for the
 gnark container (`SP1_GNARK_IMAGE` overrides the default image) and outbound
 network on first run to download circuit artifacts to `~/.sp1`
-(`SP1_PLONK_CIRCUIT_PATH` overrides the cache path). Groth16 is not benchmarked
-here.
+(`SP1_PLONK_CIRCUIT_PATH` overrides the cache path).
 
 The committed ELF files are placeholders, so real `range-elf` and
 `aggregation-elf` artifacts must be generated with `just build-elfs` before
