@@ -31,13 +31,15 @@ help:
 [script('bash')]
 update-superchain-registry-submodule ref="":
   set -euo pipefail
-  # Ensure the submodule is initialized, but don't reset an existing checkout.
-  if [ ! -e superchain-registry/.git ]; then
-    git submodule update --init --depth 1 -- superchain-registry
-  fi
+  # Check out the submodule at the pinned (gitlink) commit, initializing it if
+  # absent and resetting a stale or dirty working tree (--force).
+  git submodule update --init --force --depth 1 -- superchain-registry
   if [ -n "{{ref}}" ]; then
+    # Move it to the requested ref and stage the new gitlink so the subsequent
+    # (no-ref) syncs treat that as the pinned commit instead of resetting it.
     git -C superchain-registry fetch --depth 1 origin "{{ref}}"
     git -C superchain-registry checkout --detach FETCH_HEAD
+    git add superchain-registry
   fi
 
 # Regenerates op-core/superchain/superchain-configs.zip (gitignored) from the
