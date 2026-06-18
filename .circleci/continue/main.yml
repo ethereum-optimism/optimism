@@ -320,14 +320,46 @@ commands:
         type: string
         default: "0.8.15,0.8.19,0.8.25,0.8.28"
     steps:
-      - install-solc-compilers
+      - install-solc-compilers:
+          solc_versions: <<parameters.solc_versions>>
+      - run:
+          name: Record submodule pins for cache key
+          # Read the gitlink commit SHAs straight from the committed tree. The
+          # cache must key on dependency *pins*, not .gitmodules (which only holds
+          # URLs/paths and would serve stale libs across a bump). ls-tree reads the
+          # tree, so no clone is needed to compute the key.
+          command: git ls-tree -r HEAD packages/contracts-bedrock/lib | awk '$2 == "commit" { print $3, $4 }' > .contracts-submodule-pins
+      - restore_cache:
+          keys:
+            - contracts-submodules-v1-{{ checksum ".contracts-submodule-pins" }}
+            # Fall back to any prior cache so a pin bump fetches only the delta
+            # instead of a full cold clone; --force below reconciles the worktree.
+            - contracts-submodules-v1-
       - run:
           name: Install dependencies
           command: |
             # Manually craft the submodule update command in order to take advantage
-            # of the -j parameter, which speeds it up a lot.
+            # of the -j parameter, which speeds it up a lot. --force reconciles a
+            # worktree restored from a partial (fallback-key) cache hit.
             git submodule update --init --recursive --single-branch --force -j 8
           working_directory: packages/contracts-bedrock
+      - run:
+          name: Verify submodules are clean before caching
+          # Never persist a half-updated tree under the exact pin key: bail if any
+          # submodule is still uninitialized (-), out of sync (+), or conflicted (U).
+          command: |
+            if git submodule status --recursive | grep -E '^[-+U]'; then
+              echo "Submodules are not clean; refusing to save cache."
+              exit 1
+            fi
+      - save_cache:
+          key: contracts-submodules-v1-{{ checksum ".contracts-submodule-pins" }}
+          paths:
+            # Submodule object stores (including nested) live under the repo-root
+            # .git/modules; the worktrees live under lib/. Cache both so the
+            # restored `git submodule update` is a near no-op, not a re-fetch.
+            - .git/modules
+            - packages/contracts-bedrock/lib
 
   # Notifies us on Slack a build fails on develop
   notify-failures-on-develop:
@@ -1028,7 +1060,11 @@ jobs:
           working_directory: packages/contracts-bedrock
       - check-changed:
           patterns: <<parameters.check_changed_patterns>>
-      - install-solc-compilers
+      # Install solc + submodules in their own (cached) step. Previously this job
+      # had no submodule step, so `forge test` cloned ~19 submodules lazily inside
+      # the "Run tests" step, where the clone shared that step's no_output_timeout
+      # and a quiet setup stall could reap the whole step before any test ran.
+      - install-contracts-dependencies
       - run:
           name: Print dependencies
           command: just dep-status
