@@ -352,6 +352,15 @@ const (
 	RejectHistoryUnavailable                  // safeDB front gap -> cc.ErrHistoryUnavailable (hard error)
 )
 
+// Plan describes one planted violation and how the harness should drive to it.
+// The harness drives valid rounds until next() == AssertTS, then asserts the
+// expected Reject for Chain.
+type Plan struct {
+	Chain    eth.ChainID
+	Reject   Rejection
+	AssertTS uint64
+}
+
 // execMsgBreakers are the ways to make one executing message fail verification.
 // The first three leave the message's timestamp intact, so they clear the ordering,
 // expiry, and activation gates and are rejected at the initiating-log lookup. The
@@ -444,9 +453,8 @@ func (m *RandomChainManager) BreakOneSafeDBFrontGap() (chainID eth.ChainID, ts u
 }
 
 // BreakOne plants one violation drawn across all classes with a reachable site,
-// returning the affected chain, the timestamp the verifier should reject at, the
-// expected rejection, and ok=false when no class has a reachable site.
-func (m *RandomChainManager) BreakOne() (chainID eth.ChainID, ts uint64, r Rejection, ok bool) {
+// returning the Plan to execute and ok=false when no class has a reachable site.
+func (m *RandomChainManager) BreakOne() (Plan, bool) {
 	type candidate struct {
 		fn  func() (eth.ChainID, uint64, bool)
 		rej Rejection
@@ -458,10 +466,10 @@ func (m *RandomChainManager) BreakOne() (chainID eth.ChainID, ts uint64, r Rejec
 	}
 	for _, i := range m.rng.Perm(len(candidates)) {
 		if id, t, ok := candidates[i].fn(); ok {
-			return id, t, candidates[i].rej, true
+			return Plan{Chain: id, Reject: candidates[i].rej, AssertTS: t}, true
 		}
 	}
-	return eth.ChainID{}, 0, 0, false
+	return Plan{}, false
 }
 
 // ChainContainer wires a simpleChainContainer: RandomChain as the VirtualNode

@@ -77,7 +77,7 @@ func FuzzInteropInvalid(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		i, mgr := buildInterop(t, data)
 
-		badChain, badTS, rej, ok := mgr.BreakOne()
+		plan, ok := mgr.BreakOne()
 		if !ok {
 			t.Skip("no violation site reachable")
 		}
@@ -87,19 +87,19 @@ func FuzzInteropInvalid(f *testing.F) {
 				return last + 1
 			}
 			// Use the frozen start; BreakOneSafeDBFrontGap shifts the live
-			// FirstVerifiableTimestamp but badTS was captured before that.
+			// FirstVerifiableTimestamp but AssertTS was captured before that.
 			return i.verificationStartTimestamp
 		}
 
 		for n := 0; ; n++ {
 			require.Less(t, n, 1000, "did not reach the bad block")
-			if next() == badTS {
+			if next() == plan.AssertTS {
 				out, _, err := i.progressInterop()
-				switch rej {
+				switch plan.Reject {
 				case cc.RejectInvalidHead:
 					require.NoError(t, err)
 					require.Equal(t, DecisionInvalidate, out.Decision)
-					require.Contains(t, out.Result.InvalidHeads, badChain)
+					require.Contains(t, out.Result.InvalidHeads, plan.Chain)
 				case cc.RejectWait:
 					require.NoError(t, err)
 					require.Equal(t, DecisionWait, out.Decision)
