@@ -49,6 +49,10 @@ contract L2ContractsManager_FunctionsExposer_Harness is L2ContractsManager {
 contract L2ContractsManager_Upgrade_Test is CommonTest {
     error ImplNotFound(string name);
 
+    /// @notice OZ v5 ERC-7201 Initializable namespaced slot.
+    bytes32 internal constant INITIALIZABLE_SLOT_OZ_V5 =
+        0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
+
     L2ContractsManager_FunctionsExposer_Harness internal l2cm;
     L2ContractsManagerTypes.ImplRecord[] internal _implRecords;
 
@@ -418,6 +422,91 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         // Calling upgrade() directly should revert with OnlyDelegatecall error
         vm.expectRevert(L2ContractsManager.L2ContractsManager_OnlyDelegatecall.selector);
         l2cm.upgrade();
+    }
+
+    /// @notice Tests that calling deploy() via DELEGATECALL reverts.
+    function test_deploy_whenCalledViaDelegatecall_reverts() public {
+        L2ContractsManagerTypes.FullConfig memory config = _defaultDeployConfig();
+
+        // Via DELEGATECALL address(this) is the caller, not the L2CM implementation, so it reverts.
+        (bool success, bytes memory ret) =
+            address(l2cm).delegatecall(abi.encodeCall(L2ContractsManager.deploy, (config)));
+        assertFalse(success, "deploy via delegatecall should revert");
+        assertEq(bytes4(ret), L2ContractsManager.L2ContractsManager_OnlyDirectCall.selector);
+    }
+
+    /// @notice Tests that deploy() initializes the predeploys when their admin is set to the L2CM.
+    function test_deploy_succeeds() public {
+        L2ContractsManagerTypes.FullConfig memory config = _defaultDeployConfig();
+
+        // Simulate the genesis precondition: each touched proxy's admin is the L2CM, and the proxies
+        // receiving initializers are fresh (their initialized slots are cleared).
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (!_isDeployTouched(records[i], config)) continue;
+            EIP1967Helper.setAdmin(records[i].proxy, address(l2cm));
+            if (_requiresInit(records[i].proxy)) {
+                vm.store(records[i].proxy, bytes32(0), bytes32(0));
+                vm.store(records[i].proxy, bytes32(uint256(1)), bytes32(0));
+                vm.store(records[i].proxy, INITIALIZABLE_SLOT_OZ_V5, bytes32(0));
+            }
+        }
+
+        // deploy() must be called directly on the implementation.
+        l2cm.deploy(config);
+
+        // Every touched proxy now points at its resolved implementation.
+        for (uint256 i = 0; i < records.length; i++) {
+            if (!_isDeployTouched(records[i], config)) continue;
+            string memory name = Predeploys.resolveVariant(records[i], config.isCustomGasToken).name;
+            assertEq(
+                EIP1967Helper.getImplementation(records[i].proxy),
+                _findImplByName(name),
+                string.concat(name, " not deployed")
+            );
+        }
+
+        // The initializer ran with the supplied config.
+        assertEq(
+            address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger()),
+            address(config.crossDomainMessenger.otherMessenger),
+            "L2CrossDomainMessenger.otherMessenger not initialized"
+        );
+    }
+
+    /// @notice Builds a default (non-CGT, non-interop) deploy configuration.
+    function _defaultDeployConfig() internal returns (L2ContractsManagerTypes.FullConfig memory config_) {
+        config_.crossDomainMessenger.otherMessenger = ICrossDomainMessenger(makeAddr("otherMessenger"));
+        config_.standardBridge.otherBridge = IStandardBridge(payable(makeAddr("otherBridge")));
+        config_.erc721Bridge.otherBridge = IERC721Bridge(makeAddr("otherERC721Bridge"));
+        config_.mintableERC20Factory.bridge = makeAddr("erc20FactoryBridge");
+        config_.mintableERC721Factory.bridge = makeAddr("erc721FactoryBridge");
+        config_.mintableERC721Factory.remoteChainID = 1;
+        L2ContractsManagerTypes.FeeVaultConfig memory vault = L2ContractsManagerTypes.FeeVaultConfig({
+            recipient: makeAddr("feeRecipient"),
+            minWithdrawalAmount: 1 ether,
+            withdrawalNetwork: Types.WithdrawalNetwork.L2
+        });
+        config_.sequencerFeeVault = vault;
+        config_.baseFeeVault = vault;
+        config_.l1FeeVault = vault;
+        config_.operatorFeeVault = vault;
+        config_.isCustomGasToken = false;
+        config_.isInterop = false;
+    }
+
+    /// @notice Gates-only predicate matching the set of records deploy() touches for a config.
+    function _isDeployTouched(
+        Predeploys.PredeployRecord memory _record,
+        L2ContractsManagerTypes.FullConfig memory _config
+    )
+        internal
+        pure
+        returns (bool)
+    {
+        if (_record.isCustomGasToken && !_config.isCustomGasToken) return false;
+        if (_record.isInterop && !_config.isInterop) return false;
+        return true;
     }
 
     /// @notice Tests that fee vault configurations with non-default values are preserved after upgrade.
