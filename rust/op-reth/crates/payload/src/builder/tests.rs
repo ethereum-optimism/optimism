@@ -173,7 +173,7 @@ fn op_pooled_tx(nonce: u64, signer: Address, recipient: Address) -> OpPooledTran
 /// off.
 fn op_interop_pooled_tx(nonce: u64, signer: Address, recipient: Address) -> OpPooledTransaction {
     let tx: OpTransactionSigned = TxEip1559 {
-        chain_id: 8453,
+        chain_id: 10,
         nonce,
         gas_limit: 100_000,
         max_fee_per_gas: 1,
@@ -659,7 +659,7 @@ fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
     let interop_hash = *interop.hash();
 
     let gas_limit = 1_000_000;
-    let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().regolith_activated().build());
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
 
     // One shared handle drives every build, mirroring the single failsafe threaded through node
     // setup; toggling it is what flips the gate, not building a fresh config each time.
