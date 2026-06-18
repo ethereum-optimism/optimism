@@ -85,7 +85,7 @@ parameters:
     default: "__not_set__"
   go-cache-version:
     type: string
-    default: "v0.0"
+    default: "v0.1"
   # Workflow activation flags (set by the decision tree in config.yml)
   c-run_main:
     type: boolean
