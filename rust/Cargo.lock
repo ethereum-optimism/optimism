@@ -13674,6 +13674,7 @@ dependencies = [
  "reth-provider",
  "reth-storage-api",
  "reth-transaction-pool",
+ "rstest",
  "serde",
  "thiserror 2.0.18",
  "tokio",

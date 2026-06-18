@@ -60,6 +60,7 @@ tokio = { workspace = true, features = ["time"] }
 reth-optimism-chainspec.workspace = true
 reth-provider = { workspace = true, features = ["test-utils"] }
 reth-transaction-pool = { workspace = true, features = ["test-utils"] }
+rstest.workspace = true
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 # Mock JSON-RPC server for interop filter client tests. jsonrpsee-server is already a workspace
 # dependency used by kona's RPC actor, so this reuses an in-tree, maintained server rather than
