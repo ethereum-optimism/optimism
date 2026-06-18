@@ -10,6 +10,7 @@ import (
 	"hash/fnv"
 	"math/big"
 	"math/rand"
+	"path/filepath"
 	"slices"
 	"sort"
 	"sync"
@@ -112,7 +113,8 @@ type RandomChainManager struct {
 	chains map[eth.ChainID]*RandomChain
 	order  []eth.ChainID // deterministic iteration
 
-	l1Source *RandomL1Source
+	l1Source   *RandomL1Source
+	containers []*simpleChainContainer // wired containers, for Close to release denyLists
 }
 
 // NewRandomChainManager seeds the generator deterministically from the fuzz
@@ -463,29 +465,57 @@ func (m *RandomChainManager) BreakOne() (chainID eth.ChainID, ts uint64, r Rejec
 }
 
 // ChainContainer wires a simpleChainContainer: RandomChain as the VirtualNode
-// and an EngineController wrapping the same RandomChain as l2Provider.
-func (m *RandomChainManager) ChainContainer(id eth.ChainID) (*simpleChainContainer, error) {
+// and an EngineController wrapping the same RandomChain as l2Provider. A
+// non-empty dataDir roots a per-chain denyList (under dataDir/denylist/<id>) so
+// the container matches production wiring and exercises the rewind path; Close
+// releases it. An empty dataDir leaves the denyList unset (read-path tests that
+// never touch the deny list).
+func (m *RandomChainManager) ChainContainer(id eth.ChainID, dataDir string) (*simpleChainContainer, error) {
 	rc := m.chains[id]
 	if rc == nil {
 		return nil, ErrUnknownChain
 	}
-	return &simpleChainContainer{
-		chainID: id,
-		vn:      rc,
-		engine:  engine_controller.NewEngineControllerWithL2AndRollup(rc, rc.cfg),
-		vncfg:   &opnodecfg.Config{Rollup: *rc.cfg},
-		log:     gethlog.New(),
-		stopped: make(chan struct{}, 1),
-		metrics: resources.NewSupernodeMetrics(),
-	}, nil
+	var denyList *DenyList
+	if dataDir != "" {
+		dl, err := OpenDenyList(filepath.Join(dataDir, "denylist", id.String()))
+		if err != nil {
+			return nil, err
+		}
+		denyList = dl
+	}
+	c := &simpleChainContainer{
+		chainID:  id,
+		vn:       rc,
+		engine:   engine_controller.NewEngineControllerWithL2AndRollup(rc, rc.cfg),
+		vncfg:    &opnodecfg.Config{Rollup: *rc.cfg},
+		denyList: denyList,
+		log:      gethlog.New(),
+		stopped:  make(chan struct{}, 1),
+		metrics:  resources.NewSupernodeMetrics(),
+	}
+	m.containers = append(m.containers, c)
+	return c, nil
+}
+
+// Close releases resources held by wired containers (the per-chain denyList
+// bbolt handles). The harness defers this; the container's own Stop blocks on a
+// run loop the harness never starts, so it is not used here.
+func (m *RandomChainManager) Close() error {
+	for _, c := range m.containers {
+		if c.denyList != nil {
+			_ = c.denyList.Close()
+		}
+	}
+	return nil
 }
 
 // ChainContainers wires every generated chain, keyed by id — the shape the
-// interop activity's constructor consumes.
-func (m *RandomChainManager) ChainContainers() (map[eth.ChainID]InteropChain, error) {
+// interop activity's constructor consumes. dataDir roots the per-chain
+// denyLists (see ChainContainer).
+func (m *RandomChainManager) ChainContainers(dataDir string) (map[eth.ChainID]InteropChain, error) {
 	out := make(map[eth.ChainID]InteropChain, len(m.order))
 	for _, id := range m.order {
-		cc, err := m.ChainContainer(id)
+		cc, err := m.ChainContainer(id, dataDir)
 		if err != nil {
 			return nil, err
 		}

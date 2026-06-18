@@ -20,10 +20,12 @@ func buildInterop(t *testing.T, data []byte) (*Interop, *cc.RandomChainManager) 
 		require.NoError(t, rc.Start(ctx))
 	}
 
-	chains, err := mgr.ChainContainers()
+	dir := t.TempDir()
+	chains, err := mgr.ChainContainers(dir)
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = mgr.Close() }) // releases each chain's denyList bbolt handle
 
-	i := New(testLogger(), cc.GenInteropActivation, cc.GenExpiryWindow, chains, t.TempDir(), mgr.L1Source(), 0, nil)
+	i := New(testLogger(), cc.GenInteropActivation, cc.GenExpiryWindow, chains, dir, mgr.L1Source(), 0, nil)
 	require.NotNil(t, i)
 	t.Cleanup(func() { _ = i.Stop(ctx) })
 

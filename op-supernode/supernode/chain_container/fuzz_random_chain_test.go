@@ -25,7 +25,7 @@ func FuzzRandomChainReadPath(f *testing.F) {
 		}
 
 		for _, rc := range m.Chains() {
-			cc, err := m.ChainContainer(rc.chainID)
+			cc, err := m.ChainContainer(rc.chainID, "")
 			require.NoError(t, err)
 			require.Equal(t, rc.chainID, cc.ID())
 
