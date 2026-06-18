@@ -56,9 +56,7 @@ fn post_exec_payload(block_number: u64, gas_refund_entries: Vec<SDMGasEntry>) ->
 /// transfer makes (which are correctly never rebated).
 const WARMING_CONTRACT_CODE: [u8; 5] = [0x60, 0x00, 0x54, 0x50, 0x00];
 
-fn warming_contract() -> Address {
-    Address::from([0x77; 20])
-}
+const WARMING_CONTRACT: Address = Address::new([0x77; 20]);
 
 fn warming_contract_account() -> AccountInfo {
     let code = Bytecode::new_raw(Bytes::from_static(&WARMING_CONTRACT_CODE));
@@ -369,7 +367,7 @@ fn test_pre_refund_gas_limit_counts_sdm_refunded_gas() {
     const BLOCK_GAS_LIMIT: u64 = 100_000;
     // Both txs call a contract that SLOADs a shared slot, so tx1 earns a genuine cross-tx warming
     // rebate and canonical gas falls below pre-refund EVM gas.
-    let target = warming_contract();
+    let target = WARMING_CONTRACT;
     let tx0 = recovered_legacy(TxLegacy {
         nonce: 0,
         gas_limit: 50_000,
@@ -1017,7 +1015,7 @@ mod sdm {
     fn test_post_exec_producer_verifier_roundtrip() {
         // Both txs call a contract that SLOADs a shared slot, so tx1 earns a genuine cross-tx
         // (non-intrinsic) warming rebate.
-        let target = warming_contract();
+        let target = WARMING_CONTRACT;
         let user_txs = vec![legacy_tx(0, target), legacy_tx(1, target)];
 
         let mut producer_fixture = SDMExecutorFixture::default();
@@ -1068,7 +1066,7 @@ mod sdm {
     // tracking the real compute performed.
     #[test]
     fn test_evm_gas_used_tracks_pre_refund_gas_under_sdm() {
-        let target = warming_contract();
+        let target = WARMING_CONTRACT;
         let user_txs = vec![legacy_tx(0, target), legacy_tx(1, target)];
 
         let mut fixture = SDMExecutorFixture::default();
@@ -1564,7 +1562,7 @@ mod sdm {
     #[test]
     fn test_post_exec_settlement_conserves_total_eth_supply() {
         let beneficiary = Address::from([0x99; 20]);
-        let target = warming_contract();
+        let target = WARMING_CONTRACT;
         let universe = eth_holding_universe(beneficiary, target);
 
         let (total_settled, entries) = run_block_and_total(beneficiary, target, true, &universe);
