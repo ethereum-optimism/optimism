@@ -1327,6 +1327,55 @@ mod sdm {
         assert!(entries[0].gas_refund > 0);
     }
 
+    // An *included* tx that reverts still paid for its cold EIP-2929 accesses (revert undoes state,
+    // not burned gas), so its block-scoped warming must survive and flow to a later committed tx.
+    // The inspector records warming at step time and never journals it, so this holds for free.
+    // Mirror of `test_declined_candidate_does_not_warm_later_committed_tx`, where an *excluded*
+    // candidate paid nothing and its warming is rolled back.
+    #[test]
+    fn test_included_reverted_tx_warms_later_committed_tx() {
+        // A tx's own `to` is intrinsically warm, so we observe warming on a third account
+        // (`warmed`) each probe reaches via a genuine cold BALANCE access.
+        let reverting_probe = Address::from([0x11; 20]);
+        let probe = Address::from([0x33; 20]);
+        let warmed = Address::from([0x22; 20]);
+
+        let mut fixture = SDMExecutorFixture::default();
+        fixture.db.insert_account(reverting_probe, balance_probe_then_revert(&[warmed]));
+        fixture.db.insert_account(probe, balance_probe_account(&[warmed]));
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+        // tx0: included but reverts after a genuine cold BALANCE access on `warmed`.
+        let mut tx0_reverted = false;
+        producer
+            .execute_transaction_with_result_closure(&legacy_tx(0, reverting_probe), |res| {
+                tx0_reverted = matches!(res.result().result, ExecutionResult::Revert { .. });
+            })
+            .expect("a reverting tx is still included in the block");
+        assert!(tx0_reverted, "tx0 must actually revert for this test to be meaningful");
+        assert!(
+            producer.post_exec_entries().is_empty(),
+            "the first toucher earns no warming rebate, even when it reverts",
+        );
+
+        // tx1: a committed tx cold-touches `warmed` again, so it is rebated — attributed to the
+        // included-but-reverted tx0 that paid for the cold load.
+        producer.execute_transaction(&legacy_tx(1, probe)).expect("first committed tx executes");
+        let warmed_event = all_warming_events(&producer)
+            .into_iter()
+            .find(|event| event.address == warmed)
+            .expect("tx1 must earn a warming rebate for `warmed`, warmed by the reverted tx0");
+        assert_eq!(warmed_event.claiming_tx_index, 1, "rebate is claimed by tx1");
+        assert_eq!(
+            warmed_event.first_warmed_by_tx_index, 0,
+            "rebate is attributed to the included-but-reverted tx0",
+        );
+        assert_eq!(
+            warmed_event.amount, 2_500,
+            "warm-account rebate amount (ACCOUNT_REWARM_REFUND)"
+        );
+    }
+
     /// Bytecode that runs `BALANCE` against each address in turn, warming it through a genuine
     /// cold EIP-2929 access: `PUSH20 <addr>; BALANCE; POP` per address, then `STOP`. Unlike a
     /// plain transfer (which only touches the intrinsically-warm sender/`to`), calling this
@@ -1340,6 +1389,27 @@ mod sdm {
             code.push(0x50); // POP
         }
         code.push(0x00); // STOP
+        let raw = Bytes::from(code);
+        let code_hash = alloy_primitives::keccak256(&raw);
+        AccountInfo { code_hash, code: Some(Bytecode::new_raw(raw)), ..Default::default() }
+    }
+
+    /// Like [`balance_probe_account`], but ends in `REVERT` instead of `STOP`: cold-`BALANCE`-warms
+    /// each address, then reverts with empty data (`PUSH1 0; PUSH1 0; REVERT`). Exercises an
+    /// included tx whose top-level execution reverts after paying for its cold accesses.
+    fn balance_probe_then_revert(addrs: &[Address]) -> AccountInfo {
+        let mut code = Vec::new();
+        for addr in addrs {
+            code.push(0x73); // PUSH20
+            code.extend_from_slice(addr.as_slice());
+            code.push(0x31); // BALANCE
+            code.push(0x50); // POP
+        }
+        code.push(0x60); // PUSH1
+        code.push(0x00); //   0x00 (revert data size)
+        code.push(0x60); // PUSH1
+        code.push(0x00); //   0x00 (revert data offset)
+        code.push(0xfd); // REVERT
         let raw = Bytes::from(code);
         let code_hash = alloy_primitives::keccak256(&raw);
         AccountInfo { code_hash, code: Some(Bytecode::new_raw(raw)), ..Default::default() }
