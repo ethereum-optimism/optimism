@@ -319,6 +319,35 @@ func TestBreakOneL1Divergence(t *testing.T) {
 	require.Equal(t, 1, diverged, "exactly one safeDB row must diverge")
 }
 
+func TestBreakOneSafeDBFrontGap(t *testing.T) {
+	m := NewRandomChainManager([]byte("safedb"))
+	m.Generate()
+
+	startTS := m.FirstVerifiableTimestamp()
+	before := map[eth.ChainID]uint64{}
+	for _, rc := range m.Chains() {
+		before[rc.chainID] = rc.safeDB[0].L2.Number
+	}
+
+	id, ts, ok := m.BreakOneSafeDBFrontGap()
+	require.True(t, ok)
+	require.Equal(t, startTS, ts)
+
+	bumped := 0
+	for _, rc := range m.Chains() {
+		got := rc.safeDB[0].L2.Number
+		if got != before[rc.chainID] {
+			bumped++
+			require.Equal(t, id, rc.chainID)
+			require.Equal(t, before[rc.chainID]+1, got)
+			if len(rc.safeDB) >= 2 {
+				require.Less(t, rc.safeDB[0].L2.Number, rc.safeDB[1].L2.Number)
+			}
+		}
+	}
+	require.Equal(t, 1, bumped)
+}
+
 func TestChainContainerWiring(t *testing.T) {
 	m := NewRandomChainManager([]byte("wire"))
 	m.Generate()

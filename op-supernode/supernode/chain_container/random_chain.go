@@ -345,8 +345,9 @@ func (m *RandomChainManager) MinSafeTimestamp() uint64 {
 type Rejection int
 
 const (
-	RejectInvalidHead Rejection = iota // exec-msg corruption -> DecisionInvalidate
-	RejectWait                         // L1 frontier divergence -> DecisionWait
+	RejectInvalidHead        Rejection = iota // exec-msg corruption -> DecisionInvalidate
+	RejectWait                                // L1 frontier divergence -> DecisionWait
+	RejectHistoryUnavailable                  // safeDB front gap -> cc.ErrHistoryUnavailable (hard error)
 )
 
 // execMsgBreakers are the ways to make one executing message fail verification.
@@ -427,21 +428,36 @@ func (m *RandomChainManager) BreakOneL1Divergence() (chainID eth.ChainID, ts uin
 	return s.id, s.badTS, true
 }
 
+// BreakOneSafeDBFrontGap raises one chain's safeDB[0].L2.Number by 1, pushing
+// the earliest covered block above block 2. The verifier's frozen start
+// (FirstVerifiableTimestamp before corruption) then falls below history, so
+// safeDBLookup returns ErrL1AtSafeHeadUnavailable → ErrHistoryUnavailable.
+func (m *RandomChainManager) BreakOneSafeDBFrontGap() (chainID eth.ChainID, ts uint64, ok bool) {
+	start := m.FirstVerifiableTimestamp()
+	idx := m.rng.Intn(len(m.order))
+	id := m.order[idx]
+	rc := m.chains[id]
+	rc.safeDB[0].L2.Number++ // rows are 2 apart, so +1 stays strictly ascending
+	return id, start, true
+}
+
 // BreakOne plants one violation drawn across all classes with a reachable site,
 // returning the affected chain, the timestamp the verifier should reject at, the
 // expected rejection, and ok=false when no class has a reachable site.
 func (m *RandomChainManager) BreakOne() (chainID eth.ChainID, ts uint64, r Rejection, ok bool) {
-	first, second := m.BreakOneExecMsg, m.BreakOneL1Divergence
-	firstR, secondR := RejectInvalidHead, RejectWait
-	if m.rng.Intn(2) == 0 {
-		first, second = second, first
-		firstR, secondR = secondR, firstR
+	type candidate struct {
+		fn  func() (eth.ChainID, uint64, bool)
+		rej Rejection
 	}
-	if id, t, ok := first(); ok {
-		return id, t, firstR, true
+	candidates := []candidate{
+		{m.BreakOneExecMsg, RejectInvalidHead},
+		{m.BreakOneL1Divergence, RejectWait},
+		{m.BreakOneSafeDBFrontGap, RejectHistoryUnavailable},
 	}
-	if id, t, ok := second(); ok {
-		return id, t, secondR, true
+	for _, i := range m.rng.Perm(len(candidates)) {
+		if id, t, ok := candidates[i].fn(); ok {
+			return id, t, candidates[i].rej, true
+		}
 	}
 	return eth.ChainID{}, 0, 0, false
 }

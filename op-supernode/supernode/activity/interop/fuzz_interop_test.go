@@ -60,14 +60,17 @@ func FuzzInteropRound(f *testing.F) {
 	})
 }
 
-// FuzzInteropInvalid plants one violation (exec-msg corruption or L1 divergence),
-// drives rounds up to the bad timestamp, and asserts the verifier rejects correctly.
+// FuzzInteropInvalid plants one violation (exec-msg corruption, L1 divergence,
+// or safeDB front gap), drives rounds up to the bad timestamp, and asserts the
+// verifier rejects correctly.
 func FuzzInteropInvalid(f *testing.F) {
 	f.Add([]byte("seed-invalid"))
 	f.Add([]byte("seed-expiry"))
 	f.Add([]byte("seed-exp2"))
 	f.Add([]byte("seed-l1div"))
 	f.Add([]byte("seed-l1div2"))
+	f.Add([]byte("seed-safedb-gap"))
+	f.Add([]byte("seed-gap2"))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		i, mgr := buildInterop(t, data)
@@ -81,20 +84,25 @@ func FuzzInteropInvalid(f *testing.F) {
 			if last, ok := i.verifiedDB.LastTimestamp(); ok {
 				return last + 1
 			}
-			return mgr.FirstVerifiableTimestamp()
+			// Use the frozen start; BreakOneSafeDBFrontGap shifts the live
+			// FirstVerifiableTimestamp but badTS was captured before that.
+			return i.verificationStartTimestamp
 		}
 
 		for n := 0; ; n++ {
 			require.Less(t, n, 1000, "did not reach the bad block")
 			if next() == badTS {
 				out, _, err := i.progressInterop()
-				require.NoError(t, err)
 				switch rej {
 				case cc.RejectInvalidHead:
+					require.NoError(t, err)
 					require.Equal(t, DecisionInvalidate, out.Decision)
 					require.Contains(t, out.Result.InvalidHeads, badChain)
 				case cc.RejectWait:
+					require.NoError(t, err)
 					require.Equal(t, DecisionWait, out.Decision)
+				case cc.RejectHistoryUnavailable:
+					require.ErrorIs(t, err, cc.ErrHistoryUnavailable)
 				}
 				return
 			}
