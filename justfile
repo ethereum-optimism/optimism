@@ -46,10 +46,11 @@ update-superchain-registry-submodule ref="":
 sync-superchain-go: update-superchain-registry-submodule
   bash op-core/superchain/sync-superchain.sh
 
-# Regenerates the committed Rust snapshots from the submodule: kona's etc/*.json
-# (via KONA_SYNC_SUPERCHAIN).
+# Regenerates the committed Rust artifacts from the submodule: kona's etc/*.json
+# (via KONA_SYNC_SUPERCHAIN) and op-reth's superchain-configs.tar + chain_specs.rs.
 sync-superchain-rust: update-superchain-registry-submodule
   cd rust && KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry
+  cd rust/op-reth/crates/chainspec/res && bash fetch_superchain_config.sh
 
 # One-command superchain-registry sync. With a ref (tag or commit sha) it moves the
 # submodule there first, then regenerates every dependent artifact (Go + Rust), so
