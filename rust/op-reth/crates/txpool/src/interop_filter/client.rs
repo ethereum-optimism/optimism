@@ -2,6 +2,7 @@
 
 use crate::{
     InvalidCrossTx,
+    interop::InteropFailsafe,
     interop_filter::{
         ExecutingDescriptor, InteropTxValidatorError,
         metrics::{
@@ -28,7 +29,7 @@ use std::{
     future::IntoFuture,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -261,14 +262,20 @@ impl InteropFilterClient {
 
     /// Returns the cached failsafe state.
     pub fn is_failsafe_enabled(&self) -> bool {
-        self.inner.failsafe_enabled.load(Ordering::Acquire)
+        self.inner.failsafe.enabled()
+    }
+
+    /// Returns a clone of the shared failsafe handle, so other components can read the state this
+    /// client writes.
+    pub fn failsafe(&self) -> InteropFailsafe {
+        self.inner.failsafe.clone()
     }
 
     /// Applies a freshly polled failsafe state to the cached flag (read live by the admission
     /// fast-path and the block-event handler) and the gauge. Split out of [`Self::query_failsafe`]
     /// so the live, restart-free state transition can be exercised in tests without an RPC.
     pub(crate) fn apply_failsafe_state(&self, enabled: bool) {
-        self.inner.failsafe_enabled.store(enabled, Ordering::Release);
+        self.inner.failsafe.set(enabled);
         self.inner.metrics.set_failsafe_enabled(enabled);
     }
 
@@ -395,8 +402,9 @@ pub(crate) struct InteropFilterClientInner {
     timeout: Duration,
     /// Metrics for tracking interop RPC operations.
     metrics: InteropMetrics,
-    /// Cached failsafe state (OR across endpoints), polled by the background failsafe task.
-    failsafe_enabled: AtomicBool,
+    /// Cached failsafe state (OR across endpoints), polled by the background failsafe task. Shared
+    /// with the payload builder so it gates block building on the same state.
+    failsafe: InteropFailsafe,
     /// Reference instant for rate-limiting the degraded-quorum log.
     created_at: Instant,
     /// Millis (since [`created_at`](Self::created_at)) of the last degraded-quorum log; `0` means
@@ -421,6 +429,8 @@ pub struct InteropFilterClientBuilder {
     timeout: Duration,
     /// Minimum [`SafetyLevel`] of cross-chain transactions accepted by this client.
     safety: SafetyLevel,
+    /// Optional externally-shared failsafe handle. When `None`, the client creates its own.
+    failsafe: Option<InteropFailsafe>,
 }
 
 impl InteropFilterClientBuilder {
@@ -432,7 +442,15 @@ impl InteropFilterClientBuilder {
             chain_id,
             timeout: DEFAULT_REQUEST_TIMEOUT,
             safety: SafetyLevel::CrossUnsafe,
+            failsafe: None,
         }
+    }
+
+    /// Shares an externally-owned failsafe handle with the client. Defaults to a fresh handle when
+    /// unset.
+    pub fn failsafe(mut self, failsafe: InteropFailsafe) -> Self {
+        self.failsafe = Some(failsafe);
+        self
     }
 
     /// Configures a custom timeout
@@ -460,7 +478,7 @@ impl InteropFilterClientBuilder {
     /// endpoints. This is a startup-boundary validation, matching the existing
     /// `.expect("building interop filter client")` failure mode.
     pub async fn build(self) -> InteropFilterClient {
-        let Self { endpoints, min_responses, chain_id, timeout, safety } = self;
+        let Self { endpoints, min_responses, chain_id, timeout, safety, failsafe } = self;
 
         assert!(!endpoints.is_empty(), "interop filter client requires at least one endpoint");
         let min_responses = min_responses.unwrap_or(endpoints.len());
@@ -496,7 +514,7 @@ impl InteropFilterClientBuilder {
                 safety,
                 timeout,
                 metrics,
-                failsafe_enabled: AtomicBool::new(false),
+                failsafe: failsafe.unwrap_or_default(),
                 created_at: Instant::now(),
                 last_degraded_log_ms: AtomicU64::new(0),
             }),
@@ -999,7 +1017,7 @@ mod tests {
         let b = MockEndpoint::start(Verdict::Valid, Failsafe::Error).await;
         let client = client_for(&[&a, &b], None).await;
         // Seed a known cached value, then confirm an all-error poll leaves it unchanged and errors.
-        client.inner.failsafe_enabled.store(true, Ordering::Release);
+        client.inner.failsafe.set(true);
         assert!(client.query_failsafe().await.is_err());
         assert!(client.is_failsafe_enabled(), "cache should be unchanged when no endpoint replies");
     }

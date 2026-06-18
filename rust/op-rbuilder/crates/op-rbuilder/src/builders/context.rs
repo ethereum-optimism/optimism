@@ -1,4 +1,4 @@
-use alloy_consensus::{Transaction, conditional::BlockConditionalAttributes};
+use alloy_consensus::{Sealable, Transaction, conditional::BlockConditionalAttributes};
 use alloy_eips::{Encodable2718, Typed2718};
 use alloy_evm::{
     Database, Evm as AlloyEvm,
@@ -8,6 +8,7 @@ use alloy_op_evm::PreRefundGasUsed;
 use alloy_primitives::{BlockHash, Bytes, U256};
 use alloy_rpc_types_eth::Withdrawals;
 use core::fmt::Debug;
+use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
 use op_revm::{L1BlockInfo, OpSpecId};
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::{EthChainSpec, EthereumHardforks};
@@ -111,6 +112,26 @@ pub(super) fn compute_post_exec_mode(
     }
 }
 
+/// Builds the canonical PostExec (`0x7D`) tx for the block being built, or `None` when the
+/// builder is not producing or there is nothing to refund — producers never emit an
+/// empty-entries PostExec tx. Shared by the standard and flashblocks builders so the
+/// produce-side rules live in one place.
+pub(super) fn build_current_post_exec_tx<ExtraCtx>(
+    ctx: &OpPayloadBuilderCtx<ExtraCtx>,
+    entries: Vec<SDMGasEntry>,
+) -> Option<OpTransactionSigned>
+where
+    ExtraCtx: Debug + Default,
+{
+    if !matches!(ctx.post_exec_mode, PostExecMode::Produce) || entries.is_empty() {
+        return None;
+    }
+
+    Some(OpTransactionSigned::from(
+        build_post_exec_tx(ctx.block_number(), entries).seal_slow(),
+    ))
+}
+
 /// Container type that holds all necessities to build a new payload.
 #[derive(Debug)]
 pub struct OpPayloadBuilderCtx<ExtraCtx: Debug + Default = ()> {
@@ -174,6 +195,14 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
     /// Returns the builder attributes.
     pub(super) const fn attributes(&self) -> &OpPayloadBuilderAttributes<OpTransactionSigned> {
         &self.config.attributes
+    }
+
+    /// Returns true when the tx pool is excluded and the block must be reproduced
+    /// deterministically from forced transactions only (i.e. `no_tx_pool = true`).
+    ///
+    /// Mirrors op-reth's `force_empty` for cross-builder consistency.
+    pub fn force_empty(&self) -> bool {
+        self.attributes().no_tx_pool
     }
 
     /// Returns the withdrawals if shanghai is active.
