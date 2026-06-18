@@ -198,8 +198,13 @@ with `dep.MarshalBinary()`.
 ### `PostExecTx` (type `0x7D`)
 
 op-geth also adds `types.PostExecTx` (`core/types/post_exec_tx.go`), a synthetic unsigned
-transaction carrying post-execution metadata. Its wire format is `0x7D || data` — the
-payload is **opaque bytes, not RLP**.
+transaction carrying post-execution metadata. Its wire format is `0x7D || data`, where
+`data` is appended **verbatim** — there is no outer RLP envelope around the transaction
+body, unlike the deposit tx's `0x7E || RLP(struct)`. op-geth treats `data` as opaque bytes
+and never parses it; the bytes are in fact an RLP-encoded `PostExecPayload` (a `version`
+plus SDM `gas_refund_entries`) that op-alloy/kona decode and version-check (see
+`rust/kona/crates/protocol/protocol/src/batch/transactions.rs`). Mirroring op-geth's opaque
+handling keeps `op-core/types.PostExecTx` wire-compatible without re-implementing that parse.
 
 `PostExecTx` is **a canonical block transaction**, not a side channel: in the Lagoon
 hardfork it can be the **last transaction of a block**, encoding sequencer rebates. So a

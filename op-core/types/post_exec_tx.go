@@ -13,8 +13,10 @@ const PostExecTxType = byte(0x7D)
 
 // PostExecTx is a synthetic, unsigned OP Stack transaction used to carry
 // post-execution metadata in SDM blocks. Its canonical encoding is
-// PostExecTxType || Data — the payload is opaque bytes, not RLP — matching
-// op-geth's types.PostExecTx wire format.
+// PostExecTxType || Data, where Data is appended verbatim with no outer RLP
+// envelope, matching op-geth's types.PostExecTx wire format. Data is itself an
+// RLP-encoded payload, but op-geth (and this type) treat it as opaque bytes and
+// never parse it.
 type PostExecTx struct {
 	Data []byte
 }
