@@ -62,9 +62,23 @@ func FuzzInteropRound(f *testing.F) {
 	})
 }
 
+// lastRecordedInclusion returns the L1Inclusion.Number of the last committed
+// verifiedDB entry, or 0 if none.
+func lastRecordedInclusion(i *Interop) uint64 {
+	ts, ok := i.verifiedDB.LastTimestamp()
+	if !ok {
+		return 0
+	}
+	result, err := i.verifiedDB.Get(ts)
+	if err != nil {
+		return 0
+	}
+	return result.L1Inclusion.Number
+}
+
 // FuzzInteropInvalid plants one violation (exec-msg corruption, L1 divergence,
-// or safeDB front gap), drives rounds up to the bad timestamp, and asserts the
-// verifier rejects correctly.
+// safeDB front gap, or L1 reorg), drives to the trigger condition, and asserts
+// the verifier rejects correctly.
 func FuzzInteropInvalid(f *testing.F) {
 	f.Add([]byte("seed-invalid"))
 	f.Add([]byte("seed-expiry"))
@@ -73,6 +87,8 @@ func FuzzInteropInvalid(f *testing.F) {
 	f.Add([]byte("seed-l1div2"))
 	f.Add([]byte("seed-safedb-gap"))
 	f.Add([]byte("seed-gap2"))
+	f.Add([]byte("seed-reorg"))
+	f.Add([]byte("seed-reorg-final"))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		i, mgr := buildInterop(t, data)
@@ -91,26 +107,64 @@ func FuzzInteropInvalid(f *testing.F) {
 			return i.verificationStartTimestamp
 		}
 
+		if plan.Action == nil {
+			// Static violation: drive until next() == AssertTS, then assert.
+			for n := 0; ; n++ {
+				require.Less(t, n, 1000, "did not reach the bad block")
+				if next() == plan.AssertTS {
+					out, _, err := i.progressInterop()
+					switch plan.Reject {
+					case cc.RejectInvalidHead:
+						require.NoError(t, err)
+						require.Equal(t, DecisionInvalidate, out.Decision)
+						require.Contains(t, out.Result.InvalidHeads, plan.Chain)
+					case cc.RejectWait:
+						require.NoError(t, err)
+						require.Equal(t, DecisionWait, out.Decision)
+					case cc.RejectHistoryUnavailable:
+						require.ErrorIs(t, err, cc.ErrHistoryUnavailable)
+					}
+					return
+				}
+				progress, err := i.progressAndRecord()
+				require.NoError(t, err)
+				require.True(t, progress, "valid rounds before the bad block must advance")
+			}
+		}
+
+		// Temporal violation (reorg): drive until the last recorded L1 inclusion
+		// is >= FireAtInclusion AND a ready round remains, then fire the reorg.
 		for n := 0; ; n++ {
-			require.Less(t, n, 1000, "did not reach the bad block")
-			if next() == plan.AssertTS {
+			require.Less(t, n, 1000, "did not reach reorg trigger")
+			H := lastRecordedInclusion(i)
+			readyRound := next() <= mgr.MinSafeTimestamp()+1
+			if H >= plan.FireAtInclusion && readyRound {
+				before, beforeOK := i.verifiedDB.LastTimestamp()
+
+				plan.Action()
+
 				out, _, err := i.progressInterop()
-				switch plan.Reject {
-				case cc.RejectInvalidHead:
-					require.NoError(t, err)
-					require.Equal(t, DecisionInvalidate, out.Decision)
-					require.Contains(t, out.Result.InvalidHeads, plan.Chain)
-				case cc.RejectWait:
-					require.NoError(t, err)
-					require.Equal(t, DecisionWait, out.Decision)
-				case cc.RejectHistoryUnavailable:
-					require.ErrorIs(t, err, cc.ErrHistoryUnavailable)
+				require.NoError(t, err)
+				require.Equal(t, DecisionRewind, out.Decision)
+
+				progress, err := i.progressAndRecord()
+				require.NoError(t, err)
+				require.False(t, progress, "progressAndRecord applying a rewind must not advance")
+
+				if beforeOK {
+					after, afterOK := i.verifiedDB.LastTimestamp()
+					// verifiedDB should have rewound: either empty or below before.
+					if afterOK {
+						require.Less(t, after, before, "rewind must drop verifiedDB below prior last timestamp")
+					}
 				}
 				return
 			}
 			progress, err := i.progressAndRecord()
 			require.NoError(t, err)
-			require.True(t, progress, "valid rounds before the bad block must advance")
+			if !progress {
+				t.Skip("reorg inclusion target unreachable")
+			}
 		}
 	})
 }

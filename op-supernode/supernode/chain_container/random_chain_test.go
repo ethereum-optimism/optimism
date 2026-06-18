@@ -348,6 +348,41 @@ func TestBreakOneSafeDBFrontGap(t *testing.T) {
 	require.Equal(t, 1, bumped)
 }
 
+func TestReorgL1(t *testing.T) {
+	m := NewRandomChainManager([]byte("reorg-test"))
+	m.Generate()
+
+	orig := make([]eth.L1BlockRef, len(m.l1))
+	copy(orig, m.l1)
+
+	fork := uint64(2)
+	m.ReorgL1(fork)
+
+	require.Equal(t, len(orig), len(m.l1), "length must be unchanged")
+
+	for i := range m.l1 {
+		require.Equal(t, orig[i].Number, m.l1[i].Number, "Number must be preserved at index %d", i)
+		require.Equal(t, orig[i].Time, m.l1[i].Time, "Time must be preserved at index %d", i)
+	}
+
+	// Entries before fork are untouched.
+	for i := uint64(0); i < fork; i++ {
+		require.Equal(t, orig[i].Hash, m.l1[i].Hash, "Hash must be unchanged before fork at index %d", i)
+		require.Equal(t, orig[i].ParentHash, m.l1[i].ParentHash, "ParentHash must be unchanged before fork at index %d", i)
+	}
+
+	// Entries from fork onward have new hashes.
+	for i := fork; i < uint64(len(m.l1)); i++ {
+		require.NotEqual(t, orig[i].Hash, m.l1[i].Hash, "Hash must change at index %d", i)
+	}
+
+	// ParentHash chain is re-linked from the common ancestor.
+	require.Equal(t, m.l1[fork-1].Hash, m.l1[fork].ParentHash, "ParentHash at fork must link to ancestor")
+	for i := fork + 1; i < uint64(len(m.l1)); i++ {
+		require.Equal(t, m.l1[i-1].Hash, m.l1[i].ParentHash, "ParentHash must link to prior at index %d", i)
+	}
+}
+
 func TestChainContainerWiring(t *testing.T) {
 	m := NewRandomChainManager([]byte("wire"))
 	m.Generate()

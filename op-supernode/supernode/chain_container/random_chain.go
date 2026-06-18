@@ -350,15 +350,21 @@ const (
 	RejectInvalidHead        Rejection = iota // exec-msg corruption -> DecisionInvalidate
 	RejectWait                                // L1 frontier divergence -> DecisionWait
 	RejectHistoryUnavailable                  // safeDB front gap -> cc.ErrHistoryUnavailable (hard error)
+	RejectRewind                              // L1 reorg of a recorded inclusion -> DecisionRewind
 )
 
 // Plan describes one planted violation and how the harness should drive to it.
-// The harness drives valid rounds until next() == AssertTS, then asserts the
-// expected Reject for Chain.
+//
+// Static classes (Action == nil): drive until next() == AssertTS, then assert.
+// Temporal classes (Action != nil): drive until verifiedDB's last recorded
+// L1Inclusion.Number >= FireAtInclusion and a ready round remains, then call
+// Action, drive one more round, and assert DecisionRewind.
 type Plan struct {
-	Chain    eth.ChainID
-	Reject   Rejection
-	AssertTS uint64
+	Chain           eth.ChainID
+	Reject          Rejection
+	AssertTS        uint64 // static: assert at this timestamp
+	FireAtInclusion uint64 // temporal: fire Action when inclusion >= this
+	Action          func() // temporal: nil for static classes
 }
 
 // execMsgBreakers are the ways to make one executing message fail verification.
@@ -452,21 +458,83 @@ func (m *RandomChainManager) BreakOneSafeDBFrontGap() (chainID eth.ChainID, ts u
 	return id, start, true
 }
 
-// BreakOne plants one violation drawn across all classes with a reachable site,
-// returning the Plan to execute and ok=false when no class has a reachable site.
+// finalizedL1Height returns the finalized L1 block index from any chain.
+// All chains share the same canonical L1 and use the same finalizedL1 index.
+func (m *RandomChainManager) finalizedL1Height() uint64 {
+	return m.chains[m.order[0]].finalizedL1
+}
+
+// ReorgL1 replaces m.l1[forkHeight:] with fresh hashes, re-linking ParentHash
+// from the common ancestor at forkHeight-1. Numbers and Times are preserved.
+// Requires forkHeight >= 1.
+func (m *RandomChainManager) ReorgL1(forkHeight uint64) {
+	l1 := m.l1
+	parent := l1[forkHeight-1].Hash
+	for i := forkHeight; i < uint64(len(l1)); i++ {
+		h := m.randHash()
+		l1[i] = eth.L1BlockRef{
+			Hash:       h,
+			Number:     l1[i].Number,
+			ParentHash: parent,
+			Time:       l1[i].Time,
+		}
+		parent = h
+	}
+}
+
+// BreakOne plants one violation drawn across all classes with a reachable site.
+// Returns the Plan to execute and ok=false when no class has a reachable site.
 func (m *RandomChainManager) BreakOne() (Plan, bool) {
-	type candidate struct {
+	type staticCandidate struct {
 		fn  func() (eth.ChainID, uint64, bool)
 		rej Rejection
 	}
-	candidates := []candidate{
+	statics := []staticCandidate{
 		{m.BreakOneExecMsg, RejectInvalidHead},
 		{m.BreakOneL1Divergence, RejectWait},
 		{m.BreakOneSafeDBFrontGap, RejectHistoryUnavailable},
 	}
-	for _, i := range m.rng.Perm(len(candidates)) {
-		if id, t, ok := candidates[i].fn(); ok {
-			return Plan{Chain: id, Reject: candidates[i].rej, AssertTS: t}, true
+
+	// reorgCandidate builds a temporal Plan for an L1 reorg.
+	// probe (fork=1) always fires after at least one verified round.
+	// realistic (fork=finalizedL1+1) only when a verifiable block can record
+	// an inclusion above finalized with a ready round still remaining.
+	reorgCandidate := func() (Plan, bool) {
+		finH := m.finalizedL1Height()
+		var fork uint64
+		if m.rng.Intn(2) == 0 || finH+1 >= uint64(len(m.l1)) {
+			fork = 1 // probe: always reachable (inclusion 1 after round 1)
+		} else {
+			fork = finH + 1 // realistic: above finalized
+		}
+		// Use the first chain for the Plan's Chain field (the reorg affects all).
+		chain := m.order[0]
+		f := fork
+		return Plan{
+			Chain:           m.chains[chain].chainID,
+			Reject:          RejectRewind,
+			FireAtInclusion: f,
+			Action:          func() { m.ReorgL1(f) },
+		}, true
+	}
+
+	// Try each static and the reorg candidate in random order.
+	type tryFn func() (Plan, bool)
+	var tries []tryFn
+	for _, s := range statics {
+		s := s // capture
+		tries = append(tries, func() (Plan, bool) {
+			if id, ts, ok := s.fn(); ok {
+				return Plan{Chain: id, Reject: s.rej, AssertTS: ts}, true
+			}
+			return Plan{}, false
+		})
+	}
+	tries = append(tries, reorgCandidate)
+
+	for _, i := range m.rng.Perm(len(tries)) {
+		if p, ok := tries[i](); ok {
+			return p, true
 		}
 	}
 	return Plan{}, false
@@ -475,8 +543,8 @@ func (m *RandomChainManager) BreakOne() (Plan, bool) {
 // ChainContainer wires a simpleChainContainer: RandomChain as the VirtualNode
 // and an EngineController wrapping the same RandomChain as l2Provider. A
 // non-empty dataDir roots a per-chain denyList (under dataDir/denylist/<id>) so
-// the container matches production wiring and exercises the rewind path; Close
-// releases it. An empty dataDir leaves the denyList unset (read-path tests that
+// the container matches production wiring and exercises the rewind path; Stop
+// closes it. An empty dataDir leaves the denyList unset (read-path tests that
 // never touch the deny list).
 func (m *RandomChainManager) ChainContainer(id eth.ChainID, dataDir string) (*simpleChainContainer, error) {
 	rc := m.chains[id]
