@@ -1376,6 +1376,40 @@ mod sdm {
         );
     }
 
+    // A reverted tx that re-touches a block-warmed account still earns (and keeps) its rebate, so
+    // the block produces SDM settlement entries even when *every* user tx reverts. A non-empty
+    // entry set is what makes the payload builder append the post-exec (0x7D) settlement tx.
+    #[test]
+    fn test_all_reverted_txs_still_settle_warming_rebate() {
+        let reverting_probe = Address::from([0x11; 20]);
+        let warmed = Address::from([0x22; 20]);
+
+        let mut fixture = SDMExecutorFixture::default();
+        fixture.db.insert_account(reverting_probe, balance_probe_then_revert(&[warmed]));
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+        // Two included-but-reverted txs, both cold-touching `warmed`.
+        for nonce in 0..2 {
+            let mut reverted = false;
+            producer
+                .execute_transaction_with_result_closure(
+                    &legacy_tx(nonce, reverting_probe),
+                    |res| {
+                        reverted = matches!(res.result().result, ExecutionResult::Revert { .. });
+                    },
+                )
+                .expect("a reverting tx is still included in the block");
+            assert!(reverted, "tx{nonce} must revert");
+        }
+
+        // tx0 is the first toucher (no rebate); the reverted tx1 re-touches `warmed` and settles a
+        // rebate, leaving a non-empty entry set despite every tx reverting.
+        let entries = producer.post_exec_entries();
+        assert_eq!(entries.len(), 1, "only the second, re-touching reverted tx settles a rebate");
+        assert_eq!(entries[0].index, 1, "rebate is attributed to the second reverted tx");
+        assert_eq!(entries[0].gas_refund, 2_500, "ACCOUNT_REWARM_REFUND");
+    }
+
     /// Bytecode that runs `BALANCE` against each address in turn, warming it through a genuine
     /// cold EIP-2929 access: `PUSH20 <addr>; BALANCE; POP` per address, then `STOP`. Unlike a
     /// plain transfer (which only touches the intrinsically-warm sender/`to`), calling this
