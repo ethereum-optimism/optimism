@@ -44,11 +44,13 @@ func FuzzInteropRound(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		i, mgr := buildInterop(t, data)
+		assertRoundValid(t, i)
 
 		for n := 0; ; n++ {
 			require.Less(t, n, 100, "verification loop did not terminate")
 			progress, err := i.progressAndRecord()
 			require.NoError(t, err)
+			assertRoundValid(t, i)
 			if !progress {
 				break
 			}
@@ -60,6 +62,20 @@ func FuzzInteropRound(f *testing.F) {
 		// block's slot verifies at both its own timestamp and the next.
 		require.Equal(t, mgr.MinSafeTimestamp()+1, last, "must verify up to the safe head's slot")
 	})
+}
+
+// assertRoundValid asserts the Dafny invariants (Valid + pending-transition
+// consistency) and, on a ready round, the relational observation checks against
+// the live DBs. Call only where the upcoming observation is expected consistent.
+func assertRoundValid(t *testing.T, i *Interop) {
+	t.Helper()
+	AssertInvariants(t, i)
+	obs, err := i.observeRound()
+	require.NoError(t, err)
+	if obs.ChainsReady {
+		AssertObservationConsistentWithVerified(t, i, obs)
+		AssertObservationConsistentWithLogs(t, i, obs)
+	}
 }
 
 // lastRecordedInclusion returns the L1Inclusion.Number of the last committed
@@ -92,6 +108,7 @@ func FuzzInteropInvalid(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		i, mgr := buildInterop(t, data)
+		assertRoundValid(t, i)
 
 		plan, ok := mgr.BreakOne()
 		if !ok {
@@ -124,11 +141,13 @@ func FuzzInteropInvalid(f *testing.F) {
 					case cc.RejectHistoryUnavailable:
 						require.ErrorIs(t, err, cc.ErrHistoryUnavailable)
 					}
+					AssertInvariants(t, i) // rejecting a violation leaves interop model-valid
 					return
 				}
 				progress, err := i.progressAndRecord()
 				require.NoError(t, err)
 				require.True(t, progress, "valid rounds before the bad block must advance")
+				assertRoundValid(t, i)
 			}
 		}
 
@@ -150,6 +169,7 @@ func FuzzInteropInvalid(f *testing.F) {
 				progress, err := i.progressAndRecord()
 				require.NoError(t, err)
 				require.False(t, progress, "progressAndRecord applying a rewind must not advance")
+				AssertInvariants(t, i) // the rewound state must remain model-valid
 
 				if beforeOK {
 					after, afterOK := i.verifiedDB.LastTimestamp()
@@ -165,6 +185,7 @@ func FuzzInteropInvalid(f *testing.F) {
 			if !progress {
 				t.Skip("reorg inclusion target unreachable")
 			}
+			assertRoundValid(t, i)
 		}
 	})
 }
