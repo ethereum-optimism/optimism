@@ -466,7 +466,7 @@ impl<Txs: PayloadTxsBounds> OpBuilder<'_, Txs> {
         // empty entries → no tx, zero-address sender, appended last (consensus requires at most
         // one PostExec tx, in the final position). A derived block (`no_tx_pool`) must reproduce
         // exactly the attribute transactions, so never append one there.
-        if matches!(ctx.post_exec_mode, PostExecMode::Produce) && !ctx.attributes().no_tx_pool {
+        if matches!(ctx.post_exec_mode, PostExecMode::Produce) && !ctx.force_empty() {
             let entries = builder.executor_mut().take_post_exec_entries();
             if let Some(post_exec_tx) = build_current_post_exec_tx(ctx, entries) {
                 let gas_output = builder.execute_transaction(Recovered::new_unchecked(

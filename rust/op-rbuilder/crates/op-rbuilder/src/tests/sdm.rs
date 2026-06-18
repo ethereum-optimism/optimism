@@ -12,7 +12,7 @@ use crate::{
     sdm_admin::SdmAdminApiClient,
     tests::{BlockTransactionsExt, LocalInstance, default_node_config},
 };
-use alloy_primitives::{Bytes, hex};
+use alloy_primitives::Bytes;
 use alloy_provider::Provider;
 use alloy_rpc_types_eth::Block;
 use macros::rb_test;
@@ -20,12 +20,44 @@ use op_alloy_consensus::{OpTxEnvelope, PostExecPayload};
 use op_alloy_rpc_types::Transaction;
 use reth_node_builder::NodeConfig;
 use reth_optimism_chainspec::OpChainSpec;
+use revm::bytecode::opcode;
 use std::sync::Arc;
 
-/// Init code deploying a 5-byte runtime (`PUSH1 1, PUSH0, SSTORE, STOP`) that stores `1`
-/// into slot 0 on every call. Two calls in the same block make the second call touch a
-/// slot the first already warmed, which is exactly what generates an SDM gas refund entry.
-const STORE_SLOT_ZERO_INIT_CODE: [u8; 14] = hex!("60058060095f395ff360015f5500");
+/// Runtime bytecode `SSTORE(slot 0, 1); STOP` — stores `1` into slot 0 on every call.
+/// Calling the deployed contract twice in one block makes the second call write a slot the
+/// first already warmed, which is exactly the access pattern that produces an SDM gas
+/// refund entry.
+fn store_slot_zero_runtime() -> [u8; 5] {
+    [
+        opcode::PUSH1,
+        0x01,
+        opcode::PUSH0,
+        opcode::SSTORE,
+        opcode::STOP,
+    ]
+}
+
+/// Wraps `runtime` in a minimal constructor that copies it into memory and returns it,
+/// yielding init code for a `CREATE` transaction.
+fn deploy(runtime: &[u8]) -> Bytes {
+    let size = u8::try_from(runtime.len()).expect("runtime length fits in one byte");
+    let mut code = vec![
+        opcode::PUSH1,
+        size,         // size of the runtime to copy and return
+        opcode::DUP1, //   keep a second copy of size for RETURN below
+        opcode::PUSH1,
+        0,                // [patched] offset of the runtime within this code
+        opcode::PUSH0,    // destination offset 0 in memory
+        opcode::CODECOPY, // memory[0..size] = code[offset..offset + size]
+        opcode::PUSH0,    // return offset 0
+        opcode::RETURN,   // return memory[0..size] as the deployed runtime
+    ];
+    // The runtime is appended right after the constructor, so its offset is the
+    // constructor length — patch the placeholder rather than hard-coding it.
+    code[4] = u8::try_from(code.len()).expect("constructor length fits in one byte");
+    code.extend_from_slice(runtime);
+    Bytes::from(code)
+}
 
 /// The test-framework chain spec with the SDM protocol gate (Interop/Lagoon) active at
 /// genesis. Everything else matches [`default_node_config`].
@@ -77,7 +109,7 @@ async fn post_exec_tx_follows_operator_opt_in(rbuilder: LocalInstance) -> eyre::
     let deploy = driver
         .create_transaction()
         .with_create()
-        .with_input(Bytes::from_static(&STORE_SLOT_ZERO_INIT_CODE))
+        .with_input(deploy(&store_slot_zero_runtime()))
         .send()
         .await?;
     driver.build_new_block().await?;

@@ -197,6 +197,14 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
         &self.config.attributes
     }
 
+    /// Returns true when the tx pool is excluded and the block must be reproduced
+    /// deterministically from forced transactions only (i.e. `no_tx_pool = true`).
+    ///
+    /// Mirrors op-reth's `force_empty` for cross-builder consistency.
+    pub fn force_empty(&self) -> bool {
+        self.attributes().no_tx_pool
+    }
+
     /// Returns the withdrawals if shanghai is active.
     pub fn withdrawals(&self) -> Option<&Withdrawals> {
         self.chain_spec
