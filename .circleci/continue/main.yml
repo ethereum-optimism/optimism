@@ -1677,6 +1677,20 @@ jobs:
           # downstream — no need to repeat them here.
           name: verify rebuilt bundle matches committed .sha256
           command: git diff --exit-code op-core/superchain/superchain-configs.zip.sha256
+      - run:
+          # op-reth pins its superchain-registry commit in
+          # res/superchain_registry_commit. Assert it matches the canonical submodule
+          # gitlink so op-reth can't drift from op-core/kona. (HEAD:<path> reads the
+          # gitlink commit without initializing the submodule.)
+          name: verify op-reth pins the same superchain-registry commit
+          command: |
+            submodule_commit=$(git rev-parse HEAD:superchain-registry)
+            op_reth_commit=$(tr -d '[:space:]' < rust/op-reth/crates/chainspec/res/superchain_registry_commit)
+            if [ "$submodule_commit" != "$op_reth_commit" ]; then
+              echo "op-reth pins superchain-registry $op_reth_commit but the submodule gitlink is $submodule_commit" >&2
+              echo "Update rust/op-reth/crates/chainspec/res/superchain_registry_commit (or the submodule) so they agree." >&2
+              exit 1
+            fi
       - persist_to_workspace:
           root: .
           paths:
