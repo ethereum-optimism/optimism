@@ -104,7 +104,7 @@ func TestInstrumentedState_Random(t *testing.T) {
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := latestVm(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger(), meta)
 
-	for i := 0; i < 500_000; i++ {
+	for i := 0; i < 1_000_000; i++ {
 		if us.GetState().GetExited() {
 			break
 		}

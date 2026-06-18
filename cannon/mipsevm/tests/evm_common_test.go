@@ -971,7 +971,7 @@ func TestEVM_RandomProgram(t *testing.T) {
 			state := goVm.GetState()
 
 			start := time.Now()
-			for i := 0; i < 500_000; i++ {
+			for i := 0; i < 1_000_000; i++ {
 				step := goVm.GetState().GetStep()
 				if goVm.GetState().GetExited() {
 					break
