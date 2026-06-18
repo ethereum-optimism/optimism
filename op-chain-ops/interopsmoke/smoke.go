@@ -1,4 +1,10 @@
-package main
+// Package interopsmoke implements interop smoke tests that run against the
+// RPCs of two live interoperable L2 chains: chain identity, ETH transfers,
+// cross-chain ETH bridging, and valid/invalid executing-message checks.
+//
+// It is exposed both as the standalone op-chain-ops/cmd/interop-smoke tool and
+// as the `smoke-interop` subcommand of op-up.
+package interopsmoke
 
 import (
 	"context"
@@ -18,6 +24,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopbridge"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -25,55 +32,47 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	txIntentBindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	"github.com/lmittmann/w3"
 )
 
 const smokeWaitTimeout = 60 * time.Second
 
-var (
-	sendETHFn = w3.MustNewFunc("sendETH(address,uint256)", "bytes32")
-
-	smokeL2AURLFlag = &cli.StringFlag{
-		Name:    "l2a-rpc",
-		Usage:   "RPC URL for chain A.",
-		EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2A_RPC"),
-		Value:   "http://localhost:8545",
-	}
-	smokeL2BURLFlag = &cli.StringFlag{
-		Name:    "l2b-rpc",
-		Usage:   "RPC URL for chain B.",
-		EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2B_RPC"),
-		Value:   "http://localhost:8546",
-	}
-	smokePrivateKeyFlag = &cli.StringFlag{
-		Name:    "private-key",
-		Usage:   "Private key to fund smoke-test transactions. If empty, uses the default dev key.",
-		EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_KEY"),
-	}
+const (
+	l2AURLFlagName     = "l2a-rpc"
+	l2BURLFlagName     = "l2b-rpc"
+	privateKeyFlagName = "private-key"
 )
 
-type sendETHTrigger struct {
-	Recipient   common.Address
-	Destination eth.ChainID
-}
+// bridgeTimeout bounds a single A->B bridge (send, relay, and balance check).
+const bridgeTimeout = 2 * time.Minute
 
-func (t *sendETHTrigger) To() (*common.Address, error) {
-	addr := predeploys.SuperchainETHBridgeAddr
-	return &addr, nil
-}
-
-func (t *sendETHTrigger) EncodeInput() ([]byte, error) {
-	return sendETHFn.EncodeArgs(t.Recipient, t.Destination.ToBig())
-}
-
-func (t *sendETHTrigger) AccessList() (types.AccessList, error) {
-	return nil, nil
+func smokeFlags(envPrefix string) []cli.Flag {
+	return cliapp.ProtectFlags([]cli.Flag{
+		&cli.StringFlag{
+			Name:    l2AURLFlagName,
+			Usage:   "RPC URL for chain A.",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2A_RPC"),
+			Value:   "http://localhost:8545",
+		},
+		&cli.StringFlag{
+			Name:    l2BURLFlagName,
+			Usage:   "RPC URL for chain B.",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2B_RPC"),
+			Value:   "http://localhost:8546",
+		},
+		&cli.StringFlag{
+			Name:    privateKeyFlagName,
+			Usage:   "Private key to fund smoke-test transactions. If empty, uses the default dev key.",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_KEY"),
+		},
+	})
 }
 
 type remoteChain struct {
@@ -104,6 +103,7 @@ type execMessage struct {
 type smokeEnv struct {
 	ctx    context.Context
 	stderr io.Writer
+	logger log.Logger
 	chainA *remoteChain
 	chainB *remoteChain
 	userA  *remoteUser
@@ -238,6 +238,17 @@ func (u *remoteUser) sendInvalidExecMessage(ctx context.Context, initMsg *initMe
 	}, nil
 }
 
+func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
+	logHandler := oplog.NewLogHandler(stderr, oplog.DefaultCLIConfig())
+	logHandler = logfilter.WrapFilterHandler(logHandler)
+	logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute())
+	logHandler = logfilter.WrapContextHandler(logHandler)
+	logger := log.NewLogger(logHandler)
+	oplog.SetGlobalLogHandler(logHandler)
+	logger.SetContext(ctx)
+	return logger
+}
+
 func newSmokeEnv(ctx context.Context, stderr io.Writer, l2AURL, l2BURL, privateKey string) (*smokeEnv, func(), error) {
 	logger := newLogger(ctx, stderr)
 
@@ -261,6 +272,7 @@ func newSmokeEnv(ctx context.Context, stderr io.Writer, l2AURL, l2BURL, privateK
 	env := &smokeEnv{
 		ctx:    ctx,
 		stderr: stderr,
+		logger: logger,
 		chainA: chainA,
 		chainB: chainB,
 		userA:  &remoteUser{chain: chainA, privKey: privKey, address: address},
@@ -333,11 +345,10 @@ func resolveSmokeKey(privateKey string) (*ecdsa.PrivateKey, common.Address, erro
 func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error) error {
 	ctx := cliCtx.Context
 	stderr := cliCtx.App.ErrWriter
-	l2AURL := cliCtx.String(smokeL2AURLFlag.Name)
-	l2BURL := cliCtx.String(smokeL2BURLFlag.Name)
-	privateKey := cliCtx.String(smokePrivateKeyFlag.Name)
+	l2AURL := cliCtx.String(l2AURLFlagName)
+	l2BURL := cliCtx.String(l2BURLFlagName)
+	privateKey := cliCtx.String(privateKeyFlagName)
 
-	fmt.Fprintf(stderr, "%s\n", asciiArt)
 	fmt.Fprintf(stderr, "\nSmoke: %s\n\n", name)
 
 	env, cleanup, err := newSmokeEnv(ctx, stderr, l2AURL, l2BURL, privateKey)
@@ -358,60 +369,69 @@ func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error
 	return nil
 }
 
-func smokeCommand() *cli.Command {
-	smokeFlags := cliapp.ProtectFlags([]cli.Flag{smokeL2AURLFlag, smokeL2BURLFlag, smokePrivateKeyFlag})
-
+// Command returns the `smoke-interop` command tree for embedding in a host
+// CLI such as op-up. envPrefix scopes the flag environment variables
+// (e.g. "OP_UP" -> OP_UP_SMOKE_L2A_RPC).
+func Command(envPrefix string) *cli.Command {
 	return &cli.Command{
-		Name:  "smoke-interop",
-		Usage: "run interop smoke tests against remote chain RPCs",
-		Subcommands: []*cli.Command{
-			{
-				Name:  "all",
-				Usage: "run all smoke tests sequentially",
-				Flags: smokeFlags,
-				Action: func(cliCtx *cli.Context) error {
-					return withSmokeEnv(cliCtx, "All Tests", smokeAll)
-				},
+		Name:        "smoke-interop",
+		Usage:       "run interop smoke tests against remote chain RPCs",
+		Subcommands: Subcommands(envPrefix),
+	}
+}
+
+// Subcommands returns the individual smoke-test commands, for mounting at the
+// top level of a standalone CLI.
+func Subcommands(envPrefix string) []*cli.Command {
+	flags := smokeFlags(envPrefix)
+
+	return []*cli.Command{
+		{
+			Name:  "all",
+			Usage: "run all smoke tests sequentially",
+			Flags: flags,
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "All Tests", smokeAll)
 			},
-			{
-				Name:  "identity",
-				Usage: "verify both chains have different chain IDs",
-				Flags: smokeFlags,
-				Action: func(cliCtx *cli.Context) error {
-					return withSmokeEnv(cliCtx, "Chain Identity", smokeIdentity)
-				},
+		},
+		{
+			Name:  "identity",
+			Usage: "verify both chains have different chain IDs",
+			Flags: flags,
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "Chain Identity", smokeIdentity)
 			},
-			{
-				Name:  "transfer",
-				Usage: "send ETH transfers on both chains",
-				Flags: smokeFlags,
-				Action: func(cliCtx *cli.Context) error {
-					return withSmokeEnv(cliCtx, "ETH Transfers", smokeTransfer)
-				},
+		},
+		{
+			Name:  "transfer",
+			Usage: "send ETH transfers on both chains",
+			Flags: flags,
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "ETH Transfers", smokeTransfer)
 			},
-			{
-				Name:  "bridge",
-				Usage: "bridge ETH from chain A to chain B via SuperchainETHBridge",
-				Flags: smokeFlags,
-				Action: func(cliCtx *cli.Context) error {
-					return withSmokeEnv(cliCtx, "Cross-Chain ETH Bridge", smokeBridge)
-				},
+		},
+		{
+			Name:  "bridge",
+			Usage: "bridge ETH from chain A to chain B via SuperchainETHBridge",
+			Flags: flags,
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "Cross-Chain ETH Bridge", smokeBridge)
 			},
-			{
-				Name:  "valid-message",
-				Usage: "send a valid executing message and verify it stays in-chain",
-				Flags: smokeFlags,
-				Action: func(cliCtx *cli.Context) error {
-					return withSmokeEnv(cliCtx, "Valid Exec Message", smokeValidMessage)
-				},
+		},
+		{
+			Name:  "valid-message",
+			Usage: "send a valid executing message and verify it stays in-chain",
+			Flags: flags,
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "Valid Exec Message", smokeValidMessage)
 			},
-			{
-				Name:  "invalid-message",
-				Usage: "send an invalid executing message and verify it is reorged out",
-				Flags: smokeFlags,
-				Action: func(cliCtx *cli.Context) error {
-					return withSmokeEnv(cliCtx, "Invalid Exec Message (reorg)", smokeInvalidMessage)
-				},
+		},
+		{
+			Name:  "invalid-message",
+			Usage: "send an invalid executing message and verify it is reorged out",
+			Flags: flags,
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "Invalid Exec Message (reorg)", smokeInvalidMessage)
 			},
 		},
 	}
@@ -476,38 +496,10 @@ func smokeTransfer(env *smokeEnv) error {
 }
 
 func smokeBridge(env *smokeEnv) error {
-	recipient := randomAddress()
-	amount := eth.OneHundredthEther
-
-	sendTx := txintent.NewIntent[*sendETHTrigger, *txintent.InteropOutput](
-		env.userA.plan(),
-		txplan.WithValue(amount),
-	)
-	sendTx.Content.Set(&sendETHTrigger{
-		Recipient:   recipient,
-		Destination: env.chainB.chainID,
-	})
-
-	sendReceipt, err := sendTx.PlannedTx.Included.Eval(env.ctx)
-	if err != nil {
-		return fmt.Errorf("sendETH failed: %w", err)
-	}
-	if sendReceipt.Status != types.ReceiptStatusSuccessful {
-		return fmt.Errorf("sendETH tx reverted")
-	}
-	fmt.Fprintf(env.stderr, "    sendETH tx included: %s\n", sendReceipt.TxHash)
-
-	relayReceipt, err := waitForRelaySuccess(env, sendTx)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(env.stderr, "    relayETH tx included: %s\n", relayReceipt.TxHash)
-
-	if err := waitForBalance(env.ctx, env.chainB, recipient, amount); err != nil {
-		return err
-	}
-	fmt.Fprintf(env.stderr, "    Recipient received %s ETH on Chain B\n", amount)
-	return nil
+	ctx, cancel := context.WithTimeout(env.ctx, bridgeTimeout)
+	defer cancel()
+	return interopbridge.BridgeETH(ctx, env.logger, env.chainA.ethClient, env.chainB.ethClient,
+		env.chainB.chainID, env.userA.privKey, eth.OneHundredthEther, randomAddress())
 }
 
 func smokeValidMessage(env *smokeEnv) error {
@@ -591,37 +583,6 @@ func smokeInvalidMessage(env *smokeEnv) error {
 	}
 	fmt.Fprintf(env.stderr, "    Invalid tx was reorged out after block %d was replaced\n", invalidBlockNum)
 	return nil
-}
-
-func waitForRelaySuccess(env *smokeEnv, sendTx *txintent.IntentTx[*sendETHTrigger, *txintent.InteropOutput]) (*types.Receipt, error) {
-	deadline := time.Now().Add(smokeWaitTimeout)
-	for attempt := 0; ; attempt++ {
-		relayTx := txintent.NewIntent[*txintent.RelayTrigger, *txintent.InteropOutput](env.userB.plan())
-		relayTx.Content.DependOn(&sendTx.Result)
-		relayTx.Content.Fn(txintent.RelayIndexed(
-			predeploys.L2toL2CrossDomainMessengerAddr,
-			&sendTx.Result,
-			&sendTx.PlannedTx.Included,
-			1,
-		))
-
-		relayReceipt, err := relayTx.PlannedTx.Included.Eval(env.ctx)
-		if err == nil && relayReceipt.Status == types.ReceiptStatusSuccessful {
-			return relayReceipt, nil
-		}
-		if time.Now().After(deadline) {
-			if err != nil {
-				return nil, fmt.Errorf("relayETH failed before timeout: %w", err)
-			}
-			return nil, fmt.Errorf("relayETH tx kept reverting until timeout")
-		}
-		if err != nil {
-			fmt.Fprintf(env.stderr, "    Waiting for relayability: attempt %d failed: %v\n", attempt+1, err)
-		} else {
-			fmt.Fprintf(env.stderr, "    Waiting for relayability: attempt %d reverted in tx %s\n", attempt+1, relayReceipt.TxHash)
-		}
-		time.Sleep(time.Second)
-	}
 }
 
 func waitForBalance(ctx context.Context, chain *remoteChain, addr common.Address, want eth.ETH) error {

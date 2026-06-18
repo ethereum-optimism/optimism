@@ -253,6 +253,13 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
 
 ## For app developers
 
+<Warning>
+  OP Stack Sepolia testnet chains have a bug affecting calls to `eth_estimateGas` when the `gas` parameter is omitted after Karst.
+  If you use `eth_estimateGas`, providing an explicit `gas` parameter is required.
+  Only post-Karst Sepolia OP Stack chains are impacted.
+  This will be fixed on OP Sepolia within the coming days and will be fixed prior to Karst activation on OP Mainnet.
+</Warning>
+
 * **EIP-7825 transaction gas limit (Osaka on L2):** L2 transactions are now subject to a per-transaction gas limit of 2^24 = 16,777,216 gas. If your application submits transactions with very high gas limits, verify they remain within the new threshold. Deposit transactions are exempt. Most applications will not be affected.
 * **MODEXP gas changes ([EIP-7883](https://eips.ethereum.org/EIPS/eip-7883) + [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823), Osaka on L2):** the gas cost floor for `MODEXP` (`0x05`) increases, and a new input size cap (1024-byte modulus) is enforced. If your contracts call `MODEXP`, update your gas estimates and verify inputs are within the new size limit.
 * **P256VERIFY gas change ([EIP-7951](https://eips.ethereum.org/EIPS/eip-7951), Osaka on L2):** the gas cost for `P256VERIFY` (`0x100`) increases from 3,450 to 6,900 gas. If your contracts call `P256VERIFY`, update your gas estimates.

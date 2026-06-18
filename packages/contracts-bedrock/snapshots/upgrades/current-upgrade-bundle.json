@@ -195,7 +195,7 @@
     {
       "data": "0x7c36f37e00000000000000000000000029146c055de75aea9cd5aacd101f9a0c70bc1a6f",
       "from": "0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001",
-      "gasLimit": 3700000,
+      "gasLimit": 4000000,
       "intent": "L2ProxyAdmin Upgrade Predeploys",
       "to": "0x4200000000000000000000000000000000000018"
     }
