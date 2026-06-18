@@ -82,6 +82,7 @@ const (
 	SysGetRLimit     = 5095
 	SysLseek         = 5008
 	SysEventFd2      = 5284
+	SysPrctl         = 5153
 	// Profiling-related syscalls
 	SysSetITimer    = 5036
 	SysTimerCreate  = 5216

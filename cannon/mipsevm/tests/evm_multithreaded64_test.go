@@ -616,6 +616,7 @@ var NoopSyscalls64 = map[string]uint32{
 	"SysTgkill":       5225,
 	"SysGetRLimit":    5095,
 	"SysLseek":        5008,
+	"SysPrctl":        5153,
 	"SysSetITimer":    5036,
 	"SysTimerCreate":  5216,
 	"SysTimerSetTime": 5217,
