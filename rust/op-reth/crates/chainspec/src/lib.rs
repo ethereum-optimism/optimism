@@ -206,8 +206,7 @@ impl OpChainSpecBuilder {
     /// [`Self::genesis`])
     pub fn build(self) -> OpChainSpec {
         let mut inner = self.inner.build();
-        inner.genesis_header =
-            SealedHeader::seal_slow(make_op_genesis_header(&inner.genesis, &inner.hardforks));
+        inner.genesis_header = make_op_sealed_genesis_header(&inner.genesis, &inner.hardforks);
 
         OpChainSpec { inner }
     }
@@ -429,12 +428,7 @@ impl From<Genesis> for OpChainSpec {
         ordered_hardforks.append(&mut block_hardforks);
 
         let hardforks = ChainHardforks::new(ordered_hardforks);
-        let header = make_op_genesis_header(&genesis, &hardforks);
-        let genesis_header = if genesis.config.chain_id == NamedChain::Optimism as u64 {
-            SealedHeader::new(header, OP_MAINNET_GENESIS_HASH)
-        } else {
-            SealedHeader::seal_slow(header)
-        };
+        let genesis_header = make_op_sealed_genesis_header(&genesis, &hardforks);
 
         Self {
             inner: ChainSpec {
@@ -523,6 +517,24 @@ pub fn make_op_genesis_header(genesis: &Genesis, hardforks: &ChainHardforks) -> 
     }
 
     header
+}
+
+/// Builds the sealed genesis header for an OP chain.
+///
+/// OP Mainnet's Bedrock genesis header can't be recomputed from genesis state (see
+/// [`OP_MAINNET_GENESIS_HASH`]), so its hash is pinned; every other chain's header is sealed by
+/// computing its hash. This is the single place that applies the OP Mainnet pin, so all genesis
+/// construction paths agree.
+pub(crate) fn make_op_sealed_genesis_header(
+    genesis: &Genesis,
+    hardforks: &ChainHardforks,
+) -> SealedHeader {
+    let header = make_op_genesis_header(genesis, hardforks);
+    if genesis.config.chain_id == NamedChain::Optimism as u64 {
+        SealedHeader::new(header, OP_MAINNET_GENESIS_HASH)
+    } else {
+        SealedHeader::seal_slow(header)
+    }
 }
 
 #[cfg(test)]
@@ -644,10 +656,7 @@ mod tests {
 
     #[test]
     fn op_mainnet_forkids() {
-        let mut op_mainnet = OpChainSpecBuilder::optimism_mainnet().build();
-        // for OP mainnet we have to do this because the genesis header can't be properly computed
-        // from the genesis.json file
-        op_mainnet.inner.genesis_header.set_hash(OP_MAINNET.genesis_hash());
+        let op_mainnet = OpChainSpecBuilder::optimism_mainnet().build();
         test_fork_ids(
             &op_mainnet,
             &[
