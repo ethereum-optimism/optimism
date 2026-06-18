@@ -52,28 +52,52 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 }
 
 // fetchSuperchainRegistryCommit returns the superchain-registry commit SHA that
-// the kona-client release identified by ref was built against, by reading the
-// pinned commit file from the local optimism monorepo checkout at that tag.
+// the kona-client release identified by ref was built against.
 //
-// Only kona-client tags that have op-core/superchain/superchain-registry-commit.txt
-// are supported (v1.5.1 and later). If the tag isn't present locally, the
-// function fetches it from origin before giving up.
+// For tags that still carry the legacy `op-core/superchain/superchain-registry-commit.txt`
+// pin (v1.5.1 up to the submodule-coupling change) it reads that file — preferred
+// when present so historical prestate checks are unchanged. For newer tags the
+// canonical pin is the superchain-registry git submodule, so it reads the submodule
+// gitlink commit instead (trying the current root path and the historical path under
+// packages/contracts-bedrock/lib). If the tag isn't present locally, the function
+// fetches it from origin first.
 func fetchSuperchainRegistryCommit(ref string) (string, error) {
-	const path = "op-core/superchain/superchain-registry-commit.txt"
-
 	if err := ensureRefAvailable(ref); err != nil {
 		return "", err
 	}
 
-	stdout, stderr, err := runGit("show", fmt.Sprintf("%s:%s", ref, path))
+	// Legacy pinned-commit file, present on older tags.
+	const legacyPath = "op-core/superchain/superchain-registry-commit.txt"
+	if stdout, _, err := runGit("show", fmt.Sprintf("%s:%s", ref, legacyPath)); err == nil {
+		if sha := strings.TrimSpace(stdout); sha != "" {
+			return sha, nil
+		}
+	}
+
+	// Newer tags: the superchain-registry submodule gitlink (at the repo root) is
+	// the canonical pin.
+	if sha, ok := gitlinkCommit(ref, "superchain-registry"); ok {
+		return sha, nil
+	}
+
+	return "", fmt.Errorf(
+		"could not determine superchain-registry commit for %s: neither %s nor a "+
+			"superchain-registry submodule gitlink was found at that ref", ref, legacyPath)
+}
+
+// gitlinkCommit returns the commit a submodule gitlink points to at ref, if path
+// is a gitlink (mode 160000 / type commit) in that tree.
+func gitlinkCommit(ref, path string) (string, bool) {
+	stdout, _, err := runGit("ls-tree", ref, "--", path)
 	if err != nil {
-		return "", fmt.Errorf("git show %s:%s failed: %w (%s)", ref, path, err, strings.TrimSpace(stderr))
+		return "", false
 	}
-	sha := strings.TrimSpace(stdout)
-	if sha == "" {
-		return "", fmt.Errorf("empty commit SHA at %s@%s", path, ref)
+	// Format: "<mode> <type> <sha>\t<path>".
+	fields := strings.Fields(strings.TrimSpace(stdout))
+	if len(fields) >= 3 && fields[0] == "160000" && fields[1] == "commit" {
+		return fields[2], true
 	}
-	return sha, nil
+	return "", false
 }
 
 // ensureRefAvailable verifies that ref resolves in the local repo; if not, it

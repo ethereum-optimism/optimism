@@ -210,9 +210,9 @@ mod tests {
     }
 
     /// Pins the registry-derived interop cluster against the committed
-    /// `etc/depsets.json` snapshot. The snapshot is regenerated from
-    /// `packages/contracts-bedrock/lib/superchain-registry` via
-    /// `KONA_BIND=true cargo build -p kona-registry`.
+    /// `etc/depsets.json` snapshot. The snapshot is regenerated from the
+    /// `superchain-registry` submodule via
+    /// `KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry`.
     ///
     /// Today the registry defines a single `[interop]` cluster — `rehearsal-0-bn`
     /// (chain ids 420120009, 420120010). If the rehearsal TOMLs change upstream,

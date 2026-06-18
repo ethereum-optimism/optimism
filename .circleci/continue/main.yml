@@ -1667,7 +1667,7 @@ jobs:
           enable-mise-cache: true
       - run:
           name: build superchain bundle
-          command: just sync-superchain
+          command: just sync-superchain-go
       - run:
           # Catches non-deterministic builds and stale .sha256 commits: if the
           # rebuilt zip differs from what was approved in review, the .sha256

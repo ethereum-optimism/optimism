@@ -23,12 +23,38 @@ FRAUD_PROOF_TEST_PKGS := "./op-e2e/faultproofs/..."
 help:
   @just --list
 
-# Builds op-core/superchain/superchain-configs.zip from the pinned commit in
-# op-core/superchain/superchain-registry-commit.txt. The zip is gitignored;
-# this recipe is the way to (re)materialise it for builds and tests. Skips work
-# if the existing zip already pins the same commit.
-sync-superchain:
+# Initializes/updates the superchain-registry submodule — the single canonical SR
+# commit pin. Scoped to ONLY this submodule (never a bare `git submodule update`).
+# With no ref it initializes at the pinned commit (shallow) and leaves an
+# already-present checkout untouched; with a ref (tag or commit sha) it moves the
+# submodule there.
+[script('bash')]
+update-superchain-registry-submodule ref="":
+  set -euo pipefail
+  # Ensure the submodule is initialized, but don't reset an existing checkout.
+  if [ ! -e superchain-registry/.git ]; then
+    git submodule update --init --depth 1 -- superchain-registry
+  fi
+  if [ -n "{{ref}}" ]; then
+    git -C superchain-registry fetch --depth 1 origin "{{ref}}"
+    git -C superchain-registry checkout --detach FETCH_HEAD
+  fi
+
+# Regenerates op-core/superchain/superchain-configs.zip (gitignored) from the
+# superchain-registry submodule. Lightweight; this is the recipe the Go targets
+# depend on. Skips work if the existing zip already pins the same commit.
+sync-superchain-go: update-superchain-registry-submodule
   bash op-core/superchain/sync-superchain.sh
+
+# Regenerates the committed Rust snapshots from the submodule: kona's etc/*.json
+# (via KONA_SYNC_SUPERCHAIN).
+sync-superchain-rust: update-superchain-registry-submodule
+  cd rust && KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry
+
+# One-command superchain-registry sync. With a ref (tag or commit sha) it moves the
+# submodule there first, then regenerates every dependent artifact (Go + Rust), so
+# the submodule pointer and the committed artifacts can never drift out of sync.
+sync-superchain ref="": (update-superchain-registry-submodule ref) sync-superchain-go sync-superchain-rust
 
 # Builds Go components and contracts-bedrock.
 build: build-go build-contracts
@@ -45,12 +71,12 @@ build-customlint:
   cd linter && just build
 
 # Lints Go code with specific linters.
-lint-go: build-customlint sync-superchain
+lint-go: build-customlint sync-superchain-go
   ./linter/bin/op-golangci-lint run ./...
   go mod tidy -diff
 
 # Lints Go code with specific linters and fixes reported issues.
-lint-go-fix: build-customlint sync-superchain
+lint-go-fix: build-customlint sync-superchain-go
   ./linter/bin/op-golangci-lint run ./... --fix
 
 # Checks that op-geth version in go.mod is valid.
@@ -223,7 +249,7 @@ verify-reproducibility:
 # Cleans up unused dependencies in Go modules.
 # Bypasses the Go module proxy for freshly released versions.
 # See https://proxy.golang.org/ for more info.
-mod-tidy: sync-superchain
+mod-tidy: sync-superchain-go
   GOPRIVATE="github.com/ethereum-optimism" go mod tidy
 
 # Removes all generated files under bin/.
@@ -267,7 +293,7 @@ list-test-packages:
 
 # Runs comprehensive Go tests across all packages.
 [script('bash')]
-go-tests: cannon build-contracts make-pre-test sync-superchain
+go-tests: cannon build-contracts make-pre-test sync-superchain-go
   set -euo pipefail
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="false"
@@ -278,7 +304,7 @@ go-tests: cannon build-contracts make-pre-test sync-superchain
 
 # Runs comprehensive Go tests with -short flag.
 [script('bash')]
-go-tests-short: cannon build-contracts make-pre-test sync-superchain
+go-tests-short: cannon build-contracts make-pre-test sync-superchain-go
   set -euo pipefail
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="false"
@@ -289,7 +315,7 @@ go-tests-short: cannon build-contracts make-pre-test sync-superchain
 
 # Internal: runs Go tests with gotestsum for CI.
 [script('bash')]
-_go-tests-ci-internal go_test_flags="": sync-superchain
+_go-tests-ci-internal go_test_flags="": sync-superchain-go
   set -euo pipefail
   (cd cannon && just cannon elf)
   echo "Setting up test directories..."

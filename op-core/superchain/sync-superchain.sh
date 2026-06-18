@@ -1,16 +1,28 @@
 #!/usr/bin/env bash
 
-# This script is used to sync superchain configs in the registry with op-core/superchain.
+# Syncs the superchain-registry configs into op-core/superchain.
 #
-# The resulting zip is gitignored. Run this script before building the Go workspace.
-# Skips work if the on-disk zip already matches the pinned commit.
+# Reads from the superchain-registry git submodule at the repo root — the single
+# canonical commit pin. Initialize it first with
+# `just update-superchain-registry-submodule` (the root `just sync-superchain`
+# target does this for you). The resulting zip is gitignored; the committed
+# .sha256 pins it. Skips work if the on-disk zip already matches the submodule's
+# commit.
 
 set -euo pipefail
 
 # Constants
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-REGISTRY_COMMIT=$(cat "$SCRIPT_DIR/superchain-registry-commit.txt")
+REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)
+SR_DIR="$REPO_ROOT/superchain-registry"
 ZIP="$SCRIPT_DIR/superchain-configs.zip"
+
+if [[ ! -d "$SR_DIR/superchain" ]]; then
+  echo "[sync-superchain] superchain-registry submodule not initialized; initializing..." >&2
+  (cd "$REPO_ROOT" && just update-superchain-registry-submodule)
+fi
+
+REGISTRY_COMMIT=$(git -C "$SR_DIR" rev-parse HEAD)
 
 # Short-circuit: if the existing zip already pins the same commit, do nothing.
 #
@@ -30,21 +42,12 @@ if [[ -f "$ZIP" ]]; then
   fi
 fi
 
-repodir=$(mktemp -d)
 workdir=$(mktemp -d)
 
-# Clone the registry
-echo "Cloning SR..."
-cd "$repodir"
-git clone --no-checkout --depth 1 --shallow-submodules https://github.com/ethereum-optimism/superchain-registry.git
-cd "$repodir/superchain-registry"
-git fetch --depth 1 origin "$REGISTRY_COMMIT"
-git checkout "$REGISTRY_COMMIT"
-
-echo "Copying configs..."
-cp -r superchain/configs "$workdir/configs"
-cp -r superchain/extra/genesis "$workdir/genesis"
-cp -r superchain/extra/dictionary "$workdir/dictionary"
+echo "Copying configs from superchain-registry submodule at $REGISTRY_COMMIT..."
+cp -r "$SR_DIR/superchain/configs" "$workdir/configs"
+cp -r "$SR_DIR/superchain/extra/genesis" "$workdir/genesis"
+cp -r "$SR_DIR/superchain/extra/dictionary" "$workdir/dictionary"
 
 cd "$workdir"
 echo "Using $workdir as workdir..."
@@ -131,7 +134,6 @@ sha256sum "$SCRIPT_DIR/superchain-configs.zip" \
   > "$SCRIPT_DIR/superchain-configs.zip.sha256"
 
 echo "Cleaning up..."
-rm -rf "$repodir"
 rm -rf "$workdir"
 
 echo "Done."
