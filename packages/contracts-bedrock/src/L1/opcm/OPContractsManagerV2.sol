@@ -298,10 +298,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
     /// @notice Re-points the shared dispute games of an already-interop set to a new respected
     ///         super game, running shared-infra steps exactly once. General across super game
-    ///         types (the current use case is the post-migration transition to shared ZK proofs).
-    ///         Does not deploy new infra or touch per-chain portals.
+    ///         types (the current use case is the post-migration transition to a shared super
+    ///         ZKDisputeGame). Does not deploy new infra or touch per-chain portals.
     /// @dev Like migrate(), this is a transitional function delegated to the migrator. It does NOT
-    ///      look or function like the standard chain upgrade.
+    ///      look or function like the standard chain upgrade. If no upgrades past ZK are expected
+    ///      this whole flow can be removed later, but it is generalized enough to keep as-is.
     /// @param _input The input parameters for the dispute game re-point.
     function setInteropDisputeGames(IOPContractsManagerMigrator.MigrateInput calldata _input) public {
         _onlyDelegateCall();

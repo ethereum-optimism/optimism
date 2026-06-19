@@ -133,8 +133,8 @@ interface IOPContractsManagerV2 {
     function migrate(IOPContractsManagerMigrator.MigrateInput calldata _input) external;
 
     /// @notice Re-points the shared dispute games of an already-interop set to a new respected
-    ///         super game (general across super game types; current use case is the transition to
-    ///         shared ZK proofs).
+    ///         super game (general across super game types; current use case is the transition to a
+    ///         shared super ZKDisputeGame).
     function setInteropDisputeGames(IOPContractsManagerMigrator.MigrateInput calldata _input) external;
 
     /// @notice Returns whether a development feature is enabled.

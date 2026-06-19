@@ -113,10 +113,11 @@ var (
 	SourceGameTypesFlag = &cli.StringFlag{
 		Name: "source-game-types",
 		Usage: "Comma-separated numeric type identifiers of the source super games to retire " +
-			"(cleared by the swap). Defaults to both super fault types registered by migrate: " +
-			"5 (SUPER_PERMISSIONED_CANNON) and 9 (SUPER_CANNON_KONA).",
+			"(cleared by the swap). Defaults to 9 (SUPER_CANNON_KONA), the permissionless super " +
+			"fault game that ZK replaces. SUPER_PERMISSIONED_CANNON (5) is intentionally kept as a " +
+			"permissioned liveness backup, mirroring the current SPDG + permissionless shape.",
 		EnvVars: deployer.PrefixEnvVar("SOURCE_GAME_TYPES"),
-		Value:   "5,9",
+		Value:   "9",
 	}
 	ZKVerifierFlag = &cli.StringFlag{
 		Name:    "zk-verifier-address",

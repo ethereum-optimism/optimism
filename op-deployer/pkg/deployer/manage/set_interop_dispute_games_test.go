@@ -92,7 +92,8 @@ func TestSetInteropDisputeGames(t *testing.T) {
 
 	const (
 		gameTypeSuperCannonKona = uint32(9)
-		gameTypeZK              = uint32(10)
+		gameTypeSuperPermissionedCannon = uint32(5)
+		gameTypeZK                      = uint32(10)
 	)
 
 	startingAnchorRoot := Proposal{
@@ -100,12 +101,18 @@ func TestSetInteropDisputeGames(t *testing.T) {
 		L2SequenceNumber: big.NewInt(1),
 	}
 
-	// Step 1: migrate the chain into an interop set with super-cannon-kona fault proofs.
+	// Step 1: migrate the chain into an interop set with the standard super shape: the permissioned
+	// SUPER_PERMISSIONED_CANNON plus the permissionless SUPER_CANNON_KONA, with kona respected.
 	bytes32Type, err := abi.NewType("bytes32", "", nil)
+	require.NoError(t, err)
+	addressType, err := abi.NewType("address", "", nil)
 	require.NoError(t, err)
 	faultArgs, err := abi.Arguments{{Type: bytes32Type}}.Pack(
 		common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000abc"),
 	)
+	require.NoError(t, err)
+	// SuperPermissionedDisputeGameConfig is a single `address proposer`.
+	spdgArgs, err := abi.Arguments{{Type: addressType}}.Pack(l1ProxyAdminOwner)
 	require.NoError(t, err)
 
 	_, err = Migrate(host, InteropMigrationInput{
@@ -114,6 +121,12 @@ func TestSetInteropDisputeGames(t *testing.T) {
 		MigrateInputV2: &MigrateInputV2{
 			ChainSystemConfigs: []common.Address{systemConfigProxy},
 			DisputeGameConfigs: []DisputeGameConfig{
+				{
+					Enabled:  true,
+					InitBond: big.NewInt(1000000000000000000),
+					GameType: gameTypeSuperPermissionedCannon,
+					GameArgs: spdgArgs,
+				},
 				{
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000),
@@ -144,9 +157,13 @@ func TestSetInteropDisputeGames(t *testing.T) {
 		MigrateInputV2: &MigrateInputV2{
 			ChainSystemConfigs: []common.Address{systemConfigProxy},
 			DisputeGameConfigs: []DisputeGameConfig{
-				// Clear the retired source super game.
+				// Keep the permissioned SUPER_PERMISSIONED_CANNON as the liveness backup. The script's
+				// checkOutput asserts each enabled game is still registered, so this proves the backup
+				// survives the swap (covers "previous games stay valid after the upgrade").
+				{Enabled: true, InitBond: big.NewInt(1000000000000000000), GameType: gameTypeSuperPermissionedCannon, GameArgs: spdgArgs},
+				// Clear the retired permissionless super fault game (kona) that ZK replaces.
 				{Enabled: false, InitBond: big.NewInt(0), GameType: gameTypeSuperCannonKona, GameArgs: []byte{}},
-				// Enable the ZK dispute game.
+				// Enable the ZK dispute game and make it the respected type.
 				{Enabled: true, InitBond: big.NewInt(1000000000000000000), GameType: gameTypeZK, GameArgs: zkArgs},
 			},
 			// anchorGame is unset after a fresh migrate, so the re-seed is unconstrained; keep the

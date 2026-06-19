@@ -124,17 +124,19 @@ func SetInteropDisputeGamesCLI(cliCtx *cli.Context) error {
 	}
 
 	opcmFlag := cliCtx.String(OPCMImplFlag.Name)
-	if opcmFlag == "" {
-		return fmt.Errorf("missing required flag: %s", OPCMImplFlag.Name)
+	if !common.IsHexAddress(opcmFlag) {
+		return fmt.Errorf("flag %s must be a valid address, got %q", OPCMImplFlag.Name, opcmFlag)
 	}
 	opcmAddr := common.HexToAddress(opcmFlag)
 
 	l1ProxyAdminOwnerFlag := cliCtx.String(L1ProxyAdminOwnerFlag.Name)
-	if l1ProxyAdminOwnerFlag == "" {
-		return fmt.Errorf("missing required flag: %s", L1ProxyAdminOwnerFlag.Name)
+	if !common.IsHexAddress(l1ProxyAdminOwnerFlag) {
+		return fmt.Errorf("flag %s must be a valid address, got %q", L1ProxyAdminOwnerFlag.Name, l1ProxyAdminOwnerFlag)
 	}
 
-	// The interop set: a comma-separated list of SystemConfig proxy addresses.
+	// The interop set: a comma-separated list of SystemConfig proxy addresses. Validate each one
+	// up front — HexToAddress silently coerces malformed input, so a typo could otherwise mutate
+	// the wrong contracts.
 	chainsFlag := cliCtx.String(SystemConfigProxyAddressesFlag.Name)
 	if chainsFlag == "" {
 		return fmt.Errorf("missing required flag: %s", SystemConfigProxyAddressesFlag.Name)
@@ -144,6 +146,9 @@ func SetInteropDisputeGamesCLI(cliCtx *cli.Context) error {
 		trimmed := strings.TrimSpace(raw)
 		if trimmed == "" {
 			continue
+		}
+		if !common.IsHexAddress(trimmed) {
+			return fmt.Errorf("flag %s contains an invalid address: %q", SystemConfigProxyAddressesFlag.Name, trimmed)
 		}
 		chainSystemConfigs = append(chainSystemConfigs, common.HexToAddress(trimmed))
 	}
@@ -165,10 +170,11 @@ func SetInteropDisputeGamesCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to parse initial bond: %s", initBondStr)
 	}
 
-	// Source super game to retire (cleared by the swap).
-	// Source super games to retire (cleared by the swap). A post-migrate interop set has BOTH
-	// super fault types registered, so the default clears both; a disabled config for a type that
-	// is not registered is a harmless no-op on-chain.
+	// Source super games to retire (cleared by the swap). By default only SUPER_CANNON_KONA (9) is
+	// cleared — the permissionless super fault game that ZK replaces. SUPER_PERMISSIONED_CANNON (5)
+	// is deliberately kept as a permissioned liveness backup (in case the prover/ZK path stalls),
+	// mirroring today's SPDG + permissionless shape. A disabled config for a type that is not
+	// registered is a harmless no-op on-chain.
 	var disputeGameConfigs []DisputeGameConfig
 	for _, raw := range strings.Split(cliCtx.String(SourceGameTypesFlag.Name), ",") {
 		trimmed := strings.TrimSpace(raw)
@@ -193,9 +199,13 @@ func SetInteropDisputeGamesCLI(cliCtx *cli.Context) error {
 	}
 
 	// Encode the ZK dispute game args and enable it.
+	verifierFlag := cliCtx.String(ZKVerifierFlag.Name)
+	if !common.IsHexAddress(verifierFlag) {
+		return fmt.Errorf("flag %s must be a valid address, got %q", ZKVerifierFlag.Name, verifierFlag)
+	}
 	zkArgs, err := encodeZKGameArgs(zkDisputeGameConfig{
 		AbsolutePrestate:     common.HexToHash(cliCtx.String(DisputeAbsolutePrestateFlag.Name)),
-		Verifier:             common.HexToAddress(cliCtx.String(ZKVerifierFlag.Name)),
+		Verifier:             common.HexToAddress(verifierFlag),
 		MaxChallengeDuration: cliCtx.Uint64(ZKMaxChallengeDurationFlag.Name),
 		MaxProveDuration:     cliCtx.Uint64(ZKMaxProveDurationFlag.Name),
 		ChallengerBond:       initBond,

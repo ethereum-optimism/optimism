@@ -293,6 +293,9 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             revert OPContractsManagerMigrator_InteropNotEnabled();
         }
+        // TODO: remove this ZK_DISPUTE_GAME gate once the ZK implementation is finalized. The
+        // function itself is generic across super game types — this gate only exists while ZK is
+        // the in-development target, and should drop so any super game swap is allowed.
         if (!contractsContainer().isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)) {
             revert OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
         }
