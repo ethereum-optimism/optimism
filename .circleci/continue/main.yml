@@ -505,6 +505,13 @@ commands:
         description: "Prefix to add to the cache key"
         type: string
         default: "rust-build"
+      init_superchain_submodule:
+        # Unused by this command. Declared so a job can pass one shared YAML anchor
+        # to both rust-prepare-and-restore-cache (which acts on it) and this command
+        # without CircleCI rejecting an undeclared parameter.
+        description: "Unused; accepted for shared-anchor compatibility."
+        type: boolean
+        default: false
     steps:
       # Surface sccache hit/write stats at job end. Harmless no-op when sccache
       # is absent; confirms the GCS cache is hit rather than silently failing.
