@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 library ByteUtils {
     /// @notice Overwrite bytes in-place at a specific offset.

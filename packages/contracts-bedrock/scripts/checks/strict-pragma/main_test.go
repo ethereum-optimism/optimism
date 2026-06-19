@@ -15,7 +15,7 @@ func Test_hasConcreteContract(t *testing.T) {
 		{
 			name: "concrete contract",
 			content: `
-				pragma solidity 0.8.15;
+				pragma solidity 0.8.25;
 				contract MyContract {
 				}
 			`,
@@ -24,7 +24,7 @@ func Test_hasConcreteContract(t *testing.T) {
 		{
 			name: "abstract contract only",
 			content: `
-				pragma solidity 0.8.15;
+				pragma solidity 0.8.25;
 				abstract contract MyContract {
 				}
 			`,
@@ -33,7 +33,7 @@ func Test_hasConcreteContract(t *testing.T) {
 		{
 			name: "library only",
 			content: `
-				pragma solidity 0.8.15;
+				pragma solidity 0.8.25;
 				library MyLibrary {
 				}
 			`,
@@ -42,7 +42,7 @@ func Test_hasConcreteContract(t *testing.T) {
 		{
 			name: "interface only",
 			content: `
-				pragma solidity 0.8.15;
+				pragma solidity 0.8.25;
 				interface IMyInterface {
 				}
 			`,
@@ -51,7 +51,7 @@ func Test_hasConcreteContract(t *testing.T) {
 		{
 			name: "abstract and concrete contract",
 			content: `
-				pragma solidity 0.8.15;
+				pragma solidity 0.8.25;
 				abstract contract Base {
 				}
 				contract MyContract is Base {
@@ -62,7 +62,7 @@ func Test_hasConcreteContract(t *testing.T) {
 		{
 			name: "library and concrete contract",
 			content: `
-				pragma solidity 0.8.15;
+				pragma solidity 0.8.25;
 				library MyLibrary {
 				}
 				contract MyContract {
@@ -73,7 +73,7 @@ func Test_hasConcreteContract(t *testing.T) {
 		{
 			name: "contract in comment",
 			content: `
-				pragma solidity 0.8.15;
+				pragma solidity 0.8.25;
 				// contract NotReal {
 				// }
 				library MyLibrary {
@@ -84,7 +84,7 @@ func Test_hasConcreteContract(t *testing.T) {
 		{
 			name: "contract in multiline comment",
 			content: `
-				pragma solidity 0.8.15;
+				pragma solidity 0.8.25;
 				/*
 				contract NotReal {
 				}
@@ -118,7 +118,7 @@ func Test_extractPragma(t *testing.T) {
 		{
 			name: "strict pragma",
 			content: `
-				pragma solidity 0.8.15;
+				pragma solidity 0.8.25;
 				contract MyContract {}
 			`,
 			expected: "0.8.15",

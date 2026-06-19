@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 /// @title ReinitializableBase
 /// @notice A base contract for reinitializable contracts that exposes a version number.

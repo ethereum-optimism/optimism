@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { Safe } from "safe-contracts/Safe.sol";
