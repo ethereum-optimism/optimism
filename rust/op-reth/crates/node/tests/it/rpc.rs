@@ -7,7 +7,7 @@ use reth_node_core::{
     args::{NetworkArgs, RpcServerArgs},
     node_config::NodeConfig,
 };
-use reth_optimism_chainspec::BASE_MAINNET;
+use reth_optimism_chainspec::OP_SEPOLIA;
 use reth_optimism_node::OpNode;
 use reth_rpc_api::{EthConfigApiClient, servers::AdminApiServer};
 use reth_tasks::Runtime;
@@ -27,7 +27,7 @@ async fn test_admin_external_ip() -> eyre::Result<()> {
     network_args.discovery.discv5_port = Some(0);
     network_args.discovery.discv5_port_ipv6 = Some(0);
     let node_config = NodeConfig::test()
-        .map_chain(BASE_MAINNET.clone())
+        .map_chain(OP_SEPOLIA.clone())
         .with_network(network_args)
         .with_rpc(RpcServerArgs::default().with_unused_ports().with_http());
 
@@ -50,7 +50,7 @@ async fn test_eth_config_endpoint_exists() -> eyre::Result<()> {
     let exec = Runtime::test();
 
     // Node setup
-    let network = BASE_MAINNET.clone();
+    let network = OP_SEPOLIA.clone();
     let mut network_args = NetworkArgs::default().with_unused_ports();
     network_args.discovery.discv5_port = Some(0);
     network_args.discovery.discv5_port_ipv6 = Some(0);

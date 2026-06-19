@@ -10,6 +10,6 @@ license.workspace = true
 reth-db = { workspace = true, features = ["test-utils"] }
 reth-node-builder.workspace = true
 reth-optimism-node.workspace = true
-reth-optimism-chainspec.workspace = true
+reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 
 tokio = { workspace = true, features = ["sync"] }

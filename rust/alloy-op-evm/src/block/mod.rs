@@ -8,8 +8,8 @@ use alloy_evm::{
     Database, Evm, EvmFactory, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockValidationError, ExecutableTx, GasOutput, StateDB, SystemCaller, TxResult,
-        state_changes::post_block_balance_increments,
+        BlockValidationError, CommitChanges, ExecutableTx, GasOutput, StateDB, SystemCaller,
+        TxResult, state_changes::post_block_balance_increments,
     },
     eth::{EthTxResult, receipt_builder::ReceiptBuilderCtx},
 };
@@ -817,6 +817,35 @@ where
         .map_err(BlockExecutionError::other)?;
 
         Ok(())
+    }
+
+    fn execute_transaction_with_commit_condition(
+        &mut self,
+        tx: impl ExecutableTx<Self>,
+        f: impl FnOnce(&Self::Result) -> CommitChanges,
+    ) -> Result<Option<GasOutput>, BlockExecutionError> {
+        // SDM block-warming refunds are recorded during EVM execution (before the commit
+        // decision) and aren't journaled, so discarding a tx's changes doesn't roll them back. A
+        // caller that executes a candidate then declines it (`CommitChanges::No`: over a builder
+        // gas/DA/address limit, or reverted-and-excluded) would leave behind "phantom" warming: a
+        // later committed tx claims a refund attributed to a tx that never entered the block.
+        // Commit-only paths (block import, `debug_replaySDMBlock` derivation) never see that
+        // warmth, so the producer's payload would diverge from derivation.
+        //
+        // Snapshot warming before execution and restore it when the tx isn't committed. Only
+        // `Producing` mode tracks warming, so we clone the maps solely on that path.
+        let warming_snapshot = self.post_exec.is_producing().then(|| self.warming_state());
+
+        let output = self.execute_transaction_without_commit(tx)?;
+
+        if !f(&output).should_commit() {
+            if let Some(snapshot) = warming_snapshot {
+                self.seed_warming_state(snapshot);
+            }
+            return Ok(None);
+        }
+
+        Ok(Some(self.commit_transaction(output)))
     }
 
     fn execute_transaction_without_commit(

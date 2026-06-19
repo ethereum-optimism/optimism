@@ -16,8 +16,8 @@ op-acceptance-tests, op-devstack).
 The op-geth diff vs. upstream go-ethereum (currently based on v1.17.2) can be summarised in three
 kinds of change:
 
-1. **New standalone types/files** – `DepositTx`, `RollupCostData`, the `superchain/` package,
-   eip1559 Holocene/Jovian helpers.
+1. **New standalone types/files** – `DepositTx`, `PostExecTx`, `RollupCostData`, the
+   `superchain/` package, eip1559 Holocene/Jovian helpers.
 2. **Fields/methods added to existing upstream types** – `Transaction` methods (`IsDepositTx`,
    `SourceHash`, `Mint`, `IsSystemTx`, `RollupCostData`), `Receipt` L1-cost fields, `ChainConfig`
    OP hardfork fields and methods, `PayloadAttributes` extensions.
@@ -107,7 +107,7 @@ continue to work and are addressed in §§6–7.
 
 ---
 
-## 1. `core/types` – Deposit transaction
+## 1. `core/types` – OP Stack transaction types (`DepositTx`, `PostExecTx`)
 
 ### Current usage
 
@@ -195,6 +195,41 @@ we go straight from struct to `[]byte`.
 `*optypes.DepositTx`. `DeriveDeposits` calls `types.NewTx(dep).MarshalBinary()`; replace
 with `dep.MarshalBinary()`.
 
+### `PostExecTx` (type `0x7D`)
+
+op-geth also adds `types.PostExecTx` (`core/types/post_exec_tx.go`), a synthetic unsigned
+transaction carrying post-execution metadata. Its wire format is `0x7D || data`, where
+`data` is appended **verbatim** — there is no outer RLP envelope around the transaction
+body, unlike the deposit tx's `0x7E || RLP(struct)`. op-geth treats `data` as opaque bytes
+and never parses it; the bytes are in fact an RLP-encoded `PostExecPayload` (a `version`
+plus SDM `gas_refund_entries`) that op-alloy/kona decode and version-check (see
+`rust/kona/crates/protocol/protocol/src/batch/transactions.rs`). Mirroring op-geth's opaque
+handling keeps `op-core/types.PostExecTx` wire-compatible without re-implementing that parse.
+
+`PostExecTx` is **a canonical block transaction**, not a side channel: in the Lagoon
+hardfork it can be the **last transaction of a block**, encoding sequencer rebates. So a
+Lagoon+ L2 block's transaction list is `[L1-info deposit (0x7E), …user txs…, optional
+post-exec (0x7D)]`. This matters for the decode path (§11): under upstream go-ethereum a
+full block's transaction list will fail to decode on **both** the deposit (`0x7E`) and the
+post-exec (`0x7D`) entries, so the OP-aware client must route both out before handing the
+remainder to upstream.
+
+Current usage:
+
+- `op-node/rollup/derive/` — span batch encode/decode (`span_batch_tx.go` has its own
+  `spanBatchPostExecTxData`, `span_batch_txs.go` special-cases the synthetic signature),
+  batch validity checks (`batches.go`), and raw type-byte sniffing (`span_batch.go`).
+  Mostly just the `types.PostExecTxType` constant; one site constructs
+  `types.NewTx(&types.PostExecTx{...})`.
+- `op-chain-ops/pkg/sdm/` and `op-service/sources/flashblock_client.go` — handle post-exec
+  payloads as raw/hex bytes only; no type dependency.
+
+Proposed decoupling: define `PostExecTx` in `op-core/types/` next to `DepositTx`, same
+pattern — `MarshalBinary` / `UnmarshalPostExecTx` plus an `IsPostExecTx` free function,
+with a differential test against op-geth. The span-batch construction site goes straight
+from struct to bytes. Note that op-geth (like upstream) rejects typed-tx envelopes of
+`len <= 1`, so an empty payload cannot round-trip; `UnmarshalPostExecTx` mirrors that.
+
 ---
 
 ## 2. `core/types` – Transaction methods on RPC-received transactions
@@ -224,6 +259,18 @@ arrive as raw bytes from the Engine API or ethclient RPC:
   fields from the monorepo struct. Wrap in short helper functions.
 - `RollupCostData()`: replaced by `opfees.TxRollupCostData(tx)` free function in `op-core/fees`
   (see §4). The computation only requires `tx.Data()` and `tx.Type()`, both upstream.
+
+**These `*types.Transaction` helpers are transition scaffolding, not the destination.**
+`IsDepositTx(tx)`, `SourceHash(tx)`, `Mint(tx)`, `IsSystemTx(tx)`, `IsPostExecTx(tx)` (and
+the differential test) only work while the build still resolves go-ethereum to op-geth,
+where a `*types.Transaction` can carry a `0x7E`/`0x7D` tx. They let §2's call sites drop
+their dependency on op-geth's `Transaction` methods *before* the underlying transaction
+representation changes. After the cutover, an upstream `*types.Transaction` can never hold a
+deposit or post-exec tx, so the helpers would be permanently dead — they are **deleted at
+the cutover (§14), along with the differential test.** The durable shape never wraps an OP
+tx in a `*types.Transaction`: it decodes raw bytes into `optypes.DepositTx` /
+`optypes.PostExecTx` and reads fields off the struct, and code never asks "is this a
+deposit?" of a generic tx because the sources accessors already partition by class (§11).
 
 ---
 
@@ -274,14 +321,26 @@ and a custom JSON unmarshaler:
 // in op-core/types, called simply Receipt; consumers import as optypes
 type Receipt struct {
     types.Receipt
-    L1GasPrice          *big.Int `json:"l1GasPrice,omitempty"`
-    L1BlobBaseFee       *big.Int `json:"l1BlobBaseFee,omitempty"`
-    L1BaseFeeScalar     *uint64  `json:"l1BaseFeeScalar,omitempty"`
-    L1BlobBaseFeeScalar *uint64  `json:"l1BlobBaseFeeScalar,omitempty"`
-    OperatorFeeScalar   *uint64  `json:"operatorFeeScalar,omitempty"`
-    OperatorFeeConstant *uint64  `json:"operatorFeeConstant,omitempty"`
+    DepositNonce          *uint64    `json:"depositNonce,omitempty"`
+    DepositReceiptVersion *uint64    `json:"depositReceiptVersion,omitempty"`
+    L1GasPrice            *big.Int   `json:"l1GasPrice,omitempty"`
+    L1BlobBaseFee         *big.Int   `json:"l1BlobBaseFee,omitempty"`
+    L1GasUsed             *big.Int   `json:"l1GasUsed,omitempty"`
+    L1Fee                 *big.Int   `json:"l1Fee,omitempty"`
+    FeeScalar             *big.Float `json:"l1FeeScalar,omitempty"`
+    L1BaseFeeScalar       *uint64    `json:"l1BaseFeeScalar,omitempty"`
+    L1BlobBaseFeeScalar   *uint64    `json:"l1BlobBaseFeeScalar,omitempty"`
+    OperatorFeeScalar     *uint64    `json:"operatorFeeScalar,omitempty"`
+    OperatorFeeConstant   *uint64    `json:"operatorFeeConstant,omitempty"`
+    DAFootprintGasScalar  *uint64    `json:"daFootprintGasScalar,omitempty"`
 }
 ```
+
+The type carries op-geth's **complete** OP receipt field set, not just the six fields
+`txinclude` reads: the e2e/acceptance suites also read `L1Fee`, `L1GasUsed`, `DepositNonce`,
+etc. (§13), and a partial set would silently drop those fields from receipt JSON at cutover
+— while the go.mod replace still points at op-geth, the embedded receipt masks the gap, so
+no differential test can catch it.
 
 The `EL` interface in `txinclude` returns `*optypes.Receipt` instead of `*types.Receipt`.
 `IncludedTx.Receipt` becomes `*optypes.Receipt`. This contains all the changes within
@@ -634,21 +693,60 @@ No migration work needed for op-faucet.
 
 **Don't create a new "OP ethclient" wrapper package.** Instead:
 
-1. **Reuse and extend `op-service/sources`.** The clients there (`EthClient`, `L1Client`,
-   `L2Client`) already do raw JSON-RPC via `client.RPC` — not via `ethclient`. Their `RPCBlock`
-   type in `op-service/sources/types.go` already deserialises blocks with `[]*types.Transaction`
-   and already calls `IsDepositTx()` on L2 blocks. We add custom JSON unmarshaling there so the
-   transactions list round-trips deposit txs (type 0x7E) against upstream go-ethereum: decode each
-   entry by inspecting the `"type"` field, routing `0x7e` to `op-core/types.DepositTx` and all
-   others to upstream `types.Transaction`.
+1. **Reuse and extend `op-service/sources`, and partition the transaction accessors by tx
+   class rather than introducing an `optypes.Transaction` wrapper.** The clients there
+   (`EthClient`, `L1Client`, `L2Client`) already do raw JSON-RPC via `client.RPC` — not via
+   `ethclient`. Their `RPCBlock` type in `op-service/sources/types.go` already deserialises
+   blocks with `[]*types.Transaction` and calls `IsDepositTx()` on L2 blocks. Under upstream
+   go-ethereum that decode breaks on **both** synthetic OP tx types — the L1-info deposit
+   (`0x7E`) and, on Lagoon+ blocks, a trailing post-exec rebate tx (`0x7D`) (§1).
+
+   **Why no wrapper.** The codebase's dominant L2-tx currency is already opaque
+   `[]hexutil.Bytes` (`eth.ExecutionPayload.Transactions`); most of the pipeline never holds
+   typed L2 txs. Where typed access *is* needed, the need is almost always class-specific —
+   "the first tx, as a deposit" or "the user txs, skipping the synthetic ones" — and each
+   class has a clean home type. A go-ethereum-style `Transaction`+`TxData` wrapper would
+   re-import the signer/hashing machinery we are trying to shed, for a list that is read
+   typed-ly in very few places. So instead of a wrapper, split the accessor on
+   `apis.EthClient` (`op-service/apis/eth.go`) by class:
+
+   - `InfoAndUserTxs(...) (eth.BlockInfo, types.Transactions, error)` — **excludes** the
+     synthetic OP types (`0x7E` deposits and `0x7D` post-exec). The remainder are all standard
+     Ethereum tx types, so the returned list is plain **upstream** `types.Transactions` and
+     decodes fine post-cutover. Serves the dominant "skip deposits, operate on user txs"
+     pattern (op-batcher DA estimation; most acceptance-test iterators).
+   - `InfoAndDeposits(...) (eth.BlockInfo, []*optypes.DepositTx, error)` — the deposits, as
+     op-core structs; fields read directly off the struct.
+   - `InfoAndFirstDeposit(...) (eth.BlockInfo, *optypes.DepositTx, error)` — header + the
+     first tx (the L1-info deposit) only, for hot paths that never want the full body. This
+     is exactly the shape prototyped (header-only fetch + first-tx decode) in PR #20532
+     (`HeaderAndFirstTx` / `BlockRefFromHeaderAndDeposit`), which closed unmerged but
+     established the pattern; revive it here.
+
+   `InfoAndTxsBy*` stays as-is for **L1** (no OP tx types there, upstream-safe). Internally,
+   `RPCBlock` keeps the txs as raw per-tx bytes: the transactions-trie root is recomputed
+   directly from those bytes (the trie leaf for a typed tx *is* its opaque `MarshalBinary`
+   encoding), deposit/post-exec detection is a type-byte check, and the partitioned accessors
+   decode each class on demand. A post-exec tx (`0x7D`) is similarly routed to
+   `optypes.PostExecTx`; add an `InfoAndPostExecTx`-style accessor only if a consumer needs to
+   read it (most code only needs to *exclude* it, which `InfoAndUserTxs` already does).
+
+   **Index-correlation caveat.** Some callers iterate the *full* list and correlate by
+   position with the receipts list — e.g. `op-acceptance-tests/tests/jovian/da_footprint.go`
+   does `for i, tx := range txs { if tx.IsDepositTx() { continue }; …receipts[i]… }`. Because
+   `InfoAndUserTxs` drops the synthetic txs, those indices shift relative to a full receipts
+   list and the correlation misaligns. Such tests must filter receipts in lockstep (or use a
+   paired `(userTx, receipt)` accessor). Tracked with the test migration in §13 / #20265.
 
 2. **Migrate `op-batcher/batcher/driver.go` to `op-service/sources.EthClient`.** Its `L2Client`
-   interface (`BlockByNumber` returning `*types.Block`) changes to a sources-based accessor that
-   returns whatever shape the batcher needs (block info + transaction bytes or typed txs). The
-   batcher only uses the block to iterate transactions and filter out deposits for DA
-   estimation — it does not need go-ethereum's `*types.Block` specifically. Also change
-   `op-service/dial/ethclient_interface.go` so `L2EndpointProvider.EthClient` returns a sources
-   client instead of `*ethclient.Client` (or phase that interface out altogether).
+   interface (`BlockByNumber` returning `*types.Block`) changes to the `InfoAndUserTxs`
+   accessor above: the batcher only iterates transactions to filter out deposits for DA
+   estimation (`op-batcher/batcher/types.go` — `IsDepositTx()` skip + `RollupCostData()` /
+   `Size()` on the rest), so the user-txs list is exactly what it needs and it no longer
+   touches deposits at all. `tx.RollupCostData()` becomes `opfees.TxRollupCostData(tx)` (§4).
+   Also change `op-service/dial/ethclient_interface.go` so `L2EndpointProvider.EthClient`
+   returns a sources client instead of `*ethclient.Client` (or phase that interface out
+   altogether).
 
 3. **Change `op-service/txinclude/EL.TransactionReceipt` return type to `*optypes.Receipt`**
    (from §3). The underlying implementation switches from `ethclient.TransactionReceipt` to a
@@ -783,10 +881,12 @@ make `op-service/sources` the canonical implementation of `apis.EthClient`.**
    Implementations in `op-service/sources` unmarshal the extended fields; all 21 call sites
    that read OP receipt fields keep working.
 
-2. **`apis.EthBlockInfo.InfoAndTxsBy*`**: the current signature returns `types.Transactions`.
-   Extend the underlying JSON unmarshal (in `op-service/sources`) to route type `0x7e` to
-   `op-core/types.DepositTx` (from §11). Tests that call `IsDepositTx()` on returned
-   transactions migrate to `optypes.IsDepositTx(tx)` free function.
+2. **L2 transaction accessors**: rather than make `InfoAndTxsBy*` round-trip OP tx types,
+   add the class-partitioned accessors from §11 — `InfoAndUserTxs` (synthetic `0x7E`/`0x7D`
+   excluded → upstream `types.Transactions`), `InfoAndDeposits` / `InfoAndFirstDeposit`
+   (→ `*optypes.DepositTx`). Tests that fetch the L2 block and iterate migrate to whichever
+   accessor matches their intent; "skip deposits, read user txs" becomes `InfoAndUserTxs`,
+   removing the per-tx `IsDepositTx()` check entirely. `InfoAndTxsBy*` is unchanged for L1.
 
 3. **`op-e2e/e2eutils/geth/wait.go`**: the central wait helpers (`WaitForBlock`,
    `WaitForBlockToBeSafe`, `WaitForBlockToBeFinalized`, `WaitForTransaction`,
@@ -920,6 +1020,7 @@ This is a bounded follow-up, unblocked by `op-core/params` + `GethChainConfig()`
 | `DepositTxType` constant | `core/types/deposit_tx.go` | `op-core/types/` | Trivial |
 | `IsDepositTx()` free function | `core/types/transaction.go` | `op-core/types/` | Trivial |
 | `IsSystemTx()`, `SourceHash()`, `Mint()` helpers | `core/types/transaction.go` | `op-core/types/` | Low |
+| `PostExecTx` type + `MarshalBinary`, `PostExecTxType` constant, `IsPostExecTx()` | `core/types/post_exec_tx.go` | `op-core/types/` | Low |
 | `RollupCostData`, `NewRollupCostData`, `EstimatedDASize`, `NewL1CostFuncFjord`, `L1CostFunc` | `core/types/rollup_cost.go` | `op-core/fees/` | Low |
 | `OperatorCost(gasUsed, scalar, constant)` — new helper | n/a (deduplicates inline math) | `op-core/fees/` | Trivial |
 | `TxRollupCostData(tx)` — replaces method | `core/types/transaction.go` | `op-core/fees/` | Trivial |
@@ -933,8 +1034,8 @@ This is a bounded follow-up, unblocked by `op-core/params` + `GethChainConfig()`
 | `op-service/superutil/` (by-chain-ID loader) | monorepo | moves to `op-core/params/` (avoids params↔superchain cycle) | Low |
 | EIP-1559 Holocene/Jovian helpers | `consensus/misc/eip1559/eip1559_optimism.go` | `op-core/eip1559/` | Trivial |
 | `HardforkConfig` interface | n/a | `op-service/eth/` (for `BlockAsPayload`) | Trivial |
-| op-batcher L2 block fetch (ethclient → sources) | `op-batcher/batcher/driver.go` | migrate to `op-service/sources.EthClient` | Medium |
-| op-service/sources deposit-tx JSON decoding | `op-service/sources/types.go` | custom `RPCBlock.Transactions` unmarshal | Medium |
+| op-batcher L2 block fetch (ethclient → sources) | `op-batcher/batcher/driver.go` | migrate to `sources.EthClient.InfoAndUserTxs` | Medium |
+| op-service/sources L2 tx accessors (partition by class, no tx wrapper) | `op-service/sources/types.go`, `op-service/apis/eth.go` | `InfoAndUserTxs` / `InfoAndDeposits` / `InfoAndFirstDeposit`; raw-bytes `RPCBlock.Transactions` internally | Medium |
 | `apis.EthClient.TransactionReceipt` return type | `op-service/apis/eth.go` | change to `*optypes.Receipt` | Low |
 | `op-e2e/e2eutils/geth/wait.go` — split into header-only + full-block variants | `op-e2e/e2eutils/geth/wait.go` | `HeaderByNumber`-based helpers for height-only callers; migrate block-body callers to `apis.EthClient` | Medium |
 | `op-e2e/system/e2esys.SystemConfig.L2Client` type | `op-e2e/system/e2esys/` | change to `apis.EthClient` | Medium |

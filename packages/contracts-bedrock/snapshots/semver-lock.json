@@ -52,8 +52,8 @@
     "sourceCodeHash": "0x7c6d362a69a480a06a079542a7fd2ce48cb1dd80d6b9043fba60218569371349"
   },
   "src/L2/ETHLiquidity.sol:ETHLiquidity": {
-    "initCodeHash": "0xd4a8b5b95e29bdad905637c4007af161b28224f350f54508e66299f56cffcef0",
-    "sourceCodeHash": "0x6d137fef431d75a8bf818444915fc39c8b1d93434a9af9971d96fb3170bc72b7"
+    "initCodeHash": "0x3c32ddabff34450afd940aa8cf852783576c3ae2d453b66386c3ed3baa0d7a57",
+    "sourceCodeHash": "0x3c0e092abdde3289e2f8c0fdf61d922bf3158d83826454814295d59666630e12"
   },
   "src/L2/GasPriceOracle.sol:GasPriceOracle": {
     "initCodeHash": "0xf72c23d9c3775afd7b645fde429d09800622d329116feb5ff9829634655123ca",
@@ -104,8 +104,8 @@
     "sourceCodeHash": "0xec1736e67134e22ad9ceb0b8b6c116fd169637aa6729c05d9f0f4b02547aaac0"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
-    "initCodeHash": "0x7e2fd66fdda3a8040e39912952ac9350e867bb5cf313e77d91f10870e8043a9f",
-    "sourceCodeHash": "0xab9790c40a04cd9b30a984c87b433e15d78e0ae92d8647a813cde103257345e4"
+    "initCodeHash": "0x3a12a46c0dac554ed7ecb74d8e56d4b903afd19d5fba7ba9253374bf0d7858c4",
+    "sourceCodeHash": "0x03eed029da48a3893d49d6c049141cceffc7f73f1aa37cf9a067fc9dac9c9c78"
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
     "initCodeHash": "0x3508887dc63505a9cc99ccf5a8c3f812f74406d562c8e400590dc2e457b8520b",

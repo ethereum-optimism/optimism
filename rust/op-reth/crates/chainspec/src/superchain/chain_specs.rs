@@ -28,6 +28,8 @@ create_superchain_specs!(
     ("mint", "mainnet"),
     ("mode", "mainnet"),
     ("mode", "sepolia"),
+    ("op", "mainnet"),
+    ("op", "sepolia"),
     ("oplabs-devnet-0", "sepolia-dev-0"),
     ("orderly", "mainnet"),
     ("ozean", "sepolia"),

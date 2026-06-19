@@ -131,6 +131,8 @@ test-utils = [
 	"serde_json",
 	"reth-node-builder/test-utils",
 	"reth-chainspec/test-utils",
+	# `utils.rs` builds OP Sepolia / OP Mainnet specs, which live behind this feature.
+	"reth-optimism-chainspec/superchain-configs",
 	"reth-consensus/test-utils",
 	"reth-evm/test-utils",
 	"reth-network/test-utils",
