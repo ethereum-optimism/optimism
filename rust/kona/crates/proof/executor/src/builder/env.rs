@@ -9,16 +9,14 @@ use crate::{
 };
 use alloy_consensus::{BlockHeader, Header};
 use alloy_eips::{calc_next_block_base_fee, eip1559::BaseFeeParams};
-use alloy_evm::{EvmEnv, EvmFactory};
-use alloy_primitives::U256;
+use alloy_evm::{EvmEnv, EvmFactory, eth::NextEvmEnvAttributes};
+use alloy_op_evm::evm_env_for_op_next_block;
 use kona_genesis::RollupConfig;
 use kona_mpt::TrieHinter;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::OpSpecId;
-use revm::{
-    context::{BlockEnv, CfgEnv},
-    context_interface::block::BlobExcessGasAndPrice,
-};
+#[cfg(test)]
+use revm::context::BlockEnv;
 
 impl<P, H, Evm, R> StatelessL2Builder<'_, P, H, Evm, R>
 where
@@ -35,22 +33,7 @@ where
         base_fee_params: &BaseFeeParams,
         min_base_fee: u64,
     ) -> ExecutorResult<EvmEnv<OpSpecId>> {
-        let block_env = self.prepare_block_env(
-            spec_id,
-            parent_header,
-            payload_attrs,
-            base_fee_params,
-            min_base_fee,
-        )?;
-        let cfg_env = self.evm_cfg_env(payload_attrs.payload_attributes.timestamp);
-        Ok(EvmEnv::new(cfg_env, block_env))
-    }
-
-    /// Returns the active [`CfgEnv`] for the executor.
-    pub(crate) fn evm_cfg_env(&self, timestamp: u64) -> CfgEnv<OpSpecId> {
-        CfgEnv::new()
-            .with_chain_id(self.config.l2_chain_id.id())
-            .with_spec_and_mainnet_gas_params(self.config.spec_id(timestamp))
+        self.prepare_evm_env(spec_id, parent_header, payload_attrs, base_fee_params, min_base_fee)
     }
 
     fn next_block_base_fee(
@@ -89,6 +72,7 @@ where
     }
 
     /// Prepares a [`BlockEnv`] with the given [`OpPayloadAttributes`].
+    #[cfg(test)]
     pub(crate) fn prepare_block_env(
         &self,
         spec_id: OpSpecId,
@@ -97,27 +81,37 @@ where
         base_fee_params: &BaseFeeParams,
         min_base_fee: u64,
     ) -> ExecutorResult<BlockEnv> {
-        // On the OP Stack the BLOBBASEFEE opcode is always 1 from Ecotone onward. Post-Jovian the
-        // header's `blobGasUsed` field carries the block's DA footprint, so it must not feed the
-        // EIP-4844 excess-blob-gas rule; pin the blob env instead.
-        let blob_excess_gas_and_price = spec_id
-            .is_enabled_in(OpSpecId::ECOTONE)
-            .then_some(BlobExcessGasAndPrice { excess_blob_gas: 0, blob_gasprice: 1 });
+        Ok(self
+            .prepare_evm_env(spec_id, parent_header, payload_attrs, base_fee_params, min_base_fee)?
+            .block_env)
+    }
 
+    fn prepare_evm_env(
+        &self,
+        _spec_id: OpSpecId,
+        parent_header: &Header,
+        payload_attrs: &OpPayloadAttributes,
+        base_fee_params: &BaseFeeParams,
+        min_base_fee: u64,
+    ) -> ExecutorResult<EvmEnv<OpSpecId>> {
         let next_block_base_fee = self
             .next_block_base_fee(*base_fee_params, parent_header, min_base_fee)
             .unwrap_or_default();
+        let gas_limit = payload_attrs.gas_limit.ok_or(ExecutorError::MissingGasLimit)?;
 
-        Ok(BlockEnv {
-            number: U256::from(parent_header.number + 1),
-            beneficiary: payload_attrs.payload_attributes.suggested_fee_recipient,
-            timestamp: U256::from(payload_attrs.payload_attributes.timestamp),
-            gas_limit: payload_attrs.gas_limit.ok_or(ExecutorError::MissingGasLimit)?,
-            basefee: next_block_base_fee,
-            prevrandao: Some(payload_attrs.payload_attributes.prev_randao),
-            blob_excess_gas_and_price,
-            ..Default::default()
-        })
+        Ok(evm_env_for_op_next_block(
+            parent_header,
+            NextEvmEnvAttributes {
+                timestamp: payload_attrs.payload_attributes.timestamp,
+                suggested_fee_recipient: payload_attrs.payload_attributes.suggested_fee_recipient,
+                prev_randao: payload_attrs.payload_attributes.prev_randao,
+                gas_limit,
+                slot_number: None,
+            },
+            next_block_base_fee,
+            self.config,
+            self.config.l2_chain_id.id(),
+        ))
     }
 
     /// Returns the active base fee parameters for the parent header.
@@ -171,7 +165,8 @@ mod tests {
     /// footprint here is from op-mainnet block 152635937.
     #[test]
     fn prepare_block_env_pins_blob_gasprice_to_one() {
-        let config = RollupConfig::default();
+        let mut config = RollupConfig::default();
+        config.hardforks.isthmus_time = Some(0);
         let parent_header = Header {
             number: 100,
             timestamp: 1_000_000,
