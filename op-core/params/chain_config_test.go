@@ -105,6 +105,70 @@ func TestIsBedrock(t *testing.T) {
 	require.False(t, cfg.IsBedrock(nil), "nil head is never forked")
 }
 
+// TestGethChainConfig is a direct unit test of ChainConfig.GethChainConfig: it
+// asserts the OP→go-ethereum mapping — the Ethereum fork schedule derived from the
+// OP schedule (Shanghai=Canyon, Cancun=Ecotone, Prague=Isthmus, Osaka=Karst), the
+// OP fork timestamps carried through unchanged, and the OptimismConfig mapping.
+// Distinct fork times are used so a mis-wired mapping can't pass.
+func TestGethChainConfig(t *testing.T) {
+	canyon, ecotone, isthmus, karst := uint64(10), uint64(20), uint64(30), uint64(40)
+	cfg := &opparams.ChainConfig{
+		ChainID:      big.NewInt(1234),
+		BedrockBlock: big.NewInt(7),
+		RegolithTime: ptr.New(uint64(0)),
+		CanyonTime:   &canyon,
+		EcotoneTime:  &ecotone,
+		FjordTime:    ptr.New(uint64(25)),
+		GraniteTime:  ptr.New(uint64(28)),
+		HoloceneTime: ptr.New(uint64(29)),
+		IsthmusTime:  &isthmus,
+		JovianTime:   ptr.New(uint64(35)),
+		KarstTime:    &karst,
+		InteropTime:  ptr.New(uint64(50)),
+		Optimism:     &opparams.OptimismConfig{EIP1559Elasticity: 6, EIP1559Denominator: 50, EIP1559DenominatorCanyon: ptr.New(uint64(250))},
+	}
+
+	geth := cfg.GethChainConfig()
+
+	require.Equal(t, cfg.ChainID, geth.ChainID)
+	require.Equal(t, cfg.BedrockBlock, geth.BedrockBlock)
+
+	// Ethereum fork schedule is derived from the OP schedule.
+	require.Equal(t, &canyon, geth.ShanghaiTime, "Shanghai activates with Canyon")
+	require.Equal(t, &ecotone, geth.CancunTime, "Cancun activates with Ecotone")
+	require.Equal(t, &isthmus, geth.PragueTime, "Prague activates with Isthmus")
+	require.Equal(t, &karst, geth.OsakaTime, "Osaka activates with Karst")
+
+	// OP fork timestamps carry through unchanged.
+	require.Equal(t, cfg.RegolithTime, geth.RegolithTime)
+	require.Equal(t, cfg.CanyonTime, geth.CanyonTime)
+	require.Equal(t, cfg.EcotoneTime, geth.EcotoneTime)
+	require.Equal(t, cfg.FjordTime, geth.FjordTime)
+	require.Equal(t, cfg.GraniteTime, geth.GraniteTime)
+	require.Equal(t, cfg.HoloceneTime, geth.HoloceneTime)
+	require.Equal(t, cfg.IsthmusTime, geth.IsthmusTime)
+	require.Equal(t, cfg.JovianTime, geth.JovianTime)
+	require.Equal(t, cfg.KarstTime, geth.KarstTime)
+	require.Equal(t, cfg.InteropTime, geth.InteropTime)
+
+	// OptimismConfig maps across.
+	require.NotNil(t, geth.Optimism)
+	require.Equal(t, cfg.Optimism.EIP1559Elasticity, geth.Optimism.EIP1559Elasticity)
+	require.Equal(t, cfg.Optimism.EIP1559Denominator, geth.Optimism.EIP1559Denominator)
+	require.Equal(t, cfg.Optimism.EIP1559DenominatorCanyon, geth.Optimism.EIP1559DenominatorCanyon)
+
+	// Non-OP-Mainnet chains get no pre-Bedrock block overrides (base values stay 0).
+	require.Equal(t, int64(0), geth.BerlinBlock.Int64())
+	require.Equal(t, int64(0), geth.LondonBlock.Int64())
+
+	t.Run("op-mainnet pre-bedrock overrides", func(t *testing.T) {
+		opMainnet := &opparams.ChainConfig{ChainID: big.NewInt(opparams.OPMainnetChainID), BedrockBlock: big.NewInt(opparams.OPMainnetGenesisBlockNum)}
+		geth := opMainnet.GethChainConfig()
+		require.Equal(t, int64(3950000), geth.BerlinBlock.Int64())
+		require.Equal(t, int64(opparams.OPMainnetGenesisBlockNum), geth.LondonBlock.Int64())
+	})
+}
+
 // TestOptimismConfigJSONWireCompat asserts the OP-core OptimismConfig serialises
 // byte-for-byte identically to op-geth's, and round-trips through op-geth's type.
 // This guards the wire format of rollup.Config.ChainOpConfig.

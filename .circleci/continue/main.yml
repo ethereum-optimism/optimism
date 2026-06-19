@@ -1666,15 +1666,17 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
+          # sync-superchain-go runs in refresh mode: it regenerates the bundle AND
+          # rewrites the .sha256, so the diff check below is meaningful.
           name: build superchain bundle
           command: just sync-superchain-go
       - run:
           # Catches non-deterministic builds and stale .sha256 commits: if the
           # rebuilt zip differs from what was approved in review, the .sha256
           # file written by sync-superchain.sh will diverge from the committed
-          # one and this fails. The init.go runtime checks (SHA256 of embedded
-          # zip, COMMIT entry, op-geth cross-commit) run as part of go-tests
-          # downstream — no need to repeat them here.
+          # one and this fails. The init.go runtime check (SHA256 of the embedded
+          # zip against the committed .sha256) runs as part of go-tests
+          # downstream — no need to repeat it here.
           name: verify rebuilt bundle matches committed .sha256
           command: git diff --exit-code op-core/superchain/superchain-configs.zip.sha256
       - run:
