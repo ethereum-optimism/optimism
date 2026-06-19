@@ -1667,7 +1667,7 @@ jobs:
           enable-mise-cache: true
       - run:
           name: build superchain bundle
-          command: just sync-superchain
+          command: just sync-superchain-go
       - run:
           # Catches non-deterministic builds and stale .sha256 commits: if the
           # rebuilt zip differs from what was approved in review, the .sha256
@@ -1677,6 +1677,20 @@ jobs:
           # downstream — no need to repeat them here.
           name: verify rebuilt bundle matches committed .sha256
           command: git diff --exit-code op-core/superchain/superchain-configs.zip.sha256
+      - run:
+          # op-reth's committed superchain-configs.tar embeds the superchain-registry
+          # commit it was generated from. Assert it matches the canonical submodule
+          # gitlink so op-reth's archive can't drift from op-core/kona. (HEAD:<path>
+          # reads the gitlink commit without initializing the submodule.)
+          name: verify op-reth's archive pins the same superchain-registry commit
+          command: |
+            submodule_commit=$(git rev-parse HEAD:superchain-registry)
+            op_reth_commit=$(tar -xOf rust/op-reth/crates/chainspec/res/superchain-configs.tar superchain_registry_commit | tr -d '[:space:]')
+            if [ "$submodule_commit" != "$op_reth_commit" ]; then
+              echo "op-reth's superchain-configs.tar was generated from $op_reth_commit but the submodule gitlink is $submodule_commit" >&2
+              echo "Run 'just sync-superchain-rust' to regenerate op-reth's archive from the submodule." >&2
+              exit 1
+            fi
       - persist_to_workspace:
           root: .
           paths:

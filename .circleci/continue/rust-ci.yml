@@ -617,7 +617,7 @@ jobs:
             lychee --config ./lychee.toml --cache-exclude-status 429 '**/README.md' || true
 
   # Verifies that the committed `etc/{chainList,configs,depsets}.json` snapshots
-  # in `kona-registry` match what `KONA_BIND=true cargo build -p kona-registry`
+  # in `kona-registry` match what `KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry`
   # would regenerate from the current `superchain-registry` submodule. Catches
   # drift between submodule and snapshot — i.e. someone bumped the submodule
   # without refreshing the snapshots, or hand-edited the snapshots, or refreshed
@@ -631,9 +631,7 @@ jobs:
           checkout-method: blobless
       - run:
           name: Initialize superchain-registry submodule
-          command: |
-            git submodule update --init --depth=1 \
-              packages/contracts-bedrock/lib/superchain-registry
+          command: just update-superchain-registry-submodule
       - rust-prepare-and-restore-cache: &kona-registry-snapshot-cache
           directory: rust
           prefix: rust-kona-registry-snapshot
@@ -641,7 +639,7 @@ jobs:
           name: Regenerate kona-registry snapshots
           working_directory: rust/kona
           environment:
-            KONA_BIND: "true"
+            KONA_SYNC_SUPERCHAIN: "true"
           command: cargo build -p kona-registry
       - run:
           name: Assert committed snapshots match regenerated output
@@ -652,7 +650,7 @@ jobs:
               echo "kona-registry etc/ snapshots are out of sync with the"
               echo "superchain-registry submodule. Run:"
               echo
-              echo "  KONA_BIND=true cargo build -p kona-registry"
+              echo "  KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry"
               echo
               echo "from rust/kona and commit the resulting changes to"
               echo "rust/kona/crates/protocol/registry/etc/."
