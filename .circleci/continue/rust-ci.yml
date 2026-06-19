@@ -299,6 +299,10 @@ jobs:
       # builds Go code. Restore the shared Go module cache to avoid a cold
       # `go mod download` (slow, and a per-pipeline proxy.golang.org flake risk).
       - restore-go-mod-cache
+      # Build the superchain-configs.zip the Go dumper //go:embeds (no prep-superchain job here).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: Cross-language Interop activation diff
           command: |

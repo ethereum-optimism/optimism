@@ -62,6 +62,12 @@ func SuperchainConfigsForCommit(registryCommit string) (*superchain.ChainConfigL
 // cloneRegistryAtCommit shallow-fetches the superchain-registry at ref (a commit
 // SHA or branch name) into dir. GitHub serves arbitrary commit SHAs to `git fetch`.
 func cloneRegistryAtCommit(dir, ref string) error {
+	// Defense-in-depth: ref is git-derived (a release-tag gitlink SHA or "main"),
+	// never free-form input — but reject a leading-dash value so it can't be parsed
+	// as a git option in the fetch/checkout below.
+	if ref == "" || strings.HasPrefix(ref, "-") {
+		return fmt.Errorf("refusing unsafe superchain-registry ref %q", ref)
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create registry dir: %w", err)
 	}

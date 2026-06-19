@@ -1865,6 +1865,10 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: go-tests-with-fault-proof-deps
+      # Build the superchain-configs.zip op-e2e/faultproofs //go:embeds (no prep-superchain job here).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: build cannon
           command: just cannon
@@ -2463,6 +2467,8 @@ workflows:
       - fuzz-golang:
           name: fuzz-golang-<<matrix.package_name>>
           on_changes: <<matrix.package_name>>
+          # attaches prep-superchain's superchain-configs.zip, which several of these packages //go:embed.
+          uses_artifacts: true
           matrix:
             parameters:
               package_name:
@@ -2472,6 +2478,7 @@ workflows:
                 - op-chain-ops
           requires:
             - prep-go-modules
+            - prep-superchain
           context:
             - circleci-repo-readonly-authenticated-github-token
       - fuzz-golang:
@@ -2495,6 +2502,8 @@ workflows:
             - contracts-bedrock-build
             - cannon-prestate
             - prep-go-modules
+            # for the gitignored superchain-configs.zip op-e2e //go:embeds
+            - prep-superchain
       - go-tests:
           name: go-tests-short
           parallelism: 12
@@ -2630,6 +2639,8 @@ workflows:
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
             - prep-go-modules
+            # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
+            - prep-superchain
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
           name: memory-all-opn-op-reth
@@ -2647,6 +2658,8 @@ workflows:
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
             - prep-go-modules
+            # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
+            - prep-superchain
       # IN-MEMORY - kona/op-reth
       - op-acceptance-tests:
           name: memory-all-kona-op-reth
@@ -2665,6 +2678,8 @@ workflows:
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
             - prep-go-modules
+            # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
+            - prep-superchain
       # Gate job - single stable job used as GitHub required status check for develop.
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.
