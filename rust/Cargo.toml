@@ -27,8 +27,6 @@ members = [
   "kona/sp1/crates/ethereum/host",
   "kona/sp1/crates/host",
   "kona/sp1/crates/proof",
-  "kona/sp1/programs/aggregation",
-  "kona/sp1/programs/range",
 
   # Op-Alloy
   "op-alloy/crates/*",
@@ -485,11 +483,9 @@ op-alloy-flz = { version = "0.13.1", default-features = false }
 
 # ==================== SP1 ====================
 sp1-build = "6.2.4"
-sp1-lib = { version = "6.2.4", features = ["verify"] }
 sp1-sdk = { version = "6.2.4", default-features = false, features = [
   "network",
 ] }
-sp1-zkvm = { version = "6.2.4", features = ["verify"] }
 
 # ==================== ASYNC ====================
 async-channel = "2.5"

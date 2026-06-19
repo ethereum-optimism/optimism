@@ -49,8 +49,10 @@ until the real artifacts are built.
 
 TODO(#21418): the monorepo's CircleCI runs the
 workspace-wide build, clippy, tests, cargo-hack, udeps, docs, typos, and zepter
-gates over the SP1 crates now that they are workspace members. The following
-standalone-kona GitHub workflow behavior is not yet reproduced:
+gates over the SP1 host-side crates that are workspace members. The guest
+program entrypoints live in their own workspace for SP1 patch scoping and are
+not covered by those host workspace gates. The following standalone-kona GitHub
+workflow behavior is not yet reproduced:
 
 - ELF build (`sp1/justfile build-elfs`, Dockerized `cargo-prove --tag v6.2.4`).
   This requires the SP1 v6.2.4 toolchain from `sp1up` and Docker in CI.
@@ -58,6 +60,19 @@ standalone-kona GitHub workflow behavior is not yet reproduced:
 - no-std checks for the SP1/zkVM crates. The monorepo `rust-check-no-std` job is
   package-allowlisted and does not include SP1; add SP1 there if no-std coverage
   is wanted.
+
+### Guest Precompile Patches
+
+The guest programs (`programs/range` and `programs/aggregation`) are isolated in
+`programs/Cargo.toml`, a nested Cargo workspace with its own `Cargo.lock` and
+`[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
+`crypto-bigint`, `k256`, `p256`, and `substrate-bn` to the SP1 forks, so the
+generated ELFs get zkVM precompile-accelerated crypto without changing the host
+`rust/` workspace dependency graph.
+
+The range guest also enables `revm`'s `bn` feature in the nested workspace. That
+forwards to `revm-precompile`'s `substrate-bn` backend for EIP-196/197 bn128
+precompiles. EIP-2537 BLS pairing still uses arkworks and is not SP1 accelerated.
 
 ## Usage
 

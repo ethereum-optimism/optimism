@@ -2,6 +2,8 @@ default:
   @just --list
 
 # Build all ELF files.
+# ELF builds use the nested guest workspace with SP1 precompile-patched crypto,
+# including substrate-bn for bn128 through revm-precompile's `bn` feature.
 build-elfs: build-range-elfs build-agg-elf
 
 # Build ELF files for range programs.
