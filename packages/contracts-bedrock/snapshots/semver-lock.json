@@ -21,7 +21,7 @@
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
     "initCodeHash": "0x131109ddbd9fdd69b0ff987da574fbea5ffdf23ae7ff30cee6f10e62b0832025",
-    "sourceCodeHash": "0xbb1a4352d489797c693c1834bc41139b42debf2445fbc4072d140e3ee8a6e3cf"
+    "sourceCodeHash": "0xe72fec448b7145656be07ebb22bcbf27e9e57ab163956b2ece70bb89c102bee5"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
     "initCodeHash": "0x02f8cfb0213d614c34c12904f0d06b4f8fad14f7d127b3b780f9d5cc5ebba72a",

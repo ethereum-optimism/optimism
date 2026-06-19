@@ -1060,8 +1060,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
-        // ZKDG-60 (args.l2ChainId == 0) was removed: l2ChainId is no longer part of ZK gameArgs.
-        // Chain scoping comes from the SuperRootProof preimage committed to via rootClaim.
+
         _errors = internalRequire(args.absolutePrestate != bytes32(0), string.concat(_errorPrefix, "-70"), _errors);
         _errors = internalRequire(
             args.verifier != address(0) && args.verifier.code.length > 0, string.concat(_errorPrefix, "-80"), _errors
