@@ -24,7 +24,9 @@ func withNamespacedP2P(vcli *flags.VirtualCLI, datadir string, namespace string)
 	if err := os.MkdirAll(p2pDir, 0o700); err != nil {
 		return fmt.Errorf("failed creating p2p dir for chain %s: %w", namespace, err)
 	}
-	vcli.WithStringOverride(opnodeflags.P2PPrivPathName, filepath.Join(p2pDir, "opnode_p2p_priv.txt"))
+	if !vcli.IsChainSet(opnodeflags.P2PPrivPathName) {
+		vcli.WithStringOverride(opnodeflags.P2PPrivPathName, filepath.Join(p2pDir, "opnode_p2p_priv.txt"))
+	}
 	vcli.WithStringOverride(opnodeflags.PeerstorePathName, filepath.Join(p2pDir, "peerstore_db"))
 	vcli.WithStringOverride(opnodeflags.DiscoveryPathName, filepath.Join(p2pDir, "discovery_db"))
 	// Default listen ports to 0 (dynamic) to prevent collisions when the user

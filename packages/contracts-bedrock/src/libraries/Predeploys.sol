@@ -114,45 +114,93 @@ library Predeploys {
     /// @notice Address of the L2DevFeatureFlags predeploy.
     address internal constant L2_DEV_FEATURE_FLAGS = 0x420000000000000000000000000000000000002d;
 
-    /// @notice Configuration record for a single predeploy implementation.
-    /// @param proxy             Canonical proxy address (0x4200...). CGT variants share the same
-    ///                          proxy as their standard counterpart.
-    /// @param name              Implementation contract name (e.g. "L1Block", "L1BlockCGT").
-    /// @param artifactPath      Forge artifact path ("Contract.sol:Contract").
-    /// @param deployGasLimit    Gas limit for deployments in NUT bundles.
-    ///                          Based on gas profiling with a safety margin.
-    /// @param devFeatureGate    DevFeatures constant that gates this predeploy on L2 genesis.
-    /// @param isCustomGasToken  True if this predeploy is only deployed on custom gas token chains.
-    /// @param isInterop         True if this predeploy is only deployed on interop-enabled chains.
-    /// @param isProxied         True if the predeploy uses a Proxy. Non-proxied predeploys
-    ///                          (WETH, GovernanceToken) are etched directly without proxy or
-    ///                          implementation slot setup, and are excluded from NUT bundles.
-    /// @param isDeprecated      True if the predeploy is deprecated. Deprecated predeploys are
-    ///                          present on-chain for backwards compatibility but are excluded from
-    ///                          proxy setup loops, NUT bundles, and upgrade checks.
-    /// @param isVariant         True for records that share a proxy address with another (primary) record.
-    struct PredeployRecord {
-        address proxy;
+    /// @notice Implementation variant selector.
+    /// @dev Values are array indexes into `PredeployRecord.variants`.
+    enum VariantKind {
+        DEFAULT,
+        CGT
+    }
+
+    /// @notice Configuration for one predeploy implementation.
+    struct Variant {
         string name;
         string artifactPath;
         uint64 deployGasLimit;
+    }
+
+    /// @notice Configuration record for one predeploy proxy.
+    /// @param proxy             Canonical proxy address (0x4200...).
+    /// @param variants          Implementations behind this proxy, indexed by VariantKind.
+    /// @param devFeatureGate    DevFeatures constant that gates this predeploy on L2 genesis.
+    /// @param isCustomGasToken  True if this proxy is only deployed on custom gas token chains.
+    /// @param isInterop         True if this proxy is only deployed on interop-enabled chains.
+    /// @param isProxied         True if the predeploy uses a Proxy.
+    /// @param isDeprecated      True if the predeploy is deprecated. Deprecated predeploys are
+    ///                          present on-chain for backwards compatibility but are excluded from
+    ///                          proxy setup loops, NUT bundles, and upgrade checks.
+    struct PredeployRecord {
+        address proxy;
+        Variant[] variants;
         bytes32 devFeatureGate;
         bool isCustomGasToken;
         bool isInterop;
         bool isProxied;
         bool isDeprecated;
-        bool isVariant;
     }
 
-    /// @notice Returns the name of the predeploy at the given address.
-    ///         Always returns the primary, non-variant, record name for a given proxy address.
-    ///         e.g. getName(L1_BLOCK_ATTRIBUTES) always returns "L1Block", not "L1BlockCGT".
+    /// @notice Returns a DEFAULT-only variant array.
+    function _variants(
+        string memory _name,
+        string memory _artifactPath,
+        uint64 _deployGasLimit
+    )
+        private
+        pure
+        returns (Variant[] memory variants_)
+    {
+        variants_ = new Variant[](1);
+        variants_[uint256(VariantKind.DEFAULT)] = Variant(_name, _artifactPath, _deployGasLimit);
+    }
+
+    /// @notice Returns a variant array with DEFAULT and CGT entries.
+    function _variants(
+        string memory _name,
+        string memory _artifactPath,
+        uint64 _deployGasLimit,
+        string memory _cgtName,
+        string memory _cgtArtifactPath,
+        uint64 _cgtDeployGasLimit
+    )
+        private
+        pure
+        returns (Variant[] memory variants_)
+    {
+        variants_ = new Variant[](2);
+        variants_[uint256(VariantKind.DEFAULT)] = Variant(_name, _artifactPath, _deployGasLimit);
+        variants_[uint256(VariantKind.CGT)] = Variant(_cgtName, _cgtArtifactPath, _cgtDeployGasLimit);
+    }
+
+    /// @notice Returns the DEFAULT implementation name of a record.
+    function implName(PredeployRecord memory _r) internal pure returns (string memory) {
+        return _r.variants[uint256(VariantKind.DEFAULT)].name;
+    }
+
+    /// @notice Returns the implementation variant for the given gas token config.
+    function resolveVariant(PredeployRecord memory _r, bool _isCustomGasToken) internal pure returns (Variant memory) {
+        uint256 cgt = uint256(VariantKind.CGT);
+        if (_isCustomGasToken && _r.variants.length > cgt && bytes(_r.variants[cgt].name).length != 0) {
+            return _r.variants[cgt];
+        }
+        return _r.variants[uint256(VariantKind.DEFAULT)];
+    }
+
+    /// @notice Returns the default implementation name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
         PredeployRecord[] memory records = getAllRecords();
         for (uint256 i = 0; i < records.length; i++) {
-            if (records[i].proxy == _addr && !records[i].isVariant) {
-                return records[i].name;
+            if (records[i].proxy == _addr) {
+                return implName(records[i]);
             }
         }
         revert("Predeploys: unnamed predeploy");
@@ -183,7 +231,7 @@ library Predeploys {
             isPredeployNamespace(_addr), "Predeploys: can only derive code-namespace address for predeploy addresses"
         );
         return address(
-            uint160(uint256(uint160(_addr)) & 0xffff | uint256(uint160(0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000)))
+            uint160((uint256(uint160(_addr)) & 0xffff) | uint256(uint160(0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000)))
         );
     }
 
@@ -214,389 +262,295 @@ library Predeploys {
     ///      Deprecated records (isDeprecated = true) are appended after non-proxied records and must
     ///      be skipped by consumers that perform proxy setup, NUT bundles, or upgrade checks.
     function getAllRecords() internal pure returns (PredeployRecord[] memory records_) {
-        records_ = new PredeployRecord[](30);
+        records_ = new PredeployRecord[](28);
 
         // ── Core predeploys ────────────────────────────────────────────────────────────────
         records_[0] = PredeployRecord({
             proxy: L2_CROSS_DOMAIN_MESSENGER,
-            name: "L2CrossDomainMessenger",
-            artifactPath: "L2CrossDomainMessenger.sol:L2CrossDomainMessenger",
-            deployGasLimit: 3_129_000,
+            variants: _variants("L2CrossDomainMessenger", "L2CrossDomainMessenger.sol:L2CrossDomainMessenger", 3_129_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
         records_[1] = PredeployRecord({
             proxy: GAS_PRICE_ORACLE,
-            name: "GasPriceOracle",
-            artifactPath: "GasPriceOracle.sol:GasPriceOracle",
-            deployGasLimit: 2_762_000,
+            variants: _variants("GasPriceOracle", "GasPriceOracle.sol:GasPriceOracle", 2_762_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
         records_[2] = PredeployRecord({
             proxy: L2_STANDARD_BRIDGE,
-            name: "L2StandardBridge",
-            artifactPath: "L2StandardBridge.sol:L2StandardBridge",
-            deployGasLimit: 4_193_000,
+            variants: _variants("L2StandardBridge", "L2StandardBridge.sol:L2StandardBridge", 4_193_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
         records_[3] = PredeployRecord({
             proxy: SEQUENCER_FEE_WALLET,
-            name: "SequencerFeeVault",
-            artifactPath: "SequencerFeeVault.sol:SequencerFeeVault",
-            deployGasLimit: 1_506_000,
+            variants: _variants("SequencerFeeVault", "SequencerFeeVault.sol:SequencerFeeVault", 1_506_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
         records_[4] = PredeployRecord({
             proxy: OPTIMISM_MINTABLE_ERC20_FACTORY,
-            name: "OptimismMintableERC20Factory",
-            artifactPath: "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory",
-            deployGasLimit: 4_193_000,
+            variants: _variants(
+                "OptimismMintableERC20Factory", "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory", 4_193_000
+            ),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
         records_[5] = PredeployRecord({
             proxy: L2_ERC721_BRIDGE,
-            name: "L2ERC721Bridge",
-            artifactPath: "L2ERC721Bridge.sol:L2ERC721Bridge",
-            deployGasLimit: 2_367_000,
+            variants: _variants("L2ERC721Bridge", "L2ERC721Bridge.sol:L2ERC721Bridge", 2_367_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
         records_[6] = PredeployRecord({
             proxy: L1_BLOCK_ATTRIBUTES,
-            name: "L1Block",
-            artifactPath: "L1Block.sol:L1Block",
-            deployGasLimit: 1_191_000,
+            variants: _variants(
+                "L1Block", "L1Block.sol:L1Block", 1_191_000, "L1BlockCGT", "L1BlockCGT.sol:L1BlockCGT", 1_568_000
+            ),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
         records_[7] = PredeployRecord({
-            proxy: L1_BLOCK_ATTRIBUTES,
-            name: "L1BlockCGT",
-            artifactPath: "L1BlockCGT.sol:L1BlockCGT",
-            deployGasLimit: 1_568_000,
+            proxy: L2_TO_L1_MESSAGE_PASSER,
+            variants: _variants(
+                "L2ToL1MessagePasser",
+                "L2ToL1MessagePasser.sol:L2ToL1MessagePasser",
+                694_000,
+                "L2ToL1MessagePasserCGT",
+                "L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT",
+                827_394
+            ),
             devFeatureGate: bytes32(0),
-            isCustomGasToken: true,
+            isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: true
+            isDeprecated: false
         });
         records_[8] = PredeployRecord({
-            proxy: L2_TO_L1_MESSAGE_PASSER,
-            name: "L2ToL1MessagePasser",
-            artifactPath: "L2ToL1MessagePasser.sol:L2ToL1MessagePasser",
-            deployGasLimit: 694_000,
+            proxy: OPTIMISM_MINTABLE_ERC721_FACTORY,
+            variants: _variants(
+                "OptimismMintableERC721Factory",
+                "OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory",
+                5_661_000
+            ),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
         records_[9] = PredeployRecord({
-            proxy: L2_TO_L1_MESSAGE_PASSER,
-            name: "L2ToL1MessagePasserCGT",
-            artifactPath: "L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT",
-            deployGasLimit: 827_394,
+            proxy: PROXY_ADMIN,
+            variants: _variants("L2ProxyAdmin", "L2ProxyAdmin.sol:L2ProxyAdmin", 2_541_000),
             devFeatureGate: bytes32(0),
-            isCustomGasToken: true,
+            isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: true
+            isDeprecated: false
         });
         records_[10] = PredeployRecord({
-            proxy: OPTIMISM_MINTABLE_ERC721_FACTORY,
-            name: "OptimismMintableERC721Factory",
-            artifactPath: "OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory",
-            deployGasLimit: 5_661_000,
+            proxy: BASE_FEE_VAULT,
+            variants: _variants("BaseFeeVault", "BaseFeeVault.sol:BaseFeeVault", 1_503_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
         records_[11] = PredeployRecord({
-            proxy: PROXY_ADMIN,
-            name: "L2ProxyAdmin",
-            artifactPath: "L2ProxyAdmin.sol:L2ProxyAdmin",
-            deployGasLimit: 2_541_000,
+            proxy: L1_FEE_VAULT,
+            variants: _variants("L1FeeVault", "L1FeeVault.sol:L1FeeVault", 260_550),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
         records_[12] = PredeployRecord({
-            proxy: BASE_FEE_VAULT,
-            name: "BaseFeeVault",
-            artifactPath: "BaseFeeVault.sol:BaseFeeVault",
-            deployGasLimit: 1_503_000,
+            proxy: OPERATOR_FEE_VAULT,
+            variants: _variants("OperatorFeeVault", "OperatorFeeVault.sol:OperatorFeeVault", 1_504_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
         records_[13] = PredeployRecord({
-            proxy: L1_FEE_VAULT,
-            name: "L1FeeVault",
-            artifactPath: "L1FeeVault.sol:L1FeeVault",
-            deployGasLimit: 260_550,
+            proxy: SCHEMA_REGISTRY,
+            variants: _variants("SchemaRegistry", "SchemaRegistry.sol:SchemaRegistry", 805_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
         records_[14] = PredeployRecord({
-            proxy: OPERATOR_FEE_VAULT,
-            name: "OperatorFeeVault",
-            artifactPath: "OperatorFeeVault.sol:OperatorFeeVault",
-            deployGasLimit: 1_504_000,
-            devFeatureGate: bytes32(0),
-            isCustomGasToken: false,
-            isInterop: false,
-            isProxied: true,
-            isDeprecated: false,
-            isVariant: false
-        });
-        records_[15] = PredeployRecord({
-            proxy: SCHEMA_REGISTRY,
-            name: "SchemaRegistry",
-            artifactPath: "SchemaRegistry.sol:SchemaRegistry",
-            deployGasLimit: 805_000,
-            devFeatureGate: bytes32(0),
-            isCustomGasToken: false,
-            isInterop: false,
-            isProxied: true,
-            isDeprecated: false,
-            isVariant: false
-        });
-        records_[16] = PredeployRecord({
             proxy: EAS,
-            name: "EAS",
-            artifactPath: "EAS.sol:EAS",
-            deployGasLimit: 6_251_000,
+            variants: _variants("EAS", "EAS.sol:EAS", 6_251_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
 
         // ── Interop predeploys ─────────────────────────────────────────────────────────────
         // Interop requires both the INTEROP sys feature and the OPTIMISM_PORTAL_INTEROP dev
         // feature. Both gates mirror the full condition checked in L2Genesis.
-        records_[17] = PredeployRecord({
+        records_[15] = PredeployRecord({
             proxy: CROSS_L2_INBOX,
-            name: "CrossL2Inbox",
-            artifactPath: "CrossL2Inbox.sol:CrossL2Inbox",
-            deployGasLimit: 668_000,
+            variants: _variants("CrossL2Inbox", "CrossL2Inbox.sol:CrossL2Inbox", 668_000),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
             isInterop: true,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
+        });
+        records_[16] = PredeployRecord({
+            proxy: L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            variants: _variants(
+                "L2ToL2CrossDomainMessenger", "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger", 1_611_000
+            ),
+            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
+            isCustomGasToken: false,
+            isInterop: true,
+            isProxied: true,
+            isDeprecated: false
+        });
+        records_[17] = PredeployRecord({
+            proxy: SUPERCHAIN_ETH_BRIDGE,
+            variants: _variants("SuperchainETHBridge", "SuperchainETHBridge.sol:SuperchainETHBridge", 757_000),
+            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
+            isCustomGasToken: false,
+            isInterop: true,
+            isProxied: true,
+            isDeprecated: false
         });
         records_[18] = PredeployRecord({
-            proxy: L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            name: "L2ToL2CrossDomainMessenger",
-            artifactPath: "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger",
-            deployGasLimit: 1_611_000,
-            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
-            isCustomGasToken: false,
-            isInterop: true,
-            isProxied: true,
-            isDeprecated: false,
-            isVariant: false
-        });
-        records_[19] = PredeployRecord({
-            proxy: SUPERCHAIN_ETH_BRIDGE,
-            name: "SuperchainETHBridge",
-            artifactPath: "SuperchainETHBridge.sol:SuperchainETHBridge",
-            deployGasLimit: 757_000,
-            devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
-            isCustomGasToken: false,
-            isInterop: true,
-            isProxied: true,
-            isDeprecated: false,
-            isVariant: false
-        });
-        records_[20] = PredeployRecord({
             proxy: ETH_LIQUIDITY,
-            name: "ETHLiquidity",
-            artifactPath: "ETHLiquidity.sol:ETHLiquidity",
-            deployGasLimit: 423_000,
+            variants: _variants("ETHLiquidity", "ETHLiquidity.sol:ETHLiquidity", 423_000),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
             isInterop: true,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
 
         // ── CGT predeploys ─────────────────────────────────────────────────────────────────
-        records_[21] = PredeployRecord({
+        records_[19] = PredeployRecord({
             proxy: NATIVE_ASSET_LIQUIDITY,
-            name: "NativeAssetLiquidity",
-            artifactPath: "NativeAssetLiquidity.sol:NativeAssetLiquidity",
-            deployGasLimit: 392_000,
+            variants: _variants("NativeAssetLiquidity", "NativeAssetLiquidity.sol:NativeAssetLiquidity", 392_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: true,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
+        });
+        records_[20] = PredeployRecord({
+            proxy: LIQUIDITY_CONTROLLER,
+            variants: _variants("LiquidityController", "LiquidityController.sol:LiquidityController", 1_870_000),
+            devFeatureGate: bytes32(0),
+            isCustomGasToken: true,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false
+        });
+        records_[21] = PredeployRecord({
+            proxy: CONDITIONAL_DEPLOYER,
+            variants: _variants("ConditionalDeployer", "ConditionalDeployer.sol:ConditionalDeployer", 600_000),
+            devFeatureGate: DevFeatures.L2CM,
+            isCustomGasToken: false,
+            isInterop: false,
+            isProxied: true,
+            isDeprecated: false
         });
         records_[22] = PredeployRecord({
-            proxy: LIQUIDITY_CONTROLLER,
-            name: "LiquidityController",
-            artifactPath: "LiquidityController.sol:LiquidityController",
-            deployGasLimit: 1_870_000,
-            devFeatureGate: bytes32(0),
-            isCustomGasToken: true,
-            isInterop: false,
-            isProxied: true,
-            isDeprecated: false,
-            isVariant: false
-        });
-
-        records_[23] = PredeployRecord({
-            proxy: CONDITIONAL_DEPLOYER,
-            name: "ConditionalDeployer",
-            artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
-            deployGasLimit: 600_000,
-            devFeatureGate: DevFeatures.L2CM,
-            isCustomGasToken: false,
-            isInterop: false,
-            isProxied: true,
-            isDeprecated: false,
-            isVariant: false
-        });
-        records_[24] = PredeployRecord({
             proxy: L2_DEV_FEATURE_FLAGS,
-            name: "L2DevFeatureFlags",
-            artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
-            deployGasLimit: 328_228,
+            variants: _variants("L2DevFeatureFlags", "L2DevFeatureFlags.sol:L2DevFeatureFlags", 328_228),
             devFeatureGate: DevFeatures.L2CM,
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
 
         // ── Non-proxied predeploys ─────────────────────────────────────────────────────────
         // These are etched directly (no Proxy wrapper, no implementation slot).
         // Excluded from NUT bundles and proxy setup. deployGasLimit is unused.
-        records_[25] = PredeployRecord({
+        records_[23] = PredeployRecord({
             proxy: WETH,
-            name: "WETH",
-            artifactPath: "WETH.sol:WETH",
-            deployGasLimit: 0,
+            variants: _variants("WETH", "WETH.sol:WETH", 0),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: false,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
-        records_[26] = PredeployRecord({
+        records_[24] = PredeployRecord({
             proxy: GOVERNANCE_TOKEN,
-            name: "GovernanceToken",
-            artifactPath: "GovernanceToken.sol:GovernanceToken",
-            deployGasLimit: 0,
+            variants: _variants("GovernanceToken", "GovernanceToken.sol:GovernanceToken", 0),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: false,
-            isDeprecated: false,
-            isVariant: false
+            isDeprecated: false
         });
 
         // ── Deprecated predeploys ──────────────────────────────────────────────────────────
         // Present on-chain for backwards compatibility but excluded from proxy setup loops,
         // NUT bundles, and upgrade checks. Handled by individual setters in L2Genesis.
-        records_[27] = PredeployRecord({
+        records_[25] = PredeployRecord({
             proxy: LEGACY_MESSAGE_PASSER,
-            name: "LegacyMessagePasser",
-            artifactPath: "LegacyMessagePasser.sol:LegacyMessagePasser",
-            deployGasLimit: 0,
+            variants: _variants("LegacyMessagePasser", "LegacyMessagePasser.sol:LegacyMessagePasser", 0),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: true,
-            isVariant: false
+            isDeprecated: true
         });
-        records_[28] = PredeployRecord({
+        records_[26] = PredeployRecord({
             proxy: DEPLOYER_WHITELIST,
-            name: "DeployerWhitelist",
-            artifactPath: "DeployerWhitelist.sol:DeployerWhitelist",
-            deployGasLimit: 0,
+            variants: _variants("DeployerWhitelist", "DeployerWhitelist.sol:DeployerWhitelist", 0),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: true,
-            isVariant: false
+            isDeprecated: true
         });
-        records_[29] = PredeployRecord({
+        records_[27] = PredeployRecord({
             proxy: L1_BLOCK_NUMBER,
-            name: "L1BlockNumber",
-            artifactPath: "L1BlockNumber.sol:L1BlockNumber",
-            deployGasLimit: 0,
+            variants: _variants("L1BlockNumber", "L1BlockNumber.sol:L1BlockNumber", 0),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
-            isDeprecated: true,
-            isVariant: false
+            isDeprecated: true
         });
     }
 
-    /// @notice Returns all proxied, non-deprecated predeploy records, including variant records.
-    /// @dev Variant records (isVariant = true) share a proxy with a primary record (e.g. L1BlockCGT
-    ///      shares the L1Block proxy). Callers that need one entry per proxy should skip variants.
+    /// @notice Returns all proxied, non-deprecated predeploy records (one entry per proxy).
     function getUpgradeableRecords() internal pure returns (PredeployRecord[] memory records_) {
         PredeployRecord[] memory all = getAllRecords();
         uint256 count = 0;
@@ -610,6 +564,24 @@ library Predeploys {
         for (uint256 i = 0; i < all.length; i++) {
             if (!all[i].isProxied || all[i].isDeprecated) continue;
             records_[j++] = all[i];
+        }
+    }
+
+    /// @notice Returns every implementation that must be deployed for upgradeable predeploys,
+    ///         flattened across all variants (e.g. both L1Block and L1BlockCGT). L2CM selects
+    ///         the correct variant at runtime, so all variants are deployed unconditionally.
+    function getUpgradeableImpls() internal pure returns (Variant[] memory impls_) {
+        PredeployRecord[] memory records = getUpgradeableRecords();
+        uint256 count = 0;
+        for (uint256 i = 0; i < records.length; i++) {
+            count += records[i].variants.length;
+        }
+        impls_ = new Variant[](count);
+        uint256 j = 0;
+        for (uint256 i = 0; i < records.length; i++) {
+            for (uint256 k = 0; k < records[i].variants.length; k++) {
+                impls_[j++] = records[i].variants[k];
+            }
         }
     }
 

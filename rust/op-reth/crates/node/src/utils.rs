@@ -22,7 +22,9 @@ pub async fn setup(num_nodes: usize) -> eyre::Result<(Vec<OpNode>, Wallet)> {
         serde_json::from_str(include_str!("../tests/assets/genesis.json")).unwrap();
     reth_e2e_test_utils::setup_engine(
         num_nodes,
-        Arc::new(OpChainSpecBuilder::base_mainnet().genesis(genesis).ecotone_activated().build()),
+        Arc::new(
+            OpChainSpecBuilder::optimism_sepolia().genesis(genesis).ecotone_activated().build(),
+        ),
         false,
         Default::default(),
         optimism_payload_attributes,

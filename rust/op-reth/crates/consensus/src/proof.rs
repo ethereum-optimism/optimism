@@ -82,7 +82,7 @@ mod tests {
     use alloy_consensus::{Receipt, ReceiptWithBloom, TxReceipt};
     use alloy_primitives::{Address, Bytes, Log, LogData, b256, bloom, hex};
     use op_alloy_consensus::OpDepositReceipt;
-    use reth_optimism_chainspec::BASE_SEPOLIA;
+    use reth_optimism_chainspec::OP_SEPOLIA;
     use reth_optimism_primitives::OpReceipt;
 
     /// Tests that the receipt root is computed correctly for the regolith block.
@@ -464,7 +464,7 @@ mod tests {
             ];
             let root = calculate_receipt_root_optimism(
                 &receipts.iter().map(TxReceipt::with_bloom_ref).collect::<Vec<_>>(),
-                BASE_SEPOLIA.as_ref(),
+                OP_SEPOLIA.as_ref(),
                 case.1,
             );
             assert_eq!(root, case.2);
@@ -484,7 +484,7 @@ mod tests {
             OpReceipt::Eip2930(Receipt { status: true.into(), cumulative_gas_used: 102068, logs });
         let receipt = ReceiptWithBloom { receipt: &inner, logs_bloom };
         let receipt = vec![receipt];
-        let root = calculate_receipt_root_optimism(&receipt, BASE_SEPOLIA.as_ref(), 0);
+        let root = calculate_receipt_root_optimism(&receipt, OP_SEPOLIA.as_ref(), 0);
         assert_eq!(
             root,
             b256!("0xfe70ae4a136d98944951b2123859698d59ad251a381abc9960fa81cae3d0d4a0")

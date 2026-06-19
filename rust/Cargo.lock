@@ -5992,7 +5992,7 @@ dependencies = [
  "alloy-eips",
  "alloy-primitives",
  "anyhow",
- "kona-protocol",
+ "kona-genesis",
  "once_cell",
  "op-alloy-consensus",
  "op-revm",

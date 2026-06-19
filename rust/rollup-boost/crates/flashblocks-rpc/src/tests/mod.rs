@@ -64,7 +64,7 @@ async fn setup_node() -> eyre::Result<NodeContext> {
 
     let genesis: Genesis = serde_json::from_str(include_str!("assets/genesis.json")).unwrap();
     let chain_spec = Arc::new(
-        OpChainSpecBuilder::base_mainnet()
+        OpChainSpecBuilder::optimism_sepolia()
             .genesis(genesis)
             .ecotone_activated()
             .build(),

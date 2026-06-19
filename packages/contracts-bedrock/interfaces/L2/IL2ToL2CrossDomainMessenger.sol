@@ -83,10 +83,11 @@ interface IL2ToL2CrossDomainMessenger {
     /// @return source_ Chain ID of the source of the current cross domain message.
     function crossDomainMessageContext() external view returns (address sender_, uint256 source_);
 
-    /// @notice Sends a message to some target address on a destination chain. Note that if the call
-    ///         always reverts, then the message will be unrelayable, and any ETH sent will be
-    ///         permanently locked. The same will occur if the target on the other chain is
-    ///         considered unsafe (see the _isUnsafeTarget() function).
+    /// @notice Sends a message to some target address on a destination chain. The destination chain
+    ///         must differ from the current chain, and the target cannot be the
+    ///         L2ToL2CrossDomainMessenger predeploy. This function is not payable, so no ETH can be
+    ///         sent with the message. If the relayed call reverts on the destination chain, the relay
+    ///         transaction reverts and the message can be relayed again later, so it is never stuck.
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message to trigger the target address with.
@@ -123,6 +124,9 @@ interface IL2ToL2CrossDomainMessenger {
     /// @notice Relays a message that was sent by the other CrossDomainMessenger contract. Can only
     ///         be executed via cross-chain call from the other messenger OR if the message was
     ///         already received once and is currently being replayed.
+    /// @dev    If the target has no code when relayed (e.g. an EOA or a not-yet-deployed address),
+    ///         the call is a no-op that still succeeds, permanently consuming the message; it cannot
+    ///         be relayed again once the target is later deployed.
     /// @param _id          Identifier of the SentMessage event to be relayed
     /// @param _sentMessage Message payload of the `SentMessage` event
     /// @return returnData_ Return data from the target contract call.
