@@ -107,8 +107,6 @@ fn main() {
         entries.push((format!("genesis/{}.zz", rel.strip_suffix(".zst").unwrap()), zz));
     }
 
-    entries.push(("LICENSE".into(), fs::read(sr.join("LICENSE")).unwrap()));
-
     entries.sort_by(|a, b| a.0.cmp(&b.0));
     let tar_bytes = build_tar(&entries);
     fs::write(&tar_path, &tar_bytes).unwrap();
@@ -188,17 +186,17 @@ fn sha256_hex(data: &[u8]) -> String {
 }
 
 fn walk(dir: &Path, ext: &str) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    let mut stack = vec![dir.to_path_buf()];
-    while let Some(d) = stack.pop() {
-        for entry in fs::read_dir(&d).unwrap() {
+    fs::read_dir(dir)
+        .unwrap()
+        .flat_map(|entry| {
             let p = entry.unwrap().path();
             if p.is_dir() {
-                stack.push(p);
+                walk(&p, ext)
             } else if p.extension().and_then(|s| s.to_str()) == Some(ext) {
-                out.push(p);
+                vec![p]
+            } else {
+                vec![]
             }
-        }
-    }
-    out
+        })
+        .collect()
 }

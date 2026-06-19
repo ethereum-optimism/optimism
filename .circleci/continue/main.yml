@@ -555,10 +555,20 @@ commands:
         description: "Whether to set up the sccache GCS compile cache (see rust-prepare)."
         type: boolean
         default: true
+      init_superchain_submodule:
+        description: "Init the superchain-registry submodule (op-reth chainspec's build.rs reads it)."
+        type: boolean
+        default: false
     steps:
       - rust-prepare:
           needs_clang: << parameters.needs_clang >>
           enable_sccache: << parameters.enable_sccache >>
+      - when:
+          condition: << parameters.init_superchain_submodule >>
+          steps:
+            - run:
+                name: Initialize superchain-registry submodule
+                command: just update-superchain-registry-submodule
       - rust-restore-build-cache:
           version: << parameters.version >>
           directory: << parameters.directory >>

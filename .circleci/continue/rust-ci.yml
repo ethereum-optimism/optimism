@@ -84,9 +84,7 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-clippy
           features: "all"
-      - run:
-          name: Initialize superchain-registry submodule
-          command: just update-superchain-registry-submodule
+          init_superchain_submodule: true
       - run:
           name: Run clippy
           working_directory: <<parameters.directory>>
@@ -278,9 +276,7 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-tests
           profile: <<parameters.cache_profile>>
-      - run:
-          name: Initialize superchain-registry submodule
-          command: just update-superchain-registry-submodule
+          init_superchain_submodule: true
       - run:
           name: Run cargo tests
           working_directory: <<parameters.directory>>
@@ -429,9 +425,7 @@ jobs:
       - rust-prepare-and-restore-cache: &hack-build-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-hack-build
-      - run:
-          name: Initialize superchain-registry submodule
-          command: just update-superchain-registry-submodule
+          init_superchain_submodule: true
       - run:
           name: Build for <<parameters.target>>
           working_directory: <<parameters.directory>>
@@ -457,9 +451,7 @@ jobs:
           directory: rust
           prefix: rust-hack
           features: "all"
-      - run:
-          name: Initialize superchain-registry submodule
-          command: just update-superchain-registry-submodule
+          init_superchain_submodule: true
       - run:
           name: Run cargo hack
           working_directory: rust
@@ -489,9 +481,7 @@ jobs:
           directory: rust
           prefix: op-reth-compact
           profile: debug
-      - run:
-          name: Initialize superchain-registry submodule
-          command: just update-superchain-registry-submodule
+          init_superchain_submodule: true
       - run:
           name: Generate compact vectors from base
           command: |
@@ -644,12 +634,10 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - run:
-          name: Initialize superchain-registry submodule
-          command: just update-superchain-registry-submodule
       - rust-prepare-and-restore-cache: &kona-registry-snapshot-cache
           directory: rust
           prefix: rust-kona-registry-snapshot
+          init_superchain_submodule: true
       - run:
           name: Regenerate kona-registry snapshots
           working_directory: rust/kona
@@ -685,12 +673,10 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - run:
-          name: Initialize superchain-registry submodule
-          command: just update-superchain-registry-submodule
       - rust-prepare-and-restore-cache: &op-reth-superchain-snapshot-cache
           directory: rust
           prefix: rust-op-reth-superchain-snapshot
+          init_superchain_submodule: true
       - run:
           name: Regenerate op-reth superchain archive
           working_directory: rust
