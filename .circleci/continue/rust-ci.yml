@@ -58,6 +58,7 @@ jobs:
       - rust-prepare-and-restore-cache: &fmt-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-fmt
+          init_superchain_submodule: false
       - run:
           name: Check formatting
           working_directory: <<parameters.directory>>
@@ -84,7 +85,6 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-clippy
           features: "all"
-          init_superchain_submodule: true
       - run:
           name: Run clippy
           working_directory: <<parameters.directory>>
@@ -113,6 +113,7 @@ jobs:
       - rust-prepare-and-restore-cache: &deny-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-deny
+          init_superchain_submodule: false
       - run:
           name: Run cargo deny
           working_directory: <<parameters.directory>>
@@ -142,6 +143,7 @@ jobs:
       - rust-prepare-and-restore-cache: &zepter-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-zepter
+          init_superchain_submodule: false
       - run:
           name: Check feature propagation
           working_directory: <<parameters.directory>>
@@ -163,6 +165,7 @@ jobs:
       - rust-prepare-and-restore-cache: &typos-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-typos
+          init_superchain_submodule: false
       - run:
           name: Check for typos
           working_directory: <<parameters.directory>>
@@ -188,6 +191,7 @@ jobs:
       - rust-prepare-and-restore-cache: &no-std-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-no-std
+          init_superchain_submodule: false
       - run:
           name: Check no_std compatibility
           working_directory: <<parameters.directory>>
@@ -276,7 +280,6 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-tests
           profile: <<parameters.cache_profile>>
-          init_superchain_submodule: true
       - run:
           name: Run cargo tests
           working_directory: <<parameters.directory>>
@@ -425,7 +428,6 @@ jobs:
       - rust-prepare-and-restore-cache: &hack-build-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-hack-build
-          init_superchain_submodule: true
       - run:
           name: Build for <<parameters.target>>
           working_directory: <<parameters.directory>>
@@ -451,7 +453,6 @@ jobs:
           directory: rust
           prefix: rust-hack
           features: "all"
-          init_superchain_submodule: true
       - run:
           name: Run cargo hack
           working_directory: rust
@@ -481,7 +482,6 @@ jobs:
           directory: rust
           prefix: op-reth-compact
           profile: debug
-          init_superchain_submodule: true
       - run:
           name: Generate compact vectors from base
           command: |
@@ -637,7 +637,6 @@ jobs:
       - rust-prepare-and-restore-cache: &kona-registry-snapshot-cache
           directory: rust
           prefix: rust-kona-registry-snapshot
-          init_superchain_submodule: true
       - run:
           name: Regenerate kona-registry snapshots
           working_directory: rust/kona
@@ -676,7 +675,6 @@ jobs:
       - rust-prepare-and-restore-cache: &op-reth-superchain-snapshot-cache
           directory: rust
           prefix: rust-op-reth-superchain-snapshot
-          init_superchain_submodule: true
       - run:
           name: Regenerate op-reth superchain archive
           working_directory: rust

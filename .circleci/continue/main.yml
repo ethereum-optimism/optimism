@@ -563,9 +563,12 @@ commands:
         type: boolean
         default: true
       init_superchain_submodule:
+        # Default true: most rust jobs build op-reth's chainspec, whose build.rs
+        # regenerates the gitignored superchain archive from this submodule. Only
+        # no-build lint jobs (fmt/typos/deny/zepter/no-std) opt out with false.
         description: "Init the superchain-registry submodule (op-reth chainspec's build.rs reads it)."
         type: boolean
-        default: false
+        default: true
     steps:
       - rust-prepare:
           needs_clang: << parameters.needs_clang >>
