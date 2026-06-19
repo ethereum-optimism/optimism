@@ -111,8 +111,9 @@ async fn test_custom_block_priority_config() {
     reth_tracing::init_test_tracing();
 
     let genesis: Genesis = serde_json::from_str(include_str!("../assets/genesis.json")).unwrap();
-    let chain_spec =
-        Arc::new(OpChainSpecBuilder::base_mainnet().genesis(genesis).ecotone_activated().build());
+    let chain_spec = Arc::new(
+        OpChainSpecBuilder::optimism_sepolia().genesis(genesis).ecotone_activated().build(),
+    );
 
     // This wallet is going to send:
     // 1. L1 block info tx

@@ -8,18 +8,17 @@ import { Vm } from "forge-std/Vm.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
+import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 
 // Target contract
 import {
     L2ToL2CrossDomainMessenger,
-    NotEntered,
     MessageDestinationSameChain,
     IdOriginNotL2ToL2CrossDomainMessenger,
     EventPayloadNotSentMessage,
     MessageDestinationNotRelayChain,
     MessageTargetL2ToL2CrossDomainMessenger,
     MessageAlreadyRelayed,
-    ReentrantCall,
     InvalidMessage
 } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 
@@ -104,7 +103,7 @@ contract L2ToL2CrossDomainMessenger_CrossDomainMessageSender_Test is L2ToL2Cross
         assertEq(l2ToL2CrossDomainMessenger.entered(), false);
 
         // Expect a revert with the NotEntered selector
-        vm.expectRevert(NotEntered.selector);
+        vm.expectRevert(TransientReentrancyAware.NotEntered.selector);
 
         // Call `crossDomainMessageSender` to provoke revert
         l2ToL2CrossDomainMessenger.crossDomainMessageSender();
@@ -132,7 +131,7 @@ contract L2ToL2CrossDomainMessenger_CrossDomainMessageSource_Test is L2ToL2Cross
         assertEq(l2ToL2CrossDomainMessenger.entered(), false);
 
         // Expect a revert with the NotEntered selector
-        vm.expectRevert(NotEntered.selector);
+        vm.expectRevert(TransientReentrancyAware.NotEntered.selector);
 
         // Call `crossDomainMessageSource` to provoke revert
         l2ToL2CrossDomainMessenger.crossDomainMessageSource();
@@ -166,7 +165,7 @@ contract L2ToL2CrossDomainMessenger_CrossDomainMessageContext_Test is L2ToL2Cros
         assertEq(l2ToL2CrossDomainMessenger.entered(), false);
 
         // Expect a revert with the NotEntered selector
-        vm.expectRevert(NotEntered.selector);
+        vm.expectRevert(TransientReentrancyAware.NotEntered.selector);
 
         // Call `crossDomainMessageContext` to provoke revert
         l2ToL2CrossDomainMessenger.crossDomainMessageContext();
@@ -181,8 +180,8 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
         // Ensure the destination is not the same as the source, otherwise the function will revert
         vm.assume(_destination != block.chainid);
 
-        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
-        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        // Ensure that the target contract is not the L2ToL2CrossDomainMessenger
+        vm.assume(_target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
         // Get the current message nonce
         uint256 messageNonce = l2ToL2CrossDomainMessenger.messageNonce();
@@ -229,8 +228,8 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
         // Ensure the destination is not the same as the source, otherwise the function will revert
         vm.assume(_destination != block.chainid);
 
-        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
-        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        // Ensure that the target contract is not the L2ToL2CrossDomainMessenger
+        vm.assume(_target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
         // Ensure that _value is greater than 0
         _value = bound(_value, 1, type(uint256).max);
@@ -318,8 +317,8 @@ contract L2ToL2CrossDomainMessenger_ResendMessage_Test is L2ToL2CrossDomainMesse
         // Ensure the destination is not the same as the source, otherwise the function will revert
         vm.assume(_destination != block.chainid);
 
-        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
-        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        // Ensure that the target contract is not the L2ToL2CrossDomainMessenger
+        vm.assume(_target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
         // Get the current message nonce
         uint256 messageNonce = l2ToL2CrossDomainMessenger.messageNonce();
@@ -400,7 +399,7 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         // Ensure that the contract is entered
         assertEq(l2ToL2CrossDomainMessenger.entered(), true);
 
-        vm.expectRevert(ReentrantCall.selector);
+        vm.expectRevert(TransientReentrancyAware.ReentrantCall.selector);
 
         Identifier memory id = Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 1, 1, 1, _source);
         bytes memory sentMessage = abi.encodePacked(

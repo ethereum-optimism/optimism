@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -14,18 +16,17 @@ import (
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-interop/checks"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-lagoon/checks"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
-const prefix = "CHECK_INTEROP"
+const prefix = "CHECK_LAGOON"
 
 var (
 	ConfigFile = &cli.StringFlag{
@@ -50,14 +51,14 @@ var (
 		Usage:   "Private key (hex-formatted string) of a funded test account on both chains",
 		EnvVars: op_service.PrefixEnvVar(prefix, "ACCOUNT"),
 	}
-	FilterAdminRPC = &cli.StringFlag{
+	FilterAdminRPC = &cli.StringSliceFlag{
 		Name:    "filter.admin-rpc",
-		Usage:   "op-interop-filter admin RPC endpoint (used to toggle failsafe)",
+		Usage:   "op-interop-filter admin RPC URLs (repeat for multiple filters)",
 		EnvVars: op_service.PrefixEnvVar(prefix, "FILTER_ADMIN_RPC"),
 	}
-	FilterJWTSecret = &cli.StringFlag{
+	FilterJWTSecret = &cli.StringSliceFlag{
 		Name:    "filter.jwt-secret",
-		Usage:   "Path to the JWT secret authenticating the op-interop-filter admin RPC",
+		Usage:   "32-byte hex JWT secrets, one per --filter.admin-rpc entry (0x optional)",
 		EnvVars: op_service.PrefixEnvVar(prefix, "FILTER_JWT_SECRET"),
 	}
 	RelayTimeout = &cli.DurationFlag{
@@ -96,8 +97,8 @@ func roundtripFlags() []cli.Flag {
 
 func failsafeFlags() []cli.Flag {
 	return append(baseFlags(),
-		altsrc.NewStringFlag(FilterAdminRPC),
-		altsrc.NewStringFlag(FilterJWTSecret),
+		altsrc.NewStringSliceFlag(FilterAdminRPC),
+		altsrc.NewStringSliceFlag(FilterJWTSecret),
 		altsrc.NewDurationFlag(PropagationWait),
 	)
 }
@@ -175,16 +176,33 @@ func dialEthClient(ctx context.Context, logger log.Logger, url string) (*sources
 	return sources.NewEthClient(rpcCl, logger, nil, sources.DefaultEthClientConfig(10))
 }
 
-func dialFilterAdmin(ctx context.Context, logger log.Logger, url, jwtPath string) (client.RPC, error) {
-	if url == "" || jwtPath == "" {
-		return nil, errors.New("both --filter.admin-rpc and --filter.jwt-secret are required for the failsafe check")
+func dialFilterAdmins(ctx context.Context, logger log.Logger, urls, jwtSecrets []string) ([]client.RPC, error) {
+	if len(urls) == 0 {
+		return nil, errors.New("--filter.admin-rpc and --filter.jwt-secret are required for the failsafe check")
 	}
-	secret, err := oprpc.ObtainJWTSecret(logger, jwtPath, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load filter admin JWT secret: %w", err)
+	if len(urls) != len(jwtSecrets) {
+		return nil, fmt.Errorf("--filter.admin-rpc and --filter.jwt-secret must have equal counts (got %d and %d)", len(urls), len(jwtSecrets))
 	}
-	return client.NewRPC(ctx, logger, url,
-		client.WithGethRPCOptions(gethrpc.WithHTTPAuth(gn.NewJWTAuth([32]byte(secret)))))
+	clients := make([]client.RPC, 0, len(urls))
+	for i, url := range urls {
+		raw, err := hex.DecodeString(strings.TrimPrefix(jwtSecrets[i], "0x"))
+		if err != nil || len(raw) != 32 {
+			for _, c := range clients {
+				c.Close()
+			}
+			return nil, fmt.Errorf("filter jwt secret %d: must be a 32-byte hex string", i)
+		}
+		cl, err := client.NewRPC(ctx, logger, url,
+			client.WithGethRPCOptions(gethrpc.WithHTTPAuth(gn.NewJWTAuth([32]byte(raw)))))
+		if err != nil {
+			for _, c := range clients {
+				c.Close()
+			}
+			return nil, fmt.Errorf("dial filter admin %d (%s): %w", i, url, err)
+		}
+		clients = append(clients, cl)
+	}
+	return clients, nil
 }
 
 func roundTripAction(c *cli.Context) error {
@@ -204,18 +222,18 @@ func failsafeAction(c *cli.Context) error {
 		return err
 	}
 	defer cfg.Close()
-	admin, err := dialFilterAdmin(ctx, logger, c.String(FilterAdminRPC.Name), c.String(FilterJWTSecret.Name))
+	admins, err := dialFilterAdmins(ctx, logger, c.StringSlice(FilterAdminRPC.Name), c.StringSlice(FilterJWTSecret.Name))
 	if err != nil {
 		return err
 	}
-	cfg.FilterAdmin = admin
+	cfg.FilterAdmins = admins
 	cfg.PropagationWait = c.Duration(PropagationWait.Name)
 	return checks.CheckFailsafe(ctx, cfg)
 }
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "check-interop"
+	app.Name = "check-lagoon"
 	app.Usage = "Smoke-test interop cross-chain messaging and the interop filter failsafe."
 	app.Description = "Smoke-test interop cross-chain messaging and the interop filter failsafe."
 	app.Action = func(c *cli.Context) error {

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopsmoke"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -101,7 +102,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name), cliCtx.Bool(interopFlag.Name))
 	}
 	app.Commands = []*cli.Command{
-		smokeCommand(),
+		interopsmoke.Command(envPrefix),
 	}
 	return app.RunContext(ctx, args)
 }

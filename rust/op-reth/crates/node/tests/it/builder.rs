@@ -17,7 +17,7 @@ use reth_node_builder::{
     BuilderContext, FullNodeTypes, Node, NodeBuilder, NodeConfig, NodeTypes,
     components::ExecutorBuilder,
 };
-use reth_optimism_chainspec::{BASE_MAINNET, OP_SEPOLIA, OpChainSpec};
+use reth_optimism_chainspec::{OP_MAINNET, OP_SEPOLIA, OpChainSpec};
 use reth_optimism_evm::{OpBlockExecutorFactory, OpEvm, OpEvmFactory, OpRethReceiptBuilder, OpTx};
 use reth_optimism_node::{OpEvmConfig, OpExecutorBuilder, OpNode, args::RollupArgs};
 use reth_optimism_primitives::OpPrimitives;
@@ -35,7 +35,7 @@ use std::sync::OnceLock;
 #[test]
 fn test_basic_setup() {
     // parse CLI -> config
-    let config = NodeConfig::new(BASE_MAINNET.clone());
+    let config = NodeConfig::new(OP_MAINNET.clone());
     let db = create_test_rw_db();
     let args = RollupArgs::default();
     let op_node = OpNode::new(args);

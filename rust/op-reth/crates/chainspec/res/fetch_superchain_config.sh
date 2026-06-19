@@ -2,7 +2,8 @@
 
 # Usage: ./fetch_superchain_config.sh
 # Switch to the same directory as the script and run it.
-# This will checkout the latest superchain registry commit and create three files.
+# Reads the superchain-registry git submodule at the repo root (the single
+# canonical commit pin) and creates two files:
 # - superchain-configs.tar: A tar archive containing all superchain configs
 # - ../src/superchain/chain_specs.rs: A Rust file containing all chain specs
 
@@ -10,21 +11,27 @@
 # - MacOS: brew install qpdf zstd yq
 
 SCRIPT_DIR=$(pwd)
+REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)
+SR_DIR="$REPO_ROOT/superchain-registry"
+
+# Initialize the submodule if it isn't checked out yet.
+if [ ! -d "$SR_DIR/superchain" ]; then
+  echo "superchain-registry submodule not initialized; initializing..."
+  (cd "$REPO_ROOT" && just update-superchain-registry-submodule)
+fi
+
+REGISTRY_COMMIT=$(git -C "$SR_DIR" rev-parse HEAD)
+
+# Working area for the assembled archive contents.
 TEMP_DIR=$(mktemp -d)
 
-# Clone the repository and go to the directory
-git clone --depth 1 https://github.com/ethereum-optimism/superchain-registry.git "$TEMP_DIR"
-# shellcheck disable=SC2164
-cd "$TEMP_DIR"
-
-
-DICT_FILE="$TEMP_DIR/superchain/extra/dictionary"
+DICT_FILE="$SR_DIR/superchain/extra/dictionary"
 TARGET_PATH="$TEMP_DIR/result"
 GENESIS_TARGET_PATH="$TARGET_PATH/genesis"
 CONFIGS_TARGET_PATH="$TARGET_PATH/configs"
 
-GENESIS_SRC_DIR="$TEMP_DIR/superchain/extra/genesis"
-CONFIGS_SRC_DIR="$TEMP_DIR/superchain/configs"
+GENESIS_SRC_DIR="$SR_DIR/superchain/extra/genesis"
+CONFIGS_SRC_DIR="$SR_DIR/superchain/configs"
 mkdir -p "$GENESIS_TARGET_PATH"
 mkdir -p "$CONFIGS_TARGET_PATH"
 
@@ -70,12 +77,11 @@ find "$GENESIS_SRC_DIR" -type f -name "*.json.zst" | while read -r file; do
 
 done
 
-# Save revision
-git rev-parse HEAD > "$TARGET_PATH/superchain_registry_commit"
-git rev-parse HEAD > "$SCRIPT_DIR/superchain_registry_commit"
+# Record the submodule's commit inside the archive.
+echo "$REGISTRY_COMMIT" > "$TARGET_PATH/superchain_registry_commit"
 
 # Copy the LICENSE file
-cp "$TEMP_DIR/LICENSE" "$TARGET_PATH/LICENSE"
+cp "$SR_DIR/LICENSE" "$TARGET_PATH/LICENSE"
 
 # Set the modification time of all files to 1980-01-01 to ensure the archive is deterministic
 find "$TARGET_PATH" -exec touch -t 198001010000.00 {} +
@@ -91,7 +97,7 @@ mv superchain-configs.tar "$SCRIPT_DIR"
 
 echo "Get chain name and identifiers from chainList.json"
 # shellcheck disable=SC2002
-JSON_DATA=$(cat "$TEMP_DIR/chainList.json" | jq -r 'sort_by(.parent.chain, .identifier | split("/")[1])')
+JSON_DATA=$(cat "$SR_DIR/chainList.json" | jq -r 'sort_by(.parent.chain, .identifier | split("/")[1])')
 
 # Extract network and chain names
 PARENT_CHAINS=$(echo "$JSON_DATA" | jq -r '.[].parent.chain')
@@ -109,10 +115,6 @@ echo "Generate chain_specs.rs..."
 for i in "${!PARENT_CHAINS_ARRAY[@]}"; do
   NAME="${IDENTIFIERS_ARRAY[$i]}"
   ENVIRONMENT="${PARENT_CHAINS_ARRAY[$i]}"
-  # Skip Optimism and Base here because it is implemented separately
-  if [ "$NAME" == "op" ] || [ "$NAME" == "base" ]; then
-     continue
-  fi
 
   # Validate file existence in our target path <environment>/<name>.json.zst
   FILE_PATH="$GENESIS_TARGET_PATH/$ENVIRONMENT/$NAME.json.zz"

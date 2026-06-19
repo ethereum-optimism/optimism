@@ -1,4 +1,7 @@
-use super::super::context::{OpPayloadBuilderCtx, compute_post_exec_mode};
+use super::super::context::{
+    OpPayloadBuilderCtx, build_current_post_exec_tx, compute_post_exec_mode,
+    last_receipt_with_cumulative_gas,
+};
 use crate::{
     builders::{BuilderConfig, BuilderTransactions, generator::BuildArguments},
     gas_limiter::AddressGasLimiter,
@@ -11,20 +14,20 @@ use alloy_consensus::{
 };
 use alloy_eips::{eip7685::EMPTY_REQUESTS_HASH, merge::BEACON_NONCE};
 use alloy_evm::Database;
-use alloy_primitives::U256;
+use alloy_primitives::{Address, U256};
 use reth_basic_payload_builder::{BuildOutcome, BuildOutcomeKind, MissingPayloadBehaviour};
 use reth_evm::{ConfigureEvm, execute::BlockBuilder};
 use reth_execution_types::{BlockExecutionOutput, BlockExecutionResult};
 use reth_node_api::{Block, PayloadBuilderError};
 use reth_optimism_consensus::{calculate_receipt_root_no_memo_optimism, isthmus};
-use reth_optimism_evm::{OpEvmConfig, OpNextBlockEnvAttributes};
+use reth_optimism_evm::{OpEvmConfig, OpNextBlockEnvAttributes, PostExecExecutorExt, PostExecMode};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_node::{OpBuiltPayload, OpPayloadBuilderAttributes};
 use reth_optimism_payload_builder::OpPayloadAttrs;
 use reth_optimism_primitives::OpTransactionSigned;
 use reth_payload_primitives::BuiltPayloadExecutedBlock;
 use reth_payload_util::{BestPayloadTransactions, NoopPayloadTransactions, PayloadTransactions};
-use reth_primitives_traits::{InMemorySize, RecoveredBlock};
+use reth_primitives_traits::{InMemorySize, Recovered, RecoveredBlock};
 use reth_provider::{ExecutionOutcome, StateProvider};
 use reth_revm::{
     State, database::StateProviderDatabase, db::states::bundle_state::BundleRetention,
@@ -453,6 +456,32 @@ impl<Txs: PayloadTxsBounds> OpBuilder<'_, Txs> {
         {
             error!(target: "payload_builder", "Error adding builder txs to fallback block: {}", e);
         };
+
+        // Materialize the canonical SDM PostExec (`0x7D`) tx when producing. The executor has
+        // applied refund settlement to state and receipts throughout the build, and a verifier
+        // re-executes the block with the mode derived from the block's own transactions — without
+        // the trailing PostExec tx carrying the refund entries it runs with SDM disabled and
+        // computes a different state root. Same produce-side rules as op-reth's
+        // `try_include_post_exec_tx` and the flashblocks builder's `materialize_post_exec`:
+        // empty entries → no tx, zero-address sender, appended last (consensus requires at most
+        // one PostExec tx, in the final position). A derived block (`no_tx_pool`) must reproduce
+        // exactly the attribute transactions, so never append one there.
+        if matches!(ctx.post_exec_mode, PostExecMode::Produce) && !ctx.force_empty() {
+            let entries = builder.executor_mut().take_post_exec_entries();
+            if let Some(post_exec_tx) = build_current_post_exec_tx(ctx, entries) {
+                let gas_output = builder.execute_transaction(Recovered::new_unchecked(
+                    post_exec_tx.clone(),
+                    Address::ZERO,
+                ))?;
+                info.cumulative_gas_used += gas_output.tx_gas_used();
+                let receipt =
+                    last_receipt_with_cumulative_gas(builder.executor(), info.cumulative_gas_used)
+                        .expect("executor must record a receipt for the post-exec tx");
+                info.executed_transactions.push(post_exec_tx);
+                info.executed_senders.push(Address::ZERO);
+                info.receipts.push(receipt);
+            }
+        }
 
         drop(builder);
 
