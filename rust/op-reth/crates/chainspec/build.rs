@@ -7,12 +7,12 @@
 //!
 //! Semantics mirror kona's `KONA_SYNC_SUPERCHAIN`, with one addition — op-reth's tar
 //! is gitignored (not committed text), so it can be absent:
-//! - **default** (env unset): if `res/superchain-configs.tar` is present (provided by
-//!   `just sync-superchain-rust` or copied into the build context), use it as-is — no
-//!   submodule needed — after checking it matches the committed `.sha256`. If it is
-//!   absent, regenerate it from the submodule and assert it matches the committed pin.
-//! - **`OP_RETH_SYNC_SUPERCHAIN=1`** (run by `just sync-superchain-rust`): always
-//!   regenerate the tar, its `.sha256`, and `src/superchain/chain_specs.rs`.
+//! - **default** (env unset): if `res/superchain-configs.tar` is present (provided by `just
+//!   sync-superchain-rust` or copied into the build context), use it as-is — no submodule needed —
+//!   after checking it matches the committed `.sha256`. If it is absent, regenerate it from the
+//!   submodule and assert it matches the committed pin.
+//! - **`OP_RETH_SYNC_SUPERCHAIN=1`** (run by `just sync-superchain-rust`): always regenerate the
+//!   tar, its `.sha256`, and `src/superchain/chain_specs.rs`.
 
 use std::{
     fs,
@@ -43,8 +43,7 @@ fn main() {
     let sha_path = manifest_dir.join(SHA_FILE);
     println!("cargo:rerun-if-changed=res/{TAR_NAME}");
 
-    let refresh =
-        matches!(std::env::var("OP_RETH_SYNC_SUPERCHAIN").as_deref(), Ok("1" | "true"));
+    let refresh = matches!(std::env::var("OP_RETH_SYNC_SUPERCHAIN").as_deref(), Ok("1" | "true"));
     let expected_sha = {
         let s = fs::read_to_string(&sha_path).unwrap_or_default();
         s.split_whitespace().next().unwrap_or_default().to_string()
@@ -174,7 +173,8 @@ fn build_tar(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
 
 fn zstd_decompress_with_dict(compressed: &[u8], dict: &[u8]) -> Vec<u8> {
     let decoder =
-        zstd::stream::read::Decoder::with_dictionary(std::io::Cursor::new(compressed), dict).unwrap();
+        zstd::stream::read::Decoder::with_dictionary(std::io::Cursor::new(compressed), dict)
+            .unwrap();
     let mut out = Vec::new();
     decoder.take(MAX_GENESIS_SIZE).read_to_end(&mut out).unwrap();
     out
