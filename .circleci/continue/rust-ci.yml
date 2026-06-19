@@ -85,6 +85,9 @@ jobs:
           prefix: <<parameters.directory>>-clippy
           features: "all"
       - run:
+          name: Initialize superchain-registry submodule
+          command: just update-superchain-registry-submodule
+      - run:
           name: Run clippy
           working_directory: <<parameters.directory>>
           no_output_timeout: 30m
@@ -276,6 +279,9 @@ jobs:
           prefix: <<parameters.directory>>-tests
           profile: <<parameters.cache_profile>>
       - run:
+          name: Initialize superchain-registry submodule
+          command: just update-superchain-registry-submodule
+      - run:
           name: Run cargo tests
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
@@ -424,6 +430,9 @@ jobs:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-hack-build
       - run:
+          name: Initialize superchain-registry submodule
+          command: just update-superchain-registry-submodule
+      - run:
           name: Build for <<parameters.target>>
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
@@ -448,6 +457,9 @@ jobs:
           directory: rust
           prefix: rust-hack
           features: "all"
+      - run:
+          name: Initialize superchain-registry submodule
+          command: just update-superchain-registry-submodule
       - run:
           name: Run cargo hack
           working_directory: rust
@@ -477,6 +489,9 @@ jobs:
           directory: rust
           prefix: op-reth-compact
           profile: debug
+      - run:
+          name: Initialize superchain-registry submodule
+          command: just update-superchain-registry-submodule
       - run:
           name: Generate compact vectors from base
           command: |
@@ -657,6 +672,48 @@ jobs:
               exit 1
             fi
       - rust-save-build-cache: *kona-registry-snapshot-cache
+
+  # Verifies that op-reth's committed superchain-configs.tar.sha256 and the
+  # generated chain_specs.rs match what `OP_RETH_SYNC_SUPERCHAIN=1 cargo build -p
+  # reth-optimism-chainspec --features superchain-configs` regenerates from the
+  # current superchain-registry submodule (the tar itself is gitignored). Catches
+  # a submodule bump without a refresh, or a hand-edited chain_specs.rs.
+  op-reth-superchain-snapshot-check:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: large.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Initialize superchain-registry submodule
+          command: just update-superchain-registry-submodule
+      - rust-prepare-and-restore-cache: &op-reth-superchain-snapshot-cache
+          directory: rust
+          prefix: rust-op-reth-superchain-snapshot
+      - run:
+          name: Regenerate op-reth superchain archive
+          working_directory: rust
+          environment:
+            OP_RETH_SYNC_SUPERCHAIN: "1"
+          command: cargo build -p reth-optimism-chainspec --features superchain-configs
+      - run:
+          name: Assert committed sha + chain_specs match regenerated output
+          command: |
+            if ! git diff --exit-code -- \
+                rust/op-reth/crates/chainspec/res/superchain-configs.tar.sha256 \
+                rust/op-reth/crates/chainspec/src/superchain/chain_specs.rs; then
+              echo
+              echo "op-reth superchain artifacts are out of sync with the"
+              echo "superchain-registry submodule. Run:"
+              echo
+              echo "  just sync-superchain-rust"
+              echo
+              echo "and commit the updated res/superchain-configs.tar.sha256 and"
+              echo "src/superchain/chain_specs.rs."
+              exit 1
+            fi
+      - rust-save-build-cache: *op-reth-superchain-snapshot-cache
 
   # Kona Publish Prestate Artifacts
   kona-publish-prestate-artifacts:
@@ -910,6 +967,9 @@ workflows:
       - kona-registry-snapshot-check:
           context: *rust-ci-context
 
+      - op-reth-superchain-snapshot-check:
+          context: *rust-ci-context
+
       # -----------------------------------------------------------------------
       # Required gate — fans in on required Rust CI jobs
       # -----------------------------------------------------------------------
@@ -938,6 +998,7 @@ workflows:
             - op-rbuilder-checks: terminal
             - rollup-boost-checks: terminal
             - kona-registry-snapshot-check: terminal
+            - op-reth-superchain-snapshot-check: terminal
           context:
             - circleci-api-token
   # =====================================
