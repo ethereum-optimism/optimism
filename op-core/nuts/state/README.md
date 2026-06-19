@@ -20,9 +20,6 @@ and the intent is to generate each state when its fork ships:
 | `karst_state.json`  | karst  | lagoon bundle test |
 | `lagoon_state.json` | lagoon | (next fork) |
 
-(The fork after karst is `lagoon`; the bundle it activates is still named
-`interop_nut_bundle.json` — the fork was renamed, the bundle wasn't.)
-
 Each state composes from the previous one: `karst_state = jovian_state + (karst
 bundle applied)`, and so on. The chain's seed is `jovian_state.json`, which has no
 predecessor bundle and is built from jovian-era source.
