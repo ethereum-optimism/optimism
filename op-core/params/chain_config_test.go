@@ -29,7 +29,7 @@ var timestampForks = []struct {
 	{forks.Isthmus, func(c *opparams.ChainConfig) *uint64 { return c.IsthmusTime }},
 	{forks.Jovian, func(c *opparams.ChainConfig) *uint64 { return c.JovianTime }},
 	{forks.Karst, func(c *opparams.ChainConfig) *uint64 { return c.KarstTime }},
-	{forks.Lagoon, func(c *opparams.ChainConfig) *uint64 { return c.InteropTime }},
+	{forks.Lagoon, func(c *opparams.ChainConfig) *uint64 { return c.LagoonTime }},
 }
 
 // TestActivationTimeSetRoundTrip asserts the ActivationTime and SetActivationTime
@@ -79,7 +79,7 @@ func TestForkPredicates(t *testing.T) {
 		forks.Isthmus:  (*opparams.ChainConfig).IsIsthmus,
 		forks.Jovian:   (*opparams.ChainConfig).IsJovian,
 		forks.Karst:    (*opparams.ChainConfig).IsKarst,
-		forks.Lagoon:   (*opparams.ChainConfig).IsInterop,
+		forks.Lagoon:   (*opparams.ChainConfig).IsLagoon,
 	}
 	for fork, pred := range predicates {
 		t.Run(string(fork), func(t *testing.T) {
