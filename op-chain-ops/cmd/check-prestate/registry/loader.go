@@ -89,13 +89,28 @@ func cloneRegistryAtCommit(dir, ref string) error {
 	return nil
 }
 
-// opCoreSyncScriptPath resolves op-core/superchain/sync-superchain.sh in the repo
-// containing the current working directory.
+// opCoreSyncScriptPath locates op-core/superchain/sync-superchain.sh by walking up
+// from the working directory until it's found. check-prestate is run from a monorepo
+// checkout (it resolves kona-client release tags via git), so the script is always an
+// ancestor of the working directory. Walking up — rather than `git rev-parse
+// --show-toplevel` — also works without a .git dir (e.g. a downloaded source archive)
+// and isn't confused by nested or worktree git setups.
 func opCoreSyncScriptPath() (string, error) {
-	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	dir, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("failed to locate repo root: %w", err)
+		return "", fmt.Errorf("failed to get working directory: %w", err)
 	}
-	root := strings.TrimSpace(string(out))
-	return filepath.Join(root, "op-core", "superchain", "sync-superchain.sh"), nil
+	rel := filepath.Join("op-core", "superchain", "sync-superchain.sh")
+	for {
+		candidate := filepath.Join(dir, rel)
+		if _, statErr := os.Stat(candidate); statErr == nil {
+			return candidate, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("could not find %s in any ancestor of the working directory; "+
+				"run check-prestate from within the optimism monorepo checkout", rel)
+		}
+		dir = parent
+	}
 }
