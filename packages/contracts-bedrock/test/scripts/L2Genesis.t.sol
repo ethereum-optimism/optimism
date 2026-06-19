@@ -178,19 +178,11 @@ abstract contract L2Genesis_TestInit is Test {
 
     /// @notice Runs genesis and asserts the L2CM deploy path produced the correct state.
     function runGenesisAndAssertL2CM() internal {
-        address temporaryL2CM = expectedTemporaryL2CM();
-
         genesis.run(input);
 
         assertL2CMProxyImplementations();
         assertL2CMInitializedStorage();
-        assertNoTemporaryL2CMResidue(temporaryL2CM);
-    }
-
-    /// @notice Predicts the address of the throwaway L2ContractsManager. The temporary EAS and
-    ///         GovernanceToken deploys are pranked, so the L2CM is the script's only unpranked CREATE.
-    function expectedTemporaryL2CM() internal view returns (address) {
-        return vm.computeCreateAddress(address(genesis), vm.getNonce(address(genesis)));
+        assertNoTemporaryL2CMResidue(genesis.temporaryL2CMAddress());
     }
 
     /// @notice Mirrors L2Genesis._isGenesisInteropEnabled for the current input.

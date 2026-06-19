@@ -86,6 +86,9 @@ contract L2Genesis is Script {
     uint32 internal constant WITHDRAWAL_MIN_GAS_LIMIT = 800_000;
     uint256 internal constant MIN_WITHDRAWAL_AMOUNT_THRESHOLD = 2 ether;
 
+    /// @notice CREATE2 salt for the throwaway L2ContractsManager.
+    bytes32 internal constant L2CM_SALT = bytes32(uint256(keccak256("optimism.l2genesis.l2cm")));
+
     /// @notice Default Anvil dev accounts. Only funded if `cfg.fundDevAccounts == true`.
     /// Also known as "test test test test test test test test test test test junk" mnemonic accounts,
     /// on path "m/44'/60'/0'/0/i" (where i is the account index).
@@ -398,12 +401,23 @@ contract L2Genesis is Script {
         }
     }
 
+    /// @notice Deterministic CREATE2 address of the throwaway L2ContractsManager.
+    /// @dev Pre-computable from the salt and init code, so consumers don't depend on deploy ordering
+    ///      (e.g. nonce). Shares a compilation unit with the `new ... { salt }` deploy, so the init code matches.
+    function temporaryL2CMAddress() public view returns (address) {
+        bytes32 initCodeHash =
+            keccak256(abi.encodePacked(type(L2ContractsManager).creationCode, abi.encode(_buildL2CMImplRecords())));
+        return vm.computeCreate2Address(L2CM_SALT, initCodeHash, address(this));
+    }
+
     /// @notice Upgrades, initializes, and configures predeploy proxies via the L2ContractsManager.
     /// @dev Swaps each touched proxy's admin to the L2ContractsManager so upgrades run as admin, calls
-    ///      deploy() once, restores the admins, then erases it to leave no genesis residue. Must run with
-    ///      no active prank so the script is the deployer of the throwaway L2ContractsManager.
+    ///      deploy() once, restores the admins, then erases it to leave no genesis residue. The L2CM is
+    ///      deployed with CREATE2 so its address is deterministic (see `temporaryL2CMAddress`). Must run
+    ///      with no active prank so the script is the deployer of the throwaway L2ContractsManager.
     function _deployPredeploysViaL2CM(Input memory _input) internal {
-        L2ContractsManager l2cm = new L2ContractsManager(_buildL2CMImplRecords());
+        L2ContractsManager l2cm = new L2ContractsManager{ salt: L2CM_SALT }(_buildL2CMImplRecords());
+        require(address(l2cm) == temporaryL2CMAddress(), "L2Genesis: unexpected L2CM address");
         L2ContractsManagerTypes.FullConfig memory config = _buildL2CMConfig(_input);
         address[] memory proxies = _l2cmTouchedProxies(config);
 
