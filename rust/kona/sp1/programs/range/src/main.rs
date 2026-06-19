@@ -92,5 +92,5 @@ where
         None => boot_info,
     };
 
-    sp1_zkvm::io::commit_slice(&BootInfoStruct::from(boot_info).public_values());
+    sp1_zkvm::io::commit(&BootInfoStruct::from(boot_info));
 }

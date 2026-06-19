@@ -39,6 +39,7 @@ sp1-zkvm = { version = "6.2.4", features = ["verify"] }
 sha2 = { version = "0.10.9", default-features = false }
 rkyv = "0.8.15"
 serde_cbor = "0.11.2"
+bincode = "1.3.3"
 tracing = { version = "0.1.44", default-features = false }
 tracing-subscriber = { version = "0.3.22", default-features = false }
 anyhow = { version = "1.0.101", default-features = false }

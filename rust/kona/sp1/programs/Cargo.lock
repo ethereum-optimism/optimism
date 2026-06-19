@@ -1838,6 +1838,7 @@ dependencies = [
  "alloy-consensus",
  "alloy-primitives",
  "alloy-sol-types",
+ "bincode",
  "kona-sp1-client-utils",
  "serde_cbor",
  "sha2",

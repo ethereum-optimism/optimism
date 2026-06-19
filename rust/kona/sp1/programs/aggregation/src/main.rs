@@ -39,8 +39,10 @@ pub fn main() {
 
     // Verify each range program proof.
     agg_inputs.boot_infos.iter().for_each(|boot_info| {
-        // The range program commits the ABI encoded boot info as its public values.
-        let pv_digest = Sha256::digest(boot_info.public_values());
+        // In the range program, the public values digest is just the hash of the ABI encoded
+        // boot info.
+        let serialized_boot_info = bincode::serialize(&boot_info).unwrap();
+        let pv_digest = Sha256::digest(serialized_boot_info);
 
         sp1_lib::verify::verify_sp1_proof(&agg_inputs.multi_block_vkey, &pv_digest.into());
     });
