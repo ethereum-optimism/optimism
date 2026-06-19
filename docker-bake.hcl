@@ -345,6 +345,12 @@ target "kona-client" {
 target "op-reth" {
   dockerfile = "op-reth/DockerfileOp"
   context = "rust"
+  # The chainspec build.rs reads the superchain-registry submodule (at the repo
+  # root, outside the "rust" context); expose it as a named context so the
+  # Dockerfile can COPY the subset it needs.
+  contexts = {
+    superchain-registry = "superchain-registry"
+  }
   args = {
     BUILD_PROFILE = "maxperf"
     FEATURES = ""
