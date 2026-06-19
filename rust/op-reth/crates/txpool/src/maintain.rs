@@ -28,7 +28,7 @@ use reth_metrics::{Metrics, metrics::Counter};
 use reth_primitives_traits::NodePrimitives;
 use reth_transaction_pool::{PoolTransaction, TransactionPool};
 use std::time::{Duration, Instant};
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 /// Transaction pool maintenance metrics
 #[derive(Metrics)]
@@ -305,14 +305,14 @@ where
         return 0;
     }
 
-    debug!(
+    info!(
         target: "txpool::interop",
         count = hashes.len(),
         reason,
         "removing interop transactions from pool"
     );
     for hash in &hashes {
-        debug!(
+        info!(
             target: "txpool::interop",
             %hash,
             reason,
