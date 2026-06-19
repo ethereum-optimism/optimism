@@ -47,7 +47,7 @@ until the real artifacts are built.
 
 ## CI TODOs
 
-TODO(#21418): the monorepo's CircleCI runs the
+TODO(#18326): the monorepo's CircleCI runs the
 workspace-wide build, clippy, tests, cargo-hack, udeps, docs, typos, and zepter
 gates over the SP1 host-side crates that are workspace members. The guest
 program entrypoints live in their own workspace for SP1 patch scoping and are

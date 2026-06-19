@@ -28,7 +28,7 @@ fn write_elf_input(source: &Path, dest: &Path) {
             panic!("failed to copy {} to {}: {err}", source.display(), dest.display())
         });
     } else {
-        // TODO(#21418): Remove this hacky temporary fallback once SP1 ELF
+        // TODO(#18326): Remove this hacky temporary fallback once SP1 ELF
         // builds are properly integrated into monorepo CI. Right now the
         // generated `range-elf` and `aggregation-elf` artifacts are ignored by
         // git, and the monorepo Rust CI does not install the SP1 toolchain or
