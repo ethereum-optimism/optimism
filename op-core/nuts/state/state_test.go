@@ -28,10 +28,14 @@ func TestPreForkState(t *testing.T) {
 	}
 }
 
-// TestPreForkStateNoPredecessor confirms PreForkState errors for a fork with no
-// preceding fork.
-func TestPreForkStateNoPredecessor(t *testing.T) {
-	// bedrock is the first fork, so forks.Prev(bedrock) == forks.None.
-	_, err := PreForkState(forks.Bedrock)
-	require.Error(t, err)
+// TestPreForkStateWithoutPreforkState confirms PreForkState errors for every fork
+// without a usable pre-fork state: bedrock..jovian inclusive.
+func TestPreForkStateWithoutPreforkState(t *testing.T) {
+	for _, fork := range forks.All {
+		_, err := PreForkState(fork)
+		require.Errorf(t, err, "PreForkState(%s) should error: no committed pre-fork state", fork)
+		if fork == forks.Jovian {
+			break
+		}
+	}
 }
