@@ -1,6 +1,10 @@
 default:
   @just --list
 
+# Extra cargo features compiled into the bench binaries.
+# GPU proving: `SP1_PROVER=cuda just features=gpu range-bench --start A --end B --prove`.
+features := ""
+
 # Build all ELF files.
 # ELF builds use the nested guest workspace with SP1 precompile-patched crypto,
 # including substrate-bn for bn128 through revm-precompile's `bn` feature.
@@ -21,3 +25,31 @@ build-agg-elf:
     cd programs/aggregation
     # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
     ~/.sp1/bin/cargo-prove prove build --elf-name aggregation-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
+
+# Run the local range-program benchmark. Build the ELF first with `just build-elfs`.
+# Hardware acceleration: use `SP1_PROVER=cuda` with `features=gpu` for GPU
+# proving, or `RUSTFLAGS="-C target-cpu=native"` for vectorized CPU proving.
+# Usage: just range-bench --start <N> --end <M> [--prove] [--save-proof <PATH>]
+range-bench *ARGS:
+    RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo +nightly run --release -p kona-sp1-range-bench {{ if features != "" { "--features " + features } else { "" } }} --bin range-bench -- {{ARGS}}
+
+# Aggregate saved compressed range proofs. Generate them first with:
+#   just range-bench --start A --end B --prove --save-proof a.bin
+#   just range-bench --start B --end C --prove --save-proof b.bin
+# Hardware acceleration: use `SP1_PROVER=cuda` with `features=gpu` for GPU
+# proving, or `RUSTFLAGS="-C target-cpu=native"` for vectorized CPU proving.
+# Usage: just agg-bench --proofs a.bin,b.bin [--prove]
+agg-bench *ARGS:
+    RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo +nightly run --release -p kona-sp1-range-bench {{ if features != "" { "--features " + features } else { "" } }} --bin agg-bench -- {{ARGS}}
+
+# Benchmark local PLONK compression of the final aggregation proof.
+# Always proves. Generate compressed range proofs first, e.g.:
+#   just range-bench --start A --end B --prove --save-proof a.bin
+#   just range-bench --start B --end C --prove --save-proof b.bin
+# Hardware acceleration: use `SP1_PROVER=cuda` with `features=gpu` for GPU
+# proving, or `RUSTFLAGS="-C target-cpu=native"` for vectorized CPU proving.
+# Default local CPU PLONK requires Docker running for the gnark wrap and outbound
+# network on first run for artifacts.
+# Usage: just plonk-prove-bench --proofs a.bin,b.bin [--save-proof agg.plonk.bin]
+plonk-prove-bench *ARGS:
+    RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo +nightly run --release -p kona-sp1-range-bench {{ if features != "" { "--features " + features } else { "" } }} --bin plonk-prove-bench -- {{ARGS}}

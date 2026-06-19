@@ -27,6 +27,7 @@ members = [
   "kona/sp1/crates/ethereum/host",
   "kona/sp1/crates/host",
   "kona/sp1/crates/proof",
+  "kona/sp1/crates/bench",
 
   # Op-Alloy
   "op-alloy/crates/*",
@@ -299,6 +300,7 @@ kona-sp1-elfs = { path = "kona/sp1/crates/elfs" }
 kona-sp1-ethereum-client-utils = { path = "kona/sp1/crates/ethereum/client" }
 kona-sp1-ethereum-host-utils = { path = "kona/sp1/crates/ethereum/host" }
 kona-sp1-host-utils = { path = "kona/sp1/crates/host" }
+kona-sp1-proof-utils = { path = "kona/sp1/crates/proof" }
 
 # ==================== OP-RETH INTERNAL CRATES ====================
 op-reth = { path = "op-reth/bin/" }
