@@ -39,10 +39,11 @@ Compiled ELF binaries for the zkVM programs, used by the prover:
   separate bump-allocator feature, so this port keeps one range artifact instead
   of separate bump and embedded variants.
 
-In the optimism monorepo port, these files are committed as empty placeholders
-instead of carrying the upstream PR's pre-port binaries. Regenerate real v6.2.4
-ELFs with `just build-elfs`; host-toolchain workspace builds only require the
-files to exist for `include_bytes!`.
+In the optimism monorepo port, these files are generated on demand and ignored
+by git, matching the Cannon prestate artifact workflow. Generate real v6.2.4
+ELFs with `just build-elfs`. Host-toolchain workspace builds embed empty
+build-output placeholders when generated ELFs are absent, so proving fails fast
+until the real artifacts are built.
 
 ## CI TODOs
 
