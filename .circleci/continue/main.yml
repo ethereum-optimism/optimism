@@ -775,6 +775,15 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      # These vendored workspaces path-depend on op-reth, whose chainspec build.rs
+      # regenerates the gitignored superchain archive from this submodule. Unlike
+      # rust-build (which goes through rust-prepare-and-restore-cache), this command
+      # never restores it, so on a binary cache miss the build below panics with
+      # "superchain-registry submodule not found". Init it up front; idempotent and
+      # cheap on a cache hit (the build short-circuits before touching it).
+      - run:
+          name: Initialize superchain-registry submodule
+          command: just update-superchain-registry-submodule
       # Wrap the cargo build with sccache (sets RUSTC_WRAPPER). Fail-open: if the
       # cache is unavailable the build just runs uncached. Only helps on a binary
       # cache miss (a hit short-circuits the build below).
