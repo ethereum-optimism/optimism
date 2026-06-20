@@ -31,8 +31,9 @@ pub use transaction::{
 
 pub mod eip1559;
 pub use eip1559::{
-    EIP1559ParamError, decode_eip_1559_params, decode_holocene_extra_data,
-    decode_jovian_extra_data, encode_holocene_extra_data, encode_jovian_extra_data,
+    EIP1559ParamError, calc_jovian_next_block_base_fee, decode_eip_1559_params,
+    decode_holocene_extra_data, decode_jovian_extra_data, decode_jovian_next_block_base_fee,
+    encode_holocene_extra_data, encode_jovian_extra_data,
 };
 
 pub mod post_exec;

@@ -1,6 +1,7 @@
 //! Support for EIP-1559 parameters after holocene.
 
-use alloy_eips::eip1559::BaseFeeParams;
+use alloy_consensus::BlockHeader;
+use alloy_eips::{calc_next_block_base_fee, eip1559::BaseFeeParams};
 use alloy_primitives::{B64, Bytes};
 
 const HOLOCENE_EXTRA_DATA_VERSION_BYTE: u8 = 0;
@@ -126,6 +127,43 @@ pub fn decode_jovian_extra_data(extra_data: &[u8]) -> Result<(u32, u32, u64), EI
     Ok((elasticity, denominator, u64::from_be_bytes(min_base_fee_bytes)))
 }
 
+/// Calculates the next block base fee according to the OP Stack Jovian rules.
+///
+/// Jovian uses the larger of execution gas and DA footprint gas as the EIP-1559 input, and clamps
+/// the result to the encoded minimum base fee.
+pub fn calc_jovian_next_block_base_fee<H>(
+    parent: &H,
+    base_fee_params: BaseFeeParams,
+    min_base_fee: u64,
+) -> u64
+where
+    H: BlockHeader,
+{
+    let gas_used = core::cmp::max(parent.gas_used(), parent.blob_gas_used().unwrap_or_default());
+    let next_base_fee = calc_next_block_base_fee(
+        gas_used,
+        parent.gas_limit(),
+        parent.base_fee_per_gas().unwrap_or_default(),
+        base_fee_params,
+    );
+
+    core::cmp::max(next_base_fee, min_base_fee)
+}
+
+/// Decodes Jovian EIP-1559 parameters from the parent header and calculates the next block base
+/// fee according to the OP Stack Jovian rules.
+pub fn decode_jovian_next_block_base_fee<H>(parent: &H) -> Result<u64, EIP1559ParamError>
+where
+    H: BlockHeader,
+{
+    // The denominator and elasticity are guaranteed non-zero: `decode_jovian_extra_data` rejects a
+    // zero of either, per the Holocene header rules that Jovian inherits.
+    let (elasticity, denominator, min_base_fee) = decode_jovian_extra_data(parent.extra_data())?;
+    let base_fee_params = BaseFeeParams::new(denominator as u128, elasticity as u128);
+
+    Ok(calc_jovian_next_block_base_fee(parent, base_fee_params, min_base_fee))
+}
+
 /// Encodes the EIP-1559 parameters for the payload,
 /// as well as the minimum base fee.
 pub fn encode_jovian_extra_data(
@@ -180,7 +218,27 @@ pub enum EIP1559ParamError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::Header;
     use core::str::FromStr;
+
+    const BASE_FEE: u64 = 1_000_000_000;
+    const GAS_LIMIT: u64 = 10_000_000_000;
+
+    fn jovian_parent(gas_used: u64, blob_gas_used: u64, min_base_fee: u64) -> Header {
+        Header {
+            gas_used,
+            gas_limit: GAS_LIMIT,
+            base_fee_per_gas: Some(BASE_FEE),
+            blob_gas_used: Some(blob_gas_used),
+            extra_data: encode_jovian_extra_data(
+                B64::ZERO,
+                BaseFeeParams::new(80, 60),
+                min_base_fee,
+            )
+            .unwrap(),
+            ..Default::default()
+        }
+    }
 
     #[test]
     fn test_get_extra_data_post_holocene() {
@@ -233,6 +291,58 @@ mod tests {
             extra_data.unwrap(),
             Bytes::copy_from_slice(&[1, 0, 0, 0, 80, 0, 0, 0, 60, 0, 0, 0, 0, 0, 0, 0, 0])
         );
+    }
+
+    #[test]
+    fn test_calc_jovian_next_block_base_fee_uses_blob_gas_when_larger() {
+        const GAS_USED: u64 = 1_000_000_000;
+        const BLOB_GAS_USED: u64 = 5_000_000_000;
+
+        let parent = jovian_parent(GAS_USED, BLOB_GAS_USED, 0);
+        let base_fee_params = BaseFeeParams::new(80, 60);
+        let expected_base_fee = calc_next_block_base_fee(
+            BLOB_GAS_USED,
+            parent.gas_limit(),
+            parent.base_fee_per_gas().unwrap_or_default(),
+            base_fee_params,
+        );
+
+        assert_eq!(expected_base_fee, calc_jovian_next_block_base_fee(&parent, base_fee_params, 0));
+        assert_ne!(
+            expected_base_fee,
+            calc_next_block_base_fee(
+                GAS_USED,
+                parent.gas_limit(),
+                parent.base_fee_per_gas().unwrap_or_default(),
+                base_fee_params,
+            )
+        );
+    }
+
+    #[test]
+    fn test_calc_jovian_next_block_base_fee_uses_execution_gas_when_larger() {
+        const GAS_USED: u64 = 5_000_000_000;
+        const BLOB_GAS_USED: u64 = 1_000_000_000;
+
+        let parent = jovian_parent(GAS_USED, BLOB_GAS_USED, 0);
+        let base_fee_params = BaseFeeParams::new(80, 60);
+        let expected_base_fee = calc_next_block_base_fee(
+            GAS_USED,
+            parent.gas_limit(),
+            parent.base_fee_per_gas().unwrap_or_default(),
+            base_fee_params,
+        );
+
+        assert_eq!(expected_base_fee, calc_jovian_next_block_base_fee(&parent, base_fee_params, 0));
+    }
+
+    #[test]
+    fn test_decode_jovian_next_block_base_fee_enforces_min_base_fee() {
+        const MIN_BASE_FEE: u64 = 2_000_000_000;
+
+        let parent = jovian_parent(0, 0, MIN_BASE_FEE);
+
+        assert_eq!(MIN_BASE_FEE, decode_jovian_next_block_base_fee(&parent).unwrap());
     }
 
     #[test]

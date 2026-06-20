@@ -1,10 +1,9 @@
 //! Base fee related utilities for Optimism chains.
 
-use core::cmp::max;
-
 use alloy_consensus::BlockHeader;
-use alloy_eips::calc_next_block_base_fee;
-use op_alloy_consensus::{EIP1559ParamError, decode_holocene_extra_data, decode_jovian_extra_data};
+use op_alloy_consensus::{
+    EIP1559ParamError, decode_holocene_extra_data, decode_jovian_next_block_base_fee,
+};
 use reth_chainspec::BaseFeeParams;
 
 /// Extracts the Holocene 1599 parameters from the encoded extra data from the parent header.
@@ -36,33 +35,14 @@ pub fn compute_jovian_base_fee<H>(parent: &H) -> Result<u64, EIP1559ParamError>
 where
     H: BlockHeader,
 {
-    // The denominator and elasticity are guaranteed non-zero: `decode_jovian_extra_data` rejects a
-    // zero of either, per the Holocene header rules that Jovian inherits.
-    let (elasticity, denominator, min_base_fee) = decode_jovian_extra_data(parent.extra_data())?;
-    let base_fee_params = BaseFeeParams::new(denominator as u128, elasticity as u128);
-
-    // Starting from Jovian, we use the maximum of the gas used and the blob gas used to calculate
-    // the next base fee.
-    let gas_used = max(parent.gas_used(), parent.blob_gas_used().unwrap_or_default());
-
-    let next_base_fee = calc_next_block_base_fee(
-        gas_used,
-        parent.gas_limit(),
-        parent.base_fee_per_gas().unwrap_or_default(),
-        base_fee_params,
-    );
-
-    if next_base_fee < min_base_fee {
-        return Ok(min_base_fee);
-    }
-
-    Ok(next_base_fee)
+    decode_jovian_next_block_base_fee(parent)
 }
 
 #[cfg(test)]
 mod tests {
     use alloc::sync::Arc;
 
+    use alloy_eips::calc_next_block_base_fee;
     use op_alloy_consensus::encode_jovian_extra_data;
     use reth_chainspec::{ChainSpec, ForkCondition, Hardfork};
     use reth_optimism_forks::OpHardfork;

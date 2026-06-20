@@ -8,11 +8,12 @@ use crate::{
     },
 };
 use alloy_consensus::{BlockHeader, Header};
-use alloy_eips::{calc_next_block_base_fee, eip1559::BaseFeeParams};
+use alloy_eips::eip1559::BaseFeeParams;
 use alloy_evm::{EvmEnv, EvmFactory};
 use alloy_primitives::U256;
 use kona_genesis::RollupConfig;
 use kona_mpt::TrieHinter;
+use op_alloy_consensus::calc_jovian_next_block_base_fee;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::OpSpecId;
 use revm::{
@@ -63,29 +64,7 @@ where
             return parent.next_block_base_fee(params);
         }
 
-        // Starting from Jovian, we use the maximum of the gas used and the blob gas used to
-        // calculate the next base fee.
-        let gas_used = if parent.blob_gas_used().unwrap_or_default() > parent.gas_used() {
-            parent.blob_gas_used().unwrap_or_default()
-        } else {
-            parent.gas_used()
-        };
-
-        let mut next_block_base_fee = calc_next_block_base_fee(
-            gas_used,
-            parent.gas_limit(),
-            parent.base_fee_per_gas().unwrap_or_default(),
-            params,
-        );
-
-        // If the next block base fee is less than the min base fee, set it to the min base fee.
-        // # Note
-        // Before Jovian activation, the min-base-fee is 0 so this is a no-op.
-        if next_block_base_fee < min_base_fee {
-            next_block_base_fee = min_base_fee;
-        }
-
-        Some(next_block_base_fee)
+        Some(calc_jovian_next_block_base_fee(parent, params, min_base_fee))
     }
 
     /// Prepares a [`BlockEnv`] with the given [`OpPayloadAttributes`].
