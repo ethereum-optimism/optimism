@@ -435,15 +435,21 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
 
     /// @notice Tests that L2CM skips interop predeploys when interop is scheduled after genesis.
     function test_run_l2cmInteropScheduledNotActive_succeeds() external {
-        _setInputInteropEnabled();
-        input.fork = uint256(Fork.ISTHMUS);
-        runGenesisAndAssertL2CM();
+        uint256 snap = vm.snapshotState();
+        for (uint256 f = uint256(Fork.DELTA); f < uint256(Fork.INTEROP); f++) {
+            // `f` is a stack local so it survives the revert; `input` is reset and rebuilt each iteration.
+            input.fork = f;
+            _setInputInteropEnabled();
+            runGenesisAndAssertL2CM();
 
-        assertEq(
-            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
-            false,
-            "INTEROP runtime flag must not be set at genesis when fork < INTEROP"
-        );
+            assertEq(
+                IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+                false,
+                "INTEROP runtime flag must not be set at genesis when fork < INTEROP"
+            );
+
+            vm.revertToState(snap);
+        }
     }
 
     /// @notice Tests the L2CM genesis path with both CGT and interop active.
