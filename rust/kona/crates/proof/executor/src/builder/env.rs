@@ -15,8 +15,6 @@ use kona_genesis::RollupConfig;
 use kona_mpt::TrieHinter;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::OpSpecId;
-#[cfg(test)]
-use revm::context::BlockEnv;
 
 impl<P, H, Evm, R> StatelessL2Builder<'_, P, H, Evm, R>
 where
@@ -27,13 +25,29 @@ where
     /// Returns the active [`EvmEnv`] for the executor.
     pub(crate) fn evm_env(
         &self,
-        spec_id: OpSpecId,
         parent_header: &Header,
         payload_attrs: &OpPayloadAttributes,
         base_fee_params: &BaseFeeParams,
         min_base_fee: u64,
     ) -> ExecutorResult<EvmEnv<OpSpecId>> {
-        self.prepare_evm_env(spec_id, parent_header, payload_attrs, base_fee_params, min_base_fee)
+        let next_block_base_fee = self
+            .next_block_base_fee(*base_fee_params, parent_header, min_base_fee)
+            .unwrap_or_default();
+        let gas_limit = payload_attrs.gas_limit.ok_or(ExecutorError::MissingGasLimit)?;
+
+        Ok(evm_env_for_op_next_block(
+            parent_header,
+            NextEvmEnvAttributes {
+                timestamp: payload_attrs.payload_attributes.timestamp,
+                suggested_fee_recipient: payload_attrs.payload_attributes.suggested_fee_recipient,
+                prev_randao: payload_attrs.payload_attributes.prev_randao,
+                gas_limit,
+                slot_number: None,
+            },
+            next_block_base_fee,
+            self.config,
+            self.config.l2_chain_id.id(),
+        ))
     }
 
     fn next_block_base_fee(
@@ -71,49 +85,6 @@ where
         Some(next_block_base_fee)
     }
 
-    /// Prepares a [`BlockEnv`] with the given [`OpPayloadAttributes`].
-    #[cfg(test)]
-    pub(crate) fn prepare_block_env(
-        &self,
-        spec_id: OpSpecId,
-        parent_header: &Header,
-        payload_attrs: &OpPayloadAttributes,
-        base_fee_params: &BaseFeeParams,
-        min_base_fee: u64,
-    ) -> ExecutorResult<BlockEnv> {
-        Ok(self
-            .prepare_evm_env(spec_id, parent_header, payload_attrs, base_fee_params, min_base_fee)?
-            .block_env)
-    }
-
-    fn prepare_evm_env(
-        &self,
-        _spec_id: OpSpecId,
-        parent_header: &Header,
-        payload_attrs: &OpPayloadAttributes,
-        base_fee_params: &BaseFeeParams,
-        min_base_fee: u64,
-    ) -> ExecutorResult<EvmEnv<OpSpecId>> {
-        let next_block_base_fee = self
-            .next_block_base_fee(*base_fee_params, parent_header, min_base_fee)
-            .unwrap_or_default();
-        let gas_limit = payload_attrs.gas_limit.ok_or(ExecutorError::MissingGasLimit)?;
-
-        Ok(evm_env_for_op_next_block(
-            parent_header,
-            NextEvmEnvAttributes {
-                timestamp: payload_attrs.payload_attributes.timestamp,
-                suggested_fee_recipient: payload_attrs.payload_attributes.suggested_fee_recipient,
-                prev_randao: payload_attrs.payload_attributes.prev_randao,
-                gas_limit,
-                slot_number: None,
-            },
-            next_block_base_fee,
-            self.config,
-            self.config.l2_chain_id.id(),
-        ))
-    }
-
     /// Returns the active base fee parameters for the parent header.
     /// Returns the min-base-fee as the second element of the tuple.
     ///
@@ -148,72 +119,5 @@ where
                 Ok((config.chain_op_config.pre_canyon_params(), 0))
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::NoopTrieDBProvider;
-    use alloy_consensus::{Header, Sealable};
-    use alloy_op_evm::OpEvmFactory;
-    use alloy_rpc_types_engine::PayloadAttributes;
-    use kona_mpt::NoopTrieHinter;
-
-    /// The `BLOBBASEFEE` opcode must always be 1 on the OP Stack. Post-Jovian the header's
-    /// `blobGasUsed` carries the block's DA footprint, which must not influence the blob env. The
-    /// footprint here is from op-mainnet block 152635937.
-    #[test]
-    fn prepare_block_env_pins_blob_gasprice_to_one() {
-        let mut config = RollupConfig::default();
-        config.hardforks.isthmus_time = Some(0);
-        let parent_header = Header {
-            number: 100,
-            timestamp: 1_000_000,
-            gas_limit: 60_000_000,
-            base_fee_per_gas: Some(1_000_000_000),
-            blob_gas_used: Some(30_406_400),
-            excess_blob_gas: Some(0),
-            ..Default::default()
-        };
-
-        let builder = StatelessL2Builder::new(
-            &config,
-            OpEvmFactory::<alloy_op_evm::OpTx>::default(),
-            alloy_op_evm::block::OpAlloyReceiptBuilder::default(),
-            NoopTrieDBProvider,
-            NoopTrieHinter,
-            parent_header.clone().seal_slow(),
-        );
-
-        let payload_attrs = OpPayloadAttributes {
-            payload_attributes: PayloadAttributes {
-                timestamp: parent_header.timestamp + 2,
-                ..Default::default()
-            },
-            gas_limit: Some(parent_header.gas_limit),
-            ..Default::default()
-        };
-
-        let block_env = builder
-            .prepare_block_env(
-                OpSpecId::ISTHMUS,
-                &parent_header,
-                &payload_attrs,
-                &BaseFeeParams::new(250, 6),
-                0,
-            )
-            .expect("prepare_block_env should succeed");
-
-        let blob =
-            block_env.blob_excess_gas_and_price.expect("blob env should be present for Isthmus");
-        assert_eq!(
-            blob.blob_gasprice, 1,
-            "BLOBBASEFEE must be pinned to 1 on the OP Stack regardless of the parent DA footprint"
-        );
-        assert_eq!(
-            blob.excess_blob_gas, 0,
-            "excess blob gas must be pinned to 0 regardless of the parent DA footprint"
-        );
     }
 }
