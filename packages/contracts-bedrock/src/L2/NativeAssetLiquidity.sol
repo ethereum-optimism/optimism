@@ -27,8 +27,8 @@ contract NativeAssetLiquidity is ISemver {
     error NativeAssetLiquidity_Unauthorized();
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice Allows an address to lock native asset liquidity into this contract.
     function deposit() external payable {

@@ -58,9 +58,9 @@ contract L2StandardBridge is ProxyAdminOwnedBase, StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 1.13.2
+    /// @custom:semver 1.13.3
     function version() public pure virtual returns (string memory) {
-        return "1.13.2";
+        return "1.13.3";
     }
 
     /// @notice Constructs the L2StandardBridge contract.

@@ -56,8 +56,8 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.6.1
-    string public constant version = "1.6.1";
+    /// @custom:semver 1.6.2
+    string public constant version = "1.6.2";
 
     /// @notice `gameImpls` is a mapping that maps `GameType`s to their respective
     ///         `IDisputeGame` implementations.

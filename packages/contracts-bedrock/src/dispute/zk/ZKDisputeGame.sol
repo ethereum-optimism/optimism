@@ -111,8 +111,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.0.1
+    string public constant version = "2.0.1";
 
     /// @notice The starting timestamp of the game.
     Timestamp public createdAt;

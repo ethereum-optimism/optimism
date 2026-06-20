@@ -12,8 +12,8 @@ contract SP1PlonkAdapter is IZKVerifier {
     error SP1PlonkAdapter_InvalidVerifier();
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice Address of the actual SP1 verifier.
     ISP1Verifier internal immutable SP1_VERIFIER; // nosemgrep: sol-safety-no-immutable-variables

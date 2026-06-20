@@ -18,8 +18,8 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 ///        contract instead.
 contract L1BlockNumber is ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.1.3
-    string public constant version = "1.1.3";
+    /// @custom:semver 1.1.4
+    string public constant version = "1.1.4";
 
     /// @notice Returns the L1 block number.
     receive() external payable {

@@ -81,7 +81,7 @@ abstract contract Predeploys_TestInit is CommonTest {
         uint256 count = 2048;
         uint160 prefix = uint160(0x420) << 148;
 
-        bytes memory proxyCode = vm.getDeployedCode("Proxy.sol:Proxy");
+        bytes memory proxyCode = vm.getDeployedCode("universal/Proxy.sol:Proxy");
 
         for (uint256 i = 0; i < count; i++) {
             address addr = address(prefix | uint160(i));

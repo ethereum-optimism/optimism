@@ -168,11 +168,11 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
             // run before testing this with forge test or forge snapshot, forge clean should be run
             // first so that it recompiles the contracts using the foundry.toml optimizer settings.
             if (Config.isUnoptimized()) {
-                // 66_290 is the exact amount of gas required with the optimizer disabled.
-                expected = 66_290;
+                // 66_273 is the exact amount of gas required with the optimizer disabled.
+                expected = 66_273;
             } else {
-                // 65_922 is the exact amount of gas required with optimizer enabled.
-                expected = 65_922;
+                // 65_914 is the exact amount of gas required with optimizer enabled.
+                expected = 65_914;
             }
 
             if (i < expected) {
@@ -205,11 +205,11 @@ contract SafeCall_CallWithMinGas_Test is SafeCall_TestInit {
             // run before testing this with forge test or forge snapshot, forge clean should be run
             // first so that it recompiles the contracts using the foundry.toml optimizer settings.
             if (Config.isUnoptimized()) {
-                // 15_278_989 is the exact amount of gas required with the optimizer disabled.
-                expected = 15_278_989;
+                // 15_278_972 is the exact amount of gas required with the optimizer disabled.
+                expected = 15_278_972;
             } else {
-                // 15_278_621 is the exact amount of gas required with optimizer enabled.
-                expected = 15_278_621;
+                // 15_278_613 is the exact amount of gas required with optimizer enabled.
+                expected = 15_278_613;
             }
 
             if (i < expected) {

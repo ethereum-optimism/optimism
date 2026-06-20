@@ -16,7 +16,12 @@ source "$SCRIPT_DIR/../ops/get-target-branch.sh"
 SEMVER_LOCK="snapshots/semver-lock.json"
 
 # Define excluded contracts.
+# These contracts use string.concat(super.version(), ...) to inherit their parent's version.
+# The semver-diff check cannot extract the version from this pattern.
 EXCLUDED_CONTRACTS=(
+  "src/L2/L1BlockCGT.sol"
+  "src/L2/L2StandardBridgeInterop.sol"
+  "src/L2/L2ToL1MessagePasserCGT.sol"
 )
 
 github_token() {

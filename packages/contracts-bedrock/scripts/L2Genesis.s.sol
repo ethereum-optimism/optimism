@@ -214,7 +214,7 @@ contract L2Genesis is Script {
     //          script didn't set the nonce and we didn't want to change that behavior when
     ///         migrating genesis generation to Solidity.
     function setPredeployProxies(Input memory _input) internal {
-        bytes memory code = vm.getDeployedCode("Proxy.sol:Proxy");
+        bytes memory code = vm.getDeployedCode("universal/Proxy.sol:Proxy");
         uint160 prefix = uint160(0x420) << 148;
 
         for (uint256 i = 0; i < Predeploys.PREDEPLOY_COUNT; i++) {

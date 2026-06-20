@@ -52,8 +52,8 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.4.3
-    string public constant version = "2.4.3";
+    /// @custom:semver 2.4.4
+    string public constant version = "2.4.4";
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() ReinitializableBase(2) {

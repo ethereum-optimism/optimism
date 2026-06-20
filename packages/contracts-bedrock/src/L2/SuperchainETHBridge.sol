@@ -35,8 +35,8 @@ contract SuperchainETHBridge is ISemver {
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.0.1";
+    /// @custom:semver 1.0.2
+    string public constant version = "1.0.2";
 
     /// @notice Sends ETH to some target address on another chain.
     /// @param _to       Address to send ETH to.

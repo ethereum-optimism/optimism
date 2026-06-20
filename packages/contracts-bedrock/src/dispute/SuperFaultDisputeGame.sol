@@ -163,9 +163,9 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     uint256 internal constant GAME_IMPL_ARGS_BYTE_COUNT = 124;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.8.0
+    /// @custom:semver 0.8.1
     function version() public pure virtual returns (string memory) {
-        return "0.8.0";
+        return "0.8.1";
     }
 
     /// @notice The starting timestamp of the game

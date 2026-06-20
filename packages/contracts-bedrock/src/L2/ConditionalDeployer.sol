@@ -28,8 +28,8 @@ contract ConditionalDeployer is ISemver {
         payable(0x4e59b44847b379578588920cA78FbF26c0B4956C);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice Deploys an implementation using CREATE2 if it doesn't already exist.
     /// @dev Does not support deployments requiring ETH.

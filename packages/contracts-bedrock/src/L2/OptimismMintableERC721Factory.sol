@@ -45,8 +45,8 @@ contract OptimismMintableERC721Factory is
     event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.5.1
-    string public constant version = "1.5.1";
+    /// @custom:semver 1.5.2
+    string public constant version = "1.5.2";
 
     /// @notice Constructs the OptimismMintableERC721Factory contract.
     constructor() {

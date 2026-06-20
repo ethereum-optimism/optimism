@@ -31,8 +31,8 @@ contract ETHLiquidity is ISemver {
     event LiquidityFunded(address indexed funder, uint256 amount);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.1
-    string public constant version = "1.1.1";
+    /// @custom:semver 1.1.2
+    string public constant version = "1.1.2";
 
     /// @notice Allows an address to lock ETH liquidity into this contract.
     function burn() external payable {

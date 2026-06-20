@@ -25,8 +25,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         **WARNING**: Do not bridge an ERC721 that was originally deployed on Optimism. This
 ///         bridge ONLY supports ERC721s originally deployed on Ethereum.
 contract L2ERC721Bridge is ProxyAdminOwnedBase, ERC721Bridge, ISemver {
-    /// @custom:semver 1.10.1
-    string public constant version = "1.10.1";
+    /// @custom:semver 1.10.2
+    string public constant version = "1.10.2";
 
     /// @notice Constructs the L2ERC721Bridge contract.
     constructor() ERC721Bridge() {

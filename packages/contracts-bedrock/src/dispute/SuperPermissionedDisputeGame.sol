@@ -22,8 +22,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         invalidated through the AnchorStateRegistry blacklist before finalization.
 contract SuperPermissionedDisputeGame is Clone, ISemver, IDisputeGame {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice The timestamp at which the game was created.
     Timestamp public createdAt;

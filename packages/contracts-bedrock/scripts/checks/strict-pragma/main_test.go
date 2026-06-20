@@ -121,7 +121,7 @@ func Test_extractPragma(t *testing.T) {
 				pragma solidity 0.8.25;
 				contract MyContract {}
 			`,
-			expected: "0.8.15",
+			expected: "0.8.25",
 		},
 		{
 			name: "caret pragma",
