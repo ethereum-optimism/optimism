@@ -27,7 +27,7 @@ func FromSuperchainConfig(chConfig *superchain.ChainConfig) *ChainConfig {
 		IsthmusTime:  hardforks.IsthmusTime,
 		JovianTime:   hardforks.JovianTime,
 		KarstTime:    hardforks.KarstTime,
-		InteropTime:  hardforks.InteropTime,
+		LagoonTime:   hardforks.LagoonTime,
 	}
 
 	if chConfig.Optimism != nil {
@@ -87,7 +87,7 @@ func (c *ChainConfig) GethChainConfig() *gethparams.ChainConfig {
 		IsthmusTime:             c.IsthmusTime,
 		JovianTime:              c.JovianTime,
 		KarstTime:               c.KarstTime,
-		InteropTime:             c.InteropTime,
+		LagoonTime:              c.LagoonTime,
 	}
 
 	if c.Optimism != nil {

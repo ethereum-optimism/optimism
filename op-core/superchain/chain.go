@@ -113,7 +113,7 @@ func GetDepset(chainID uint64) (map[string]Dependency, error) {
 		return nil, err
 	}
 
-	// depset of 1 (self) is the default when no dependencies are specified but interop_time is set
+	// depset of 1 (self) is the default when no dependencies are specified but lagoon_time is set
 	if cfg.Interop == nil {
 		cfg.Interop = &Interop{
 			Dependencies: make(map[string]Dependency),

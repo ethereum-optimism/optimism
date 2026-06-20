@@ -189,12 +189,6 @@ library DisputeGames {
         _mockGameArg(_dgf, _gameType, GameArg.L2_CHAIN_ID, value);
     }
 
-    /// @notice Mocks the l2ChainId in a ZK dispute game's packed args (offset 140).
-    ///         ZK game args have a different layout than LibGameArgs, so a dedicated helper is needed.
-    function mockZKGameImplL2ChainId(IDisputeGameFactory _dgf, GameType _gameType, uint256 _chainId) internal {
-        mockZKGameArg(_dgf, _gameType, 140, abi.encodePacked(_chainId));
-    }
-
     /// @notice Overwrites an arbitrary byte range in a ZK dispute game's packed args.
     function mockZKGameArg(
         IDisputeGameFactory _dgf,

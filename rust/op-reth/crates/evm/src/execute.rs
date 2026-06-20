@@ -69,7 +69,8 @@ mod tests {
         let account = Account { balance: U256::MAX, ..Account::default() };
         db.insert_account(addr, account, None, HashMap::default());
 
-        let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().regolith_activated().build());
+        let chain_spec =
+            Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
 
         let tx: OpTransactionSigned = TxEip1559 {
             chain_id: chain_spec.chain.id(),
@@ -142,7 +143,8 @@ mod tests {
 
         db.insert_account(addr, account, None, HashMap::default());
 
-        let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().canyon_activated().build());
+        let chain_spec =
+            Arc::new(OpChainSpecBuilder::optimism_mainnet().canyon_activated().build());
 
         let tx: OpTransactionSigned = TxEip1559 {
             chain_id: chain_spec.chain.id(),

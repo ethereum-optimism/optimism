@@ -184,9 +184,11 @@ pub(crate) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConf
 mod tests {
     use super::*;
 
-    const BASE_CHAIN_METADATA: &str = r#"
+    // A non-OP-Mainnet chain (so the OP-Mainnet special-casing in `to_genesis_chain_config` is
+    // not exercised); uses Unichain's chain id.
+    const GENERIC_CHAIN_METADATA: &str = r#"
     {
-      "chain_id": 8453,
+      "chain_id": 130,
       "hardforks": {
         "canyon_time": 1704992401,
         "delta_time": 1708560000,
@@ -206,8 +208,8 @@ mod tests {
 
     #[test]
     fn test_deserialize_chain_config() {
-        let config: ChainMetadata = serde_json::from_str(BASE_CHAIN_METADATA).unwrap();
-        assert_eq!(config.chain_id, 8453);
+        let config: ChainMetadata = serde_json::from_str(GENERIC_CHAIN_METADATA).unwrap();
+        assert_eq!(config.chain_id, 130);
         // hardforks
         assert_eq!(config.hardforks.canyon_time, Some(1704992401));
         assert_eq!(config.hardforks.delta_time, Some(1708560000));
@@ -262,9 +264,9 @@ mod tests {
 
     #[test]
     fn test_convert_to_genesis_chain_config() {
-        let config: ChainMetadata = serde_json::from_str(BASE_CHAIN_METADATA).unwrap();
+        let config: ChainMetadata = serde_json::from_str(GENERIC_CHAIN_METADATA).unwrap();
         let chain_config = to_genesis_chain_config(&config);
-        assert_eq!(chain_config.chain_id, 8453);
+        assert_eq!(chain_config.chain_id, 130);
         assert_eq!(chain_config.homestead_block, Some(0));
         assert_eq!(chain_config.dao_fork_block, None);
         assert!(!chain_config.dao_fork_support);

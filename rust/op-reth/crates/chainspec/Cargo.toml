@@ -52,7 +52,7 @@ alloy-op-hardforks.workspace = true
 
 [features]
 default = ["std"]
-superchain-configs = ["miniz_oxide", "paste", "tar-no-std", "thiserror", "thiserror", "dep:serde"]
+superchain-configs = ["miniz_oxide", "paste", "tar-no-std", "thiserror", "dep:serde"]
 std = [
     "alloy-chains/std",
     "alloy-genesis/std",
