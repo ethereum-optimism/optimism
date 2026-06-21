@@ -360,15 +360,15 @@ where
     InteropSweep { to_remove, to_revalidate, interop_count }
 }
 
-async fn revalidate_interop_txs<Filter, T>(
+async fn revalidate_interop_txs<Filter, Tx>(
     interop_filter: &Filter,
-    txs_to_revalidate: Vec<T>,
+    txs_to_revalidate: Vec<Tx>,
     timestamp: u64,
     metrics: &MaintainPoolInteropMetrics,
 ) -> Vec<TxHash>
 where
     Filter: InteropFilter,
-    T: PoolTransaction + Transaction + MaybeInteropTransaction + Send,
+    Tx: PoolTransaction + Transaction + MaybeInteropTransaction + Send,
 {
     let mut to_remove = Vec::new();
     let revalidation_start = Instant::now();
