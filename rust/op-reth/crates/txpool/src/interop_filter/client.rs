@@ -193,7 +193,7 @@ impl InteropFilterClient {
         }
 
         // Fast-path: reject immediately if failsafe is active (no RPC round-trip)
-        if self.is_failsafe_enabled() {
+        if self.is_failsafe_enabled_cached() {
             self.inner.metrics.record_decision(RESULT_REJECTED_FAILSAFE, REASON_NONE);
             return Some(Err(InvalidCrossTx::FailsafeEnabled));
         }
@@ -261,7 +261,7 @@ impl InteropFilterClient {
     }
 
     /// Returns the cached failsafe state.
-    pub fn is_failsafe_enabled(&self) -> bool {
+    pub fn is_failsafe_enabled_cached(&self) -> bool {
         self.inner.failsafe.enabled()
     }
 
@@ -272,8 +272,9 @@ impl InteropFilterClient {
     }
 
     /// Applies a freshly polled failsafe state to the cached flag (read live by the admission
-    /// fast-path and the block-event handler) and the gauge. Split out of [`Self::query_failsafe`]
-    /// so the live, restart-free state transition can be exercised in tests without an RPC.
+    /// fast-path and the block-event handler) and the gauge. Split out of
+    /// [`Self::is_failsafe_enabled`] so the live, restart-free state transition can be exercised in
+    /// tests without an RPC.
     pub(crate) fn apply_failsafe_state(&self, enabled: bool) {
         self.inner.failsafe.set(enabled);
         self.inner.metrics.set_failsafe_enabled(enabled);
@@ -293,7 +294,7 @@ impl InteropFilterClient {
     ///
     /// If no endpoint replies, the cache is left unchanged and an error is returned (matching the
     /// previous single-endpoint behavior).
-    pub async fn query_failsafe(&self) -> Result<bool, InteropTxValidatorError> {
+    pub async fn is_failsafe_enabled(&self) -> Result<bool, InteropTxValidatorError> {
         let endpoint_count = self.inner.endpoints.len();
         let mut futs: FuturesUnordered<_> = self
             .inner
@@ -328,7 +329,7 @@ impl InteropFilterClient {
             // Some endpoints did not answer and none reported failsafe. We cannot confirm failsafe
             // is off — a silent endpoint might itself be in failsafe — so leave the cached gate
             // unchanged rather than clearing it on partial information.
-            return Ok(self.is_failsafe_enabled());
+            return Ok(self.is_failsafe_enabled_cached());
         }
         // Decisive: an endpoint reported failsafe, or every endpoint replied and all said off.
         self.apply_failsafe_state(enabled);
@@ -620,7 +621,7 @@ mod tests {
 
         // Filter signals failsafe enabled -> admission fast-path rejects immediately, no RPC.
         client.apply_failsafe_state(true);
-        assert!(client.is_failsafe_enabled());
+        assert!(client.is_failsafe_enabled_cached());
         let outcome = client.is_valid_cross_tx(Some(&access_list), &hash, 0, None, true).await;
         assert!(
             matches!(outcome, Some(Err(InvalidCrossTx::FailsafeEnabled))),
@@ -630,7 +631,10 @@ mod tests {
         // Filter clears failsafe -> the cached gate flips back in-process on the next poll, so
         // interop admission resumes without restarting the execution layer.
         client.apply_failsafe_state(false);
-        assert!(!client.is_failsafe_enabled(), "failsafe gate must clear at runtime, no restart");
+        assert!(
+            !client.is_failsafe_enabled_cached(),
+            "failsafe gate must clear at runtime, no restart"
+        );
     }
 
     use jsonrpsee::types::ErrorObjectOwned;
@@ -881,13 +885,13 @@ mod tests {
         let a = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
         let failsafe = MockEndpoint::start(Verdict::Failsafe, Failsafe::Reply(false)).await;
         let client = client_for(&[&a, &failsafe], Some(2)).await;
-        assert!(!client.is_failsafe_enabled());
+        assert!(!client.is_failsafe_enabled_cached());
         assert!(matches!(
             check(&client).await.unwrap_err(),
             InteropTxValidatorError::FailsafeEnabled
         ));
         assert!(
-            client.is_failsafe_enabled(),
+            client.is_failsafe_enabled_cached(),
             "a failsafe detected on a check must flip the cached gate immediately"
         );
     }
@@ -967,8 +971,8 @@ mod tests {
         let off = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
         let on = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(true)).await;
         let client = client_for(&[&off, &on], None).await;
-        assert!(client.query_failsafe().await.unwrap());
-        assert!(client.is_failsafe_enabled());
+        assert!(client.is_failsafe_enabled().await.unwrap());
+        assert!(client.is_failsafe_enabled_cached());
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -977,7 +981,7 @@ mod tests {
         let slow = MockEndpoint::start(Verdict::Valid, Failsafe::Slow).await;
         let client = client_for(&[&on, &slow], None).await;
         let start = Instant::now();
-        assert!(client.query_failsafe().await.unwrap());
+        assert!(client.is_failsafe_enabled().await.unwrap());
         assert!(start.elapsed() < Duration::from_secs(1), "failsafe waited on the slow endpoint");
     }
 
@@ -993,9 +997,9 @@ mod tests {
         let client = client_for(&[&silent, &healthy], Some(1)).await;
         // Failsafe was previously detected and cached.
         client.apply_failsafe_state(true);
-        let result = client.query_failsafe().await;
+        let result = client.is_failsafe_enabled().await;
         assert!(
-            client.is_failsafe_enabled(),
+            client.is_failsafe_enabled_cached(),
             "a partial poll (one endpoint silent) must not clear the failsafe gate, got {result:?}"
         );
     }
@@ -1007,8 +1011,11 @@ mod tests {
         let b = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
         let client = client_for(&[&a, &b], None).await;
         client.apply_failsafe_state(true);
-        assert!(!client.query_failsafe().await.unwrap());
-        assert!(!client.is_failsafe_enabled(), "a unanimous all-false poll must clear the gate");
+        assert!(!client.is_failsafe_enabled().await.unwrap());
+        assert!(
+            !client.is_failsafe_enabled_cached(),
+            "a unanimous all-false poll must clear the gate"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1018,8 +1025,11 @@ mod tests {
         let client = client_for(&[&a, &b], None).await;
         // Seed a known cached value, then confirm an all-error poll leaves it unchanged and errors.
         client.inner.failsafe.set(true);
-        assert!(client.query_failsafe().await.is_err());
-        assert!(client.is_failsafe_enabled(), "cache should be unchanged when no endpoint replies");
+        assert!(client.is_failsafe_enabled().await.is_err());
+        assert!(
+            client.is_failsafe_enabled_cached(),
+            "cache should be unchanged when no endpoint replies"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]

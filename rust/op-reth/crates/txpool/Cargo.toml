@@ -47,6 +47,7 @@ reth-metrics.workspace = true
 metrics.workspace = true
 
 # misc
+async-trait.workspace = true
 c-kzg.workspace = true
 derive_more.workspace = true
 futures-util.workspace = true

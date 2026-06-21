@@ -21,6 +21,7 @@ use crate::{
 };
 use alloy_consensus::{BlockHeader, Transaction, conditional::BlockConditionalAttributes};
 use alloy_primitives::TxHash;
+use async_trait::async_trait;
 use futures_util::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::BoxStream};
 use metrics::{Gauge, Histogram};
 use reth_chain_state::CanonStateNotification;
@@ -86,12 +87,13 @@ impl MaintainPoolInteropMetrics {
 }
 
 /// The interop-filter behavior needed by txpool maintenance.
+#[async_trait]
 pub trait InteropFilter {
     /// Returns the cached failsafe state.
-    fn is_failsafe_enabled(&self) -> bool;
+    fn is_failsafe_enabled_cached(&self) -> bool;
 
     /// Queries and updates failsafe state.
-    fn query_failsafe(&self) -> BoxFuture<'_, Result<bool, InteropTxValidatorError>>;
+    async fn is_failsafe_enabled(&self) -> Result<bool, InteropTxValidatorError>;
 
     /// Revalidates interop transactions.
     fn revalidate_interop_txs_stream<'a, TItem, InputIter>(
@@ -107,13 +109,14 @@ pub trait InteropFilter {
         TItem: PoolTransaction + Transaction + Send + 'a;
 }
 
+#[async_trait]
 impl InteropFilter for InteropFilterClient {
-    fn is_failsafe_enabled(&self) -> bool {
-        Self::is_failsafe_enabled(self)
+    fn is_failsafe_enabled_cached(&self) -> bool {
+        InteropFilterClient::is_failsafe_enabled_cached(self)
     }
 
-    fn query_failsafe(&self) -> BoxFuture<'_, Result<bool, InteropTxValidatorError>> {
-        Self::query_failsafe(self).boxed()
+    async fn is_failsafe_enabled(&self) -> Result<bool, InteropTxValidatorError> {
+        InteropFilterClient::is_failsafe_enabled(self).await
     }
 
     fn revalidate_interop_txs_stream<'a, TItem, InputIter>(
@@ -242,7 +245,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St, Filter>(
                 }
             }
             CanonStateNotification::Commit { new } => {
-                if interop_client.is_failsafe_enabled() {
+                if interop_client.is_failsafe_enabled_cached() {
                     let evicted = evict_all_interop_txs(&pool, &metrics, "failsafe");
                     if evicted > 0 {
                         info!(
@@ -461,7 +464,7 @@ where
     let mut last_heartbeat = Instant::now();
     loop {
         interval.tick().await;
-        match interop_client.query_failsafe().await {
+        match interop_client.is_failsafe_enabled().await {
             Ok(enabled) => {
                 if enabled && !was_enabled {
                     // Transition to enabled: evict all interop txs immediately and log
@@ -651,14 +654,14 @@ mod tests {
         }
     }
 
+    #[async_trait]
     impl InteropFilter for MockInteropFilter {
-        fn is_failsafe_enabled(&self) -> bool {
+        fn is_failsafe_enabled_cached(&self) -> bool {
             self.failsafe_enabled
         }
 
-        fn query_failsafe(&self) -> BoxFuture<'_, Result<bool, InteropTxValidatorError>> {
-            let enabled = self.failsafe_enabled;
-            async move { Ok(enabled) }.boxed()
+        async fn is_failsafe_enabled(&self) -> Result<bool, InteropTxValidatorError> {
+            Ok(self.failsafe_enabled)
         }
 
         fn revalidate_interop_txs_stream<'a, TItem, InputIter>(
