@@ -2,11 +2,6 @@
 
 /// Offset before deadline expiry at which a tx becomes "stale" and triggers revalidation.
 const OFFSET_TIME: u64 = 60;
-/// Maximum number of transactions revalidated against the interop filter concurrently. Each
-/// transaction issues up to one request per configured endpoint, so total in-flight interop
-/// requests can reach `MAX_INTEROP_QUERIES * <number of endpoints>`. The bound is on
-/// transactions (per-endpoint load is unchanged by fan-out).
-const MAX_INTEROP_QUERIES: usize = 10;
 /// Interval at which a heartbeat warning is re-logged while failsafe stays enabled, so a
 /// long-lived failsafe keeps surfacing in recent logs rather than only at the transition. Also
 /// reused to rate-limit the degraded-quorum log in [`InteropFilterClient`].
@@ -16,13 +11,13 @@ use crate::{
     conditional::MaybeConditionalTransaction,
     error::InvalidCrossTx,
     interop::{MaybeInteropTransaction, is_interop_tx, is_stale_interop, is_valid_interop},
-    interop_filter::{InteropFilterClient, InteropTxValidatorError},
+    interop_filter::{InteropFilterClient, InteropTxValidatorError, InteropValidationResult},
     validator::CHECK_ACCESS_LIST_TIMEOUT_SECS,
 };
 use alloy_consensus::{BlockHeader, Transaction, conditional::BlockConditionalAttributes};
 use alloy_primitives::TxHash;
 use async_trait::async_trait;
-use futures_util::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::BoxStream};
+use futures_util::{FutureExt, Stream, StreamExt, future::BoxFuture};
 use metrics::{Gauge, Histogram};
 use reth_chain_state::CanonStateNotification;
 use reth_metrics::{Metrics, metrics::Counter};
@@ -96,17 +91,14 @@ pub trait InteropFilter {
     async fn is_failsafe_enabled(&self) -> Result<bool, InteropTxValidatorError>;
 
     /// Revalidates interop transactions.
-    fn revalidate_interop_txs_stream<'a, TItem, InputIter>(
-        &'a self,
-        txs_to_revalidate: InputIter,
+    async fn revalidate_interop_txs<Tx>(
+        &self,
+        txs_to_revalidate: Vec<Tx>,
         current_timestamp: u64,
         revalidation_window: u64,
-        max_concurrent_queries: usize,
-    ) -> BoxStream<'a, (TItem, Option<Result<(), InvalidCrossTx>>)>
+    ) -> Vec<InteropValidationResult<Tx>>
     where
-        InputIter: IntoIterator<Item = TItem> + Send + 'a,
-        InputIter::IntoIter: Send + 'a,
-        TItem: PoolTransaction + Transaction + Send + 'a;
+        Tx: PoolTransaction + Transaction + Send;
 }
 
 #[async_trait]
@@ -119,26 +111,23 @@ impl InteropFilter for InteropFilterClient {
         InteropFilterClient::is_failsafe_enabled(self).await
     }
 
-    fn revalidate_interop_txs_stream<'a, TItem, InputIter>(
-        &'a self,
-        txs_to_revalidate: InputIter,
+    async fn revalidate_interop_txs<Tx>(
+        &self,
+        txs_to_revalidate: Vec<Tx>,
         current_timestamp: u64,
         revalidation_window: u64,
-        max_concurrent_queries: usize,
-    ) -> BoxStream<'a, (TItem, Option<Result<(), InvalidCrossTx>>)>
+    ) -> Vec<InteropValidationResult<Tx>>
     where
-        InputIter: IntoIterator<Item = TItem> + Send + 'a,
-        InputIter::IntoIter: Send + 'a,
-        TItem: PoolTransaction + Transaction + Send + 'a,
+        Tx: PoolTransaction + Transaction + Send,
     {
-        Self::revalidate_interop_txs_stream(
+        let revalidation_stream = Self::revalidate_interop_txs_stream(
             self,
             txs_to_revalidate,
             current_timestamp,
             revalidation_window,
-            max_concurrent_queries,
-        )
-        .boxed()
+        );
+        futures_util::pin_mut!(revalidation_stream);
+        revalidation_stream.collect().await
     }
 }
 
@@ -338,7 +327,7 @@ where
     let mut interop_count = 0;
 
     // Keep the local scan sequential: network revalidation below is the expensive phase and is
-    // already concurrency-limited by `MAX_INTEROP_QUERIES`.
+    // already concurrency-limited by the interop filter client.
     //
     // Scan all transactions, not just propagatable ones: non-propagatable interop txs (e.g.
     // `Private`-origin conditional txs) are still selected by the builder but are hidden from
@@ -372,35 +361,29 @@ where
 {
     let mut to_remove = Vec::new();
     let revalidation_start = Instant::now();
-    let revalidation_stream = interop_filter.revalidate_interop_txs_stream(
-        txs_to_revalidate,
-        timestamp,
-        CHECK_ACCESS_LIST_TIMEOUT_SECS,
-        MAX_INTEROP_QUERIES,
-    );
+    let validation_results = interop_filter
+        .revalidate_interop_txs(txs_to_revalidate, timestamp, CHECK_ACCESS_LIST_TIMEOUT_SECS)
+        .await;
 
-    futures_util::pin_mut!(revalidation_stream);
-
-    while let Some((tx_item_from_stream, validation_result)) = revalidation_stream.next().await {
+    for validation_result in validation_results {
         match validation_result {
-            Some(Ok(())) => {
-                tx_item_from_stream
-                    .set_interop_deadline(timestamp + CHECK_ACCESS_LIST_TIMEOUT_SECS);
+            InteropValidationResult::Valid(tx) => {
+                tx.set_interop_deadline(timestamp + CHECK_ACCESS_LIST_TIMEOUT_SECS);
             }
             // Evict only on a decisive invalid verdict; transient or non-decisive results
             // keep the tx so an unreachable interop filter cannot drain the pool.
-            Some(Err(err)) => {
+            InteropValidationResult::Invalid(tx, err) => {
                 if err.is_definitive_invalid() {
-                    to_remove.push(*tx_item_from_stream.hash());
+                    to_remove.push(*tx.hash());
                 }
             }
-            None => {
+            InteropValidationResult::NotInterop(tx) => {
                 warn!(
                     target: "txpool",
-                    hash = %tx_item_from_stream.hash(),
+                    hash = %tx.hash(),
                     "Interop transaction no longer considered cross-chain during revalidation; removing."
                 );
-                to_remove.push(*tx_item_from_stream.hash());
+                to_remove.push(*tx.hash());
             }
         }
     }
@@ -525,7 +508,6 @@ mod tests {
     use alloy_consensus::{SignableTransaction, TxEip1559, transaction::Recovered};
     use alloy_eips::eip2930::{AccessList, AccessListItem};
     use alloy_primitives::{Address, B256, Signature, TxKind, U256};
-    use futures_util::stream;
     use op_alloy_rpc_types::SuperchainDAError;
     use reth_execution_types::{Chain, ExecutionOutcome};
     use reth_optimism_primitives::{OpBlock, OpPrimitives};
@@ -623,14 +605,21 @@ mod tests {
     }
 
     impl MockValidation {
-        fn result(self) -> Option<Result<(), InvalidCrossTx>> {
+        fn result<Tx>(self, tx: Tx) -> InteropValidationResult<Tx> {
             match self {
-                Self::DefinitiveInvalid => Some(Err(InvalidCrossTx::ValidationError(
-                    InteropTxValidatorError::InvalidEntry(SuperchainDAError::ConflictingData),
-                ))),
-                Self::TransientFailure => Some(Err(InvalidCrossTx::ValidationError(
-                    InteropTxValidatorError::QuorumNotReached { received: 0, required: 1 },
-                ))),
+                Self::DefinitiveInvalid => InteropValidationResult::Invalid(
+                    tx,
+                    InvalidCrossTx::ValidationError(InteropTxValidatorError::InvalidEntry(
+                        SuperchainDAError::ConflictingData,
+                    )),
+                ),
+                Self::TransientFailure => InteropValidationResult::Invalid(
+                    tx,
+                    InvalidCrossTx::ValidationError(InteropTxValidatorError::QuorumNotReached {
+                        received: 0,
+                        required: 1,
+                    }),
+                ),
             }
         }
     }
@@ -664,21 +653,17 @@ mod tests {
             Ok(self.failsafe_enabled)
         }
 
-        fn revalidate_interop_txs_stream<'a, TItem, InputIter>(
-            &'a self,
-            txs_to_revalidate: InputIter,
+        async fn revalidate_interop_txs<Tx>(
+            &self,
+            txs_to_revalidate: Vec<Tx>,
             _current_timestamp: u64,
             _revalidation_window: u64,
-            _max_concurrent_queries: usize,
-        ) -> BoxStream<'a, (TItem, Option<Result<(), InvalidCrossTx>>)>
+        ) -> Vec<InteropValidationResult<Tx>>
         where
-            InputIter: IntoIterator<Item = TItem> + Send + 'a,
-            InputIter::IntoIter: Send + 'a,
-            TItem: PoolTransaction + Transaction + Send + 'a,
+            Tx: PoolTransaction + Transaction + Send,
         {
             let validation = self.validation;
-            stream::iter(txs_to_revalidate.into_iter().map(move |tx| (tx, validation.result())))
-                .boxed()
+            txs_to_revalidate.into_iter().map(|tx| validation.result(tx)).collect()
         }
     }
 

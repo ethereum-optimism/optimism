@@ -1,5 +1,11 @@
 //! This is our custom implementation of validator struct
 
+/// Maximum number of transactions revalidated against the interop filter concurrently. Each
+/// transaction issues up to one request per configured endpoint, so total in-flight interop
+/// requests can reach `MAX_INTEROP_QUERIES * <number of endpoints>`. The bound is on
+/// transactions (per-endpoint load is unchanged by fan-out).
+const MAX_INTEROP_QUERIES: usize = 10;
+
 use crate::{
     InvalidCrossTx,
     interop::InteropFailsafe,
@@ -339,19 +345,14 @@ impl InteropFilterClient {
     /// Creates a stream that revalidates interop transactions against the interop filter.
     /// Returns
     /// An implementation of `Stream` that is `Send`-able and tied to the lifetime `'a` of `self`.
-    /// Each item yielded by the stream is a tuple `(TItem, Option<Result<(), InvalidCrossTx>>)`.
-    ///   - The first element is the original `TItem` that was revalidated.
-    ///   - The second element is the `Option<Result<(), InvalidCrossTx>>` describes the outcome
-    ///     - `None`: Transaction was not identified as a cross-chain candidate by initial checks.
-    ///     - `Some(Ok(()))`: Interop filter confirmed the transaction is valid.
-    ///     - `Some(Err(InvalidCrossTx))`: Interop filter indicated the transaction is invalid.
+    /// Each item yielded by the stream contains the original transaction and its revalidation
+    /// outcome.
     pub fn revalidate_interop_txs_stream<'a, TItem, InputIter>(
         &'a self,
         txs_to_revalidate: InputIter,
         current_timestamp: u64,
         revalidation_window: u64,
-        max_concurrent_queries: usize,
-    ) -> impl Stream<Item = (TItem, Option<Result<(), InvalidCrossTx>>)> + Send + 'a
+    ) -> impl Stream<Item = InteropValidationResult<TItem>> + Send + 'a
     where
         InputIter: IntoIterator<Item = TItem> + Send + 'a,
         InputIter::IntoIter: Send + 'a,
@@ -361,7 +362,7 @@ impl InteropFilterClient {
             let client_for_async_task = self.clone();
 
             async move {
-                let validation_result = client_for_async_task
+                match client_for_async_task
                     .is_valid_cross_tx(
                         tx_item.access_list(),
                         tx_item.hash(),
@@ -369,14 +370,27 @@ impl InteropFilterClient {
                         Some(revalidation_window),
                         true,
                     )
-                    .await;
-
-                // return the original transaction paired with its validation result.
-                (tx_item, validation_result)
+                    .await
+                {
+                    Some(Ok(())) => InteropValidationResult::Valid(tx_item),
+                    Some(Err(err)) => InteropValidationResult::Invalid(tx_item, err),
+                    None => InteropValidationResult::NotInterop(tx_item),
+                }
             }
         }))
-        .buffered(max_concurrent_queries)
+        .buffered(MAX_INTEROP_QUERIES)
     }
+}
+
+/// Result of revalidating a single interop tx.
+#[derive(Debug)]
+pub enum InteropValidationResult<Tx> {
+    /// The tx is valid.
+    Valid(Tx),
+    /// The tx is an interop candidate, but validation failed.
+    Invalid(Tx, InvalidCrossTx),
+    /// The tx is not an interop tx.
+    NotInterop(Tx),
 }
 
 /// A single configured interop filter endpoint and its per-endpoint metrics.
