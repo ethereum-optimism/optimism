@@ -11456,6 +11456,7 @@ dependencies = [
  "alloy-rpc-client 2.0.5",
  "alloy-rpc-types-eth 2.0.5",
  "alloy-serde 2.0.5",
+ "async-trait",
  "c-kzg",
  "derive_more",
  "futures-util",
