@@ -96,48 +96,35 @@ fn commit_event() -> CanonStateNotification<OpPrimitives> {
     CanonStateNotification::Commit { new: chain }
 }
 
-#[derive(Clone, Copy)]
-enum MockValidation {
-    DefinitiveInvalid,
-    TransientFailure,
+fn definitive_invalid() -> InvalidCrossTx {
+    InvalidCrossTx::ValidationError(InteropTxValidatorError::InvalidEntry(
+        SuperchainDAError::ConflictingData,
+    ))
 }
 
-impl MockValidation {
-    fn result<Tx>(self, tx: Tx) -> InteropValidationResult<Tx> {
-        match self {
-            Self::DefinitiveInvalid => InteropValidationResult::Invalid(
-                tx,
-                InvalidCrossTx::ValidationError(InteropTxValidatorError::InvalidEntry(
-                    SuperchainDAError::ConflictingData,
-                )),
-            ),
-            Self::TransientFailure => InteropValidationResult::Invalid(
-                tx,
-                InvalidCrossTx::ValidationError(InteropTxValidatorError::QuorumNotReached {
-                    received: 0,
-                    required: 1,
-                }),
-            ),
-        }
-    }
+fn transient_failure() -> InvalidCrossTx {
+    InvalidCrossTx::ValidationError(InteropTxValidatorError::QuorumNotReached {
+        received: 0,
+        required: 1,
+    })
 }
 
 struct MockInteropFilter {
     failsafe_enabled: bool,
-    validation: MockValidation,
+    invalid_result: fn() -> InvalidCrossTx,
 }
 
 impl MockInteropFilter {
     fn new_definitive_invalid() -> Self {
-        Self { failsafe_enabled: false, validation: MockValidation::DefinitiveInvalid }
+        Self { failsafe_enabled: false, invalid_result: definitive_invalid }
     }
 
     fn new_transient_failure() -> Self {
-        Self { failsafe_enabled: false, validation: MockValidation::TransientFailure }
+        Self { failsafe_enabled: false, invalid_result: transient_failure }
     }
 
     fn new_failsafe_enabled() -> Self {
-        Self { failsafe_enabled: true, validation: MockValidation::TransientFailure }
+        Self { failsafe_enabled: true, invalid_result: transient_failure }
     }
 }
 
@@ -160,8 +147,11 @@ impl InteropFilter for MockInteropFilter {
     where
         Tx: PoolTransaction + Transaction + Send,
     {
-        let validation = self.validation;
-        txs_to_revalidate.into_iter().map(|tx| validation.result(tx)).collect()
+        let invalid_result = self.invalid_result;
+        txs_to_revalidate
+            .into_iter()
+            .map(|tx| InteropValidationResult::Invalid(tx, invalid_result()))
+            .collect()
     }
 }
 
