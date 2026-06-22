@@ -1,0 +1,6 @@
+[package]
+name = "kona-sp1-elfs"
+version = "0.0.1"
+publish = false
+license.workspace = true
+edition.workspace = true

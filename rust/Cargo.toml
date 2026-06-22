@@ -20,6 +20,13 @@ members = [
   "kona/crates/providers/*",
   "kona/crates/utilities/*",
   "kona/examples/*",
+  "kona/sp1/crates/build",
+  "kona/sp1/crates/client",
+  "kona/sp1/crates/elfs",
+  "kona/sp1/crates/ethereum/client",
+  "kona/sp1/crates/ethereum/host",
+  "kona/sp1/crates/host",
+  "kona/sp1/crates/proof",
 
   # Op-Alloy
   "op-alloy/crates/*",
@@ -286,6 +293,13 @@ kona-cli = { path = "kona/crates/utilities/cli", version = "0.3.2", default-feat
 kona-serde = { path = "kona/crates/utilities/serde", version = "0.2.2", default-features = false }
 kona-macros = { path = "kona/crates/utilities/macros", version = "0.1.2", default-features = false }
 
+# ==================== KONA SP1 INTERNAL CRATES ====================
+kona-sp1-client-utils = { path = "kona/sp1/crates/client" }
+kona-sp1-elfs = { path = "kona/sp1/crates/elfs" }
+kona-sp1-ethereum-client-utils = { path = "kona/sp1/crates/ethereum/client" }
+kona-sp1-ethereum-host-utils = { path = "kona/sp1/crates/ethereum/host" }
+kona-sp1-host-utils = { path = "kona/sp1/crates/host" }
+
 # ==================== OP-RETH INTERNAL CRATES ====================
 op-reth = { path = "op-reth/bin/" }
 reth-optimism-chainspec = { path = "op-reth/crates/chainspec/", default-features = false }
@@ -467,6 +481,12 @@ alloy-transport-ws = { version = "2.0.5", default-features = false }
 op-alloy = { version = "2.0.0", path = "op-alloy/crates/op-alloy", default-features = false }
 op-alloy-flz = { version = "0.13.1", default-features = false }
 
+# ==================== SP1 ====================
+sp1-build = "6.2.4"
+sp1-sdk = { version = "6.2.4", default-features = false, features = [
+  "network",
+] }
+
 # ==================== ASYNC ====================
 async-channel = "2.5"
 async-compression = { version = "0.4", default-features = false }
@@ -504,6 +524,7 @@ jsonrpsee-types = "0.26.0"
 c-kzg = { version = "2.1.5", default-features = false }
 enr = { version = "0.13", default-features = false }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
+kzg-rs = { version = "0.2.6", features = ["rkyv", "serde"] }
 sha2 = { version = "0.10.9", default-features = false }
 secp256k1 = { version = "0.31.1", default-features = false }
 ark-ff = { version = "0.5.0", default-features = false }
@@ -526,6 +547,7 @@ serde = { version = "1.0.228", default-features = false, features = [
 serde_json = { version = "1.0.149", default-features = false, features = [
   "alloc",
 ] }
+serde_cbor = "0.11.2"
 
 # ==================== METRICS ====================
 metrics = { version = "0.24.3", default-features = false }
@@ -540,6 +562,12 @@ tracing = { version = "0.1.44", default-features = false }
 tracing-appender = "0.2.4"
 tracing-loki = "0.2.6"
 tracing-subscriber = { version = "0.3.22", default-features = false }
+
+# ==================== OPENTELEMETRY ====================
+opentelemetry = { version = "0.31", features = ["logs", "trace"] }
+opentelemetry-appender-tracing = "0.31"
+opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "logs"] }
+opentelemetry_sdk = { version = "0.31", features = ["logs", "trace", "rt-tokio"] }
 
 # ==================== TESTING ====================
 arbitrary = { version = "1.4.2", features = ["derive"] }
@@ -596,6 +624,7 @@ bitflags = "2.10"
 boyer-moore-magiclen = "0.2.22"
 buddy_system_allocator = "0.12.0"
 bytes = { version = "1.11.1", default-features = false }
+cargo_metadata = "0.23"
 cfg-if = "1.0.4"
 chrono = "0.4.43"
 clap = "4.5.58"
@@ -632,6 +661,7 @@ multihash = "0.19.3"
 notify = { version = "8.2", default-features = false, features = [
   "macos_fsevent",
 ] }
+num-format = "0.4.4"
 nybbles = { version = "0.4.8", default-features = false }
 once_cell = { version = "1.21", default-features = false, features = [
   "critical-section",
