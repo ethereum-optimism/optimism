@@ -1,6 +1,6 @@
 FROM ubuntu:latest
 
-RUN apt-get update -y && apt-get upgrade -y && apt install -y ca-certificates
+RUN apt-get -o Acquire::Retries=8 update -y && apt-get -o Acquire::Retries=8 upgrade -y && apt-get -o Acquire::Retries=8 install -y ca-certificates
 
 WORKDIR /
 

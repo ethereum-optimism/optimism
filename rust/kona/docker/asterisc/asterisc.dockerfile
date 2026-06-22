@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND noninteractive
 # todo: pin `nightly` version
 ENV RUST_VERSION nightly
 
-RUN apt-get update && apt-get install --assume-yes --no-install-recommends \
+RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 install --assume-yes --no-install-recommends \
   ca-certificates \
   build-essential \
   curl \
@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install --assume-yes --no-install-recommends \
   git
 
 # Install Rustup and Rust
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y --default-toolchain ${RUST_VERSION} --component rust-src
+RUN curl https://sh.rustup.rs -sSf --retry 5 --retry-all-errors --retry-delay 2 | bash -s -- -y --default-toolchain ${RUST_VERSION} --component rust-src
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Set up the env vars to instruct rustc to use the correct compiler and linker

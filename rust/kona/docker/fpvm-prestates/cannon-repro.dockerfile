@@ -11,7 +11,9 @@
 
 FROM golang:1.26.4-alpine3.22 AS cannon-build
 
-RUN apk add --no-cache bash just
+# apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
+# Retrying the identical apk add does not affect the reproducible cannon/prestate output.
+RUN n=0; until apk add --no-cache bash just; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
 
 COPY go.mod go.sum /app/
 COPY cannon/ /app/cannon/

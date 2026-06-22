@@ -16,9 +16,9 @@ USER root
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \
- && apt-get upgrade -y \
- && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=8 update \
+ && apt-get -o Acquire::Retries=8 upgrade -y \
+ && apt-get -o Acquire::Retries=8 install -y --no-install-recommends \
       clang \
       llvm-dev \
       libclang-dev \
@@ -34,7 +34,7 @@ RUN set -eux; \
       *) echo "Unsupported TARGETARCH: ${TARGETARCH}"; exit 1 ;; \
     esac; \
     ASSET="sccache-v${SCCACHE_VERSION}-${ARCH_TAG}"; \
-    curl -fsSL "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${ASSET}.tar.gz" -o /tmp/sccache.tgz; \
+    curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${ASSET}.tar.gz" -o /tmp/sccache.tgz; \
     echo "${EXPECTED_SHA256}  /tmp/sccache.tgz" | sha256sum -c -; \
     tar -xzf /tmp/sccache.tgz -C /tmp; \
     install "/tmp/${ASSET}/sccache" /usr/local/bin/sccache; \
