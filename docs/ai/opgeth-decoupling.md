@@ -60,7 +60,13 @@ Because everything in `op-core/` is implicitly OP-Stack-specific, new types drop
 | `params.ChainConfig` with OP extensions | `op-core/params.ChainConfig` (imported as `opparams.ChainConfig`) |
 | `params.LoadOPStackChainConfig` | `op-core/params.FromSuperchainConfig` |
 | `superutil.LoadOPStackChainConfigFromChainID` | `op-core/params.LoadChainConfigFromChainID` |
-| `eip1559.ValidateOptimismExtraData` | `op-core/eip1559.ValidateExtraData` |
+| `eip1559.{Validate,Decode,Encode}OptimismExtraData` | kept verbatim in `op-core/eip1559` |
+
+**Exception (eip1559 extraData wrappers):** the `{Validate,Decode,Encode}OptimismExtraData`
+fork-dispatching helpers keep their names. Here "Optimism" names the OP-specific extraData
+*format* (the Holocene/Jovian 1559-parameter encoding), not a redundant package prefix, and
+dropping it would collide with the per-fork `Validate*ExtraData` helpers. Keeping the names
+also makes the op-node swap a pure import-path change.
 
 **Exception:** `params.OptimismConfig` keeps its name. The field is `ChainConfig.Optimism
 *OptimismConfig` — the type pairs with the field name, which is load-bearing for JSON wire
@@ -288,8 +294,11 @@ receipt := tx.Receipt  // *types.Receipt, fetched via ethclient.TransactionRecei
 if receipt.L1BaseFeeScalar != nil {
     l1BaseFeeScalar := new(big.Int).SetUint64(*receipt.L1BaseFeeScalar)
     l1BlobBaseFeeScalar := new(big.Int).SetUint64(*receipt.L1BlobBaseFeeScalar)
-    costFunc := types.NewL1CostFuncFjord(receipt.L1GasPrice, receipt.L1BlobBaseFee, ...)
-    l1Cost, _ := costFunc(tx.Transaction.RollupCostData())
+    // fees already wired to op-core; receipt fields (read here) still come from op-geth.
+    l1Cost := opfees.L1CostFjord(opfees.TxRollupCostData(tx.Transaction), opfees.L1FeeParams{
+        L1BaseFee: receipt.L1GasPrice, L1BlobBaseFee: receipt.L1BlobBaseFee,
+        BaseFeeScalar: l1BaseFeeScalar, BlobFeeScalar: l1BlobBaseFeeScalar,
+    })
     actualCost.Add(actualCost, l1Cost)
 }
 // operatorCost
@@ -358,16 +367,16 @@ uses only the Fjord-era subset:
 - `types.RollupCostData` — struct carrying `Zeroes`, `Ones`, `FastLzSize` byte counts
 - `types.NewRollupCostData(data []byte) RollupCostData` — compute RCD from tx calldata
 - `types.NewL1CostFuncFjord(l1BaseFee, l1BlobBaseFee, baseFeeScalar, blobFeeScalar *big.Int)` —
-  returns `func(RollupCostData, blockTime uint64) *big.Int`
+  returns `func(RollupCostData) (fee, calldataGasUsed *big.Int)`
 - `(RollupCostData).EstimatedDASize()` — used by op-batcher for DA size estimation
 
-Call sites:
+Call sites (pre-migration):
 - `op-service/txinclude/txbudget.go` — L1 cost calc + **inline operator-fee arithmetic**
-- `op-service/txinclude/isthmus_cost_oracle.go` — pre-estimate L1 cost + **same inline
-  operator-fee arithmetic** (duplicated from txbudget.go)
+- `op-service/txinclude/cost_oracle.go` (formerly `isthmus_cost_oracle.go`) — pre-estimate L1
+  cost + **same inline operator-fee arithmetic** (duplicated from txbudget.go)
 - `op-batcher/batcher/types.go` — `tx.RollupCostData()` for DA size estimation
 
-The two `txinclude` files share this snippet verbatim (modulo source fields) for operator fee:
+The two `txinclude` files shared this snippet verbatim (modulo source fields) for operator fee:
 
 ```go
 operatorCost := new(big.Int).SetUint64(gasUsed)
@@ -376,8 +385,8 @@ operatorCost = operatorCost.Div(operatorCost, oneMillion)
 operatorCost = operatorCost.Add(operatorCost, new(big.Int).SetUint64(constant))
 ```
 
-Note: `txbudget.go:95` has a TODO noting the Jovian formula will change this (multiplies by 100
-instead of dividing by a million). A single shared helper also gives us one place to switch.
+A single shared helper gave us one place to switch when Jovian changed the formula (multiply
+by 100 instead of dividing by a million) — see the Jovian/Isthmus split below.
 
 ### Proposed decoupling
 
@@ -391,24 +400,61 @@ type RollupCostData struct { Zeroes, Ones, FastLzSize uint64 }
 func NewRollupCostData(data []byte) RollupCostData { /* copied verbatim */ }
 func (r RollupCostData) EstimatedDASize() *big.Int { /* copied verbatim */ }
 
-type L1CostFunc func(RollupCostData, blockTime uint64) *big.Int
+// The L1 DA cost is exposed as plain free functions per era — no closures, no L1CostFunc type.
+// op-geth uses closure factories (NewL1CostFunc*) because its EVM builds one cost func per
+// block and calls it per-tx (reuse pays off); the monorepo always constructs-and-calls-once,
+// so the closures earn nothing. This also matches the era spread to L1CostBedrock, which was
+// already a free function. The per-block fee params travel in a struct so the four same-typed
+// *big.Int args can't be transposed. Two things op-geth's signature carried are dropped: the
+// calldataGasUsed second return (only its EVM receipts need it; we never did) and the blockTime
+// arg (only its time-dispatching factory needs it — see NewL1CostFunc(config, statedb) — and we
+// dispatch by era at the call site, not by time).
+type L1FeeParams struct{ L1BaseFee, L1BlobBaseFee, BaseFeeScalar, BlobFeeScalar *big.Int }
 
-func NewL1CostFuncFjord(l1BaseFee, l1BlobBaseFee, baseFeeScalar, blobFeeScalar *big.Int) L1CostFunc
+func L1CostBedrock(rollupDataGas uint64, l1BaseFee, overhead, scalar *big.Int) *big.Int
+func L1CostEcotone(rcd RollupCostData, p L1FeeParams) *big.Int
+func L1CostFjord(rcd RollupCostData, p L1FeeParams) *big.Int
 
-// Replaces inline math duplicated across txbudget.go and isthmus_cost_oracle.go.
-// Isthmus formula: (gasUsed * scalar / 1_000_000) + constant.
-// Jovian formula will be switched here when activated (see TODO in txbudget.go).
-func OperatorCost(gasUsed, scalar, constant uint64) *big.Int
+// Replaces the inline operator-fee math duplicated across txbudget.go and cost_oracle.go.
+// Both formulas are exported; consumers pick per their needs.
+// Isthmus: (gasUsed * scalar / 1_000_000) + constant.
+// Jovian:  (gasUsed * scalar * 100) + constant.
+func OperatorCostIsthmus(gasUsed, scalar, constant uint64) *big.Int
+func OperatorCostJovian(gasUsed, scalar, constant uint64) *big.Int
 
-// Replaces the (tx *types.Transaction).RollupCostData() method from op-geth.
-func TxRollupCostData(tx *types.Transaction) RollupCostData {
-    return NewRollupCostData(tx.Data()) // + any blob/tx-type adjustments per op-geth
-}
+// Replaces the (tx *types.Transaction).RollupCostData() method from op-geth: deposits incur
+// no DA cost, and the cost data is derived from the full binary-encoded tx, not just calldata.
+func TxRollupCostData(tx *types.Transaction) RollupCostData
 ```
 
 Computation is pure arithmetic on byte counts and `*big.Int`. No dependency on
 `op-core/types`, no dependency on go-ethereum beyond `common`, `uint256` and `math/big`.
 Graph: `op-core/fees` and `op-core/types` are siblings — no cycle possible.
+
+### Status
+
+The package landed in #20261. Wiring the `op-service/txinclude` consumers (this issue) also
+simplified the L1-cost API to free functions — `opfees.L1CostFjord(rcd, opfees.L1FeeParams{…})`
+— dropping the closure factories, the `L1CostFunc` type, and op-geth's vestigial
+`calldataGasUsed` return and `blockTime` arg (see the API sketch above). `txbudget.go` and
+`cost_oracle.go` (formerly `isthmus_cost_oracle.go`) use `opfees.L1CostFjord`,
+`opfees.TxRollupCostData`, and `opfees.OperatorCostJovian`. Both txinclude sites use the
+**Jovian** operator-fee formula unconditionally: it is exact on Jovian chains (all production
+chains) and strictly ≥ the Isthmus formula, so on a pre-Jovian chain it only over-estimates,
+which over-reserves budget rather than under-budgeting.
+
+The op-core API is **monorepo-best, not op-geth-faithful** — the names/shapes diverge freely;
+only the *computed values* must match. That equivalence is pinned by **live differential
+tests** in `op-core/fees` that compare against op-geth's exported functions while the build
+still resolves go-ethereum to op-geth: `TestL1CostBedrockParity` (vs `types.L1Cost`),
+`TestFjordL1CostParity` (vs `types.NewL1CostFuncFjord`), and `TestTxRollupCostDataParity` (vs
+`(*types.Transaction).RollupCostData`). Ecotone has only a value-pin (`TestEcotoneL1CostFunc`):
+op-geth's Ecotone constructor is unexported, so a live diff isn't cheaply possible. These
+differential tests are removed at the final cutover when the op-geth dependency is dropped.
+
+The remaining `tx.RollupCostData()` call site, `op-batcher/batcher/types.go`, swaps to
+`opfees.TxRollupCostData` as part of the op-batcher → `op-service/sources` migration (§11), not
+the fees wiring.
 
 ---
 
@@ -586,15 +632,33 @@ carry all OP hardfork timestamps from the registry, rather than going through `*
 op-geth adds `eip1559_optimism.go` with self-contained functions for Holocene/Jovian parameter
 encoding. Used in op-node:
 
-- `rollup/derive/payload_util.go` – `EncodeHolocene1559Params`
-- `rollup/interop/indexing/attributes.go` – `EncodeHolocene1559Params`, `DecodeJovianExtraData`
-- `rollup/attributes/engine_consolidate.go` – `DecodeHolocene1559Params`
+- `rollup/derive/payload_util.go` – `ValidateOptimismExtraData`, `DecodeOptimismExtraData`,
+  `EncodeHolocene1559Params`
+- `rollup/attributes/engine_consolidate.go` – `ValidateOptimismExtraData`,
+  `DecodeOptimismExtraData`, `ValidateHolocene1559Params`, `DecodeHolocene1559Params`
+- `rollup/derive/system_config.go` – `ValidateHolocene1559Params`
 
-Signatures operate on `[]byte` and `uint64` scalars only. No go-ethereum type dependencies.
+(The `rollup/interop/indexing/attributes.go` site listed in earlier drafts no longer uses
+eip1559.) Signatures operate on `[]byte` and `uint64` scalars only. No go-ethereum type
+dependencies.
+
+The op-e2e action helpers (`l1_miner.go`, `engineapi/block_processor.go`,
+`engineapi/l2_engine_api.go`) additionally use `EncodeOptimismExtraData` and
+`DecodeHoloceneExtraData`; those migrate with the test suites in §13.
 
 ### Proposed decoupling
 
-**Move to `op-core/eip1559/`**. Copy verbatim; the only import is `errors`.
+**Move to `op-core/eip1559/`**, copied verbatim; the only import is `errors`.
+
+### Status
+
+The package landed in #20268 with a subset of the helpers. Wiring op-node onto it (this issue)
+added the one symbol op-node needed that the initial extraction omitted —
+`ValidateOptimismExtraData` (the fork-dispatching validator that pairs with the already-present
+`DecodeOptimismExtraData`). All four op-node files now import `op-core/eip1559` and no op-node
+code imports `go-ethereum/consensus/misc/eip1559`. `EncodeOptimismExtraData` and
+`DecodeHoloceneExtraData` are still absent from `op-core/eip1559`; add them when §13 migrates
+the op-e2e helpers.
 
 ---
 
@@ -1021,8 +1085,8 @@ This is a bounded follow-up, unblocked by `op-core/params` + `GethChainConfig()`
 | `IsDepositTx()` free function | `core/types/transaction.go` | `op-core/types/` | Trivial |
 | `IsSystemTx()`, `SourceHash()`, `Mint()` helpers | `core/types/transaction.go` | `op-core/types/` | Low |
 | `PostExecTx` type + `MarshalBinary`, `PostExecTxType` constant, `IsPostExecTx()` | `core/types/post_exec_tx.go` | `op-core/types/` | Low |
-| `RollupCostData`, `NewRollupCostData`, `EstimatedDASize`, `NewL1CostFuncFjord`, `L1CostFunc` | `core/types/rollup_cost.go` | `op-core/fees/` | Low |
-| `OperatorCost(gasUsed, scalar, constant)` — new helper | n/a (deduplicates inline math) | `op-core/fees/` | Trivial |
+| `RollupCostData`, `NewRollupCostData`, `EstimatedDASize`; L1 cost as free funcs `L1Cost{Bedrock,Ecotone,Fjord}` + `L1FeeParams` (no `L1CostFunc` type) | `core/types/rollup_cost.go` | `op-core/fees/` | Low |
+| `OperatorCost{Isthmus,Jovian}(gasUsed, scalar, constant)` — replaces inline math | n/a (deduplicates inline math) | `op-core/fees/` | Trivial |
 | `TxRollupCostData(tx)` — replaces method | `core/types/transaction.go` | `op-core/fees/` | Trivial |
 | `Receipt` (receipt L1-cost fields) | `core/types/receipt_opstack.go` | `op-core/types/` | Medium |
 | `OptimismConfig` struct | `params/config.go` | `op-core/params/` | Trivial |
