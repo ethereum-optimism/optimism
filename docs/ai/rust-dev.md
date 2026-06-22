@@ -49,6 +49,10 @@ just build-node      # kona-node
 just build-op-reth   # op-reth
 ```
 
+### superchain-registry submodule (op-reth)
+
+The `reth-optimism-chainspec` crate's `build.rs` materializes its chain-config archive (`res/superchain-configs.tar`, gitignored) from the `superchain-registry` submodule at the repo root. Any op-reth build that enables the `superchain-configs` feature (the `op-reth` binary, `clippy --all-features`, the chainspec tests) needs that submodule checked out, or the build fails. Initialize it with `just update-superchain-registry-submodule` (or `just sync-superchain`, which also does it). Once `res/` holds the archive, later builds reuse it without touching the submodule (default mode mirrors kona's `KONA_SYNC_SUPERCHAIN`); set `OP_RETH_SYNC_SUPERCHAIN=1` to force a regeneration.
+
 ### Running Tests
 
 Tests use `cargo-nextest` (not `cargo test`) for unit tests:
