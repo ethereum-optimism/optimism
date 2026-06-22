@@ -104,8 +104,7 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
 
         // ── Game A: Created from anchor, goes unchallenged ──
         uint256 seqNumA = anchorSeqNum + 1000;
-        Claim claimA = Claim.wrap(keccak256("claimA"));
-        (ZKDisputeGame gameA, uint32 indexA) = _createGame(claimA, seqNumA, type(uint32).max);
+        (ZKDisputeGame gameA, Claim claimA, uint32 indexA) = _createGame(keccak256("claimA"), seqNumA, type(uint32).max);
 
         assertEq(uint8(gameA.status()), uint8(GameStatus.IN_PROGRESS));
         assertEq(gameA.gameCreator(), proposer);
@@ -117,12 +116,11 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
 
         // ── Game B: Created referencing A (must happen before closing A) ──
         uint256 seqNumB = seqNumA + 1000;
-        Claim claimB = Claim.wrap(keccak256("claimB"));
-        (ZKDisputeGame gameB, uint32 indexB) = _createGame(claimB, seqNumB, indexA);
+        (ZKDisputeGame gameB, Claim claimB, uint32 indexB) = _createGame(keccak256("claimB"), seqNumB, indexA);
 
         assertEq(gameB.parentIndex(), indexA);
         assertEq(gameB.startingRootHash().raw(), claimA.raw());
-        assertEq(gameB.startingBlockNumber(), seqNumA);
+        assertEq(gameB.startingSequenceNumber(), seqNumA);
 
         // Challenge, prove (third party), and resolve immediately.
         vm.prank(challenger);
@@ -138,8 +136,7 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
 
         // ── Game C: Created referencing B (must happen before closing B) ──
         uint256 seqNumC = seqNumB + 1000;
-        Claim claimC = Claim.wrap(keccak256("claimC"));
-        (ZKDisputeGame gameC,) = _createGame(claimC, seqNumC, indexB);
+        (ZKDisputeGame gameC, Claim claimC,) = _createGame(keccak256("claimC"), seqNumC, indexB);
 
         // Proposer self-proves without challenge → resolve immediately.
         vm.prank(proposer);
@@ -194,18 +191,18 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
 
         // ── Base game: established as the anchor ──
         s2_seqNumBase = anchorSeqNum + 1000;
-        s2_claimBase = Claim.wrap(keccak256("anchorClaimBase"));
         uint32 indexBase;
-        (s2_gameBase, indexBase) = _createGame(s2_claimBase, s2_seqNumBase, type(uint32).max);
+        (s2_gameBase, s2_claimBase, indexBase) =
+            _createGame(keccak256("anchorClaimBase"), s2_seqNumBase, type(uint32).max);
 
         _resolveUnchallenged(s2_gameBase);
 
         // ── Game D: referencing base game (created before closing base) ──
         uint32 indexD;
-        (s2_gameD, indexD) = _createGame(Claim.wrap(keccak256("claimD")), s2_seqNumBase + 1000, indexBase);
+        (s2_gameD,, indexD) = _createGame(keccak256("claimD"), s2_seqNumBase + 1000, indexBase);
 
         // ── Game E: referencing D (created before D is resolved) ──
-        (s2_gameE,) = _createGame(Claim.wrap(keccak256("claimE")), s2_seqNumBase + 2000, indexD);
+        (s2_gameE,,) = _createGame(keccak256("claimE"), s2_seqNumBase + 2000, indexD);
 
         // Challenge D and let prove deadline expire.
         vm.prank(challenger);
@@ -224,8 +221,7 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
 
         // ── Game F: proposer recovers from anchor (parentIndex = uint32.max) ──
         s2_seqNumF = s2_seqNumBase + 500;
-        s2_claimF = Claim.wrap(keccak256("claimF"));
-        (s2_gameF,) = _createGame(s2_claimF, s2_seqNumF, type(uint32).max);
+        (s2_gameF, s2_claimF,) = _createGame(keccak256("claimF"), s2_seqNumF, type(uint32).max);
 
         _resolveUnchallenged(s2_gameF);
 
@@ -309,12 +305,12 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
         // ── Create the first ZK game from anchor (parentIndex = uint32.max) ──
         // It must inherit the PDG-established anchor, not the original starting anchor.
         uint256 zkSeqNum = pdgSeqNum + 1000;
-        Claim zkClaim = Claim.wrap(keccak256("zkRootClaimAfterUpgrade"));
-        (ZKDisputeGame zkGame,) = _createGame(zkClaim, zkSeqNum, type(uint32).max);
+        (ZKDisputeGame zkGame, Claim zkClaim,) =
+            _createGame(keccak256("zkRootClaimAfterUpgrade"), zkSeqNum, type(uint32).max);
 
         assertEq(zkGame.parentIndex(), type(uint32).max);
         assertEq(zkGame.startingRootHash().raw(), pdgClaim.raw());
-        assertEq(zkGame.startingBlockNumber(), pdgSeqNum);
+        assertEq(zkGame.startingSequenceNumber(), pdgSeqNum);
         assertTrue(zkGame.wasRespectedGameTypeWhenCreated());
 
         // ── Full challenge-prove-resolve cycle on the new ZK game ──
@@ -340,23 +336,20 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
     //  Helpers
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// @notice Creates a ZK dispute game via the factory.
+    /// @notice Creates a ZK dispute game via the factory using a canonical SuperRootProof so the
+    ///         init-time hash binding check passes.
     function _createGame(
-        Claim _claim,
+        bytes32 _outputRoot,
         uint256 _seqNum,
         uint32 _parentIndex
     )
         internal
-        returns (ZKDisputeGame game_, uint32 index_)
+        returns (ZKDisputeGame game_, Claim rootClaim_, uint32 index_)
     {
+        bytes memory ed;
+        (ed, rootClaim_) = _makeZKExtraDataAndClaim(_parentIndex, uint64(_seqNum), _outputRoot);
         vm.prank(proposer);
-        game_ = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: bond }(gameType, _claim, abi.encodePacked(_seqNum, _parentIndex))
-                )
-            )
-        );
+        game_ = ZKDisputeGame(payable(address(disputeGameFactory.create{ value: bond }(gameType, rootClaim_, ed))));
         index_ = uint32(disputeGameFactory.gameCount() - 1);
     }
 

@@ -1,15 +1,19 @@
 //! Additional support for pooled interop transactions.
 
 use alloy_consensus::Transaction;
-use reth_transaction_pool::PoolTransaction;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 use crate::interop_filter::CROSS_L2_INBOX_ADDRESS;
 
-/// Returns true if the transaction's access list targets `CROSS_L2_INBOX_ADDRESS`
-/// with at least one storage key.
-pub(crate) fn is_interop_tx<T>(tx: &T) -> bool
+/// Returns true if the transaction's access list targets `CROSS_L2_INBOX_ADDRESS` with at least
+/// one storage key. Detection is intrinsic to the tx, so it also catches interop txs that never
+/// went through interop validation (e.g. private or locally-submitted txs).
+pub fn is_interop_tx<T>(tx: &T) -> bool
 where
-    T: PoolTransaction + Transaction,
+    T: Transaction,
 {
     tx.access_list()
         .map(|al| {
@@ -17,6 +21,26 @@ where
                 .any(|item| item.address == CROSS_L2_INBOX_ADDRESS && !item.storage_keys.is_empty())
         })
         .unwrap_or(false)
+}
+
+/// Shareable interop failsafe gate. The interop filter client writes it; the payload builder reads
+/// it to exclude interop txs while it is enabled. Cloning shares the flag, so one handle keeps the
+/// writer and reader in sync.
+#[derive(Debug, Clone, Default)]
+pub struct InteropFailsafe {
+    inner: Arc<AtomicBool>,
+}
+
+impl InteropFailsafe {
+    /// Returns the current failsafe state.
+    pub fn enabled(&self) -> bool {
+        self.inner.load(Ordering::Acquire)
+    }
+
+    /// Sets the failsafe state.
+    pub fn set(&self, enabled: bool) {
+        self.inner.store(enabled, Ordering::Release);
+    }
 }
 
 /// Helper trait that allows attaching an interop deadline.

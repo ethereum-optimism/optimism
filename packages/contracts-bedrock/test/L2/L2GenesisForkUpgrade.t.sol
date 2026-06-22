@@ -149,6 +149,8 @@ abstract contract L2GenesisForkUpgrade_Interop_TestInit is L2GenesisForkUpgrade_
     function setUp() public virtual override {
         super.enableInterop();
         L2GenesisForkUpgrade_TestInit.setUp();
+        // Interop and custom gas token are not a supported combination.
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
     }
 
     function _executeCurrentBundle() internal virtual override {

@@ -1053,6 +1053,33 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), 1 ether, "ZK init bond not set");
     }
 
+    /// @notice Tests that enabling the ZK dispute game encodes the 140-byte CWIA layout in the
+    ///         factory game args. As a super game, chain scoping comes from the SuperRootProof
+    ///         preimage committed to via rootClaim, so no l2ChainId field is included.
+    function test_upgrade_zkGameArgsLayout_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        v2UpgradeInput.disputeGameConfigs[5].enabled = true;
+        v2UpgradeInput.disputeGameConfigs[5].initBond = 1 ether;
+        v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
+            IOPContractsManagerUtils.ZKDisputeGameConfig({
+                absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
+                verifier: IZKVerifier(address(0xBEEF)),
+                maxChallengeDuration: Duration.wrap(uint64(7 days)),
+                maxProveDuration: Duration.wrap(uint64(3 days)),
+                challengerBond: 1 ether
+            })
+        );
+
+        runCurrentUpgradeV2(chainPAO);
+
+        // ZK CWIA args layout:
+        // absolutePrestate(32) + verifier(20) + maxChallengeDuration(8) + maxProveDuration(8)
+        // + challengerBond(32) + anchorStateRegistry(20) + delayedWETH(20) = 140 bytes
+        bytes memory args = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
+        assertEq(args.length, 140, "ZK game args length must be 140 bytes (32+20+8+8+32+20+20)");
+    }
+
     /// @notice Tests that setting ZK config to enabled without the dev feature reverts.
     function test_upgrade_enableZKGameWithoutDevFeature_reverts() public {
         // Mock the container to report ZK_DISPUTE_GAME dev feature as disabled, regardless of

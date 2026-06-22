@@ -19,5 +19,4 @@ func TestSmoke(gt *testing.T) {
 	require.NotZero(zk.Args.MaxChallengeDuration, "maxChallengeDuration must be set")
 	require.NotZero(zk.Args.MaxProveDuration, "maxProveDuration must be set")
 	require.Positive(zk.Args.ChallengerBond.Sign(), "challengerBond must be non-zero")
-	require.Equal(sys.L2Chain.ChainID().ToBig(), zk.Args.L2ChainID, "l2ChainId must match deployed chain")
 }

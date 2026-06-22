@@ -58,6 +58,7 @@ jobs:
       - rust-prepare-and-restore-cache: &fmt-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-fmt
+          init_superchain_submodule: false
       - run:
           name: Check formatting
           working_directory: <<parameters.directory>>
@@ -112,6 +113,7 @@ jobs:
       - rust-prepare-and-restore-cache: &deny-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-deny
+          init_superchain_submodule: false
       - run:
           name: Run cargo deny
           working_directory: <<parameters.directory>>
@@ -141,6 +143,7 @@ jobs:
       - rust-prepare-and-restore-cache: &zepter-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-zepter
+          init_superchain_submodule: false
       - run:
           name: Check feature propagation
           working_directory: <<parameters.directory>>
@@ -162,6 +165,7 @@ jobs:
       - rust-prepare-and-restore-cache: &typos-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-typos
+          init_superchain_submodule: false
       - run:
           name: Check for typos
           working_directory: <<parameters.directory>>
@@ -187,6 +191,7 @@ jobs:
       - rust-prepare-and-restore-cache: &no-std-cache-args
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-no-std
+          init_superchain_submodule: false
       - run:
           name: Check no_std compatibility
           working_directory: <<parameters.directory>>
@@ -299,6 +304,10 @@ jobs:
       # builds Go code. Restore the shared Go module cache to avoid a cold
       # `go mod download` (slow, and a per-pipeline proxy.golang.org flake risk).
       - restore-go-mod-cache
+      # Build the superchain-configs.zip the Go dumper //go:embeds (no prep-superchain job here).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: Cross-language Interop activation diff
           command: |
@@ -617,7 +626,7 @@ jobs:
             lychee --config ./lychee.toml --cache-exclude-status 429 '**/README.md' || true
 
   # Verifies that the committed `etc/{chainList,configs,depsets}.json` snapshots
-  # in `kona-registry` match what `KONA_BIND=true cargo build -p kona-registry`
+  # in `kona-registry` match what `KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry`
   # would regenerate from the current `superchain-registry` submodule. Catches
   # drift between submodule and snapshot — i.e. someone bumped the submodule
   # without refreshing the snapshots, or hand-edited the snapshots, or refreshed
@@ -629,11 +638,6 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - run:
-          name: Initialize superchain-registry submodule
-          command: |
-            git submodule update --init --depth=1 \
-              packages/contracts-bedrock/lib/superchain-registry
       - rust-prepare-and-restore-cache: &kona-registry-snapshot-cache
           directory: rust
           prefix: rust-kona-registry-snapshot
@@ -641,7 +645,7 @@ jobs:
           name: Regenerate kona-registry snapshots
           working_directory: rust/kona
           environment:
-            KONA_BIND: "true"
+            KONA_SYNC_SUPERCHAIN: "true"
           command: cargo build -p kona-registry
       - run:
           name: Assert committed snapshots match regenerated output
@@ -652,13 +656,52 @@ jobs:
               echo "kona-registry etc/ snapshots are out of sync with the"
               echo "superchain-registry submodule. Run:"
               echo
-              echo "  KONA_BIND=true cargo build -p kona-registry"
+              echo "  KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry"
               echo
               echo "from rust/kona and commit the resulting changes to"
               echo "rust/kona/crates/protocol/registry/etc/."
               exit 1
             fi
       - rust-save-build-cache: *kona-registry-snapshot-cache
+
+  # Verifies that op-reth's committed superchain-configs.tar.sha256 and the
+  # generated chain_specs.rs match what `OP_RETH_SYNC_SUPERCHAIN=1 cargo build -p
+  # reth-optimism-chainspec --features superchain-configs` regenerates from the
+  # current superchain-registry submodule (the tar itself is gitignored). Catches
+  # a submodule bump without a refresh, or a hand-edited chain_specs.rs.
+  op-reth-superchain-snapshot-check:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: large.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &op-reth-superchain-snapshot-cache
+          directory: rust
+          prefix: rust-op-reth-superchain-snapshot
+      - run:
+          name: Regenerate op-reth superchain archive
+          working_directory: rust
+          environment:
+            OP_RETH_SYNC_SUPERCHAIN: "1"
+          command: cargo build -p reth-optimism-chainspec --features superchain-configs
+      - run:
+          name: Assert committed sha + chain_specs match regenerated output
+          command: |
+            if ! git diff --exit-code -- \
+                rust/op-reth/crates/chainspec/res/superchain-configs.tar.sha256 \
+                rust/op-reth/crates/chainspec/src/superchain/chain_specs.rs; then
+              echo
+              echo "op-reth superchain artifacts are out of sync with the"
+              echo "superchain-registry submodule. Run:"
+              echo
+              echo "  just sync-superchain-rust"
+              echo
+              echo "and commit the updated res/superchain-configs.tar.sha256 and"
+              echo "src/superchain/chain_specs.rs."
+              exit 1
+            fi
+      - rust-save-build-cache: *op-reth-superchain-snapshot-cache
 
   # Kona Publish Prestate Artifacts
   kona-publish-prestate-artifacts:
@@ -942,6 +985,9 @@ workflows:
           name: rust-sp1-guest-checks
           context: *rust-ci-context
 
+      - op-reth-superchain-snapshot-check:
+          context: *rust-ci-context
+
       # -----------------------------------------------------------------------
       # Required gate — fans in on required Rust CI jobs
       # -----------------------------------------------------------------------
@@ -971,6 +1017,7 @@ workflows:
             - rollup-boost-checks: terminal
             - kona-registry-snapshot-check: terminal
             - rust-sp1-guest-checks: terminal
+            - op-reth-superchain-snapshot-check: terminal
           context:
             - circleci-api-token
   # =====================================

@@ -1,5 +1,6 @@
 //! Additional configuration for the OP builder
 
+use reth_optimism_txpool::interop::InteropFailsafe;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -14,6 +15,9 @@ pub struct OpBuilderConfig {
     pub gas_limit_config: OpGasLimitConfig,
     /// Local SDM `PostExec` production opt-in. Shared with the admin RPC.
     pub sdm_post_exec_opt_in: SdmPostExecOptIn,
+    /// Interop failsafe gate. Set by the interop filter client; read by the builder to exclude
+    /// interop txs from blocks while it is enabled.
+    pub interop_failsafe: InteropFailsafe,
     /// Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes.
     ///
     /// `None` disables the limit (the historical behavior). When set, the payload builder stops
@@ -32,6 +36,7 @@ impl OpBuilderConfig {
             da_config,
             gas_limit_config,
             sdm_post_exec_opt_in: SdmPostExecOptIn::default(),
+            interop_failsafe: InteropFailsafe::default(),
             max_uncompressed_block_size: None,
         }
     }

@@ -23,7 +23,7 @@
 //   hard forks, etc.
 //
 // For example, for `UNICHAIN_MAINNET`, the `genesis/mainnet/unichain.json.zz` and
-// `configs/mainnet/base.json` is loaded and combined into the `OpChainSpec` struct.
+// `configs/mainnet/unichain.json` is loaded and combined into the `OpChainSpec` struct.
 // See `read_superchain_genesis` in `configs.rs` for more details.
 //
 // To update the chain specs, run the `fetch_superchain_config.sh` script in the `res` directory.
@@ -32,38 +32,28 @@
 
 extern crate alloc;
 
-mod base;
-mod base_sepolia;
 mod basefee;
 mod bootnodes;
-
-pub mod constants;
 mod dev;
-mod op;
-mod op_sepolia;
 
 #[cfg(feature = "superchain-configs")]
 mod superchain;
 #[cfg(feature = "superchain-configs")]
 pub use superchain::*;
 
-pub use base::BASE_MAINNET;
-pub use base_sepolia::BASE_SEPOLIA;
 pub use basefee::*;
 pub use dev::OP_DEV;
-pub use op::OP_MAINNET;
-pub use op_sepolia::OP_SEPOLIA;
 
 /// Re-export for convenience
 pub use reth_optimism_forks::*;
 
 use alloc::{boxed::Box, vec, vec::Vec};
-use alloy_chains::Chain;
+use alloy_chains::{Chain, NamedChain};
 use alloy_consensus::{BlockHeader, Header, proofs::storage_root_unhashed};
 use alloy_eips::eip7840::BlobParams;
 use alloy_genesis::Genesis;
 use alloy_hardforks::Hardfork;
-use alloy_primitives::{B256, U256};
+use alloy_primitives::{B256, U256, b256};
 use derive_more::{Constructor, Deref, From, Into};
 use reth_chainspec::{
     BaseFeeParams, BaseFeeParamsKind, ChainSpec, ChainSpecBuilder, DepositContract,
@@ -82,22 +72,26 @@ pub struct OpChainSpecBuilder {
 }
 
 impl OpChainSpecBuilder {
-    /// Construct a new builder from the base mainnet chain spec.
-    pub fn base_mainnet() -> Self {
-        let mut inner = ChainSpecBuilder::default()
-            .chain(BASE_MAINNET.chain)
-            .genesis(BASE_MAINNET.genesis.clone());
-        let forks = BASE_MAINNET.hardforks.clone();
+    /// Construct a new builder from the optimism mainnet chain spec.
+    #[cfg(feature = "superchain-configs")]
+    pub fn optimism_mainnet() -> Self {
+        let mut inner =
+            ChainSpecBuilder::default().chain(OP_MAINNET.chain).genesis(OP_MAINNET.genesis.clone());
+        let forks = OP_MAINNET.hardforks.clone();
         inner = inner.with_forks(forks);
 
         Self { inner }
     }
 
-    /// Construct a new builder from the optimism mainnet chain spec.
-    pub fn optimism_mainnet() -> Self {
+    /// Construct a new builder from the optimism sepolia chain spec.
+    ///
+    /// Unlike [`Self::optimism_mainnet`], OP Sepolia is Bedrock-from-genesis (all forks activate at
+    /// block 0), which makes it the right base for tests that launch a node from a block-0 genesis.
+    #[cfg(feature = "superchain-configs")]
+    pub fn optimism_sepolia() -> Self {
         let mut inner =
-            ChainSpecBuilder::default().chain(OP_MAINNET.chain).genesis(OP_MAINNET.genesis.clone());
-        let forks = OP_MAINNET.hardforks.clone();
+            ChainSpecBuilder::default().chain(OP_SEPOLIA.chain).genesis(OP_SEPOLIA.genesis.clone());
+        let forks = OP_SEPOLIA.hardforks.clone();
         inner = inner.with_forks(forks);
 
         Self { inner }
@@ -212,8 +206,7 @@ impl OpChainSpecBuilder {
     /// [`Self::genesis`])
     pub fn build(self) -> OpChainSpec {
         let mut inner = self.inner.build();
-        inner.genesis_header =
-            SealedHeader::seal_slow(make_op_genesis_header(&inner.genesis, &inner.hardforks));
+        inner.genesis_header = make_op_sealed_genesis_header(&inner.genesis, &inner.hardforks);
 
         OpChainSpec { inner }
     }
@@ -343,6 +336,13 @@ impl OpHardforks for OpChainSpec {
     }
 }
 
+/// OP Mainnet's genesis is the Bedrock transition block (105235063), whose state was imported
+/// from a trusted snapshot rather than constructed from a genesis allocation. Its header hash
+/// therefore can't be recomputed from the genesis state and is pinned here, mirroring op-geth's
+/// expected-hash override in `core/superchain.go`.
+const OP_MAINNET_GENESIS_HASH: B256 =
+    b256!("0x7ca38a1916c42007829c55e69d3e9a73265554b586a499015373241b8a3fa48b");
+
 impl From<Genesis> for OpChainSpec {
     fn from(genesis: Genesis) -> Self {
         use reth_optimism_forks::OpHardfork;
@@ -415,13 +415,11 @@ impl From<Genesis> for OpChainSpec {
 
         block_hardforks.append(&mut time_hardforks);
 
-        // Ordered Hardforks
-        let mainnet_hardforks = OP_MAINNET_HARDFORKS.clone();
-        let mainnet_order = mainnet_hardforks.forks_iter();
-
+        // Order the collected forks by the canonical OP hardfork sequence.
         let mut ordered_hardforks = Vec::with_capacity(block_hardforks.len());
-        for (hardfork, _) in mainnet_order {
-            if let Some(pos) = block_hardforks.iter().position(|(e, _)| **e == *hardfork) {
+        for hardfork in OP_HARDFORK_ORDER {
+            if let Some(pos) = block_hardforks.iter().position(|(e, _)| e.name() == hardfork.name())
+            {
                 ordered_hardforks.push(block_hardforks.remove(pos));
             }
         }
@@ -430,7 +428,7 @@ impl From<Genesis> for OpChainSpec {
         ordered_hardforks.append(&mut block_hardforks);
 
         let hardforks = ChainHardforks::new(ordered_hardforks);
-        let genesis_header = SealedHeader::seal_slow(make_op_genesis_header(&genesis, &hardforks));
+        let genesis_header = make_op_sealed_genesis_header(&genesis, &hardforks);
 
         Self {
             inner: ChainSpec {
@@ -521,15 +519,30 @@ pub fn make_op_genesis_header(genesis: &Genesis, hardforks: &ChainHardforks) -> 
     header
 }
 
+/// Builds the sealed genesis header for an OP chain.
+///
+/// OP Mainnet's Bedrock genesis header can't be recomputed from genesis state (see
+/// [`OP_MAINNET_GENESIS_HASH`]), so its hash is pinned; every other chain's header is sealed by
+/// computing its hash. This is the single place that applies the OP Mainnet pin, so all genesis
+/// construction paths agree.
+pub(crate) fn make_op_sealed_genesis_header(
+    genesis: &Genesis,
+    hardforks: &ChainHardforks,
+) -> SealedHeader {
+    let header = make_op_genesis_header(genesis, hardforks);
+    if genesis.config.chain_id == NamedChain::Optimism as u64 {
+        SealedHeader::new(header, OP_MAINNET_GENESIS_HASH)
+    } else {
+        SealedHeader::seal_slow(header)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::string::{String, ToString};
     use alloy_genesis::{ChainConfig, Genesis};
-    use alloy_op_hardforks::{
-        BASE_MAINNET_JOVIAN_TIMESTAMP, BASE_SEPOLIA_JOVIAN_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP,
-        OP_SEPOLIA_JOVIAN_TIMESTAMP,
-    };
-    use alloy_primitives::{b256, hex};
+    use alloy_op_hardforks::{OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP};
+    use alloy_primitives::b256;
     use reth_chainspec::{BaseFeeParams, BaseFeeParamsKind, test_fork_ids};
     use reth_ethereum_forks::{EthereumHardfork, ForkCondition, ForkHash, ForkId, Head};
     use reth_optimism_forks::{OpHardfork, OpHardforks};
@@ -573,70 +586,6 @@ mod tests {
         assert_ne!(root_origin, root_fix);
         assert_eq!(root_origin, origin_root);
         assert_eq!(root_fix, expected_root);
-    }
-
-    #[test]
-    fn base_mainnet_forkids() {
-        let mut base_mainnet = OpChainSpecBuilder::base_mainnet().build();
-        base_mainnet.inner.genesis_header.set_hash(BASE_MAINNET.genesis_hash());
-        test_fork_ids(
-            &BASE_MAINNET,
-            &[
-                (
-                    Head { number: 0, ..Default::default() },
-                    ForkId { hash: ForkHash([0x67, 0xda, 0x02, 0x60]), next: 1704992401 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1704992400, ..Default::default() },
-                    ForkId { hash: ForkHash([0x67, 0xda, 0x02, 0x60]), next: 1704992401 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1704992401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x3c, 0x28, 0x3c, 0xb3]), next: 1710374401 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1710374400, ..Default::default() },
-                    ForkId { hash: ForkHash([0x3c, 0x28, 0x3c, 0xb3]), next: 1710374401 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1710374401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x51, 0xcc, 0x98, 0xb3]), next: 1720627201 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1720627200, ..Default::default() },
-                    ForkId { hash: ForkHash([0x51, 0xcc, 0x98, 0xb3]), next: 1720627201 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1720627201, ..Default::default() },
-                    ForkId { hash: ForkHash([0xe4, 0x01, 0x0e, 0xb9]), next: 1726070401 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1726070401, ..Default::default() },
-                    ForkId { hash: ForkHash([0xbc, 0x38, 0xf9, 0xca]), next: 1736445601 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1736445601, ..Default::default() },
-                    ForkId { hash: ForkHash([0x3a, 0x2a, 0xf1, 0x83]), next: 1746806401 },
-                ),
-                // Isthmus
-                (
-                    Head { number: 0, timestamp: 1746806401, ..Default::default() },
-                    ForkId {
-                        hash: ForkHash([0x86, 0x72, 0x8b, 0x4e]),
-                        next: BASE_MAINNET_JOVIAN_TIMESTAMP,
-                    },
-                ),
-                // Jovian
-                (
-                    Head {
-                        number: 0,
-                        timestamp: BASE_MAINNET_JOVIAN_TIMESTAMP,
-                        ..Default::default()
-                    },
-                    BASE_MAINNET.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
-                ),
-            ],
-        );
     }
 
     #[test]
@@ -707,10 +656,7 @@ mod tests {
 
     #[test]
     fn op_mainnet_forkids() {
-        let mut op_mainnet = OpChainSpecBuilder::optimism_mainnet().build();
-        // for OP mainnet we have to do this because the genesis header can't be properly computed
-        // from the genesis.json file
-        op_mainnet.inner.genesis_header.set_hash(OP_MAINNET.genesis_hash());
+        let op_mainnet = OpChainSpecBuilder::optimism_mainnet().build();
         test_fork_ids(
             &op_mainnet,
             &[
@@ -782,96 +728,6 @@ mod tests {
     }
 
     #[test]
-    fn base_sepolia_forkids() {
-        test_fork_ids(
-            &BASE_SEPOLIA,
-            &[
-                (
-                    Head { number: 0, ..Default::default() },
-                    ForkId { hash: ForkHash([0xb9, 0x59, 0xb9, 0xf7]), next: 1699981200 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1699981199, ..Default::default() },
-                    ForkId { hash: ForkHash([0xb9, 0x59, 0xb9, 0xf7]), next: 1699981200 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1699981200, ..Default::default() },
-                    ForkId { hash: ForkHash([0x60, 0x7c, 0xd5, 0xa1]), next: 1708534800 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1708534799, ..Default::default() },
-                    ForkId { hash: ForkHash([0x60, 0x7c, 0xd5, 0xa1]), next: 1708534800 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1708534800, ..Default::default() },
-                    ForkId { hash: ForkHash([0xbe, 0x96, 0x9b, 0x17]), next: 1716998400 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1716998399, ..Default::default() },
-                    ForkId { hash: ForkHash([0xbe, 0x96, 0x9b, 0x17]), next: 1716998400 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1716998400, ..Default::default() },
-                    ForkId { hash: ForkHash([0x4e, 0x45, 0x7a, 0x49]), next: 1723478400 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1723478399, ..Default::default() },
-                    ForkId { hash: ForkHash([0x4e, 0x45, 0x7a, 0x49]), next: 1723478400 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1723478400, ..Default::default() },
-                    ForkId { hash: ForkHash([0x5e, 0xdf, 0xa3, 0xb6]), next: 1732633200 },
-                ),
-                (
-                    Head { number: 0, timestamp: 1732633200, ..Default::default() },
-                    ForkId { hash: ForkHash([0x8b, 0x5e, 0x76, 0x29]), next: 1744905600 },
-                ),
-                // Isthmus
-                (
-                    Head { number: 0, timestamp: 1744905600, ..Default::default() },
-                    ForkId {
-                        hash: ForkHash([0x06, 0x0a, 0x4d, 0x1d]),
-                        next: BASE_SEPOLIA_JOVIAN_TIMESTAMP,
-                    },
-                ),
-                // Jovian
-                (
-                    Head {
-                        number: 0,
-                        timestamp: BASE_SEPOLIA_JOVIAN_TIMESTAMP,
-                        ..Default::default()
-                    },
-                    BASE_SEPOLIA.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
-                ),
-            ],
-        );
-    }
-
-    #[test]
-    fn base_mainnet_genesis() {
-        let genesis = BASE_MAINNET.genesis_header();
-        assert_eq!(
-            genesis.hash_slow(),
-            b256!("0xf712aa9241cc24369b143cf6dce85f0902a9731e70d66818a3a5845b296c73dd")
-        );
-        let base_fee = BASE_MAINNET.next_block_base_fee(genesis, genesis.timestamp).unwrap();
-        // <https://base.blockscout.com/block/1>
-        assert_eq!(base_fee, 980000000);
-    }
-
-    #[test]
-    fn base_sepolia_genesis() {
-        let genesis = BASE_SEPOLIA.genesis_header();
-        assert_eq!(
-            genesis.hash_slow(),
-            b256!("0x0dcc9e089e30b90ddfc55be9a37dd15bc551aeee999d2e2b51414c54eaf934e4")
-        );
-        let base_fee = BASE_SEPOLIA.next_block_base_fee(genesis, genesis.timestamp).unwrap();
-        // <https://base-sepolia.blockscout.com/block/1>
-        assert_eq!(base_fee, 980000000);
-    }
-
-    #[test]
     fn op_sepolia_genesis() {
         let genesis = OP_SEPOLIA.genesis_header();
         assert_eq!(
@@ -884,20 +740,14 @@ mod tests {
     }
 
     #[test]
-    fn latest_base_mainnet_fork_id() {
+    fn op_mainnet_genesis() {
+        // OP Mainnet's Bedrock genesis header can't be recomputed from genesis state, so the
+        // registry path pins its hash (`OP_MAINNET_GENESIS_HASH`). `genesis_hash` returns the
+        // pinned value; `hash_slow` would recompute the wrong one.
         assert_eq!(
-            ForkId { hash: ForkHash(hex!("1cfeafc9")), next: 0 },
-            BASE_MAINNET.latest_fork_id()
-        )
-    }
-
-    #[test]
-    fn latest_base_mainnet_fork_id_with_builder() {
-        let base_mainnet = OpChainSpecBuilder::base_mainnet().build();
-        assert_eq!(
-            ForkId { hash: ForkHash(hex!("1cfeafc9")), next: 0 },
-            base_mainnet.latest_fork_id()
-        )
+            OP_MAINNET.genesis_hash(),
+            b256!("0x7ca38a1916c42007829c55e69d3e9a73265554b586a499015373241b8a3fa48b")
+        );
     }
 
     #[test]
@@ -1444,15 +1294,13 @@ mod tests {
 
     #[test]
     fn display_hardorks() {
-        let content = BASE_MAINNET.display_hardforks().to_string();
+        let content = OP_MAINNET.display_hardforks().to_string();
         for eth_hf in EthereumHardfork::VARIANTS {
             assert!(!content.contains(eth_hf.name()));
         }
     }
 
-    // Mainnets get the 11-enode pool, sepolias the 8-enode pool. OP covers
-    // the hand-coded OpChainSpec constants; Unichain covers the
-    // registry-driven path through the superchain-configs macro.
+    // Mainnets get the 11-enode pool, sepolias the 8-enode pool.
     #[cfg(feature = "superchain-configs")]
     #[test]
     fn op_stack_default_bootnodes() {

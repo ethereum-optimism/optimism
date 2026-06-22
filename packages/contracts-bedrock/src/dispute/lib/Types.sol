@@ -81,7 +81,7 @@ library GameTypes {
     /// @notice A dispute game type that uses the cannon vm with Kona (Super Roots).
     GameType internal constant SUPER_CANNON_KONA = GameType.wrap(9);
 
-    /// @notice A dispute game type that uses optimistic + ZK proofs for dispute resolution.
+    /// @notice A dispute game type that uses optimistic + ZK proofs for dispute resolution (Super Roots).
     GameType internal constant ZK_DISPUTE_GAME = GameType.wrap(10);
 
     /// @notice A dispute game type with short game duration for testing withdrawals.
@@ -99,7 +99,7 @@ library GameTypes {
     function isSuperGame(GameType _gameType) internal pure returns (bool) {
         uint32 raw = _gameType.raw();
         return raw == SUPER_CANNON.raw() || raw == SUPER_PERMISSIONED_CANNON.raw() || raw == SUPER_ASTERISC_KONA.raw()
-            || raw == SUPER_CANNON_KONA.raw();
+            || raw == SUPER_CANNON_KONA.raw() || raw == ZK_DISPUTE_GAME.raw();
     }
 }
 

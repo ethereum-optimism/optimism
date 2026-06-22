@@ -26,15 +26,6 @@ func multiThreadedVmFactory(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer,
 	return multithreaded.NewInstrumentedState(state, po, stdOut, stdErr, log, nil, features)
 }
 
-type ElfVMFactory func(t require.TestingT, elfFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) mipsevm.FPVM
-
-func multiThreadElfVmFactory(t require.TestingT, elfFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, features mipsevm.FeatureToggles) mipsevm.FPVM {
-	state, meta := testutil.LoadELFProgram(t, elfFile, multithreaded.CreateInitialState)
-	fpvm := multithreaded.NewInstrumentedState(state, po, stdOut, stdErr, log, meta, features)
-	require.NoError(t, fpvm.InitDebug())
-	return fpvm
-}
-
 type ProofGenerator func(t require.TestingT, state mipsevm.FPVMState, memoryProofAddresses ...arch.Word) []byte
 
 func multiThreadedProofGenerator(t require.TestingT, state mipsevm.FPVMState, memoryProofAddresses ...arch.Word) []byte {
@@ -60,13 +51,11 @@ type VersionedVMTestCase struct {
 	Contracts      *testutil.ContractMetadata
 	StateHashFn    mipsevm.HashFn
 	VMFactory      VMFactory
-	ElfVMFactory   ElfVMFactory
 	ProofGenerator ProofGenerator
 	Version        versions.StateVersion
-	GoTarget       testutil.GoTarget
 }
 
-func GetMultiThreadedTestCase(t require.TestingT, version versions.StateVersion, goTarget testutil.GoTarget) VersionedVMTestCase {
+func GetMultiThreadedTestCase(t require.TestingT, version versions.StateVersion) VersionedVMTestCase {
 	features := versions.FeaturesForVersion(version)
 	return VersionedVMTestCase{
 		Name:        version.String(),
@@ -75,12 +64,8 @@ func GetMultiThreadedTestCase(t require.TestingT, version versions.StateVersion,
 		VMFactory: func(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, opts ...mtutil.StateOption) mipsevm.FPVM {
 			return multiThreadedVmFactory(po, stdOut, stdErr, log, features, opts...)
 		},
-		ElfVMFactory: func(t require.TestingT, elfFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) mipsevm.FPVM {
-			return multiThreadElfVmFactory(t, elfFile, po, stdOut, stdErr, log, features)
-		},
 		ProofGenerator: multiThreadedProofGenerator,
 		Version:        version,
-		GoTarget:       goTarget,
 	}
 }
 
@@ -88,7 +73,7 @@ func GetMipsVersionTestCases(t require.TestingT) []VersionedVMTestCase {
 	var cases []VersionedVMTestCase
 	for _, version := range versions.StateVersionTypes {
 		if !arch.IsMips32 && versions.IsSupportedMultiThreaded64(version) {
-			cases = append(cases, GetMultiThreadedTestCase(t, version, testutil.Go1_25))
+			cases = append(cases, GetMultiThreadedTestCase(t, version))
 		}
 	}
 	return cases

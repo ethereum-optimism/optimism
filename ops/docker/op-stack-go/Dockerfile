@@ -49,13 +49,13 @@ EOF
 RUN forge --version
 
 # We may be cross-building for another platform. Specify which platform we need as builder.
-FROM --platform=$BUILDPLATFORM golang:1.24.13-alpine3.22 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.4-alpine3.22 AS builder
 
 # Enforce that builds use the committed go.mod/go.sum exactly and never
 # silently mutate them. Fails the build if the lockfile is out of date.
 ENV GOFLAGS=-mod=readonly
 
-RUN apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq yq-go bash just
+RUN apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq yq-go zip bash just
 
 ARG TARGETARCH
 
@@ -73,6 +73,13 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 # NOTE: the Dockerfile.dockerignore file effectively describes all dependencies
 COPY . /app
+
+# Most op-stack-go services embed op-core/superchain/superchain-configs.zip via
+# //go:embed. It's gitignored and regenerated from the superchain-registry
+# submodule, whose data is copied into the build context (see Dockerfile.dockerignore).
+# Build it here in the shared builder stage — git-free, verifying against the
+# committed .sha256 — so every Go build stage below links it.
+RUN bash op-core/superchain/sync-superchain.sh
 
 # We avoid copying the full .git dir into the build for just some metadata.
 # Instead, specify:
@@ -171,7 +178,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 # Compile contracts in a glibc-based image (solc requires glibc, crashes on Alpine musl).
 # Uses BUILDPLATFORM so it runs natively (no QEMU). Contract artifacts are platform-independent.
-FROM --platform=$BUILDPLATFORM golang:1.24.13-bookworm AS op-deployer-contracts
+FROM --platform=$BUILDPLATFORM golang:1.26.4-bookworm AS op-deployer-contracts
 ARG BUILDARCH
 ENV GOFLAGS=-mod=readonly
 RUN apt-get update && apt-get install -y --no-install-recommends curl jq git && rm -rf /var/lib/apt/lists/*

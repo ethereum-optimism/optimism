@@ -5,8 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/superchain"
-
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 

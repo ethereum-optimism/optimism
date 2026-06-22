@@ -758,20 +758,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "brotli"
-version = "8.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bd8b9603c7aa97359dbd97ecf258968c95f3adddd6db2f7e7a5bef101c84560"
-dependencies = [
- "alloc-no-stdlib",
- "brotli-decompressor",
-]
-
-[[package]]
 name = "brotli-decompressor"
-version = "5.0.0"
+version = "5.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "874bb8112abecc98cbd6d81ea4fa7e94fb9449648c93cc89aa40c81c24d7de03"
+checksum = "3a32acac15fe1967bc3986b2a6347dffc965602354ea6f450ad07e8bfd253583"
 dependencies = [
  "alloc-no-stdlib",
 ]
@@ -1700,7 +1690,7 @@ dependencies = [
  "alloy-eips",
  "alloy-primitives",
  "anyhow",
- "kona-protocol",
+ "kona-genesis",
  "once_cell",
  "op-alloy-consensus",
  "serde",
@@ -1802,7 +1792,7 @@ dependencies = [
  "alloy-rpc-types-eth",
  "ambassador",
  "async-trait",
- "brotli",
+ "brotli-decompressor",
  "derive_more",
  "kona-genesis",
  "miniz_oxide",
