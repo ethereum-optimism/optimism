@@ -327,7 +327,7 @@ go-tests-short: cannon build-contracts make-pre-test build-superchain-go
 [script('bash')]
 _go-tests-ci-internal go_test_flags="": build-superchain-go
   set -euo pipefail
-  (cd cannon && just cannon elf)
+  (cd cannon && just diff-hello-elf)
   echo "Setting up test directories..."
   mkdir -p ./tmp/test-results ./tmp/testlogs
   echo "Running Go tests with gotestsum..."
