@@ -50,10 +50,10 @@ build-superchain-go: update-superchain-registry-submodule
   bash op-core/superchain/sync-superchain.sh
 
 # Regenerates op-core/superchain/superchain-configs.zip AND rewrites its committed
-# .sha256 from the submodule (refresh mode). Sibling of sync-superchain-rust; both
-# are run by sync-superchain when bumping the registry.
-sync-superchain-go: update-superchain-registry-submodule
-  OP_CORE_SYNC_SUPERCHAIN=1 bash op-core/superchain/sync-superchain.sh
+# .sha256 from the submodule — build-superchain-go in refresh mode. Sibling of
+# sync-superchain-rust; both are run by sync-superchain when bumping the registry.
+sync-superchain-go:
+  @OP_CORE_SYNC_SUPERCHAIN=1 just build-superchain-go
 
 # Regenerates the committed Rust artifacts from the submodule: kona's etc/*.json
 # (via KONA_SYNC_SUPERCHAIN) and op-reth's superchain-configs.tar + chain_specs.rs.
