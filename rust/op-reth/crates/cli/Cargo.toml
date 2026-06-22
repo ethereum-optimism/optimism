@@ -118,13 +118,14 @@ tracy = ["reth-tracing/tracy", "reth-node-core/tracy"]
 dev = ["dep:proptest", "reth-cli-commands/arbitrary", "op-alloy-consensus/arbitrary"]
 
 serde = [
-    "alloy-consensus/serde",
-    "alloy-eips/serde",
-    "alloy-primitives/serde",
-    "op-alloy-consensus/serde",
-    "reth-execution-types/serde",
-    "reth-optimism-primitives/serde",
-    "reth-primitives-traits/serde",
-    "reth-optimism-chainspec/serde",
+	"alloy-consensus/serde",
+	"alloy-eips/serde",
+	"alloy-primitives/serde",
+	"op-alloy-consensus/serde",
+	"reth-execution-types/serde",
+	"reth-optimism-primitives/serde",
+	"reth-primitives-traits/serde",
+	"reth-optimism-chainspec/serde",
+	"alloy-trie/serde"
 ]
 
