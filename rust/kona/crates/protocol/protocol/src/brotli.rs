@@ -229,4 +229,57 @@ mod test {
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), data);
     }
+
+    #[test]
+    fn test_brotli_rejects_padding_2_corruption() {
+        // Regression test for a consensus-divergence vector fixed upstream in
+        // brotli-decompressor v5.0.1 (dropbox/rust-brotli-decompressor#44).
+        //
+        // RFC 7932 §9.2 requires the unused bits in the final byte of a brotli
+        // stream to be zero. A missing `break` in the decoder's
+        // BROTLI_STATE_METABLOCK_DONE arm let the resulting PADDING_2 error fall
+        // through into BROTLI_STATE_DONE, where WriteRingBuffer overwrote it with
+        // SUCCESS — so corrupt streams decoded as `Ok` with the (uncorrupted)
+        // plaintext. The C reference (libbrotlidec) and Go (andybalholm/brotli,
+        // used by op-node) both reject these as PADDING_2, so the buggy Rust
+        // behavior was a Go vs Rust derivation divergence: op-node rejects the
+        // channel while kona would have accepted it.
+        //
+        // With the fix the decoder returns `ResultFailure` with zero bytes
+        // written, which `decompress_brotli` surfaces as an error. The vectors
+        // below are the same ones used by the upstream test in #44.
+
+        // Valid encoding of "the quick brown fox jumps over the lazy dog twice
+        // for redundancy and length" produced by libbrotlidec at quality 5.
+        let valid: &[u8] = &[
+            0x1b, 0x4a, 0x00, 0x00, 0xc4, 0xf4, 0xa4, 0x69, 0xbd, 0x79, 0x25, 0x2d, 0x22, 0xb4,
+            0x52, 0xea, 0x83, 0x0d, 0x38, 0x70, 0x68, 0xb2, 0x71, 0xc0, 0x41, 0x76, 0x1e, 0x36,
+            0xc6, 0xce, 0x13, 0x84, 0xe8, 0x36, 0xf2, 0x2a, 0x0c, 0xe7, 0x89, 0x68, 0x7a, 0x04,
+            0x49, 0x2f, 0xaa, 0xf7, 0x31, 0xa1, 0x9b, 0x0d, 0x48, 0xb7, 0xf0, 0x1f, 0x48, 0x33,
+            0x42, 0xa5, 0x9c, 0x31, 0x26, 0x97, 0xa9, 0xc6, 0xbe, 0x67, 0x85, 0x52, 0x02,
+        ];
+        let limit = MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize;
+
+        // Sanity: the unmodified stream decodes successfully.
+        let decompressed = decompress_brotli(valid, limit).expect("valid stream must decode");
+        assert_eq!(
+            decompressed,
+            b"the quick brown fox jumps over the lazy dog twice for redundancy and length",
+        );
+
+        // Each bit flip drives the decoder into an end-of-stream state that
+        // violates the RFC 7932 §9.2 byte-alignment padding rule. A
+        // spec-conformant decoder must reject all of them; v5.0.0 accepted them.
+        for &(offset, xor) in &[(13usize, 0x01u8), (23, 0x01), (33, 0x55)] {
+            let mut corrupt = valid.to_vec();
+            corrupt[offset] ^= xor;
+
+            let result = decompress_brotli(&corrupt, limit);
+            assert!(
+                matches!(result, Err(BrotliDecompressionError::DecompressionFailed(_))),
+                "padding-bit corruption at offset {offset} xor {xor:#x} must be rejected, \
+                 got {result:?}",
+            );
+        }
+    }
 }
