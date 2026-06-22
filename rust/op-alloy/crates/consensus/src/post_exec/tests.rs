@@ -30,6 +30,34 @@ fn post_exec_payload_rlp_decode_rejects_unknown_version() {
     assert_eq!(err, alloy_rlp::Error::Custom("unsupported post-exec payload version"));
 }
 
+fn payload_with_entries(count: usize) -> PostExecPayload {
+    PostExecPayload {
+        version: POST_EXEC_PAYLOAD_VERSION,
+        block_number: 42,
+        gas_refund_entries: (0..count as u64)
+            .map(|i| SDMGasEntry { index: i, gas_refund: i + 1 })
+            .collect(),
+    }
+}
+
+#[test]
+fn post_exec_payload_rlp_decode_accepts_max_entries() {
+    let payload = payload_with_entries(MAX_GAS_REFUND_ENTRIES);
+    let encoded = payload.to_rlp_bytes();
+    let decoded = PostExecPayload::from_rlp_bytes(encoded.as_ref())
+        .expect("payload at the entry cap must decode");
+    assert_eq!(decoded, payload);
+}
+
+#[test]
+fn post_exec_payload_rlp_decode_rejects_too_many_entries() {
+    let payload = payload_with_entries(MAX_GAS_REFUND_ENTRIES + 1);
+    let encoded = payload.to_rlp_bytes();
+    let err = PostExecPayload::from_rlp_bytes(encoded.as_ref())
+        .expect_err("payload exceeding the entry cap must be rejected");
+    assert_eq!(err, alloy_rlp::Error::Custom("too many post-exec gas refund entries"));
+}
+
 #[test]
 fn post_exec_payload_rlp_decode_rejects_trailing_bytes() {
     let payload = PostExecPayload {
@@ -88,6 +116,27 @@ fn post_exec_tx_eip2718_decode_rejects_unknown_version() {
             err,
             Eip2718Error::RlpError(alloy_rlp::Error::Custom(
                 "unsupported post-exec payload version"
+            ))
+        ),
+        "unexpected error: {err:?}"
+    );
+}
+
+#[test]
+fn post_exec_tx_eip2718_decode_rejects_too_many_entries() {
+    let payload = payload_with_entries(MAX_GAS_REFUND_ENTRIES + 1);
+
+    let mut buf = Vec::new();
+    buf.put_u8(POST_EXEC_TX_TYPE_ID);
+    payload.encode(&mut buf);
+
+    let err = TxPostExec::decode_2718(&mut buf.as_slice())
+        .expect_err("2718 decode must reject an over-cap payload");
+    assert!(
+        matches!(
+            err,
+            Eip2718Error::RlpError(alloy_rlp::Error::Custom(
+                "too many post-exec gas refund entries"
             ))
         ),
         "unexpected error: {err:?}"

@@ -22,6 +22,16 @@ pub const POST_EXEC_TX_TYPE_ID: u8 = 0x7D;
 /// Current format version for [`PostExecPayload`].
 pub const POST_EXEC_PAYLOAD_VERSION: u8 = 1;
 
+/// Maximum number of [`SDMGasEntry`] entries a [`PostExecPayload`] may carry.
+///
+/// A *valid* block already bounds the entry count: every entry must target a distinct, non-deposit,
+/// non-post-exec transaction whose refund the block actually consumes, so the count cannot exceed
+/// the number of normal transactions (itself bounded by the block gas limit). This cap is
+/// defense-in-depth: it rejects a malformed, oversized payload at decode time — before a verifier
+/// spends the work to execute the whole block only to fail the unconsumed-entries check. The
+/// ceiling is generous; no honest block approaches it.
+pub const MAX_GAS_REFUND_ENTRIES: usize = 8192;
+
 /// Per-transaction gas refund entry within a [`PostExecPayload`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, RlpEncodable, RlpDecodable)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -53,16 +63,19 @@ pub struct PostExecPayload {
     pub gas_refund_entries: Vec<SDMGasEntry>,
 }
 
-// `version` is pinned rather than left arbitrary because `decode_checked` rejects any
-// non-`POST_EXEC_PAYLOAD_VERSION` value, which would break encode/decode roundtrip
-// property tests (and any downstream fuzzer using arbitrary-generated payloads).
+// Generated payloads are kept decodable so encode/decode roundtrip property tests (and any
+// downstream fuzzer using arbitrary-generated payloads) don't spuriously fail: `version` is pinned
+// to the one value `decode_checked` accepts, and the entry count is truncated to the
+// `MAX_GAS_REFUND_ENTRIES` cap `decode_checked` enforces.
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for PostExecPayload {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let mut gas_refund_entries = <Vec<SDMGasEntry>>::arbitrary(u)?;
+        gas_refund_entries.truncate(MAX_GAS_REFUND_ENTRIES);
         Ok(Self {
             version: POST_EXEC_PAYLOAD_VERSION,
             block_number: u64::arbitrary(u)?,
-            gas_refund_entries: <Vec<SDMGasEntry>>::arbitrary(u)?,
+            gas_refund_entries,
         })
     }
 }
@@ -202,7 +215,8 @@ impl PostExecPayload {
         buf.into()
     }
 
-    /// Decode a payload from an RLP stream, validating the payload version.
+    /// Decode a payload from an RLP stream, validating the payload version and bounding the
+    /// gas-refund entry count to [`MAX_GAS_REFUND_ENTRIES`].
     ///
     /// Advances `buf` past the consumed bytes. Unlike [`Self::from_rlp_bytes`], trailing bytes
     /// are left in place for the caller to consume; this is the decoder to use on the EIP-2718
@@ -212,13 +226,16 @@ impl PostExecPayload {
         if payload.version != POST_EXEC_PAYLOAD_VERSION {
             return Err(alloy_rlp::Error::Custom("unsupported post-exec payload version"));
         }
+        if payload.gas_refund_entries.len() > MAX_GAS_REFUND_ENTRIES {
+            return Err(alloy_rlp::Error::Custom("too many post-exec gas refund entries"));
+        }
         Ok(payload)
     }
 
     /// Decode a payload from RLP bytes.
     ///
-    /// Rejects payloads whose `version` is not [`POST_EXEC_PAYLOAD_VERSION`] and rejects any
-    /// trailing bytes after the RLP structure.
+    /// Rejects payloads whose `version` is not [`POST_EXEC_PAYLOAD_VERSION`], whose entry count
+    /// exceeds [`MAX_GAS_REFUND_ENTRIES`], or with any trailing bytes after the RLP structure.
     pub fn from_rlp_bytes(data: &[u8]) -> alloy_rlp::Result<Self> {
         let mut buf = data;
         let payload = Self::decode_checked(&mut buf)?;
