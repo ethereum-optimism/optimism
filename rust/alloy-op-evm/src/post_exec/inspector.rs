@@ -457,20 +457,27 @@ where
     }
 }
 
-/// Composite inspector that always includes the [`SDMWarmingInspector`] alongside a
-/// caller-provided inner inspector, fanning every hook to both.
+/// Composite inspector that always includes a refund inspector `R` alongside a caller-provided
+/// inner inspector `I`, fanning every hook to both.
+///
+/// `R` is fixed by the EVM factory (it defaults to [`SDMWarmingInspector`]); the always-present
+/// refund inspector is what lets `OpEvm<DB, I, R>` expose post-exec hooks for *any* user inspector
+/// `I` — as `alloy_evm`'s `BlockExecutorFactory` requires. Non-producing nodes install
+/// [`NoopRefundInspector`](super::NoopRefundInspector).
 #[derive(Debug, Clone)]
-pub struct PostExecCompositeInspector<I> {
+pub struct PostExecCompositeInspector<I, R = SDMWarmingInspector> {
     inner: I,
-    post_exec: SDMWarmingInspector,
+    post_exec: R,
 }
 
-impl<I> PostExecCompositeInspector<I> {
-    /// Creates a new composite inspector.
+impl<I, R: Default> PostExecCompositeInspector<I, R> {
+    /// Creates a new composite inspector with a default-constructed refund inspector.
     pub fn new(inner: I) -> Self {
-        Self { inner, post_exec: SDMWarmingInspector::default() }
+        Self { inner, post_exec: R::default() }
     }
+}
 
+impl<I, R> PostExecCompositeInspector<I, R> {
     /// Returns the wrapped user inspector.
     pub const fn inner(&self) -> &I {
         &self.inner
@@ -485,20 +492,22 @@ impl<I> PostExecCompositeInspector<I> {
     pub fn into_inner(self) -> I {
         self.inner
     }
+}
 
+impl<I, R: super::PostExecRefundInspector> PostExecCompositeInspector<I, R> {
     /// Begin tracking the next transaction.
     pub fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext) {
         self.post_exec.begin_tx(ctx);
     }
 
-    /// Snapshots the block-scoped warming state for carry-forward across flashblock executors.
-    pub fn warming_state(&self) -> WarmingState {
-        self.post_exec.warming_state()
+    /// Snapshots the block-scoped refund state for carry-forward across flashblock executors.
+    pub fn warming_state(&self) -> R::Snapshot {
+        self.post_exec.snapshot()
     }
 
-    /// Seeds the block-scoped warming state captured from a prior flashblock's inspector.
-    pub fn seed_warming_state(&mut self, state: WarmingState) {
-        self.post_exec.seed_warming_state(state);
+    /// Seeds the block-scoped refund state captured from a prior flashblock's inspector.
+    pub fn seed_warming_state(&mut self, state: R::Snapshot) {
+        self.post_exec.restore(state);
     }
 
     /// Notes an account touch that happened outside opcode stepping.
@@ -506,17 +515,17 @@ impl<I> PostExecCompositeInspector<I> {
         self.post_exec.note_account_touch(address);
     }
 
-    /// Finish tracking the current transaction.
-    pub fn finish_post_exec_tx(&mut self) -> PostExecExecutedTx {
+    /// Finish tracking the current transaction, returning its aggregate refund in gas.
+    pub fn finish_post_exec_tx(&mut self) -> u64 {
         self.post_exec.finish_tx()
     }
 }
 
-impl<CTX, INTR, I> Inspector<CTX, INTR> for PostExecCompositeInspector<I>
+impl<CTX, INTR, I, R> Inspector<CTX, INTR> for PostExecCompositeInspector<I, R>
 where
     INTR: revm::interpreter::InterpreterTypes,
     I: Inspector<CTX, INTR>,
-    SDMWarmingInspector: Inspector<CTX, INTR>,
+    R: Inspector<CTX, INTR>,
 {
     fn initialize_interp(&mut self, interp: &mut Interpreter<INTR>, context: &mut CTX) {
         self.inner.initialize_interp(interp, context);
@@ -559,10 +568,7 @@ where
         // outcome, so inner's return value is authoritative.
         let inner = self.inner.call(context, inputs);
         let post_exec = self.post_exec.call(context, inputs);
-        debug_assert!(
-            post_exec.is_none(),
-            "SDMWarmingInspector must not synthesize a call outcome",
-        );
+        debug_assert!(post_exec.is_none(), "refund inspector must not synthesize a call outcome",);
         inner
     }
 
@@ -584,10 +590,7 @@ where
         // See `call` above: always observe; inner's outcome wins.
         let inner = self.inner.create(context, inputs);
         let post_exec = self.post_exec.create(context, inputs);
-        debug_assert!(
-            post_exec.is_none(),
-            "SDMWarmingInspector must not synthesize a create outcome",
-        );
+        debug_assert!(post_exec.is_none(), "refund inspector must not synthesize a create outcome",);
         inner
     }
 

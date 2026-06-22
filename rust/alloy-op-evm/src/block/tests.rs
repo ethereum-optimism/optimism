@@ -683,6 +683,23 @@ mod sdm {
         vec![SDMGasEntry { index: 1, gas_refund: tx1_evm_gas_used }]
     }
 
+    /// The aggregate warming refund (in gas) the producer attributed to `tx_index`, or 0 if none.
+    ///
+    /// Producer-side attribution events (which address earned which rebate) are no longer carried
+    /// by the executor — they are sequencer telemetry that lives behind the refund inspector. These
+    /// "intrinsically-warm address is not rebated" tests therefore assert on the consensus-visible
+    /// aggregate: each block is constructed so the intrinsic address under test is the *only*
+    /// rebate candidate for the second tx, so "not rebated" is exactly "the second tx earns no
+    /// refund". That genuine rebates are observable at all is proven by
+    /// `test_post_exec_producer_verifier_roundtrip`.
+    fn refund_for_tx(producer: &SDMTestExecutor<'_>, tx_index: u64) -> u64 {
+        producer
+            .post_exec_entries()
+            .iter()
+            .find(|entry| entry.index == tx_index)
+            .map_or(0, |entry| entry.gas_refund)
+    }
+
     fn assert_invalid_post_exec(err: BlockExecutionError, expected_reason: &str) {
         match err {
             BlockExecutionError::Validation(BlockValidationError::Other(err)) => {
@@ -881,15 +898,12 @@ mod sdm {
             producer.execute_transaction(tx).expect("producer executes user tx");
         }
 
-        // No tx may claim a warming rebate for `target`: it is the `to` of every tx, hence
-        // intrinsically warm for each. (Fee-recipient touches, a separate concern, target other
-        // addresses and are unaffected by this assertion.)
-        let claimed_own_to =
-            producer.warming_events_by_tx.iter().flatten().find(|event| event.address == target);
-        assert!(
-            claimed_own_to.is_none(),
-            "a tx claimed a warming rebate for its own intrinsically-warm `to` ({target}): {:#?}",
-            producer.warming_events_by_tx,
+        // tx1's only rebate candidate is `target` (the `to` of every tx), which is intrinsically
+        // warm for it — so tx1 must earn no refund.
+        assert_eq!(
+            refund_for_tx(&producer, 1),
+            0,
+            "a tx claimed a warming rebate for its own intrinsically-warm `to` ({target})",
         );
     }
 
@@ -916,12 +930,12 @@ mod sdm {
             producer.execute_transaction(tx).expect("producer executes user tx");
         }
 
-        let claimed_own_sender =
-            producer.warming_events_by_tx.iter().flatten().find(|event| event.address == sender);
-        assert!(
-            claimed_own_sender.is_none(),
-            "a tx claimed a warming rebate for its own intrinsically-warm sender ({sender}): {:#?}",
-            producer.warming_events_by_tx,
+        // tx1's only rebate candidate is its own `sender` (intrinsically warm); distinct fresh
+        // recipients give it nothing else to rebate, so tx1 must earn no refund.
+        assert_eq!(
+            refund_for_tx(&producer, 1),
+            0,
+            "a tx claimed a warming rebate for its own intrinsically-warm sender ({sender})",
         );
     }
 
@@ -968,12 +982,12 @@ mod sdm {
         producer.execute_transaction(&legacy_tx(0, created)).expect("tx0 warms the create address");
         producer.execute_transaction(&create_tx(1)).expect("tx1 creates at the warmed address");
 
-        let claimed_created =
-            producer.warming_events_by_tx.iter().flatten().find(|event| event.address == created);
-        assert!(
-            claimed_created.is_none(),
-            "a CREATE tx claimed a warming rebate for its own created address ({created}): {:#?}",
-            producer.warming_events_by_tx,
+        // tx1's only rebate candidate is its own created address (intrinsically warm), so tx1 must
+        // earn no refund.
+        assert_eq!(
+            refund_for_tx(&producer, 1),
+            0,
+            "a CREATE tx claimed a warming rebate for its own created address ({created})",
         );
     }
 
@@ -995,17 +1009,13 @@ mod sdm {
             producer.execute_transaction(tx).expect("producer executes user tx");
         }
 
-        let fee_recipients = [L1_FEE_RECIPIENT, BASE_FEE_RECIPIENT, OPERATOR_FEE_RECIPIENT];
-        let claimed: Vec<Address> = producer
-            .warming_events_by_tx
-            .iter()
-            .flatten()
-            .map(|event| event.address)
-            .filter(|address| fee_recipients.contains(address))
-            .collect();
-        assert!(
-            claimed.is_empty(),
-            "fee recipients were rebated for a settlement-only touch (no cold access paid): {claimed:?}",
+        // tx1 re-touches only the fee vaults that tx0's settlement warmed; settlement touches never
+        // pay a cold access, so none are rebatable and tx1 must earn no refund. (The vaults are
+        // tx1's only shared touches with tx0; its recipient is fresh.)
+        assert_eq!(
+            refund_for_tx(&producer, 1),
+            0,
+            "fee recipients were rebated for a settlement-only touch (no cold access paid)",
         );
     }
 
@@ -1396,21 +1406,14 @@ mod sdm {
             "the first toucher earns no warming rebate, even when it reverts",
         );
 
-        // tx1: a committed tx cold-touches `warmed` again, so it is rebated — attributed to the
-        // included-but-reverted tx0 that paid for the cold load.
+        // tx1: a committed tx cold-touches `warmed` again, so it is rebated — the warmth was paid
+        // for by the included-but-reverted tx0. `warmed` is tx1's only cross-tx rebate candidate,
+        // so its refund is exactly one warm-account rebate (+2500).
         producer.execute_transaction(&legacy_tx(1, probe)).expect("first committed tx executes");
-        let warmed_event = all_warming_events(&producer)
-            .into_iter()
-            .find(|event| event.address == warmed)
-            .expect("tx1 must earn a warming rebate for `warmed`, warmed by the reverted tx0");
-        assert_eq!(warmed_event.claiming_tx_index, 1, "rebate is claimed by tx1");
         assert_eq!(
-            warmed_event.first_warmed_by_tx_index, 0,
-            "rebate is attributed to the included-but-reverted tx0",
-        );
-        assert_eq!(
-            warmed_event.amount, 2_500,
-            "warm-account rebate amount (ACCOUNT_REWARM_REFUND)"
+            refund_for_tx(&producer, 1),
+            2_500,
+            "tx1 must earn a warm-account rebate for `warmed`, warmed by the reverted tx0",
         );
     }
 
@@ -1527,11 +1530,6 @@ mod sdm {
         })
     }
 
-    /// Returns every warming rebate event the producer attributed, flattened across txs.
-    fn all_warming_events(producer: &SDMTestExecutor<'_>) -> Vec<WarmingRefundEvent> {
-        producer.warming_events_by_tx.iter().flatten().copied().collect()
-    }
-
     // The block beneficiary (coinbase) is in every transaction's EIP-2929 intrinsically-warm set,
     // billed warm and never cold, so it must never earn a warming rebate — even after an earlier
     // tx warmed it. Regression test for the `collect_intrinsic_warmth` beneficiary insert: a
@@ -1558,14 +1556,13 @@ mod sdm {
             .expect("tx0 warms beneficiary + control");
         producer.execute_transaction(&legacy_tx(1, probe)).expect("tx1 re-touches both");
 
-        let events = all_warming_events(&producer);
-        assert!(
-            !events.iter().any(|e| e.address == beneficiary),
-            "the block beneficiary was rebated despite being intrinsically warm: {events:#?}",
-        );
-        assert!(
-            events.iter().any(|e| e.address == control && e.amount == 2_500),
-            "a control account warmed across txs must still be rebated: {events:#?}",
+        // tx1 re-touches `beneficiary` (intrinsically warm, not rebatable) and `control` (a genuine
+        // cold cross-tx BALANCE, rebatable at +2500). The aggregate must be exactly the control
+        // rebate: a beneficiary rebate would push it to 5000, a missing control rebate to 0.
+        assert_eq!(
+            refund_for_tx(&producer, 1),
+            2_500,
+            "the block beneficiary was rebated (intrinsic) or the control account's rebate went missing",
         );
     }
 
@@ -1590,14 +1587,13 @@ mod sdm {
         producer.execute_transaction(&legacy_tx(0, probe)).expect("tx0 warms precompile + control");
         producer.execute_transaction(&legacy_tx(1, probe)).expect("tx1 re-touches both");
 
-        let events = all_warming_events(&producer);
-        assert!(
-            !events.iter().any(|e| e.address == precompile),
-            "a precompile was rebated despite being intrinsically warm: {events:#?}",
-        );
-        assert!(
-            events.iter().any(|e| e.address == control && e.amount == 2_500),
-            "a control account warmed across txs must still be rebated: {events:#?}",
+        // tx1 re-touches `precompile` (intrinsically warm, not rebatable) and `control` (a genuine
+        // cold cross-tx BALANCE, rebatable at +2500). The aggregate must be exactly the control
+        // rebate: a precompile rebate would push it to 5000, a missing control rebate to 0.
+        assert_eq!(
+            refund_for_tx(&producer, 1),
+            2_500,
+            "a precompile was rebated (intrinsic) or the control account's rebate went missing",
         );
     }
 
@@ -1632,14 +1628,14 @@ mod sdm {
             .execute_transaction(&recovered_7702(1, probe, auth))
             .expect("tx1 (7702) re-touches both");
 
-        let events = all_warming_events(&producer);
-        assert!(
-            !events.iter().any(|e| e.address == authority),
-            "a 7702 authority was rebated despite being intrinsically warm: {events:#?}",
-        );
-        assert!(
-            events.iter().any(|e| e.address == control && e.amount == 2_500),
-            "a control account warmed across txs must still be rebated: {events:#?}",
+        // tx1 re-touches `authority` (intrinsically warm via its 7702 auth list, not rebatable) and
+        // `control` (a genuine cold cross-tx BALANCE, rebatable at +2500). The aggregate must be
+        // exactly the control rebate: an authority rebate would push it to 5000, a missing control
+        // rebate to 0.
+        assert_eq!(
+            refund_for_tx(&producer, 1),
+            2_500,
+            "a 7702 authority was rebated (intrinsic) or the control account's rebate went missing",
         );
     }
 

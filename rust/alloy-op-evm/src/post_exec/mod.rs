@@ -26,8 +26,8 @@ pub trait PostExecEvm: alloy_evm::Evm {
     /// Begin post-exec tracking for the next transaction.
     fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext);
 
-    /// Take the extracted post-exec result for the most recently executed transaction.
-    fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx;
+    /// Take the aggregate post-exec refund (in gas) for the most recently executed transaction.
+    fn take_last_post_exec_refund(&mut self) -> u64;
 
     /// Snapshot the block-scoped warming state for carry-forward across flashblock executors.
     fn warming_state(&self) -> WarmingState;
@@ -49,8 +49,8 @@ pub trait PostExecEvmFactoryHooks: EvmFactory {
         DB: Database,
         I: Inspector<Self::Context<DB>>;
 
-    /// Take the extracted post-exec result for the most recently executed transaction.
-    fn take_last_post_exec_tx_result<DB, I>(evm: &mut Self::Evm<DB, I>) -> PostExecExecutedTx
+    /// Take the aggregate post-exec refund (in gas) for the most recently executed transaction.
+    fn take_last_post_exec_refund<DB, I>(evm: &mut Self::Evm<DB, I>) -> u64
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
@@ -171,8 +171,8 @@ where
         F::begin_post_exec_tx(&mut self.inner, ctx);
     }
 
-    fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx {
-        F::take_last_post_exec_tx_result(&mut self.inner)
+    fn take_last_post_exec_refund(&mut self) -> u64 {
+        F::take_last_post_exec_refund(&mut self.inner)
     }
 
     fn warming_state(&self) -> WarmingState {
@@ -253,9 +253,6 @@ pub trait PostExecExecutorExt {
     /// Take the accumulated post-exec entries for the current block.
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry>;
 
-    /// Take the exact per-transaction warming refund attribution events aligned with receipts.
-    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>>;
-
     /// Snapshot the block-scoped warming state for carry-forward across flashblock executors.
     fn warming_state(&self) -> WarmingState;
 
@@ -275,10 +272,6 @@ where
 
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry> {
         Self::take_post_exec_entries(self)
-    }
-
-    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
-        Self::take_warming_events_by_tx(self)
     }
 
     fn warming_state(&self) -> WarmingState {
