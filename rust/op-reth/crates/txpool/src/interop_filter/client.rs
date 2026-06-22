@@ -19,7 +19,6 @@ use crate::{
     },
     maintain::FAILSAFE_HEARTBEAT_INTERVAL,
 };
-use alloy_consensus::Transaction;
 use alloy_eips::eip2930::AccessList;
 use alloy_primitives::{B256, TxHash};
 use alloy_rpc_client::ReqwestClient;
@@ -344,19 +343,19 @@ impl InteropFilterClient {
 
     /// Creates a stream that revalidates interop transactions against the interop filter.
     /// Returns
-    /// An implementation of `Stream` that is `Send`-able and tied to the lifetime `'a` of `self`.
+    /// A `Stream` that is `Send`-able and tied to the lifetime `'a` of `self`.
     /// Each item yielded by the stream contains the original transaction and its revalidation
     /// outcome.
-    pub fn revalidate_interop_txs_stream<'a, TItem, InputIter>(
+    pub fn revalidate_interop_txs_stream<'a, Tx, TxIter>(
         &'a self,
-        txs_to_revalidate: InputIter,
+        txs_to_revalidate: TxIter,
         current_timestamp: u64,
         revalidation_window: u64,
-    ) -> impl Stream<Item = InteropValidationResult<TItem>> + Send + 'a
+    ) -> impl Stream<Item = InteropValidationResult<Tx>> + Send + 'a
     where
-        InputIter: IntoIterator<Item = TItem> + Send + 'a,
-        InputIter::IntoIter: Send + 'a,
-        TItem: PoolTransaction + Transaction + Send,
+        TxIter: IntoIterator<Item = Tx> + Send + 'a,
+        TxIter::IntoIter: Send + 'a,
+        Tx: PoolTransaction + Send,
     {
         stream::iter(txs_to_revalidate.into_iter().map(move |tx_item| {
             let client_for_async_task = self.clone();

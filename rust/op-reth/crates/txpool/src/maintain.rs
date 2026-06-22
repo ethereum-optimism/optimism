@@ -97,7 +97,7 @@ pub trait InteropFilter {
         revalidation_window: u64,
     ) -> Vec<InteropValidationResult<Tx>>
     where
-        Tx: PoolTransaction + Transaction + Send;
+        Tx: PoolTransaction + Send;
 }
 
 #[async_trait]
@@ -117,7 +117,7 @@ impl InteropFilter for InteropFilterClient {
         revalidation_window: u64,
     ) -> Vec<InteropValidationResult<Tx>>
     where
-        Tx: PoolTransaction + Transaction + Send,
+        Tx: PoolTransaction + Send,
     {
         let revalidation_stream = Self::revalidate_interop_txs_stream(
             self,
@@ -356,7 +356,7 @@ async fn revalidate_interop_txs<Filter, Tx>(
 ) -> Vec<TxHash>
 where
     Filter: InteropFilter,
-    Tx: PoolTransaction + Transaction + MaybeInteropTransaction + Send,
+    Tx: PoolTransaction + MaybeInteropTransaction + Send,
 {
     let mut to_remove = Vec::new();
     let revalidation_start = Instant::now();

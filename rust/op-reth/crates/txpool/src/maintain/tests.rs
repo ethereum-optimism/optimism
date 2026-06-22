@@ -145,7 +145,7 @@ impl InteropFilter for MockInteropFilter {
         _revalidation_window: u64,
     ) -> Vec<InteropValidationResult<Tx>>
     where
-        Tx: PoolTransaction + Transaction + Send,
+        Tx: PoolTransaction + Send,
     {
         let invalid_result = self.invalid_result;
         txs_to_revalidate
