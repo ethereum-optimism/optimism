@@ -114,8 +114,28 @@ fmt-fix: fmt-fix-sp1-guest
 lint-clippy:
   cargo clippy --workspace --all-features --all-targets -- -D warnings
 
-# fmt-check + clippy for the SP1 guest program workspace (shared by `just lint` and CI)
-lint-sp1-guest: fmt-check-sp1-guest lint-clippy-sp1-guest
+# lock check + fmt-check + clippy for the SP1 guest program workspace (shared by `just lint` and CI)
+lint-sp1-guest: check-sp1-guest-lock fmt-check-sp1-guest lint-clippy-sp1-guest
+
+# Runs before the `--locked` clippy so a kona-only dependency change produces a
+# clear fix hint instead of cargo's cryptic "cannot update the lock file because
+# --locked was passed" error.
+# Verify the SP1 guest Cargo.lock is in sync with its manifests and path-deps
+[script('bash')]
+check-sp1-guest-lock:
+  if ! cargo metadata --manifest-path {{SP1_GUEST_MANIFEST}} --format-version 1 --locked >/dev/null 2>&1; then
+    echo "error: SP1 guest Cargo.lock (rust/kona/sp1/programs/Cargo.lock) is out of date." >&2
+    echo "       A rust/ kona crate's dependencies likely changed; the guest workspace" >&2
+    echo "       path-depends on those crates, so its separate lockfile needs refreshing." >&2
+    echo "       Fix: run \`just lock-sp1-guest\` from rust/ and commit the updated lockfile." >&2
+    exit 1
+  fi
+
+# Resolves without --locked (minimal change), so it only touches entries that
+# actually moved rather than bumping unrelated guest deps.
+# Refresh the SP1 guest Cargo.lock after changing kona crates it depends on
+lock-sp1-guest:
+  cargo metadata --manifest-path {{SP1_GUEST_MANIFEST}} --format-version 1 >/dev/null
 
 fmt-check-sp1-guest:
   cargo +{{NIGHTLY}} fmt --manifest-path {{SP1_GUEST_MANIFEST}} --all -- --check
