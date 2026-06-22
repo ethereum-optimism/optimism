@@ -467,10 +467,12 @@ jobs:
               PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
             fi
             just hack "$PARTITION_FLAG" "true" "$CIRCLE_WORKFLOW_ID"
-      # Check each crate's test targets in isolation. The lib-only `hack` step
-      # above never compiles test code, so a crate whose tests rely on a feature
-      # only enabled via workspace feature unification passes the workspace test
-      # build yet fails when built alone. This step catches that class.
+      # Check each crate's test targets in isolation with default features. The
+      # lib-only `hack` step above never compiles test code, so a crate whose
+      # tests rely on a feature only enabled via workspace feature unification
+      # passes the workspace test build yet fails when built alone. This step
+      # catches that class (whether the missing feature is a dependency's or the
+      # crate's own).
       - run:
           name: Run cargo hack (test targets)
           working_directory: rust
@@ -480,7 +482,7 @@ jobs:
             if [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
               PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
             fi
-            just hack-tests-all "$PARTITION_FLAG" "true" "$CIRCLE_WORKFLOW_ID"
+            just hack-tests-default "$PARTITION_FLAG" "true" "$CIRCLE_WORKFLOW_ID"
       - rust-save-build-cache: *hack-cache-args
 
   # --------------------------------------------------------------------------
