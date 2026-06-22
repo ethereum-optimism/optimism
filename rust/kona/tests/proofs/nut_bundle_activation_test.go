@@ -2,7 +2,6 @@ package proofs
 
 import (
 	"context"
-	"encoding/json"
 	"math/big"
 	"testing"
 
@@ -116,9 +115,6 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	receipts := engine.L2Chain().GetReceiptsByHash(actHeader.Hash())
 	require.Len(t, receipts, len(txs), "receipt count must match tx count")
 	for i, r := range receipts {
-		if r.Status != types.ReceiptStatusSuccessful {
-			dumpCallTrace(t, env, txs[i].Hash())
-		}
 		require.Equal(t, types.ReceiptStatusSuccessful, r.Status,
 			"activation-block tx %d reverted", i)
 	}
@@ -294,23 +290,4 @@ func lookupHardforkHelper(name forks.Name) *helpers.Hardfork {
 		}
 	}
 	return nil
-}
-
-// dumpCallTrace prints a callTracer trace for txHash on the L2 engine. Intended
-// for ad-hoc debugging of reverted activation-block txs where the receipt only
-// carries a status code and no revert reason.
-func dumpCallTrace(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, txHash common.Hash) {
-	var raw json.RawMessage
-	err := env.Engine.RPCClient().CallContext(
-		t.Ctx(),
-		&raw,
-		"debug_traceTransaction",
-		txHash,
-		map[string]any{"tracer": "callTracer"},
-	)
-	if err != nil {
-		t.Logf("debug_traceTransaction failed for %s: %v", txHash.Hex(), err)
-		return
-	}
-	t.Logf("call trace for %s:\n%s", txHash.Hex(), string(raw))
 }
