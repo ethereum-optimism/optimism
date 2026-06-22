@@ -333,6 +333,35 @@ impl SDMWarmingInspector {
     }
 }
 
+impl super::PostExecRefundInspector for SDMWarmingInspector {
+    type Snapshot = WarmingState;
+
+    fn begin_tx(&mut self, ctx: PostExecTxContext) {
+        self.current_tx.begin(ctx);
+    }
+
+    fn note_account_touch(&mut self, address: Address) {
+        self.observe_account_touch(address, false);
+    }
+
+    fn finish_tx(&mut self) -> u64 {
+        // Mirrors the inherent `finish_tx`, which the composite still drives directly; the trait
+        // contract exposes only the aggregate refund, while attribution telemetry stays internal
+        // (it moves to optimism-premium in Phase 1).
+        let result = self.current_tx.finish();
+        self.last_tx = result.clone();
+        result.refund_total
+    }
+
+    fn snapshot(&self) -> WarmingState {
+        self.warming_state()
+    }
+
+    fn restore(&mut self, snapshot: WarmingState) {
+        self.seed_warming_state(snapshot);
+    }
+}
+
 impl<CTX> Inspector<CTX> for SDMWarmingInspector
 where
     CTX: ContextTr<Journal: JournalExt>,

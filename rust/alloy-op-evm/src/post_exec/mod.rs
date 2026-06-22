@@ -1,6 +1,9 @@
 //! Post-exec execution extensions.
 
 mod inspector;
+mod refund;
+
+pub use refund::{NoopRefundInspector, PostExecRefundInspector};
 
 use alloc::vec::Vec;
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory};
