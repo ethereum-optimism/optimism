@@ -124,6 +124,22 @@ Update the following components:
 | `rollup-boost` | [`v0.7.15`](https://github.com/flashbots/rollup-boost/releases/tag/rollup-boost%2Fv0.7.15) | Only if running Flashblocks. Must be updated **prior** to the activation timestamp. |
 | `op-rbuilder` | [`v0.4.8`](https://github.com/flashbots/op-rbuilder/releases/tag/op-rbuilder%2Fv0.4.8) | Only if running Flashblocks. Must be updated **prior** to the activation timestamp. |
 
+### For permissioned fault proof chains
+
+Chains running **permissioned** fault proofs (game type `PERMISSIONED`) do not need the full permissionless setup below, but `op-challenger` still requires a cannon prestate to be configured at startup even though the legacy `CANNON` (0) prestate is not used after the upgrade.
+
+If you are currently passing `--prestates-url=<YOUR_PRESTATE_URL>`, replace it with a placeholder cannon prestate:
+
+```bash
+--cannon-prestate=any-string
+# or
+OP_CHALLENGER_CANNON_PRESTATE=any-string
+```
+
+<Info>
+  This value is a placeholder only — permissioned chains do not generate `CANNON` (0) trace data, so the prestate is never loaded. Your `cannon-kona` prestate configuration is unaffected.
+</Info>
+
 ### For permissionless fault proof enabled chains
 
 With `CANNON_KONA` becoming the respected game type, chains running permissionless fault proofs must ensure their off-chain infrastructure is fully Kona-ready. This is critical — after the upgrade, withdrawals are proven against `CANNON_KONA` games.
@@ -252,6 +268,13 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
 </Steps>
 
 ## For app developers
+
+<Warning>
+  OP Stack Sepolia testnet chains have a bug affecting calls to `eth_estimateGas` when the `gas` parameter is omitted after Karst.
+  If you use `eth_estimateGas`, providing an explicit `gas` parameter is required.
+  Only post-Karst Sepolia OP Stack chains are impacted.
+  This will be fixed on OP Sepolia within the coming days and will be fixed prior to Karst activation on OP Mainnet.
+</Warning>
 
 * **EIP-7825 transaction gas limit (Osaka on L2):** L2 transactions are now subject to a per-transaction gas limit of 2^24 = 16,777,216 gas. If your application submits transactions with very high gas limits, verify they remain within the new threshold. Deposit transactions are exempt. Most applications will not be affected.
 * **MODEXP gas changes ([EIP-7883](https://eips.ethereum.org/EIPS/eip-7883) + [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823), Osaka on L2):** the gas cost floor for `MODEXP` (`0x05`) increases, and a new input size cap (1024-byte modulus) is enforced. If your contracts call `MODEXP`, update your gas estimates and verify inputs are within the new size limit.

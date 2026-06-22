@@ -1395,13 +1395,11 @@ abstract contract AnchorStateRegistry_ZkDisputeGame_TestInit is AnchorStateRegis
             })
         );
 
-        // Get anchor state to pick a valid l2SequenceNumber.
         (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
         zkL2SequenceNumber = anchorL2SeqNum + 2000;
 
-        // Create a ZK game via the factory.
-        Claim rootClaim_ = changeClaimStatus(Claim.wrap(keccak256("zkRootClaim")), VMStatuses.INVALID);
-        bytes memory extraData_ = abi.encodePacked(zkL2SequenceNumber, type(uint32).max);
+        (bytes memory extraData_, Claim rootClaim_) =
+            _makeZKExtraDataAndClaim(type(uint32).max, uint64(zkL2SequenceNumber), keccak256("zkOutputRoot"));
 
         address proposer = makeAddr("zkProposer");
         vm.deal(proposer, 1 ether);

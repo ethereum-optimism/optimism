@@ -65,6 +65,21 @@ func validateEntry(fork string, entry nuts.ForkLockEntry, bundleContent []byte) 
 	return nil
 }
 
+// checkPreForkState verifies the locked fork's own pre-fork state artifact exists
+// — op-core/nuts/state/<fork>_state.json, the state as of this fork. Locking a
+// fork's bundle should also produce this state (post-activation) so the NEXT
+// fork's activation test can boot from it. Catching a forgotten one here keeps
+// the chain of states complete, and cheaply (the proofs suite needs kona-host).
+func checkPreForkState(root, fork string) error {
+	rel := filepath.Join("op-core", "nuts", "state", fork+"_state.json")
+	if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+		return fmt.Errorf(
+			"fork %s is locked but its pre-fork state %s is missing — generate and commit it so "+
+				"the next fork can boot from it (see op-core/nuts/state/README.md)", fork, rel)
+	}
+	return nil
+}
+
 // checkCommitAncestry verifies that a commit is an ancestor of origin/develop.
 func checkCommitAncestry(root, fork string, commit string) error {
 	// Note: if you are here because you want to enable a bundle for a fork to be generated from a
@@ -116,7 +131,11 @@ func run(dir string) error {
 			return err
 		}
 
-		fmt.Printf("fork %s: bundle hash OK\n", fork)
+		if err := checkPreForkState(root, fork); err != nil {
+			return err
+		}
+
+		fmt.Printf("fork %s: bundle hash + pre-fork state OK\n", fork)
 	}
 
 	// Reverse check: verify all NUT bundle JSONs have a lock entry

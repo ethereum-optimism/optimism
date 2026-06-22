@@ -11,7 +11,7 @@ import (
 // zkArgsLength is the byte length of packed ZK game args as produced by
 // OPContractsManagerUtils._encodeGameArgs for ZK_DISPUTE_GAME.
 //
-// Layout (abi.encodePacked, 172 bytes):
+// Layout (abi.encodePacked, 140 bytes):
 //
 //	[0-31]    absolutePrestate (bytes32)
 //	[32-51]   verifier (address)
@@ -20,8 +20,7 @@ import (
 //	[68-99]   challengerBond (uint256)
 //	[100-119] anchorStateRegistry (address)
 //	[120-139] weth (address)
-//	[140-171] l2ChainId (uint256)
-const zkArgsLength = 172
+const zkArgsLength = 140
 
 // ZKGameArgs contains the parsed arguments for a ZK dispute game template.
 type ZKGameArgs struct {
@@ -32,7 +31,6 @@ type ZKGameArgs struct {
 	ChallengerBond       *big.Int
 	AnchorStateRegistry  common.Address
 	WETH                 common.Address
-	L2ChainID            *big.Int
 }
 
 // ZKDisputeGame holds the impl address and parsed args for a deployed ZK dispute game.
@@ -70,7 +68,6 @@ func (f *DisputeGameFactory) ZKGameImpl() *ZKDisputeGame {
 			ChallengerBond:       new(big.Int).SetBytes(raw[68:100]),
 			AnchorStateRegistry:  asr,
 			WETH:                 weth,
-			L2ChainID:            new(big.Int).SetBytes(raw[140:172]),
 		},
 	}
 }

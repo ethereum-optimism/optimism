@@ -12,6 +12,22 @@ All Rust code lives under `rust/`. This is a unified Cargo workspace — always 
 
 Check `rust/Cargo.toml` for the full workspace member list, dependency versions, and lint configuration. The Rust toolchain version is pinned in `rust/rust-toolchain.toml`.
 
+### Migrated, not vendored
+
+Most of the OP Stack Rust code here was **officially migrated** into the monorepo in coordination with the upstream repository owners — it is **not** a vendored copy. The upstream crates have been deleted or deprecated, so the entire Rust OP Stack is now developed here. This applies to:
+
+- **op-reth** (`rust/op-reth/`)
+- **kona-\*** (`rust/kona/`)
+- **op-alloy-\*** (`rust/op-alloy/`)
+- **alloy-op-\*** (`rust/alloy-op-evm/`, `rust/alloy-op-hardforks/`)
+- **op-revm** (`rust/op-revm/`)
+
+These crates are owned and edited directly here — do not look upstream for their source. They still *depend on* generic upstream crates (e.g. reth's engine/provider crates, `alloy`, `revm`), which remain external and pinned in `rust/Cargo.toml`; a change to one of those generic APIs has to go upstream first and then be consumed via a version bump. When changing upstream behavior or API leads to a better overall solution than working around it locally, it is acceptable — and often preferable — to propose that change upstream (a PR to the respective repository); suggest this when it applies.
+
+**Known exception:** `op-alloy-flz` has not been migrated yet and is still an external dependency, tracked by [#21087](https://github.com/ethereum-optimism/optimism/issues/21087).
+
+**Still vendored:** `rust/op-rbuilder/` and `rust/rollup-boost/` are vendored copies, slated for deprecation.
+
 ## Build System
 
 Run `just --list` in `rust/` to see all available targets. The key ones:

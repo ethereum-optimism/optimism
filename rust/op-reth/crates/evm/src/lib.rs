@@ -424,7 +424,7 @@ mod tests {
     use reth_execution_types::{
         AccountRevertInit, BundleStateInit, Chain, ExecutionOutcome, RevertsInit,
     };
-    use reth_optimism_chainspec::{BASE_MAINNET, OpChainSpec, OpChainSpecBuilder};
+    use reth_optimism_chainspec::{OP_MAINNET, OpChainSpec, OpChainSpecBuilder};
     use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
     use reth_primitives_traits::{Account, RecoveredBlock, SealedBlock};
     use revm::{
@@ -437,7 +437,7 @@ mod tests {
     use std::sync::Arc;
 
     fn test_evm_config() -> OpEvmConfig {
-        OpEvmConfig::optimism(BASE_MAINNET.clone())
+        OpEvmConfig::optimism(OP_MAINNET.clone())
     }
 
     fn lagoon_at_timestamp_chain_spec(activation: u64) -> Arc<OpChainSpec> {

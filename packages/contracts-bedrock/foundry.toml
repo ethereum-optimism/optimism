@@ -66,9 +66,9 @@ fs_permissions = [
   { access='read-write', path='./.testdata/' },
   { access='read', path='./kout-deployment' },
   { access='read', path='./test/fixtures' },
-  { access='read', path='./lib/superchain-registry/superchain/configs/' },
-  { access='read', path='./lib/superchain-registry/superchain/extra/' },
-  { access='read', path='./lib/superchain-registry/validation/standard/' },
+  { access='read', path='../../superchain-registry/superchain/configs/' },
+  { access='read', path='../../superchain-registry/superchain/extra/' },
+  { access='read', path='../../superchain-registry/validation/standard/' },
   { access='read', path='../../op-core/nuts/' },
 ]
 

@@ -112,8 +112,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
     ///      that point, this function will need to be updated to read the new contract from the superchain-registry
     ///      using either the `saveProxyAndImpl` or `artifacts.save()` functions.
     function _readSuperchainRegistry() internal {
-        string memory superchainBasePath = "./lib/superchain-registry/superchain/configs/";
-        string memory validationBasePath = "./lib/superchain-registry/validation/standard/";
+        string memory superchainBasePath = "../../superchain-registry/superchain/configs/";
+        string memory validationBasePath = "../../superchain-registry/validation/standard/";
 
         string memory superchainToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/superchain.toml"));
         string memory opToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/", opChain(), ".toml"));
@@ -124,7 +124,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         standardVersionsToml = standardVersionsToml.replace('"op-contracts/v2.0.0-rc.1"', "RELEASE");
 
         // Read the extra addresses JSON file which contains addresses no longer in the chain TOML.
-        string memory addressesJson = vm.readFile("./lib/superchain-registry/superchain/extra/addresses/addresses.json");
+        string memory addressesJson = vm.readFile("../../superchain-registry/superchain/extra/addresses/addresses.json");
         string memory chainId = vm.toString(vm.parseTomlUint(opToml, ".chain_id"));
 
         // Slightly hacky, we encode the uint chainId as an address to save it in Artifacts

@@ -15,7 +15,7 @@ use serde::de::DeserializeOwned;
 fn main() {
     // The three committed snapshots under `etc/` are `include_str!`d at compile time,
     // but `include_str!` does not register file dependencies with cargo. Declare them
-    // here so a hand-edit, a `KONA_BIND=true` regeneration, or a custom-config merge
+    // here so a hand-edit, a `KONA_SYNC_SUPERCHAIN=true` regeneration, or a custom-config merge
     // busts the cache instead of silently reusing a stale compilation of `lib.rs`.
     println!("cargo:rerun-if-changed=etc/chainList.json");
     println!("cargo:rerun-if-changed=etc/configs.json");
@@ -27,13 +27,13 @@ fn main() {
     }
     let depsets_path = std::path::Path::new("etc/depsets.json");
 
-    // If the `KONA_BIND` environment variable is _not_ set, then return early.
+    // If the `KONA_SYNC_SUPERCHAIN` environment variable is _not_ set, then return early.
     // The committed `etc/depsets.json` snapshot is the authoritative input in this
     // mode; do not touch it. (Custom-config merges, if enabled, additively layer
     // on top of the committed snapshot.)
     let kona_bind: bool =
-        std::env::var("KONA_BIND").unwrap_or_else(|_| "false".to_string()) == "true";
-    println!("cargo:rerun-if-env-changed=KONA_BIND");
+        std::env::var("KONA_SYNC_SUPERCHAIN").unwrap_or_else(|_| "false".to_string()) == "true";
+    println!("cargo:rerun-if-env-changed=KONA_SYNC_SUPERCHAIN");
     if !kona_bind {
         merge_custom_configs();
         return;
@@ -54,13 +54,12 @@ fn main() {
     let repo_root = String::from_utf8(repo_root.stdout).unwrap();
     let repo_root = repo_root.trim_end();
 
-    // The `superchain-registry` submodule lives under
-    // `packages/contracts-bedrock/lib/superchain-registry` at the monorepo root.
-    let superchain_registry =
-        format!("{repo_root}/packages/contracts-bedrock/lib/superchain-registry");
+    // The `superchain-registry` submodule lives at the monorepo root.
+    let superchain_registry = format!("{repo_root}/superchain-registry");
     assert!(
         std::path::Path::new(&superchain_registry).exists(),
-        "Git Submodule missing. Please run `just source` to initialize the submodule."
+        "Git Submodule missing. Please run `just update-superchain-registry-submodule` \
+         from the repo root to initialize it."
     );
 
     // Copy the `superchain-registry/chainList.json` file to `etc/chainList.json`

@@ -30,8 +30,9 @@ async fn test_op_node_custom_genesis_number() {
     genesis.number = Some(genesis_number);
     genesis.parent_hash = Some(B256::random());
 
-    let chain_spec =
-        Arc::new(OpChainSpecBuilder::base_mainnet().genesis(genesis).ecotone_activated().build());
+    let chain_spec = Arc::new(
+        OpChainSpecBuilder::optimism_sepolia().genesis(genesis).ecotone_activated().build(),
+    );
 
     let wallet = Arc::new(Mutex::new(Wallet::default().with_chain_id(chain_spec.chain().into())));
 
