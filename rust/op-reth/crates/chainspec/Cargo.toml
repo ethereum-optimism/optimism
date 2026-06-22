@@ -47,6 +47,7 @@ thiserror = { workspace = true, optional = true }
 op-alloy-consensus.workspace = true
 
 [dev-dependencies]
+reth-optimism-chainspec = { path = ".", features = ["superchain-configs"] }
 reth-chainspec = { workspace = true, features = ["test-utils"] }
 alloy-op-hardforks.workspace = true
 

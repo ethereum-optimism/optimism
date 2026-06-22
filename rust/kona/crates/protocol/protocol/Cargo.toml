@@ -57,6 +57,7 @@ tracing-subscriber = { workspace = true, features = ["fmt"], optional = true }
 ambassador.workspace = true
 
 [dev-dependencies]
+kona-protocol = { path = ".", features = ["std"] }
 brotli = { workspace = true, features = ["std"] }
 spin.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }

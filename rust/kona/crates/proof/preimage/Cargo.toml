@@ -31,6 +31,7 @@ rkyv = { workspace = true, optional = true }
 serde = { workspace = true, optional = true, features = ["derive"] }
 
 [dev-dependencies]
+kona-preimage = { path = ".", features = ["std"] }
 tokio = { workspace = true, features = ["full"] }
 sha2.workspace = true
 

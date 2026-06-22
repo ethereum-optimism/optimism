@@ -39,6 +39,7 @@ arbitrary = { workspace = true, features = ["derive"], optional = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
+kona-interop = { path = ".", features = ["std", "arbitrary"] }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }
 alloy-primitives = { workspace = true, features = ["rlp", "arbitrary"] }
