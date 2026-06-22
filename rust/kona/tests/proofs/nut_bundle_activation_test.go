@@ -142,11 +142,31 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	// The activation transition itself is covered by
 	// TestInteropFaultProofs_ActivationBoundary in op-acceptance-tests via
 	// kona-host super.
+	//
+	// The post-activation gas-limit assertion below also runs only for Karst:
+	// op-node strips just the Karst activation gas in PayloadToSystemConfig
+	// today, so the Lagoon/Interop revert is not yet enforced here (its wrapper
+	// gas depends on the dependency set).
 	if fork == forks.Lagoon {
 		return
 	}
 
 	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+
+	// The NUT-bundle upgrade gas applies only to the activation block. Build one
+	// more block and confirm its gas limit drops back to the pre-activation
+	// value — a regression would leak the upgrade gas onto every block after the
+	// activation block. Kept out of the proven span (built after BatchMineAndSync)
+	// so the fault proof stays focused on the activation transition; op-node's
+	// stripping is asserted directly here, and kona-client's is covered by the
+	// kona-derive unit test test_prepare_payload_strips_parent_karst_upgrade_gas.
+	env.Sequencer.ActL2EmptyBlock(t)
+	postActivation := engine.L2Chain().CurrentHeader()
+	preActivation := engine.L2Chain().GetHeaderByNumber(bigs.Uint64Strict(actHeader.Number) - 1)
+	require.Greater(t, actHeader.GasLimit, preActivation.GasLimit,
+		"activation block must carry the one-time upgrade gas")
+	require.Equal(t, preActivation.GasLimit, postActivation.GasLimit,
+		"upgrade gas must not persist past the %s activation block", fork)
 }
 
 // activateFork boots a fault-proof env for testCfg.Custom and advances to that

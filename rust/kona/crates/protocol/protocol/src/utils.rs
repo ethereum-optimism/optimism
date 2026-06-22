@@ -2,9 +2,11 @@
 
 use alloc::vec::Vec;
 use alloy_consensus::{Transaction, Typed2718};
+use alloy_op_hardforks::{OpHardfork, OpHardforks};
 use alloy_primitives::{B256, U256};
 use alloy_rlp::{Buf, Header};
 use kona_genesis::{RollupConfig, SystemConfig};
+use kona_hardforks::{Hardfork, Hardforks};
 use op_alloy_consensus::{OpBlock, OpTxType, decode_holocene_extra_data, decode_jovian_extra_data};
 
 use crate::{
@@ -59,6 +61,22 @@ pub fn to_system_config(
         ..Default::default()
     };
 
+    // Every NUT-bundle fork from Karst onward adds one-time upgrade gas to its activation block's
+    // gas limit so the upgrade transactions exceed the normal budget. Subtract it back out at the
+    // block right after the activation block so the reconstructed config holds the steady-state
+    // limit. This runs during reconstruction, before update_with_receipts in the caller, so a
+    // setGasLimit in the same block's L1 origin takes precedence. Mirrors op-node's
+    // PayloadToSystemConfig.
+    let gas_to_strip = upgrade_gas_to_strip(rollup_config, block.header.timestamp);
+    if gas_to_strip > 0 {
+        cfg.gas_limit = cfg.gas_limit.checked_sub(gas_to_strip).ok_or(
+            OpBlockConversionError::GasLimitBelowUpgradeGas {
+                gas_limit: cfg.gas_limit,
+                upgrade_gas: gas_to_strip,
+            },
+        )?;
+    }
+
     // After holocene's activation, the EIP-1559 parameters are stored in the block header's nonce.
     if rollup_config.is_jovian_active(block.header.timestamp) {
         let (elasticity, denominator, min_base_fee) =
@@ -82,6 +100,34 @@ pub fn to_system_config(
     }
 
     Ok(cfg)
+}
+
+/// Returns the one-time NUT-bundle upgrade gas to subtract from the system config reconstructed
+/// from a block with the given timestamp. Every NUT-bundle fork from Karst onward adds upgrade gas
+/// at its activation block; subtracting it again at the next block reverts the gas limit to the
+/// steady state. Karst can opt out via `keep_karst_upgrade_gas` (for chains that activated Karst
+/// with the leak baked into their history); later forks have no opt-out.
+fn upgrade_gas_to_strip(rollup_config: &RollupConfig, block_timestamp: u64) -> u64 {
+    let mut total = 0u64;
+    for fork in OpHardfork::Karst.forks_from() {
+        let activation = rollup_config.op_fork_activation(fork);
+        let is_activation_block = activation.active_at_timestamp(block_timestamp) &&
+            !activation
+                .active_at_timestamp(block_timestamp.saturating_sub(rollup_config.block_time));
+        if !is_activation_block {
+            continue;
+        }
+        if fork == OpHardfork::Karst && rollup_config.hardforks.keep_karst_upgrade_gas {
+            continue;
+        }
+        total += match fork {
+            OpHardfork::Karst => Hardforks::KARST.upgrade_gas(),
+            OpHardfork::Lagoon => Hardforks::LAGOON.upgrade_gas(),
+            // Forks without a NUT bundle add no upgrade gas.
+            _ => 0,
+        };
+    }
+    total
 }
 
 fn encode_scalar(blob_base_fee_scalar: u32, base_fee_scalar: u32) -> U256 {
@@ -291,6 +337,125 @@ mod tests {
             da_footprint_gas_scalar: None,
         };
         assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_to_system_config_strips_karst_upgrade_gas() {
+        const BASE_GAS_LIMIT: u64 = 30_000_000;
+        let karst_gas = Hardforks::KARST.upgrade_gas();
+        let karst_time = 100u64;
+        let block = OpBlock {
+            header: alloy_consensus::Header {
+                number: 1,
+                timestamp: karst_time,
+                // The activation block carries base + the one-time upgrade gas.
+                gas_limit: BASE_GAS_LIMIT + karst_gas,
+                // Jovian extra data: version 0x01 + denominator + elasticity + minBaseFee
+                // (Karst is active, which implies Jovian).
+                extra_data: bytes!("010000beef0000babe0000000000000000"),
+                ..Default::default()
+            },
+            body: alloy_consensus::BlockBody {
+                transactions: vec![op_alloy_consensus::OpTxEnvelope::Deposit(
+                    alloy_primitives::Sealed::new(op_alloy_consensus::TxDeposit {
+                        input: alloy_primitives::Bytes::from(&RAW_ISTHMUS_INFO_TX),
+                        ..Default::default()
+                    }),
+                )],
+                ..Default::default()
+            },
+        };
+        let block_hash = block.header.hash_slow();
+        let rollup_config = RollupConfig {
+            block_time: 2,
+            genesis: ChainGenesis {
+                l2: BlockNumHash { hash: block_hash, ..Default::default() },
+                ..Default::default()
+            },
+            hardforks: HardForkConfig { karst_time: Some(karst_time), ..Default::default() },
+            ..Default::default()
+        };
+        assert!(rollup_config.is_first_karst_block(block.header.timestamp));
+        let config = to_system_config(&block, &rollup_config).unwrap();
+        assert_eq!(config.gas_limit, BASE_GAS_LIMIT, "Karst upgrade gas must be stripped");
+    }
+
+    #[test]
+    fn test_to_system_config_keeps_karst_upgrade_gas() {
+        const BASE_GAS_LIMIT: u64 = 30_000_000;
+        let karst_gas = Hardforks::KARST.upgrade_gas();
+        let block = OpBlock {
+            header: alloy_consensus::Header {
+                number: 1,
+                timestamp: 100,
+                gas_limit: BASE_GAS_LIMIT + karst_gas,
+                extra_data: bytes!("010000beef0000babe0000000000000000"),
+                ..Default::default()
+            },
+            body: alloy_consensus::BlockBody {
+                transactions: vec![op_alloy_consensus::OpTxEnvelope::Deposit(
+                    alloy_primitives::Sealed::new(op_alloy_consensus::TxDeposit {
+                        input: alloy_primitives::Bytes::from(&RAW_ISTHMUS_INFO_TX),
+                        ..Default::default()
+                    }),
+                )],
+                ..Default::default()
+            },
+        };
+        // keep_karst_upgrade_gas = true: the activation block's inflated gas limit is kept,
+        // so an already-affected chain's history still validates.
+        let rollup_config = RollupConfig {
+            block_time: 2,
+            hardforks: HardForkConfig {
+                karst_time: Some(100),
+                keep_karst_upgrade_gas: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert!(rollup_config.is_first_karst_block(block.header.timestamp));
+        let config = to_system_config(&block, &rollup_config).unwrap();
+        assert_eq!(
+            config.gas_limit,
+            BASE_GAS_LIMIT + karst_gas,
+            "upgrade gas must be kept when keep_karst_upgrade_gas is set"
+        );
+    }
+
+    #[test]
+    fn test_upgrade_gas_to_strip() {
+        let karst_gas = Hardforks::KARST.upgrade_gas();
+        let lagoon_gas = Hardforks::LAGOON.upgrade_gas();
+        let (karst_time, lagoon_time) = (1000u64, 2000u64);
+        let cfg = RollupConfig {
+            block_time: 2,
+            hardforks: HardForkConfig {
+                karst_time: Some(karst_time),
+                lagoon_time: Some(lagoon_time),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Each NUT-bundle fork strips its own upgrade gas at its activation block, nowhere else.
+        assert_eq!(upgrade_gas_to_strip(&cfg, karst_time), karst_gas);
+        assert_eq!(upgrade_gas_to_strip(&cfg, karst_time - 2), 0);
+        assert_eq!(upgrade_gas_to_strip(&cfg, karst_time + 2), 0);
+        assert_eq!(upgrade_gas_to_strip(&cfg, lagoon_time), lagoon_gas);
+
+        // keep_karst_upgrade_gas opts out of Karst only; later forks have no opt-out.
+        let kept = RollupConfig {
+            block_time: 2,
+            hardforks: HardForkConfig {
+                karst_time: Some(karst_time),
+                lagoon_time: Some(lagoon_time),
+                keep_karst_upgrade_gas: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert_eq!(upgrade_gas_to_strip(&kept, karst_time), 0);
+        assert_eq!(upgrade_gas_to_strip(&kept, lagoon_time), lagoon_gas);
     }
 
     #[test]

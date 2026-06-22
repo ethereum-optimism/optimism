@@ -133,6 +133,15 @@ type Config struct {
 	// Active if KarstTime != nil && L2 block timestamp >= *KarstTime, inactive otherwise.
 	KarstTime *uint64 `json:"karst_time,omitempty"`
 
+	// KeepKarstUpgradeGas opts out of the fix for the Karst upgrade-gas leak, where the
+	// one-time upgrade gas added to the Karst activation block was persisting on every later
+	// block instead of only the activation block.
+	// Defaults to false: the upgrade gas is subtracted again at the block right after the
+	// Karst activation block, so the gas limit reverts. Set to true only on chains that
+	// already activated Karst with the leak baked into their history — the inflated gas limit
+	// is kept, and the operator clears it themselves with a setGasLimit whenever they choose.
+	KeepKarstUpgradeGas bool `json:"keep_karst_upgrade_gas,omitempty"`
+
 	// LagoonTime sets the activation time for an experimental feature-set, activated like a hardfork.
 	// Active if LagoonTime != nil && L2 block timestamp >= *LagoonTime, inactive otherwise.
 	LagoonTime *uint64 `json:"lagoon_time,omitempty"`

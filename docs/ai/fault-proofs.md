@@ -47,3 +47,43 @@ contracts.
 - End-to-end dispute game tests covering honest and dishonest scenarios.
 - Fuzz testing for VM instruction handlers.
 - Preimage oracle consistency tests.
+
+## Running action tests
+
+Action tests drive the sequencer/verifier/miner through scripted actions. They are Go
+tests, but they need the L2 contract artifacts (the genesis the env deploys is built from
+them). Tools (`forge`, `go`, `just`) come from mise — prefix commands with `mise x --` outside
+a mise-activated shell, and run `mise trust` once in a fresh worktree.
+
+**Build the contracts first (prerequisite for all action tests).** Build once, then reuse:
+
+```bash
+# from packages/contracts-bedrock — compile the contracts
+mise x -- just forge-build --skip test
+# from op-deployer — bundle the artifacts where the e2e env reads them
+mise x -- just copy-contract-artifacts
+```
+
+**Plain Go action tests** (`op-e2e/actions/...`) then run directly:
+
+```bash
+go test ./op-e2e/actions/upgrades/ -run TestName -count=1
+```
+
+**Kona fault-proof action tests** (`rust/kona/tests/proofs/...`, e.g.
+`TestActivationBlockNUTBundle`) additionally run kona-client through the native `kona-host`
+binary, so they need it built and `KONA_HOST_PATH` pointing at it. These tests are excluded
+from the normal `go test ./...` suite — they only run under kona-host.
+
+```bash
+# build the native host (release; heavy build)
+cargo build --release --manifest-path rust/Cargo.toml --bin kona-host
+
+# run, pointing KONA_HOST_PATH at the binary
+cd rust/kona/tests/proofs
+KONA_HOST_PATH="$(git rev-parse --show-toplevel)/rust/target/release/kona-host" \
+  go test -run TestActivationBlockNUTBundle -count=1 .
+```
+
+Or let the justfile build kona-host and run in one step (still needs the contracts built
+above): from `rust/kona/tests`, `just action-tests-single TestActivationBlockNUTBundle`.

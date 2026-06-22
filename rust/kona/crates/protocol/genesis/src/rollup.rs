@@ -833,6 +833,7 @@ mod tests {
                 isthmus_time: Some(90),
                 jovian_time: Some(100),
                 karst_time: Some(110),
+                keep_karst_upgrade_gas: false,
                 lagoon_time: Some(120),
             },
             block_time: 2,

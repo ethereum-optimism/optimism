@@ -72,6 +72,16 @@ pub struct HardForkConfig {
     /// otherwise.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub karst_time: Option<u64>,
+    /// `keep_karst_upgrade_gas` opts out of the fix for the Karst upgrade-gas leak, where the
+    /// one-time upgrade gas added to the Karst activation block was persisting on every later
+    /// block instead of only the activation block.
+    ///
+    /// Defaults to `false`: the upgrade gas is subtracted again at the block right after the
+    /// Karst activation block, so the gas limit reverts. Set to `true` only on chains that
+    /// already activated Karst with the leak baked into their history — the inflated gas limit
+    /// is kept, and the operator clears it themselves with a `setGasLimit` whenever they choose.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "core::ops::Not::not"))]
+    pub keep_karst_upgrade_gas: bool,
     /// `lagoon_time` sets the activation time for the Lagoon network upgrade.
     /// Active if `lagoon_time` != None && L2 block timestamp >= `Some(lagoon_time)`, inactive
     /// otherwise.
@@ -110,6 +120,8 @@ impl HardForkConfig {
             ("Jovian", self.jovian_time),
             ("Karst", self.karst_time),
             ("Lagoon", self.lagoon_time),
+            // keep_karst_upgrade_gas is a behavioral flag, not a scheduled time, so it is
+            // deliberately excluded from this hardfork-activation-time iterator.
         ]
         .into_iter()
     }
@@ -145,6 +157,7 @@ mod tests {
             isthmus_time: None,
             jovian_time: None,
             karst_time: None,
+            keep_karst_upgrade_gas: false,
             lagoon_time: None,
         };
 
@@ -193,6 +206,7 @@ mod tests {
             isthmus_time: None,
             jovian_time: None,
             karst_time: None,
+            keep_karst_upgrade_gas: false,
             lagoon_time: None,
         };
 
@@ -228,6 +242,7 @@ mod tests {
             isthmus_time: Some(9),
             jovian_time: Some(10),
             karst_time: Some(11),
+            keep_karst_upgrade_gas: false,
             lagoon_time: Some(12),
         };
 
