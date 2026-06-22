@@ -313,6 +313,32 @@ hack-tests partition="" shuffle="false" seed="default":
 
   cargo hack check --each-feature --tests $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
 
+# Run cargo hack over test targets with all features enabled (per package).
+# Unlike `hack-tests`, this enables every feature at once rather than iterating
+# them, so it catches crates whose tests use a *dependency's* feature they never
+# declare: such a crate compiles in a unified workspace build but fails when
+# checked alone (feature unification no longer lends it the feature).
+# seed: deterministic seed for shuffle (all partition nodes must use the same seed)
+hack-tests-all partition="" shuffle="false" seed="default":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ "{{partition}}" != "" ]; then
+    echo "Running cargo hack (tests, all-features) with partition {{partition}}"
+  else
+    echo "Running cargo hack (tests, all-features) without partition"
+  fi
+
+  PKG_FLAGS=""
+  if [ "{{shuffle}}" = "true" ]; then
+    PKGS=$(cargo metadata --no-deps --format-version 1 \
+      | jq -r '.packages[].name' \
+      | shuf --random-source=<(openssl enc -aes-256-ctr -pass "pass:{{seed}}" -nosalt </dev/zero 2>/dev/null))
+    PKG_FLAGS=$(echo "$PKGS" | sed 's/^/-p /' | tr '\n' ' ')
+    echo "Shuffled package order (seed={{seed}}): $PKGS"
+  fi
+
+  cargo hack check --all-features --tests $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
+
 ########################### Release #################################
 
 # Release crates at the given version.
