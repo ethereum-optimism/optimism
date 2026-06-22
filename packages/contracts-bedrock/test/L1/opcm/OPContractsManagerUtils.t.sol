@@ -942,7 +942,7 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
         uint256 challengerBond = 1 ether;
         IAnchorStateRegistry anchorStateRegistry = IAnchorStateRegistry(makeAddr("anchorStateRegistry"));
         IDelayedWETH delayedWETH = IDelayedWETH(payable(makeAddr("delayedWETH")));
-        uint256 l2ChainId = 42;
+        uint256 l2ChainId = 0; // l2chainid is always 0 for super games
 
         IOPContractsManagerUtils.DisputeGameConfig memory cfg = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
@@ -962,7 +962,9 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
         bytes memory result = utils.makeGameArgs(l2ChainId, anchorStateRegistry, delayedWETH, cfg);
 
         // Verify the CWIA layout: absolutePrestate | verifier | maxChallengeDuration | maxProveDuration |
-        // challengerBond | anchorStateRegistry | delayedWETH | l2ChainId
+        // challengerBond | anchorStateRegistry | delayedWETH
+        // ZK_DISPUTE_GAME is a super game: chain scoping comes from the SuperRootProof preimage
+        // committed to via rootClaim, so no l2ChainId field is included in the encoded args.
         bytes memory expected = abi.encodePacked(
             absolutePrestate,
             verifier,
@@ -970,8 +972,7 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
             maxProveDuration,
             challengerBond,
             address(anchorStateRegistry),
-            address(delayedWETH),
-            l2ChainId
+            address(delayedWETH)
         );
         assertEq(keccak256(result), keccak256(expected), "ZK game args CWIA layout mismatch");
     }

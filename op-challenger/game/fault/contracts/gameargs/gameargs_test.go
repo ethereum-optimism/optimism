@@ -61,7 +61,6 @@ func TestZKGameArgsPack(t *testing.T) {
 	asr := common.HexToAddress("0x2222222222222222222222222222222222222222")
 	weth := common.HexToAddress("0x3333333333333333333333333333333333333333")
 	bond := big.NewInt(1e18)
-	chainID := big.NewInt(42)
 
 	got := ZKGameArgs{
 		AbsolutePrestate:     prestate,
@@ -71,7 +70,6 @@ func TestZKGameArgsPack(t *testing.T) {
 		ChallengerBond:       bond,
 		AnchorStateRegistry:  asr,
 		Weth:                 weth,
-		L2ChainID:            chainID,
 	}.Pack()
 
 	require.Len(t, got, ZKArgsLength)
@@ -82,7 +80,6 @@ func TestZKGameArgsPack(t *testing.T) {
 	require.Equal(t, bond, new(big.Int).SetBytes(got[68:100]))
 	require.Equal(t, asr[:], got[100:120])
 	require.Equal(t, weth[:], got[120:140])
-	require.Equal(t, chainID, new(big.Int).SetBytes(got[140:172]))
 }
 
 func fullGameArgs() GameArgs {

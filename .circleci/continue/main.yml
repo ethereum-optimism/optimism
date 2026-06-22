@@ -1695,15 +1695,17 @@ jobs:
           checkout-method: blobless
           enable-mise-cache: true
       - run:
+          # sync-superchain-go runs in refresh mode: it regenerates the bundle AND
+          # rewrites the .sha256, so the diff check below is meaningful.
           name: build superchain bundle
           command: just sync-superchain-go
       - run:
           # Catches non-deterministic builds and stale .sha256 commits: if the
           # rebuilt zip differs from what was approved in review, the .sha256
           # file written by sync-superchain.sh will diverge from the committed
-          # one and this fails. The init.go runtime checks (SHA256 of embedded
-          # zip, COMMIT entry, op-geth cross-commit) run as part of go-tests
-          # downstream — no need to repeat them here.
+          # one and this fails. The init.go runtime check (SHA256 of the embedded
+          # zip against the committed .sha256) runs as part of go-tests
+          # downstream — no need to repeat it here.
           name: verify rebuilt bundle matches committed .sha256
           command: git diff --exit-code op-core/superchain/superchain-configs.zip.sha256
       - persist_to_workspace:
@@ -1878,6 +1880,10 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: go-tests-with-fault-proof-deps
+      # Build the superchain-configs.zip op-e2e/faultproofs //go:embeds (no prep-superchain job here).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: build cannon
           command: just cannon
@@ -2476,6 +2482,8 @@ workflows:
       - fuzz-golang:
           name: fuzz-golang-<<matrix.package_name>>
           on_changes: <<matrix.package_name>>
+          # attaches prep-superchain's superchain-configs.zip, which several of these packages //go:embed.
+          uses_artifacts: true
           matrix:
             parameters:
               package_name:
@@ -2485,6 +2493,7 @@ workflows:
                 - op-chain-ops
           requires:
             - prep-go-modules
+            - prep-superchain
           context:
             - circleci-repo-readonly-authenticated-github-token
       - fuzz-golang:
@@ -2508,6 +2517,8 @@ workflows:
             - contracts-bedrock-build
             - cannon-prestate
             - prep-go-modules
+            # for the gitignored superchain-configs.zip op-e2e //go:embeds
+            - prep-superchain
       - go-tests:
           name: go-tests-short
           parallelism: 12
@@ -2643,6 +2654,8 @@ workflows:
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
             - prep-go-modules
+            # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
+            - prep-superchain
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
           name: memory-all-opn-op-reth
@@ -2660,6 +2673,8 @@ workflows:
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
             - prep-go-modules
+            # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
+            - prep-superchain
       # IN-MEMORY - kona/op-reth
       - op-acceptance-tests:
           name: memory-all-kona-op-reth
@@ -2678,6 +2693,8 @@ workflows:
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
             - prep-go-modules
+            # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
+            - prep-superchain
       # Gate job - single stable job used as GitHub required status check for develop.
       # Uses terminal requires so it always runs (even when deps fail), giving the
       # merge queue an immediate failure signal instead of a timeout.

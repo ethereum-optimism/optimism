@@ -124,6 +124,22 @@ Update the following components:
 | `rollup-boost` | [`v0.7.15`](https://github.com/flashbots/rollup-boost/releases/tag/rollup-boost%2Fv0.7.15) | Only if running Flashblocks. Must be updated **prior** to the activation timestamp. |
 | `op-rbuilder` | [`v0.4.8`](https://github.com/flashbots/op-rbuilder/releases/tag/op-rbuilder%2Fv0.4.8) | Only if running Flashblocks. Must be updated **prior** to the activation timestamp. |
 
+### For permissioned fault proof chains
+
+Chains running **permissioned** fault proofs (game type `PERMISSIONED`) do not need the full permissionless setup below, but `op-challenger` still requires a cannon prestate to be configured at startup even though the legacy `CANNON` (0) prestate is not used after the upgrade.
+
+If you are currently passing `--prestates-url=<YOUR_PRESTATE_URL>`, replace it with a placeholder cannon prestate:
+
+```bash
+--cannon-prestate=any-string
+# or
+OP_CHALLENGER_CANNON_PRESTATE=any-string
+```
+
+<Info>
+  This value is a placeholder only — permissioned chains do not generate `CANNON` (0) trace data, so the prestate is never loaded. Your `cannon-kona` prestate configuration is unaffected.
+</Info>
+
 ### For permissionless fault proof enabled chains
 
 With `CANNON_KONA` becoming the respected game type, chains running permissionless fault proofs must ensure their off-chain infrastructure is fully Kona-ready. This is critical — after the upgrade, withdrawals are proven against `CANNON_KONA` games.

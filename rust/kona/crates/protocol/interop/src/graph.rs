@@ -508,12 +508,12 @@ mod test {
             .chain(CHAIN_A_ID)
             .with_timestamp(2)
             .with_block_time(2)
-            .with_interop_activation_time(0);
+            .with_lagoon_activation_time(0);
         superchain
             .chain(CHAIN_B_ID)
             .with_timestamp(2)
             .with_block_time(2)
-            .with_interop_activation_time(0);
+            .with_lagoon_activation_time(0);
 
         superchain
     }
@@ -700,7 +700,7 @@ mod test {
 
         superchain
             .chain(CHAIN_A_ID)
-            .with_interop_activation_time(50)
+            .with_lagoon_activation_time(50)
             .add_initiating_message(MOCK_MESSAGE.into());
         superchain.chain(CHAIN_B_ID).add_executing_message(
             ExecutingMessageBuilder::default()
@@ -746,7 +746,7 @@ mod test {
         // block, at `2s`, should be the activation block.
         superchain
             .chain(CHAIN_A_ID)
-            .with_interop_activation_time(1)
+            .with_lagoon_activation_time(1)
             .add_initiating_message(MOCK_MESSAGE.into());
         superchain.chain(CHAIN_B_ID).add_executing_message(
             ExecutingMessageBuilder::default()
@@ -790,7 +790,7 @@ mod test {
 
         superchain
             .chain(CHAIN_A_ID)
-            .with_interop_activation_time(chain_a_time)
+            .with_lagoon_activation_time(chain_a_time)
             .add_initiating_message(MOCK_MESSAGE.into());
         superchain.chain(CHAIN_B_ID).add_executing_message(
             ExecutingMessageBuilder::default()
@@ -824,14 +824,14 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_derive_and_resolve_graph_initiating_chain_interop_time_none_rejected() {
+    async fn test_derive_and_resolve_graph_initiating_chain_lagoon_time_none_rejected() {
         // A chain with no interop activation cannot produce valid init messages.
-        // Op-supervisor's `IsInterop(ts) = InteropTime != nil && ts >= *InteropTime`
+        // Op-supervisor's `IsInterop(ts) = LagoonTime != nil && ts >= *LagoonTime`
         // rejects in this case, and `check_single_dependency` must do the same via
         // `is_interop_active`.
         //
         // Attack: an attacker plants an arbitrary log on a chain whose kona-visible
-        // rollup config has `interop_time = None` (stale registry, oracle-supplied
+        // rollup config has `lagoon_time = None` (stale registry, oracle-supplied
         // config, or a misconfigured dep set), then references it from an executing
         // message on another chain. Without a `None`-rejecting gate, kona accepts the
         // forged init message and downstream consumers (e.g. `L2toL2CrossDomainMessenger`)
@@ -893,9 +893,9 @@ mod test {
         let chain_b_time = superchain.chain(CHAIN_B_ID).header.timestamp;
 
         // Move CHAIN_B (the executing chain) activation to t=50, so its block at t=2 is
-        // pre-interop. CHAIN_A (initiating) stays at the default (interop active from t=0,
+        // pre-interop. CHAIN_A (initiating) stays at the default (lagoon active from t=0,
         // well past activation). The executing-chain guard must reject via `!is_interop_active`.
-        superchain.chain(CHAIN_B_ID).with_interop_activation_time(50);
+        superchain.chain(CHAIN_B_ID).with_lagoon_activation_time(50);
         superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
         superchain.chain(CHAIN_B_ID).add_executing_message(
             ExecutingMessageBuilder::default()
@@ -941,7 +941,7 @@ mod test {
         // CHAIN_B activates @ `1s`, unaligned with the block time of `2s`. The first
         // CHAIN_B block at t=2 IS its activation block (`is_first_interop_block` is
         // true under unaligned activation: `is_interop_active(2) && !is_interop_active(0)`).
-        superchain.chain(CHAIN_B_ID).with_interop_activation_time(1);
+        superchain.chain(CHAIN_B_ID).with_lagoon_activation_time(1);
         superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
         superchain.chain(CHAIN_B_ID).add_executing_message(
             ExecutingMessageBuilder::default()
@@ -986,8 +986,8 @@ mod test {
 
         // CHAIN_B activates @ `chain_b_time`, exactly aligned with block_time. The block
         // at `chain_b_time` IS the activation block. Mirrors the existing init-side test
-        // which uses `with_interop_activation_time(chain_a_time)`.
-        superchain.chain(CHAIN_B_ID).with_interop_activation_time(chain_b_time);
+        // which uses `with_lagoon_activation_time(chain_a_time)`.
+        superchain.chain(CHAIN_B_ID).with_lagoon_activation_time(chain_b_time);
         superchain.chain(CHAIN_A_ID).add_initiating_message(MOCK_MESSAGE.into());
         superchain.chain(CHAIN_B_ID).add_executing_message(
             ExecutingMessageBuilder::default()
@@ -1348,17 +1348,17 @@ mod test {
             .chain(CHAIN_A_ID)
             .with_timestamp(2)
             .with_block_time(2)
-            .with_interop_activation_time(0);
+            .with_lagoon_activation_time(0);
         superchain
             .chain(CHAIN_B_ID)
             .with_timestamp(2)
             .with_block_time(2)
-            .with_interop_activation_time(0);
+            .with_lagoon_activation_time(0);
         superchain
             .chain(CHAIN_C_ID)
             .with_timestamp(2)
             .with_block_time(2)
-            .with_interop_activation_time(0);
+            .with_lagoon_activation_time(0);
 
         // A executes from C, B executes from A, C executes from B.
         superchain.chain(CHAIN_A_ID).add_executing_message(
@@ -1412,17 +1412,17 @@ mod test {
             .chain(CHAIN_A_ID)
             .with_timestamp(2)
             .with_block_time(2)
-            .with_interop_activation_time(0);
+            .with_lagoon_activation_time(0);
         superchain
             .chain(CHAIN_B_ID)
             .with_timestamp(2)
             .with_block_time(2)
-            .with_interop_activation_time(0);
+            .with_lagoon_activation_time(0);
         superchain
             .chain(CHAIN_C_ID)
             .with_timestamp(2)
             .with_block_time(2)
-            .with_interop_activation_time(0);
+            .with_lagoon_activation_time(0);
 
         // A↔B cycle: both EMs at log index 0, referencing each other at log index 0.
         superchain.chain(CHAIN_A_ID).add_executing_message(
@@ -1613,12 +1613,12 @@ mod test {
             .chain(CHAIN_A_ID)
             .with_timestamp(CURRENT_TS)
             .with_block_time(2)
-            .with_interop_activation_time(0);
+            .with_lagoon_activation_time(0);
         superchain
             .chain(CHAIN_B_ID)
             .with_timestamp(CURRENT_TS)
             .with_block_time(2)
-            .with_interop_activation_time(0);
+            .with_lagoon_activation_time(0);
 
         // Chain A's block at CURRENT_TS contains an EM referencing an initiating message
         // on chain B at HISTORICAL_TS. Chain B's block at CURRENT_TS contains an EM

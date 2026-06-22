@@ -469,8 +469,7 @@ contract OPContractsManagerUtils {
                 parsedInputArgs.maxProveDuration,
                 parsedInputArgs.challengerBond,
                 address(_anchorStateRegistry),
-                address(_delayedWETH),
-                chainId
+                address(_delayedWETH)
             );
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();

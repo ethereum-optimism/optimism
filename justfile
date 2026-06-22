@@ -42,11 +42,18 @@ update-superchain-registry-submodule ref="":
     git add superchain-registry
   fi
 
-# Regenerates op-core/superchain/superchain-configs.zip (gitignored) from the
-# superchain-registry submodule. Lightweight; this is the recipe the Go targets
-# depend on. Skips work if the existing zip already pins the same commit.
-sync-superchain-go: update-superchain-registry-submodule
+# Builds op-core/superchain/superchain-configs.zip (gitignored) from the
+# superchain-registry submodule. Lightweight; this is the recipe the Go build/test
+# targets depend on. Verify mode: skips work if the existing zip already matches the
+# committed .sha256, otherwise regenerates and asserts it still matches (failing on drift).
+build-superchain-go: update-superchain-registry-submodule
   bash op-core/superchain/sync-superchain.sh
+
+# Regenerates op-core/superchain/superchain-configs.zip AND rewrites its committed
+# .sha256 from the submodule — build-superchain-go in refresh mode. Sibling of
+# sync-superchain-rust; both are run by sync-superchain when bumping the registry.
+sync-superchain-go:
+  @OP_CORE_SYNC_SUPERCHAIN=1 just build-superchain-go
 
 # Regenerates the committed Rust artifacts from the submodule: kona's etc/*.json
 # (via KONA_SYNC_SUPERCHAIN) and op-reth's superchain-configs.tar.sha256 +
@@ -64,7 +71,7 @@ sync-superchain ref="": (update-superchain-registry-submodule ref) sync-supercha
 build: build-go build-contracts
 
 # Builds main Go components.
-build-go: submodules op-node op-proposer op-batcher op-challenger op-dispute-mon cannon
+build-go: submodules build-superchain-go op-node op-proposer op-batcher op-challenger op-dispute-mon cannon
 
 # Builds contracts-bedrock.
 build-contracts:
@@ -75,12 +82,12 @@ build-customlint:
   cd linter && just build
 
 # Lints Go code with specific linters.
-lint-go: build-customlint sync-superchain-go
+lint-go: build-customlint build-superchain-go
   ./linter/bin/op-golangci-lint run ./...
   go mod tidy -diff
 
 # Lints Go code with specific linters and fixes reported issues.
-lint-go-fix: build-customlint sync-superchain-go
+lint-go-fix: build-customlint build-superchain-go
   ./linter/bin/op-golangci-lint run ./... --fix
 
 # Checks that op-geth version in go.mod is valid.
@@ -89,7 +96,7 @@ check-op-geth-version:
 
 # Builds Docker images for Go components using buildx.
 [script('bash')]
-golang-docker:
+golang-docker: update-superchain-registry-submodule
   set -euo pipefail
   GIT_COMMIT=$(git rev-parse HEAD) \
   GIT_DATE=$(git show -s --format='%ct') \
@@ -103,7 +110,7 @@ golang-docker:
 # Builds selected Docker image targets using buildx.
 [private]
 [script('bash')]
-docker-bake targets:
+docker-bake targets: update-superchain-registry-submodule
   set -euo pipefail
   GIT_COMMIT=$(git rev-parse HEAD)
   GIT_DATE=$(git show -s --format='%ct')
@@ -253,7 +260,7 @@ verify-reproducibility:
 # Cleans up unused dependencies in Go modules.
 # Bypasses the Go module proxy for freshly released versions.
 # See https://proxy.golang.org/ for more info.
-mod-tidy: sync-superchain-go
+mod-tidy: build-superchain-go
   GOPRIVATE="github.com/ethereum-optimism" go mod tidy
 
 # Removes all generated files under bin/.
@@ -297,7 +304,7 @@ list-test-packages:
 
 # Runs comprehensive Go tests across all packages.
 [script('bash')]
-go-tests: cannon build-contracts make-pre-test sync-superchain-go
+go-tests: cannon build-contracts make-pre-test build-superchain-go
   set -euo pipefail
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="false"
@@ -308,7 +315,7 @@ go-tests: cannon build-contracts make-pre-test sync-superchain-go
 
 # Runs comprehensive Go tests with -short flag.
 [script('bash')]
-go-tests-short: cannon build-contracts make-pre-test sync-superchain-go
+go-tests-short: cannon build-contracts make-pre-test build-superchain-go
   set -euo pipefail
   export ENABLE_KURTOSIS=true
   export OP_E2E_CANNON_ENABLED="false"
@@ -319,7 +326,7 @@ go-tests-short: cannon build-contracts make-pre-test sync-superchain-go
 
 # Internal: runs Go tests with gotestsum for CI.
 [script('bash')]
-_go-tests-ci-internal go_test_flags="": sync-superchain-go
+_go-tests-ci-internal go_test_flags="": build-superchain-go
   set -euo pipefail
   (cd cannon && just cannon elf)
   echo "Setting up test directories..."
@@ -418,6 +425,10 @@ nut-snapshot-for fork:
 # Verifies a fork's NUT bundle was correctly built from its recorded commit.
 nut-provenance-verify fork:
   go run ./ops/scripts/nut-provenance-verify {{fork}}
+
+# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
+nut-prefork-state-for fork:
+  OP_E2E_GEN_PREFORK_STATE={{fork}} go test -run TestGenerateForkState ./rust/kona/tests/proofs/
 
 
 # Checks that TODO comments have corresponding issues.

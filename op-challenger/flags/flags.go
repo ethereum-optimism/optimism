@@ -9,11 +9,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
