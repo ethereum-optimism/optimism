@@ -101,6 +101,9 @@ commands:
             - run:
                 name: Ensure clang available
                 command: 'command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }'
+      # protoc (sp1-sdk prost/tonic build dep) is now preinstalled in
+      # ci-base-clang. TODO: once a rebuilt image is pinned, drop this fallback
+      # install to a clang-style presence check.
       - run:
           name: Ensure protobuf compiler available
           command: |
