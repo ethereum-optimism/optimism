@@ -442,7 +442,9 @@ func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2Bloc
 	}
 }
 
-// checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve the missing payloads
+// checkForGapInUnsafeQueue checks for a gap between the engine's unsafe head and the
+// next queued unsafe payload, and if so re-inserts the queued payload to drive the
+// engine-queue gap-fill.
 func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
 	start := s.SyncDeriver.Engine.UnsafeL2Head()
 	payload, end := s.SyncDeriver.Engine.PeekUnsafePayload()

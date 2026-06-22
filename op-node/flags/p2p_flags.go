@@ -405,7 +405,7 @@ func P2PFlags(envPrefix string) []cli.Flag {
 		},
 		&cli.BoolFlag{
 			Name:     SyncReqRespName,
-			Usage:    "Enables the P2P req-resp sync server, which serves payloads-by-number to peers that request them. The client side has been removed.",
+			Usage:    "Enables the P2P req-resp sync server, which serves payloads-by-number to peers that request them. The client side has been removed; the server will be deprecated in a future release in favor of EL P2P sync.",
 			Value:    true,
 			Required: false,
 			EnvVars:  p2pEnv(envPrefix, "SYNC_REQ_RESP"),
