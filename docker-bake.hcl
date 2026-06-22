@@ -369,6 +369,9 @@ target "op-rbuilder" {
   context = "rust/op-rbuilder"
   contexts = {
     monorepo-rust = "rust"
+    # op-reth's chainspec build.rs (pulled in via monorepo-rust) regenerates its
+    # gitignored superchain archive from this submodule; see the Dockerfile COPY.
+    superchain-registry = "superchain-registry"
   }
   args = {
     RBUILDER_BIN = "op-rbuilder"
@@ -384,6 +387,9 @@ target "rollup-boost" {
   context = "rust/rollup-boost"
   contexts = {
     monorepo-rust = "rust"
+    # op-reth's chainspec build.rs (pulled in via monorepo-rust) regenerates its
+    # gitignored superchain archive from this submodule; see the Dockerfile COPY.
+    superchain-registry = "superchain-registry"
   }
   args = {
     SERVICE_NAME = "rollup-boost"
