@@ -12,13 +12,10 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
 /// @title SuperGameTestInit
-/// @notice Shared base for tests that need super game mode (SUPER_PERMISSIONED_CANNON + SUPER_CANNON_KONA).
+/// @notice Shared base for tests that need super game mode (SUPER_PERMISSIONED + SUPER_CANNON_KONA).
 ///         Provides common state variables and the upgrade helper used by both MigrationValidator
 ///         and StandardValidator super mode test suites.
 abstract contract SuperGameTestInit is CommonTest {
-    /// @notice The cannon prestate (used by SUPER_PERMISSIONED_CANNON).
-    Claim cannonPrestate;
-
     /// @notice The cannonKona prestate (used by SUPER_CANNON_KONA).
     Claim cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKonaPrestate")));
 
@@ -28,7 +25,7 @@ abstract contract SuperGameTestInit is CommonTest {
     /// @notice The challenger role.
     address challenger;
 
-    /// @notice Runs an upgrade that enables SUPER_CANNON_KONA alongside SUPER_PERMISSIONED_CANNON.
+    /// @notice Runs an upgrade that enables SUPER_CANNON_KONA alongside SUPER_PERMISSIONED.
     function _enableSuperCannonKona() internal virtual {
         address owner = proxyAdmin.owner();
 
@@ -59,7 +56,7 @@ abstract contract SuperGameTestInit is CommonTest {
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED,
             gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
         });
         disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -79,7 +76,7 @@ abstract contract SuperGameTestInit is CommonTest {
             new IOPContractsManagerUtils.ExtraInstruction[](1);
         extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
             key: "overrides.cfg.startingRespectedGameType",
-            data: abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
+            data: abi.encode(GameTypes.SUPER_PERMISSIONED)
         });
 
         prankDelegateCall(owner);

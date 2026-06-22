@@ -281,7 +281,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameType: GameTypes.SUPER_PERMISSIONED,
                 gameArgs: hex""
             });
             disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -974,14 +974,14 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
     }
 
     /// @notice Tests that the validate function returns DF-50 when neither PERMISSIONED_CANNON nor
-    ///         SUPER_PERMISSIONED_CANNON has a registered implementation in the DGF.
+    ///         SUPER_PERMISSIONED has a registered implementation in the DGF.
     function test_validate_disputeGameFactoryNoPermissionedGame_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
             abi.encode(address(0))
         );
-        // SUPER_PERMISSIONED_CANNON is not registered in non-super mode, so DF-50 fires.
+        // SUPER_PERMISSIONED is not registered in non-super mode, so DF-50 fires.
         // PDDG-NOSHAPE fires because PERMISSIONED_CANNON is not registered in non-super mode.
         // PDDG-10 also fires because PERMISSIONED_CANNON impl is null.
         assertEq("DF-50,PDDG-NOSHAPE,PDDG-10", _validate(true));
@@ -997,11 +997,11 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
         assertEq("SCDG-NOSHAPE", _validate(true));
     }
 
-    /// @notice Tests that SPDG-NOSHAPE fires when SUPER_PERMISSIONED_CANNON has a registered impl in non-super mode.
-    function test_validate_nonSuperModeSuperPermissionedCannonRegistered_succeeds() public {
+    /// @notice Tests that SPDG-NOSHAPE fires when SUPER_PERMISSIONED has a registered impl in non-super mode.
+    function test_validate_nonSuperModeSuperPermissionedRegistered_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(address(0xdead))
         );
         assertEq("SPDG-NOSHAPE", _validate(true));
@@ -1026,7 +1026,7 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
         );
         vm.mockCall(
             address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(address(0xdead))
         );
         vm.mockCall(
@@ -1051,7 +1051,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
             abi.encode(address(0))
         );
-        // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED_CANNON is registered.
+        // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED is registered.
         // PDDG-NOSHAPE fires because PERMISSIONED_CANNON is not registered in non-super mode.
         assertEq("DF-50,PDDG-NOSHAPE,PDDG-10", _validate(true));
     }
@@ -1743,10 +1743,13 @@ contract OPContractsManagerStandardValidator_Versions_Test is OPContractsManager
 
 /// @title OPContractsManagerStandardValidator_SuperMode_TestInit
 /// @notice Base contract for super mode StandardValidator tests. Requires SUPER_ROOT_GAMES_MIGRATION flag.
-///         After setUp, the chain has both SUPER_PERMISSIONED_CANNON and SUPER_CANNON_KONA enabled.
+///         After setUp, the chain has both SUPER_PERMISSIONED and SUPER_CANNON_KONA enabled.
 abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is SuperGameTestInit {
     /// @notice The l2ChainId.
     uint256 l2ChainId;
+
+    /// @notice The cannon prestate expected by legacy Cannon validation inputs.
+    Claim cannonPrestate;
 
     /// @notice The DisputeGameFactory instance.
     IDisputeGameFactory dgf;
@@ -1770,12 +1773,12 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
         proposer = deploy.cfg().l2OutputOracleProposer();
         challenger = deploy.cfg().l2OutputOracleChallenger();
 
-        // The deploy created SUPER_PERMISSIONED_CANNON (enabled) + SUPER_CANNON_KONA (disabled).
+        // The deploy created SUPER_PERMISSIONED (enabled) + SUPER_CANNON_KONA (disabled).
         // Run an upgrade to also enable SUPER_CANNON_KONA so that full validation passes.
         _enableSuperCannonKona();
     }
 
-    /// @notice Runs an upgrade that enables SUPER_CANNON_KONA alongside SUPER_PERMISSIONED_CANNON.
+    /// @notice Runs an upgrade that enables SUPER_CANNON_KONA alongside SUPER_PERMISSIONED.
     function _enableSuperCannonKona() internal override {
         address owner = proxyAdmin.owner();
 
@@ -1806,7 +1809,7 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED,
             gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
         });
         disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -1826,7 +1829,7 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
             new IOPContractsManagerUtils.ExtraInstruction[](1);
         extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
             key: "overrides.cfg.startingRespectedGameType",
-            data: abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
+            data: abi.encode(GameTypes.SUPER_PERMISSIONED)
         });
 
         prankDelegateCall(owner);
@@ -1917,14 +1920,14 @@ contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
         assertEq("SCDG-SHAPE", _validate(true));
     }
 
-    /// @notice Tests that disabling SUPER_PERMISSIONED_CANNON triggers SPDG-SHAPE.
+    /// @notice Tests that disabling SUPER_PERMISSIONED triggers SPDG-SHAPE.
     function test_validate_superPermissionedCannonNotRegistered_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(address(0))
         );
-        // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED_CANNON is registered.
+        // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED is registered.
         assertEq("DF-50,SPDG-SHAPE,SPDG-10", _validate(true));
     }
 
@@ -1940,24 +1943,24 @@ contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
 }
 
 /// @title OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test
-/// @notice Tests SPDG error codes for the SUPER_PERMISSIONED_CANNON game validation.
+/// @notice Tests SPDG error codes for the SUPER_PERMISSIONED game validation.
 contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test is
     OPContractsManagerStandardValidator_SuperMode_TestInit
 {
-    /// @notice Tests SPDG-10 when SUPER_PERMISSIONED_CANNON implementation is null.
+    /// @notice Tests SPDG-10 when SUPER_PERMISSIONED implementation is null.
     function test_validate_superPermissionedDisputeGameNullImplementation_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(address(0))
         );
-        // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED_CANNON is registered.
+        // DF-50 also fires because neither PERMISSIONED_CANNON nor SUPER_PERMISSIONED is registered.
         assertEq("DF-50,SPDG-SHAPE,SPDG-10", _validate(true));
     }
 
-    /// @notice Tests SPDG-20 when SUPER_PERMISSIONED_CANNON version is invalid.
+    /// @notice Tests SPDG-20 when SUPER_PERMISSIONED version is invalid.
     function test_validate_superPermissionedDisputeGameInvalidVersion_succeeds() public {
-        address spdgImpl = address(disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON));
+        address spdgImpl = address(disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED));
         BadVersionReturner bad = new BadVersionReturner(standardValidator, ISemver(spdgImpl), "0.0.0");
         bytes32 slot = bytes32(
             ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "superPermissionedDisputeGameImpl").slot
@@ -1966,18 +1969,18 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
         assertEq("SPDG-20", _validate(true));
     }
 
-    /// @notice Tests SPDG-GARGS-10 when SUPER_PERMISSIONED_CANNON game args are invalid.
+    /// @notice Tests SPDG-GARGS-10 when SUPER_PERMISSIONED game args are invalid.
     function test_validate_superPermissionedDisputeGameInvalidGameArgs_succeeds() public {
         vm.mockCall(
             address(dgf),
-            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(hex"123456")
         );
 
         assertEq("SPDG-GARGS-10", _validate(true));
     }
 
-    /// @notice Tests SPDG-ANCHORP-* when SUPER_PERMISSIONED_CANNON's simplified ASR arg is invalid.
+    /// @notice Tests SPDG-ANCHORP-* when SUPER_PERMISSIONED's simplified ASR arg is invalid.
     function test_validate_superPermissionedDisputeGameInvalidASR_succeeds() public {
         address badASR = address(0xbad);
         DisputeGames.mockSuperPermissionedGameASR(dgf, badASR);
@@ -1997,7 +2000,7 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
         assertEq("SPDG-ANCHORP-10,SPDG-ANCHORP-20", _validate(true));
     }
 
-    /// @notice Tests SPDG-120 when SUPER_PERMISSIONED_CANNON's anchor root is zero.
+    /// @notice Tests SPDG-120 when SUPER_PERMISSIONED's anchor root is zero.
     function test_validate_superPermissionedDisputeGameZeroAnchorRoot_succeeds() public {
         address spdgASR = DisputeGames.superPermissionedGameAnchorStateRegistry(dgf);
         vm.mockCall(spdgASR, abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()), abi.encode(bytes32(0), uint256(0)));
@@ -2005,7 +2008,7 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
         assertEq("SPDG-120,SCKDG-120", _validate(true));
     }
 
-    /// @notice Tests SPDG-140 when SUPER_PERMISSIONED_CANNON proposer is invalid.
+    /// @notice Tests SPDG-140 when SUPER_PERMISSIONED proposer is invalid.
     function test_validate_superPermissionedDisputeGameInvalidProposer_succeeds() public {
         DisputeGames.mockSuperPermissionedGameProposer(dgf, address(0xbad));
         assertEq("SPDG-140", _validate(true));
@@ -2215,7 +2218,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             configs[3] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameType: GameTypes.SUPER_PERMISSIONED,
                 gameArgs: hex""
             });
             configs[4] = IOPContractsManagerUtils.DisputeGameConfig({
