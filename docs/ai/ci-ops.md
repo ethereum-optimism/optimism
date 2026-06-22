@@ -34,7 +34,7 @@ it `//go:embed`s. The zip is **gitignored** and built only by the `prep-supercha
 (or `just build-superchain-go` locally), so **every** job that compiles an
 `op-core/superchain` linker must provision it. The linker set is large and grows silently
 — op-node and the other binaries, but also `packages/contracts-bedrock/scripts/go-ffi`,
-`op-e2e`, `op-acceptance-tests`, op-deployer, and the kona/op-reth Go tests — so a
+`op-e2e`, `op-acceptance-tests`, `op-deployer`, and the `kona`/`op-reth` Go tests — so a
 **Go-only** change can red-wash unrelated-looking jobs (contracts-bedrock, fuzz-golang,
 rust-e2e) all at compile time. It passes locally and in review because the developer
 already has the zip on disk (see [go-dev.md](go-dev.md)).
