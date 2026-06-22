@@ -2,6 +2,11 @@ set positional-arguments
 
 NIGHTLY := `grep -oE 'nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}' ../mise.toml | head -1`
 
+# The SP1 guest programs live in a nested Cargo workspace (separate for SP1
+# crypto patch isolation), so fmt/clippy must target its manifest explicitly.
+# Run from this directory so it shares rust/rustfmt.toml and rust/clippy.toml.
+SP1_GUEST_MANIFEST := "kona/sp1/programs/Cargo.toml"
+
 # Aliases
 alias t := test
 alias l := lint
@@ -94,20 +99,32 @@ test-docs:
 
 ############################### Lint ################################
 
-# Run all lints
-lint: fmt-check lint-clippy lint-docs
+# Run all lints (includes the SP1 guest program workspace)
+lint: fmt-check lint-clippy lint-docs lint-sp1-guest
 
 # Check formatting (requires nightly)
 fmt-check:
   cargo +{{NIGHTLY}} fmt --all -- --check
 
-# Fix formatting (requires nightly)
-fmt-fix:
+# Fix formatting (requires nightly); also formats the SP1 guest workspace
+fmt-fix: fmt-fix-sp1-guest
   cargo +{{NIGHTLY}} fmt --all
 
 # Run clippy
 lint-clippy:
   cargo clippy --workspace --all-features --all-targets -- -D warnings
+
+# fmt-check + clippy for the SP1 guest program workspace (shared by `just lint` and CI)
+lint-sp1-guest: fmt-check-sp1-guest lint-clippy-sp1-guest
+
+fmt-check-sp1-guest:
+  cargo +{{NIGHTLY}} fmt --manifest-path {{SP1_GUEST_MANIFEST}} --all -- --check
+
+fmt-fix-sp1-guest:
+  cargo +{{NIGHTLY}} fmt --manifest-path {{SP1_GUEST_MANIFEST}} --all
+
+lint-clippy-sp1-guest:
+  cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --all-features --all-targets --locked -- -D warnings
 
 # Lint Rust documentation
 lint-docs:

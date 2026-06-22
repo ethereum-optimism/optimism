@@ -721,6 +721,32 @@ jobs:
           directory: rust
           profile: release
 
+  # fmt-check + clippy for the nested SP1 guest-program workspace. programs/range
+  # and programs/aggregation live in their own Cargo workspace with a private
+  # [patch.crates-io] table for the SP1 crypto forks, so they are NOT members of
+  # the root rust/ workspace and are not covered by rust-fmt / rust-clippy. This
+  # runs `just lint-sp1-guest` (same recipe `just lint` runs locally) on the host
+  # toolchain (no SP1 cargo-prove / RISC-V target required) so guest-side fmt and
+  # clippy regressions are caught on PRs. Clippy compiles the crates, so it also
+  # serves as the guest compile check.
+  rust-ci-sp1-guest-checks:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &sp1-guest-checks-cache-args
+          directory: rust/kona/sp1/programs
+          prefix: rust/kona/sp1/programs-checks
+      - run:
+          name: fmt-check + clippy SP1 guest programs
+          working_directory: rust
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: just lint-sp1-guest
+      - rust-save-build-cache: *sp1-guest-checks-cache-args
+
   required-rust-ci:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -912,6 +938,10 @@ workflows:
       - kona-registry-snapshot-check:
           context: *rust-ci-context
 
+      - rust-ci-sp1-guest-checks:
+          name: rust-sp1-guest-checks
+          context: *rust-ci-context
+
       # -----------------------------------------------------------------------
       # Required gate — fans in on required Rust CI jobs
       # -----------------------------------------------------------------------
@@ -940,6 +970,7 @@ workflows:
             - op-rbuilder-checks: terminal
             - rollup-boost-checks: terminal
             - kona-registry-snapshot-check: terminal
+            - rust-sp1-guest-checks: terminal
           context:
             - circleci-api-token
   # =====================================
