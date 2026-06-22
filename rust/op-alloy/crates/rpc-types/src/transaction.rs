@@ -203,6 +203,9 @@ impl<T> AsRef<T> for Transaction<T> {
     }
 }
 
+// Deposit classification MUST come from the inner consensus tx, never the `deposit_nonce` /
+// `deposit_receipt_version` RPC side fields (an untrusted peer can set those independently of the
+// inner `type`). Keeps it consistent with the delegated `Typed2718::ty()`; guarded by the test.
 impl<T: OpTransaction> OpTransaction for Transaction<T> {
     fn is_deposit(&self) -> bool {
         self.inner.as_ref().is_deposit()
@@ -408,5 +411,47 @@ mod tests {
         assert_eq!(value.get("from"), Some(&serde_json::to_value(Address::ZERO).unwrap()));
         assert!(value.get("gasRefundEntries").is_none());
         assert!(value.get("version").is_none());
+    }
+
+    /// Deposit classification on the rpc wrapper derives from the inner consensus tx, never the
+    /// `depositReceiptVersion`/`depositNonce` side fields — including across the serde round-trip,
+    /// where a peer can attach `depositReceiptVersion` to a non-deposit tx.
+    #[test]
+    fn deposit_classification_ignores_side_fields() {
+        use alloy_consensus::{Sealable, SignableTransaction, TxEip1559, Typed2718};
+        use alloy_primitives::Signature;
+
+        let deposit = Transaction::from_transaction(
+            Recovered::new_unchecked(
+                OpTxEnvelope::Deposit(TxDeposit::default().seal_slow()),
+                Address::ZERO,
+            ),
+            OpTransactionInfo::default(),
+        );
+        assert!(OpTransaction::is_deposit(&deposit));
+        assert_eq!(OpTransaction::as_deposit(&deposit).is_some(), deposit.ty() == 0x7e);
+
+        let eip1559 = Transaction::from_transaction(
+            Recovered::new_unchecked(
+                OpTxEnvelope::Eip1559(
+                    TxEip1559::default().into_signed(Signature::test_signature()),
+                ),
+                Address::ZERO,
+            ),
+            OpTransactionInfo::default(),
+        );
+        assert!(!OpTransaction::is_deposit(&eip1559));
+
+        // `depositReceiptVersion` injected on the non-deposit tx survives deserialization (unlike
+        // `depositNonce`, it is not filtered) but must not flip classification.
+        let mut value = serde_json::to_value(&eip1559).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .insert("depositReceiptVersion".into(), serde_json::json!("0x1"));
+        let tx = serde_json::from_value::<Transaction>(value).unwrap();
+        assert_eq!(tx.deposit_receipt_version, Some(1));
+        assert!(!OpTransaction::is_deposit(&tx));
+        assert!(OpTransaction::as_deposit(&tx).is_none());
     }
 }

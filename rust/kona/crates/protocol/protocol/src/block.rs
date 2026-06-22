@@ -534,6 +534,49 @@ mod tests {
         assert!(matches!(err, FromBlockError::TxEnvelopeDecodeError(_)));
     }
 
+    /// A non-`OpTxEnvelope` wrapper (here `Recovered<OpTxEnvelope>`, the shape a downstream caller
+    /// holds) must derive an identical [`L2BlockInfo`] to the bare-envelope path.
+    #[test]
+    fn test_from_block_and_genesis_wrapper_parity() {
+        use crate::test_utils::RAW_BEDROCK_INFO_TX;
+        use alloc::{vec, vec::Vec};
+        use alloy_consensus::transaction::Recovered;
+        use alloy_primitives::Address;
+
+        let genesis = ChainGenesis {
+            l1: BlockNumHash { hash: B256::from([4; 32]), number: 2 },
+            l2: BlockNumHash { hash: B256::from([5; 32]), number: 1 },
+            ..Default::default()
+        };
+        let deposit =
+            OpTxEnvelope::Deposit(alloy_primitives::Sealed::new(op_alloy_consensus::TxDeposit {
+                input: alloy_primitives::Bytes::from(&RAW_BEDROCK_INFO_TX),
+                ..Default::default()
+            }));
+        let header = alloy_consensus::Header { number: 3, timestamp: 1, ..Default::default() };
+
+        // Baseline: bare `OpTxEnvelope`.
+        let base_block: OpBlock = alloy_consensus::Block {
+            header: header.clone(),
+            body: alloy_consensus::BlockBody {
+                transactions: vec![deposit.clone()],
+                ..Default::default()
+            },
+        };
+        let baseline = L2BlockInfo::from_block_and_genesis(&base_block, &genesis).unwrap();
+
+        // Same block, first tx wrapped in `Recovered<OpTxEnvelope>`.
+        let wrapped_txs: Vec<Recovered<OpTxEnvelope>> =
+            vec![Recovered::new_unchecked(deposit, Address::ZERO)];
+        let wrapped_block = alloy_consensus::Block {
+            header,
+            body: alloy_consensus::BlockBody { transactions: wrapped_txs, ..Default::default() },
+        };
+        let wrapped = L2BlockInfo::from_block_and_genesis(&wrapped_block, &genesis).unwrap();
+
+        assert_eq!(wrapped, baseline);
+    }
+
     #[test]
     fn test_from_block_error_partial_eq() {
         assert_eq!(FromBlockError::InvalidGenesisHash, FromBlockError::InvalidGenesisHash);
