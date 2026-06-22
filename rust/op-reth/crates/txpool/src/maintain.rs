@@ -103,11 +103,11 @@ pub trait InteropFilter {
 #[async_trait]
 impl InteropFilter for InteropFilterClient {
     fn is_failsafe_enabled_cached(&self) -> bool {
-        InteropFilterClient::is_failsafe_enabled_cached(self)
+        Self::is_failsafe_enabled_cached(self)
     }
 
     async fn is_failsafe_enabled(&self) -> Result<bool, InteropTxValidatorError> {
-        InteropFilterClient::is_failsafe_enabled(self).await
+        Self::is_failsafe_enabled(self).await
     }
 
     async fn revalidate_interop_txs<Tx>(
