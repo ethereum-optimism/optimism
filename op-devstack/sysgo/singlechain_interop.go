@@ -39,7 +39,6 @@ func startSingleChainInteropPrimaryNoSupervisor(
 		Key:            "sequencer",
 		IsSequencer:    true,
 		NoDiscovery:    true,
-		EnableReqResp:  true,
 		DependencySet:  world.Interop.DependencySet,
 		L2FollowSource: "",
 		L2CLOptions:    cfg.GlobalL2CLOptions,

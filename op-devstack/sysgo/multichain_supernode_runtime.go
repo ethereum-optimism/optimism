@@ -354,7 +354,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			Key:              "sequencer",
 			IsSequencer:      true,
 			NoDiscovery:      true,
-			EnableReqResp:    true,
 			DependencySet:    runtimeDepSet,
 			L2FollowSource:   supernodeL2ACL.UserRPC(),
 			L2CLOptions:      cfg.GlobalL2CLOptions,
@@ -367,7 +366,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			Key:              "sequencer",
 			IsSequencer:      true,
 			NoDiscovery:      true,
-			EnableReqResp:    true,
 			DependencySet:    runtimeDepSet,
 			L2FollowSource:   supernodeL2BCL.UserRPC(),
 			L2CLOptions:      cfg.GlobalL2CLOptions,
@@ -532,7 +530,6 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 		Key:            name,
 		IsSequencer:    false,
 		NoDiscovery:    true,
-		EnableReqResp:  false,
 		L2FollowSource: chain.CL.UserRPC(),
 		DependencySet:  runtime.DependencySet,
 		// Follow nodes catch up to their follow source via EL sync.
@@ -584,7 +581,6 @@ func startTwoL2SharedSupernode(
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
-			true,
 			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{
@@ -701,7 +697,6 @@ func startSingleChainSharedSupernode(
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
-			true,
 			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{
