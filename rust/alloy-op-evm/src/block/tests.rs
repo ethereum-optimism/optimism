@@ -991,6 +991,64 @@ mod sdm {
         );
     }
 
+    // A contract created by one tx must be warmed for a later tx that genuinely cold-accesses it,
+    // so the later tx earns its warming rebate. The `create` hook records the address via
+    // `CreateInputs::created_address`, which `revm` memoizes (`OnceCell`) from the canonical
+    // pre-bump nonce before the hook runs — so the address is always correct regardless of the
+    // nonce the inspector passes (this is why the "CREATE-address staleness" concern does not arise
+    // against the pinned revm). This guards the end-to-end property: created contract -> warmed ->
+    // later cold access rebated.
+    #[test]
+    fn test_created_contract_address_is_warmed_for_a_later_tx() {
+        const BLOCK_GAS_LIMIT: u64 = 2_000_000;
+
+        // Probe the canonical address the CREATE produces (revm computes it from the pre-bump
+        // nonce). Sender and nonce match the real run below, so the address is identical.
+        let created = {
+            let mut probe_fixture = SDMExecutorFixture::new(
+                DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+                BLOCK_GAS_LIMIT,
+                JOVIAN_TIMESTAMP,
+            );
+            let mut probe = probe_fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+            let mut created = None;
+            probe
+                .execute_transaction_with_result_closure(&create_tx(0), |res| {
+                    if let ExecutionResult::Success {
+                        output: Output::Create(_, Some(addr)), ..
+                    } = &res.result().result
+                    {
+                        created = Some(*addr);
+                    }
+                })
+                .expect("probe create tx");
+            created.expect("create produced a contract address")
+        };
+
+        // Real run: tx0 creates the contract; tx1 cold-`BALANCE`-touches it through a probe.
+        let probe = Address::from([0x8c; 20]);
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        fixture.db.insert_account(probe, balance_probe_account(&[created]));
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+        producer.execute_transaction(&create_tx(0)).expect("tx0 creates the contract");
+        producer
+            .execute_transaction(&legacy_tx(1, probe))
+            .expect("tx1 cold-touches the created contract");
+
+        // `created` (warmed by tx0's creation) is tx1's only cross-tx rebate candidate, so the
+        // refund is exactly one warm-account rebate. A regression that stopped the `create` hook
+        // observing the created contract would drop this to 0.
+        assert_eq!(
+            refund_for_tx(&producer, 1),
+            2_500,
+            "a later tx cold-accessing the created contract ({created}) must earn a warm-account rebate",
+        );
+    }
+
     // End-to-end companion to the inspector-level settlement test: the OP fee vaults (L1/base-fee/
     // operator-fee recipients) are warmed by the protocol's per-tx fee settlement write in
     // `transact_raw`, not by a user opcode access, so no cold EIP-2929 access is ever paid for

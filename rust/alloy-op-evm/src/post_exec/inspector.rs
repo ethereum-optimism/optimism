@@ -421,6 +421,11 @@ where
         let caller = inputs.caller();
         self.observe_account_touch(caller, true);
 
+        // `CreateInputs::created_address` memoizes its result (`OnceCell`): the canonical create
+        // frame computes and caches the address from the *pre-bump* creator nonce before this hook
+        // runs, so the value below is the correct created address regardless of the nonce we pass.
+        // The journal-nonce read is only a best-effort fallback for the (currently unreached) case
+        // where the cache is not yet populated; it cannot make the recorded address stale.
         let created_address = match inputs.scheme() {
             CreateScheme::Create => {
                 let nonce = context
