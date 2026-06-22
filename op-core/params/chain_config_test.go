@@ -29,7 +29,7 @@ var timestampForks = []struct {
 	{forks.Isthmus, func(c *opparams.ChainConfig) *uint64 { return c.IsthmusTime }},
 	{forks.Jovian, func(c *opparams.ChainConfig) *uint64 { return c.JovianTime }},
 	{forks.Karst, func(c *opparams.ChainConfig) *uint64 { return c.KarstTime }},
-	{forks.Lagoon, func(c *opparams.ChainConfig) *uint64 { return c.InteropTime }},
+	{forks.Lagoon, func(c *opparams.ChainConfig) *uint64 { return c.LagoonTime }},
 }
 
 // TestActivationTimeSetRoundTrip asserts the ActivationTime and SetActivationTime
@@ -79,7 +79,7 @@ func TestForkPredicates(t *testing.T) {
 		forks.Isthmus:  (*opparams.ChainConfig).IsIsthmus,
 		forks.Jovian:   (*opparams.ChainConfig).IsJovian,
 		forks.Karst:    (*opparams.ChainConfig).IsKarst,
-		forks.Lagoon:   (*opparams.ChainConfig).IsInterop,
+		forks.Lagoon:   (*opparams.ChainConfig).IsLagoon,
 	}
 	for fork, pred := range predicates {
 		t.Run(string(fork), func(t *testing.T) {
@@ -124,7 +124,7 @@ func TestGethChainConfig(t *testing.T) {
 		IsthmusTime:  &isthmus,
 		JovianTime:   ptr.New(uint64(35)),
 		KarstTime:    &karst,
-		InteropTime:  ptr.New(uint64(50)),
+		LagoonTime:   ptr.New(uint64(50)),
 		Optimism:     &opparams.OptimismConfig{EIP1559Elasticity: 6, EIP1559Denominator: 50, EIP1559DenominatorCanyon: ptr.New(uint64(250))},
 	}
 
@@ -149,7 +149,7 @@ func TestGethChainConfig(t *testing.T) {
 	require.Equal(t, cfg.IsthmusTime, geth.IsthmusTime)
 	require.Equal(t, cfg.JovianTime, geth.JovianTime)
 	require.Equal(t, cfg.KarstTime, geth.KarstTime)
-	require.Equal(t, cfg.InteropTime, geth.InteropTime)
+	require.Equal(t, cfg.LagoonTime, geth.LagoonTime)
 
 	// OptimismConfig maps across.
 	require.NotNil(t, geth.Optimism)

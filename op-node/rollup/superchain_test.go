@@ -37,11 +37,7 @@ func requireAllHardforksSetCorrectly(t *testing.T, cfg Config, hardforkCfg super
 	cfgVal := reflect.ValueOf(&cfg).Elem()
 	for i := 0; i < hardforkVal.NumField(); i++ {
 		hardforkField := hardforkType.Field(i)
-		cfgFieldName := hardforkField.Name
-		if cfgFieldName == "InteropTime" {
-			cfgFieldName = "LagoonTime"
-		}
-		cfgField := cfgVal.FieldByName(cfgFieldName)
+		cfgField := cfgVal.FieldByName(hardforkField.Name)
 		require.Equalf(t, hardforkVal.Field(i).Elem(), cfgField.Elem(), "missing hard fork field %v", hardforkField.Name)
 	}
 	// Regolith is always activated at genesis
