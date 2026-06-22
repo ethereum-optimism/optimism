@@ -9067,8 +9067,12 @@ dependencies = [
  "reth-primitives-traits",
  "serde",
  "serde_json",
+ "sha2",
+ "tar",
  "tar-no-std",
  "thiserror 2.0.18",
+ "toml",
+ "zstd",
 ]
 
 [[package]]

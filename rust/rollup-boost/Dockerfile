@@ -62,6 +62,9 @@ WORKDIR /workspace/rollup-boost
 # Default binary filename
 ARG SERVICE_NAME="rollup-boost"
 COPY --from=monorepo-rust . /workspace/
+# op-reth's chainspec build.rs regenerates its gitignored superchain archive from
+# the submodule; provide the subset it reads at /superchain-registry.
+COPY --from=superchain-registry superchain /superchain-registry/superchain
 COPY --from=planner /workspace/rollup-boost/recipe.json recipe.json
 
 RUN --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \

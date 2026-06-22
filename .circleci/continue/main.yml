@@ -505,6 +505,13 @@ commands:
         description: "Prefix to add to the cache key"
         type: string
         default: "rust-build"
+      init_superchain_submodule:
+        # Unused by this command. Declared so a job can pass one shared YAML anchor
+        # to both rust-prepare-and-restore-cache (which acts on it) and this command
+        # without CircleCI rejecting an undeclared parameter.
+        description: "Unused; accepted for shared-anchor compatibility."
+        type: boolean
+        default: false
     steps:
       # Surface sccache hit/write stats at job end. Harmless no-op when sccache
       # is absent; confirms the GCS cache is hit rather than silently failing.
@@ -555,10 +562,23 @@ commands:
         description: "Whether to set up the sccache GCS compile cache (see rust-prepare)."
         type: boolean
         default: true
+      init_superchain_submodule:
+        # Default true: most rust jobs build op-reth's chainspec, whose build.rs
+        # regenerates the gitignored superchain archive from this submodule. Only
+        # no-build lint jobs (fmt/typos/deny/zepter/no-std) opt out with false.
+        description: "Init the superchain-registry submodule (op-reth chainspec's build.rs reads it)."
+        type: boolean
+        default: true
     steps:
       - rust-prepare:
           needs_clang: << parameters.needs_clang >>
           enable_sccache: << parameters.enable_sccache >>
+      - when:
+          condition: << parameters.init_superchain_submodule >>
+          steps:
+            - run:
+                name: Initialize superchain-registry submodule
+                command: just update-superchain-registry-submodule
       - rust-restore-build-cache:
           version: << parameters.version >>
           directory: << parameters.directory >>
@@ -755,6 +775,15 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      # These vendored workspaces path-depend on op-reth, whose chainspec build.rs
+      # regenerates the gitignored superchain archive from this submodule. Unlike
+      # rust-build (which goes through rust-prepare-and-restore-cache), this command
+      # never restores it, so on a binary cache miss the build below panics with
+      # "superchain-registry submodule not found". Init it up front; idempotent and
+      # cheap on a cache hit (the build short-circuits before touching it).
+      - run:
+          name: Initialize superchain-registry submodule
+          command: just update-superchain-registry-submodule
       # Wrap the cargo build with sccache (sets RUSTC_WRAPPER). Fail-open: if the
       # cache is unavailable the build just runs uncached. Only helps on a binary
       # cache miss (a hit short-circuits the build below).
@@ -1675,20 +1704,6 @@ jobs:
           # downstream — no need to repeat it here.
           name: verify rebuilt bundle matches committed .sha256
           command: git diff --exit-code op-core/superchain/superchain-configs.zip.sha256
-      - run:
-          # op-reth's committed superchain-configs.tar embeds the superchain-registry
-          # commit it was generated from. Assert it matches the canonical submodule
-          # gitlink so op-reth's archive can't drift from op-core/kona. (HEAD:<path>
-          # reads the gitlink commit without initializing the submodule.)
-          name: verify op-reth's archive pins the same superchain-registry commit
-          command: |
-            submodule_commit=$(git rev-parse HEAD:superchain-registry)
-            op_reth_commit=$(tar -xOf rust/op-reth/crates/chainspec/res/superchain-configs.tar superchain_registry_commit | tr -d '[:space:]')
-            if [ "$submodule_commit" != "$op_reth_commit" ]; then
-              echo "op-reth's superchain-configs.tar was generated from $op_reth_commit but the submodule gitlink is $submodule_commit" >&2
-              echo "Run 'just sync-superchain-rust' to regenerate op-reth's archive from the submodule." >&2
-              exit 1
-            fi
       - persist_to_workspace:
           root: .
           paths:
