@@ -232,8 +232,11 @@ impl PostExecState {
         }
     }
 
-    /// Whether a `Verify` block had a post-exec payload but no trailing `0x7D`.
-    /// Per-tx settlement can consume all verifier entries, so check this separately.
+    /// Whether a `Verify` block claims a post-exec payload yet never carried the trailing `0x7D`.
+    ///
+    /// Per-tx settlement drains the verifier entries as the refunded txs commit, so an absent
+    /// `0x7D` is invisible to the unconsumed-entries check — only this flag proves the producer
+    /// actually committed the claimed refunds on-chain.
     const fn missing_post_exec_tx(&self) -> bool {
         matches!(self, Self::Verifying { saw_post_exec_tx: false, .. })
     }

@@ -1263,15 +1263,19 @@ mod sdm {
         );
     }
 
-    /// A `Verify` block must include `0x7D` even when normal txs consume every verifier entry;
-    /// otherwise the payload-vs-block byte check is skipped.
+    /// A `Verify` block whose normal txs apply the claimed refunds but which never carries the
+    /// trailing `0x7D` post-exec tx must be rejected. Per-tx settlement drains each verifier entry
+    /// as the refunded tx commits, so the unconsumed-entries check above passes — the presence of
+    /// the synthetic `0x7D` is the only thing proving the producer actually committed those refunds
+    /// on-chain. Without this guard the block validates while diverging from one that includes the
+    /// tx, and the `0x7D`'s payload-vs-block byte check is skipped entirely.
     #[test]
     fn test_finish_rejects_verify_block_missing_post_exec_tx() {
         const BLOCK_GAS_LIMIT: u64 = 100_000;
         let target = Address::from([0x11; 20]);
         let tx0 = legacy_tx(0, target);
         let tx1 = legacy_tx(1, target);
-        // Make tx1 consume its verifier entry during normal settlement.
+        // Refund the second tx so its verifier entry is consumed during normal settlement.
         let entries = full_refund_for_second_tx(BLOCK_GAS_LIMIT, &tx0, &tx1);
 
         let mut fixture = SDMExecutorFixture::new(
@@ -1287,7 +1291,7 @@ mod sdm {
             "the refunded tx must already have drained every verifier entry",
         );
 
-        // No 0x7D ran, so only the missing-tx guard can catch this.
+        // The 0x7D was never executed, so the unconsumed-entries check cannot catch this.
         let Err(err) = verifier.finish() else {
             panic!("a Verify block that applies refunds but omits the 0x7D must be rejected");
         };
