@@ -482,8 +482,10 @@ where
     Ok(())
 }
 
-/// Negative test for the body-pruned detection in the engine's execute-block path
-/// (mirroring the check on the sync path in [`Engine::advance_sync`]).
+/// Negative test for the body-pruned detection in the engine's execute-block path.
+/// The check sits in `tasks::execute_block::run` so it covers both the sync path
+/// (`advance_sync` calls into this task) and any direct `EngineHandle::execute_block`
+/// caller; this test exercises the latter.
 ///
 /// Reth returns `Some(block)` with an empty body when the transaction data has been pruned but
 /// body indices are still present. Executing that block would produce zero state changes and

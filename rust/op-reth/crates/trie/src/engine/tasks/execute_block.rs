@@ -57,9 +57,9 @@ where
     let start = Instant::now();
 
     // Body-pruned guard: reth returns `Some(block)` with an empty body when transaction data has
-    // been pruned but body indices remain. Mirrors the check on the sync path in
-    // [`super::super::runner::Engine::advance_sync`] so any caller of this task gets an accurate
-    // error rather than a downstream [`EngineError::StateRootMismatch`].
+    // been pruned but body indices remain. Covers the sync path (advance_sync calls this task)
+    // and any direct EngineHandle::execute_block caller, so both get an accurate error rather
+    // than a downstream [`EngineError::StateRootMismatch`].
     if block.header().transactions_root() != EMPTY_ROOT_HASH &&
         block.body().transactions().is_empty()
     {

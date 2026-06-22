@@ -1,7 +1,6 @@
 //! Command that unwinds the OP proofs storage to a specific block number.
 
-use alloy_consensus::BlockHeader;
-use alloy_trie::EMPTY_ROOT_HASH;
+use alloy_consensus::{BlockHeader, EMPTY_ROOT_HASH};
 use clap::Parser;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
@@ -117,14 +116,17 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindCommand<C> {
                 eyre::eyre!("Target block {} not found in the main database", self.target)
             })?;
 
-        // Body pruning would not affect the unwind itself (we only need `block_with_parent()`),
-        // but surface a clear message if the operator later wants to backfill or re-execute.
+        // Refuse to unwind when reth has pruned the target block's body. The unwind itself
+        // would technically succeed (we only need `block_with_parent()`), but re-backfilling
+        // afterward is impossible on the same node, so the operator would be left without a
+        // way to resume from this point. Fail fast with a clear remediation instead.
         if block.header().transactions_root() != EMPTY_ROOT_HASH &&
             block.body().transactions().is_empty()
         {
             return Err(eyre::eyre!(
-                "Target block {} body has been pruned by reth; unwind proceeds, but \
-                 re-backfilling this block will fail until reth is re-synced without body pruning",
+                "Target block {} body has been pruned by reth; refusing to unwind because \
+                 re-backfilling from here is not possible until reth is re-synced without \
+                 body pruning.",
                 self.target
             ));
         }
