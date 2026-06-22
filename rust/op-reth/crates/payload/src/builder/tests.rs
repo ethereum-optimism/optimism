@@ -330,11 +330,16 @@ fn rebuilds_derived_block_with_embedded_post_exec_tx_regardless_of_opt_in() {
     }
 }
 
-/// `block_builder_with_mode` must use the supplied mode snapshot, not the live opt-in.
-/// Mismatch both ways to prove `Produce` still accepts `0x7D` and `Disabled` rejects it.
+/// `block_builder_with_mode` must build against the supplied snapshot and never re-read the
+/// opt-in. `build()` resolves [`OpPayloadBuilderCtx::post_exec_mode`] exactly once and reuses that
+/// snapshot for both EVM construction and the later decision to append the `0x7D`; re-reading the
+/// runtime-mutable opt-in for the append could disagree with the mode the EVM was built in, leaving
+/// a block whose refunded state has no matching post-exec tx (or vice versa). We assert the builder
+/// honors the passed mode by deliberately mismatching it against the live opt-in: `Produce` with
+/// the opt-in OFF accepts an embedded `0x7D`, while `Disabled` with the opt-in ON rejects it.
 #[test]
 fn block_builder_with_mode_honors_snapshot_over_live_opt_in() {
-    // Snapshot pins Produce with opt-in off.
+    // Opt-in OFF, but the snapshot pins Produce: the embedded 0x7D must be accepted.
     let produce_ctx = interop_ctx(false, false, Some(Vec::new()));
     let provider = StateProviderTest::default();
     let mut db = State::builder()
@@ -348,7 +353,7 @@ fn block_builder_with_mode_honors_snapshot_over_live_opt_in() {
         .execute_sequencer_transactions(&mut builder, None)
         .expect("Produce snapshot accepts the embedded 0x7D even with the opt-in off");
 
-    // Snapshot pins Disabled with opt-in on.
+    // Opt-in ON, but the snapshot pins Disabled: the embedded 0x7D must be rejected.
     let disabled_ctx = interop_ctx(false, true, Some(Vec::new()));
     let provider = StateProviderTest::default();
     let mut db = State::builder()

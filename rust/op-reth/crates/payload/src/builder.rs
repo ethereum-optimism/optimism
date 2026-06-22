@@ -466,7 +466,11 @@ impl<Txs> OpBuilder<'_, Txs> {
         // scalar.
         db.load_cache_account(L1_BLOCK_CONTRACT).map_err(BlockExecutionError::other)?;
 
-        // Snapshot the runtime-mutable mode so EVM setup and `0x7D` appending agree.
+        // Snapshot the post-exec mode once for the whole build. The opt-in flag behind
+        // `sdm_production_enabled` is mutable at runtime (admin RPC); reading it again when
+        // deciding whether to append the `0x7D` below could disagree with the mode the EVM
+        // was built in, yielding a block whose refunded state has no matching post-exec tx
+        // (or vice versa).
         let post_exec_mode = ctx.post_exec_mode()?;
         let produce_post_exec = matches!(post_exec_mode, PostExecMode::Produce);
 
@@ -498,7 +502,9 @@ impl<Txs> OpBuilder<'_, Txs> {
             }
         }
 
-        // Only `Produce` appends `0x7D`; derived blocks verify any embedded tx instead.
+        // Only `Produce` mode appends a post-exec tx, and only locally-sequenced blocks reach it; a
+        // derived block (force_empty) is `Verify`/`Disabled` and already carries its own `0x7D`, so
+        // appending would duplicate it. See `post_exec_mode`.
         let sdm_refund_gas = if produce_post_exec {
             let block_number = builder.evm_mut().block().number().saturating_to();
             let entries = builder.executor_mut().take_post_exec_entries();
@@ -848,8 +854,12 @@ where
         is_better_payload(self.best_payload.as_ref(), total_fees)
     }
 
-    /// Prepares a [`BlockBuilder`] using this payload's current post-exec mode.
-    /// Use [`Self::block_builder_with_mode`] when the caller already snapped the mode.
+    /// Prepares a [`BlockBuilder`] for the next block, resolving the post-exec mode from this
+    /// payload's context.
+    ///
+    /// Callers that also decide whether to append the trailing `0x7D` must instead resolve
+    /// [`Self::post_exec_mode`] once and pass it to [`Self::block_builder_with_mode`], so a
+    /// concurrent opt-in toggle cannot change the mode between EVM construction and the append.
     pub fn block_builder<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
@@ -863,7 +873,8 @@ where
         self.block_builder_with_mode(db, self.post_exec_mode()?)
     }
 
-    /// Prepares a [`BlockBuilder`] with a caller-supplied post-exec mode.
+    /// Like [`Self::block_builder`] but builds against a caller-supplied [`PostExecMode`], so a
+    /// single snapshot drives both EVM construction and any later post-exec decision.
     pub fn block_builder_with_mode<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
