@@ -71,7 +71,6 @@ allow = [
   "Unicode-3.0",
   "Zlib",
   "LicenseRef-rustls-webpki",
-  "LicenseRef-BOSL",
   "CDLA-Permissive-2.0",
   "MPL-2.0",
 ]
@@ -109,12 +108,6 @@ license-files = [{ path = "LICENSE", hash = 0x001c7e6c }]
 name = "webpki"
 expression = "LicenseRef-webpki"
 license-files = [{ path = "LICENSE", hash = 0x001c7e6c }]
-
-[[licenses.clarify]]
-name = "halo2"
-expression = "LicenseRef-BOSL"
-version = "0.1.0-beta.2"
-license-files = [{ path = "COPYING", hash = 0x106164e0 }]
 
 [licenses.private]
 ignore = false
