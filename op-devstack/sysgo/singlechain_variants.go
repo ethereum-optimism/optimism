@@ -36,6 +36,25 @@ func NewSingleChainMultiNodeRuntimeWithConfig(t devtest.T, withP2P bool, cfg Pre
 	return runtime
 }
 
+// NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig is like
+// NewSingleChainMultiNodeRuntimeWithConfig but skips the proposer and
+// challenger (no cannon prestate artifacts required). Intended for tests that
+// only exercise sequencer + batcher + verifier derivation.
+func NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t devtest.T, withP2P bool, cfg PresetConfig) *SingleChainRuntime {
+	runtime := NewMinimalNoFaultProofsRuntimeWithConfig(t, cfg)
+	// Wire the verifier's L2 follow source to the sequencer's L2 execution RPC.
+	// A consensus-only verifier (op-con-node) has no P2P, so it pulls the unsafe
+	// chain from this RPC and consolidates its L1-derived safe chain against it.
+	// op-node verifiers accept the same L2 follow source.
+	followSource := runtime.L2EL.UserRPC()
+	nodeB := addSingleChainOpNode(t, runtime, "b", false, followSource, cfg.GlobalL2CLOptions...)
+	if withP2P {
+		connectSingleChainNodes(t, runtime.L2EL, runtime.L2CL, nodeB)
+	}
+	runtime.P2PEnabled = withP2P
+	return runtime
+}
+
 func NewSingleChainTwoVerifiersRuntime(t devtest.T) *SingleChainRuntime {
 	return NewSingleChainTwoVerifiersRuntimeWithConfig(t, PresetConfig{})
 }

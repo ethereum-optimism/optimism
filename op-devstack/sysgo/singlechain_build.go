@@ -181,6 +181,21 @@ func startL2CLForKey(
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
 		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
+	case MixedL2CLOpCon:
+		// op-con-node cannot sequence; keep sequencer slots on op-node and route
+		// only verifier slots to op-con-node.
+		if !isSequencer {
+			return startMixedOpConNode(t, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, followSource, nil)
+		}
+		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
+			Key:            clKey,
+			IsSequencer:    true,
+			NoDiscovery:    true,
+			EnableReqResp:  true,
+			UseReqResp:     true,
+			L2FollowSource: followSource,
+			L2CLOptions:    l2CLOpts,
+		})
 	default: // op-node
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,

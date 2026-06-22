@@ -47,6 +47,18 @@ func NewSingleChainMultiNodeWithoutP2PWithoutCheck(t devtest.T, opts ...Option) 
 	return out
 }
 
+// NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck creates a
+// SingleChainMultiNode target with no proposer/challenger and no sequencer↔verifier
+// P2P links, and without initial sync checks. The verifier's only data source is
+// L1 derivation. Skipping the challenger avoids requiring cannon prestate
+// artifacts. Intended for consensus-only verifier tests (e.g. op-con-node).
+func NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t, false, presetCfg), false)
+	presetOpts.applyPreset(out)
+	return out
+}
+
 type SingleChainMultiNodeWithTestSeq struct {
 	SingleChainMultiNode
 
