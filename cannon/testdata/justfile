@@ -1,4 +1,6 @@
-# Build minimal hello ELF used by diff-cannon parity checks
+# Build minimal hello ELF used by diff-cannon parity checks and op-challenger
+# provider tests. Built with Go 1.24 so the guest avoids Go 1.26 runtime
+# syscalls (e.g. prctl) that production Cannon no longer tracks.
 diff-hello-elf:
     mkdir -p bin
-    cd diff-hello && GOOS=linux GOARCH=mips64 GOMIPS64=softfloat go build -o ../bin/hello.64.elf .
+    cd diff-hello && GOTOOLCHAIN=go1.24.13 GOOS=linux GOARCH=mips64 GOMIPS64=softfloat go build -o ../bin/hello.64.elf .
