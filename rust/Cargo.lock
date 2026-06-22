@@ -6352,6 +6352,7 @@ dependencies = [
  "arbitrary",
  "async-trait",
  "brotli",
+ "brotli-decompressor",
  "derive_more",
  "kona-genesis",
  "kona-registry",

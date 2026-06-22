@@ -2,7 +2,7 @@
 
 use alloc::{vec, vec::Vec};
 use alloc_no_stdlib::*;
-use brotli::{BrotliResult, *};
+use brotli_decompressor::{BrotliResult, *};
 use core::ops;
 
 /// A brotli decompression error.
@@ -14,7 +14,7 @@ pub enum BrotliDecompressionError {
 }
 
 /// Decompresses the given bytes data using the Brotli decompressor implemented
-/// in the [`brotli`](https://crates.io/crates/brotli) crate.
+/// in the [`brotli-decompressor`](https://crates.io/crates/brotli-decompressor) crate.
 #[allow(clippy::large_stack_frames)]
 pub fn decompress_brotli(
     data: &[u8],
@@ -44,7 +44,7 @@ pub fn decompress_brotli(
     // Per spec, if decompressed data exceeds the limit, the output is truncated
     // to max_rlp_bytes_per_channel bytes (not rejected).
     loop {
-        let result = brotli::BrotliDecompressStream(
+        let result = brotli_decompressor::BrotliDecompressStream(
             &mut available_in,
             &mut input_offset,
             data,
