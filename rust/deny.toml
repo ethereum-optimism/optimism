@@ -26,8 +26,6 @@ ignore = [
   "RUSTSEC-2026-0173",
   # ansi_term is unmaintained; transitive via the SP1 dependency tree.
   "RUSTSEC-2021-0139",
-  # derivative is unmaintained; transitive via the SP1 dependency tree.
-  "RUSTSEC-2024-0388",
   # serde_cbor is unmaintained; required by kona-sp1-host-utils.
   "RUSTSEC-2021-0127",
   # number_prefix is unmaintained; transitive via the SP1 dependency tree.
