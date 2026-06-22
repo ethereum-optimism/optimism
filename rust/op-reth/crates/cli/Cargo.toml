@@ -53,6 +53,7 @@ alloy-consensus.workspace = true
 alloy-genesis.workspace = true
 alloy-primitives.workspace = true
 alloy-rlp.workspace = true
+alloy-trie.workspace = true
 
 # misc
 futures-util.workspace = true

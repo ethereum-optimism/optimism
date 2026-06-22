@@ -534,3 +534,89 @@ fn run_with_snapshot_aborts_with_state_root_mismatch_when_header_corrupted() {
         other => panic!("expected StateRootMismatch, got {other:?}"),
     }
 }
+
+/// Negative test for the changeset-pruned detection in
+/// [`compute_block_backfill_diff`](super::changesets::compute_block_backfill_diff).
+///
+/// When reth prunes a block it typically deletes the per-block account/storage changesets
+/// together with the body. Without detection, `from_reverts_auto` returns an empty revert,
+/// the reconstructed trie@N-1 equals trie@N, and validation surfaces the misleading
+/// [`BackfillError::StateRootMismatch`]. The fix detects the case directly and returns
+/// [`BackfillError::BlockBodyPruned`] instead.
+///
+/// We exercise this by:
+/// 1. Building a 3-block transfer chain with `StorageSettings::v1()` (so changesets live in MDBX
+///    and are surgically deletable).
+/// 2. Deleting every `AccountChangeSets` entry at the targeted block.
+/// 3. Running backfill and asserting `BlockBodyPruned(n)` rather than `StateRootMismatch`.
+#[test]
+fn run_aborts_with_block_body_pruned_when_changesets_deleted() {
+    use reth_db::{
+        cursor::{DbCursorRO, DbDupCursorRW},
+        tables,
+        transaction::{DbTx, DbTxMut},
+    };
+    use reth_db_api::models::StorageSettings;
+    use reth_db_common::init::init_genesis_with_settings;
+
+    // Custom chain build: force v1 so changesets land in MDBX (deletable via cursor).
+    let key_pair = deterministic_keypair();
+    let sender = public_key_to_address(key_pair.public_key());
+    let chain_spec = chain_spec_with_address(sender);
+    let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis_with_settings(&provider_factory, StorageSettings::v1()).unwrap();
+
+    let recipient = Address::repeat_byte(0x42);
+    const NUM_BLOCKS: u64 = 3;
+    const PRUNED_BLOCK: u64 = 2;
+
+    let mut last_hash = chain_spec.genesis_hash();
+    for n in 1..=NUM_BLOCKS {
+        let mut block = build_transfer_block(n, last_hash, &chain_spec, key_pair, n - 1, recipient);
+        let exec = execute_block(&mut block, &provider_factory, &chain_spec);
+        commit_block_to_database(&block, &exec, &provider_factory);
+        last_hash = block.hash();
+    }
+
+    // Simulate reth pruning: delete every AccountChangeSets entry at PRUNED_BLOCK.
+    // Transfer-only txs produce account changesets but no storage changesets, so the
+    // account table is enough to break the per-block revert at that height.
+    {
+        let tx = provider_factory.db_ref().tx_mut().unwrap();
+        let mut cursor = tx.cursor_dup_write::<tables::AccountChangeSets>().unwrap();
+        let found = cursor.seek_exact(PRUNED_BLOCK).unwrap();
+        assert!(found.is_some(), "block {PRUNED_BLOCK} must have changeset entries pre-deletion");
+        cursor.delete_current_duplicates().unwrap();
+        assert!(cursor.seek_exact(PRUNED_BLOCK).unwrap().is_none(), "deletion left residue");
+        drop(cursor);
+        tx.commit().unwrap();
+    }
+
+    // Initialize proofs storage at the chain tip.
+    let storage = create_storage();
+    {
+        let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
+            RethTrieStorageLayout::Packed
+        } else {
+            RethTrieStorageLayout::Legacy
+        };
+        let tx = provider_factory.db_ref().tx().unwrap();
+        InitializationJob::new(storage.clone(), tx, trie_layout)
+            .run(NUM_BLOCKS, last_hash)
+            .unwrap();
+    }
+
+    // Backfill descends from NUM_BLOCKS down. Block NUM_BLOCKS prepends successfully; the
+    // detection fires when the job moves on to PRUNED_BLOCK.
+    let provider = provider_factory.database_provider_ro().unwrap();
+    let err = BackfillJob::new(provider, storage).run(0).unwrap_err();
+    match err {
+        BackfillError::BlockBodyPruned(block_number) => {
+            assert_eq!(
+                block_number, PRUNED_BLOCK,
+                "detection must fire at the block whose changesets are missing",
+            );
+        }
+        other => panic!("expected BlockBodyPruned, got {other:?}"),
+    }
+}

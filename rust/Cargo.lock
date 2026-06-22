@@ -11252,6 +11252,7 @@ dependencies = [
  "alloy-genesis",
  "alloy-primitives",
  "alloy-rlp",
+ "alloy-trie",
  "clap",
  "derive_more",
  "eyre",

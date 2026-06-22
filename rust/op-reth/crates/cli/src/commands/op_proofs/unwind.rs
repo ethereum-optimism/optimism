@@ -1,6 +1,7 @@
 //! Command that unwinds the OP proofs storage to a specific block number.
 
 use alloy_consensus::BlockHeader;
+use alloy_trie::EMPTY_ROOT_HASH;
 use clap::Parser;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
@@ -12,6 +13,7 @@ use reth_optimism_trie::{
     OpProofsProviderRO, OpProofsProviderRw, OpProofsStorageError, OpProofsStore,
     db::{MdbxProofsStorage, MdbxProofsStorageV2},
 };
+use reth_primitives_traits::BlockBody;
 use reth_provider::{BlockReader, TransactionVariant};
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -114,6 +116,18 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindCommand<C> {
             .ok_or_else(|| {
                 eyre::eyre!("Target block {} not found in the main database", self.target)
             })?;
+
+        // Body pruning would not affect the unwind itself (we only need `block_with_parent()`),
+        // but surface a clear message if the operator later wants to backfill or re-execute.
+        if block.header().transactions_root() != EMPTY_ROOT_HASH &&
+            block.body().transactions().is_empty()
+        {
+            return Err(eyre::eyre!(
+                "Target block {} body has been pruned by reth; unwind proceeds, but \
+                 re-backfilling this block will fail until reth is re-synced without body pruning",
+                self.target
+            ));
+        }
 
         info!(target: "reth::cli", block_number = block.number(), block_hash = %block.hash(), "Unwinding to target block");
         let provider_rw = storage.provider_rw()?;

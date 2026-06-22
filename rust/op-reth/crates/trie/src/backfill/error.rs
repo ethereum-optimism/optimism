@@ -21,6 +21,19 @@ pub enum BackfillError {
     /// Error from snapshot-init / state operations during snapshot-accelerated backfill.
     #[error(transparent)]
     Snapshot(#[from] SnapshotError),
+    /// Reth has pruned data needed to recompute the per-block diff.
+    ///
+    /// Backfill reconstructs each block's state delta from MDBX changesets (via
+    /// `from_reverts_auto`). When reth prunes a block it typically prunes the body AND the
+    /// account/storage changesets together; the empty revert that comes back would otherwise
+    /// surface as a misleading [`Self::StateRootMismatch`]. Detected when the per-block revert is
+    /// empty *and* the block actually changed state (header[N].`state_root` !=
+    /// header[N-1].`state_root`).
+    #[error(
+        "Block #{0} has been pruned by reth (changesets missing); cannot backfill. \
+         Re-sync reth without history pruning, or reduce the backfill window."
+    )]
+    BlockBodyPruned(u64),
     /// Computed state root does not match the expected root from the header.
     #[error(
         "State root mismatch at block {block_number}: computed {computed:?}, expected {expected:?}"
