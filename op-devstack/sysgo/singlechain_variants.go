@@ -86,7 +86,6 @@ func NewSimpleWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetConfig) *Si
 		IsSequencer:   false,
 		NoDiscovery:   true,
 		EnableReqResp: true,
-		UseReqResp:    true,
 		L2CLOptions:   cfg.GlobalL2CLOptions,
 	})
 	node := newSingleChainNodeRuntime("verifier", false, syncTesterEL, l2CL2)

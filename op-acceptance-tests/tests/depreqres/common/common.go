@@ -29,14 +29,6 @@ func reqRespSyncDisabledOpt() presets.Option {
 	return presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
 		func(_ devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
 			cfg.EnableReqRespSync = false
-			cfg.UseReqRespSync = false
-		}))
-}
-
-func syncModeReqRespSyncOpt() presets.Option {
-	return presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
-		func(_ devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
-			cfg.UseReqRespSync = true
 		}))
 }
 
@@ -57,16 +49,6 @@ func ReqRespSyncDisabledOpts(syncMode sync.Mode) []presets.Option {
 	return []presets.Option{
 		syncModeOpt(syncMode),
 		reqRespSyncDisabledOpt(),
-		noDiscoveryOpt(),
-		batcherStoppedOpt(),
-		presets.WithUniformL2BlockTimes(1),
-	}
-}
-
-func SyncModeReqRespSyncOpts(syncMode sync.Mode) []presets.Option {
-	return []presets.Option{
-		syncModeOpt(syncMode),
-		syncModeReqRespSyncOpt(),
 		noDiscoveryOpt(),
 		batcherStoppedOpt(),
 		presets.WithUniformL2BlockTimes(1),
