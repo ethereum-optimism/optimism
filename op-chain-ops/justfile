@@ -33,7 +33,6 @@ fuzz_task FUZZ TIME='10s': (go_fuzz FUZZ TIME "./crossdomain")
 fuzz:
     printf "%s\n" \
         "FuzzEncodeDecodeWithdrawal" \
-        "FuzzEncodeDecodeLegacyWithdrawal" \
         "FuzzAliasing" \
         "FuzzVersionedNonce" \
     | parallel --tag -j {{PARALLEL_JOBS}} {{just_executable()}} fuzz_task {}

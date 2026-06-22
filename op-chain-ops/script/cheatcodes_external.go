@@ -409,7 +409,7 @@ func lookupKeys(v any, query string) ([]string, error) {
 		return lookupKeys(x[index], trailing)
 	case map[string]any:
 		if stringKey == "" {
-			return nil, fmt.Errorf("expected string key, but got index in path: %q", index)
+			return nil, fmt.Errorf("expected string key, but got index in path: %d", index)
 		}
 		if stringKey == "$" {
 			if trailing != "" {

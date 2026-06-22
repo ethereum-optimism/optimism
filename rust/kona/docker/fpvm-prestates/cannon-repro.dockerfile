@@ -9,7 +9,7 @@
 #              Build Cannon from local monorepo                #
 ################################################################
 
-FROM golang:1.24.13-alpine3.22 AS cannon-build
+FROM golang:1.26.4-alpine3.22 AS cannon-build
 
 RUN apk add --no-cache bash just
 
