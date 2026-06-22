@@ -191,7 +191,6 @@ func (m *InstrumentedState) handleSyscall() error {
 	case arch.SysTimerDelete:
 	case arch.SysGetRLimit:
 	case arch.SysLseek:
-	case arch.SysPrctl:
 	case arch.SysEventFd2:
 		// a0 = initial value, a1 = flags
 		// Validate flags
