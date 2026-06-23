@@ -158,8 +158,8 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	env.Sequencer.ActL2EmptyBlock(t)
 	postActivation := engine.L2Chain().CurrentHeader()
 	preActivation := engine.L2Chain().GetHeaderByNumber(bigs.Uint64Strict(actHeader.Number) - 1)
-	require.Greater(t, actHeader.GasLimit, preActivation.GasLimit,
-		"activation block must carry the one-time upgrade gas")
+	require.Equal(t, preActivation.GasLimit+expectedGas, actHeader.GasLimit,
+		"activation block gas limit must be the pre-activation limit plus the one-time upgrade gas")
 	require.Equal(t, preActivation.GasLimit, postActivation.GasLimit,
 		"upgrade gas must not persist past the %s activation block", fork)
 
@@ -192,10 +192,13 @@ func testKarstActivationKeepUpgradeGas(gt *testing.T, testCfg *helpers.TestCfg[f
 	// sequencer, derivation and the fault proof — runs with the opt-out from genesis.
 	env, actHeader := activateFork(t, testCfg, true)
 
+	karstGas, err := derive.UpgradeGas(forks.Karst)
+	require.NoError(t, err)
+
 	engine := env.Engine
 	preActivation := engine.L2Chain().GetHeaderByNumber(bigs.Uint64Strict(actHeader.Number) - 1)
-	require.Greater(t, actHeader.GasLimit, preActivation.GasLimit,
-		"activation block must carry the one-time upgrade gas")
+	require.Equal(t, preActivation.GasLimit+karstGas, actHeader.GasLimit,
+		"activation block gas limit must be the pre-activation limit plus the Karst upgrade gas")
 
 	// The block after activation keeps the inflated limit instead of reverting.
 	env.Sequencer.ActL2EmptyBlock(t)
