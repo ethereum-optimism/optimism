@@ -50,28 +50,38 @@ func TestL1CostBedrockParity(t *testing.T) {
 	}
 }
 
-// TestEcotoneL1CostFunc pins NewL1CostFuncEcotone to op-geth's TestEcotoneL1CostFunc reference
+// TestEcotoneL1CostFunc pins L1CostEcotone to op-geth's TestEcotoneL1CostFunc reference
 // (rollup_cost_test.go): baseFee=1000*1e6, blobBaseFee=10*1e6, scalars 2 and 3, and a calldata
-// gas of 480 (op-geth's ecotoneGas; here 30 non-zero bytes) yield ecotoneFee == 960900.
+// gas of 480 (op-geth's ecotoneGas; here 30 non-zero bytes) yield ecotoneFee == 960900. A live
+// differential (as for Fjord below) isn't possible: op-geth's Ecotone constructor is unexported.
 func TestEcotoneL1CostFunc(t *testing.T) {
-	costFunc := NewL1CostFuncEcotone(big.NewInt(1000*1e6), big.NewInt(10*1e6), big.NewInt(2), big.NewInt(3))
-	c := costFunc(RollupCostData{Ones: 30}, 0)
+	c := L1CostEcotone(RollupCostData{Ones: 30}, L1FeeParams{
+		L1BaseFee:     big.NewInt(1000 * 1e6),
+		L1BlobBaseFee: big.NewInt(10 * 1e6),
+		BaseFeeScalar: big.NewInt(2),
+		BlobFeeScalar: big.NewInt(3),
+	})
 	require.Equal(t, big.NewInt(960900), c)
 }
 
 func TestFjordL1CostFuncMinimumBounds(t *testing.T) {
-	costFunc := NewL1CostFuncFjord(fjordBaseFee, fjordBlobBaseFee, fjordBaseFeeScalar, fjordBlobBaseFeeScalar)
+	params := L1FeeParams{
+		L1BaseFee:     fjordBaseFee,
+		L1BlobBaseFee: fjordBlobBaseFee,
+		BaseFeeScalar: fjordBaseFeeScalar,
+		BlobFeeScalar: fjordBlobBaseFeeScalar,
+	}
 
 	// FastLZ sizes below the regression's minimum all clamp to the minimum-size fee.
 	// -42.5856 + 0.8365*{110,150,170} all stay below the 100-byte floor.
 	for _, fastLzSize := range []uint64{100, 150, 170} {
-		c := costFunc(RollupCostData{FastLzSize: fastLzSize}, 0)
+		c := L1CostFjord(RollupCostData{FastLzSize: fastLzSize}, params)
 		require.Equal(t, fjordFee, c, "fastLzSize=%d should clamp to the minimum fee", fastLzSize)
 	}
 
 	// Larger transactions exceed the minimum and cost strictly more.
 	for _, fastLzSize := range []uint64{171, 175, 200} {
-		c := costFunc(RollupCostData{FastLzSize: fastLzSize}, 0)
+		c := L1CostFjord(RollupCostData{FastLzSize: fastLzSize}, params)
 		require.Positive(t, c.Cmp(fjordFee), "fastLzSize=%d should exceed the minimum fee", fastLzSize)
 	}
 }
@@ -79,15 +89,33 @@ func TestFjordL1CostFuncMinimumBounds(t *testing.T) {
 // TestFjordL1CostSolidityParity pins the Fjord cost function to the same reference output as
 // op-geth's Solidity-parity test.
 func TestFjordL1CostSolidityParity(t *testing.T) {
-	costFunc := NewL1CostFuncFjord(big.NewInt(2*1e6), big.NewInt(3*1e6), big.NewInt(20), big.NewInt(15))
-	c := costFunc(RollupCostData{FastLzSize: 235}, 0)
+	c := L1CostFjord(RollupCostData{FastLzSize: 235}, L1FeeParams{
+		L1BaseFee:     big.NewInt(2 * 1e6),
+		L1BlobBaseFee: big.NewInt(3 * 1e6),
+		BaseFeeScalar: big.NewInt(20),
+		BlobFeeScalar: big.NewInt(15),
+	})
 	require.Equal(t, big.NewInt(105484), c)
 }
 
-func TestFjordL1CostFuncIgnoresBlockTime(t *testing.T) {
-	costFunc := NewL1CostFuncFjord(fjordBaseFee, fjordBlobBaseFee, fjordBaseFeeScalar, fjordBlobBaseFeeScalar)
-	rcd := RollupCostData{FastLzSize: 500}
-	require.Equal(t, costFunc(rcd, 0), costFunc(rcd, 1_000_000_000))
+// TestFjordL1CostParity is a live differential check that L1CostFjord matches op-geth's
+// exported NewL1CostFuncFjord across a range of fee parameters and tx sizes. It runs while the
+// build still resolves go-ethereum to op-geth; remove it when the op-geth dependency is dropped.
+func TestFjordL1CostParity(t *testing.T) {
+	paramSets := []L1FeeParams{
+		{L1BaseFee: fjordBaseFee, L1BlobBaseFee: fjordBlobBaseFee, BaseFeeScalar: fjordBaseFeeScalar, BlobFeeScalar: fjordBlobBaseFeeScalar},
+		{L1BaseFee: big.NewInt(2 * 1e6), L1BlobBaseFee: big.NewInt(3 * 1e6), BaseFeeScalar: big.NewInt(20), BlobFeeScalar: big.NewInt(15)},
+		{L1BaseFee: big.NewInt(1), L1BlobBaseFee: big.NewInt(1), BaseFeeScalar: big.NewInt(1), BlobFeeScalar: big.NewInt(1)},
+		{L1BaseFee: big.NewInt(7 * 1e9), L1BlobBaseFee: big.NewInt(5 * 1e8), BaseFeeScalar: big.NewInt(684000), BlobFeeScalar: big.NewInt(810949)},
+	}
+	for _, fastLzSize := range []uint64{0, 50, 100, 170, 171, 500, 12345} {
+		for _, p := range paramSets {
+			gethFee, _ := types.NewL1CostFuncFjord(p.L1BaseFee, p.L1BlobBaseFee, p.BaseFeeScalar, p.BlobFeeScalar)(
+				types.RollupCostData{FastLzSize: fastLzSize})
+			got := L1CostFjord(RollupCostData{FastLzSize: fastLzSize}, p)
+			require.Zero(t, gethFee.Cmp(got), "fastLzSize=%d params=%+v: op-geth %s, op-core %s", fastLzSize, p, gethFee, got)
+		}
+	}
 }
 
 func TestEstimatedDASize(t *testing.T) {
