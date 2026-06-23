@@ -2,7 +2,7 @@
 
 mod builder;
 
-mod custom_pool_ordering;
+mod custom_pool;
 
 mod priority;
 

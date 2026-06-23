@@ -1115,12 +1115,6 @@ where
 ///
 /// This contains various settings that can be configured and take precedence over the node's
 /// config.
-///
-/// `T` is the pooled transaction type. `O` is the transaction ordering, defaulting to
-/// [`CoinbaseTipOrdering`]. `W` is the validator wrapper, defaulting to
-/// [`IdentityValidatorWrapper`]. The defaults reproduce the standard pool exactly; downstream
-/// builders may substitute a custom ordering and/or validator wrapper to extend pool behavior
-/// without reimplementing pool construction.
 #[derive(Debug)]
 pub struct OpPoolBuilder<
     T = crate::txpool::OpPooledTransaction,
@@ -1347,12 +1341,6 @@ where
         // deliberately does not spawn maintenance, so the pool can be wrapped in `OpPool` first).
         // We inline it only to substitute the ordering; the surrounding interop/failsafe/
         // maintenance wiring still calls op-reth's own code unchanged.
-        //
-        // TODO(op-reth): upstream a non-spawning `TxPoolBuilder::build_with_ordering<BS, O>` twin
-        // of `build` (mirroring `build_with_ordering_and_spawn_maintenance_task` but
-        // without spawning), then replace this direct `Pool::new` with
-        // `TxPoolBuilder::new(ctx).with_validator(..) .build_with_ordering(ordering,
-        // blob_store, cfg)` to remove the divergence.
         let inner_pool = reth_transaction_pool::Pool::new(
             validator,
             ordering,

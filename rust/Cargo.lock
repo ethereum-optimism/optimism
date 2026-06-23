@@ -13384,6 +13384,7 @@ dependencies = [
  "alloy-rpc-types-admin",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth 2.0.5",
+ "alloy-signer-local 2.0.5",
  "clap",
  "eyre",
  "futures",
