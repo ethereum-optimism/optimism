@@ -255,8 +255,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
 
             // Determine the target SUPER_* game type.
-            GameType targetGameType =
-                isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED_CANNON;
+            GameType targetGameType = isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED;
 
             // Read the current anchor root sequence number so we can set a higher one.
             (, uint256 currentAnchorSeqNum) = asr.getAnchorRoot();
@@ -285,7 +284,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameType: GameTypes.SUPER_PERMISSIONED,
                 gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
             });
             if (isPermissionless) {
@@ -369,7 +368,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameType: GameTypes.SUPER_PERMISSIONED,
                 gameArgs: hex""
             });
             disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -433,9 +432,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         // With super root migration, standard game types are zeroed; read from SUPER_ variants.
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        GameType permGameType = Config.devFeatureSuperRootGamesMigration()
-            ? GameTypes.SUPER_PERMISSIONED_CANNON
-            : GameTypes.PERMISSIONED_CANNON;
+        GameType permGameType =
+            Config.devFeatureSuperRootGamesMigration() ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         address permissionedDisputeGame = address(disputeGameFactory.gameImpls(permGameType));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 
