@@ -84,7 +84,7 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	fork := testCfg.Custom
 	t := actionsHelpers.NewDefaultTesting(gt)
 
-	env, actHeader := activateFork(t, testCfg)
+	env, actHeader := activateFork(t, testCfg, false)
 
 	expectedTxs, expectedGas, err := derive.UpgradeTransactions(fork)
 	require.NoError(t, err, "load NUT bundle for %s", fork)
@@ -172,19 +172,60 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
+// TestKarstActivationKeepUpgradeGas covers the keep_karst_upgrade_gas opt-out — the other branch of
+// testActivationBlockNUTBundle's post-activation assertion. A chain that activated Karst with the
+// upgrade-gas leak baked into its history keeps the inflated activation-block gas limit on later
+// blocks rather than reverting, and the fault-proof program (kona-client) must agree.
+func TestKarstActivationKeepUpgradeGas(gt *testing.T) {
+	matrix := helpers.NewMatrix[forks.Name]()
+	preHelper := lookupHardforkHelper(forks.Prev(forks.Karst))
+	require.NotNil(gt, preHelper, "no pre-fork helper registered for Karst")
+	matrix.AddDefaultTestCasesWithName("Karst", forks.Karst,
+		helpers.NewForkMatrix(preHelper), testKarstActivationKeepUpgradeGas)
+	matrix.Run(gt)
+}
+
+func testKarstActivationKeepUpgradeGas(gt *testing.T, testCfg *helpers.TestCfg[forks.Name]) {
+	t := actionsHelpers.NewDefaultTesting(gt)
+
+	// keep_karst_upgrade_gas is set in the deploy config (see activateFork), so the whole chain —
+	// sequencer, derivation and the fault proof — runs with the opt-out from genesis.
+	env, actHeader := activateFork(t, testCfg, true)
+
+	engine := env.Engine
+	preActivation := engine.L2Chain().GetHeaderByNumber(bigs.Uint64Strict(actHeader.Number) - 1)
+	require.Greater(t, actHeader.GasLimit, preActivation.GasLimit,
+		"activation block must carry the one-time upgrade gas")
+
+	// The block after activation keeps the inflated limit instead of reverting.
+	env.Sequencer.ActL2EmptyBlock(t)
+	postActivation := engine.L2Chain().CurrentHeader()
+	require.Equal(t, actHeader.GasLimit, postActivation.GasLimit,
+		"keep_karst_upgrade_gas must keep the inflated gas limit past the Karst activation block")
+
+	// Prove the span through the post-activation block: kona-client (also opted out) must agree the
+	// limit stays inflated.
+	env.BatchMineAndSync(t)
+	l2SafeHead := env.Sequencer.L2Safe()
+	require.Equal(t, bigs.Uint64Strict(postActivation.Number), l2SafeHead.Number,
+		"safe head must advance to the post-activation block")
+	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+}
+
 // activateFork boots a fault-proof env for testCfg.Custom and advances to that
 // fork's activation block, returning the env and the activation block header.
 // It requires a committed pre-fork state for the fork (the state as of the
 // predecessor fork) and overlays it onto the genesis predeploy set.
 // Shared by the validation test (testActivationBlockNUTBundle) and the artifact
 // generator (TestGenerateForkState), so they exercise the same flow.
-func activateFork(t actionsHelpers.Testing, testCfg *helpers.TestCfg[forks.Name]) (*helpers.L2FaultProofEnv, *types.Header) {
+func activateFork(t actionsHelpers.Testing, testCfg *helpers.TestCfg[forks.Name], keepKarstUpgradeGas bool) (*helpers.L2FaultProofEnv, *types.Header) {
 	fork := testCfg.Custom
 
 	offset := uint64(4)
 	testSetup := func(dc *genesis.DeployConfig) {
 		dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
 		dc.SetForkTimeOffset(fork, &offset)
+		dc.KeepKarstUpgradeGas = keepKarstUpgradeGas
 	}
 
 	alloc, err := nutsstate.PreForkState(fork)
