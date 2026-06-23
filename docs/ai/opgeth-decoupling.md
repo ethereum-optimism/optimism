@@ -4,11 +4,27 @@ This document analyses the dependencies of the optimism monorepo Go services on 
 APIs, and proposes decoupling strategies for each. The goal is to depend on upstream go-ethereum
 instead of op-geth without opening upstream PRs.
 
-**In scope:** op-node, op-service, op-batcher, op-proposer, op-challenger, op-faucet,
-op-supernode, cannon, and the integration / acceptance test suites (op-e2e,
-op-acceptance-tests, op-devstack).
+**Scope: the whole monorepo.** Every Go component that links op-geth — whether as a binary
+dependency or as a library — must end up building against upstream go-ethereum. Each falls into
+one of three fates:
 
-**Out of scope:**
+1. **Swap to `op-core/*` (+ upstream go-ethereum)** — code that stays in Go and used op-geth only
+   for OP-specific types/helpers. The bulk: op-node, op-service, op-batcher, op-proposer,
+   op-challenger, op-faucet, op-supernode, cannon; the test suites (op-e2e, op-acceptance-tests,
+   op-devstack); `op-chain-ops/genesis` (#21281) and the `op-chain-ops/cmd/check-*` per-fork
+   checker family (check-jovian, check-karst, … — stay for now); and **op-sync-tester** — a
+   CL-sync EL *mock* that does **no execution** (it proxies a real op-reth EL and gates
+   visibility), whose one non-swap bit, the OP-aware `PayloadID` hash, is tracked in #21525.
+2. **Migrate execution to op-reth** — anything that builds or executes blocks. op-acceptance-tests
+   sequences op-reth-only for Karst+ (#21182); op-e2e/actions moves onto an op-reth-test-engine
+   subprocess EL (#20415, #21196).
+3. **Delete** — geth-as-library tools with no remaining need: op-simulate and op-run-block
+   (#21282), to be reimplemented in Rust against op-reth if ever needed again.
+
+Once every component is in fate 1, 2, or 3, the go.mod `replace` flips to upstream go-ethereum
+(#20266).
+
+**Replaced, not decoupled** (separate efforts, not op-core swaps):
 - **op-program** (client and host) — depends on op-geth state execution; kona supersedes it
   (in the monorepo at `rust/kona`).
 - **op-supervisor** — deprecated, being replaced by op-supernode.
