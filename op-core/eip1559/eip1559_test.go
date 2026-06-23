@@ -56,6 +56,9 @@ type forkChecker struct {
 func (f forkChecker) IsHolocene(uint64) bool { return f.holocene }
 func (f forkChecker) IsJovian(uint64) bool   { return f.jovian }
 
+// TestValidateOptimismExtraData covers the fork dispatch only: that the schedule selects the
+// right per-fork validator. Each validator's own edge cases are covered by its dedicated test
+// (e.g. TestValidateHoloceneExtraData).
 func TestValidateOptimismExtraData(t *testing.T) {
 	holoceneExtra := EncodeHoloceneExtraData(250, 6)
 	jovianExtra := EncodeJovianExtraData(250, 6, 7)
@@ -67,33 +70,29 @@ func TestValidateOptimismExtraData(t *testing.T) {
 		expected string
 	}{
 		{
-			name:  "pre-Holocene empty (valid)",
+			name:  "pre-Holocene requires empty",
 			fc:    forkChecker{},
 			extra: nil,
 		},
 		{
-			name:     "pre-Holocene non-empty (invalid)",
+			name:     "pre-Holocene rejects non-empty",
 			fc:       forkChecker{},
 			extra:    []byte{0x00},
 			expected: "extraData must be empty before Holocene",
 		},
 		{
-			name:  "Holocene valid",
+			name:  "Holocene routes to Holocene validator",
 			fc:    forkChecker{holocene: true},
 			extra: holoceneExtra,
 		},
 		{
-			name:     "Holocene wrong length",
-			fc:       forkChecker{holocene: true},
-			extra:    []byte{0x00},
-			expected: "holocene extraData should be 9 bytes, got 1",
-		},
-		{
-			name:  "Jovian valid",
+			name:  "Jovian routes to Jovian validator",
 			fc:    forkChecker{holocene: true, jovian: true},
 			extra: jovianExtra,
 		},
 		{
+			// Holocene-sized extraData is valid length for Holocene but wrong for Jovian, so a
+			// Jovian-active check rejecting it confirms dispatch to the Jovian validator.
 			name:     "Jovian rejects Holocene-sized extraData",
 			fc:       forkChecker{holocene: true, jovian: true},
 			extra:    holoceneExtra,
