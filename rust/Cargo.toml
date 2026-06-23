@@ -266,6 +266,7 @@ kona-sources = { path = "kona/crates/node/sources", version = "0.1.2", default-f
 kona-node-service = { path = "kona/crates/node/service", version = "0.1.3", default-features = false }
 kona-disc = { path = "kona/crates/node/disc", version = "0.1.2", default-features = false }
 kona-gossip = { path = "kona/crates/node/gossip", version = "0.1.2", default-features = false }
+kona-safedb = { path = "kona/crates/node/safedb", version = "0.1.0", default-features = false }
 
 # Providers
 kona-providers-alloy = { path = "kona/crates/providers/providers-alloy", version = "0.3.3", default-features = false }
