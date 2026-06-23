@@ -10,7 +10,8 @@ use reth_optimism_node::args::{
 };
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
-    BackfillJob, OpProofsBackfillStore, OpProofsProviderRO, db::MdbxProofsStorageV2,
+    BackfillJob, DEFAULT_BACKFILL_BATCH_SIZE, OpProofsBackfillStore, OpProofsProviderRO,
+    db::MdbxProofsStorageV2,
 };
 use reth_provider::{
     BlockHashReader, BlockNumReader, ChangeSetReader, DBProvider, DatabaseProviderFactory,
@@ -18,6 +19,12 @@ use reth_provider::{
 };
 use std::sync::Arc;
 use tracing::info;
+
+/// Validate `--proofs-history.backfill-batch-size`. Bounded `1..=100`: see the CLI field.
+fn parse_backfill_batch_size(raw: &str) -> Result<usize, String> {
+    let n: usize = raw.parse().map_err(|e| format!("not a non-negative integer: {e}"))?;
+    if (1..=100).contains(&n) { Ok(n) } else { Err(format!("must be in 1..=100, got {n}")) }
+}
 
 /// Backfills the proofs storage to an older earliest block.
 #[derive(Debug, Parser)]
@@ -39,6 +46,20 @@ pub struct BackfillCommand<C: ChainSpecParser> {
     /// `earliest` before the backfill loop begins. Requires v2 storage.
     #[arg(long = "proofs-history.use-snapshot")]
     pub use_snapshot: bool,
+
+    /// Number of blocks committed per MDBX transaction during backfill.
+    ///
+    /// Larger values amortize commit / fsync cost at the cost of widening the window of
+    /// work lost to a mid-batch crash (the crash loses up to N blocks of progress).
+    /// Conservative default of `DEFAULT_BACKFILL_BATCH_SIZE`; valid range is 1..=100.
+    /// Applies to both the standard and snapshot-accelerated backfill paths.
+    #[arg(
+        long = "proofs-history.backfill-batch-size",
+        value_name = "N",
+        default_value_t = DEFAULT_BACKFILL_BATCH_SIZE,
+        value_parser = parse_backfill_batch_size,
+    )]
+    pub backfill_batch_size: usize,
 }
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
@@ -71,6 +92,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
                     storage,
                     self.proofs_history_window.window,
                     self.use_snapshot,
+                    self.backfill_batch_size,
                 )?;
             }
         }
@@ -83,6 +105,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
         storage: S,
         window_blocks: u64,
         use_snapshot: bool,
+        batch_size: usize,
     ) -> eyre::Result<()>
     where
         F: DatabaseProviderFactory,
@@ -109,6 +132,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
             window_blocks,
             target_earliest_block,
             use_snapshot,
+            batch_size,
             "Starting backfill job"
         );
 
@@ -117,7 +141,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
             .map_err(|e| eyre::eyre!("Failed to open reth DB provider: {e}"))?
             .disable_long_read_transaction_safety();
 
-        let job = BackfillJob::new(provider, storage);
+        let job = BackfillJob::new(provider, storage).with_batch_size(batch_size);
         if use_snapshot {
             job.run_with_snapshot(target_earliest_block)?;
         } else {
