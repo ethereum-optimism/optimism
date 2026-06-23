@@ -205,6 +205,25 @@ mod tests {
     use alloy_primitives::{U256, address, bytes, uint};
     use kona_genesis::{ChainGenesis, HardForkConfig};
 
+    /// `HardForkConfig` with every fork through Jovian active at genesis (timestamp 0); the caller
+    /// sets Karst/Lagoon/`keep_karst_upgrade_gas`. Mirrors the op-node upgrade-gas test's
+    /// `ActivateAtGenesis(Jovian)` so both suites use the same fork schedule (Jovian must be active
+    /// before Karst can activate).
+    fn forks_through_jovian_at_genesis() -> HardForkConfig {
+        HardForkConfig {
+            regolith_time: Some(0),
+            canyon_time: Some(0),
+            delta_time: Some(0),
+            ecotone_time: Some(0),
+            fjord_time: Some(0),
+            granite_time: Some(0),
+            holocene_time: Some(0),
+            isthmus_time: Some(0),
+            jovian_time: Some(0),
+            ..Default::default()
+        }
+    }
+
     #[test]
     fn test_to_system_config_invalid_genesis_hash() {
         let block = OpBlock::default();
@@ -376,7 +395,10 @@ mod tests {
                 l2: BlockNumHash { hash: block_hash, ..Default::default() },
                 ..Default::default()
             },
-            hardforks: HardForkConfig { karst_time: Some(karst_time), ..Default::default() },
+            hardforks: HardForkConfig {
+                karst_time: Some(karst_time),
+                ..forks_through_jovian_at_genesis()
+            },
             ..Default::default()
         };
         assert!(rollup_config.is_first_karst_block(block.header.timestamp));
@@ -413,7 +435,7 @@ mod tests {
             hardforks: HardForkConfig {
                 karst_time: Some(100),
                 keep_karst_upgrade_gas: true,
-                ..Default::default()
+                ..forks_through_jovian_at_genesis()
             },
             ..Default::default()
         };
@@ -436,7 +458,7 @@ mod tests {
             hardforks: HardForkConfig {
                 karst_time: Some(karst_time),
                 lagoon_time: Some(lagoon_time),
-                ..Default::default()
+                ..forks_through_jovian_at_genesis()
             },
             ..Default::default()
         };
@@ -454,7 +476,7 @@ mod tests {
                 karst_time: Some(karst_time),
                 lagoon_time: Some(lagoon_time),
                 keep_karst_upgrade_gas: true,
-                ..Default::default()
+                ..forks_through_jovian_at_genesis()
             },
             ..Default::default()
         };

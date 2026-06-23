@@ -75,6 +75,13 @@ go test ./op-e2e/actions/upgrades/ -run TestName -count=1
 binary, so they need it built and `KONA_HOST_PATH` pointing at it. These tests are excluded
 from the normal `go test ./...` suite — they only run under kona-host.
 
+> [!NOTE]
+> These tests cover **op-node as well as kona-client**. The chain is built and derived by op-node
+> — the action-test `L2Sequencer`/`L2Verifier` drives `op-node/rollup/driver` through
+> `PreparePayloadAttributes` → `PayloadToSystemConfig` — and the `RunFaultProofProgram` step then
+> has kona-client re-derive and prove that same chain. So a single test exercises both
+> consensus-layer implementations of the state transition.
+
 ```bash
 # build the native host (release; heavy build)
 cargo build --release --manifest-path rust/Cargo.toml --bin kona-host

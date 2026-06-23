@@ -136,20 +136,20 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	require.Equal(t, bigs.Uint64Strict(actHeader.Number), l2SafeHead.Number,
 		"safe head must be exactly the %s activation block", fork)
 
-	// Skip the fault-proof step for Interop until the depset wiring lands in
-	// op-program and kona-host single (tracked in
-	// https://github.com/ethereum-optimism/optimism/issues/21114, item 4).
-	// The activation transition itself is covered by
-	// TestInteropFaultProofs_ActivationBoundary in op-acceptance-tests via
-	// kona-host super.
-	//
-	// The post-activation gas-limit assertion below also runs only for Karst:
-	// op-node strips just the Karst activation gas in PayloadToSystemConfig
-	// today, so the Lagoon/Interop revert is not yet enforced here (its wrapper
-	// gas depends on the dependency set).
+	// Skip the post-activation checks below for Lagoon/Interop:
+	//   - the fault proof needs dependency-set wiring in op-program / kona-host single; the Lagoon
+	//     activation transition is exercised by TestInteropFaultProofs_ActivationBoundary in
+	//     op-acceptance-tests (kona-host super) instead;
+	//   - the gas-limit revert isn't asserted here because Lagoon's activation block can also carry
+	//     multi-chain wrapper gas (setFeature + ETHLiquidity funding) that the reconstruction path
+	//     can't strip without the dependency set (see this PR's Scope/caveats).
+	// Worth revisiting now that single-chain Lagoon's NUT-bundle gas is stripped (follow-up issue).
 	if fork == forks.Lagoon {
 		return
 	}
+
+	// Prove the activation-block span: kona-client verifies the activation transition itself.
+	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 
 	// The NUT-bundle upgrade gas applies only to the activation block. Build one
 	// more block and confirm its gas limit drops back to the pre-activation
@@ -163,9 +163,8 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	require.Equal(t, preActivation.GasLimit, postActivation.GasLimit,
 		"upgrade gas must not persist past the %s activation block", fork)
 
-	// Advance the safe head across the post-activation block and prove the whole span, so the
-	// fault-proof program itself (kona-client) verifies the gas-limit revert — not just op-node's
-	// assertion above.
+	// Advance the safe head across the post-activation block and prove that span too, so
+	// kona-client itself verifies the gas-limit revert — not just op-node's assertion above.
 	env.BatchMineAndSync(t)
 	l2SafeHead = env.Sequencer.L2Safe()
 	require.Equal(t, bigs.Uint64Strict(postActivation.Number), l2SafeHead.Number,
