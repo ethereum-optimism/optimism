@@ -205,6 +205,15 @@ func startMixedOpConNode(
 	// with DEVSTACK_OPCON_L1_FINALIZED_GUARD=required against a finalizing L1.
 	args = append(args, "--l1-finalized-guard", getEnvVarOrDefault("DEVSTACK_OPCON_L1_FINALIZED_GUARD", "disabled"))
 
+	// Expected unsafe-block (gossip) signer for admin_verifyUnsafePayload, used by
+	// the op-conp2p P2P sidecar's verdict delegation. When set, op-con-node can
+	// attribute gossiped blocks to the sequencer; otherwise the verdict RPC
+	// returns `ignore`. In a with-P2P preset this is the sequencer's P2P signer
+	// address.
+	if signer := os.Getenv("DEVSTACK_OPCON_UNSAFE_SIGNER"); signer != "" {
+		args = append(args, "--unsafe-block-signer", signer)
+	}
+
 	var metricsHost, metricsPort string
 	if areMetricsEnabled() {
 		metricsHost = "127.0.0.1"
