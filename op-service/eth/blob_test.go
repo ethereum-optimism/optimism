@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -149,6 +150,9 @@ func FuzzEncodeDecodeBlob(f *testing.F) {
 
 func FuzzDetectNonBijectivity(f *testing.F) {
 	var b Blob
+	// Regression seed (issue #21539): this input's sha256-derived flip lands on a
+	// non-encoded high bit of blob[0], which the harness below must not mutate.
+	f.Add(hexutil.MustDecode("0xea2b58f9b767ec28880fcb9288680382e769eac5558d4429ec5fd4214196db03c4b15c13ad93e63efe3d194abac339f8a8c190482273ea9769edc886435b71c13e162765f13ec29312826db0f90be9d3559171a3dfada3c1719489f79984af07b201286a016fbbc21fd564a2f4bfb72752027473b776a28974aa55d25c364a6dbba441e8f510ffe9cfed982e3d93bda2bc1ca536fadade302cfbecc4dcce4650a78014545d7328b48868c0b1c4253ba8b98a0fb26fc1a11337ab5a31c6eb6ab96c5e049b358200eb544fcc191af1dca874"))
 	f.Fuzz(func(t *testing.T, d []byte) {
 		if len(d) > MaxBlobDataSize {
 			d = d[:MaxBlobDataSize]
@@ -164,7 +168,15 @@ func FuzzDetectNonBijectivity(f *testing.F) {
 		if byteToFlip < 0 {
 			byteToFlip += BlobSize
 		}
-		bitToFlip := int(h[4]) % 8
+		// blob[0]'s two high bits aren't encoded: FromData writes them as zero and
+		// ToData ignores them, so flipping one is a no-op. Keep byte 0's flip within
+		// its 6 encoded bits.
+		var bitToFlip int
+		if byteToFlip == 0 {
+			bitToFlip = int(h[4]) % 6
+		} else {
+			bitToFlip = int(h[4]) % 8
+		}
 		mask := byte(1 << bitToFlip)
 		b[byteToFlip] = b[byteToFlip] ^ mask
 		decoded, err := b.ToData()
