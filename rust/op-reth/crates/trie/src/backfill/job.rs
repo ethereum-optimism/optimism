@@ -70,7 +70,7 @@ impl PhaseTimings {
 ///
 /// Conservative — a crash mid-batch loses at most this many blocks of work, and the in-memory
 /// per-block diff buffer stays small. Operators can opt up via [`BackfillJob::with_batch_size`].
-pub const DEFAULT_BACKFILL_BATCH_SIZE: usize = 10;
+pub const DEFAULT_BACKFILL_BATCH_SIZE: usize = 50;
 
 /// Backfill job for proofs storage.
 #[derive(Debug)]
