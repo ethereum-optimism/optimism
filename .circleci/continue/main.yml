@@ -1593,7 +1593,10 @@ jobs:
           namespace: fuzz-<<parameters.package_name>>
       - run:
           name: Fuzz
-          no_output_timeout: 15m
+          # TEMPORARY (diagnostic): raised from 15m so CircleCI doesn't kill a slow
+          # or hung fuzz run before it produces output. Lets us tell a genuine
+          # slowdown apart from the Go 1.26 fuzzing deadline race. Revert after.
+          no_output_timeout: 60m
           command: |
             just fuzz
           working_directory: "<<parameters.package_name>>"
