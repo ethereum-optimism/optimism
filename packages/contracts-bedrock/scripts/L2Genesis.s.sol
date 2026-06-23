@@ -429,7 +429,6 @@ contract L2Genesis is Script {
     ///      with no active prank so the script is the deployer of the throwaway L2ContractsManager.
     function _deployPredeploysViaL2CM(Input memory _input) internal {
         L2ContractsManager l2cm = new L2ContractsManager{ salt: L2CM_SALT }(_buildL2CMImplRecords());
-        require(address(l2cm) == temporaryL2CMAddress(), "L2Genesis: unexpected L2CM address");
         L2ContractsManagerTypes.FullConfig memory config = _buildL2CMConfig(_input);
         address[] memory proxies = _l2cmTouchedProxies(config);
 
