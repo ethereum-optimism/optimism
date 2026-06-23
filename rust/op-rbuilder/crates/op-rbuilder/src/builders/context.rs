@@ -492,7 +492,6 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
             number: self.block_number(),
             timestamp: self.attributes().timestamp(),
         };
-        let interop_filter_enabled = cfg!(feature = "interop");
         let interop_failsafe_active = self.interop_failsafe.enabled();
 
         while let Some(tx) = best_txs.next(()) {
@@ -558,22 +557,20 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
                 continue;
             }
 
-            if interop_filter_enabled {
-                if interop_failsafe_active && is_interop_tx(&*tx) {
-                    log_txn(TxnExecutionResult::InteropFailed);
-                    best_txs.mark_invalid(tx.signer(), tx.nonce());
-                    continue;
-                }
+            if interop_failsafe_active && is_interop_tx(&*tx) {
+                log_txn(TxnExecutionResult::InteropFailed);
+                best_txs.mark_invalid(tx.signer(), tx.nonce());
+                continue;
+            }
 
-                // We skip invalid cross chain txs, they would be removed on the next block update in
-                // the maintenance job
-                if let Some(interop) = interop
-                    && !is_valid_interop(interop, self.config.attributes.timestamp())
-                {
-                    log_txn(TxnExecutionResult::InteropFailed);
-                    best_txs.mark_invalid(tx.signer(), tx.nonce());
-                    continue;
-                }
+            // We skip invalid cross chain txs, they would be removed on the next block update in
+            // the maintenance job
+            if let Some(interop) = interop
+                && !is_valid_interop(interop, self.config.attributes.timestamp())
+            {
+                log_txn(TxnExecutionResult::InteropFailed);
+                best_txs.mark_invalid(tx.signer(), tx.nonce());
+                continue;
             }
 
             // check if the job was cancelled, if so we can exit early
@@ -727,8 +724,7 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gas_limiter::args::GasLimiterArgs;
-    use crate::tx::FBPooledTransaction;
+    use crate::{gas_limiter::args::GasLimiterArgs, tx::FBPooledTransaction};
     use alloy_consensus::{
         Header, SignableTransaction, TxEip1559,
         transaction::{Recovered, TxHashRef},
