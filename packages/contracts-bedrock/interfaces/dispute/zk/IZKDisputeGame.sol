@@ -78,7 +78,6 @@ interface IZKDisputeGame is IDisputeGame, ISemver {
     function rootClaimByChainId(uint256) external pure returns (Claim rootClaim_);
     function l1Head() external pure returns (Hash l1Head_);
     function extraData() external pure returns (bytes memory extraData_);
-    function superRootProof() external pure returns (bytes memory superRootProof_);
     function gameData() external pure returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_);
     function credit(address _recipient) external view returns (uint256 credit_);
     function maxChallengeDuration() external pure returns (Duration maxChallengeDuration_);

@@ -462,6 +462,13 @@ func CompleteL2(l2Host *script.Host, cfg *L2Config, l1Block *types.Block, deploy
 		return nil, fmt.Errorf("unexpected deployed account content by L2 genesis deployer: %w", err)
 	}
 
+	if err := genesis.CheckL2GenesisAllocs(allocs, genesis.CheckL2AllocsOpts{
+		FundDevAccounts: cfg.FundDevAccounts,
+		AllowedEOAs:     slices.Collect(maps.Keys(cfg.Prefund)),
+	}); err != nil {
+		return nil, fmt.Errorf("L2 genesis allocs failed validation: %w", err)
+	}
+
 	for addr, amount := range cfg.Prefund {
 		acc := allocs.Accounts[addr]
 		acc.Balance = amount

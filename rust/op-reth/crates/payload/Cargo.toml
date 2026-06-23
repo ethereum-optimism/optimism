@@ -54,6 +54,6 @@ sha2.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
-reth-optimism-chainspec.workspace = true
+reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
 alloy-rpc-types-eth.workspace = true

@@ -1,0 +1,76 @@
+[package]
+name = "kona-sp1-host-utils"
+version = "0.0.1"
+publish = false
+license.workspace = true
+edition.workspace = true
+
+[features]
+default = [ "ansi" ]
+ansi = []
+
+[dependencies]
+
+# sp1
+sp1-sdk.workspace = true
+
+# local
+kona-sp1-client-utils.workspace = true
+
+# op-alloy
+op-alloy-consensus.workspace = true
+op-alloy-network.workspace = true
+
+# kona
+kona-derive.workspace = true
+kona-genesis.workspace = true
+kona-host = { workspace = true, features = ["single"] }
+kona-preimage.workspace = true
+kona-proof.workspace = true
+kona-protocol.workspace = true
+kona-registry.workspace = true
+kona-rpc.workspace = true
+
+# alloy
+alloy-consensus.workspace = true
+alloy-contract.workspace = true
+alloy-eips.workspace = true
+alloy-primitives.workspace = true
+alloy-provider.workspace = true
+alloy-rlp.workspace = true
+alloy-sol-types.workspace = true
+alloy-trie.workspace = true
+
+# general
+anyhow.workspace = true
+async-trait.workspace = true
+cfg-if.workspace = true
+c-kzg.workspace = true
+futures.workspace = true
+kzg-rs.workspace = true
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+metrics-process.workspace = true
+num-format.workspace = true
+reqwest.workspace = true
+rkyv.workspace = true
+serde.workspace = true
+serde_cbor.workspace = true
+serde_json.workspace = true
+strum.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+lazy_static.workspace = true
+
+# cargo metadata
+cargo_metadata.workspace = true
+
+# logging and telemetry
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+opentelemetry.workspace = true
+opentelemetry_sdk.workspace = true
+opentelemetry-otlp.workspace = true
+opentelemetry-appender-tracing.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,48 @@
+// Package state provides the frozen pre-fork L2 predeploy state artifacts that
+// the NUT bundle activation test boots from.
+//
+// It is deliberately a separate package from op-core/nuts: op-node and kona-node
+// import op-core/nuts for the embedded bundles, and the state JSON is large
+// (hundreds of KB per fork). Keeping the embed here means the state ships only in
+// test binaries that import this package, not in the node binaries.
+package state
+
+import (
+	"embed"
+	"encoding/json"
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/core/types"
+
+	"github.com/ethereum-optimism/optimism/op-core/forks"
+)
+
+// State files are named after the fork they represent (the state as of that
+// fork): the jovian seed via ops/scripts/gen-seed-state.sh, and later states by
+// composing each fork's bundle onto the previous (TestGenerateForkState in
+// rust/kona/tests/proofs). See README.md.
+//
+//go:embed *_state.json
+var stateFS embed.FS
+
+// PreForkState returns the frozen L2 predeploy state a chain has immediately
+// before fork activates — i.e. the state as of forks.Prev(fork) — as a set of
+// accounts to overlay onto the genesis predeploy set. The activation test requires
+// one, so a missing state is an error: either fork has no predecessor, or no
+// artifact is committed for that predecessor yet.
+func PreForkState(fork forks.Name) (types.GenesisAlloc, error) {
+	prev := forks.Prev(fork)
+	if prev == forks.None {
+		return nil, fmt.Errorf("fork %s has no predecessor fork", fork)
+	}
+	name := fmt.Sprintf("%s_state.json", prev)
+	data, err := stateFS.ReadFile(name)
+	if err != nil {
+		return nil, fmt.Errorf("no committed pre-fork state for %s (%s): %w", prev, name, err)
+	}
+	var alloc types.GenesisAlloc
+	if err := json.Unmarshal(data, &alloc); err != nil {
+		return nil, fmt.Errorf("parsing pre-fork state %s: %w", name, err)
+	}
+	return alloc, nil
+}

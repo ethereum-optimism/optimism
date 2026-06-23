@@ -66,9 +66,11 @@ More detailed guidance for AI agents can be found in:
 
 - [docs/ai/ci-ops.md](docs/ai/ci-ops.md) - CI/CD operations
 - [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md) - Reviewing changes to CI config (`.circleci/`, `.github/workflows/`): gate coverage, required checks, path filtering, caching, plus general CircleCI/GHA best practices
+- [docs/ai/docker.md](docs/ai/docker.md) - Docker image builds: making every external fetch (apt/apk/curl/wget) retry so registry/CDN blips don't flake CI
 - [docs/ai/contract-dev.md](docs/ai/contract-dev.md) - Smart contract development
 - [docs/ai/dispute-game-investigation.md](docs/ai/dispute-game-investigation.md) - Investigating fault dispute games: challenger disagreements, excessive moves, self-contradiction, proposal validity, diagnosing the responsible op-node, and the bond outcome (read-only)
 - [docs/ai/flake-prevention.md](docs/ai/flake-prevention.md) - Guidance for preventing flaky tests
+- [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md) - General development workflow: pinned tools via mise, Just usage, pre-PR checks, and CI caveats
 - [docs/ai/go-dev.md](docs/ai/go-dev.md) - Go service development
 - [docs/ai/rust-dev.md](docs/ai/rust-dev.md) - Rust development (kona, op-reth, alloy crates)
 - [docs/ai/derivation.md](docs/ai/derivation.md) - Derivation pipeline development (op-node, kona-node)

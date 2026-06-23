@@ -1,7 +1,7 @@
 FROM cimg/base:2026.03
 
 LABEL org.opencontainers.image.title="optimism ci-base clang"
-LABEL org.opencontainers.image.description="CircleCI base image with clang, llvm-dev, libclang-dev, and sccache preinstalled for Rust bindgen jobs"
+LABEL org.opencontainers.image.description="CircleCI base image with clang, llvm-dev, libclang-dev, protobuf-compiler, and sccache preinstalled for Rust bindgen and prost/tonic build jobs"
 LABEL org.opencontainers.image.source="https://github.com/ethereum-optimism/optimism"
 
 # Pinned sccache release, preinstalled so Rust CI jobs don't install it per-job.
@@ -16,13 +16,15 @@ USER root
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \
- && apt-get upgrade -y \
- && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=8 update \
+ && apt-get -o Acquire::Retries=8 upgrade -y \
+ && apt-get -o Acquire::Retries=8 install -y --no-install-recommends \
       clang \
       llvm-dev \
       libclang-dev \
       mold \
+      protobuf-compiler \
+      libprotobuf-dev \
  && apt clean \
  && rm -rf /var/lib/apt/lists/*
 
@@ -34,7 +36,7 @@ RUN set -eux; \
       *) echo "Unsupported TARGETARCH: ${TARGETARCH}"; exit 1 ;; \
     esac; \
     ASSET="sccache-v${SCCACHE_VERSION}-${ARCH_TAG}"; \
-    curl -fsSL "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${ASSET}.tar.gz" -o /tmp/sccache.tgz; \
+    curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${ASSET}.tar.gz" -o /tmp/sccache.tgz; \
     echo "${EXPECTED_SHA256}  /tmp/sccache.tgz" | sha256sum -c -; \
     tar -xzf /tmp/sccache.tgz -C /tmp; \
     install "/tmp/${ASSET}/sccache" /usr/local/bin/sccache; \

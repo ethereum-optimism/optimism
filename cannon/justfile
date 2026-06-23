@@ -31,13 +31,9 @@ cannon-embeds: cannon64-impl
 clean:
     rm -rf bin multicannon/embeds/cannon*
 
-# Build ELF test binaries
-elf:
-    just ./testdata/elf
-
-# Build ELF test binaries for current Go version
-elf-go-current:
-    just ./testdata/go-1-24/elf
+# Build minimal hello ELF for diff-cannon parity checks
+diff-hello-elf:
+    just ./testdata/diff-hello-elf
 
 # Check guest program for unsupported MIPS instructions
 sanitize-program:
@@ -56,18 +52,18 @@ contract:
     cd ../packages/contracts-bedrock && forge build
 
 # Run tests
-test: elf contract
+test: contract
     @just go_test "./..."
 
 # Compare cannon output against OTHER_CANNON for a given VM type
-diff-cannon VM: cannon elf-go-current
+diff-cannon VM: cannon diff-hello-elf
     #!/usr/bin/env bash
     set -euo pipefail
     VM="{{VM}}"
     echo "Running diff for VM type ${VM}"
     # Load an elf file to create a prestate, and check that both cannon versions generate the same prestate
-    $OTHER_CANNON load-elf --type "$VM" --path ./testdata/go-1-24/bin/hello.64.elf --out ./bin/prestate-other.bin.gz --meta ""
-    ./bin/cannon   load-elf --type "$VM" --path ./testdata/go-1-24/bin/hello.64.elf --out ./bin/prestate.bin.gz --meta ""
+    $OTHER_CANNON load-elf --type "$VM" --path ./testdata/bin/hello.64.elf --out ./bin/prestate-other.bin.gz --meta ""
+    ./bin/cannon   load-elf --type "$VM" --path ./testdata/bin/hello.64.elf --out ./bin/prestate.bin.gz --meta ""
     cmp ./bin/prestate-other.bin.gz ./bin/prestate.bin.gz
     if [ $? -eq 0 ]; then
         echo "Generated identical prestates"

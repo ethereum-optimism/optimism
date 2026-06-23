@@ -75,6 +75,31 @@ fn intrinsic_access_list_warmth_does_not_claim() {
     assert_eq!(run_slot(&mut insp, 1, ACCOUNT_A, SLOT_1, false), SLOAD_REWARM_REFUND);
 }
 
+// `note_account_touch` models a protocol *settlement write* (the per-tx fee-vault crediting in
+// `OpEvm::transact_raw`), not a user opcode access. The tx is never charged a cold EIP-2929 access
+// for it, so it must warm the account for later txs WITHOUT itself ever claiming a rebate — exactly
+// like a deposit. A genuine opcode access (`observe_account_touch(.., true)`) to the same account,
+// once warmed, is still rebated.
+#[test]
+fn settlement_note_warms_without_claiming_but_opcode_access_still_rebates() {
+    let mut insp = SDMWarmingInspector::default();
+
+    // tx0: settlement touch is the first warmer of ACCOUNT_A; it claims nothing.
+    insp.begin_tx(PostExecTxContext { tx_index: 0, kind: PostExecTxKind::Normal });
+    insp.note_account_touch(ACCOUNT_A);
+    assert_eq!(insp.finish_tx().refund_total, 0, "the first settlement touch claims nothing");
+
+    // tx1: a settlement-only re-touch of the already-warm account must NOT be rebated — the tx paid
+    // no cold access for the fee-vault crediting.
+    insp.begin_tx(PostExecTxContext { tx_index: 1, kind: PostExecTxKind::Normal });
+    insp.note_account_touch(ACCOUNT_A);
+    assert_eq!(insp.finish_tx().refund_total, 0, "a settlement-only re-touch must not be rebated");
+
+    // tx2: a genuine opcode access to the warmed account IS rebated — the settlement note must have
+    // recorded it as warmed even though it did not claim.
+    assert_eq!(run_account(&mut insp, 2, PostExecTxKind::Normal, ACCOUNT_A), ACCOUNT_REWARM_REFUND);
+}
+
 #[test]
 fn take_last_tx_result_round_trips() {
     let mut insp = SDMWarmingInspector::default();

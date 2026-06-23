@@ -11,9 +11,6 @@ import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 
-/// @notice Thrown when a non-written slot in transient storage is attempted to be read from.
-error NotEntered();
-
 /// @notice Thrown when attempting to relay a message where payload origin is not L2ToL2CrossDomainMessenger.
 error IdOriginNotL2ToL2CrossDomainMessenger();
 
@@ -31,9 +28,6 @@ error MessageTargetL2ToL2CrossDomainMessenger();
 
 /// @notice Thrown when attempting to relay a message that has already been relayed.
 error MessageAlreadyRelayed();
-
-/// @notice Thrown when a reentrant call is detected.
-error ReentrantCall();
 
 /// @notice Thrown when the provided message parameters do not match any hash of a previously sent message.
 error InvalidMessage();
@@ -64,8 +58,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.1
-    string public constant version = "1.3.1";
+    /// @custom:semver 1.3.2
+    string public constant version = "1.3.2";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -125,9 +119,10 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
         }
     }
 
-    /// @notice Sends a message to some target address on a destination chain. Note that if the call always reverts,
-    ///         then the message will be unrelayable and any ETH sent will be permanently locked. The same will occur
-    ///         if the target on the other chain is considered unsafe (see the _isUnsafeTarget() function).
+    /// @notice Sends a message to some target address on a destination chain. The destination chain must differ from
+    ///         the current chain, and the target cannot be the L2ToL2CrossDomainMessenger predeploy. This function is
+    ///         not payable, so no ETH can be sent with the message. If the relayed call reverts on the destination
+    ///         chain, the relay transaction reverts and the message can be relayed again later, so it is never stuck.
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message payload to call target with.
@@ -197,6 +192,9 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     /// @notice Relays a message that was sent by the other L2ToL2CrossDomainMessenger contract. Can only be executed
     ///         via cross chain call from the other messenger OR if the message was already received once and is
     ///         currently being replayed.
+    /// @dev    If the target has no code when relayed (e.g. an EOA or a not-yet-deployed address), the call is a
+    ///         no-op that still succeeds, permanently consuming the message; it cannot be relayed again once the
+    ///         target is later deployed.
     /// @param _id          Identifier of the SentMessage event to be relayed
     /// @param _sentMessage Payload of the `SentMessage` event
     /// @return returnData_ Return data from the target contract call.

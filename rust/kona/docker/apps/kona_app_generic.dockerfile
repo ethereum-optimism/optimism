@@ -8,7 +8,7 @@ FROM ubuntu:22.04 AS dep-setup-stage
 SHELL ["/bin/bash", "-c"]
 
 # Install deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 install -y --no-install-recommends \
   build-essential \
   git \
   curl \
@@ -19,11 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install rust
 ENV RUST_VERSION=1.94
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y --default-toolchain ${RUST_VERSION} --profile minimal
+RUN curl https://sh.rustup.rs -sSf --retry 5 --retry-all-errors --retry-delay 2 | bash -s -- -y --default-toolchain ${RUST_VERSION} --profile minimal
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Install cargo-binstall
-RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+RUN curl -L --proto '=https' --tlsv1.2 -sSf --retry 5 --retry-all-errors --retry-delay 2 https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
 RUN cargo binstall cargo-chef cargo-auditable -y
 
@@ -100,12 +100,8 @@ ARG UID=10001
 ARG GID=10001
 
 # Install ca-certificates, openssl, libstdc++ for TLS + C++ runtime support.
-RUN apk add --no-cache \
-  ca-certificates \
-  openssl \
-  libstdc++ \
-  bash \
-  shadow
+# apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
+RUN n=0; until apk add --no-cache ca-certificates openssl libstdc++ bash shadow; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
 
 RUN update-ca-certificates
 
