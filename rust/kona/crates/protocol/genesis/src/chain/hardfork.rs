@@ -1,6 +1,7 @@
 //! Contains the hardfork configuration for the chain.
 
 use alloc::string::{String, ToString};
+use alloy_op_hardforks::OpHardfork;
 use core::fmt::Display;
 
 /// Hardfork configuration.
@@ -129,6 +130,93 @@ impl HardForkConfig {
             ("Lagoon", self.lagoon_time),
         ]
         .into_iter()
+    }
+
+    /// Returns the activation timestamp of `fork`. Bedrock (block-activated) and any fork without a
+    /// dedicated timestamp field return `None`.
+    pub const fn fork_time(&self, fork: OpHardfork) -> Option<u64> {
+        match fork {
+            OpHardfork::Regolith => self.regolith_time,
+            OpHardfork::Canyon => self.canyon_time,
+            OpHardfork::Ecotone => self.ecotone_time,
+            OpHardfork::Fjord => self.fjord_time,
+            OpHardfork::Granite => self.granite_time,
+            OpHardfork::Holocene => self.holocene_time,
+            OpHardfork::Isthmus => self.isthmus_time,
+            OpHardfork::Jovian => self.jovian_time,
+            OpHardfork::Karst => self.karst_time,
+            OpHardfork::Lagoon => self.lagoon_time,
+            // Bedrock is block-activated; OpHardfork is #[non_exhaustive].
+            _ => None,
+        }
+    }
+
+    /// Sets the activation timestamp of `fork`. No-op for Bedrock (block-activated) and forks
+    /// without a dedicated timestamp field.
+    pub const fn set_fork_time(&mut self, fork: OpHardfork, time: Option<u64>) {
+        match fork {
+            OpHardfork::Regolith => self.regolith_time = time,
+            OpHardfork::Canyon => self.canyon_time = time,
+            OpHardfork::Ecotone => self.ecotone_time = time,
+            OpHardfork::Fjord => self.fjord_time = time,
+            OpHardfork::Granite => self.granite_time = time,
+            OpHardfork::Holocene => self.holocene_time = time,
+            OpHardfork::Isthmus => self.isthmus_time = time,
+            OpHardfork::Jovian => self.jovian_time = time,
+            OpHardfork::Karst => self.karst_time = time,
+            OpHardfork::Lagoon => self.lagoon_time = time,
+            _ => {}
+        }
+    }
+
+    /// Activates every fork up to and including `fork` at genesis (timestamp 0), leaving later
+    /// forks unset. Mirrors op-node's `Config.ActivateAtGenesis`. The optional Pectra blob schedule
+    /// is not part of the mainline sequence and is never touched.
+    pub fn activate_at_genesis(&mut self, fork: OpHardfork) {
+        for f in OpHardfork::VARIANTS.iter().copied() {
+            self.set_fork_time(f, Some(0));
+            if f == fork {
+                break;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod activate_tests {
+    use super::*;
+
+    #[test]
+    fn activate_at_genesis_sets_forks_through_target() {
+        let mut cfg = HardForkConfig::default();
+        cfg.activate_at_genesis(OpHardfork::Jovian);
+        for fork in [
+            OpHardfork::Regolith,
+            OpHardfork::Canyon,
+            OpHardfork::Ecotone,
+            OpHardfork::Fjord,
+            OpHardfork::Granite,
+            OpHardfork::Holocene,
+            OpHardfork::Isthmus,
+            OpHardfork::Jovian,
+        ] {
+            assert_eq!(cfg.fork_time(fork), Some(0), "{fork:?} must be active at genesis");
+        }
+        // Later forks stay unset, and the optional Pectra blob schedule is never touched.
+        assert_eq!(cfg.fork_time(OpHardfork::Karst), None);
+        assert_eq!(cfg.fork_time(OpHardfork::Lagoon), None);
+        assert_eq!(cfg.pectra_blob_schedule_time, None);
+    }
+
+    #[test]
+    fn set_and_get_fork_time_round_trip() {
+        let mut cfg = HardForkConfig::default();
+        cfg.set_fork_time(OpHardfork::Karst, Some(123));
+        assert_eq!(cfg.karst_time, Some(123));
+        assert_eq!(cfg.fork_time(OpHardfork::Karst), Some(123));
+        // Bedrock is block-activated: setting it is a no-op, getting it is None.
+        cfg.set_fork_time(OpHardfork::Bedrock, Some(99));
+        assert_eq!(cfg.fork_time(OpHardfork::Bedrock), None);
     }
 }
 

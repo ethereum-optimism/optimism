@@ -205,23 +205,14 @@ mod tests {
     use alloy_primitives::{U256, address, bytes, uint};
     use kona_genesis::{ChainGenesis, HardForkConfig};
 
-    /// `HardForkConfig` with every fork through Jovian active at genesis (timestamp 0); the caller
-    /// sets Karst/Lagoon/`keep_karst_upgrade_gas`. Mirrors the op-node upgrade-gas test's
-    /// `ActivateAtGenesis(Jovian)` so both suites use the same fork schedule (Jovian must be active
-    /// before Karst can activate).
-    fn forks_through_jovian_at_genesis() -> HardForkConfig {
-        HardForkConfig {
-            regolith_time: Some(0),
-            canyon_time: Some(0),
-            delta_time: Some(0),
-            ecotone_time: Some(0),
-            fjord_time: Some(0),
-            granite_time: Some(0),
-            holocene_time: Some(0),
-            isthmus_time: Some(0),
-            jovian_time: Some(0),
-            ..Default::default()
-        }
+    /// `HardForkConfig` with every fork through Jovian active at genesis, plus Karst at
+    /// `karst_time` — matching the op-node upgrade-gas test's `ActivateAtGenesis(Jovian)`
+    /// schedule (Jovian must be active before Karst can activate).
+    fn karst_at(karst_time: u64) -> HardForkConfig {
+        let mut hardforks = HardForkConfig::default();
+        hardforks.activate_at_genesis(OpHardfork::Jovian);
+        hardforks.karst_time = Some(karst_time);
+        hardforks
     }
 
     #[test]
@@ -395,10 +386,7 @@ mod tests {
                 l2: BlockNumHash { hash: block_hash, ..Default::default() },
                 ..Default::default()
             },
-            hardforks: HardForkConfig {
-                karst_time: Some(karst_time),
-                ..forks_through_jovian_at_genesis()
-            },
+            hardforks: karst_at(karst_time),
             ..Default::default()
         };
         assert!(rollup_config.is_first_karst_block(block.header.timestamp));
@@ -432,11 +420,7 @@ mod tests {
         // so an already-affected chain's history still validates.
         let rollup_config = RollupConfig {
             block_time: 2,
-            hardforks: HardForkConfig {
-                karst_time: Some(100),
-                keep_karst_upgrade_gas: true,
-                ..forks_through_jovian_at_genesis()
-            },
+            hardforks: HardForkConfig { keep_karst_upgrade_gas: true, ..karst_at(100) },
             ..Default::default()
         };
         assert!(rollup_config.is_first_karst_block(block.header.timestamp));
@@ -455,11 +439,7 @@ mod tests {
         let (karst_time, lagoon_time) = (1000u64, 2000u64);
         let cfg = RollupConfig {
             block_time: 2,
-            hardforks: HardForkConfig {
-                karst_time: Some(karst_time),
-                lagoon_time: Some(lagoon_time),
-                ..forks_through_jovian_at_genesis()
-            },
+            hardforks: HardForkConfig { lagoon_time: Some(lagoon_time), ..karst_at(karst_time) },
             ..Default::default()
         };
 
@@ -473,10 +453,9 @@ mod tests {
         let kept = RollupConfig {
             block_time: 2,
             hardforks: HardForkConfig {
-                karst_time: Some(karst_time),
                 lagoon_time: Some(lagoon_time),
                 keep_karst_upgrade_gas: true,
-                ..forks_through_jovian_at_genesis()
+                ..karst_at(karst_time)
             },
             ..Default::default()
         };
