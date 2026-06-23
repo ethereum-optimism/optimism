@@ -151,15 +151,10 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 		return
 	}
 
-	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
-
 	// The NUT-bundle upgrade gas applies only to the activation block. Build one
 	// more block and confirm its gas limit drops back to the pre-activation
 	// value — a regression would leak the upgrade gas onto every block after the
-	// activation block. Kept out of the proven span (built after BatchMineAndSync)
-	// so the fault proof stays focused on the activation transition; op-node's
-	// stripping is asserted directly here, and kona-client's is covered by the
-	// kona-derive unit test test_prepare_payload_strips_parent_karst_upgrade_gas.
+	// activation block.
 	env.Sequencer.ActL2EmptyBlock(t)
 	postActivation := engine.L2Chain().CurrentHeader()
 	preActivation := engine.L2Chain().GetHeaderByNumber(bigs.Uint64Strict(actHeader.Number) - 1)
@@ -167,6 +162,15 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 		"activation block must carry the one-time upgrade gas")
 	require.Equal(t, preActivation.GasLimit, postActivation.GasLimit,
 		"upgrade gas must not persist past the %s activation block", fork)
+
+	// Advance the safe head across the post-activation block and prove the whole span, so the
+	// fault-proof program itself (kona-client) verifies the gas-limit revert — not just op-node's
+	// assertion above.
+	env.BatchMineAndSync(t)
+	l2SafeHead = env.Sequencer.L2Safe()
+	require.Equal(t, bigs.Uint64Strict(postActivation.Number), l2SafeHead.Number,
+		"safe head must advance to the post-activation block")
+	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 // activateFork boots a fault-proof env for testCfg.Custom and advances to that
