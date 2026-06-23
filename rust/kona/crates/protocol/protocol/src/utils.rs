@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 use alloy_consensus::{Transaction, Typed2718};
-use alloy_op_hardforks::{OpHardfork, OpHardforks};
+use alloy_op_hardforks::OpHardfork;
 use alloy_primitives::{B256, U256};
 use alloy_rlp::{Buf, Header};
 use kona_genesis::{RollupConfig, SystemConfig};
@@ -108,11 +108,7 @@ pub fn to_system_config(
 /// that activated Karst with the leak baked into their history); later forks have no opt-out.
 fn upgrade_gas_to_strip(rollup_config: &RollupConfig, block_timestamp: u64) -> u64 {
     for fork in OpHardfork::Karst.forks_from() {
-        let activation = rollup_config.op_fork_activation(fork);
-        let is_activation_block = activation.active_at_timestamp(block_timestamp) &&
-            !activation
-                .active_at_timestamp(block_timestamp.saturating_sub(rollup_config.block_time));
-        if !is_activation_block {
+        if !rollup_config.is_fork_activation_block(fork, block_timestamp) {
             continue;
         }
         // At most one fork activates per block, so the first activation fork found is the only one.

@@ -38,7 +38,7 @@ pub struct OverrideArgs {
     #[arg(long, env = "KONA_NODE_OVERRIDE_PECTRA_BLOB_SCHEDULE")]
     pub pectra_blob_schedule_override: Option<u64>,
     /// Manually specify the timestamp for the Lagoon fork, overriding the bundled setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_INTEROP")]
+    #[arg(long, env = "KONA_NODE_OVERRIDE_LAGOON")]
     pub lagoon_override: Option<u64>,
     /// Manually set `keep_karst_upgrade_gas`, overriding the bundled setting. When true, the Karst
     /// activation block's one-time upgrade gas is kept on every later block (for chains that

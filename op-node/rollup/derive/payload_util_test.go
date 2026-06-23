@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
@@ -61,10 +62,6 @@ func TestPayloadToSystemConfigUpgradeGas(t *testing.T) {
 		GasLimit:    baseGasLimit,
 	}
 
-	// Jovian is active, so header extra data carries the EIP-1559 params plus a min base fee. The
-	// exact value is irrelevant; the test only asserts the gas limit.
-	const minBaseFee = uint64(1)
-
 	// buildPayload assembles a minimal L2 payload whose first tx is the L1-info
 	// deposit, with the given block timestamp and gas limit.
 	buildPayload := func(t *testing.T, cfg *rollup.Config, blockTimestamp, gasLimit uint64) *eth.ExecutionPayload {
@@ -72,13 +69,14 @@ func TestPayloadToSystemConfigUpgradeGas(t *testing.T) {
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1InfoTx, err := L1InfoDepositBytes(cfg, params.MergedTestChainConfig, sysCfg, 0, l1Info, blockTimestamp)
 		require.NoError(t, err)
-		mbf := minBaseFee
 		return &eth.ExecutionPayload{
-			BlockHash:    common.Hash{0x01},
-			BlockNumber:  hexutil.Uint64(100),
-			Timestamp:    hexutil.Uint64(blockTimestamp),
-			GasLimit:     hexutil.Uint64(gasLimit),
-			ExtraData:    eip1559.EncodeOptimismExtraData(cfg, blockTimestamp, 250, 6, &mbf),
+			BlockHash:   common.Hash{0x01},
+			BlockNumber: hexutil.Uint64(100),
+			Timestamp:   hexutil.Uint64(blockTimestamp),
+			GasLimit:    hexutil.Uint64(gasLimit),
+			// Jovian is active, so extra data carries the EIP-1559 params plus a min base fee
+			// (value irrelevant; the test only asserts the gas limit).
+			ExtraData:    eip1559.EncodeOptimismExtraData(cfg, blockTimestamp, 250, 6, ptr.New(uint64(1))),
 			Transactions: []eth.Data{l1InfoTx},
 		}
 	}
