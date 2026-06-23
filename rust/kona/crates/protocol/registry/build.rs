@@ -32,7 +32,7 @@ fn main() {
     // mode; do not touch it. (Custom-config merges, if enabled, additively layer
     // on top of the committed snapshot.)
     let kona_bind: bool =
-        std::env::var("KONA_SYNC_SUPERCHAIN").unwrap_or_else(|_| "false".to_string()) == "true";
+        matches!(std::env::var("KONA_SYNC_SUPERCHAIN").as_deref(), Ok("1" | "true"));
     println!("cargo:rerun-if-env-changed=KONA_SYNC_SUPERCHAIN");
     if !kona_bind {
         merge_custom_configs();

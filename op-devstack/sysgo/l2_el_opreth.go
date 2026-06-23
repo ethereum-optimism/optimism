@@ -18,6 +18,10 @@ import (
 type OpRethConfig struct {
 	// ExtraArgs are appended to the generated CLI args.
 	ExtraArgs []string
+	// Binary selects the EL binary to launch. Empty means "op-reth". A CLI-compatible superset
+	// (e.g. "op-reth-premium", which accepts every op-reth subcommand/flag plus the --subblocks.*
+	// namespace) may be selected via OpRethWithBinary.
+	Binary string
 }
 
 // DefaultOpRethConfig returns a zero-valued OpRethConfig that callers can mutate via OpRethOptions.
@@ -57,6 +61,16 @@ func (b OpRethOptionBundle) Apply(p devtest.T, target ComponentTarget, cfg *OpRe
 func OpRethWithExtraArgs(args ...string) OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.ExtraArgs = append(cfg.ExtraArgs, args...)
+	})
+}
+
+// OpRethWithBinary selects the EL binary to launch instead of the default "op-reth". The binary
+// must be a CLI superset of op-reth (it is invoked with op-reth's subcommands and flags). Used to
+// boot "op-reth-premium" as a drop-in sequencer; since that binary lives in a separate repo it must
+// be supplied via RUST_BINARY_PATH_OP_RETH_PREMIUM (or RUST_SRC_DIR_OP_RETH_PREMIUM + RUST_JIT_BUILD).
+func OpRethWithBinary(binary string) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.Binary = binary
 	})
 }
 

@@ -14,10 +14,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/prestate"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/registry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/types"
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/superchain"
 	"golang.org/x/term"
 )
 

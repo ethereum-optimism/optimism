@@ -16,7 +16,7 @@ parameters:
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:758f67c7212e7d05c3d02c34f26766ef86f657d3bb811da07cc01e37b736ebef
   c-go-cache-version:
     type: string
-    default: "v0.0"
+    default: "v0.1"
   # Workflow activation flags (set by the decision tree in config.yml)
   c-run_rust_e2e_ci:
     type: boolean
@@ -49,6 +49,10 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: kona-ci
+      # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: Run common tests for node with sysgo orchestrator
           no_output_timeout: 60m
@@ -91,6 +95,10 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: kona-ci
+      # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: Run restart tests for node with sysgo orchestrator
           no_output_timeout: 60m
@@ -119,6 +127,10 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: op-reth-e2e
+      # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: Run op-reth E2E tests with sysgo orchestrator
           working_directory: rust/op-reth/tests
@@ -151,6 +163,10 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: kona-ci
+      # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: Build kona and run action tests
           working_directory: rust/kona
