@@ -47,18 +47,19 @@ type ProgramRunner func(t helpers.Testing, workDir string, rollupCfgs []*rollup.
 
 // RunFaultProofProgram runs the native fault proof program for the transition to the given L2 block number from the preceding one.
 func RunFaultProofProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
-	runProgram(t, logger, l1, RunKonaNative, checkResult, fixtureInputParams...)
+	runProgram(t, logger, l1, RunKonaNative, false, checkResult, fixtureInputParams...)
 }
 
 // RunSP1RangeProgram runs the kona-sp1 range guest in SP1 execute mode for the transition to the
 // given L2 block number from the preceding one.
 func RunSP1RangeProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
-	runProgram(t, logger, l1, RunRangeExecutor, checkResult, fixtureInputParams...)
+	runProgram(t, logger, l1, RunRangeExecutor, true, checkResult, fixtureInputParams...)
 }
 
 // runProgram prepares the chain inputs (beacon, configs, L2 endpoints) for a single state
-// transition and dispatches them to the given program runner.
-func runProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, run ProgramRunner, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
+// transition and dispatches them to the given program runner. allowCorruptClaim must be true only
+// for runners that honor WithCorruptClaim (currently the SP1 range executor).
+func runProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, run ProgramRunner, allowCorruptClaim bool, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	l1Head := l1.L1Chain().CurrentBlock()
 
 	fixtureInputs := &FixtureInputs{
@@ -68,6 +69,10 @@ func runProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, run P
 		apply(fixtureInputs)
 	}
 	require.Greater(t, len(fixtureInputs.L2Sources), 0, "Must specify at least one L2 source")
+	// WithCorruptClaim only affects the SP1 range executor; the native fault-proof program ignores
+	// it, so passing it to RunFaultProofProgram is a mistake that would silently pass. Fail loudly.
+	require.False(t, fixtureInputs.CorruptClaim && !allowCorruptClaim,
+		"WithCorruptClaim() is only honored by RunSP1RangeProgram; the native fault-proof program ignores it")
 
 	// Run the program from the state transition from L2 block l2ClaimBlockNum - 1 -> l2ClaimBlockNum.
 	workDir := t.TempDir()
