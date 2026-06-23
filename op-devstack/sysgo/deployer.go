@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/forks"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
@@ -154,6 +156,10 @@ type worldBuilder struct {
 
 	// options
 	deployerPipelineOptions []DeployerPipelineOption
+
+	// preForkPredeployAllocs, when non-nil, is overlaid onto every L2 chain's
+	// genesis predeploy accounts before the genesis and rollup config are built.
+	preForkPredeployAllocs types.GenesisAlloc
 
 	builder intentbuilder.Builder
 
@@ -414,6 +420,17 @@ func (wb *worldBuilder) buildL2Genesis() {
 	wb.outL2Genesis = make(map[eth.ChainID]*core.Genesis)
 	wb.outL2RollupCfg = make(map[eth.ChainID]*rollup.Config)
 	for _, ch := range wb.output.Chains {
+		if wb.preForkPredeployAllocs != nil {
+			wb.require.NotNil(ch.Allocs, "chain must have allocs to overlay pre-fork state onto")
+			for addr, acct := range wb.preForkPredeployAllocs {
+				// Keep each chain's own genesis Permit2; we only need the frozen
+				// predeploy implementations, not the chain-agnostic preinstalls.
+				if addr == predeploys.Permit2Addr {
+					continue
+				}
+				ch.Allocs.Data.Accounts[addr] = acct
+			}
+		}
 		l2Genesis, l2RollupCfg, err := inspect.GenesisAndRollup(wb.output, ch.ID)
 		wb.require.NoError(err, "need L2 genesis and rollup")
 		id := eth.ChainIDFromBytes32(ch.ID)
