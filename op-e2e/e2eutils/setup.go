@@ -224,6 +224,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		JovianTime:             deployConf.JovianTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		KarstTime:              deployConf.KarstTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		LagoonTime:             deployConf.LagoonTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		KeepKarstUpgradeGas:    deployConf.KeepKarstUpgradeGas,
 		AltDAConfig:            pcfg,
 		ChainOpConfig: &params.OptimismConfig{
 			EIP1559Elasticity:        deployConf.EIP1559Elasticity,
