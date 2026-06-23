@@ -9346,6 +9346,7 @@ dependencies = [
  "reth-execution-errors",
  "reth-node-api",
  "reth-optimism-evm",
+ "reth-optimism-primitives",
  "reth-primitives-traits",
  "revm",
  "serde",

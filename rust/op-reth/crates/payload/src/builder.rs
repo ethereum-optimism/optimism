@@ -466,7 +466,11 @@ impl<Txs> OpBuilder<'_, Txs> {
         // scalar.
         db.load_cache_account(L1_BLOCK_CONTRACT).map_err(BlockExecutionError::other)?;
 
-        let mut builder = ctx.block_builder(&mut db)?;
+        // Snapshot the runtime-mutable mode so EVM setup and `0x7D` appending agree.
+        let post_exec_mode = ctx.post_exec_mode()?;
+        let produce_post_exec = matches!(post_exec_mode, PostExecMode::Produce);
+
+        let mut builder = ctx.block_builder_with_mode(&mut db, post_exec_mode)?;
 
         // 1. apply pre-execution changes
         builder.apply_pre_execution_changes().map_err(|err| {
@@ -494,9 +498,8 @@ impl<Txs> OpBuilder<'_, Txs> {
             }
         }
 
-        // Only locally-sequenced blocks append a post-exec tx; a derived block (force_empty)
-        // already carries its own `0x7D`, so appending would duplicate it. See `post_exec_mode`.
-        let sdm_refund_gas = if !ctx.force_empty() && ctx.sdm_production_enabled() {
+        // Only `Produce` appends `0x7D`; derived blocks verify any embedded tx instead.
+        let sdm_refund_gas = if produce_post_exec {
             let block_number = builder.evm_mut().block().number().saturating_to();
             let entries = builder.executor_mut().take_post_exec_entries();
             let refund_gas = self::sdm_refund_gas(&entries);
@@ -845,7 +848,8 @@ where
         is_better_payload(self.best_payload.as_ref(), total_fees)
     }
 
-    /// Prepares a [`BlockBuilder`] for the next block.
+    /// Prepares a [`BlockBuilder`] using this payload's current post-exec mode.
+    /// Use [`Self::block_builder_with_mode`] when the caller already snapped the mode.
     pub fn block_builder<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
@@ -856,8 +860,21 @@ where
         > + 'a,
         PayloadBuilderError,
     > {
-        let post_exec_mode = self.post_exec_mode()?;
+        self.block_builder_with_mode(db, self.post_exec_mode()?)
+    }
 
+    /// Prepares a [`BlockBuilder`] with a caller-supplied post-exec mode.
+    pub fn block_builder_with_mode<'a, DB: Database>(
+        &'a self,
+        db: &'a mut State<DB>,
+        post_exec_mode: PostExecMode,
+    ) -> Result<
+        impl BlockBuilder<
+            Primitives = Evm::Primitives,
+            Executor: PostExecExecutorExt + BlockExecutor<Result: PreRefundGasUsed>,
+        > + 'a,
+        PayloadBuilderError,
+    > {
         self.evm_config
             .post_exec_builder_for_next_block(
                 db,
