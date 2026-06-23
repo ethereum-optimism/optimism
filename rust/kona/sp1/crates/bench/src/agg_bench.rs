@@ -30,6 +30,10 @@ struct Args {
     #[arg(long, default_value_t = false)]
     prove: bool,
 
+    /// Persist the compressed aggregation proof to this path.
+    #[arg(long, requires = "prove")]
+    save_proof: Option<PathBuf>,
+
     /// Save the RPC-derived aggregation inputs to this path for later offline proving.
     #[arg(long, conflicts_with = "load_agg_inputs")]
     save_agg_inputs: Option<PathBuf>,
@@ -148,6 +152,10 @@ async fn main() -> anyhow::Result<()> {
             .verify(&proof, agg_proving_key.verifying_key(), None)
             .context("compressed aggregation proof failed local verification")?;
         tracing::info!("local verify: {:?}", verify_start.elapsed());
+        if let Some(path) = &args.save_proof {
+            proof.save(path).context("failed to save compressed aggregation proof")?;
+            tracing::info!("saved compressed aggregation proof to {}", path.display());
+        }
     }
 
     Ok(())
@@ -294,6 +302,24 @@ mod tests {
         assert!(
             message.to_lowercase().contains("cannot be used with") || message.contains("conflict")
         );
+    }
+
+    #[test]
+    fn save_proof_requires_prove() {
+        let err =
+            Args::try_parse_from(["agg-bench", "--proofs", "a.bin", "--save-proof", "agg.bin"])
+                .unwrap_err();
+        assert!(err.to_string().contains("--prove"));
+
+        Args::try_parse_from([
+            "agg-bench",
+            "--proofs",
+            "a.bin",
+            "--prove",
+            "--save-proof",
+            "agg.bin",
+        ])
+        .unwrap();
     }
 
     #[test]

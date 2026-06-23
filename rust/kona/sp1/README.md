@@ -143,7 +143,15 @@ just agg-bench --proofs /tmp/r1.bin,/tmp/r2.bin
 must be consecutive, because the aggregation program asserts each proof's post
 root is the next proof's pre root. Pass `--prove` to produce the compressed
 recursion aggregation proof. The execute cycle report excludes recursive proof
-verification, which appears in the `--prove` wall-clock time.
+verification, which appears in the `--prove` wall-clock time. Pass `--save-proof
+<path>` with `--prove` to persist the compressed aggregation proof.
+
+Note that the saved compressed aggregation proof cannot be fed back into
+`plonk-prove-bench` to skip work: the SP1 SDK's `prove(...).plonk()` always runs
+the full pipeline from the aggregation stdin (core -> compress -> shrink -> wrap
+-> gnark), and exposes no entry point that wraps an existing compressed proof to
+PLONK. `plonk-prove-bench` therefore re-derives the aggregation proof from the
+range proofs each time.
 
 The aggregation benchmark can also split RPC input assembly from proving. On a
 machine with RPC access, save the L1 checkpoint and header preimages derived from

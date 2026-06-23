@@ -424,11 +424,13 @@ mode_agg() {
       die "PLONK aggregation failed -- see $log"
     fi
   else
+    local out="$DATA_DIR/agg_${first}_${last}.bin"
     log="$LOG_DIR/agg_compressed_${first}_${last}.log"
     echo "agg (compressed) ${first}-${last} from ${#proofs[@]} proofs"
-    if run_bench "$log" agg-bench --proofs "$joined" ${input_args[@]+"${input_args[@]}"} --prove; then
+    if run_bench "$log" agg-bench --proofs "$joined" ${input_args[@]+"${input_args[@]}"} --prove --save-proof "$out"; then
       t1="$(now_s)"; wall="$(elapsed "$t0" "$t1")"; extra="$(extract_metrics "$log")"
       log_timing "$(iso_now)" agg-compressed agg - "$first" "$last" "$((last - first))" "$wall" "$extra" "$log"
+      echo "saved compressed agg proof -> $out"
     else
       t1="$(now_s)"; wall="$(elapsed "$t0" "$t1")"
       log_timing "$(iso_now)" agg-compressed-FAILED agg - "$first" "$last" "$((last - first))" "$wall" - "$log"
