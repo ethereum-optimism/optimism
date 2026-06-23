@@ -423,7 +423,7 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
     }
 
     /// @notice Tests that upgradeTo skips the downgrade guard in deploy mode.
-    function test_upgradeTo_deployMode_allowsDowngrade_succeeds() public {
+    function test_upgradeTo_deployModeAllowsDowngrade_succeeds() public {
         address proxy = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
         // Set v2 as current implementation.
@@ -440,7 +440,7 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
     }
 
     /// @notice Tests that upgradeToAndCall accepts a dummy StorageSetter address in deploy mode.
-    function test_upgradeToAndCall_deployMode_dummyStorageSetter_succeeds() public {
+    function test_upgradeToAndCall_deployModeDummyStorageSetter_succeeds() public {
         address proxy = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         // A StorageSetter address with no code; rejected in upgrade mode, ignored in deploy mode.
         address dummyStorageSetter = makeAddr("dummyStorageSetter");
@@ -465,7 +465,7 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
     }
 
     /// @notice Tests that upgradeToAndCall skips the initialized-slot reset dance in deploy mode.
-    function test_upgradeToAndCall_deployMode_skipsInitializedSlotReset_succeeds() public {
+    function test_upgradeToAndCall_deployModeSkipsInitializedSlotReset_succeeds() public {
         address proxy = Predeploys.L2_STANDARD_BRIDGE;
 
         // Set v1 as current implementation.
