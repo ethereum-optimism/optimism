@@ -8,7 +8,7 @@ description: Runbook for upgrading an OP Stack chain from output-root dispute ga
 
 <Warning>This guide depends on the interop feature, which is still in development. Do not follow it on production chains.</Warning>
 
-This runbook walks you through upgrading a single OP Stack chain from output-root dispute games (`PERMISSIONED_CANNON`, `CANNON` or `CANNON_KONA`) to super-root dispute games (`SUPER_PERMISSIONED_CANNON` or `SUPER_CANNON_KONA`). It runs as a single `opcm.upgrade` call against the chain's existing per-chain `AnchorStateRegistry` and `DisputeGameFactory`. The chain's permission model is preserved: a permissioned chain stays permissioned with `SUPER_PERMISSIONED_CANNON` only; a permissionless chain runs both super game types with `SUPER_CANNON_KONA` as the respected one. Differences between the two are called out inline.
+This runbook walks you through upgrading a single OP Stack chain from output-root dispute games (`PERMISSIONED_CANNON`, `CANNON` or `CANNON_KONA`) to super-root dispute games (`SUPER_PERMISSIONED` or `SUPER_CANNON_KONA`). It runs as a single `opcm.upgrade` call against the chain's existing per-chain `AnchorStateRegistry` and `DisputeGameFactory`. The chain's permission model is preserved: a permissioned chain stays permissioned with `SUPER_PERMISSIONED` only; a permissionless chain runs both super game types with `SUPER_CANNON_KONA` as the respected one. Differences between the two are called out inline.
 
 By the end you will have a chain proposing super-root claims via `op-proposer` against an `op-supernode`, defending them via `op-challenger`, monitored by `op-dispute-mon`, and rejecting creation of new pre-migration games at the factory. Every pre-migration dispute game already in flight continues to resolve, and proven withdrawals are not invalidated.
 
@@ -66,7 +66,7 @@ Read the values you need from `chain.json`:
 
 **Chain type.** The upgrade preserves the chain's existing permission model. `chain.json` reports the current respected game type at `.faultProofs.respectedGameType`:
 
-* `1` (`PERMISSIONED_CANNON`) — chain is **permissioned**. The new respected game type is `5` (`SUPER_PERMISSIONED_CANNON`).
+* `1` (`PERMISSIONED_CANNON`) — chain is **permissioned**. The new respected game type is `5` (`SUPER_PERMISSIONED`).
 * `0` (`CANNON`) or `8` (`CANNON_KONA`) — chain is **permissionless**. The new respected game type is `9` (`SUPER_CANNON_KONA`).
 
 **Init bond.** The `OPCMUpgradeV800` template applies a single `initBond` value (in wei) to every enabled super game type. `0.08 ether` (`80000000000000000` wei) is the standard value used on existing chains.
@@ -85,7 +85,7 @@ Read the values you need from `chain.json`:
 Before you change any configuration:
 
 * **Confirm the template injects `overrides.cfg.startingAnchorRoot`.** Open `superchain-ops/src/template/OPCMUpgradeV800.sol` and check `_buildExtraInstructions`. As of writing it only injects `overrides.cfg.startingRespectedGameType` and `PermittedProxyDeployment`. Without an `overrides.cfg.startingAnchorRoot` override, OPCM falls back to the existing on-chain `startingAnchorRoot`, which on a pre-upgrade chain is an output-root-shaped value with a block-number `l2SequenceNumber` — not a valid super-root anchor. The template must be extended to read a starting super-root anchor from TOML and add it as a third extra instruction. Fix the template before continuing.
-* **Confirm the `op-supernode` tracks only this chain.** `op-proposer`, `op-challenger`, and `op-dispute-mon` must point at a supernode instance whose dependency set contains only this chain's L2 chain ID. A supernode that also tracks other chains computes super roots across all of them, and those roots will not match what this chain's `SUPER_CANNON_KONA` / `SUPER_PERMISSIONED_CANNON` games verify. If the same physical operator also runs supernodes for other chains (or an interop cluster), stand up a dedicated single-chain supernode instance for this upgrade.
+* **Confirm the `op-supernode` tracks only this chain.** `op-proposer`, `op-challenger`, and `op-dispute-mon` must point at a supernode instance whose dependency set contains only this chain's L2 chain ID. A supernode that also tracks other chains computes super roots across all of them, and those roots will not match what this chain's `SUPER_CANNON_KONA` / `SUPER_PERMISSIONED` games verify. If the same physical operator also runs supernodes for other chains (or an interop cluster), stand up a dedicated single-chain supernode instance for this upgrade.
 * **Verify the `op-supernode` is healthy.** Confirm it reports a finalized L2 head within the chain's expected finality window:
 
   ```bash
@@ -164,8 +164,8 @@ templateName = "OPCMUpgradeV800"
 
 [[opcmUpgrades]]
 chainId = <chain id>
-# Kona-interop super prestate, used by both SUPER_PERMISSIONED_CANNON and
-# SUPER_CANNON_KONA. The `-interop` variant supports super roots and works whether
+# Kona-interop super prestate, used by SUPER_CANNON_KONA. The `-interop` variant
+# supports super roots and works whether
 # or not interop is enabled or scheduled on the chain.
 cannonKonaPrestate = "0x<kona-interop super prestate>"
 expectedValidationErrors = ""   # fill in after the dry run
@@ -243,7 +243,7 @@ cast call <DGF> 'gameImpls(uint32)(address)' 8 --rpc-url $L1_RPC   # CANNON_KONA
 ### Permissionless Chain Checks
 
 ```bash
-cast call <DGF> 'gameImpls(uint32)(address)' 5 --rpc-url $L1_RPC   # SUPER_PERMISSIONED_CANNON
+cast call <DGF> 'gameImpls(uint32)(address)' 5 --rpc-url $L1_RPC   # SUPER_PERMISSIONED
 cast call <DGF> 'gameImpls(uint32)(address)' 9 --rpc-url $L1_RPC   # SUPER_CANNON_KONA
 # Expect both: non-zero
 
@@ -255,7 +255,7 @@ cast call <DGF> 'initBonds(uint32)(uint256)' 9 --rpc-url $L1_RPC
 ### Permissioned Chain Checks
 
 ```bash
-cast call <DGF> 'gameImpls(uint32)(address)' 5 --rpc-url $L1_RPC   # SUPER_PERMISSIONED_CANNON
+cast call <DGF> 'gameImpls(uint32)(address)' 5 --rpc-url $L1_RPC   # SUPER_PERMISSIONED
 # Expect: non-zero
 
 cast call <DGF> 'initBonds(uint32)(uint256)' 5 --rpc-url $L1_RPC

@@ -482,6 +482,82 @@ where
     Ok(())
 }
 
+/// Negative test for the body-pruned detection in the engine's execute-block path.
+/// The check sits in `tasks::execute_block::run` so it covers both the sync path
+/// (`advance_sync` calls into this task) and any direct `EngineHandle::execute_block`
+/// caller; this test exercises the latter.
+///
+/// Reth returns `Some(block)` with an empty body when the transaction data has been pruned but
+/// body indices are still present. Executing that block would produce zero state changes and
+/// surface a misleading [`EngineError::StateRootMismatch`] instead of the real cause. The engine
+/// detects this and returns [`EngineError::BlockBodyPruned`] instead.
+///
+/// We exercise this by constructing a block whose header advertises a non-empty
+/// `transactions_root` (i.e. originally contained transactions) but whose body has been
+/// stripped — exactly what `recovered_block` would return for a body-pruned block.
+#[test_case(create_mdbx_proofs_storage(); "Mdbx")]
+#[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
+#[serial]
+fn test_execute_and_store_block_updates_body_pruned<S>(storage: Arc<S>) -> Result<(), eyre::Error>
+where
+    S: OpProofsStore + Send + Sync + std::fmt::Debug + 'static,
+{
+    let secp = Secp256k1::new();
+    let key_pair = Keypair::new(&secp, &mut rng());
+    let sender = public_key_to_address(key_pair.public_key());
+
+    let chain_spec = chain_spec_with_address(sender);
+    let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&provider_factory).unwrap();
+
+    // Initialize storage at genesis so the engine's tip = genesis.
+    run_test_scenario(
+        TestScenario::new(vec![], vec![]),
+        provider_factory.clone(),
+        chain_spec.clone(),
+        key_pair,
+        storage.clone(),
+    )?;
+
+    let blockchain_db = BlockchainProvider::new(provider_factory.clone()).unwrap();
+    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
+    let engine_handle = EngineHandle::spawn(
+        EthEvmConfig::ethereum(chain_spec.clone()),
+        blockchain_db,
+        storage,
+        pruner,
+    );
+
+    // Build block 1 normally and execute it so the header carries the real post-state
+    // values for that block.
+    let recipient = Address::repeat_byte(0x42);
+    let mut nonce_counter = 0u64;
+    let mut block_with_txs = create_block_from_spec(
+        &BlockSpec::new(vec![TxSpec::transfer(recipient, U256::from(1))]),
+        1,
+        chain_spec.genesis_hash(),
+        &chain_spec,
+        key_pair,
+        &mut nonce_counter,
+    );
+    let _ = execute_block(&mut block_with_txs, &provider_factory, &chain_spec)?;
+
+    // Synthesize a body-pruned block: keep the executed header but rewrite its
+    // `transactions_root` to a non-canonical-empty value (mimicking a real header for a
+    // block that originally had transactions) and strip the body.
+    let mut header = block_with_txs.header().clone();
+    header.transactions_root = B256::repeat_byte(0xAB);
+    let pruned = Block { header, body: BlockBody::default() }.try_into_recovered().unwrap();
+
+    // EXPECT: BlockBodyPruned at block 1
+    let err = engine_handle.execute_block(&pruned).unwrap_err();
+    assert!(
+        matches!(err, EngineError::BlockBodyPruned(1)),
+        "expected BlockBodyPruned(1), got {err:?}"
+    );
+    Ok(())
+}
+
 /// Test with multiple blocks before and after initialization
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]

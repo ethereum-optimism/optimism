@@ -90,8 +90,12 @@ func (i *CostOracle) SetParams(ctx context.Context) error {
 func (i *CostOracle) OPCost(tx *types.Transaction) *big.Int {
 	params := i.costParams.Load()
 
-	l1CostFunc := types.NewL1CostFuncFjord(params.L1BaseFee, params.L1BlobBaseFee, params.L1BaseFeeScalar, params.L1BlobBaseFeeScalar)
-	l1Cost, _ := l1CostFunc(tx.RollupCostData())
+	l1Cost := opfees.L1CostFjord(opfees.TxRollupCostData(tx), opfees.L1FeeParams{
+		L1BaseFee:     params.L1BaseFee,
+		L1BlobBaseFee: params.L1BlobBaseFee,
+		BaseFeeScalar: params.L1BaseFeeScalar,
+		BlobFeeScalar: params.L1BlobBaseFeeScalar,
+	})
 
 	operatorCost := opfees.OperatorCostJovian(tx.Gas(), bigs.Uint64Strict(params.OperatorFeeScalar), bigs.Uint64Strict(params.OperatorFeeConstant))
 
