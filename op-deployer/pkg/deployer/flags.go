@@ -22,6 +22,7 @@ const (
 	WorkdirFlagName          = flags.WorkdirFlagName
 	OutdirFlagName           = flags.OutdirFlagName
 	PrivateKeyFlagName       = flags.PrivateKeyFlagName
+	DeployerAddressFlagName  = flags.DeployerAddressFlagName
 	IntentTypeFlagName       = flags.IntentTypeFlagName
 	VerifierAPIKeyFlagName   = flags.VerifierAPIKeyFlagName
 	EtherscanAPIKeyFlagName  = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
@@ -78,6 +79,11 @@ var (
 		Name:    PrivateKeyFlagName,
 		Usage:   "Private key of the deployer account.",
 		EnvVars: PrefixEnvVar("PRIVATE_KEY"),
+	}
+	DeployerAddressFlag = &cli.StringFlag{
+		Name:    DeployerAddressFlagName,
+		Usage:   "Address of the deployer account used to execute the deployment dry-run. This address does not need to be funded or signed for.",
+		EnvVars: PrefixEnvVar("SENDER_ADDRESS"),
 	}
 	DeploymentTargetFlag = &cli.StringFlag{
 		Name:    "deployment-target",
@@ -145,6 +151,11 @@ var InitFlags = []cli.Flag{
 	L2ChainIDsFlag,
 	WorkdirFlag,
 	IntentTypeFlag,
+}
+
+var PrepareFlags = []cli.Flag{
+	WorkdirFlag,
+	DeployerAddressFlag,
 }
 
 var ApplyFlags = []cli.Flag{

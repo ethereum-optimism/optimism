@@ -36,6 +36,12 @@ func NewApp(versionWithMeta string) *cli.App {
 			Action: deployer.InitCLI(),
 		},
 		{
+			Name:   "prepare",
+			Usage:  "prepares a chain deployment by generating the genesis artifacts",
+			Flags:  cliapp.ProtectFlags(deployer.PrepareFlags),
+			Action: deployer.PrepareCLI(),
+		},
+		{
 			Name:   "apply",
 			Usage:  "applies a chain intent to the chain",
 			Flags:  cliapp.ProtectFlags(deployer.ApplyFlags),
