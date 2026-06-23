@@ -152,9 +152,12 @@ plan_ranges() {
   ANCHOR_BLOCK="$ANCHOR_BLOCK" \
   L2_RPC="$L2_RPC" \
   python3 - <<'PY'
-import os, json, urllib.request
+import os, json, ssl, urllib.request
 
 L2 = os.environ["L2_RPC"]
+
+# Do not verify the RPC's TLS certificate (e.g. self-signed devnet endpoints).
+SSL_CTX = ssl._create_unverified_context()
 
 def rpc(method, params):
     req = urllib.request.Request(
@@ -162,7 +165,7 @@ def rpc(method, params):
         data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode(),
         headers={"content-type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with urllib.request.urlopen(req, timeout=30, context=SSL_CTX) as r:
         d = json.load(r)
     if d.get("error"):
         raise SystemExit(f"RPC error {method}: {d['error']}")
