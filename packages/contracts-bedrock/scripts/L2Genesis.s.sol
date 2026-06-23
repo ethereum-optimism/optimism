@@ -327,7 +327,6 @@ contract L2Genesis is Script {
     }
 
     /// @notice Builds the L2ContractsManager config from the genesis input.
-    /// @dev Mirrors the proxy initializer arguments the genesis script previously set directly.
     function _buildL2CMConfig(Input memory _input)
         internal
         pure
