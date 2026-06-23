@@ -13,9 +13,9 @@ path = "src/main.rs"
 sp1-sdk.workspace = true
 
 # local
-# `test-utils` exposes `PreimageStore::overwrite_preimage`, used to corrupt the claim for the
+# `test-tamper-witness` exposes `PreimageStore::overwrite_preimage`, used to corrupt the claim for the
 # invalid-claim (soundness) test path.
-kona-sp1-client-utils = { workspace = true, features = ["test-utils"] }
+kona-sp1-client-utils = { workspace = true, features = ["test-tamper-witness"] }
 kona-sp1-elfs.workspace = true
 kona-sp1-ethereum-host-utils.workspace = true
 kona-sp1-host-utils.workspace = true
