@@ -384,14 +384,14 @@ contract L2Genesis is Script {
 
         uint256 count;
         for (uint256 i = 0; i < records.length; i++) {
-            if (_isActive(records[i], _config.isCustomGasToken, _config.isInterop)) continue;
+            if (!_isActive(records[i], _config.isCustomGasToken, _config.isInterop)) continue;
             count++;
         }
 
         proxies_ = new address[](count);
         uint256 idx;
         for (uint256 i = 0; i < records.length; i++) {
-            if (_isActive(records[i], _config.isCustomGasToken, _config.isInterop)) continue;
+            if (!_isActive(records[i], _config.isCustomGasToken, _config.isInterop)) continue;
             proxies_[idx++] = records[i].proxy;
         }
     }
