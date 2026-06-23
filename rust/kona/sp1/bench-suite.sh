@@ -120,10 +120,24 @@ require_elfs() {
   [ -s "$SCRIPT_DIR/elf/aggregation-elf" ] || die "elf/aggregation-elf missing or empty -- build it first with: just build-elfs"
 }
 
-# Run a bench `just` target, tee output to a log, return its path via REPLY_LOG.
+# SP1 cycle-tracker noise. The kona guest prints `cycle-tracker-report-start/end:`
+# markers per section and per precompile call; with SP1's `profiling` feature off
+# (our default) the executor echoes each as `stdout: <line>` to stderr, carrying
+# no cycle counts -- pure noise that dominates large-range logs. The `[┌└]╴` glyph
+# branch additionally strips the tree output SP1 emits when profiling IS enabled.
+CYCLE_TRACKER_RE='cycle-tracker-(report-)?(start|end):|[┌└]╴'
+
+# Run a bench `just` target, filtering cycle-tracker noise out of the captured
+# log. The bench's exit code is carried through the filter via a sentinel so a
+# non-zero bench status is preserved regardless of what the filter outputs.
 run_bench() {
   local logfile="$1"; shift
-  ( cd "$SCRIPT_DIR" && just features="$FEATURES" "$@" ) > "$logfile" 2>&1
+  ( cd "$SCRIPT_DIR" && just features="$FEATURES" "$@" 2>&1; printf '::BENCH_RC=%s::\n' "$?" ) \
+    | grep -avE "$CYCLE_TRACKER_RE" > "$logfile"
+  local rc
+  rc="$(grep -oE '::BENCH_RC=[0-9]+::' "$logfile" | grep -oE '[0-9]+' | tail -1)"
+  sed -i '/::BENCH_RC=[0-9]*::/d' "$logfile"
+  return "${rc:-1}"
 }
 
 # ----------------------------------------------------------------------------
