@@ -107,6 +107,14 @@ func buildSDMRethSystem(t devtest.T, interopAtGenesis bool, isolateVerifier bool
 		DeployerOptions:  deployerOpts,
 		InteropAtGenesis: interopAtGenesis,
 	})
+	return finishSDMRethSystem(t, runtime, interopAtGenesis)
+}
+
+// finishSDMRethSystem wraps a built MixedSingleChainRuntime in DSL frontends, derives the verifier
+// refs + an L2 funder, and (when SDM is active) opts the sequencer in via admin_setSdmPostExecOptIn.
+// Shared by the stock-op-reth builder and the premium-sequencer builder so both produce an identical
+// sdmRethSystem regardless of which EL binary the sequencer runs.
+func finishSDMRethSystem(t devtest.T, runtime *sysgo.MixedSingleChainRuntime, interopAtGenesis bool) *sdmRethSystem {
 	frontends := presets.NewMixedSingleChainFrontends(t, runtime)
 	frontends.L2Batcher.Stop()
 	t.Require().Len(frontends.Nodes, 2, "SDM op-reth system must include sequencer and verifier nodes")

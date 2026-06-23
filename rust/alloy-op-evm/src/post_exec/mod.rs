@@ -1,6 +1,9 @@
 //! Post-exec execution extensions.
 
 mod inspector;
+mod refund;
+
+pub use refund::{NoopRefundInspector, PostExecRefundInspector};
 
 use alloc::vec::Vec;
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory};
@@ -20,17 +23,22 @@ use crate::block::{OpBlockExecutor, receipt_builder::OpReceiptBuilder};
 
 /// Extension trait for EVMs that can track post-exec per-transaction warming results.
 pub trait PostExecEvm: alloy_evm::Evm {
+    /// Opaque block-scoped carry-forward state of the installed refund inspector. The monorepo
+    /// round-trips it across flashblock executors without inspecting its shape (it is
+    /// [`WarmingState`] for the default [`SDMWarmingInspector`], `()` for [`NoopRefundInspector`]).
+    type Snapshot: Clone + Default;
+
     /// Begin post-exec tracking for the next transaction.
     fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext);
 
-    /// Take the extracted post-exec result for the most recently executed transaction.
-    fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx;
+    /// Take the aggregate post-exec refund (in gas) for the most recently executed transaction.
+    fn take_last_post_exec_refund(&mut self) -> u64;
 
-    /// Snapshot the block-scoped warming state for carry-forward across flashblock executors.
-    fn warming_state(&self) -> WarmingState;
+    /// Snapshot the block-scoped refund state for carry-forward across flashblock executors.
+    fn warming_state(&self) -> Self::Snapshot;
 
-    /// Seed the block-scoped warming state captured from a prior flashblock's executor.
-    fn seed_warming_state(&mut self, state: WarmingState);
+    /// Seed the block-scoped refund state captured from a prior flashblock's executor.
+    fn seed_warming_state(&mut self, state: Self::Snapshot);
 }
 
 /// Extension trait for EVM factories whose produced EVMs support post-exec tracking.
@@ -40,26 +48,30 @@ pub trait PostExecEvm: alloy_evm::Evm {
 /// itself without requiring the compiler to prove that every `EvmFactory::Evm<DB, I>` associated
 /// type directly implements [`PostExecEvm`].
 pub trait PostExecEvmFactoryHooks: EvmFactory {
+    /// Opaque block-scoped carry-forward state of the refund inspector this factory fixes. Matches
+    /// [`PostExecEvm::Snapshot`] of the EVMs the factory produces.
+    type Snapshot: Clone + Default;
+
     /// Begin post-exec tracking for the next transaction.
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
 
-    /// Take the extracted post-exec result for the most recently executed transaction.
-    fn take_last_post_exec_tx_result<DB, I>(evm: &mut Self::Evm<DB, I>) -> PostExecExecutedTx
+    /// Take the aggregate post-exec refund (in gas) for the most recently executed transaction.
+    fn take_last_post_exec_refund<DB, I>(evm: &mut Self::Evm<DB, I>) -> u64
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
 
-    /// Snapshot the block-scoped warming state for carry-forward across flashblock executors.
-    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> WarmingState
+    /// Snapshot the block-scoped refund state for carry-forward across flashblock executors.
+    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
 
-    /// Seed the block-scoped warming state captured from a prior flashblock's executor.
-    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: WarmingState)
+    /// Seed the block-scoped refund state captured from a prior flashblock's executor.
+    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
@@ -164,19 +176,21 @@ where
     DB: Database,
     I: Inspector<F::Context<DB>>,
 {
+    type Snapshot = F::Snapshot;
+
     fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext) {
         F::begin_post_exec_tx(&mut self.inner, ctx);
     }
 
-    fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx {
-        F::take_last_post_exec_tx_result(&mut self.inner)
+    fn take_last_post_exec_refund(&mut self) -> u64 {
+        F::take_last_post_exec_refund(&mut self.inner)
     }
 
-    fn warming_state(&self) -> WarmingState {
+    fn warming_state(&self) -> Self::Snapshot {
         F::warming_state(&self.inner)
     }
 
-    fn seed_warming_state(&mut self, state: WarmingState) {
+    fn seed_warming_state(&mut self, state: Self::Snapshot) {
         F::seed_warming_state(&mut self.inner, state);
     }
 }
@@ -244,20 +258,21 @@ where
 
 /// Extension trait for block executors that collect post-exec payload entries.
 pub trait PostExecExecutorExt {
+    /// Opaque block-scoped carry-forward state of the underlying EVM's refund inspector. Matches
+    /// [`PostExecEvm::Snapshot`] of the EVM the executor drives.
+    type Snapshot: Clone + Default;
+
     /// Returns the accumulated post-exec entries for the current block without clearing them.
     fn post_exec_entries(&self) -> &[SDMGasEntry];
 
     /// Take the accumulated post-exec entries for the current block.
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry>;
 
-    /// Take the exact per-transaction warming refund attribution events aligned with receipts.
-    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>>;
+    /// Snapshot the block-scoped refund state for carry-forward across flashblock executors.
+    fn warming_state(&self) -> Self::Snapshot;
 
-    /// Snapshot the block-scoped warming state for carry-forward across flashblock executors.
-    fn warming_state(&self) -> WarmingState;
-
-    /// Seed the block-scoped warming state captured from a prior flashblock's executor.
-    fn seed_warming_state(&mut self, state: WarmingState);
+    /// Seed the block-scoped refund state captured from a prior flashblock's executor.
+    fn seed_warming_state(&mut self, state: Self::Snapshot);
 }
 
 impl<E, R, Spec> PostExecExecutorExt for OpBlockExecutor<E, R, Spec>
@@ -266,6 +281,8 @@ where
     R: OpReceiptBuilder,
     Spec: alloy_op_hardforks::OpHardforks + Clone,
 {
+    type Snapshot = E::Snapshot;
+
     fn post_exec_entries(&self) -> &[SDMGasEntry] {
         Self::post_exec_entries(self)
     }
@@ -274,15 +291,11 @@ where
         Self::take_post_exec_entries(self)
     }
 
-    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
-        Self::take_warming_events_by_tx(self)
-    }
-
-    fn warming_state(&self) -> WarmingState {
+    fn warming_state(&self) -> Self::Snapshot {
         Self::warming_state(self)
     }
 
-    fn seed_warming_state(&mut self, state: WarmingState) {
+    fn seed_warming_state(&mut self, state: Self::Snapshot) {
         Self::seed_warming_state(self, state);
     }
 }

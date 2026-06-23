@@ -3,8 +3,7 @@
 use alloy_op_evm::{
     OpEvmContext, OpTxError,
     post_exec::{
-        PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext,
-        WarmingState,
+        PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecTxContext, WarmingState,
     },
 };
 use alloy_primitives::{Bytes, address};
@@ -132,6 +131,8 @@ fn test_setup_custom_precompiles() {
     }
 
     impl PostExecEvmFactoryHooks for UniEvmFactory {
+        type Snapshot = WarmingState;
+
         fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
         where
             DB: Database,
@@ -140,15 +141,15 @@ fn test_setup_custom_precompiles() {
             evm.begin_post_exec_tx(ctx);
         }
 
-        fn take_last_post_exec_tx_result<DB, I>(evm: &mut Self::Evm<DB, I>) -> PostExecExecutedTx
+        fn take_last_post_exec_refund<DB, I>(evm: &mut Self::Evm<DB, I>) -> u64
         where
             DB: Database,
             I: Inspector<Self::Context<DB>>,
         {
-            evm.take_last_post_exec_tx_result()
+            evm.take_last_post_exec_refund()
         }
 
-        fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> WarmingState
+        fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
         where
             DB: Database,
             I: Inspector<Self::Context<DB>>,
@@ -156,7 +157,7 @@ fn test_setup_custom_precompiles() {
             evm.warming_state()
         }
 
-        fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: WarmingState)
+        fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
         where
             DB: Database,
             I: Inspector<Self::Context<DB>>,

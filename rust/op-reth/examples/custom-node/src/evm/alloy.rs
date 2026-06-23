@@ -30,9 +30,9 @@ impl<DB: Database, I, P> CustomEvm<DB, I, P> {
         self.inner.begin_post_exec_tx(ctx);
     }
 
-    /// Take the extracted post-exec result for the most recently executed transaction.
-    pub fn take_last_post_exec_tx_result(&mut self) -> alloy_op_evm::post_exec::PostExecExecutedTx {
-        self.inner.take_last_post_exec_tx_result()
+    /// Take the aggregate post-exec refund (in gas) for the most recently executed transaction.
+    pub fn take_last_post_exec_refund(&mut self) -> u64 {
+        self.inner.take_last_post_exec_refund()
     }
 }
 
@@ -40,19 +40,21 @@ impl<DB: Database, I, P> alloy_op_evm::post_exec::PostExecEvm for CustomEvm<DB, 
 where
     Self: Evm,
 {
+    type Snapshot = alloy_op_evm::post_exec::WarmingState;
+
     fn begin_post_exec_tx(&mut self, ctx: alloy_op_evm::post_exec::PostExecTxContext) {
         Self::begin_post_exec_tx(self, ctx);
     }
 
-    fn take_last_post_exec_tx_result(&mut self) -> alloy_op_evm::post_exec::PostExecExecutedTx {
-        Self::take_last_post_exec_tx_result(self)
+    fn take_last_post_exec_refund(&mut self) -> u64 {
+        Self::take_last_post_exec_refund(self)
     }
 
-    fn warming_state(&self) -> alloy_op_evm::post_exec::WarmingState {
+    fn warming_state(&self) -> Self::Snapshot {
         self.inner.warming_state()
     }
 
-    fn seed_warming_state(&mut self, state: alloy_op_evm::post_exec::WarmingState) {
+    fn seed_warming_state(&mut self, state: Self::Snapshot) {
         self.inner.seed_warming_state(state);
     }
 }

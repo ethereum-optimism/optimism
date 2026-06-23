@@ -143,6 +143,11 @@ type MixedSingleChainNodeSpec struct {
 	// by deriving from L1. Used to exercise the derivation/force-build path (FCU-with-attributes)
 	// rather than the consolidation path. Defaults to false (fully peered).
 	IsolateFromL2P2P bool
+	// OpRethOpts are per-node op-reth options applied AFTER the shared cfg.OpRethOptions, only to
+	// this node's EL. Use for flags that must not reach every node — e.g. the premium-only
+	// `--subblocks.enable=false` on a single premium sequencer (stock op-reth verifiers reject it).
+	// Ignored for non-op-reth EL kinds.
+	OpRethOpts []OpRethOption
 }
 
 type MixedSingleChainPresetConfig struct {
@@ -211,16 +216,20 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	for _, spec := range cfg.NodeSpecs {
 		identity := NewELNodeIdentity(0)
 
+		// Shared options first, then this node's per-spec options (so a per-node flag can
+		// override or extend the shared set without leaking to other nodes).
+		nodeOpRethOpts := append(append([]OpRethOption{}, cfg.OpRethOptions...), spec.OpRethOpts...)
+
 		var el L2ELNode
 		switch spec.ELKind {
 		case MixedL2ELOpGeth:
 			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
 		case MixedL2ELOpReth:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", cfg.OpRethOptions...)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", nodeOpRethOpts...)
 		case MixedL2ELOpRethV2:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", cfg.OpRethOptions...)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", nodeOpRethOpts...)
 		case MixedL2ELOpRethPremium:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", opRethPremiumOpts(cfg.OpRethOptions)...)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", opRethPremiumOpts(nodeOpRethOpts)...)
 		default:
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
 		}

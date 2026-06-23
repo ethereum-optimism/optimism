@@ -164,6 +164,11 @@ impl OpExecutionData {
     /// - First flashblock (index 0) must have a base payload
     /// - Only the first flashblock may have a base payload
     ///
+    /// SDM-specific `post_exec_tx` validation is intentionally delegated to the normal execution
+    /// payload validation path: this method only materializes the latest out-of-band bytes as the
+    /// trailing transaction. The executor/consensus parser validates the `0x7D` type, decodes the
+    /// payload, checks the block number, and rejects duplicate/non-trailing post-exec txs.
+    ///
     /// # Errors
     ///
     /// Returns an error if any validation fails.
@@ -225,12 +230,22 @@ impl OpExecutionData {
         let diff = &flashblocks.last().expect("flashblocks must not be empty").diff;
 
         // Collect all transactions and withdrawals from all flashblocks
-        let (transactions, withdrawals) =
+        let (mut transactions, withdrawals) =
             flashblocks.iter().fold((Vec::new(), Vec::new()), |(mut txs, mut withdrawals), p| {
                 txs.extend(p.diff.transactions.iter().cloned());
                 withdrawals.extend(p.diff.withdrawals.iter().copied());
                 (txs, withdrawals)
             });
+
+        // The SDM post-exec (`0x7D`) tx rides out-of-band in `diff.post_exec_tx` and is never part
+        // of any flashblock's `transactions`; each subblock *replaces* the previous one, so the
+        // last flashblock's `post_exec_tx` is authoritative. Append it exactly once, last —
+        // the position OP consensus requires for the trailing post-exec tx. SDM byte validation is
+        // deliberately left to the downstream execution-payload verifier, so this reconstruction
+        // stays a pure materialization step.
+        if let Some(post_exec_tx) = diff.post_exec_tx.as_ref() {
+            transactions.push(post_exec_tx.clone());
+        }
 
         let v3 = ExecutionPayloadV3 {
             blob_gas_used: diff.blob_gas_used.unwrap_or(0),
@@ -756,6 +771,7 @@ mod tests {
             withdrawals: Vec::new(),
             withdrawals_root: B256::from([1u8; 32]), // Non-zero for Isthmus
             blob_gas_used: Some(0),
+            post_exec_tx: None,
         };
 
         let metadata = OpFlashblockPayloadMetadata {
@@ -822,6 +838,41 @@ mod tests {
         let fb1 = create_test_flashblock(1, true); // Should be index 0
         let result = OpExecutionData::from_flashblocks(&[fb1]);
         assert!(matches!(result, Err(OpFlashblockError::InvalidIndex)));
+    }
+
+    #[test]
+    fn test_from_flashblocks_appends_latest_post_exec_tx() {
+        use alloy_primitives::Bytes;
+
+        // Build a flashblock with explicit transactions and an out-of-band post_exec_tx.
+        let mk = |index: u64, with_base: bool, tx: u8, post_exec: Option<Bytes>| {
+            let mut fb = create_test_flashblock(index, with_base);
+            fb.diff.transactions = vec![Bytes::from(vec![tx])];
+            fb.diff.post_exec_tx = post_exec;
+            fb
+        };
+        let older = Bytes::from(vec![0x7d, 0x01]);
+        let latest = Bytes::from(vec![0x7d, 0x02]);
+
+        // No post_exec_tx anywhere: transactions are just the concatenated deltas.
+        let none =
+            OpExecutionData::from_flashblocks(&[mk(0, true, 0x01, None), mk(1, false, 0x02, None)])
+                .unwrap();
+        assert_eq!(none.payload.transactions().len(), 2, "no 0x7D should be appended");
+
+        // Replace-not-accumulate: only the LAST flashblock's post_exec_tx is appended, exactly
+        // once, at the end; the older one never appears. (Protocol: once Some, every later
+        // subblock is Some.)
+        let materialized = OpExecutionData::from_flashblocks(&[
+            mk(0, true, 0x01, Some(older.clone())),
+            mk(1, false, 0x02, Some(latest.clone())),
+            mk(2, false, 0x03, Some(latest.clone())),
+        ])
+        .unwrap();
+        let txs = materialized.payload.transactions();
+        assert_eq!(txs.len(), 4, "3 user txs + exactly one trailing 0x7D");
+        assert_eq!(txs.last(), Some(&latest), "the latest post_exec_tx must be the trailing tx");
+        assert!(!txs.iter().any(|t| t == &older), "the superseded post_exec_tx must not appear");
     }
 
     // Real-world test case from Unichain Sepolia

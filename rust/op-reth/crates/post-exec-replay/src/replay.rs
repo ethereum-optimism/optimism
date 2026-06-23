@@ -1,7 +1,6 @@
 use crate::types::{
     PostExecReplayBlock, PostExecReplayConfig, PostExecReplayMismatch, PostExecReplayMismatchKind,
-    PostExecReplayPayload, PostExecReplayPayloadEntry, PostExecReplayRefundEvent,
-    PostExecReplayRefundKind, PostExecReplaySummary, PostExecReplayTx,
+    PostExecReplayPayload, PostExecReplayPayloadEntry, PostExecReplaySummary, PostExecReplayTx,
 };
 use alloy_consensus::{
     Block as AlloyBlock, BlockBody, BlockHeader as AlloyBlockHeader, TxReceipt, Typed2718,
@@ -13,9 +12,7 @@ use op_alloy_consensus::{
 use reth_evm::{Database, execute::BlockExecutor};
 use reth_execution_errors::BlockExecutionError;
 use reth_node_api::NodePrimitives;
-use reth_optimism_evm::{
-    ConfigurePostExecEvm, PostExecExecutorExt, WarmingRefundEvent, WarmingRefundKind,
-};
+use reth_optimism_evm::{ConfigurePostExecEvm, PostExecExecutorExt};
 use reth_primitives_traits::{Block, BlockHeader, RecoveredBlock, SignedTransaction};
 use revm::database::State;
 use std::collections::{BTreeMap, BTreeSet};
@@ -107,40 +104,6 @@ where
     );
 
     Ok(NormalizedBlock { replay_block, original_indexes, embedded_payload, post_exec_tx_index })
-}
-
-const fn into_refund_kind(kind: WarmingRefundKind) -> PostExecReplayRefundKind {
-    match kind {
-        WarmingRefundKind::WarmAccount => PostExecReplayRefundKind::WarmAccount,
-        WarmingRefundKind::WarmSload => PostExecReplayRefundKind::WarmSload,
-        WarmingRefundKind::WarmSstore => PostExecReplayRefundKind::WarmSstore,
-    }
-}
-
-fn original_tx_index(original_indexes: &[u64], replay_tx_index: u64) -> u64 {
-    original_indexes.get(replay_tx_index as usize).copied().unwrap_or(replay_tx_index)
-}
-
-fn into_refund_event(
-    event: WarmingRefundEvent,
-    claiming_replay_tx_index: u64,
-    original_indexes: &[u64],
-) -> PostExecReplayRefundEvent {
-    let first_warmed_by_replay_tx_index = event.first_warmed_by_tx_index;
-
-    PostExecReplayRefundEvent {
-        claiming_replay_tx_index,
-        claiming_tx_index: original_tx_index(original_indexes, claiming_replay_tx_index),
-        kind: into_refund_kind(event.kind),
-        amount: event.amount,
-        address: event.address,
-        slot: event.slot,
-        first_warmed_by_replay_tx_index,
-        first_warmed_by_tx_index: original_tx_index(
-            original_indexes,
-            first_warmed_by_replay_tx_index,
-        ),
-    }
 }
 
 const fn replay_mismatch(
@@ -331,7 +294,6 @@ where
         executor.execute_transaction(tx)?;
     }
     let replay_entries = executor.take_post_exec_entries();
-    let warming_events_by_tx = executor.take_warming_events_by_tx();
     let execution = executor.apply_post_execution_changes()?;
 
     let replay_payload = PostExecPayload {
@@ -367,13 +329,6 @@ where
         let replay_refund = replay_refunds.get(&tx_index).copied().unwrap_or_default();
         let raw_gas_used = canonical_gas_used.saturating_add(replay_refund);
         let payload_refund = payload_refunds.get(&tx_index).copied();
-        let refund_breakdown = warming_events_by_tx
-            .get(replay_idx)
-            .into_iter()
-            .flatten()
-            .copied()
-            .map(|event| into_refund_event(event, replay_tx_index, &normalized.original_indexes))
-            .collect();
         let mismatch = compare_refunds(
             CompareRefundsInput {
                 block_number,
@@ -396,7 +351,6 @@ where
             canonical_gas_used,
             op_gas_refund_replay: replay_refund,
             op_gas_refund_payload: payload_refund,
-            refund_breakdown,
             mismatch,
         });
     }

@@ -25,10 +25,9 @@ func premiumBinaryAvailable() bool {
 // TestPremiumSequencerProducesDerivableBlocks is the premium-sequencer *baseline* regression guard:
 // it boots op-reth-premium as the sequencer EL (running its subblocks producer with SDM disabled,
 // since Interop is not activated) alongside a stock op-reth verifier, and asserts the chain
-// advances and the verifier derives it. It does NOT assert any SDM/0x7D behavior — premium does not
-// produce PostExec blocks yet (production is parked). The point is to catch a premium build that
-// regresses plain block production / follower derivation before the SDM-production tests can run
-// against it.
+// advances and the verifier derives it. It does NOT assert any SDM/0x7D behavior; the MODE A/B
+// tests cover premium SDM production with Interop active. The point is to catch a premium build
+// that regresses plain block production / follower derivation before the SDM-production tests run.
 //
 // Run it by providing the premium binary, e.g.:
 //
