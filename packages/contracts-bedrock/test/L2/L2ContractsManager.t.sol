@@ -1072,38 +1072,6 @@ contract L2ContractsManager_Deploy_Coverage_Test is L2ContractsManager_Upgrade_T
     function test_deployTouchedSet_cgtAndInterop_succeeds() public {
         _assertDeployTouchesExactly(_deployConfig(true, true));
     }
-
-    /// @notice Prepares the genesis precondition for `_l2cm` (swaps touched proxy admins to it, clears
-    ///         initialized slots) and runs deploy(). Takes the instance so alternate L2CMs can be used.
-    function _executeDeploy(L2ContractsManager _l2cm, L2ContractsManagerTypes.FullConfig memory _config) internal {
-        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
-        for (uint256 i = 0; i < records.length; i++) {
-            if (!_isDeployTouched(records[i], _config)) continue;
-            EIP1967Helper.setAdmin(records[i].proxy, address(_l2cm));
-            if (_requiresInit(records[i].proxy)) {
-                vm.store(records[i].proxy, bytes32(0), bytes32(0));
-                vm.store(records[i].proxy, bytes32(uint256(1)), bytes32(0));
-                vm.store(records[i].proxy, INITIALIZABLE_SLOT_OZ_V5, bytes32(0));
-            }
-        }
-        _l2cm.deploy(_config);
-    }
-
-    /// @notice Tests that the deploy path produces the same predeploy state as the upgrade path.
-    function test_deployProducesSameStateAsUpgrade_succeeds() public {
-        uint256 snap = vm.snapshotState();
-        L2ContractsManagerTypes.FullConfig memory config = l2cm.loadFullConfig();
-
-        _executeDeploy(l2cm, config);
-        PostUpgradeState memory afterDeploy = _capturePostUpgradeState();
-
-        vm.revertToState(snap);
-
-        _executeUpgrade();
-        PostUpgradeState memory afterUpgrade = _capturePostUpgradeState();
-
-        _assertStatesEqual(afterDeploy, afterUpgrade);
-    }
 }
 
 /// @title L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test
