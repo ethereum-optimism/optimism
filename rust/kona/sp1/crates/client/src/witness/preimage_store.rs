@@ -56,12 +56,12 @@ impl PreimageStore {
     /// Inserts or replaces the preimage for `key`, bypassing the insert-only guard in
     /// [`save_preimage`](Self::save_preimage).
     ///
-    /// Gated behind the `test-tamper-witness` feature, so it is never compiled into the guest program or
-    /// the default build. Honest witness collection must never overwrite a key with a different
-    /// value (that guard catches collection bugs); this exists only for tooling that deliberately
-    /// tampers with boot-info local inputs — e.g. corrupting the claimed output root to exercise
-    /// the guest's rejection path. The value is still validated against its key via
-    /// [`check_preimage`], so hash-addressed keys cannot be forged; only unverified
+    /// Gated behind the `test-tamper-witness` feature, so it is never compiled into the guest
+    /// program or the default build. Honest witness collection must never overwrite a key with
+    /// a different value (that guard catches collection bugs); this exists only for tooling
+    /// that deliberately tampers with boot-info local inputs — e.g. corrupting the claimed
+    /// output root to exercise the guest's rejection path. The value is still validated against
+    /// its key via [`check_preimage`], so hash-addressed keys cannot be forged; only unverified
     /// (local/generic) keys can be replaced.
     #[cfg(feature = "test-tamper-witness")]
     pub fn overwrite_preimage(
