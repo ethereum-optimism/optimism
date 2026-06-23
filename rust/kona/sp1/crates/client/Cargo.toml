@@ -43,5 +43,10 @@ spin.workspace = true
 kzg-rs.workspace = true
 cfg-if.workspace = true
 
+[features]
+# Exposes witness-tampering helpers (e.g. `PreimageStore::overwrite_preimage`) used by host-side
+# test tooling. Never enabled by the guest program.
+test-utils = []
+
 [lints]
 workspace = true

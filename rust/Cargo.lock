@@ -7840,6 +7840,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-sp1-range-executor"
+version = "0.0.1"
+dependencies = [
+ "alloy-primitives",
+ "anyhow",
+ "clap",
+ "kona-host",
+ "kona-preimage",
+ "kona-proof",
+ "kona-sp1-client-utils",
+ "kona-sp1-elfs",
+ "kona-sp1-ethereum-host-utils",
+ "kona-sp1-host-utils",
+ "sp1-sdk",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.23",
+]
+
+[[package]]
 name = "kona-std-fpvm"
 version = "0.2.0"
 dependencies = [

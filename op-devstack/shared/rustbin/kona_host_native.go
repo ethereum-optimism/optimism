@@ -19,13 +19,34 @@ func RunKonaNative(t require.TestingT, logger log.Logger, vmConfig *vm.Config, d
 	require.NotNil(t, inputs)
 	args, err := vm.NewNativeKonaExecutor().OracleCommand(*vmConfig, dir, *inputs)
 	require.NoError(t, err, "build kona oracle command")
+	return runOracleServer(t, logger, "kona-host", args, dir)
+}
 
+// RunKonaSP1Range runs the kona-sp1 range-executor, which generates the witness via the kona-host
+// preimage server and runs the range guest in SP1 execute mode. Returns false if the guest rejects
+// the claim and true otherwise. The executor reuses the kona-host `single` oracle-server flags, so
+// vmConfig.Server must point at the range-executor binary.
+func RunKonaSP1Range(t require.TestingT, logger log.Logger, vmConfig *vm.Config, dir string, inputs *utils.LocalGameInputs, extraArgs ...string) bool {
+	require.NotNil(t, vmConfig)
+	require.NotNil(t, inputs)
+	// Server-mode flags (--server) satisfy the range-executor's flattened SingleChainHost parser;
+	// the executor drives the preimage server itself rather than running a client program.
+	args, err := vm.NewKonaExecutor().OracleCommand(*vmConfig, dir, *inputs)
+	require.NoError(t, err, "build kona-sp1 oracle command")
+	args = append(args, extraArgs...)
+	return runOracleServer(t, logger, "kona-sp1-range-executor", args, dir)
+}
+
+// runOracleServer executes a kona oracle-server binary and interprets its exit code: exit 1 means
+// the program rejected the claim (returns false), exit 0 means it accepted (returns true), and any
+// other failure fails the test.
+func runOracleServer(t require.TestingT, logger log.Logger, component string, args []string, dir string) bool {
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "KONA_LOG_STDOUT_FORMAT=json", "NO_COLOR=1")
 
-	logOut := logpipe.ToLoggerWithMinLevel(logger.New("component", "kona-host", "src", "stdout"), log.LevelWarn)
-	logErr := logpipe.ToLoggerWithMinLevel(logger.New("component", "kona-host", "src", "stderr"), log.LevelWarn)
+	logOut := logpipe.ToLoggerWithMinLevel(logger.New("component", component, "src", "stdout"), log.LevelWarn)
+	logErr := logpipe.ToLoggerWithMinLevel(logger.New("component", component, "src", "stderr"), log.LevelWarn)
 	cmd.Stdout = logpipe.NewLineBuffer(logpipe.LogCallback(func(line []byte) {
 		logOut(logpipe.ParseRustStructuredLogs(line))
 	}))
