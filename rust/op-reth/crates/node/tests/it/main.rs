@@ -2,6 +2,8 @@
 
 mod builder;
 
+mod custom_pool_ordering;
+
 mod priority;
 
 mod rpc;
