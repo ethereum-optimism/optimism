@@ -24,11 +24,6 @@ one of three fates:
 Once every component is in fate 1, 2, or 3, the go.mod `replace` flips to upstream go-ethereum
 (#20266).
 
-**Replaced, not decoupled** (separate efforts, not op-core swaps):
-- **op-program** (client and host) — depends on op-geth state execution; kona supersedes it
-  (in the monorepo at `rust/kona`).
-- **op-supervisor** — deprecated, being replaced by op-supernode.
-
 The op-geth diff vs. upstream go-ethereum (currently based on v1.17.2) can be summarised in three
 kinds of change:
 
@@ -897,13 +892,6 @@ The only fields read from receipts are `receipt.Logs` (standard upstream — see
 interface accepts arbitrary bytes — it never decodes OP Stack types. **Zero blockchain-layer
 coupling; zero migration needed.**
 
-### Out of scope: `op-program/`, `op-supervisor/`
-
-**op-program** (client and host) depends on op-geth state execution (`core/state`, `core/vm`,
-etc.). The replacement lives in-tree at `rust/kona` (client + host), a Rust implementation
-of the fault-proof program. **op-supervisor** is deprecated and being replaced by op-supernode
-(§12).
-
 ---
 
 ## 13. Tests: `op-e2e`, `op-acceptance-tests`, `op-devstack`
@@ -1061,10 +1049,9 @@ patterns.
 
 A distinction the rest of this plan leaves implicit: removing op-geth has two parts.
 
-1. **op-geth as the execution *engine*** — op-program's state execution and the in-process
-   op-geth EL in op-e2e action tests / `op-e2e/opgeth/`. These are deleted or replaced by
-   op-reth/kona. Their need for a concrete go-ethereum config is **temporary** and served by
-   `GethChainConfig()` until they go away.
+1. **op-geth as the execution *engine*** — the in-process op-geth EL in op-e2e action tests /
+   `op-e2e/opgeth/`. These are deleted or replaced by op-reth. Their need for a concrete
+   go-ethereum config is **temporary** and served by `GethChainConfig()` until they go away.
 2. **op-geth as a *library* in offline tooling** — `op-chain-ops/genesis.BuildL2Genesis` (genesis
    state-root + `genesis.json`) and the block-replay tools. These **stay**, and they genuinely
    need a go-ethereum config carrying the OP fields. This tooling is in scope: it must eventually
