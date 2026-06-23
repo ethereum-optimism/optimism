@@ -91,13 +91,17 @@ fi
 
 die() { echo "error: $*" >&2; exit 1; }
 
-now_s() { date +%s.%N; }
+# Sub-second wall clock. `date +%N` is GNU-only (BSD/macOS date lacks it), so use
+# python3 (already required by the range planner) for portability.
+now_s() { python3 -c 'import time; print(time.time())'; }
 elapsed() { awk "BEGIN{printf \"%.3f\", $2 - $1}"; }
 
-# Serialized append to the timings file (fetch can run in parallel).
+# Append one row to the timings file. Parallel fetch jobs append concurrently;
+# a single short line written with >> is atomic on a local filesystem (well under
+# PIPE_BUF), so no flock is needed -- which also keeps this portable to macOS.
 log_timing() {
   # columns: iso_time  phase  kind  label  start  end  size  wall_s  extra  log
-  ( flock 9; printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$@" >> "$TIMINGS" ) 9>>"$DATA_DIR/.timings.lock"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$@" >> "$TIMINGS"
 }
 
 iso_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
@@ -128,15 +132,16 @@ require_elfs() {
 CYCLE_TRACKER_RE='cycle-tracker-(report-)?(start|end):|[┌└]╴'
 
 # Run a bench `just` target, filtering cycle-tracker noise out of the captured
-# log. The bench's exit code is carried through the filter via a sentinel so a
-# non-zero bench status is preserved regardless of what the filter outputs.
+# log. Piping through the filter would lose the bench's exit code, so it is
+# written to a temp file inside the pipeline and read back afterwards (bash waits
+# for the whole pipeline, so the file is complete by then). No `sed -i`, which is
+# not portable between GNU and BSD/macOS.
 run_bench() {
   local logfile="$1"; shift
-  ( cd "$SCRIPT_DIR" && just features="$FEATURES" "$@" 2>&1; printf '::BENCH_RC=%s::\n' "$?" ) \
+  local rcfile; rcfile="$(mktemp "${TMPDIR:-/tmp}/kona-bench-rc.XXXXXX")"
+  ( cd "$SCRIPT_DIR" && just features="$FEATURES" "$@" 2>&1; echo "$?" > "$rcfile" ) \
     | grep -avE "$CYCLE_TRACKER_RE" > "$logfile"
-  local rc
-  rc="$(grep -oE '::BENCH_RC=[0-9]+::' "$logfile" | grep -oE '[0-9]+' | tail -1)"
-  sed -i '/::BENCH_RC=[0-9]*::/d' "$logfile"
+  local rc; rc="$(cat "$rcfile")"; rm -f "$rcfile"
   return "${rc:-1}"
 }
 
@@ -284,7 +289,8 @@ mode_fetch_range() {
   echo "fetching with -j ${jobs}"
   while IFS=$'\t' read -r kind label start end size; do
     [ -n "$kind" ] || continue
-    while [ "$(jobs -rp | wc -l)" -ge "$jobs" ]; do wait -n; done
+    # Poll instead of `wait -n` (the latter needs bash 4.3+; macOS ships 3.2).
+    while [ "$(jobs -rp | wc -l)" -ge "$jobs" ]; do sleep 0.2; done
     fetch_one "$kind" "$label" "$start" "$end" "$size" &
   done <<< "$plan"
   wait
@@ -383,7 +389,9 @@ mode_agg() {
       *) proofs+=("$1"); shift ;;
     esac
   done
-  verify_proofs "${proofs[@]}"
+  # ${arr[@]+...} guards against "unbound variable" on an empty array under
+  # set -u in bash 3.2 (macOS system bash).
+  verify_proofs ${proofs[@]+"${proofs[@]}"}
   ensure_data_dir
   require_elfs
   local first="$REPLY_FIRST" last="$REPLY_LAST" joined="$REPLY_JOINED"
@@ -406,7 +414,7 @@ mode_agg() {
     local out="$DATA_DIR/agg_${first}_${last}.plonk.bin"
     log="$LOG_DIR/agg_plonk_${first}_${last}.log"
     echo "agg (plonk) ${first}-${last} from ${#proofs[@]} proofs"
-    if run_bench "$log" plonk-prove-bench --proofs "$joined" "${input_args[@]}" --save-proof "$out"; then
+    if run_bench "$log" plonk-prove-bench --proofs "$joined" ${input_args[@]+"${input_args[@]}"} --save-proof "$out"; then
       t1="$(now_s)"; wall="$(elapsed "$t0" "$t1")"; extra="$(extract_metrics "$log")"
       log_timing "$(iso_now)" agg-plonk agg - "$first" "$last" "$((last - first))" "$wall" "$extra" "$log"
       echo "saved PLONK proof -> $out"
@@ -418,7 +426,7 @@ mode_agg() {
   else
     log="$LOG_DIR/agg_compressed_${first}_${last}.log"
     echo "agg (compressed) ${first}-${last} from ${#proofs[@]} proofs"
-    if run_bench "$log" agg-bench --proofs "$joined" "${input_args[@]}" --prove; then
+    if run_bench "$log" agg-bench --proofs "$joined" ${input_args[@]+"${input_args[@]}"} --prove; then
       t1="$(now_s)"; wall="$(elapsed "$t0" "$t1")"; extra="$(extract_metrics "$log")"
       log_timing "$(iso_now)" agg-compressed agg - "$first" "$last" "$((last - first))" "$wall" "$extra" "$log"
     else
