@@ -4,7 +4,7 @@ use super::OpZkvmPrecompiles;
 use alloy_evm::{Database, EvmEnv, EvmFactory};
 use alloy_op_evm::{
     OpEvm, OpEvmContext, OpTx, OpTxError,
-    post_exec::{PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext, WarmingState},
+    post_exec::{PostExecEvmFactoryHooks, PostExecTxContext, WarmingState},
 };
 use op_revm::{L1BlockInfo, OpBuilder, OpHaltReason, OpSpecId, OpTransaction};
 use revm::{
@@ -18,6 +18,8 @@ use revm::{
 pub struct ZkvmOpEvmFactory;
 
 impl PostExecEvmFactoryHooks for ZkvmOpEvmFactory {
+    type Snapshot = WarmingState;
+
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
     where
         DB: Database,
@@ -26,15 +28,15 @@ impl PostExecEvmFactoryHooks for ZkvmOpEvmFactory {
         evm.begin_post_exec_tx(ctx);
     }
 
-    fn take_last_post_exec_tx_result<DB, I>(evm: &mut Self::Evm<DB, I>) -> PostExecExecutedTx
+    fn take_last_post_exec_refund<DB, I>(evm: &mut Self::Evm<DB, I>) -> u64
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.take_last_post_exec_tx_result()
+        evm.take_last_post_exec_refund()
     }
 
-    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> WarmingState
+    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
@@ -42,7 +44,7 @@ impl PostExecEvmFactoryHooks for ZkvmOpEvmFactory {
         evm.warming_state()
     }
 
-    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: WarmingState)
+    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
