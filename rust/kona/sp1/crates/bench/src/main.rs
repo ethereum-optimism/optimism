@@ -53,15 +53,18 @@ struct Args {
     /// Needs no RPC env vars; --start and --end are not required.
     #[arg(long)]
     load_stdin: Option<PathBuf>,
+
+    /// Skip the SP1 execute pass entirely. Use on a fetch-only host that just
+    /// saves stdin (with --save-stdin) for proving elsewhere; no range ELF is
+    /// required in that mode.
+    #[arg(long, default_value_t = false)]
+    no_execute: bool,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     setup_logger();
-
-    let elf = get_range_elf();
-    ensure_non_empty_elf(elf)?;
 
     let (stdin, stats_ctx) = if let Some(path) = &args.load_stdin {
         let stdin = load_stdin(path)?;
@@ -100,33 +103,46 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("saved SP1 stdin to {}", path.display());
     }
 
+    if args.no_execute && !args.prove {
+        tracing::info!(
+            "skipping SP1 execute pass (--no-execute); stdin is ready for proving elsewhere"
+        );
+        return Ok(());
+    }
+
+    let elf = get_range_elf();
+    ensure_non_empty_elf(elf)?;
+
     // Backend selected by the SP1_PROVER env var (default: cpu).
     let prover = ProverClient::from_env().await;
 
-    let execute_start = Instant::now();
-    let (_public_values, report) = prover
-        .execute(Elf::Static(elf), stdin.clone())
-        .calculate_gas(true)
-        .deferred_proof_verification(false)
-        .await
-        .context("failed to execute range program")?;
-    let execute_secs = execute_start.elapsed().as_secs();
+    if !args.no_execute {
+        let execute_start = Instant::now();
+        let (_public_values, report) = prover
+            .execute(Elf::Static(elf), stdin.clone())
+            .calculate_gas(true)
+            .deferred_proof_verification(false)
+            .await
+            .context("failed to execute range program")?;
+        let execute_secs = execute_start.elapsed().as_secs();
 
-    match stats_ctx {
-        Some((fetcher, start, end, witness_secs)) => {
-            let block_data = fetcher
-                .get_l2_block_data_range(start, end)
-                .await
-                .context("failed to fetch L2 block stats")?;
-            let stats = ExecutionStats::new(0, &block_data, &report, witness_secs, execute_secs);
-            println!("{stats}");
-        }
-        None => {
-            tracing::info!(
-                "execute: {} cycles, gas {:?}, {execute_secs}s (per-block stats skipped: --load-stdin has no RPC)",
-                report.total_instruction_count(),
-                report.gas(),
-            );
+        match stats_ctx {
+            Some((fetcher, start, end, witness_secs)) => {
+                let block_data = fetcher
+                    .get_l2_block_data_range(start, end)
+                    .await
+                    .context("failed to fetch L2 block stats")?;
+                let stats =
+                    ExecutionStats::new(0, &block_data, &report, witness_secs, execute_secs);
+                println!("{stats}");
+            }
+            None => {
+                tracing::info!(
+                    "execute: {} cycles, gas {:?}, {execute_secs}s (per-block stats skipped: --load-stdin has no RPC)",
+                    report.total_instruction_count(),
+                    report.gas(),
+                );
+            }
         }
     }
 
@@ -333,6 +349,19 @@ mod tests {
     fn load_stdin_missing_file_errors() {
         let err = load_stdin(Path::new("/nonexistent/kona-sp1-missing.bin")).unwrap_err();
         assert!(err.to_string().contains("failed to read SP1 stdin"));
+    }
+
+    #[test]
+    fn no_execute_parses_in_fetch_mode() {
+        let args =
+            Args::try_parse_from(["range-bench", "--start", "1", "--end", "2", "--no-execute"])
+                .unwrap();
+        assert!(args.no_execute);
+        assert!(!args.prove);
+
+        // Defaults to false when the flag is absent.
+        let args = Args::try_parse_from(["range-bench", "--start", "1", "--end", "2"]).unwrap();
+        assert!(!args.no_execute);
     }
 
     #[test]

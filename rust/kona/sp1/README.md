@@ -122,6 +122,15 @@ loaded with `--load-stdin`. When `--load-stdin` is used, per-block execution
 statistics are skipped because they require RPC; the bench still reports
 execution cycles and SP1 gas.
 
+On a dedicated fetch host that only assembles witnesses for later proving,
+add `--no-execute` to skip the SP1 execute pass entirely. The bench then fetches,
+saves the stdin, and exits without needing a built range ELF, so the fetch wall
+time is pure RPC witness generation:
+
+```bash
+just range-bench --start <a> --end <b> --save-stdin /tmp/range.stdin --no-execute
+```
+
 Aggregate consecutive saved range proofs with:
 
 ```bash
@@ -165,7 +174,16 @@ just plonk-prove-bench --proofs /tmp/r1.bin,/tmp/r2.bin --save-proof /tmp/agg.pl
 
 `plonk-prove-bench` consumes the same consecutive compressed range proofs as
 `agg-bench`, always proves, verifies the PLONK proof in-process, and reports the
-prove wall-clock, local verify time, and on-chain calldata size. SP1 runs the full
+prove wall-clock, local verify time, and on-chain calldata size. Like `agg-bench`,
+it accepts `--load-agg-inputs` to reuse an aggregation-inputs file saved by
+`agg-bench --save-agg-inputs`, so the PLONK prove can also run without any RPC env
+vars:
+
+```bash
+just plonk-prove-bench --proofs /tmp/r1.bin,/tmp/r2.bin --load-agg-inputs /tmp/agg.cbor --save-proof /tmp/agg.plonk.bin
+```
+
+SP1 runs the full
 pipeline for PLONK (core -> compress -> shrink -> wrap -> gnark), so estimate the
 PLONK wrapping cost as the delta between `plonk-prove-bench` and
 `agg-bench --prove` on the same inputs. The default local CPU PLONK path requires

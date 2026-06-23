@@ -1,8 +1,13 @@
 //! Local PLONK aggregation-proof benchmark entrypoint for kona-sp1.
 
-use std::{env, path::PathBuf, time::Instant};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
-use alloy_primitives::Address;
+use alloy_consensus::Header;
+use alloy_primitives::{Address, B256};
 use anyhow::Context;
 use clap::Parser;
 use kona_sp1_client_utils::boot::BootInfoStruct;
@@ -24,6 +29,12 @@ struct Args {
     /// Persist the verified PLONK aggregation proof to this path.
     #[arg(long)]
     save_proof: Option<PathBuf>,
+
+    /// Load RPC-derived aggregation inputs (L1 checkpoint + header preimages,
+    /// as saved by `agg-bench --save-agg-inputs`) from this path instead of
+    /// fetching from RPC. Lets the PLONK prove run without any RPC env vars.
+    #[arg(long)]
+    load_agg_inputs: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -36,7 +47,9 @@ async fn main() -> anyhow::Result<()> {
     let range_elf = get_range_elf();
     let agg_elf = get_agg_elf();
     ensure_non_empty_elfs(range_elf, agg_elf)?;
-    ensure_required_rpc_env()?;
+    if args.load_agg_inputs.is_none() {
+        ensure_required_rpc_env()?;
+    }
 
     // Backend selected by the SP1_PROVER env var (default: cpu).
     let prover = ProverClient::from_env().await;
@@ -63,18 +76,25 @@ async fn main() -> anyhow::Result<()> {
         boot_infos.push(boot_info);
     }
 
-    let fetcher = OPSuccinctDataFetcher::new_with_rollup_config()
-        .await
-        .context("failed to initialize RPC data fetcher from environment")?;
-    let checkpoint = fetcher
-        .get_latest_l1_head_in_batch(&boot_infos)
-        .await
-        .context("failed to find latest L1 head across range proofs")?;
-    let checkpoint_hash = checkpoint.hash_slow();
-    let headers = fetcher
-        .get_header_preimages(&boot_infos, checkpoint_hash)
-        .await
-        .context("failed to fetch L1 header preimages for aggregation")?;
+    let (checkpoint_hash, headers) = if let Some(path) = &args.load_agg_inputs {
+        let inputs = load_agg_inputs(path)?;
+        tracing::info!("loaded aggregation inputs from {}", path.display());
+        inputs
+    } else {
+        let fetcher = OPSuccinctDataFetcher::new_with_rollup_config()
+            .await
+            .context("failed to initialize RPC data fetcher from environment")?;
+        let checkpoint = fetcher
+            .get_latest_l1_head_in_batch(&boot_infos)
+            .await
+            .context("failed to find latest L1 head across range proofs")?;
+        let checkpoint_hash = checkpoint.hash_slow();
+        let headers = fetcher
+            .get_header_preimages(&boot_infos, checkpoint_hash)
+            .await
+            .context("failed to fetch L1 header preimages for aggregation")?;
+        (checkpoint_hash, headers)
+    };
 
     let stdin = get_agg_proof_stdin(
         proofs,
@@ -152,6 +172,12 @@ fn ensure_non_empty_elfs(range_elf: &[u8], agg_elf: &[u8]) -> anyhow::Result<()>
     Ok(())
 }
 
+fn load_agg_inputs(path: &Path) -> anyhow::Result<(B256, Vec<Header>)> {
+    let bytes = std::fs::read(path)
+        .with_context(|| format!("failed to read aggregation inputs from {}", path.display()))?;
+    serde_cbor::from_slice(&bytes).context("failed to deserialize aggregation inputs")
+}
+
 fn ensure_required_rpc_env() -> anyhow::Result<()> {
     validate_rpc_env_vars(|key| env::var(key).ok())
 }
@@ -224,6 +250,22 @@ mod tests {
 
         let err = ensure_non_empty_elfs(&[1], &[]).unwrap_err();
         assert!(err.to_string().contains("missing or empty"));
+    }
+
+    #[test]
+    fn load_agg_inputs_parses_and_missing_file_errors() {
+        let args = Args::try_parse_from([
+            "plonk-prove-bench",
+            "--proofs",
+            "a.bin",
+            "--load-agg-inputs",
+            "agg.cbor",
+        ])
+        .unwrap();
+        assert_eq!(args.load_agg_inputs, Some(PathBuf::from("agg.cbor")));
+
+        let err = load_agg_inputs(Path::new("/nonexistent/kona-sp1-missing.cbor")).unwrap_err();
+        assert!(err.to_string().contains("failed to read aggregation inputs"));
     }
 
     #[test]
