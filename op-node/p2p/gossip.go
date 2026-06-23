@@ -312,7 +312,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		payloadBytes := data[65:]
 
 		// [REJECT] if the signature by the sequencer is not valid
-		result := verifyBlockSignature(log, cfg, runCfg, id, signature, payloadBytes)
+		result := verifyBlockSignature(ctx, log, cfg, runCfg, id, blockVersion, signature, payloadBytes)
 		if result != pubsub.ValidationAccept {
 			return result
 		}
@@ -448,7 +448,43 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 	}
 }
 
-func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signature eth.Bytes65, payloadBytes []byte) pubsub.ValidationResult {
+// DelegatedBlockSignatureValidator is an optional capability a
+// GossipRuntimeConfig may implement to take over the unsafe-block signature
+// check entirely. When the runtime config passed to the gossip layer implements
+// it, BuildBlocksValidator routes the signature decision here instead of the
+// built-in recover-and-compare against P2PSequencerAddress().
+//
+// This lets a consensus node that already owns the sequencer-signer truth (e.g.
+// opql's op-con-node / op-con-ex-node) return the gossipsub verdict directly,
+// keeping a P2P sidecar free of any signer state. The delegate receives the
+// snappy-decompressed, signature-stripped SSZ payload bytes and the 65-byte
+// gossip signature; it derives the payload hash (keccak256 of the payload
+// bytes) itself. It MUST honor the gossipsub contract: return ValidationIgnore
+// (never ValidationReject) when it cannot yet attribute the block to a signer,
+// so honest peers are not penalized.
+type DelegatedBlockSignatureValidator interface {
+	ValidateUnsafeBlockSignature(
+		ctx context.Context,
+		chainID eth.ChainID,
+		version eth.BlockVersion,
+		signature eth.Bytes65,
+		payloadBytes []byte,
+	) pubsub.ValidationResult
+}
+
+func verifyBlockSignature(ctx context.Context, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, blockVersion eth.BlockVersion, signature eth.Bytes65, payloadBytes []byte) pubsub.ValidationResult {
+	// If the runtime config delegates the signature decision (e.g. to an
+	// external consensus node), defer to it entirely.
+	if delegate, ok := runCfg.(DelegatedBlockSignatureValidator); ok {
+		return delegate.ValidateUnsafeBlockSignature(
+			ctx,
+			eth.ChainIDFromBig(cfg.L2ChainID),
+			blockVersion,
+			signature,
+			payloadBytes,
+		)
+	}
+
 	currentAddr := runCfg.P2PSequencerAddress()
 	chain := eth.ChainIDFromBig(cfg.L2ChainID)
 

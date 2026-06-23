@@ -73,7 +73,7 @@ func TestVerifyBlockSignature(t *testing.T) {
 		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
 		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		result := verifyBlockSignature(context.Background(), logger, cfg, runCfg, peerId, eth.BlockV1, sig, msg)
 		require.Equal(t, pubsub.ValidationAccept, result)
 	})
 
@@ -82,14 +82,14 @@ func TestVerifyBlockSignature(t *testing.T) {
 		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
 		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		result := verifyBlockSignature(context.Background(), logger, cfg, runCfg, peerId, eth.BlockV1, sig, msg)
 		require.Equal(t, pubsub.ValidationReject, result)
 	})
 
 	t.Run("InvalidSignature", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
 		sig := eth.Bytes65{}
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		result := verifyBlockSignature(context.Background(), logger, cfg, runCfg, peerId, eth.BlockV1, sig, msg)
 		require.Equal(t, pubsub.ValidationReject, result)
 	})
 
@@ -98,7 +98,7 @@ func TestVerifyBlockSignature(t *testing.T) {
 		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
 		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		result := verifyBlockSignature(context.Background(), logger, cfg, runCfg, peerId, eth.BlockV1, sig, msg)
 		require.Equal(t, pubsub.ValidationIgnore, result)
 	})
 
@@ -136,7 +136,7 @@ func TestVerifyBlockSignature(t *testing.T) {
 			signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(tc.signWith)}
 			sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 			require.NoError(t, err)
-			result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+			result := verifyBlockSignature(context.Background(), logger, cfg, runCfg, peerId, eth.BlockV1, sig, msg)
 			require.Equal(t, tc.wantResult, result)
 			require.Equal(t, tc.wantConfirm, runCfg.Confirmed)
 		})
