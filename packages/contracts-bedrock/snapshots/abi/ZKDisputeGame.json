@@ -488,19 +488,6 @@
   },
   {
     "inputs": [],
-    "name": "superRootProof",
-    "outputs": [
-      {
-        "internalType": "bytes",
-        "name": "superRootProof_",
-        "type": "bytes"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "totalBonds",
     "outputs": [
       {
