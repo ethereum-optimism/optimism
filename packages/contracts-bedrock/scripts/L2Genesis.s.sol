@@ -384,18 +384,14 @@ contract L2Genesis is Script {
 
         uint256 count;
         for (uint256 i = 0; i < records.length; i++) {
-            bool disabledCGT = records[i].isCustomGasToken && !_config.isCustomGasToken;
-            bool disabledInterop = records[i].isInterop && !_config.isInterop;
-            if (disabledCGT || disabledInterop) continue;
+            if (_isActive(records[i], _config.isCustomGasToken, _config.isInterop)) continue;
             count++;
         }
 
         proxies_ = new address[](count);
         uint256 idx;
         for (uint256 i = 0; i < records.length; i++) {
-            bool disabledCGT = records[i].isCustomGasToken && !_config.isCustomGasToken;
-            bool disabledInterop = records[i].isInterop && !_config.isInterop;
-            if (disabledCGT || disabledInterop) continue;
+            if (_isActive(records[i], _config.isCustomGasToken, _config.isInterop)) continue;
             proxies_[idx++] = records[i].proxy;
         }
     }
@@ -410,6 +406,20 @@ contract L2Genesis is Script {
         // vm.computeCreate2Address cheatcode, which the op-deployer script host does not implement.
         return
             address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), L2CM_SALT, initCodeHash)))));
+    }
+
+    function _isActive(
+        Predeploys.PredeployRecord memory _r,
+        bool _isCustomGasToken,
+        bool _isInterop
+    )
+        internal
+        pure
+        returns (bool)
+    {
+        if (_r.isCustomGasToken && !_isCustomGasToken) return false;
+        if (_r.isInterop && !_isInterop) return false;
+        return true;
     }
 
     /// @notice Upgrades, initializes, and configures predeploy proxies via the L2ContractsManager.
