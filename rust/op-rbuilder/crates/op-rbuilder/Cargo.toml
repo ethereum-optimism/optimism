@@ -208,8 +208,6 @@ testing = [
     "http-body-util",
 ]
 
-interop = []
-
 telemetry = ["reth-tracing-otlp", "opentelemetry"]
 
 custom-engine-api = []
