@@ -67,7 +67,7 @@ ANCHOR_BLOCK="${ANCHOR_BLOCK:-auto}"
 # Variable-size set: binary search down from 3600, floored at 100, with extra
 # midpoints for a denser size->cost curve. These are laid out contiguously so
 # their proofs can be aggregated. Edit freely; they are summed to place the set.
-SIZES=(3600 2700 1800 1350 900 675 450 337 225 168 112 100)
+SIZES=(3600 1800 1350 900 450 225 100)
 
 # Freshness set: same-size ranges sampled at different archival depths, to
 # measure how fetch cost grows with age. Not contiguous (independent points in
