@@ -56,10 +56,11 @@ sync-superchain-go:
   @OP_CORE_SYNC_SUPERCHAIN=1 just build-superchain-go
 
 # Regenerates the committed Rust artifacts from the submodule: kona's etc/*.json
-# (via KONA_SYNC_SUPERCHAIN) and op-reth's superchain-configs.tar + chain_specs.rs.
+# (via KONA_SYNC_SUPERCHAIN) and op-reth's superchain-configs.tar.sha256 +
+# chain_specs.rs (via OP_RETH_SYNC_SUPERCHAIN; the tar itself is gitignored).
 sync-superchain-rust: update-superchain-registry-submodule
   cd rust && KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry
-  cd rust/op-reth/crates/chainspec/res && bash fetch_superchain_config.sh
+  cd rust && OP_RETH_SYNC_SUPERCHAIN=1 cargo build -p reth-optimism-chainspec --features superchain-configs
 
 # One-command superchain-registry sync. With a ref (tag or commit sha) it moves the
 # submodule there first, then regenerates every dependent artifact (Go + Rust), so
@@ -327,7 +328,7 @@ go-tests-short: cannon build-contracts make-pre-test build-superchain-go
 [script('bash')]
 _go-tests-ci-internal go_test_flags="": build-superchain-go
   set -euo pipefail
-  (cd cannon && just cannon elf)
+  (cd cannon && just diff-hello-elf)
   echo "Setting up test directories..."
   mkdir -p ./tmp/test-results ./tmp/testlogs
   echo "Running Go tests with gotestsum..."

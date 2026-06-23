@@ -1,5 +1,11 @@
 //! This is our custom implementation of validator struct
 
+/// Maximum number of transactions revalidated against the interop filter concurrently. Each
+/// transaction issues up to one request per configured endpoint, so total in-flight interop
+/// requests can reach `MAX_INTEROP_QUERIES * <number of endpoints>`. The bound is on
+/// transactions (per-endpoint load is unchanged by fan-out).
+const MAX_INTEROP_QUERIES: usize = 10;
+
 use crate::{
     InvalidCrossTx,
     interop::InteropFailsafe,
@@ -13,7 +19,6 @@ use crate::{
     },
     maintain::FAILSAFE_HEARTBEAT_INTERVAL,
 };
-use alloy_consensus::Transaction;
 use alloy_eips::eip2930::AccessList;
 use alloy_primitives::{B256, TxHash};
 use alloy_rpc_client::ReqwestClient;
@@ -193,7 +198,7 @@ impl InteropFilterClient {
         }
 
         // Fast-path: reject immediately if failsafe is active (no RPC round-trip)
-        if self.is_failsafe_enabled() {
+        if self.is_failsafe_enabled_cached() {
             self.inner.metrics.record_decision(RESULT_REJECTED_FAILSAFE, REASON_NONE);
             return Some(Err(InvalidCrossTx::FailsafeEnabled));
         }
@@ -261,7 +266,7 @@ impl InteropFilterClient {
     }
 
     /// Returns the cached failsafe state.
-    pub fn is_failsafe_enabled(&self) -> bool {
+    pub fn is_failsafe_enabled_cached(&self) -> bool {
         self.inner.failsafe.enabled()
     }
 
@@ -272,8 +277,9 @@ impl InteropFilterClient {
     }
 
     /// Applies a freshly polled failsafe state to the cached flag (read live by the admission
-    /// fast-path and the block-event handler) and the gauge. Split out of [`Self::query_failsafe`]
-    /// so the live, restart-free state transition can be exercised in tests without an RPC.
+    /// fast-path and the block-event handler) and the gauge. Split out of
+    /// [`Self::is_failsafe_enabled`] so the live, restart-free state transition can be exercised in
+    /// tests without an RPC.
     pub(crate) fn apply_failsafe_state(&self, enabled: bool) {
         self.inner.failsafe.set(enabled);
         self.inner.metrics.set_failsafe_enabled(enabled);
@@ -293,7 +299,7 @@ impl InteropFilterClient {
     ///
     /// If no endpoint replies, the cache is left unchanged and an error is returned (matching the
     /// previous single-endpoint behavior).
-    pub async fn query_failsafe(&self) -> Result<bool, InteropTxValidatorError> {
+    pub async fn is_failsafe_enabled(&self) -> Result<bool, InteropTxValidatorError> {
         let endpoint_count = self.inner.endpoints.len();
         let mut futs: FuturesUnordered<_> = self
             .inner
@@ -328,7 +334,7 @@ impl InteropFilterClient {
             // Some endpoints did not answer and none reported failsafe. We cannot confirm failsafe
             // is off — a silent endpoint might itself be in failsafe — so leave the cached gate
             // unchanged rather than clearing it on partial information.
-            return Ok(self.is_failsafe_enabled());
+            return Ok(self.is_failsafe_enabled_cached());
         }
         // Decisive: an endpoint reported failsafe, or every endpoint replied and all said off.
         self.apply_failsafe_state(enabled);
@@ -337,30 +343,25 @@ impl InteropFilterClient {
 
     /// Creates a stream that revalidates interop transactions against the interop filter.
     /// Returns
-    /// An implementation of `Stream` that is `Send`-able and tied to the lifetime `'a` of `self`.
-    /// Each item yielded by the stream is a tuple `(TItem, Option<Result<(), InvalidCrossTx>>)`.
-    ///   - The first element is the original `TItem` that was revalidated.
-    ///   - The second element is the `Option<Result<(), InvalidCrossTx>>` describes the outcome
-    ///     - `None`: Transaction was not identified as a cross-chain candidate by initial checks.
-    ///     - `Some(Ok(()))`: Interop filter confirmed the transaction is valid.
-    ///     - `Some(Err(InvalidCrossTx))`: Interop filter indicated the transaction is invalid.
-    pub fn revalidate_interop_txs_stream<'a, TItem, InputIter>(
+    /// A `Stream` that is `Send`-able and tied to the lifetime `'a` of `self`.
+    /// Each item yielded by the stream contains the original transaction and its revalidation
+    /// outcome.
+    pub fn revalidate_interop_txs_stream<'a, Tx, TxIter>(
         &'a self,
-        txs_to_revalidate: InputIter,
+        txs_to_revalidate: TxIter,
         current_timestamp: u64,
         revalidation_window: u64,
-        max_concurrent_queries: usize,
-    ) -> impl Stream<Item = (TItem, Option<Result<(), InvalidCrossTx>>)> + Send + 'a
+    ) -> impl Stream<Item = InteropValidationResult<Tx>> + Send + 'a
     where
-        InputIter: IntoIterator<Item = TItem> + Send + 'a,
-        InputIter::IntoIter: Send + 'a,
-        TItem: PoolTransaction + Transaction + Send,
+        TxIter: IntoIterator<Item = Tx> + Send + 'a,
+        TxIter::IntoIter: Send + 'a,
+        Tx: PoolTransaction + Send,
     {
         stream::iter(txs_to_revalidate.into_iter().map(move |tx_item| {
             let client_for_async_task = self.clone();
 
             async move {
-                let validation_result = client_for_async_task
+                match client_for_async_task
                     .is_valid_cross_tx(
                         tx_item.access_list(),
                         tx_item.hash(),
@@ -368,14 +369,27 @@ impl InteropFilterClient {
                         Some(revalidation_window),
                         true,
                     )
-                    .await;
-
-                // return the original transaction paired with its validation result.
-                (tx_item, validation_result)
+                    .await
+                {
+                    Some(Ok(())) => InteropValidationResult::Valid(tx_item),
+                    Some(Err(err)) => InteropValidationResult::Invalid(tx_item, err),
+                    None => InteropValidationResult::NotInterop(tx_item),
+                }
             }
         }))
-        .buffered(max_concurrent_queries)
+        .buffered(MAX_INTEROP_QUERIES)
     }
+}
+
+/// Result of revalidating a single interop tx.
+#[derive(Debug)]
+pub enum InteropValidationResult<Tx> {
+    /// The tx is valid.
+    Valid(Tx),
+    /// The tx is an interop candidate, but validation failed.
+    Invalid(Tx, InvalidCrossTx),
+    /// The tx is not an interop tx.
+    NotInterop(Tx),
 }
 
 /// A single configured interop filter endpoint and its per-endpoint metrics.
@@ -620,7 +634,7 @@ mod tests {
 
         // Filter signals failsafe enabled -> admission fast-path rejects immediately, no RPC.
         client.apply_failsafe_state(true);
-        assert!(client.is_failsafe_enabled());
+        assert!(client.is_failsafe_enabled_cached());
         let outcome = client.is_valid_cross_tx(Some(&access_list), &hash, 0, None, true).await;
         assert!(
             matches!(outcome, Some(Err(InvalidCrossTx::FailsafeEnabled))),
@@ -630,7 +644,10 @@ mod tests {
         // Filter clears failsafe -> the cached gate flips back in-process on the next poll, so
         // interop admission resumes without restarting the execution layer.
         client.apply_failsafe_state(false);
-        assert!(!client.is_failsafe_enabled(), "failsafe gate must clear at runtime, no restart");
+        assert!(
+            !client.is_failsafe_enabled_cached(),
+            "failsafe gate must clear at runtime, no restart"
+        );
     }
 
     use jsonrpsee::types::ErrorObjectOwned;
@@ -881,13 +898,13 @@ mod tests {
         let a = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
         let failsafe = MockEndpoint::start(Verdict::Failsafe, Failsafe::Reply(false)).await;
         let client = client_for(&[&a, &failsafe], Some(2)).await;
-        assert!(!client.is_failsafe_enabled());
+        assert!(!client.is_failsafe_enabled_cached());
         assert!(matches!(
             check(&client).await.unwrap_err(),
             InteropTxValidatorError::FailsafeEnabled
         ));
         assert!(
-            client.is_failsafe_enabled(),
+            client.is_failsafe_enabled_cached(),
             "a failsafe detected on a check must flip the cached gate immediately"
         );
     }
@@ -967,8 +984,8 @@ mod tests {
         let off = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
         let on = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(true)).await;
         let client = client_for(&[&off, &on], None).await;
-        assert!(client.query_failsafe().await.unwrap());
-        assert!(client.is_failsafe_enabled());
+        assert!(client.is_failsafe_enabled().await.unwrap());
+        assert!(client.is_failsafe_enabled_cached());
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -977,7 +994,7 @@ mod tests {
         let slow = MockEndpoint::start(Verdict::Valid, Failsafe::Slow).await;
         let client = client_for(&[&on, &slow], None).await;
         let start = Instant::now();
-        assert!(client.query_failsafe().await.unwrap());
+        assert!(client.is_failsafe_enabled().await.unwrap());
         assert!(start.elapsed() < Duration::from_secs(1), "failsafe waited on the slow endpoint");
     }
 
@@ -993,9 +1010,9 @@ mod tests {
         let client = client_for(&[&silent, &healthy], Some(1)).await;
         // Failsafe was previously detected and cached.
         client.apply_failsafe_state(true);
-        let result = client.query_failsafe().await;
+        let result = client.is_failsafe_enabled().await;
         assert!(
-            client.is_failsafe_enabled(),
+            client.is_failsafe_enabled_cached(),
             "a partial poll (one endpoint silent) must not clear the failsafe gate, got {result:?}"
         );
     }
@@ -1007,8 +1024,11 @@ mod tests {
         let b = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
         let client = client_for(&[&a, &b], None).await;
         client.apply_failsafe_state(true);
-        assert!(!client.query_failsafe().await.unwrap());
-        assert!(!client.is_failsafe_enabled(), "a unanimous all-false poll must clear the gate");
+        assert!(!client.is_failsafe_enabled().await.unwrap());
+        assert!(
+            !client.is_failsafe_enabled_cached(),
+            "a unanimous all-false poll must clear the gate"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1018,8 +1038,11 @@ mod tests {
         let client = client_for(&[&a, &b], None).await;
         // Seed a known cached value, then confirm an all-error poll leaves it unchanged and errors.
         client.inner.failsafe.set(true);
-        assert!(client.query_failsafe().await.is_err());
-        assert!(client.is_failsafe_enabled(), "cache should be unchanged when no endpoint replies");
+        assert!(client.is_failsafe_enabled().await.is_err());
+        assert!(
+            client.is_failsafe_enabled_cached(),
+            "cache should be unchanged when no endpoint replies"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]

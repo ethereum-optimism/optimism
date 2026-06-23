@@ -1,4 +1,4 @@
-DEPRECATED_TARGETS := cannon cannon64-impl cannon-embeds clean elf elf-go-current sanitize-program contract test cannon-stf-verify fuzz lint
+DEPRECATED_TARGETS := cannon cannon64-impl cannon-embeds clean diff-hello-elf sanitize-program contract test cannon-stf-verify fuzz lint
 
 include ../justfiles/deprecated.mk
 

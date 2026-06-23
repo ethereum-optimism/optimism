@@ -18,7 +18,8 @@ FROM alpine:3.21 AS builder_foundry
 # Build args are only-available in top-level by default, so we'll need to declare it inside the stage too
 ARG TARGETARCH
 
-RUN apk add --no-cache curl bash git jq
+# apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
+RUN n=0; until apk add --no-cache curl bash git jq; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
 
 COPY ./op-deployer/pkg/deployer/forge/version.json /tmp/op-deployer-versions.json
 
@@ -33,7 +34,7 @@ RUN <<-EOF
     DOWNLOAD_PATH="/tmp/forge.tar.gz"
 
     # Download the artifact archive
-    curl -fL -o ${DOWNLOAD_PATH} "${FOUNDRY_URL}"
+    curl -fL --retry 5 --retry-all-errors --retry-delay 2 -o ${DOWNLOAD_PATH} "${FOUNDRY_URL}"
 
     # Ensure the checksum matches our expectations
     ACTUAL_SHA="$(sha256sum "${DOWNLOAD_PATH}" | awk '{print $1}')"
@@ -49,13 +50,14 @@ EOF
 RUN forge --version
 
 # We may be cross-building for another platform. Specify which platform we need as builder.
-FROM --platform=$BUILDPLATFORM golang:1.24.13-alpine3.22 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.4-alpine3.22 AS builder
 
 # Enforce that builds use the committed go.mod/go.sum exactly and never
 # silently mutate them. Fails the build if the lockfile is out of date.
 ENV GOFLAGS=-mod=readonly
 
-RUN apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq yq-go zip bash just
+# apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
+RUN n=0; until apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq yq-go zip bash just; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
 
 ARG TARGETARCH
 
@@ -178,10 +180,10 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 # Compile contracts in a glibc-based image (solc requires glibc, crashes on Alpine musl).
 # Uses BUILDPLATFORM so it runs natively (no QEMU). Contract artifacts are platform-independent.
-FROM --platform=$BUILDPLATFORM golang:1.24.13-bookworm AS op-deployer-contracts
+FROM --platform=$BUILDPLATFORM golang:1.26.4-bookworm AS op-deployer-contracts
 ARG BUILDARCH
 ENV GOFLAGS=-mod=readonly
-RUN apt-get update && apt-get install -y --no-install-recommends curl jq git && rm -rf /var/lib/apt/lists/*
+RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 install -y --no-install-recommends curl jq git && rm -rf /var/lib/apt/lists/*
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
 WORKDIR /app
@@ -194,7 +196,7 @@ RUN <<-EOF
     FOUNDRY_PLATFORM=linux_${BUILDARCH}
     FOUNDRY_URL="https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_${FOUNDRY_PLATFORM}.tar.gz"
     DOWNLOAD_PATH="/tmp/forge.tar.gz"
-    curl -fL -o "${DOWNLOAD_PATH}" "${FOUNDRY_URL}"
+    curl -fL --retry 5 --retry-all-errors --retry-delay 2 -o "${DOWNLOAD_PATH}" "${FOUNDRY_URL}"
     ACTUAL_SHA="$(sha256sum "${DOWNLOAD_PATH}" | awk '{print $1}')"
     EXPECTED_SHA="$(jq -r --arg arch "${FOUNDRY_PLATFORM}" '.checksums[$arch]' op-deployer/pkg/deployer/forge/version.json)"
     [ "${ACTUAL_SHA}" = "${EXPECTED_SHA}" ] || (echo "Forge checksum mismatch: Expected $EXPECTED_SHA, got $ACTUAL_SHA" && exit 1)
@@ -237,7 +239,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 FROM --platform=$BUILDPLATFORM rust:1.94 AS kona-host-builder
 ARG TARGETARCH
 # Install build dependencies and cross-compilation toolchains
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 install -y --no-install-recommends \
   build-essential \
   libssl-dev \
   clang \
@@ -280,7 +282,7 @@ CMD ["op-node"]
 
 # Also produce an op-challenger loaded with kona using ubuntu
 FROM $UBUNTU_TARGET_BASE_IMAGE AS op-challenger-target
-RUN apt-get update && apt-get install -y --no-install-recommends musl openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 install -y --no-install-recommends musl openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=op-challenger-builder /app/op-challenger/bin/op-challenger /usr/local/bin/
 # Copy in cannon
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/

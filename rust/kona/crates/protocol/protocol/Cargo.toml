@@ -42,7 +42,7 @@ unsigned-varint.workspace = true
 derive_more = { workspace = true, features = ["display"] }
 
 # Compression
-brotli.workspace = true
+brotli-decompressor.workspace = true
 miniz_oxide.workspace = true
 alloc-no-stdlib.workspace = true
 
@@ -86,7 +86,7 @@ std = [
 	"alloy-rpc-types-engine/std",
 	"alloy-rpc-types-eth/std",
 	"alloy-serde?/std",
-	"brotli/std",
+	"brotli-decompressor/std",
 	"derive_more/std",
 	"kona-genesis/std",
 	"kona-hardforks/std",

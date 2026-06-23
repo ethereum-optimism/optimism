@@ -11031,8 +11031,12 @@ dependencies = [
  "reth-primitives-traits",
  "serde",
  "serde_json",
+ "sha2",
+ "tar",
  "tar-no-std",
  "thiserror 2.0.18",
+ "toml",
+ "zstd",
 ]
 
 [[package]]
@@ -11452,6 +11456,7 @@ dependencies = [
  "alloy-rpc-client 2.0.5",
  "alloy-rpc-types-eth 2.0.5",
  "alloy-serde 2.0.5",
+ "async-trait",
  "c-kzg",
  "derive_more",
  "futures-util",

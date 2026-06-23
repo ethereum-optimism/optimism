@@ -2,6 +2,8 @@
 
 This document provides guidance for AI agents working with CI/CD operational tasks in the Optimism monorepo.
 
+For Docker image build failures — especially flaky `apt`/`apk`/`curl` downloads from package registries and CDNs — see [docker.md](docker.md).
+
 ## Diagnosing a CI failure on a feature branch
 
 Before assuming a red check is caused by your change, rule out a failure the branch
