@@ -8,8 +8,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/registry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/types"
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/superchain"
 )
 
 type KonaPrestate struct {
@@ -38,11 +38,10 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 	// Skip attempting to report a specific op-reth version for now.
 	elCommitInfo = types.CommitInfo{}
 
-	// kona has its own build process to convert superchain-registry config into a custom JSON format it uses
+	// kona has its own build process to convert superchain-registry config into a custom JSON format it uses.
 	// Rather than re-implement that custom JSON format and work out how to convert it to the go format
-	// (which could be brittle), we use the op-geth sync process to convert the superchain registry at the same commit
-	// to the go format directly. This is unfortunately also potentially brittle since we have to use the latest
-	// sync script from op-geth rather than a fixed version but seems like the lowest risk option.
+	// (which could be brittle), we clone the superchain registry at the same commit and run op-core's
+	// sync-superchain.sh to convert it to the go format directly — the same conversion the build uses.
 	configs, err := registry.SuperchainConfigsForCommit(superChainRegistryCommit)
 	if err != nil {
 		log.Crit("Failed to fetch chain configs for prestate", "err", err)

@@ -80,7 +80,7 @@ parameters:
   # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
   go-cache-version:
     type: string
-    default: "v0.0"
+    default: "v0.1"
 
 orbs:
   continuation: circleci/continuation@2.0.1

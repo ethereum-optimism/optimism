@@ -181,8 +181,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             for (uint256 j = 0; j < refsByType[i].length; j++) {
                 VerifyOPCM.OpcmContractRef memory ref = refsByType[i][j];
 
-                // TODO(#17262): Remove this skip once Super dispute games are no longer behind a feature flag
-                if (_isSuperDisputeGameContractRef(ref)) {
+                if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
                     continue;
                 }
 
