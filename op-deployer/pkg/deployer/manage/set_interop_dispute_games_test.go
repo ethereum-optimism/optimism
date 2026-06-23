@@ -91,7 +91,7 @@ func TestSetInteropDisputeGames(t *testing.T) {
 	require.NoError(t, err)
 
 	const (
-		gameTypeSuperCannonKona = uint32(9)
+		gameTypeSuperCannonKona         = uint32(9)
 		gameTypeSuperPermissionedCannon = uint32(5)
 		gameTypeZK                      = uint32(10)
 	)
