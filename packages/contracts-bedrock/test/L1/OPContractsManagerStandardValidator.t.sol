@@ -1921,7 +1921,7 @@ contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
     }
 
     /// @notice Tests that disabling SUPER_PERMISSIONED triggers SPDG-SHAPE.
-    function test_validate_superPermissionedCannonNotRegistered_succeeds() public {
+    function test_validate_superPermissionedNotRegistered_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
