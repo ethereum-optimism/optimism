@@ -818,6 +818,10 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	c.forEachFork(func(name string, _ string, time *uint64) {
 		banner += fmt.Sprintf("  - %v: %s\n", name, fmtForkTimeOrUnset(time))
 	})
+	if c.KeepKarstUpgradeGas {
+		// Only reported when set, since it is an opt-out behavioral flag, not a scheduled time.
+		banner += "Keep Karst upgrade gas: true\n"
+	}
 	if c.AltDAConfig != nil {
 		banner += fmt.Sprintf("Node supports Alt-DA Mode with CommitmentType %v\n", c.AltDAConfig.CommitmentType)
 	}
@@ -855,6 +859,10 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 	c.forEachFork(func(_ string, logName string, time *uint64) {
 		ctx = append(ctx, logName, fmtForkTimeOrUnset(time))
 	})
+	if c.KeepKarstUpgradeGas {
+		// Only reported when set, since it is an opt-out behavioral flag, not a scheduled time.
+		ctx = append(ctx, "keep_karst_upgrade_gas", true)
+	}
 	if c.AltDAConfig != nil {
 		ctx = append(ctx, "alt_da", *c.AltDAConfig)
 	}

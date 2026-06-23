@@ -61,12 +61,11 @@ pub fn to_system_config(
         ..Default::default()
     };
 
-    // Every NUT-bundle fork from Karst onward adds one-time upgrade gas to its activation block's
-    // gas limit so the upgrade transactions exceed the normal budget. Subtract it back out at the
-    // block right after the activation block so the reconstructed config holds the steady-state
-    // limit. This runs during reconstruction, before update_with_receipts in the caller, so a
-    // setGasLimit in the same block's L1 origin takes precedence. Mirrors op-node's
-    // PayloadToSystemConfig.
+    // Starting with Karst, each NUT-bundle fork adds one-time upgrade gas to its activation block's
+    // gas limit so the upgrade transactions exceed the normal budget. Subtract it back here so the
+    // reconstructed config holds the steady-state limit. This runs during reconstruction, before
+    // update_with_receipts in the caller, so a setGasLimit in the same block's L1 origin takes
+    // precedence. Mirrors op-node's PayloadToSystemConfig.
     let gas_to_strip = upgrade_gas_to_strip(rollup_config, block.header.timestamp);
     if gas_to_strip > 0 {
         cfg.gas_limit = cfg.gas_limit.checked_sub(gas_to_strip).ok_or(
@@ -103,12 +102,11 @@ pub fn to_system_config(
 }
 
 /// Returns the one-time NUT-bundle upgrade gas to subtract from the system config reconstructed
-/// from a block with the given timestamp. Every NUT-bundle fork from Karst onward adds upgrade gas
-/// at its activation block; subtracting it again at the next block reverts the gas limit to the
-/// steady state. Karst can opt out via `keep_karst_upgrade_gas` (for chains that activated Karst
-/// with the leak baked into their history); later forks have no opt-out.
+/// from a block with the given timestamp. Starting with Karst, upgrade gas is added to a fork's
+/// activation block to accommodate its NUT bundle; subtracting it again at the next block reverts
+/// the gas limit to the steady state. Karst can opt out via `keep_karst_upgrade_gas` (for chains
+/// that activated Karst with the leak baked into their history); later forks have no opt-out.
 fn upgrade_gas_to_strip(rollup_config: &RollupConfig, block_timestamp: u64) -> u64 {
-    let mut total = 0u64;
     for fork in OpHardfork::Karst.forks_from() {
         let activation = rollup_config.op_fork_activation(fork);
         let is_activation_block = activation.active_at_timestamp(block_timestamp) &&
@@ -117,17 +115,27 @@ fn upgrade_gas_to_strip(rollup_config: &RollupConfig, block_timestamp: u64) -> u
         if !is_activation_block {
             continue;
         }
+        // At most one fork activates per block, so the first activation fork found is the only one.
         if fork == OpHardfork::Karst && rollup_config.hardforks.keep_karst_upgrade_gas {
-            continue;
+            return 0;
         }
-        total += match fork {
-            OpHardfork::Karst => Hardforks::KARST.upgrade_gas(),
-            OpHardfork::Lagoon => Hardforks::LAGOON.upgrade_gas(),
-            // Forks without a NUT bundle add no upgrade gas.
-            _ => 0,
-        };
+        return upgrade_gas(fork);
     }
-    total
+    0
+}
+
+/// Returns the one-time upgrade gas a NUT-bundle fork adds to its activation block. Forks without a
+/// NUT bundle (everything before Karst) add none.
+///
+/// [`OpHardfork`] is `#[non_exhaustive]`, so an exhaustive match that fails to compile when a new
+/// fork is added is not possible here; the `upgrade_gas_covers_known_forks` test guards instead,
+/// failing when a new variant appears so that its upgrade gas is reviewed.
+pub fn upgrade_gas(fork: OpHardfork) -> u64 {
+    match fork {
+        OpHardfork::Karst => Hardforks::KARST.upgrade_gas(),
+        OpHardfork::Lagoon => Hardforks::LAGOON.upgrade_gas(),
+        _ => 0,
+    }
 }
 
 fn encode_scalar(blob_base_fee_scalar: u32, base_fee_scalar: u32) -> U256 {
@@ -456,6 +464,23 @@ mod tests {
         };
         assert_eq!(upgrade_gas_to_strip(&kept, karst_time), 0);
         assert_eq!(upgrade_gas_to_strip(&kept, lagoon_time), lagoon_gas);
+    }
+
+    #[test]
+    fn upgrade_gas_covers_known_forks() {
+        // OpHardfork is #[non_exhaustive], so upgrade_gas can't fail to compile on a new variant.
+        // This guards instead: when a fork is added upstream, VARIANTS grows and this fails,
+        // prompting a review of whether the new fork ships a NUT bundle.
+        assert_eq!(OpHardfork::VARIANTS.len(), 11, "new OpHardfork variant: review upgrade_gas()");
+        for &fork in OpHardfork::VARIANTS {
+            let gas = upgrade_gas(fork);
+            match fork {
+                OpHardfork::Karst | OpHardfork::Lagoon => {
+                    assert!(gas > 0, "{fork:?} must reserve upgrade gas")
+                }
+                _ => assert_eq!(gas, 0, "{fork:?} must not reserve upgrade gas"),
+            }
+        }
     }
 
     #[test]

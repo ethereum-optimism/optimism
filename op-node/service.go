@@ -265,6 +265,9 @@ func applyOverrides(ctx cliiface.Context, rollupConfig *rollup.Config) {
 			rollupConfig.SetActivationTime(fork, &timestamp)
 		}
 	}
+	if ctx.IsSet(opflags.KeepKarstUpgradeGasOverrideName) {
+		rollupConfig.KeepKarstUpgradeGas = ctx.Bool(opflags.KeepKarstUpgradeGasOverrideName)
+	}
 }
 
 func NewL1ChainConfig(chainId *big.Int, ctx cliiface.Context, log log.Logger) (*params.ChainConfig, error) {

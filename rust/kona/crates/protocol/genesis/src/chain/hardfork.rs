@@ -100,6 +100,10 @@ impl Display for HardForkConfig {
         for (name, time) in self.iter() {
             writeln!(f, "-> {} Activation Time: {}", name, fmt_time(time))?;
         }
+        if self.keep_karst_upgrade_gas {
+            // Behavioral opt-out flag rather than a scheduled time; only shown when set.
+            writeln!(f, "-> Keep Karst upgrade gas: true")?;
+        }
         Ok(())
     }
 }
@@ -119,9 +123,10 @@ impl HardForkConfig {
             ("Isthmus", self.isthmus_time),
             ("Jovian", self.jovian_time),
             ("Karst", self.karst_time),
-            ("Lagoon", self.lagoon_time),
             // keep_karst_upgrade_gas is a behavioral flag, not a scheduled time, so it is
-            // deliberately excluded from this hardfork-activation-time iterator.
+            // deliberately excluded from this hardfork-activation-time iterator (Display reports
+            // it separately when set).
+            ("Lagoon", self.lagoon_time),
         ]
         .into_iter()
     }

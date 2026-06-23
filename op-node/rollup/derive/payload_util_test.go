@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"context"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -45,10 +46,9 @@ func TestPayloadToSystemConfigUpgradeGas(t *testing.T) {
 			DepositContractAddress: common.Address{0xbb},
 			L1SystemConfigAddress:  common.Address{0xcc},
 		}
-		// Activate everything through Isthmus at genesis (so Holocene is active,
-		// Jovian is not) and schedule Karst at karstTime. This isolates the gas
-		// stripping while keeping the L1-info tx and extra-data formats simple.
-		cfg.ActivateAtGenesis(forks.Isthmus)
+		// Activate everything through Jovian at genesis — Jovian must be active before Karst can
+		// activate, so this is the realistic configuration — and schedule Karst at karstTime.
+		cfg.ActivateAtGenesis(forks.Jovian)
 		kt := karstTime
 		cfg.KarstTime = &kt
 		return cfg
@@ -61,9 +61,9 @@ func TestPayloadToSystemConfigUpgradeGas(t *testing.T) {
 		GasLimit:    baseGasLimit,
 	}
 
-	// holoceneExtraData is valid Holocene header extra data (non-zero denominator
-	// and elasticity), required because Holocene is active.
-	holoceneExtraData := eip1559.EncodeHoloceneExtraData(250, 6)
+	// Jovian is active, so header extra data carries the EIP-1559 params plus a min base fee. The
+	// exact value is irrelevant; the test only asserts the gas limit.
+	const minBaseFee = uint64(1)
 
 	// buildPayload assembles a minimal L2 payload whose first tx is the L1-info
 	// deposit, with the given block timestamp and gas limit.
@@ -72,12 +72,13 @@ func TestPayloadToSystemConfigUpgradeGas(t *testing.T) {
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1InfoTx, err := L1InfoDepositBytes(cfg, params.MergedTestChainConfig, sysCfg, 0, l1Info, blockTimestamp)
 		require.NoError(t, err)
+		mbf := minBaseFee
 		return &eth.ExecutionPayload{
 			BlockHash:    common.Hash{0x01},
 			BlockNumber:  hexutil.Uint64(100),
 			Timestamp:    hexutil.Uint64(blockTimestamp),
 			GasLimit:     hexutil.Uint64(gasLimit),
-			ExtraData:    holoceneExtraData,
+			ExtraData:    eip1559.EncodeOptimismExtraData(cfg, blockTimestamp, 250, 6, &mbf),
 			Transactions: []eth.Data{l1InfoTx},
 		}
 	}
@@ -96,7 +97,7 @@ func TestPayloadToSystemConfigUpgradeGas(t *testing.T) {
 	t.Run("leaves gas limit untouched after activation block", func(t *testing.T) {
 		cfg := mkCfg()
 		nextTime := karstTime + blockTime
-		require.False(t, cfg.IsL2CMActivationBlock(nextTime), "block after activation must not strip gas")
+		require.False(t, cfg.IsL2CMActivationBlock(nextTime), "next block must not be an activation block")
 		payload := buildPayload(t, cfg, nextTime, baseGasLimit)
 		got, err := PayloadToSystemConfig(cfg, payload)
 		require.NoError(t, err)
@@ -114,24 +115,43 @@ func TestPayloadToSystemConfigUpgradeGas(t *testing.T) {
 			"upgrade gas must be kept when KeepKarstUpgradeGas is set")
 	})
 
-	// A setGasLimit landing in the L1 origin of the block right after the activation block
-	// takes precedence over the upgrade-gas strip. PreparePayloadAttributes reconstructs the
-	// parent (activation) config — the strip — and then, only on the first block of a new L1
-	// origin, applies that origin's ConfigUpdate events via UpdateSystemConfigWithL1Receipts.
-	// setGasLimit sets the gas limit absolutely, so applied after the strip it wins. This test
-	// runs that exact sequence with the real functions.
+	// A setGasLimit landing in the L1 origin of the block right after the activation block takes
+	// precedence over the upgrade-gas strip. Driving it through PreparePayloadAttributes exercises
+	// the real ordering — the parent (activation) config is reconstructed and stripped, then, only
+	// on the first block of a new L1 origin, that origin's ConfigUpdate events are applied via
+	// UpdateSystemConfigWithL1Receipts. setGasLimit sets the gas limit absolutely, so applied after
+	// the strip it wins.
 	t.Run("setGasLimit in the post-activation block's L1 origin takes precedence over the strip", func(t *testing.T) {
 		cfg := mkCfg()
-		payload := buildPayload(t, cfg, karstTime, baseGasLimit+karstGas)
-		reconstructed, err := PayloadToSystemConfig(cfg, payload)
+
+		// The reconstructed parent (activation-block) config has the upgrade gas stripped; this is
+		// what SystemConfigByL2Hash returns for the activation block.
+		activationPayload := buildPayload(t, cfg, karstTime, baseGasLimit+karstGas)
+		parentCfg, err := PayloadToSystemConfig(cfg, activationPayload)
 		require.NoError(t, err)
-		require.Equal(t, baseGasLimit, reconstructed.GasLimit, "strip recovers the base limit")
+		require.Equal(t, baseGasLimit, parentCfg.GasLimit, "strip recovers the base limit")
 
 		const newGasLimit = uint64(45_000_000)
 		require.NotEqual(t, baseGasLimit, newGasLimit)
 		require.NotEqual(t, baseGasLimit+karstGas, newGasLimit)
 
-		// Build the SystemConfig setGasLimit ConfigUpdate log for the new L1 origin.
+		rng := rand.New(rand.NewSource(1234))
+		l2Parent := testutils.RandomL2BlockRef(rng)
+		l2Parent.Time = karstTime // parent is the Karst activation block
+
+		l1Fetcher := &testutils.MockL1Source{}
+		defer l1Fetcher.AssertExpectations(t)
+		l1CfgFetcher := &testutils.MockL2Client{}
+		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, parentCfg, nil)
+		defer l1CfgFetcher.AssertExpectations(t)
+
+		// The block being built is the first of a new L1 origin, whose receipts carry the setGasLimit.
+		l1Info := testutils.RandomBlockInfo(rng)
+		l1Info.InfoParentHash = l2Parent.L1Origin.Hash
+		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
+		l1Info.InfoTime = karstTime // <= nextL2Time, satisfies the L1-origin time invariant
+		epoch := l1Info.ID()
+
 		numberData, err := oneUint256.Pack(new(big.Int).SetUint64(newGasLimit))
 		require.NoError(t, err)
 		logData, err := bytesArgs.Pack(numberData)
@@ -146,36 +166,58 @@ func TestPayloadToSystemConfigUpgradeGas(t *testing.T) {
 				Data: logData,
 			}},
 		}}
-		require.NoError(t, UpdateSystemConfigWithL1Receipts(&reconstructed, receipts, cfg, karstTime))
-		require.Equal(t, newGasLimit, reconstructed.GasLimit,
+		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, receipts, nil)
+
+		attrBuilder := NewFetchingAttributesBuilder(cfg, params.MergedTestChainConfig, nil, l1Fetcher, l1CfgFetcher)
+		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
+		require.NoError(t, err)
+		require.NotNil(t, attrs.GasLimit)
+		require.Equal(t, newGasLimit, uint64(*attrs.GasLimit),
 			"setGasLimit in the post-activation block's L1 origin must override the upgrade-gas strip")
 	})
 }
 
-// TestUpgradeGasToStrip covers the generalization to every NUT-bundle fork from Karst onward:
-// each fork strips its own upgrade gas at its activation block, only Karst has the opt-out.
+// TestUpgradeGasToStrip covers the generalization to every NUT-bundle fork from Karst onward: each
+// fork strips its own upgrade gas at its activation block, only Karst has the opt-out. It loops over
+// forks.From(Karst), so forks not yet named are covered automatically.
 func TestUpgradeGasToStrip(t *testing.T) {
-	karstGas, err := UpgradeGas(forks.Karst)
-	require.NoError(t, err)
-	lagoonGas, err := UpgradeGas(forks.Lagoon)
-	require.NoError(t, err)
-
 	const blockTime = uint64(2)
-	karstTime := uint64(1000)
-	lagoonTime := uint64(2000)
 	cfg := &rollup.Config{BlockTime: blockTime}
 	cfg.ActivateAtGenesis(forks.Jovian) // everything through Jovian active at genesis
-	cfg.KarstTime = &karstTime
-	cfg.LagoonTime = &lagoonTime
 
-	// Each NUT-bundle fork strips its own upgrade gas at its activation block, and nowhere else.
-	require.Equal(t, karstGas, upgradeGasToStrip(cfg, karstTime))
-	require.Zero(t, upgradeGasToStrip(cfg, karstTime-blockTime))
-	require.Zero(t, upgradeGasToStrip(cfg, karstTime+blockTime))
-	require.Equal(t, lagoonGas, upgradeGasToStrip(cfg, lagoonTime))
+	fromKarst := forks.From(forks.Karst)
+	// Schedule every NUT-bundle fork from Karst onward at distinct, increasing times.
+	activation := func(i int) uint64 { return uint64(1000 * (i + 1)) }
+	for i, fork := range fromKarst {
+		ts := activation(i)
+		cfg.SetActivationTime(fork, &ts)
+	}
+
+	// A fork's upgrade gas, or 0 for a fork without a NUT bundle (UpgradeGas errors).
+	upgradeGas := func(fork forks.Name) uint64 {
+		if gas, err := UpgradeGas(fork); err == nil {
+			return gas
+		}
+		return 0
+	}
+
+	for i, fork := range fromKarst {
+		ts := activation(i)
+		require.Equalf(t, upgradeGas(fork), upgradeGasToStrip(cfg, ts),
+			"%s strips its own upgrade gas at its activation block", fork)
+		require.Zerof(t, upgradeGasToStrip(cfg, ts-blockTime), "%s: block before activation strips nothing", fork)
+		require.Zerof(t, upgradeGasToStrip(cfg, ts+blockTime), "%s: block after activation strips nothing", fork)
+	}
 
 	// KeepKarstUpgradeGas opts out of Karst only; later forks have no opt-out.
 	cfg.KeepKarstUpgradeGas = true
-	require.Zero(t, upgradeGasToStrip(cfg, karstTime), "Karst opted out")
-	require.Equal(t, lagoonGas, upgradeGasToStrip(cfg, lagoonTime), "Lagoon still strips")
+	for i, fork := range fromKarst {
+		ts := activation(i)
+		want := upgradeGas(fork)
+		if fork == forks.Karst {
+			want = 0
+		}
+		require.Equalf(t, want, upgradeGasToStrip(cfg, ts),
+			"with KeepKarstUpgradeGas set, only Karst opts out (checking %s)", fork)
+	}
 }

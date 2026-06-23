@@ -53,26 +53,27 @@ func PayloadToBlockRef(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) 
 	}, nil
 }
 
-// upgradeGasToStrip returns the one-time NUT-bundle upgrade gas to subtract from the system
-// config reconstructed from a block with the given timestamp. Every NUT-bundle fork from Karst
-// onward adds upgrade gas at its activation block; subtracting it again at the next block reverts
-// the gas limit to the steady state. Karst can opt out via KeepKarstUpgradeGas (for chains that
-// activated Karst with the leak baked into their history); later forks have no opt-out.
+// upgradeGasToStrip returns the one-time NUT-bundle upgrade gas to subtract from the system config
+// reconstructed from a block with the given timestamp. Starting with Karst, upgrade gas is added to
+// a fork's activation block to accommodate its NUT bundle; subtracting it again at the next block
+// reverts the gas limit to the steady state. Karst can opt out via KeepKarstUpgradeGas (for chains
+// that activated Karst with the leak baked into their history); later forks have no opt-out.
 func upgradeGasToStrip(cfg *rollup.Config, blockTime uint64) uint64 {
-	var total uint64
 	for _, fork := range forks.From(forks.Karst) {
 		if !cfg.IsActivationBlockForFork(blockTime, fork) {
 			continue
 		}
+		// At most one fork activates per block, so the first activation fork found is the only one.
 		if fork == forks.Karst && cfg.KeepKarstUpgradeGas {
-			continue
+			return 0
 		}
 		// A fork without a NUT bundle (UpgradeGas errors) adds no upgrade gas.
 		if gas, err := UpgradeGas(fork); err == nil {
-			total += gas
+			return gas
 		}
+		return 0
 	}
-	return total
+	return 0
 }
 
 func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.SystemConfig, error) {
@@ -114,12 +115,11 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 		GasLimit:    uint64(payload.GasLimit),
 	}
 
-	// Every NUT-bundle fork from Karst onward adds one-time upgrade gas to its activation block's
+	// Starting with Karst, each NUT-bundle fork adds one-time upgrade gas to its activation block's
 	// gas limit so the upgrade transactions don't have to fit within the system config gas limit
-	// (see PreparePayloadAttributes). Subtract it back out at the block right after the activation
-	// block so the reconstructed config holds the steady-state limit. This runs before
-	// UpdateSystemConfigWithL1Receipts in PreparePayloadAttributes, so a setGasLimit in the same
-	// block's L1 origin takes precedence.
+	// (see PreparePayloadAttributes). Subtract it back here so the reconstructed config holds the
+	// steady-state limit. This runs before UpdateSystemConfigWithL1Receipts in
+	// PreparePayloadAttributes, so a setGasLimit in the same block's L1 origin takes precedence.
 	if gasToStrip := upgradeGasToStrip(rollupCfg, uint64(payload.Timestamp)); gasToStrip > 0 {
 		if r.GasLimit < gasToStrip {
 			return eth.SystemConfig{}, fmt.Errorf("activation block gas limit %d below upgrade gas %d", r.GasLimit, gasToStrip)
