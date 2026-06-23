@@ -56,6 +56,14 @@ Other recurring concerns:
 - **Channel timeout**: channel timeout is enforced to prevent memory exhaustion. Channel
   timeout values must not be modified without protocol review.
 - **Reorg unwinding**: reorg handling must correctly unwind all derived state.
+- **Decompression error tolerance**: channel decompression in `kona-protocol`'s
+  `BatchReader` (`decompress_brotli` / `decompress_zlib`) returns `Ok` with the bytes
+  decoded *before* an error, instead of failing the whole channel. This deliberately
+  mirrors op-node's streaming `brotli.NewReader` / `zlib.NewReader`, which accepts
+  batches decoded before the error point. Do **not** "fix" these to hard-error on a
+  decoder `ResultFailure` or truncation — that reintroduces a Go-vs-Rust derivation
+  divergence (see #19333, #20598). A genuine corruption that yields zero output bytes is
+  still rejected, which is also what op-node does.
 
 ## Testing Requirements
 
