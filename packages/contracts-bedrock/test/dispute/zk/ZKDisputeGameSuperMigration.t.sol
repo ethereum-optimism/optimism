@@ -31,7 +31,6 @@ import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManager
 ///         super game (closeGame -> valid claim -> anchor advances), and (3) a super game created
 ///         just before the flip still finalizes afterwards.
 contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
-
     /// @notice Actors used across the migration scenarios.
     address internal flipProposer = address(0xA11CE);
     address internal flipChallenger = address(0xB0B);

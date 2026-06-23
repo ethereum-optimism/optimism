@@ -597,6 +597,23 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
         index_ = uint32(disputeGameFactory.gameCount() - 1);
     }
 
+    /// @notice Creates a ZK dispute game committing to an explicit set of per-chain output roots, so
+    ///         scenarios can exercise multi-chain super roots beyond the single-chain `_createGame` path.
+    function _createGameWithPairs(
+        Types.OutputRootWithChainId[] memory _pairs,
+        uint256 _seqNum,
+        uint32 _parentIndex
+    )
+        internal
+        returns (ZKDisputeGame game_, Claim rootClaim_, uint32 index_)
+    {
+        bytes memory ed;
+        (ed, rootClaim_) = _makeZKExtraDataAndClaim(_parentIndex, uint64(_seqNum), _pairs);
+        vm.prank(proposer);
+        game_ = ZKDisputeGame(payable(address(disputeGameFactory.create{ value: bond }(gameType, rootClaim_, ed))));
+        index_ = uint32(disputeGameFactory.gameCount() - 1);
+    }
+
     /// @notice Warps past the challenge deadline and resolves the game.
     function _resolveUnchallenged(ZKDisputeGame _game) internal {
         (,,,, Timestamp deadline,) = _game.claimData();

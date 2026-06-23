@@ -53,9 +53,6 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 ///         design that uses a generic IZKVerifier and DelayedWETH for bond custody.
 /// @dev Derived from https://github.com/succinctlabs/op-succinct (at commit c13844a9bbc330cca69eef2538d8f8ec123e1653)
 contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
-    /// @dev Error to prevent passing a chainId to this dispute game.
-    error ZKDisputeGame_NoChainIdNeeded();
-
     ////////////////////////////////////////////////////////////////
     //                         Enums                              //
     ////////////////////////////////////////////////////////////////
