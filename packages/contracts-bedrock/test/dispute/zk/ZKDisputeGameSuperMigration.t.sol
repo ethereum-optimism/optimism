@@ -9,7 +9,16 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
-import { Claim, Duration, GameStatus, GameType, GameTypes, Hash, Proposal } from "src/dispute/lib/Types.sol";
+import {
+    BondDistributionMode,
+    Claim,
+    Duration,
+    GameStatus,
+    GameType,
+    GameTypes,
+    Hash,
+    Proposal
+} from "src/dispute/lib/Types.sol";
 
 // Contracts
 import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
@@ -123,7 +132,17 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
 
         // SuperFaultDisputeGame additionally needs a closeGame() call to finalize.
         if (_sourceSuperType.raw() == GameTypes.SUPER_CANNON_KONA.raw()) {
-            ISuperFaultDisputeGame(address(oldGame)).closeGame();
+            ISuperFaultDisputeGame sfdg = ISuperFaultDisputeGame(address(oldGame));
+            sfdg.closeGame();
+            // closeGame() finalizes the proper, valid game in NORMAL bond mode without altering its resolution.
+            assertEq(
+                uint8(sfdg.status()), uint8(GameStatus.DEFENDER_WINS), "old SFDG must remain DEFENDER_WINS after close"
+            );
+            assertEq(
+                uint8(sfdg.bondDistributionMode()),
+                uint8(BondDistributionMode.NORMAL),
+                "old SFDG must close in NORMAL bond distribution mode"
+            );
         }
     }
 
@@ -170,8 +189,7 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
     }
 
     /// @notice Builds the OPCMv2 upgrade input that flips the chain to the ZK dispute game.
-    ///         The anchor override uses the current honest anchor
-    ///         (unchanged root) so `AnchorStateRegistry.initialize` does not impose a sequence check.
+    ///         The anchor override re-seeds a new super root.
     function _buildZKFlipUpgradeInput() internal {
         delete _zkUpgradeInput.disputeGameConfigs;
         delete _zkUpgradeInput.extraInstructions;
