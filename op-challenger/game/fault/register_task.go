@@ -69,9 +69,8 @@ func newSuperCannonVMRegisterTaskWithConfig(
 ) *RegisterTask {
 	stateConverter := cannon.NewStateConverter(vmCfg)
 	return &RegisterTask{
-		gameType:               gameType,
-		syncValidator:          syncValidator,
-		skipPrestateValidation: gameType == gameTypes.SuperPermissionedGameType,
+		gameType:      gameType,
+		syncValidator: syncValidator,
 		getTopPrestateProvider: func(ctx context.Context, prestateTimestamp uint64) (faultTypes.PrestateProvider, error) {
 			return super.NewSuperNodePrestateProvider(superNodeProvider, prestateTimestamp), nil
 		},

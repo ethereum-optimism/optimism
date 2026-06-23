@@ -112,6 +112,200 @@ func TestSafeL2Head_VerifierError_FloorsAtFinalized(t *testing.T) {
 		"SafeL2Head must floor at localFinalizedHead on verifier error (HoldPrevious semantics).")
 }
 
+// TestSafeL2Head_HoldPrevious_UsesCanonicalCache verifies that on HoldPrevious
+// the cross-safe cache is consulted (and re-validated for canonicality) before
+// falling back to FinalizedHead, so a transient verifier outage doesn't drop
+// cross-safe.
+func TestSafeL2Head_HoldPrevious_UsesCanonicalCache(t *testing.T) {
+	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
+	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
+	verifiedBlock := eth.BlockID{Hash: common.Hash{0xcc}, Number: 80}
+	verifiedRef := eth.L2BlockRef{Hash: verifiedBlock.Hash, Number: verifiedBlock.Number}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	sa := &mockSuperAuthority{
+		fullyVerifiedL2Head:       verifiedBlock,
+		fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
+		finalizedL2HeadSource:     rollup.VerifierHeadPreActivation,
+	}
+	ec := NewEngineController(
+		context.Background(),
+		mockEngine,
+		testlog.Logger(t, 0),
+		metrics.NoopMetrics,
+		&rollup.Config{},
+		&sync.Config{},
+		&testutils.MockL1Source{},
+		emitter,
+		sa,
+	)
+	ec.SetLocalSafeHead(localSafe)
+	ec.SetFinalizedHead(localFinalized)
+
+	// First call: Verified path populates the cache.
+	mockEngine.ExpectL2BlockRefByHash(verifiedBlock.Hash, verifiedRef, nil)
+	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number, verifiedRef, nil)
+	got := ec.SafeL2Head()
+	require.Equal(t, verifiedRef, got, "first call should resolve via the Verified path")
+
+	// Verifier returns HoldPrevious; cache canonicality re-validates and is
+	// returned in preference to flooring at finalized.
+	sa.holdPreviousVerified = true
+	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number, verifiedRef, nil)
+	got = ec.SafeL2Head()
+	require.Equal(t, verifiedRef, got,
+		"HoldPrevious must return the canonicality-validated cache, not drop to localFinalized")
+}
+
+// TestSafeL2Head_HoldPrevious_CacheBelowFinalized_FloorsAtFinalized verifies
+// that when finalized advances past the cached cross-safe (the cache hasn't
+// been refreshed because the verifier has been HoldPrevious throughout), the
+// cache is cleared and the fallback returns finalized rather than a cached
+// cross-safe that violates the safe >= finalized engine invariant.
+func TestSafeL2Head_HoldPrevious_CacheBelowFinalized_FloorsAtFinalized(t *testing.T) {
+	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 200}
+	initialFinalized := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
+	verifiedBlock := eth.BlockID{Hash: common.Hash{0xcc}, Number: 80}
+	verifiedRef := eth.L2BlockRef{Hash: verifiedBlock.Hash, Number: verifiedBlock.Number}
+	advancedFinalized := eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 100}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	sa := &mockSuperAuthority{
+		fullyVerifiedL2Head:       verifiedBlock,
+		fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
+		finalizedL2HeadSource:     rollup.VerifierHeadPreActivation,
+	}
+	ec := NewEngineController(
+		context.Background(),
+		mockEngine,
+		testlog.Logger(t, 0),
+		metrics.NoopMetrics,
+		&rollup.Config{},
+		&sync.Config{},
+		&testutils.MockL1Source{},
+		emitter,
+		sa,
+	)
+	ec.SetLocalSafeHead(localSafe)
+	ec.SetFinalizedHead(initialFinalized)
+
+	// Populate the cache via the Verified path.
+	mockEngine.ExpectL2BlockRefByHash(verifiedBlock.Hash, verifiedRef, nil)
+	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number, verifiedRef, nil)
+	_ = ec.SafeL2Head()
+
+	// Finalized advances past the cached cross-safe while the verifier is
+	// HoldPrevious. The cache must not be returned (would publish
+	// safe=80 < finalized=100), and instead the fallback returns finalized.
+	ec.SetFinalizedHead(advancedFinalized)
+	sa.holdPreviousVerified = true
+	// Cache canonicality re-validates against the EL; the cached block is still
+	// canonical, but the fallback prefers finalized because cached < finalized.
+	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number, verifiedRef, nil)
+	got := ec.SafeL2Head()
+	require.Equal(t, advancedFinalized, got,
+		"cached cross-safe below finalized must not be returned; fallback floors at finalized")
+}
+
+// TestForceReset_SeedsCrossSafeCache verifies that a forced engine reset
+// replaces any pre-reset cached cross-safe with the reset crossSafe value, so
+// the fallback path returns the reset value (not pre-reset state, and not
+// finalized) on a subsequent HoldPrevious.
+func TestForceReset_SeedsCrossSafeCache(t *testing.T) {
+	cachedRef := eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 80}
+	resetRef := eth.L2BlockRef{Hash: common.Hash{0xa1}, Number: 70}
+	resetFinalized := eth.L2BlockRef{Hash: common.Hash{0xb1}, Number: 40}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	ec := NewEngineController(
+		context.Background(),
+		mockEngine,
+		testlog.Logger(t, 0),
+		metrics.NoopMetrics,
+		&rollup.Config{},
+		&sync.Config{},
+		&testutils.MockL1Source{},
+		emitter,
+		nil,
+	)
+
+	// Seed the cache directly.
+	ec.crossSafeCache.Store(cachedRef)
+
+	// ForceReset performs a ForkchoiceUpdate; satisfy it with a noop expectation.
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      resetRef.Hash,
+			SafeBlockHash:      resetRef.Hash,
+			FinalizedBlockHash: resetFinalized.Hash,
+		},
+		nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}},
+		nil,
+	)
+	emitter.ExpectOnceType("ForkchoiceUpdateEvent")
+	emitter.ExpectOnceType("EngineResetConfirmedEvent")
+
+	ec.ForceReset(context.Background(), resetRef, resetRef, resetRef, resetRef, resetFinalized)
+
+	// Cache must hold the reset crossSafe, not the pre-reset value. Get
+	// re-validates canonicality against the EL; expect the lookup at the reset
+	// block number to return the reset ref.
+	mockEngine.ExpectL2BlockRefByNumber(resetRef.Number, resetRef, nil)
+	got, ok := ec.crossSafeCache.Get(context.Background(), mockEngine,
+		eth.L2BlockRef{Number: 200})
+	require.True(t, ok, "forced reset must seed the cross-safe cache")
+	require.Equal(t, resetRef, got,
+		"forced reset must replace stale cached cross-safe with the reset value")
+}
+
+// TestSafeL2Head_HoldPrevious_NonCanonicalCache_FloorsAtFinalized verifies
+// that the cross-safe cache is cleared when the cached block is no longer
+// canonical (reorg), and the caller then floors at FinalizedHead.
+func TestSafeL2Head_HoldPrevious_NonCanonicalCache_FloorsAtFinalized(t *testing.T) {
+	localSafe := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 100}
+	localFinalized := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 50}
+	verifiedBlock := eth.BlockID{Hash: common.Hash{0xcc}, Number: 80}
+	verifiedRef := eth.L2BlockRef{Hash: verifiedBlock.Hash, Number: verifiedBlock.Number}
+
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	sa := &mockSuperAuthority{
+		fullyVerifiedL2Head:       verifiedBlock,
+		fullyVerifiedL2HeadSource: rollup.VerifierHeadVerified,
+		finalizedL2HeadSource:     rollup.VerifierHeadPreActivation,
+	}
+	ec := NewEngineController(
+		context.Background(),
+		mockEngine,
+		testlog.Logger(t, 0),
+		metrics.NoopMetrics,
+		&rollup.Config{},
+		&sync.Config{},
+		&testutils.MockL1Source{},
+		emitter,
+		sa,
+	)
+	ec.SetLocalSafeHead(localSafe)
+	ec.SetFinalizedHead(localFinalized)
+
+	// First call: Verified path populates the cache.
+	mockEngine.ExpectL2BlockRefByHash(verifiedBlock.Hash, verifiedRef, nil)
+	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number, verifiedRef, nil)
+	_ = ec.SafeL2Head()
+
+	// Simulate a reorg: the EL now reports a different canonical block at the
+	// cached number. HoldPrevious must clear the cache and floor at finalized.
+	sa.holdPreviousVerified = true
+	mockEngine.ExpectL2BlockRefByNumber(verifiedBlock.Number,
+		eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: verifiedBlock.Number}, nil)
+	got := ec.SafeL2Head()
+	require.Equal(t, localFinalized, got, "non-canonical cache must clear and floor at finalized")
+}
+
 // TestFinalizedHead_HoldPrevious_NoCache_ReturnsZero documents the
 // error-after-startup trace: verifier errors on the first call, no cached
 // super-authority finalized head yet, localSafeHead and localFinalizedHead are

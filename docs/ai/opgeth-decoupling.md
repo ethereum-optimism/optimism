@@ -16,8 +16,8 @@ op-acceptance-tests, op-devstack).
 The op-geth diff vs. upstream go-ethereum (currently based on v1.17.2) can be summarised in three
 kinds of change:
 
-1. **New standalone types/files** – `DepositTx`, `RollupCostData`, the `superchain/` package,
-   eip1559 Holocene/Jovian helpers.
+1. **New standalone types/files** – `DepositTx`, `PostExecTx`, `RollupCostData`, the
+   `superchain/` package, eip1559 Holocene/Jovian helpers.
 2. **Fields/methods added to existing upstream types** – `Transaction` methods (`IsDepositTx`,
    `SourceHash`, `Mint`, `IsSystemTx`, `RollupCostData`), `Receipt` L1-cost fields, `ChainConfig`
    OP hardfork fields and methods, `PayloadAttributes` extensions.
@@ -58,8 +58,8 @@ Because everything in `op-core/` is implicitly OP-Stack-specific, new types drop
 | `types.Receipt` with OP extensions | `op-core/types.Receipt` (imported as `optypes.Receipt`) |
 | `types.RollupCostData`, `NewL1CostFuncFjord`, etc. | `op-core/fees.*` (imported as `opfees`) |
 | `params.ChainConfig` with OP extensions | `op-core/params.ChainConfig` (imported as `opparams.ChainConfig`) |
-| `params.LoadOPStackChainConfig` | `op-core/params.LoadChainConfig` |
-| `superutil.LoadOPStackChainConfigFromChainID` | `op-core/superchain.LoadChainConfigFromChainID` |
+| `params.LoadOPStackChainConfig` | `op-core/params.FromSuperchainConfig` |
+| `superutil.LoadOPStackChainConfigFromChainID` | `op-core/params.LoadChainConfigFromChainID` |
 | `eip1559.ValidateOptimismExtraData` | `op-core/eip1559.ValidateExtraData` |
 
 **Exception:** `params.OptimismConfig` keeps its name. The field is `ChainConfig.Optimism
@@ -107,7 +107,7 @@ continue to work and are addressed in §§6–7.
 
 ---
 
-## 1. `core/types` – Deposit transaction
+## 1. `core/types` – OP Stack transaction types (`DepositTx`, `PostExecTx`)
 
 ### Current usage
 
@@ -195,6 +195,41 @@ we go straight from struct to `[]byte`.
 `*optypes.DepositTx`. `DeriveDeposits` calls `types.NewTx(dep).MarshalBinary()`; replace
 with `dep.MarshalBinary()`.
 
+### `PostExecTx` (type `0x7D`)
+
+op-geth also adds `types.PostExecTx` (`core/types/post_exec_tx.go`), a synthetic unsigned
+transaction carrying post-execution metadata. Its wire format is `0x7D || data`, where
+`data` is appended **verbatim** — there is no outer RLP envelope around the transaction
+body, unlike the deposit tx's `0x7E || RLP(struct)`. op-geth treats `data` as opaque bytes
+and never parses it; the bytes are in fact an RLP-encoded `PostExecPayload` (a `version`
+plus SDM `gas_refund_entries`) that op-alloy/kona decode and version-check (see
+`rust/kona/crates/protocol/protocol/src/batch/transactions.rs`). Mirroring op-geth's opaque
+handling keeps `op-core/types.PostExecTx` wire-compatible without re-implementing that parse.
+
+`PostExecTx` is **a canonical block transaction**, not a side channel: in the Lagoon
+hardfork it can be the **last transaction of a block**, encoding sequencer rebates. So a
+Lagoon+ L2 block's transaction list is `[L1-info deposit (0x7E), …user txs…, optional
+post-exec (0x7D)]`. This matters for the decode path (§11): under upstream go-ethereum a
+full block's transaction list will fail to decode on **both** the deposit (`0x7E`) and the
+post-exec (`0x7D`) entries, so the OP-aware client must route both out before handing the
+remainder to upstream.
+
+Current usage:
+
+- `op-node/rollup/derive/` — span batch encode/decode (`span_batch_tx.go` has its own
+  `spanBatchPostExecTxData`, `span_batch_txs.go` special-cases the synthetic signature),
+  batch validity checks (`batches.go`), and raw type-byte sniffing (`span_batch.go`).
+  Mostly just the `types.PostExecTxType` constant; one site constructs
+  `types.NewTx(&types.PostExecTx{...})`.
+- `op-chain-ops/pkg/sdm/` and `op-service/sources/flashblock_client.go` — handle post-exec
+  payloads as raw/hex bytes only; no type dependency.
+
+Proposed decoupling: define `PostExecTx` in `op-core/types/` next to `DepositTx`, same
+pattern — `MarshalBinary` / `UnmarshalPostExecTx` plus an `IsPostExecTx` free function,
+with a differential test against op-geth. The span-batch construction site goes straight
+from struct to bytes. Note that op-geth (like upstream) rejects typed-tx envelopes of
+`len <= 1`, so an empty payload cannot round-trip; `UnmarshalPostExecTx` mirrors that.
+
 ---
 
 ## 2. `core/types` – Transaction methods on RPC-received transactions
@@ -224,6 +259,18 @@ arrive as raw bytes from the Engine API or ethclient RPC:
   fields from the monorepo struct. Wrap in short helper functions.
 - `RollupCostData()`: replaced by `opfees.TxRollupCostData(tx)` free function in `op-core/fees`
   (see §4). The computation only requires `tx.Data()` and `tx.Type()`, both upstream.
+
+**These `*types.Transaction` helpers are transition scaffolding, not the destination.**
+`IsDepositTx(tx)`, `SourceHash(tx)`, `Mint(tx)`, `IsSystemTx(tx)`, `IsPostExecTx(tx)` (and
+the differential test) only work while the build still resolves go-ethereum to op-geth,
+where a `*types.Transaction` can carry a `0x7E`/`0x7D` tx. They let §2's call sites drop
+their dependency on op-geth's `Transaction` methods *before* the underlying transaction
+representation changes. After the cutover, an upstream `*types.Transaction` can never hold a
+deposit or post-exec tx, so the helpers would be permanently dead — they are **deleted at
+the cutover (§14), along with the differential test.** The durable shape never wraps an OP
+tx in a `*types.Transaction`: it decodes raw bytes into `optypes.DepositTx` /
+`optypes.PostExecTx` and reads fields off the struct, and code never asks "is this a
+deposit?" of a generic tx because the sources accessors already partition by class (§11).
 
 ---
 
@@ -274,14 +321,26 @@ and a custom JSON unmarshaler:
 // in op-core/types, called simply Receipt; consumers import as optypes
 type Receipt struct {
     types.Receipt
-    L1GasPrice          *big.Int `json:"l1GasPrice,omitempty"`
-    L1BlobBaseFee       *big.Int `json:"l1BlobBaseFee,omitempty"`
-    L1BaseFeeScalar     *uint64  `json:"l1BaseFeeScalar,omitempty"`
-    L1BlobBaseFeeScalar *uint64  `json:"l1BlobBaseFeeScalar,omitempty"`
-    OperatorFeeScalar   *uint64  `json:"operatorFeeScalar,omitempty"`
-    OperatorFeeConstant *uint64  `json:"operatorFeeConstant,omitempty"`
+    DepositNonce          *uint64    `json:"depositNonce,omitempty"`
+    DepositReceiptVersion *uint64    `json:"depositReceiptVersion,omitempty"`
+    L1GasPrice            *big.Int   `json:"l1GasPrice,omitempty"`
+    L1BlobBaseFee         *big.Int   `json:"l1BlobBaseFee,omitempty"`
+    L1GasUsed             *big.Int   `json:"l1GasUsed,omitempty"`
+    L1Fee                 *big.Int   `json:"l1Fee,omitempty"`
+    FeeScalar             *big.Float `json:"l1FeeScalar,omitempty"`
+    L1BaseFeeScalar       *uint64    `json:"l1BaseFeeScalar,omitempty"`
+    L1BlobBaseFeeScalar   *uint64    `json:"l1BlobBaseFeeScalar,omitempty"`
+    OperatorFeeScalar     *uint64    `json:"operatorFeeScalar,omitempty"`
+    OperatorFeeConstant   *uint64    `json:"operatorFeeConstant,omitempty"`
+    DAFootprintGasScalar  *uint64    `json:"daFootprintGasScalar,omitempty"`
 }
 ```
+
+The type carries op-geth's **complete** OP receipt field set, not just the six fields
+`txinclude` reads: the e2e/acceptance suites also read `L1Fee`, `L1GasUsed`, `DepositNonce`,
+etc. (§13), and a partial set would silently drop those fields from receipt JSON at cutover
+— while the go.mod replace still points at op-geth, the embedded receipt masks the gap, so
+no differential test can catch it.
 
 The `EL` interface in `txinclude` returns `*optypes.Receipt` instead of `*types.Receipt`.
 `IncludedTx.Receipt` becomes `*optypes.Receipt`. This contains all the changes within
@@ -372,7 +431,14 @@ type, which has its own `IsCanyon(t)`, `IsHolocene(t)` etc. Those do not touch
 
 ### Proposed decoupling
 
-**Redefine `OptimismConfig` and an augmented `ChainConfig` in `op-core/params/`**:
+**Define `OptimismConfig` and a standalone `ChainConfig` in `op-core/params/`.** `ChainConfig`
+is a **standalone** type — it does *not* embed `params.ChainConfig`. Embedding would promote
+go-ethereum's OP-unaware EIP-1559 methods (`ElasticityMultiplier`, `BaseFeeChangeDenominator`,
+`LatestFork`); since the OP fields live on the wrapper, those promoted methods read the embedded
+(nil) fields and silently return L1 defaults — a footgun on consensus-relevant fee params, present
+both during the transition and after the cutover (upstream go-ethereum exposes the same methods).
+A standalone type cannot promote them, so the footgun does not exist. Code that needs a concrete
+go-ethereum config converts explicitly via `GethChainConfig`.
 
 ```go
 // op-core/params/chain_config.go
@@ -385,26 +451,30 @@ type OptimismConfig struct {
     EIP1559DenominatorCanyon *uint64 `json:"eip1559DenominatorCanyon,omitempty"`
 }
 
-// ChainConfig wraps upstream params.ChainConfig and adds OP Stack–specific fields.
+// ChainConfig is the standalone OP-Stack hardfork schedule of a chain.
 type ChainConfig struct {
-    params.ChainConfig                             // embed upstream
-    Optimism       *OptimismConfig `json:"optimism,omitempty"`
-    BedrockBlock   *big.Int        `json:"bedrockBlock,omitempty"`
-    RegolithTime   *uint64         `json:"regolithTime,omitempty"`
-    CanyonTime     *uint64         `json:"canyonTime,omitempty"`
-    EcotoneTime    *uint64         `json:"ecotoneTime,omitempty"`
-    FjordTime      *uint64         `json:"fjordTime,omitempty"`
-    GraniteTime    *uint64         `json:"graniteTime,omitempty"`
-    HoloceneTime   *uint64         `json:"holoceneTime,omitempty"`
-    IsthmusTime    *uint64         `json:"isthmusTime,omitempty"`
-    JovianTime     *uint64         `json:"jovianTime,omitempty"`
-    KarstTime      *uint64         `json:"karstTime,omitempty"`
-    InteropTime    *uint64         `json:"interopTime,omitempty"`
+    ChainID      *big.Int        `json:"chainId"`
+    Optimism     *OptimismConfig `json:"optimism,omitempty"`
+    BedrockBlock *big.Int        `json:"bedrockBlock,omitempty"`
+    RegolithTime *uint64         `json:"regolithTime,omitempty"`
+    CanyonTime   *uint64         `json:"canyonTime,omitempty"`
+    // ... EcotoneTime … InteropTime
 }
 
-func (c *ChainConfig) IsOptimism() bool  { return c.Optimism != nil }
-func (c *ChainConfig) IsCanyon(t uint64) bool  { return isTimestampForked(c.CanyonTime, t) }
+// Fork predicates delegate to a single ActivationTime / SetActivationTime switch
+// pair, matching the rollup.Config pattern (formalisation tracked in #21267). Only
+// the predicates with in-scope consumers are carried — the unused op-geth
+// IsOptimism / IsOptimism<Fork> convenience family is dropped.
+func (c *ChainConfig) IsCanyon(t uint64) bool { return c.IsForkActive(forks.Canyon, t) }
+func (c *ChainConfig) IsBedrock(num *big.Int) bool { /* block-based */ }
 // ... etc.
+
+// GethChainConfig converts to the equivalent go-ethereum params.ChainConfig, for code
+// that drives a go-ethereum EVM, genesis, or block processor. The Ethereum fork schedule
+// is derived from the OP schedule (Shanghai=Canyon, Cancun=Ecotone, Prague=Isthmus,
+// Osaka=Karst). NB: op-geth's LoadOPStackChainConfig is missing Osaka=Karst — the
+// monorepo's mapping follows op-reth, which is correct.
+func (c *ChainConfig) GethChainConfig() *params.ChainConfig
 ```
 
 **`rollup.Config.ChainOpConfig`** changes type from `*params.OptimismConfig` to
@@ -441,9 +511,10 @@ constants, `OPStackSupport` variable, and `NetworkNames` map in the same op-geth
 
 ### Proposed decoupling
 
-**Move to `op-core/params/` as `LoadChainConfig`** (drops the `OPStack` prefix —
-redundant inside an `op-core` package), alongside `OptimismConfig` (§5). Post-decoupling it
-produces an `*opparams.ChainConfig` from the embedded registry data. Details in §7.
+**Move to `op-core/params/` as `FromSuperchainConfig`** (drops the `OPStack` prefix —
+redundant inside an `op-core` package), alongside `OptimismConfig` (§5). It produces a standalone
+`*opparams.ChainConfig` from the registry data. Consumers that need a concrete go-ethereum config
+(genesis, EVM/block replay) call `(*opparams.ChainConfig).GethChainConfig()` (§5). Details in §7.
 
 ---
 
@@ -473,7 +544,12 @@ internals (it only imports `BurntSushi/toml`, `klauspost/compress/zstd`, and sta
 **No new Go module dependency is required**: the data remains embedded exactly as in op-geth. The
 sync script is also copied.
 
-**`op-service/superutil/`** is merged into `op-core/superchain/`. Its single function:
+**`op-service/superutil/`'s by-chain-ID loader moves to `op-core/params/`**, *not* into
+`op-core/superchain/`. Because `op-core/params.FromSuperchainConfig` takes a `*op-core/superchain.ChainConfig`,
+`op-core/params` imports `op-core/superchain`. Putting the by-ID loader in `op-core/superchain`
+(so it could call `FromSuperchainConfig`) would make `op-core/superchain` import `op-core/params` back —
+an import cycle. Keeping it in `op-core/params` keeps the edge one-way and `op-core/superchain` a
+pure registry leaf:
 
 ```go
 // current (op-service/superutil/chain_config.go, against op-geth):
@@ -484,14 +560,14 @@ func LoadOPStackChainConfigFromChainID(chainID uint64) (*params.ChainConfig, err
 }
 ```
 
-becomes:
+becomes, in `op-core/params/`:
 
 ```go
-// in op-core/superchain/, against upstream go-ethereum:
-func LoadChainConfigFromChainID(chainID uint64) (*opparams.ChainConfig, error) {
-    chain, err := GetChain(chainID)   // local, now in op-core/superchain
+// op-core/params/, importing op-core/superchain (one-way; no cycle):
+func LoadChainConfigFromChainID(chainID uint64) (*ChainConfig, error) {
+    chain, err := superchain.GetChain(chainID)   // op-core/superchain
     // ...
-    return opparams.LoadChainConfig(chainCfg)  // now in op-core/params
+    return FromSuperchainConfig(chainCfg)        // local
 }
 ```
 
@@ -617,21 +693,60 @@ No migration work needed for op-faucet.
 
 **Don't create a new "OP ethclient" wrapper package.** Instead:
 
-1. **Reuse and extend `op-service/sources`.** The clients there (`EthClient`, `L1Client`,
-   `L2Client`) already do raw JSON-RPC via `client.RPC` — not via `ethclient`. Their `RPCBlock`
-   type in `op-service/sources/types.go` already deserialises blocks with `[]*types.Transaction`
-   and already calls `IsDepositTx()` on L2 blocks. We add custom JSON unmarshaling there so the
-   transactions list round-trips deposit txs (type 0x7E) against upstream go-ethereum: decode each
-   entry by inspecting the `"type"` field, routing `0x7e` to `op-core/types.DepositTx` and all
-   others to upstream `types.Transaction`.
+1. **Reuse and extend `op-service/sources`, and partition the transaction accessors by tx
+   class rather than introducing an `optypes.Transaction` wrapper.** The clients there
+   (`EthClient`, `L1Client`, `L2Client`) already do raw JSON-RPC via `client.RPC` — not via
+   `ethclient`. Their `RPCBlock` type in `op-service/sources/types.go` already deserialises
+   blocks with `[]*types.Transaction` and calls `IsDepositTx()` on L2 blocks. Under upstream
+   go-ethereum that decode breaks on **both** synthetic OP tx types — the L1-info deposit
+   (`0x7E`) and, on Lagoon+ blocks, a trailing post-exec rebate tx (`0x7D`) (§1).
+
+   **Why no wrapper.** The codebase's dominant L2-tx currency is already opaque
+   `[]hexutil.Bytes` (`eth.ExecutionPayload.Transactions`); most of the pipeline never holds
+   typed L2 txs. Where typed access *is* needed, the need is almost always class-specific —
+   "the first tx, as a deposit" or "the user txs, skipping the synthetic ones" — and each
+   class has a clean home type. A go-ethereum-style `Transaction`+`TxData` wrapper would
+   re-import the signer/hashing machinery we are trying to shed, for a list that is read
+   typed-ly in very few places. So instead of a wrapper, split the accessor on
+   `apis.EthClient` (`op-service/apis/eth.go`) by class:
+
+   - `InfoAndUserTxs(...) (eth.BlockInfo, types.Transactions, error)` — **excludes** the
+     synthetic OP types (`0x7E` deposits and `0x7D` post-exec). The remainder are all standard
+     Ethereum tx types, so the returned list is plain **upstream** `types.Transactions` and
+     decodes fine post-cutover. Serves the dominant "skip deposits, operate on user txs"
+     pattern (op-batcher DA estimation; most acceptance-test iterators).
+   - `InfoAndDeposits(...) (eth.BlockInfo, []*optypes.DepositTx, error)` — the deposits, as
+     op-core structs; fields read directly off the struct.
+   - `InfoAndFirstDeposit(...) (eth.BlockInfo, *optypes.DepositTx, error)` — header + the
+     first tx (the L1-info deposit) only, for hot paths that never want the full body. This
+     is exactly the shape prototyped (header-only fetch + first-tx decode) in PR #20532
+     (`HeaderAndFirstTx` / `BlockRefFromHeaderAndDeposit`), which closed unmerged but
+     established the pattern; revive it here.
+
+   `InfoAndTxsBy*` stays as-is for **L1** (no OP tx types there, upstream-safe). Internally,
+   `RPCBlock` keeps the txs as raw per-tx bytes: the transactions-trie root is recomputed
+   directly from those bytes (the trie leaf for a typed tx *is* its opaque `MarshalBinary`
+   encoding), deposit/post-exec detection is a type-byte check, and the partitioned accessors
+   decode each class on demand. A post-exec tx (`0x7D`) is similarly routed to
+   `optypes.PostExecTx`; add an `InfoAndPostExecTx`-style accessor only if a consumer needs to
+   read it (most code only needs to *exclude* it, which `InfoAndUserTxs` already does).
+
+   **Index-correlation caveat.** Some callers iterate the *full* list and correlate by
+   position with the receipts list — e.g. `op-acceptance-tests/tests/jovian/da_footprint.go`
+   does `for i, tx := range txs { if tx.IsDepositTx() { continue }; …receipts[i]… }`. Because
+   `InfoAndUserTxs` drops the synthetic txs, those indices shift relative to a full receipts
+   list and the correlation misaligns. Such tests must filter receipts in lockstep (or use a
+   paired `(userTx, receipt)` accessor). Tracked with the test migration in §13 / #20265.
 
 2. **Migrate `op-batcher/batcher/driver.go` to `op-service/sources.EthClient`.** Its `L2Client`
-   interface (`BlockByNumber` returning `*types.Block`) changes to a sources-based accessor that
-   returns whatever shape the batcher needs (block info + transaction bytes or typed txs). The
-   batcher only uses the block to iterate transactions and filter out deposits for DA
-   estimation — it does not need go-ethereum's `*types.Block` specifically. Also change
-   `op-service/dial/ethclient_interface.go` so `L2EndpointProvider.EthClient` returns a sources
-   client instead of `*ethclient.Client` (or phase that interface out altogether).
+   interface (`BlockByNumber` returning `*types.Block`) changes to the `InfoAndUserTxs`
+   accessor above: the batcher only iterates transactions to filter out deposits for DA
+   estimation (`op-batcher/batcher/types.go` — `IsDepositTx()` skip + `RollupCostData()` /
+   `Size()` on the rest), so the user-txs list is exactly what it needs and it no longer
+   touches deposits at all. `tx.RollupCostData()` becomes `opfees.TxRollupCostData(tx)` (§4).
+   Also change `op-service/dial/ethclient_interface.go` so `L2EndpointProvider.EthClient`
+   returns a sources client instead of `*ethclient.Client` (or phase that interface out
+   altogether).
 
 3. **Change `op-service/txinclude/EL.TransactionReceipt` return type to `*optypes.Receipt`**
    (from §3). The underlying implementation switches from `ethclient.TransactionReceipt` to a
@@ -766,10 +881,12 @@ make `op-service/sources` the canonical implementation of `apis.EthClient`.**
    Implementations in `op-service/sources` unmarshal the extended fields; all 21 call sites
    that read OP receipt fields keep working.
 
-2. **`apis.EthBlockInfo.InfoAndTxsBy*`**: the current signature returns `types.Transactions`.
-   Extend the underlying JSON unmarshal (in `op-service/sources`) to route type `0x7e` to
-   `op-core/types.DepositTx` (from §11). Tests that call `IsDepositTx()` on returned
-   transactions migrate to `optypes.IsDepositTx(tx)` free function.
+2. **L2 transaction accessors**: rather than make `InfoAndTxsBy*` round-trip OP tx types,
+   add the class-partitioned accessors from §11 — `InfoAndUserTxs` (synthetic `0x7E`/`0x7D`
+   excluded → upstream `types.Transactions`), `InfoAndDeposits` / `InfoAndFirstDeposit`
+   (→ `*optypes.DepositTx`). Tests that fetch the L2 block and iterate migrate to whichever
+   accessor matches their intent; "skip deposits, read user txs" becomes `InfoAndUserTxs`,
+   removing the per-tx `IsDepositTx()` check entirely. `InfoAndTxsBy*` is unchanged for L1.
 
 3. **`op-e2e/e2eutils/geth/wait.go`**: the central wait helpers (`WaitForBlock`,
    `WaitForBlockToBeSafe`, `WaitForBlockToBeFinalized`, `WaitForTransaction`,
@@ -860,6 +977,40 @@ patterns.
 
 ---
 
+## 14. Genesis tooling — op-geth as a *library*, not an engine
+
+A distinction the rest of this plan leaves implicit: removing op-geth has two parts.
+
+1. **op-geth as the execution *engine*** — op-program's state execution and the in-process
+   op-geth EL in op-e2e action tests / `op-e2e/opgeth/`. These are deleted or replaced by
+   op-reth/kona. Their need for a concrete go-ethereum config is **temporary** and served by
+   `GethChainConfig()` until they go away.
+2. **op-geth as a *library* in offline tooling** — `op-chain-ops/genesis.BuildL2Genesis` (genesis
+   state-root + `genesis.json`) and the block-replay tools. These **stay**, and they genuinely
+   need a go-ethereum config carrying the OP fields. This tooling is in scope: it must eventually
+   build against **upstream** go-ethereum, not op-geth.
+
+   `op-simulate` / `op-run-block` are slated for **deletion** (no importers; reimplement in Rust if
+   ever needed), leaving genesis as the one in-scope geth-as-library consumer.
+
+**Genesis migration to upstream go-ethereum.** The only op-geth *diff* the genesis path relies on is
+one OP rule in `core/genesis.go`: for Isthmus+ chains the genesis block's `WithdrawalsHash` is set
+to the storage root of the `L2ToL1MessagePasser` predeploy (`statedb.GetStorageRoot` — itself an
+upstream primitive), rather than the empty withdrawals hash. Everything else (alloc → state trie,
+`statedb.Commit`, Shanghai/Cancun/Prague header fields) is identical upstream code. The migration:
+
+- `op-chain-ops/genesis` builds an `opparams.ChainConfig` and serialises it as the `genesis.json`
+  `config` (it carries the OP fields + tags; upstream's `ChainConfig` cannot).
+- The genesis **block/state-root** is computed against upstream go-ethereum via `GethChainConfig()`
+  (the Ethereum fork schedule suffices for `ToBlock`), with the ~15-line Isthmus
+  withdrawals-root rule ported into the monorepo on top of upstream `state`/`triedb` + the
+  `L2ToL1MessagePasser` predeploy address.
+
+This is a bounded follow-up, unblocked by `op-core/params` + `GethChainConfig()`; it is the reason
+`GethChainConfig()` is a real bridge rather than throwaway.
+
+---
+
 ## Summary table
 
 | Area | op-geth source | Target in monorepo | Effort |
@@ -869,20 +1020,22 @@ patterns.
 | `DepositTxType` constant | `core/types/deposit_tx.go` | `op-core/types/` | Trivial |
 | `IsDepositTx()` free function | `core/types/transaction.go` | `op-core/types/` | Trivial |
 | `IsSystemTx()`, `SourceHash()`, `Mint()` helpers | `core/types/transaction.go` | `op-core/types/` | Low |
+| `PostExecTx` type + `MarshalBinary`, `PostExecTxType` constant, `IsPostExecTx()` | `core/types/post_exec_tx.go` | `op-core/types/` | Low |
 | `RollupCostData`, `NewRollupCostData`, `EstimatedDASize`, `NewL1CostFuncFjord`, `L1CostFunc` | `core/types/rollup_cost.go` | `op-core/fees/` | Low |
 | `OperatorCost(gasUsed, scalar, constant)` — new helper | n/a (deduplicates inline math) | `op-core/fees/` | Trivial |
 | `TxRollupCostData(tx)` — replaces method | `core/types/transaction.go` | `op-core/fees/` | Trivial |
 | `Receipt` (receipt L1-cost fields) | `core/types/receipt_opstack.go` | `op-core/types/` | Medium |
 | `OptimismConfig` struct | `params/config.go` | `op-core/params/` | Trivial |
-| `ChainConfig` (wraps upstream ChainConfig) | `params/config.go`, `params/config_op.go` | `op-core/params/` | Medium |
-| `LoadChainConfig` | `params/superchain.go` | `op-core/params/` | Medium |
+| `ChainConfig` (standalone, not embedding upstream) | `params/config.go`, `params/config_op.go` | `op-core/params/` | Medium |
+| `GethChainConfig()` — converter to go-ethereum's `ChainConfig` | n/a (replaces the embed) | `op-core/params/` | Low |
+| `FromSuperchainConfig` (was `LoadChainConfig`) | `params/superchain.go` | `op-core/params/` | Medium |
 | `superchain/` package (data + loader) | `superchain/` | `op-core/superchain/` | Low (copy) |
 | `sync-superchain.sh` | root | `op-core/superchain/` | Trivial |
-| `op-service/superutil/` | monorepo | merged into `op-core/superchain/` | Low |
+| `op-service/superutil/` (by-chain-ID loader) | monorepo | moves to `op-core/params/` (avoids params↔superchain cycle) | Low |
 | EIP-1559 Holocene/Jovian helpers | `consensus/misc/eip1559/eip1559_optimism.go` | `op-core/eip1559/` | Trivial |
 | `HardforkConfig` interface | n/a | `op-service/eth/` (for `BlockAsPayload`) | Trivial |
-| op-batcher L2 block fetch (ethclient → sources) | `op-batcher/batcher/driver.go` | migrate to `op-service/sources.EthClient` | Medium |
-| op-service/sources deposit-tx JSON decoding | `op-service/sources/types.go` | custom `RPCBlock.Transactions` unmarshal | Medium |
+| op-batcher L2 block fetch (ethclient → sources) | `op-batcher/batcher/driver.go` | migrate to `sources.EthClient.InfoAndUserTxs` | Medium |
+| op-service/sources L2 tx accessors (partition by class, no tx wrapper) | `op-service/sources/types.go`, `op-service/apis/eth.go` | `InfoAndUserTxs` / `InfoAndDeposits` / `InfoAndFirstDeposit`; raw-bytes `RPCBlock.Transactions` internally | Medium |
 | `apis.EthClient.TransactionReceipt` return type | `op-service/apis/eth.go` | change to `*optypes.Receipt` | Low |
 | `op-e2e/e2eutils/geth/wait.go` — split into header-only + full-block variants | `op-e2e/e2eutils/geth/wait.go` | `HeaderByNumber`-based helpers for height-only callers; migrate block-body callers to `apis.EthClient` | Medium |
 | `op-e2e/system/e2esys.SystemConfig.L2Client` type | `op-e2e/system/e2esys/` | change to `apis.EthClient` | Medium |
@@ -927,6 +1080,6 @@ with `mint` and `to` following the standard RLP optional-pointer encoding.
 
 `rollup.Config` already carries timestamp fields for all hardforks up through Karst (merged
 Feb 2026, PR #19250), plus `InteropTime`. The `op-core/params.ChainConfig` loader
-(`LoadChainConfig`) populates `rollup.Config` directly from the superchain registry data,
+(`FromSuperchainConfig`) populates `rollup.Config` directly from the superchain registry data,
 bypassing `params.ChainConfig`. Any future hardforks will be added to `rollup.Config` directly
 rather than via `params.ChainConfig`.

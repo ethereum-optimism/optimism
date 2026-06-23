@@ -6,8 +6,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/superchain"
 )
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
@@ -99,7 +99,7 @@ func applyHardforks(cfg *Config, hardforks superchain.HardforkConfig) {
 	cfg.HoloceneTime = hardforks.HoloceneTime
 	cfg.PectraBlobScheduleTime = hardforks.PectraBlobScheduleTime
 	cfg.IsthmusTime = hardforks.IsthmusTime
-	cfg.InteropTime = hardforks.InteropTime
+	cfg.LagoonTime = hardforks.LagoonTime
 	cfg.JovianTime = hardforks.JovianTime
 	cfg.KarstTime = hardforks.KarstTime
 }

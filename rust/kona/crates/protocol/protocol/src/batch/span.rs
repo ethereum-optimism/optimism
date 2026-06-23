@@ -386,7 +386,7 @@ impl SpanBatch {
     ) -> BatchValidity {
         let (prefix_validity, parent_block) =
             self.check_batch_prefix(cfg, l1_blocks, l2_safe_head, inclusion_block, fetcher).await;
-        if !matches!(prefix_validity, BatchValidity::Accept) {
+        if !prefix_validity.is_accept() {
             return prefix_validity;
         }
 
@@ -427,10 +427,7 @@ impl SpanBatch {
             origin_index += offset;
 
             if i > 0 {
-                origin_advanced = false;
-                if batch_epoch > self.batches[i - 1].epoch_num {
-                    origin_advanced = true;
-                }
+                origin_advanced = batch_epoch > self.batches[i - 1].epoch_num;
             }
             if batch_timestamp < l1_origin.timestamp {
                 warn!(
@@ -490,29 +487,34 @@ impl SpanBatch {
 
             // Check that the transactions are not empty and do not contain any deposits.
             for (i, tx) in batch.transactions.iter().enumerate() {
-                if tx.is_empty() {
+                let Some(first_byte) = tx.as_ref().first().copied() else {
                     warn!(
                         target: "batch_span",
                         "transaction data must not be empty, but found empty tx, tx_index: {}",
                         i
                     );
                     return BatchValidity::Drop(BatchDropReason::EmptyTransaction);
-                }
-                if tx.as_ref().first() == Some(&(OpTxType::Deposit as u8)) {
-                    warn!(
-                        target: "batch_span",
-                        "sequencers may not embed any deposits into batch data, but found tx that has one, tx_index: {}",
-                        i
-                    );
-                    return BatchValidity::Drop(BatchDropReason::DepositTransaction);
-                }
-
-                // If isthmus is not active yet and the transaction is a 7702, drop the batch.
-                if !cfg.is_isthmus_active(batch.timestamp) &&
-                    tx.as_ref().first() == Some(&(OpTxType::Eip7702 as u8))
-                {
-                    warn!(target: "batch_span", "EIP-7702 transactions are not supported pre-isthmus. tx_index: {}", i);
-                    return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
+                };
+                // A leading byte that doesn't decode to a typed transaction (e.g. a legacy RLP
+                // list header) isn't one of the restricted types, so it falls through to `Accept`.
+                match OpTxType::try_from(first_byte) {
+                    Ok(OpTxType::Deposit) => {
+                        warn!(
+                            target: "batch_span",
+                            "sequencers may not embed any deposits into batch data, but found tx that has one, tx_index: {}",
+                            i
+                        );
+                        return BatchValidity::Drop(BatchDropReason::DepositTransaction);
+                    }
+                    Ok(OpTxType::Eip7702) if !cfg.is_isthmus_active(batch.timestamp) => {
+                        warn!(target: "batch_span", "EIP-7702 transactions are not supported pre-isthmus. tx_index: {}", i);
+                        return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
+                    }
+                    Ok(OpTxType::PostExec) if !cfg.is_sdm_active(batch.timestamp) => {
+                        warn!(target: "batch_span", "PostExec transactions are not supported pre-Lagoon. tx_index: {}", i);
+                        return BatchValidity::Drop(BatchDropReason::PostExecPreLagoon);
+                    }
+                    _ => {}
                 }
             }
         }
@@ -757,7 +759,7 @@ mod tests {
     use alloy_eips::BlockNumHash;
     use alloy_primitives::{B256, Bytes, b256};
     use kona_genesis::{ChainGenesis, HardForkConfig};
-    use op_alloy_consensus::OpBlock;
+    use op_alloy_consensus::{OpBlock, POST_EXEC_TX_TYPE_ID};
     use tracing::Level;
     use tracing_subscriber::layer::SubscriberExt;
 
@@ -1959,7 +1961,7 @@ mod tests {
         let second = SpanBatchElement {
             epoch_num: 10,
             timestamp: 20,
-            transactions: vec![Bytes::copy_from_slice(&[OpTxType::Deposit as u8])],
+            transactions: vec![Bytes::copy_from_slice(&[u8::from(OpTxType::Deposit)])],
         };
         let third =
             SpanBatchElement { epoch_num: 11, timestamp: 20, transactions: vec![filler_bytes] };
@@ -2021,7 +2023,9 @@ mod tests {
         let second = SpanBatchElement {
             epoch_num: 10,
             timestamp: 20,
-            transactions: vec![Bytes::copy_from_slice(&[alloy_consensus::TxType::Eip7702 as u8])],
+            transactions: vec![Bytes::copy_from_slice(&[u8::from(
+                alloy_consensus::TxType::Eip7702,
+            )])],
         };
         let third =
             SpanBatchElement { epoch_num: 11, timestamp: 20, transactions: vec![filler_bytes] };
@@ -2040,6 +2044,70 @@ mod tests {
         assert_eq!(logs.len(), 1);
         assert!(
             logs[0].contains("EIP-7702 transactions are not supported pre-isthmus. tx_index: 0")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_check_batch_with_post_exec_tx_pre_sdm() {
+        let trace_store: TraceStorage = Default::default();
+        let layer = CollectingLayer::new(trace_store.clone());
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let cfg = RollupConfig {
+            seq_window_size: 100,
+            max_sequencer_drift: 100,
+            hardforks: HardForkConfig { delta_time: Some(0), ..Default::default() },
+            block_time: 10,
+            ..Default::default()
+        };
+        let l1_blocks = gen_l1_blocks(9, 3, 0, 10);
+        let parent_hash = b256!("1111111111111111111111111111111111111111000000000000000000000000");
+        let l2_safe_head = L2BlockInfo {
+            block_info: BlockInfo {
+                number: 41,
+                timestamp: 10,
+                hash: parent_hash,
+                ..Default::default()
+            },
+            l1_origin: BlockNumHash { number: 9, ..Default::default() },
+            ..Default::default()
+        };
+        let inclusion_block = BlockInfo { number: 50, ..Default::default() };
+        let l2_block = L2BlockInfo {
+            block_info: BlockInfo { number: 40, ..Default::default() },
+            ..Default::default()
+        };
+        let mut fetcher: TestBatchValidator =
+            TestBatchValidator { blocks: vec![l2_block], ..Default::default() };
+        let filler_bytes = Bytes::copy_from_slice(&[EIP1559_TX_TYPE_ID]);
+        let first = SpanBatchElement {
+            epoch_num: 10,
+            timestamp: 20,
+            transactions: vec![filler_bytes.clone()],
+        };
+        let second = SpanBatchElement {
+            epoch_num: 10,
+            timestamp: 20,
+            transactions: vec![Bytes::copy_from_slice(&[POST_EXEC_TX_TYPE_ID])],
+        };
+        let third =
+            SpanBatchElement { epoch_num: 11, timestamp: 20, transactions: vec![filler_bytes] };
+        let batch = SpanBatch {
+            batches: vec![first, second, third],
+            parent_check: FixedBytes::<20>::from_slice(&parent_hash[..20]),
+            l1_origin_check: FixedBytes::<20>::from_slice(&l1_blocks[0].hash[..20]),
+            txs: SpanBatchTransactions::default(),
+            ..Default::default()
+        };
+        assert_eq!(
+            batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block, &mut fetcher).await,
+            BatchValidity::Drop(BatchDropReason::PostExecPreLagoon)
+        );
+        let logs = trace_store.get_by_level(Level::WARN);
+        assert_eq!(logs.len(), 1);
+        assert!(
+            logs[0].contains("PostExec transactions are not supported pre-Lagoon. tx_index: 0")
         );
     }
 

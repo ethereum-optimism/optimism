@@ -66,13 +66,12 @@ func (i *Interop) collectFirstSafeHeadTimestamps() (map[eth.ChainID]uint64, bool
 	}
 	out := make(map[eth.ChainID]uint64, len(i.chains))
 	var firstErr error
-	emptyAny := false
+	var notReady []eth.ChainID
 	for range i.chains {
 		r := <-results
 		if r.err != nil {
 			if errors.Is(r.err, cc.ErrSafeDBNotReady) {
-				emptyAny = true
-				i.log.Debug("interop cold start: chain SafeDB empty, waiting", "chain", r.id)
+				notReady = append(notReady, r.id)
 				continue
 			}
 			if firstErr == nil {
@@ -85,7 +84,15 @@ func (i *Interop) collectFirstSafeHeadTimestamps() (map[eth.ChainID]uint64, bool
 	if firstErr != nil {
 		return nil, false, firstErr
 	}
-	if emptyAny {
+	if len(notReady) > 0 {
+		attempts := i.backfillAttempts.Load()
+		logFn := i.log.Debug
+		if attempts%30 == 0 {
+			logFn = i.log.Info
+		}
+		logFn("interop cold start: waiting for SafeDB entries",
+			"chainsNotReady", notReady, "attempts", attempts,
+			"activationTimestamp", i.activationTimestamp)
 		return nil, false, nil
 	}
 	return out, true, nil

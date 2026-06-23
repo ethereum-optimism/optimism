@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum/go-ethereum/params"
@@ -115,8 +116,15 @@ func NewDriver(
 		// Connect origin selector to the engine controller for force reset notifications
 		ec.SetOriginSelectorResetter(findL1Origin)
 
-		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, driverCfg.SequencerSealingDuration, attrBuilder, findL1Origin,
+		seq := sequencing.NewSequencer(driverCtx, log, cfg, driverCfg.SequencerSealingDuration, attrBuilder, findL1Origin,
 			sequencerStateListener, sequencerConductor, asyncGossiper, metrics, ec)
+		// Seed the persisted opt-in before attaching the listener so we don't write-back
+		// the value we just loaded. Without a listener attached, this call cannot fail.
+		_ = seq.SetSdmPostExecOptIn(driverCtx, driverCfg.SdmPostExecOptIn)
+		if sdmListener, ok := sequencerStateListener.(sequencing.SequencerSdmListener); ok {
+			seq.AttachSdmListener(sdmListener)
+		}
+		sequencer = seq
 		sys.Register("sequencer", sequencer)
 	} else {
 		sequencer = sequencing.DisabledSequencer{}
@@ -390,6 +398,15 @@ func (s *Driver) SequencerActive(ctx context.Context) (bool, error) {
 	return s.sequencer.Active(), nil
 }
 
+func (s *Driver) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
+	return s.sequencer.SetSdmPostExecOptIn(ctx, enabled)
+}
+
+func (s *Driver) SdmStatus(ctx context.Context) (apis.SdmStatus, error) {
+	status := s.StatusTracker.SyncStatus()
+	return s.sequencer.SdmStatus(ctx, status.UnsafeL2.Time+s.SyncDeriver.Config.BlockTime)
+}
+
 func (s *Driver) OverrideLeader(ctx context.Context) error {
 	return s.sequencer.OverrideLeader(ctx)
 }
@@ -410,7 +427,9 @@ func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 
 // BlockRefWithStatus blocks the driver event loop and captures the syncing status,
 // along with an L2 block reference by number consistent with that same status.
-// If the event loop is too busy and the context expires, a context error is returned.
+// If the event loop is too busy and the context expires before the request is
+// accepted, a context error is returned with a nil status. Otherwise the returned
+// status is non-nil, including when ref lookup fails with ethereum.NotFound.
 func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
 	resp := s.StatusTracker.SyncStatus()
 	if resp.FinalizedL2.Number >= num { // If finalized, we are certain it does not reorg, and don't have to lock.

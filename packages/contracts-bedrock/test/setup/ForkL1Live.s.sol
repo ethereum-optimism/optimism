@@ -112,8 +112,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
     ///      that point, this function will need to be updated to read the new contract from the superchain-registry
     ///      using either the `saveProxyAndImpl` or `artifacts.save()` functions.
     function _readSuperchainRegistry() internal {
-        string memory superchainBasePath = "./lib/superchain-registry/superchain/configs/";
-        string memory validationBasePath = "./lib/superchain-registry/validation/standard/";
+        string memory superchainBasePath = "../../superchain-registry/superchain/configs/";
+        string memory validationBasePath = "../../superchain-registry/validation/standard/";
 
         string memory superchainToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/superchain.toml"));
         string memory opToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/", opChain(), ".toml"));
@@ -124,7 +124,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         standardVersionsToml = standardVersionsToml.replace('"op-contracts/v2.0.0-rc.1"', "RELEASE");
 
         // Read the extra addresses JSON file which contains addresses no longer in the chain TOML.
-        string memory addressesJson = vm.readFile("./lib/superchain-registry/superchain/extra/addresses/addresses.json");
+        string memory addressesJson = vm.readFile("../../superchain-registry/superchain/extra/addresses/addresses.json");
         string memory chainId = vm.toString(vm.parseTomlUint(opToml, ".chain_id"));
 
         // Slightly hacky, we encode the uint chainId as an address to save it in Artifacts
@@ -284,15 +284,9 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             });
             disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: 0.08 ether,
+                initBond: 0,
                 gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
-                        proposer: proposer,
-                        challenger: challenger
-                    })
-                )
+                gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
             });
             if (isPermissionless) {
                 disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -445,8 +439,9 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         address permissionedDisputeGame = address(disputeGameFactory.gameImpls(permGameType));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 
-        IAnchorStateRegistry newAnchorStateRegistry =
-            IAnchorStateRegistry(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry);
+        IAnchorStateRegistry newAnchorStateRegistry = Config.devFeatureSuperRootGamesMigration()
+            ? IAnchorStateRegistry(DisputeGames.superPermissionedGameAnchorStateRegistry(disputeGameFactory))
+            : IAnchorStateRegistry(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).anchorStateRegistry);
         artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
 
         // Get the lockbox address from the portal, and save it
@@ -455,8 +450,9 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         artifacts.save("ETHLockboxProxy", lockboxAddress);
 
         // Get the new DelayedWETH address and save it (might be a new proxy).
+        GameType wethGameType = Config.devFeatureSuperRootGamesMigration() ? GameTypes.SUPER_CANNON_KONA : permGameType;
         IDelayedWETH newDelayedWeth =
-            IDelayedWETH(payable(LibGameArgs.decode(disputeGameFactory.gameArgs(permGameType)).weth));
+            IDelayedWETH(payable(LibGameArgs.decode(disputeGameFactory.gameArgs(wethGameType)).weth));
         artifacts.save("DelayedWETHProxy", address(newDelayedWeth));
         artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(newDelayedWeth)));
     }

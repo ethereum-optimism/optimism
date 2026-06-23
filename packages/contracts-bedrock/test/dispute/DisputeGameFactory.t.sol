@@ -151,17 +151,8 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up a super permissioned game implementation
-    function setupSuperPermissionedDisputeGame(
-        Claim _absolutePrestate,
-        address _proposer,
-        address _challenger
-    )
-        internal
-        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
-    {
-        bytes memory implArgs;
-        (implArgs, vm_, preimageOracle_) =
-            getSuperPermissionedDisputeGameImmutableArgs(_absolutePrestate, _proposer, _challenger);
+    function setupSuperPermissionedDisputeGame(address _proposer) internal returns (address gameImpl_) {
+        bytes memory implArgs = getSuperPermissionedDisputeGameImmutableArgs(_proposer);
         gameImpl_ = setupSuperPermissionedDisputeGame(implArgs);
     }
 
@@ -248,26 +239,12 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up immutable args for Super PDG implementation
-    function getSuperPermissionedDisputeGameImmutableArgs(
-        Claim _absolutePrestate,
-        address _proposer,
-        address _challenger
-    )
+    function getSuperPermissionedDisputeGameImmutableArgs(address _proposer)
         internal
-        returns (bytes memory implArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+        view
+        returns (bytes memory implArgs_)
     {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
-
-        // Encode the implementation args for CWIA (tightly packed)
-        implArgs_ = abi.encodePacked(
-            _absolutePrestate, // 32 bytes
-            vm_, // 20 bytes
-            anchorStateRegistry, // 20 bytes
-            delayedWeth, // 20 bytes
-            uint256(0), // 32 bytes (l2ChainId),
-            _proposer, // 20 bytes
-            _challenger // 20 bytes
-        );
+        implArgs_ = abi.encodePacked(anchorStateRegistry, _proposer);
     }
 
     /// @notice Deploys PDG v2 implementation and sets it on the DGF
@@ -302,11 +279,12 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     function setupSuperPermissionedDisputeGame(bytes memory _implArgs) internal returns (address gameImpl_) {
         gameImpl_ = DeployUtils.create1({
             _name: "SuperPermissionedDisputeGame",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (_getSuperGameConstructorParams()))
-            )
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, ()))
         });
-        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, _implArgs);
+        vm.startPrank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(gameImpl_), _implArgs);
+        disputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, 0);
+        vm.stopPrank();
     }
 
     /// @notice Parameters for ZKDisputeGame setup
@@ -367,8 +345,9 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
 
         GameType zkGameType = GameTypes.ZK_DISPUTE_GAME;
 
-        // Encode the gameArgs for CWIA (tightly packed). `l2ChainId` must be zero for the
-        // super-root ZKDisputeGame (enforced by `NoChainIdNeeded` in initialize()).
+        // Encode the gameArgs for CWIA (tightly packed). The super-root ZKDisputeGame derives
+        // chain scoping from the SuperRootProof preimage committed to via rootClaim, so no
+        // l2ChainId field is included in the layout.
         bytes memory gameArgs = abi.encodePacked(
             _params.absolutePrestate, // 32 bytes
             zkVerifier_, // 20 bytes
@@ -376,8 +355,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             _params.maxProveDuration, // 8 bytes
             _params.challengerBond, // 32 bytes
             anchorStateRegistry, // 20 bytes
-            delayedWeth, // 20 bytes
-            uint256(0) // 32 bytes (l2ChainId, must be 0 for super games)
+            delayedWeth // 20 bytes
         );
 
         // Set respected game type
@@ -999,7 +977,6 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         assertEq(_proxy.challengerBond(), _params.challengerBond);
         assertEq(address(_proxy.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(_proxy.weth()), address(delayedWeth));
-        // `_l2ChainId` is internal always zero for valid super games enforced by `initialize()`
 
         // Bond is held by DelayedWETH, not the game proxy itself.
         assertEq(address(_proxy).balance, 0);
@@ -1110,8 +1087,7 @@ contract DisputeGameFactory_SetImplementation_ZkDisputeGame_Test is DisputeGameF
             _maxProveDuration,
             _challengerBond,
             anchorStateRegistry,
-            delayedWeth,
-            uint256(0) // l2ChainId — must be zero for super games
+            delayedWeth
         );
 
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));

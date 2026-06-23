@@ -12,6 +12,22 @@ All Rust code lives under `rust/`. This is a unified Cargo workspace — always 
 
 Check `rust/Cargo.toml` for the full workspace member list, dependency versions, and lint configuration. The Rust toolchain version is pinned in `rust/rust-toolchain.toml`.
 
+### Migrated, not vendored
+
+Most of the OP Stack Rust code here was **officially migrated** into the monorepo in coordination with the upstream repository owners — it is **not** a vendored copy. The upstream crates have been deleted or deprecated, so the entire Rust OP Stack is now developed here. This applies to:
+
+- **op-reth** (`rust/op-reth/`)
+- **kona-\*** (`rust/kona/`)
+- **op-alloy-\*** (`rust/op-alloy/`)
+- **alloy-op-\*** (`rust/alloy-op-evm/`, `rust/alloy-op-hardforks/`)
+- **op-revm** (`rust/op-revm/`)
+
+These crates are owned and edited directly here — do not look upstream for their source. They still *depend on* generic upstream crates (e.g. reth's engine/provider crates, `alloy`, `revm`), which remain external and pinned in `rust/Cargo.toml`; a change to one of those generic APIs has to go upstream first and then be consumed via a version bump. When changing upstream behavior or API leads to a better overall solution than working around it locally, it is acceptable — and often preferable — to propose that change upstream (a PR to the respective repository); suggest this when it applies.
+
+**Known exception:** `op-alloy-flz` has not been migrated yet and is still an external dependency, tracked by [#21087](https://github.com/ethereum-optimism/optimism/issues/21087).
+
+**Still vendored:** `rust/op-rbuilder/` and `rust/rollup-boost/` are vendored copies, slated for deprecation.
+
 ## Build System
 
 Run `just --list` in `rust/` to see all available targets. The key ones:
@@ -32,6 +48,10 @@ just build-release
 just build-node      # kona-node
 just build-op-reth   # op-reth
 ```
+
+### superchain-registry submodule (op-reth)
+
+The `reth-optimism-chainspec` crate's `build.rs` materializes its chain-config archive (`res/superchain-configs.tar`, gitignored) from the `superchain-registry` submodule at the repo root. Any op-reth build that enables the `superchain-configs` feature (the `op-reth` binary, `clippy --all-features`, the chainspec tests) needs that submodule checked out, or the build fails. Initialize it with `just update-superchain-registry-submodule` (or `just sync-superchain`, which also does it). Once `res/` holds the archive, later builds reuse it without touching the submodule (default mode mirrors kona's `KONA_SYNC_SUPERCHAIN`); set `OP_RETH_SYNC_SUPERCHAIN=1` to force a regeneration.
 
 ### Running Tests
 
@@ -129,17 +149,23 @@ just deny
 
 Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.
 
-1. **Lint** — this checks formatting, clippy, and doc lints:
+1. **Format** — only after the final edit, never between edits:
+   ```bash
+   just fmt-fix
+   ```
+   The nightly formatter has opinions (e.g., collapsing multi-line `let` bindings onto one line) that the Edit tool doesn't replicate — running it mid-session and then editing again leaves unformatted code behind and fails the `rust-fmt` CI check. After formatting, run `git diff --stat` to confirm the working tree matches what you're about to commit.
+
+2. **Lint** — this checks formatting, clippy, and doc lints:
    ```bash
    just lint
    ```
 
-2. **Test** — run tests for changed packages:
+3. **Test** — run tests for changed packages:
    ```bash
    just test-unit
    ```
 
-3. **no_std** — if you changed any proof, protocol, or alloy crate:
+4. **no_std** — if you changed any proof, protocol, or alloy crate:
    ```bash
    just check-no-std
    ```
@@ -148,9 +174,13 @@ Run these checks from `rust/`. Fix all issues — CI enforces zero warnings.
 
 Op-reth requires `clang` / `libclang-dev` for reth-mdbx-sys bindgen. CI installs this automatically — if you see bindgen errors locally, install clang.
 
+## Hardforks
+
+The OP fork → implied L1 (Ethereum) fork mapping is defined once, in `OpHardfork::activates_l1_fork` in `rust/alloy-op-hardforks/src/lib.rs`. When a new OP hardfork rides an L1 fork (e.g. Isthmus → Prague, Karst → Osaka), add the single match arm there; the cumulative (`implied_l1_fork`) and inverse (`activating_op_fork`) views and all downstream consumers (op-revm, op-reth chainspec, kona) derive from it.
+
 ## Updating the reth dependency
 
-The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before bumping the reth rev in `rust/Cargo.toml`.
+The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before bumping the reth pin in `rust/Cargo.toml` — or run the `/update-reth` skill (`.claude/skills/update-reth/`), which wraps the guide in an end-to-end agent workflow.
 
 Agent-specific tips beyond what's in the guide:
 

@@ -49,7 +49,6 @@ remappings = [
   '@rari-capital/solmate/=lib/solmate',
   '@lib-keccak/=lib/lib-keccak/contracts/lib',
   '@solady/=lib/solady/src',
-  '@solady-v0.0.245/=lib/solady-v0.0.245/src',
   'forge-std/=lib/forge-std/src',
   'ds-test/=lib/forge-std/lib/ds-test/src',
   'safe-contracts/=lib/safe-contracts/contracts',
@@ -67,9 +66,9 @@ fs_permissions = [
   { access='read-write', path='./.testdata/' },
   { access='read', path='./kout-deployment' },
   { access='read', path='./test/fixtures' },
-  { access='read', path='./lib/superchain-registry/superchain/configs/' },
-  { access='read', path='./lib/superchain-registry/superchain/extra/' },
-  { access='read', path='./lib/superchain-registry/validation/standard/' },
+  { access='read', path='../../superchain-registry/superchain/configs/' },
+  { access='read', path='../../superchain-registry/superchain/extra/' },
+  { access='read', path='../../superchain-registry/validation/standard/' },
   { access='read', path='../../op-core/nuts/' },
 ]
 

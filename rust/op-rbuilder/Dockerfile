@@ -82,11 +82,14 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM base AS builder
 WORKDIR /workspace/op-rbuilder
 COPY --from=monorepo-rust . /workspace/
+# op-reth's chainspec build.rs regenerates its gitignored superchain archive from
+# the submodule; provide the subset it reads at /superchain-registry.
+COPY --from=superchain-registry superchain /superchain-registry/superchain
 COPY --from=planner /workspace/op-rbuilder/recipe.json recipe.json
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
-    cargo chef cook --release --recipe-path recipe.json
+    cargo chef cook --release --locked --recipe-path recipe.json
 COPY . .
 
 
@@ -96,7 +99,7 @@ ARG FEATURES
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
-    cargo build --release --features="$FEATURES" --package=${RBUILDER_BIN}
+    cargo build --release --locked --features="$FEATURES" --package=${RBUILDER_BIN}
 
 #
 # Reproducible builder container (deterministic source-date-epoch, no caching, no incremental builds)
@@ -112,6 +115,8 @@ ARG CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-feature=+crt-sta
 
 WORKDIR /workspace/op-rbuilder
 COPY --from=monorepo-rust . /workspace/
+# chainspec build.rs needs the submodule (see builder stage).
+COPY --from=superchain-registry superchain /superchain-registry/superchain
 COPY . .
 RUN case "$TARGETPLATFORM" in \
       "linux/amd64")  ARCH_TAG="x86_64-unknown-linux-gnu" ;; \

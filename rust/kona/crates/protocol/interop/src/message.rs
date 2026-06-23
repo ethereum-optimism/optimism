@@ -7,7 +7,7 @@ use alloc::{vec, vec::Vec};
 use alloy_primitives::{Bytes, ChainId, Log, keccak256};
 use alloy_sol_types::{SolEvent, sol};
 use derive_more::{AsRef, Constructor, From};
-use kona_protocol::Predeploys;
+use kona_genesis::Predeploys;
 use op_alloy_consensus::OpReceiptEnvelope;
 
 sol! {
@@ -27,9 +27,7 @@ sol! {
     /// @param payloadHash Hash of message payload being executed.
     /// @param identifier Encoded Identifier of the message.
     ///
-    /// Parameter names are derived from the `op-supervisor` JSON field names.
-    /// See the relevant definition in the Optimism repository:
-    /// [Ethereum-Optimism/op-supervisor](https://github.com/ethereum-optimism/optimism/blob/4ba2eb00eafc3d7de2c8ceb6fd83913a8c0a2c0d/op-supervisor/supervisor/types/types.go#L61-L64).
+    /// Parameter names match the interop RPC JSON field names.
     #[derive(Default, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     event ExecutingMessage(bytes32 indexed payloadHash, MessageIdentifier identifier);
@@ -72,8 +70,8 @@ impl From<executeMessageCall> for ExecutingMessage {
     }
 }
 
-/// An [`ExecutingDescriptor`] is a part of the payload to `supervisor_checkAccessList`
-/// Spec: <https://github.com/ethereum-optimism/specs/blob/main/specs/interop/supervisor.md#executingdescriptor>
+/// An [`ExecutingDescriptor`] is a part of the payload to `interop_checkAccessList`
+/// Interop RPC request descriptor.
 #[derive(Default, Debug, PartialEq, Eq, Clone, Constructor)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExecutingDescriptor {

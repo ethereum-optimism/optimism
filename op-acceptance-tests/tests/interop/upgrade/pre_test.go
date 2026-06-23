@@ -39,10 +39,10 @@ func preInteropExecError(err error) bool {
 
 // TestPreNoInbox verifies pre-interop behavior: the CrossL2Inbox is not deployed,
 // the derivation pipeline advances local-safe heads, and executing messages fail
-// before the interop fork activates.
+// before the Lagoon (interop activation) fork activates.
 func TestPreNoInbox(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Use a very large activation delay (24h) so interop never activates during the test.
+	// Use a very large activation delay (24h) so Lagoon never activates interop during the test.
 	// This test only checks pre-interop state and the old 60s offset caused flakiness
 	// when the test took too long and crossed the activation boundary.
 	// See: https://github.com/ethereum-optimism/optimism/issues/17298
@@ -53,7 +53,7 @@ func TestPreNoInbox(gt *testing.T) {
 
 	// Phase 1: Verify CrossL2Inbox is NOT deployed before interop activation
 	devtest.RunParallel(t, []*dsl.L2Network{sys.L2A, sys.L2B}, func(t devtest.T, net *dsl.L2Network) {
-		interopTime := net.Escape().ChainConfig().InteropTime
+		interopTime := net.Escape().ChainConfig().LagoonTime
 		t.Require().NotNil(interopTime)
 		pre := net.LatestBlockBeforeTimestamp(t, *interopTime)
 		el := net.PrimaryEL()
@@ -87,8 +87,8 @@ func TestPreNoInbox(gt *testing.T) {
 		alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 		bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 
-		interopTimeA := sys.L2A.Escape().ChainConfig().InteropTime
-		interopTimeB := sys.L2B.Escape().ChainConfig().InteropTime
+		interopTimeA := sys.L2A.Escape().ChainConfig().LagoonTime
+		interopTimeB := sys.L2B.Escape().ChainConfig().LagoonTime
 
 		eventLoggerAddress := alice.DeployEventLogger()
 

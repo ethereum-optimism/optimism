@@ -121,6 +121,31 @@ func TestWithNamespacedP2P_CreatesP2PDir(t *testing.T) {
 	require.True(t, info.IsDir(), "expected p2p dir at %s", expected)
 }
 
+func TestWithNamespacedP2P_NamespacesPrivPathByDefault(t *testing.T) {
+	dataDir := t.TempDir()
+	ns := fmt.Sprintf("%d", testChainID)
+	vcli := newVCLI(t, nil)
+	require.NoError(t, withNamespacedP2P(vcli, dataDir, ns))
+
+	require.Equal(t,
+		filepath.Join(dataDir, ns, "p2p", "opnode_p2p_priv.txt"),
+		vcli.String(opnodeflags.P2PPrivPathName))
+}
+
+func TestWithNamespacedP2P_HonoursPerChainPrivPath(t *testing.T) {
+	privName := fmt.Sprintf("%s%d.%s", flags.VNFlagNamePrefix, testChainID, opnodeflags.P2PPrivPathName)
+	keyPath := fmt.Sprintf("/etc/op-supernode/p2p-node-key-%d.txt", testChainID)
+
+	flagSet := append(portFlags(), &cli.StringFlag{Name: privName})
+	ctx := newCtx(t, flagSet, []string{"--" + privName + "=" + keyPath})
+	vcli := flags.NewVirtualCLI(ctx, testChainID)
+
+	require.NoError(t, withNamespacedP2P(vcli, t.TempDir(), fmt.Sprintf("%d", testChainID)))
+
+	// Explicit per-chain path is honored, not clobbered by the namespaced default.
+	require.Equal(t, keyPath, vcli.String(opnodeflags.P2PPrivPathName))
+}
+
 func TestWithNoP2P_AlwaysForcesListenPortsToZero(t *testing.T) {
 	// Even when the user pinned ports, withNoP2P should zero them out because
 	// P2P is being disabled outright.

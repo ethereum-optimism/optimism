@@ -11,10 +11,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/superchain"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
@@ -314,7 +314,7 @@ func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.Chai
 
 // NewDependencySetFromCLI returns the dep set from --interop.dependency-set if
 // set, otherwise from the superchain-registry. An unknown chain yields
-// (nil, nil); config.Check then errors iff InteropTime is set.
+// (nil, nil); config.Check then errors iff LagoonTime is set.
 func NewDependencySetFromCLI(cli cliiface.Context, chainID eth.ChainID) (depset.DependencySet, error) {
 	if cli.IsSet(flags.InteropDependencySet.Name) {
 		loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}

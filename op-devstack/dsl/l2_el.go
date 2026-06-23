@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
@@ -51,10 +52,16 @@ func (el *L2ELNode) EthClient() apis.EthClient {
 	return el.inner.EthClient()
 }
 
-func (el *L2ELNode) BlockRefByLabel(label eth.BlockLabel) eth.L2BlockRef {
+// blockRefByLabel returns the block ref for a label and its lookup error, so the polling helpers
+// can retry transient failures. BlockRefByLabel is the one-shot variant that fails the test.
+func (el *L2ELNode) blockRefByLabel(label eth.BlockLabel) (eth.L2BlockRef, error) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
-	block, err := el.inner.L2EthClient().L2BlockRefByLabel(ctx, label)
+	return el.inner.L2EthClient().L2BlockRefByLabel(ctx, label)
+}
+
+func (el *L2ELNode) BlockRefByLabel(label eth.BlockLabel) eth.L2BlockRef {
+	block, err := el.blockRefByLabel(label)
 	el.require.NoError(err, "block not found using block label")
 	return block
 }
@@ -87,19 +94,22 @@ func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64, opts ...Advan
 		opt(&o)
 	}
 	return func() error {
-		initial := el.BlockRefByLabel(label)
+		var initial eth.L2BlockRef
+		if err := retry.Do0(el.ctx, o.attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				head, err := el.blockRefByLabel(label)
+				if err != nil {
+					el.log.Warn("block-label lookup failed; will retry", "chain", el.inner.ChainID(), "label", label, "err", err)
+					return err
+				}
+				initial = head
+				return nil
+			}); err != nil {
+			return err
+		}
 		target := initial.Number + block
 		el.log.Info("expecting chain to advance", "chain", el.inner.ChainID(), "label", label, "target", target, "attempts", o.attempts)
-		return retry.Do0(el.ctx, o.attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
-			func() error {
-				head := el.BlockRefByLabel(label)
-				if head.Number >= target {
-					el.log.Info("chain advanced", "chain", el.inner.ChainID(), "target", target)
-					return nil
-				}
-				el.log.Info("chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", target)
-				return fmt.Errorf("expected head to advance: %s", label)
-			})
+		return el.ReachedFn(label, target, o.attempts)()
 	}
 }
 
@@ -128,7 +138,11 @@ func (el *L2ELNode) ReachedFn(label eth.BlockLabel, target uint64, attempts int)
 		logger.Info("Expecting L2EL to reach")
 		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
-				head := el.BlockRefByLabel(label)
+				head, err := el.blockRefByLabel(label)
+				if err != nil {
+					logger.Warn("block-label lookup failed; will retry", "err", err)
+					return err
+				}
 				if head.Number >= target {
 					logger.Info("L2EL advanced", "target", target)
 					return nil
@@ -599,6 +613,58 @@ func (el *L2ELNode) AssertTxInBlock(blockNumber uint64, txHash common.Hash) {
 		}
 	}
 	el.require.Fail("transaction should exist in block", "blockNumber", blockNumber, "txHash", txHash)
+}
+
+// ResendUntilSafe broadcasts a transaction from makeTx and waits for it to derive onto this
+// node's irreversible safe chain, retrying with a newly built transaction whenever a broadcast
+// fails to settle. It returns the block number and hash where the transaction landed, and fails
+// the test if nothing settles within sendAttempts broadcasts of pollPerAttempt seconds each.
+//
+// makeTx is invoked once per send attempt and must return a transaction ready to broadcast. It
+// does not have to build a brand-new transaction every time, but it is responsible for nonce
+// safety across retries: a previous attempt's broadcast may still be pending or have been
+// orphaned, so reusing an account naively can hit "nonce too low" or underpriced-replacement
+// rejections. Returning a transaction from a freshly funded account each call is the simplest
+// way to keep nonce space clean.
+func (el *L2ELNode) ResendUntilSafe(makeTx func() *txplan.PlannedTx, sendAttempts, pollPerAttempt int) (uint64, common.Hash) {
+	client := el.EthClient()
+	for attempt := 0; attempt < sendAttempts; attempt++ {
+		tx := makeTx()
+		signed, err := tx.Signed.Eval(el.ctx)
+		if err != nil {
+			el.log.Warn("could not sign tx; retrying with a fresh tx", "attempt", attempt, "err", err)
+			continue
+		}
+		txHash := signed.Hash()
+		// Broadcast only; inclusion is confirmed by the safe-head poll below, so an orphaned
+		// send just falls through to the next attempt instead of hard-failing the test.
+		if _, err := tx.Submitted.Eval(el.ctx); err != nil {
+			el.log.Warn("broadcast rejected; retrying with a fresh tx", "attempt", attempt, "err", err)
+			continue
+		}
+		var settledBlock uint64
+		err = retry.Do0(el.ctx, pollPerAttempt, &retry.FixedStrategy{Dur: time.Second}, func() error {
+			rcpt, err := client.TransactionReceipt(el.ctx, txHash)
+			if err != nil || rcpt == nil {
+				return fmt.Errorf("no receipt yet for %s", txHash)
+			}
+			safe, err := el.blockRefByLabel(eth.Safe)
+			if err != nil {
+				return err
+			}
+			if block := bigs.Uint64Strict(rcpt.BlockNumber); block <= safe.Number {
+				settledBlock = block
+				return nil
+			}
+			return fmt.Errorf("tx %s included but not yet at/below safe head", txHash)
+		})
+		if err == nil {
+			el.log.Info("tx settled on safe chain", "block", settledBlock, "tx", txHash)
+			return settledBlock, txHash
+		}
+	}
+	el.require.Fail("transaction did not reach the safe chain within the resend budget")
+	return 0, emptyHash
 }
 
 type BlockRefResult struct {

@@ -22,14 +22,9 @@ use op_alloy_rpc_types_engine::OpPayloadAttributes;
 pub(crate) fn decode_holocene_eip_1559_params_block_header(
     header: &Header,
 ) -> ExecutorResult<BaseFeeParams> {
+    // `decode_holocene_extra_data` rejects a zero denominator and zero elasticity, so the base fee
+    // params are guaranteed to be non-zero here (no division by zero downstream).
     let (elasticity, denominator) = decode_holocene_extra_data(header.extra_data())?;
-
-    // Check for potential division by zero.
-    // In the block header, the denominator is always non-zero.
-    // <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/holocene/exec-engine.md#eip-1559-parameters-in-block-header>
-    if denominator == 0 {
-        return Err(ExecutorError::InvalidExtraData(Eip1559ValidationError::ZeroDenominator));
-    }
 
     Ok(BaseFeeParams {
         elasticity_multiplier: elasticity.into(),
@@ -40,14 +35,9 @@ pub(crate) fn decode_holocene_eip_1559_params_block_header(
 pub(crate) fn decode_jovian_eip_1559_params_block_header(
     header: &Header,
 ) -> ExecutorResult<(BaseFeeParams, u64)> {
+    // `decode_jovian_extra_data` rejects a zero denominator and zero elasticity, so the base fee
+    // params are guaranteed to be non-zero here (no division by zero downstream).
     let (elasticity, denominator, min_base_fee) = decode_jovian_extra_data(header.extra_data())?;
-
-    // Check for potential division by zero.
-    // In the block header, the denominator is always non-zero.
-    // <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/holocene/exec-engine.md#eip-1559-parameters-in-block-header>
-    if denominator == 0 {
-        return Err(ExecutorError::InvalidExtraData(Eip1559ValidationError::ZeroDenominator));
-    }
 
     Ok((
         BaseFeeParams {
@@ -159,9 +149,26 @@ mod test {
 
     #[test]
     fn test_decode_holocene_eip_1559_params_invalid_denominator() {
+        // version 0, denominator 0, elasticity 0x0BADC0DE
         let params = bytes!("00000000000BADC0DE");
         let mock_header = Header { extra_data: params, ..Default::default() };
         assert!(decode_holocene_eip_1559_params_block_header(&mock_header).is_err());
+    }
+
+    #[test]
+    fn test_decode_holocene_eip_1559_params_invalid_elasticity() {
+        // version 0, denominator 0xBEEFBABE, elasticity 0
+        let params = bytes!("00BEEFBABE00000000");
+        let mock_header = Header { extra_data: params, ..Default::default() };
+        assert!(decode_holocene_eip_1559_params_block_header(&mock_header).is_err());
+    }
+
+    #[test]
+    fn test_decode_jovian_eip_1559_params_invalid_elasticity() {
+        // version 1, denominator 0xBEEFBABE, elasticity 0, min_base_fee 0xDEADBEEF
+        let params = bytes!("01BEEFBABE0000000000000000DEADBEEF");
+        let mock_header = Header { extra_data: params, ..Default::default() };
+        assert!(decode_jovian_eip_1559_params_block_header(&mock_header).is_err());
     }
 
     #[test]

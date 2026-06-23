@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
@@ -131,15 +132,68 @@ func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDeriv
 	}
 }
 
-func (s *SyncDeriver) OnELSyncStarted() {
-	// The EL sync may progress the safe head in the EL without deriving those blocks from L1
-	// which means the safe head db will miss entries so we need to remove all entries to avoid returning bad data
-	s.Log.Warn("Clearing safe head db because EL sync started")
+// ResetSafeDB removes safedb entries at or above ref, keeping the contiguous history below
+// it. Called after EL sync when the recorded safedb tip is not part of the synced chain
+// (e.g. a recent reorg dropped it): trimming to the offset-derived head re-derives only the
+// recent window rather than discarding the whole db. Passing a zero ref clears it entirely.
+func (s *SyncDeriver) ResetSafeDB(ref eth.L2BlockRef) {
 	if s.SafeHeadNotifs != nil {
-		if err := s.SafeHeadNotifs.SafeHeadReset(eth.L2BlockRef{}); err != nil {
-			s.Log.Error("Failed to notify safe-head reset when optimistically syncing")
+		if err := s.SafeHeadNotifs.SafeHeadReset(ref); err != nil {
+			s.Log.Error("Failed to reset safe head db", "err", err)
 		}
 	}
+}
+
+// safeDBReader is the read subset of the safedb used at EL-sync completion.
+// A listener that doesn't implement it is treated as having no safedb.
+type safeDBReader interface {
+	LastEntry(ctx context.Context) (l1, l2 eth.BlockID, err error)
+	L1AtSafeHead(ctx context.Context, targetL2Num uint64) (l1, safeHead eth.BlockID, err error)
+}
+
+func (s *SyncDeriver) safeDBReader() (safeDBReader, bool) {
+	if s.SafeHeadNotifs == nil || !s.SafeHeadNotifs.Enabled() {
+		return nil, false
+	}
+	reader, ok := s.SafeHeadNotifs.(safeDBReader)
+	return reader, ok
+}
+
+// SafeDBTip returns the L2 safe head at the safedb tip, reporting ok=false when the
+// safedb is disabled or empty. Used at EL-sync completion to resume derivation from
+// the safedb tip instead of wiping it.
+func (s *SyncDeriver) SafeDBTip(ctx context.Context) (l2 eth.BlockID, ok bool, err error) {
+	reader, isReader := s.safeDBReader()
+	if !isReader {
+		return eth.BlockID{}, false, nil
+	}
+	_, l2, err = reader.LastEntry(ctx)
+	if errors.Is(err, safedb.ErrNotFound) {
+		return eth.BlockID{}, false, nil
+	}
+	if err != nil {
+		return eth.BlockID{}, false, err
+	}
+	return l2, true, nil
+}
+
+// SafeDBHeadAtOrAboveL2 returns the L2 safe head the safedb recorded at the first L1 source whose
+// safe head reached at least l2Num, reporting ok=false when the safedb is disabled or has no such
+// entry. Unlike SafeDBTip this returns an actual recorded safe head near the offset, so the caller
+// can check a real stored block hash for canonicity.
+func (s *SyncDeriver) SafeDBHeadAtOrAboveL2(ctx context.Context, l2Num uint64) (l2 eth.BlockID, ok bool, err error) {
+	reader, isReader := s.safeDBReader()
+	if !isReader {
+		return eth.BlockID{}, false, nil
+	}
+	_, l2, err = reader.L1AtSafeHead(ctx, l2Num)
+	if errors.Is(err, safedb.ErrL1AtSafeHeadNotFound) || errors.Is(err, safedb.ErrL1AtSafeHeadUnavailable) {
+		return eth.BlockID{}, false, nil
+	}
+	if err != nil {
+		return eth.BlockID{}, false, err
+	}
+	return l2, true, nil
 }
 
 func (s *SyncDeriver) onEngineConfirmedReset(ctx context.Context, x engine.EngineResetConfirmedEvent) {

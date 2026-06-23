@@ -13,8 +13,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/kzg"
 )
 
 const (
@@ -85,7 +85,7 @@ func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOrac
 	fieldElemKey := make([]byte, fieldElemKeyLength)
 	copy(fieldElemKey[:commitmentLength], commitment)
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-		root := l1.RootsOfUnity[i].Bytes()
+		root := kzg.RootsOfUnity[i].Bytes()
 		copy(fieldElemKey[48:], root[:])
 		key := preimage.BlobKey(crypto.Keccak256(fieldElemKey)).PreimageKey()
 		fieldElement, err := source.Get(key)

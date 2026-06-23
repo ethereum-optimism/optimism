@@ -20,12 +20,15 @@ const (
 
 type persistedState struct {
 	SequencerStarted *bool `json:"sequencerStarted,omitempty"`
+	SdmPostExecOptIn *bool `json:"sdmPostExecOptIn,omitempty"`
 }
 
 type ConfigPersistence interface {
 	SequencerStarted() error
 	SequencerStopped() error
 	SequencerState() (RunningState, error)
+	SetSdmPostExecOptIn(enabled bool) error
+	SdmPostExecOptIn() (enabled bool, set bool, err error)
 }
 
 var _ ConfigPersistence = (*ActiveConfigPersistence)(nil)
@@ -40,23 +43,44 @@ func NewConfigPersistence(file string) *ActiveConfigPersistence {
 	return &ActiveConfigPersistence{file: file}
 }
 
+func boolPtr(v bool) *bool {
+	return &v
+}
+
 func (p *ActiveConfigPersistence) SequencerStarted() error {
-	return p.persist(true)
+	return p.persist(func(state *persistedState) {
+		state.SequencerStarted = boolPtr(true)
+	})
 }
 
 func (p *ActiveConfigPersistence) SequencerStopped() error {
-	return p.persist(false)
+	return p.persist(func(state *persistedState) {
+		state.SequencerStarted = boolPtr(false)
+	})
+}
+
+func (p *ActiveConfigPersistence) SetSdmPostExecOptIn(enabled bool) error {
+	return p.persist(func(state *persistedState) {
+		state.SdmPostExecOptIn = boolPtr(enabled)
+	})
 }
 
 // persist writes the new config state to the file as safely as possible.
 // It uses sync to ensure the data is actually persisted to disk and initially writes to a temp file
 // before renaming it into place. On UNIX systems this rename is typically atomic, ensuring the
 // actual file isn't corrupted if IO errors occur during writing.
-func (p *ActiveConfigPersistence) persist(sequencerStarted bool) error {
+// Existing fields are merged so independent admin state updates do not erase one another.
+func (p *ActiveConfigPersistence) persist(update func(*persistedState)) error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	data, err := json.Marshal(persistedState{SequencerStarted: &sequencerStarted})
+	state, err := p.readUnlocked()
+	if err != nil {
+		return err
+	}
+	update(&state)
+
+	data, err := json.Marshal(state)
 	if err != nil {
 		return fmt.Errorf("marshall new config: %w", err)
 	}
@@ -103,9 +127,24 @@ func (p *ActiveConfigPersistence) SequencerState() (RunningState, error) {
 	}
 }
 
+func (p *ActiveConfigPersistence) SdmPostExecOptIn() (bool, bool, error) {
+	config, err := p.read()
+	if err != nil {
+		return false, false, err
+	}
+	if config.SdmPostExecOptIn == nil {
+		return false, false, nil
+	}
+	return *config.SdmPostExecOptIn, true, nil
+}
+
 func (p *ActiveConfigPersistence) read() (persistedState, error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
+	return p.readUnlocked()
+}
+
+func (p *ActiveConfigPersistence) readUnlocked() (persistedState, error) {
 	data, err := os.ReadFile(p.file)
 	if errors.Is(err, os.ErrNotExist) {
 		// persistedState.SequencerStarted == nil: SequencerState() will return StateUnset if no state is found
@@ -118,9 +157,6 @@ func (p *ActiveConfigPersistence) read() (persistedState, error) {
 	dec.DisallowUnknownFields()
 	if err = dec.Decode(&config); err != nil {
 		return persistedState{}, fmt.Errorf("invalid config file (%v): %w", p.file, err)
-	}
-	if config.SequencerStarted == nil {
-		return persistedState{}, fmt.Errorf("missing sequencerStarted value in config file (%v)", p.file)
 	}
 	return config, nil
 }
@@ -140,4 +176,12 @@ func (d DisabledConfigPersistence) SequencerStarted() error {
 
 func (d DisabledConfigPersistence) SequencerStopped() error {
 	return nil
+}
+
+func (d DisabledConfigPersistence) SetSdmPostExecOptIn(enabled bool) error {
+	return nil
+}
+
+func (d DisabledConfigPersistence) SdmPostExecOptIn() (bool, bool, error) {
+	return false, false, nil
 }

@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
-	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
@@ -106,7 +105,6 @@ type DisputeSystem interface {
 	DependencySet() *depset.StaticConfigDependencySet
 	L1Genesis() *core.Genesis
 	L2Geneses() []*core.Genesis
-	PrestateVariant() shared.PrestateVariant
 
 	AdvanceTime(time.Duration)
 }
@@ -185,7 +183,7 @@ func NewGameCfg(opts ...GameOpt) *GameCfg {
 func (h *FactoryHelper) StartOutputCannonGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputCannonGameHelper {
 	cfg := NewGameCfg(opts...)
 	h.WaitForBlock(l2Node, l2BlockNumber, cfg)
-	output, err := h.System.RollupClient(l2Node).OutputAtBlock(ctx, l2BlockNumber)
+	output, err := wait.ForOutputAtBlock(ctx, h.System.RollupClient(l2Node), l2BlockNumber)
 	h.Require.NoErrorf(err, "Failed to get output at block %v", l2BlockNumber)
 	return h.StartOutputCannonGame(ctx, l2Node, l2BlockNumber, common.Hash(output.OutputRoot), opts...)
 }
@@ -332,7 +330,7 @@ func (h *FactoryHelper) waitForSupernodePastL1(ctx context.Context, l1Head eth.B
 func (h *FactoryHelper) StartOutputAlphabetGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64, opts ...GameOpt) *OutputAlphabetGameHelper {
 	cfg := NewGameCfg(opts...)
 	h.WaitForBlock(l2Node, l2BlockNumber, cfg)
-	output, err := h.System.RollupClient(l2Node).OutputAtBlock(ctx, l2BlockNumber)
+	output, err := wait.ForOutputAtBlock(ctx, h.System.RollupClient(l2Node), l2BlockNumber)
 	h.Require.NoErrorf(err, "Failed to get output at block %v", l2BlockNumber)
 	return h.StartOutputAlphabetGame(ctx, l2Node, l2BlockNumber, common.Hash(output.OutputRoot))
 }

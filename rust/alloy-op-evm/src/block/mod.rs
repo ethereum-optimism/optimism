@@ -1,18 +1,15 @@
 //! Block executor for Optimism.
 
 use crate::{OpEvmFactory, spec_by_timestamp_after_bedrock};
-use alloc::{
-    borrow::Cow, boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec,
-};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec};
 use alloy_consensus::{Eip658Value, Header, Transaction, TransactionEnvelope, TxReceipt};
 use alloy_eips::{Encodable2718, Typed2718, eip7685::Requests};
 use alloy_evm::{
     Database, Evm, EvmFactory, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        BlockValidationError, ExecutableTx, GasOutput, OnStateHook, StateChangePostBlockSource,
-        StateChangeSource, StateDB, SystemCaller, TxResult,
-        state_changes::{balance_increment_state, post_block_balance_increments},
+        BlockValidationError, CommitChanges, ExecutableTx, GasOutput, StateDB, SystemCaller,
+        TxResult, state_changes::post_block_balance_increments,
     },
     eth::{EthTxResult, receipt_builder::ReceiptBuilderCtx},
 };
@@ -43,11 +40,16 @@ use revm::{
 
 use crate::post_exec::{
     PostExecEvm, PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecTxContext,
-    PostExecTxKind,
+    PostExecTxKind, WarmingRefundEvent, WarmingState,
 };
 
 mod canyon;
 pub mod receipt_builder;
+
+/// Wraps an [`OpBlockExecutionError`] as a block-execution validation error.
+fn validation_error(err: OpBlockExecutionError) -> BlockExecutionError {
+    BlockExecutionError::Validation(BlockValidationError::Other(Box::new(err)))
+}
 
 /// Trait for OP transaction environments. Allows to recover the transaction encoded bytes if
 /// they're available.
@@ -72,6 +74,13 @@ pub enum PostExecMode {
     Produce,
     /// Verify canonical gas accounting using an post-exec payload embedded in the block.
     Verify(PostExecPayload),
+}
+
+impl From<bool> for PostExecMode {
+    /// `true` opts into local post-exec production; `false` disables it.
+    fn from(produce: bool) -> Self {
+        if produce { Self::Produce } else { Self::Disabled }
+    }
 }
 
 /// Per-block post-exec state carried by [`OpBlockExecutor`].
@@ -159,6 +168,13 @@ impl PostExecState {
         }
     }
 
+    const fn produced_entries(&self) -> &[SDMGasEntry] {
+        match self {
+            Self::Producing { entries } => entries.as_slice(),
+            _ => &[],
+        }
+    }
+
     const fn produced_entries_mut(&mut self) -> Option<&mut Vec<SDMGasEntry>> {
         match self {
             Self::Producing { entries } => Some(entries),
@@ -222,6 +238,12 @@ impl PostExecState {
 pub struct OpBlockExecutionCtx {
     /// Parent block hash.
     pub parent_hash: B256,
+    /// Whether this block is the activation block of some fork at or after Jovian, which must
+    /// contain only deposit transactions.
+    ///
+    /// Compute via [`OpHardforks::is_no_user_tx_activation_block`] where the parent timestamp is
+    /// available; `false` skips the executor's check.
+    pub no_user_tx_activation_block: bool,
     /// Parent beacon block root.
     pub parent_beacon_block_root: Option<B256>,
     /// The block's extra data.
@@ -249,6 +271,8 @@ pub struct PostExecAdjustment {
     /// Wei to debit from the operator-fee recipient — operator-fee share of the refund
     /// (post-Isthmus).
     pub operator_fee_balance_delta: U256,
+    /// Exact warming refund attribution events that produced the refund.
+    pub warming_events: Vec<WarmingRefundEvent>,
 }
 
 /// The result of executing an OP transaction.
@@ -260,9 +284,10 @@ pub struct OpTxResult<H, T> {
     pub is_deposit: bool,
     /// Whether the transaction is a post-exec transaction.
     pub is_post_exec: bool,
-    /// The sender of the transaction.
-    pub sender: Address,
-    /// Gas used returned by normal EVM execution, before any canonical post-exec adjustment.
+    /// Gas used by EVM execution before any post-exec (SDM) refund — the "real compute" performed.
+    ///
+    /// Accumulated and bounded against the block gas limit by both block builders and the executor
+    /// (see [`PreRefundGasUsed`]).
     pub evm_gas_used: u64,
     /// Canonical gas used after any post-exec adjustment.
     pub canonical_gas_used: u64,
@@ -271,6 +296,21 @@ pub struct OpTxResult<H, T> {
     /// Cached depositor nonce — looked up during execute so commit can be infallible.
     /// `Some` only for regolith deposit transactions.
     pub depositor_nonce: Option<u64>,
+}
+
+/// Read access to a transaction's pre-refund EVM gas usage.
+///
+/// Lets block builders read `evm_gas_used` through the generic [`BlockExecutor::Result`] type
+/// (otherwise only bounded by `TxResult`) to self-limit a block against the block gas limit.
+pub trait PreRefundGasUsed {
+    /// Gas used by EVM execution, before any post-exec (SDM) refund.
+    fn evm_gas_used(&self) -> u64;
+}
+
+impl<H, T> PreRefundGasUsed for OpTxResult<H, T> {
+    fn evm_gas_used(&self) -> u64 {
+        self.evm_gas_used
+    }
 }
 
 impl<H, T> TxResult for OpTxResult<H, T>
@@ -304,6 +344,10 @@ pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
     pub receipts: Vec<R::Receipt>,
     /// Total gas used by executed transactions.
     pub gas_used: u64,
+    /// Total pre-refund EVM gas (real compute) across executed txs, before any post-exec (SDM)
+    /// refund. Bounded by the block gas limit; equals [`Self::gas_used`] with SDM off, greater
+    /// otherwise.
+    pub evm_gas_used: u64,
     /// Da footprint.
     ///
     /// This is only set for blocks post-Jovian activation.
@@ -317,6 +361,8 @@ pub struct OpBlockExecutor<Evm, R: OpReceiptBuilder, Spec> {
     pub l1_block_info: Option<L1BlockInfo>,
     /// Post-exec execution state (mode and producer/verifier working state).
     pub post_exec: PostExecState,
+    /// Per-transaction exact warming refund attribution events aligned with receipts.
+    pub warming_events_by_tx: Vec<Vec<WarmingRefundEvent>>,
 }
 
 impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
@@ -337,10 +383,12 @@ where
             receipt_builder,
             receipts: Vec::new(),
             gas_used: 0,
+            evm_gas_used: 0,
             da_footprint_used: 0,
             ctx,
             l1_block_info: None,
             post_exec,
+            warming_events_by_tx: Vec::new(),
         }
     }
 
@@ -359,10 +407,39 @@ where
         self.post_exec = PostExecState::new(post_exec_mode);
     }
 
+    /// Returns the accumulated post-exec entries (sequencer mode) without clearing them.
+    pub const fn post_exec_entries(&self) -> &[SDMGasEntry] {
+        self.post_exec.produced_entries()
+    }
+
     /// Take the accumulated post-exec entries (sequencer mode).
     /// Returns the entries and clears the internal state.
     pub fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry> {
         self.post_exec.take_entries()
+    }
+
+    /// Take the exact per-transaction warming refund attribution events aligned with receipts.
+    pub fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
+        core::mem::take(&mut self.warming_events_by_tx)
+    }
+}
+
+impl<E, R, Spec> OpBlockExecutor<E, R, Spec>
+where
+    E: PostExecEvm,
+    R: OpReceiptBuilder,
+{
+    /// Snapshot the block-scoped warming state from the underlying EVM's inspector.
+    ///
+    /// Builders that execute a block across multiple flashblock executors carry this into the next
+    /// flashblock's executor so block-scoped warming refunds match a single canonical pass.
+    pub fn warming_state(&self) -> WarmingState {
+        self.evm.warming_state()
+    }
+
+    /// Seed the underlying EVM's inspector with warming state captured from a prior flashblock.
+    pub fn seed_warming_state(&mut self, state: WarmingState) {
+        self.evm.seed_warming_state(state);
     }
 }
 
@@ -387,6 +464,11 @@ pub enum OpBlockExecutionError {
         /// The available block DA footprint.
         available_block_da_footprint: u64,
     },
+
+    /// A fork-activation block at or after Jovian, which must contain only deposit transactions,
+    /// contained a non-deposit (user) transaction.
+    #[error("unexpected non-deposit transactions in fork activation block")]
+    UnexpectedNonDepositTxInForkActivationBlock,
 
     /// The block contained an invalid post-exec payload.
     #[error("invalid post-exec payload: {0}")]
@@ -440,9 +522,7 @@ where
     }
 
     fn invalid_post_exec_payload(reason: impl Into<String>) -> BlockExecutionError {
-        BlockExecutionError::Validation(BlockValidationError::Other(Box::new(
-            OpBlockExecutionError::InvalidPostExecPayload(reason.into()),
-        )))
+        validation_error(OpBlockExecutionError::InvalidPostExecPayload(reason.into()))
     }
 
     fn verifier_post_exec_refund_for_tx(
@@ -513,16 +593,12 @@ where
             Entry::Vacant(entry) => {
                 let info =
                     db.basic(address).map_err(BlockExecutionError::other)?.unwrap_or_default();
-                let original_info = info.clone();
-                Ok(entry.insert(Account {
-                    info,
-                    // The original_info is not used by State::commit — the
-                    // CacheAccount tracks its own previous state for building
-                    // transitions. Setting it equal to current info is safe.
-                    original_info: Box::new(original_info),
-                    status: AccountStatus::Touched,
-                    ..Default::default()
-                }))
+                // Account::from sets original_info equal to the current info, which is
+                // safe: it is not used by State::commit — the CacheAccount tracks its
+                // own previous state for building transitions.
+                let mut account = Account::from(info);
+                account.status = AccountStatus::Touched;
+                Ok(entry.insert(account))
             }
         }
     }
@@ -637,6 +713,7 @@ where
             beneficiary_balance_delta,
             base_fee_balance_delta,
             operator_fee_balance_delta,
+            warming_events: Vec::new(),
         })
     }
 
@@ -669,6 +746,32 @@ where
 
         Ok(())
     }
+}
+
+/// Ensures a transaction's gas limit fits within the gas still available in the block.
+///
+/// Checks one condition at a time: pre-Regolith deposits are exempt from this check, and any
+/// other transaction must not declare more gas than remains in the block.
+fn validate_block_gas(
+    transaction_gas_limit: u64,
+    block_available_gas: u64,
+    is_regolith: bool,
+    is_deposit: bool,
+) -> Result<(), BlockExecutionError> {
+    // Pre-Regolith deposits are exempt from the available-block-gas check.
+    if is_deposit && !is_regolith {
+        return Ok(());
+    }
+
+    if transaction_gas_limit > block_available_gas {
+        return Err(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+            transaction_gas_limit,
+            block_available_gas,
+        }
+        .into());
+    }
+
+    Ok(())
 }
 
 impl<E, R, Spec> BlockExecutor for OpBlockExecutor<E, R, Spec>
@@ -716,6 +819,35 @@ where
         Ok(())
     }
 
+    fn execute_transaction_with_commit_condition(
+        &mut self,
+        tx: impl ExecutableTx<Self>,
+        f: impl FnOnce(&Self::Result) -> CommitChanges,
+    ) -> Result<Option<GasOutput>, BlockExecutionError> {
+        // SDM block-warming refunds are recorded during EVM execution (before the commit
+        // decision) and aren't journaled, so discarding a tx's changes doesn't roll them back. A
+        // caller that executes a candidate then declines it (`CommitChanges::No`: over a builder
+        // gas/DA/address limit, or reverted-and-excluded) would leave behind "phantom" warming: a
+        // later committed tx claims a refund attributed to a tx that never entered the block.
+        // Commit-only paths (block import, `debug_replaySDMBlock` derivation) never see that
+        // warmth, so the producer's payload would diverge from derivation.
+        //
+        // Snapshot warming before execution and restore it when the tx isn't committed. Only
+        // `Producing` mode tracks warming, so we clone the maps solely on that path.
+        let warming_snapshot = self.post_exec.is_producing().then(|| self.warming_state());
+
+        let output = self.execute_transaction_without_commit(tx)?;
+
+        if !f(&output).should_commit() {
+            if let Some(snapshot) = warming_snapshot {
+                self.seed_warming_state(snapshot);
+            }
+            return Ok(None);
+        }
+
+        Ok(Some(self.commit_transaction(output)))
+    }
+
     fn execute_transaction_without_commit(
         &mut self,
         tx: impl ExecutableTx<Self>,
@@ -725,16 +857,24 @@ where
         let is_post_exec = tx.tx().ty() == POST_EXEC_TX_TYPE_ID;
         let tx_index = self.receipts.len() as u64;
 
-        // The sum of the transaction's gas limit, Tg, and the gas utilized in this block prior,
-        // must be no greater than the block's gasLimit.
-        let block_available_gas = self.evm.block().gas_limit() - self.gas_used;
-        if tx.tx().gas_limit() > block_available_gas && (self.is_regolith || !is_deposit) {
-            return Err(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
-                transaction_gas_limit: tx.tx().gas_limit(),
-                block_available_gas,
-            }
-            .into());
+        // Since Jovian, fork-activation blocks must contain only deposit transactions — before,
+        // the sequencer skipped user txs there by policy, but it wasn't a consensus rule. The
+        // synthetic post-exec SDM tx is not a user tx, so it is allowed.
+        if self.ctx.no_user_tx_activation_block && !is_deposit && !is_post_exec {
+            return Err(validation_error(
+                OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock,
+            ));
         }
+
+        let transaction_gas_limit = tx.tx().gas_limit();
+
+        // Bound the block's *pre-refund* `evm_gas_used` (real compute) rather than canonical
+        // `gas_used`, so SDM refunds can't admit more compute than the block gas limit allows.
+        // Inducting off the declared gas limit (an upper bound on actual `evm_gas_used`) keeps the
+        // pre-refund sum within the limit. Since `evm_gas_used >= gas_used`, this subsumes the
+        // canonical block-gas-limit check; with SDM off the two are identical.
+        let evm_gas_available = self.evm.block().gas_limit().saturating_sub(self.evm_gas_used);
+        validate_block_gas(transaction_gas_limit, evm_gas_available, self.is_regolith, is_deposit)?;
 
         if is_post_exec {
             let payload =
@@ -764,7 +904,6 @@ where
                 },
                 is_deposit: false,
                 is_post_exec: true,
-                sender: *tx.signer(),
                 evm_gas_used: 0,
                 canonical_gas_used: 0,
                 post_exec: None,
@@ -777,17 +916,18 @@ where
             .is_jovian_active_at_timestamp(self.evm.block().timestamp().saturating_to()) &&
             !is_deposit
         {
-            let da_footprint_available = self.evm.block().gas_limit() - self.da_footprint_used;
+            let da_footprint_available =
+                self.evm.block().gas_limit().saturating_sub(self.da_footprint_used);
 
             let tx_da_footprint = self.jovian_da_footprint_estimation(&tx_env, &tx)?;
 
             if tx_da_footprint > da_footprint_available {
-                return Err(BlockExecutionError::Validation(BlockValidationError::Other(
-                    Box::new(OpBlockExecutionError::TransactionDaFootprintAboveGasLimit {
+                return Err(validation_error(
+                    OpBlockExecutionError::TransactionDaFootprintAboveGasLimit {
                         transaction_da_footprint: tx_da_footprint,
                         available_block_da_footprint: da_footprint_available,
-                    }),
-                )));
+                    },
+                ));
             }
 
             tx_da_footprint
@@ -809,8 +949,9 @@ where
         })?;
 
         let evm_gas_used = result.result.tx_gas_used();
-        let post_exec_refund = if self.post_exec.is_producing() {
-            let refund = self.evm.take_last_post_exec_tx_result().refund_total;
+        let (post_exec_refund, warming_events) = if self.post_exec.is_producing() {
+            let post_exec_result = self.evm.take_last_post_exec_tx_result();
+            let refund = post_exec_result.refund_total;
             // The inspector's accumulated refund must never exceed the tx's evm_gas_used. If
             // it does, we'd emit an `SDMGasEntry` that any honest verifier would reject
             // at pre-execution ("payload refund exceeds evm_gas_used"), so the sequencer
@@ -821,19 +962,24 @@ where
                     "produced refund {refund} exceeds evm_gas_used {evm_gas_used} for tx index {tx_index}",
                 )));
             }
-            refund
+            (refund, post_exec_result.refund_events)
         } else {
-            self.verifier_post_exec_refund_for_tx(tx_index, is_deposit, false, evm_gas_used)?
+            (
+                self.verifier_post_exec_refund_for_tx(tx_index, is_deposit, false, evm_gas_used)?,
+                Vec::new(),
+            )
         };
         let canonical_gas_used = evm_gas_used.saturating_sub(post_exec_refund);
-        let deltas = self.post_exec_settlement_deltas(
+        let mut deltas = self.post_exec_settlement_deltas(
             &tx,
             evm_gas_used,
             post_exec_refund,
             is_deposit,
             false,
         )?;
-        let post_exec = (post_exec_refund > 0).then_some(deltas);
+        deltas.warming_events = warming_events;
+        let post_exec =
+            (post_exec_refund > 0 || !deltas.warming_events.is_empty()).then_some(deltas);
 
         // Pre-compute depositor nonce here so `commit_transaction` can be infallible.
         // Only post-regolith deposit transactions need the depositor account from DB.
@@ -865,7 +1011,6 @@ where
             },
             is_deposit,
             is_post_exec: false,
-            sender,
             evm_gas_used,
             canonical_gas_used,
             post_exec,
@@ -879,14 +1024,16 @@ where
             inner: EthTxResult { result: ResultAndState { result, state }, blob_gas_used, tx_type },
             is_deposit,
             is_post_exec,
-            sender: _,
-            evm_gas_used: _,
+            evm_gas_used,
             canonical_gas_used,
             post_exec,
             depositor_nonce,
         } = output;
 
-        let post_exec_refund = post_exec.as_ref().map(|d| d.refund).unwrap_or(0);
+        let (post_exec_refund, warming_events) = match post_exec {
+            Some(deltas) => (deltas.refund, deltas.warming_events),
+            None => (0, Vec::new()),
+        };
 
         if !is_deposit && !is_post_exec && post_exec_refund > 0 {
             if let Some(entries) = self.post_exec.produced_entries_mut() {
@@ -896,11 +1043,15 @@ where
         if self.post_exec.is_verifying() && post_exec_refund > 0 {
             self.post_exec.consume_verifier_entry(tx_index);
         }
-
-        self.system_caller.on_state(StateChangeSource::Transaction(self.receipts.len()), &state);
+        if !is_post_exec {
+            self.warming_events_by_tx.push(warming_events);
+        }
 
         // add canonical gas used
         self.gas_used += canonical_gas_used;
+        // Accumulate pre-refund EVM gas (real compute); bounded against the block gas limit by the
+        // admission check in `execute_transaction_without_commit`.
+        self.evm_gas_used += evm_gas_used;
 
         // Update DA footprint if Jovian is active
         if self.spec.is_jovian_active_at_timestamp(self.evm.block().timestamp().saturating_to()) &&
@@ -966,20 +1117,11 @@ where
 
         let balance_increments =
             post_block_balance_increments::<Header>(&self.spec, self.evm.block(), &[], None);
-        // increment balances
+        // increment balances; the DB-level state hook (if any) fires via the commit inside.
         self.evm
             .db_mut()
-            .increment_balances(balance_increments.clone())
+            .increment_balances(balance_increments)
             .map_err(|_| BlockValidationError::IncrementBalanceFailed)?;
-        // call state hook with changes due to balance increments.
-        self.system_caller.try_on_state_with(|| {
-            balance_increment_state(&balance_increments, self.evm.db_mut()).map(|state| {
-                (
-                    StateChangeSource::PostBlock(StateChangePostBlockSource::BalanceIncrements),
-                    Cow::Owned(state),
-                )
-            })
-        })?;
 
         Ok((
             self.evm,
@@ -990,10 +1132,6 @@ where
                 blob_gas_used: self.da_footprint_used,
             },
         ))
-    }
-
-    fn set_state_hook(&mut self, hook: Option<Box<dyn OnStateHook>>) {
-        self.system_caller.with_state_hook(hook);
     }
 
     fn evm_mut(&mut self) -> &mut Self::Evm {

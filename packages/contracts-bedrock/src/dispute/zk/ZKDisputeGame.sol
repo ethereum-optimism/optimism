@@ -78,6 +78,13 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice The `ClaimData` struct represents the data associated with a Claim.
+    /// @custom:field parentIndex The index in the factory's game array of this game's parent, or
+    ///                           `type(uint32).max` if this is a root game with no parent.
+    /// @custom:field status      The current status of the proposal (See ProposalStatus).
+    /// @custom:field challenger  The address that challenged the claim, or `address(0)` if unchallenged.
+    /// @custom:field prover      The address that submitted a valid proof, or `address(0)` if unproven.
+    /// @custom:field deadline    The timestamp by which the next action (challenge or prove) must occur.
+    /// @custom:field claim       The root claim being disputed.
     struct ClaimData {
         uint32 parentIndex; // 4 bytes
         ProposalStatus status; // 1 byte |-- slot 1 (25 bytes)
@@ -183,7 +190,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice The parent index of the game.
-    /// @dev Stored at a fixed offset (88) inside extraData so we can recover it without first
+    /// @dev Stored at a fixed offset (0x58, 88) inside extraData so we can recover it without first
     ///      parsing the variable-length SuperRootProof that follows.
     /// @return parentIndex_ The index in the factory's game array of this game's parent, or
     ///         `type(uint32).max` if this is a root game with no parent.
@@ -251,14 +258,6 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     /// @return weth_ The DelayedWETH contract used for bond custody.
     function weth() public pure returns (IDelayedWETH weth_) {
         weth_ = IDelayedWETH(payable(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 120)));
-    }
-
-    /// @notice Returns the L2 chain ID slot from the impl-args.
-    /// @dev `clones-with-immutable-args` argument #13. Must be zero for super games,
-    ///       enforced in `initialize()`.
-    /// @return l2ChainId_ The L2 chain ID. Always zero for valid super games.
-    function _l2ChainId() internal pure returns (uint256 l2ChainId_) {
-        l2ChainId_ = _getArgUint256(_preExtraDataByteCount() + _extraDataByteCount() + 140);
     }
 
     /// @notice Getter for the extra data.
@@ -351,35 +350,30 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
             // For subsequent games, get the parent game's information
             (,, IDisputeGame parent) = disputeGameFactory.gameAtIndex(parentIndex());
 
+            // INVARIANT: The parent game must be a valid game.
+            if (parent.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
+
             // Verify parent game is not blacklisted or retired.
             if (anchorStateRegistry().isGameBlacklisted(parent) || anchorStateRegistry().isGameRetired(parent)) {
                 revert InvalidParentGame();
             }
 
             // INVARIANT: The parent game must be of the same game type.
-            if (IDisputeGame(payable(address(parent))).gameType().raw() != gameType().raw()) {
+            if (parent.gameType().raw() != gameType().raw()) {
                 revert UnexpectedGameType();
             }
 
-            startingProposal = Proposal({
-                l2SequenceNumber: IDisputeGame(payable(address(parent))).l2SequenceNumber(),
-                root: Hash.wrap(IDisputeGame(payable(address(parent))).rootClaim().raw())
-            });
+            startingProposal =
+                Proposal({ l2SequenceNumber: parent.l2SequenceNumber(), root: Hash.wrap(parent.rootClaim().raw()) });
 
             // INVARIANT: The parent game's sequence number must be strictly above the anchor state.
             (, uint256 anchorL2SeqNum) = anchorStateRegistry().getAnchorRoot();
             if (startingProposal.l2SequenceNumber <= anchorL2SeqNum) revert InvalidParentGame();
-
-            // INVARIANT: The parent game must be a valid game.
-            if (parent.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
         } else {
             // When there is no parent game, the starting output root is the anchor state for the game type.
             (startingProposal.root, startingProposal.l2SequenceNumber) = anchorStateRegistry().getAnchorRoot();
             if (startingProposal.root.raw() == bytes32(0)) revert AnchorRootNotFound();
         }
-
-        // The l2ChainId must still exist, yet zero-valued, in the game args for legacy reasons.
-        if (_l2ChainId() != 0) revert ZKDisputeGame_NoChainIdNeeded();
 
         // Do not allow the game to be initialized if the root claim corresponds to a sequence number (timestamp) at
         // or before the configured starting sequence number.
@@ -430,7 +424,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ///      │ 8 bytes           │ super timestamp (l2SequenceNumber)             │
     ///      │ n * (32+32) bytes │ (chainId, outputRoot) tuples                   │
     ///      │===================│ ============ end extra data ================== │
-    ///      │ 172 bytes         │ game impl args                                 │
+    ///      │ 140 bytes         │ game impl args                                 │
     ///      │ 2 bytes           │ CWIA length suffix                             │
     ///      └────────────────────────────────────────────────────────────────────┘
     function _verifyInitCallDataLength() internal pure returns (bool) {
@@ -438,7 +432,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         uint256 preExtraDataLen = 4 + 2 + _preExtraDataByteCount();
         if (msg.data.length < preExtraDataLen) return false;
 
-        uint256 postExtraDataLen = gameImplArgsByteCount();
+        uint256 postExtraDataLen = _gameImplArgsByteCount();
         uint256 extraDataAndGameArgsLength = msg.data.length - preExtraDataLen;
         // Ensure we have enough data for the game impl args.
         if (extraDataAndGameArgsLength < postExtraDataLen) return false;
@@ -458,22 +452,24 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // The CWIA runtime appends the immutable args and a 2-byte length suffix to every forwarded
         // call; strip the original calldata and suffix so offsets stay correct for functions with params.
         uint256 immutableArgsLength = msg.data.length - _getImmutableArgsOffset() - 2;
-        return immutableArgsLength - _preExtraDataByteCount() - gameImplArgsByteCount();
+        return immutableArgsLength - _preExtraDataByteCount() - _gameImplArgsByteCount();
     }
 
     /// @notice Returns the byte count of the pre-extra-data region.
-    function _preExtraDataByteCount() internal pure returns (uint256) {
+    /// @return preExtraDataByteCount_ The byte count of the pre-extra-data CWIA region (88 bytes).
+    function _preExtraDataByteCount() internal pure returns (uint256 preExtraDataByteCount_) {
         // Expected length: 88 bytes
         // - 20 bytes: creator address
         // - 32 bytes: root claim
         // - 32 bytes: l1 head
         // - 4 bytes: game type
-        return 88;
+        preExtraDataByteCount_ = 88;
     }
 
     /// @notice Returns the byte count of the game implementation args for this contract.
-    function gameImplArgsByteCount() internal pure virtual returns (uint256) {
-        // Expected length: 172 bytes
+    /// @return gameImplArgsByteCount_ The byte count of the game implementation args (140 bytes).
+    function _gameImplArgsByteCount() internal pure returns (uint256 gameImplArgsByteCount_) {
+        // Expected length: 140 bytes
         // - 32 bytes: absolutePrestate
         // - 20 bytes: verifier address
         // - 8 bytes:  maxChallengeDuration
@@ -481,8 +477,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // - 32 bytes: challengerBond
         // - 20 bytes: anchorStateRegistry address
         // - 20 bytes: weth address
-        // - 32 bytes: l2ChainId (zero for super games)
-        return 172;
+        gameImplArgsByteCount_ = 140;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -531,8 +526,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         // INVARIANT: Cannot prove if the game is over.
         if (gameOver()) revert GameOver();
 
-        // Construct the public values for verification. `l2ChainId` is always 0 for super-root games,
-        // so it is omitted from the encoding.
+        // Construct the public values for verification. Chain scoping comes from the SuperRootProof
+        // preimage, which is committed to via rootClaim — no separate l2ChainId field is needed.
         bytes memory publicValues =
             abi.encode(l1Head(), startingProposal.root, rootClaim(), l2SequenceNumber(), msg.sender);
 

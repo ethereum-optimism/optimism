@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
+	"path/filepath"
 	"runtime"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 
-	"github.com/bmatcuk/doublestar/v4"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	"golang.org/x/sync/errgroup"
 )
@@ -95,7 +98,7 @@ func FindFiles(includes, excludes []string) (map[string]string, error) {
 
 	// Get all included files
 	for _, pattern := range includes {
-		matches, err := doublestar.Glob(os.DirFS("."), pattern)
+		matches, err := glob(pattern)
 		if err != nil {
 			return nil, fmt.Errorf("glob pattern error: %w", err)
 		}
@@ -106,7 +109,7 @@ func FindFiles(includes, excludes []string) (map[string]string, error) {
 
 	// Get all excluded files
 	for _, pattern := range excludes {
-		matches, err := doublestar.Glob(os.DirFS("."), pattern)
+		matches, err := glob(pattern)
 		if err != nil {
 			return nil, fmt.Errorf("glob pattern error: %w", err)
 		}
@@ -121,6 +124,163 @@ func FindFiles(includes, excludes []string) (map[string]string, error) {
 	}
 
 	return included, nil
+}
+
+func glob(pattern string) ([]string, error) {
+	patterns, err := expandBraces(filepath.ToSlash(pattern))
+	if err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]struct{})
+	for _, pattern := range patterns {
+		matches, err := globOne(pattern)
+		if err != nil {
+			return nil, err
+		}
+		for _, match := range matches {
+			seen[match] = struct{}{}
+		}
+	}
+
+	matches := make([]string, 0, len(seen))
+	for match := range seen {
+		matches = append(matches, match)
+	}
+	sort.Strings(matches)
+	return matches, nil
+}
+
+func expandBraces(pattern string) ([]string, error) {
+	start := strings.IndexByte(pattern, '{')
+	if start == -1 {
+		if strings.Contains(pattern, "}") {
+			return nil, fmt.Errorf("unmatched closing brace in %q", pattern)
+		}
+		return []string{pattern}, nil
+	}
+	end := strings.IndexByte(pattern[start+1:], '}')
+	if end == -1 {
+		return nil, fmt.Errorf("unmatched opening brace in %q", pattern)
+	}
+	end += start + 1
+
+	options := strings.Split(pattern[start+1:end], ",")
+	if len(options) == 0 {
+		return nil, fmt.Errorf("empty brace expression in %q", pattern)
+	}
+
+	var expanded []string
+	for _, option := range options {
+		nested, err := expandBraces(pattern[:start] + option + pattern[end+1:])
+		if err != nil {
+			return nil, err
+		}
+		expanded = append(expanded, nested...)
+	}
+	return expanded, nil
+}
+
+func globOne(pattern string) ([]string, error) {
+	if filepath.IsAbs(pattern) {
+		return nil, fmt.Errorf("absolute glob pattern %q is not supported", pattern)
+	}
+
+	pattern = strings.TrimPrefix(path.Clean(pattern), "./")
+	if pattern == "." {
+		pattern = ""
+	}
+
+	var matches []string
+	segments := strings.Split(pattern, "/")
+	if err := globSegments(".", segments, &matches); err != nil {
+		return nil, err
+	}
+	return matches, nil
+}
+
+func globSegments(dir string, segments []string, matches *[]string) error {
+	if len(segments) == 0 {
+		if dir != "." {
+			*matches = append(*matches, dir)
+		}
+		return nil
+	}
+
+	segment := segments[0]
+	if segment == "**" {
+		if err := globSegments(dir, segments[1:], matches); err != nil {
+			return err
+		}
+		entries, err := os.ReadDir(fromSlashPath(dir))
+		if os.IsNotExist(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			if err := globSegments(joinSlash(dir, entry.Name()), segments, matches); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// doublestar treats "**.json" as "*.json" within the current directory, not as
+	// a recursive match. The contracts checks rely on this for generated artifacts.
+	segmentPattern := strings.ReplaceAll(segment, "**", "*")
+	if _, err := path.Match(segmentPattern, ""); err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(fromSlashPath(dir))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	last := len(segments) == 1
+	for _, entry := range entries {
+		ok, err := path.Match(segmentPattern, entry.Name())
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+
+		child := joinSlash(dir, entry.Name())
+		if last {
+			*matches = append(*matches, child)
+			continue
+		}
+		if entry.IsDir() {
+			if err := globSegments(child, segments[1:], matches); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func fromSlashPath(p string) string {
+	if p == "." || p == "" {
+		return "."
+	}
+	return filepath.FromSlash(p)
+}
+
+func joinSlash(dir string, name string) string {
+	if dir == "." || dir == "" {
+		return name
+	}
+	return dir + "/" + name
 }
 
 func ReadForgeArtifact(path string) (*solc.ForgeArtifact, error) {

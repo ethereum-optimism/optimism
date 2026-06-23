@@ -121,9 +121,10 @@ func (r *InteropDevRecipe) hydrated() InteropDevRecipe {
 const defaultBlockTime = 2
 
 type InteropDevL2Recipe struct {
-	ChainID       uint64
-	BlockTime     uint64
-	InteropOffset uint64
+	ChainID   uint64
+	BlockTime uint64
+	// Lagoon is the fork that activates interop behavior for these dev chains.
+	LagoonOffset uint64
 	// TODO(#20084): remove alongside L2Config.UseL2CM.
 	UseL2CM bool
 }
@@ -270,9 +271,11 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 				L2GenesisIsthmusTimeOffset:  new(hexutil.Uint64),
 				L2GenesisJovianTimeOffset:   new(hexutil.Uint64),
 				L2GenesisKarstTimeOffset:    new(hexutil.Uint64),
-				L2GenesisInteropTimeOffset:  (*hexutil.Uint64)(&r.InteropOffset),
-				L1CancunTimeOffset:          new(hexutil.Uint64),
-				L1PragueTimeOffset:          new(hexutil.Uint64),
+				// Lagoon activates interop behavior; interopgen keeps its
+				// package name because it builds interoperability test networks.
+				L2GenesisLagoonTimeOffset: (*hexutil.Uint64)(&r.LagoonOffset),
+				L1CancunTimeOffset:        new(hexutil.Uint64),
+				L1PragueTimeOffset:        new(hexutil.Uint64),
 			},
 			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
 				L1ChainID:                 l1ChainID,

@@ -109,7 +109,7 @@ pub struct NodeCommand {
     pub l1_config_file: Option<PathBuf>,
     /// Path to a JSON file describing the interop dependency set for this
     /// chain. Mirrors op-node's `--interop.dependency-set`. Required when the
-    /// rollup config schedules the Interop hardfork; the inner
+    /// rollup config schedules the Lagoon hardfork; the inner
     /// `StatefulAttributesBuilder` constructor panics otherwise; turning a
     /// silent state-divergence bug into a startup crash.
     #[arg(long = "interop.dependency-set", env = "KONA_NODE_INTEROP_DEPENDENCY_SET")]
@@ -340,7 +340,7 @@ impl NodeCommand {
     /// Loads the interop [`DependencySet`] from `--interop.dependency-set`.
     ///
     /// Enforces the invariant that when the rollup config schedules the
-    /// Interop hardfork, the operator must supply a dependency-set JSON file.
+    /// Lagoon hardfork, the operator must supply a dependency-set JSON file.
     /// Errors rather than panicking so the operator sees a clear message.
     fn load_dependency_set(&self, cfg: &RollupConfig) -> Result<Option<Arc<DependencySet>>> {
         match &self.interop_dependency_set {
@@ -353,12 +353,12 @@ impl NodeCommand {
                 })?;
                 Ok(Some(Arc::new(dep_set)))
             }
-            None if cfg.hardforks.interop_time.is_some() => bail!(
-                "Interop is scheduled for this chain (interop_time = {:?}), but \
+            None if cfg.hardforks.lagoon_time.is_some() => bail!(
+                "Lagoon is scheduled for this chain (lagoon_time = {:?}), but \
                  --interop.dependency-set was not provided. Supply the dependency-set \
                  JSON file matching op-node's --interop.dependency-set to avoid silent \
-                 state divergence on interop activation.",
-                cfg.hardforks.interop_time,
+                 state divergence on Lagoon activation.",
+                cfg.hardforks.lagoon_time,
             ),
             None => Ok(None),
         }

@@ -122,16 +122,16 @@ func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [
 	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
 }
 
-// startSupernodeELWithSupervisorURL starts an L2 EL node with --rollup.supervisor-http
+// startSupernodeELWithInteropURL starts an L2 EL node with --rollup.interop-http
 // pointing at the given URL. Used by supernode interop presets to connect ELs
 // to the interop filter for tx pool validation.
-func startSupernodeELWithSupervisorURL(
+func startSupernodeELWithInteropURL(
 	t devtest.T,
 	l2Net *L2Network,
 	key string,
 	jwtPath string,
 	jwtSecret [32]byte,
-	supervisorURL string,
+	interopURL string,
 ) L2ELNode {
 	switch devstackL2ELKind() {
 	case MixedL2ELOpGeth:
@@ -143,25 +143,25 @@ func startSupernodeELWithSupervisorURL(
 			l2Net:         l2Net,
 			jwtPath:       jwtPath,
 			jwtSecret:     jwtSecret,
-			supervisorRPC: supervisorURL,
+			supervisorRPC: interopURL,
 			cfg:           cfg,
 		}
 		l2EL.Start()
 		t.Cleanup(l2EL.Stop)
 		return l2EL
 	default: // op-reth
-		return startMixedOpRethNodeWithSupervisorURL(
-			t, l2Net, key, jwtPath, jwtSecret, nil, supervisorURL, "v1")
+		return startMixedOpRethNodeWithInteropURL(
+			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, "v1")
 	}
 }
 
-func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
+func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
 	require := t.Require()
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 
 	jwtPath, jwtSecret := writeJWTSecret(t)
@@ -188,7 +188,12 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, interopAtGenesis bool
 		require.NoError(overrideErr, "failed to override message expiry window")
 	}
 
-	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopAtGenesis)
+	var interopActivationTimestamp *uint64
+	if lagoonAtGenesis {
+		ts := l2Net.rollupCfg.Genesis.L2Time
+		interopActivationTimestamp = &ts
+	}
+	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopActivationTimestamp, true, nodeSync.CLSync)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
 	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
 
@@ -257,8 +262,8 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		filterRPC := "http://" + filterProxy.Addr()
 
 		// Start ELs with filter proxy URL
-		l2AEL = startSupernodeELWithSupervisorURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC)
-		l2BEL = startSupernodeELWithSupervisorURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC)
+		l2AEL = startSupernodeELWithInteropURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC)
+		l2BEL = startSupernodeELWithInteropURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC)
 
 		// Build rollup config map from L2 networks (Go structs, no file I/O)
 		rollupConfigs := map[eth.ChainID]*rollup.Config{
@@ -274,7 +279,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		// Connect proxy to the filter's actual RPC endpoint
 		filterProxy.SetUpstream(ProxyAddr(require, interopFilter.HTTPEndpoint()))
 	} else {
-		// No interop filter — ELs start without supervisor/filter URL (existing behavior)
+		// No interop filter — ELs start without an interop filter URL (existing behavior)
 		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
 		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
 	}
@@ -320,43 +325,87 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		interopActivationTimestamp,
 		cfg.InteropLogBackfillDepth,
 		jwtSecret,
-		supernodeSequencerEnabled,
+		supernodeSequencerEnabled || cfg.SupernodeVNSequencerForBootstrap,
 	)
 
 	var l2ACL L2CLNode = supernodeL2ACL
 	var l2BCL L2CLNode = supernodeL2BCL
+	// supernode VN ELs (always distinct identity from any follow-mode sequencer EL).
+	supernodeL2AEL, supernodeL2BEL := l2AEL, l2BEL
+	// sequencer ELs default to the supernode ELs in virtual-sequencer mode;
+	// in light-sequencer mode each follow-mode sequencer gets its own EL.
+	seqL2AEL, seqL2BEL := l2AEL, l2BEL
 	if !supernodeSequencerEnabled {
-		l2ACL = startL2CLNode(t, keys, l1Net, l2ANet, l1EL, l1CL, l2AEL, jwtSecret, l2CLNodeStartConfig{
-			Key:           "sequencer",
-			IsSequencer:   true,
-			NoDiscovery:   true,
-			EnableReqResp: true,
-			UseReqResp:    true,
-			DependencySet: runtimeDepSet,
-			L2CLOptions:   cfg.GlobalL2CLOptions,
+		// Production-faithful topology: each follow-mode sequencer runs its own
+		// EL, distinct from the supernode VN's EL, joined only by L1 and P2P.
+		seqL2AEL = startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0))
+		seqL2BEL = startSequencerEL(t, l2BNet, jwtPath, jwtSecret, NewELNodeIdentity(0))
+
+		// Light sequencers follow the supernode's safe head (production:
+		// kind=sequencer, lightNode=true, deps on op-supernode). They sequence
+		// unsafe blocks but disable L1 derivation, importing safe/finalized state
+		// from the supernode route and reorging onto its invalid-message
+		// replacements.
+		//
+		// When the supernode VN bootstraps + sequences, the light sequencers start
+		// stopped; a test hands off sequencing to them once they leave willStartEL.
+		lightSeqStopped := cfg.SupernodeVNSequencerForBootstrap
+		l2ACL = startL2CLNode(t, keys, l1Net, l2ANet, l1EL, l1CL, seqL2AEL, jwtSecret, l2CLNodeStartConfig{
+			Key:              "sequencer",
+			IsSequencer:      true,
+			NoDiscovery:      true,
+			EnableReqResp:    true,
+			UseReqResp:       false,
+			DependencySet:    runtimeDepSet,
+			L2FollowSource:   supernodeL2ACL.UserRPC(),
+			L2CLOptions:      cfg.GlobalL2CLOptions,
+			SequencerStopped: lightSeqStopped,
+			// Follow-mode sequencers reorg onto the supernode's invalid-message
+			// replacement via EL sync.
+			SyncMode: nodeSync.ELSync,
 		})
-		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, l2BEL, jwtSecret, l2CLNodeStartConfig{
-			Key:           "sequencer",
-			IsSequencer:   true,
-			NoDiscovery:   true,
-			EnableReqResp: true,
-			UseReqResp:    true,
-			DependencySet: runtimeDepSet,
-			L2CLOptions:   cfg.GlobalL2CLOptions,
+		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, seqL2BEL, jwtSecret, l2CLNodeStartConfig{
+			Key:              "sequencer",
+			IsSequencer:      true,
+			NoDiscovery:      true,
+			EnableReqResp:    true,
+			UseReqResp:       false,
+			DependencySet:    runtimeDepSet,
+			L2FollowSource:   supernodeL2BCL.UserRPC(),
+			L2CLOptions:      cfg.GlobalL2CLOptions,
+			SequencerStopped: lightSeqStopped,
+			SyncMode:         nodeSync.ELSync,
 		})
+		// CL gossip: unsafe blocks (incl. the supernode's deposits-only
+		// replacement) propagate between the sequencer CLs and the VN CLs.
 		connectL2CLPeers(t, t.Logger(), l2ACL, supernodeL2ACL)
 		connectL2CLPeers(t, t.Logger(), l2BCL, supernodeL2BCL)
+		// EL P2P: block bodies sync between each sequencer EL and its paired
+		// supernode EL (required for the ELSync follow path).
+		connectL2ELPeers(t, t.Logger(), supernodeL2AEL.UserRPC(), seqL2AEL.UserRPC(), false)
+		connectL2ELPeers(t, t.Logger(), supernodeL2BEL.UserRPC(), seqL2BEL.UserRPC(), false)
 	}
 
-	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, l2ACL, l2AEL, cfg.BatcherOptions...)
+	// Batchers follow the active sequencer's CL + EL so the L1-derived safe chain stays
+	// contiguous (interop verification depends on the safe head advancing). In a VN-sequencer
+	// bootstrap the light CL is stopped + EL-syncing, so batch from the VN: it produces during
+	// bootstrap and tracks the light sequencers via gossip after handoff, keeping a gap-free
+	// batch stream across the switch.
+	batchACL, batchAEL := l2ACL, seqL2AEL
+	batchBCL, batchBEL := l2BCL, seqL2BEL
+	if cfg.SupernodeVNSequencerForBootstrap {
+		batchACL, batchAEL = supernodeL2ACL, supernodeL2AEL
+		batchBCL, batchBEL = supernodeL2BCL, supernodeL2BEL
+	}
+	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, batchACL, batchAEL, cfg.BatcherOptions...)
 	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, supernodeL2ACL)
-	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, l2BCL, l2BEL, cfg.BatcherOptions...)
+	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, batchBCL, batchBEL, cfg.BatcherOptions...)
 	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, supernodeL2BCL)
 
 	faucetService := startFaucetsForRPCs(t, keys, map[eth.ChainID]string{
 		l1Net.ChainID():  l1EL.UserRPC(),
-		l2ANet.ChainID(): l2AEL.UserRPC(),
-		l2BNet.ChainID(): l2BEL.UserRPC(),
+		l2ANet.ChainID(): seqL2AEL.UserRPC(),
+		l2BNet.ChainID(): seqL2BEL.UserRPC(),
 	})
 
 	// Wait for interop filter readiness now that the supernode and batchers are running.
@@ -376,18 +425,20 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			"l2a": {
 				Name:        "l2a",
 				Network:     l2ANet,
-				EL:          l2AEL,
+				EL:          seqL2AEL,
 				CL:          l2ACL,
 				SupernodeCL: supernodeL2ACL,
+				SupernodeEL: supernodeL2AEL,
 				Batcher:     l2ABatcher,
 				Proposer:    l2AProposer,
 			},
 			"l2b": {
 				Name:        "l2b",
 				Network:     l2BNet,
-				EL:          l2BEL,
+				EL:          seqL2BEL,
 				CL:          l2BCL,
 				SupernodeCL: supernodeL2BCL,
+				SupernodeEL: supernodeL2BEL,
 				Batcher:     l2BBatcher,
 				Proposer:    l2BProposer,
 			},
@@ -423,9 +474,9 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 				// pre-interop state. This matches the supernode's
 				// InteropActivationTimestamp and allows testing the fork transition.
 				l2Cfg.WithForkAtGenesis(opforks.Karst)
-				l2Cfg.WithForkAtOffset(opforks.Interop, &delaySeconds)
+				l2Cfg.WithForkAtOffset(opforks.Lagoon, &delaySeconds)
 			} else {
-				l2Cfg.WithForkAtGenesis(opforks.Interop)
+				l2Cfg.WithForkAtGenesis(opforks.Lagoon)
 			}
 		}
 	}
@@ -478,7 +529,7 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 
 	jwtPath := chain.EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
-	l2EL := startL2ELNode(t, chain.Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
+	l2EL := startL2ELForKey(t, chain.Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
 	l2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, chain.Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 		Key:            name,
 		IsSequencer:    false,
@@ -487,6 +538,8 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 		UseReqResp:     false,
 		L2FollowSource: chain.CL.UserRPC(),
 		DependencySet:  runtime.DependencySet,
+		// Follow nodes catch up to their follow source via EL sync.
+		SyncMode: nodeSync.ELSync,
 	})
 
 	connectL2ELPeers(t, t.Logger(), chain.EL.UserRPC(), l2EL.UserRPC(), false)
@@ -633,20 +686,26 @@ func startSingleChainSharedSupernode(
 	l2EL L2ELNode,
 	depSet *depset.StaticConfigDependencySet,
 	jwtSecret [32]byte,
-	interopAtGenesis bool,
+	interopActivationTimestamp *uint64,
+	sequencerEnabled bool,
+	verifierSyncMode nodeSync.Mode,
 ) (*SuperNode, *SuperNodeProxy) {
 	require := t.Require()
 	logger := t.Logger().New("component", "supernode")
 	makeNodeCfg := func() *opnodeconfig.Config {
-		p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
-		require.NoError(err, "need p2p key for supernode virtual sequencer")
+		var sequencerP2PKeyHex string
+		if sequencerEnabled {
+			p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
+			require.NoError(err, "need p2p key for supernode virtual sequencer")
+			sequencerP2PKeyHex = hex.EncodeToString(crypto.FromECDSA(p2pKey))
+		}
 		p2pConfig, p2pSignerSetup := newDevstackP2PConfig(
 			t,
 			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
 			l2Net.rollupCfg.BlockTime,
 			false,
 			true,
-			hex.EncodeToString(crypto.FromECDSA(p2pKey)),
+			sequencerP2PKeyHex,
 		)
 		cfg := &opnodeconfig.Config{
 			L1: &opnodeconfig.L1EndpointConfig{
@@ -666,13 +725,13 @@ func startSingleChainSharedSupernode(
 			},
 			DependencySet:                   depSet,
 			Beacon:                          &opnodeconfig.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
-			Driver:                          driver.Config{SequencerEnabled: true, SequencerConfDepth: 2},
+			Driver:                          driver.Config{SequencerEnabled: sequencerEnabled, SequencerConfDepth: 2},
 			Rollup:                          *l2Net.rollupCfg,
 			P2PSigner:                       p2pSignerSetup,
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
-			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync, SyncModeReqResp: true},
+			Sync:                            nodeSync.Config{SyncMode: verifierSyncMode, SyncModeReqResp: true},
 			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
@@ -681,12 +740,6 @@ func startSingleChainSharedSupernode(
 		}
 		require.NoError(cfg.Check(), "invalid supernode op-node config for chain %s", l2Net.ChainID())
 		return cfg
-	}
-
-	var interopActivationTimestamp *uint64
-	if interopAtGenesis {
-		ts := l2Net.rollupCfg.Genesis.L2Time
-		interopActivationTimestamp = &ts
 	}
 
 	snCfg := &snconfig.CLIConfig{

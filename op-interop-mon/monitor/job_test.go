@@ -194,3 +194,11 @@ func TestJobId(t *testing.T) {
 	job.initiating.ChainID = initiatingChain
 	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
 }
+
+func TestJobStatusStringsAndTerminal(t *testing.T) {
+	require.Equal(t, "expired", jobStatusExpired.String())
+	require.Equal(t, "timestamp_mismatch", jobStatusTimestampMismatch.String())
+	require.True(t, jobStatusExpired.isTerminal())
+	require.True(t, jobStatusTimestampMismatch.isTerminal())
+	require.False(t, jobStatusUnknown.isTerminal())
+}
