@@ -52,7 +52,9 @@ SEL_STATUS="0x200d2ed2"    # status() -> uint8 (0=IN_PROGRESS,1=CHALLENGER_WINS,
 SEL_COUNT="0x4d1975b4"     # gameCount()
 SEL_AT="0xbb8aa1fc"        # gameAtIndex(uint256) -> (gameType, timestamp, proxy)
 
-rpc() { # rpc <url> <method> <params-json> -> .result (string), retries
+rpc() { # rpc <url> <method> <params-json> -> .result, retries
+        # String results print raw (hex callers consume them directly); object/array
+        # results print as JSON so callers can re-parse with json.load.
   local url="$1" m="$2" p="$3" resp out attempt
   for ((attempt = 1; attempt <= RETRIES; attempt++)); do
     resp=$(curl -s -m 25 -X POST "$url" -H 'content-type: application/json' \
@@ -61,7 +63,9 @@ rpc() { # rpc <url> <method> <params-json> -> .result (string), retries
 try: d=json.load(sys.stdin)
 except Exception: print("RETRY"); sys.exit()
 r=d.get("result")
-print(r if r is not None else "ERR:"+json.dumps(d.get("error","no result")))' 2>/dev/null)
+if r is None: print("ERR:"+json.dumps(d.get("error","no result")))
+elif isinstance(r,str): print(r)
+else: print(json.dumps(r))' 2>/dev/null)
     [[ "$out" == "RETRY" || -z "$out" ]] && { sleep 1; continue; }
     printf '%s' "$out"; return 0
   done
