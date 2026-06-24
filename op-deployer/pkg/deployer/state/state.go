@@ -94,11 +94,34 @@ type ChainState struct {
 
 	addresses.OpChainContracts
 
+	// Deployed indicates whether the addresses in this chain have been deployed or are just addresses produced
+	// by the prediction step of the prepare command.
+	Deployed bool `json:"deployed"`
+
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`
 
 	StartBlock *L1BlockRefJSON `json:"startBlock"`
+}
+
+// SetChainContracts records the L1 contract addresses for a chain. It creates
+// the chain entry if it does not exist and otherwise updates it in place,
+// preserving any other fields already set by other stages. deployed indicates whether the addresses
+// have been already broadcast or are just predicted addresses from the prepare stage.
+func (s *State) SetChainContracts(id common.Hash, contracts addresses.OpChainContracts, deployed bool) {
+	for _, chain := range s.Chains {
+		if chain.ID == id {
+			chain.OpChainContracts = contracts
+			chain.Deployed = deployed
+			return
+		}
+	}
+	s.Chains = append(s.Chains, &ChainState{
+		ID:               id,
+		OpChainContracts: contracts,
+		Deployed:         deployed,
+	})
 }
 
 type L1BlockRefJSON struct {

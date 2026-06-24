@@ -118,6 +118,32 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 	}
 }
 
+func TestShouldDeployOPChain(t *testing.T) {
+	chainID := common.HexToHash("0x0a")
+	other := common.HexToHash("0x0b")
+
+	t.Run("absent chain is deployed", func(t *testing.T) {
+		require.True(t, shouldDeployOPChain(&state.State{}, chainID))
+	})
+
+	t.Run("deployed chain is skipped", func(t *testing.T) {
+		st := &state.State{Chains: []*state.ChainState{{ID: chainID, Deployed: true}}}
+		require.False(t, shouldDeployOPChain(st, chainID))
+	})
+
+	t.Run("predicted-only chain is still deployed", func(t *testing.T) {
+		// prepare writes the chain with Deployed=false; apply/continue must still
+		// broadcast it.
+		st := &state.State{Chains: []*state.ChainState{{ID: chainID, Deployed: false}}}
+		require.True(t, shouldDeployOPChain(st, chainID))
+	})
+
+	t.Run("only matches the requested chain id", func(t *testing.T) {
+		st := &state.State{Chains: []*state.ChainState{{ID: other, Deployed: true}}}
+		require.True(t, shouldDeployOPChain(st, chainID))
+	})
+}
+
 func TestDeployOPChain_WithForge(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()

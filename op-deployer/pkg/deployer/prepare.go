@@ -156,7 +156,9 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 			return fmt.Errorf("failed to predict L1 addresses for chain %s: %w", chain.ID.Hex(), err)
 		}
 
-		// For now we just log the addresses
+		// Record the predicted addresses into the chain state marked as not deployed yet.
+		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), false)
+
 		cfg.Logger.Info(
 			"predicted L1 addresses",
 			"chain", chain.ID.Hex(),
@@ -167,6 +169,10 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 			"disputeGameFactoryProxy", out.DisputeGameFactoryProxy,
 			"anchorStateRegistryProxy", out.AnchorStateRegistryProxy,
 		)
+	}
+
+	if err := pipeline.WriteState(cfg.Workdir, st); err != nil {
+		return fmt.Errorf("failed to write state: %w", err)
 	}
 
 	return nil

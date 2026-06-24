@@ -4,9 +4,47 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
+
+func TestState_SetChainContracts(t *testing.T) {
+	chainA := common.HexToHash("0x0a")
+	chainB := common.HexToHash("0x0b")
+
+	contractsWith := func(systemConfig string) addresses.OpChainContracts {
+		var c addresses.OpChainContracts
+		c.SystemConfigProxy = common.HexToAddress(systemConfig)
+		return c
+	}
+
+	s := &State{}
+
+	// A new chain is appended, we mark a  predicted entry as not-deployed.
+	s.SetChainContracts(chainA, contractsWith("0xa1"), false)
+	require.Len(t, s.Chains, 1)
+	require.Equal(t, chainA, s.Chains[0].ID)
+	require.Equal(t, common.HexToAddress("0xa1"), s.Chains[0].SystemConfigProxy)
+	require.False(t, s.Chains[0].Deployed)
+
+	// A different chain is also appended.
+	s.SetChainContracts(chainB, contractsWith("0xb1"), false)
+	require.Len(t, s.Chains, 2)
+
+	// Updating an existing chain in the state replaces it in place, preserves other
+	// fields set by other stages, and can flip the deployed flag.
+	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xdead")}
+	s.SetChainContracts(chainA, contractsWith("0xa2"), true)
+	require.Len(t, s.Chains, 2)
+
+	got, err := s.Chain(chainA)
+	require.NoError(t, err)
+	require.Equal(t, common.HexToAddress("0xa2"), got.SystemConfigProxy)
+	require.True(t, got.Deployed)
+	require.NotNil(t, got.StartBlock, "other fields must be preserved on update")
+	require.Equal(t, common.HexToHash("0xdead"), got.StartBlock.Hash)
+}
 
 func TestBlockRef_Deserialize(t *testing.T) {
 	tests := []struct {

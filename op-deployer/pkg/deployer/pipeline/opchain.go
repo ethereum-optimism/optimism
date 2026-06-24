@@ -88,7 +88,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		}
 	}
 
-	st.Chains = append(st.Chains, makeChainState(chainID, impls, dco))
+	st.SetChainContracts(chainID, chainContractsForDeploy(impls, dco), true)
 
 	st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
 	st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
@@ -161,8 +161,9 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 	}, nil
 }
 
-func makeChainState(chainID common.Hash, impls opcm.ReadImplementationAddressesOutput, dco opcm.DeployOPChainOutput) *state.ChainState {
-	opChainContracts := addresses.OpChainContracts{}
+// OpChainContractsFromDeployOutput maps a DeployOPChain output to OpChainContracts
+func OpChainContractsFromDeployOutput(dco opcm.DeployOPChainOutput) addresses.OpChainContracts {
+	var opChainContracts addresses.OpChainContracts
 	opChainContracts.OpChainProxyAdminImpl = dco.OpChainProxyAdmin
 	opChainContracts.AddressManagerImpl = dco.AddressManager
 	opChainContracts.L1Erc721BridgeProxy = dco.L1ERC721BridgeProxy
@@ -178,6 +179,13 @@ func makeChainState(chainID common.Hash, impls opcm.ReadImplementationAddressesO
 	opChainContracts.PermissionedDisputeGameImpl = dco.PermissionedDisputeGame
 	opChainContracts.DelayedWethPermissionedGameProxy = dco.DelayedWETHPermissionedGameProxy
 	opChainContracts.DelayedWethPermissionlessGameProxy = dco.DelayedWETHPermissionlessGameProxy
+	return opChainContracts
+}
+
+// chainContractsForDeploy builds the OpChainContracts for a deployed chain,
+// overriding the dispute game impls with the values read back from the proxies.
+func chainContractsForDeploy(impls opcm.ReadImplementationAddressesOutput, dco opcm.DeployOPChainOutput) addresses.OpChainContracts {
+	opChainContracts := OpChainContractsFromDeployOutput(dco)
 
 	if (impls.PermissionedDisputeGame != common.Address{}) {
 		opChainContracts.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
@@ -186,16 +194,14 @@ func makeChainState(chainID common.Hash, impls opcm.ReadImplementationAddressesO
 		opChainContracts.FaultDisputeGameImpl = impls.FaultDisputeGame
 	}
 
-	return &state.ChainState{
-		ID:               chainID,
-		OpChainContracts: opChainContracts,
-	}
+	return opChainContracts
 }
 
+// shouldDeployOPChain checks if the given chainID is already deployed in the state.
 func shouldDeployOPChain(st *state.State, chainID common.Hash) bool {
 	for _, chain := range st.Chains {
 		if chain.ID == chainID {
-			return false
+			return !chain.Deployed
 		}
 	}
 
