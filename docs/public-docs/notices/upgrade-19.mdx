@@ -124,11 +124,7 @@ Update the following components:
   **Chain operators for all chains — Sepolia and mainnet — must submit a `SystemConfig.setGasLimit()` transaction after activation** to restore their intended block gas limit. This applies regardless of client version, because the elevated behavior is enshrined by `keep_karst_upgrade_gas = true` in the Superchain Registry, not by the buggy release.
 </Warning>
 
-The following Sepolia chains have already activated Karst and are currently running with the elevated block gas limit:
-
-**Sepolia:** `OP`, `Ink`, `Soneium`, `Unichain`, `Mode`, `Metal`, `Zora`, `Lisk`
-
-Mainnet chains will exhibit the same behavior once they activate Karst.
+Sepolia chains have already activated Karst, so this action is due now. Mainnet chains will require the same action once they activate Karst.
 
 #### Restoring the gas limit
 
