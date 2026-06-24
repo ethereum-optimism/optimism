@@ -87,17 +87,15 @@ where
                 continue;
             }
 
-            // If the frames are in different channels, and the current channel is not last, walk
-            // back the channel and drop all prev frames.
+            // If the frames are in different channels, and the current channel is not last,
+            // drop ONLY the current (unclosed channel's) frame and re-examine the preceding
+            // pair. This peels the unclosed channel one frame at a time, without discarding
+            // interleaved frames of other (valid, closed) channels that happen to sit in the
+            // index range. Matches op-node `pruneFrameQueue` (op-node/rollup/derive/
+            // frame_queue.go): `discard(0)` + `i--`.
             if !extends_channel && !prev_frame.is_last && next_frame.number == 0 {
-                // Find the index of the first frame in the queue with the same channel ID
-                // as the previous frame.
-                let first_frame =
-                    self.queue.iter().position(|f| f.id == prev_frame.id).expect("infallible");
-
-                // Drain all frames from the previous channel.
-                let drained = self.queue.drain(first_frame..=i);
-                i = i.saturating_sub(drained.len());
+                self.queue.remove(i);
+                i = i.saturating_sub(1);
                 continue;
             }
 
@@ -564,5 +562,285 @@ pub(crate) mod tests {
             .build();
         assert.holocene_active(true);
         assert.next_frames().await;
+    }
+
+
+    /// A faithful Rust port of op-node's `pruneFrameQueue`
+    /// (op-node/rollup/derive/frame_queue.go). This is the differential ORACLE. It is an
+    /// independent implementation (NOT calling kona's `prune`) so a divergence between this
+    /// and the real `FrameQueue::prune` is meaningful.
+    /// ```
+    fn opnode_prune_oracle(frames: &[Frame]) -> alloc::vec::Vec<Frame> {
+        let mut frames: alloc::vec::Vec<Frame> = frames.to_vec();
+        if frames.is_empty() {
+            return frames;
+        }
+        let mut i: usize = 0;
+        while i < frames.len() - 1 {
+            let current = frames[i].clone();
+            let next = frames[i + 1].clone();
+            if current.id == next.id {
+                if current.is_last {
+                    frames.remove(i + 1); // discard(1): drop next
+                    continue;
+                }
+                if next.number != current.number + 1 {
+                    frames.remove(i + 1); // discard(1): drop next
+                    continue;
+                }
+            } else {
+                if next.number == 0 && !current.is_last {
+                    frames.remove(i); // discard(0): drop current
+                    // op-node: `if i > 0 { i-- }`. saturating_sub is identical given i >= 0.
+                    i = i.saturating_sub(1);
+                    continue;
+                }
+                if next.number != 0 {
+                    frames.remove(i + 1); // discard(1): drop next
+                    continue;
+                }
+            }
+            i += 1;
+        }
+        frames
+    }
+
+    /// Runs the REAL (fixed) `FrameQueue::prune` over an input frame slice with Holocene active,
+    /// returning the surviving queue. The same-crate test can set the private `queue` field
+    /// directly and call `prune`.
+    fn real_prune(frames: &[Frame]) -> alloc::vec::Vec<Frame> {
+        let cfg = Arc::new(RollupConfig {
+            hardforks: HardForkConfig { holocene_time: Some(0), ..Default::default() },
+            ..Default::default()
+        });
+        // The `prev` stage is irrelevant to `prune`; we only exercise the queue/prune logic.
+        let prev = TestFrameQueueProvider::new(vec![]);
+        let mut fq = FrameQueue::new(prev, cfg);
+        fq.queue = frames.iter().cloned().collect::<VecDeque<Frame>>();
+        // Holocene-active origin so prune actually runs.
+        fq.prune(BlockInfo::default());
+        fq.queue.into_iter().collect()
+    }
+
+    /// Compare two frame sequences by the `(id, number, is_last)` tuple (ignoring payload bytes).
+    fn frames_eq_by_key(a: &[Frame], b: &[Frame]) -> bool {
+        a.len() == b.len()
+            && a.iter()
+                .zip(b.iter())
+                .all(|(x, y)| x.id == y.id && x.number == y.number && x.is_last == y.is_last)
+    }
+
+    fn fmt_frames(frames: &[Frame]) -> alloc::string::String {
+        use alloc::string::String;
+        use core::fmt::Write;
+        let mut s = String::from("[");
+        for (i, f) in frames.iter().enumerate() {
+            if i > 0 {
+                s.push_str(", ");
+            }
+            let _ = write!(s, "({:#04x},{},{})", f.id[0], f.number, f.is_last);
+        }
+        s.push(']');
+        s
+    }
+
+    /// Emits a fuzz summary. When the `metrics` feature is enabled (which links `std`), prints to
+    /// stderr so `--nocapture` shows the counts. Under default `no_std` test builds it routes the
+    /// summary through `tracing::info!` (always linked). Counts are also embedded in assertion
+    /// messages, so they are visible on failure regardless of feature set.
+    fn log_fuzz(summary: &str, first_div: Option<&str>) {
+        #[cfg(feature = "metrics")]
+        {
+            std::eprintln!("{summary}");
+            if let Some(d) = first_div {
+                std::eprintln!("first divergence:\n{d}");
+            }
+        }
+        #[cfg(not(feature = "metrics"))]
+        {
+            info!(target: "frame_queue", "{}", summary);
+            if let Some(d) = first_div {
+                info!(target: "frame_queue", "first divergence: {}", d);
+            }
+        }
+    }
+
+    /// The adversarial interleaved-channel vector (id2 == 0x02, id0 == 0x00):
+    /// `[(id2,0,last),(id2,2,false),(id0,0,last),(id0,2,false),(id2,0,false),(id0,0,false)]`.
+    fn adversarial_vector() -> [Frame; 6] {
+        [
+            crate::frame!(0x02, 0, vec![0xDD; 4], true),
+            crate::frame!(0x02, 2, vec![0xDD; 4], false),
+            crate::frame!(0x00, 0, vec![0xDD; 4], true),
+            crate::frame!(0x00, 2, vec![0xDD; 4], false),
+            crate::frame!(0x02, 0, vec![0xDD; 4], false),
+            crate::frame!(0x00, 0, vec![0xDD; 4], false),
+        ]
+    }
+
+    /// Test 1: ORACLE self-check. The op-node oracle must keep BOTH valid closed channels on
+    /// the adversarial vector, matching real op-node behavior.
+    #[test]
+    fn test_oracle_matches_opnode() {
+        let input = adversarial_vector();
+        let expected = [
+            crate::frame!(0x02, 0, vec![0xDD; 4], true),
+            crate::frame!(0x00, 0, vec![0xDD; 4], true),
+        ];
+        let got = opnode_prune_oracle(&input);
+        assert!(
+            frames_eq_by_key(&got, &expected),
+            "oracle must match real op-node: expected {}, got {}",
+            fmt_frames(&expected),
+            fmt_frames(&got)
+        );
+    }
+
+    /// Test 2: the REAL FIXED `FrameQueue::prune` must now keep BOTH valid closed channels on
+    /// the adversarial vector (== op-node). Before the fix it kept only `[(id0,0,false)]`.
+    #[test]
+    fn test_real_prune_matches_opnode() {
+        let input = adversarial_vector();
+        let expected = [
+            crate::frame!(0x02, 0, vec![0xDD; 4], true),
+            crate::frame!(0x00, 0, vec![0xDD; 4], true),
+        ];
+        let got = real_prune(&input);
+        assert!(
+            frames_eq_by_key(&got, &expected),
+            "FIXED prune must keep both closed channels: expected {}, got {}",
+            fmt_frames(&expected),
+            fmt_frames(&got)
+        );
+        // And it must agree with the oracle on this vector.
+        assert!(
+            frames_eq_by_key(&got, &opnode_prune_oracle(&input)),
+            "FIXED prune must equal op-node oracle on the adversarial vector"
+        );
+    }
+
+    /// Test 3a: EXHAUSTIVE differential fuzz over the small space that previously had 14,972
+    /// divergences. ids ∈ {0,1,2}, numbers ∈ {0,1,2,3}, `is_last` ∈ {true,false}, lengths 1..=6.
+    /// Asserts ZERO divergences between the real fixed prune and the op-node oracle.
+    #[test]
+    fn test_exhaustive_differential_fuzz() {
+        // Frame "alphabet": (id, number, is_last). 3 ids * 4 numbers * 2 is_last = 24 cells.
+        let mut cells: alloc::vec::Vec<Frame> = alloc::vec::Vec::with_capacity(24);
+        for id in 0u8..3 {
+            for number in 0u16..4 {
+                for is_last in [false, true] {
+                    cells.push(Frame { id: [id; 16], number, data: vec![0xAB; 2], is_last });
+                }
+            }
+        }
+        let base = cells.len();
+
+        let mut total: u64 = 0;
+        let mut divergences: u64 = 0;
+        let mut first_div: Option<alloc::string::String> = None;
+
+        // All sequences of length L for L in 1..=6, enumerated in base-`base` counting.
+        for len in 1usize..=6 {
+            let combos: u64 = (base as u64).pow(len as u32);
+            for n in 0..combos {
+                let mut seq: alloc::vec::Vec<Frame> = alloc::vec::Vec::with_capacity(len);
+                let mut acc = n;
+                for _ in 0..len {
+                    let idx = (acc % base as u64) as usize;
+                    acc /= base as u64;
+                    seq.push(cells[idx].clone());
+                }
+
+                let got = real_prune(&seq);
+                let want = opnode_prune_oracle(&seq);
+                total += 1;
+                if !frames_eq_by_key(&got, &want) {
+                    divergences += 1;
+                    if first_div.is_none() {
+                        first_div = Some(alloc::format!(
+                            "INPUT {}\n  real:   {}\n  opnode: {}",
+                            fmt_frames(&seq),
+                            fmt_frames(&got),
+                            fmt_frames(&want)
+                        ));
+                    }
+                }
+            }
+        }
+
+        let summary = alloc::format!(
+            "[prune-parity exhaustive fuzz] inputs checked = {total}, divergences = {divergences}"
+        );
+        log_fuzz(&summary, first_div.as_deref());
+        // Counts are embedded in the assert message so they are visible even without --nocapture
+        // on failure, and the exhaustive coverage is asserted to be large.
+        assert!(total > 200_000, "expected a large exhaustive space, only checked {total}");
+        assert_eq!(divergences, 0, "exhaustive fuzz: {summary}");
+    }
+
+    /// Test 3b: RANDOM large-space differential fuzz. >= 2,000,000 random sequences, lengths up
+    /// to 16, ids 0..4, numbers 0..5, random `is_last`. Asserts ZERO divergences.
+    #[test]
+    fn test_random_differential_fuzz() {
+        // SplitMix64 — a tiny, deterministic, no_std-friendly PRNG. Fixed seed for reproducibility.
+        struct SplitMix64(u64);
+        impl SplitMix64 {
+            fn next(&mut self) -> u64 {
+                self.0 = self.0.wrapping_add(0x9E3779B97F4A7C15);
+                let mut z = self.0;
+                z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+                z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
+                z ^ (z >> 31)
+            }
+            fn below(&mut self, n: u64) -> u64 {
+                self.next() % n
+            }
+        }
+
+        const ITERS: u64 = 2_000_000;
+        const MAX_LEN: usize = 16;
+        const N_IDS: u8 = 4; // ids 0..4
+        const N_NUMS: u16 = 5; // numbers 0..5
+
+        // Fixed seed for reproducibility (fixed constant).
+        let mut rng = SplitMix64(0x4E4B44303031C0FFu64 ^ 0x5DEECE66D);
+        let mut total: u64 = 0;
+        let mut divergences: u64 = 0;
+        let mut first_div: Option<alloc::string::String> = None;
+
+        for _ in 0..ITERS {
+            // Length 1..=MAX_LEN (avoid empty: prune's `len()-1` underflows on empty, and the
+            // real pipeline never prunes an empty queue).
+            let len = 1 + (rng.below(MAX_LEN as u64) as usize);
+            let mut seq: alloc::vec::Vec<Frame> = alloc::vec::Vec::with_capacity(len);
+            for _ in 0..len {
+                let id = rng.below(N_IDS as u64) as u8;
+                let number = rng.below(N_NUMS as u64) as u16;
+                let is_last = rng.below(2) == 1;
+                seq.push(Frame { id: [id; 16], number, data: vec![0x7C; 2], is_last });
+            }
+
+            let got = real_prune(&seq);
+            let want = opnode_prune_oracle(&seq);
+            total += 1;
+            if !frames_eq_by_key(&got, &want) {
+                divergences += 1;
+                if first_div.is_none() {
+                    first_div = Some(alloc::format!(
+                        "INPUT {}\n  real:   {}\n  opnode: {}",
+                        fmt_frames(&seq),
+                        fmt_frames(&got),
+                        fmt_frames(&want)
+                    ));
+                }
+            }
+        }
+
+        let summary = alloc::format!(
+            "[prune-parity random fuzz] inputs checked = {total}, divergences = {divergences}"
+        );
+        log_fuzz(&summary, first_div.as_deref());
+        assert_eq!(total, ITERS, "must check exactly {ITERS} random inputs");
+        assert_eq!(divergences, 0, "random fuzz: {summary}");
     }
 }
