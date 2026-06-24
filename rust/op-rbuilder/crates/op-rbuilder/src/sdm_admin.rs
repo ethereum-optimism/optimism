@@ -25,17 +25,18 @@ use std::{
 
 /// Shared "operator wants to produce PostExec" flag. Cloned into both the RPC
 /// handler (writer) and every payload-builder ctx (reader).
-pub type SdmPostExecOptInFlag = Arc<AtomicBool>;
+pub type OperatorSdmOptInFlag = Arc<AtomicBool>;
 
 /// Status snapshot returned by `admin_sdmStatus`.
 ///
-/// Mirrors the op-node side so a single client surface can render either node's
+/// Mirrors the op-reth side so a single client surface can render either builder's
 /// state without translation.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SdmStatus {
     /// Whether the operator has opted in via `admin_setSdmPostExecOptIn`.
-    pub post_exec_opt_in: bool,
+    #[serde(rename = "postExecOptIn")]
+    pub operator_sdm_opt_in: bool,
     /// Whether SDM is active per the chain spec at `query_timestamp`.
     pub protocol_active: bool,
     /// AND of the above — the actual decision the builder will make for a block
@@ -50,7 +51,7 @@ pub struct SdmStatus {
 pub trait SdmAdminApi {
     /// Toggle local PostExec production. Starts disabled on process boot.
     #[method(name = "setSdmPostExecOptIn")]
-    fn set_sdm_post_exec_opt_in(&self, enabled: bool) -> RpcResult<()>;
+    fn set_operator_sdm_opt_in(&self, enabled: bool) -> RpcResult<()>;
 
     /// Report the local opt-in flag, the chain-spec gate at `query_timestamp`,
     /// and the AND. If `query_timestamp` is omitted, uses the current wall-clock
@@ -61,18 +62,18 @@ pub trait SdmAdminApi {
 
 #[derive(Clone)]
 pub struct SdmAdminExt {
-    opt_in: SdmPostExecOptInFlag,
+    opt_in: OperatorSdmOptInFlag,
     chain_spec: Arc<OpChainSpec>,
 }
 
 impl SdmAdminExt {
-    pub fn new(opt_in: SdmPostExecOptInFlag, chain_spec: Arc<OpChainSpec>) -> Self {
+    pub fn new(opt_in: OperatorSdmOptInFlag, chain_spec: Arc<OpChainSpec>) -> Self {
         Self { opt_in, chain_spec }
     }
 }
 
 impl SdmAdminApiServer for SdmAdminExt {
-    fn set_sdm_post_exec_opt_in(&self, enabled: bool) -> RpcResult<()> {
+    fn set_operator_sdm_opt_in(&self, enabled: bool) -> RpcResult<()> {
         self.opt_in.store(enabled, Ordering::Release);
         gauge!("op_rbuilder_flags_sdm_enabled").set(enabled as i32);
         Ok(())
@@ -87,7 +88,7 @@ impl SdmAdminApiServer for SdmAdminExt {
             _ => None,
         };
         Ok(SdmStatus {
-            post_exec_opt_in: opt_in,
+            operator_sdm_opt_in: opt_in,
             protocol_active,
             effective: opt_in && protocol_active,
             activation_time,

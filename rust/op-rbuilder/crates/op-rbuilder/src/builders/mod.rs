@@ -131,7 +131,7 @@ pub struct BuilderConfig<Specific: Clone> {
     /// Local operator opt-in for SDM PostExec production. Combined with the chain-spec
     /// Interop gate in [`OpPayloadBuilderCtx::post_exec_mode`]; both must be true to
     /// produce a PostExec tx. Mutated via the `admin_setSdmPostExecOptIn` RPC.
-    pub sdm_post_exec_opt_in: crate::sdm_admin::SdmPostExecOptInFlag,
+    pub operator_sdm_opt_in: crate::sdm_admin::OperatorSdmOptInFlag,
 
     /// Interop failsafe gate shared between the txpool interop filter and payload builder.
     pub interop_failsafe: InteropFailsafe,
@@ -176,7 +176,7 @@ impl<S: Default + Clone> Default for BuilderConfig<S> {
             sampling_ratio: 100,
             max_gas_per_txn: None,
             gas_limiter_config: GasLimiterArgs::default(),
-            sdm_post_exec_opt_in: Default::default(),
+            operator_sdm_opt_in: Default::default(),
             interop_failsafe: Default::default(),
         }
     }
@@ -200,7 +200,7 @@ where
             sampling_ratio: args.telemetry.sampling_ratio,
             max_gas_per_txn: args.max_gas_per_txn,
             gas_limiter_config: args.gas_limiter.clone(),
-            sdm_post_exec_opt_in: Default::default(),
+            operator_sdm_opt_in: Default::default(),
             interop_failsafe: Default::default(),
             specific: S::try_from(args)?,
         })

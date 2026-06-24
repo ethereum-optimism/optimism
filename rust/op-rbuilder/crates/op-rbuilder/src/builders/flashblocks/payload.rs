@@ -376,7 +376,7 @@ where
         let post_exec_mode = compute_post_exec_mode(
             &self.evm_config,
             timestamp,
-            &self.config.sdm_post_exec_opt_in,
+            &self.config.operator_sdm_opt_in,
         );
         let ctx = self
             .get_op_payload_builder_ctx(

@@ -50,7 +50,7 @@ use crate::{
     gas_limiter::AddressGasLimiter,
     metrics::OpRBuilderMetrics,
     primitives::reth::{ExecutionInfo, TxnExecutionResult},
-    sdm_admin::SdmPostExecOptInFlag,
+    sdm_admin::OperatorSdmOptInFlag,
     traits::PayloadTxsBounds,
     tx::MaybeRevertingTransaction,
     tx_signer::Signer,
@@ -101,11 +101,11 @@ where
 pub(super) fn compute_post_exec_mode(
     evm_config: &OpEvmConfig,
     timestamp: u64,
-    opt_in: &SdmPostExecOptInFlag,
+    opt_in: &OperatorSdmOptInFlag,
 ) -> PostExecMode {
     let protocol_active = evm_config.is_sdm_active_at_timestamp(timestamp);
-    let operator_opted_in = opt_in.load(Ordering::Acquire);
-    if protocol_active && operator_opted_in {
+    let operator_sdm_opt_in = opt_in.load(Ordering::Acquire);
+    if protocol_active && operator_sdm_opt_in {
         PostExecMode::Produce
     } else {
         PostExecMode::Disabled

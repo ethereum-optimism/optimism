@@ -115,7 +115,7 @@ impl LocalInstance {
             .expect("Failed to convert rollup args to builder config");
         let da_config = builder_config.da_config.clone();
         let gas_limit_config = builder_config.gas_limit_config.clone();
-        let sdm_post_exec_opt_in = builder_config.sdm_post_exec_opt_in.clone();
+        let operator_sdm_opt_in = builder_config.operator_sdm_opt_in.clone();
         let interop_failsafe = builder_config.interop_failsafe.clone();
 
         let addons: OpAddOns<
@@ -162,7 +162,7 @@ impl LocalInstance {
                 // `admin_setSdmPostExecOptIn` / `admin_sdmStatus`, sharing the opt-in flag
                 // with every payload-builder ctx.
                 let sdm_admin_ext =
-                    SdmAdminExt::new(sdm_post_exec_opt_in.clone(), ctx.provider().chain_spec());
+                    SdmAdminExt::new(operator_sdm_opt_in.clone(), ctx.provider().chain_spec());
                 ctx.modules
                     .add_or_replace_configured(sdm_admin_ext.into_rpc())?;
 
