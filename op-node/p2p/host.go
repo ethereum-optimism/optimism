@@ -48,7 +48,6 @@ type ExtraHostFeatures interface {
 	ConnectionGater() gating.BlockingConnectionGater
 	ConnectionManager() connmgr.ConnManager
 	IsStatic(peerID peer.ID) bool
-	SyncOnlyReqToStatic() bool
 }
 
 type extraHost struct {
@@ -63,8 +62,6 @@ type extraHost struct {
 	pinging *PingService
 
 	quitC chan struct{}
-
-	syncOnlyReqToStatic bool
 }
 
 func (e *extraHost) ConnectionGater() gating.BlockingConnectionGater {
@@ -78,10 +75,6 @@ func (e *extraHost) ConnectionManager() connmgr.ConnManager {
 func (e *extraHost) IsStatic(peerID peer.ID) bool {
 	_, exists := e.staticPeerIDs[peerID]
 	return exists
-}
-
-func (e *extraHost) SyncOnlyReqToStatic() bool {
-	return e.syncOnlyReqToStatic
 }
 
 func (e *extraHost) Close() error {
@@ -267,13 +260,12 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 	}
 
 	out := &extraHost{
-		Host:                h,
-		connMgr:             connMngr,
-		log:                 log,
-		staticPeers:         staticPeers,
-		staticPeerIDs:       staticPeerIDs,
-		quitC:               make(chan struct{}),
-		syncOnlyReqToStatic: conf.SyncOnlyReqToStatic,
+		Host:          h,
+		connMgr:       connMngr,
+		log:           log,
+		staticPeers:   staticPeers,
+		staticPeerIDs: staticPeerIDs,
+		quitC:         make(chan struct{}),
 	}
 
 	if conf.EnablePingService {
