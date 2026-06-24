@@ -130,8 +130,23 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 // Panics if the block is not in state.
 func (s *channelManager) rewindToBlock(block eth.BlockID) {
 	initialCursor := s.blockCursor
+
+	// Nothing pending to rewind into (e.g. all blocks already became safe and were pruned).
+	if s.blocks.Len() == 0 || s.blockCursor == 0 {
+		return
+	}
+
+	// If the target block has already become safe and been pruned from s.blocks — e.g. a
+	// channel straddling the safe head, where PruneSafeBlocks dropped its leading block but
+	// the channel itself was not pruned — clamp to the oldest pending block. Those safe
+	// blocks need no resubmission; this requeues the remaining still-unsafe blocks instead
+	// of underflowing the unsigned index below.
+	if block.Number < bigs.Uint64Strict(s.blocks[0].Number()) {
+		block = eth.ToBlockID(s.blocks[0])
+	}
+
 	idx := block.Number - bigs.Uint64Strict(s.blocks[0].Number())
-	if s.blocks[idx].Hash() == block.Hash && idx < uint64(s.blockCursor) {
+	if idx < uint64(s.blocks.Len()) && s.blocks[idx].Hash() == block.Hash && idx < uint64(s.blockCursor) {
 		s.blockCursor = int(idx)
 	} else {
 		panic("rewindToBlock: tried to rewind to nonexistent block")
@@ -558,6 +573,14 @@ func (s *channelManager) PruneChannels(num int) {
 	for i := 0; i < num; i++ {
 		if s.channelQueue[i] == s.currentChannel {
 			clearCurrentChannel = true
+		}
+		// Keep txChannels in sync with channelQueue: drop any tx IDs that map to a
+		// channel being pruned, so a late confirmation can never resolve to a removed
+		// channel (which would otherwise rewind/index into already-pruned blocks).
+		for txID := range s.txChannels {
+			if s.txChannels[txID] == s.channelQueue[i] {
+				delete(s.txChannels, txID)
+			}
 		}
 	}
 	s.channelQueue = s.channelQueue[num:]
