@@ -1,0 +1,139 @@
+# Consolidated build for the Rust services of the optimism monorepo. kona and
+# op-reth live in the same cargo workspace (rust/) with a single Cargo.lock,
+# so one melange run shares the whole common dependency graph (alloy,
+# op-alloy, revm, ...) across all four binaries instead of compiling it once
+# per CI leg. Subpackage builds run sequentially in one sandbox with a shared
+# target dir: the first build does the heavy lifting, the rest are
+# incremental.
+#
+# Each binary is its own subpackage/APK so images pull only what they run:
+# the kona image bundles all three kona binaries, while op-challenger pulls
+# just kona-host. The op-stack-rust package itself is an empty meta package.
+package:
+  name: op-stack-rust
+  version: "0.0.0"
+  epoch: 0
+  description: op-stack-rust — meta package for the optimism monorepo Rust services
+  copyright:
+    - license: MIT
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+      - ca-certificates-bundle
+      - build-base
+      - cargo-auditable
+      - rust
+      - openssl-dev
+      - perl
+      - clang-19
+      - libclang-cpp-19
+      # opt-in mold linking when the cargo/build pipeline uses it.
+      - mold
+  environment:
+    # One profile for the whole workspace: a single setting means shared
+    # dependency crates compile once across subpackages. CARGO_HOME and
+    # CARGO_TARGET_DIR point at /var/cache/melange; melange/pipelines/cargo/build
+    # derives a per-modroot target subdir from the base. GHA cache restores
+    # melange-cache/ before each op-stack-rust job.
+    # opt-level 0 for faster CI builds. NOTE: op-reth and kona-node are
+    # hot-path chain components — raise this before shipping a prod image, as
+    # an unoptimized binary is significantly slower at runtime.
+    CARGO_HOME: /var/cache/melange/cargo
+    CARGO_TARGET_DIR: /var/cache/melange/target
+    CARGO_PROFILE_RELEASE_OPT_LEVEL: "0"
+    CARGO_PROFILE_RELEASE_LTO: "off"
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+    CARGO_PROFILE_RELEASE_DEBUG: "0"
+
+subpackages:
+  # The first subpackage builds ALL four packages in one cargo invocation:
+  # one scheduler pass over the whole workspace graph keeps every core busy
+  # instead of serializing four builds. The shared target dir persists across
+  # subpackages, so the later three cargo runs are no-op fingerprint checks
+  # followed by an install.
+  - name: op-reth
+    description: op-reth — OP Stack Reth execution client
+    pipeline:
+      - uses: cargo/build
+        with:
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          modroot: rust
+          output: op-reth
+          opts: --release --locked --package op-reth --package kona-node --package kona-host --package kona-client
+      - uses: strip
+
+  - name: kona-node
+    description: kona-node — OP Stack Kona rollup node
+    pipeline:
+      - uses: cargo/build
+        with:
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          modroot: rust
+          output: kona-node
+          opts: --release --locked --package kona-node
+      - uses: strip
+
+  - name: kona-host
+    description: kona-host — OP Stack Kona fault proof host
+    pipeline:
+      - uses: cargo/build
+        with:
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          modroot: rust
+          output: kona-host
+          opts: --release --locked --package kona-host
+      - uses: strip
+
+  - name: kona-client
+    description: kona-client — OP Stack Kona fault proof client
+    pipeline:
+      - uses: cargo/build
+        with:
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          modroot: rust
+          output: kona-client
+          opts: --release --locked --package kona-client
+      - uses: strip
+
+  # The monorepo vendors op-rbuilder and rollup-boost as NESTED workspaces
+  # (own Cargo.toml + Cargo.lock, not members of the main rust/ workspace), and
+  # upstream's build-images workflow publishes both from these copies. They
+  # share this leg's checkout but not the main workspace's dependency build.
+  - name: op-rbuilder
+    description: op-rbuilder — OP Stack block builder (monorepo vendored copy)
+    pipeline:
+      - uses: cargo/build
+        with:
+          prefix: usr/local
+          modroot: rust/op-rbuilder
+          output: op-rbuilder
+          opts: --release --locked --package op-rbuilder
+      # Upstream's op-rbuilder image ships the binary as /app/rbuilder (its
+      # Dockerfile heritage); match it for drop-in parity.
+      - runs: |
+          mkdir -p "${{targets.contextdir}}/app"
+          mv "${{targets.contextdir}}/usr/local/bin/op-rbuilder" \
+             "${{targets.contextdir}}/app/rbuilder"
+      - uses: strip
+
+  - name: rollup-boost
+    description: rollup-boost — OP Stack block builder multiplexer (monorepo vendored copy)
+    pipeline:
+      - uses: cargo/build
+        with:
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          modroot: rust/rollup-boost
+          output: rollup-boost
+          opts: --release --locked --package rollup-boost
+      - uses: strip
