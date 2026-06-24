@@ -2,14 +2,18 @@ package sysgo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -42,10 +46,20 @@ func NewSingleChainMultiNodeRuntimeWithConfig(t devtest.T, withP2P bool, cfg Pre
 // only exercise sequencer + batcher + verifier derivation.
 func NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t devtest.T, withP2P bool, cfg PresetConfig) *SingleChainRuntime {
 	runtime := NewMinimalNoFaultProofsRuntimeWithConfig(t, cfg)
-	// Wire the verifier's L2 follow source to the sequencer's L2 execution RPC.
-	// A consensus-only verifier (op-con-node) has no P2P, so it pulls the unsafe
-	// chain from this RPC and consolidates its L1-derived safe chain against it.
-	// op-node verifiers accept the same L2 follow source.
+	// With P2P and an op-con-node verifier, the verifier has no built-in P2P: it
+	// gets the unsafe chain over gossip via the op-conp2p sidecar (peered to the
+	// sequencer) and derives its safe chain from L1. No follow source, no CL P2P
+	// peering (which op-con-node cannot do).
+	if withP2P && devstackL2CLKind() == MixedL2CLOpCon {
+		addSingleChainOpConVerifierWithSidecar(t, runtime, "b", cfg.GlobalL2CLOptions...)
+		runtime.P2PEnabled = true
+		return runtime
+	}
+	// Otherwise wire the verifier's L2 follow source to the sequencer's L2
+	// execution RPC. A consensus-only verifier (op-con-node) without P2P pulls the
+	// unsafe chain from this RPC and consolidates its L1-derived safe chain against
+	// it. op-node verifiers accept the same L2 follow source and additionally peer
+	// over CL P2P when withP2P is set.
 	followSource := runtime.L2EL.UserRPC()
 	nodeB := addSingleChainOpNode(t, runtime, "b", false, followSource, cfg.GlobalL2CLOptions...)
 	if withP2P {
@@ -53,6 +67,38 @@ func NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t devtest.T, withP2P 
 	}
 	runtime.P2PEnabled = withP2P
 	return runtime
+}
+
+// addSingleChainOpConVerifierWithSidecar launches an op-con-node verifier whose
+// unsafe chain is delivered over OP gossip by the op-conp2p sidecar (peered to
+// the sequencer), rather than follow-mode. It seeds the expected unsafe-block
+// signer (the genesis signer is the sequencer P2P role address) so the verifier's
+// admin_verifyUnsafePayload can attribute gossiped blocks until an on-chain
+// rotation is observed.
+func addSingleChainOpConVerifierWithSidecar(t devtest.T, runtime *SingleChainRuntime, name string, l2Opts ...L2CLOption) *SingleChainNodeRuntime {
+	addrFor := intentbuilder.RoleToAddrProvider(t, runtime.Keys, runtime.L2Network.ChainID())
+	signer := addrFor(devkeys.SequencerP2PRole)
+	t.Require().NoError(os.Setenv("DEVSTACK_OPCON_UNSAFE_SIGNER", signer.Hex()),
+		"set op-con-node unsafe-block signer env")
+
+	// op-con-node verifier with no follow source: unsafe head arrives via gossip.
+	nodeB := addSingleChainOpNode(t, runtime, name, false, "", l2Opts...)
+
+	// The sidecar consumes the same standard rollup config (chain id + fork times
+	// drive the gossip topics) and peers with the sequencer's gossip address.
+	rollupPath := writeStandardRollupConfig(t, runtime.L2Network)
+	StartOpConP2PSidecar(t, "op-conp2p-"+name, nodeB.CL.UserRPC(), rollupPath, SequencerGossipMultiaddr(t, runtime.L2CL))
+	return nodeB
+}
+
+// writeStandardRollupConfig marshals the network's rollup config (the standard
+// op-node schema) to a temp file for the op-conp2p sidecar.
+func writeStandardRollupConfig(t devtest.T, l2Net *L2Network) string {
+	data, err := json.Marshal(l2Net.rollupCfg)
+	t.Require().NoError(err, "marshal rollup config for op-conp2p sidecar")
+	path := filepath.Join(t.TempDir(), "rollup.json")
+	t.Require().NoError(os.WriteFile(path, data, 0o644), "write rollup config for op-conp2p sidecar")
+	return path
 }
 
 func NewSingleChainTwoVerifiersRuntime(t devtest.T) *SingleChainRuntime {

@@ -59,6 +59,20 @@ func NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck(t devtest.T, opt
 	return out
 }
 
+// NewSingleChainMultiNodeNoFaultProofsWithP2PWithoutCheck is the with-P2P
+// counterpart of the above: the sequencer publishes unsafe blocks over gossip and
+// the verifier joins the network. With the default op-node verifier this peers
+// over CL P2P; with DEVSTACK_L2CL_KIND=op-con-node the verifier (which has no
+// built-in P2P) is fronted by the op-conp2p gossip sidecar, which delegates each
+// block's signature verdict back to op-con-node. No proposer/challenger (no
+// cannon), no initial sync checks.
+func NewSingleChainMultiNodeNoFaultProofsWithP2PWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsWithP2PWithoutCheck", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t, true, presetCfg), false)
+	presetOpts.applyPreset(out)
+	return out
+}
+
 type SingleChainMultiNodeWithTestSeq struct {
 	SingleChainMultiNode
 

@@ -38,3 +38,32 @@ func TestOpConVerifierDerivesSafeHead(gt *testing.T) {
 	sys.L2CLB.Advanced(types.LocalSafe, 1, 60)
 	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 60)
 }
+
+// TestOpConVerifierViaP2P exercises the op-conp2p P2P sidecar end to end: the
+// op-node sequencer publishes unsafe blocks over gossip, the op-conp2p sidecar
+// (peered to the sequencer) receives them and delegates each block's signature
+// verdict back to the op-con-node verifier's admin_verifyUnsafePayload, which
+// ingests accepted blocks and drives its execution engine. The verifier's UNSAFE
+// head must advance and converge on the sequencer's unsafe head — purely over
+// P2P, with no follow source.
+//
+//	DEVSTACK_L2CL_KIND=op-con-node \
+//	DEVSTACK_L2EL_KIND=op-reth \
+//	RUST_BINARY_PATH_OP_CON_NODE=<opql>/target/debug/op-con-node \
+//	OP_CONP2P_BIN=<optimism>/op-conp2p-bin \
+//	go test -run TestOpConVerifierViaP2P ./op-acceptance-tests/tests/opcon/
+//
+// With the default op-node verifier kind it is an ordinary with-P2P unsafe-sync
+// check, so it remains a valid suite addition rather than an op-con-node-only test.
+func TestOpConVerifierViaP2P(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSingleChainMultiNodeNoFaultProofsWithP2PWithoutCheck(t)
+
+	// The sequencer produces and gossips unsafe blocks.
+	sys.L2CL.Advanced(types.LocalUnsafe, 1, 60)
+
+	// The verifier receives them over P2P (via the sidecar) and converges on the
+	// sequencer's unsafe head.
+	sys.L2CLB.Advanced(types.LocalUnsafe, 1, 60)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalUnsafe, 60)
+}
