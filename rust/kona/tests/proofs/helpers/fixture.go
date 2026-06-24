@@ -38,4 +38,9 @@ type FixtureInputs struct {
 	// the generated witness so the guest rejects it (the invalid-claim soundness path). Ignored by
 	// the native fault-proof program. Not part of the serialized fixture.
 	CorruptClaim bool `toml:"-"`
+
+	// SP1NativeCore, when set, instructs the SP1 range executor to generate the witness and then run
+	// the shared range-program core natively instead of executing the SP1 ELF. Ignored by the native
+	// fault-proof program. Not part of the serialized fixture.
+	SP1NativeCore bool `toml:"-"`
 }

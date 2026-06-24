@@ -7853,6 +7853,7 @@ dependencies = [
  "kona-proof",
  "kona-sp1-client-utils",
  "kona-sp1-elfs",
+ "kona-sp1-ethereum-client-utils",
  "kona-sp1-ethereum-host-utils",
  "kona-sp1-host-utils",
  "sp1-sdk",
