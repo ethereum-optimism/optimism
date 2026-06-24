@@ -50,19 +50,18 @@ func TestFlashblocksSDMMaterializesPostExecBlock(gt *testing.T) {
 
 	driveViaTestSequencer(t, sys, 2)
 
-	// SDM PostExec production is gated by an in-memory operator flag that starts
-	// disabled on every process boot — protocol activation alone is not enough.
-	// Opt in on both the sequencer EL (op-reth fallback) and op-rbuilder (the
-	// flashblocks producer), since rollup-boost may route to either.
+	// SDM PostExec production is gated by an operator opt-in that starts disabled
+	// on every process boot — protocol activation alone is not enough. Opt in on
+	// both the sequencer EL (op-reth fallback) and op-rbuilder (the flashblocks
+	// producer), since rollup-boost may route to either.
 	//
-	// Unlike op-node (which persists the opt-in in its config file — see
-	// op-node/config/config_persistence.go), op-reth and op-rbuilder hold the
-	// flag in a process-local Arc<AtomicBool> with no disk backing (see the
-	// "persistence is deliberately out of scope" notes in
+	// op-reth and op-rbuilder hold the flag in a process-local Arc<AtomicBool> with
+	// no disk backing (see the "persistence is deliberately out of scope" notes in
 	// rust/op-reth/crates/rpc/src/sdm_admin.rs and
-	// rust/op-rbuilder/crates/op-rbuilder/src/sdm_admin.rs). Any restart of
-	// either Rust process drops the opt-in, so callers — tests here, operators
-	// in prod — must re-issue admin_setSdmPostExecOptIn after every boot.
+	// rust/op-rbuilder/crates/op-rbuilder/src/sdm_admin.rs). A runtime opt-in set
+	// over RPC is dropped on restart, so callers — tests here, operators in prod —
+	// must re-issue admin_setSdmPostExecOptIn after every boot (op-reth can instead
+	// seed it at boot via --rollup.operator-sdm-opt-in).
 	setFlashblocksSDMEnabled(t, sys.L2EL.Escape().L2EthClient().RPC(), true)
 	setFlashblocksSDMEnabled(t, sys.L2OPRBuilder.Escape().L2EthClient().RPC(), true)
 
