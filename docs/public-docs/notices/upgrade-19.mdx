@@ -116,6 +116,14 @@ Update the following components:
   **Upgrade order:** On networks that have **not yet activated Karst** (pre-Karst), `op-node`, `op-reth`, and `op-rbuilder` can be upgraded independently in any order — they will continue using the previous Engine API version until the fork timestamp. On networks that have **already activated Karst** (post-Karst, e.g. Sepolia chains), all three must be upgraded together in a coordinated rollout, as Karst requires `engine_getPayloadV5` and a version mismatch will break the sequencer.
 </Warning>
 
+### Which chains are affected
+
+The following Sepolia chains activated Karst with the buggy release and currently have an elevated block gas limit:
+
+**Sepolia:** `OP`, `Ink`, `Soneium`, `Unichain`, `Mode`, `Metal`, `Zora`, `Lisk`
+
+Mainnet chains have `keep_karst_upgrade_gas = true` baked into their Superchain Registry configs, but will activate Karst with the fixed releases — the gas limit elevation will not occur. **No `setGasLimit()` action is required for mainnet chains after activation.**
+
 ### For permissioned fault proof chains
 
 Chains running **permissioned** fault proofs (game type `PERMISSIONED`) do not need the full permissionless setup below, but `op-challenger` still requires a cannon prestate to be configured at startup even though the legacy `CANNON` (0) prestate is not used after the upgrade.
