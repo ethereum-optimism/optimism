@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -66,4 +68,41 @@ func TestOpConVerifierViaP2P(gt *testing.T) {
 	// sequencer's unsafe head.
 	sys.L2CLB.Advanced(types.LocalUnsafe, 1, 60)
 	sys.L2CLB.InSync(sys.L2CL, types.LocalUnsafe, 60)
+}
+
+// TestOpConVerifierSafeHeadDatabaseMatches is the op-con-node variant of the
+// op-node safeheaddb_clsync verifier test (TestPreserveDatabaseOnCLResync). That
+// test was previously unreachable for op-con-node because it requires the
+// verifier to sync over P2P; with the op-conp2p sidecar it now is.
+//
+// It exercises a real op-node verifier assertion against op-con-node:
+// VerifySafeHeadDatabaseMatches compares optimism_safeHeadAtL1Block on the
+// verifier against the op-node sequencer's SafeDB. op-con-node serves it from its
+// SQL-derived rollup_rpc_safe_head_at_l1_history, so the two must agree.
+//
+// With the default op-node verifier kind this is an ordinary safe-head-DB parity
+// check, so it remains a valid suite addition rather than an op-con-node-only test.
+func TestOpConVerifierSafeHeadDatabaseMatches(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSingleChainMultiNodeNoFaultProofsWithP2PWithoutCheck(t,
+		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+			// Enable the op-node sequencer's SafeDB so it can answer
+			// optimism_safeHeadAtL1Block as the source of truth. (The op-con-node
+			// verifier serves its own from SQL and needs no file path.)
+			cfg.SafeDBPath = p.TempDir()
+		})),
+	)
+
+	// The op-node sequencer batches blocks to L1; both it and the op-con-node
+	// verifier advance their safe heads (the verifier derives safe from L1 and
+	// gets unsafe over P2P via the sidecar).
+	dsl.CheckAll(t,
+		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 60),
+		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 60),
+	)
+
+	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 60)
+
+	// The verifier's safe-head-at-L1 history must match the sequencer's SafeDB.
+	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
 }
