@@ -1,5 +1,6 @@
 use super::{
-    ExecutionInfo, OpPayloadBuilderCtx, build_post_exec_recovered_tx, try_include_post_exec_tx,
+    ExecutionInfo, OpBestTransactions, OpPayloadBuilderCtx, RethBestTransactions,
+    build_post_exec_recovered_tx, try_include_post_exec_tx,
 };
 use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig};
 use alloy_consensus::{
@@ -224,7 +225,7 @@ fn run_execute_best_transactions_with_ctx<T>(
     committed_txs: Option<&mut Vec<Recovered<OpTransactionSigned>>>,
 ) -> (ExecutionInfo, Vec<TxHash>)
 where
-    T: PoolTransaction<Consensus = OpTransactionSigned> + OpPooledTx,
+    T: PoolTransaction<Consensus = OpTransactionSigned> + OpPooledTx + Clone,
 {
     let mut state_provider = StateProviderTest::default();
     state_provider.insert_account(
@@ -247,7 +248,7 @@ where
         ctx.execute_best_transactions(
             &mut info,
             &mut builder,
-            best_txs,
+            RethBestTransactions(best_txs),
             gas_limit_cap,
             committed_txs
         )
@@ -418,6 +419,160 @@ fn execute_best_transactions_committed_txs_preserves_execution() {
     assert_eq!(committed_info.cumulative_gas_used, none_info.cumulative_gas_used);
     assert_eq!(committed_info.cumulative_da_bytes_used, none_info.cumulative_da_bytes_used);
     assert_eq!(committed_info.total_fees, none_info.total_fees);
+}
+
+#[test]
+fn execute_best_transactions_on_commit_fires_once_per_committed_tx() {
+    use reth_payload_util::PayloadTransactions;
+    use std::{cell::RefCell, rc::Rc};
+
+    /// Records the gas reported through `on_commit` into a shared vec, so the
+    /// assertions can read it after the iterator is moved into the builder.
+    struct RecordingTxs {
+        inner: PayloadTransactionsFixed<OpPooledTransaction>,
+        gas: Rc<RefCell<Vec<u64>>>,
+    }
+
+    impl PayloadTransactions for RecordingTxs {
+        type Transaction = OpPooledTransaction;
+
+        fn next(&mut self, ctx: ()) -> Option<Self::Transaction> {
+            self.inner.next(ctx)
+        }
+
+        fn mark_invalid(&mut self, sender: Address, nonce: u64) {
+            self.inner.mark_invalid(sender, nonce);
+        }
+    }
+
+    impl OpBestTransactions for RecordingTxs {
+        fn on_commit(&mut self, gas_used: u64) {
+            self.gas.borrow_mut().push(gas_used);
+        }
+    }
+
+    let signer = Address::repeat_byte(0x11);
+    let tx0 = op_pooled_tx(0, signer, Address::repeat_byte(0x22));
+    let nonce_too_low = tx0.clone();
+    let tx1 = op_pooled_tx(1, signer, Address::repeat_byte(0x33));
+    let expected_committed = vec![*tx0.hash(), *tx1.hash()];
+    let txs = vec![tx0, nonce_too_low, tx1];
+
+    let gas_limit = 1_000_000;
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+    let ctx = payload_builder_ctx(chain_spec, gas_limit);
+
+    let mut state_provider = StateProviderTest::default();
+    state_provider.insert_account(
+        signer,
+        Account { balance: U256::MAX, ..Default::default() },
+        None,
+        Default::default(),
+    );
+    let mut db = State::builder()
+        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_bundle_update()
+        .build();
+    let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
+    let mut info = ExecutionInfo::new();
+
+    let gas = Rc::new(RefCell::new(Vec::<u64>::new()));
+    // `committed_txs` records the committed txs in order, independent of the hook.
+    let mut committed_txs = Vec::new();
+    let best_txs = RecordingTxs { inner: PayloadTransactionsFixed::new(txs), gas: gas.clone() };
+
+    ctx.execute_best_transactions(
+        &mut info,
+        &mut builder,
+        best_txs,
+        None,
+        Some(&mut committed_txs),
+    )
+    .expect("best transactions execute");
+    let gas = gas.borrow();
+
+    // The committed set skips the nonce-too-low duplicate, in inclusion order.
+    assert_eq!(tx_hashes(&committed_txs), expected_committed);
+    // The hook fires exactly once per committed tx.
+    assert_eq!(gas.len(), committed_txs.len());
+    // Each reported gas is non-zero and their sum equals the block's cumulative gas.
+    assert!(gas.iter().all(|g| *g > 0));
+    assert_eq!(gas.iter().sum::<u64>(), info.cumulative_gas_used);
+}
+
+/// A custom `OpBestTransactions` iterator gets its `on_commit` called once per
+/// committed tx with the committed gas, so it can fold each inclusion back into
+/// its own state from inside the include loop.
+#[test]
+fn execute_best_transactions_on_commit_can_drive_iterator_state() {
+    use reth_payload_util::PayloadTransactions;
+    use std::{cell::Cell, rc::Rc};
+
+    /// An `OpBestTransactions` that wraps a fixed list and records committed gas
+    /// into shared cells (so the test can read them after the iterator is moved
+    /// into the builder).
+    struct GasTrackingTxs {
+        inner: PayloadTransactionsFixed<OpPooledTransaction>,
+        committed_gas: Rc<Cell<u64>>,
+        commit_count: Rc<Cell<u32>>,
+    }
+
+    impl PayloadTransactions for GasTrackingTxs {
+        type Transaction = OpPooledTransaction;
+
+        fn next(&mut self, ctx: ()) -> Option<Self::Transaction> {
+            self.inner.next(ctx)
+        }
+
+        fn mark_invalid(&mut self, sender: Address, nonce: u64) {
+            self.inner.mark_invalid(sender, nonce);
+        }
+    }
+
+    impl OpBestTransactions for GasTrackingTxs {
+        fn on_commit(&mut self, gas_used: u64) {
+            self.committed_gas.set(self.committed_gas.get() + gas_used);
+            self.commit_count.set(self.commit_count.get() + 1);
+        }
+    }
+
+    let signer = Address::repeat_byte(0x11);
+    let tx0 = op_pooled_tx(0, signer, Address::repeat_byte(0x22));
+    let tx1 = op_pooled_tx(1, signer, Address::repeat_byte(0x33));
+    let txs = vec![tx0, tx1];
+
+    let gas_limit = 1_000_000;
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+    let ctx = payload_builder_ctx(chain_spec, gas_limit);
+
+    let mut state_provider = StateProviderTest::default();
+    state_provider.insert_account(
+        signer,
+        Account { balance: U256::MAX, ..Default::default() },
+        None,
+        Default::default(),
+    );
+    let mut db = State::builder()
+        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_bundle_update()
+        .build();
+    let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
+    let mut info = ExecutionInfo::new();
+
+    let committed_gas = Rc::new(Cell::new(0u64));
+    let commit_count = Rc::new(Cell::new(0u32));
+    let best_txs = GasTrackingTxs {
+        inner: PayloadTransactionsFixed::new(txs),
+        committed_gas: committed_gas.clone(),
+        commit_count: commit_count.clone(),
+    };
+
+    ctx.execute_best_transactions(&mut info, &mut builder, best_txs, None, None)
+        .expect("best transactions execute");
+
+    // Two txs committed; the iterator accumulated their gas, matching the block total.
+    assert_eq!(commit_count.get(), 2);
+    assert_eq!(committed_gas.get(), info.cumulative_gas_used);
 }
 
 #[test]
