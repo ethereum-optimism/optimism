@@ -112,7 +112,7 @@ the L1 Data Fee are generally quite small and should not impact the average tran
 
 Prior to the Ecotone upgrade, the L1 Data Fee is calculated based on the following parameters:
 
-*   The **signed** transaction, serialized according to the standard Ethereum transaction RLP encoding (op-alloy's [`OpTxEnvelope`](https://github.com/ethereum-optimism/optimism/blob/develop/rust/op-alloy/crates/consensus/src/transaction/envelope.rs)).
+*   The **signed** transaction, serialized according to [the standard Ethereum transaction RLP encoding](https://github.com/ethereum-optimism/op-geth/blob/11a890f1ee0348a17687149abc72f394f9faa5ce/core/types/transaction.go#L131-L141).
 *   The current Ethereum base fee  (trustlessly relayed from Ethereum).
 *   A fixed overhead cost for publishing a transaction (currently set to 188 gas).
 *   A dynamic overhead cost which scales with the size of the transaction (currently set to 0.684).
@@ -148,7 +148,7 @@ The pricing function changes with Ecotone upgrade because of the introduction of
 post transaction batches to the L1 using blobs instead of through L1 calldata. This updated
 function uses the following parameters:
 
-*   The **signed** transaction serialized according to the standard Ethereum transaction RLP encoding (op-alloy's [`OpTxEnvelope`](https://github.com/ethereum-optimism/optimism/blob/develop/rust/op-alloy/crates/consensus/src/transaction/envelope.rs)).
+*   The **signed** transaction serialized according to [the standard Ethereum transaction RLP encoding](https://github.com/ethereum-optimism/op-geth/blob/11a890f1ee0348a17687149abc72f394f9faa5ce/core/types/transaction.go#L131-L141).
 *   The current Ethereum base fee and/or blob base fee (trustlessly relayed from Ethereum).
 *   Two new scalar parameters that independently scale the **base fee** and **blob base fee**.
 
