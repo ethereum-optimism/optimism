@@ -116,13 +116,46 @@ Update the following components:
   **Upgrade order:** On networks that have **not yet activated Karst** (pre-Karst), `op-node`, `op-reth`, and `op-rbuilder` can be upgraded independently in any order — they will continue using the previous Engine API version until the fork timestamp. On networks that have **already activated Karst** (post-Karst, e.g. Sepolia chains), all three must be upgraded together in a coordinated rollout, as Karst requires `engine_getPayloadV5` and a version mismatch will break the sequencer.
 </Warning>
 
-### Which chains are affected
+### Gas limit: action required for all chains
 
-The following Sepolia chains activated Karst with the buggy release and currently have an elevated block gas limit:
+`keep_karst_upgrade_gas = true` is set in the Superchain Registry for **both Sepolia and mainnet** OP Stack chains. This enshrines the one-time Karst upgrade gas into the steady-state block gas limit: after Karst activates, the chain runs with a block gas limit elevated by the Karst upgrade-gas amount above its intended value.
+
+<Warning>
+  **Chain operators for all chains — Sepolia and mainnet — must submit a `SystemConfig.setGasLimit()` transaction after activation** to restore their intended block gas limit. This applies regardless of client version, because the elevated behavior is enshrined by `keep_karst_upgrade_gas = true` in the Superchain Registry, not by the buggy release.
+</Warning>
+
+The following Sepolia chains have already activated Karst and are currently running with the elevated block gas limit:
 
 **Sepolia:** `OP`, `Ink`, `Soneium`, `Unichain`, `Mode`, `Metal`, `Zora`, `Lisk`
 
-Mainnet chains have `keep_karst_upgrade_gas = true` baked into their Superchain Registry configs, but will activate Karst with the fixed releases — the gas limit elevation will not occur. **No `setGasLimit()` action is required for mainnet chains after activation.**
+Mainnet chains will exhibit the same behavior once they activate Karst.
+
+#### Restoring the gas limit
+
+After activation, submit a `setGasLimit()` transaction from your chain's `SystemConfig` owner to set the block gas limit back to your intended value.
+
+<Steps>
+  <Step title="Read the current (elevated) gas limit">
+  ```bash
+  cast call <SYSTEM_CONFIG_ADDRESS> "gasLimit()(uint64)" --rpc-url <L1_RPC_URL>
+  ```
+  </Step>
+
+  <Step title="Submit setGasLimit() from the SystemConfig owner">
+  The transaction must be sent by the `SystemConfig` owner (typically a multisig). Set `<INTENDED_GAS_LIMIT>` to the value your chain ran with before Karst activation.
+
+  ```bash
+  cast send <SYSTEM_CONFIG_ADDRESS> "setGasLimit(uint64)" <INTENDED_GAS_LIMIT> \
+    --rpc-url <L1_RPC_URL> --private-key <SYSTEM_CONFIG_OWNER_KEY>
+  ```
+
+  If the owner is a Safe multisig, build and execute the call through your normal multisig flow instead of a direct `cast send`.
+  </Step>
+
+  <Step title="Verify the new gas limit">
+  Re-read `gasLimit()` on the `SystemConfig` and confirm it matches your intended value. The change takes effect on L2 once the corresponding `ConfigUpdate` is derived.
+  </Step>
+</Steps>
 
 ### For permissioned fault proof chains
 
