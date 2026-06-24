@@ -8,7 +8,6 @@ use alloy_primitives::B256;
 use anyhow::Result;
 use async_trait::async_trait;
 use kona_host::single::SingleChainHost;
-use kona_sp1_ethereum_client_utils::executor::ETHDAWitnessExecutor;
 use kona_sp1_host_utils::{fetcher::OPSuccinctDataFetcher, host::OPSuccinctHost};
 
 /// Host implementation for Ethereum DA using single chain host.
@@ -85,11 +84,6 @@ impl OPSuccinctHost for SingleChainOPSuccinctHost {
 impl SingleChainOPSuccinctHost {
     /// Creates a new [`SingleChainOPSuccinctHost`] instance.
     pub fn new(fetcher: Arc<OPSuccinctDataFetcher>) -> Self {
-        Self {
-            fetcher,
-            witness_generator: Arc::new(ETHDAWitnessGenerator {
-                executor: ETHDAWitnessExecutor::new(),
-            }),
-        }
+        Self { fetcher, witness_generator: Arc::new(ETHDAWitnessGenerator::new()) }
     }
 }
