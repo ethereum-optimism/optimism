@@ -19,6 +19,11 @@
 #                        and the range proofs must be present here.)
 #   prove                Generate a compressed range proof for every saved stdin.
 #                        Runs on the proving host; needs no RPC.
+#   execute              Execute (NO proving) every saved range stdin and record
+#                        the zkVM cycle count, SP1 gas, and wall time per range to
+#                        timings.tsv. Needs the range ELF; no RPC. Far cheaper than
+#                        proving -- use it to learn each range's cycle count. Ranges
+#                        already recorded in timings.tsv are skipped.
 #   agg [--inputs F] [--plonk] P...
 #                        Aggregate an explicit, contiguous list of range proofs.
 #                        Compressed by default; --plonk for the final PLONK proof.
@@ -137,6 +142,10 @@ require_rpc() {
 require_elfs() {
   [ -s "$SCRIPT_DIR/elf/range-elf" ] || die "elf/range-elf missing or empty -- build it first with: just build-elfs"
   [ -s "$SCRIPT_DIR/elf/aggregation-elf" ] || die "elf/aggregation-elf missing or empty -- build it first with: just build-elfs"
+}
+
+require_range_elf() {
+  [ -s "$SCRIPT_DIR/elf/range-elf" ] || die "elf/range-elf missing or empty -- build it first with: just build-elfs"
 }
 
 # SP1 cycle-tracker noise. The kona guest prints `cycle-tracker-report-start/end:`
@@ -440,6 +449,51 @@ mode_prove() {
   echo "prove complete. timings -> $TIMINGS"
 }
 
+# True if a successful (non-FAILED) execute row for this range already exists in
+# the timings file, so re-runs skip it. Cycle counts are deterministic, so there
+# is no value in re-executing -- delete the row (or the file) to force a redo.
+already_executed() {
+  local start="$1" end="$2"
+  [ -f "$TIMINGS" ] || return 1
+  awk -F'\t' -v s="$start" -v e="$end" \
+    '$2=="execute" && $5==s && $6==e {found=1} END{exit !found}' "$TIMINGS"
+}
+
+mode_execute() {
+  ensure_data_dir
+  require_range_elf
+  shopt -s nullglob
+  local stdins=("$DATA_DIR"/stdin_*.bin)
+  shopt -u nullglob
+  [ "${#stdins[@]}" -gt 0 ] || die "no stdin_*.bin files in $DATA_DIR -- run fetch_range first"
+
+  for stdin in "${stdins[@]}"; do
+    local base se start end
+    base="$(basename "$stdin" .bin)"; se="${base#stdin_}"
+    start="${se%_*}"; end="${se#*_}"
+    local log="$LOG_DIR/execute_${start}_${end}.log"
+    if already_executed "$start" "$end"; then
+      echo "skip execute ${start}-${end} (already in timings.tsv)"
+      continue
+    fi
+    echo "execute ${start}-${end}"
+    local t0 t1 wall extra
+    t0="$(now_s)"
+    # No --prove and no --no-execute: range-bench runs the SP1 execute pass and
+    # reports the cycle count + SP1 gas, which extract_metrics pulls from the log.
+    if run_bench "$log" range-bench --load-stdin "$stdin"; then
+      t1="$(now_s)"; wall="$(elapsed "$t0" "$t1")"
+      extra="$(extract_metrics "$log")"
+      log_timing "$(iso_now)" execute range - "$start" "$end" "$((end - start))" "$wall" "$extra" "$log"
+    else
+      t1="$(now_s)"; wall="$(elapsed "$t0" "$t1")"
+      log_timing "$(iso_now)" execute-FAILED range - "$start" "$end" "$((end - start))" "$wall" - "$log"
+      echo "  FAILED -- see $log" >&2
+    fi
+  done
+  echo "execute complete. timings -> $TIMINGS"
+}
+
 # Validate an explicit, contiguous, ascending list of compressed range proofs.
 # Sets REPLY_FIRST, REPLY_LAST, REPLY_JOINED on success.
 verify_proofs() {
@@ -591,6 +645,7 @@ main() {
     fetch_range) mode_fetch_range "$@" ;;
     fetch_agg)   mode_fetch_agg "$@" ;;
     prove) mode_prove "$@" ;;
+    execute) mode_execute "$@" ;;
     agg)   mode_agg "$@" ;;
     ""|-h|--help|help) usage 0 ;;
     *) echo "unknown mode: $cmd" >&2; usage 1 ;;
