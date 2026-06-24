@@ -160,9 +160,31 @@ func TestOpConVerifierFillsUnsafeGaps(gt *testing.T) {
 	sys.L2ELB.Reached(eth.Unsafe, startNum+7, 2)
 }
 
-// NOTE: a verifier restart/resync variant (the op-con-node analogue of the
-// restart half of the op-node safeheaddb_clsync test) is intentionally NOT added
-// here yet: it surfaced a pre-existing op-con-node restore-from-checkpoint panic
-// ("More than one value in subquery", an integer scalar subquery in the generated
-// circuit on the restore path) that is unrelated to the sidecar P2P work. Add the
-// restart variant once that restore bug is fixed.
+// TestOpConVerifierResumesAfterRestart is the op-con-node analogue of the verifier
+// restart in the op-node safeheaddb_clsync test: the verifier is stopped while the
+// sequencer keeps batching to L1, then restarted and must resume from its shutdown
+// checkpoint and catch back up to the safe head. (op-con-node re-derives its safe
+// head from L1 rather than reading a persisted SafeDB, so this exercises restart
+// resume + re-derivation through the Feldera checkpoint restore path.)
+func TestOpConVerifierResumesAfterRestart(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck(t)
+
+	// Verifier derives the safe chain from L1 and converges on the sequencer.
+	dsl.CheckAll(t,
+		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 60),
+		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 60),
+	)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 60)
+
+	// Stop the verifier (writing a shutdown checkpoint); the sequencer keeps
+	// batching to L1.
+	sys.L2CLB.Stop()
+	sys.L2CL.Advanced(types.LocalSafe, 3, 60)
+
+	// Restart the verifier; it restores from the checkpoint, re-derives from L1,
+	// and catches back up to the sequencer's safe head.
+	sys.L2CLB.Start()
+	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 90)
+	sys.L2CLB.Advanced(types.LocalSafe, 1, 60)
+}
