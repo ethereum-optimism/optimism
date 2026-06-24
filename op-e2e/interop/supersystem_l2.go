@@ -155,7 +155,7 @@ func (s *interopE2ESystem) newSupernodeNodeConfig(l2 l2Net, depSet depset.Depend
 		},
 		P2P:                             nil,
 		L1EpochPollInterval:             2 * time.Second,
-		Sync:                            sync.Config{SyncMode: sync.CLSync, SyncModeReqResp: true},
+		Sync:                            sync.Config{SyncMode: sync.CLSync},
 		ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 		ExperimentalOPStackAPI:          true,
 		IgnoreMissingPectraBlobSchedule: false,

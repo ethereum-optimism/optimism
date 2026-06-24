@@ -231,6 +231,12 @@ impl PostExecState {
             _ => Vec::new(),
         }
     }
+
+    /// Whether a `Verify` block had a post-exec payload but no trailing `0x7D`.
+    /// Per-tx settlement can consume all verifier entries, so check this separately.
+    const fn missing_post_exec_tx(&self) -> bool {
+        matches!(self, Self::Verifying { saw_post_exec_tx: false, .. })
+    }
 }
 
 /// Context for OP block execution.
@@ -1113,6 +1119,12 @@ where
                 indexes.len(),
                 indexes,
             )));
+        }
+
+        if self.post_exec.missing_post_exec_tx() {
+            return Err(Self::invalid_post_exec_payload(
+                "post-exec payload present but block carries no post-exec tx",
+            ));
         }
 
         let balance_increments =

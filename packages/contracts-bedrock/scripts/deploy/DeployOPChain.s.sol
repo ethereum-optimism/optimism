@@ -164,18 +164,18 @@ contract DeployOPChain is Script {
             gameArgs: bytes("")
         });
 
-        // Config 3: SUPER_PERMISSIONED_CANNON — enabled only in super-root mode.
+        // Config 3: SUPER_PERMISSIONED — enabled only in super-root mode.
         disputeGameConfigs[3] = isSuperRoot
             ? IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameType: GameTypes.SUPER_PERMISSIONED,
                 gameArgs: abi.encode(superPdgConfig)
             })
             : IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameType: GameTypes.SUPER_PERMISSIONED,
                 gameArgs: bytes("")
             });
 
@@ -203,7 +203,7 @@ contract DeployOPChain is Script {
             unsafeBlockSigner: _input.unsafeBlockSigner,
             batcher: _input.batcher,
             startingAnchorRoot: ScriptConstants.DEFAULT_OUTPUT_ROOT(),
-            startingRespectedGameType: isSuperRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON,
+            startingRespectedGameType: isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON,
             basefeeScalar: _input.basefeeScalar,
             blobBasefeeScalar: _input.blobBaseFeeScalar,
             gasLimit: _input.gasLimit,
@@ -222,7 +222,7 @@ contract DeployOPChain is Script {
         view
         returns (Output memory output_)
     {
-        GameType permGameType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+        GameType permGameType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         address permissionedDgImpl = address(_chainContracts.disputeGameFactory.gameImpls(permGameType));
 
         output_ = Output({
@@ -362,7 +362,7 @@ contract DeployOPChain is Script {
             ? opcmV2.implementations().superPermissionedDisputeGameImpl
             : opcmV2.implementations().permissionedDisputeGameImpl;
 
-        GameType permGameType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+        GameType permGameType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
             _o.disputeGameFactoryProxy, _i.opChainProxyAdminOwner, expectedPDGImpl, true, permGameType
         );

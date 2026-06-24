@@ -75,6 +75,14 @@ func WithKarstAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Build
 	}
 }
 
+// WithKeepKarstUpgradeGas opts the L2 chains out of reverting the Karst activation block's
+// one-time upgrade gas, so post-activation blocks keep the inflated gas limit.
+func WithKeepKarstUpgradeGas(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+	for _, l2Cfg := range builder.L2s() {
+		l2Cfg.WithKeepKarstUpgradeGas()
+	}
+}
+
 func WithJovianAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 	for _, l2Cfg := range builder.L2s() {
 		l2Cfg.WithForkAtGenesis(opforks.Jovian)

@@ -57,7 +57,7 @@ func TestGenerateForkState(gt *testing.T) {
 
 func generateForkState(gt *testing.T, testCfg *helpers.TestCfg[forks.Name]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
-	env, actHeader := activateFork(t, testCfg)
+	env, actHeader := activateFork(t, testCfg, false)
 	writePreForkState(t, env, testCfg.Custom, actHeader)
 }
 
