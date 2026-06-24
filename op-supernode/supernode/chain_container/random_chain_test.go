@@ -383,6 +383,50 @@ func TestReorgL1(t *testing.T) {
 	}
 }
 
+func TestRandomChainForkchoiceEngine(t *testing.T) {
+	m := NewRandomChainManager([]byte("fc-engine"))
+	m.Generate()
+	rc := m.Chains()[0]
+	ctx := context.Background()
+
+	// Before ForkchoiceUpdate, L2BlockRefByLabel uses the index-based path.
+	indexRef, err := rc.L2BlockRefByLabel(ctx, eth.Unsafe)
+	require.NoError(t, err)
+	require.Equal(t, rc.l2[rc.unsafe].Ref.Hash, indexRef.Hash)
+
+	// Use a real block hash for safe/finalized and a synthetic hash for unsafe.
+	syntheticHead := common.Hash{0xab}
+	realSafeHash := rc.l2[rc.safe].Ref.Hash
+	realFinalizedHash := rc.l2[rc.finalized].Ref.Hash
+
+	state := &eth.ForkchoiceState{
+		HeadBlockHash:      syntheticHead,
+		SafeBlockHash:      realSafeHash,
+		FinalizedBlockHash: realFinalizedHash,
+	}
+	res, err := rc.ForkchoiceUpdate(ctx, state, nil)
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, res.PayloadStatus.Status)
+
+	// After ForkchoiceUpdate, L2BlockRefByLabel reflects the stored refs.
+	unsafeRef, err := rc.L2BlockRefByLabel(ctx, eth.Unsafe)
+	require.NoError(t, err)
+	require.Equal(t, syntheticHead, unsafeRef.Hash, "synthetic head passes through")
+
+	safeRef, err := rc.L2BlockRefByLabel(ctx, eth.Safe)
+	require.NoError(t, err)
+	require.Equal(t, realSafeHash, safeRef.Hash)
+
+	finalizedRef, err := rc.L2BlockRefByLabel(ctx, eth.Finalized)
+	require.NoError(t, err)
+	require.Equal(t, realFinalizedHash, finalizedRef.Hash)
+
+	// NewPayload always accepts.
+	status, err := rc.NewPayload(ctx, &eth.ExecutionPayload{}, nil)
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, status.Status)
+}
+
 func TestChainContainerWiring(t *testing.T) {
 	m := NewRandomChainManager([]byte("wire"))
 	m.Generate()

@@ -634,6 +634,11 @@ type RandomChain struct {
 	unsafe, safe, finalized uint64 // L2 block numbers
 	currentL1, finalizedL1  uint64 // L1 block numbers
 
+	// forkchoice state set by ForkchoiceUpdate; guarded by mu.
+	// fcApplied false → L2BlockRefByLabel uses the index-based path (backward-compatible).
+	fcApplied                     bool
+	fcUnsafe, fcSafe, fcFinalized eth.L2BlockRef
+
 	running atomic.Bool
 }
 
@@ -811,6 +816,16 @@ func (rc *RandomChain) blockByHash(h common.Hash) (*L2Block, bool) {
 func (rc *RandomChain) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
+	if rc.fcApplied {
+		switch label {
+		case eth.Unsafe:
+			return rc.fcUnsafe, nil
+		case eth.Safe:
+			return rc.fcSafe, nil
+		case eth.Finalized:
+			return rc.fcFinalized, nil
+		}
+	}
 	return rc.l2[rc.headNum(label)].Ref, nil
 }
 
@@ -861,14 +876,32 @@ func (rc *RandomChain) PayloadByHash(ctx context.Context, hash common.Hash) (*et
 	return blk.Payload, nil
 }
 
-var errUnexpectedEngineCall = errors.New("random chain: unexpected engine call")
+// refForHash returns the stored L2BlockRef for the given hash when known, else
+// a fabricated ref. verifyRewindState compares hash only, so a fabricated ref
+// for the synthetic head (which is not in rc.l2) is sufficient. Assumes mu held.
+func (rc *RandomChain) refForHash(h common.Hash) eth.L2BlockRef {
+	for i := range rc.l2 {
+		if rc.l2[i].Ref.Hash == h {
+			return rc.l2[i].Ref
+		}
+	}
+	return eth.L2BlockRef{Hash: h}
+}
 
 func (rc *RandomChain) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return nil, errUnexpectedEngineCall
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	rc.fcApplied = true
+	rc.fcUnsafe = rc.refForHash(state.HeadBlockHash)
+	rc.fcSafe = rc.refForHash(state.SafeBlockHash)
+	rc.fcFinalized = rc.refForHash(state.FinalizedBlockHash)
+	return &eth.ForkchoiceUpdatedResult{
+		PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid},
+	}, nil
 }
 
 func (rc *RandomChain) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
-	return nil, errUnexpectedEngineCall
+	return &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil
 }
 
 func (rc *RandomChain) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, gethtypes.Receipts, error) {
