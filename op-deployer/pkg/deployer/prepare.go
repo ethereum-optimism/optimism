@@ -2,25 +2,44 @@ package deployer
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"fmt"
+	"math/big"
+	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
+
+// placeholderRole is a non-zero sentinel used for the role addresses in the
+// prediction dry-run.
+var placeholderRole = common.Address{0x01}
 
 type PrepareConfig struct {
 	Workdir string
 	Logger  log.Logger
-	// DeployerAddress is the account used to predict deployment addresses. It
-	// does not need to be funded or signed for, since prepare does not broadcast.
-	DeployerAddress common.Address
-	// L1RPCUrl is the L1 endpoint that prepare forks to dry-run OPCM.deploy
-	// against the current L1 state.
+	// PrivateKey of the deployer account. Its address is used as the dry-run
+	// sender, operator MUST use the same key for the eventual broadcast.
+	PrivateKey string
+	// L1RPCUrl is the L1 endpoint that prepare forks to dry-run OPCM.deploy.
 	L1RPCUrl string
+	// CacheDir is where downloaded artifacts are cached.
+	CacheDir string
+
+	privateKeyECDSA *ecdsa.PrivateKey
 }
 
 func (c *PrepareConfig) Check() error {
@@ -32,9 +51,14 @@ func (c *PrepareConfig) Check() error {
 		return fmt.Errorf("logger must be specified")
 	}
 
-	if c.DeployerAddress == (common.Address{}) {
-		return fmt.Errorf("deployer address must be specified")
+	if c.PrivateKey == "" {
+		return fmt.Errorf("private key must be specified")
 	}
+	privECDSA, err := crypto.HexToECDSA(strings.TrimPrefix(c.PrivateKey, "0x"))
+	if err != nil {
+		return fmt.Errorf("failed to parse private key: %w", err)
+	}
+	c.privateKeyECDSA = privECDSA
 
 	if c.L1RPCUrl == "" {
 		return fmt.Errorf("l1 RPC URL must be specified")
@@ -49,32 +73,22 @@ func PrepareCLI() func(cliCtx *cli.Context) error {
 		l := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
 		oplog.SetGlobalLogHandler(l.Handler())
 
-		cfg, err := newPrepareConfig(cliCtx, l)
-		if err != nil {
-			return err
-		}
-
 		ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 
-		return Prepare(ctx, cfg)
+		return Prepare(ctx, newPrepareConfig(cliCtx, l))
 	}
 }
 
-// newPrepareConfig builds a PrepareConfig from the CLI flags. It parses and
-// validates the deployer address here so a malformed value is rejected before
-// it silently decodes to the zero address.
-func newPrepareConfig(cliCtx *cli.Context, l log.Logger) (PrepareConfig, error) {
-	deployerAddressRaw := cliCtx.String(DeployerAddressFlagName)
-	if !common.IsHexAddress(deployerAddressRaw) {
-		return PrepareConfig{}, fmt.Errorf("invalid deployer address: %q", deployerAddressRaw)
-	}
-
+// newPrepareConfig maps the CLI flags onto a PrepareConfig. The private key is
+// parsed and validated later in Check, mirroring apply.
+func newPrepareConfig(cliCtx *cli.Context, l log.Logger) PrepareConfig {
 	return PrepareConfig{
-		Workdir:         cliCtx.String(WorkdirFlagName),
-		Logger:          l,
-		DeployerAddress: common.HexToAddress(deployerAddressRaw),
-		L1RPCUrl:        cliCtx.String(L1RPCURLFlagName),
-	}, nil
+		Workdir:    cliCtx.String(WorkdirFlagName),
+		Logger:     l,
+		PrivateKey: cliCtx.String(PrivateKeyFlagName),
+		L1RPCUrl:   cliCtx.String(L1RPCURLFlagName),
+		CacheDir:   cliCtx.String(CacheDirFlagName),
+	}
 }
 
 func Prepare(ctx context.Context, cfg PrepareConfig) error {
@@ -83,10 +97,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 
 	// prepare predicts the L1 addresses by dry-running OPCM.deploy against a fork
-	// of the live L1. The chain config (OPCM address, superchain config, chain ID,
-	// artifacts locator) comes from intent.toml, and the CREATE2 salt mixer from
-	// state.json. The salt MUST match the eventual broadcast (PCD aPCD-002), so it
-	// is read from the persisted state rather than regenerated here.
+	// of the live L1.
 	intent, err := pipeline.ReadIntent(cfg.Workdir)
 	if err != nil {
 		return fmt.Errorf("failed to read intent: %w", err)
@@ -97,11 +108,110 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("failed to read state: %w", err)
 	}
 
-	cfg.Logger.Info(
-		"loaded prepare inputs",
-		"chains", len(intent.Chains),
-		"create2Salt", st.Create2Salt,
+	if len(intent.Chains) == 0 {
+		return fmt.Errorf("intent has no chains to prepare")
+	}
+
+	// Download the L1 artifacts referenced by the intent so the dry-run uses the
+	// same DeployOPChain script as the eventual broadcast.
+	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), cfg.CacheDir)
+	if err != nil {
+		return fmt.Errorf("failed to download L1 artifacts: %w", err)
+	}
+
+	// The sender of the deploy transaction.
+	deployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
+
+	l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
+	if err != nil {
+		return fmt.Errorf("failed to connect to L1 RPC: %w", err)
+	}
+	defer l1RPC.Close()
+
+	l1Host, err := env.DefaultForkedScriptHost(
+		ctx,
+		broadcaster.NoopBroadcaster(),
+		cfg.Logger,
+		deployer,
+		l1ArtifactsFS,
+		l1RPC,
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create forked L1 script host: %w", err)
+	}
+
+	deployScript, err := opcm.NewDeployOPChainScript(l1Host)
+	if err != nil {
+		return fmt.Errorf("failed to load DeployOPChain script: %w", err)
+	}
+
+	for _, chain := range intent.Chains {
+		dci, err := makePredictionInput(intent, st, chain)
+		if err != nil {
+			return fmt.Errorf("failed to build prediction input for chain %s: %w", chain.ID.Hex(), err)
+		}
+
+		out, err := deployScript.Run(dci)
+		if err != nil {
+			return fmt.Errorf("failed to predict L1 addresses for chain %s: %w", chain.ID.Hex(), err)
+		}
+
+		// For now we just log the addresses
+		cfg.Logger.Info(
+			"predicted L1 addresses",
+			"chain", chain.ID.Hex(),
+			"systemConfigProxy", out.SystemConfigProxy,
+			"optimismPortalProxy", out.OptimismPortalProxy,
+			"l1StandardBridgeProxy", out.L1StandardBridgeProxy,
+			"l1CrossDomainMessengerProxy", out.L1CrossDomainMessengerProxy,
+			"disputeGameFactoryProxy", out.DisputeGameFactoryProxy,
+			"anchorStateRegistryProxy", out.AnchorStateRegistryProxy,
+		)
+	}
 
 	return nil
+}
+
+// makePredictionInput builds the DeployOPChain input for the prediction dry-run.
+// The OPCM, superchain config and salt mixer are taken from the committed intent
+// and state so the prediction matches the eventual broadcast. Role addresses are set to
+// placeholders since they are not relevant for the prediction.
+func makePredictionInput(intent *state.Intent, st *state.State, chain *state.ChainIntent) (opcm.DeployOPChainInput, error) {
+	if intent.OPCMAddress == nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("intent.opcmAddress must be set to predict against an existing OPCM")
+	}
+	if intent.SuperchainConfigProxy == nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("intent.superchainConfigProxy must be set")
+	}
+
+	gasLimit := chain.GasLimit
+	if gasLimit == 0 {
+		gasLimit = standard.GasLimit
+	}
+
+	return opcm.DeployOPChainInput{
+		OpChainProxyAdminOwner: placeholderRole,
+		SystemConfigOwner:      placeholderRole,
+		Batcher:                placeholderRole,
+		UnsafeBlockSigner:      placeholderRole,
+		Proposer:               placeholderRole,
+		Challenger:             placeholderRole,
+
+		BasefeeScalar:     standard.BasefeeScalar,
+		BlobBaseFeeScalar: standard.BlobBaseFeeScalar,
+		L2ChainId:         chain.ID.Big(),
+		Opcm:              *intent.OPCMAddress,
+		SaltMixer:         st.Create2Salt.String(),
+		GasLimit:          gasLimit,
+
+		// Default dispute params
+		DisputeGameType:         standard.DisputeGameType,
+		DisputeAbsolutePrestate: standard.DisputeAbsolutePrestate,
+		DisputeMaxGameDepth:     new(big.Int).SetUint64(standard.DisputeMaxGameDepth),
+		DisputeSplitDepth:       new(big.Int).SetUint64(standard.DisputeSplitDepth),
+		DisputeClockExtension:   standard.DisputeClockExtension,
+		DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
+
+		SuperchainConfig: *intent.SuperchainConfigProxy,
+	}, nil
 }

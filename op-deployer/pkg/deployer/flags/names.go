@@ -16,7 +16,6 @@ const (
 	WorkdirFlagName          = "workdir"
 	OutdirFlagName           = "outdir"
 	PrivateKeyFlagName       = "private-key"
-	DeployerAddressFlagName  = "deployer-address"
 	IntentTypeFlagName       = "intent-type"
 	VerifierAPIKeyFlagName   = "verifier-api-key"
 	EtherscanAPIKeyFlagName  = "etherscan-api-key" // Deprecated: use VerifierAPIKeyFlagName
