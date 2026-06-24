@@ -46,6 +46,13 @@ paste = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 op-alloy-consensus.workspace = true
 
+# The self dev-dependency below enables this crate's own non-default features for
+# its standalone test build (`cargo test -p reth-optimism-chainspec`). cargo-udeps
+# reports it unused because it activates features rather than importing symbols, so
+# ignore it.
+[package.metadata.cargo-udeps.ignore]
+development = ["reth-optimism-chainspec"]
+
 [dev-dependencies]
 reth-optimism-chainspec = { path = ".", features = ["superchain-configs"] }
 reth-chainspec = { workspace = true, features = ["test-utils"] }
