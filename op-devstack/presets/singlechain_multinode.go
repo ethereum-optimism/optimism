@@ -73,6 +73,18 @@ func NewSingleChainMultiNodeNoFaultProofsWithP2PWithoutCheck(t devtest.T, opts .
 	return out
 }
 
+// NewSingleChainMultiNodeNoFaultProofsBareVerifierWithoutCheck creates a
+// SingleChainMultiNode whose verifier has no unsafe source at all (no follow, no
+// CL P2P, no sidecar): the test drives the verifier's unsafe chain via
+// admin_postUnsafePayload. No proposer/challenger (no cannon), no initial sync
+// checks. Used for unsafe-payload-queue / gap-handling tests.
+func NewSingleChainMultiNodeNoFaultProofsBareVerifierWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsBareVerifierWithoutCheck", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsBareVerifierRuntime(t, presetCfg), false)
+	presetOpts.applyPreset(out)
+	return out
+}
+
 type SingleChainMultiNodeWithTestSeq struct {
 	SingleChainMultiNode
 

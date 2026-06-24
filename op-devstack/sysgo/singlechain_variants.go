@@ -69,6 +69,19 @@ func NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t devtest.T, withP2P 
 	return runtime
 }
 
+// NewSingleChainMultiNodeNoFaultProofsBareVerifierRuntime builds the
+// no-fault-proofs runtime with a BARE verifier: no follow source, no CL P2P, no
+// sidecar. The test drives the verifier's unsafe chain entirely via
+// admin_postUnsafePayload (the dsl SignalTarget/PostUnsafePayload path). Works for
+// both an op-node and an op-con-node verifier — both accept posted unsafe
+// payloads and apply them in order, filling gaps before advancing the head.
+func NewSingleChainMultiNodeNoFaultProofsBareVerifierRuntime(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	runtime := NewMinimalNoFaultProofsRuntimeWithConfig(t, cfg)
+	addSingleChainOpNode(t, runtime, "b", false, "", cfg.GlobalL2CLOptions...)
+	runtime.P2PEnabled = false
+	return runtime
+}
+
 // addSingleChainOpConVerifierWithSidecar launches an op-con-node verifier whose
 // unsafe chain is delivered over OP gossip by the op-conp2p sidecar (peered to
 // the sequencer), rather than follow-mode. It seeds the expected unsafe-block
