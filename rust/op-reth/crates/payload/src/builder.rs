@@ -787,7 +787,7 @@ where
             &self.chain_spec,
             self.attributes().timestamp(),
         );
-        protocol_active && self.builder_config.sdm_post_exec_opt_in.enabled()
+        protocol_active && self.builder_config.operator_sdm_opt_in.enabled()
     }
 
     /// Returns true when the tx pool is excluded and the block must be reproduced

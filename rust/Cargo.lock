@@ -13570,6 +13570,7 @@ dependencies = [
  "reth-tasks",
  "reth-transaction-pool",
  "revm",
+ "rstest",
  "serde",
  "serde_json",
  "strum",

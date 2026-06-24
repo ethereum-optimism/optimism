@@ -89,7 +89,7 @@ fn interop_ctx(
     };
     let builder_config = OpBuilderConfig::default();
     if opt_in {
-        builder_config.sdm_post_exec_opt_in.set(true);
+        builder_config.operator_sdm_opt_in.set(true);
     }
 
     OpPayloadBuilderCtx {
