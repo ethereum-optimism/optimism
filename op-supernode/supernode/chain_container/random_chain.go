@@ -394,7 +394,9 @@ func (m *RandomChainManager) BreakOneExecMsg() (chainID eth.ChainID, ts uint64, 
 	for _, id := range m.order {
 		rc := m.chains[id]
 		for i := range rc.l2 {
-			if len(rc.l2[i].ExecMsgs) > 0 && rc.l2[i].Ref.Time <= reachable {
+			// Block must be above the finalized head so computeRewindTargets
+			// does not trip ErrRewindOverFinalizedHead (parent H-1 >= finalized).
+			if len(rc.l2[i].ExecMsgs) > 0 && rc.l2[i].Ref.Time <= reachable && uint64(i) > rc.finalized {
 				sites = append(sites, site{id, uint64(i)})
 			}
 		}

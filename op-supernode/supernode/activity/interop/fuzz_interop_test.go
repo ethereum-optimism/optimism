@@ -135,6 +135,11 @@ func FuzzInteropInvalid(f *testing.F) {
 						require.NoError(t, err)
 						require.Equal(t, DecisionInvalidate, out.Decision)
 						require.Contains(t, out.Result.InvalidHeads, plan.Chain)
+						// Apply the invalidation: freeze VNs, add to deny list, rewind engine.
+						// Any failure in InvalidateBlock / RewindEngine / RewindToTimestamp surfaces here.
+						progress2, err2 := i.progressAndRecord()
+						require.NoError(t, err2)
+						require.False(t, progress2, "invalidate does not advance")
 					case cc.RejectWait:
 						require.NoError(t, err)
 						require.Equal(t, DecisionWait, out.Decision)
