@@ -64,10 +64,12 @@ DATA_DIR="${DATA_DIR:-$HOME/kona-sp1-bench-data}"
 # the chain's latest finalized block. Pin to a number for reproducible re-runs.
 ANCHOR_BLOCK="${ANCHOR_BLOCK:-auto}"
 
-# Variable-size set: binary search down from 3600, floored at 100, with extra
-# midpoints for a denser size->cost curve. These are laid out contiguously so
-# their proofs can be aggregated. Edit freely; they are summed to place the set.
-SIZES=(3600 1800 1350 900 450 225 100)
+# Variable-size set: a descending sweep from 3600 down to small ranges. The 40-
+# and 20-block sizes give short proving data points (~10-20h on CPU at the
+# observed ~2h/1B cycles); the larger sizes map the size->cost curve up to 3600.
+# Laid out contiguously so their proofs can be aggregated. Edit freely; they are
+# summed to place the set.
+SIZES=(3600 1800 1350 900 450 225 100 40 20)
 
 # Freshness set: same-size ranges sampled at different archival depths, to
 # measure how fetch cost grows with age. Not contiguous (independent points in
