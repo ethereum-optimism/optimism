@@ -61,15 +61,25 @@ FEATURES="${FEATURES:-}"
 DATA_DIR="${DATA_DIR:-$HOME/kona-sp1-bench-data}"
 
 # End of the variable-size contiguous range set, walking backwards. "auto" uses
-# the chain's latest finalized block. Pin to a number for reproducible re-runs.
+# the chain's latest finalized block, then PERSISTS it to <DATA_DIR>/anchor.txt
+# and reuses it on later runs so block numbers (and filenames) stay stable and
+# already-fetched ranges are skipped instead of re-fetched. Delete anchor.txt (or
+# set a fixed number here) to re-anchor. IMPORTANT: to reuse ranges fetched
+# before this anchor was persisted, set this to the block number you used then.
 ANCHOR_BLOCK="${ANCHOR_BLOCK:-auto}"
 
-# Variable-size set: a descending sweep from 3600 down to small ranges. The 40-
-# and 20-block sizes give short proving data points (~10-20h on CPU at the
-# observed ~2h/1B cycles); the larger sizes map the size->cost curve up to 3600.
-# Laid out contiguously so their proofs can be aggregated. Edit freely; they are
-# summed to place the set.
-SIZES=(3600 1800 1350 900 450 225 100 40 20)
+# Variable-size set: a descending sweep from 3600 down to 100, laid out
+# contiguously (ending at the anchor) so their proofs can be aggregated. Editing
+# this list changes the contiguous layout and therefore every range's block
+# numbers -- keep it stable once you have fetched data. Short proving-time data
+# points live in EXTRA_SIZES below instead, so they don't perturb this set.
+SIZES=(3600 1800 1350 900 450 225 100)
+
+# Extra standalone ranges for short proving-time data points (~10-20h on CPU at
+# the observed ~2h/1B cycles). Placed contiguously just below the variable-size
+# set, but kept out of SIZES so adding/removing them never shifts the larger
+# ranges' block numbers (and thus never orphans their already-fetched files).
+EXTRA_SIZES=(40 20)
 
 # Freshness set: same-size ranges sampled at different archival depths, to
 # measure how fetch cost grows with age. Not contiguous (independent points in
@@ -85,6 +95,7 @@ FRESHNESS_SECONDS=(3600 86400 604800 1209600 1814400)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMINGS="$DATA_DIR/timings.tsv"
 LOG_DIR="$DATA_DIR/logs"
+ANCHOR_FILE="$DATA_DIR/anchor.txt"
 
 # Activate mise so the pinned `just` / toolchain are on PATH, if available.
 if command -v mise >/dev/null 2>&1; then
@@ -152,11 +163,22 @@ run_bench() {
 # ----------------------------------------------------------------------------
 plan_ranges() {
   [ -n "$L2_RPC" ] || die "L2_RPC is not set (edit the config block at the top of this script)"
+  # In auto mode, reuse a previously persisted anchor so the layout (and hence
+  # every filename) stays stable across runs and already-fetched ranges are
+  # skipped rather than re-fetched.
+  local pinned=""
+  if [ "$ANCHOR_BLOCK" = "auto" ] && [ -f "$ANCHOR_FILE" ]; then
+    pinned="$(cat "$ANCHOR_FILE")"
+  fi
+  local out
+  out="$(
   SIZES_STR="${SIZES[*]}" \
+  EXTRA_SIZES_STR="${EXTRA_SIZES[*]}" \
   FRESHNESS_LABELS_STR="${FRESHNESS_LABELS[*]}" \
   FRESHNESS_SECONDS_STR="${FRESHNESS_SECONDS[*]}" \
   FRESHNESS_SIZE="$FRESHNESS_SIZE" \
   ANCHOR_BLOCK="$ANCHOR_BLOCK" \
+  PINNED_ANCHOR="$pinned" \
   L2_RPC="$L2_RPC" \
   python3 - <<'PY'
 import os, json, ssl, urllib.request
@@ -185,19 +207,24 @@ def block(tag):
     return b
 
 sizes = [int(x) for x in os.environ["SIZES_STR"].split()]
+extra_sizes = [int(x) for x in os.environ.get("EXTRA_SIZES_STR", "").split()]
 labels = os.environ["FRESHNESS_LABELS_STR"].split()
 secs = [int(x) for x in os.environ["FRESHNESS_SECONDS_STR"].split()]
 fsize = int(os.environ["FRESHNESS_SIZE"])
 anchor_cfg = os.environ.get("ANCHOR_BLOCK", "auto")
+pinned = os.environ.get("PINNED_ANCHOR", "").strip()
 
 latest = block("latest")
 latest_num = int(latest["number"], 16)
 latest_ts = int(latest["timestamp"], 16)
 
-if anchor_cfg == "auto":
-    anchor = int(block("finalized")["number"], 16)
-else:
+# Resolve the anchor: explicit config > persisted (pinned) > live finalized.
+if anchor_cfg != "auto":
     anchor = int(anchor_cfg, 0)
+elif pinned:
+    anchor = int(pinned, 0)
+else:
+    anchor = int(block("finalized")["number"], 16)
 
 total = sum(sizes)
 start_set = anchor - total
@@ -209,6 +236,16 @@ cur = start_set
 for sz in sizes:
     rows.append(("var", "-", cur, cur + sz, sz))
     cur += sz  # contiguous: each range's end is the next range's start
+
+# Extra standalone ranges: laid out contiguously just below the variable-size
+# set (ending at start_set). They are independent of `sizes`, so adding or
+# removing them never moves the variable-size ranges' block numbers.
+extra_cur = start_set - sum(extra_sizes)
+if extra_sizes and extra_cur < 1:
+    raise SystemExit(f"anchor {anchor} too small for extra span {sum(extra_sizes)}")
+for sz in extra_sizes:
+    rows.append(("extra", "-", extra_cur, extra_cur + sz, sz))
+    extra_cur += sz
 
 # Derive L2 block time from a wide sample to place the freshness ranges.
 ref_num = max(1, latest_num - 5000)
@@ -224,9 +261,24 @@ for label, sec in zip(labels, secs):
         continue
     rows.append(("fresh", label, s, s + fsize, fsize))
 
+# First line carries the resolved anchor so the caller can persist it.
+print(f"#anchor\t{anchor}")
 for r in rows:
     print("\t".join(str(x) for x in r))
 PY
+  )" || die "range planning failed (see error above)"
+
+  # Persist the resolved anchor (first run, auto mode) so later runs are stable.
+  local resolved
+  resolved="$(printf '%s\n' "$out" | sed -n 's/^#anchor[[:space:]]*//p')"
+  if [ "$ANCHOR_BLOCK" = "auto" ] && [ -n "$resolved" ] && [ ! -f "$ANCHOR_FILE" ]; then
+    mkdir -p "$DATA_DIR"
+    printf '%s\n' "$resolved" > "$ANCHOR_FILE"
+    echo "persisted anchor $resolved -> $ANCHOR_FILE (delete to re-anchor)" >&2
+  fi
+
+  # Emit the plan rows, dropping the #anchor header line.
+  printf '%s\n' "$out" | grep -v '^#anchor'
 }
 
 # ----------------------------------------------------------------------------
@@ -398,6 +450,18 @@ mode_agg() {
   require_elfs
   local first="$REPLY_FIRST" last="$REPLY_LAST" joined="$REPLY_JOINED"
 
+  # Skip if the aggregation proof already exists (don't redo / overwrite).
+  local out
+  if [ "$plonk" -eq 1 ]; then
+    out="$DATA_DIR/agg_${first}_${last}.plonk.bin"
+  else
+    out="$DATA_DIR/agg_${first}_${last}.bin"
+  fi
+  if [ -s "$out" ]; then
+    echo "skip agg ${first}-${last} ($(basename "$out") exists)"
+    return 0
+  fi
+
   # Use saved agg inputs (explicit --inputs, else the conventional path) to skip
   # RPC; otherwise the bench fetches the checkpoint + headers itself.
   [ -n "$inputs" ] || inputs="$DATA_DIR/agg_inputs_${first}_${last}.cbor"
@@ -413,7 +477,6 @@ mode_agg() {
   local t0 t1 wall extra log
   t0="$(now_s)"
   if [ "$plonk" -eq 1 ]; then
-    local out="$DATA_DIR/agg_${first}_${last}.plonk.bin"
     log="$LOG_DIR/agg_plonk_${first}_${last}.log"
     echo "agg (plonk) ${first}-${last} from ${#proofs[@]} proofs"
     if run_bench "$log" plonk-prove-bench --proofs "$joined" ${input_args[@]+"${input_args[@]}"} --save-proof "$out"; then
@@ -426,7 +489,6 @@ mode_agg() {
       die "PLONK aggregation failed -- see $log"
     fi
   else
-    local out="$DATA_DIR/agg_${first}_${last}.bin"
     log="$LOG_DIR/agg_compressed_${first}_${last}.log"
     echo "agg (compressed) ${first}-${last} from ${#proofs[@]} proofs"
     if run_bench "$log" agg-bench --proofs "$joined" ${input_args[@]+"${input_args[@]}"} --prove --save-proof "$out"; then
