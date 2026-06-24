@@ -102,8 +102,7 @@ Update the following components:
 | Component        | Version      | Notes |
 | ---------------- | ------------ | ----- |
 | `op-node`        | `v1.19.1`    | Must be updated **prior** to the activation timestamp. Includes the Karst gas limit fix (`keep_karst_upgrade_gas`). Replaces `v1.19.0`, which is now deprecated. |
-| `op-reth`        | `v2.3.2`     | Must be updated **prior** to the activation timestamp. Fixes SCR loading for `op-sepolia` and `op-mainnet`. Adds `engine_getPayloadV5` support for Karst. |
-| `kona-node`      | `[TBD]`      | Must be updated **prior** to the activation timestamp. Includes the Karst gas limit fix. Previous version deprecated. |
+| `op-reth`        | `v2.3.2`     | Must be updated **prior** to the activation timestamp. Fixes SCR loading for `op-sepolia` and `op-mainnet`. Adds `engine_getPayloadV5` support for Karst. Replaces `v2.3.1`, which is now deprecated. |
 | `op-challenger`  | `v1.9.3`     | *(unchanged)* Must be updated **prior** to the upgrade. |
 | `op-dispute-mon` | `v1.5.2`     | *(unchanged)* Must be updated **prior** to the upgrade. |
 | `op-contracts`   | `v7.0.0`     | *(unchanged)* |
@@ -111,14 +110,14 @@ Update the following components:
 | `op-rbuilder`    | `v0.4.9`     | Only if running Flashblocks. Fixes SCR loading for `op-sepolia`/`op-mainnet`. Adds `engine_getPayloadV5` support. Replaces `v0.4.8`. |
 
 <Warning>
-  **Upgrade order:** On networks that have **not yet activated Karst** (pre-Karst), `op-node`, `op-reth`, and `op-rbuilder` can be upgraded independently in any order — they will continue using the previous Engine API version until the fork timestamp. On networks that have **already activated Karst** (post-Karst, e.g. Sepolia chains), all three must be upgraded together in a coordinated rollout, as Karst requires `engine_getPayloadV5` and a version mismatch will break the sequencer.
+  **Upgrade order:** On networks that have **not yet activated Karst** (pre-Karst), `op-node`, `op-reth`, and `op-rbuilder` can be upgraded independently in any order — they will continue using the previous Engine API version until the fork timestamp. On networks that have **already activated Karst** (post-Karst, e.g. Sepolia chains), all three must be upgraded together in a coordinated rollout, as Karst requires `engine_getPayloadV5` and a version mismatch will cause downtime.
 </Warning>
 
 ### Gas limit: action required for affected chains
 
 * If your chain has `keep_karst_upgrade_gas = true`, the elevated gas limit is enshrined and you must restore your intended limit with a `SystemConfig.setGasLimit()` transaction after activation (see below).
 * If your chain does not have the flag, the latest releases mean you are not affected and no action is required.
-* If your chain already activated Karst, it must use `keep_karst_upgrade_gas = true`.
+* If your chain already activated Karst, it **must** use `keep_karst_upgrade_gas = true`. Some chains that have not yet activated Karst (including mainnet chains) also have the flag set — check the list below to see whether yours is affected.
 
 The chains with `keep_karst_upgrade_gas = true` (the [canonical list](https://github.com/ethereum-optimism/superchain-registry/pull/1259/files)) are:
 
