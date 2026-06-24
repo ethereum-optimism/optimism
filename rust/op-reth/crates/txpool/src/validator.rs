@@ -23,6 +23,14 @@ use std::sync::{
 /// The timeout for cross-chain transaction validation against the interop filter.
 pub(crate) const CHECK_ACCESS_LIST_TIMEOUT_SECS: u64 = 7200;
 
+/// Gas reserved on every L2 block for the L1-info deposit transaction.
+///
+/// The L1-info deposit is injected as the first transaction of every OP block and always
+/// consumes some gas, so a non-deposit transaction can never use the full block gas limit.
+/// Mirrors op-geth's `l1InfoGasOverhead` (`core/txpool/validation.go`) so the tx-pool does not
+/// admit transactions that could never be included.
+pub(crate) const L1_INFO_GAS_OVERHEAD: u64 = 70_000;
+
 /// Tracks additional infos for the current block.
 #[derive(Debug, Default)]
 pub struct OpL1BlockInfo {
@@ -95,6 +103,11 @@ where
     Tx: EthPoolTransaction + OpPooledTx,
     Evm: ConfigureEvm,
 {
+    /// Returns the most recent block gas limit seen by the validator.
+    pub fn block_gas_limit(&self) -> u64 {
+        self.inner.block_gas_limit()
+    }
+
     /// Create a new [`OpTransactionValidator`].
     pub fn new(inner: EthTransactionValidator<Client, Tx, Evm>) -> Self {
         let this = Self::with_block_info(inner, OpL1BlockInfo::default());
@@ -207,6 +220,22 @@ where
                     .set_interop_deadline(self.block_timestamp() + CHECK_ACCESS_LIST_TIMEOUT_SECS);
             }
             _ => {}
+        }
+
+        // Reserve gas for the L1-info deposit that is present in every OP block, mirroring
+        // op-geth's `EffectiveGasLimit` (`core/txpool/validation.go`). The L1-info deposit is
+        // injected as the first transaction of every block and always consumes some gas, so a
+        // non-deposit transaction can never use the full block gas limit. The inner validator
+        // caps at the full block gas limit, which would admit a transaction in
+        // `(block_gas_limit - L1_INFO_GAS_OVERHEAD, block_gas_limit]` that can never be included
+        // (it would sit in the pool until it expires). Reject it up front, as op-geth does.
+        let gas_limit = transaction.gas_limit();
+        let effective_gas_limit = self.inner.block_gas_limit().saturating_sub(L1_INFO_GAS_OVERHEAD);
+        if gas_limit > effective_gas_limit {
+            return TransactionValidationOutcome::Invalid(
+                transaction,
+                InvalidPoolTransactionError::ExceedsGasLimit(gas_limit, effective_gas_limit),
+            );
         }
 
         let outcome = self.inner.validate_one_with_state(origin, transaction, state);
