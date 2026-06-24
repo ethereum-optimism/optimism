@@ -188,3 +188,34 @@ func TestOpConVerifierResumesAfterRestart(gt *testing.T) {
 	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 90)
 	sys.L2CLB.Advanced(types.LocalSafe, 1, 60)
 }
+
+// TestOpConVerifierFollowMode is the op-con-node analogue of the op-node
+// sync/follow_l2 test (which skips kona — "single-chain test sequencer requires
+// an op-node CL node"). op-node's CL follow source has no direct op-con-node
+// equivalent, but op-con-node's own follow mode (--l2-follow-rpc, pointed at the
+// sequencer's L2 execution RPC) is the same idea: the verifier's unsafe head
+// tracks the sequencer via the follow source while its safe head derives from L1.
+//
+// This asserts that follow-mode kernel against op-con-node: the unsafe head
+// advances and stays in sync via follow-mode (no P2P, no sidecar), the safe head
+// converges via L1 derivation, and CurrentL1 (optimism_syncStatus) tracks the
+// sequencer. With the default op-node verifier it is an ordinary follow-source
+// sync check, so it remains a valid suite addition.
+func TestOpConVerifierFollowMode(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck(t)
+
+	target := uint64(3)
+	attempts := 60
+
+	// Unsafe head tracks the sequencer via follow-mode; safe head derives from L1.
+	dsl.CheckAll(t,
+		sys.L2CL.ReachedFn(types.LocalUnsafe, target, attempts),
+		sys.L2CLB.ReachedFn(types.LocalUnsafe, target, attempts),
+	)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalUnsafe, attempts)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, attempts)
+
+	// CurrentL1 (from optimism_syncStatus) follows the source.
+	dsl.CheckAll(t, sys.L2CLB.CurrentL1MatchedFn(sys.L2CL, 20))
+}
