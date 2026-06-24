@@ -56,10 +56,14 @@ export L2_NODE_RPC="${L2_NODE_RPC:-}"
 export L1_BEACON_RPC="${L1_BEACON_RPC:-}"
 
 # Proving backend, passed straight through to SP1's ProverClient::from_env().
-# Unset/empty = local CPU; "cuda" = local GPU; "network"/"hosted" = SP1 network
-# (also set NETWORK_PRIVATE_KEY for those).
-export SP1_PROVER="${SP1_PROVER:-}"
-export NETWORK_PRIVATE_KEY="${NETWORK_PRIVATE_KEY:-}"
+# "cpu" = local CPU (default); "cuda" = local GPU; "network"/"hosted" = SP1 network
+# (also set NETWORK_PRIVATE_KEY for those). NB: SP1 only falls back to CPU when
+# SP1_PROVER is UNSET -- a set-but-empty value matches none of its backends and
+# panics on `unreachable!()` -- so default to the literal "cpu", never "".
+export SP1_PROVER="${SP1_PROVER:-cpu}"
+# Only export the network key when set; an empty export is harmless (CPU/GPU never
+# read it) but keep the env clean.
+[ -n "${NETWORK_PRIVATE_KEY:-}" ] && export NETWORK_PRIVATE_KEY="$NETWORK_PRIVATE_KEY" || true
 
 # Extra cargo features for the bench binaries (e.g. "gpu" for CUDA proving).
 FEATURES="${FEATURES:-}"
