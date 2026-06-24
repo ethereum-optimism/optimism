@@ -199,6 +199,39 @@ Docker for the gnark container (`SP1_GNARK_IMAGE` overrides the default image)
 and outbound network on first run to download circuit artifacts to `~/.sp1`
 (`SP1_PLONK_CIRCUIT_PATH` overrides the cache path).
 
+#### Checking a PLONK proof against the on-chain verifier
+
+In-process verification (`prover.verify(...)`) checks the proof natively. To
+instead confirm a saved PLONK proof would be accepted by the *Solidity* verifier
+that runs on-chain, use `verify-onchain`:
+
+```bash
+just verify-onchain /tmp/agg.plonk.bin
+```
+
+This is fully offline. It deploys SP1's own `SP1Verifier` contract — the
+`SP1VerifierPlonk.sol` + `PlonkVerifier.sol` shipped inside the PLONK circuit
+artifacts (`~/.sp1/circuits/plonk/<version>/`, downloaded on the first PLONK
+prove) — to a local `anvil`, then calls its `verifyProof(bytes32,bytes,bytes)`
+with the proof's `programVKey`, `publicValues`, and `proofBytes`. That function
+is `view` and reverts iff the proof is invalid, so the recipe reports `ACCEPTED`
+on success and `REJECTED` (with the revert reason, e.g. `WrongVerifierSelector`
+or `InvalidProof`) otherwise. Requires `foundry` (anvil/cast/forge) and the
+aggregation ELF (`just build-elfs`); pass a second argument to point at a
+non-default circuit dir.
+
+The verifier contract imports `../ISP1Verifier.sol`; the recipe supplies the
+monorepo's `packages/contracts-bedrock/interfaces/vendor/ISP1Verifier.sol` (which
+includes the `ISP1VerifierWithHash` interface SP1's generated contract expects).
+
+`export-verifier-calldata` exposes just the extraction step — it prints the
+`programVKey`, `publicValues`, and `proofBytes` for a saved proof so they can be
+fed to any verifier (e.g. a real deployment) by hand:
+
+```bash
+just export-verifier-calldata --proof /tmp/agg.plonk.bin
+```
+
 #### Hardware acceleration
 
 All three benches build their prover with SP1's `ProverClient::from_env()`, so

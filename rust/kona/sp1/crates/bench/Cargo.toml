@@ -17,6 +17,10 @@ path = "src/agg_bench.rs"
 name = "plonk-prove-bench"
 path = "src/plonk_prove_bench.rs"
 
+[[bin]]
+name = "export-verifier-calldata"
+path = "src/export_verifier_calldata.rs"
+
 [features]
 # Build the SP1 CUDA prover into the bench binaries. Select it at runtime with
 # `SP1_PROVER=cuda`. Requires a CUDA-capable NVIDIA GPU at run time.

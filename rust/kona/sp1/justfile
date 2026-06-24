@@ -53,3 +53,81 @@ agg-bench *ARGS:
 # Usage: just plonk-prove-bench --proofs a.bin,b.bin [--save-proof agg.plonk.bin]
 plonk-prove-bench *ARGS:
     RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo +nightly run --release -p kona-sp1-range-bench {{ if features != "" { "--features " + features } else { "" } }} --bin plonk-prove-bench -- {{ARGS}}
+
+# Export the on-chain verifier calldata (programVKey, publicValues, proofBytes)
+# for a saved aggregation proof. Prints a `CALLDATA <vkey> <pubvals> <proof>` line.
+# Usage: just export-verifier-calldata --proof agg.plonk.bin
+export-verifier-calldata *ARGS:
+    RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo +nightly run --release -p kona-sp1-range-bench {{ if features != "" { "--features " + features } else { "" } }} --bin export-verifier-calldata -- {{ARGS}}
+
+# Check a saved PLONK aggregation proof against the REAL SP1 PLONK verifier
+# contract using a local anvil + cast. Fully offline: it deploys the
+# `SP1Verifier` (shipped in the circuit artifacts at `circuit_dir`) and calls its
+# `verifyProof`, which reverts iff the proof would be rejected on-chain.
+#
+# Requirements: foundry (anvil/cast/forge) on PATH, the aggregation ELF built
+# (`just build-elfs`), and the PLONK circuit artifacts present (downloaded on the
+# first PLONK prove, default ~/.sp1/circuits/plonk/v6.1.0).
+#
+# Usage: just verify-onchain agg.plonk.bin [circuit_dir]
+verify-onchain proof circuit_dir=(env_var_or_default("HOME", "") / ".sp1/circuits/plonk/v6.1.0"):
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    proof="{{proof}}"
+    circuit_dir="{{circuit_dir}}"
+    [ -s "$proof" ] || { echo "error: proof not found or empty: $proof" >&2; exit 1; }
+    for f in SP1VerifierPlonk.sol PlonkVerifier.sol; do
+      [ -s "$circuit_dir/$f" ] || { echo "error: $circuit_dir/$f not found. Download the PLONK circuit artifacts first (run a PLONK prove, or fetch ${SP1_CIRCUIT_VERSION:-v6.1.0}-plonk.tar.gz)." >&2; exit 1; }
+    done
+    # SP1VerifierPlonk.sol imports `../ISP1Verifier.sol`; reuse the monorepo's.
+    iface="../../../packages/contracts-bedrock/interfaces/vendor/ISP1Verifier.sol"
+    [ -s "$iface" ] || { echo "error: ISP1Verifier.sol not found at $iface" >&2; exit 1; }
+
+    for tool in anvil cast forge; do
+      command -v "$tool" >/dev/null 2>&1 || { echo "error: $tool not on PATH (need foundry)" >&2; exit 1; }
+    done
+
+    # Stage a minimal foundry project so the contract's relative imports resolve:
+    #   src/ISP1Verifier.sol            <- `../ISP1Verifier.sol`
+    #   src/circuit/{SP1VerifierPlonk,PlonkVerifier}.sol
+    work="$(mktemp -d "${TMPDIR:-/tmp}/kona-verify-onchain.XXXXXX")"
+    anvil_pid=""
+    cleanup() { [ -n "$anvil_pid" ] && kill "$anvil_pid" 2>/dev/null || true; rm -rf "$work"; }
+    trap cleanup EXIT
+    mkdir -p "$work/src/circuit"
+    cp "$iface" "$work/src/ISP1Verifier.sol"
+    cp "$circuit_dir/SP1VerifierPlonk.sol" "$circuit_dir/PlonkVerifier.sol" "$work/src/circuit/"
+    printf '[profile.default]\nsrc = "src"\nout = "out"\nlibs = []\nsolc = "0.8.20"\nevm_version = "cancun"\n' > "$work/foundry.toml"
+
+    # Extract the on-chain calldata from the saved proof (stdout sentinel line).
+    echo ">> extracting verifier calldata from $proof"
+    calldata="$(RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo +nightly run --release -p kona-sp1-range-bench {{ if features != "" { "--features " + features } else { "" } }} --bin export-verifier-calldata -- --proof "$proof")"
+    line="$(printf '%s\n' "$calldata" | grep '^CALLDATA ' | tail -1)"
+    read -r _ vkey pubvals proofbytes <<<"$line"
+    [ -n "${proofbytes:-}" ] || { echo "error: could not extract calldata from the proof" >&2; exit 1; }
+    echo "   programVKey: $vkey"
+
+    # Local EVM on a non-default port to avoid clashing with running services.
+    rpc="http://127.0.0.1:8651"
+    anvil --silent --port 8651 &
+    anvil_pid=$!
+    for _ in $(seq 1 50); do cast block-number --rpc-url "$rpc" >/dev/null 2>&1 && break; sleep 0.2; done
+    cast block-number --rpc-url "$rpc" >/dev/null 2>&1 || { echo "error: anvil did not come up" >&2; exit 1; }
+
+    # Deploy the SP1 PLONK verifier (no constructor args). anvil dev account 0.
+    echo ">> deploying SP1Verifier (v6.1.0 circuit)"
+    pk="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    addr="$(forge create --root "$work" "src/circuit/SP1VerifierPlonk.sol:SP1Verifier" \
+      --rpc-url "$rpc" --private-key "$pk" --broadcast --json \
+      | python3 -c 'import json,sys; print(json.load(sys.stdin)["deployedTo"])')"
+    echo "   deployed at: $addr"
+
+    # verifyProof is `view` and reverts iff the proof is invalid; success => accepted.
+    echo ">> calling verifyProof"
+    if cast call "$addr" "verifyProof(bytes32,bytes,bytes)" "$vkey" "$pubvals" "$proofbytes" --rpc-url "$rpc"; then
+      echo "RESULT: ACCEPTED -- the proof would be accepted on-chain by SP1Verifier v6.1.0"
+    else
+      echo "RESULT: REJECTED -- verifyProof reverted (see the error above)" >&2
+      exit 1
+    fi

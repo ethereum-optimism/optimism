@@ -19,3 +19,14 @@ interface ISP1Verifier {
     /// @notice The version string of the SP1 verifier (e.g. "v6.0.0").
     function VERSION() external pure returns (string memory);
 }
+
+/// @title ISP1VerifierWithHash
+/// @notice Extends ISP1Verifier with the circuit's verifier hash. This matches the
+///         interface implemented by SP1's generated `SP1Verifier` contract (shipped
+///         in the circuit artifacts), so that verifier can be compiled and deployed
+///         locally against this file.
+interface ISP1VerifierWithHash is ISP1Verifier {
+    /// @notice Returns the hash of the verifier, whose first four bytes are the
+    ///         selector embedded in every proof this verifier accepts.
+    function VERIFIER_HASH() external pure returns (bytes32);
+}
