@@ -32,8 +32,8 @@ An orderly shutdown is done in the reverse order to the order in which component
   This component is stateless, so you can just stop the process.
   </Step>
 
-  <Step title="Stop `op-geth`">
-  Make sure you use **CTRL-C** to avoid database corruption. If Geth stops unexpectedly the database can be corrupted. This is known as an "[unclean shutdown](https://geth.ethereum.org/docs/fundamentals/databases#unclean-shutdowns)" and it can lead to a variety of problems for the node when it is restarted.
+  <Step title="Stop `op-reth`">
+  Use **CTRL-C** (SIGINT) so the execution client shuts down gracefully and flushes its database. Killing the process abruptly can leave the database in an inconsistent state and cause problems on the next start.
   </Step>
 </Steps>
 
@@ -41,7 +41,7 @@ An orderly shutdown is done in the reverse order to the order in which component
 
 To restart the blockchain, use the same order of components you did when you initialized it.
 <Steps>
-  <Step title="Start `op-geth`">
+  <Step title="Start `op-reth`">
   
   </Step>
 
@@ -155,36 +155,36 @@ This script will NOT work for chain operators trying to generate this data in or
 
 ## Adding nodes
 
-To add nodes to the rollup, you need to initialize `op-node` and `op-geth`, similar to what you did for the first node.
+To add nodes to the rollup, you need to initialize `op-node` and `op-reth`, similar to what you did for the first node.
 You should *not* add an `op-batcher` because there should be only one.
 <Steps>
   <Step title="Configure the OS and prerequisites as you did for the first node">
   
   </Step>
 
-  <Step title="Build the Optimism monorepo and `op-geth` as you did for the first node">
+  <Step title="Install `op-reth` and `op-node` as you did for the first node">
   
   </Step>
 
   <Step title="Copy from the first node these files:">
   ```bash
-      ~/op-geth/genesis.json
+      ~/op-reth/genesis.json
       ~/optimism/op-node/rollup.json
       ```
   </Step>
 
   <Step title="Create a new `jwt.txt` file as a shared secret:">
   ```bash
-      cd ~/op-geth
+      cd ~/op-reth
       openssl rand -hex 32 > jwt.txt
       cp jwt.txt ~/optimism/op-node
       ```
   </Step>
 
-  <Step title="Initialize the new op-geth:">
+  <Step title="Initialize the new op-reth:">
   ```bash
-      cd ~/op-geth
-      ./build/bin/geth init --datadir=./datadir ./genesis.json
+      cd ~/op-reth
+      op-reth init --chain=./genesis.json --datadir=./datadir
       ```
   </Step>
 
@@ -193,9 +193,9 @@ You should *not* add an `op-batcher` because there should be only one.
       If you already have peer to peer synchronization, add the new node to the `--p2p.static` list so it can synchronize.
   </Step>
 
-  <Step title="Start `op-geth` (using the same command line you used on the initial node)">
+  <Step title="Start `op-reth` (using the same command line you used on the initial node)">
   <Info>
-  **Important:** Make sure to configure the `--rollup.sequencerhttp` flag to point to your sequencer node. This HTTP endpoint is crucial because `op-geth` will route `eth_sendRawTransaction` calls to this URL. The OP Stack does not currently have a public mempool, so configuring this is required if you want your node to support transaction submission.
+  **Important:** Make sure to configure the `--rollup.sequencer` flag (alias `--rollup.sequencer-http`) to point to your sequencer node. This endpoint is crucial because `op-reth` will route `eth_sendRawTransaction` calls to this URL. The OP Stack does not currently have a public mempool, so configuring this is required if you want your node to support transaction submission.
   </Info>
   </Step>
 

@@ -49,6 +49,7 @@ var CLZBytecode = []byte{
 // Precompile addresses referenced by post-Karst checks.
 var (
 	ModExpPrecompile     = common.HexToAddress("0x0000000000000000000000000000000000000005")
+	Bn256PairPrecompile  = common.HexToAddress("0x0000000000000000000000000000000000000008")
 	P256VerifyPrecompile = common.HexToAddress("0x0000000000000000000000000000000000000100")
 )
 
@@ -75,6 +76,28 @@ const (
 	// EIP7823OversizedGasLimit is enough gas to fully process a MODEXP call
 	// with the oversized modulus produced by NewEIP7823OversizedModExpInput.
 	EIP7823OversizedGasLimit = 2_000_000
+
+	// Bn256PairElementLen is the byte length of one (G1, G2) pair fed to the
+	// bn256 pairing precompile: 64 bytes for the G1 point + 128 bytes for the G2
+	// point.
+	Bn256PairElementLen = 192
+
+	// KarstBn256PairMaxInputSize is the post-Karst max input size for the bn256
+	// pairing precompile in bytes: 300 pairs × 192 bytes/pair. Down from Jovian's
+	// 81,984 bytes (427 pairs). The same curve is variously called bn128, bn254,
+	// or bn256 across the codebase; this matches `BN256_MAX_PAIRING_SIZE_KARST`
+	// in kona's FPVM module and `bn254_pair::KARST_MAX_INPUT_SIZE` in op-revm.
+	KarstBn256PairMaxInputSize = 300 * Bn256PairElementLen
+
+	// KarstBn256PairProbeGasLimit is the tx gas limit used by every bn256
+	// pairing probe (pre-Karst 301-pair success, post-Karst 301-pair length
+	// halt, and post-Karst 300-pair success). It must be high enough to fully
+	// execute 301 pairs pre-Karst — 301 × 34,000 + 45,000 = 10,279,000
+	// precompile gas plus calldata + intrinsic — otherwise an OOG-revert would
+	// masquerade as the post-Karst length halt and the post-Karst check would
+	// pass against a pre-Karst chain. 12M leaves headroom and stays under the
+	// post-Karst EIP-7825 tx-gas cap of 2^24 = 16,777,216.
+	KarstBn256PairProbeGasLimit = 12_000_000
 )
 
 // NewEIP7823OversizedModExpInput returns MODEXP input whose declared modulus
@@ -237,6 +260,53 @@ func CheckEIP7951(ctx context.Context, logger log.Logger, basePlan txplan.Option
 	return bigs.Uint64Strict(underGasReceipt.BlockNumber), bigs.Uint64Strict(sufficientReceipt.BlockNumber), nil
 }
 
+// CheckKarstBn256PairInputLimit verifies the post-Karst bn256 pairing
+// precompile input-size cap of 57,600 bytes (300 pairs × 192). A 301-pair
+// (57,792-byte) call halts the precompile with Bn254PairLength — consuming
+// all tx gas and surfacing as a failed receipt — while a 300-pair within-
+// limit call succeeds. Both inputs are all zeros; per EIP-197, (0,0) decodes
+// as the G1/G2 point at infinity, and pairing identity pairs yields 1
+// (the identity element of F_p12), so the precompile returns the 32-byte
+// little-endian 1 for the within-limit call. Returns the block numbers
+// where its two transactions landed (smaller number first).
+func CheckKarstBn256PairInputLimit(ctx context.Context, logger log.Logger, basePlan txplan.Option) (uint64, uint64, error) {
+	logger.Info("Karst bn256 pair: over-limit (301-pair) call must revert")
+	overInput := make([]byte, KarstBn256PairMaxInputSize+Bn256PairElementLen) // 301 pairs × 192
+	overReceipt, err := txplan.NewPlannedTx(basePlan,
+		txplan.WithTo(&Bn256PairPrecompile),
+		txplan.WithData(overInput),
+		txplan.WithGasLimit(KarstBn256PairProbeGasLimit),
+	).Included.Eval(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("over-limit bn256 pair submission: %w", err)
+	}
+	if overReceipt.Status != types.ReceiptStatusFailed {
+		return 0, 0, fmt.Errorf("over-limit bn256 pair: expected revert, got success (block=%v, tx=%s)",
+			overReceipt.BlockNumber, overReceipt.TxHash)
+	}
+	logger.Info("Karst bn256 pair: over-limit call reverted as expected",
+		"block", overReceipt.BlockNumber, "tx", overReceipt.TxHash)
+
+	logger.Info("Karst bn256 pair: within-limit (300-pair) call must succeed")
+	okInput := make([]byte, KarstBn256PairMaxInputSize) // 300 pairs × 192
+	okReceipt, err := txplan.NewPlannedTx(basePlan,
+		txplan.WithTo(&Bn256PairPrecompile),
+		txplan.WithData(okInput),
+		txplan.WithGasLimit(KarstBn256PairProbeGasLimit),
+	).Included.Eval(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("within-limit bn256 pair submission: %w", err)
+	}
+	if okReceipt.Status != types.ReceiptStatusSuccessful {
+		return 0, 0, fmt.Errorf("within-limit bn256 pair: expected success, got revert (block=%v, tx=%s)",
+			okReceipt.BlockNumber, okReceipt.TxHash)
+	}
+	logger.Info("Karst bn256 pair: within-limit call succeeded",
+		"block", okReceipt.BlockNumber, "tx", okReceipt.TxHash)
+
+	return bigs.Uint64Strict(overReceipt.BlockNumber), bigs.Uint64Strict(okReceipt.BlockNumber), nil
+}
+
 // CheckEIP7939 verifies the post-Karst CLZ opcode (0x1e). It deploys a contract
 // whose init code computes CLZ(1) = 255 and returns the 32-byte result. Pre-Karst
 // the opcode is invalid and the init code aborts; post-Karst it executes and
@@ -318,12 +388,11 @@ func CheckEIP7825DepositBypass(
 
 	logger.Info("EIP-7825-deposit: submitting high-gas deposit on L1",
 		"gas", depositGasLimit, "amount", depositAmount, "portal", portalAddr)
-	// Skip eth_estimateGas: the estimator caps its binary search at MaxTxGas,
-	// but ResourceMetering's Burn.gas inside depositTransaction needs to burn
-	// ~depositGasLimit gas on L1. WithGasLimit overrides the estimator.
 	l1Receipt, err := txplan.NewPlannedTx(l1Plan, callPlan,
 		txplan.WithValue(depositAmount),
-		txplan.WithGasLimit(depositGasLimit+1_000_000),
+		// This is the most we can ask for. The tx can still revert when the L1 base fee is low,
+		// which will burn more L1 gas and cause us to exceed the MaxTxGas limit.
+		txplan.WithGasLimit(params.MaxTxGas),
 	).Included.Eval(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("L1 deposit submission: %w", err)
@@ -386,13 +455,13 @@ type LatestBlockFetcher interface {
 // Tx data size is a strict lower bound on RLP-encoded block size, so observing
 // txData > MaxBlockSize proves the block exceeds the limit. The check is
 // contingent on chain traffic — on a quiet chain it will block forever, so
-// it is not wired into `CheckAll`; callers control the deadline via `ctx`.
-// Returns the L2 block number where the oversized block was observed.
+// callers must bound the wait via `ctx`. Returns the L2 block number where
+// the oversized block was observed.
 func CheckEIP7934BlockSizeDisabled(
 	ctx context.Context,
 	logger log.Logger,
 	l2 LatestBlockFetcher,
-	pollInterval time.Duration,
+	blockTime time.Duration,
 ) error {
 	for {
 		info, txs, err := l2.InfoAndTxsByLabel(ctx, eth.Unsafe)
@@ -418,15 +487,29 @@ func CheckEIP7934BlockSizeDisabled(
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(pollInterval):
+		case <-time.After(blockTime):
 		}
 	}
+}
+
+type L2 interface {
+	apis.EthCode
+	apis.ReceiptFetcher
+	InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error)
 }
 
 // CheckAll runs every implemented post-Karst check in sequence. It is intended
 // for the CLI; the acceptance test invokes individual Check functions per
 // sub-test so each can run in parallel and gate its own kona-host cross-check.
-func CheckAll(ctx context.Context, logger log.Logger, l2 apis.EthCode, basePlan txplan.Option) error {
+func CheckAll(
+	ctx context.Context,
+	logger log.Logger,
+	l2 L2,
+	basePlan txplan.Option,
+	portalAddr, l1Sender common.Address,
+	l1Plan txplan.Option,
+	depositAmount eth.ETH,
+) error {
 	logger.Info("starting Karst checks")
 	if _, _, err := CheckEIP7823(ctx, logger, basePlan); err != nil {
 		return fmt.Errorf("EIP-7823: %w", err)
@@ -437,11 +520,20 @@ func CheckAll(ctx context.Context, logger log.Logger, l2 apis.EthCode, basePlan 
 	if _, _, err := CheckEIP7951(ctx, logger, basePlan); err != nil {
 		return fmt.Errorf("EIP-7951: %w", err)
 	}
+	if _, _, err := CheckKarstBn256PairInputLimit(ctx, logger, basePlan); err != nil {
+		return fmt.Errorf("Karst bn256 pair input limit: %w", err)
+	}
 	if _, err := CheckEIP7939(ctx, logger, l2, basePlan); err != nil {
 		return fmt.Errorf("EIP-7939: %w", err)
 	}
 	if err := CheckEIP7825(ctx, logger, basePlan); err != nil {
 		return fmt.Errorf("EIP-7825: %w", err)
+	}
+	if _, err := CheckEIP7825DepositBypass(ctx, logger, l2, portalAddr, l1Sender, l1Plan, depositAmount); err != nil {
+		return fmt.Errorf("EIP-7825-deposit: %w", err)
+	}
+	if err := CheckEIP7934BlockSizeDisabled(ctx, logger, l2, 2*time.Second); err != nil {
+		return fmt.Errorf("EIP-7934: %w", err)
 	}
 	logger.Info("completed all Karst checks successfully")
 	return nil

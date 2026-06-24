@@ -55,6 +55,18 @@ build:
 build-debug:
   cargo build --bin op-reth --features "{{FEATURES}}"
 
+# Regenerate the reth-optimism-chainspec superchain archive
+# (res/superchain-configs.tar + .sha256) and chain_specs.rs from the
+# superchain-registry submodule. The repo-root `just sync-superchain-rust` runs
+# this for op-reth.
+sync-superchain: update-superchain-registry-submodule
+  OP_RETH_SYNC_SUPERCHAIN=1 cargo build -p reth-optimism-chainspec --features superchain-configs
+
+# Initialize/update the superchain-registry submodule (delegates to the root recipe
+# that encapsulates the correct scoped, shallow update).
+update-superchain-registry-submodule:
+  cd "$(git rev-parse --show-toplevel)" && just update-superchain-registry-submodule
+
 # Build op-reth natively for the given target
 build-native target:
   cargo build --bin op-reth --target {{target}} --features "{{FEATURES}}" --profile "{{PROFILE}}"
@@ -126,6 +138,24 @@ cov-unit:
 cov-report-html: cov-unit
   cargo llvm-cov report --html
   open target/llvm-cov/html/index.html
+
+# Build a local Docker image and load it into the Docker daemon
+[script('bash')]
+docker-build image_tags=env('DOCKER_IMAGE_TAGS', GIT_SHA + ',latest') build_profile=env('BUILD_PROFILE', 'maxperf') features=FEATURES:
+  set -euo pipefail
+  tag_args=()
+  IFS=',' read -ra tags <<< "{{image_tags}}"
+  for tag in "${tags[@]}"; do
+    tag="$(echo "$tag" | xargs)"
+    if [ -n "$tag" ]; then
+      tag_args+=(--tag "{{DOCKER_IMAGE_NAME}}:$tag")
+    fi
+  done
+  docker buildx build --load \
+    --file ./DockerfileOp .. \
+    --build-arg BUILD_PROFILE="{{build_profile}}" \
+    --build-arg FEATURES="{{features}}" \
+    "${tag_args[@]}"
 
 # Build and push a cross-arch Docker image with the given build and push tags
 docker-build-push-tags build_tag push_tag features=FEATURES:

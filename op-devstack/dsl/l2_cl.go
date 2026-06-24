@@ -207,7 +207,19 @@ func (cl *L2CLNode) AwaitMinL1Processed(minL1 uint64) {
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) AdvancedFn(lvl safety.Level, delta uint64, attempts int) CheckFunc {
 	return func() error {
-		initial := cl.HeadBlockRef(lvl)
+		var initial eth.L2BlockRef
+		if err := retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				head, err := cl.headBlockRef(lvl)
+				if err != nil {
+					cl.log.Warn("SyncStatus RPC failed; will retry", "err", err)
+					return err
+				}
+				initial = head
+				return nil
+			}); err != nil {
+			return err
+		}
 		target := initial.Number + delta
 		cl.log.Info("Expecting chain to advance", "name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "delta", delta)
 		return cl.ReachedFn(lvl, target, attempts)()
@@ -311,6 +323,60 @@ func (cl *L2CLNode) ReachedRefFn(lvl safety.Level, target eth.BlockID, attempts 
 			return fmt.Errorf("expected block ref to be the same as target %s, got but %s", target.Hash, result.Hash)
 		}
 		return nil
+	}
+}
+
+// ReachedTimeWithoutRegressionFn waits for the head's block timestamp to reach
+// targetTime, failing on any regression. Requires a non-zero baseline behind
+// targetTime so a regression to genesis isn't vacuous (0 >= 0). Polls every
+// 100ms; deadline is targetTime + 5min.
+//
+// Uses an explicit ticker/deadline loop and returns errors through the
+// CheckFunc contract. require.Eventuallyf would call FailNow inside the
+// dsl.CheckAll worker goroutine, which is not safe.
+func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime uint64) CheckFunc {
+	return func() error {
+		initial, err := cl.headBlockRef(lvl)
+		if err != nil {
+			return fmt.Errorf("read initial %s head: %w", lvl, err)
+		}
+		if initial.Number == 0 {
+			return fmt.Errorf("initial %s head is at genesis; cannot detect regression below zero — wait for the head to advance past genesis before snapshotting", lvl)
+		}
+		if initial.Time >= targetTime {
+			return fmt.Errorf("initial %s head time %d already at or past target %d; nothing to observe across the boundary", lvl, initial.Time, targetTime)
+		}
+		const buffer = 5 * time.Minute
+		deadline := time.Unix(int64(targetTime), 0).Add(buffer)
+		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "initial", initial.Number, "initial_time", initial.Time, "target_time", targetTime, "deadline", deadline)
+		logger.Info("Watching head for regression until target time reached")
+
+		ctx, cancel := context.WithDeadline(cl.ctx, deadline)
+		defer cancel()
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			head, err := cl.headBlockRef(lvl)
+			if err != nil {
+				logger.Warn("SyncStatus RPC failed; will retry", "err", err)
+			} else {
+				if head.Number < initial.Number {
+					return fmt.Errorf("%s head regressed: was %d (%s, t=%d), observed %d (%s, t=%d)",
+						lvl, initial.Number, initial.Hash, initial.Time, head.Number, head.Hash, head.Time)
+				}
+				if head.Time >= targetTime {
+					return nil
+				}
+				logger.Info("Chain sync status", "current", head.Number, "current_time", head.Time)
+			}
+
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("%s head did not reach target time %d (initial=%d): %w", lvl, targetTime, initial.Number, ctx.Err())
+			case <-ticker.C:
+			}
+		}
 	}
 }
 

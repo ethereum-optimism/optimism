@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -213,18 +214,23 @@ func migrateSuperRootsWithProposal(
 	client := ethclient.NewClient(rpcClient)
 	w3Client := w3.NewClient(rpcClient)
 
-	absoluteCannonPrestate := getInteropCannonAbsolutePrestate(t)
 	absoluteCannonKonaPrestate := getCannonKonaAbsolutePrestate(t)
 
 	permissionedChainOps := devkeys.ChainOperatorKeys(primaryL2.ToBig())
 	proposer, err := keys.Address(permissionedChainOps(devkeys.ProposerRole))
 	require.NoError(err, "must have configured proposer")
-	challenger, err := keys.Address(permissionedChainOps(devkeys.ChallengerRole))
-	require.NoError(err, "must have configured challenger")
 
-	var chainSystemConfigs []common.Address
-	for _, l2Deployment := range migration.l2Deployments {
-		chainSystemConfigs = append(chainSystemConfigs, l2Deployment.SystemConfigProxyAddr())
+	// Migrator requires chainSystemConfigs sorted ascending by l2ChainId.
+	sortedChainIDs := make([]eth.ChainID, 0, len(migration.l2Deployments))
+	for chainID := range migration.l2Deployments {
+		sortedChainIDs = append(sortedChainIDs, chainID)
+	}
+	sort.Slice(sortedChainIDs, func(i, j int) bool {
+		return sortedChainIDs[i].Cmp(sortedChainIDs[j]) < 0
+	})
+	chainSystemConfigs := make([]common.Address, 0, len(sortedChainIDs))
+	for _, chainID := range sortedChainIDs {
+		chainSystemConfigs = append(chainSystemConfigs, migration.l2Deployments[chainID].SystemConfigProxyAddr())
 	}
 
 	// Use the v2 migrator ABI directly (v1 OPCM is deleted, bindings are stale)
@@ -232,24 +238,19 @@ func migrateSuperRootsWithProposal(
 	require.NoError(err, "invalid migrator ABI")
 	contract := batching.NewBoundContract(migratorABI, migration.opcmImpl)
 
-	// ABI-encode permissioned game args: (bytes32 absolutePrestate, address proposer, address challenger)
-	bytes32Ty, _ := abi.NewType("bytes32", "", nil)
+	// ABI-encode simplified super-permissioned game args: (address proposer)
 	addressTy, _ := abi.NewType("address", "", nil)
-	permGameArgs, err := abi.Arguments{
-		{Type: bytes32Ty},
-		{Type: addressTy},
-		{Type: addressTy},
-	}.Pack(absoluteCannonPrestate, proposer, challenger)
-	require.NoError(err, "failed to encode permissioned game args")
+	superPermissionedGameArgs, err := abi.Arguments{{Type: addressTy}}.Pack(proposer)
+	require.NoError(err, "failed to encode super permissioned game args")
 
 	migrateInputV2 := MigrateInputV2{
 		ChainSystemConfigs: chainSystemConfigs,
 		DisputeGameConfigs: []DisputeGameConfigV2{
 			{
 				Enabled:  true,
-				InitBond: new(big.Int).Set(defaultInitBond),
-				GameType: superPermissionedCannonGameType,
-				GameArgs: permGameArgs,
+				InitBond: new(big.Int),
+				GameType: superPermissionedGameType,
+				GameArgs: superPermissionedGameArgs,
 			},
 			{
 				Enabled:  true,
@@ -290,10 +291,6 @@ func migrateSuperRootsWithProposal(
 	return sharedDGF
 }
 
-func getInteropCannonAbsolutePrestate(t devtest.CommonT) common.Hash {
-	return getAbsolutePrestate(t, "op-program/bin/prestate-proof-interop.json")
-}
-
 func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
 	return getAbsolutePrestate(t, "rust/kona/prestate-artifacts-cannon/prestate-proof.json")
 }
@@ -313,8 +310,8 @@ func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
 }
 
 const (
-	superPermissionedCannonGameType = 5
-	superCannonKonaGameType         = 9
+	superPermissionedGameType = 5
+	superCannonKonaGameType   = 9
 )
 
 var (

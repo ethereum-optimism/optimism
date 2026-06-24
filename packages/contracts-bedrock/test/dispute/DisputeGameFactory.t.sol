@@ -12,6 +12,9 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 // Interfaces
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -148,17 +151,8 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up a super permissioned game implementation
-    function setupSuperPermissionedDisputeGame(
-        Claim _absolutePrestate,
-        address _proposer,
-        address _challenger
-    )
-        internal
-        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
-    {
-        bytes memory implArgs;
-        (implArgs, vm_, preimageOracle_) =
-            getSuperPermissionedDisputeGameImmutableArgs(_absolutePrestate, _proposer, _challenger);
+    function setupSuperPermissionedDisputeGame(address _proposer) internal returns (address gameImpl_) {
+        bytes memory implArgs = getSuperPermissionedDisputeGameImmutableArgs(_proposer);
         gameImpl_ = setupSuperPermissionedDisputeGame(implArgs);
     }
 
@@ -245,26 +239,12 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up immutable args for Super PDG implementation
-    function getSuperPermissionedDisputeGameImmutableArgs(
-        Claim _absolutePrestate,
-        address _proposer,
-        address _challenger
-    )
+    function getSuperPermissionedDisputeGameImmutableArgs(address _proposer)
         internal
-        returns (bytes memory implArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+        view
+        returns (bytes memory implArgs_)
     {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
-
-        // Encode the implementation args for CWIA (tightly packed)
-        implArgs_ = abi.encodePacked(
-            _absolutePrestate, // 32 bytes
-            vm_, // 20 bytes
-            anchorStateRegistry, // 20 bytes
-            delayedWeth, // 20 bytes
-            uint256(0), // 32 bytes (l2ChainId),
-            _proposer, // 20 bytes
-            _challenger // 20 bytes
-        );
+        implArgs_ = abi.encodePacked(anchorStateRegistry, _proposer);
     }
 
     /// @notice Deploys PDG v2 implementation and sets it on the DGF
@@ -299,11 +279,12 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     function setupSuperPermissionedDisputeGame(bytes memory _implArgs) internal returns (address gameImpl_) {
         gameImpl_ = DeployUtils.create1({
             _name: "SuperPermissionedDisputeGame",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (_getSuperGameConstructorParams()))
-            )
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, ()))
         });
-        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, _implArgs);
+        vm.startPrank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED, IDisputeGame(gameImpl_), _implArgs);
+        disputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED, 0);
+        vm.stopPrank();
     }
 
     /// @notice Parameters for ZKDisputeGame setup
@@ -312,6 +293,43 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         Duration maxProveDuration;
         bytes32 absolutePrestate;
         uint256 challengerBond;
+    }
+
+    /// @notice Builds a canonical SuperRootProof from `_pairs` at `_timestamp` and returns the
+    ///         encoded ZK extraData (4-byte parentIndex prefix + SuperRootProof) together with the
+    ///         `rootClaim` that hashes to that proof. Use this everywhere a ZK game is created so
+    ///         the init-time hash binding check (`hashSuperRootProof(decode(extraData)) == rootClaim`)
+    ///         passes.
+    function _makeZKExtraDataAndClaim(
+        uint32 _parentIndex,
+        uint64 _timestamp,
+        Types.OutputRootWithChainId[] memory _pairs
+    )
+        internal
+        pure
+        returns (bytes memory extraData_, Claim rootClaim_)
+    {
+        Types.SuperRootProof memory proof =
+            Types.SuperRootProof({ version: bytes1(0x01), timestamp: _timestamp, outputRoots: _pairs });
+        bytes memory superRootBytes = Encoding.encodeSuperRootProof(proof);
+        extraData_ = abi.encodePacked(_parentIndex, superRootBytes);
+        rootClaim_ = Claim.wrap(Hashing.hashSuperRootProof(proof));
+    }
+
+    /// @notice Convenience: single-chain SuperRootProof using this test fixture's `l2ChainId` and
+    ///         a caller-supplied output root.
+    function _makeZKExtraDataAndClaim(
+        uint32 _parentIndex,
+        uint64 _timestamp,
+        bytes32 _outputRoot
+    )
+        internal
+        view
+        returns (bytes memory extraData_, Claim rootClaim_)
+    {
+        Types.OutputRootWithChainId[] memory pairs = new Types.OutputRootWithChainId[](1);
+        pairs[0] = Types.OutputRootWithChainId({ chainId: l2ChainId, root: _outputRoot });
+        return _makeZKExtraDataAndClaim(_parentIndex, _timestamp, pairs);
     }
 
     /// @notice Sets up a ZKDisputeGame implementation with gameArgs
@@ -327,7 +345,9 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
 
         GameType zkGameType = GameTypes.ZK_DISPUTE_GAME;
 
-        // Encode the gameArgs for CWIA (tightly packed)
+        // Encode the gameArgs for CWIA (tightly packed). The super-root ZKDisputeGame derives
+        // chain scoping from the SuperRootProof preimage committed to via rootClaim, so no
+        // l2ChainId field is included in the layout.
         bytes memory gameArgs = abi.encodePacked(
             _params.absolutePrestate, // 32 bytes
             zkVerifier_, // 20 bytes
@@ -335,8 +355,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             _params.maxProveDuration, // 8 bytes
             _params.challengerBond, // 32 bytes
             anchorStateRegistry, // 20 bytes
-            delayedWeth, // 20 bytes
-            l2ChainId // 32 bytes
+            delayedWeth // 20 bytes
         );
 
         // Set respected game type
@@ -912,17 +931,19 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         );
     }
 
-    /// @notice Returns valid rootClaim and extraData for creating a ZK game.
+    /// @notice Returns valid rootClaim and extraData for creating a ZK game (single chain).
+    /// @dev    Produces a canonical SuperRootProof so the init-time hash binding check passes.
     function _zkCreateParams() internal view returns (Claim rootClaim_, bytes memory extraData_) {
         (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
-        extraData_ = abi.encodePacked(anchorL2SeqNum + 1000, type(uint32).max);
-        rootClaim_ = changeClaimStatus(Claim.wrap(keccak256("zkRootClaim")), VMStatuses.INVALID);
+        (extraData_, rootClaim_) =
+            _makeZKExtraDataAndClaim(type(uint32).max, uint64(anchorL2SeqNum + 1000), keccak256("zkOutputRoot"));
     }
 
     function _assertZKGameFactoryStorage(ZKDisputeGame _proxy) internal view {
-        // extraData is 36 bytes: l2SequenceNumber (32) + parentIndex (4).
+        // extraData layout: 4 bytes parentIndex + 1 byte super version + 8 bytes timestamp + n*64 bytes pairs.
+        // _zkCreateParams uses 1 chain pair, so length is 4 + 1 + 8 + 64 = 77.
         bytes memory extraData_ = _proxy.extraData();
-        assertEq(extraData_.length, 36);
+        assertEq(extraData_.length, 77);
 
         // Verify factory mappings and list.
         (IDisputeGame storedGame, Timestamp storedTs) =
@@ -956,7 +977,6 @@ abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactor
         assertEq(_proxy.challengerBond(), _params.challengerBond);
         assertEq(address(_proxy.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(_proxy.weth()), address(delayedWeth));
-        assertEq(_proxy.l2ChainId(), l2ChainId);
 
         // Bond is held by DelayedWETH, not the game proxy itself.
         assertEq(address(_proxy).balance, 0);
@@ -1067,8 +1087,7 @@ contract DisputeGameFactory_SetImplementation_ZkDisputeGame_Test is DisputeGameF
             _maxProveDuration,
             _challengerBond,
             anchorStateRegistry,
-            delayedWeth,
-            uint256(l2ChainId)
+            delayedWeth
         );
 
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));
@@ -1135,16 +1154,15 @@ contract DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test is DisputeGameFac
         (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
         vm.deal(proposer, 10 ether);
 
-        Claim rootClaim1 = changeClaimStatus(Claim.wrap(keccak256("zkRoot1")), VMStatuses.INVALID);
-        Claim rootClaim2 = changeClaimStatus(Claim.wrap(keccak256("zkRoot2")), VMStatuses.INVALID);
+        // Build two distinct SuperRootProofs at different timestamps; each binds its own rootClaim.
+        (bytes memory extra1, Claim rootClaim1) =
+            _makeZKExtraDataAndClaim(type(uint32).max, uint64(anchorL2SeqNum + 1000), keccak256("zkRoot1"));
+        (bytes memory extra2, Claim rootClaim2) =
+            _makeZKExtraDataAndClaim(type(uint32).max, uint64(anchorL2SeqNum + 2000), keccak256("zkRoot2"));
 
         vm.startPrank(proposer);
-        IDisputeGame game1 = disputeGameFactory.create{ value: 1 ether }(
-            GameTypes.ZK_DISPUTE_GAME, rootClaim1, abi.encodePacked(anchorL2SeqNum + 1000, type(uint32).max)
-        );
-        IDisputeGame game2 = disputeGameFactory.create{ value: 1 ether }(
-            GameTypes.ZK_DISPUTE_GAME, rootClaim2, abi.encodePacked(anchorL2SeqNum + 2000, type(uint32).max)
-        );
+        IDisputeGame game1 = disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim1, extra1);
+        IDisputeGame game2 = disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim2, extra2);
         vm.stopPrank();
 
         uint256 latestIdx = disputeGameFactory.gameCount() - 1;

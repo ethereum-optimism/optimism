@@ -19,27 +19,35 @@ For more information, see [Docs](./docs/README.md).
 
 ## Usage
 
+The fault proof program is [kona](../rust/kona) (client + host). The kona client
+is compiled to a MIPS ELF and loaded into cannon; the kona host runs as a
+sub-process to serve pre-image data.
+
 ```shell
-# Build op-program server-mode and MIPS-client binaries.
-cd ../op-program
-just op-program # build
+# Build the kona client MIPS ELF (and the kona prestate artifacts).
+cd ../rust
+just build-kona-prestates
+
+# Build the kona host binary.
+cargo build --release --bin kona-host
 
 # Switch back to cannon, and build the CLI
 cd ../cannon
 just cannon
 
-# Transform MIPS op-program client binary into first VM state.
+# Transform the MIPS kona client binary into the first VM state.
 # This outputs state.bin.gz (VM state) and meta.json (for debug symbols).
-./bin/cannon load-elf --type singlethreaded-2 --path=../op-program/bin/op-program-client.elf
+./bin/cannon load-elf --type singlethreaded-2 --path=../rust/kona/prestate-artifacts-cannon/kona-client-elf
 
-# Run cannon emulator (with example inputs)
-# Note that the server-mode op-program command is passed into cannon (after the --),
-# it runs as sub-process to provide the pre-image data.
+# Run cannon emulator (with example inputs).
+# The kona host command is passed into cannon (after the --) and runs as a
+# sub-process to provide the pre-image data.
 #
 # Note:
 #  - The L2 RPC is an archive L2 node on OP MAINNET.
-#  - The L1 RPC is a non-archive RPC, also change `--l1.rpckind` to reflect the correct L1 RPC type.
-#  - The network flag is only suitable for specific networks(https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json). If you are running on the devnet, please use '--l2.genesis' to supply a path to the L2 devnet genesis file.
+#  - The L1 RPC is a non-archive RPC.
+#  - Use --rollup-config-path / --l1-config-path instead of --l2-chain-id when
+#    running against a devnet rather than a known network.
 ./bin/cannon run \
     --pprof.cpu \
     --info-at '%10000000' \
@@ -48,17 +56,18 @@ just cannon
     --snapshot-at '%1000000000' \
     --input ./state.bin.gz \
     -- \
-    ../op-program/bin/op-program \
-    --network <network name> \
-    --l1 <L1_URL> \
-    --l2 <L2_URL> \
-    --l1.head <L1_HEAD> \
-    --l2.claim <L2_CLAIM> \
-    --l2.head <L2_HEAD> \
-    --l2.blocknumber <L2_BLOCK_NUMBER> \
-    --l2.outputroot <L2_OUTPUT_ROOT>
-    --datadir /tmp/fpp-database \
-    --log.format terminal \
+    ../rust/target/release/kona-host \
+    single \
+    --l1-node-address <L1_URL> \
+    --l1-beacon-address <L1_BEACON_URL> \
+    --l2-node-address <L2_URL> \
+    --l1-head <L1_HEAD> \
+    --agreed-l2-head-hash <L2_HEAD> \
+    --agreed-l2-output-root <L2_OUTPUT_ROOT> \
+    --claimed-l2-output-root <L2_CLAIM> \
+    --claimed-l2-block-number <L2_BLOCK_NUMBER> \
+    --l2-chain-id <L2_CHAIN_ID> \
+    --data-dir /tmp/fpp-database \
     --server
 
 # Add --proof-at '=12345' (or pick other pattern, see --help)

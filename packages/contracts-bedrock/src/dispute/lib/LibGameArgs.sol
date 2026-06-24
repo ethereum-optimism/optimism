@@ -8,7 +8,8 @@ import { InvalidGameArgsLength } from "src/dispute/lib/Errors.sol";
 library LibGameArgs {
     uint256 public constant PERMISSIONLESS_ARGS_LENGTH = 124;
     uint256 public constant PERMISSIONED_ARGS_LENGTH = 164;
-    uint256 public constant ZK_ARGS_LENGTH = 172;
+    uint256 public constant SUPER_PERMISSIONED_ARGS_LENGTH = 40;
+    uint256 public constant ZK_ARGS_LENGTH = 140;
 
     /// @notice Struct representing the game arguments.
     struct GameArgs {
@@ -30,7 +31,12 @@ library LibGameArgs {
         uint256 challengerBond;
         address anchorStateRegistry;
         address weth;
-        uint256 l2ChainId;
+    }
+
+    /// @notice Struct representing the simplified super permissioned game arguments.
+    struct SuperPermissionedGameArgs {
+        address anchorStateRegistry;
+        address proposer;
     }
 
     /// @notice Encodes the game arguments into a bytes array.
@@ -107,6 +113,33 @@ library LibGameArgs {
         return _args.length == PERMISSIONED_ARGS_LENGTH;
     }
 
+    /// @notice Encodes simplified super permissioned game arguments into a bytes array.
+    function encodeSuperPermissioned(SuperPermissionedGameArgs memory _args) internal pure returns (bytes memory) {
+        return abi.encodePacked(_args.anchorStateRegistry, _args.proposer);
+    }
+
+    /// @notice Decodes simplified super permissioned game arguments from a bytes array.
+    function decodeSuperPermissioned(bytes memory _args)
+        internal
+        pure
+        returns (SuperPermissionedGameArgs memory args_)
+    {
+        if (_args.length != SUPER_PERMISSIONED_ARGS_LENGTH) revert InvalidGameArgsLength();
+        address asr;
+        address proposer;
+        assembly {
+            let d := add(_args, 32)
+            asr := shr(96, mload(d))
+            proposer := shr(96, mload(add(d, 20)))
+        }
+        args_ = SuperPermissionedGameArgs({ anchorStateRegistry: asr, proposer: proposer });
+    }
+
+    /// @notice Checks if the provided game arguments are valid for a simplified super permissioned game.
+    function isValidSuperPermissionedArgs(bytes memory _args) internal pure returns (bool) {
+        return _args.length == SUPER_PERMISSIONED_ARGS_LENGTH;
+    }
+
     /// @notice Checks if the provided game arguments are valid for a ZK dispute game.
     function isValidZKArgs(bytes memory _args) internal pure returns (bool) {
         return _args.length == ZK_ARGS_LENGTH;
@@ -122,7 +155,6 @@ library LibGameArgs {
     ///           [68-99]  challengerBond (uint256)
     ///           [100-119] anchorStateRegistry (address)
     ///           [120-139] weth (address)
-    ///           [140-171] l2ChainId (uint256)
     function decodeZK(bytes memory _args) internal pure returns (ZKGameArgs memory decoded_) {
         if (_args.length != ZK_ARGS_LENGTH) revert InvalidGameArgsLength();
 
@@ -133,7 +165,6 @@ library LibGameArgs {
         uint256 challengerBond;
         address anchorStateRegistry;
         address weth;
-        uint256 l2ChainId;
 
         assembly {
             // skip length prefix
@@ -145,7 +176,6 @@ library LibGameArgs {
             challengerBond := mload(add(base, 68))
             anchorStateRegistry := shr(96, mload(add(base, 100)))
             weth := shr(96, mload(add(base, 120)))
-            l2ChainId := mload(add(base, 140))
         }
 
         decoded_ = ZKGameArgs({
@@ -155,8 +185,7 @@ library LibGameArgs {
             maxProveDuration: maxProveDuration,
             challengerBond: challengerBond,
             anchorStateRegistry: anchorStateRegistry,
-            weth: weth,
-            l2ChainId: l2ChainId
+            weth: weth
         });
     }
 }

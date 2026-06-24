@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -8,12 +9,22 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// mockSuperAuthority implements SuperAuthority for testing.
+// mockSuperAuthority implements rollup.SuperAuthority for testing.
+// holdPrevious{Verified,Finalized} default to false so struct-literal tests
+// without explicit setup get the happy-path (ok=true).
 type mockSuperAuthority struct {
-	fullyVerifiedL2Head eth.BlockID
-	finalizedL2Head     eth.BlockID
-	deniedBlocks        map[uint64]common.Hash
-	shouldError         bool
+	fullyVerifiedL2Head       eth.BlockID
+	fullyVerifiedTimestamp    uint64
+	fullyVerifiedL2HeadSource rollup.VerifierHeadSource
+	holdPreviousVerified      bool
+
+	finalizedL2Head       eth.BlockID
+	finalizedTimestamp    uint64
+	finalizedL2HeadSource rollup.VerifierHeadSource
+	holdPreviousFinalized bool
+
+	deniedBlocks map[uint64]common.Hash
+	shouldError  bool
 }
 
 func newMockSuperAuthority() *mockSuperAuthority {
@@ -37,12 +48,20 @@ func (m *mockSuperAuthority) IsDenied(blockNumber uint64, payloadHash common.Has
 	return false, nil
 }
 
-func (m *mockSuperAuthority) FullyVerifiedL2Head() (eth.BlockID, bool) {
-	return m.fullyVerifiedL2Head, false
+func (m *mockSuperAuthority) FullyVerifiedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {
+	return rollup.VerifierHead{
+		Block:     m.fullyVerifiedL2Head,
+		Timestamp: m.fullyVerifiedTimestamp,
+		Source:    m.fullyVerifiedL2HeadSource,
+	}, !m.holdPreviousVerified
 }
 
-func (m *mockSuperAuthority) FinalizedL2Head() (eth.BlockID, bool) {
-	return m.finalizedL2Head, false
+func (m *mockSuperAuthority) FinalizedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {
+	return rollup.VerifierHead{
+		Block:     m.finalizedL2Head,
+		Timestamp: m.finalizedTimestamp,
+		Source:    m.finalizedL2HeadSource,
+	}, !m.holdPreviousFinalized
 }
 
 var _ rollup.SuperAuthority = (*mockSuperAuthority)(nil)

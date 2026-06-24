@@ -16,8 +16,8 @@ pub use batch::{
     MAX_SPAN_BATCH_ELEMENTS, RawSpanBatch, SINGLE_BATCH_TYPE, SPAN_BATCH_TYPE, SingleBatch,
     SpanBatch, SpanBatchBits, SpanBatchEip1559TransactionData, SpanBatchEip2930TransactionData,
     SpanBatchEip7702TransactionData, SpanBatchElement, SpanBatchError,
-    SpanBatchLegacyTransactionData, SpanBatchPayload, SpanBatchPrefix, SpanBatchTransactionData,
-    SpanBatchTransactions, SpanDecodingError,
+    SpanBatchLegacyTransactionData, SpanBatchPayload, SpanBatchPostExecTransactionData,
+    SpanBatchPrefix, SpanBatchTransactionData, SpanBatchTransactions, SpanDecodingError,
 };
 
 mod brotli;
@@ -68,8 +68,7 @@ pub use info::{
     L1BlockInfoJovianBaseFields, L1BlockInfoJovianFields, L1BlockInfoTx,
 };
 
-mod predeploys;
-pub use predeploys::Predeploys;
+pub use kona_genesis::Predeploys;
 
 mod output_root;
 pub use output_root::OutputRoot;

@@ -506,148 +506,35 @@ where
     .serialize(serializer)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Deserialize a post-exec transaction from its RPC representation.
+///
+/// Counterpart to [`serde_post_exec_tx_rpc`]. RPC responses (e.g. `eth_getBlockByHash` with full
+/// transactions) encode the transaction as a full object whose `input` field carries the
+/// RLP-encoded [`PostExecPayload`]; the remaining fields (`gas`, `value`, `from`, `gasPrice`, …)
+/// are derived placeholders that we ignore. We decode the payload from `input` and reuse the
+/// RPC-provided `hash` so the sealed transaction round-trips without recomputation.
+///
+/// Without this, the envelope's `PostExec` variant would fall back to [`TxPostExec`]'s standalone
+/// serde form (which expects the [`PostExecPayload`] shape), and deserializing an RPC block that
+/// contains a post-exec transaction would fail.
+#[cfg(feature = "serde")]
+pub fn serde_post_exec_tx_rpc_de<'de, D>(deserializer: D) -> Result<Sealed<TxPostExec>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
 
-    #[test]
-    fn post_exec_payload_rlp_roundtrip_preserves_block_number() {
-        let payload = PostExecPayload {
-            version: 1,
-            block_number: 42,
-            gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
-        };
-
-        let encoded = payload.to_rlp_bytes();
-        let decoded = PostExecPayload::from_rlp_bytes(encoded.as_ref()).expect("decode payload");
-
-        assert_eq!(decoded, payload);
+    #[derive(Deserialize)]
+    struct SerdeHelper {
+        hash: B256,
+        input: Bytes,
     }
 
-    #[test]
-    fn post_exec_payload_rlp_decode_rejects_unknown_version() {
-        let payload = PostExecPayload {
-            version: POST_EXEC_PAYLOAD_VERSION + 1,
-            block_number: 42,
-            gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
-        };
-
-        let encoded = payload.to_rlp_bytes();
-        let err =
-            PostExecPayload::from_rlp_bytes(encoded.as_ref()).expect_err("reject unknown version");
-        assert_eq!(err, alloy_rlp::Error::Custom("unsupported post-exec payload version"));
-    }
-
-    #[test]
-    fn post_exec_payload_rlp_decode_rejects_trailing_bytes() {
-        let payload = PostExecPayload {
-            version: 1,
-            block_number: 42,
-            gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
-        };
-
-        let mut encoded = payload.to_rlp_bytes().to_vec();
-        encoded.push(0);
-
-        let err = PostExecPayload::from_rlp_bytes(&encoded).expect_err("reject trailing bytes");
-        assert_eq!(err, alloy_rlp::Error::UnexpectedLength);
-    }
-
-    #[test]
-    fn post_exec_tx_hash_depends_on_block_number() {
-        let entries = vec![SDMGasEntry { index: 3, gas_refund: 7 }];
-        let tx_a = build_post_exec_tx(42, entries.clone());
-        let tx_b = build_post_exec_tx(43, entries);
-
-        assert_ne!(tx_a.tx_hash(), tx_b.tx_hash());
-    }
-
-    #[test]
-    fn post_exec_tx_eip2718_roundtrip() {
-        let tx = build_post_exec_tx(
-            99,
-            vec![
-                SDMGasEntry { index: 0, gas_refund: 100 },
-                SDMGasEntry { index: 5, gas_refund: 200 },
-            ],
-        );
-
-        let mut buf = Vec::new();
-        tx.encode_2718(&mut buf);
-
-        let decoded = TxPostExec::decode_2718(&mut buf.as_slice()).expect("decode 2718");
-        assert_eq!(decoded, tx);
-        assert_eq!(decoded.tx_hash(), tx.tx_hash());
-    }
-
-    #[test]
-    fn post_exec_tx_eip2718_decode_rejects_unknown_version() {
-        let payload = PostExecPayload {
-            version: POST_EXEC_PAYLOAD_VERSION + 1,
-            block_number: 42,
-            gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
-        };
-
-        let mut buf = Vec::new();
-        buf.put_u8(POST_EXEC_TX_TYPE_ID);
-        payload.encode(&mut buf);
-
-        let err = TxPostExec::decode_2718(&mut buf.as_slice())
-            .expect_err("2718 decode must reject unknown version");
-        assert!(
-            matches!(
-                err,
-                Eip2718Error::RlpError(alloy_rlp::Error::Custom(
-                    "unsupported post-exec payload version"
-                ))
-            ),
-            "unexpected error: {err:?}"
-        );
-    }
-
-    #[test]
-    fn post_exec_tx_rlp_decode_rejects_unknown_version() {
-        let payload = PostExecPayload {
-            version: POST_EXEC_PAYLOAD_VERSION + 1,
-            block_number: 42,
-            gas_refund_entries: vec![SDMGasEntry { index: 3, gas_refund: 7 }],
-        };
-        let mut buf = Vec::new();
-        payload.encode(&mut buf);
-
-        let err = TxPostExec::decode(&mut buf.as_slice())
-            .expect_err("rlp decode must reject unknown version");
-        assert_eq!(err, alloy_rlp::Error::Custom("unsupported post-exec payload version"));
-    }
-
-    #[test]
-    fn post_exec_tx_eip2718_roundtrip_empty_refunds() {
-        let tx = build_post_exec_tx(1, vec![]);
-
-        let mut buf = Vec::new();
-        tx.encode_2718(&mut buf);
-
-        let decoded = TxPostExec::decode_2718(&mut buf.as_slice()).expect("decode 2718");
-        assert_eq!(decoded, tx);
-    }
-
-    #[cfg(feature = "serde")]
-    #[test]
-    fn post_exec_tx_serde_serializes_as_payload() {
-        let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
-        let value = serde_json::to_value(&tx).expect("serialize tx");
-
-        assert_eq!(value, serde_json::to_value(&tx.payload).expect("serialize payload"));
-    }
-
-    #[cfg(feature = "serde")]
-    #[test]
-    fn post_exec_tx_serde_roundtrip_preserves_cached_input() {
-        let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
-        let value = serde_json::to_value(&tx).expect("serialize tx");
-
-        let decoded: TxPostExec = serde_json::from_value(value).expect("deserialize tx");
-        assert_eq!(decoded, tx);
-        assert_eq!(decoded.input, decoded.payload.to_rlp_bytes());
-    }
+    let SerdeHelper { hash, input } = SerdeHelper::deserialize(deserializer)?;
+    let payload =
+        PostExecPayload::from_rlp_bytes(input.as_ref()).map_err(serde::de::Error::custom)?;
+    Ok(Sealed::new_unchecked(TxPostExec::new(payload), hash))
 }
+
+#[cfg(test)]
+mod tests;

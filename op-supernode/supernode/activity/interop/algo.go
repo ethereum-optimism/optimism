@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
@@ -98,35 +97,8 @@ func (i *Interop) verifyInteropMessages(ts uint64, blocksAtTimestamp blockPerCha
 				continue
 			}
 
-			// Get the block from the logsDB
 			blockRef, _, execMsgs, err = db.OpenBlock(expectedBlock.Number)
 			if err != nil {
-				// OpenBlock fails for the first block in the DB because it tries to find the parent.
-				// Handle this by checking if this is the first sealed block and using FirstSealedBlock instead.
-				if errors.Is(err, types.ErrSkipped) {
-					firstBlock, firstErr := db.FirstSealedBlock()
-					if firstErr != nil {
-						return Result{}, fmt.Errorf("chain %s: failed to open block %d and failed to get first block: %w", chainID, expectedBlock.Number, err)
-					}
-					if firstBlock.Number == expectedBlock.Number {
-						// This is the first block in the logsDB. Use FirstSealedBlock info.
-						// The first block has no executing messages (since we can't verify them without prior data).
-						if firstBlock.Hash != expectedBlock.Hash {
-							i.log.Warn("first block hash mismatch",
-								"chain", chainID,
-								"expected", expectedBlock.Hash,
-								"got", firstBlock.Hash,
-							)
-							invalid, err := i.newInvalidHead(chainID, expectedBlock)
-							if err != nil {
-								return Result{}, fmt.Errorf("chain %s: %w", chainID, err)
-							}
-							result.InvalidHeads[chainID] = invalid
-						}
-						result.L2Heads[chainID] = expectedBlock
-						continue
-					}
-				}
 				return Result{}, fmt.Errorf("chain %s: failed to open block %d: %w", chainID, expectedBlock.Number, err)
 			}
 		}
@@ -191,7 +163,7 @@ func (i *Interop) verifyExecutingMessage(executingChain eth.ChainID, executingTi
 	}
 
 	// Activation invariant: interop must be active for at least one full block on
-	// both the executing chain and the initiating chain. Matches kona and op-program.
+	// both the executing chain and the initiating chain. Matches kona.
 	execChain, ok := i.chains[executingChain]
 	if !ok {
 		return fmt.Errorf("executing chain %s not registered: %w", executingChain, ErrUnknownChain)

@@ -50,8 +50,6 @@ func NewAltDAFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, 
 }
 
 func (fi *AltDAFinalizer) OnEvent(ctx context.Context, ev event.Event) bool {
-	// TODO(#16917) Remove Event System Refactor Comments
-	//  FinalizeL1Event is removed and OnL1Finalized is synchronously called at L1Handler
 	return fi.Finalizer.OnEvent(ctx, ev)
 }
 

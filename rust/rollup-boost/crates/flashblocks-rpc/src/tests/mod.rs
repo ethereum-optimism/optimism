@@ -64,7 +64,7 @@ async fn setup_node() -> eyre::Result<NodeContext> {
 
     let genesis: Genesis = serde_json::from_str(include_str!("assets/genesis.json")).unwrap();
     let chain_spec = Arc::new(
-        OpChainSpecBuilder::base_mainnet()
+        OpChainSpecBuilder::optimism_sepolia()
             .genesis(genesis)
             .ecotone_activated()
             .build(),
@@ -186,6 +186,7 @@ fn create_second_payload() -> FlashblocksPayloadV1 {
             gas_used: 0,
             block_hash: B256::default(),
             transactions: vec![tx1, tx2],
+            post_exec_tx: None,
             withdrawals: Vec::new(),
             logs_bloom: Default::default(),
             withdrawals_root: Default::default(),

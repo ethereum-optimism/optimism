@@ -33,7 +33,7 @@ use op_revm::{
 };
 use revm::{
     Context, ExecuteEvm, InspectEvm, Inspector, Journal, MainContext, SystemCallEvm,
-    context::{BlockEnv, CfgEnv, TxEnv},
+    context::{BlockEnv, CfgEnv, DBErrorMarker, TxEnv},
     context_interface::{
         Transaction,
         result::{EVMError, ResultAndState},
@@ -47,7 +47,9 @@ pub mod tx;
 pub use tx::OpTx;
 
 pub mod block;
-pub use block::{OpBlockExecutionCtx, OpBlockExecutor, OpBlockExecutorFactory, PostExecMode};
+pub use block::{
+    OpBlockExecutionCtx, OpBlockExecutor, OpBlockExecutorFactory, PostExecMode, PreRefundGasUsed,
+};
 
 pub mod post_exec;
 
@@ -72,7 +74,7 @@ pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx> {
     >,
     inspect: bool,
     post_exec_tracking_active: bool,
-    last_tx_warming_savings: u64,
+    last_tx_post_exec_result: post_exec::PostExecExecutedTx,
     _tx: PhantomData<Tx>,
 }
 
@@ -142,7 +144,7 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
             }),
             inspect,
             post_exec_tracking_active: false,
-            last_tx_warming_savings: 0,
+            last_tx_post_exec_result: Default::default(),
             _tx: PhantomData,
         }
     }
@@ -159,9 +161,17 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
 
     /// Take the extracted post-exec result for the most recently executed transaction.
     pub fn take_last_post_exec_tx_result(&mut self) -> post_exec::PostExecExecutedTx {
-        post_exec::PostExecExecutedTx {
-            refund_total: core::mem::take(&mut self.last_tx_warming_savings),
-        }
+        core::mem::take(&mut self.last_tx_post_exec_result)
+    }
+
+    /// Snapshot the block-scoped warming state for carry-forward across flashblock executors.
+    pub fn warming_state(&self) -> post_exec::WarmingState {
+        self.inner.0.inspector.warming_state()
+    }
+
+    /// Seed the block-scoped warming state captured from a prior flashblock's executor.
+    pub fn seed_warming_state(&mut self, state: post_exec::WarmingState) {
+        self.inner.0.inspector.seed_warming_state(state);
     }
 }
 
@@ -175,6 +185,14 @@ where
 
     fn take_last_post_exec_tx_result(&mut self) -> post_exec::PostExecExecutedTx {
         Self::take_last_post_exec_tx_result(self)
+    }
+
+    fn warming_state(&self) -> post_exec::WarmingState {
+        Self::warming_state(self)
+    }
+
+    fn seed_warming_state(&mut self, state: post_exec::WarmingState) {
+        Self::seed_warming_state(self, state);
     }
 }
 
@@ -198,6 +216,22 @@ where
         I: Inspector<Self::Context<DB>>,
     {
         evm.take_last_post_exec_tx_result()
+    }
+
+    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> post_exec::WarmingState
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.warming_state()
+    }
+
+    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: post_exec::WarmingState)
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.seed_warming_state(state);
     }
 }
 
@@ -249,7 +283,7 @@ where
         &mut self,
         tx: Self::Tx,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
-        self.last_tx_warming_savings = 0;
+        self.last_tx_post_exec_result = post_exec::PostExecExecutedTx::default();
 
         let track_post_exec = self.post_exec_tracking_active;
         let result = if self.inspect || track_post_exec {
@@ -269,8 +303,7 @@ where
                 }
             }
 
-            let post_exec_result = self.inner.0.inspector.finish_post_exec_tx();
-            self.last_tx_warming_savings = post_exec_result.refund_total;
+            self.last_tx_post_exec_result = self.inner.0.inspector.finish_post_exec_tx();
             self.post_exec_tracking_active = false;
         }
 
@@ -342,7 +375,7 @@ where
     type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> = OpEvm<DB, I, Self::Precompiles, Tx>;
     type Context<DB: Database> = OpEvmContext<DB>;
     type Tx = Tx;
-    type Error<DBError: core::error::Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
+    type Error<DBError: DBErrorMarker> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type BlockEnv = BlockEnv;
@@ -406,10 +439,13 @@ mod tests {
         context::CfgEnv,
         database::{EmptyDB, InMemoryDB},
         precompile::PrecompileHalt,
-        state::AccountInfo,
+        state::{AccountInfo, Bytecode},
     };
 
     use super::*;
+
+    /// Runtime of a contract that reads (warms) storage slot 0: `PUSH1 0x00; SLOAD; POP; STOP`.
+    const WARMING_CONTRACT_CODE: [u8; 5] = [0x60, 0x00, 0x54, 0x50, 0x00];
 
     fn legacy_op_tx(nonce: u64, caller: Address, target: Address) -> OpTx {
         let tx =
@@ -434,6 +470,18 @@ mod tests {
         db.insert_account_info(
             caller,
             AccountInfo { balance: U256::from(1_000_000_000u64), ..Default::default() },
+        );
+        // `target` is a contract that reads (warms) storage slot 0 (`WARMING_CONTRACT_CODE`).
+        // The second tx re-touches that slot cross-tx and earns a genuine warming rebate — a plain
+        // value transfer would touch only intrinsic accounts (sender/`to`) and earn nothing.
+        db.insert_account_info(
+            target,
+            AccountInfo {
+                code: Some(Bytecode::new_raw(alloy_primitives::Bytes::from_static(
+                    &WARMING_CONTRACT_CODE,
+                ))),
+                ..Default::default()
+            },
         );
         let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
             db,

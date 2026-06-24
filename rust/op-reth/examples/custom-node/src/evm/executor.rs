@@ -10,14 +10,14 @@ use alloy_evm::{
     RecoveredTx,
     block::{
         BlockExecutionError, BlockExecutionResult, BlockExecutor, BlockExecutorFactory,
-        ExecutableTx, GasOutput, OnStateHook, StateDB,
+        ExecutableTx, GasOutput, StateDB,
     },
     precompiles::PrecompilesMap,
 };
 use alloy_op_evm::{
     OpBlockExecutionCtx, OpBlockExecutor, OpEvmContext,
     block::OpTxResult,
-    post_exec::{PostExecEvm, PostExecExecutorExt},
+    post_exec::{PostExecEvm, PostExecExecutorExt, WarmingRefundEvent, WarmingState},
 };
 use op_alloy_consensus::SDMGasEntry;
 use reth_op::{OpReceipt, OpTxType, chainspec::OpChainSpec, node::OpRethReceiptBuilder};
@@ -73,10 +73,6 @@ where
         self.inner.finish()
     }
 
-    fn set_state_hook(&mut self, _hook: Option<Box<dyn OnStateHook>>) {
-        self.inner.set_state_hook(_hook)
-    }
-
     fn evm_mut(&mut self) -> &mut Self::Evm {
         self.inner.evm_mut()
     }
@@ -88,10 +84,26 @@ where
 
 impl<E> PostExecExecutorExt for CustomBlockExecutor<E>
 where
-    E: alloy_evm::Evm,
+    E: PostExecEvm,
 {
+    fn post_exec_entries(&self) -> &[SDMGasEntry] {
+        self.inner.post_exec_entries()
+    }
+
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry> {
         self.inner.take_post_exec_entries()
+    }
+
+    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
+        self.inner.take_warming_events_by_tx()
+    }
+
+    fn warming_state(&self) -> WarmingState {
+        self.inner.warming_state()
+    }
+
+    fn seed_warming_state(&mut self, state: WarmingState) {
+        self.inner.seed_warming_state(state);
     }
 }
 

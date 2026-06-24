@@ -69,7 +69,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 
 	// Initialize chain containers for each configured chain ID
 	// Pass shared resources via InitializationOverrides to all containers
-	// Build RPC router first; we'll attach per-chain handlers at runtime via SetHandler
+	// Build RPC router first; chain containers attach handlers and readiness checks at runtime.
 	s.rpcRouter = resources.NewRouter(log, resources.RouterConfig{})
 	// Root JSON-RPC handler mounted at '/'
 	s.rootRPC = oprpc.NewHandler(version, oprpc.WithLogger(log))
@@ -84,12 +84,15 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			L1Source: resources.NewNonCloseableL1Client(s.l1Client),
 			Beacon:   resources.NewNonCloseableL1BeaconClient(s.beaconClient),
 		}
-		// no rpc handler is passed to the chain container, it will create a new one per (re)start using rpcRouter.SetHandler
+		// no rpc handler is passed to the chain container, it will create a new one per (re)start
 		if vnCfgs[chainID] == nil {
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
-		container := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics)
+		container, err := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create chain container for chain %s: %w", chainID, err)
+		}
 		s.chains[chainID] = container
 	}
 
@@ -170,9 +173,9 @@ func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]
 			continue
 		}
 
-		if vnCfg.Rollup.InteropTime == nil {
+		if vnCfg.Rollup.LagoonTime == nil {
 			if resolved != nil {
-				return nil, fmt.Errorf("chain %s has no interop activation timestamp, but chain %s is configured for timestamp %d", chainID, resolvedChain, *resolved)
+				return nil, fmt.Errorf("chain %s has no Lagoon activation timestamp, but chain %s is configured for timestamp %d", chainID, resolvedChain, *resolved)
 			}
 			if missingChain == nil {
 				missingChain = new(eth.ChainID)
@@ -182,18 +185,18 @@ func resolveInteropActivationTimestamp(override *uint64, vnCfgs map[eth.ChainID]
 		}
 
 		if missingChain != nil {
-			return nil, fmt.Errorf("chain %s is configured for interop activation timestamp %d, but chain %s has no interop activation timestamp", chainID, *vnCfg.Rollup.InteropTime, *missingChain)
+			return nil, fmt.Errorf("chain %s is configured for Lagoon activation timestamp %d, but chain %s has no Lagoon activation timestamp", chainID, *vnCfg.Rollup.LagoonTime, *missingChain)
 		}
 
 		if resolved == nil {
-			ts := *vnCfg.Rollup.InteropTime
+			ts := *vnCfg.Rollup.LagoonTime
 			resolved = &ts
 			resolvedChain = chainID
 			continue
 		}
 
-		if *resolved != *vnCfg.Rollup.InteropTime {
-			return nil, fmt.Errorf("mismatched interop activation timestamps: chain %s=%d, chain %s=%d", resolvedChain, *resolved, chainID, *vnCfg.Rollup.InteropTime)
+		if *resolved != *vnCfg.Rollup.LagoonTime {
+			return nil, fmt.Errorf("mismatched Lagoon activation timestamps: chain %s=%d, chain %s=%d", resolvedChain, *resolved, chainID, *vnCfg.Rollup.LagoonTime)
 		}
 	}
 

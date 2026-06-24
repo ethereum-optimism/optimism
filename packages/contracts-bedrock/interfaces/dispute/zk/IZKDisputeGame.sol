@@ -64,7 +64,7 @@ interface IZKDisputeGame is IDisputeGame, ISemver {
     function l2SequenceNumber() external pure returns (uint256 l2SequenceNumber_);
     function parentIndex() external pure returns (uint32 parentIndex_);
     function absolutePrestate() external pure returns (bytes32 absolutePrestate_);
-    function startingBlockNumber() external view returns (uint256 startingBlockNumber_);
+    function startingSequenceNumber() external view returns (uint256 startingSequenceNumber_);
     function startingRootHash() external view returns (Hash startingRootHash_);
     function challenge() external payable returns (ProposalStatus);
     function prove(bytes calldata _proofBytes) external returns (ProposalStatus);
@@ -86,5 +86,4 @@ interface IZKDisputeGame is IDisputeGame, ISemver {
     function challengerBond() external pure returns (uint256 challengerBond_);
     function anchorStateRegistry() external pure returns (IAnchorStateRegistry registry_);
     function weth() external pure returns (IDelayedWETH weth_);
-    function l2ChainId() external pure returns (uint256 l2ChainId_);
 }

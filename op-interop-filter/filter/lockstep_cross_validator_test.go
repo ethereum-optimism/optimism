@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
@@ -43,7 +43,7 @@ func TestCrossValidator_TimeoutExceedsExpiry(t *testing.T) {
 
 	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
 	require.Contains(t, err.Error(), "expire before timeout")
 }
 
@@ -76,7 +76,7 @@ func TestCrossValidator_CrossUnsafe_Boundary(t *testing.T) {
 	access = makeAccess(testChainA, 101, 10, 0, checksum)
 	err = cv.ValidateAccessEntry(access, safety.CrossUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrOutOfScope)
+	require.ErrorIs(t, err, interop.ErrOutOfScope)
 }
 
 // =============================================================================
@@ -117,7 +117,7 @@ func TestCrossValidator_UnknownChain(t *testing.T) {
 
 	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrUnknownChain)
+	require.ErrorIs(t, err, interop.ErrUnknownChain)
 }
 
 func TestCrossValidator_InitiatingMessageNotFound(t *testing.T) {
@@ -136,7 +136,7 @@ func TestCrossValidator_InitiatingMessageNotFound(t *testing.T) {
 
 	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
 }
 
 // =============================================================================
@@ -270,7 +270,7 @@ func TestValidateAccessEntry_TimestampNotIngested(t *testing.T) {
 
 	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrOutOfScope)
+	require.ErrorIs(t, err, interop.ErrOutOfScope)
 	require.Contains(t, err.Error(), "not yet ingested")
 }
 
@@ -295,7 +295,7 @@ func TestValidateExecMsg_InitBeforeInclusion(t *testing.T) {
 
 	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
 	require.Contains(t, err.Error(), "not before inclusion")
 }
 
@@ -317,7 +317,7 @@ func TestValidateExecMsg_MessageExpired(t *testing.T) {
 
 	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
 	require.Contains(t, err.Error(), "expired")
 }
 
@@ -547,7 +547,7 @@ func TestValidateMessageTiming(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.errContains)
-				require.ErrorIs(t, err, types.ErrConflict)
+				require.ErrorIs(t, err, interop.ErrConflict)
 			} else {
 				require.NoError(t, err)
 			}

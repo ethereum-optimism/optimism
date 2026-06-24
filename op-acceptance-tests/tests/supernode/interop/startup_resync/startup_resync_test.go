@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
@@ -40,9 +41,15 @@ func TestSupernodeResyncResumesAtActivation_PostActivation(gt *testing.T) {
 	// genesis the post-restart cold-start backfill has a real window to
 	// populate, instead of collapsing to empty against a re-recorded
 	// genesis SafeDB entry.
+	//
+	// Wait on both the CL and the EL: the CL's safety.Finalized advances
+	// in-memory before the corresponding forkchoiceUpdated is persisted by
+	// the EL, and only the EL's view is durable across the supernode wipe.
 	dsl.CheckAll(t,
 		sys.L2ACL.AdvancedFn(safety.Finalized, preRestartFinalized, 180),
 		sys.L2BCL.AdvancedFn(safety.Finalized, preRestartFinalized, 180),
+		sys.L2ELA.AdvancedFn(eth.Finalized, preRestartFinalized, dsl.WithTimeout(180)),
+		sys.L2ELB.AdvancedFn(eth.Finalized, preRestartFinalized, dsl.WithTimeout(180)),
 	)
 
 	sys.Supernode.RestartWithFreshDataDir()
@@ -85,6 +92,51 @@ func TestSupernodeResyncSchedulesAtActivation_PreActivation(gt *testing.T) {
 	sys.Supernode.RestartWithFreshDataDir()
 	sys.Supernode.AwaitVerificationStartsAt(activation)
 
+	dsl.CheckAll(t,
+		sys.L2ACL.AdvancedFn(safety.CrossSafe, 1, 60),
+		sys.L2BCL.AdvancedFn(safety.CrossSafe, 1, 60),
+	)
+}
+
+// TestSupernodeEngineControllerConnectsAfterELUnavailableAtStartup starts the
+// supernode while both L2 EL RPC endpoints are down. The interop engine
+// controller dials lazily, so startup succeeds and the controller connects on
+// demand once the ELs come back -- without restarting the virtual node. Before
+// the lazy-dial fix this left interop permanently stuck with ErrNoEngineClient.
+func TestSupernodeEngineControllerConnectsAfterELUnavailableAtStartup(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0,
+		presets.WithUniformL2BlockTimes(l2BlockTime),
+		presets.WithInteropLogBackfillDepth(backfillDepth),
+	)
+
+	sys.Supernode.AwaitBackfillCompleted()
+
+	sys.Supernode.Stop()
+	sys.L2ELA.Stop()
+	sys.L2ELB.Stop()
+	t.Cleanup(func() {
+		sys.L2ELA.Start()
+		sys.L2ELB.Start()
+	})
+
+	// Start the supernode while the EL RPC endpoints are down. Start blocks until
+	// the supernode RPC is bound, so on return the supernode is fully up with its
+	// ELs unreachable.
+	sys.Supernode.Start()
+	// Deterministically assert we are in the EL-down state instead of sleeping: an
+	// engine-backed query must fail while the engine cannot reach the L2 ELs. This
+	// is the state in which the bug left interop permanently stuck on
+	// ErrNoEngineClient before the engine controller dialed lazily.
+	_, err := sys.Supernode.QueryAPI().SuperRootAtTimestamp(t.Ctx(), uint64(time.Now().Unix()))
+	t.Require().Error(err, "engine-backed query should fail while the L2 ELs are down")
+
+	sys.L2ELA.Start()
+	sys.L2ELB.Start()
+	sys.L2ELA.WaitForOnline()
+	sys.L2ELB.WaitForOnline()
+
+	sys.Supernode.AwaitBackfillCompleted()
 	dsl.CheckAll(t,
 		sys.L2ACL.AdvancedFn(safety.CrossSafe, 1, 60),
 		sys.L2BCL.AdvancedFn(safety.CrossSafe, 1, 60),

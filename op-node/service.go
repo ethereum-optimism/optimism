@@ -11,10 +11,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/superchain"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
@@ -314,7 +314,7 @@ func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.Chai
 
 // NewDependencySetFromCLI returns the dep set from --interop.dependency-set if
 // set, otherwise from the superchain-registry. An unknown chain yields
-// (nil, nil); config.Check then errors iff InteropTime is set.
+// (nil, nil); config.Check then errors iff LagoonTime is set.
 func NewDependencySetFromCLI(cli cliiface.Context, chainID eth.ChainID) (depset.DependencySet, error) {
 	if cli.IsSet(flags.InteropDependencySet.Name) {
 		loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}
@@ -347,6 +347,7 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 		return nil, err
 	}
 	engineKind := engine.Kind(ctx.String(flags.L2EngineKind.Name))
+	offsetELSafe := ctx.Duration(flags.SyncModeOffsetELSafeFlag.Name)
 	cfg := &sync.Config{
 		SyncMode:                       mode,
 		SyncModeReqResp:                ctx.Bool(flags.SyncModeReqRespFlag.Name),
@@ -355,10 +356,14 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 		L2FollowSourceEndpoint:         l2FollowSourceEndpoint,
 		// Sequencer needs a manual initial reset when follow source
 		NeedInitialResetEngine: ctx.Bool(flags.SequencerEnabledFlag.Name) && l2FollowSourceEndpoint != "",
-		OffsetELSafe:           ctx.Duration(flags.SyncModeOffsetELSafeFlag.Name),
+		OffsetELSafe:           offsetELSafe,
 	}
 	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
 		cfg.SyncMode = sync.ELSync
+	}
+	if cfg.OffsetELSafe > 0 && cfg.SyncMode != sync.ELSync {
+		log.Warn("syncmode.offset-el-safe is ineffective unless --syncmode=execution-layer; ignoring configured value", "syncmode", cfg.SyncMode.String(), "configured_offset", cfg.OffsetELSafe)
+		cfg.OffsetELSafe = 0
 	}
 	if err := cfg.Check(); err != nil {
 		return nil, err

@@ -123,7 +123,7 @@ contract DeployImplementations is Script {
                 || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
         ) {
             deploySuperFaultDisputeGameImpl(_input, output_);
-            deploySuperPermissionedDisputeGameImpl(_input, output_);
+            deploySuperPermissionedDisputeGameImpl(output_);
         }
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
             deployZKDisputeGameImpl(output_);
@@ -482,19 +482,11 @@ contract DeployImplementations is Script {
         _output.superFaultDisputeGameImpl = impl;
     }
 
-    function deploySuperPermissionedDisputeGameImpl(Input memory _input, Output memory _output) private {
-        ISuperFaultDisputeGame.GameConstructorParams memory params = ISuperFaultDisputeGame.GameConstructorParams({
-            maxGameDepth: _input.faultGameV2MaxGameDepth,
-            splitDepth: _input.faultGameV2SplitDepth,
-            clockExtension: Duration.wrap(uint64(_input.faultGameV2ClockExtension)),
-            maxClockDuration: Duration.wrap(uint64(_input.faultGameV2MaxClockDuration))
-        });
+    function deploySuperPermissionedDisputeGameImpl(Output memory _output) private {
         ISuperPermissionedDisputeGame impl = ISuperPermissionedDisputeGame(
             DeployUtils.createDeterministic({
                 _name: "SuperPermissionedDisputeGame",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (params))
-                ),
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, ())),
                 _salt: _salt
             })
         );
@@ -784,7 +776,7 @@ contract DeployImplementations is Script {
         ChainAssertions.checkDelayedWETHImpl(_output.delayedWETHImpl, _input.withdrawalDelaySeconds);
         GameType permGameType = DevFeatures.isDevFeatureEnabled(
             _input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION
-        ) ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+        ) ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
             _output.disputeGameFactoryImpl, address(0), address(0), false, permGameType
         );

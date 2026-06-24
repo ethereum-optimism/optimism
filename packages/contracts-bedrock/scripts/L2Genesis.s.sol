@@ -286,6 +286,9 @@ contract L2Genesis is Script {
             setNativeAssetLiquidity(_input); // 2A
         }
         vm.stopPrank();
+        // The pranked `create` calls in setEAS() and setGovernanceToken() bump the proxy admin
+        // owner's nonce. Reset it so the account does not appear in the genesis state dump.
+        vm.resetNonce(_input.opChainProxyAdminOwner);
         // These calls don't need the opChainProxyAdminOwner prank: setConditionalDeployer uses
         // vm.etch and setL2DevFeatureFlags manages its own prank as DEPOSITOR_ACCOUNT.
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.L2CM)) {
@@ -305,8 +308,7 @@ contract L2Genesis is Script {
 
         bytes32 _ownerSlot = bytes32(0);
 
-        // TODO(#19182): Remove this once the L2ProxyAdmin is initializable.
-        // there is no initialize() function, so we just set the storage manually.
+        // L2ProxyAdmin has no initializer by design, so we set the proxy owner slot directly.
         vm.store(Predeploys.PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
     }
 

@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use alloy_consensus::{BlockHeader, Header};
-use alloy_eips::{calc_next_block_base_fee, eip1559::BaseFeeParams, eip7840::BlobParams};
+use alloy_eips::{calc_next_block_base_fee, eip1559::BaseFeeParams};
 use alloy_evm::{EvmEnv, EvmFactory};
 use alloy_primitives::U256;
 use kona_genesis::RollupConfig;
@@ -18,12 +18,9 @@ use op_revm::OpSpecId;
 use revm::{
     context::{BlockEnv, CfgEnv},
     context_interface::block::BlobExcessGasAndPrice,
-    primitives::eip4844::{
-        BLOB_BASE_FEE_UPDATE_FRACTION_CANCUN, BLOB_BASE_FEE_UPDATE_FRACTION_PRAGUE,
-    },
 };
 
-impl<P, H, Evm> StatelessL2Builder<'_, P, H, Evm>
+impl<P, H, Evm, R> StatelessL2Builder<'_, P, H, Evm, R>
 where
     P: TrieDBProvider,
     H: TrieHinter,
@@ -100,18 +97,12 @@ where
         base_fee_params: &BaseFeeParams,
         min_base_fee: u64,
     ) -> ExecutorResult<BlockEnv> {
-        let (params, fraction) = if spec_id.is_enabled_in(OpSpecId::ISTHMUS) {
-            (Some(BlobParams::prague()), BLOB_BASE_FEE_UPDATE_FRACTION_PRAGUE)
-        } else if spec_id.is_enabled_in(OpSpecId::ECOTONE) {
-            (Some(BlobParams::cancun()), BLOB_BASE_FEE_UPDATE_FRACTION_CANCUN)
-        } else {
-            (None, 0)
-        };
-
-        let blob_excess_gas_and_price = parent_header
-            .maybe_next_block_excess_blob_gas(params)
-            .or_else(|| spec_id.is_enabled_in(OpSpecId::ECOTONE).then_some(0))
-            .map(|excess| BlobExcessGasAndPrice::new(excess, fraction));
+        // On the OP Stack the BLOBBASEFEE opcode is always 1 from Ecotone onward. Post-Jovian the
+        // header's `blobGasUsed` field carries the block's DA footprint, so it must not feed the
+        // EIP-4844 excess-blob-gas rule; pin the blob env instead.
+        let blob_excess_gas_and_price = spec_id
+            .is_enabled_in(OpSpecId::ECOTONE)
+            .then_some(BlobExcessGasAndPrice { excess_blob_gas: 0, blob_gasprice: 1 });
 
         let next_block_base_fee = self
             .next_block_base_fee(*base_fee_params, parent_header, min_base_fee)
@@ -163,5 +154,71 @@ where
                 Ok((config.chain_op_config.pre_canyon_params(), 0))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::NoopTrieDBProvider;
+    use alloy_consensus::{Header, Sealable};
+    use alloy_op_evm::OpEvmFactory;
+    use alloy_rpc_types_engine::PayloadAttributes;
+    use kona_mpt::NoopTrieHinter;
+
+    /// The `BLOBBASEFEE` opcode must always be 1 on the OP Stack. Post-Jovian the header's
+    /// `blobGasUsed` carries the block's DA footprint, which must not influence the blob env. The
+    /// footprint here is from op-mainnet block 152635937.
+    #[test]
+    fn prepare_block_env_pins_blob_gasprice_to_one() {
+        let config = RollupConfig::default();
+        let parent_header = Header {
+            number: 100,
+            timestamp: 1_000_000,
+            gas_limit: 60_000_000,
+            base_fee_per_gas: Some(1_000_000_000),
+            blob_gas_used: Some(30_406_400),
+            excess_blob_gas: Some(0),
+            ..Default::default()
+        };
+
+        let builder = StatelessL2Builder::new(
+            &config,
+            OpEvmFactory::<alloy_op_evm::OpTx>::default(),
+            alloy_op_evm::block::OpAlloyReceiptBuilder::default(),
+            NoopTrieDBProvider,
+            NoopTrieHinter,
+            parent_header.clone().seal_slow(),
+        );
+
+        let payload_attrs = OpPayloadAttributes {
+            payload_attributes: PayloadAttributes {
+                timestamp: parent_header.timestamp + 2,
+                ..Default::default()
+            },
+            gas_limit: Some(parent_header.gas_limit),
+            ..Default::default()
+        };
+
+        let block_env = builder
+            .prepare_block_env(
+                OpSpecId::ISTHMUS,
+                &parent_header,
+                &payload_attrs,
+                &BaseFeeParams::new(250, 6),
+                0,
+            )
+            .expect("prepare_block_env should succeed");
+
+        let blob =
+            block_env.blob_excess_gas_and_price.expect("blob env should be present for Isthmus");
+        assert_eq!(
+            blob.blob_gasprice, 1,
+            "BLOBBASEFEE must be pinned to 1 on the OP Stack regardless of the parent DA footprint"
+        );
+        assert_eq!(
+            blob.excess_blob_gas, 0,
+            "excess blob gas must be pinned to 0 regardless of the parent DA footprint"
+        );
     }
 }

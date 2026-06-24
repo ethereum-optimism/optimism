@@ -106,6 +106,14 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 	} else {
 		log.Info("No persisted sequencer state loaded")
 	}
+	if enabled, set, err := cfg.ConfigPersistence.SdmPostExecOptIn(); err != nil {
+		return err
+	} else if set {
+		cfg.Driver.SdmPostExecOptIn = enabled
+		log.Info("Persisted SDM state loaded", "enabled", enabled)
+	} else {
+		log.Info("No persisted SDM state loaded")
+	}
 	return nil
 }
 
@@ -140,8 +148,8 @@ func (cfg *Config) Check() error {
 			"'--ignore-missing-pectra-blob-schedule' flag or 'IGNORE_MISSING_PECTRA_BLOB_SCHEDULE' env var.")
 		return ErrMissingPectraBlobSchedule
 	}
-	if cfg.Rollup.InteropTime != nil && cfg.DependencySet == nil {
-		return fmt.Errorf("the Interop upgrade is scheduled (timestamp = %d) but not dependency set is configured", *cfg.Rollup.InteropTime)
+	if cfg.Rollup.LagoonTime != nil && cfg.DependencySet == nil {
+		return fmt.Errorf("the Lagoon upgrade is scheduled (timestamp = %d) but not dependency set is configured", *cfg.Rollup.LagoonTime)
 	}
 	if err := cfg.Metrics.Check(); err != nil {
 		return fmt.Errorf("metrics config error: %w", err)

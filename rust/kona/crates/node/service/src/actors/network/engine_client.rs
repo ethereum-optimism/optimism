@@ -26,7 +26,7 @@ impl NetworkEngineClient for QueuedNetworkEngineClient {
         trace!(target: "network", ?block, "Sending unsafe block to engine.");
         Ok(self
             .engine_actor_request_tx
-            .send(EngineActorRequest::ProcessUnsafeL2BlockRequest(Box::new(block)))
+            .send(EngineActorRequest::ProcessUnsafeL2Block(Box::new(block)))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?)
     }

@@ -40,6 +40,15 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when a chain is paused before migration mutates its portal.
     error OPContractsManagerMigrator_SystemPaused();
 
+    /// @notice Thrown when a chain's SystemConfig reports an l2ChainId of zero.
+    error OPContractsManagerMigrator_ZeroL2ChainId();
+
+    /// @notice Thrown when two chains share the same l2ChainId.
+    error OPContractsManagerMigrator_DuplicateL2ChainId();
+
+    /// @notice Thrown when chainSystemConfigs are not provided in ascending order by l2ChainId.
+    error OPContractsManagerMigrator_ChainIdsNotAscending();
+
     /// @notice Returns the container of blueprint and implementation contract addresses.
     function contractsContainer() external view returns (IOPContractsManagerContainer);
 

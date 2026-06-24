@@ -3,9 +3,9 @@ package depset
 import (
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/superchain"
 )
 
 type DependencySetSource interface {

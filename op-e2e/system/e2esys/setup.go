@@ -35,7 +35,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -49,12 +48,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
-	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/batcher"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/el"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
@@ -96,6 +95,7 @@ var (
 
 type SystemConfigOpts struct {
 	AllocType config.AllocType
+	L2ELKind  services.ELKind
 }
 
 type SystemConfigOpt func(s *SystemConfigOpts)
@@ -106,9 +106,17 @@ func WithAllocType(allocType config.AllocType) SystemConfigOpt {
 	}
 }
 
+// WithL2ELKind pins the L2 execution-layer backend (op-geth or op-reth).
+func WithL2ELKind(kind services.ELKind) SystemConfigOpt {
+	return func(s *SystemConfigOpts) {
+		s.L2ELKind = kind
+	}
+}
+
 func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 	sco := &SystemConfigOpts{
 		AllocType: config.DefaultAllocType,
+		L2ELKind:  services.DefaultELKind(),
 	}
 	for _, opt := range opts {
 		opt(sco)
@@ -145,6 +153,7 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 		L1FinalizedDistance:    8, // Short, for faster tests.
 		BlobsPath:              t.TempDir(),
 		AllocType:              sco.AllocType,
+		L2ELKind:               sco.L2ELKind,
 		Nodes: map[string]*config2.Config{
 			RoleSeq: {
 				Driver: driver.Config{
@@ -359,6 +368,9 @@ type SystemConfig struct {
 	SupportL1TimeTravel bool
 
 	AllocType config.AllocType
+
+	// L2ELKind selects the L2 execution-layer backend (op-geth or op-reth).
+	L2ELKind services.ELKind
 }
 
 type System struct {
@@ -395,15 +407,6 @@ type System struct {
 	// clients caches lazily created L1/L2 ethclient.Client
 	// instances so they can be reused and closed
 	clients map[string]*ethclient.Client
-}
-
-func (sys *System) PrestateVariant() shared.PrestateVariant {
-	switch sys.AllocType() {
-	case config.AllocTypeMTCannonNext:
-		return shared.MTCannonNextVariant
-	default:
-		return shared.MTCannonVariant
-	}
 }
 
 func (sys *System) DisputeGameFactoryAddr() common.Address {
@@ -619,7 +622,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	clk := clock.SystemClock
 	if cfg.SupportL1TimeTravel {
-		sys.TimeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		sys.TimeTravelClock = clock.NewAdvancingClock()
 		clk = sys.TimeTravelClock
 	}
 
@@ -724,7 +727,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			IsthmusTime:            cfg.DeployConfig.IsthmusTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			JovianTime:             cfg.DeployConfig.JovianTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			KarstTime:              cfg.DeployConfig.KarstTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			InteropTime:            cfg.DeployConfig.InteropTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			LagoonTime:             cfg.DeployConfig.LagoonTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			AltDAConfig:            rollupAltDAConfig,
 			ChainOpConfig: &params.OptimismConfig{
 				EIP1559Elasticity:        cfg.DeployConfig.EIP1559Elasticity,
@@ -771,8 +774,8 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		return nil, fmt.Errorf("l1 never came up: %w", err)
 	}
 
-	// Ordered such that the Sequencer is initialized first. Setup this way so that
-	// the `RollupSequencerHTTP` GethOption can be supplied to any sentry nodes.
+	// Ordered such that the Sequencer is initialized first, so its RPC URL can be
+	// supplied as the sequencer-forwarding target to any sentry nodes.
 	l2Nodes := []string{RoleSeq}
 	for name := range cfg.Nodes {
 		if name == RoleSeq {
@@ -782,23 +785,29 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 
 	for _, name := range l2Nodes {
-		var ethClient services.EthInstance
+		var sequencerHTTP string
 		if name != RoleSeq && !cfg.DisableTxForwarder {
-			cfg.GethOptions[name] = append(cfg.GethOptions[name], func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
-				ethCfg.RollupSequencerHTTP = sys.EthInstances[RoleSeq].UserRPC().RPC()
-				return nil
-			})
+			sequencerHTTP = sys.EthInstances[RoleSeq].UserRPC().RPC()
 		}
 
-		l2Geth, err := geth.InitL2(name, l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
+		nodeLogger := cfg.Loggers[name]
+		if nodeLogger == nil {
+			nodeLogger = sysLogger.New("role", name)
+		}
+
+		ethClient, err := el.InitL2(context.Background(), el.L2Config{
+			Kind:          cfg.L2ELKind,
+			Name:          name,
+			Genesis:       l2Genesis,
+			JWTPath:       cfg.JWTFilePath,
+			Logger:        nodeLogger,
+			SequencerHTTP: sequencerHTTP,
+			DataDir:       t.TempDir(),
+			GethOptions:   cfg.GethOptions[name],
+		})
 		if err != nil {
 			return nil, err
 		}
-		if err := l2Geth.Node.Start(); err != nil {
-			return nil, err
-		}
-
-		ethClient = l2Geth
 
 		sys.EthInstances[name] = ethClient
 	}

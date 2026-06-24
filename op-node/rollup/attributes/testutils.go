@@ -28,3 +28,8 @@ func (m *MockEngineController) RequestForkchoiceUpdate(ctx context.Context) {
 func (m *MockEngineController) RequestPendingSafeUpdate(ctx context.Context) {
 	m.Mock.MethodCalled("RequestPendingSafeUpdate", ctx)
 }
+
+func (m *MockEngineController) IsEngineInitialELSyncing() bool {
+	out := m.Mock.MethodCalled("IsEngineInitialELSyncing")
+	return out.Bool(0)
+}

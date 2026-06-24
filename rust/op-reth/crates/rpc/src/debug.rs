@@ -214,6 +214,7 @@ where
                         let payload_id = attributes.payload_id();
                         let config = PayloadConfig {
                             parent_header: Arc::new(parent_header),
+                            parent_block_info: None,
                             attributes,
                             payload_id,
                         };

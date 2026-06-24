@@ -168,7 +168,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         // Check dispute game deployments
         // Validate permissionedDisputeGame (PDG) address
         GameType permGameType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-            ? GameTypes.SUPER_PERMISSIONED_CANNON
+            ? GameTypes.SUPER_PERMISSIONED
             : GameTypes.PERMISSIONED_CANNON;
         IOPContractsManagerContainer.Implementations memory impls = IOPContractsManagerV2(opcmAddr).implementations();
         address expectedPDGAddress = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
@@ -209,7 +209,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         returns (IPermissionedDisputeGame)
     {
         GameType permGameType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-            ? GameTypes.SUPER_PERMISSIONED_CANNON
+            ? GameTypes.SUPER_PERMISSIONED
             : GameTypes.PERMISSIONED_CANNON;
         return IPermissionedDisputeGame(address(doo.disputeGameFactoryProxy.gameImpls(permGameType)));
     }
@@ -242,7 +242,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
         GameType permType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-            ? GameTypes.SUPER_PERMISSIONED_CANNON
+            ? GameTypes.SUPER_PERMISSIONED
             : GameTypes.PERMISSIONED_CANNON;
         address expectedPermissioned = address(doo.disputeGameFactoryProxy.gameImpls(permType));
         assertEq(address(doo.permissionedDisputeGame), expectedPermissioned, "PDG impl");
@@ -254,16 +254,17 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     /// @param doo The output of the deployment.
     function _checkDeploymentAssertions(DeployOPChain.Output memory doo) internal view {
         IPermissionedDisputeGame pdg = getPermissionedDisputeGame(doo);
-        assertEq(pdg.splitDepth(), disputeSplitDepth, "PDG splitDepth");
-        assertEq(pdg.maxGameDepth(), disputeMaxGameDepth, "PDG maxGameDepth");
-        assertEq(Duration.unwrap(pdg.clockExtension()), Duration.unwrap(disputeClockExtension), "PDG clockExtension");
-        assertEq(
-            Duration.unwrap(pdg.maxClockDuration()), Duration.unwrap(disputeMaxClockDuration), "PDG maxClockDuration"
-        );
-
-        // For v2 contracts, some immutable args are passed in at game creation time from DGF.gameArgs.
-        // Super game impls use a different immutable args layout so skip these checks.
         if (!isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+            assertEq(pdg.splitDepth(), disputeSplitDepth, "PDG splitDepth");
+            assertEq(pdg.maxGameDepth(), disputeMaxGameDepth, "PDG maxGameDepth");
+            assertEq(
+                Duration.unwrap(pdg.clockExtension()), Duration.unwrap(disputeClockExtension), "PDG clockExtension"
+            );
+            assertEq(
+                Duration.unwrap(pdg.maxClockDuration()),
+                Duration.unwrap(disputeMaxClockDuration),
+                "PDG maxClockDuration"
+            );
             assertEq(address(pdg.proposer()), address(0), "PDG proposer");
             assertEq(address(pdg.challenger()), address(0), "PDG challenger");
             assertEq(Claim.unwrap(pdg.absolutePrestate()), bytes32(0), "PDG absolutePrestate");
@@ -285,11 +286,13 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         );
 
         bool isSuperRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        GameType permType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+        GameType permType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         GameType konaType = isSuperRoot ? GameTypes.SUPER_CANNON_KONA : GameTypes.CANNON_KONA;
 
-        // Permissioned game must always be enabled with DEFAULT_INIT_BOND init bond
-        assertEq(doo.disputeGameFactoryProxy.initBonds(permType), deployOPChain.DEFAULT_INIT_BOND());
+        // The legacy permissioned game keeps the default bond. The super permissioned game
+        // has no bonded participation path, so its init bond must be zero.
+        uint256 expectedInitBond = isSuperRoot ? 0 : deployOPChain.DEFAULT_INIT_BOND();
+        assertEq(doo.disputeGameFactoryProxy.initBonds(permType), expectedInitBond);
         assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(permType)), address(0));
 
         // CANNON must be disabled for initial deployment (not deployed for super root path)

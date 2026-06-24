@@ -53,13 +53,9 @@ func (i *Interop) BackfillCompleted() bool {
 // ---------------------------------------------------------------------------
 // Activation-timestamp inspection
 // ---------------------------------------------------------------------------
-
-// ActivationTimestamp returns the immutable protocol-defined interop
-// activation timestamp. This is the value that fronts protocol-facing RPC
-// responses and never advances at runtime.
-func (i *Interop) ActivationTimestamp() uint64 {
-	return i.activationTimestamp
-}
+//
+// Note: ActivationTimestamp is part of the production VerificationActivity
+// interface and lives in interop.go alongside IsActiveAt.
 
 // VerificationStartTimestamp returns the L2 timestamp at which the main loop
 // begins verification on the most recent Start. Returns 0 before

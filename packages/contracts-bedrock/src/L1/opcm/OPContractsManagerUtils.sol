@@ -357,6 +357,20 @@ contract OPContractsManagerUtils {
 
         // Upgrade to the implementation and call the initializer.
         _proxyAdmin.upgradeAndCall(payable(address(_target)), _implementation, _data);
+
+        // The check above only inspects the proxy's state before the upgrade, so it cannot catch a
+        // v5-style implementation whose initializer writes the ERC-7201 slot during upgradeAndCall.
+        // Re-point at StorageSetter to read what the initializer wrote and revert the whole upgrade
+        // if v5 state is now present, which keeps an unsupported implementation from being installed.
+        // TODO: This should be removed when the OPCM has proper support for upgrading a v5 Initializable contract.
+        _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
+        if (IStorageSetter(_target).getBytes32(OZ_V5_INITIALIZABLE_SLOT) != bytes32(0)) {
+            revert OPContractsManagerUtils_OZv5InitializableUnsupported();
+        }
+
+        // No v5 state was written, so restore the real implementation. A plain upgrade (not
+        // upgradeAndCall) leaves the initializer state from above intact and does not re-run it.
+        _proxyAdmin.upgrade(payable(_target), _implementation);
     }
 
     /// @notice Returns the implementations for the contracts.
@@ -382,7 +396,7 @@ contract OPContractsManagerUtils {
             return IDisputeGame(impls.permissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.CANNON_KONA.raw()) {
             return IDisputeGame(impls.faultDisputeGameImpl);
-        } else if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+        } else if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED.raw()) {
             return IDisputeGame(impls.superPermissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()) {
             return IDisputeGame(impls.superFaultDisputeGameImpl);
@@ -429,7 +443,7 @@ contract OPContractsManagerUtils {
                 address(_delayedWETH),
                 chainId
             );
-        } else if (rawGT == GameTypes.PERMISSIONED_CANNON.raw() || rawGT == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+        } else if (rawGT == GameTypes.PERMISSIONED_CANNON.raw()) {
             IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.PermissionedDisputeGameConfig));
             return abi.encodePacked(
@@ -441,6 +455,10 @@ contract OPContractsManagerUtils {
                 parsedInputArgs.proposer,
                 parsedInputArgs.challenger
             );
+        } else if (rawGT == GameTypes.SUPER_PERMISSIONED.raw()) {
+            IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig));
+            return abi.encodePacked(address(_anchorStateRegistry), parsedInputArgs.proposer);
         } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
             IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
@@ -451,8 +469,7 @@ contract OPContractsManagerUtils {
                 parsedInputArgs.maxProveDuration,
                 parsedInputArgs.challengerBond,
                 address(_anchorStateRegistry),
-                address(_delayedWETH),
-                chainId
+                address(_delayedWETH)
             );
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();

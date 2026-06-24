@@ -341,8 +341,6 @@ func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, et
 		return nil, nil, nil, errors.New("l2 driver must be initialized")
 	}
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
-		// TODO(#16917) Remove Event System Refactor Comments
-		//  L1UnsafeEvent fan out is updated to procedural method calls
 		if node.cfg.Tracer != nil {
 			node.cfg.Tracer.OnNewL1Head(ctx, sig)
 		}
@@ -354,8 +352,6 @@ func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, et
 		node.l2Driver.StatusTracker.OnL1Safe(sig)
 	}
 	onL1Finalized := func(ctx context.Context, sig eth.L1BlockRef) {
-		// TODO(#16917) Remove Event System Refactor Comments
-		//  FinalizeL1Event fan out is updated to procedural method calls
 		node.l2Driver.StatusTracker.OnL1Finalized(sig)
 		node.l2Driver.Finalizer.OnL1Finalized(sig)
 		node.l2Driver.SyncDeriver.OnL1Finalized(ctx)
@@ -621,6 +617,14 @@ func registerAPIs(cfg *config.Config, node *OpNode, handler *oprpc.Handler) erro
 		Service:   api,
 	}); err != nil {
 		return fmt.Errorf("failed to add Optimism API: %w", err)
+	}
+
+	// `superroot_atTimestamp` for non-interop chains; always-on, harmless until games activate.
+	if err := handler.AddAPI(rpc.API{
+		Namespace: "superroot",
+		Service:   NewSuperrootAPI(&cfg.Rollup, node.l2Source.L2Client, node.l2Driver, node.safeDB),
+	}); err != nil {
+		return fmt.Errorf("failed to add Superroot API: %w", err)
 	}
 
 	if p2pNode := node.getP2PNodeIfEnabled(); p2pNode != nil {

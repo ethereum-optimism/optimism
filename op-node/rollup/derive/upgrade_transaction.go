@@ -113,14 +113,26 @@ func (b *nutBundle) toDepositTransactions() ([]hexutil.Bytes, error) {
 // fork's NUT bundle. The fork name selects the embedded bundle JSON.
 func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
 	var bundleJSON []byte
+	// bundleLabel is the concept-level identifier used to qualify intent
+	// strings (and therefore source hashes). It is decoupled from the fork
+	// name so a hard-fork rename (e.g., Interop → Lagoon) does not break
+	// source-hash determinism with kona's bundle codegen, which embeds
+	// the bundle's concept-level name ("interop" → "Interop"). The bundle
+	// file on disk has been renamed to lagoon_nut_bundle.json, but the
+	// label fed into the qualified intent stays "interop" for compat.
+	var bundleLabel forks.Name
 	switch fork {
 	case forks.Karst:
 		bundleJSON = nuts.KarstNUTBundleJSON
+		bundleLabel = forks.Karst
+	case forks.Lagoon:
+		bundleJSON = nuts.LagoonNUTBundleJSON
+		bundleLabel = "interop"
 	default:
 		return nil, 0, fmt.Errorf("no NUT bundle for fork %s", fork)
 	}
 
-	bundle, err := readNUTBundle(fork, bytes.NewReader(bundleJSON))
+	bundle, err := readNUTBundle(bundleLabel, bytes.NewReader(bundleJSON))
 	if err != nil {
 		return nil, 0, fmt.Errorf("reading %s NUT bundle: %w", fork, err)
 	}

@@ -108,14 +108,14 @@ where
 /// use reth_db::test_utils::create_test_rw_db;
 /// use reth_node_api::NodeTypesWithDBAdapter;
 /// use reth_node_builder::{NodeBuilder, NodeConfig};
-/// use reth_optimism_chainspec::BASE_MAINNET;
+/// use reth_optimism_chainspec::OP_MAINNET;
 /// use reth_optimism_exex::OpProofsExEx;
 /// use reth_optimism_node::{args::RollupArgs, OpNode};
 /// use reth_optimism_trie::{db::MdbxProofsStorageV2, InMemoryProofsStorage, OpProofsStorage};
 /// use reth_provider::providers::BlockchainProvider;
 /// use std::{sync::Arc, time::Duration};
 ///
-/// let config = NodeConfig::new(BASE_MAINNET.clone());
+/// let config = NodeConfig::new(OP_MAINNET.clone());
 /// let db = create_test_rw_db();
 /// let args = RollupArgs::default();
 /// let op_node = OpNode::new(args);

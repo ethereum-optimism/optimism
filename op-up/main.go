@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopsmoke"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -101,7 +102,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name), cliCtx.Bool(interopFlag.Name))
 	}
 	app.Commands = []*cli.Command{
-		smokeCommand(),
+		interopsmoke.Command(envPrefix),
 	}
 	return app.RunContext(ctx, args)
 }
@@ -164,7 +165,9 @@ func newMinimalSystem(t *testingT) (sys *presets.Minimal, err error) {
 			panic(recovered)
 		}
 	}()
-	return presets.NewMinimal(t), nil
+	// op-up exposes a lightweight devnet; it does not need dispute-game helpers,
+	// and go-tests-short does not build kona-host for the challenger.
+	return presets.NewMinimalNoFaultProofs(t), nil
 }
 
 func newSupernodeInteropSystem(t *testingT) (sys *presets.TwoL2SupernodeInterop, err error) {

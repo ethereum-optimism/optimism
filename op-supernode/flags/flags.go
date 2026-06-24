@@ -68,6 +68,12 @@ var (
 		Value:    false,
 		Required: false,
 	}
+	DependencySet = &cli.PathFlag{
+		Name:      "dependency-set",
+		Usage:     "Dependency-set configuration shared by all chains, point at JSON file. Overrides the registry fallback and any per-VN interop.dependency-set flag.",
+		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
+		TakesFile: true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -78,6 +84,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	L1HTTPPollInterval,
 	DisableP2P,
+	DependencySet,
 }
 
 // activityFlags holds flags registered by activity packages via RegisterActivityFlags.
@@ -111,7 +118,8 @@ var Flags []cli.Flag
 //
 // Extend this list when new shared resources are added to the supernode.
 var SupernodeOwnedFlags = []string{
-	opnodeflags.L1HTTPPollInterval.Name, // "l1.http-poll-interval"
+	opnodeflags.L1HTTPPollInterval.Name,   // "l1.http-poll-interval"
+	opnodeflags.InteropDependencySet.Name, // "interop.dependency-set"
 }
 
 func CheckRequired(ctx *cli.Context) error {

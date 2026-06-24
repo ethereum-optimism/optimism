@@ -13,10 +13,10 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:852cb2dcd64eb5c039abf857a2217f341351eb7e4ef1a989ba9eefb86f158105
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:758f67c7212e7d05c3d02c34f26766ef86f657d3bb811da07cc01e37b736ebef
   c-go-cache-version:
     type: string
-    default: "v0.0"
+    default: "v0.1"
   # Workflow activation flags (set by the decision tree in config.yml)
   c-run_rust_e2e_ci:
     type: boolean
@@ -24,44 +24,6 @@ parameters:
   c-run_rust_e2e_gate_skip:
     type: boolean
     default: false
-
-# Commands used by rust-e2e jobs
-commands:
-  go-restore-cache:
-    parameters:
-      module:
-        type: string
-        default: .
-      namespace:
-        type: string
-      version:
-        type: string
-        default: <<pipeline.parameters.c-go-cache-version>>
-    steps:
-      - restore_cache:
-          name: Restore go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
-          keys:
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-
-            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-
-
-  go-save-cache:
-    parameters:
-      module:
-        type: string
-        default: .
-      namespace:
-        type: string
-      version:
-        type: string
-        default: <<pipeline.parameters.c-go-cache-version>>
-    steps:
-      - save_cache:
-          name: Save go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
-          paths:
-            - ~/.cache/go-build
-            - ~/go/pkg/mod
-          key: go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
 
 # ============================================================================
 # RUST E2E JOBS
@@ -87,6 +49,10 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: kona-ci
+      # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: Run common tests for node with sysgo orchestrator
           no_output_timeout: 60m
@@ -129,6 +95,10 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: kona-ci
+      # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: Run restart tests for node with sysgo orchestrator
           no_output_timeout: 60m
@@ -157,6 +127,10 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: op-reth-e2e
+      # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: Run op-reth E2E tests with sysgo orchestrator
           working_directory: rust/op-reth/tests
@@ -189,6 +163,10 @@ jobs:
           at: .
       - go-restore-cache:
           namespace: kona-ci
+      # Build the superchain-configs.zip these Go tests //go:embed (workspace carries only Rust binaries).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: Build kona and run action tests
           working_directory: rust/kona
@@ -200,9 +178,9 @@ jobs:
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
-          path: op-e2e/actions/proofs/tmp/test-results
+          path: rust/kona/tests/proofs/tmp/test-results
       - store_artifacts:
-          path: op-e2e/actions/proofs/tmp/testlogs
+          path: rust/kona/tests/proofs/tmp/testlogs
           when: always
 
   required-rust-e2e:
@@ -242,6 +220,7 @@ workflows:
           persist_to_workspace: true
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       - rust-e2e-sysgo-tests:
           name: rust-e2e-<<matrix.devnet_config>>
           matrix:
@@ -266,7 +245,8 @@ workflows:
             - contracts-bedrock-build
             - cannon-prestate
             - rust-workspace-release
-      # Proof tests - single kind only, interop excluded per original config
+      # Proof action tests - single-chain only. Interop proof coverage runs
+      # under kona-host in op-acceptance-tests, not as action tests.
       - kona-proof-action-tests:
           name: kona-proof-action-single
           kind: single
@@ -284,35 +264,14 @@ workflows:
             - rust-e2e-simple-kona-geth: terminal
             - rust-e2e-simple-kona-sequencer: terminal
             - rust-e2e-restart: terminal
+            - op-reth-e2e-sysgo-tests: terminal
             - kona-proof-action-single: terminal
           context:
             - circleci-api-token
   rust-e2e-gate-skip:
     when: << pipeline.parameters.c-run_rust_e2e_gate_skip >>
     jobs:
-      - contracts-bedrock-build:
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary:
-          name: rust-workspace-release
-          directory: rust
-          profile: release
-          persist_to_workspace: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      # Proof tests - single kind only, interop excluded per original config
-      - kona-proof-action-tests:
-          name: kona-proof-action-single
-          kind: single
-          requires:
-            - rust-workspace-release
-            - contracts-bedrock-build
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-
       - required-rust-e2e:
-          requires:
-            - kona-proof-action-single: terminal
+          always-succeed: true
           context:
             - circleci-api-token

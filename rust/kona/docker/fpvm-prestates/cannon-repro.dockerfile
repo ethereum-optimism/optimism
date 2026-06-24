@@ -9,9 +9,11 @@
 #              Build Cannon from local monorepo                #
 ################################################################
 
-FROM golang:1.24.13-alpine3.22 AS cannon-build
+FROM golang:1.26.4-alpine3.22 AS cannon-build
 
-RUN apk add --no-cache bash just
+# apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
+# Retrying the identical apk add does not affect the reproducible cannon/prestate output.
+RUN n=0; until apk add --no-cache bash just; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
 
 COPY go.mod go.sum /app/
 COPY cannon/ /app/cannon/
@@ -74,10 +76,12 @@ COPY rust/op-alloy/ /app/rust/op-alloy/
 COPY rust/alloy-op-evm/ /app/rust/alloy-op-evm/
 COPY rust/alloy-op-hardforks/ /app/rust/alloy-op-hardforks/
 COPY rust/op-revm/ /app/rust/op-revm/
-# op-reth and revm-ee-tests are workspace members but not kona-client
-# dependencies. We need their Cargo.toml files so the workspace resolves.
+# op-reth, revm-ee-tests, and op-reth-test-engine are workspace members but
+# not kona-client dependencies. We need their Cargo.toml files so the
+# workspace resolves.
 COPY rust/op-reth/ /app/rust/op-reth/
 COPY rust/revm-ee-tests/ /app/rust/revm-ee-tests/
+COPY rust/op-reth-test-engine/ /app/rust/op-reth-test-engine/
 
 # kona-hardforks build.rs walks ancestors of CARGO_MANIFEST_DIR for
 # op-core/nuts/bundles. Stage the bundles at /app/op-core so the walk

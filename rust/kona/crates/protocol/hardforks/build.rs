@@ -48,8 +48,19 @@ fn run() -> Result<()> {
 
     let karst_bundle = monorepo_root.join("op-core/nuts/bundles/karst_nut_bundle.json");
     println!("cargo::rerun-if-changed={}", karst_bundle.display());
+    generate("karst", &karst_bundle, &out_dir).context("generate karst bundle")?;
 
-    generate("karst", &karst_bundle, &out_dir).context("generate karst bundle")
+    // The bundle file is named lagoon_nut_bundle.json (the fork was renamed
+    // Interop → Lagoon). The `generate("interop", ...)` label is intentionally
+    // kept so the generated `interop_nut_bundle()` fn and the embedded
+    // `fork_name: "Interop"` stay unchanged — they feed deposit source_hash
+    // derivation and must match op-node, which keeps `bundleLabel = "interop"`
+    // in op-node/rollup/derive/upgrade_transaction.go for the same reason.
+    let lagoon_bundle = monorepo_root.join("op-core/nuts/bundles/lagoon_nut_bundle.json");
+    println!("cargo::rerun-if-changed={}", lagoon_bundle.display());
+    generate("interop", &lagoon_bundle, &out_dir).context("generate interop bundle")?;
+
+    Ok(())
 }
 
 fn main() {

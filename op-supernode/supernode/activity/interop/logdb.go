@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 )
 
 // LogsDB is the interface for interacting with a chain's logs database.
@@ -139,8 +138,7 @@ func (i *Interop) sealBlockDataIntoLogsDB(chainID eth.ChainID, blockID eth.Block
 		}
 	}
 
-	isFirstBlock := !hasBlocks
-	if err := i.processBlockLogs(db, blockInfo, receipts, isFirstBlock); err != nil {
+	if err := i.processBlockLogs(db, blockInfo, receipts); err != nil {
 		return fmt.Errorf("chain %s: failed to process block logs for block %d: %w", chainID, blockID.Number, err)
 	}
 	return nil
@@ -216,10 +214,9 @@ func (i *Interop) verifyCanAddTimestamp(chainID eth.ChainID, db LogsDB, ts uint6
 }
 
 // processBlockLogs processes the receipts for a block and stores the logs in the database.
-// If isFirstBlock is true, this is the first block being added to the logsDB (at activation timestamp),
-// and we first seal a "virtual parent" block so that logs have a sealed block to reference.
-// This allows the logsDB to start at any block number, not just genesis.
-func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts gethTypes.Receipts, isFirstBlock bool) error {
+// The logsDB starts at any block number — the first block is sealed directly with its
+// real logs and executing messages.
+func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts gethTypes.Receipts) error {
 	blockNum := blockInfo.NumberU64()
 	blockID := eth.BlockID{Hash: blockInfo.Hash(), Number: blockNum}
 	parentHash := blockInfo.ParentHash()
@@ -227,17 +224,7 @@ func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts 
 	parentBlock := eth.BlockID{Hash: parentHash, Number: blockNum - 1}
 	sealParentHash := parentHash
 
-	// For the first block in the logsDB (activation block), we need to first seal
-	// a virtual parent block so that logs have a sealed block to reference.
-	// When the DB is empty, SealBlock allows any block to be added without parent validation.
-	if isFirstBlock && blockNum > 0 {
-		// Seal the parent as a "virtual genesis" - this works because DB is empty
-		if err := db.SealBlock(common.Hash{}, parentBlock, blockInfo.Time()); err != nil {
-			return fmt.Errorf("failed to seal virtual parent for first block: %w", err)
-		}
-		// parentBlock stays as-is (references the now-sealed parent)
-		// sealParentHash stays as parentHash
-	} else if blockNum == 0 {
+	if blockNum == 0 {
 		// Actual genesis block - no parent, no logs allowed
 		parentBlock = eth.BlockID{}
 		sealParentHash = common.Hash{}
@@ -246,10 +233,10 @@ func (i *Interop) processBlockLogs(db LogsDB, blockInfo eth.BlockInfo, receipts 
 	var logIndex uint32
 	for _, receipt := range receipts {
 		for _, l := range receipt.Logs {
-			logHash := processors.LogToLogHash(l)
+			logHash := messages.LogToLogHash(l)
 
 			// Decode executing message if present (nil if not an executing message)
-			execMsg, _ := processors.DecodeExecutingMessageLog(l)
+			execMsg, _ := messages.DecodeExecutingMessageLog(l)
 
 			if err := db.AddLog(logHash, parentBlock, logIndex, execMsg); err != nil {
 				return fmt.Errorf("failed to add log %d: %w", logIndex, err)

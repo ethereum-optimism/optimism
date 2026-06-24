@@ -165,3 +165,7 @@ func (f *FaultDisputeGameContract080) GetBondDistributionMode(ctx context.Contex
 func (f *FaultDisputeGameContract080) CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error) {
 	return txmgr.TxCandidate{}, ErrCloseGameNotSupported
 }
+
+func (f *FaultDisputeGameContract080) GetAnchorStateRegistry(_ context.Context, _ rpcblock.Block) (common.Address, error) {
+	return common.Address{}, ErrAnchorStateRegistryNotSupported
+}

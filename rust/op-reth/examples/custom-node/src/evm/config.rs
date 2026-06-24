@@ -24,7 +24,7 @@ use reth_op::{
     evm::primitives::{EvmEnvFor, ExecutionCtxFor},
     node::{OpEvmConfig, OpNextBlockEnvAttributes, OpRethReceiptBuilder},
 };
-use reth_optimism_evm::{ConfigurePostExecEvm, PostExecMode};
+use reth_optimism_evm::{ConfigurePostExecEvm, PostExecMode, PreRefundGasUsed};
 use reth_primitives_traits::{SealedBlock, SealedHeader, SignedTransaction};
 use reth_rpc_api::eth::helpers::pending_block::BuildPendingEnv;
 use revm::database::State;
@@ -85,6 +85,9 @@ impl ConfigureEvm for CustomEvmConfig {
         Ok(CustomBlockExecutionCtx {
             inner: OpBlockExecutionCtx {
                 parent_hash: block.header().parent_hash(),
+                // No parent header on this path; fork-activation enforcement is deferred to
+                // derivation (see reth-optimism-evm's context_for_block).
+                no_user_tx_activation_block: false,
                 parent_beacon_block_root: block.header().parent_beacon_block_root(),
                 extra_data: block.header().extra_data().clone(),
                 post_exec_mode: PostExecMode::default(),
@@ -101,6 +104,10 @@ impl ConfigureEvm for CustomEvmConfig {
         Ok(CustomBlockExecutionCtx {
             inner: OpBlockExecutionCtx {
                 parent_hash: parent.hash(),
+                no_user_tx_activation_block: self
+                    .inner
+                    .chain_spec()
+                    .is_no_user_tx_activation_block(parent.timestamp(), attributes.inner.timestamp),
                 parent_beacon_block_root: attributes.inner.parent_beacon_block_root,
                 extra_data: attributes.inner.extra_data,
                 post_exec_mode: PostExecMode::default(),
@@ -158,9 +165,12 @@ impl From<OpFlashblockPayloadBase> for CustomNextBlockEnvAttributes {
 }
 
 impl BuildPendingEnv<CustomHeader> for CustomNextBlockEnvAttributes {
-    fn build_pending_env(parent: &SealedHeader<CustomHeader>) -> Self {
+    fn build_pending_env(
+        parent: &SealedHeader<CustomHeader>,
+        block_overrides: Option<&alloy_rpc_types_eth::BlockOverrides>,
+    ) -> Self {
         Self {
-            inner: OpNextBlockEnvAttributes::build_pending_env(parent),
+            inner: OpNextBlockEnvAttributes::build_pending_env(parent, block_overrides),
             extension: parent.extension,
         }
     }
@@ -217,6 +227,9 @@ impl ConfigurePostExecEvm for CustomEvmConfig {
         let evm = self.evm_for_block(db, block.header())?;
         let ctx = OpBlockExecutionCtx {
             parent_hash: block.header().parent_hash(),
+            // No parent header on this path; fork-activation enforcement is deferred to
+            // derivation (see reth-optimism-evm's context_for_block).
+            no_user_tx_activation_block: false,
             parent_beacon_block_root: block.header().parent_beacon_block_root(),
             extra_data: block.header().extra_data().clone(),
             post_exec_mode,
@@ -239,7 +252,14 @@ impl ConfigurePostExecEvm for CustomEvmConfig {
         attributes: Self::NextBlockEnvCtx,
         post_exec_mode: PostExecMode,
     ) -> Result<
-        impl BlockBuilder<Primitives = CustomNodePrimitives, Executor: PostExecExecutorExt> + 'a,
+        impl BlockBuilder<
+            Primitives = CustomNodePrimitives,
+            Executor: PostExecExecutorExt
+                          + alloy_evm::block::BlockExecutor<
+                Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
+                Result: PreRefundGasUsed,
+            >,
+        > + 'a,
         Self::Error,
     > {
         let evm_env = self.next_evm_env(parent, &attributes)?;
@@ -247,6 +267,10 @@ impl ConfigurePostExecEvm for CustomEvmConfig {
         let ctx = CustomBlockExecutionCtx {
             inner: OpBlockExecutionCtx {
                 parent_hash: parent.hash(),
+                no_user_tx_activation_block: self
+                    .inner
+                    .chain_spec()
+                    .is_no_user_tx_activation_block(parent.timestamp(), attributes.inner.timestamp),
                 parent_beacon_block_root: attributes.inner.parent_beacon_block_root,
                 extra_data: attributes.inner.extra_data.clone(),
                 post_exec_mode,

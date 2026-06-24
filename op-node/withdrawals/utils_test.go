@@ -1,19 +1,169 @@
 package withdrawals
 
 import (
+	"context"
+	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"os"
 	"path"
 	"testing"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
+
+type testHeaderClient struct {
+	headers []*types.Header
+}
+
+func newTestHeaderClient(timestamps ...uint64) *testHeaderClient {
+	headers := make([]*types.Header, len(timestamps))
+	for i, timestamp := range timestamps {
+		headers[i] = &types.Header{
+			Number: new(big.Int).SetUint64(uint64(i)),
+			Time:   timestamp,
+		}
+	}
+	return &testHeaderClient{headers: headers}
+}
+
+func (c *testHeaderClient) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	if number == nil {
+		return c.headers[len(c.headers)-1], nil
+	}
+	if !number.IsUint64() {
+		return nil, fmt.Errorf("block number does not fit in uint64: %v", number)
+	}
+	n := bigs.Uint64Strict(number)
+	if n >= uint64(len(c.headers)) {
+		return nil, fmt.Errorf("missing header %d", n)
+	}
+	return c.headers[n], nil
+}
+
+func TestFindL2HeaderForTimestamp(t *testing.T) {
+	ctx := context.Background()
+	client := newTestHeaderClient(10, 12, 14, 16)
+
+	tests := []struct {
+		name            string
+		targetTimestamp uint64
+		expectedNumber  uint64
+	}{
+		{
+			name:            "exact timestamp",
+			targetTimestamp: 14,
+			expectedNumber:  2,
+		},
+		{
+			name:            "between timestamps",
+			targetTimestamp: 15,
+			expectedNumber:  2,
+		},
+		{
+			name:            "genesis timestamp",
+			targetTimestamp: 10,
+			expectedNumber:  0,
+		},
+		{
+			name:            "latest timestamp",
+			targetTimestamp: 16,
+			expectedNumber:  3,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			header, err := FindL2HeaderForTimestamp(ctx, client, test.targetTimestamp)
+			require.NoError(t, err)
+			require.Equal(t, test.expectedNumber, bigs.Uint64Strict(header.Number))
+		})
+	}
+}
+
+func TestFindL2HeaderForTimestampErrors(t *testing.T) {
+	ctx := context.Background()
+	client := newTestHeaderClient(10, 12, 14, 16)
+
+	_, err := FindL2HeaderForTimestamp(ctx, client, 9)
+	require.ErrorContains(t, err, "no l2 header found at or before target timestamp 9")
+
+	_, err = FindL2HeaderForTimestamp(ctx, client, 17)
+	require.ErrorContains(t, err, "latest l2 header timestamp 16 is before target timestamp 17")
+}
+
+func TestGameSequenceAndOutputRoot(t *testing.T) {
+	l2ChainID := big.NewInt(420120092)
+	expectedRoot := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+
+	t.Run("legacy game uses block number and root claim", func(t *testing.T) {
+		game := bindings.IDisputeGameFactoryGameSearchResult{
+			RootClaim: expectedRoot,
+			ExtraData: common.LeftPadBytes(
+				big.NewInt(1234).Bytes(),
+				32,
+			),
+		}
+		sequence, root, ok, err := gameSequenceAndOutputRoot(game, gameTypes.CannonGameType, nil)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, uint64(1234), bigs.Uint64Strict(sequence))
+		require.Equal(t, expectedRoot, root)
+	})
+
+	t.Run("fast game uses block number and root claim", func(t *testing.T) {
+		game := bindings.IDisputeGameFactoryGameSearchResult{
+			RootClaim: expectedRoot,
+			ExtraData: common.LeftPadBytes(
+				big.NewInt(1234).Bytes(),
+				32,
+			),
+		}
+		sequence, root, ok, err := gameSequenceAndOutputRoot(game, gameTypes.FastGameType, nil)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, uint64(1234), bigs.Uint64Strict(sequence))
+		require.Equal(t, expectedRoot, root)
+	})
+
+	t.Run("super game uses timestamp and matching chain output", func(t *testing.T) {
+		game := bindings.IDisputeGameFactoryGameSearchResult{
+			ExtraData: superRootExtraData(5678, l2ChainID, expectedRoot),
+		}
+		sequence, root, ok, err := gameSequenceAndOutputRoot(game, gameTypes.SuperCannonKonaGameType, l2ChainID)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, uint64(5678), bigs.Uint64Strict(sequence))
+		require.Equal(t, expectedRoot, root)
+	})
+
+	t.Run("super game without matching chain is not usable", func(t *testing.T) {
+		game := bindings.IDisputeGameFactoryGameSearchResult{
+			ExtraData: superRootExtraData(5678, big.NewInt(11155420), expectedRoot),
+		}
+		sequence, root, ok, err := gameSequenceAndOutputRoot(game, gameTypes.SuperCannonKonaGameType, l2ChainID)
+		require.NoError(t, err)
+		require.False(t, ok)
+		require.Equal(t, uint64(5678), bigs.Uint64Strict(sequence))
+		require.Equal(t, common.Hash{}, root)
+	})
+}
+
+func superRootExtraData(timestamp uint64, chainID *big.Int, outputRoot common.Hash) []byte {
+	extra := make([]byte, 9+64)
+	extra[0] = 1
+	binary.BigEndian.PutUint64(extra[1:9], timestamp)
+	copy(extra[9:41], common.LeftPadBytes(chainID.Bytes(), 32))
+	copy(extra[41:73], outputRoot[:])
+	return extra
+}
 
 func TestParseMessagePassed(t *testing.T) {
 	tests := []struct {

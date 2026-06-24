@@ -248,8 +248,8 @@ func TestLastStepCacheAccuracy(t *testing.T) {
 	}
 	prestate := filepath.Join(dir, "prestate.bin.gz")
 
-	// This requires cannon and its testdata to be built: cd cannon && make cannon elf
-	state, _ := testutil.LoadELFProgram(t, filepath.Join(monorepoRoot, "cannon/testdata/go-1-24/bin/hello.64.elf"), multithreaded.CreateInitialState)
+	// This requires the diff-hello guest ELF: cd cannon && just diff-hello-elf
+	state, _ := testutil.LoadELFProgram(t, filepath.Join(monorepoRoot, "cannon/testdata/bin/hello.64.elf"), multithreaded.CreateInitialState)
 	versionedState, err := versions.NewFromState(versions.GetCurrentVersion(), state)
 	require.NoError(t, err)
 	err = serialize.Write(prestate, versionedState, os.FileMode(0o755))

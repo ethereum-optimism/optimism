@@ -5,7 +5,6 @@ import (
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -57,7 +56,7 @@ func buildFrontierBlockView(chainID eth.ChainID, blockInfo eth.BlockInfo, receip
 	var logIdx uint32
 	for _, receipt := range receipts {
 		for _, entry := range receipt.Logs {
-			logHash := processors.LogToLogHash(entry)
+			logHash := messages.LogToLogHash(entry)
 			query := messages.ChecksumArgs{
 				BlockNumber: ref.Number,
 				LogIndex:    logIdx,
@@ -76,7 +75,7 @@ func buildFrontierBlockView(chainID eth.ChainID, blockInfo eth.BlockInfo, receip
 				Timestamp: ref.Time,
 			}
 
-			if execMsg, err := processors.DecodeExecutingMessageLog(entry); err == nil && execMsg != nil {
+			if execMsg, err := messages.DecodeExecutingMessageLog(entry); err == nil && execMsg != nil {
 				execMsgs[logIdx] = execMsg
 			}
 			logIdx++

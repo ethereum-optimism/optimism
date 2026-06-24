@@ -15,8 +15,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
@@ -69,7 +69,7 @@ func runVerifyInteropTest(t *testing.T, tc verifyInteropTestCase) {
 // interop activation-block guard inside verifyExecutingMessage. The destination chain is
 // the executing chain; the source chain is the initiating chain. Both chains share the
 // same activationTimestamp and blockTime, matching supernode's invariant that all chains
-// in the dependency set share an InteropTime.
+// in the dependency set share a LagoonTime.
 //
 // blockTimeOverride == 0 leaves algoMockChain.BlockTime() at its default (1). All
 // guard-firing cases use init ts <= exec ts so the pre-existing ErrTimestampViolation
@@ -661,7 +661,7 @@ func TestVerifyInteropMessages(t *testing.T) {
 				}
 
 				sourceDB := &algoMockLogsDB{
-					containsErr: suptypes.ErrConflict, // Message not found
+					containsErr: interop.ErrConflict, // Message not found
 				}
 
 				destDB := &algoMockLogsDB{
@@ -1070,6 +1070,7 @@ type algoMockChain struct {
 	optimisticAtErr   error
 	blockHashes       map[uint64]common.Hash
 	blockTimeOverride uint64
+	payloadsByHash    map[common.Hash]*eth.ExecutionPayloadEnvelope
 }
 
 func (m *algoMockChain) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
@@ -1083,9 +1084,10 @@ func (m *algoMockChain) Start(ctx context.Context) error                  { retu
 func (m *algoMockChain) Stop(ctx context.Context) error                   { return nil }
 func (m *algoMockChain) Pause(ctx context.Context) error                  { return nil }
 func (m *algoMockChain) Resume(ctx context.Context) error                 { return nil }
+func (m *algoMockChain) WaitReady(_ context.Context) error                { return nil }
 func (m *algoMockChain) PauseAndStopVN(ctx context.Context) error         { return nil }
 func (m *algoMockChain) RegisterVerifier(v activity.VerificationActivity) {}
-func (m *algoMockChain) VerifierCurrentL1s() []eth.BlockID                { return nil }
+func (m *algoMockChain) VerifierCurrentL1() (eth.BlockID, bool)           { return eth.BlockID{}, false }
 func (m *algoMockChain) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	return eth.L2BlockRef{}, nil
 }
@@ -1116,8 +1118,25 @@ func (m *algoMockChain) SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 func (m *algoMockChain) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
 	return ts, nil
 }
-func (m *algoMockChain) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
+func (m *algoMockChain) RewindEngine(ctx context.Context, target *eth.ExecutionPayloadEnvelope, invalidatedBlock eth.BlockRef) error {
 	return nil
+}
+func (m *algoMockChain) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	if m.payloadsByHash != nil {
+		if env, ok := m.payloadsByHash[hash]; ok {
+			return env, nil
+		}
+	}
+	return nil, nil
+}
+func (m *algoMockChain) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: eth.Uint64Quantity(number),
+			Timestamp:   eth.Uint64Quantity(number),
+			BlockHash:   common.BigToHash(new(big.Int).SetUint64(number)),
+		},
+	}, nil
 }
 func (m *algoMockChain) BlockTime() uint64 {
 	if m.blockTimeOverride > 0 {
@@ -1125,7 +1144,7 @@ func (m *algoMockChain) BlockTime() uint64 {
 	}
 	return 1
 }
-func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
+func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
 	return false, nil
 }
 func (m *algoMockChain) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
@@ -1149,4 +1168,4 @@ func (m *algoMockChain) IsDenied(height uint64, payloadHash common.Hash) (bool, 
 }
 func (m *algoMockChain) SetResetCallback(cb cc.ResetCallback) {}
 
-var _ cc.ChainContainer = (*algoMockChain)(nil)
+var _ cc.InteropChain = (*algoMockChain)(nil)

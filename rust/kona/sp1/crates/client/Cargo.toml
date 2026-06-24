@@ -1,0 +1,47 @@
+[package]
+name = "kona-sp1-client-utils"
+version = "0.0.1"
+publish = false
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+# ethereum
+op-alloy-consensus.workspace = true
+alloy-consensus.workspace = true
+alloy-rlp.workspace = true
+alloy-eips.workspace = true
+alloy-primitives.workspace = true
+alloy-sol-types.workspace = true
+
+# Execution
+alloy-evm.workspace = true
+alloy-op-evm.workspace = true
+op-revm.workspace = true
+revm.workspace = true
+
+# kona
+kona-preimage = { workspace = true, features = ["serde", "rkyv"] }
+kona-derive.workspace = true
+kona-proof.workspace = true
+kona-executor.workspace = true
+kona-driver.workspace = true
+kona-protocol.workspace = true
+kona-genesis.workspace = true
+
+# general
+anyhow.workspace = true
+async-trait.workspace = true
+serde_json.workspace = true
+serde = { workspace = true, features = ["derive", "std"] }
+rkyv = { workspace = true, features = ["hashbrown-0_15", "std"] }
+sha2.workspace = true
+tracing.workspace = true
+spin.workspace = true
+
+# kzg
+kzg-rs.workspace = true
+cfg-if.workspace = true
+
+[lints]
+workspace = true
