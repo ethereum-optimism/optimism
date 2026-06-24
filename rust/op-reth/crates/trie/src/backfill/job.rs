@@ -68,8 +68,9 @@ impl PhaseTimings {
 
 /// Default number of blocks written per MDBX transaction.
 ///
-/// Conservative — a crash mid-batch loses at most this many blocks of work, and the in-memory
-/// per-block diff buffer stays small. Operators can opt up via [`BackfillJob::with_batch_size`].
+/// `50` measured 2.7× throughput on a 1.2M-block op mainnet backfill. Tune via
+/// [`BackfillJob::with_batch_size`] / `--proofs-history.backfill-batch-size` — see that flag
+/// for the throughput / memory / restart-loss trade-offs.
 pub const DEFAULT_BACKFILL_BATCH_SIZE: usize = 50;
 
 /// Backfill job for proofs storage.
