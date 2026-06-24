@@ -4,7 +4,9 @@
 #
 # Three host roles, run as separate modes against a shared data dir:
 #
-#   plan                 Print the planned ranges (no RPC fetch, no proving).
+#   plan [--check]       Print the planned ranges (no RPC fetch, no proving).
+#                        --check: read-only report of the anchor state and which
+#                        stdin/proof files already exist (writes nothing).
 #   fetch_range [-j N]   Fetch + save the SP1 stdin for every planned range.
 #                        Runs on a host with RPC access; does NOT prove and (via
 #                        range-bench --no-execute) does NOT execute. -j sets how
@@ -271,7 +273,8 @@ PY
   # Persist the resolved anchor (first run, auto mode) so later runs are stable.
   local resolved
   resolved="$(printf '%s\n' "$out" | sed -n 's/^#anchor[[:space:]]*//p')"
-  if [ "$ANCHOR_BLOCK" = "auto" ] && [ -n "$resolved" ] && [ ! -f "$ANCHOR_FILE" ]; then
+  if [ "${PLAN_READONLY:-0}" != 1 ] && [ "$ANCHOR_BLOCK" = "auto" ] && [ -n "$resolved" ] &&
+    [ ! -f "$ANCHOR_FILE" ]; then
     mkdir -p "$DATA_DIR"
     printf '%s\n' "$resolved" > "$ANCHOR_FILE"
     echo "persisted anchor $resolved -> $ANCHOR_FILE (delete to re-anchor)" >&2
@@ -285,6 +288,15 @@ PY
 # Modes
 # ----------------------------------------------------------------------------
 mode_plan() {
+  local check=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --check) check=1; shift ;;
+      *) die "unknown plan arg: $1" ;;
+    esac
+  done
+  [ "$check" -eq 1 ] && { mode_plan_check; return; }
+
   echo "Data dir : $DATA_DIR"
   echo "Anchor   : $ANCHOR_BLOCK"
   echo "Backend  : ${SP1_PROVER:-cpu}${FEATURES:+ (features: $FEATURES)}"
@@ -294,6 +306,49 @@ mode_plan() {
   plan_ranges | while IFS=$'\t' read -r kind label start end size; do
     printf '%-6s %-6s %-12s %-12s %-7s\n' "$kind" "$label" "$start" "$end" "$size"
   done
+}
+
+# Read-only status report: anchor state + which stdin/proof files exist for the
+# planned ranges. Touches nothing on disk (no anchor persist, no dirs created).
+mode_plan_check() {
+  PLAN_READONLY=1
+  echo "Data dir : $DATA_DIR $([ -d "$DATA_DIR" ] && echo '(exists)' || echo '(does not exist yet)')"
+  echo "Anchor cfg : $ANCHOR_BLOCK"
+  if [ -f "$ANCHOR_FILE" ]; then
+    echo "Anchor pin : $(cat "$ANCHOR_FILE") (from $ANCHOR_FILE)"
+  elif [ "$ANCHOR_BLOCK" != "auto" ]; then
+    echo "Anchor pin : $ANCHOR_BLOCK (from config; not yet persisted)"
+  else
+    echo "Anchor pin : (none -- auto will compute from finalized and persist on first fetch)"
+  fi
+  echo
+
+  local plan; plan="$(plan_ranges)"
+  printf '%-6s %-5s %-12s %-12s %-6s %-8s %-8s\n' kind label start end size stdin proof
+  printf '%-6s %-5s %-12s %-12s %-6s %-8s %-8s\n' ---- ----- ----- --- ---- ----- -----
+  local n=0 ns=0 np=0
+  while IFS=$'\t' read -r kind label start end size; do
+    [ -n "$kind" ] || continue
+    local sflag="MISSING" pflag="--"
+    if [ -s "$DATA_DIR/stdin_${start}_${end}.bin" ]; then sflag="present"; ns=$((ns + 1)); fi
+    if [ -s "$DATA_DIR/proof_${start}_${end}.bin" ]; then pflag="present"; np=$((np + 1)); fi
+    n=$((n + 1))
+    printf '%-6s %-5s %-12s %-12s %-6s %-8s %-8s\n' "$kind" "$label" "$start" "$end" "$size" "$sflag" "$pflag"
+  done <<< "$plan"
+  echo
+  echo "summary: stdin ${ns}/${n} present | proof ${np}/${n} present"
+
+  # List any aggregation artifacts already on disk (keyed by proof-set range, so
+  # not derivable from the plan).
+  shopt -s nullglob
+  local agg=("$DATA_DIR"/agg_inputs_*.cbor "$DATA_DIR"/agg_*.bin "$DATA_DIR"/agg_*.plonk.bin)
+  shopt -u nullglob
+  if [ "${#agg[@]}" -gt 0 ]; then
+    echo
+    echo "aggregation artifacts present:"
+    local f
+    for f in "${agg[@]}"; do echo "  $(basename "$f")"; done
+  fi
 }
 
 fetch_one() {
