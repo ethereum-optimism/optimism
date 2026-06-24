@@ -235,13 +235,17 @@ func TestOpConVerifierFollowMode(gt *testing.T) {
 // then assert the verifier re-derives the same canonical block as the sequencer
 // at that height. Exercises op-con-node's canonical-L1-tracker reorg handling.
 func TestOpConVerifierRecoversFromL1Reorg(gt *testing.T) {
-	// Skipped: this surfaced an op-con-node L1-reorg handling gap — after a
-	// confirmed L1 reorg, a safe block whose L1 origin was reorged is not reliably
-	// re-derived (sometimes unchanged within 2min, sometimes re-derived to a block
-	// the sequencer disagrees with). That is an op-con-node derivation issue
-	// (canonical-L1-tracker invalidation / re-derivation), not test wiring; the
-	// preset + test are kept wired to re-enable once it is fixed.
-	gt.Skip("op-con-node does not yet reliably re-derive safe blocks whose L1 origin is reorged")
+	// Skipped: a test-harness limitation, NOT an op-con-node bug. Instrumenting
+	// op-con-node's L1 source showed it correctly follows the canonical L1 chain
+	// (contiguous tip advancement, parent always matching tip). The failure is that
+	// the devstack test-sequencer cannot reliably inject a *deep, winning* L1
+	// reorg: ts.Next builds on the canonical head, and the safe block's L1 origin
+	// sits far below the L1 head (the safe head lags L1 by ~the seq window during
+	// catch-up), so a short fork at that deep height loses the fork choice to the
+	// longer canonical chain — op-con-node never sees a lasting reorg. Re-enabling
+	// needs a harness that builds the fork longer than the pre-reorg chain (e.g.
+	// repeated ts.New on the fork tip) so it wins.
+	gt.Skip("devstack test-sequencer cannot inject a deep winning L1 reorg; op-con-node was observed following canonical L1 correctly")
 
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNodeNoFaultProofsBareVerifierWithTestSeqWithoutCheck(t)
