@@ -24,7 +24,6 @@ import (
 
 type config struct {
 	rpcURL           string
-	sequencerRPCURL  string
 	opRbuilderRPCURL string
 	privateKeyHex    string
 	mnemonic         string
@@ -81,7 +80,6 @@ func parseFlags() config {
 
 	var cfg config
 	flag.StringVar(&cfg.rpcURL, "rpc", defaultRPC, "L2 execution RPC URL (or L2_RPC_URL)")
-	flag.StringVar(&cfg.sequencerRPCURL, "sequencer-rpc", firstEnv("SEQUENCER_RPC_URL", "OP_NODE_RPC_URL"), "sequencer/op-node admin RPC URL for admin_setSdmPostExecOptIn (or SEQUENCER_RPC_URL/OP_NODE_RPC_URL)")
 	flag.StringVar(&cfg.opRbuilderRPCURL, "op-rbuilder-rpc", os.Getenv("OP_RBUILDER_RPC_URL"), "op-rbuilder admin RPC URL for admin_setSdmPostExecOptIn (or OP_RBUILDER_RPC_URL)")
 	flag.StringVar(&cfg.privateKeyHex, "private-key", os.Getenv("PRIVATE_KEY"), "sender private key hex (defaults to devkeys test mnemonic)")
 	flag.StringVar(&cfg.mnemonic, "mnemonic", devkeys.TestMnemonic, "mnemonic used when -private-key is empty")
@@ -195,15 +193,6 @@ func run(cfg config) error {
 	return fmt.Errorf("no attempt produced a validated SDM post-exec block: %w", lastErr)
 }
 
-func firstEnv(keys ...string) string {
-	for _, key := range keys {
-		if value := os.Getenv(key); value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 func enableSDM(ctx context.Context, cfg config, sender *sdm.TxSender) error {
 	targets := []struct {
 		name   string
@@ -211,7 +200,6 @@ func enableSDM(ctx context.Context, cfg config, sender *sdm.TxSender) error {
 		client *gethrpc.Client
 	}{
 		{name: "execution", rpcURL: cfg.rpcURL, client: sender.RPC},
-		{name: "sequencer", rpcURL: cfg.sequencerRPCURL},
 		{name: "op-rbuilder", rpcURL: cfg.opRbuilderRPCURL},
 	}
 

@@ -631,32 +631,6 @@ func TestSequencerBuild(t *testing.T) {
 	require.Equal(t, testClock.Now(), nextTime, "start asap on the next block")
 }
 
-func TestSequencerSdmStatus(t *testing.T) {
-	logger := testlog.Logger(t, log.LevelError)
-	activation := uint64(30_004)
-
-	seq, deps := createSequencer(logger)
-	deps.cfg.LagoonTime = &activation
-	status, err := seq.SdmStatus(context.Background(), activation-deps.cfg.BlockTime)
-	require.NoError(t, err)
-	require.False(t, status.PostExecOptIn)
-	require.False(t, status.ProtocolActive)
-	require.False(t, status.Effective)
-	require.Equal(t, &activation, status.ActivationTime)
-
-	require.NoError(t, seq.SetSdmPostExecOptIn(context.Background(), true))
-	status, err = seq.SdmStatus(context.Background(), activation-deps.cfg.BlockTime)
-	require.NoError(t, err)
-	require.True(t, status.PostExecOptIn)
-	require.False(t, status.ProtocolActive)
-	require.False(t, status.Effective)
-	status, err = seq.SdmStatus(context.Background(), activation)
-	require.NoError(t, err)
-	require.True(t, status.PostExecOptIn)
-	require.True(t, status.ProtocolActive)
-	require.True(t, status.Effective)
-}
-
 func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
 	seq, deps := createSequencer(logger)
