@@ -927,7 +927,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
-								GameType: embedded.GameTypeSuperPermCannon,
+								GameType: embedded.GameTypeSuperPermissioned,
 							},
 							{
 								Enabled:  false,

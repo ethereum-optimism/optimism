@@ -43,17 +43,17 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
         gameImpl = ISuperPermissionedDisputeGame(impl);
 
         vm.prank(superchainConfig.guardian());
-        anchorStateRegistry.setRespectedGameType(GameTypes.SUPER_PERMISSIONED_CANNON);
+        anchorStateRegistry.setRespectedGameType(GameTypes.SUPER_PERMISSIONED);
 
         vm.prank(PROPOSER, PROPOSER);
         gameProxy = ISuperPermissionedDisputeGame(
-            payable(address(disputeGameFactory.create(GameTypes.SUPER_PERMISSIONED_CANNON, rootClaim, extraData)))
+            payable(address(disputeGameFactory.create(GameTypes.SUPER_PERMISSIONED, rootClaim, extraData)))
         );
     }
 
     function _createGame(address _sender, Claim _claim, bytes memory _extraData) internal returns (address proxy_) {
         vm.prank(_sender, _sender);
-        proxy_ = address(disputeGameFactory.create(GameTypes.SUPER_PERMISSIONED_CANNON, _claim, _extraData));
+        proxy_ = address(disputeGameFactory.create(GameTypes.SUPER_PERMISSIONED, _claim, _extraData));
     }
 }
 
@@ -70,7 +70,7 @@ contract SuperPermissionedDisputeGame_Initialize_Test is SuperPermissionedDisput
         assertEq(gameProxy.resolvedAt().raw(), block.timestamp);
         assertTrue(gameProxy.wasRespectedGameTypeWhenCreated());
         assertEq(gameProxy.gameCreator(), PROPOSER);
-        assertEq(gameProxy.gameType().raw(), GameTypes.SUPER_PERMISSIONED_CANNON.raw());
+        assertEq(gameProxy.gameType().raw(), GameTypes.SUPER_PERMISSIONED.raw());
         assertEq(gameProxy.rootClaim().raw(), rootClaim.raw());
         assertEq(gameProxy.extraData(), extraData);
         assertEq(address(gameProxy.anchorStateRegistry()), address(anchorStateRegistry));

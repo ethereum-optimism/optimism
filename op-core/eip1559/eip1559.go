@@ -17,6 +17,19 @@ type ForkChecker interface {
 	IsJovian(time uint64) bool
 }
 
+// ValidateOptimismExtraData validates the Optimism extra data.
+// It uses the fork schedule and block time to determine which rules apply.
+func ValidateOptimismExtraData(fc ForkChecker, time uint64, extraData []byte) error {
+	if fc.IsJovian(time) {
+		return ValidateJovianExtraData(extraData)
+	} else if fc.IsHolocene(time) {
+		return ValidateHoloceneExtraData(extraData)
+	} else if len(extraData) > 0 { // pre-Holocene, apart from the genesis block
+		return errors.New("extraData must be empty before Holocene")
+	}
+	return nil
+}
+
 // DecodeOptimismExtraData decodes the Optimism extra data.
 // It uses the config and parent time to determine how to do the decoding.
 // The extraData is expected to already be valid.

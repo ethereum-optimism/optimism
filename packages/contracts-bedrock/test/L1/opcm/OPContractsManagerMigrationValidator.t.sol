@@ -108,7 +108,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         sharedLockbox = IETHLockbox(portal1.ethLockbox());
 
         // Discover WETH from the permissionless super game args. The simplified
-        // SUPER_PERMISSIONED_CANNON no longer carries WETH in its game args.
+        // SUPER_PERMISSIONED no longer carries WETH in its game args.
         LibGameArgs.GameArgs memory args = LibGameArgs.decode(sharedDGF.gameArgs(GameTypes.SUPER_CANNON_KONA));
         sharedWETH = args.weth;
     }
@@ -156,7 +156,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: superRoot,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED,
             gameArgs: superRoot
                 ? abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: initialProposer }))
                 : bytes("")
@@ -182,7 +182,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             unsafeBlockSigner: makeAddr("migrateUnsafeBlockSigner"),
             batcher: makeAddr("migrateBatcher"),
             startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"1234")), l2SequenceNumber: 123 }),
-            startingRespectedGameType: superRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON,
+            startingRespectedGameType: superRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON,
             basefeeScalar: 1368,
             blobBasefeeScalar: 801949,
             gasLimit: 60_000_000,
@@ -226,7 +226,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED,
             gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
         });
         disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -240,7 +240,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             chainSystemConfigs: chainSystemConfigs,
             disputeGameConfigs: disputeGameConfigs,
             startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"ABBA")), l2SequenceNumber: 1234 }),
-            startingRespectedGameType: GameTypes.SUPER_PERMISSIONED_CANNON
+            startingRespectedGameType: GameTypes.SUPER_PERMISSIONED
         });
     }
 
@@ -339,11 +339,11 @@ contract OPContractsManagerMigrationValidator_ValidateMigration_Test is
 /// @title OPContractsManagerMigrationValidator_DGFShape_Test
 /// @notice Negative tests for MIG-DGF-10 through MIG-DGF-60.
 contract OPContractsManagerMigrationValidator_DGFShape_Test is OPContractsManagerMigrationValidator_TestInit {
-    /// @notice MIG-DGF-10: SUPER_PERMISSIONED_CANNON not registered on shared DGF.
-    function test_validate_dgf10SuperPermCannonMissing_succeeds() public {
+    /// @notice MIG-DGF-10: SUPER_PERMISSIONED not registered on shared DGF.
+    function test_validate_dgf10SuperPermissionedMissing_succeeds() public {
         vm.mockCall(
             address(sharedDGF),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(address(0))
         );
         // SPDG validation skipped (impl is 0), per-chain skipped (can't derive shared ASR).
@@ -421,7 +421,7 @@ contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMig
     function test_validate_spdgGargs10InvalidArgsLength_succeeds() public {
         vm.mockCall(
             address(sharedDGF),
-            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(hex"deadbeef")
         );
         // Per-chain also can't decode SPDG args, skips per-chain checks.
@@ -759,7 +759,7 @@ contract OPContractsManagerMigrationValidator_SharedLockbox_Test is OPContractsM
 
 /// @title OPContractsManagerMigrationValidator_SharedDelayedWETH_Test
 /// @notice Negative tests covering shared DelayedWETH invariants. The simplified
-///         SUPER_PERMISSIONED_CANNON no longer carries WETH, so these errors surface through
+///         SUPER_PERMISSIONED no longer carries WETH, so these errors surface through
 ///         SUPER_CANNON_KONA only.
 contract OPContractsManagerMigrationValidator_SharedDelayedWETH_Test is
     OPContractsManagerMigrationValidator_TestInit
@@ -899,7 +899,7 @@ contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsMan
         );
         vm.mockCall(
             fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(address(0))
         );
         vm.mockCall(
@@ -949,12 +949,12 @@ contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsMan
         assertEq("MIG-CHAIN-1-50", _validateMigration(true));
     }
 
-    /// @notice MIG-CHAIN-1-60: Per-chain DGF has SUPER_PERMISSIONED_CANNON still registered.
-    function test_validate_chain160SuperPermCannonNotCleared_succeeds() public {
+    /// @notice MIG-CHAIN-1-60: Per-chain DGF has SUPER_PERMISSIONED still registered.
+    function test_validate_chain160SuperPermissionedNotCleared_succeeds() public {
         _mockPerChainDGF();
         vm.mockCall(
             fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(address(0xdead))
         );
         assertEq("MIG-CHAIN-1-60", _validateMigration(true));

@@ -17,6 +17,8 @@ workspace = true
 [dependencies]
 # Workspace
 kona-genesis.workspace = true
+kona-hardforks.workspace = true
+alloy-op-hardforks.workspace = true
 
 # OP Alloy
 op-alloy-consensus.workspace = true
@@ -88,6 +90,7 @@ std = [
 	"brotli-decompressor/std",
 	"derive_more/std",
 	"kona-genesis/std",
+	"kona-hardforks/std",
 	"miniz_oxide/std",
 	"op-alloy-consensus/std",
 	"op-alloy-rpc-types-engine/std",
@@ -119,6 +122,7 @@ serde = [
 	"alloy-consensus/serde",
 	"alloy-eips/serde",
 	"alloy-hardforks/serde",
+	"alloy-op-hardforks/serde",
 	"alloy-primitives/serde",
 	"alloy-rpc-types-engine/serde",
 	"alloy-rpc-types-eth/serde",

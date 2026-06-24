@@ -398,6 +398,11 @@ type UpgradeScheduleDeployConfig struct {
 	// Set it to 0 to activate at genesis. Nil to disable Lagoon.
 	L2GenesisLagoonTimeOffset *hexutil.Uint64 `json:"l2GenesisLagoonTimeOffset,omitempty"`
 
+	// KeepKarstUpgradeGas opts the chain out of reverting the Karst activation block's one-time
+	// upgrade gas at the following block, keeping the inflated gas limit on every post-activation
+	// block. It exists for chains that activated Karst with that leak baked into their history.
+	KeepKarstUpgradeGas bool `json:"keepKarstUpgradeGas,omitempty"`
+
 	// Optional Forks
 
 	// L2GenesisPectraBlobScheduleTimeOffset is the number of seconds after genesis block that the PectraBlobSchedule fix activates.
@@ -1145,6 +1150,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		JovianTime:             d.JovianTime(l1StartTime),
 		KarstTime:              d.KarstTime(l1StartTime),
 		LagoonTime:             d.LagoonTime(l1StartTime),
+		KeepKarstUpgradeGas:    d.KeepKarstUpgradeGas,
 		AltDAConfig:            altDA,
 		ChainOpConfig:          chainOpConfig,
 	}, nil
