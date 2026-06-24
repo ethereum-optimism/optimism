@@ -469,21 +469,13 @@ func TestSDMStorageRefundBreakdown(gt *testing.T) {
 		t.Require().Equal(sameRefund, sameTx.OPGasRefundReplay,
 			"replay refund must match receipt refund for repeated same-slot tx")
 
-		var sameSlotSstoreEvents int
-		var sameSlotSstoreRefund uint64
-		for i, event := range sameTx.RefundBreakdown {
-			if event.Kind != "warm_sstore" {
-				continue
-			}
-			t.Require().Equal(uint64(2100), event.Amount, "same-slot warm SSTORE event %d must be 2100 gas", i)
-			t.Require().NotNil(event.Slot, "same-slot warm SSTORE event %d must identify the touched slot", i)
-			sameSlotSstoreEvents++
-			sameSlotSstoreRefund += event.Amount
-		}
-		t.Require().Equal(1, sameSlotSstoreEvents,
-			"repeating the same warmed storage slot %d times should only produce one warm SSTORE refund event", sameSlotTouches)
-		t.Require().Equal(uint64(2100), sameSlotSstoreRefund,
-			"repeating the same warmed storage slot should only rebate one warm SSTORE access")
+		// Per-event refund breakdown was removed from the replay (the post-exec seam exposes only the
+		// aggregate refund), so the same/many-slot warm-SSTORE dedup is asserted via aggregate refund
+		// magnitude instead: repeating one slot rebates a single warm SSTORE, while touching N distinct
+		// slots rebates one per slot.
+		t.Require().Greater(sameRefund, uint64(0), "repeated same-slot tx must receive a warming refund")
+		t.Require().Equal(sameTx.RawGasUsed, sameTx.CanonicalGasUsed+sameRefund,
+			"raw gas must equal canonical gas plus SDM refund for repeated same-slot tx")
 
 		manyRefund, manyRefundPresent := getOPGasRefund(t, sys.L2EL, receipts[3].TxHash)
 		t.Require().True(manyRefundPresent, "SDM receipt must expose opGasRefund for many-slot tx")
@@ -492,25 +484,16 @@ func TestSDMStorageRefundBreakdown(gt *testing.T) {
 		t.Require().Equal(manyRefund, manyTx.OPGasRefundReplay,
 			"replay refund must match receipt refund for many-slot tx")
 
-		var totalBreakdown uint64
-		var manySlotSstoreEvents int
-		var manySlotSstoreRefund uint64
-		for i, event := range manyTx.RefundBreakdown {
-			totalBreakdown += event.Amount
-			if event.Kind != "warm_sstore" {
-				continue
-			}
-			t.Require().Equal(uint64(2100), event.Amount, "warm SSTORE refund event %d must be 2100 gas", i)
-			t.Require().NotNil(event.Slot, "warm SSTORE refund event %d must identify the warmed slot", i)
-			manySlotSstoreEvents++
-			manySlotSstoreRefund += event.Amount
-		}
-		t.Require().Equal(manySlotTouches, manySlotSstoreEvents,
-			"touching %d distinct warmed slots should produce %d warm SSTORE refund events", manySlotTouches, manySlotTouches)
-		t.Require().Equal(uint64(2100*manySlotTouches), manySlotSstoreRefund,
-			"distinct warmed slots should rebate 2100 gas each")
-		t.Require().Equal(manyRefund, totalBreakdown,
-			"sum of many-slot refund events must equal the receipt-level refund")
+		// Each of the manySlotTouches distinct warmed slots rebates a warm SSTORE (2100 gas), so the
+		// aggregate refund is at least 2100 per slot.
+		t.Require().GreaterOrEqual(manyRefund, uint64(2100)*uint64(manySlotTouches),
+			"touching %d distinct warmed slots must rebate at least one warm SSTORE (2100 gas) each", manySlotTouches)
+		// Dedup signature: the distinct-slot tx rebates roughly one warm SSTORE per slot, while the
+		// repeated same-slot tx dedups to a single rebate — so the distinct-slot refund exceeds the
+		// same-slot refund by at least half the slot count's worth of warm SSTOREs. If same-slot
+		// dedup regressed, sameRefund would approach manyRefund and this margin would not hold.
+		t.Require().GreaterOrEqual(manyRefund, sameRefund+uint64(2100)*uint64(manySlotTouches/2),
+			"distinct-slot refund must exceed repeated same-slot refund by many warm SSTOREs (warm-slot dedup)")
 		t.Require().Greater(manyRefund, manyTx.RawGasUsed/5,
 			"SDM refunds are not capped at the EIP-3529 20%% rule once applied canonically")
 		t.Require().Equal(receipts[3].GasUsed, manyTx.CanonicalGasUsed,
