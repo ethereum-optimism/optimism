@@ -8,6 +8,10 @@ const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 30_000;
 const DEFAULT_L2_TRUST_RPC: bool = true;
 const DEFAULT_L1_TRUST_RPC: bool = true;
 
+/// Default for `--syncmode.offset-el-safe`, in seconds. 12h matches the OP Mainnet sequencing
+/// window and op-node's default.
+const DEFAULT_OFFSET_EL_SAFE_SECS: u64 = 12 * 60 * 60;
+
 /// L1 client arguments.
 #[derive(Clone, Debug, clap::Args)]
 pub struct L1ClientArgs {
@@ -80,6 +84,18 @@ pub struct L2ClientArgs {
         default_value_t = DEFAULT_L2_TRUST_RPC
     )]
     pub l2_trust_rpc: bool,
+    /// After execution-layer sync completes, set the safe and finalized heads to this many seconds
+    /// behind the synced tip (converted to L2 blocks via the rollup block time, rounding up). This
+    /// forces derivation to re-derive the most recent window before it is considered safe. Set to
+    /// `0` to disable. Defaults to 12h (the OP Mainnet sequencing window), matching op-node's
+    /// `--syncmode.offset-el-safe`.
+    #[arg(
+        long = "syncmode.offset-el-safe",
+        env = "KONA_NODE_SYNCMODE_OFFSET_EL_SAFE",
+        default_value_t = DEFAULT_OFFSET_EL_SAFE_SECS,
+        value_name = "SECONDS"
+    )]
+    pub offset_el_safe: u64,
 }
 
 impl Default for L2ClientArgs {
@@ -90,6 +106,7 @@ impl Default for L2ClientArgs {
             l2_engine_jwt_encoded: None,
             l2_engine_timeout: DEFAULT_L2_ENGINE_TIMEOUT,
             l2_trust_rpc: DEFAULT_L2_TRUST_RPC,
+            offset_el_safe: DEFAULT_OFFSET_EL_SAFE_SECS,
         }
     }
 }

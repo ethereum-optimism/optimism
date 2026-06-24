@@ -4,7 +4,7 @@ use alloy_rpc_types_engine::JwtSecret;
 use kona_engine::{EngineClientBuilder, OpEngineClient};
 use kona_genesis::RollupConfig;
 use op_alloy_network::Optimism;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use url::Url;
 
 /// Configuration for the Engine Actor.
@@ -25,6 +25,13 @@ pub struct EngineConfig {
     /// When the node is in sequencer mode, the engine actor will receive requests to build blocks
     /// from the sequencer actor.
     pub mode: NodeMode,
+
+    /// After execution-layer sync completes, the safe and finalized heads are retracted to this
+    /// duration behind the synced tip (converted to L2 blocks via the rollup block time, rounding
+    /// up). This forces derivation to re-derive the most recent `offset_el_safe` worth of blocks
+    /// before they are considered safe. A zero duration disables the retraction. Mirrors op-node's
+    /// `--syncmode.offset-el-safe`.
+    pub offset_el_safe: Duration,
 }
 
 impl EngineConfig {

@@ -248,6 +248,7 @@ impl RollupNode {
             engine,
             unsafe_head_tx_opt,
             engine_request_rx,
+            self.engine_config.offset_el_safe,
         );
 
         let rpc_actor = EngineRpcActor::new(

@@ -4,7 +4,7 @@ use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 
 mod forkchoice;
-pub use forkchoice::L2ForkchoiceState;
+pub use forkchoice::{L2ForkchoiceState, duration_to_blocks, offset_block_num};
 
 mod error;
 pub use error::SyncStartError;

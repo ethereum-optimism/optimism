@@ -22,7 +22,7 @@ use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
 use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
 use serde_json::from_reader;
-use std::{fs::File, io::Write, path::PathBuf, sync::Arc};
+use std::{fs::File, io::Write, path::PathBuf, sync::Arc, time::Duration};
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
 
@@ -311,6 +311,7 @@ impl NodeCommand {
             l2_jwt_secret: jwt_secret,
             l1_url: self.l1_rpc_args.l1_eth_rpc.clone(),
             mode: self.node_mode,
+            offset_el_safe: Duration::from_secs(self.l2_client_args.offset_el_safe),
         };
 
         let dependency_set = self.load_dependency_set(&cfg)?;

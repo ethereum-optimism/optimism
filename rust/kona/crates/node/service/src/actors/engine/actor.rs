@@ -11,7 +11,7 @@ use kona_engine::{
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 
 /// A request handled by the [`EngineActor`].
@@ -44,6 +44,10 @@ where
     derivation_client: DerivationClient,
     /// Whether the EL sync is complete. This should only ever go from false to true.
     el_sync_complete: bool,
+    /// How far behind the synced tip the safe and finalized heads are retracted once
+    /// execution-layer sync completes (`--syncmode.offset-el-safe`). A zero duration disables the
+    /// retraction. Only ever applied on the post-EL-sync reset.
+    offset_el_safe: Duration,
     /// The last safe head update sent.
     last_safe_head_sent: L2BlockInfo,
     /// A channel to use to relay the current unsafe head.
@@ -75,11 +79,13 @@ where
         engine: Engine<EngineClient_>,
         unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
         inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
+        offset_el_safe: Duration,
     ) -> Self {
         Self {
             client,
             derivation_client,
             el_sync_complete: false,
+            offset_el_safe,
             engine,
             last_safe_head_sent: L2BlockInfo::default(),
             rollup: config,
@@ -89,9 +95,14 @@ where
     }
 
     /// Resets the inner [`Engine`] and propagates the reset to the derivation actor.
-    async fn reset(&mut self) -> Result<(), EngineError> {
+    ///
+    /// `offset_el_safe` is `Some` only for the reset that runs once execution-layer sync completes,
+    /// where the safe/finalized heads are retracted by the configured offset. All other resets pass
+    /// `None` and use the standard sync-start search.
+    async fn reset(&mut self, offset_el_safe: Option<Duration>) -> Result<(), EngineError> {
         // Reset the engine.
-        let l2_safe_head = self.engine.reset(self.client.clone(), self.rollup.clone()).await?;
+        let l2_safe_head =
+            self.engine.reset(self.client.clone(), self.rollup.clone(), offset_el_safe).await?;
 
         // Signal the derivation actor to reset.
         let signal = Signal::Reset(ResetSignal { l2_safe_head });
@@ -122,7 +133,7 @@ where
                     }
                     EngineTaskErrorSeverity::Reset => {
                         warn!(target: "engine", ?err, "Received reset request");
-                        self.reset().await?;
+                        self.reset(None).await?;
                     }
                     EngineTaskErrorSeverity::Flush => {
                         // This error is encountered when the payload is marked INVALID
@@ -163,9 +174,11 @@ where
 
         // Reset the engine if the sync state does not already know about a finalized block.
         if self.engine.state().sync_state.finalized_head() == L2BlockInfo::default() {
-            // If the sync status is finished, we can reset the engine and start derivation.
+            // If the sync status is finished, we can reset the engine and start derivation. This is
+            // the only reset that applies the `--syncmode.offset-el-safe` retraction.
             info!(target: "engine", "Performing initial engine reset");
-            self.reset().await?;
+            let offset_el_safe = self.offset_el_safe;
+            self.reset(Some(offset_el_safe)).await?;
         } else {
             info!(target: "engine", "finalized head is not default, so not resetting");
         }
@@ -270,7 +283,7 @@ where
             EngineActorRequest::Reset(reset_request) => {
                 warn!(target: "engine", "Received reset request");
 
-                let reset_res = self.reset().await;
+                let reset_res = self.reset(None).await;
 
                 // Send the result.
                 let response_payload = reset_res

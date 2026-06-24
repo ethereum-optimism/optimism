@@ -3,12 +3,12 @@
 use super::EngineTaskExt;
 use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTask, SynchronizeTaskError,
-    find_starting_forkchoice, task_queue::EngineTaskErrors,
+    EngineTaskErrorSeverity, L2ForkchoiceState, Metrics, SyncStartError, SynchronizeTask,
+    SynchronizeTaskError, find_starting_forkchoice, task_queue::EngineTaskErrors,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use std::{collections::BinaryHeap, sync::Arc};
+use std::{collections::BinaryHeap, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::sync::watch::Sender;
 
@@ -69,18 +69,33 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
         self.task_queue_length.send_replace(self.tasks.len());
     }
 
-    /// Resets the engine by finding a plausible sync starting point via
-    /// [`find_starting_forkchoice`]. The state will be updated to the starting point, and a
-    /// forkchoice update will be enqueued in order to reorg the execution layer.
+    /// Resets the engine by finding a plausible sync starting point. The state will be updated to
+    /// the starting point, and a forkchoice update will be enqueued in order to reorg the execution
+    /// layer.
+    ///
+    /// When `offset_el_safe` is `Some`, this is the reset that runs once **execution-layer sync**
+    /// completes: the starting point comes from [`L2ForkchoiceState::for_el_sync`], retracting the
+    /// safe/finalized heads by the configured offset. Otherwise the standard sync-start search via
+    /// [`find_starting_forkchoice`] is used.
     pub async fn reset(
         &mut self,
         client: Arc<EngineClient_>,
         config: Arc<RollupConfig>,
+        offset_el_safe: Option<Duration>,
     ) -> Result<L2BlockInfo, EngineResetError> {
         // Clear any outstanding tasks to prepare for the reset.
         self.clear();
 
-        let mut start = find_starting_forkchoice(&config, client.as_ref()).await?;
+        let find_start = || async {
+            match offset_el_safe {
+                Some(offset) => {
+                    L2ForkchoiceState::for_el_sync(&config, client.as_ref(), offset).await
+                }
+                None => find_starting_forkchoice(&config, client.as_ref()).await,
+            }
+        };
+
+        let mut start = find_start().await?;
 
         // Retry to synchronize the engine until we succeeds or a critical error occurs.
         while let Err(err) = SynchronizeTask::new(
@@ -102,7 +117,7 @@ impl<EngineClient_: EngineClient> Engine<EngineClient_> {
                 EngineTaskErrorSeverity::Flush |
                 EngineTaskErrorSeverity::Reset => {
                     warn!(target: "engine", ?err, "Forkchoice update failed during reset. Trying again...");
-                    start = find_starting_forkchoice(&config, client.as_ref()).await?;
+                    start = find_start().await?;
                 }
                 EngineTaskErrorSeverity::Critical => {
                     return Err(EngineResetError::Forkchoice(err));
