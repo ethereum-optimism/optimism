@@ -111,13 +111,6 @@ cd rust
 just build-kona-prestates
 ```
 
-### cannon-builder Image
-
-The `cannon-builder` Docker image contains only apt-level MIPS64 cross-compilation
-packages. The prestate Dockerfile installs mise on top, and mise pulls Rust (stable
-+ nightly), Go, just, and jq from `mise.toml`. The image only needs to be rebuilt
-when the cross-compilation toolchain packages change (rare).
-
 ## Cutting a Release (for maintainers / forks)
 
 To cut a release of the docker image for any of the targets, cut a new annotated tag for the target like so:
@@ -125,7 +118,6 @@ To cut a release of the docker image for any of the targets, cut a new annotated
 ```sh
 # Example formats:
 # - `kona-host/v0.1.0-beta.8`
-# - `cannon-builder/v1.2.0`
 TAG="<target_name>/<version>"
 git tag -a $TAG -m "<tag description>" && git push origin tag $TAG
 ```

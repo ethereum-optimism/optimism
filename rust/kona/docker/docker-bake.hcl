@@ -73,21 +73,3 @@ target "generic" {
   }
   platforms = split(",", PLATFORMS)
 }
-
-////////////////////////////////////////////////////////////////
-//                        Proof Images                        //
-////////////////////////////////////////////////////////////////
-
-// Rust build environment for bare-metal MIPS64r1 (Cannon FPVM ISA).
-// Contains only apt-level MIPS64 cross-compilation packages.
-// Rust, Go, mise, and just are installed on top from pinned version sources.
-target "cannon-builder" {
-  inherits = ["docker-metadata-action"]
-  context = "kona/docker/cannon"
-  dockerfile = "cannon.dockerfile"
-  args = {
-    HOST_UID = "${HOST_UID}"
-    HOST_GID = "${HOST_GID}"
-  }
-  platforms = split(",", PLATFORMS)
-}

@@ -183,14 +183,6 @@
       "target": "rollup-boost",
       "paths": ["rust/**"]
     },
-    "cannon-builder": {
-      "type": "rust",
-      "check": "none",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "cannon-builder",
-      "paths": ["rust/kona/docker/cannon/**"]
-    },
     "ci-base-clang": {
       "check": "none",
       "mode": "bake",
