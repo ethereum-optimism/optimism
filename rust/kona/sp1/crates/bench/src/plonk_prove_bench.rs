@@ -20,15 +20,21 @@ const REQUIRED_RPC_ENV: [&str; 3] = ["L1_RPC", "L2_RPC", "L2_NODE_RPC"];
 const OPTIONAL_RPC_ENV: [&str; 1] = ["L1_BEACON_RPC"];
 
 #[derive(Debug, Parser)]
-#[command(about = "Produce and verify a PLONK aggregation proof")]
+#[command(about = "Produce and verify a PLONK (or Groth16) aggregation proof")]
 struct Args {
     /// Saved compressed range proofs, comma-separated, in ascending chain order.
     #[arg(long, value_delimiter = ',')]
     proofs: Vec<PathBuf>,
 
-    /// Persist the verified PLONK aggregation proof to this path.
+    /// Persist the verified aggregation proof to this path.
     #[arg(long)]
     save_proof: Option<PathBuf>,
+
+    /// Use the Groth16 wrap circuit instead of PLONK. For debugging the gnark
+    /// wrap path (e.g. bisecting a PLONK-only failure); not used by the bench
+    /// script.
+    #[arg(long, default_value_t = false)]
+    groth16: bool,
 
     /// Load RPC-derived aggregation inputs (L1 checkpoint + header preimages,
     /// as saved by `agg-bench --save-agg-inputs`) from this path instead of
@@ -120,29 +126,39 @@ async fn main() -> anyhow::Result<()> {
         execute_start.elapsed()
     );
 
+    let system = if args.groth16 { "Groth16" } else { "PLONK" };
     tracing::warn!(
-        "PLONK proving runs the full aggregation pipeline (core -> compress -> shrink -> wrap -> \
+        "{system} proving runs the full aggregation pipeline (core -> compress -> shrink -> wrap -> \
          gnark). The default local CPU backend uses SP1's gnark Docker wrapper and the first run \
-         may download PLONK circuit artifacts to ~/.sp1. SP1_PROVER=cuda sends PLONK proving to \
+         may download circuit artifacts to ~/.sp1. SP1_PROVER=cuda sends proving to \
          sp1-gpu-server; SP1_PROVER=network or hosted uses the SP1 prover network instead."
     );
 
     let prove_start = Instant::now();
-    let proof = prover.prove(&agg_proving_key, stdin).plonk().await.context(
-        "failed to produce PLONK aggregation proof (check the selected SP1_PROVER backend; \
-             local CPU PLONK requires Docker for gnark unless native gnark is enabled)",
-    )?;
+    let request = prover.prove(&agg_proving_key, stdin);
+    let backend_ctx = "check the selected SP1_PROVER backend; local CPU gnark requires Docker \
+                       unless native gnark is enabled";
+    let proof = if args.groth16 {
+        request.groth16().await.with_context(|| {
+            format!("failed to produce Groth16 aggregation proof ({backend_ctx})")
+        })?
+    } else {
+        request
+            .plonk()
+            .await
+            .with_context(|| format!("failed to produce PLONK aggregation proof ({backend_ctx})"))?
+    };
     let prove_elapsed = prove_start.elapsed();
 
     let verify_start = Instant::now();
     prover
         .verify(&proof, agg_proving_key.verifying_key(), None)
-        .context("PLONK aggregation proof failed local verification")?;
+        .with_context(|| format!("{system} aggregation proof failed local verification"))?;
     let verify_elapsed = verify_start.elapsed();
 
     let calldata_size = proof.bytes().len();
     tracing::info!(
-        "PLONK aggregation prove wall-clock: {:?}; local verify: {:?}; on-chain calldata: {} bytes",
+        "{system} aggregation prove wall-clock: {:?}; local verify: {:?}; on-chain calldata: {} bytes",
         prove_elapsed,
         verify_elapsed,
         calldata_size
@@ -151,8 +167,8 @@ async fn main() -> anyhow::Result<()> {
     if let Some(path) = &args.save_proof {
         proof
             .save(path)
-            .with_context(|| format!("failed to save PLONK proof to {}", path.display()))?;
-        tracing::info!("saved PLONK aggregation proof to {}", path.display());
+            .with_context(|| format!("failed to save {system} proof to {}", path.display()))?;
+        tracing::info!("saved {system} aggregation proof to {}", path.display());
     }
 
     Ok(())
@@ -250,6 +266,16 @@ mod tests {
 
         let err = ensure_non_empty_elfs(&[1], &[]).unwrap_err();
         assert!(err.to_string().contains("missing or empty"));
+    }
+
+    #[test]
+    fn groth16_flag_parses_and_defaults_off() {
+        let args = Args::try_parse_from(["plonk-prove-bench", "--proofs", "a.bin"]).unwrap();
+        assert!(!args.groth16);
+
+        let args =
+            Args::try_parse_from(["plonk-prove-bench", "--proofs", "a.bin", "--groth16"]).unwrap();
+        assert!(args.groth16);
     }
 
     #[test]

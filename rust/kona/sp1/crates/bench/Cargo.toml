@@ -22,6 +22,11 @@ path = "src/plonk_prove_bench.rs"
 # `SP1_PROVER=cuda`. Requires a CUDA-capable NVIDIA GPU at run time.
 gpu = ["sp1-sdk/cuda"]
 
+# Build the gnark wrap prover natively into the binary instead of shelling out to
+# the SP1 gnark Docker image. Requires a Go toolchain and a C compiler at build
+# time (cgo). Useful for debugging the Groth16/PLONK wrap without Docker.
+native-gnark = ["sp1-sdk/native-gnark"]
+
 [dependencies]
 sp1-sdk.workspace = true
 
