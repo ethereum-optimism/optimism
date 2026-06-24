@@ -15,7 +15,7 @@ func withSuperRootGamesAtGenesisDeployerFeatures(cfg PresetConfig) PresetConfig 
 }
 
 // NewSingleChainSuperRootAtGenesisRuntimeWithConfig builds a single-chain
-// supernode runtime with SUPER_PERMISSIONED_CANNON installed in the
+// supernode runtime with SUPER_PERMISSIONED installed in the
 // permissioned slot at initial deploy.
 func NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChainRuntime {
 	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)

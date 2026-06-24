@@ -64,6 +64,7 @@ pub const OP_SEPOLIA_CONFIG: RollupConfig = RollupConfig {
         isthmus_time: Some(OP_SEPOLIA_ISTHMUS_TIMESTAMP),
         jovian_time: Some(OP_SEPOLIA_JOVIAN_TIMESTAMP),
         karst_time: Some(OP_SEPOLIA_KARST_TIMESTAMP),
+        keep_karst_upgrade_gas: true,
         lagoon_time: None,
     },
     batch_inbox_address: address!("ff00000000000000000000000000000011155420"),

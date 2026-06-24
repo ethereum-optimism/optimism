@@ -337,6 +337,14 @@ impl RollupConfig {
         self.hardforks.lagoon_time.is_some_and(|t| timestamp >= t)
     }
 
+    /// Returns true if `timestamp` is `fork`'s activation block — `fork` is active at `timestamp`
+    /// but was not active at the previous block. Mirrors op-node's `IsActivationBlockForFork`.
+    pub fn is_fork_activation_block(&self, fork: OpHardfork, timestamp: u64) -> bool {
+        let activation = self.op_fork_activation(fork);
+        activation.active_at_timestamp(timestamp) &&
+            !activation.active_at_timestamp(timestamp.saturating_sub(self.block_time))
+    }
+
     /// Returns true if the timestamp marks the first Lagoon block.
     pub fn is_first_lagoon_block(&self, timestamp: u64) -> bool {
         self.is_lagoon_active(timestamp) &&
@@ -833,6 +841,7 @@ mod tests {
                 isthmus_time: Some(90),
                 jovian_time: Some(100),
                 karst_time: Some(110),
+                keep_karst_upgrade_gas: false,
                 lagoon_time: Some(120),
             },
             block_time: 2,
