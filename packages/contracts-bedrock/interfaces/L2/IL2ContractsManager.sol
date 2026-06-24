@@ -10,11 +10,8 @@ import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.s
 /// @title IL2ContractsManager
 /// @notice Interface for the L2ContractsManager contract.
 interface IL2ContractsManager is ISemver {
-    /// @notice Thrown when the upgrade function is called outside of a DELEGATECALL context.
+    /// @notice Thrown when the upgrade or deploy function is called outside of a DELEGATECALL context.
     error L2ContractsManager_OnlyDelegatecall();
-
-    /// @notice Thrown when the deploy function is not called directly on the implementation.
-    error L2ContractsManager_OnlyDirectCall();
 
     /// @notice Thrown when a user attempts to downgrade a contract.
     /// @param _target The address of the contract that was attempted to be downgraded.
@@ -49,7 +46,7 @@ interface IL2ContractsManager is ISemver {
     function upgrade() external;
 
     /// @notice Deploys and initializes all predeploys for the L2 genesis state.
-    /// @dev This function MUST be called directly on the implementation (NOT via DELEGATECALL).
+    /// @dev This function MUST be called via DELEGATECALL.
     /// @param _config The full configuration for the L2 Predeploys.
     function deploy(L2ContractsManagerTypes.FullConfig memory _config) external;
 

@@ -424,27 +424,18 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         l2cm.upgrade();
     }
 
-    /// @notice Tests that calling deploy() via DELEGATECALL reverts.
-    function test_deploy_whenCalledViaDelegatecall_reverts() public {
+    /// @notice Tests that calling deploy() directly on the implementation reverts; it must be delegatecalled.
+    function test_deploy_whenCalledDirectly_reverts() public {
         L2ContractsManagerTypes.FullConfig memory config = _defaultDeployConfig();
-
-        // Via DELEGATECALL address(this) is the caller, not the L2CM implementation, so it reverts.
-        (bool success, bytes memory ret) =
-            address(l2cm).delegatecall(abi.encodeCall(L2ContractsManager.deploy, (config)));
-        assertFalse(success, "deploy via delegatecall should revert");
-        assertEq(bytes4(ret), L2ContractsManager.L2ContractsManager_OnlyDirectCall.selector);
+        vm.expectRevert(L2ContractsManager.L2ContractsManager_OnlyDelegatecall.selector);
+        l2cm.deploy(config);
     }
 
-    /// @notice Tests that deploy() initializes the predeploys when their admin is set to the L2CM.
+    /// @notice Tests that deploy() initializes the predeploys when routed through the L2ProxyAdmin proxy.
     function test_deploy_succeeds() public {
         L2ContractsManagerTypes.FullConfig memory config = _defaultDeployConfig();
 
-        // Simulate the genesis precondition: each touched proxy's admin is the L2CM, and the proxies
-        // receiving initializers are fresh (their initialized slots are cleared).
-        _prepareTouchedProxiesForDeploy(config);
-
-        // deploy() must be called directly on the implementation.
-        l2cm.deploy(config);
+        _executeDeploy(l2cm, config);
 
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
 
@@ -504,19 +495,17 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         config_.isInterop = _interop;
     }
 
-    /// @notice Simulates the genesis precondition for deploy(): each touched proxy's admin is the L2CM,
-    ///         and proxies receiving initializers are fresh (their initialized slots are cleared).
-    function _prepareTouchedProxiesForDeploy(L2ContractsManagerTypes.FullConfig memory _config) internal {
+    /// @notice Runs deploy() the way genesis does.
+    function _executeDeploy(L2ContractsManager _l2cm, L2ContractsManagerTypes.FullConfig memory _config) internal {
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
         for (uint256 i = 0; i < records.length; i++) {
-            if (!_isDeployTouched(records[i], _config)) continue;
-            EIP1967Helper.setAdmin(records[i].proxy, address(l2cm));
-            if (_requiresInit(records[i].proxy)) {
-                vm.store(records[i].proxy, bytes32(0), bytes32(0));
-                vm.store(records[i].proxy, bytes32(uint256(1)), bytes32(0));
-                vm.store(records[i].proxy, INITIALIZABLE_SLOT_OZ_V5, bytes32(0));
-            }
+            if (!_requiresInit(records[i].proxy)) continue;
+            vm.store(records[i].proxy, bytes32(0), bytes32(0));
+            vm.store(records[i].proxy, bytes32(uint256(1)), bytes32(0));
+            vm.store(records[i].proxy, INITIALIZABLE_SLOT_OZ_V5, bytes32(0));
         }
+        EIP1967Helper.setImplementation(Predeploys.PROXY_ADMIN, address(_l2cm));
+        L2ContractsManager(Predeploys.PROXY_ADMIN).deploy(_config);
     }
 
     /// @notice Gates-only predicate matching the set of records deploy() touches for a config.
@@ -1031,9 +1020,10 @@ contract L2ContractsManager_Deploy_Coverage_Test is L2ContractsManager_Upgrade_T
     ///         record receives its call (failing if missed) and every gated-out record receives none
     ///         (failing if touched).
     function _assertDeployTouchesExactly(L2ContractsManagerTypes.FullConfig memory _config) internal {
-        _prepareTouchedProxiesForDeploy(_config);
-
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+
+        // Register expectations before routing: the init-clear and setImplementation in _executeDeploy are
+        // vm.store writes (no calls), so the only upgradeTo/upgradeToAndCall calls come from deploy() itself.
         for (uint256 i = 0; i < records.length; i++) {
             address proxy = records[i].proxy;
             if (_isDeployTouched(records[i], _config)) {
@@ -1050,7 +1040,7 @@ contract L2ContractsManager_Deploy_Coverage_Test is L2ContractsManager_Upgrade_T
             }
         }
 
-        l2cm.deploy(_config);
+        _executeDeploy(l2cm, _config);
     }
 
     /// @notice Default combo: no custom gas token, no interop.

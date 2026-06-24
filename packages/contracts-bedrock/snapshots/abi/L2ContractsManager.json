@@ -333,11 +333,6 @@
   },
   {
     "inputs": [],
-    "name": "L2ContractsManager_OnlyDirectCall",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "SemverComp_InvalidSemverParts",
     "type": "error"
   }

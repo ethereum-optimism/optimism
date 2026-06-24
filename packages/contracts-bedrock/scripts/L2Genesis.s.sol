@@ -374,28 +374,6 @@ contract L2Genesis is Script {
         config_.isInterop = _isGenesisInteropEnabled(_input);
     }
 
-    /// @notice Returns the proxies upgraded by the temporary L2ContractsManager, gated by CGT and interop.
-    function _l2cmTouchedProxies(L2ContractsManagerTypes.FullConfig memory _config)
-        internal
-        pure
-        returns (address[] memory proxies_)
-    {
-        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
-
-        uint256 count;
-        for (uint256 i = 0; i < records.length; i++) {
-            if (!_isActive(records[i], _config.isCustomGasToken, _config.isInterop)) continue;
-            count++;
-        }
-
-        proxies_ = new address[](count);
-        uint256 idx;
-        for (uint256 i = 0; i < records.length; i++) {
-            if (!_isActive(records[i], _config.isCustomGasToken, _config.isInterop)) continue;
-            proxies_[idx++] = records[i].proxy;
-        }
-    }
-
     /// @notice Deterministic CREATE2 address of the throwaway L2ContractsManager.
     /// @dev Pre-computable from the salt and init code, so consumers don't depend on deploy ordering
     ///      (e.g. nonce). Shares a compilation unit with the `new ... { salt }` deploy, so the init code matches.
@@ -408,39 +386,15 @@ contract L2Genesis is Script {
             address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), L2CM_SALT, initCodeHash)))));
     }
 
-    function _isActive(
-        Predeploys.PredeployRecord memory _r,
-        bool _isCustomGasToken,
-        bool _isInterop
-    )
-        internal
-        pure
-        returns (bool)
-    {
-        if (_r.isCustomGasToken && !_isCustomGasToken) return false;
-        if (_r.isInterop && !_isInterop) return false;
-        return true;
-    }
-
     /// @notice Upgrades, initializes, and configures predeploy proxies via the L2ContractsManager.
-    /// @dev Swaps each touched proxy's admin to the L2ContractsManager so upgrades run as admin, calls
-    ///      deploy() once, restores the admins, then erases it to leave no genesis residue. The L2CM is
-    ///      deployed with CREATE2 so its address is deterministic (see `temporaryL2CMAddress`). Must run
-    ///      with no active prank so the script is the deployer of the throwaway L2ContractsManager.
+    /// @dev Deploys a throwaway L2CM, points the L2ProxyAdmin proxy's implementation at it, and calls
+    ///      deploy() through the proxy.
     function _deployPredeploysViaL2CM(Input memory _input) internal {
         L2ContractsManager l2cm = new L2ContractsManager{ salt: L2CM_SALT }(_buildL2CMImplRecords());
         L2ContractsManagerTypes.FullConfig memory config = _buildL2CMConfig(_input);
-        address[] memory proxies = _l2cmTouchedProxies(config);
 
-        for (uint256 i = 0; i < proxies.length; i++) {
-            EIP1967Helper.setAdmin(proxies[i], address(l2cm));
-        }
-
-        l2cm.deploy(config);
-
-        for (uint256 i = 0; i < proxies.length; i++) {
-            EIP1967Helper.setAdmin(proxies[i], Predeploys.PROXY_ADMIN);
-        }
+        EIP1967Helper.setImplementation(Predeploys.PROXY_ADMIN, address(l2cm));
+        L2ContractsManager(Predeploys.PROXY_ADMIN).deploy(config);
 
         vm.etch(address(l2cm), "");
         vm.resetNonce(address(l2cm));

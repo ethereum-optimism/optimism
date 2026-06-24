@@ -28,11 +28,8 @@ import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.s
 /// @title L2ContractsManager
 /// @notice Manages the upgrade of the L2 predeploys.
 contract L2ContractsManager is ISemver {
-    /// @notice Thrown when the upgrade function is called outside of a DELEGATECALL context.
+    /// @notice Thrown when the upgrade or deploy function is called outside of a DELEGATECALL context.
     error L2ContractsManager_OnlyDelegatecall();
-
-    /// @notice Thrown when the deploy function is not called directly on the implementation.
-    error L2ContractsManager_OnlyDirectCall();
 
     /// @notice Thrown when the fullConfig input and dev feature flags are not compatible.
     error L2ContractsManager_FeatureFlagMismatch();
@@ -159,11 +156,13 @@ contract L2ContractsManager is ISemver {
     }
 
     /// @notice Deploys and initializes all predeploys for the L2 genesis state.
-    /// @dev This function MUST be called directly on the implementation (NOT via DELEGATECALL). Each touched
-    ///      proxy must have its admin set to this contract so the upgrade and initializer calls are authorized.
+    /// @dev This function MUST be called via DELEGATECALL (genesis points the L2ProxyAdmin proxy's
+    ///      implementation at this contract and calls through it), so the predeploys' existing ProxyAdmin
+    ///      authorizes the upgrade and initializer calls. Unlike upgrade(), it applies the supplied config
+    ///      rather than reading it from the (not-yet-initialized) predeploys.
     /// @param _config The full configuration for the L2 Predeploys.
     function deploy(L2ContractsManagerTypes.FullConfig memory _config) external {
-        if (address(this) != THIS_L2CM) revert L2ContractsManager_OnlyDirectCall();
+        if (address(this) == THIS_L2CM) revert L2ContractsManager_OnlyDelegatecall();
 
         _apply(_config, true);
     }
