@@ -86,7 +86,7 @@ EXTRA_SIZES=(40 20)
 # Freshness set: same-size ranges sampled at different archival depths, to
 # measure how fetch cost grows with age. Not contiguous (independent points in
 # time); not meant to be aggregated.
-FRESHNESS_SIZE="${FRESHNESS_SIZE:-100}"
+FRESHNESS_SIZE="${FRESHNESS_SIZE:-20}"
 FRESHNESS_LABELS=(1h 1d 1w 2w 3w)
 FRESHNESS_SECONDS=(3600 86400 604800 1209600 1814400)
 
