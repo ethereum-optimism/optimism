@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -169,7 +170,7 @@ func queryProposalOutput(ctx context.Context, caller *batching.MultiCaller, l1 *
 	if err != nil {
 		return proposalOutputRecord{}, fmt.Errorf("failed to retrieve l1Head %v for game %v: %w", meta.L1Head, g.addr, err)
 	}
-	l1Num := l1Header.Number.Uint64()
+	l1Num := bigs.Uint64Strict(l1Header.Number)
 	output, err := rollup.OutputAtBlock(ctx, meta.L2SequenceNum)
 	if err != nil {
 		return proposalOutputRecord{}, fmt.Errorf("failed to retrieve output at block %v for game %v: %w", meta.L2SequenceNum, g.addr, err)
