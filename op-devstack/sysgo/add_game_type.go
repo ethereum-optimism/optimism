@@ -124,9 +124,8 @@ func addGameTypesForRuntime(
 
 	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
 	if enabled[gameTypes.ZKDisputeGameType] {
-		// Deploy the no-op ZKMockVerifier so the verifier address has on-chain code, satisfying the
-		// ZKDG-80 check (verifier.code.length > 0). ZK proofs are never verified in devstack — the
-		// smoke test only checks game registration. The deploy is owned by op-deployer (DEV ONLY).
+		// Deploy the no-op ZKMockVerifier so the verifier address has code (ZKDG-80). DEV ONLY;
+		// op-deployer owns the deploy. ZK proofs are never verified in devstack.
 		mockVerifier, mErr := deployer.DeployZKMockVerifier(t.Ctx(), client, l1PAOKey, artifactsFS)
 		require.NoError(mErr, "failed to deploy ZKMockVerifier")
 		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t, mockVerifier)

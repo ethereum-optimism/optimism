@@ -18,13 +18,9 @@ const (
 	zkMockVerifierContract = "ZKMockVerifier"
 )
 
-// DeployZKMockVerifier deploys the test-only ZKMockVerifier contract on L1 and returns its address.
-//
-// DEV/DEVNET ONLY. The mock accepts every proof, so its only purpose is to give the ZK dispute
-// game's verifier on-chain code (satisfying the ZKDG-80 verifier.code.length > 0 check) when
-// spinning up a devnet for e2e testing without a real prover. The contract lives in test/ and is
-// therefore absent from released artifacts, so artifactsFS must come from a local (full) contracts
-// build; otherwise the artifact read fails. It must never be used as a verifier in production.
+// DeployZKMockVerifier deploys the test-only ZKMockVerifier and returns its address. DEV ONLY: the
+// mock accepts every proof; it just gives the ZK game's verifier on-chain code (ZKDG-80) for devnet
+// e2e without a real prover. Lives in test/, so artifactsFS must be a local (full) build.
 func DeployZKMockVerifier(
 	ctx context.Context,
 	client *ethclient.Client,
