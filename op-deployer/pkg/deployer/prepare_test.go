@@ -10,6 +10,8 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+const testL1RPCUrl = "http://localhost:8545"
+
 // newPrepareCtx builds a CLI context with the prepare flags applied and the
 // deployer address set to addr.
 func newPrepareCtx(t *testing.T, addr string) *cli.Context {
@@ -21,16 +23,18 @@ func newPrepareCtx(t *testing.T, addr string) *cli.Context {
 		require.NoError(t, f.Apply(flagSet))
 	}
 	require.NoError(t, flagSet.Set(DeployerAddressFlagName, addr))
+	require.NoError(t, flagSet.Set(L1RPCURLFlagName, testL1RPCUrl))
 
 	return cli.NewContext(app, flagSet, nil)
 }
 
-func TestNewPrepareConfig_DeployerAddressPassed(t *testing.T) {
+func TestNewPrepareConfig_FlagsPassed(t *testing.T) {
 	const addr = "0x1234567890123456789012345678901234567890"
 
 	cfg, err := newPrepareConfig(newPrepareCtx(t, addr), log.NewLogger(log.DiscardHandler()))
 	require.NoError(t, err)
 	require.Equal(t, common.HexToAddress(addr), cfg.DeployerAddress)
+	require.Equal(t, testL1RPCUrl, cfg.L1RPCUrl)
 }
 
 func TestNewPrepareConfig_InvalidDeployerAddress(t *testing.T) {
@@ -40,13 +44,20 @@ func TestNewPrepareConfig_InvalidDeployerAddress(t *testing.T) {
 	}
 }
 
-func TestPrepareConfigCheck_RequiresDeployerAddress(t *testing.T) {
-	cfg := PrepareConfig{
-		Workdir: "/tmp",
-		Logger:  log.NewLogger(log.DiscardHandler()),
+func TestPrepareConfigCheck(t *testing.T) {
+	valid := PrepareConfig{
+		Workdir:         "/tmp",
+		Logger:          log.NewLogger(log.DiscardHandler()),
+		DeployerAddress: common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		L1RPCUrl:        testL1RPCUrl,
 	}
-	require.ErrorContains(t, cfg.Check(), "deployer address must be specified")
+	require.NoError(t, valid.Check())
 
-	cfg.DeployerAddress = common.HexToAddress("0x1234567890123456789012345678901234567890")
-	require.NoError(t, cfg.Check())
+	missingDeployer := valid
+	missingDeployer.DeployerAddress = common.Address{}
+	require.ErrorContains(t, missingDeployer.Check(), "deployer address must be specified")
+
+	missingL1RPC := valid
+	missingL1RPC.L1RPCUrl = ""
+	require.ErrorContains(t, missingL1RPC.Check(), "l1 RPC URL must be specified")
 }

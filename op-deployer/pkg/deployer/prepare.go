@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,6 +18,9 @@ type PrepareConfig struct {
 	// DeployerAddress is the account used to predict deployment addresses. It
 	// does not need to be funded or signed for, since prepare does not broadcast.
 	DeployerAddress common.Address
+	// L1RPCUrl is the L1 endpoint that prepare forks to dry-run OPCM.deploy
+	// against the current L1 state.
+	L1RPCUrl string
 }
 
 func (c *PrepareConfig) Check() error {
@@ -30,6 +34,10 @@ func (c *PrepareConfig) Check() error {
 
 	if c.DeployerAddress == (common.Address{}) {
 		return fmt.Errorf("deployer address must be specified")
+	}
+
+	if c.L1RPCUrl == "" {
+		return fmt.Errorf("l1 RPC URL must be specified")
 	}
 
 	return nil
@@ -65,6 +73,7 @@ func newPrepareConfig(cliCtx *cli.Context, l log.Logger) (PrepareConfig, error) 
 		Workdir:         cliCtx.String(WorkdirFlagName),
 		Logger:          l,
 		DeployerAddress: common.HexToAddress(deployerAddressRaw),
+		L1RPCUrl:        cliCtx.String(L1RPCURLFlagName),
 	}, nil
 }
 
@@ -72,5 +81,27 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid config for prepare: %w", err)
 	}
+
+	// prepare predicts the L1 addresses by dry-running OPCM.deploy against a fork
+	// of the live L1. The chain config (OPCM address, superchain config, chain ID,
+	// artifacts locator) comes from intent.toml, and the CREATE2 salt mixer from
+	// state.json. The salt MUST match the eventual broadcast (PCD aPCD-002), so it
+	// is read from the persisted state rather than regenerated here.
+	intent, err := pipeline.ReadIntent(cfg.Workdir)
+	if err != nil {
+		return fmt.Errorf("failed to read intent: %w", err)
+	}
+
+	st, err := pipeline.ReadState(cfg.Workdir)
+	if err != nil {
+		return fmt.Errorf("failed to read state: %w", err)
+	}
+
+	cfg.Logger.Info(
+		"loaded prepare inputs",
+		"chains", len(intent.Chains),
+		"create2Salt", st.Create2Salt,
+	)
+
 	return nil
 }

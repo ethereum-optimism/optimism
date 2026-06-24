@@ -156,6 +156,7 @@ var InitFlags = []cli.Flag{
 var PrepareFlags = []cli.Flag{
 	WorkdirFlag,
 	DeployerAddressFlag,
+	L1RPCURLFlag,
 }
 
 var ApplyFlags = []cli.Flag{
