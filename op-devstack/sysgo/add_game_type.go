@@ -8,8 +8,8 @@ import (
 	"runtime"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -118,31 +118,18 @@ func addGameTypesForRuntime(
 
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 
+	// Download the contracts artifacts once; reused for the mock verifier deploy and the upgrade.
+	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
+	require.NoError(err, "failed to download artifacts")
+
 	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
 	if enabled[gameTypes.ZKDisputeGameType] {
-		// Deploy ZKMockVerifier so the verifier address has deployed code, satisfying the
-		// on-chain ZKDG-80 check (verifier.code.length > 0). ZK proofs are never verified
-		// in devstack — the smoke test only checks game registration.
-		_, filename, _, ok := runtime.Caller(0)
-		require.Truef(ok, "failed to get caller filename for ZKMockVerifier path")
-		monorepoDir, mErr := op_service.FindMonorepoRoot(filename)
-		require.NoError(mErr, "failed to find monorepo root for ZKMockVerifier")
-		artifactPath := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts", "ZKMockVerifier.sol", "ZKMockVerifier.json")
-		zkArtifact, aErr := foundry.ReadArtifact(artifactPath)
-		require.NoError(aErr, "failed to read ZKMockVerifier artifact")
-		deployTx := txplan.NewPlannedTx(
-			txplan.WithChainID(client),
-			txplan.WithPrivateKey(l1PAOKey),
-			txplan.WithPendingNonce(client),
-			txplan.WithAgainstLatestBlockEthClient(client),
-			txplan.WithData(zkArtifact.Bytecode.Object),
-			txplan.WithEstimator(client, true),
-			txplan.WithRetrySubmission(client, 5, retry.Exponential()),
-			txplan.WithRetryInclusion(client, 5, retry.Exponential()),
-		)
-		receipt, rErr := deployTx.Included.Eval(t.Ctx())
-		require.NoError(rErr, "failed to deploy ZKMockVerifier")
-		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t, receipt.ContractAddress)
+		// Deploy the no-op ZKMockVerifier so the verifier address has on-chain code, satisfying the
+		// ZKDG-80 check (verifier.code.length > 0). ZK proofs are never verified in devstack — the
+		// smoke test only checks game registration. The deploy is owned by op-deployer (DEV ONLY).
+		mockVerifier, mErr := deployer.DeployZKMockVerifier(t.Ctx(), client, l1PAOKey, artifactsFS)
+		require.NoError(mErr, "failed to deploy ZKMockVerifier")
+		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t, mockVerifier)
 	}
 
 	// dummyCannonPrestate is used for the PermissionedCannon game type now that the legacy
@@ -197,9 +184,6 @@ func addGameTypesForRuntime(
 			configs[i].InitBond = new(big.Int)
 		}
 	}
-
-	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
-	require.NoError(err, "failed to download artifacts")
 
 	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
 		Prank: l1PAO,
