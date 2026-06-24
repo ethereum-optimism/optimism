@@ -126,7 +126,7 @@ library L2ContractsManagerUtils {
         if (!Predeploys.isUpgradeable(_proxy)) revert L2ContractsManager_NotUpgradeable(_proxy);
 
         // In deploy mode the proxy is fresh, so the StorageSetter dance and downgrade guard are skipped
-        // and a dummy StorageSetter address is permitted.
+        // and a dummy StorageSetter address is acceptable as it is unused.
         if (_isDeploy) {
             if (_implementation.code.length == 0) revert L2ContractsManager_EmptyImplementation(_implementation);
             IProxy(payable(_proxy)).upgradeToAndCall(_implementation, _data);
