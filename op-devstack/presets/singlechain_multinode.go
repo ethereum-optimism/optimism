@@ -91,6 +91,18 @@ type SingleChainMultiNodeWithTestSeq struct {
 	TestSequencer *dsl.TestSequencer
 }
 
+// NewSingleChainMultiNodeNoFaultProofsBareVerifierWithTestSeqWithoutCheck is the
+// bare-verifier (no follow source, no P2P, no sidecar) test-sequencer preset: the
+// verifier derives only the safe chain from L1, with the test-sequencer driving
+// (and able to reorg) L1. Used for L1-reorg → safe-re-derivation tests, where a
+// follow/unsafe source would otherwise confound the safe-chain assertions.
+func NewSingleChainMultiNodeNoFaultProofsBareVerifierWithTestSeqWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNodeWithTestSeq {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsBareVerifierWithTestSeqWithoutCheck", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeWithTestSeqFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsBareVerifierRuntime(t, presetCfg))
+	presetOpts.applyPreset(out)
+	return out
+}
+
 // NewSingleChainMultiNodeWithTestSeq creates a fresh
 // SingleChainMultiNodeWithTestSeq target for the current test.
 //
