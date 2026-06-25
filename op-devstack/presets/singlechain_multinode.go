@@ -103,6 +103,21 @@ func NewSingleChainMultiNodeNoFaultProofsBareVerifierWithTestSeqWithoutCheck(t d
 	return out
 }
 
+// NewSingleChainMultiNodeNoFaultProofsFollowVerifierWithTestSeqWithoutCheck is the
+// follow-source test-sequencer preset: the verifier has its L2 follow source wired
+// to the sequencer's L2 execution RPC (no CL P2P, no sidecar) AND the test-sequencer
+// drives (and can reorg) L1. The follow-source op-con-node verifier tracks the
+// sequencer's unsafe head via follow mode while deriving its safe chain from L1, so
+// an L1 reorg reorgs both: the follow source's unsafe chain (exercising the
+// follow-mode prefetcher's source-reorg handling) and the L1-derived safe chain.
+// Used for the op-con-node analogue of op-node's sync/follow_l2 TestFollowL2_ReorgRecovery.
+func NewSingleChainMultiNodeNoFaultProofsFollowVerifierWithTestSeqWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNodeWithTestSeq {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsFollowVerifierWithTestSeqWithoutCheck", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeWithTestSeqFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t, false, presetCfg))
+	presetOpts.applyPreset(out)
+	return out
+}
+
 // NewSingleChainMultiNodeWithTestSeq creates a fresh
 // SingleChainMultiNodeWithTestSeq target for the current test.
 //

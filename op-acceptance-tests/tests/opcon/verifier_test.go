@@ -306,3 +306,103 @@ func TestOpConVerifierRecoversFromL1Reorg(gt *testing.T) {
 	sys.L2ELB.ReorgTriggered(l2BlockBeforeReorg, 90)
 	sys.L2ELB.InSync(sys.L2EL, eth.Safe, 90)
 }
+
+// TestOpConVerifierFollowModeReorgRecovery is the op-con-node variant of the
+// op-node sync/follow_l2 test TestFollowL2_ReorgRecovery (which skips kona —
+// "single-chain test sequencer requires an op-node CL node"). It extends
+// TestOpConVerifierRecoversFromL1Reorg's safe-side reorg check with the unsafe
+// (follow-mode) side: the verifier additionally runs op-con-node's follow mode
+// (--l2-follow-rpc pointed at the sequencer's L2 EL), so an L1 reorg reorgs *both*
+// of the verifier's inputs at once — the L1-derived safe chain and the follow
+// source's unsafe chain — and the verifier must recover both.
+//
+// op-node's follow_l2 test splits these roles across two verifiers (a
+// derivation-enabled verifier and a follow-source verifier); op-con-node combines
+// them in one node (follow mode for the unsafe head, L1 derivation for the safe
+// head), so the single op-con-node verifier exercises both reset paths together.
+// This is the unsafe-side analogue of the safe-side L1-reorg recovery, and it
+// specifically exercises op-con-node's follow-mode source-reorg handling
+// (l2_follow.rs: parent-linkage divergence detection → prefetcher reset → re-feed)
+// plus the engine-boundary divergence-floor cap that lets the re-derived safe chain
+// drive op-reth onto the new canonical chain past the now-stale fed unsafe tip.
+//
+// With the default op-node verifier kind this is an ordinary follow-source +
+// derivation L1-reorg-recovery check, so it remains a valid suite addition rather
+// than an op-con-node-only test. Reorg mechanics (target the sequencer's safe head,
+// auto-advance L1 to win the fork choice, wait for the lagging verifier to derive
+// the target first) mirror TestOpConVerifierRecoversFromL1Reorg — see its comment.
+func TestOpConVerifierFollowModeReorgRecovery(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSingleChainMultiNodeNoFaultProofsFollowVerifierWithTestSeqWithoutCheck(t)
+	require := t.Require()
+	logger := t.Logger()
+	ctx := t.Ctx()
+
+	ts := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
+	sys.L1Network.WaitForBlock() // pass the L1 genesis
+
+	// Drive L1 deterministically so we can reorg it.
+	sys.L1CL.Stop()
+	startL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+
+	// Advance L1 until the SEQUENCER's safe head has an L1 origin past the start
+	// block (keeps the reorg shallow enough to win — see the bare-verifier test).
+	require.Eventually(func() bool {
+		if err := ts.Next(ctx); err != nil {
+			logger.Warn("ts.Next failed, will retry", "err", err)
+			return false
+		}
+		l2Safe := sys.L2EL.BlockRefByLabel(eth.Safe)
+		logger.Info("driving L1", "l1_head", sys.L1EL.BlockRefByLabel(eth.Unsafe), "seq_safe", l2Safe)
+		return l2Safe.Number > 0 && l2Safe.L1Origin.Number > startL1Block.Number
+	}, 120*time.Second, 2*time.Second)
+
+	// Confirm op-con-node's follow mode is live before the reorg: the verifier's
+	// op-reth unsafe (canonical) head, fed by follow mode, must lead its L1-derived
+	// safe head, so the upcoming reorg reorgs the *fed* unsafe chain and not only the
+	// derived safe chain. We read op-reth directly (sys.L2ELB) rather than
+	// op-con-node's syncStatus: while L1 is paused the unsafe lead is only a block or
+	// two, and op-con-node's reported unsafe head (the sparse forkchoice-accepted view,
+	// which needs a contiguous FCU-accepted chain) can momentarily fall back to the
+	// safe head — but op-reth's actual canonical head reliably leads the safe block it
+	// was FCU'd with.
+	require.Eventually(func() bool {
+		return sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number > sys.L2ELB.BlockRefByLabel(eth.Safe).Number
+	}, 120*time.Second, 2*time.Second)
+
+	l2BlockBeforeReorg := sys.L2EL.BlockRefByLabel(eth.Safe)
+	logger.Info("target safe block to reorg", "l2", l2BlockBeforeReorg, "l1_origin", l2BlockBeforeReorg.L1Origin)
+
+	// Wait for the (lagging) op-con-node verifier to also derive this safe block,
+	// so the reorg invalidates a block it actually produced.
+	sys.L2ELB.Reached(eth.Safe, l2BlockBeforeReorg.Number, 60)
+
+	// Reorg the L1 block that the safe block's L1 origin points to.
+	l1BlockBeforeReorg := sys.L1EL.BlockRefByNumber(l2BlockBeforeReorg.L1Origin.Number)
+	logger.Info("triggering L1 reorg", "l1", l1BlockBeforeReorg)
+	require.NoError(ts.New(ctx, seqtypes.BuildOpts{Parent: l1BlockBeforeReorg.ParentHash}))
+	require.NoError(ts.Next(ctx))
+	sys.L1CL.Start()
+
+	// Confirm the L1 reorg took (the new fork won at that height).
+	sys.L1EL.WaitForBlockNumber(l1BlockBeforeReorg.Number)
+	l1BlockAfterReorg := sys.L1EL.BlockRefByNumber(l1BlockBeforeReorg.Number)
+	require.NotEqual(l1BlockAfterReorg.Hash, l1BlockBeforeReorg.Hash)
+	logger.Info("L1 reorg confirmed", "l1", l1BlockAfterReorg)
+
+	// The sequencer's safe head — and, because the sequencer rebuilds its unsafe
+	// chain on the new L1 origin, its unsafe head — switches onto the new L1 chain.
+	// The follow source (the sequencer's L2 EL) therefore serves a reorged unsafe
+	// chain to the verifier.
+	sys.L2EL.WaitL1OriginHash(eth.Safe, l1BlockAfterReorg.ID(), 90)
+
+	// op-con-node must recover on both inputs: it detects the L1 reorg and resets
+	// derivation (re-deriving the new safe chain), and its follow-mode prefetcher
+	// detects the source reorg and re-feeds the new unsafe chain. Its block at the
+	// reorged height is replaced, and both its safe and unsafe heads converge with
+	// the sequencer's.
+	sys.L2ELB.ReorgTriggered(l2BlockBeforeReorg, 90)
+	sys.L2ELB.InSync(sys.L2EL, eth.Safe, 90)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 90)
+	sys.L2CLB.InSync(sys.L2CL, types.LocalUnsafe, 90)
+}
