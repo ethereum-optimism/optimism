@@ -169,6 +169,15 @@ func WithL2RPCTracker(tracker *L2RPCTracker) FixtureInputParam {
 	}
 }
 
+// WithCorruptClaim instructs the SP1 range executor to corrupt the claimed output root in the
+// generated witness before execution, so the guest rejects it. Used for the invalid-claim
+// (soundness) test path. Has no effect on the native fault-proof program.
+func WithCorruptClaim() FixtureInputParam {
+	return func(f *FixtureInputs) {
+		f.CorruptClaim = true
+	}
+}
+
 // RunFaultProofProgram runs the fault proof program for each state transition from genesis up to the provided l2 block num.
 func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, finalL2BlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	l2ClaimBlockNum := uint64(0)
@@ -187,6 +196,15 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlock
 	combinedParams := []FixtureInputParam{defaultParam}
 	combinedParams = append(combinedParams, fixtureInputParams...)
 	RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)
+}
+
+// RunSP1RangeProgram runs the kona-sp1 range guest in SP1 execute mode for a single state
+// transition, from the provided l2 block num - 1 to the provided l2 block num.
+func (env *L2FaultProofEnv) RunSP1RangeProgram(t helpers.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
+	defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
+	combinedParams := []FixtureInputParam{defaultParam}
+	combinedParams = append(combinedParams, fixtureInputParams...)
+	RunSP1RangeProgram(t, env.log, env.Miner, checkResult, combinedParams...)
 }
 
 type TestParam func(p *e2eutils.TestParams)
