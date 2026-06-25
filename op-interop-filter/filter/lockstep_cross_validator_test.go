@@ -278,7 +278,7 @@ func TestValidateAccessEntry_TimestampNotIngested(t *testing.T) {
 // validateExecutingMessage Timing Tests
 // =============================================================================
 
-func TestValidateExecMsg_InitBeforeInclusion(t *testing.T) {
+func TestValidateExecMsg_InitVsInclusionTimestamp(t *testing.T) {
 	mock := newMockChainIngester()
 	checksum := messages.MessageChecksum{0x01}
 	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
@@ -288,15 +288,18 @@ func TestValidateExecMsg_InitBeforeInclusion(t *testing.T) {
 		eth.ChainIDFromUInt64(testChainA): mock,
 	}
 	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
-
-	// Init timestamp = 100, Inclusion timestamp = 100 (equal, not before)
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
-	exec := makeExecDescriptor(testChainA, 100, 0) // Same as init timestamp
 
-	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
-	require.Error(t, err)
+	// init == inclusion (same-timestamp / same-block interop) is VALID and accepted by the
+	// canonical rule (depset, supernode, kona), so the filter must accept it too.
+	execEqual := makeExecDescriptor(testChainA, 100, 0)
+	require.NoError(t, cv.ValidateAccessEntry(access, safety.LocalUnsafe, execEqual))
+
+	// init > inclusion remains invalid.
+	execAfter := makeExecDescriptor(testChainA, 99, 0)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, execAfter)
 	require.ErrorIs(t, err, interop.ErrConflict)
-	require.Contains(t, err.Error(), "not before inclusion")
+	require.Contains(t, err.Error(), "after inclusion")
 }
 
 func TestValidateExecMsg_MessageExpired(t *testing.T) {
@@ -465,14 +468,13 @@ func TestValidateMessageTiming(t *testing.T) {
 			wantErr:             false,
 		},
 		{
-			name:                "invalid: init timestamp equals inclusion",
+			name:                "valid: init timestamp equals inclusion (same-timestamp interop)",
 			initTimestamp:       100,
 			inclusionTimestamp:  100,
 			messageExpiryWindow: 100,
 			timeout:             0,
 			execTimestamp:       0,
-			wantErr:             true,
-			errContains:         "not before inclusion",
+			wantErr:             false,
 		},
 		{
 			name:                "invalid: init timestamp after inclusion",
@@ -482,7 +484,7 @@ func TestValidateMessageTiming(t *testing.T) {
 			timeout:             0,
 			execTimestamp:       0,
 			wantErr:             true,
-			errContains:         "not before inclusion",
+			errContains:         "after inclusion",
 		},
 		{
 			name:                "invalid: overflow in expiry calculation",

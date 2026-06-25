@@ -167,9 +167,11 @@ func (v *LockstepCrossValidator) ResetCrossValidatedTimestamp(timestamp uint64) 
 func validateMessageTiming(
 	initTimestamp, inclusionTimestamp, messageExpiryWindow, timeout, execTimestamp uint64,
 ) error {
-	// Rule 1: init must be strictly before inclusion
-	if initTimestamp >= inclusionTimestamp {
-		return fmt.Errorf("initiating message timestamp %d not before inclusion timestamp %d: %w",
+	// Rule 1: init must be at or before inclusion. Same-timestamp interop is valid and is
+	// accepted by the canonical rule (depset CanExecute, supernode, kona MessageGraph), so a
+	// strict comparison here would censor valid same-block messages and diverge from the proof.
+	if initTimestamp > inclusionTimestamp {
+		return fmt.Errorf("initiating message timestamp %d after inclusion timestamp %d: %w",
 			initTimestamp, inclusionTimestamp, interop.ErrConflict)
 	}
 
