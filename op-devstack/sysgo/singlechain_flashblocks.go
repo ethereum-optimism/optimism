@@ -76,7 +76,7 @@ func startBuilderEL(t devtest.T, l2Net *L2Network, jwtPath string, identity *ELN
 
 	data, err := json.Marshal(l2Net.genesis)
 	require.NoError(err, "must json-encode L2 genesis")
-	chainConfigPath := filepath.Join(t.TempDir(), "op-rbuilder-genesis.json")
+	chainConfigPath := filepath.Join(t.TempDirWithPrefix("op-rbuilder"), "op-rbuilder-genesis.json")
 	require.NoError(os.WriteFile(chainConfigPath, data, 0o644), "must write op-rbuilder genesis file")
 
 	cfg := DefaultOPRbuilderNodeConfig()

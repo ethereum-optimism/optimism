@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 	"github.com/ethereum/go-ethereum/common"
@@ -62,6 +63,14 @@ func (s *Supernode) Escape() stack.Supernode {
 // QueryAPI returns the supernode's query API
 func (s *Supernode) QueryAPI() apis.SupernodeQueryAPI {
 	return s.inner.QueryAPI()
+}
+
+func (s *Supernode) ClientRPC() opclient.RPC {
+	return s.inner.ClientRPC()
+}
+
+func (s *Supernode) UserRPC() string {
+	return s.inner.UserRPC()
 }
 
 // SuperRootAtTimestamp fetches the super-root at the given timestamp

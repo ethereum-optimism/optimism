@@ -1,11 +1,13 @@
 package sysgo
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
@@ -65,7 +67,7 @@ func (sp *SubProcess) Start(cmdPath string, args []string, env []string) error {
 	// without racing a second Wait() in Stop(). cmd.Wait() also blocks until stdout/stderr
 	// have been fully copied, so all log output is flushed by the time exited is closed.
 	go func() {
-		sp.waitErr = sp.cmd.Wait()
+		sp.waitErr = cmd.Wait()
 		close(sp.exited)
 	}()
 	sp.p.Cleanup(func() {
@@ -88,11 +90,20 @@ func (sp *SubProcess) Exited() <-chan struct{} {
 // Stop waits for the process to stop, interrupting the process if it has not completed and
 // interrupt is true.
 func (sp *SubProcess) Stop(interrupt bool) error {
+	return sp.stop(context.Background(), interrupt, 0, 0)
+}
+
+func (sp *SubProcess) StopControlled(ctx context.Context, interruptWait time.Duration, killWait time.Duration) error {
+	return sp.stop(ctx, true, interruptWait, killWait)
+}
+
+func (sp *SubProcess) stop(ctx context.Context, interrupt bool, interruptWait time.Duration, killWait time.Duration) error {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
 	if sp.cmd == nil {
 		return nil // already stopped gracefully
 	}
+	cmd := sp.cmd
 
 	// If the process is still running, request an interrupt as requested. We avoid
 	// reading sp.cmd.ProcessState here since the Wait() goroutine writes it; instead
@@ -113,8 +124,25 @@ func (sp *SubProcess) Stop(interrupt bool) error {
 
 	// Wait for the Wait() goroutine to report the exit. cmd.Wait() (run there) blocks
 	// until all stdout/stderr data is flushed, so log output is complete before we return.
-	<-sp.exited
-	waitErr := sp.waitErr
+	ok := waitProcess(ctx, sp.exited, interruptWait)
+	if !ok {
+		if err := cmd.Process.Kill(); err != nil {
+			ok = waitProcess(ctx, sp.exited, killWait)
+			if !ok {
+				return fmt.Errorf("interrupt timed out and kill failed: %w", err)
+			}
+			return sp.completeStopLocked(interrupt, sp.waitErr)
+		}
+		ok = waitProcess(ctx, sp.exited, killWait)
+		if !ok {
+			return fmt.Errorf("process did not stop after interrupt and kill")
+		}
+	}
+
+	return sp.completeStopLocked(interrupt, sp.waitErr)
+}
+
+func (sp *SubProcess) completeStopLocked(interrupt bool, waitErr error) error {
 	var exitErr *exec.ExitError
 	if waitErr != nil && !(interrupt && errors.As(waitErr, &exitErr)) {
 		sp.p.Logger().Warn("Sub-process exited with error", "err", waitErr)
@@ -134,4 +162,25 @@ func (sp *SubProcess) Stop(interrupt bool) error {
 	}
 	sp.cmd = nil
 	return nil
+}
+
+func waitProcess(ctx context.Context, exited <-chan struct{}, timeout time.Duration) bool {
+	if timeout <= 0 {
+		select {
+		case <-exited:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-exited:
+		return true
+	case <-timer.C:
+		return false
+	case <-ctx.Done():
+		return false
+	}
 }
