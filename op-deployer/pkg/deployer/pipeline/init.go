@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"reflect"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -100,7 +101,80 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 		return immutableErr("fundDevAccounts", st.AppliedIntent.FundDevAccounts, intent.FundDevAccounts)
 	}
 
-	// TODO: validate individual
+	// Once a chain has been applied, its L2 genesis allocs and its on-chain L1
+	// SystemConfig are frozen: re-apply does not regenerate the L2 genesis
+	// (l2genesis.go only runs when chainState.Allocs == nil) and does not redeploy
+	// the OP chain contracts (opchain.go returns early when already deployed).
+	// However, the genesis file and rollup config emitted by RenderGenesisAndRollup
+	// are computed live from the current intent. If a field that feeds the genesis block
+	// or the genesis SystemConfig changes on re-apply (e.g. gasLimit, roles.batcher,
+	// operatorFeeScalar/Constant, or genesis-affecting deploy overrides), the emitted
+	// genesis/rollup config would silently diverge from the already-deployed chain (the
+	// on-chain SystemConfig holds the OLD value while op-node seeds its view from the NEW
+	// rollup config Genesis.SystemConfig).
+	//
+	// Rather than enumerate individual fields, we compare the actual genesis OUTPUT
+	// produced from the previously-applied intent vs the new intent, for every chain
+	// that exists in both and has already been fully applied. Any difference in the
+	// genesis block hash or the genesis SystemConfig is rejected as an immutable change.
+	// This is precise: it only rejects changes that actually alter the genesis block or
+	// SystemConfig, and it automatically covers future additions to those surfaces.
+	// Changes that do not affect either surface are allowed -- including scheduling a
+	// future hardfork time, L1-only/deploy-only params, brand-new chains, and
+	// not-yet-applied chains.
+	//
+	// Note: this comparison intentionally does NOT cover fields that live only in the
+	// frozen L2 allocs (e.g. fee-vault recipients in predeploy storage, which are not
+	// regenerated on re-apply and therefore cannot diverge here) or fields that live only
+	// in the genesis ChainConfig / broader rollup config but not the block hash or
+	// SystemConfig (e.g. eip1559 params, l2BlockTime). The genesis ChainConfig is excluded
+	// because its fork-activation times legitimately change for future-hardfork scheduling.
+	for _, appliedChain := range st.AppliedIntent.Chains {
+		chainID := appliedChain.ID
+
+		chainState, err := st.Chain(chainID)
+		if err != nil {
+			// No chain state yet for this chain: it has not been applied, so there is
+			// nothing frozen to diverge from. Skip.
+			continue
+		}
+		if chainState.Allocs == nil || chainState.StartBlock == nil {
+			// Chain is not fully applied (L2 genesis/start block not yet produced), so its
+			// genesis is not frozen. Skip; RenderGenesisAndRollup would also be unable to
+			// render it.
+			continue
+		}
+		if _, err := intent.Chain(chainID); err != nil {
+			// Chain present in the applied intent but absent from the new intent (removal).
+			// RenderGenesisAndRollup(new) cannot render it; leave removal handling to other
+			// stages and skip the immutability comparison.
+			continue
+		}
+
+		oldGenesis, oldRollup, err := RenderGenesisAndRollup(st, chainID, st.AppliedIntent)
+		if err != nil {
+			return fmt.Errorf("failed to render genesis for applied intent (chain %s): %w", chainID, err)
+		}
+		newGenesis, newRollup, err := RenderGenesisAndRollup(st, chainID, intent)
+		if err != nil {
+			return fmt.Errorf("failed to render genesis for new intent (chain %s): %w", chainID, err)
+		}
+
+		if oldGenesis.ToBlock().Hash() != newGenesis.ToBlock().Hash() {
+			return immutableErr(
+				fmt.Sprintf("genesis block for chain %s", chainID),
+				oldGenesis.ToBlock().Hash(),
+				newGenesis.ToBlock().Hash(),
+			)
+		}
+		if !reflect.DeepEqual(oldRollup.Genesis.SystemConfig, newRollup.Genesis.SystemConfig) {
+			return immutableErr(
+				fmt.Sprintf("genesis system config for chain %s", chainID),
+				oldRollup.Genesis.SystemConfig,
+				newRollup.Genesis.SystemConfig,
+			)
+		}
+	}
 
 	return nil
 }
