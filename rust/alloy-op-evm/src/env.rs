@@ -378,11 +378,10 @@ mod tests {
             let header = Header { timestamp: 1, gas_limit: 60_000_000, ..Default::default() };
             let env = evm_env_for_op_block(&header, &chain, 10);
 
-            let expected = if op_spec.into_eth_spec().is_enabled_in(SpecId::OSAKA) {
-                Some(revm::primitives::eip7825::TX_GAS_LIMIT_CAP)
-            } else {
-                None
-            };
+            let expected = op_spec
+                .into_eth_spec()
+                .is_enabled_in(SpecId::OSAKA)
+                .then_some(revm::primitives::eip7825::TX_GAS_LIMIT_CAP);
             assert_eq!(
                 env.cfg_env.tx_gas_limit_cap, expected,
                 "with forks active up to {fork:?} ({op_spec:?}), tx_gas_limit_cap mismatch",
