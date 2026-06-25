@@ -22,6 +22,13 @@ inputs:
     description: |
       Options to pass to cargo build. Defaults to release
 
+  profile:
+    default: ""
+    required: false
+    description: |
+      Cargo profile to pass as --profile. When set, opts must not include
+      --release or --profile.
+
   modroot:
     default: "."
     required: false
@@ -74,8 +81,54 @@ pipeline:
       cache_root="${CARGO_TARGET_DIR:-/var/cache/melange/target}"
       modroot_slug=$(echo "${{inputs.modroot}}" | tr '/' '_')
       export CARGO_TARGET_DIR="${cache_root}/${modroot_slug}"
-      OUTPUT_PATH="${CARGO_TARGET_DIR}/release"
       mkdir -p "$CARGO_TARGET_DIR"
+
+      build_opts="${{inputs.opts}}"
+      profile="${{inputs.profile}}"
+      profile_flag=""
+      if [ -n "$profile" ]; then
+        case " $build_opts " in
+          *" --release "*|*" --profile "*|*" --profile="*)
+            echo "profile input cannot be combined with --release or --profile in opts" >&2
+            exit 1
+            ;;
+        esac
+        profile_flag="--profile $profile"
+      else
+        case " $build_opts " in
+          *" --release "*|*" --profile "*|*" --profile="*) ;;
+          *) profile_flag="--release" ;;
+        esac
+      fi
+
+      output_profile=""
+      set -- $profile_flag $build_opts
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          --profile)
+            shift
+            output_profile="${1:-}"
+            ;;
+          --profile=*)
+            output_profile="${1#--profile=}"
+            ;;
+          --release)
+            output_profile="release"
+            ;;
+        esac
+        [ "$#" -eq 0 ] || shift
+      done
+
+      if [ -n "$output_profile" ]; then
+        OUTPUT_PATH="${CARGO_TARGET_DIR}/${output_profile}"
+      else
+        output_dir="${{inputs.output-dir}}"
+        case "$output_dir" in
+          /*) OUTPUT_PATH="$output_dir" ;;
+          target/*) OUTPUT_PATH="${CARGO_TARGET_DIR}/${output_dir#target/}" ;;
+          *) OUTPUT_PATH="${CARGO_TARGET_DIR}/${output_dir}" ;;
+        esac
+      fi
 
       jobs_flag=""
       if [ -n "${{inputs.jobs}}" ]; then
@@ -88,7 +141,7 @@ pipeline:
       fi
 
       RUSTFLAGS="${{inputs.rustflags}}" $run_wrap cargo auditable build \
-        ${{inputs.opts}} $jobs_flag
+        $profile_flag $build_opts $jobs_flag
 
       if [ -n "${{inputs.output}}" ]; then
         install -Dm755 "${OUTPUT_PATH}/${{inputs.output}}" "${INSTALL_PATH}/${{inputs.output}}"

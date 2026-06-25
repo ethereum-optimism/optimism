@@ -56,7 +56,7 @@ jobs:
 
       - name: Plan melange, apko, and smoke matrices
         id: plan
-        uses: ethereum-optimism/factory/actions/apko-plan@32cc2090b11d510e3babad942b62b99defccfca1
+        uses: ethereum-optimism/factory/actions/apko-plan@87e34efc71b58de6aacf901002dbfdabf65aad17
         with:
           config: .github/images.apko.json
 
@@ -73,7 +73,7 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@32cc2090b11d510e3babad942b62b99defccfca1
+    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@87e34efc71b58de6aacf901002dbfdabf65aad17
     with:
       stack: ${{ matrix.stack }}
       arch: ${{ matrix.arch }}
@@ -86,6 +86,7 @@ jobs:
       source-submodules: ${{ matrix.source_submodules }}
       use-gha-cache: ${{ matrix.use_gha_cache }}
       cache-key-files: ${{ matrix.cache_key_files }}
+      cargo-profile: ${{ github.event_name == 'pull_request' && 'fast-build' || 'maxperf' }}
 
   apko:
     name: apko (${{ matrix.service }})
@@ -104,7 +105,7 @@ jobs:
       attestations: write
       artifact-metadata: write
       actions: read
-    uses: ethereum-optimism/factory/.github/workflows/apko-publish.yaml@32cc2090b11d510e3babad942b62b99defccfca1
+    uses: ethereum-optimism/factory/.github/workflows/apko-publish.yaml@87e34efc71b58de6aacf901002dbfdabf65aad17
     with:
       service: ${{ matrix.service }}
       needs-melange-apks: ${{ matrix.needs_melange_apks }}
@@ -127,7 +128,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ethereum-optimism/factory/.github/workflows/apko-smoke-test.yaml@32cc2090b11d510e3babad942b62b99defccfca1
+    uses: ethereum-optimism/factory/.github/workflows/apko-smoke-test.yaml@87e34efc71b58de6aacf901002dbfdabf65aad17
     with:
       service: ${{ matrix.service }}
       registry: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus

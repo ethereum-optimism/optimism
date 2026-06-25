@@ -36,20 +36,13 @@ environment:
       # opt-in mold linking when the cargo/build pipeline uses it.
       - mold
   environment:
-    # One profile for the whole workspace: a single setting means shared
-    # dependency crates compile once across subpackages. CARGO_HOME and
+    # The workflow selects MELANGE_CARGO_PROFILE for the main rust/ workspace:
+    # fast-build for PRs and maxperf for develop/tag builds. CARGO_HOME and
     # CARGO_TARGET_DIR point at /var/cache/melange; melange/pipelines/cargo/build
     # derives a per-modroot target subdir from the base. GHA cache restores
     # melange-cache/ before each op-stack-rust job.
-    # opt-level 0 for faster CI builds. NOTE: op-reth and kona-node are
-    # hot-path chain components — raise this before shipping a prod image, as
-    # an unoptimized binary is significantly slower at runtime.
     CARGO_HOME: /var/cache/melange/cargo
     CARGO_TARGET_DIR: /var/cache/melange/target
-    CARGO_PROFILE_RELEASE_OPT_LEVEL: "0"
-    CARGO_PROFILE_RELEASE_LTO: "off"
-    CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
-    CARGO_PROFILE_RELEASE_DEBUG: "0"
 
 subpackages:
   # The first subpackage builds ALL four packages in one cargo invocation:
@@ -66,7 +59,8 @@ subpackages:
           prefix: usr/local
           modroot: rust
           output: op-reth
-          opts: --release --locked --package op-reth --package kona-node --package kona-host --package kona-client
+          profile: "${MELANGE_CARGO_PROFILE}"
+          opts: --locked --package op-reth --package kona-node --package kona-host --package kona-client
       - uses: strip
 
   - name: kona-node
@@ -78,7 +72,8 @@ subpackages:
           prefix: usr/local
           modroot: rust
           output: kona-node
-          opts: --release --locked --package kona-node
+          profile: "${MELANGE_CARGO_PROFILE}"
+          opts: --locked --package kona-node
       - uses: strip
 
   - name: kona-host
@@ -90,7 +85,8 @@ subpackages:
           prefix: usr/local
           modroot: rust
           output: kona-host
-          opts: --release --locked --package kona-host
+          profile: "${MELANGE_CARGO_PROFILE}"
+          opts: --locked --package kona-host
       - uses: strip
 
   - name: kona-client
@@ -102,7 +98,8 @@ subpackages:
           prefix: usr/local
           modroot: rust
           output: kona-client
-          opts: --release --locked --package kona-client
+          profile: "${MELANGE_CARGO_PROFILE}"
+          opts: --locked --package kona-client
       - uses: strip
 
   # The monorepo vendors op-rbuilder and rollup-boost as NESTED workspaces
