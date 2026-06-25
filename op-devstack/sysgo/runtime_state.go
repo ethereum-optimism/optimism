@@ -12,6 +12,7 @@ import (
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -59,9 +60,28 @@ type SyncTesterRuntime struct {
 	CL L2CLNode
 }
 
+// FlashblocksBuilder is the builder-side surface the flashblocks preset reads:
+// the canonical user RPC, the flashblocks WS stream, and ruleset hot-reload.
+// Both *OPRBuilderNode and the temporary *PremiumNode satisfy it.
+type FlashblocksBuilder interface {
+	stack.Lifecycle
+	UserRPC() string
+	FlashblocksWSURL() string
+	UpdateRuleSet(rulesYaml string) error
+}
+
+// FlashblocksStreamFront is the rollup-boost-slot surface the preset reads. In
+// the op-rbuilder topology this is rollup-boost; in the premium topology it is
+// the single premium node's own endpoints (no separate rollup-boost process).
+type FlashblocksStreamFront interface {
+	stack.Lifecycle
+	UserRPC() string
+	FlashblocksWSURL() string
+}
+
 type FlashblocksRuntimeSupport struct {
-	Builder     *OPRBuilderNode
-	RollupBoost *RollupBoostNode
+	Builder     FlashblocksBuilder
+	RollupBoost FlashblocksStreamFront
 }
 
 type SingleChainInteropSupport struct {

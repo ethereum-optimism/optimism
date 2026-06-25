@@ -44,6 +44,15 @@ func NewSingleChainWithFlashblocks(t devtest.T, opts ...Option) *SingleChainWith
 	return singleChainWithFlashblocksFromRuntime(t, runtime)
 }
 
+// NewSingleChainWithPremium builds the flashblocks preset backed by a single
+// op-reth-premium process (no rollup-boost). Temporary harness for validating
+// the migrated policy engine; not intended to merge.
+func NewSingleChainWithPremium(t devtest.T, opts ...Option) *SingleChainWithFlashblocks {
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainWithPremium", opts, singleChainWithPremiumPresetSupportedOptionKinds)
+	runtime := sysgo.NewPremiumFlashblocksRuntimeWithConfig(t, presetCfg)
+	return singleChainWithFlashblocksFromRuntime(t, runtime)
+}
+
 func singleChainWithFlashblocksFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *SingleChainWithFlashblocks {
 	t.Require().NotNil(runtime.Flashblocks, "missing flashblocks support")
 	l1ChainID := runtime.L1Network.ChainID()

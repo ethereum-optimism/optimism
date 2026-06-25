@@ -234,6 +234,22 @@ func WithOPRBuilderOption(opt sysgo.OPRBuilderNodeOption) Option {
 	}
 }
 
+func WithPremiumOption(opt sysgo.PremiumNodeOption) Option {
+	var kinds optionKinds
+	if opt != nil {
+		kinds = optionKindPremium
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			if opt == nil {
+				return
+			}
+			cfg.PremiumOptions = append(cfg.PremiumOptions, opt)
+		},
+	}
+}
+
 func WithOpRethOption(opt sysgo.OpRethOption) Option {
 	var kinds optionKinds
 	if opt != nil {
