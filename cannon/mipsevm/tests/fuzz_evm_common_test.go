@@ -485,6 +485,7 @@ func fuzzTestOptions(vms []VersionedVMTestCase, seed int64, opts ...TestOption) 
 		WithVms(vms),
 		WithRandomSeed(seed),
 		SkipAutomaticMemoryReservationTests(),
+		SkipParallel(),
 	}
 	testOpts = append(testOpts, opts...)
 	return testOpts

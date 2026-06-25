@@ -135,8 +135,11 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 			mods := d.generateTestModifiers(t, testCase, vm, cfg, randSeed)
 			for _, mod := range mods {
 				testName := fmt.Sprintf("%v%v (%v)", d.testNamer(testCase), mod.name, vm.Name)
+				skipParallel := cfg.skipParallel
 				t.Run(testName, func(t testcaseT) {
-					t.Parallel()
+					if !skipParallel {
+						t.Parallel()
+					}
 
 					setup := mod.cachedSetup
 					if setup == nil {
@@ -350,6 +353,10 @@ type TestConfig struct {
 	tracingHooks *tracing.Hooks
 	// Allow consumer to control automated test generation
 	skipAutomaticMemoryReservationTests bool
+	// skipParallel disables t.Parallel() in subtests. Use in fuzz tests to avoid
+	// "context deadline exceeded" when the fuzz time limit expires while a deferred
+	// parallel subtest is still pending.
+	skipParallel bool
 	// Allow consumer to configure a random seed, if not configured (equal to 0) one will be generated
 	randomSeed int64
 }
@@ -374,6 +381,12 @@ func WithPreimageOracle(po func() mipsevm.PreimageOracle) TestOption {
 func SkipAutomaticMemoryReservationTests() TestOption {
 	return func(tc *TestConfig) {
 		tc.skipAutomaticMemoryReservationTests = true
+	}
+}
+
+func SkipParallel() TestOption {
+	return func(tc *TestConfig) {
+		tc.skipParallel = true
 	}
 }
 
