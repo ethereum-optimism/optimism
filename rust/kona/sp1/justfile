@@ -76,6 +76,28 @@ agg-recursion-bench proof n *ARGS:
     echo ">> aggregating {{proof}} x${n} (bench-recursion ELF required)"
     just features="{{features}}" agg-bench --proofs "$proofs" --prove {{ARGS}}
 
+# Same single-proof xN recursion benchmark as `agg-recursion-bench`, but driving
+# the full PLONK path (core -> compress -> shrink -> wrap -> gnark) instead of
+# stopping at the compressed aggregation proof. Recursive verification (the part
+# that scales with N) is in compress; the gnark PLONK wrap is a roughly fixed
+# CPU cost on top. Requires the bench-recursion aggregation ELF
+# (`just build-agg-elf-recursion-bench`) and one saved compressed range proof, plus
+# Docker for the local gnark wrap (unless SP1_PROVER=cuda/network). Pass extra
+# plonk-prove-bench args through (e.g. --load-agg-inputs p.cbor, --save-proof
+# agg.plonk.bin, --groth16).
+# Usage: just agg-recursion-bench-plonk p.bin 4 [--save-proof agg.plonk.bin] [--load-agg-inputs p.cbor]
+agg-recursion-bench-plonk proof n *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ -s "{{proof}}" ] || { echo "error: proof not found or empty: {{proof}}" >&2; exit 1; }
+    n="{{n}}"
+    [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] || { echo "error: N must be a positive integer, got: $n" >&2; exit 1; }
+    # Repeat the single proof path N times into the comma-separated --proofs list.
+    proofs="{{proof}}"
+    for _ in $(seq 2 "$n"); do proofs="${proofs},{{proof}}"; done
+    echo ">> PLONK-aggregating {{proof}} x${n} (bench-recursion ELF required)"
+    just features="{{features}}" plonk-prove-bench --proofs "$proofs" {{ARGS}}
+
 # Benchmark local PLONK compression of the final aggregation proof.
 # Always proves. Generate compressed range proofs first, e.g.:
 #   just range-bench --start A --end B --prove --save-proof a.bin
