@@ -79,6 +79,7 @@ var mainnetCfg = rollup.Config{
 	IsthmusTime:            u64Ptr(1746806401),
 	JovianTime:             u64Ptr(1764691201),
 	KarstTime:              u64Ptr(1783526401),
+	KeepKarstUpgradeGas:    true,
 	ChainOpConfig:          defaultOpConfig,
 }
 
@@ -120,6 +121,7 @@ var sepoliaCfg = rollup.Config{
 	IsthmusTime:            u64Ptr(1744905600),
 	JovianTime:             u64Ptr(1763568001),
 	KarstTime:              u64Ptr(1781712001),
+	KeepKarstUpgradeGas:    true,
 	ChainOpConfig:          defaultOpConfig,
 }
 
