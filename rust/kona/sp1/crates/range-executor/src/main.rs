@@ -1,15 +1,16 @@
-//! Runs the kona-sp1 `range` guest program in SP1 **execute** mode (no proving) against a real
-//! chain's witness, so the program can be exercised end-to-end by op-e2e action tests.
+//! Runs the kona-sp1 `range` program against a real chain's witness, so it can be exercised by
+//! op-e2e action tests.
 //!
 //! The flow mirrors the native fault-proof program harness:
 //! 1. Parse the same [`SingleChainHost`] boot inputs the native kona-host accepts.
 //! 2. Run the kona-host preimage server and collect the witness with the SP1 witness generator.
-//! 3. Execute the `range` ELF over that witness in the SP1 zkVM emulator.
+//! 3. Execute the `range` ELF over that witness in the SP1 zkVM emulator, or run the shared range
+//!    core natively when `--native-core` is set.
 //! 4. Read the committed [`BootInfoStruct`] and confirm it matches the claimed transition.
 //!
 //! Exit codes (matching the native harness convention, where exit 1 == "claim rejected"):
-//! - `0`: the claimed state transition is valid (guest executed and committed the claim).
-//! - `1`: the claimed state transition is invalid (the guest rejected it).
+//! - `0`: the claimed state transition is valid.
+//! - `1`: the claimed state transition is invalid.
 //! - `2`: an infrastructure error prevented evaluation (witness generation failed, ELF missing,
 //!   etc.) — distinct from a claim verdict.
 
@@ -22,11 +23,13 @@ use kona_preimage::{BidirectionalChannel, PreimageKey};
 use kona_proof::boot::L2_CLAIM_KEY;
 use kona_sp1_client_utils::{
     boot::BootInfoStruct,
+    range::{ensure_committed_boot_info_matches_claim, run_range_program},
     witness::{DefaultWitnessData, WitnessData},
 };
+use kona_sp1_ethereum_client_utils::executor::ETHDAWitnessExecutor;
 use kona_sp1_ethereum_host_utils::witness_generator::ETHDAWitnessGenerator;
 use kona_sp1_host_utils::witness_generation::WitnessGenerator;
-use sp1_sdk::{Elf, Prover, ProverClient, SP1Stdin};
+use sp1_sdk::{Elf, Prover, ProverClient};
 
 /// Exit code signalling a valid claim.
 const EXIT_VALID: u8 = 0;
@@ -35,12 +38,12 @@ const EXIT_INVALID: u8 = 1;
 /// Exit code signalling an infrastructure error (no claim verdict was reached).
 const EXIT_INFRA: u8 = 2;
 
-/// Runs the kona-sp1 `range` guest in SP1 execute mode against a chain's witness.
+/// Runs the kona-sp1 `range` program against a chain's witness.
 #[derive(Parser, Debug)]
 #[command(
     name = "kona-sp1-range-executor",
     about = "Generate a witness for a single-chain state transition and run the kona-sp1 range \
-             guest in SP1 execute mode, validating the claimed output root."
+             program, validating the claimed output root."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -51,8 +54,8 @@ struct Cli {
 /// oracle-server command builder can target this binary.
 #[derive(clap::Subcommand, Debug)]
 enum Command {
-    /// Generate the witness for a single-chain state transition and run the range guest in SP1
-    /// execute mode, validating the claimed output root.
+    /// Generate the witness for a single-chain state transition and run the range program,
+    /// validating the claimed output root.
     Single(SingleArgs),
 }
 
@@ -72,13 +75,18 @@ struct SingleArgs {
     /// path: the guest re-derives the real root, finds it does not match, and aborts (exit 1).
     #[arg(long)]
     corrupt_claimed_root: bool,
+    /// Run the shared range-program core natively after witness generation instead of executing
+    /// the SP1 ELF. This is useful for fast action-test coverage; the default path still runs
+    /// the full SP1 execute smoke test.
+    #[arg(long)]
+    native_core: bool,
 }
 
 /// The claim verdict reached by running the guest.
 enum Verdict {
-    /// The guest accepted and committed the claimed state transition.
+    /// The range program accepted the claimed state transition.
     Valid,
-    /// The guest rejected the claimed state transition.
+    /// The range program rejected the claimed state transition.
     Invalid,
 }
 
@@ -90,7 +98,7 @@ fn main() -> ExitCode {
     let claimed_output_root = host.claimed_l2_output_root;
     let claimed_block_number = host.claimed_l2_block_number;
 
-    if kona_sp1_elfs::RANGE_ELF.is_empty() {
+    if !args.native_core && kona_sp1_elfs::RANGE_ELF.is_empty() {
         return infra(
             "RANGE_ELF is an empty placeholder; build the guest ELFs first with \
              `cd rust/kona/sp1 && just build-elfs`"
@@ -106,6 +114,7 @@ fn main() -> ExitCode {
     match runtime.block_on(run(
         host,
         args.corrupt_claimed_root,
+        args.native_core,
         claimed_output_root,
         claimed_block_number,
     )) {
@@ -115,14 +124,58 @@ fn main() -> ExitCode {
     }
 }
 
-/// Generates the witness, runs the `range` ELF in SP1 execute mode, and reports the claim verdict.
+/// Generates the witness, evaluates the range program, and reports the claim verdict.
 async fn run(
     host: SingleChainHost,
     corrupt_claimed_root: bool,
+    native_core: bool,
     claimed_output_root: B256,
     claimed_block_number: u64,
 ) -> anyhow::Result<Verdict> {
-    let stdin = generate_stdin(host, corrupt_claimed_root).await?;
+    let witness = generate_witness(host, corrupt_claimed_root).await?;
+
+    if native_core {
+        return run_native_core(witness, claimed_output_root, claimed_block_number).await;
+    }
+
+    run_sp1_execute(witness, claimed_output_root, claimed_block_number).await
+}
+
+/// Runs the shared range-program core natively, bypassing SP1 execute while preserving witness
+/// loading and claim validation.
+async fn run_native_core(
+    witness: DefaultWitnessData,
+    claimed_output_root: B256,
+    claimed_block_number: u64,
+) -> anyhow::Result<Verdict> {
+    let (oracle, beacon) = witness.get_oracle_and_blob_provider().await?;
+    let boot = match run_range_program(ETHDAWitnessExecutor::new(), oracle, beacon).await {
+        Ok(boot) => boot,
+        Err(err) => {
+            tracing::info!("range core execution failed (claim rejected): {err}");
+            return Ok(Verdict::Invalid);
+        }
+    };
+
+    if !committed_boot_info_matches_claim(&boot, claimed_output_root, claimed_block_number) {
+        return Ok(Verdict::Invalid);
+    }
+
+    tracing::info!(
+        l2_block_number = boot.l2BlockNumber,
+        l2_post_root = %boot.l2PostRoot,
+        "range core validated the claimed state transition",
+    );
+    Ok(Verdict::Valid)
+}
+
+/// Runs the `range` ELF in SP1 execute mode and reports the claim verdict.
+async fn run_sp1_execute(
+    witness: DefaultWitnessData,
+    claimed_output_root: B256,
+    claimed_block_number: u64,
+) -> anyhow::Result<Verdict> {
+    let stdin = ETHDAWitnessGenerator::new().get_sp1_stdin(witness)?;
 
     // `build()` and `execute(..)` are async; the latter runs the zkVM emulator (no proving).
     let client = ProverClient::builder().cpu().build().await;
@@ -150,14 +203,7 @@ async fn run(
     // mismatch here is unexpected (a witness-integrity guard rather than an independent
     // verdict).
     let boot: BootInfoStruct = public_values.read();
-    if boot.l2PostRoot != claimed_output_root || boot.l2BlockNumber != claimed_block_number {
-        tracing::error!(
-            committed_root = %boot.l2PostRoot,
-            committed_block = boot.l2BlockNumber,
-            %claimed_output_root,
-            claimed_block_number,
-            "range guest committed boot info that does not match the requested claim",
-        );
+    if !committed_boot_info_matches_claim(&boot, claimed_output_root, claimed_block_number) {
         return Ok(Verdict::Invalid);
     }
 
@@ -169,16 +215,33 @@ async fn run(
     Ok(Verdict::Valid)
 }
 
-/// Generates the witness for the configured state transition and encodes it as SP1 stdin.
+/// Returns whether committed range-program output matches the requested claim.
+fn committed_boot_info_matches_claim(
+    boot: &BootInfoStruct,
+    claimed_output_root: B256,
+    claimed_block_number: u64,
+) -> bool {
+    if let Err(err) =
+        ensure_committed_boot_info_matches_claim(boot, claimed_output_root, claimed_block_number)
+    {
+        tracing::error!(
+            "range program committed boot info that does not match the requested claim: {err}"
+        );
+        return false;
+    }
+    true
+}
+
+/// Generates the witness for the configured state transition.
 ///
 /// This mirrors the witness-generation sequence in `OPSuccinctHost::run`
 /// (`kona-sp1-host-utils`); keep the `start_server`/`abort` semantics in sync with it. We drive the
 /// preimage server directly here rather than going through `SingleChainOPSuccinctHost`, which would
 /// require an RPC-configured `OPSuccinctDataFetcher` we do not need.
-async fn generate_stdin(
+async fn generate_witness(
     host: SingleChainHost,
     corrupt_claimed_root: bool,
-) -> anyhow::Result<SP1Stdin> {
+) -> anyhow::Result<DefaultWitnessData> {
     let witness_generator = ETHDAWitnessGenerator::new();
 
     let preimage = BidirectionalChannel::new()?;
@@ -196,7 +259,7 @@ async fn generate_stdin(
         witness
     };
 
-    witness_generator.get_sp1_stdin(witness)
+    Ok(witness)
 }
 
 /// Overwrites the claimed-output-root boot preimage in the witness with a value guaranteed to

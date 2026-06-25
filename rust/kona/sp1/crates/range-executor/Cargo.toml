@@ -17,6 +17,7 @@ sp1-sdk.workspace = true
 # invalid-claim (soundness) test path.
 kona-sp1-client-utils = { workspace = true, features = ["test-tamper-witness"] }
 kona-sp1-elfs.workspace = true
+kona-sp1-ethereum-client-utils.workspace = true
 kona-sp1-ethereum-host-utils.workspace = true
 kona-sp1-host-utils.workspace = true
 

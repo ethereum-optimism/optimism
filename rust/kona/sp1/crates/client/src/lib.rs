@@ -7,6 +7,8 @@ pub use oracle::BlobStore;
 
 pub mod precompiles;
 
+pub mod range;
+
 pub mod types;
 
 extern crate alloc;

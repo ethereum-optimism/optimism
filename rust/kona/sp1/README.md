@@ -109,6 +109,12 @@ the `range-executor` binary (which embeds the `range` ELF), and runs the test wi
 `KONA_SP1_RANGE_EXECUTOR_PATH` set. The test skips when that variable is unset, so the
 heavy SP1 toolchain is only required when explicitly running the SP1 action tests.
 
+For faster coverage of the range-program logic, the same executor also supports
+`--native-core`. This mode still generates the real witness, but runs the shared range
+core natively instead of executing the SP1 ELF. Use the default SP1 execute path for a
+small smoke test of the ELF, SP1 stdin, and public-values boundary; use `--native-core`
+when broad action-test coverage would otherwise multiply SP1 emulator cost.
+
 The test covers both an honest claim and an invalid claim. Note the invalid-claim path is
 driven by **corrupting the claim in the witness**, not by passing a wrong claimed output
 root: witness generation runs on the configured `--claimed-l2-output-root`, and the
