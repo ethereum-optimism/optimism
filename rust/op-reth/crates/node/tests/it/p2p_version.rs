@@ -37,5 +37,11 @@ async fn peers_negotiate_eth_69() -> eyre::Result<()> {
         negotiated, EXPECTED_ETH_VERSION,
         "expected eth/{EXPECTED_ETH_VERSION}, got eth/{negotiated}"
     );
+
+    drop(admin_a);
+    // Dropping two FullNode instances during tokio runtime shutdown triggers a SIGSEGV in
+    // native teardown (RocksDB / discv5 threads). Forget the nodes so their destructors
+    // never run; the OS reclaims all resources when the test process exits.
+    std::mem::forget(nodes);
     Ok(())
 }
