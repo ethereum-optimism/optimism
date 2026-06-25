@@ -222,6 +222,63 @@ func TestOpConVerifierFollowMode(gt *testing.T) {
 	dsl.CheckAll(t, sys.L2CLB.CurrentL1MatchedFn(sys.L2CL, 20))
 }
 
+// TestOpConVerifierFollowModeFinalized is the op-con-node analogue of the op-node
+// sync/follow_l2 test TestFollowL2_Safe_Finalized_CurrentL1. It extends
+// TestOpConVerifierFollowMode with the FINALIZED head: the verifier's unsafe head
+// (follow mode), safe head (L1 derivation), AND finalized head must all advance to
+// the target and converge with the sequencer, plus CurrentL1 tracking.
+//
+// The finalized head is the property under test. op-con-node finalizes by the
+// batch-inclusion L1 block — the canonical OP finality rule: an L2 block is final
+// once the L1 data (its batch) proving it is final. (finalized_head in
+// engine_boundary/module.sql gates the highest derived block on
+// `l1_inclusion_input_id <= finalized L1`, the batch-inclusion L1 coordinate.) This
+// matches op-node, so exact finalized parity holds. An earlier revision keyed on the
+// L2 block's L1 *origin*, which runs ~a batch-window ahead of op-node and finalizes
+// before the L1 data proving the block is final — that gap is what this test caught
+// and the finalized_head fix closes.
+//
+// The devstack op-con-node default is --l1-finalized-guard=disabled (so startup never
+// blocks on a finalized tag against a non-finalizing L1), which suppresses the
+// finalized L1 status ref entirely. This test runs against a finalizing devstack L1,
+// so it sets the per-node OpConL1FinalizedGuard="required" to make op-con-node track
+// L1 finality and advance its L2 finalized head.
+//
+// With the default op-node verifier kind it is an ordinary follow-source safe/
+// finalized/CurrentL1 sync check, so it remains a valid suite addition.
+func TestOpConVerifierFollowModeFinalized(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+
+	// Make op-con-node track L1 finality (devstack default is disabled). Per-node via
+	// the L2CL option, so parallel sibling tests keep the non-finalizing default.
+	sys := presets.NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck(t,
+		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(_ devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+			cfg.OpConL1FinalizedGuard = "required"
+		})),
+	)
+	logger := t.Logger()
+
+	target := uint64(3)
+	// L1 finalization takes ~2 minutes in the devstack, so the finalized head needs a
+	// generous budget; ReachedFn/InSyncFn poll every 2s.
+	attempts := 90
+
+	// Unsafe (follow mode), safe (L1 derivation), and finalized (L1 finality) heads
+	// must each reach the target on both the sequencer and the op-con-node verifier,
+	// and the verifier must stay in sync with the sequencer at each level.
+	for _, lvl := range []types.SafetyLevel{types.LocalUnsafe, types.LocalSafe, types.Finalized} {
+		dsl.CheckAll(t,
+			sys.L2CL.ReachedFn(lvl, target, attempts),
+			sys.L2CLB.ReachedFn(lvl, target, attempts),
+		)
+		sys.L2CLB.InSync(sys.L2CL, lvl, attempts)
+		logger.Info("head reached + in sync", "level", lvl, "target", target)
+	}
+
+	// CurrentL1 (from optimism_syncStatus) follows the source.
+	dsl.CheckAll(t, sys.L2CLB.CurrentL1MatchedFn(sys.L2CL, 20))
+}
+
 // TestOpConVerifierRecoversFromL1Reorg is the op-con-node variant of the op-node
 // L1-reorg-recovery test (sync/elsync/reorg TestUnsafeGapFillAfterSafeReorg): an
 // L1 reorg must reset op-con-node's derivation pipeline and re-derive the safe

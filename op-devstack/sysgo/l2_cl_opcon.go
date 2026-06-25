@@ -143,6 +143,7 @@ func startMixedOpConNode(
 	clKey string,
 	elKey string,
 	followSource string,
+	l1FinalizedGuard string,
 	metricsRegistrar L2MetricsRegistrar,
 ) *OpConNode {
 	dir := t.TempDir()
@@ -201,9 +202,15 @@ func startMixedOpConNode(
 	}
 
 	// Devstack L1 finality may not advance; default the derive-side guard to
-	// disabled so startup does not stall waiting for a finalized tag. Override
-	// with DEVSTACK_OPCON_L1_FINALIZED_GUARD=required against a finalizing L1.
-	args = append(args, "--l1-finalized-guard", getEnvVarOrDefault("DEVSTACK_OPCON_L1_FINALIZED_GUARD", "disabled"))
+	// disabled so startup does not stall waiting for a finalized tag. A per-node
+	// override (L2CLConfig.OpConL1FinalizedGuard) wins when set; otherwise fall back
+	// to DEVSTACK_OPCON_L1_FINALIZED_GUARD (itself defaulting to "disabled"). Set
+	// "required" only against a finalizing L1.
+	finalizedGuard := l1FinalizedGuard
+	if finalizedGuard == "" {
+		finalizedGuard = getEnvVarOrDefault("DEVSTACK_OPCON_L1_FINALIZED_GUARD", "disabled")
+	}
+	args = append(args, "--l1-finalized-guard", finalizedGuard)
 
 	// Expected unsafe-block (gossip) signer for admin_verifyUnsafePayload, used by
 	// the op-conp2p P2P sidecar's verdict delegation. When set, op-con-node can

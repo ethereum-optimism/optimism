@@ -38,6 +38,13 @@ type L2CLConfig struct {
 
 	FollowSource string
 
+	// OpConL1FinalizedGuard overrides op-con-node's --l1-finalized-guard
+	// ("required" or "disabled"). Empty falls back to the launcher default
+	// (the DEVSTACK_OPCON_L1_FINALIZED_GUARD env, itself defaulting to "disabled").
+	// Set "required" only against a finalizing L1, so op-con-node tracks L1 finality
+	// and advances its L2 finalized head. Ignored by non-op-con CL kinds.
+	OpConL1FinalizedGuard string
+
 	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
 	OffsetELSafe time.Duration
 
