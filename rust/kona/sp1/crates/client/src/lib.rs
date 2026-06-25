@@ -9,6 +9,8 @@ pub mod precompiles;
 
 pub mod range;
 
+pub mod super_root;
+
 pub mod types;
 
 extern crate alloc;
