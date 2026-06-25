@@ -168,7 +168,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         // Check dispute game deployments
         // Validate permissionedDisputeGame (PDG) address
         GameType permGameType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-            ? GameTypes.SUPER_PERMISSIONED_CANNON
+            ? GameTypes.SUPER_PERMISSIONED
             : GameTypes.PERMISSIONED_CANNON;
         IOPContractsManagerContainer.Implementations memory impls = IOPContractsManagerV2(opcmAddr).implementations();
         address expectedPDGAddress = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
@@ -209,7 +209,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         returns (IPermissionedDisputeGame)
     {
         GameType permGameType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-            ? GameTypes.SUPER_PERMISSIONED_CANNON
+            ? GameTypes.SUPER_PERMISSIONED
             : GameTypes.PERMISSIONED_CANNON;
         return IPermissionedDisputeGame(address(doo.disputeGameFactoryProxy.gameImpls(permGameType)));
     }
@@ -242,7 +242,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
         GameType permType = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-            ? GameTypes.SUPER_PERMISSIONED_CANNON
+            ? GameTypes.SUPER_PERMISSIONED
             : GameTypes.PERMISSIONED_CANNON;
         address expectedPermissioned = address(doo.disputeGameFactoryProxy.gameImpls(permType));
         assertEq(address(doo.permissionedDisputeGame), expectedPermissioned, "PDG impl");
@@ -286,7 +286,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         );
 
         bool isSuperRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        GameType permType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+        GameType permType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         GameType konaType = isSuperRoot ? GameTypes.SUPER_CANNON_KONA : GameTypes.CANNON_KONA;
 
         // The legacy permissioned game keeps the default bond. The super permissioned game

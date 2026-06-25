@@ -24,6 +24,19 @@ pub struct ETHDAWitnessGenerator {
     pub executor: WitnessExecutor,
 }
 
+impl Default for ETHDAWitnessGenerator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ETHDAWitnessGenerator {
+    /// Creates a new [`ETHDAWitnessGenerator`] with the default ETHDA witness executor.
+    pub const fn new() -> Self {
+        Self { executor: ETHDAWitnessExecutor::new() }
+    }
+}
+
 #[async_trait]
 impl WitnessGenerator for ETHDAWitnessGenerator {
     type WitnessData = DefaultWitnessData;

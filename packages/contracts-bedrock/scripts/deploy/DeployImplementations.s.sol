@@ -776,7 +776,7 @@ contract DeployImplementations is Script {
         ChainAssertions.checkDelayedWETHImpl(_output.delayedWETHImpl, _input.withdrawalDelaySeconds);
         GameType permGameType = DevFeatures.isDevFeatureEnabled(
             _input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION
-        ) ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+        ) ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
             _output.disputeGameFactoryImpl, address(0), address(0), false, permGameType
         );

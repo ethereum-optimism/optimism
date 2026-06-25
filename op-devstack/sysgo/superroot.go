@@ -249,7 +249,7 @@ func migrateSuperRootsWithProposal(
 			{
 				Enabled:  true,
 				InitBond: new(big.Int),
-				GameType: superPermissionedCannonGameType,
+				GameType: superPermissionedGameType,
 				GameArgs: superPermissionedGameArgs,
 			},
 			{
@@ -310,8 +310,8 @@ func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
 }
 
 const (
-	superPermissionedCannonGameType = 5
-	superCannonKonaGameType         = 9
+	superPermissionedGameType = 5
+	superCannonKonaGameType   = 9
 )
 
 var (

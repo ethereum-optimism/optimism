@@ -92,10 +92,16 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
                 if !self.skip_backfill {
                     let proof_window = storage.provider_ro()?.get_proof_window()?;
                     let window_blocks = self.proofs_history_window.window;
+                    // Mirror `op-proofs backfill`: compute target from `latest`, not `earliest`.
+                    // On retry after a partial backfill, `earliest` has already advanced backward,
+                    // so anchoring on `latest` keeps `target_earliest_block` stable across runs
+                    // (otherwise each retry would push the target further back by however much
+                    // the prior partial run completed).
                     let target_earliest_block =
-                        proof_window.earliest.number.saturating_sub(window_blocks);
+                        proof_window.latest.number.saturating_sub(window_blocks);
                     info!(
                         target: "reth::cli",
+                        earliest = ?proof_window.earliest,
                         latest = ?proof_window.latest,
                         window_blocks,
                         target_earliest_block,

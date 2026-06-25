@@ -94,14 +94,12 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 }
 
 func (s *SyncDeriver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
-	s.Log.Debug("OnUnsafeL2Payload called", "id", envelope.ExecutionPayload.ID(), "syncMode", s.SyncCfg.SyncMode, "followUnsafeWithRRSync", s.SyncCfg.SyncModeReqResp)
+	s.Log.Debug("OnUnsafeL2Payload called", "id", envelope.ExecutionPayload.ID(), "syncMode", s.SyncCfg.SyncMode)
 
-	if s.SyncCfg.SyncMode == sync.CLSync || (!s.Engine.IsEngineInitialELSyncing() && s.SyncCfg.SyncModeReqResp) {
+	switch s.SyncCfg.SyncMode {
+	case sync.CLSync:
 		s.Engine.AddUnsafePayload(ctx, envelope)
-		return
-	}
-
-	if s.SyncCfg.SyncMode == sync.ELSync {
+	case sync.ELSync:
 		ref, err := derive.PayloadToBlockRef(s.Config, envelope.ExecutionPayload)
 		if err != nil {
 			s.Log.Error("Failed to turn execution payload into a block ref", "id", envelope.ExecutionPayload.ID(), "err", err)
@@ -114,9 +112,7 @@ func (s *SyncDeriver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.Execu
 		if err := s.Engine.InsertUnsafePayload(s.Ctx, envelope, ref); err != nil {
 			s.Log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
 		}
-		return
 	}
-
 }
 
 func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDerivedEvent) {
