@@ -195,6 +195,11 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 		gasLimit = standard.GasLimit
 	}
 
+	proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("failed to resolve dispute params: %w", err)
+	}
+
 	return opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner: placeholderRole,
 		SystemConfigOwner:      placeholderRole,
@@ -210,14 +215,17 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 		SaltMixer:         st.Create2Salt.String(),
 		GasLimit:          gasLimit,
 
-		// Default dispute params
-		DisputeGameType:         standard.DisputeGameType,
-		DisputeAbsolutePrestate: standard.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:     new(big.Int).SetUint64(standard.DisputeMaxGameDepth),
-		DisputeSplitDepth:       new(big.Int).SetUint64(standard.DisputeSplitDepth),
-		DisputeClockExtension:   standard.DisputeClockExtension,
-		DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
+		DisputeGameType:              proofParams.DisputeGameType,
+		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
+		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
+		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
+		DisputeClockExtension:        proofParams.DisputeClockExtension,
+		DisputeMaxClockDuration:      proofParams.DisputeMaxClockDuration,
+		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
 
-		SuperchainConfig: *intent.SuperchainConfigProxy,
+		SuperchainConfig:    *intent.SuperchainConfigProxy,
+		OperatorFeeScalar:   chain.OperatorFeeScalar,
+		OperatorFeeConstant: chain.OperatorFeeConstant,
+		UseCustomGasToken:   chain.IsCustomGasTokenEnabled(),
 	}, nil
 }

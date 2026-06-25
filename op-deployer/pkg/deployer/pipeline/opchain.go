@@ -112,8 +112,10 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	return nil
 }
 
-func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
-	proofParams, err := jsonutil.MergeJSON(
+// ResolveChainProofParams merges the standard dispute-game defaults with the
+// intent's global and per-chain deploy overrides.
+func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (state.ChainProofParams, error) {
+	return jsonutil.MergeJSON(
 		state.ChainProofParams{
 			DisputeGameType:         standard.DisputeGameType,
 			DisputeAbsolutePrestate: standard.DisputeAbsolutePrestate,
@@ -123,8 +125,12 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 			DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
 		},
 		intent.GlobalDeployOverrides,
-		thisIntent.DeployOverrides,
+		chain.DeployOverrides,
 	)
+}
+
+func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
+	proofParams, err := ResolveChainProofParams(intent, thisIntent)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
