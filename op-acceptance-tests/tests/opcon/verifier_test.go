@@ -223,30 +223,29 @@ func TestOpConVerifierFollowMode(gt *testing.T) {
 }
 
 // TestOpConVerifierRecoversFromL1Reorg is the op-con-node variant of the op-node
-// L1-reorg-recovery tests (sync/follow_l2 TestFollowL2_ReorgRecovery /
-// sync/elsync/reorg): an L1 reorg must reset op-con-node's derivation pipeline and
-// re-derive the safe chain on the new canonical L1.
+// L1-reorg-recovery test (sync/elsync/reorg TestUnsafeGapFillAfterSafeReorg): an
+// L1 reorg must reset op-con-node's derivation pipeline and re-derive the safe
+// chain on the new canonical L1.
 //
 // The verifier is bare (no follow/unsafe source) so it derives only the safe
-// chain from L1 — the property under test — without a follow source confounding
-// it. Using the test-sequencer's L1 control: stop auto-advancing L1, drive it
-// until the verifier has derived a safe block whose L1 origin we can reorg,
-// rebuild that L1 block on a different parent (reorg), confirm the L1 reorg took,
-// then assert the verifier re-derives the same canonical block as the sequencer
-// at that height. Exercises op-con-node's canonical-L1-tracker reorg handling.
+// chain from L1 — the property under test. Mirroring the op-node test, the reorg
+// targets the SEQUENCER's safe head: its L1 origin tracks near the L1 head, so the
+// single-block fork (built via the test-sequencer + auto-advance) is shallow
+// enough to win the fork choice. Targeting the verifier's safe origin instead
+// fails — op-con-node's safe head lags L1 during catch-up, so that origin is deep
+// and a short fork there loses to the longer canonical chain. We additionally
+// wait for the (lagging) op-con-node verifier to reach the reorg target so the
+// reorg invalidates a block it actually derived. Exercises op-con-node's
+// canonical-L1-tracker reorg handling + safe re-derivation onto the new L1.
+//
+// This caught a real op-con-node freeze (since fixed): the reorg path wrote its L1
+// horizon row keyed by a fresh PayloadId instead of the reorg's max block number,
+// so that row permanently won the horizon's ARG_MAX and pinned visible L1 at the
+// reorg boundary — every block appended after the reorg stayed invisible to
+// derivation and the safe chain froze. Fixed in op-con-node row_writers.rs
+// (apply_canonical_l1_delta keys the horizon row by max_input_id, matching the
+// append path). See docs/sidecar-p2p-design.md.
 func TestOpConVerifierRecoversFromL1Reorg(gt *testing.T) {
-	// Skipped: a test-harness limitation, NOT an op-con-node bug. Instrumenting
-	// op-con-node's L1 source showed it correctly follows the canonical L1 chain
-	// (contiguous tip advancement, parent always matching tip). The failure is that
-	// the devstack test-sequencer cannot reliably inject a *deep, winning* L1
-	// reorg: ts.Next builds on the canonical head, and the safe block's L1 origin
-	// sits far below the L1 head (the safe head lags L1 by ~the seq window during
-	// catch-up), so a short fork at that deep height loses the fork choice to the
-	// longer canonical chain — op-con-node never sees a lasting reorg. Re-enabling
-	// needs a harness that builds the fork longer than the pre-reorg chain (e.g.
-	// repeated ts.New on the fork tip) so it wins.
-	gt.Skip("devstack test-sequencer cannot inject a deep winning L1 reorg; op-con-node was observed following canonical L1 correctly")
-
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNodeNoFaultProofsBareVerifierWithTestSeqWithoutCheck(t)
 	require := t.Require()
@@ -260,21 +259,25 @@ func TestOpConVerifierRecoversFromL1Reorg(gt *testing.T) {
 	sys.L1CL.Stop()
 	startL1Block := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 
-	// Advance L1 until the verifier's safe head has an L1 origin past the start
-	// block (so it has derived against a block we are about to reorg).
+	// Advance L1 until the SEQUENCER's safe head has an L1 origin past the start
+	// block. The sequencer's safe origin stays near the L1 head (small lag), which
+	// keeps the reorg shallow enough to win.
 	require.Eventually(func() bool {
 		if err := ts.Next(ctx); err != nil {
 			logger.Warn("ts.Next failed, will retry", "err", err)
 			return false
 		}
-		l2Safe := sys.L2ELB.BlockRefByLabel(eth.Safe)
-		logger.Info("driving L1", "l1_head", sys.L1EL.BlockRefByLabel(eth.Unsafe), "l2_safe", l2Safe)
+		l2Safe := sys.L2EL.BlockRefByLabel(eth.Safe)
+		logger.Info("driving L1", "l1_head", sys.L1EL.BlockRefByLabel(eth.Unsafe), "seq_safe", l2Safe)
 		return l2Safe.Number > 0 && l2Safe.L1Origin.Number > startL1Block.Number
 	}, 120*time.Second, 2*time.Second)
 
-	l2BlockBeforeReorg := sys.L2ELB.BlockRefByLabel(eth.Safe)
-	sys.L2ELB.Reached(eth.Safe, l2BlockBeforeReorg.Number, 3)
-	logger.Info("verifier safe head before reorg", "l2", l2BlockBeforeReorg, "l1_origin", l2BlockBeforeReorg.L1Origin)
+	l2BlockBeforeReorg := sys.L2EL.BlockRefByLabel(eth.Safe)
+	logger.Info("target safe block to reorg", "l2", l2BlockBeforeReorg, "l1_origin", l2BlockBeforeReorg.L1Origin)
+
+	// Wait for the (lagging) op-con-node verifier to also derive this safe block,
+	// so the reorg invalidates a block it actually produced.
+	sys.L2ELB.Reached(eth.Safe, l2BlockBeforeReorg.Number, 60)
 
 	// Reorg the L1 block that the safe block's L1 origin points to.
 	l1BlockBeforeReorg := sys.L1EL.BlockRefByNumber(l2BlockBeforeReorg.L1Origin.Number)
@@ -283,35 +286,23 @@ func TestOpConVerifierRecoversFromL1Reorg(gt *testing.T) {
 	require.NoError(ts.Next(ctx))
 	sys.L1CL.Start()
 
-	// Confirm the L1 reorg actually took (the new fork won at that height) before
-	// expecting an L2 reorg.
-	require.Eventually(func() bool {
-		l1After := sys.L1EL.BlockRefByNumber(l1BlockBeforeReorg.Number)
-		logger.Info("waiting for L1 reorg", "before", l1BlockBeforeReorg, "current", l1After)
-		return l1After.Hash != l1BlockBeforeReorg.Hash
-	}, 90*time.Second, 2*time.Second)
-	logger.Info("L1 reorg confirmed")
+	// Confirm the L1 reorg took (the new fork won at that height).
+	sys.L1EL.WaitForBlockNumber(l1BlockBeforeReorg.Number)
+	l1BlockAfterReorg := sys.L1EL.BlockRefByNumber(l1BlockBeforeReorg.Number)
+	require.NotEqual(l1BlockAfterReorg.Hash, l1BlockBeforeReorg.Hash)
+	logger.Info("L1 reorg confirmed", "l1", l1BlockAfterReorg)
 
-	// op-con-node detects the L1 reorg, resets derivation, and re-derives: its
-	// block at the reorged height changes (it reacted, did not wedge).
-	require.Eventually(func() bool {
-		verAfter := sys.L2ELB.BlockRefByNumber(l2BlockBeforeReorg.Number)
-		logger.Info("waiting for op-con-node L2 reorg", "before", l2BlockBeforeReorg, "current", verAfter)
-		return verAfter.Hash != l2BlockBeforeReorg.Hash
-	}, 120*time.Second, 2*time.Second)
-	logger.Info("op-con-node re-derived after L1 reorg")
+	// The sequencer's safe head switches onto the new L1 chain. The reorg drops
+	// several L1 blocks (the safe origin structurally lags the L1 head by the
+	// batcher channel window), so the sequencer's batcher must re-submit a handful
+	// of epochs of batches against the new L1 before its safe head advances —
+	// allow a generous budget. op-con-node stays live throughout (unlike op-node's
+	// reference test, which stops its verifier to free CPU during this window).
+	sys.L2EL.WaitL1OriginHash(eth.Safe, l1BlockAfterReorg.ID(), 90)
 
-	// Let both safe chains advance well past the reorged height so the block there
-	// is deeply safe (immutable), then assert op-con-node derived the same
-	// canonical block as the sequencer — i.e. it re-derived the correct new chain.
-	// (op-node's own reorg test likewise checks eventual convergence rather than
-	// the immediate post-reorg block, which races the live sequencer.)
-	settleTarget := l2BlockBeforeReorg.Number + 5
-	sys.L2CL.Reached(types.LocalSafe, settleTarget, 90)
-	sys.L2CLB.Reached(types.LocalSafe, settleTarget, 90)
-	require.Equal(
-		sys.L2EL.BlockRefByNumber(l2BlockBeforeReorg.Number).Hash,
-		sys.L2ELB.BlockRefByNumber(l2BlockBeforeReorg.Number).Hash,
-		"op-con-node and sequencer must agree on the post-reorg canonical block",
-	)
+	// op-con-node detects the L1 reorg, resets derivation, and re-derives the new
+	// safe chain: its block at the reorged height is replaced, and its safe head
+	// converges with the sequencer's.
+	sys.L2ELB.ReorgTriggered(l2BlockBeforeReorg, 90)
+	sys.L2ELB.InSync(sys.L2EL, eth.Safe, 90)
 }
