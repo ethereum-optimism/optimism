@@ -124,7 +124,11 @@ fn evm_env_for_op(
     chain_id: ChainId,
 ) -> EvmEnv<OpSpecId> {
     let spec = spec_by_timestamp_after_bedrock(&chain_spec, input.timestamp);
-    let cfg_env = CfgEnv::new().with_chain_id(chain_id).with_spec_and_mainnet_gas_params(spec);
+    let mut cfg_env = CfgEnv::new().with_chain_id(chain_id).with_spec_and_mainnet_gas_params(spec);
+
+    if spec.into_eth_spec().is_enabled_in(SpecId::OSAKA) {
+        cfg_env.tx_gas_limit_cap = Some(revm::primitives::eip7825::TX_GAS_LIMIT_CAP);
+    }
 
     let blob_excess_gas_and_price = spec
         .into_eth_spec()
@@ -365,5 +369,24 @@ mod tests {
         assert_eq!(OpSpecId::KARST.into_eth_spec(), SpecId::OSAKA);
         assert_eq!(OpSpecId::INTEROP.into_eth_spec(), SpecId::OSAKA);
         assert!(OpSpecId::INTEROP.into_eth_spec() >= OpSpecId::KARST.into_eth_spec());
+    }
+
+    #[test]
+    fn osaka_forks_set_tx_gas_limit_cap() {
+        for (idx, (fork, op_spec)) in FORK_CHRONOLOGY.iter().enumerate() {
+            let chain = cumulative_hardforks(idx);
+            let header = Header { timestamp: 1, gas_limit: 60_000_000, ..Default::default() };
+            let env = evm_env_for_op_block(&header, &chain, 10);
+
+            let expected = if op_spec.into_eth_spec().is_enabled_in(SpecId::OSAKA) {
+                Some(revm::primitives::eip7825::TX_GAS_LIMIT_CAP)
+            } else {
+                None
+            };
+            assert_eq!(
+                env.cfg_env.tx_gas_limit_cap, expected,
+                "with forks active up to {fork:?} ({op_spec:?}), tx_gas_limit_cap mismatch",
+            );
+        }
     }
 }
