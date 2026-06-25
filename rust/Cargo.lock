@@ -7224,6 +7224,7 @@ dependencies = [
  "kona-providers-alloy",
  "kona-registry",
  "kona-std-fpvm",
+ "op-alloy-consensus",
  "op-alloy-network",
  "op-alloy-rpc-types-engine",
  "op-revm",

@@ -22,31 +22,11 @@ pub trait TrieProvider {
     fn trie_node_by_hash(&self, key: B256) -> Result<TrieNode, Self::Error>;
 }
 
-/// The [`TrieHinter`] trait defines the synchronous interface for hinting the host to fetch trie
-/// node preimages.
+/// The [`TrieHinter`] trait defines the synchronous interface for hinting the host to fetch
+/// execution-related trie preimages.
 pub trait TrieHinter {
     /// The error type for hinting trie node preimages.
     type Error: Display;
-
-    /// Hints the host to fetch the trie node preimage by hash.
-    ///
-    /// ## Takes
-    /// - `hash`: The hash of the trie node to hint.
-    ///
-    /// ## Returns
-    /// - Ok(()): If the hint was successful.
-    fn hint_trie_node(&self, hash: B256) -> Result<(), Self::Error>;
-
-    /// Hints the host to fetch the trie node preimages on the path to the given address.
-    ///
-    /// ## Takes
-    /// - `address` - The address of the contract whose trie node preimages are to be fetched.
-    /// - `block_hash` - The block hash at which the trie node preimages are to be fetched.
-    ///
-    /// ## Returns
-    /// - Ok(()): If the hint was successful.
-    /// - `Err(Self::Error)`: If the hint was unsuccessful.
-    fn hint_account_proof(&self, address: Address, block_hash: B256) -> Result<(), Self::Error>;
 
     /// Hints the host to fetch the trie node preimages on the path to the storage slot within the
     /// given account's storage trie.

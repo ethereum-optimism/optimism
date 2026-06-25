@@ -176,11 +176,6 @@ where
     /// - `Ok(None)`: If the account does not exist in the trie.
     /// - `Err(_)`: If the account could not be fetched.
     pub fn get_trie_account(&mut self, address: &Address) -> TrieDBResult<Option<TrieAccount>> {
-        // Send a hint to the host to fetch the account proof.
-        self.hinter
-            .hint_account_proof(*address, self.parent_block_header.hash())
-            .map_err(|e| TrieDBError::Provider(e.to_string()))?;
-
         // Fetch the account from the trie.
         let hashed_address_nibbles = Nibbles::unpack(keccak256(address.as_slice()));
         let Some(trie_account_rlp) = self.root_node.open(&hashed_address_nibbles, &self.fetcher)?
@@ -359,11 +354,6 @@ where
     }
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        // Send a hint to the host to fetch the storage proof.
-        self.hinter
-            .hint_storage_proof(address, index, self.parent_block_header.hash())
-            .map_err(|e| TrieDBError::Provider(e.to_string()))?;
-
         // Fetch the account's storage root from the cache. If storage is being accessed, the
         // account should have been loaded into the cache by the `basic` method. If the account was
         // non-existing, the storage root will not be present.

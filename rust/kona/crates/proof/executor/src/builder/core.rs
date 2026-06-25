@@ -271,10 +271,8 @@ where
             attrs.payload_attributes.timestamp,
         );
 
-        // Attempt to send a payload witness hint to the host. This hint instructs the host to
-        // populate its preimage store with the preimages required to statelessly execute
-        // this payload. This feature is experimental, so if the hint fails, we continue
-        // without it and fall back on on-demand preimage fetching for execution.
+        // Send a payload witness hint to the host. This hint instructs the host to populate its
+        // preimage store with the preimages required to statelessly execute this payload.
         self.trie_db
             .hinter
             .hint_execution_witness(parent_hash, &attrs)

@@ -4,7 +4,7 @@ use crate::{HintType, eip2935::eip_2935_history_lookup, errors::OracleProviderEr
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use alloy_consensus::{BlockBody, Header};
 use alloy_eips::eip2718::Decodable2718;
-use alloy_primitives::{Address, B256, Bytes};
+use alloy_primitives::{B256, Bytes};
 use alloy_rlp::Decodable;
 use async_trait::async_trait;
 use kona_derive::L2ChainProvider;
@@ -197,11 +197,6 @@ impl<T: CommsClient> TrieDBProvider for OracleL2ChainProvider<T> {
     fn bytecode_by_hash(&self, hash: B256) -> Result<Bytes, OracleProviderError> {
         // Fetch the bytecode preimage from the caching oracle.
         crate::block_on(async move {
-            HintType::L2Code
-                .with_data(&[hash.as_slice()])
-                .with_data(self.chain_id.map_or_else(Vec::new, |id| id.to_be_bytes().to_vec()))
-                .send(self.oracle.as_ref())
-                .await?;
             self.oracle
                 .get(PreimageKey::new_keccak256(*hash))
                 .await
@@ -227,26 +222,6 @@ impl<T: CommsClient> TrieDBProvider for OracleL2ChainProvider<T> {
 
 impl<T: CommsClient> TrieHinter for OracleL2ChainProvider<T> {
     type Error = OracleProviderError;
-
-    fn hint_trie_node(&self, hash: B256) -> Result<(), Self::Error> {
-        crate::block_on(async move {
-            HintType::L2StateNode
-                .with_data(&[hash.as_slice()])
-                .with_data(self.chain_id.map_or_else(Vec::new, |id| id.to_be_bytes().to_vec()))
-                .send(self.oracle.as_ref())
-                .await
-        })
-    }
-
-    fn hint_account_proof(&self, address: Address, block_hash: B256) -> Result<(), Self::Error> {
-        crate::block_on(async move {
-            HintType::L2AccountProof
-                .with_data(&[block_hash.as_slice(), address.as_slice()])
-                .with_data(self.chain_id.map_or_else(Vec::new, |id| id.to_be_bytes().to_vec()))
-                .send(self.oracle.as_ref())
-                .await
-        })
-    }
 
     fn hint_storage_proof(
         &self,

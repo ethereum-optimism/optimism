@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
@@ -37,6 +38,8 @@ func (suite *TestMatrix[cfg]) Run(t *testing.T) {
 	for _, tc := range suite.TestCases {
 		for _, fork := range tc.ForkMatrix {
 			t.Run(fmt.Sprintf("%s-%s", tc.Name, fork.Name), func(t *testing.T) {
+				SkipKonaProofActionTest(t)
+
 				testCfg := &TestCfg[cfg]{
 					Hardfork:    fork,
 					CheckResult: tc.CheckResult,
@@ -46,6 +49,18 @@ func (suite *TestMatrix[cfg]) Run(t *testing.T) {
 				tc.RunTest(t, testCfg)
 			})
 		}
+	}
+}
+
+const konaProofActionTestSkipMessage = "TODO: port these op-geth action tests to op-acceptance-tests/op-reth; kona proof hosts no longer support legacy op-geth witness RPC assumptions"
+
+// SkipKonaProofActionTest skips kona proof action tests before they build an op-geth action-test
+// chain that no longer matches the witness RPCs required by the kona proof hosts.
+func SkipKonaProofActionTest(t *testing.T) {
+	t.Helper()
+
+	if os.Getenv("KONA_HOST_PATH") != "" || os.Getenv("KONA_SP1_RANGE_EXECUTOR_PATH") != "" {
+		t.Skip(konaProofActionTestSkipMessage)
 	}
 }
 

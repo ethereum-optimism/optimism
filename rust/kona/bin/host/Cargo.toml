@@ -47,6 +47,7 @@ alloy-primitives = { workspace = true, features = ["serde"] }
 alloy-rpc-types-beacon.workspace = true
 
 # Op Alloy
+op-alloy-consensus.workspace = true
 op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
 op-alloy-network.workspace = true
 alloy-op-evm = { workspace = true, features = ["std"] }

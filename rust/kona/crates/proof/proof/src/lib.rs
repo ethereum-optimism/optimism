@@ -25,6 +25,9 @@ pub mod executor;
 mod hint;
 pub use hint::{Hint, HintType};
 
+mod payload;
+pub use payload::{PayloadAttributesError, payload_attributes_from_block_header};
+
 pub mod boot;
 pub use boot::BootInfo;
 

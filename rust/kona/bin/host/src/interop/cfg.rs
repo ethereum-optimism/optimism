@@ -209,9 +209,7 @@ impl InteropHost {
                 kv_store.clone(),
                 providers,
                 InteropHintHandler,
-            )
-            .with_high_level_hint(HintType::L2BlockData)
-            .with_high_level_hint(HintType::L2PayloadWitness);
+            );
 
             task::spawn(async {
                 PreimageServer::new(

@@ -430,14 +430,7 @@ impl TrieNode {
                                 node: Box::new(non_empty_node.clone()),
                             };
                         }
-                        Self::Blinded { commitment } => {
-                            // In this special case, we need to send a hint to fetch the preimage of
-                            // the blinded node, since it is outside of the paths that have been
-                            // traversed so far.
-                            hinter
-                                .hint_trie_node(*commitment)
-                                .map_err(|e| TrieNodeError::Provider(e.to_string()))?;
-
+                        Self::Blinded { .. } => {
                             non_empty_node.unblind(fetcher)?;
                             self.collapse_if_possible(fetcher, hinter)?;
                         }

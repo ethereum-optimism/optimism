@@ -1,6 +1,7 @@
 //! Contains the [`OnlineHostBackend`] definition.
 
 use crate::SharedKeyValueStore;
+use alloy_primitives::hex;
 use anyhow::Result;
 use async_trait::async_trait;
 use kona_preimage::{
@@ -8,15 +9,15 @@ use kona_preimage::{
     errors::{PreimageOracleError, PreimageOracleResult},
 };
 use kona_proof::{Hint, errors::HintParsingError};
-use std::{collections::HashSet, hash::Hash, str::FromStr, sync::Arc};
+use std::{fmt::Debug, str::FromStr, sync::Arc};
 use tokio::sync::RwLock;
-use tracing::{debug, error, trace};
+use tracing::trace;
 
 /// The [`OnlineHostBackendCfg`] trait is used to define the type configuration for the
 /// [`OnlineHostBackend`].
 pub trait OnlineHostBackendCfg {
     /// The hint type describing the range of hints that can be received.
-    type HintType: FromStr<Err = HintParsingError> + Hash + Eq + PartialEq + Clone + Send + Sync;
+    type HintType: FromStr<Err = HintParsingError> + Clone + Debug + Send + Sync;
 
     /// The providers that are used to fetch data in response to hints.
     type Providers: Send + Sync;
@@ -28,6 +29,18 @@ pub trait OnlineHostBackendCfg {
 pub trait HintHandler {
     /// The type configuration for the [`HintHandler`].
     type Cfg: OnlineHostBackendCfg;
+
+    /// Optionally fetches data immediately when a hint is routed.
+    ///
+    /// Returns `true` if the hint was handled eagerly and should not replace the latest lazy hint.
+    async fn fetch_hint_eager(
+        _hint: &Hint<<Self::Cfg as OnlineHostBackendCfg>::HintType>,
+        _cfg: &Self::Cfg,
+        _providers: &<Self::Cfg as OnlineHostBackendCfg>::Providers,
+        _kv: SharedKeyValueStore,
+    ) -> Result<bool> {
+        Ok(false)
+    }
 
     /// Fetches data in response to a hint.
     async fn fetch_hint(
@@ -54,15 +67,9 @@ where
     kv: SharedKeyValueStore,
     /// The providers that are used to fetch data in response to hints.
     providers: C::Providers,
-    /// Hint types treated as "high-level" (see [`Self::last_high_level_hint`]).
-    high_level_hint_types: HashSet<C::HintType>,
-    /// The latest high-level hint. High-level hints bulk-populate the key-value store, so rather
-    /// than being fetched once on receipt the latest is retained and tried before
-    /// [`Self::last_hint`] on every [`Self::get_preimage`] attempt: cleared once it succeeds (its
-    /// response is deterministic) and kept while it fails, so a transient error is retried
-    /// indefinitely instead of falling back to an unavailable `debug_dbGet`.
-    last_high_level_hint: Arc<RwLock<Option<Hint<C::HintType>>>>,
-    /// The latest fine-grained hint.
+    /// The latest hint received from the client, used for diagnostics even when fetched eagerly.
+    last_routed_hint: Arc<RwLock<Option<Hint<C::HintType>>>>,
+    /// The latest hint received from the client.
     last_hint: Arc<RwLock<Option<Hint<C::HintType>>>>,
     /// Phantom marker for the [`HintHandler`].
     _hint_handler: std::marker::PhantomData<H>,
@@ -80,18 +87,10 @@ where
             cfg,
             kv,
             providers,
-            high_level_hint_types: HashSet::default(),
-            last_high_level_hint: Arc::new(RwLock::new(None)),
+            last_routed_hint: Arc::new(RwLock::new(None)),
             last_hint: Arc::new(RwLock::new(None)),
             _hint_handler: std::marker::PhantomData,
         }
-    }
-
-    /// Registers a hint type as "high-level": rather than being fetched once and discarded, the
-    /// latest hint of this type is retained and tried first by the `get_preimage` retry loop.
-    pub fn with_high_level_hint(mut self, hint_type: C::HintType) -> Self {
-        self.high_level_hint_types.insert(hint_type);
-        self
     }
 }
 
@@ -108,10 +107,15 @@ where
         let parsed_hint = hint
             .parse::<Hint<C::HintType>>()
             .map_err(|e| PreimageOracleError::HintParseFailed(e.to_string()))?;
-        if self.high_level_hint_types.contains(&parsed_hint.ty) {
-            debug!(target: "host_backend", "High-level hint received; retaining {hint}");
-            self.last_high_level_hint.write().await.replace(parsed_hint);
-        } else {
+        self.last_routed_hint.write().await.replace(parsed_hint.clone());
+        let fetched_eagerly =
+            H::fetch_hint_eager(&parsed_hint, &self.cfg, &self.providers, self.kv.clone())
+                .await
+                .map_err(|e| {
+                    PreimageOracleError::Other(format!("failed to eagerly fetch hint: {e}"))
+                })?;
+
+        if !fetched_eagerly {
             self.last_hint.write().await.replace(parsed_hint);
         }
 
@@ -129,49 +133,35 @@ where
     async fn get_preimage(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
         trace!(target: "host_backend", "Pre-image requested. Key: {key}");
 
-        // Acquire a read lock on the key-value store.
-        let kv_lock = self.kv.read().await;
-        let mut preimage = kv_lock.get(key.into());
-
-        // Drop the read lock before beginning the retry loop.
-        drop(kv_lock);
-
-        // Use a loop to keep retrying the prefetch as long as the key is not found
-        while preimage.is_none() {
-            // Try the retained high-level hint first (see `last_high_level_hint`).
-            let high_level_hint = self.last_high_level_hint.read().await.clone();
-            if let Some(hint) = high_level_hint {
-                match H::fetch_hint(hint, &self.cfg, &self.providers, self.kv.clone()).await {
-                    Ok(()) => {
-                        // Clearing unconditionally is safe: the client blocks on this request and
-                        // issues hints and preimage requests sequentially, so no newer high-level
-                        // hint can arrive mid-fetch.
-                        self.last_high_level_hint.write().await.take();
-                        preimage = self.kv.read().await.get(key.into());
-                        if preimage.is_some() {
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        error!(target: "host_backend", "Failed to prefetch high-level hint: {e}");
-                    }
-                }
-            }
-
-            // Fall back to the fine-grained hint.
-            if let Some(hint) = self.last_hint.read().await.clone() {
-                if let Err(e) =
-                    H::fetch_hint(hint, &self.cfg, &self.providers, self.kv.clone()).await
-                {
-                    error!(target: "host_backend", "Failed to prefetch hint: {e}");
-                    continue;
-                }
-
-                preimage = self.kv.read().await.get(key.into());
-            }
+        if let Some(preimage) = self.kv.read().await.get(key.into()) {
+            return Ok(preimage);
         }
 
-        preimage.ok_or(PreimageOracleError::KeyNotFound)
+        let Some(hint) = self.last_hint.read().await.clone() else {
+            if let Some(last_routed) = self.last_routed_hint.read().await.clone() {
+                let hint_type = format!("{:?}", last_routed.ty);
+                let hint_data_len = last_routed.data.len();
+                let hint_data_prefix = hex::encode(&last_routed.data[..hint_data_len.min(32)]);
+                return Err(PreimageOracleError::Other(format!(
+                    "no lazy hint available for requested preimage key {key}; last routed hint was {hint_type} ({hint_data_len} bytes, prefix 0x{hint_data_prefix})"
+                )));
+            }
+            return Err(PreimageOracleError::KeyNotFound);
+        };
+
+        let hint_type = format!("{:?}", hint.ty);
+        let hint_data_len = hint.data.len();
+        let hint_data_prefix = hex::encode(&hint.data[..hint_data_len.min(32)]);
+
+        H::fetch_hint(hint, &self.cfg, &self.providers, self.kv.clone()).await.map_err(|e| {
+            PreimageOracleError::Other(format!("failed to fetch latest hint for key {key}: {e}"))
+        })?;
+
+        self.kv.read().await.get(key.into()).ok_or_else(|| {
+            PreimageOracleError::Other(format!(
+                "latest hint {hint_type} ({hint_data_len} bytes, prefix 0x{hint_data_prefix}) did not populate requested preimage key {key}"
+            ))
+        })
     }
 }
 
@@ -183,10 +173,11 @@ mod tests {
     use kona_preimage::PreimageKey;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+    #[derive(Clone, Debug)]
     enum TestHint {
-        HighLevel,
-        LowLevel,
+        Fill,
+        Other,
+        EagerFill,
     }
 
     impl FromStr for TestHint {
@@ -194,8 +185,9 @@ mod tests {
 
         fn from_str(s: &str) -> Result<Self, Self::Err> {
             match s {
-                "high" => Ok(Self::HighLevel),
-                "low" => Ok(Self::LowLevel),
+                "fill" => Ok(Self::Fill),
+                "other" => Ok(Self::Other),
+                "eager-fill" => Ok(Self::EagerFill),
                 other => Err(HintParsingError(format!("unknown test hint: {other}"))),
             }
         }
@@ -216,15 +208,12 @@ mod tests {
         target: B256,
         /// The value stored under `target`.
         value: Vec<u8>,
-        /// Number of times the high-level fetch fails before it succeeds.
-        high_level_fail_until: usize,
-        /// Whether the high-level fetch stores `target` once it succeeds (false models a
-        /// method-not-found, where the witness call returns `Ok` without populating anything).
-        high_level_stores_target: bool,
-        high_level_attempts: Arc<AtomicUsize>,
-        /// Whether the fine-grained fetch stores `target`.
-        low_level_stores_target: bool,
-        low_level_attempts: Arc<AtomicUsize>,
+        /// Whether fetching the fill hint fails.
+        fill_fails: bool,
+        /// Whether the fill hint stores `target` once it succeeds.
+        fill_stores_target: bool,
+        fill_attempts: Arc<AtomicUsize>,
+        other_attempts: Arc<AtomicUsize>,
     }
 
     struct TestHintHandler;
@@ -233,6 +222,19 @@ mod tests {
     impl HintHandler for TestHintHandler {
         type Cfg = TestCfg;
 
+        async fn fetch_hint_eager(
+            hint: &Hint<TestHint>,
+            cfg: &TestCfg,
+            providers: &TestProviders,
+            kv: SharedKeyValueStore,
+        ) -> Result<bool> {
+            if matches!(hint.ty, TestHint::EagerFill) {
+                Self::fetch_hint(hint.clone(), cfg, providers, kv).await?;
+                return Ok(true);
+            }
+            Ok(false)
+        }
+
         async fn fetch_hint(
             hint: Hint<TestHint>,
             _cfg: &TestCfg,
@@ -240,21 +242,18 @@ mod tests {
             kv: SharedKeyValueStore,
         ) -> Result<()> {
             match hint.ty {
-                TestHint::HighLevel => {
-                    let attempt = providers.high_level_attempts.fetch_add(1, Ordering::SeqCst);
-                    if attempt < providers.high_level_fail_until {
-                        anyhow::bail!("transient high-level failure");
+                TestHint::Fill | TestHint::EagerFill => {
+                    providers.fill_attempts.fetch_add(1, Ordering::SeqCst);
+                    if providers.fill_fails {
+                        anyhow::bail!("fill hint failed");
                     }
-                    if providers.high_level_stores_target {
+                    if providers.fill_stores_target {
                         kv.write().await.set(providers.target, providers.value.clone())?;
                     }
                     Ok(())
                 }
-                TestHint::LowLevel => {
-                    providers.low_level_attempts.fetch_add(1, Ordering::SeqCst);
-                    if providers.low_level_stores_target {
-                        kv.write().await.set(providers.target, providers.value.clone())?;
-                    }
+                TestHint::Other => {
+                    providers.other_attempts.fetch_add(1, Ordering::SeqCst);
                     Ok(())
                 }
             }
@@ -270,157 +269,147 @@ mod tests {
     fn new_backend(providers: TestProviders) -> OnlineHostBackend<TestCfg, TestHintHandler> {
         let kv: SharedKeyValueStore = Arc::new(RwLock::new(MemoryKeyValueStore::new()));
         OnlineHostBackend::new(TestCfg, kv, providers, TestHintHandler)
-            .with_high_level_hint(TestHint::HighLevel)
     }
 
-    /// The core regression: a transient high-level (witness) fetch failure is retried by the
-    /// `get_preimage` loop until it succeeds, rather than being surfaced as a permanent error that
-    /// forces a fall-through to the unsupported `debug_dbGet`.
     #[tokio::test]
-    async fn high_level_hint_retried_until_success_then_cleared() {
+    async fn latest_hint_populates_missing_preimage() {
         let (key, target) = target_key();
-        let high_level_attempts = Arc::new(AtomicUsize::new(0));
+        let fill_attempts = Arc::new(AtomicUsize::new(0));
         let backend = new_backend(TestProviders {
             target,
             value: b"witness".to_vec(),
-            high_level_fail_until: 2,
-            high_level_stores_target: true,
-            high_level_attempts: high_level_attempts.clone(),
-            low_level_stores_target: false,
-            low_level_attempts: Arc::new(AtomicUsize::new(0)),
+            fill_fails: false,
+            fill_stores_target: true,
+            fill_attempts: fill_attempts.clone(),
+            other_attempts: Arc::new(AtomicUsize::new(0)),
         });
-        backend.route_hint("high 00".to_string()).await.unwrap();
+        backend.route_hint("fill 00".to_string()).await.unwrap();
 
         let preimage = backend.get_preimage(key).await.unwrap();
 
         assert_eq!(preimage, b"witness".to_vec());
-        assert_eq!(
-            high_level_attempts.load(Ordering::SeqCst),
-            3,
-            "should fail twice then succeed on the third attempt"
-        );
-        assert!(
-            backend.last_high_level_hint.read().await.is_none(),
-            "high-level hint should be cleared once it succeeds"
-        );
+        assert_eq!(fill_attempts.load(Ordering::SeqCst), 1);
     }
 
-    /// The high-level hint is tried before the fine-grained hint, so when it satisfies the key the
-    /// fine-grained hint is never fetched.
     #[tokio::test]
-    async fn high_level_hint_tried_before_fine_grained() {
+    async fn latest_hint_replaces_previous_hint() {
         let (key, target) = target_key();
-        let high_level_attempts = Arc::new(AtomicUsize::new(0));
-        let low_level_attempts = Arc::new(AtomicUsize::new(0));
+        let fill_attempts = Arc::new(AtomicUsize::new(0));
+        let other_attempts = Arc::new(AtomicUsize::new(0));
         let backend = new_backend(TestProviders {
             target,
             value: b"witness".to_vec(),
-            high_level_fail_until: 0,
-            high_level_stores_target: true,
-            high_level_attempts: high_level_attempts.clone(),
-            low_level_stores_target: true,
-            low_level_attempts: low_level_attempts.clone(),
+            fill_fails: false,
+            fill_stores_target: true,
+            fill_attempts: fill_attempts.clone(),
+            other_attempts: other_attempts.clone(),
         });
-        backend.route_hint("high 00".to_string()).await.unwrap();
-        backend.route_hint("low 00".to_string()).await.unwrap();
+        backend.route_hint("fill 00".to_string()).await.unwrap();
+        backend.route_hint("other 00".to_string()).await.unwrap();
+
+        let err = backend.get_preimage(key).await.unwrap_err();
+
+        assert!(matches!(err, PreimageOracleError::Other(_)));
+        assert_eq!(fill_attempts.load(Ordering::SeqCst), 0);
+        assert_eq!(other_attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn eager_hint_populates_before_latest_hint_is_replaced() {
+        let (key, target) = target_key();
+        let fill_attempts = Arc::new(AtomicUsize::new(0));
+        let other_attempts = Arc::new(AtomicUsize::new(0));
+        let backend = new_backend(TestProviders {
+            target,
+            value: b"witness".to_vec(),
+            fill_fails: false,
+            fill_stores_target: true,
+            fill_attempts: fill_attempts.clone(),
+            other_attempts: other_attempts.clone(),
+        });
+        backend.route_hint("eager-fill 00".to_string()).await.unwrap();
+        backend.route_hint("other 00".to_string()).await.unwrap();
 
         let preimage = backend.get_preimage(key).await.unwrap();
 
         assert_eq!(preimage, b"witness".to_vec());
-        assert_eq!(high_level_attempts.load(Ordering::SeqCst), 1);
-        assert_eq!(
-            low_level_attempts.load(Ordering::SeqCst),
-            0,
-            "fine-grained hint should not run once the high-level hint satisfies the key"
-        );
+        assert_eq!(fill_attempts.load(Ordering::SeqCst), 1);
+        assert_eq!(other_attempts.load(Ordering::SeqCst), 0);
     }
 
-    /// When the high-level hint succeeds but doesn't populate this key (a node outside the
-    /// witness), it is cleared and the loop falls through to the fine-grained `debug_dbGet` hint.
     #[tokio::test]
-    async fn falls_back_to_fine_grained_when_high_level_does_not_populate() {
-        let (key, target) = target_key();
-        let high_level_attempts = Arc::new(AtomicUsize::new(0));
-        let low_level_attempts = Arc::new(AtomicUsize::new(0));
+    async fn eager_hint_failure_is_returned_on_route() {
+        let (_, target) = target_key();
+        let fill_attempts = Arc::new(AtomicUsize::new(0));
         let backend = new_backend(TestProviders {
             target,
-            value: b"node".to_vec(),
-            high_level_fail_until: 0,
-            high_level_stores_target: false,
-            high_level_attempts: high_level_attempts.clone(),
-            low_level_stores_target: true,
-            low_level_attempts: low_level_attempts.clone(),
+            value: Vec::new(),
+            fill_fails: true,
+            fill_stores_target: false,
+            fill_attempts: fill_attempts.clone(),
+            other_attempts: Arc::new(AtomicUsize::new(0)),
         });
-        backend.route_hint("high 00".to_string()).await.unwrap();
-        backend.route_hint("low 00".to_string()).await.unwrap();
 
-        let preimage = backend.get_preimage(key).await.unwrap();
+        let err = backend.route_hint("eager-fill 00".to_string()).await.unwrap_err();
 
-        assert_eq!(preimage, b"node".to_vec());
-        assert_eq!(
-            high_level_attempts.load(Ordering::SeqCst),
-            1,
-            "high-level hint should be cleared after one non-populating success"
-        );
-        assert!(low_level_attempts.load(Ordering::SeqCst) >= 1);
-        assert!(backend.last_high_level_hint.read().await.is_none());
+        assert!(matches!(err, PreimageOracleError::Other(_)));
+        assert_eq!(fill_attempts.load(Ordering::SeqCst), 1);
     }
 
-    /// A high-level hint that keeps failing (e.g. an unimplemented `debug_executePayload`) is
-    /// retried and kept, but never blocks the fine-grained fallback that still serves the key.
     #[tokio::test]
-    async fn fine_grained_fallback_survives_failing_high_level_hint() {
+    async fn latest_hint_failure_is_returned() {
         let (key, target) = target_key();
-        let high_level_attempts = Arc::new(AtomicUsize::new(0));
-        let low_level_attempts = Arc::new(AtomicUsize::new(0));
+        let fill_attempts = Arc::new(AtomicUsize::new(0));
         let backend = new_backend(TestProviders {
             target,
-            value: b"node".to_vec(),
-            high_level_fail_until: usize::MAX,
-            high_level_stores_target: false,
-            high_level_attempts: high_level_attempts.clone(),
-            low_level_stores_target: true,
-            low_level_attempts: low_level_attempts.clone(),
+            value: Vec::new(),
+            fill_fails: true,
+            fill_stores_target: false,
+            fill_attempts: fill_attempts.clone(),
+            other_attempts: Arc::new(AtomicUsize::new(0)),
         });
-        backend.route_hint("high 00".to_string()).await.unwrap();
-        backend.route_hint("low 00".to_string()).await.unwrap();
+        backend.route_hint("fill 00".to_string()).await.unwrap();
 
-        let preimage = backend.get_preimage(key).await.unwrap();
+        let err = backend.get_preimage(key).await.unwrap_err();
 
-        assert_eq!(preimage, b"node".to_vec());
-        assert!(high_level_attempts.load(Ordering::SeqCst) >= 1);
-        assert!(low_level_attempts.load(Ordering::SeqCst) >= 1);
-        assert!(
-            backend.last_high_level_hint.read().await.is_some(),
-            "a failing high-level hint is kept for retry, not cleared"
-        );
+        assert!(matches!(err, PreimageOracleError::Other(_)));
+        assert_eq!(fill_attempts.load(Ordering::SeqCst), 1);
     }
 
-    /// `route_hint` routes a registered high-level type to its retained slot and everything else to
-    /// the fine-grained slot.
     #[tokio::test]
-    async fn route_hint_separates_high_level_from_fine_grained() {
+    async fn successful_hint_that_does_not_populate_key_errors() {
+        let (key, target) = target_key();
+        let fill_attempts = Arc::new(AtomicUsize::new(0));
+        let backend = new_backend(TestProviders {
+            target,
+            value: Vec::new(),
+            fill_fails: false,
+            fill_stores_target: false,
+            fill_attempts: fill_attempts.clone(),
+            other_attempts: Arc::new(AtomicUsize::new(0)),
+        });
+        backend.route_hint("fill 00".to_string()).await.unwrap();
+
+        let err = backend.get_preimage(key).await.unwrap_err();
+
+        assert!(matches!(err, PreimageOracleError::Other(_)));
+        assert_eq!(fill_attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn missing_key_without_hint_returns_key_not_found() {
         let (_key, target) = target_key();
         let backend = new_backend(TestProviders {
             target,
             value: Vec::new(),
-            high_level_fail_until: 0,
-            high_level_stores_target: false,
-            high_level_attempts: Arc::new(AtomicUsize::new(0)),
-            low_level_stores_target: false,
-            low_level_attempts: Arc::new(AtomicUsize::new(0)),
+            fill_fails: false,
+            fill_stores_target: false,
+            fill_attempts: Arc::new(AtomicUsize::new(0)),
+            other_attempts: Arc::new(AtomicUsize::new(0)),
         });
 
-        backend.route_hint("high 00".to_string()).await.unwrap();
-        backend.route_hint("low 00".to_string()).await.unwrap();
+        let err = backend.get_preimage(PreimageKey::new_keccak256(*target)).await.unwrap_err();
 
-        assert_eq!(
-            backend.last_high_level_hint.read().await.as_ref().map(|h| h.ty.clone()),
-            Some(TestHint::HighLevel)
-        );
-        assert_eq!(
-            backend.last_hint.read().await.as_ref().map(|h| h.ty.clone()),
-            Some(TestHint::LowLevel)
-        );
+        assert!(matches!(err, PreimageOracleError::KeyNotFound));
     }
 }

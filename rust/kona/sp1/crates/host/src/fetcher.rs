@@ -11,7 +11,7 @@ use std::{
 
 use alloy_consensus::{BlockHeader, Header};
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_primitives::{Address, B256, Bytes, U64, U256, address, keccak256};
+use alloy_primitives::{B256, Bytes, U64, U256, keccak256};
 use alloy_provider::{Provider, ProviderBuilder, RootProvider};
 use alloy_rlp::Decodable;
 use alloy_sol_types::SolValue;
@@ -31,36 +31,57 @@ use serde_json::{Value, json};
 
 use crate::L2Output;
 
-/// `L2ToL1MessagePasser` predeploy address.
-const L2_TO_L1_MESSAGE_PASSER: Address = address!("0x4200000000000000000000000000000000000016");
-
 /// JSON-RPC "method not found" error code defined by the JSON-RPC 2.0 spec.
 const JSON_RPC_METHOD_NOT_FOUND: i64 = -32601;
 
 /// Resolve the `L2ToL1MessagePasser` storage root from a block.
 ///
-/// Post-Isthmus, the header's `withdrawals_root` field carries this value directly. Pre-Isthmus,
-/// it is `EMPTY_ROOT_HASH`, so callers must fall back to `eth_getProof`.
-async fn l2_to_l1_message_passer_storage_root(
-    provider: &RootProvider<Optimism>,
-    header: &Header,
-    block_number: u64,
-) -> Result<B256> {
-    match header.withdrawals_root {
-        Some(root) if root != alloy_trie::EMPTY_ROOT_HASH => Ok(root),
-        _ => Ok(provider
-            .get_proof(L2_TO_L1_MESSAGE_PASSER, Vec::new())
-            .block_id(block_number.into())
-            .await?
-            .storage_hash),
-    }
+/// The SP1 host only supports post-Isthmus chains, where the header's `withdrawals_root` field
+/// carries this value directly.
+fn l2_to_l1_message_passer_storage_root(header: &Header, block_number: u64) -> Result<B256> {
+    let Some(root) = header.withdrawals_root else {
+        bail!(
+            "missing withdrawals_root for L2 block {block_number}; SP1 host only supports post-Isthmus chains"
+        );
+    };
+
+    Ok(root)
 }
 
 #[cfg(test)]
 mod tests {
+    use alloy_consensus::Header;
+    use alloy_primitives::B256;
     use serde_json::json;
 
-    use super::classify_safe_db_probe_outcome;
+    use super::{classify_safe_db_probe_outcome, l2_to_l1_message_passer_storage_root};
+
+    #[test]
+    fn l2_to_l1_message_passer_storage_root_uses_withdrawals_root() {
+        let root = B256::repeat_byte(0x12);
+        let header = Header { withdrawals_root: Some(root), ..Default::default() };
+
+        assert_eq!(l2_to_l1_message_passer_storage_root(&header, 1).unwrap(), root);
+    }
+
+    #[test]
+    fn l2_to_l1_message_passer_storage_root_rejects_missing_withdrawals_root() {
+        let header = Header { withdrawals_root: None, ..Default::default() };
+        let err = l2_to_l1_message_passer_storage_root(&header, 1).unwrap_err();
+
+        assert!(err.to_string().contains("post-Isthmus"), "error = {err}");
+    }
+
+    #[test]
+    fn l2_to_l1_message_passer_storage_root_accepts_empty_withdrawals_root() {
+        let header =
+            Header { withdrawals_root: Some(alloy_trie::EMPTY_ROOT_HASH), ..Default::default() };
+
+        assert_eq!(
+            l2_to_l1_message_passer_storage_root(&header, 1).unwrap(),
+            alloy_trie::EMPTY_ROOT_HASH
+        );
+    }
 
     #[test]
     fn safe_db_classifier_active_on_parseable_result() {
@@ -956,12 +977,8 @@ impl OPSuccinctDataFetcher {
             .ok_or_else(|| anyhow::anyhow!("Block not found for block number {l2_start_block}"))?;
         let l2_output_state_root = l2_output_block.header.state_root;
         let agreed_l2_head_hash = l2_output_block.header.hash;
-        let l2_output_storage_hash = l2_to_l1_message_passer_storage_root(
-            l2_provider.as_ref(),
-            &l2_output_block.header.inner,
-            l2_start_block,
-        )
-        .await?;
+        let l2_output_storage_hash =
+            l2_to_l1_message_passer_storage_root(&l2_output_block.header.inner, l2_start_block)?;
 
         let l2_output_encoded = L2Output {
             zero: 0,
@@ -975,12 +992,8 @@ impl OPSuccinctDataFetcher {
         let l2_claim_block = l2_provider.get_block_by_number(l2_end_block.into()).await?.unwrap();
         let l2_claim_state_root = l2_claim_block.header.state_root;
         let l2_claim_hash = l2_claim_block.header.hash;
-        let l2_claim_storage_hash = l2_to_l1_message_passer_storage_root(
-            l2_provider.as_ref(),
-            &l2_claim_block.header.inner,
-            l2_end_block,
-        )
-        .await?;
+        let l2_claim_storage_hash =
+            l2_to_l1_message_passer_storage_root(&l2_claim_block.header.inner, l2_end_block)?;
 
         let l2_claim_encoded = L2Output {
             zero: 0,

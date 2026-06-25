@@ -17,6 +17,8 @@ import (
 )
 
 func TestIsthmusExcludedPredeploys(gt *testing.T) {
+	helpers.SkipKonaProofActionTest(gt)
+
 	// Ensures that if EIP-7251, or EIP-7002 predeploys are deployed manually after the fork,
 	// Isthmus block processing still works correctly. Also ensures that if requests are sent to these
 	// contracts, they are not processed and do not show up in the block body or requests hash.

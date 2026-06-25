@@ -4,7 +4,7 @@ use crate::{BootInfo, HintType};
 use alloc::{boxed::Box, string::ToString, sync::Arc, vec::Vec};
 use alloy_consensus::{Header, Sealed};
 use alloy_eips::eip2718::Decodable2718;
-use alloy_primitives::{Address, B256};
+use alloy_primitives::B256;
 use alloy_rlp::Decodable;
 use async_trait::async_trait;
 use kona_interop::InteropProvider;
@@ -230,26 +230,6 @@ where
 
 impl<C: CommsClient> TrieHinter for ChainScopedHinter<'_, C> {
     type Error = OracleProviderError;
-
-    fn hint_trie_node(&self, hash: B256) -> Result<(), Self::Error> {
-        kona_proof::block_on(async move {
-            HintType::L2StateNode
-                .with_data(&[hash.as_slice()])
-                .with_data(self.chain_id.to_be_bytes())
-                .send(self.oracle.as_ref())
-                .await
-        })
-    }
-
-    fn hint_account_proof(&self, address: Address, block_hash: B256) -> Result<(), Self::Error> {
-        kona_proof::block_on(async move {
-            HintType::L2AccountProof
-                .with_data(&[block_hash.as_slice(), address.as_slice()])
-                .with_data(self.chain_id.to_be_bytes())
-                .send(self.oracle.as_ref())
-                .await
-        })
-    }
 
     fn hint_storage_proof(
         &self,
