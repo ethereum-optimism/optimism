@@ -79,25 +79,12 @@ DATA_DIR="${DATA_DIR:-$HOME/kona-sp1-bench-data}"
 # before this anchor was persisted, set this to the block number you used then.
 ANCHOR_BLOCK="${ANCHOR_BLOCK:-auto}"
 
-# Variable-size set: a descending sweep from 3600 down to 100, laid out
-# contiguously (ending at the anchor) so their proofs can be aggregated. Editing
+# Range sizes to fetch and execute. Laid out contiguously (ending at the anchor),
+# which keeps block numbers stable across runs so already-fetched ranges are
+# skipped instead of re-fetched. Aimed at execute-only cycle-count sweeps; editing
 # this list changes the contiguous layout and therefore every range's block
-# numbers -- keep it stable once you have fetched data. Short proving-time data
-# points live in EXTRA_SIZES below instead, so they don't perturb this set.
-SIZES=(3600 1800 1350 900 450 225 100)
-
-# Extra standalone ranges for short proving-time data points (~10-20h on CPU at
-# the observed ~2h/1B cycles). Placed contiguously just below the variable-size
-# set, but kept out of SIZES so adding/removing them never shifts the larger
-# ranges' block numbers (and thus never orphans their already-fetched files).
-EXTRA_SIZES=(40 20)
-
-# Freshness set: same-size ranges sampled at different archival depths, to
-# measure how fetch cost grows with age. Not contiguous (independent points in
-# time); not meant to be aggregated.
-FRESHNESS_SIZE="${FRESHNESS_SIZE:-20}"
-FRESHNESS_LABELS=(1h 1d 1w 2w 3w)
-FRESHNESS_SECONDS=(3600 86400 604800 1209600 1814400)
+# numbers -- keep it stable once you have fetched data.
+SIZES=(30 40 50 60 70 80 90)
 
 # ============================================================================
 # Internals
@@ -188,10 +175,6 @@ plan_ranges() {
   local out
   out="$(
   SIZES_STR="${SIZES[*]}" \
-  EXTRA_SIZES_STR="${EXTRA_SIZES[*]}" \
-  FRESHNESS_LABELS_STR="${FRESHNESS_LABELS[*]}" \
-  FRESHNESS_SECONDS_STR="${FRESHNESS_SECONDS[*]}" \
-  FRESHNESS_SIZE="$FRESHNESS_SIZE" \
   ANCHOR_BLOCK="$ANCHOR_BLOCK" \
   PINNED_ANCHOR="$pinned" \
   L2_RPC="$L2_RPC" \
@@ -222,16 +205,8 @@ def block(tag):
     return b
 
 sizes = [int(x) for x in os.environ["SIZES_STR"].split()]
-extra_sizes = [int(x) for x in os.environ.get("EXTRA_SIZES_STR", "").split()]
-labels = os.environ["FRESHNESS_LABELS_STR"].split()
-secs = [int(x) for x in os.environ["FRESHNESS_SECONDS_STR"].split()]
-fsize = int(os.environ["FRESHNESS_SIZE"])
 anchor_cfg = os.environ.get("ANCHOR_BLOCK", "auto")
 pinned = os.environ.get("PINNED_ANCHOR", "").strip()
-
-latest = block("latest")
-latest_num = int(latest["number"], 16)
-latest_ts = int(latest["timestamp"], 16)
 
 # Resolve the anchor: explicit config > persisted (pinned) > live finalized.
 if anchor_cfg != "auto":
@@ -251,30 +226,6 @@ cur = start_set
 for sz in sizes:
     rows.append(("var", "-", cur, cur + sz, sz))
     cur += sz  # contiguous: each range's end is the next range's start
-
-# Extra standalone ranges: laid out contiguously just below the variable-size
-# set (ending at start_set). They are independent of `sizes`, so adding or
-# removing them never moves the variable-size ranges' block numbers.
-extra_cur = start_set - sum(extra_sizes)
-if extra_sizes and extra_cur < 1:
-    raise SystemExit(f"anchor {anchor} too small for extra span {sum(extra_sizes)}")
-for sz in extra_sizes:
-    rows.append(("extra", "-", extra_cur, extra_cur + sz, sz))
-    extra_cur += sz
-
-# Derive L2 block time from a wide sample to place the freshness ranges.
-ref_num = max(1, latest_num - 5000)
-ref_ts = int(block(hex(ref_num))["timestamp"], 16)
-span = latest_num - ref_num
-block_time = (latest_ts - ref_ts) / span if span > 0 else 2.0
-if block_time <= 0:
-    block_time = 2.0
-
-for label, sec in zip(labels, secs):
-    s = latest_num - int(round(sec / block_time))
-    if s < 1:
-        continue
-    rows.append(("fresh", label, s, s + fsize, fsize))
 
 # First line carries the resolved anchor so the caller can persist it.
 print(f"#anchor\t{anchor}")

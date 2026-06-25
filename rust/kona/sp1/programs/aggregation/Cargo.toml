@@ -18,5 +18,13 @@ alloy-sol-types.workspace = true
 serde_cbor.workspace = true
 bincode.workspace = true
 
+[features]
+# Benchmark-only: skip the range-linkage checks (boot-info contiguity and the L1
+# head/header chain) while still performing one `verify_sp1_proof` per supplied
+# proof. Lets a duplicated/non-contiguous proof set be aggregated so the cost of
+# Nx recursive verification can be measured without generating N distinct range
+# proofs. NEVER enable for a production aggregation ELF.
+bench-recursion = []
+
 [lints]
 workspace = true

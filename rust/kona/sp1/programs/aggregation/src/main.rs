@@ -4,6 +4,7 @@
 #[cfg(target_os = "zkvm")]
 sp1_zkvm::entrypoint!(main);
 
+#[cfg(not(feature = "bench-recursion"))]
 use alloy_consensus::Header;
 use alloy_primitives::B256;
 use alloy_sol_types::SolValue;
@@ -12,19 +13,27 @@ use kona_sp1_client_utils::{
     types::{AggregationInputs, AggregationOutputs, u32_to_u8},
 };
 use sha2::{Digest, Sha256};
+#[cfg(not(feature = "bench-recursion"))]
 use std::collections::HashMap;
 
 /// Entrypoint to the aggregation program.
+///
+/// The `bench-recursion` feature turns this into a recursion-cost benchmark
+/// harness: it keeps the Nx range-proof verifications (the expensive part we
+/// want to measure) but skips every range-linkage check that would otherwise
+/// panic on a non-contiguous or duplicated proof set. With the feature on, the
+/// program never exits early on the inputs and always performs one
+/// `verify_sp1_proof` per supplied proof. The feature must never be enabled for
+/// a production aggregation ELF — the resulting proof attests to nothing about
+/// the ranges being sequential or anchored to L1.
 pub fn main() {
     // Read in the public values corresponding to each range proof.
     let agg_inputs = sp1_zkvm::io::read::<AggregationInputs>();
-    // Note: The headers are in order from start to end. We use serde_cbor as bincode serialization
-    // causes issues with the zkVM.
-    let headers_bytes = sp1_zkvm::io::read_vec();
-    let headers: Vec<Header> = serde_cbor::from_slice(&headers_bytes).unwrap();
     assert!(!agg_inputs.boot_infos.is_empty());
 
-    // Confirm that the boot infos are sequential.
+    // Confirm that the boot infos are sequential. Skipped under `bench-recursion`
+    // because duplicated/non-contiguous proofs cannot satisfy it.
+    #[cfg(not(feature = "bench-recursion"))]
     agg_inputs.boot_infos.windows(2).for_each(|pair| {
         let (prev_boot_info, boot_info) = (&pair[0], &pair[1]);
 
@@ -37,7 +46,8 @@ pub fn main() {
         assert_eq!(prev_boot_info.rollupConfigHash, boot_info.rollupConfigHash);
     });
 
-    // Verify each range program proof.
+    // Verify each range program proof. This is the work the `bench-recursion`
+    // feature exists to measure, so it always runs for every supplied proof.
     agg_inputs.boot_infos.iter().for_each(|boot_info| {
         // In the range program, the public values digest is just the hash of the ABI encoded
         // boot info.
@@ -47,27 +57,39 @@ pub fn main() {
         sp1_lib::verify::verify_sp1_proof(&agg_inputs.multi_block_vkey, &pv_digest.into());
     });
 
-    // Create a map of each l1 head in the [`BootInfoStruct`]'s to booleans
-    let mut l1_heads_map: HashMap<B256, bool> =
-        agg_inputs.boot_infos.iter().map(|boot_info| (boot_info.l1Head, false)).collect();
+    // Confirm the L1 head chain: the supplied headers must link back from the
+    // checkpoint and include every boot info's L1 head. Skipped under
+    // `bench-recursion`, where the headers cannot be derived for a duplicated or
+    // non-contiguous proof set.
+    #[cfg(not(feature = "bench-recursion"))]
+    {
+        // Note: The headers are in order from start to end. We use serde_cbor as bincode
+        // serialization causes issues with the zkVM.
+        let headers_bytes = sp1_zkvm::io::read_vec();
+        let headers: Vec<Header> = serde_cbor::from_slice(&headers_bytes).unwrap();
 
-    // Iterate through the headers in reverse order. The headers should be sequentially linked and
-    // include the l1 head of each boot info.
-    let mut current_hash = agg_inputs.latest_l1_checkpoint_head;
-    for header in headers.iter().rev() {
-        assert_eq!(current_hash, header.hash_slow());
+        // Create a map of each l1 head in the [`BootInfoStruct`]'s to booleans
+        let mut l1_heads_map: HashMap<B256, bool> =
+            agg_inputs.boot_infos.iter().map(|boot_info| (boot_info.l1Head, false)).collect();
 
-        // Mark the l1 head as found if it's in our map.
-        if let Some(found) = l1_heads_map.get_mut(&current_hash) {
-            *found = true;
+        // Iterate through the headers in reverse order. The headers should be sequentially linked
+        // and include the l1 head of each boot info.
+        let mut current_hash = agg_inputs.latest_l1_checkpoint_head;
+        for header in headers.iter().rev() {
+            assert_eq!(current_hash, header.hash_slow());
+
+            // Mark the l1 head as found if it's in our map.
+            if let Some(found) = l1_heads_map.get_mut(&current_hash) {
+                *found = true;
+            }
+
+            current_hash = header.parent_hash;
         }
 
-        current_hash = header.parent_hash;
-    }
-
-    // Check if all l1 heads were found in the chain.
-    for (l1_head, found) in &l1_heads_map {
-        assert!(*found, "l1 head {l1_head:?} not found in the provided header chain");
+        // Check if all l1 heads were found in the chain.
+        for (l1_head, found) in &l1_heads_map {
+            assert!(*found, "l1 head {l1_head:?} not found in the provided header chain");
+        }
     }
 
     let first_boot_info = &agg_inputs.boot_infos[0];

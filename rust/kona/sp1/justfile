@@ -26,6 +26,19 @@ build-agg-elf:
     # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
     ~/.sp1/bin/cargo-prove prove build --elf-name aggregation-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
 
+# That ELF skips the range-linkage checks (boot-info contiguity + L1 head/header
+# chain) but still runs one `verify_sp1_proof` per supplied proof, so a single
+# range proof can be aggregated N times to measure recursive-verification cost. It
+# overwrites elf/aggregation-elf -- run `just build-agg-elf` afterwards to restore
+# the production ELF, and NEVER use the bench ELF for anything but benchmarking.
+# Build the benchmark-only aggregation ELF with the `bench-recursion` feature.
+build-agg-elf-recursion-bench:
+    #!/usr/bin/env bash
+
+    cd programs/aggregation
+    # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
+    ~/.sp1/bin/cargo-prove prove build --elf-name aggregation-elf --features bench-recursion --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
+
 # Run the local range-program benchmark. Build the ELF first with `just build-elfs`.
 # Hardware acceleration: use `SP1_PROVER=cuda` with `features=gpu` for GPU
 # proving, or `RUSTFLAGS="-C target-cpu=native"` for vectorized CPU proving.
@@ -41,6 +54,27 @@ range-bench *ARGS:
 # Usage: just agg-bench --proofs a.bin,b.bin [--prove]
 agg-bench *ARGS:
     RUSTFLAGS="-C target-cpu=native -C target-feature=+avx512f" cargo +nightly run --release -p kona-sp1-range-bench {{ if features != "" { "--features " + features } else { "" } }} --bin agg-bench -- {{ARGS}}
+
+# Benchmark recursive proof verification by aggregating a SINGLE compressed range
+# proof N times. Requires the aggregation ELF built with the bench-recursion
+# feature (`just build-agg-elf-recursion-bench`) and one saved compressed range
+# proof (`just range-bench --start A --end B --prove --save-proof p.bin`). Proves a
+# compressed aggregation, so recursive-verification cost scales with N. Compare
+# runs across N to get the marginal per-proof cost. Pass extra agg-bench args
+# through (e.g. --load-agg-inputs p.cbor to skip RPC). Use SP1_PROVER=cuda with
+# features=gpu to measure on GPU (the compress stage is GPU-accelerated).
+# Usage: just agg-recursion-bench p.bin 4 [--save-proof agg.bin] [--load-agg-inputs p.cbor]
+agg-recursion-bench proof n *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ -s "{{proof}}" ] || { echo "error: proof not found or empty: {{proof}}" >&2; exit 1; }
+    n="{{n}}"
+    [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] || { echo "error: N must be a positive integer, got: $n" >&2; exit 1; }
+    # Repeat the single proof path N times into the comma-separated --proofs list.
+    proofs="{{proof}}"
+    for _ in $(seq 2 "$n"); do proofs="${proofs},{{proof}}"; done
+    echo ">> aggregating {{proof}} x${n} (bench-recursion ELF required)"
+    just features="{{features}}" agg-bench --proofs "$proofs" --prove {{ARGS}}
 
 # Benchmark local PLONK compression of the final aggregation proof.
 # Always proves. Generate compressed range proofs first, e.g.:
