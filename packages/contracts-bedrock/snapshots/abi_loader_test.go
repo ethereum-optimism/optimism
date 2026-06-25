@@ -19,6 +19,9 @@ func TestLoadABIs(t *testing.T) {
 		{"PreimageOracle", LoadPreimageOracleABI},
 		{"MIPS", LoadMIPSABI},
 		{"DelayedWETH", LoadDelayedWETHABI},
+		{"SystemConfig", LoadSystemConfigABI},
+		{"OptimismPortal2", LoadOptimismPortal2ABI},
+		{"AnchorStateRegistry", LoadAnchorStateRegistryABI},
 	}
 	for _, test := range tests {
 		test := test

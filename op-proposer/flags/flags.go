@@ -7,6 +7,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -37,6 +38,7 @@ var (
 		Usage:   "HTTP provider URLs for the supernode instances. Multiple URLs can be provided to automatically fail over.",
 		EnvVars: prefixEnvVars("SUPERNODE_RPCS"),
 	}
+	NetworkFlag = opflags.CLINetworkFlag(EnvVarPrefix, "")
 
 	// Optional flags
 	PollIntervalFlag = &cli.DurationFlag{
@@ -55,15 +57,20 @@ var (
 		Usage:   "Address of the DisputeGameFactory contract",
 		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
 	}
+	SystemConfigAddressFlag = &cli.StringFlag{
+		Name:    "system-config-address",
+		Usage:   "Address of the SystemConfig contract. Used to resolve the DisputeGameFactory and AnchorStateRegistry addresses.",
+		EnvVars: prefixEnvVars("SYSTEM_CONFIG_ADDRESS"),
+	}
 	ProposalIntervalFlag = &cli.DurationFlag{
 		Name:    "proposal-interval",
 		Usage:   "Interval between submitting L2 output proposals when the dispute game factory address is set",
 		EnvVars: prefixEnvVars("PROPOSAL_INTERVAL"),
 	}
-	DisputeGameTypeFlag = &cli.UintFlag{
+	DisputeGameTypeFlag = &cli.StringFlag{
 		Name:    "game-type",
-		Usage:   "Dispute game type to create via the configured DisputeGameFactory",
-		Value:   0,
+		Usage:   "Dispute game type to create via the configured DisputeGameFactory. Set to \"auto\" to use the current respected game type.",
+		Value:   "auto",
 		EnvVars: prefixEnvVars("GAME_TYPE"),
 	}
 	ActiveSequencerCheckDurationFlag = &cli.DurationFlag{
@@ -93,7 +100,9 @@ var optionalFlags = []cli.Flag{
 	PollIntervalFlag,
 	AllowNonFinalizedFlag,
 	L2OutputHDPathFlag,
+	NetworkFlag,
 	DisputeGameFactoryAddressFlag,
+	SystemConfigAddressFlag,
 	ProposalIntervalFlag,
 	DisputeGameTypeFlag,
 	ActiveSequencerCheckDurationFlag,

@@ -34,6 +34,9 @@ var delayedWETH []byte
 //go:embed abi/SystemConfig.json
 var systemConfig []byte
 
+//go:embed abi/OptimismPortal2.json
+var optimismPortal2 []byte
+
 //go:embed abi/CrossL2Inbox.json
 var crossL2Inbox []byte
 
@@ -73,6 +76,10 @@ func LoadDelayedWETHABI() *abi.ABI {
 
 func LoadSystemConfigABI() *abi.ABI {
 	return loadABI(systemConfig)
+}
+
+func LoadOptimismPortal2ABI() *abi.ABI {
+	return loadABI(optimismPortal2)
 }
 
 func LoadCrossL2InboxABI() *abi.ABI {

@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer/rpc"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer/source"
@@ -39,7 +40,9 @@ type ProposerConfig struct {
 	ProposalInterval time.Duration
 
 	DisputeGameFactoryAddr *common.Address
+	SystemConfigAddr       *common.Address
 	DisputeGameType        uint32
+	DisputeGameTypeAuto    bool
 
 	// AllowNonFinalized enables the proposal of safe, but non-finalized L2 blocks.
 	// The L1 block-hash embedded in the proposal TX is checked and should ensure the proposal
@@ -95,9 +98,10 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	ps.AllowNonFinalized = cfg.AllowNonFinalized
 	ps.WaitNodeSync = cfg.WaitNodeSync
 
-	ps.initDGF(cfg)
-
 	if err := ps.initRPCClients(ctx, cfg); err != nil {
+		return err
+	}
+	if err := ps.initDGF(cfg); err != nil {
 		return err
 	}
 	if err := ps.initTxManager(cfg); err != nil {
@@ -221,15 +225,67 @@ func (ps *ProposerService) initMetricsServer(cfg *CLIConfig) error {
 	return nil
 }
 
-func (ps *ProposerService) initDGF(cfg *CLIConfig) {
-	dgfAddress, err := opservice.ParseAddress(cfg.DGFAddress)
+func (ps *ProposerService) initDGF(cfg *CLIConfig) error {
+	gameType, gameTypeAuto, err := cfg.ResolveDisputeGameType()
 	if err != nil {
-		// Return no error & set no DGF related configuration fields.
-		return
+		return err
 	}
-	ps.DisputeGameFactoryAddr = &dgfAddress
+	dgfAddress, systemConfigAddress, err := resolveProposerAddressConfig(cfg, gameTypeAuto)
+	if err != nil {
+		return err
+	}
+	ps.DisputeGameFactoryAddr = dgfAddress
+	ps.SystemConfigAddr = systemConfigAddress
 	ps.ProposalInterval = cfg.ProposalInterval
-	ps.DisputeGameType = cfg.DisputeGameType
+	ps.DisputeGameType = gameType
+	ps.DisputeGameTypeAuto = gameTypeAuto
+	return nil
+}
+
+func resolveProposerAddressConfig(cfg *CLIConfig, gameTypeAuto bool) (*common.Address, *common.Address, error) {
+	var dgfAddress *common.Address
+	if cfg.DGFAddress != "" {
+		dgf, err := opservice.ParseAddress(cfg.DGFAddress)
+		if err != nil {
+			return nil, nil, err
+		}
+		dgfAddress = &dgf
+	}
+	systemConfigAddress, err := resolveSystemConfigAddress(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	if dgfAddress == nil {
+		if systemConfigAddress == nil {
+			return nil, nil, errors.New("missing DisputeGameFactory address")
+		}
+	}
+	if gameTypeAuto && systemConfigAddress == nil {
+		return nil, nil, errors.New("missing SystemConfig address")
+	}
+	return dgfAddress, systemConfigAddress, nil
+}
+
+func resolveSystemConfigAddress(cfg *CLIConfig) (*common.Address, error) {
+	if cfg.SystemConfigAddress != "" {
+		systemConfig, err := opservice.ParseAddress(cfg.SystemConfigAddress)
+		if err != nil {
+			return nil, err
+		}
+		return &systemConfig, nil
+	}
+	if cfg.Network == "" {
+		return nil, nil
+	}
+	chain := chaincfg.ChainByName(cfg.Network)
+	if chain == nil {
+		return nil, fmt.Errorf("unknown network %q", cfg.Network)
+	}
+	if chain.Addresses.SystemConfigProxy == nil {
+		return nil, nil
+	}
+	systemConfig := *chain.Addresses.SystemConfigProxy
+	return &systemConfig, nil
 }
 
 func (ps *ProposerService) initDriver() error {

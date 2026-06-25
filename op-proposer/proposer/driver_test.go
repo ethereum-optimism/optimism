@@ -2,6 +2,7 @@ package proposer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -24,19 +25,57 @@ import (
 
 type StubDGFContract struct {
 	hasProposedCount int
+	proposalGameType uint32
+	proposalTxCount  int
 }
 
-func (m *StubDGFContract) HasProposedSince(_ context.Context, _ common.Address, _ time.Time, _ uint32) (bool, time.Time, common.Hash, error) {
+func (m *StubDGFContract) HasProposedSince(_ context.Context, _ common.Address, _ time.Time, gameType uint32) (bool, time.Time, common.Hash, error) {
 	m.hasProposedCount++
+	m.proposalGameType = gameType
 	return false, time.Unix(1000, 0), common.Hash{0xdd}, nil
 }
 
-func (m *StubDGFContract) ProposalTx(_ context.Context, _ uint32, _ common.Hash, _ []byte) (txmgr.TxCandidate, error) {
+func (m *StubDGFContract) ProposalTx(_ context.Context, gameType uint32, _ common.Hash, _ []byte) (txmgr.TxCandidate, error) {
+	m.proposalGameType = gameType
+	m.proposalTxCount++
 	return txmgr.TxCandidate{}, nil
 }
 
 func (m *StubDGFContract) Version(_ context.Context) (string, error) {
 	panic("not implemented")
+}
+
+type StubASRContract struct {
+	respectedGameType uint32
+}
+
+func (m *StubASRContract) RespectedGameType(_ context.Context) (uint32, error) {
+	return m.respectedGameType, nil
+}
+
+type StubContractResolver struct {
+	dgfContracts []DGFContract
+	asrContracts []ASRContract
+	dgfCalls     int
+	asrCalls     int
+}
+
+func (m *StubContractResolver) DisputeGameFactory(context.Context) (DGFContract, error) {
+	if len(m.dgfContracts) == 0 {
+		return nil, errors.New("missing DisputeGameFactory contract")
+	}
+	index := min(m.dgfCalls, len(m.dgfContracts)-1)
+	m.dgfCalls++
+	return m.dgfContracts[index], nil
+}
+
+func (m *StubContractResolver) AnchorStateRegistry(context.Context) (ASRContract, error) {
+	if len(m.asrContracts) == 0 {
+		return nil, errors.New("missing AnchorStateRegistry contract")
+	}
+	index := min(m.asrCalls, len(m.asrContracts)-1)
+	m.asrCalls++
+	return m.asrContracts[index], nil
 }
 
 type mockRollupEndpointProvider struct {
@@ -84,7 +123,11 @@ func setup(t *testing.T) (*L2OutputSubmitter, *mockRollupEndpointProvider, *Stub
 		cancel:      cancel,
 	}
 	mockDGFContract := new(StubDGFContract)
-	l2OutputSubmitter.dgfContract = mockDGFContract
+	mockASRContract := new(StubASRContract)
+	l2OutputSubmitter.contractResolver = &StubContractResolver{
+		dgfContracts: []DGFContract{mockDGFContract},
+		asrContracts: []ASRContract{mockASRContract},
+	}
 
 	txmgr.On("Send", mock.Anything, mock.Anything).
 		Return(&types.Receipt{Status: uint64(1), TxHash: common.Hash{}}, nil).
@@ -131,4 +174,45 @@ func TestL2OutputSubmitter_OutputRetry(t *testing.T) {
 	require.Len(t, logs.FindLogs(testlog.NewMessageContainsFilter("Error getting proposal")), numFails)
 	require.NotNil(t, logs.FindLog(testlog.NewMessageFilter("Proposer tx successfully published")))
 	require.NotNil(t, logs.FindLog(testlog.NewMessageFilter("loop returning")))
+}
+
+func TestProposeL2OutputDGFTxCandidateUsesRespectedGameType(t *testing.T) {
+	ps, _, dgfContract, _, _ := setup(t)
+	ps.Cfg.DisputeGameTypeAuto = true
+	ps.contractResolver = &StubContractResolver{
+		dgfContracts: []DGFContract{dgfContract},
+		asrContracts: []ASRContract{&StubASRContract{respectedGameType: 9}},
+	}
+
+	err := ps.sendTransaction(context.Background(), source.Proposal{Root: common.Hash{0xaa}})
+	require.NoError(t, err)
+	require.Equal(t, uint32(9), dgfContract.proposalGameType)
+}
+
+func TestProposeL2OutputDGFTxCandidateResolvesContractsEveryCall(t *testing.T) {
+	ps, _, _, txmgr, _ := setup(t)
+	txmgr.ExpectedCalls = nil
+	ps.Cfg.DisputeGameTypeAuto = true
+	firstDGF := new(StubDGFContract)
+	secondDGF := new(StubDGFContract)
+	resolver := &StubContractResolver{
+		dgfContracts: []DGFContract{firstDGF, secondDGF},
+		asrContracts: []ASRContract{
+			&StubASRContract{respectedGameType: 9},
+			&StubASRContract{respectedGameType: 10},
+		},
+	}
+	ps.contractResolver = resolver
+
+	_, err := ps.ProposeL2OutputDGFTxCandidate(context.Background(), source.Proposal{Root: common.Hash{0xaa}})
+	require.NoError(t, err)
+	_, err = ps.ProposeL2OutputDGFTxCandidate(context.Background(), source.Proposal{Root: common.Hash{0xbb}})
+	require.NoError(t, err)
+
+	require.Equal(t, 2, resolver.dgfCalls)
+	require.Equal(t, 2, resolver.asrCalls)
+	require.Equal(t, 1, firstDGF.proposalTxCount)
+	require.Equal(t, uint32(9), firstDGF.proposalGameType)
+	require.Equal(t, 1, secondDGF.proposalTxCount)
+	require.Equal(t, uint32(10), secondDGF.proposalGameType)
 }

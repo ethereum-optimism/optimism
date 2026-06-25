@@ -32,9 +32,16 @@ with an inclusion-proof of a withdrawn message (as registered in the L2 withdraw
 go run ./op-proposer/cmd \
         --l1-eth-rpc http://l1:8545 \
       --rollup-rpc http://op-node:8545 \
-      --game-factory-address=changeme \
-      --game-type=changeme
+      --network=changeme \
+      --game-type=auto
 ```
+
+`--network` resolves the SystemConfig address for known chains, and the proposer uses
+SystemConfig to load the current DisputeGameFactory and AnchorStateRegistry addresses
+on each proposal cycle. If `--network` is not set, `--system-config-address` can
+supply both addresses. The legacy `--game-factory-address` flag is still supported;
+when `--game-type=auto` is used, provide either `--network` or
+`--system-config-address` so the AnchorStateRegistry can be loaded dynamically.
 
 See [Proposer Configuration docs] for customization of the transaction-management,
 and usage of a remote signer to isolate the proposer secret key.

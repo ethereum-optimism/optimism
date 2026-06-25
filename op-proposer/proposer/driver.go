@@ -41,6 +41,47 @@ type DGFContract interface {
 	ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, extraData []byte) (txmgr.TxCandidate, error)
 }
 
+type ASRContract interface {
+	RespectedGameType(ctx context.Context) (uint32, error)
+}
+
+type proposerContractResolver interface {
+	DisputeGameFactory(ctx context.Context) (DGFContract, error)
+	AnchorStateRegistry(ctx context.Context) (ASRContract, error)
+}
+
+type defaultProposerContractResolver struct {
+	cfg         ProposerConfig
+	multicaller *batching.MultiCaller
+}
+
+func (r *defaultProposerContractResolver) DisputeGameFactory(ctx context.Context) (DGFContract, error) {
+	if r.cfg.DisputeGameFactoryAddr != nil {
+		return contracts.NewDisputeGameFactory(*r.cfg.DisputeGameFactoryAddr, r.multicaller, r.cfg.NetworkTimeout), nil
+	}
+	if r.cfg.SystemConfigAddr == nil {
+		return nil, errors.New("missing DisputeGameFactory address")
+	}
+	systemConfig := contracts.NewSystemConfig(*r.cfg.SystemConfigAddr, r.multicaller, r.cfg.NetworkTimeout)
+	addr, err := systemConfig.DisputeGameFactory(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve DisputeGameFactory from SystemConfig %v: %w", *r.cfg.SystemConfigAddr, err)
+	}
+	return contracts.NewDisputeGameFactory(addr, r.multicaller, r.cfg.NetworkTimeout), nil
+}
+
+func (r *defaultProposerContractResolver) AnchorStateRegistry(ctx context.Context) (ASRContract, error) {
+	if r.cfg.SystemConfigAddr == nil {
+		return nil, errors.New("missing SystemConfig address")
+	}
+	systemConfig := contracts.NewSystemConfig(*r.cfg.SystemConfigAddr, r.multicaller, r.cfg.NetworkTimeout)
+	addr, err := systemConfig.AnchorStateRegistry(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve AnchorStateRegistry from SystemConfig %v: %w", *r.cfg.SystemConfigAddr, err)
+	}
+	return contracts.NewAnchorStateRegistry(addr, r.multicaller, r.cfg.NetworkTimeout), nil
+}
+
 type RollupClient interface {
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
@@ -70,7 +111,7 @@ type L2OutputSubmitter struct {
 
 	running atomic.Bool
 
-	dgfContract DGFContract
+	contractResolver proposerContractResolver
 }
 
 // NewL2OutputSubmitter creates a new L2 Output Submitter
@@ -85,7 +126,7 @@ func NewL2OutputSubmitter(setup DriverSetup) (_ *L2OutputSubmitter, err error) {
 		}
 	}()
 
-	if setup.Cfg.DisputeGameFactoryAddr == nil {
+	if setup.Cfg.DisputeGameFactoryAddr == nil && setup.Cfg.SystemConfigAddr == nil {
 		return nil, errors.New("missing DisputeGameFactory address")
 	}
 
@@ -93,14 +134,25 @@ func NewL2OutputSubmitter(setup DriverSetup) (_ *L2OutputSubmitter, err error) {
 }
 
 func newDGFSubmitter(ctx context.Context, cancel context.CancelFunc, setup DriverSetup) (*L2OutputSubmitter, error) {
-	dgfCaller := contracts.NewDisputeGameFactory(*setup.Cfg.DisputeGameFactoryAddr, setup.Multicaller, setup.Cfg.NetworkTimeout)
-
-	version, err := dgfCaller.Version(ctx)
-	if err != nil {
-		cancel()
-		return nil, err
+	resolver := &defaultProposerContractResolver{
+		cfg:         setup.Cfg,
+		multicaller: setup.Multicaller,
 	}
-	log.Info("Connected to DisputeGameFactory", "address", setup.Cfg.DisputeGameFactoryAddr, "version", version)
+	if setup.Cfg.DisputeGameFactoryAddr != nil {
+		dgfCaller, err := resolver.DisputeGameFactory(ctx)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		version, err := dgfCaller.Version(ctx)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		log.Info("Connected to DisputeGameFactory", "address", setup.Cfg.DisputeGameFactoryAddr, "version", version)
+	} else {
+		log.Info("Configured dynamic DisputeGameFactory resolution", "system_config", *setup.Cfg.SystemConfigAddr)
+	}
 
 	return &L2OutputSubmitter{
 		DriverSetup: setup,
@@ -108,7 +160,7 @@ func newDGFSubmitter(ctx context.Context, cancel context.CancelFunc, setup Drive
 		ctx:         ctx,
 		cancel:      cancel,
 
-		dgfContract: dgfCaller,
+		contractResolver: resolver,
 	}, nil
 }
 
@@ -162,8 +214,16 @@ func (l *L2OutputSubmitter) StopL2OutputSubmitting() error {
 // The passed context is expected to be a lifecycle context. A network timeout
 // context will be derived from it.
 func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (source.Proposal, bool, error) {
+	dgfContract, err := l.contractResolver.DisputeGameFactory(ctx)
+	if err != nil {
+		return source.Proposal{}, false, err
+	}
+	gameType, err := l.disputeGameType(ctx)
+	if err != nil {
+		return source.Proposal{}, false, err
+	}
 	cutoff := time.Now().Add(-l.Cfg.ProposalInterval)
-	proposedRecently, proposalTime, claim, err := l.dgfContract.HasProposedSince(ctx, l.Txmgr.From(), cutoff, l.Cfg.DisputeGameType)
+	proposedRecently, proposalTime, claim, err := dgfContract.HasProposedSince(ctx, l.Txmgr.From(), cutoff, gameType)
 	if err != nil {
 		return source.Proposal{}, false, fmt.Errorf("could not check for recent proposal: %w", err)
 	}
@@ -226,9 +286,33 @@ func (l *L2OutputSubmitter) FetchOutput(ctx context.Context, block uint64) (sour
 }
 
 func (l *L2OutputSubmitter) ProposeL2OutputDGFTxCandidate(ctx context.Context, output source.Proposal) (txmgr.TxCandidate, error) {
+	dgfContract, err := l.contractResolver.DisputeGameFactory(ctx)
+	if err != nil {
+		return txmgr.TxCandidate{}, err
+	}
+	gameType, err := l.disputeGameType(ctx)
+	if err != nil {
+		return txmgr.TxCandidate{}, err
+	}
 	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
-	return l.dgfContract.ProposalTx(cCtx, l.Cfg.DisputeGameType, output.Root, output.ExtraData())
+	return dgfContract.ProposalTx(cCtx, gameType, output.Root, output.ExtraData())
+}
+
+func (l *L2OutputSubmitter) disputeGameType(ctx context.Context) (uint32, error) {
+	if !l.Cfg.DisputeGameTypeAuto {
+		return l.Cfg.DisputeGameType, nil
+	}
+	asrContract, err := l.contractResolver.AnchorStateRegistry(ctx)
+	if err != nil {
+		return 0, err
+	}
+	gameType, err := asrContract.RespectedGameType(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to resolve respected game type: %w", err)
+	}
+	l.Log.Debug("Resolved respected game type", "gameType", gameType)
+	return gameType, nil
 }
 
 // sendTransaction creates & sends transactions through the underlying transaction manager.

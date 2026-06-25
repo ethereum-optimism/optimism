@@ -39,6 +39,62 @@ func TestNewConfigReadsSuperNodeRpcs(t *testing.T) {
 	}, cfg.SuperNodeRpcs)
 }
 
+func TestNewConfigReadsAutoDisputeGameType(t *testing.T) {
+	var cfg *CLIConfig
+	app := cli.NewApp()
+	app.Flags = proposerFlags.Flags
+	app.Action = func(ctx *cli.Context) error {
+		cfg = NewConfig(ctx)
+		return nil
+	}
+	err := app.Run([]string{"op-proposer"})
+	require.NoError(t, err)
+	require.True(t, cfg.DisputeGameTypeAuto)
+	require.Equal(t, uint32(0), cfg.DisputeGameType)
+}
+
+func TestNewConfigReadsNumericDisputeGameType(t *testing.T) {
+	var cfg *CLIConfig
+	app := cli.NewApp()
+	app.Flags = proposerFlags.Flags
+	app.Action = func(ctx *cli.Context) error {
+		cfg = NewConfig(ctx)
+		return nil
+	}
+	err := app.Run([]string{
+		"op-proposer",
+		"--game-type", "9",
+	})
+	require.NoError(t, err)
+	require.False(t, cfg.DisputeGameTypeAuto)
+	require.Equal(t, uint32(9), cfg.DisputeGameType)
+}
+
+func TestNewConfigReadsNetworkAndSystemConfig(t *testing.T) {
+	var cfg *CLIConfig
+	app := cli.NewApp()
+	app.Flags = proposerFlags.Flags
+	app.Action = func(ctx *cli.Context) error {
+		cfg = NewConfig(ctx)
+		return nil
+	}
+	systemConfig := common.Address{0xab, 0xcd}.Hex()
+	err := app.Run([]string{
+		"op-proposer",
+		"--network", "op-sepolia",
+		"--system-config-address", systemConfig,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "op-sepolia", cfg.Network)
+	require.Equal(t, systemConfig, cfg.SystemConfigAddress)
+}
+
+func TestInvalidDisputeGameType(t *testing.T) {
+	cfg := validConfig()
+	cfg.DisputeGameTypeRaw = "invalid"
+	require.ErrorContains(t, cfg.Check(), "invalid `game-type`")
+}
+
 func TestRollupRpc(t *testing.T) {
 	for _, gameType := range preInteropGameTypes {
 		t.Run("RequiredWithPreInteropGame", func(t *testing.T) {
@@ -112,6 +168,43 @@ func TestRequireSomeRPCSourceForUnknownGameTypes(t *testing.T) {
 	cfg.SuperNodeRpcs = nil
 	cfg.DisputeGameType = 492743
 	require.ErrorIs(t, cfg.Check(), ErrMissingSource)
+}
+
+func TestAutoGameTypeAllowsAnySingleRPCSource(t *testing.T) {
+	cfg := validConfig()
+	cfg.DisputeGameTypeRaw = "auto"
+	cfg.DisputeGameTypeAuto = true
+	cfg.SystemConfigAddress = common.Address{0x11}.Hex()
+	cfg.RollupRpc = ""
+	cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
+	require.NoError(t, cfg.Check())
+}
+
+func TestAutoGameTypeRequiresSystemConfigOrNetwork(t *testing.T) {
+	cfg := validConfig()
+	cfg.DisputeGameTypeRaw = "auto"
+	cfg.DisputeGameTypeAuto = true
+	cfg.SystemConfigAddress = ""
+	cfg.Network = ""
+	require.ErrorContains(t, cfg.Check(), "`SystemConfig` or `network` is required")
+}
+
+func TestAutoGameTypeAllowsSystemConfig(t *testing.T) {
+	cfg := validConfig()
+	cfg.DGFAddress = ""
+	cfg.SystemConfigAddress = common.Address{0x12}.Hex()
+	cfg.DisputeGameTypeRaw = "auto"
+	cfg.DisputeGameTypeAuto = true
+	require.NoError(t, cfg.Check())
+}
+
+func TestAutoGameTypeAllowsNetwork(t *testing.T) {
+	cfg := validConfig()
+	cfg.DGFAddress = ""
+	cfg.Network = networkWithSystemConfig(t)
+	cfg.DisputeGameTypeRaw = "auto"
+	cfg.DisputeGameTypeAuto = true
+	require.NoError(t, cfg.Check())
 }
 
 func validConfig() *CLIConfig {
