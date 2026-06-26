@@ -134,6 +134,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		return opcm.DeployOPChainInput{}, fmt.Errorf("OPCM implementation is not deployed")
 	}
 
+	// TODO(#20912): Populate the anchor root and permissionless prestates from pipeline state.
 	return opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner:       thisIntent.Roles.L1ProxyAdminOwner,
 		SystemConfigOwner:            thisIntent.Roles.SystemConfigOwner,
@@ -149,6 +150,9 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		GasLimit:                     thisIntent.GasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
 		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
+		StartingAnchorRoot:           opcm.DefaultStartingAnchorRoot.Root,
+		CannonAbsolutePrestate:       common.Hash{},
+		CannonKonaAbsolutePrestate:   common.Hash{},
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)

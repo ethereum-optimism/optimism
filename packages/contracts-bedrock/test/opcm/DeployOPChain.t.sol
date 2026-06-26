@@ -21,7 +21,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
-import { Claim, Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
@@ -59,6 +59,9 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     uint64 gasLimit = 60_000_000;
     GameType disputeGameType = GameTypes.PERMISSIONED_CANNON;
     Claim disputeAbsolutePrestate = Claim.wrap(0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c);
+    Hash startingAnchorRoot = Hash.wrap(0xdead000000000000000000000000000000000000000000000000000000000000);
+    Claim cannonAbsolutePrestate = Claim.wrap(0x1111111111111111111111111111111111111111111111111111111111111111);
+    Claim cannonKonaAbsolutePrestate = Claim.wrap(0x2222222222222222222222222222222222222222222222222222222222222222);
     uint256 disputeMaxGameDepth = 73;
     uint256 disputeSplitDepth = 30;
     Duration disputeClockExtension = Duration.wrap(3 hours);
@@ -126,6 +129,9 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             gasLimit: gasLimit,
             disputeGameType: disputeGameType,
             disputeAbsolutePrestate: disputeAbsolutePrestate,
+            startingAnchorRoot: startingAnchorRoot,
+            cannonAbsolutePrestate: cannonAbsolutePrestate,
+            cannonKonaAbsolutePrestate: cannonKonaAbsolutePrestate,
             disputeMaxGameDepth: disputeMaxGameDepth,
             disputeSplitDepth: disputeSplitDepth,
             disputeClockExtension: disputeClockExtension,
