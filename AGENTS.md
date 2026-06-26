@@ -73,6 +73,7 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/dev-workflow.md](docs/ai/dev-workflow.md) - General development workflow: pinned tools via mise, Just usage, pre-PR checks, and CI caveats
 - [docs/ai/go-dev.md](docs/ai/go-dev.md) - Go service development
 - [docs/ai/rust-dev.md](docs/ai/rust-dev.md) - Rust development (kona, op-reth, alloy crates)
+- [docs/ai/reth-update-review.md](docs/ai/reth-update-review.md) - Reviewing reth/revm/alloy dependency bumps: the risk guide for upstream changes that should force a change in our in-tree op- forks but produce no diff (silent overrides, new defaults/variants, sync drift, consensus-critical math). Pairs with the `reth-update-reviewer` agent
 - [docs/ai/derivation.md](docs/ai/derivation.md) - Derivation pipeline development (op-node, kona-node)
 - [docs/ai/execution-layer.md](docs/ai/execution-layer.md) - Execution layer development (op-reth / EVM, fees, deposits)
 - [docs/ai/fault-proofs.md](docs/ai/fault-proofs.md) - Fault proof system (Cannon, kona-client, dispute games)
