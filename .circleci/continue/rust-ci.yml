@@ -10,10 +10,10 @@ orbs:
 parameters:
   c-default_docker_image:
     type: string
-    default: cimg/base:2026.03
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi:8f273af1bd93b8e8e6915c8359553e2e3a28b453
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi:8f273af1bd93b8e8e6915c8359553e2e3a28b453
   c-base_image:
     type: string
     default: default

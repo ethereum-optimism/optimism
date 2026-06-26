@@ -17,7 +17,7 @@ on:
 
 jobs:
   verify:
-    name: verify provenance ci-base-clang
+    name: verify provenance circleci-runner-wolfi
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -33,10 +33,10 @@ jobs:
         run: |
           set -euo pipefail
           IMAGE_REF=$(grep -A2 '^  rust_base_image:' .circleci/config.yml \
-            | grep -oE 'us-docker\.pkg\.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:[0-9a-f]{64}' \
+            | grep -oE 'us-docker\.pkg\.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi:[0-9a-f]{40}' \
             | head -n1)
           if [[ -z "${IMAGE_REF}" ]]; then
-            echo "Could not extract ci-base-clang image reference from .circleci/config.yml" >&2
+            echo "Could not extract circleci-runner-wolfi image reference from .circleci/config.yml" >&2
             exit 1
           fi
           echo "image=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
@@ -51,4 +51,4 @@ jobs:
             --bundle-from-oci \
             --owner ethereum-optimism \
             --signer-repo ethereum-optimism/factory \
-            --source-ref refs/heads/develop
+            --source-ref refs/pull/664/merge

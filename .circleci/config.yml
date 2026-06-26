@@ -10,12 +10,12 @@ setup: true
 parameters:
   default_docker_image:
     type: string
-    default: cimg/base:2026.03
-  # Pinned ci-base-clang image (cimg/base + clang/llvm-dev/libclang-dev + protobuf-compiler) for Rust jobs.
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi:8f273af1bd93b8e8e6915c8359553e2e3a28b453
+  # Pinned Wolfi CircleCI image with clang/libclang, protobuf, sccache, Go, and Rust.
   # Provenance is verified by .github/workflows/security.yml.
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/circleci-runner-wolfi:8f273af1bd93b8e8e6915c8359553e2e3a28b453
   base_image:
     type: string
     default: default
@@ -89,7 +89,7 @@ jobs:
   # --------------------------------------------------------------------------
   # This job prepares the dynamic continuation pipeline in 6 steps:
   #
-  #   1. Install yq (YAML processor for merging configs)
+  #   1. Install jq/yq (JSON/YAML processors for parameter handling and config merging)
   #   2. Store string pipeline params  → /tmp/pipeline-parameters.json
   #   3. Store boolean pipeline params → /tmp/pipeline-parameters.json
   #   4. Detect file-tree changes     → /tmp/pipeline-parameters.json
@@ -107,15 +107,21 @@ jobs:
       BASE_REVISION: develop
     steps:
       - checkout
-      # yq is used by the "Merge continuation configs" step to deep-merge YAML files.
-      # Keep version in sync with mise.toml.
+      # jq/yq are used by the setup scripts before mise is available.
+      # Keep versions in sync with mise.toml.
       - run:
-          name: Install yq
+          name: Install jq and yq
           command: |
+            JQ_VERSION="1.7.1"
             YQ_VERSION="4.44.5"
-            wget -qO /usr/local/bin/yq \
+            mkdir -p "$HOME/.local/bin"
+            curl -fsSL --retry 3 -o "$HOME/.local/bin/jq" \
+              "https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux-amd64"
+            curl -fsSL --retry 3 -o "$HOME/.local/bin/yq" \
               "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
-            chmod +x /usr/local/bin/yq
+            chmod +x "$HOME/.local/bin/jq" "$HOME/.local/bin/yq"
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$BASH_ENV"
+            echo "jq version: $(jq --version)"
             echo "yq version: $(yq --version)"
       # Validates the decision tree logic against known scenarios.
       # Fails fast if a refactor breaks expected workflow activation.
