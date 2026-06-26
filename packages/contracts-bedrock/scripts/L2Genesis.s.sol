@@ -220,7 +220,7 @@ contract L2Genesis is Script {
     //          script didn't set the nonce and we didn't want to change that behavior when
     ///         migrating genesis generation to Solidity.
     function setPredeployProxies(Input memory _input) internal {
-        bytes memory code = vm.getDeployedCode("Proxy.sol:Proxy");
+        bytes memory code = DeployUtils.getDeployedCode("Proxy");
         uint160 prefix = uint160(0x420) << 148;
 
         for (uint256 i = 0; i < Predeploys.PREDEPLOY_COUNT; i++) {
@@ -426,7 +426,7 @@ contract L2Genesis is Script {
         if (_useCustomGasToken) {
             string memory cname = "L2ToL1MessagePasserCGT";
             address impl = Predeploys.predeployToCodeNamespace(Predeploys.L2_TO_L1_MESSAGE_PASSER);
-            vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+            vm.etch(impl, DeployUtils.getDeployedCode(cname));
         } else {
             _setImplementationCode(Predeploys.L2_TO_L1_MESSAGE_PASSER);
         }
@@ -477,7 +477,7 @@ contract L2Genesis is Script {
             // Set the implementation code for L1BlockCGT
             string memory cname = "L1BlockCGT";
             address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_BLOCK_ATTRIBUTES);
-            vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+            vm.etch(impl, DeployUtils.getDeployedCode(cname));
 
             // Set the custom gas token flag
             IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setFeature(Features.CUSTOM_GAS_TOKEN);
@@ -505,7 +505,7 @@ contract L2Genesis is Script {
     ///         This contract is NOT proxied and the state that is set
     ///         in the constructor is set manually.
     function setWETH() internal {
-        vm.etch(Predeploys.WETH, vm.getDeployedCode("WETH.sol:WETH"));
+        vm.etch(Predeploys.WETH, DeployUtils.getDeployedCode("WETH"));
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -703,7 +703,7 @@ contract L2Genesis is Script {
     function _setImplementationCode(address _addr) internal returns (address) {
         string memory cname = Predeploys.getName(_addr);
         address impl = Predeploys.predeployToCodeNamespace(_addr);
-        vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+        vm.etch(impl, DeployUtils.getDeployedCode(cname));
         // Set the EIP-1967 admin slot on the implementation so that ProxyAdminOwnedBase.proxyAdmin()
         // can resolve the proxy admin when initialize() is called directly on the implementation.
         EIP1967Helper.setAdmin(impl, Predeploys.PROXY_ADMIN);

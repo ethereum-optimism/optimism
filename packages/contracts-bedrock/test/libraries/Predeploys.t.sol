@@ -7,6 +7,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Fork } from "scripts/libraries/Config.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -81,7 +82,7 @@ abstract contract Predeploys_TestInit is CommonTest {
         uint256 count = 2048;
         uint160 prefix = uint160(0x420) << 148;
 
-        bytes memory proxyCode = vm.getDeployedCode("Proxy.sol:Proxy");
+        bytes memory proxyCode = DeployUtils.getDeployedCode("Proxy");
 
         for (uint256 i = 0; i < count; i++) {
             address addr = address(prefix | uint160(i));
@@ -109,7 +110,7 @@ abstract contract Predeploys_TestInit is CommonTest {
             string memory cname = Predeploys.getName(addr);
             assertNotEq(cname, "", "must have a name");
 
-            bytes memory supposedCode = vm.getDeployedCode(string.concat(cname, ".sol:", cname));
+            bytes memory supposedCode = DeployUtils.getDeployedCode(cname);
             assertNotEq(supposedCode.length, 0, "must have supposed code");
 
             if (proxied == false) {
