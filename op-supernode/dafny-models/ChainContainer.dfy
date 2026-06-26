@@ -24,6 +24,8 @@ module ChainContainer {
     // (corresponds to an ethereum.NotFound error in Go).
     // Corresponds to ChainContainer.OptimisticAt in chain_container.go.
     method OptimisticAt(ts: nat) returns (result: Option<OptimisticAtResult>)
+      // Modifies clause represents the fact that the chain state can change in between calls
+      modifies this
       ensures {:axiom} result.Some? ==>
         BlockInfo(result.value.l2Block).Some? &&
         BlockInfo(result.value.l2Block).value.timestamp <= ts
@@ -53,6 +55,8 @@ module ChainContainer {
     // In the model, receipts are abstracted to executing messages only; see BlockLogs.
     // Corresponds to ChainContainer.FetchReceipts in chain_container.go.
     method FetchReceipts(blockID: BlockID) returns (result: Option<FetchReceiptsResult>)
+      // Modifies clause represents the fact that the chain state can change in between calls
+      modifies this
       // But not <==>. BlockInfo and BlockLogs also include blocks that are no longer
       // part of the canonical chain, so FetchReceipts might return None for those.
       ensures {:axiom} result.Some? ==> BlockInfo(blockID).Some?
