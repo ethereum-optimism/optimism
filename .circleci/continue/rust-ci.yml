@@ -713,6 +713,7 @@ jobs:
             git stash || true
             git fetch origin $BASE_BRANCH
             git checkout origin/$BASE_BRANCH
+            git submodule update --init superchain-registry
 
             # Generate vectors on base
             cargo run --bin op-reth --features "dev" --manifest-path rust/op-reth/bin/Cargo.toml -- test-vectors compact --write
