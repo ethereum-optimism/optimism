@@ -50,7 +50,7 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     /// @notice Fork name for the current generated NUT bundle.
     string internal currentFork;
 
-    /// @dev Cache from `generateScript.run()` to avoid re-reading the artifact during parallel fork setup.
+    /// @dev Cache from `generateScript.buildOutput()` to avoid re-reading the artifact during parallel fork setup.
     NetworkUpgradeTxns.NetworkUpgradeTxn[] internal currentBundleTxns;
 
     /// @notice Common state
@@ -81,8 +81,8 @@ contract L2ForkUpgrade_TestInit is CommonTest {
             // Initialize scripts
             executeScript = new ExecuteNUTBundle();
             generateScript = new GenerateNUTBundle();
-            // Generate bundle
-            GenerateNUTBundle.Output memory output = generateScript.run();
+            // Build bundle without rewriting the tracked NUT snapshot.
+            GenerateNUTBundle.Output memory output = generateScript.buildOutput();
             currentFork = output.fork;
             delete currentBundleTxns;
             for (uint256 i = 0; i < output.txns.length; i++) {
