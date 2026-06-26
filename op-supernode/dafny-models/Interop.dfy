@@ -174,7 +174,7 @@ module Interop {
     }
 
     // Lifted versions of DBsInSyncUpTo / DBsInSync that quantify over all chains.
-    // Replace verbose forall patterns in method specifications.
+    // Avoids verbose forall patterns in method specifications.
     ghost predicate AllDBsInSyncUpTo(upper: nat)
       reads verifiedDB, logsDBs.Values
     {
@@ -308,6 +308,8 @@ module Interop {
       }
     }
 
+    // If the given pending transition is an Advance, the l2Heads are consistent with the
+    // chain state at the time the block was fetched.
     ghost predicate TransitionConsistentWithChainState(pending: PendingTransition)
       requires ValidPendingTransition(pending)
       requires chains.Keys == CHAIN_IDS
@@ -802,8 +804,8 @@ module Interop {
       assert TransitionIsCrossValid(pendingTx);
       assert AllVerifiedCrossValid();
 
-      // Snapshot the heap before SetPendingTransition so that the twostate lemma
-      // below can reference the pre-set state where AllDBsInSync() holds.
+      // Snapshot the heap before SetPendingTransition so that the twostate lemmas
+      // below can reference the pre-set state.
       label BeforeSetPending:
       verifiedDB.SetPendingTransition(pendingTx);
 
@@ -837,6 +839,8 @@ module Interop {
     // Does not modify the verified DB.
     // Corresponds to progressInterop in interop.go.
     method {:isolate_assertions} ProgressInterop() returns (output: StepOutput, obs: RoundObservation)
+      // To represent that chain state may change during execution due to reorgs
+      modifies chains.Values
       requires Valid()
       requires AllDBsInSync()
       requires AllVerifiedCrossValid()
@@ -881,6 +885,8 @@ module Interop {
     // verified DB and querying all chains for their status at the next timestamp.
     // Corresponds to observeRound in interop.go.
     method {:isolate_assertions} ObserveRound() returns (obs: RoundObservation)
+      // To represent that chain state may change during execution due to reorgs
+      modifies chains.Values
       requires Valid()
       requires AllDBsInSync()
       ensures Valid()
@@ -952,6 +958,8 @@ module Interop {
     // abstracted away as a sequential loop, and the ethereum.NotFound error is
     // replaced by an Option return.
     method {:isolate_assertions} CheckChainsReady(ts: nat) returns (result: Option<ChainsReadyResult>)
+      // To represent that chain state may change during execution due to reorgs
+      modifies chains.Values
       requires Valid()
       requires AllDBsInSync()
       requires forall k :: k in logsDBs && logsDBs[k].LatestSealedBlock().None? ==>
@@ -1068,9 +1076,8 @@ module Interop {
           return;
         }
 
-        // ApplyRewindPlan establishes DBsInSync(k) for all k. Snapshot the heap here
-        // so that the twostate lemma call below can use old@BeforeClearRewind() to refer
-        // to this state, where DBsInSync is known to hold.
+        // Snapshot the heap before ClearPendingTransition so that the twostate lemmas
+        // below can reference the pre-clear state.
         label BeforeClearRewind:
         verifiedDB.ClearPendingTransition();
 
@@ -1126,9 +1133,8 @@ module Interop {
           return;
         }
 
-        // Loop invariant established DBsInSync(k) for all k. Snapshot the heap here
-        // so the twostate lemma below can use old@BeforeClearInvalidate() to refer
-        // to this state.
+        // Snapshot the heap before ClearPendingTransition so that the twostate lemmas
+        // below can reference the pre-clear state.
         label BeforeClearInvalidate:
         verifiedDB.ClearPendingTransition();
 
@@ -1494,7 +1500,7 @@ module Interop {
         assert unchanged@BeforeRewind(verifiedDB);
         RewindEstablishesDBsInSync@BeforeRewind(chainID);
 
-        // Establish the loop invariant at line 1346 (for i+1):
+        // Re-establish the loop invariant for chainIDs[0..i+1]:
         // for the newly-rewound chain, RewindEstablishesDBsInSync gives us DBsInSync;
         // for previously-rewound chains, logsDBs[k] is unchanged so RewoundLogsDB and DBsInSync are preserved.
         assert forall k :: k in chainIDs[0..i+1] ==>
@@ -1537,6 +1543,8 @@ module Interop {
     method {:isolate_assertions} PersistFrontierLogs(ts: nat, blocksAtTS: map<ChainID, BlockID>)
         returns (success: bool)
       modifies logsDBs.Values
+      // To represent that chain state may change during execution due to reorgs
+      modifies chains.Values
       requires Valid()
       requires blocksAtTS.Keys == chains.Keys
       requires AdvancesAllLogsDBs(ts, blocksAtTS)
@@ -2690,8 +2698,8 @@ module Interop {
     // Rewind removes entries >= rewindAt; all remaining entries were covered by
     // old(AllVerifiedCrossValid()) and ResultIsCrossValid is heap-independent
     // w.r.t. anything Rewind touches (only verifiedDB).
-    // Intended to be called as RewindPreservesAllVerifiedCrossValid(rewindAt) right
-    // after the Rewind call (no label needed when Rewind is the first operation).
+    // Intended to be called as RewindPreservesAllVerifiedCrossValid@L(rewindAt)
+    // where L is a label placed just before the Rewind call.
     twostate lemma {:isolate_assertions} RewindPreservesAllVerifiedCrossValid(rewindAt: nat)
       requires old(Valid())
       requires Valid()
@@ -2865,8 +2873,9 @@ module Interop {
     //     NOTE: old(seal_timestamp(targetHead.number)) is not directly bounded to ts here;
     //     instead, step (3) bypasses this via VerifiedHeadsAreHighestBlocksUpToTimestamp.
     // (2) ValidExecutingMessage(T_chain, chainID, execMsg) gives execMsg.timestamp ≤ T_chain ≤ ts.
-    //     (The T_chain ≤ ts bound comes from FindSealedBlock monotonicity + requires #11, but
-    //     step (3) can derive the contradiction without it by using VHAHIBT directly.)
+    //     (The T_chain ≤ ts bound follows from FindSealedBlock monotonicity combined with
+    //     AllDBsInSyncUpTo and BlockSealsMatchOnChainTimestamps, but step (3) can derive
+    //     the contradiction without it by using VHAHIBT directly.)
     // (3) Contains axiom gives old seal timestamp == execMsg.timestamp ≤ ts (from step 2).
     //     old(VerifiedHeadsAreHighestBlocksUpToTimestamp()) at ts for the source chain:
     //     if execMsg.blockNum > plan.targetHeads[source].number, then ts < execMsg.timestamp —
@@ -3018,7 +3027,7 @@ module Interop {
               assert old(logsDBs[chainID].FindSealedBlock(blockID.number)).value.timestamp == T_chain;
               //   verifiedDB non-decreasing (ts' ≤ ts): blockID.number ≤ plan.targetHeads[chainID].number.
               assert blockID.number <= plan.targetHeads[chainID].number;
-              //   Requires #11 gives seal at targetHead.number has timestamp ts.
+              //   AllDBsInSyncUpTo + BlockSealsMatchOnChainTimestamps: seal at targetHead.number has timestamp ts.
               //   FindSealedBlock monotonicity: T_chain ≤ ts.
               assert T_chain <= ts;
               assert execMsg.timestamp <= ts;
