@@ -47,6 +47,19 @@ type VerifiedDB struct {
 	firstTimestamp uint64
 	lastTimestamp  uint64
 	initialized    bool
+
+	// faultHook, when non-nil, is consulted at the top of each public method
+	// (named by the argument); a non-nil return aborts that call before any
+	// state is touched. Test-only fault injection; nil in production.
+	faultHook func(method string) error
+}
+
+// injectFault returns the hook's verdict for method, or nil when no hook is set.
+func (v *VerifiedDB) injectFault(method string) error {
+	if v.faultHook == nil {
+		return nil
+	}
+	return v.faultHook(method)
 }
 
 // OpenVerifiedDB opens or creates a VerifiedDB at the given data directory.
@@ -118,6 +131,9 @@ func timestampToKey(ts uint64) []byte {
 // Commit stores a verified result at the given timestamp.
 // Timestamps must be committed sequentially with no gaps.
 func (v *VerifiedDB) Commit(result VerifiedResult) error {
+	if err := v.injectFault("Commit"); err != nil {
+		return err
+	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
@@ -181,6 +197,9 @@ func (v *VerifiedDB) Commit(result VerifiedResult) error {
 
 // Get retrieves the verified result at the given timestamp.
 func (v *VerifiedDB) Get(ts uint64) (VerifiedResult, error) {
+	if err := v.injectFault("Get"); err != nil {
+		return VerifiedResult{}, err
+	}
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 
@@ -252,6 +271,9 @@ func (v *VerifiedDB) LastTimestamp() (uint64, bool) {
 // Rewind removes all verified results at or after the given timestamp.
 // Returns true if any results were deleted, false otherwise.
 func (v *VerifiedDB) Rewind(timestamp uint64) (bool, error) {
+	if err := v.injectFault("Rewind"); err != nil {
+		return false, err
+	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
@@ -297,6 +319,9 @@ func (v *VerifiedDB) Rewind(timestamp uint64) (bool, error) {
 // SetPendingTransition persists a generic interop transition as a write-ahead log.
 // Must be called BEFORE executing any durable side effects for crash safety.
 func (v *VerifiedDB) SetPendingTransition(pending PendingTransition) error {
+	if err := v.injectFault("SetPendingTransition"); err != nil {
+		return err
+	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
@@ -313,6 +338,9 @@ func (v *VerifiedDB) SetPendingTransition(pending PendingTransition) error {
 // GetPendingTransition retrieves any pending transition from the WAL.
 // Returns nil if no pending work exists.
 func (v *VerifiedDB) GetPendingTransition() (*PendingTransition, error) {
+	if err := v.injectFault("GetPendingTransition"); err != nil {
+		return nil, err
+	}
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 
@@ -340,6 +368,9 @@ func (v *VerifiedDB) GetPendingTransition() (*PendingTransition, error) {
 
 // ClearPendingTransition removes the WAL entry after the transition is fully applied.
 func (v *VerifiedDB) ClearPendingTransition() error {
+	if err := v.injectFault("ClearPendingTransition"); err != nil {
+		return err
+	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
