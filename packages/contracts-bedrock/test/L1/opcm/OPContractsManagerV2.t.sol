@@ -1950,19 +1950,40 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
-    function test_deploy_cannonGameEnabled_reverts() public {
+    /// @notice CANNON may be enabled at initial deployment now that its prestate is supplied via the
+    ///         deploy config.
+    function test_deploy_cannonGameEnabled_succeeds() public {
         deployConfig.disputeGameConfigs[0].enabled = true;
-        deployConfig.disputeGameConfigs[0].initBond = 1 ether;
+        deployConfig.disputeGameConfigs[0].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
+        deployConfig.disputeGameConfigs[0].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }));
 
-        // nosemgrep: sol-style-use-abi-encodecall
-        runDeployV2(
-            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        assertNotEq(
+            address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON)), address(0), "CANNON impl should be set"
         );
     }
 
-    function test_deploy_cannonKonaGameEnabled_reverts() public {
+    /// @notice CANNON_KONA may be enabled at initial deployment now that its prestate is supplied via
+    ///         the deploy config.
+    function test_deploy_cannonKonaGameEnabled_succeeds() public {
         deployConfig.disputeGameConfigs[2].enabled = true;
-        deployConfig.disputeGameConfigs[2].initBond = 1 ether;
+        deployConfig.disputeGameConfigs[2].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
+        deployConfig.disputeGameConfigs[2].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }));
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        assertNotEq(
+            address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)),
+            address(0),
+            "CANNON_KONA impl should be set"
+        );
+    }
+
+    /// @notice SUPER_CANNON_KONA may not be enabled at initial deployment.
+    function test_deploy_superCannonKonaGameEnabled_reverts() public {
+        deployConfig.disputeGameConfigs[4].enabled = true;
+        deployConfig.disputeGameConfigs[4].initBond = 1 ether;
 
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(

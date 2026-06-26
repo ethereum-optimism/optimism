@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.1.23
+    /// @custom:semver 7.1.24
     function version() public pure returns (string memory) {
-        return "7.1.23";
+        return "7.1.24";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -738,13 +738,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // Check if this is a permissioned type.
-            bool isPermissioned = validGameTypes[i].raw() == GameTypes.PERMISSIONED_CANNON.raw()
+            // During initial deployment, only CANNON, PERMISSIONED_CANNON, CANNON_KONA, and
+            // SUPER_PERMISSIONED may be enabled.
+            bool enableableAtInitialDeployment = validGameTypes[i].raw() == GameTypes.CANNON.raw()
+                || validGameTypes[i].raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                || validGameTypes[i].raw() == GameTypes.CANNON_KONA.raw()
                 || validGameTypes[i].raw() == GameTypes.SUPER_PERMISSIONED.raw();
 
-            // During initial deployment, only permissioned types can be enabled, because no
-            // prestate exists for permissionless games.
-            if (_isInitialDeployment && !isPermissioned && _cfg.disputeGameConfigs[i].enabled) {
+            if (_isInitialDeployment && !enableableAtInitialDeployment && _cfg.disputeGameConfigs[i].enabled) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
