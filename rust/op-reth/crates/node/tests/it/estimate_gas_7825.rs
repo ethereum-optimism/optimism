@@ -3,7 +3,7 @@
 //! During the U19 upgrade process, several subtle [configuration footguns] and
 //! [upstream issues] resulted in unfortunate user-facing estimateGas bugs.
 //!
-//! This test ensures that EIP-7825 is handled correctly by eth_estimateGas.
+//! This test ensures that EIP-7825 is handled correctly by `eth_estimateGas`.
 //!
 //! [configuration footguns]: https://github.com/ethereum-optimism/optimism/pull/21337
 //! [upstream issues]: https://github.com/paradigmxyz/reth/pull/25612
