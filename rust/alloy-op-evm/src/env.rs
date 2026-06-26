@@ -126,6 +126,9 @@ fn evm_env_for_op(
     let spec = spec_by_timestamp_after_bedrock(&chain_spec, input.timestamp);
     let mut cfg_env = CfgEnv::new().with_chain_id(chain_id).with_spec_and_mainnet_gas_params(spec);
 
+    // TODO(21583): remove this workaround once we vendor a reth revision containing
+    // paradigmxyz/reth#25612. Keep the eth_estimateGas EIP-7825/Karst regression test;
+    // upstream should make the estimate path use the effective tx gas cap directly.
     if spec.into_eth_spec().is_enabled_in(SpecId::OSAKA) {
         cfg_env.tx_gas_limit_cap = Some(revm::primitives::eip7825::TX_GAS_LIMIT_CAP);
     }
