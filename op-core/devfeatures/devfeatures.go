@@ -29,8 +29,7 @@ var (
 	// DeployV2DisputeGamesFlag enables deployment of V2 dispute game contracts.
 	DeployV2DisputeGamesFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100")
 
-	// L2CMFlag enables L2CM.
-	L2CMFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000100000")
+	// Hash 0x100000 is retired (formerly L2CMFlag, now unconditionally enabled).
 
 	// ZKDisputeGameFlag enables the ZK dispute game system.
 	// TODO(#19432): Use this flag in the OPCM/OPD integration pipeline.
@@ -44,10 +43,6 @@ var (
 // It performs a bitwise AND between the bitmap and flag to determine if the feature
 // is set. This follows the same pattern as the Solidity DevFeatures library.
 func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
-	// L2CM is enabled by default. TODO(#20084): remove with the broader L2CMFlag cleanup.
-	if hasFlag(flag, L2CMFlag) {
-		return true
-	}
 	// CannonKona is enabled by default. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
 	if hasFlag(flag, CannonKonaFlag) {
 		return true

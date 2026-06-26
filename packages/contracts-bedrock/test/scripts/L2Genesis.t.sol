@@ -296,9 +296,6 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             liquidityControllerOwner: address(0x000000000000000000000000000000000000000d),
             devFeatureBitmap: bytes32(0)
         });
-        // L2CM is the default genesis codepath: predeploy proxies are initialized via
-        // L2ContractsManager.deploy() rather than directly in the setters.
-        input.devFeatureBitmap |= DevFeatures.L2CM;
     }
 
     function test_run_succeeds() external {

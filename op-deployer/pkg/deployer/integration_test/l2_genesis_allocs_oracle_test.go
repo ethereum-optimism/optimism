@@ -61,14 +61,9 @@ func allocModes(t *testing.T) []allocMode {
 			configure: func(t *testing.T, intent *state.Intent) {},
 		},
 		{
-			name:             "l2cm",
-			l2cm:             true,
-			devFeatureBitmap: devfeatures.L2CMFlag,
-			configure: func(t *testing.T, intent *state.Intent) {
-				intent.GlobalDeployOverrides = map[string]any{
-					"devFeatureBitmap": devfeatures.L2CMFlag,
-				}
-			},
+			name:      "l2cm",
+			l2cm:      true,
+			configure: func(t *testing.T, intent *state.Intent) {},
 		},
 		{
 			name:           "cgt",

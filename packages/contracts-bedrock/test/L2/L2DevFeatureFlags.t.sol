@@ -22,7 +22,6 @@ abstract contract L2DevFeatureFlags_TestInit is CommonTest {
     /// @notice Test setup.
     function setUp() public virtual override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
         l2DevFeatureFlags = IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS);
     }
 }
@@ -32,7 +31,7 @@ abstract contract L2DevFeatureFlags_TestInit is CommonTest {
 contract L2DevFeatureFlags_Version_Test is L2DevFeatureFlags_TestInit {
     /// @notice Tests that the `version` function returns a the correct string.
     function test_version_succeeds() public view {
-        assertEq(keccak256(bytes(l2DevFeatureFlags.version())), keccak256(bytes("1.0.0")), "Versions should match");
+        assertEq(keccak256(bytes(l2DevFeatureFlags.version())), keccak256(bytes("1.0.1")), "Versions should match");
     }
 }
 
@@ -63,8 +62,6 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
     /// @notice Tests that `isDevFeatureEnabled` returns false when the bitmap is zero.
     function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public {
         vm.assume(_feature != bytes32(0));
-        // L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
-        vm.assume((_feature & DevFeatures.L2CM) != DevFeatures.L2CM);
         // CannonKona is hardcoded enabled. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
         vm.assume((_feature & DevFeatures.CANNON_KONA) != DevFeatures.CANNON_KONA);
         // Ensure `devFeatureBitmap` contains bytes32(0)
@@ -72,25 +69,10 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
         assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(_feature));
     }
 
-    /// @notice Tests that `isDevFeatureEnabled(L2CM)` always returns true regardless of stored bitmap.
-    /// @dev TODO(#20084): remove with the broader L2CMFlag cleanup.
-    function test_isDevFeatureEnabled_l2cmAlwaysEnabled_succeeds() public view {
-        assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.L2CM));
-    }
-
     /// @notice Tests that `isDevFeatureEnabled(CANNON_KONA)` always returns true regardless of stored bitmap.
     /// @dev TODO(#20084): remove with the broader CannonKonaFlag cleanup.
     function test_isDevFeatureEnabled_cannonKonaAlwaysEnabled_succeeds() public view {
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.CANNON_KONA));
-    }
-
-    /// @notice Tests that `isDevFeatureEnabled` returns true for a multi-bit query that includes
-    ///         the L2CM flag, regardless of the stored bitmap.
-    /// @dev TODO(#20084): remove with the broader L2CMFlag cleanup.
-    function testFuzz_isDevFeatureEnabled_l2cmAlwaysEnabledMultiFlag_succeeds(uint8 _bitIndex) public view {
-        vm.assume(bytes32(1 << uint256(_bitIndex)) != DevFeatures.L2CM);
-        bytes32 featureWithL2CM = bytes32(1 << uint256(_bitIndex)) | DevFeatures.L2CM;
-        assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(featureWithL2CM));
     }
 
     /// @notice Tests that `isDevFeatureEnabled` returns true for a multi-bit query that includes
