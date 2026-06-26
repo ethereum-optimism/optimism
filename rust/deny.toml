@@ -14,6 +14,9 @@ ignore = [
   "RUSTSEC-2024-0436",
   # bincode is unmaintained but still functional; transitive dep from reth-nippy-jar and test-fuzz.
   "RUSTSEC-2025-0141",
+  # proc-macro-error2 is unmaintained (no vulnerability, no patched release exists).
+  # Build-time-only dep via alloy-sol-macro; latest alloy-core still pins it.
+  "RUSTSEC-2026-0173",
 ]
 
 # This section is considered when running `cargo deny check bans`.
