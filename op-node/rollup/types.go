@@ -17,7 +17,13 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 )
+
+// historyPrunedErrCode is the JSON-RPC error code an execution engine returns when the requested
+// block predates its earliest retained history (EIP-4444 history expiry). reth returns this for
+// any block below its earliest available history height.
+const historyPrunedErrCode = 4444
 
 var (
 	ErrBlockTimeZero                 = errors.New("block time cannot be 0")
@@ -192,7 +198,7 @@ func (cfg *Config) ValidateL1Config(ctx context.Context, logger log.Logger, clie
 }
 
 // ValidateL2Config checks L2 config variables for errors.
-func (cfg *Config) ValidateL2Config(ctx context.Context, client L2Client, skipL2GenesisBlockHash bool) error {
+func (cfg *Config) ValidateL2Config(ctx context.Context, logger log.Logger, client L2Client, skipL2GenesisBlockHash bool) error {
 	// Validate the L2 Client Chain ID
 	if err := cfg.CheckL2ChainID(ctx, client); err != nil {
 		return err
@@ -202,7 +208,7 @@ func (cfg *Config) ValidateL2Config(ctx context.Context, client L2Client, skipL2
 	if skipL2GenesisBlockHash {
 		return nil
 	}
-	if err := cfg.CheckL2GenesisBlockHash(ctx, client); err != nil {
+	if err := cfg.CheckL2GenesisBlockHash(ctx, logger, client); err != nil {
 		return err
 	}
 
@@ -282,15 +288,29 @@ func (cfg *Config) CheckL2ChainID(ctx context.Context, client L2Client) error {
 }
 
 // CheckL2GenesisBlockHash checks that the configured L2 genesis block hash is valid for the given client.
-func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, client L2Client) error {
+func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, logger log.Logger, client L2Client) error {
 	l2GenesisBlockRef, err := client.L2BlockRefByNumber(ctx, cfg.Genesis.L2.Number)
 	if err != nil {
+		// The execution engine may no longer retain the genesis block, either because it was never
+		// found or because history expiry has pruned it. The genesis block hash is fully determined
+		// by the rollup config, so accept the configured value rather than failing initialization.
+		if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) || isHistoryPrunedErr(err) {
+			logger.Warn("L2 genesis block not retained by execution engine, skipping validity check", "err", err)
+			return nil
+		}
 		return fmt.Errorf("failed to get L2 genesis blockhash: %w", err)
 	}
 	if l2GenesisBlockRef.Hash != cfg.Genesis.L2.Hash {
 		return fmt.Errorf("incorrect L2 genesis block hash %s, expected %s", l2GenesisBlockRef.Hash, cfg.Genesis.L2.Hash)
 	}
 	return nil
+}
+
+// isHistoryPrunedErr reports whether err is the JSON-RPC error an execution engine returns when the
+// requested block has been pruned by history expiry (see historyPrunedErrCode).
+func isHistoryPrunedErr(err error) bool {
+	var rpcErr rpc.Error
+	return errors.As(err, &rpcErr) && rpcErr.ErrorCode() == historyPrunedErrCode
 }
 
 // Check verifies that the given configuration makes sense
