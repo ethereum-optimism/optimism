@@ -6,7 +6,6 @@ version: 2.1
 orbs:
   utils: ethereum-optimism/circleci-utils@1.0.27
   gcp-cli: circleci/gcp-cli@3.0.1
-  codecov: codecov/codecov@5.0.3
 
 parameters:
   c-default_docker_image:
@@ -849,10 +848,6 @@ jobs:
           no_output_timeout: 40m
           command: |
             just llvm-cov-tests
-      - codecov/upload:
-          disable_search: true
-          files: rust/kona/lcov.info
-          flags: unit
       - rust-save-build-cache: *kona-coverage-cache
 
   # Kona Link Checker

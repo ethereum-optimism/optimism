@@ -165,7 +165,6 @@ orbs:
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@6.0.0
   shellcheck: circleci/shellcheck@3.2.0
-  codecov: codecov/codecov@5.0.3
   docker: circleci/docker@2.8.2
   github-cli: circleci/github-cli@2.7.0
 
@@ -913,10 +912,6 @@ jobs:
             ../ops/scripts/gotestsum-split.sh --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
             -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
           working_directory: cannon
-      - codecov/upload:
-          disable_search: true
-          files: ./cannon/coverage-64.out
-          flags: cannon-go-tests-64
       - store_test_results:
           path: ./tmp/test-results
       - store_artifacts:
@@ -1247,10 +1242,6 @@ jobs:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           when: on_fail
-      - codecov/upload:
-          disable_search: true
-          files: ./packages/contracts-bedrock/lcov-all.info
-          flags: contracts-bedrock-tests
       - save_cache:
           name: Save forked state
           key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
@@ -1870,9 +1861,6 @@ jobs:
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
             just go-tests-fraud-proofs-ci
-      - codecov/upload:
-          disable_search: true
-          files: ./coverage.out
       - store_test_results:
           path: ./tmp/test-results
       - run:
