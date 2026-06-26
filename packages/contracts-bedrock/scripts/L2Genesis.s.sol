@@ -396,6 +396,13 @@ contract L2Genesis is Script {
         EIP1967Helper.setImplementation(Predeploys.PROXY_ADMIN, address(l2cm));
         L2ContractsManager(Predeploys.PROXY_ADMIN).deploy(config);
 
+        // Assert deploy() restored the ProxyAdmin impl in place of the the temp L2CM.
+        require(
+            EIP1967Helper.getImplementation(Predeploys.PROXY_ADMIN)
+                == Predeploys.predeployToCodeNamespace(Predeploys.PROXY_ADMIN),
+            "L2Genesis: L2ProxyAdmin implementation not restored after deploy()"
+        );
+
         vm.etch(address(l2cm), "");
         vm.resetNonce(address(l2cm));
     }
