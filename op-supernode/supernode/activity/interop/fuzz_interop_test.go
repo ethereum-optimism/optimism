@@ -108,6 +108,10 @@ func FuzzInteropInvalid(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		i, mgr := buildInterop(t, data)
+		// Compose a transient verifiedDB fault on top of the run: it fires once,
+		// during a production call, and must be recovered transparently
+		// (recordStep/observeStep) without changing the verifier's outcome.
+		fault := armDBFault(i, data)
 		assertRoundValid(t, i)
 
 		plan, ok := mgr.BreakOne()
@@ -129,7 +133,7 @@ func FuzzInteropInvalid(f *testing.F) {
 			for n := 0; ; n++ {
 				require.Less(t, n, 1000, "did not reach the bad block")
 				if next() == plan.AssertTS {
-					out, _, err := i.progressInterop()
+					out, _, err := observeStep(i, fault)
 					switch plan.Reject {
 					case cc.RejectInvalidHead:
 						require.NoError(t, err)
@@ -137,7 +141,7 @@ func FuzzInteropInvalid(f *testing.F) {
 						require.Contains(t, out.Result.InvalidHeads, plan.Chain)
 						// Apply the invalidation: freeze VNs, add to deny list, rewind engine.
 						// Any failure in InvalidateBlock / RewindEngine / RewindToTimestamp surfaces here.
-						progress2, err2 := i.progressAndRecord()
+						progress2, err2 := recordStep(i, fault)
 						require.NoError(t, err2)
 						require.False(t, progress2, "invalidate does not advance")
 					case cc.RejectWait:
@@ -149,7 +153,7 @@ func FuzzInteropInvalid(f *testing.F) {
 					AssertInvariants(t, i) // rejecting a violation leaves interop model-valid
 					return
 				}
-				progress, err := i.progressAndRecord()
+				progress, err := recordStep(i, fault)
 				require.NoError(t, err)
 				require.True(t, progress, "valid rounds before the bad block must advance")
 				assertRoundValid(t, i)
@@ -167,11 +171,11 @@ func FuzzInteropInvalid(f *testing.F) {
 
 				plan.Action()
 
-				out, _, err := i.progressInterop()
+				out, _, err := observeStep(i, fault)
 				require.NoError(t, err)
 				require.Equal(t, DecisionRewind, out.Decision)
 
-				progress, err := i.progressAndRecord()
+				progress, err := recordStep(i, fault)
 				require.NoError(t, err)
 				require.False(t, progress, "progressAndRecord applying a rewind must not advance")
 				AssertInvariants(t, i) // the rewound state must remain model-valid
@@ -185,7 +189,7 @@ func FuzzInteropInvalid(f *testing.F) {
 				}
 				return
 			}
-			progress, err := i.progressAndRecord()
+			progress, err := recordStep(i, fault)
 			require.NoError(t, err)
 			if !progress {
 				t.Skip("reorg inclusion target unreachable")
