@@ -17,10 +17,16 @@ pub fn main() {
     let outputs = match inputs {
         SuperInteropInputs::Range(inputs) => {
             // TODO: run optimistic output root stf
+            let previous_super_roots = inputs
+                .previous_super_root_proofs
+                .iter()
+                .map(hash_super_root_proof)
+                .collect::<Result<Vec<_>, _>>()
+                .expect("invalid previous super-root proof");
             SuperInteropOutputs::Range(SuperRangeOutputs {
                 span: inputs.span,
                 l1_head: inputs.l1_head,
-                previous_super_root: inputs.previous_super_root,
+                previous_super_roots,
                 transitions: inputs.claimed_transitions,
             })
         }

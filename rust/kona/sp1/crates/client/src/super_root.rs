@@ -91,8 +91,10 @@ pub struct SuperRangeInputs {
     pub l1_head: B256,
     /// Chain IDs covered by every timestamp in the range.
     pub chain_ids: Vec<U256>,
-    /// Previous super root at `span.start - 1`, or the agreed prestate root for the first range.
-    pub previous_super_root: B256,
+    /// Previous super-root proof for every timestamp in the span.
+    ///
+    /// Entry `i` must be the super-root proof for `(span.start + i) - 1`.
+    pub previous_super_root_proofs: Vec<SuperRootProof>,
     /// Claimed optimistic transition outputs for every `(timestamp, chain_id)` tuple in the range.
     pub claimed_transitions: Vec<SuperRangeTransition>,
 }
@@ -102,6 +104,11 @@ impl SuperRangeInputs {
     pub fn validate(&self) -> Result<(), SuperRootError> {
         self.span.validate()?;
         ensure_strictly_increasing_chain_ids(&self.chain_ids)?;
+        ensure_range_previous_super_root_coverage(
+            &self.span,
+            &self.chain_ids,
+            &self.previous_super_root_proofs,
+        )?;
         ensure_range_transition_coverage(&self.span, &self.chain_ids, &self.claimed_transitions)
     }
 }
@@ -113,8 +120,10 @@ pub struct SuperRangeOutputs {
     pub span: TimestampSpan,
     /// L1 head used to derive this range.
     pub l1_head: B256,
-    /// Super root immediately before the range.
-    pub previous_super_root: B256,
+    /// Previous super-root hash used for every timestamp in the span.
+    ///
+    /// Entry `i` is the super-root hash used to derive `span.start + i`.
+    pub previous_super_roots: Vec<B256>,
     /// Optimistic transition outputs proven by the range.
     pub transitions: Vec<SuperRangeTransition>,
 }
@@ -383,17 +392,19 @@ impl SuperAggregationInputs {
                 });
             }
 
-            let expected_previous_super_root =
-                self.super_root_before_timestamp(output.span.start, first_timestamp)?;
-            if output.previous_super_root != expected_previous_super_root {
-                return Err(SuperRootError::PreviousSuperRootMismatch {
-                    expected: expected_previous_super_root,
-                    actual: output.previous_super_root,
-                });
-            }
-
+            ensure_range_previous_super_root_outputs(&output.span, &output.previous_super_roots)?;
             ensure_range_transition_coverage(&output.span, chain_ids, &output.transitions)?;
             for (timestamp_offset, timestamp) in (output.span.start..=output.span.end).enumerate() {
+                let expected_previous_super_root =
+                    self.super_root_before_timestamp(timestamp, first_timestamp)?;
+                let actual_previous_super_root = output.previous_super_roots[timestamp_offset];
+                if actual_previous_super_root != expected_previous_super_root {
+                    return Err(SuperRootError::PreviousSuperRootMismatch {
+                        expected: expected_previous_super_root,
+                        actual: actual_previous_super_root,
+                    });
+                }
+
                 let transition_start = timestamp_offset * chain_ids.len();
                 let transition_end = transition_start + chain_ids.len();
                 let range_blocks = output
@@ -483,6 +494,34 @@ pub enum SuperRootError {
         timestamps: u64,
         /// Number of chain IDs covered at each timestamp.
         chains: usize,
+    },
+    /// Range previous-root proofs must contain one entry per timestamp.
+    InvalidRangePreviousRootCount {
+        /// Expected number of previous-root proofs or hashes.
+        expected: usize,
+        /// Actual number supplied.
+        actual: usize,
+    },
+    /// A range previous-root proof appeared at the wrong timestamp.
+    RangePreviousRootTimestampMismatch {
+        /// Expected previous timestamp at this position.
+        expected: u64,
+        /// Actual proof timestamp.
+        actual: u64,
+    },
+    /// A range previous-root proof has the wrong chain count.
+    MismatchedRangePreviousRootChainCount {
+        /// Number of chain IDs expected by the range input.
+        expected: usize,
+        /// Number of output roots in the previous super-root proof.
+        actual: usize,
+    },
+    /// A range previous-root proof disagrees with the expected chain ordering or coverage.
+    MismatchedRangePreviousRootChainId {
+        /// Expected chain ID at this position.
+        expected: U256,
+        /// Actual chain ID in the proof.
+        actual: U256,
     },
     /// Range transition outputs must cover every `(timestamp, chain_id)` tuple exactly once.
     InvalidRangeTransitionCount {
@@ -631,6 +670,22 @@ impl core::fmt::Display for SuperRootError {
             Self::RangeTransitionCountOverflow { timestamps, chains } => write!(
                 f,
                 "range transition coverage is too large: {timestamps} timestamps across {chains} chains"
+            ),
+            Self::InvalidRangePreviousRootCount { expected, actual } => {
+                write!(f, "range must contain {expected} previous roots, got {actual}")
+            }
+            Self::RangePreviousRootTimestampMismatch { expected, actual } => {
+                write!(
+                    f,
+                    "range previous-root timestamp {actual} does not match expected {expected}"
+                )
+            }
+            Self::MismatchedRangePreviousRootChainCount { expected, actual } => {
+                write!(f, "range previous-root proof covers {actual} chains, expected {expected}")
+            }
+            Self::MismatchedRangePreviousRootChainId { expected, actual } => write!(
+                f,
+                "range previous-root chain ID {actual} does not match expected {expected}"
             ),
             Self::InvalidRangeTransitionCount { expected, actual } => {
                 write!(f, "range must contain {expected} transitions, got {actual}")
@@ -792,6 +847,76 @@ fn ensure_range_transition_coverage(
                 });
             }
             index += 1;
+        }
+    }
+
+    Ok(())
+}
+
+fn ensure_range_previous_super_root_coverage(
+    span: &TimestampSpan,
+    chain_ids: &[U256],
+    previous_super_root_proofs: &[SuperRootProof],
+) -> Result<(), SuperRootError> {
+    let expected = consolidation_timestamp_count(span)?;
+    if previous_super_root_proofs.len() != expected {
+        return Err(SuperRootError::InvalidRangePreviousRootCount {
+            expected,
+            actual: previous_super_root_proofs.len(),
+        });
+    }
+
+    for (offset, proof) in previous_super_root_proofs.iter().enumerate() {
+        let transition_timestamp = span.start + offset as u64;
+        let expected_timestamp = transition_timestamp.checked_sub(1).ok_or(
+            SuperRootError::RangePreviousRootTimestampMismatch {
+                expected: 0,
+                actual: proof.super_root.timestamp,
+            },
+        )?;
+        if proof.super_root.timestamp != expected_timestamp {
+            return Err(SuperRootError::RangePreviousRootTimestampMismatch {
+                expected: expected_timestamp,
+                actual: proof.super_root.timestamp,
+            });
+        }
+
+        proof.validate()?;
+        ensure_previous_super_root_chains_match(chain_ids, &proof.super_root.output_roots)?;
+    }
+
+    Ok(())
+}
+
+fn ensure_range_previous_super_root_outputs(
+    span: &TimestampSpan,
+    previous_super_roots: &[B256],
+) -> Result<(), SuperRootError> {
+    let expected = consolidation_timestamp_count(span)?;
+    if previous_super_roots.len() != expected {
+        return Err(SuperRootError::InvalidRangePreviousRootCount {
+            expected,
+            actual: previous_super_roots.len(),
+        });
+    }
+    Ok(())
+}
+
+fn ensure_previous_super_root_chains_match(
+    chain_ids: &[U256],
+    output_roots: &[SuperOutputRoot],
+) -> Result<(), SuperRootError> {
+    if output_roots.len() != chain_ids.len() {
+        return Err(SuperRootError::MismatchedRangePreviousRootChainCount {
+            expected: chain_ids.len(),
+            actual: output_roots.len(),
+        });
+    }
+
+    for (&expected, output_root) in chain_ids.iter().zip(output_roots) {
+        let actual = U256::from(output_root.chain_id);
+        if actual != expected {
+            return Err(SuperRootError::MismatchedRangePreviousRootChainId { expected, actual });
         }
     }
 
@@ -1022,7 +1147,7 @@ mod tests {
             range_outputs: vec![SuperRangeOutputs {
                 span: TimestampSpan::new(100, 101).expect("valid span"),
                 l1_head: B256::from([0x99; 32]),
-                previous_super_root: starting_root_hash,
+                previous_super_roots: vec![starting_root_hash, B256::from([0x44; 32])],
                 transitions: vec![
                     SuperRangeTransition { timestamp: 100, optimistic_block: timestamp_100[0] },
                     SuperRangeTransition { timestamp: 100, optimistic_block: timestamp_100[1] },
@@ -1134,6 +1259,20 @@ mod tests {
     }
 
     #[test]
+    fn aggregation_inputs_reject_intermediate_range_previous_root_mismatch() {
+        let mut inputs = valid_aggregation_inputs();
+        inputs.range_outputs[0].previous_super_roots[1] = B256::from([0xee; 32]);
+
+        assert_eq!(
+            inputs.validate(),
+            Err(SuperRootError::PreviousSuperRootMismatch {
+                expected: B256::from([0x44; 32]),
+                actual: B256::from([0xee; 32]),
+            })
+        );
+    }
+
+    #[test]
     fn chain_ordering_requires_non_empty_strictly_increasing_ids() {
         assert_eq!(ensure_strictly_increasing_chains(&[]), Err(SuperRootError::EmptyOutputRoots));
 
@@ -1177,7 +1316,7 @@ mod tests {
             span: TimestampSpan { start: 102, end: 100 },
             l1_head: B256::ZERO,
             chain_ids: vec![U256::from(10)],
-            previous_super_root: B256::ZERO,
+            previous_super_root_proofs: vec![],
             claimed_transitions: vec![transition(102, 10, 0x11, 0x12)],
         };
         assert_eq!(
@@ -1192,7 +1331,10 @@ mod tests {
             span: TimestampSpan::new(100, 101).expect("valid span"),
             l1_head: B256::from([0x99; 32]),
             chain_ids: vec![U256::from(10), U256::from(20)],
-            previous_super_root: B256::from([0xaa; 32]),
+            previous_super_root_proofs: vec![
+                SuperRootProof::new(99, vec![output(10, 0x01), output(20, 0x02)]),
+                SuperRootProof::new(100, vec![output(10, 0x03), output(20, 0x04)]),
+            ],
             claimed_transitions: vec![
                 transition(100, 10, 0x11, 0x12),
                 transition(100, 20, 0x21, 0x22),
@@ -1210,7 +1352,10 @@ mod tests {
             span: TimestampSpan::new(100, 101).expect("valid span"),
             l1_head: B256::from([0x99; 32]),
             chain_ids: vec![U256::from(10), U256::from(20)],
-            previous_super_root: B256::from([0xaa; 32]),
+            previous_super_root_proofs: vec![
+                SuperRootProof::new(99, vec![output(10, 0x01), output(20, 0x02)]),
+                SuperRootProof::new(100, vec![output(10, 0x03), output(20, 0x04)]),
+            ],
             claimed_transitions: vec![
                 transition(100, 10, 0x11, 0x12),
                 transition(100, 20, 0x21, 0x22),
@@ -1254,6 +1399,75 @@ mod tests {
         assert_eq!(
             wrong_chain.validate(),
             Err(SuperRootError::RangeTransitionChainIdMismatch {
+                expected: U256::from(20),
+                actual: U256::from(30),
+            })
+        );
+    }
+
+    #[test]
+    fn range_inputs_bind_previous_super_roots_per_timestamp() {
+        let base = SuperRangeInputs {
+            span: TimestampSpan::new(100, 101).expect("valid span"),
+            l1_head: B256::from([0x99; 32]),
+            chain_ids: vec![U256::from(10), U256::from(20)],
+            previous_super_root_proofs: vec![
+                SuperRootProof::new(99, vec![output(10, 0x01), output(20, 0x02)]),
+                SuperRootProof::new(100, vec![output(10, 0x03), output(20, 0x04)]),
+            ],
+            claimed_transitions: vec![
+                transition(100, 10, 0x11, 0x12),
+                transition(100, 20, 0x21, 0x22),
+                transition(101, 10, 0x31, 0x32),
+                transition(101, 20, 0x41, 0x42),
+            ],
+        };
+
+        base.validate().expect("per-timestamp previous roots are valid");
+
+        let missing_previous_root = SuperRangeInputs {
+            previous_super_root_proofs: base.previous_super_root_proofs[..1].to_vec(),
+            ..base.clone()
+        };
+        assert_eq!(
+            missing_previous_root.validate(),
+            Err(SuperRootError::InvalidRangePreviousRootCount { expected: 2, actual: 1 })
+        );
+
+        let wrong_previous_timestamp = SuperRangeInputs {
+            previous_super_root_proofs: vec![
+                SuperRootProof::new(99, vec![output(10, 0x01), output(20, 0x02)]),
+                SuperRootProof::new(101, vec![output(10, 0x03), output(20, 0x04)]),
+            ],
+            ..base.clone()
+        };
+        assert_eq!(
+            wrong_previous_timestamp.validate(),
+            Err(SuperRootError::RangePreviousRootTimestampMismatch { expected: 100, actual: 101 })
+        );
+
+        let missing_previous_chain = SuperRangeInputs {
+            previous_super_root_proofs: vec![
+                SuperRootProof::new(99, vec![output(10, 0x01), output(20, 0x02)]),
+                SuperRootProof::new(100, vec![output(10, 0x03)]),
+            ],
+            ..base.clone()
+        };
+        assert_eq!(
+            missing_previous_chain.validate(),
+            Err(SuperRootError::MismatchedRangePreviousRootChainCount { expected: 2, actual: 1 })
+        );
+
+        let wrong_previous_chain = SuperRangeInputs {
+            previous_super_root_proofs: vec![
+                SuperRootProof::new(99, vec![output(10, 0x01), output(20, 0x02)]),
+                SuperRootProof::new(100, vec![output(10, 0x03), output(30, 0x04)]),
+            ],
+            ..base
+        };
+        assert_eq!(
+            wrong_previous_chain.validate(),
+            Err(SuperRootError::MismatchedRangePreviousRootChainId {
                 expected: U256::from(20),
                 actual: U256::from(30),
             })
@@ -1356,7 +1570,7 @@ mod tests {
             span: TimestampSpan::new(100, 100).expect("valid span"),
             l1_head: B256::from([0x99; 32]),
             chain_ids: vec![U256::from(10)],
-            previous_super_root: B256::from([0xaa; 32]),
+            previous_super_root_proofs: vec![SuperRootProof::new(99, vec![output(10, 0x01)])],
             claimed_transitions: vec![transition(100, 10, 0x11, 0x12)],
         });
         let consolidation = SuperInteropInputs::Consolidation(SuperConsolidationInputs {
