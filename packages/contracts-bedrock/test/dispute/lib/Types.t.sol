@@ -27,9 +27,7 @@ contract Types_IsSuperGame_Test is Test {
     /// @notice Tests that all expected super game types are recognized.
     function test_isSuperGame_allSuperTypes_succeeds() public pure {
         assertTrue(GameTypes.isSuperGame(GameTypes.SUPER_CANNON), "SUPER_CANNON must be a super game");
-        assertTrue(
-            GameTypes.isSuperGame(GameTypes.SUPER_PERMISSIONED_CANNON), "SUPER_PERMISSIONED_CANNON must be a super game"
-        );
+        assertTrue(GameTypes.isSuperGame(GameTypes.SUPER_PERMISSIONED), "SUPER_PERMISSIONED must be a super game");
         assertTrue(GameTypes.isSuperGame(GameTypes.SUPER_ASTERISC_KONA), "SUPER_ASTERISC_KONA must be a super game");
         assertTrue(GameTypes.isSuperGame(GameTypes.SUPER_CANNON_KONA), "SUPER_CANNON_KONA must be a super game");
         assertTrue(GameTypes.isSuperGame(GameTypes.ZK_DISPUTE_GAME), "ZK_DISPUTE_GAME must be a super game");

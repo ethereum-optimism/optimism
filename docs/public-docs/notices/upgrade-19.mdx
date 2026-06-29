@@ -69,10 +69,6 @@ L2CM introduces a new mechanism for upgrading L2 predeploy contracts. App develo
 
 Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defense), all node operators must update their execution and consensus clients before the activation timestamp.
 
-<Warning>
-  **Action required for node operators on OP Sepolia.** There is a known bug in op-reth where nodes running `--chain op-sepolia` **will not** activate Karst automatically via the Superchain Registry. You must manually configure the Karst timestamp. See Step 2 below for instructions.
-</Warning>
-
 <Steps>
   <Step title="Update to the latest release">
   Update `op-node` and `op-reth` to the version specified in the component table below. The new version includes consensus rules for the Karst hard fork activation for chains in the superchain-registry.
@@ -85,17 +81,6 @@ Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defen
   The Karst activation timestamp is built into the updated releases — no manual timestamp configuration is needed. Make sure you are using the network flag so that op-node and op-reth load chain config from the superchain-registry:
   * `op-node`: [`--network <network>`](/node-operators/reference/op-node-config#network) (e.g. `--network soneium-mainnet`, `--network op-sepolia`)
   * `op-reth`: [`--chain <network>`](/node-operators/reference/op-reth-config#chain) (e.g. `--chain soneium`, `--chain unichain`)
-
-  **OP Sepolia:**
-  Due to a bug in op-reth, the Karst activation timestamp is **not** loaded from the Superchain Registry for `op-sepolia` and `op`. You must configure it manually by providing a genesis file passed via `--chain <path-to-genesis.json>`. Download the pre-built genesis file and pass it directly — do not edit the file.
-
-  * **OP Sepolia**: [Download genesis.json](https://storage.googleapis.com/oplabs-opc-artifacts/chains/op-sepolia/genesis-karst.json)
-
-  <Warning>
-    With `op-reth v2.3.1`, the genesis file must **not** include an `osakaTime` field. The pre-built file linked above is compatible with `op-reth v2.3.1` as-is. Both the SCR loading bug and this restriction will be fixed in a following op-reth release so this won't be necessary for OP Mainnet.
-  </Warning>
-
-  `op-node` is not affected by this bug — `--network op-sepolia` will correctly activate Karst for op-node.
 
   **Chains not in the superchain-registry:**
   Set the activation timestamp manually in each client's config:
@@ -114,15 +99,59 @@ Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defen
 
 Update the following components:
 
-| Component | Version | Notes |
-| ---------------- | ------- | ----- |
-| `op-node`        | [`v1.19.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.0)   | Must be updated **prior** to the activation timestamp. Required for Osaka on L2 and Glamsterdam Defense hard fork changes. |
-| `op-reth`        | [`v2.3.1`](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.3.1)   | Must be updated **prior** to the activation timestamp. Required for EIP-7825 gas limit enforcement, MODEXP/P256VERIFY gas changes, and BN256 pairing input size reduction. |
-| `op-challenger` | [`v1.9.3`](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.9.3) | Must be updated **prior** to the upgrade. Required for `CANNON_KONA` respected game type. |
-| `op-dispute-mon` | [`v1.5.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-dispute-mon%2Fv1.5.2) | Must be updated **prior** to the upgrade. |
-| `op-contracts` | `v7.0.0` | Required for L2CM, OPCMv2, and `CANNON_KONA` respected game type support. |
-| `rollup-boost` | [`v0.7.15`](https://github.com/flashbots/rollup-boost/releases/tag/rollup-boost%2Fv0.7.15) | Only if running Flashblocks. Must be updated **prior** to the activation timestamp. |
-| `op-rbuilder` | [`v0.4.8`](https://github.com/flashbots/op-rbuilder/releases/tag/op-rbuilder%2Fv0.4.8) | Only if running Flashblocks. Must be updated **prior** to the activation timestamp. |
+| Component        | Version      | Notes |
+| ---------------- | ------------ | ----- |
+| `op-node`        | `v1.19.1`    | Must be updated **prior** to the activation timestamp. Includes the Karst gas limit fix (`keep_karst_upgrade_gas`). Replaces `v1.19.0`, which is now deprecated. |
+| `op-reth`        | `v2.3.3`     | Must be updated **prior** to the activation timestamp. Fixes SCR loading for `op-sepolia` and `op-mainnet`. Adds `engine_getPayloadV5` support for Karst. Replaces `v2.3.2`, which is now deprecated. |
+| `op-challenger`  | `v1.9.3`     | *(unchanged)* Must be updated **prior** to the upgrade. |
+| `op-dispute-mon` | `v1.5.2`     | *(unchanged)* Must be updated **prior** to the upgrade. |
+| `op-contracts`   | `v7.0.0`     | *(unchanged)* |
+| `rollup-boost`   | `v0.7.16`    | Only if running Flashblocks. Adds `engine_getPayloadV5` support for Karst. Replaces `v0.7.15`. |
+| `op-rbuilder`    | `v0.4.9`     | Only if running Flashblocks. Fixes SCR loading for `op-sepolia`/`op-mainnet`. Adds `engine_getPayloadV5` support. Replaces `v0.4.8`. |
+
+<Warning>
+  **Upgrade order:** On networks that have **not yet activated Karst** (pre-Karst), `op-node`, `op-reth`, and `op-rbuilder` can be upgraded independently in any order — they will continue using the previous Engine API version until the fork timestamp. On networks that have **already activated Karst** (post-Karst, e.g. Sepolia chains), all three must be upgraded together in a coordinated rollout, as Karst requires `engine_getPayloadV5` and a version mismatch will cause downtime.
+</Warning>
+
+### Gas limit: action required for affected chains
+
+* If your chain has `keep_karst_upgrade_gas = true`, the elevated gas limit is enshrined and you must restore your intended limit with a `SystemConfig.setGasLimit()` transaction after activation (see below).
+* If your chain does not have the flag, the latest releases mean you are not affected and no action is required.
+* If your chain already activated Karst, it **must** use `keep_karst_upgrade_gas = true`. Some chains that have not yet activated Karst (including mainnet chains) also have the flag set — check the list below to see whether yours is affected.
+
+The chains with `keep_karst_upgrade_gas = true` (the [canonical list](https://github.com/ethereum-optimism/superchain-registry/pull/1259/files)) are:
+
+* **Mainnet:** `OP`, `Ink`, `Metal`, `Mode`, `Soneium`, `Unichain`, `Zora`
+* **Sepolia:** `OP`, `Ink`, `Lisk`, `Metal`, `Mode`, `Soneium (Minato)`, `Unichain`, `Zora`
+
+Sepolia chains have already activated Karst, so the action is due now.
+
+#### Restoring the gas limit
+
+After activation, submit a `setGasLimit()` transaction from your chain's `SystemConfig` owner to set the block gas limit back to your intended value.
+
+<Steps>
+  <Step title="Read the current (elevated) gas limit">
+  ```bash
+  cast call <SYSTEM_CONFIG_ADDRESS> "gasLimit()(uint64)" --rpc-url <L1_RPC_URL>
+  ```
+  </Step>
+
+  <Step title="Submit setGasLimit() from the SystemConfig owner">
+  The transaction must be sent by the `SystemConfig` owner (typically a multisig). Set `<INTENDED_GAS_LIMIT>` to the value your chain ran with before Karst activation.
+
+  ```bash
+  cast send <SYSTEM_CONFIG_ADDRESS> "setGasLimit(uint64)" <INTENDED_GAS_LIMIT> \
+    --rpc-url <L1_RPC_URL> --private-key <SYSTEM_CONFIG_OWNER_KEY>
+  ```
+
+  If the owner is a Safe multisig, build and execute the call through your normal multisig flow instead of a direct `cast send`.
+  </Step>
+
+  <Step title="Verify the new gas limit">
+  Re-read `gasLimit()` on the `SystemConfig` and confirm it matches your intended value. The change takes effect on L2 once the corresponding `ConfigUpdate` is derived.
+  </Step>
+</Steps>
 
 ### For permissioned fault proof chains
 
@@ -253,6 +282,10 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
   </Step>
 
   <Step title="Update op-proposer to use CANNON_KONA game type">
+  <Warning>
+    **`op-proposer` will start failing immediately after the contract upgrade executes** if the game type is not updated. The respected game type changes to `CANNON_KONA` (8) on-chain at the moment the upgrade transaction lands — any proposals submitted against the old game type (0) after that point will be rejected. Update the game type before or at the same time as the contract upgrade.
+  </Warning>
+
   After the L1 contract upgrade executes, the respected game type changes from `CANNON` (0) to `CANNON_KONA` (8) on-chain. `op-proposer` must be reconfigured to submit proposals against the new game type, or it will begin failing immediately after the upgrade.
 
   Set the game type to `8` in your proposer configuration:
@@ -268,13 +301,6 @@ If your chain was already configured for `cannon-kona` as part of [Upgrade 18](/
 </Steps>
 
 ## For app developers
-
-<Warning>
-  OP Stack Sepolia testnet chains have a bug affecting calls to `eth_estimateGas` when the `gas` parameter is omitted after Karst.
-  If you use `eth_estimateGas`, providing an explicit `gas` parameter is required.
-  Only post-Karst Sepolia OP Stack chains are impacted.
-  This will be fixed on OP Sepolia within the coming days and will be fixed prior to Karst activation on OP Mainnet.
-</Warning>
 
 * **EIP-7825 transaction gas limit (Osaka on L2):** L2 transactions are now subject to a per-transaction gas limit of 2^24 = 16,777,216 gas. If your application submits transactions with very high gas limits, verify they remain within the new threshold. Deposit transactions are exempt. Most applications will not be affected.
 * **MODEXP gas changes ([EIP-7883](https://eips.ethereum.org/EIPS/eip-7883) + [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823), Osaka on L2):** the gas cost floor for `MODEXP` (`0x05`) increases, and a new input size cap (1024-byte modulus) is enforced. If your contracts call `MODEXP`, update your gas estimates and verify inputs are within the new size limit.

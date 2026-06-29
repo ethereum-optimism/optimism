@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/forks"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
@@ -32,6 +34,11 @@ import (
 // funderMnemonicIndex the funding account is not one of the 30 standard account, but still derived from a user-key.
 const funderMnemonicIndex = 10_000
 const devFeatureBitmapKey = "devFeatureBitmap"
+
+// proxyImplementationSlot is the EIP-1967 proxy implementation storage slot used
+// by every L2 predeploy proxy (`bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)`).
+// Mirrors Constants.PROXY_IMPLEMENTATION_ADDRESS in packages/contracts-bedrock.
+var proxyImplementationSlot = common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
 
 type DeployerOption func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder)
 
@@ -72,6 +79,14 @@ func WithKarstAtOffset(offset *uint64) DeployerOption {
 func WithKarstAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 	for _, l2Cfg := range builder.L2s() {
 		l2Cfg.WithForkAtGenesis(opforks.Karst)
+	}
+}
+
+// WithKeepKarstUpgradeGas opts the L2 chains out of reverting the Karst activation block's
+// one-time upgrade gas, so post-activation blocks keep the inflated gas limit.
+func WithKeepKarstUpgradeGas(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+	for _, l2Cfg := range builder.L2s() {
+		l2Cfg.WithKeepKarstUpgradeGas()
 	}
 }
 
@@ -154,6 +169,10 @@ type worldBuilder struct {
 
 	// options
 	deployerPipelineOptions []DeployerPipelineOption
+
+	// preForkPredeployAllocs, when non-nil, is overlaid onto every L2 chain's
+	// genesis predeploy accounts before the genesis and rollup config are built.
+	preForkPredeployAllocs types.GenesisAlloc
 
 	builder intentbuilder.Builder
 
@@ -414,6 +433,45 @@ func (wb *worldBuilder) buildL2Genesis() {
 	wb.outL2Genesis = make(map[eth.ChainID]*core.Genesis)
 	wb.outL2RollupCfg = make(map[eth.ChainID]*rollup.Config)
 	for _, ch := range wb.output.Chains {
+		if wb.preForkPredeployAllocs != nil {
+			wb.require.NotNil(ch.Allocs, "chain must have allocs to overlay pre-fork state onto")
+			for addr, acct := range wb.preForkPredeployAllocs {
+				// Permit2's bytecode contains chain-id-derived immutables (cached
+				// domain separator), so the frozen snapshot's Permit2 is only
+				// valid for its source chain. Keep each chain's own Permit2.
+				// Other chain-agnostic preinstalls are safe to overlay wholesale.
+				if addr == predeploys.Permit2Addr {
+					continue
+				}
+				// Proxied predeploys have chain-specific storage (owners,
+				// balances, mappings, etc.) that the frozen snapshot would
+				// clobber. For these, only overlay the EIP-1967 implementation
+				// slot so the proxy delegates to the frozen pre-fork
+				// implementation while keeping each chain's own state.
+				// Non-proxied predeploys (WETH, GovernanceToken, etc.) and
+				// non-predeploy entries (implementation contracts at 0xc0d3…,
+				// preinstalls, deployer EOA, …) are overlaid wholesale.
+				if p, ok := predeploys.PredeploysByAddress[addr]; ok && !p.ProxyDisabled {
+					existing, ok := ch.Allocs.Data.Accounts[addr]
+					wb.require.Truef(ok, "predeploy %s missing from chain genesis allocs", addr)
+					implSlot, ok := acct.Storage[proxyImplementationSlot]
+					if !ok {
+						// No pre-fork implementation to pin: this proxy had no
+						// implementation in the frozen state. Leave
+						// the chain's own proxy state; the fork's NUT bundle
+						// installs the implementation at activation.
+						continue
+					}
+					if existing.Storage == nil {
+						existing.Storage = make(map[common.Hash]common.Hash, 1)
+					}
+					existing.Storage[proxyImplementationSlot] = implSlot
+					ch.Allocs.Data.Accounts[addr] = existing
+					continue
+				}
+				ch.Allocs.Data.Accounts[addr] = acct
+			}
+		}
 		l2Genesis, l2RollupCfg, err := inspect.GenesisAndRollup(wb.output, ch.ID)
 		wb.require.NoError(err, "need L2 genesis and rollup")
 		id := eth.ChainIDFromBytes32(ch.ID)

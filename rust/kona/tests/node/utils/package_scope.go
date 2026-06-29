@@ -67,6 +67,10 @@ func (t *packageScopeT) TempDir() string {
 	return t.p.TempDir()
 }
 
+func (t *packageScopeT) TempDirWithPrefix(prefix string) string {
+	return t.p.TempDirWithPrefix(prefix)
+}
+
 func (t *packageScopeT) Cleanup(fn func()) {
 	t.p.Cleanup(fn)
 }

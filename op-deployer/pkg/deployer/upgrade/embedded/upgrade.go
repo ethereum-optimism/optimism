@@ -18,7 +18,7 @@ type GameType uint32
 const (
 	GameTypeCannon             GameType = 0
 	GameTypePermissionedCannon GameType = 1
-	GameTypeSuperPermCannon    GameType = 5
+	GameTypeSuperPermissioned  GameType = 5
 	GameTypeCannonKona         GameType = 8
 	GameTypeSuperCannonKona    GameType = 9
 	GameTypeZKDisputeGame      GameType = 10
@@ -158,7 +158,7 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 				if err != nil {
 					return nil, fmt.Errorf("failed to encode permissioned game config: %w", err)
 				}
-			case GameTypeSuperPermCannon:
+			case GameTypeSuperPermissioned:
 				if gameConfig.SuperPermissionedDisputeGameConfig == nil {
 					return nil, fmt.Errorf("superPermissionedDisputeGameConfig is required for game type %d", gameConfig.GameType)
 				}

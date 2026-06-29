@@ -14,6 +14,26 @@ rss: true
 
 **op-deployer** automates deploying and upgrading OP Stack smart contracts. See the [usage docs](https://docs.optimism.io/chain-operators/tools/op-deployer/overview) for full configuration reference.
 
+<Update label="June 26, 2026" description="v0.7.1" tags={["Latest", "Stable"]}>
+
+## Changelog
+* 6a1240e9974e87b390cb72a15b16bfd85bb8a2ff chore(opd): update SCR dep for op-contracts/v7.0.0-rc.3 tag (#20989)
+* 7525482253bdc076548840638cde165c9004349f chore(opd): update SCR dep for op-contracts/v7.0.0-rc.4 tag (#21045)
+* d210865edde5f2c9a6b84dd26f08fe8b3fa562b3 fix(op-deployer): hydrate OpcmUtilsImpl and OpcmMigratorImpl in state (#20403)
+* 35121b586aa3e6359782f900c09fc6e35dd372e1 refactor: remove ProtocolVersions Go plumbing (#20441)
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer/v0.7.1)
+
+</Update>
+
+<Update label="June 25, 2026" description="v0.7.0" tags={["Stable"]}>
+
+This is the op-deployer release associate with [op-contracts/v7.0.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv7.0.0) and [Upgrade 19](https://gov.optimism.io/t/upgrade-19b-karst-hardfork/10713).
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer/v0.7.0)
+
+</Update>
+
 <Update label="May 27, 2026" description="v0.7.0-rc.1" tags={["Release Candidate"]}>
 
 ## Changelog
@@ -84,7 +104,7 @@ rss: true
 
 </Update>
 
-<Update label="April 2, 2026" description="v0.6.0" tags={["Latest", "Stable"]}>
+<Update label="April 2, 2026" description="v0.6.0" tags={["Stable"]}>
 
 # Overview
 `op-deployer/v0.6.0` supports deploying, upgrading to, and producing calldata for `op-contracts/v6.0.0` (u18). This release supports all of the following:
@@ -354,46 +374,5 @@ Additional changes outside of `op-contracts/v4.1.0` support include:
 * 35bb3786c19162bd0fc8d8a49d025c8b3992709c op-deployer: add upgrade v4_1_0 command (#17790)
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer/v0.4.4-rc.1)
-
-</Update>
-
-<Update label="October 7, 2025" description="v0.4.3" tags={["Stable"]}>
-
-## Changelog
-* 881dd74bfd383637a5406aeb9f7543287f91fea4 Improve docs and invocation on just deploy-opcm (#16421)
-* f2292430add42a71f8f27c9868b9f59b219a2174 Update version (#16829)
-* c8f2fdd62ec330f4810338fcbbeae9b32278cb21 [proposal/op-contracts/v4.1.0] op-deployer: support contracts v4.1.0 (#17733)
-* aff5fbe0569173991af31d49fc4dffee0530e5bb chore: op-deployer prestate generation log change (#17058)
-* 5a6ed1605ea23525684ad96077bf3a05042391c1 ci: Move linter configuration to .golangci.yaml (#16935)
-* d24cf93fed41b1f4ba912ef8ccf58c250d1cd75c ctb,op-deployer: Remove isRC() and L1_CONTRACTS_RELEASE (#17028)
-* c65dd1d227b4db9f10509beacddbcae8e73db170 feat(op-deployer): Add a command for OPCM.migrate call (#16710)
-* 7eedfced77eb30ae72cc8d0e7c793dd2d1b6f161 feat(txmgr / batcher): Rebroadcast transactions without bumping fees (#16310)
-* c3233fc84cd9456ec5c6eb719040c20c949d9888 feat: dev feature flagging in OPCM (#17268) (#17341)
-* 594bc933a38425f745b46399a3619bcdeb74965d fix: bug blocking op-deployer verify (#17503)
-* ba50c0dbec18940daefa33df572f1ec99528f5a4 integrate Standard Validator into OPCM (#16237)
-* cedc4e94f648e9e995c2bb50d6c541434c8aff65 op-deployer: Add docs on custom superchains (#16309)
-* 187a61e56409c69b3f2839edaf0c0ad3fc7ddf63 op-deployer: Add support for upgrading and validating v4.0.0 (#16048)
-* c7605f467ebd685c439077229915804a3b7701b9 op-deployer: Add test for contract artifact integrity (#16568)
-* e0c891748d9c2c5f05c07a6eae9cbc19aad802ce op-deployer: Add tests for end-to-end bootstrap (#16575)
-* 34a1ff9dd9045e892abc0fa3d917a4ede759cd3f op-deployer: Bundle artifacts inside binary (#16777)
-* 51cb1a7523ac45e3c3703a1a2c6794b378f27cba op-deployer: Fix l1 contracts release flag (#16316)
-* 456a4cbaa4c77f39aa4262f6204781981acad401 op-deployer: Fix test that broke with U16 (#16657)
-* 9d95e2f07a3282943b95a50da781949060c4d08d op-deployer: Improve add-game-type (#16373)
-* a87c898d3cd559aa640a4f00f8baf79f4b01014b op-deployer: fix bootstrap implementations flags (#17090)
-* 199b5048cb4cc25d56c327e2c7b669bba530f633 op-deployer: fix implementationsDeployment idempotency (#16567)
-* ac0b43473a9a1734c490e49ba1f6d5682bb47ab8 op-deployer: opt by using prealloc slice (#16901)
-* 70c0da32c351d271345123d029fa27a756c752cb op-deployer: remove AddGameType.DisputeGameType validation (#16453)
-* 5fba9dc7f04be2cf3a17e0f3f29579592b56c51e opd: Add just recipes for deployment and verification purposes (#16262)
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer/v0.4.3)
-
-</Update>
-
-<Update label="September 26, 2025" description="v0.3.4" tags={["Stable"]}>
-
-## Changelog
-* de7ca5af80b4f18b472c673d17da60f95937bb54 [backports] op-deployer: support custom gasLimit (#17585)
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer/v0.3.4)
 
 </Update>
