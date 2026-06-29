@@ -266,7 +266,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         v2UpgradeInput.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
+                initBond: _permissionlessGameInitBondForUpgrade(GameTypes.CANNON),
                 gameType: GameTypes.CANNON,
                 gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
             })
@@ -288,7 +288,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         v2UpgradeInput.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+                initBond: _permissionlessGameInitBondForUpgrade(GameTypes.CANNON_KONA),
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
@@ -332,6 +332,15 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") })
         );
+    }
+
+    /// @notice Returns the permissionless game init bond to use in upgrade inputs.
+    /// @dev Uses the live bond when present, otherwise falls back to a valid nonzero default.
+    /// @param _gameType Game type to check.
+    /// @return The init bond to use for the upgrade config.
+    function _permissionlessGameInitBondForUpgrade(GameType _gameType) internal view returns (uint256) {
+        uint256 initBond = disputeGameFactory.initBonds(_gameType);
+        return initBond == 0 ? DEFAULT_DISPUTE_GAME_INIT_BOND : initBond;
     }
 
     /// @notice Helper function that runs an OPCM V2 upgrade, asserts that the upgrade was successful,
@@ -725,7 +734,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that repeatedly upgrading can enable a previously disabled game type.
     function test_upgrade_enableGameType_succeeds() public {
-        uint256 originalBond = disputeGameFactory.initBonds(GameTypes.CANNON);
+        uint256 originalBond = _permissionlessGameInitBondForUpgrade(GameTypes.CANNON);
 
         // First, disable Cannon and clear its bond so the factory entry is removed.
         // If the chain's current respectedGameType is CANNON, we must override it to

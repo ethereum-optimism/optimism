@@ -1028,10 +1028,12 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
             _withdrawalProof: _withdrawalProof
         });
 
-        // Create a new game.
-        IDisputeGame newGame = disputeGameFactory.create{
-            value: disputeGameFactory.initBonds(optimismPortal2.respectedGameType())
-        }(GameType.wrap(0), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1));
+        // Super game extraData is incompatible here, so mock it below.
+        GameType replacementGameType =
+            DisputeGames.isSuperGame(respectedGameType) ? GameType.wrap(0) : respectedGameType;
+        IDisputeGame newGame = disputeGameFactory.create{ value: disputeGameFactory.initBonds(replacementGameType) }(
+            replacementGameType, Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1)
+        );
 
         // In super mode, the new game's type differs from the respected type, so mock this.
         if (DisputeGames.isSuperGame(respectedGameType)) {
