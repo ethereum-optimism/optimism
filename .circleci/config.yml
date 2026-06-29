@@ -215,8 +215,8 @@ jobs:
               scheduled_pipeline)
                 case "${SCHEDULE_NAME}" in
                   build_four_hours) run scheduled_todo_issues scheduled_cannon_full_tests ;;
-                  build_daily)      run scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests ;;
-                  build_weekly)     run scheduled_weekly_tests scheduled_kona_link_checker ;;
+                  build_daily)      run scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests ;;
+                  build_weekly)     run scheduled_kona_link_checker ;;
                 esac
                 ;;
 

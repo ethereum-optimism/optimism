@@ -120,7 +120,7 @@ parameters:
   c-run_l2_fork_test:
     type: boolean
     default: false
-  c-run_scheduled_weekly_tests:
+  c-run_scheduled_daily_tests:
     type: boolean
     default: false
   c-run_contracts_feature_tests:
@@ -1543,7 +1543,7 @@ jobs:
       - utils/checkout-with-mise:
           enable-mise-cache: false
       - run:
-          name: Check l2-rpcs.json and weekly matrix are in sync
+          name: Check l2-rpcs.json and daily matrix are in sync
           command: bash .circleci/scripts/check-l2-chains-sync.sh
 
   todo-issues:
@@ -2956,8 +2956,8 @@ workflows:
             - circleci-repo-rpc-secrets
             - slack
 
-  scheduled-weekly-tests:
-    when: << pipeline.parameters.c-run_scheduled_weekly_tests >>
+  scheduled-daily-tests:
+    when: << pipeline.parameters.c-run_scheduled_daily_tests >>
     jobs:
       - prep-go-modules:
           context:
@@ -2973,12 +2973,9 @@ workflows:
                 - ink
                 - mode
                 - metal
-                - arena-z
-                - swell
                 - unichain
                 - soneium
                 - world-chain
-                - base
                 - xlayer
           test_profile: ci
           context:
