@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type l1BlockFetcher interface {
@@ -15,7 +16,8 @@ type l1BlockFetcher interface {
 // selectAnchorBlock returns the reorg-safe L1 anchor block for a chain.
 //
 // When overrideHash is nil, the current L1 safe block is used. When set, the pinned
-// block is accepted only if it sits at the L1 safe head or deeper.
+// block is accepted only if it is reorg-safe; it must sit at the L1 safe head or
+// deeper, and it must be the canonical block at its height.
 func selectAnchorBlock(ctx context.Context, l1 l1BlockFetcher, overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
 	safe, err := fetchL1BlockRefByNumber(ctx, l1, "safe")
 	if err != nil {
@@ -35,6 +37,18 @@ func selectAnchorBlock(ctx context.Context, l1 l1BlockFetcher, overrideHash *com
 		return nil, fmt.Errorf(
 			"anchor block %s (height %d) is above the L1 safe head %d; it is not yet reorg-safe",
 			overrideHash.Hex(), uint64(anchor.Number), uint64(safe.Number),
+		)
+	}
+
+	// Confirm the pinned hash is the block the canonical chain carries at that height.
+	canonical, err := fetchL1BlockRefByNumber(ctx, l1, hexutil.EncodeUint64(uint64(anchor.Number)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify anchor block %s is canonical: %w", overrideHash.Hex(), err)
+	}
+	if canonical.Hash != anchor.Hash {
+		return nil, fmt.Errorf(
+			"anchor block %s is not canonical at height %d (canonical block is %s); it may have been reorged out",
+			overrideHash.Hex(), uint64(anchor.Number), canonical.Hash.Hex(),
 		)
 	}
 
