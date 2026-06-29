@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"strings"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -16,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -38,8 +40,13 @@ type PrepareConfig struct {
 	L1RPCUrl string
 	// CacheDir is where downloaded artifacts are cached.
 	CacheDir string
+	// Prestate is the absolute prestate hash to write to state. When set it takes
+	// precedence over any faultGameAbsolutePrestate intent override. It may be empty,
+	// in which case the prestate is resolved from the intent (if present at all).
+	Prestate string
 
 	privateKeyECDSA *ecdsa.PrivateKey
+	prestate        common.Hash
 }
 
 func (c *PrepareConfig) Check() error {
@@ -62,6 +69,14 @@ func (c *PrepareConfig) Check() error {
 
 	if c.L1RPCUrl == "" {
 		return fmt.Errorf("l1 RPC URL must be specified")
+	}
+
+	if c.Prestate != "" {
+		prestate := common.HexToHash(c.Prestate)
+		if prestate == (common.Hash{}) {
+			return fmt.Errorf("prestate must be a non-zero hash, got %q", c.Prestate)
+		}
+		c.prestate = prestate
 	}
 
 	return nil
@@ -88,6 +103,7 @@ func newPrepareConfig(cliCtx *cli.Context, l log.Logger) PrepareConfig {
 		PrivateKey: cliCtx.String(PrivateKeyFlagName),
 		L1RPCUrl:   cliCtx.String(L1RPCURLFlagName),
 		CacheDir:   cliCtx.String(CacheDirFlagName),
+		Prestate:   cliCtx.String(PrestateFlagName),
 	}
 }
 
@@ -145,7 +161,32 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("failed to load DeployOPChain script: %w", err)
 	}
 
+	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
+	if err != nil {
+		return fmt.Errorf("failed to build interop dependency set: %w", err)
+	}
+	st.InteropDepSet = interopDepSet
+
 	for _, chain := range intent.Chains {
+		// Resolve the absolute prestate and enforce the permissionless gate before
+		// predicting, so a misconfigured chain fails fast. A permissionless game type
+		// requires a resolved prestate; a permissioned-only chain may leave it unset.
+		prestate, err := resolvePrestate(cfg.prestate, intent, chain)
+		if err != nil {
+			return fmt.Errorf("failed to resolve prestate for chain %s: %w", chain.ID.Hex(), err)
+		}
+
+		permissionless, err := isPermissionlessDeployment(intent, chain)
+		if err != nil {
+			return fmt.Errorf("failed to resolve game type for chain %s: %w", chain.ID.Hex(), err)
+		}
+		if permissionless && prestate == (common.Hash{}) {
+			return fmt.Errorf(
+				"chain %s enables a permissionless game type but no prestate was resolved; pass --%s or set the %s intent override",
+				chain.ID.Hex(), PrestateFlagName, faultGameAbsolutePrestateKey,
+			)
+		}
+
 		dci, err := makePredictionInput(intent, st, chain)
 		if err != nil {
 			return fmt.Errorf("failed to build prediction input for chain %s: %w", chain.ID.Hex(), err)
@@ -158,6 +199,11 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 
 		// Record the predicted addresses into the chain state marked as not deployed yet.
 		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), false)
+
+		if prestate != (common.Hash{}) {
+			st.SetChainPrestate(chain.ID, prestate)
+			cfg.Logger.Info("resolved prestate", "chain", chain.ID.Hex(), "prestate", prestate)
+		}
 
 		cfg.Logger.Info(
 			"predicted L1 addresses",
@@ -176,6 +222,63 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 
 	return nil
+}
+
+// faultGameAbsolutePrestateKey is the deploy-override key that carries the absolute
+// prestate in the intent. It matches the json/toml tag of ChainProofParams.DisputeAbsolutePrestate.
+const faultGameAbsolutePrestateKey = "faultGameAbsolutePrestate"
+
+// isPermissionlessDeployment reports whether the chain's resolved respected game type
+// runs a permissionless fault dispute game (which requires a real absolute prestate).
+// The game type is resolved from the standard default merged with the intent overrides,
+// matching how the deploy resolves it.
+func isPermissionlessDeployment(intent *state.Intent, chain *state.ChainIntent) (bool, error) {
+	proofParams, err := jsonutil.MergeJSON(
+		state.ChainProofParams{DisputeGameType: standard.DisputeGameType},
+		intent.GlobalDeployOverrides,
+		chain.DeployOverrides,
+	)
+	if err != nil {
+		return false, fmt.Errorf("error merging proof params from overrides: %w", err)
+	}
+	return isPermissionlessGameType(proofParams.DisputeGameType), nil
+}
+
+func isPermissionlessGameType(gameType uint32) bool {
+	switch gameTypes.GameType(gameType) {
+	case gameTypes.PermissionedGameType, gameTypes.SuperPermissionedGameType:
+		return false
+	default:
+		return true
+	}
+}
+
+// resolvePrestate resolves the absolute prestate for a chain. A non-zero flag value
+// takes precedence; otherwise it looks for a faultGameAbsolutePrestate override on the
+// chain first and then the global overrides. It returns the zero hash when no prestate
+// is declared anywhere, which is valid for permissioned-only deployments.
+func resolvePrestate(flagPrestate common.Hash, intent *state.Intent, chain *state.ChainIntent) (common.Hash, error) {
+	if flagPrestate != (common.Hash{}) {
+		return flagPrestate, nil
+	}
+
+	for _, overrides := range []map[string]any{chain.DeployOverrides, intent.GlobalDeployOverrides} {
+		raw, ok := overrides[faultGameAbsolutePrestateKey]
+		if !ok {
+			continue
+		}
+		s, ok := raw.(string)
+		if !ok {
+			return common.Hash{}, fmt.Errorf("%s override must be a hex string, got %T", faultGameAbsolutePrestateKey, raw)
+		}
+		prestate := common.HexToHash(s)
+		if prestate == (common.Hash{}) {
+			return common.Hash{}, fmt.Errorf("%s override must be a non-zero hash, got %q", faultGameAbsolutePrestateKey, s)
+		}
+		return prestate, nil
+	}
+
+	return common.Hash{}, nil
 }
 
 // makePredictionInput builds the DeployOPChain input for the prediction dry-run.

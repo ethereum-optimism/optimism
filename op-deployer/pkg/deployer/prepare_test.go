@@ -107,4 +107,105 @@ func TestPrepareConfigCheck(t *testing.T) {
 	missingL1RPC := valid
 	missingL1RPC.L1RPCUrl = ""
 	require.ErrorContains(t, missingL1RPC.Check(), "l1 RPC URL must be specified")
+
+	validPrestate := valid
+	validPrestate.Prestate = "0xabc123"
+	require.NoError(t, validPrestate.Check())
+	require.Equal(t, common.HexToHash("0xabc123"), validPrestate.prestate)
+
+	zeroPrestate := valid
+	zeroPrestate.Prestate = "0x0"
+	require.ErrorContains(t, zeroPrestate.Check(), "prestate must be a non-zero hash")
+}
+
+func TestResolvePrestate(t *testing.T) {
+	flagPrestate := common.HexToHash("0x1111")
+	chainOverride := common.HexToHash("0x2222")
+	globalOverride := common.HexToHash("0x3333")
+
+	chain := func(override *common.Hash) *state.ChainIntent {
+		c := &state.ChainIntent{ID: common.HexToHash("0x0a")}
+		if override != nil {
+			c.DeployOverrides = map[string]any{faultGameAbsolutePrestateKey: override.Hex()}
+		}
+		return c
+	}
+	intent := func(override *common.Hash) *state.Intent {
+		i := &state.Intent{}
+		if override != nil {
+			i.GlobalDeployOverrides = map[string]any{faultGameAbsolutePrestateKey: override.Hex()}
+		}
+		return i
+	}
+
+	t.Run("flag takes precedence over overrides", func(t *testing.T) {
+		got, err := resolvePrestate(flagPrestate, intent(&globalOverride), chain(&chainOverride))
+		require.NoError(t, err)
+		require.Equal(t, flagPrestate, got)
+	})
+
+	t.Run("chain override takes precedence over global", func(t *testing.T) {
+		got, err := resolvePrestate(common.Hash{}, intent(&globalOverride), chain(&chainOverride))
+		require.NoError(t, err)
+		require.Equal(t, chainOverride, got)
+	})
+
+	t.Run("falls back to global override", func(t *testing.T) {
+		got, err := resolvePrestate(common.Hash{}, intent(&globalOverride), chain(nil))
+		require.NoError(t, err)
+		require.Equal(t, globalOverride, got)
+	})
+
+	t.Run("returns zero when nothing is declared", func(t *testing.T) {
+		got, err := resolvePrestate(common.Hash{}, intent(nil), chain(nil))
+		require.NoError(t, err)
+		require.Equal(t, common.Hash{}, got)
+	})
+
+	t.Run("rejects non-string override", func(t *testing.T) {
+		i := &state.Intent{GlobalDeployOverrides: map[string]any{faultGameAbsolutePrestateKey: 123}}
+		_, err := resolvePrestate(common.Hash{}, i, chain(nil))
+		require.ErrorContains(t, err, "must be a hex string")
+	})
+
+	t.Run("rejects zero-hash override", func(t *testing.T) {
+		i := &state.Intent{GlobalDeployOverrides: map[string]any{faultGameAbsolutePrestateKey: "0x0"}}
+		_, err := resolvePrestate(common.Hash{}, i, chain(nil))
+		require.ErrorContains(t, err, "must be a non-zero hash")
+	})
+}
+
+func TestIsPermissionlessGameType(t *testing.T) {
+	require.False(t, isPermissionlessGameType(1)) // PermissionedGameType
+	require.False(t, isPermissionlessGameType(5)) // SuperPermissionedGameType
+	require.True(t, isPermissionlessGameType(0))  // CannonGameType
+	require.True(t, isPermissionlessGameType(8))  // CannonKonaGameType
+}
+
+func TestIsPermissionlessDeployment(t *testing.T) {
+	chain := &state.ChainIntent{ID: common.HexToHash("0x0a")}
+
+	t.Run("default is permissioned", func(t *testing.T) {
+		got, err := isPermissionlessDeployment(&state.Intent{}, chain)
+		require.NoError(t, err)
+		require.False(t, got)
+	})
+
+	t.Run("global override to cannon is permissionless", func(t *testing.T) {
+		intent := &state.Intent{GlobalDeployOverrides: map[string]any{"respectedGameType": uint32(0)}}
+		got, err := isPermissionlessDeployment(intent, chain)
+		require.NoError(t, err)
+		require.True(t, got)
+	})
+
+	t.Run("chain override takes precedence over global", func(t *testing.T) {
+		intent := &state.Intent{GlobalDeployOverrides: map[string]any{"respectedGameType": uint32(0)}}
+		permissionedChain := &state.ChainIntent{
+			ID:              common.HexToHash("0x0a"),
+			DeployOverrides: map[string]any{"respectedGameType": uint32(1)},
+		}
+		got, err := isPermissionlessDeployment(intent, permissionedChain)
+		require.NoError(t, err)
+		require.False(t, got)
+	})
 }

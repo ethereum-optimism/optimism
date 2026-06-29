@@ -30,6 +30,7 @@ const (
 	VerifierTypeFlagName     = flags.VerifierTypeFlagName
 	VerifierUrlFlagName      = flags.VerifierUrlFlagName
 	UseForgeFlagName         = flags.UseForgeFlagName
+	PrestateFlagName         = flags.PrestateFlagName
 )
 
 var (
@@ -136,6 +137,13 @@ var (
 		EnvVars: PrefixEnvVar("USE_FORGE"),
 		Value:   false,
 	}
+	PrestateFlag = &cli.StringFlag{
+		Name: PrestateFlagName,
+		Usage: "absolute prestate hash for the fault dispute game. When set, it is written to state for " +
+			"every chain, taking precedence over any faultGameAbsolutePrestate intent override. " +
+			"Required for permissionless game types.",
+		EnvVars: PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
+	}
 )
 
 var GlobalFlags = append([]cli.Flag{CacheDirFlag}, oplog.CLIFlags(EnvVarPrefix)...)
@@ -151,6 +159,7 @@ var PrepareFlags = []cli.Flag{
 	WorkdirFlag,
 	PrivateKeyFlag,
 	L1RPCURLFlag,
+	PrestateFlag,
 }
 
 var ApplyFlags = []cli.Flag{

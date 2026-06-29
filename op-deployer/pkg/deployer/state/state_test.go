@@ -46,6 +46,32 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.Equal(t, common.HexToHash("0xdead"), got.StartBlock.Hash)
 }
 
+func TestState_SetChainPrestate(t *testing.T) {
+	chainA := common.HexToHash("0x0a")
+	prestate := common.HexToHash("0xabc123")
+
+	s := &State{}
+
+	// Setting on an absent chain appends a new entry.
+	s.SetChainPrestate(chainA, prestate)
+	require.Len(t, s.Chains, 1)
+	require.Equal(t, prestate, s.Chains[0].Prestate)
+
+	// Setting on an existing chain updates in place and preserves other fields.
+	var contracts addresses.OpChainContracts
+	contracts.SystemConfigProxy = common.HexToAddress("0xa1")
+	s.SetChainContracts(chainA, contracts, false)
+	newPrestate := common.HexToHash("0xdef456")
+	s.SetChainPrestate(chainA, newPrestate)
+	require.Len(t, s.Chains, 1)
+	require.Equal(t, newPrestate, s.Chains[0].Prestate)
+	require.Equal(t, common.HexToAddress("0xa1"), s.Chains[0].SystemConfigProxy, "other fields must be preserved")
+
+	// SetChainContracts must preserve a previously set prestate.
+	s.SetChainContracts(chainA, contracts, true)
+	require.Equal(t, newPrestate, s.Chains[0].Prestate, "prestate must survive a contracts update")
+}
+
 func TestBlockRef_Deserialize(t *testing.T) {
 	tests := []struct {
 		name                 string

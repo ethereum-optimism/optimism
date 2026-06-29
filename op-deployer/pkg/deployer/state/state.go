@@ -98,6 +98,12 @@ type ChainState struct {
 	// by the prediction step of the prepare command.
 	Deployed bool `json:"deployed"`
 
+	// Prestate is the absolute prestate hash resolved for this chain's fault dispute game.
+	// It is written by the prepare command (from a flag or intent override) and must be
+	// present before OPCM.deploy() when a permissionless game type is enabled. It is the
+	// zero hash when unset (e.g. permissioned-only deployments).
+	Prestate common.Hash `json:"prestate,omitempty"`
+
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`
@@ -121,6 +127,22 @@ func (s *State) SetChainContracts(id common.Hash, contracts addresses.OpChainCon
 		ID:               id,
 		OpChainContracts: contracts,
 		Deployed:         deployed,
+	})
+}
+
+// SetChainPrestate records the resolved absolute prestate for a chain. It creates
+// the chain entry if it does not exist and otherwise updates it in place, preserving
+// any other fields already set by other stages.
+func (s *State) SetChainPrestate(id common.Hash, prestate common.Hash) {
+	for _, chain := range s.Chains {
+		if chain.ID == id {
+			chain.Prestate = prestate
+			return
+		}
+	}
+	s.Chains = append(s.Chains, &ChainState{
+		ID:       id,
+		Prestate: prestate,
 	})
 }
 

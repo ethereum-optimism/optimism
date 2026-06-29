@@ -24,6 +24,7 @@ const (
 	VerifierTypeFlagName     = "verifier"
 	VerifierUrlFlagName      = "verifier-url"
 	UseForgeFlagName         = "use-forge"
+	PrestateFlagName         = "dispute-absolute-prestate"
 )
 
 func DefaultCacheDir() string {
