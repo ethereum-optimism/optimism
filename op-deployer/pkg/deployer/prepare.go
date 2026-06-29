@@ -170,7 +170,13 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("failed to load DeployOPChain script: %w", err)
 	}
 
-	if err := predictChains(cfg.Logger, intent, st, deployScript.Run); err != nil {
+	// selectAnchor binds the L1 endpoint and context so predictChains can resolve each
+	// chain's reorg-safe anchor block without taking on the ctx/RPC plumbing.
+	selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+		return selectAnchorBlock(ctx, l1RPC, overrideHash)
+	}
+
+	if err := predictChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor); err != nil {
 		return err
 	}
 
@@ -209,14 +215,30 @@ func resolveSuperchainConfigProxy(ctx context.Context, l1RPC *rpc.Client, intent
 }
 
 // predictChains predicts the L1 addresses for each undeployed chain in the intent
-// and records them as not deployed. Chains that have been deployed are skipped so a
-// re-runs don't overwrite their recorded addresses.
-func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error)) error {
+// and records them, along with the chain's reorg-safe anchor block, as not deployed.
+// Chains that have been deployed are skipped so a re-run doesn't overwrite their
+// recorded addresses. selectAnchor resolves a chain's anchor block from its optional
+// L1StartBlockHash override.
+func predictChains(
+	lgr log.Logger,
+	intent *state.Intent,
+	st *state.State,
+	run func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error),
+	selectAnchor func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error),
+) error {
 	for _, chain := range intent.Chains {
 		if st.IsChainDeployed(chain.ID) {
 			lgr.Info("skipping already deployed chain", "chain", chain.ID.Hex())
 			continue
 		}
+
+		// Resolve the reorg-safe anchor block before the dry-run so an unsafe override
+		// fails fast.
+		anchorBlock, err := selectAnchor(chain.L1StartBlockHash)
+		if err != nil {
+			return fmt.Errorf("failed to select anchor block for chain %s: %w", chain.ID.Hex(), err)
+		}
+		lgr.Info("selected anchor block", "chain", chain.ID.Hex(), "number", uint64(anchorBlock.Number), "hash", anchorBlock.Hash)
 
 		dci, err := makePredictionInput(intent, st, chain)
 		if err != nil {
@@ -228,7 +250,8 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 			return fmt.Errorf("failed to predict L1 addresses for chain %s: %w", chain.ID.Hex(), err)
 		}
 
-		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), false)
+		// Record the predicted addresses and pinned anchor block, marked not deployed yet.
+		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), anchorBlock, false)
 
 		lgr.Info(
 			"predicted L1 addresses",

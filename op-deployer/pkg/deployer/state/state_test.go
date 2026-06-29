@@ -132,7 +132,7 @@ func TestState_SetChainContracts(t *testing.T) {
 	s := &State{}
 
 	// A new chain is appended, we mark a  predicted entry as not-deployed.
-	s.SetChainContracts(chainA, contractsWith("0xa1"), false)
+	s.SetChainContracts(chainA, contractsWith("0xa1"), nil, false)
 	require.Len(t, s.Chains, 1)
 	require.Equal(t, chainA, s.Chains[0].ID)
 	require.Equal(t, common.HexToAddress("0xa1"), s.Chains[0].SystemConfigProxy)
@@ -140,13 +140,13 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.False(t, *s.Chains[0].Deployed)
 
 	// A different chain is also appended.
-	s.SetChainContracts(chainB, contractsWith("0xb1"), false)
+	s.SetChainContracts(chainB, contractsWith("0xb1"), nil, false)
 	require.Len(t, s.Chains, 2)
 
 	// Updating an existing chain in the state replaces it in place, preserves other
 	// fields set by other stages, and can flip the deployed flag.
 	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xdead")}
-	s.SetChainContracts(chainA, contractsWith("0xa2"), true)
+	s.SetChainContracts(chainA, contractsWith("0xa2"), nil, true)
 	require.Len(t, s.Chains, 2)
 
 	got, err := s.Chain(chainA)

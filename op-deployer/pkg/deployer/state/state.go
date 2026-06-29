@@ -168,11 +168,16 @@ func (s *State) IsChainDeployed(id common.Hash) bool {
 // the chain entry if it does not exist and otherwise updates it in place,
 // preserving any other fields already set by other stages. deployed indicates whether the addresses
 // have been already broadcast or are just predicted addresses from the prepare stage.
-func (s *State) SetChainContracts(id common.Hash, contracts addresses.OpChainContracts, deployed bool) {
+// A non-nil startBlock pins the chain's L1 anchor block; a nil startBlock leaves any
+// existing StartBlock untouched so stages that don't set it (e.g. deploy) don't clobber it.
+func (s *State) SetChainContracts(id common.Hash, contracts addresses.OpChainContracts, startBlock *L1BlockRefJSON, deployed bool) {
 	for _, chain := range s.Chains {
 		if chain.ID == id {
 			chain.OpChainContracts = contracts
 			chain.Deployed = &deployed
+			if startBlock != nil {
+				chain.StartBlock = startBlock
+			}
 			return
 		}
 	}
@@ -180,6 +185,7 @@ func (s *State) SetChainContracts(id common.Hash, contracts addresses.OpChainCon
 		ID:               id,
 		OpChainContracts: contracts,
 		Deployed:         &deployed,
+		StartBlock:       startBlock,
 	})
 }
 
