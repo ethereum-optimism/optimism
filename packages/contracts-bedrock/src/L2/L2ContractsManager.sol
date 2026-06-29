@@ -28,15 +28,15 @@ import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.s
 /// @title L2ContractsManager
 /// @notice Manages the upgrade of the L2 predeploys.
 contract L2ContractsManager is ISemver {
-    /// @notice Thrown when the upgrade function is called outside of a DELEGATECALL context.
+    /// @notice Thrown when the upgrade or deploy function is called outside of a DELEGATECALL context.
     error L2ContractsManager_OnlyDelegatecall();
 
     /// @notice Thrown when the fullConfig input and dev feature flags are not compatible.
     error L2ContractsManager_FeatureFlagMismatch();
 
     /// @notice The semantic version of the L2ContractsManager contract.
-    /// @custom:semver 1.10.0
-    string public constant version = "1.10.0";
+    /// @custom:semver 1.11.0
+    string public constant version = "1.11.0";
 
     /// @notice The address of this contract. Used to enforce that the upgrade function is only
     ///         called via DELEGATECALL.
@@ -152,7 +152,19 @@ contract L2ContractsManager is ISemver {
         if (address(this) == THIS_L2CM) revert L2ContractsManager_OnlyDelegatecall();
 
         L2ContractsManagerTypes.FullConfig memory fullConfig = _loadFullConfig();
-        _apply(fullConfig);
+        _apply(fullConfig, false);
+    }
+
+    /// @notice Deploys and initializes all predeploys for the L2 genesis state.
+    /// @dev This function MUST be called via DELEGATECALL (genesis points the L2ProxyAdmin proxy's
+    ///      implementation at this contract and calls through it), so the predeploys' existing ProxyAdmin
+    ///      authorizes the upgrade and initializer calls. Unlike upgrade(), it applies the supplied config
+    ///      rather than reading it from the (not-yet-initialized) predeploys.
+    /// @param _config The full configuration for the L2 Predeploys.
+    function deploy(L2ContractsManagerTypes.FullConfig memory _config) external {
+        if (address(this) == THIS_L2CM) revert L2ContractsManager_OnlyDelegatecall();
+
+        _apply(_config, true);
     }
 
     /// @notice Loads the full configuration for the L2 Predeploys.
@@ -234,7 +246,8 @@ contract L2ContractsManager is ISemver {
     /// @notice Upgrades each of the predeploys to its corresponding new implementation. Applies the appropriate
     ///         configuration to each predeploy.
     /// @param _config The full configuration for the L2 Predeploys.
-    function _apply(L2ContractsManagerTypes.FullConfig memory _config) internal {
+    /// @param _isDeploy True for the L2Genesis deploy path, false for an upgrade.
+    function _apply(L2ContractsManagerTypes.FullConfig memory _config, bool _isDeploy) internal {
         // Initializable predeploys.
 
         // L2CrossDomainMessenger
@@ -244,7 +257,8 @@ contract L2ContractsManager is ISemver {
             STORAGE_SETTER_IMPL,
             abi.encodeCall(IL2CrossDomainMessenger.initialize, (_config.crossDomainMessenger.otherMessenger)),
             INITIALIZABLE_SLOT_OZ_V4,
-            20 // Account for CrossDomainMessengerLegacySpacer0
+            20, // Account for CrossDomainMessengerLegacySpacer0
+            _isDeploy
         );
 
         // L2StandardBridge
@@ -254,7 +268,8 @@ contract L2ContractsManager is ISemver {
             STORAGE_SETTER_IMPL,
             abi.encodeCall(IL2StandardBridge.initialize, (_config.standardBridge.otherBridge)),
             INITIALIZABLE_SLOT_OZ_V4,
-            0
+            0,
+            _isDeploy
         );
 
         // L2ERC721Bridge
@@ -264,7 +279,8 @@ contract L2ContractsManager is ISemver {
             STORAGE_SETTER_IMPL,
             abi.encodeCall(IL2ERC721Bridge.initialize, payable(address(_config.erc721Bridge.otherBridge))),
             INITIALIZABLE_SLOT_OZ_V4,
-            0
+            0,
+            _isDeploy
         );
 
         // OptimismMintableERC20Factory
@@ -274,7 +290,8 @@ contract L2ContractsManager is ISemver {
             STORAGE_SETTER_IMPL,
             abi.encodeCall(IOptimismMintableERC20Factory.initialize, (_config.mintableERC20Factory.bridge)),
             INITIALIZABLE_SLOT_OZ_V4,
-            0
+            0,
+            _isDeploy
         );
 
         // OptimismMintableERC721Factory
@@ -287,7 +304,8 @@ contract L2ContractsManager is ISemver {
                 (_config.mintableERC721Factory.bridge, _config.mintableERC721Factory.remoteChainID)
             ),
             bytes32(uint256(1)), // Initializable storage is at slot 1 due to mapping at slot 0
-            0
+            0,
+            _isDeploy
         );
 
         // LiquidityController (only on custom gas token networks)
@@ -305,7 +323,8 @@ contract L2ContractsManager is ISemver {
                     )
                 ),
                 INITIALIZABLE_SLOT_OZ_V4,
-                0
+                0,
+                _isDeploy
             );
         }
 
@@ -323,7 +342,8 @@ contract L2ContractsManager is ISemver {
                 )
             ),
             INITIALIZABLE_SLOT_OZ_V5,
-            0
+            0,
+            _isDeploy
         );
 
         // BaseFeeVault
@@ -340,7 +360,8 @@ contract L2ContractsManager is ISemver {
                 )
             ),
             INITIALIZABLE_SLOT_OZ_V5,
-            0
+            0,
+            _isDeploy
         );
 
         // L1FeeVault
@@ -357,7 +378,8 @@ contract L2ContractsManager is ISemver {
                 )
             ),
             INITIALIZABLE_SLOT_OZ_V5,
-            0
+            0,
+            _isDeploy
         );
 
         // OperatorFeeVault
@@ -374,37 +396,39 @@ contract L2ContractsManager is ISemver {
                 )
             ),
             INITIALIZABLE_SLOT_OZ_V5,
-            0
+            0,
+            _isDeploy
         );
 
         // Non-initializable predeploys.
-        L2ContractsManagerUtils.upgradeTo(Predeploys.GAS_PRICE_ORACLE, GAS_PRICE_ORACLE_IMPL);
+        L2ContractsManagerUtils.upgradeTo(Predeploys.GAS_PRICE_ORACLE, GAS_PRICE_ORACLE_IMPL, _isDeploy);
         // L1BlockAttributes and L2ToL1MessagePasser have different implementations for custom gas token networks.
         L2ContractsManagerUtils.upgradeTo(
-            Predeploys.L1_BLOCK_ATTRIBUTES, _config.isCustomGasToken ? L1_BLOCK_CGT_IMPL : L1_BLOCK_IMPL
+            Predeploys.L1_BLOCK_ATTRIBUTES, _config.isCustomGasToken ? L1_BLOCK_CGT_IMPL : L1_BLOCK_IMPL, _isDeploy
         );
         L2ContractsManagerUtils.upgradeTo(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
-            _config.isCustomGasToken ? L2_TO_L1_MESSAGE_PASSER_CGT_IMPL : L2_TO_L1_MESSAGE_PASSER_IMPL
+            _config.isCustomGasToken ? L2_TO_L1_MESSAGE_PASSER_CGT_IMPL : L2_TO_L1_MESSAGE_PASSER_IMPL,
+            _isDeploy
         );
-        L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL);
-        L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL);
+        L2ContractsManagerUtils.upgradeTo(Predeploys.PROXY_ADMIN, PROXY_ADMIN_IMPL, _isDeploy);
+        L2ContractsManagerUtils.upgradeTo(Predeploys.L2_DEV_FEATURE_FLAGS, L2_DEV_FEATURE_FLAGS_IMPL, _isDeploy);
         if (_config.isCustomGasToken) {
-            L2ContractsManagerUtils.upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL);
+            L2ContractsManagerUtils.upgradeTo(Predeploys.NATIVE_ASSET_LIQUIDITY, NATIVE_ASSET_LIQUIDITY_IMPL, _isDeploy);
         }
 
         // Interop predeploys are gated behind the OPTIMISM_PORTAL_INTEROP dev feature flag.
         if (_config.isInterop) {
-            L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL);
+            L2ContractsManagerUtils.upgradeTo(Predeploys.CROSS_L2_INBOX, CROSS_L2_INBOX_IMPL, _isDeploy);
             L2ContractsManagerUtils.upgradeTo(
-                Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL
+                Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, L2_TO_L2_CROSS_DOMAIN_MESSENGER_IMPL, _isDeploy
             );
-            L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_ETH_BRIDGE, SUPERCHAIN_ETH_BRIDGE_IMPL);
-            L2ContractsManagerUtils.upgradeTo(Predeploys.ETH_LIQUIDITY, ETH_LIQUIDITY_IMPL);
+            L2ContractsManagerUtils.upgradeTo(Predeploys.SUPERCHAIN_ETH_BRIDGE, SUPERCHAIN_ETH_BRIDGE_IMPL, _isDeploy);
+            L2ContractsManagerUtils.upgradeTo(Predeploys.ETH_LIQUIDITY, ETH_LIQUIDITY_IMPL, _isDeploy);
         }
-        L2ContractsManagerUtils.upgradeTo(Predeploys.SCHEMA_REGISTRY, SCHEMA_REGISTRY_IMPL);
-        L2ContractsManagerUtils.upgradeTo(Predeploys.EAS, EAS_IMPL);
-        L2ContractsManagerUtils.upgradeTo(Predeploys.CONDITIONAL_DEPLOYER, CONDITIONAL_DEPLOYER_IMPL);
+        L2ContractsManagerUtils.upgradeTo(Predeploys.SCHEMA_REGISTRY, SCHEMA_REGISTRY_IMPL, _isDeploy);
+        L2ContractsManagerUtils.upgradeTo(Predeploys.EAS, EAS_IMPL, _isDeploy);
+        L2ContractsManagerUtils.upgradeTo(Predeploys.CONDITIONAL_DEPLOYER, CONDITIONAL_DEPLOYER_IMPL, _isDeploy);
     }
 
     /// @notice Checks if a development feature is enabled by reading from the L2DevFeatureFlags predeploy.
