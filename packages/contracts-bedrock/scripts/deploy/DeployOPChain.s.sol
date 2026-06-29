@@ -113,7 +113,8 @@ contract DeployOPChain is Script {
         view
         returns (IOPContractsManagerV2.FullConfig memory config_)
     {
-        bool permissionless = _isPermissionlessDeploy(_input.disputeGameType, isSuperRoot);
+        (bool permissionless, GameType respectedGameType) =
+            _initialDeployGameSelection(_input.disputeGameType, isSuperRoot);
 
         // Shared permissioned game config for legacy permissioned games.
         IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerUtils
@@ -218,9 +219,7 @@ contract DeployOPChain is Script {
             unsafeBlockSigner: _input.unsafeBlockSigner,
             batcher: _input.batcher,
             startingAnchorRoot: Proposal({ root: _input.startingAnchorRoot, l2SequenceNumber: 0 }),
-            startingRespectedGameType: permissionless
-                ? _input.disputeGameType
-                : (isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON),
+            startingRespectedGameType: respectedGameType,
             basefeeScalar: _input.basefeeScalar,
             blobBasefeeScalar: _input.blobBaseFeeScalar,
             gasLimit: _input.gasLimit,
@@ -309,6 +308,21 @@ contract DeployOPChain is Script {
         );
 
         return !_isSuperRoot && _disputeGameType.raw() != GameTypes.PERMISSIONED_CANNON.raw();
+    }
+
+    /// @notice Returns the permissionless mode and respected game type for an initial deployment.
+    function _initialDeployGameSelection(
+        GameType _disputeGameType,
+        bool _isSuperRoot
+    )
+        internal
+        pure
+        returns (bool permissionless_, GameType respectedGameType_)
+    {
+        permissionless_ = _isPermissionlessDeploy(_disputeGameType, _isSuperRoot);
+        respectedGameType_ = permissionless_
+            ? _disputeGameType
+            : (_isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON);
     }
 
     // -------- Validations --------
@@ -407,10 +421,7 @@ contract DeployOPChain is Script {
         IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_i.opcm);
         IOPContractsManagerContainer.Implementations memory implementations = opcmV2.implementations();
 
-        bool permissionless = _isPermissionlessDeploy(_i.disputeGameType, isSuperRoot);
-        GameType respectedGameType = permissionless
-            ? _i.disputeGameType
-            : (isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON);
+        (bool permissionless, GameType respectedGameType) = _initialDeployGameSelection(_i.disputeGameType, isSuperRoot);
         address expectedDGImpl = permissionless
             ? implementations.faultDisputeGameImpl
             : (isSuperRoot ? implementations.superPermissionedDisputeGameImpl : implementations.permissionedDisputeGameImpl);
