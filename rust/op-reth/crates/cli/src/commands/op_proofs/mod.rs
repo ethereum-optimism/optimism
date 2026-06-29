@@ -30,8 +30,9 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> Command<C> {
         // Drain the Prometheus recorder's per-metric `AtomicBucket`s on a 5s tick.
         // The buckets are append-only; without this, `reth_trie::trie::StateRoot::calculate`
         // (run per backfilled/initialized block) leaks ~3 KB/block via histogram observations
-        // and OOMs on chain-sized runs. See paradigmxyz/reth#12664. op-proofs subcommands have no endpoint, so
-        // we spawn upkeep here directly. Idempotent — safe under repeated invocation.
+        // and OOMs on chain-sized runs. See paradigmxyz/reth#12664. op-proofs subcommands have no
+        // endpoint, so we spawn upkeep here directly. Idempotent — safe under repeated
+        // invocation.
         install_prometheus_recorder().spawn_upkeep();
 
         match self.command {
