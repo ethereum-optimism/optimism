@@ -504,7 +504,7 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
         deployOPChain.run(deployOPChainInput);
     }
 
-    function test_run_placeholderStartingAnchorRoot_permissionless_reverts() public {
+    function test_run_permissionlessPlaceholderStartingAnchorRoot_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         deployOPChainInput.disputeGameType = GameTypes.CANNON;
         // startingAnchorRoot stays at the 0xdead placeholder default.
@@ -512,7 +512,7 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
         deployOPChain.run(deployOPChainInput);
     }
 
-    function test_run_zeroCannonAbsolutePrestate_permissionless_reverts() public {
+    function test_run_permissionlessZeroCannonAbsolutePrestate_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         deployOPChainInput.disputeGameType = GameTypes.CANNON;
         deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
@@ -521,7 +521,7 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
         deployOPChain.run(deployOPChainInput);
     }
 
-    function test_run_zeroCannonKonaAbsolutePrestate_permissionless_reverts() public {
+    function test_run_permissionlessZeroCannonKonaAbsolutePrestate_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         deployOPChainInput.disputeGameType = GameTypes.CANNON;
         deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;

@@ -54,6 +54,10 @@ import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManager
 ///      design. Look at _apply, squint, and imagine that it can output an upgrade plan rather than
 ///      actually executing the upgrade, and then you'll see how it can be improved.
 contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
+    // TODO(#20912): Remove once deploy pipelines provide real anchor roots.
+    /// @notice Placeholder anchor root historically used for permissioned initial deployments.
+    bytes32 internal constant PLACEHOLDER_STARTING_ANCHOR_ROOT = bytes32(hex"dead");
+
     /// @notice Contracts that represent the Superchain system.
     struct SuperchainContracts {
         ISuperchainConfig superchainConfig;
@@ -713,7 +717,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // This places a requirement on the user to order the configs properly but that's
         // probably a good thing, keeps the config consistent.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
-            if (_cfg.disputeGameConfigs[i].gameType.raw() != validGameTypes[i].raw()) {
+            uint32 rawGameType = validGameTypes[i].raw();
+            bool isCannonGame = rawGameType == GameTypes.CANNON.raw();
+            bool isCannonKonaGame = rawGameType == GameTypes.CANNON_KONA.raw();
+
+            if (_cfg.disputeGameConfigs[i].gameType.raw() != rawGameType) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
@@ -722,28 +730,23 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            if (
-                _cfg.disputeGameConfigs[i].gameType.raw() == GameTypes.SUPER_PERMISSIONED.raw()
-                    && _cfg.disputeGameConfigs[i].initBond != 0
-            ) {
+            if (rawGameType == GameTypes.SUPER_PERMISSIONED.raw() && _cfg.disputeGameConfigs[i].initBond != 0) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
             // If game is enabled, we must have a non-zero init bond, except
             // SUPER_PERMISSIONED which does not use bonds.
             if (
-                _cfg.disputeGameConfigs[i].gameType.raw() != GameTypes.SUPER_PERMISSIONED.raw()
-                    && _cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond == 0
+                rawGameType != GameTypes.SUPER_PERMISSIONED.raw() && _cfg.disputeGameConfigs[i].enabled
+                    && _cfg.disputeGameConfigs[i].initBond == 0
             ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
             // During initial deployment, only CANNON, PERMISSIONED_CANNON, CANNON_KONA, and
             // SUPER_PERMISSIONED may be enabled.
-            bool enableableAtInitialDeployment = validGameTypes[i].raw() == GameTypes.CANNON.raw()
-                || validGameTypes[i].raw() == GameTypes.PERMISSIONED_CANNON.raw()
-                || validGameTypes[i].raw() == GameTypes.CANNON_KONA.raw()
-                || validGameTypes[i].raw() == GameTypes.SUPER_PERMISSIONED.raw();
+            bool enableableAtInitialDeployment = isCannonGame || rawGameType == GameTypes.PERMISSIONED_CANNON.raw()
+                || isCannonKonaGame || rawGameType == GameTypes.SUPER_PERMISSIONED.raw();
 
             if (_isInitialDeployment && !enableableAtInitialDeployment && _cfg.disputeGameConfigs[i].enabled) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
@@ -751,10 +754,18 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
             // ZK_DISPUTE_GAME can only be enabled when the dev flag is on (upgrade path).
             if (
-                validGameTypes[i].raw() == GameTypes.ZK_DISPUTE_GAME.raw() && _cfg.disputeGameConfigs[i].enabled
+                rawGameType == GameTypes.ZK_DISPUTE_GAME.raw() && _cfg.disputeGameConfigs[i].enabled
                     && !isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)
             ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            if (_cfg.disputeGameConfigs[i].enabled && (isCannonGame || isCannonKonaGame)) {
+                IOPContractsManagerUtils.FaultDisputeGameConfig memory faultGameConfig =
+                    abi.decode(_cfg.disputeGameConfigs[i].gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
+                if (faultGameConfig.absolutePrestate.raw() == bytes32(0)) {
+                    revert OPContractsManagerV2_InvalidGameConfigs();
+                }
             }
         }
 
@@ -771,6 +782,20 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
         if (!startingGameTypeFound) {
             revert OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        if (_isInitialDeployment) {
+            bytes32 startingAnchorRoot = _cfg.startingAnchorRoot.root.raw();
+            bool permissionlessInitialRespectedGameType = _cfg.startingRespectedGameType.raw() == GameTypes.CANNON.raw()
+                || _cfg.startingRespectedGameType.raw() == GameTypes.CANNON_KONA.raw();
+
+            if (startingAnchorRoot == bytes32(0)) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            if (permissionlessInitialRespectedGameType && startingAnchorRoot == PLACEHOLDER_STARTING_ANCHOR_ROOT) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
         }
     }
 
