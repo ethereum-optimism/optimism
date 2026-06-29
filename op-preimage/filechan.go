@@ -46,10 +46,10 @@ func (rw *ReadWritePair) Writer() *os.File {
 func (rw *ReadWritePair) Close() error {
 	var combinedErr error
 	if err := rw.r.Close(); err != nil {
-		combinedErr = errors.Join(fmt.Errorf("failed to close reader: %w", err))
+		combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to close reader: %w", err))
 	}
 	if err := rw.w.Close(); err != nil {
-		combinedErr = errors.Join(fmt.Errorf("failed to close writer: %w", err))
+		combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to close writer: %w", err))
 	}
 	return combinedErr
 }
