@@ -170,10 +170,14 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("failed to load DeployOPChain script: %w", err)
 	}
 
-	// selectAnchor binds the L1 endpoint and context so predictChains can resolve each
-	// chain's reorg-safe anchor block without taking on the ctx/RPC plumbing.
+	// Fetch the L1 safe block to share it across all chains.
+	safe, err := fetchL1BlockRefByNumber(ctx, l1RPC, "safe")
+	if err != nil {
+		return fmt.Errorf("failed to fetch L1 safe block: %w", err)
+	}
+
 	selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
-		return selectAnchorBlock(ctx, l1RPC, overrideHash)
+		return selectAnchorBlock(ctx, l1RPC, safe, overrideHash)
 	}
 
 	if err := predictChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor); err != nil {

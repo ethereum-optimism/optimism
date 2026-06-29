@@ -15,15 +15,10 @@ type l1BlockFetcher interface {
 
 // selectAnchorBlock returns the reorg-safe L1 anchor block for a chain.
 //
-// When overrideHash is nil, the current L1 safe block is used. When set, the pinned
-// block is accepted only if it is reorg-safe; it must sit at the L1 safe head or
-// deeper, and it must be the canonical block at its height.
-func selectAnchorBlock(ctx context.Context, l1 l1BlockFetcher, overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
-	safe, err := fetchL1BlockRefByNumber(ctx, l1, "safe")
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch L1 safe block: %w", err)
-	}
-
+// safe is the current L1 safe block. When overrideHash is nil, safe is returned as-is. When set, the pinned block
+// is accepted only if it sits at the L1 safe head or deeper and
+// it's the canonical block at its height.
+func selectAnchorBlock(ctx context.Context, l1 l1BlockFetcher, safe *state.L1BlockRefJSON, overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
 	if overrideHash == nil {
 		return safe, nil
 	}

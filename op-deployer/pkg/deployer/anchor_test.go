@@ -45,12 +45,10 @@ func TestSelectAnchorBlock(t *testing.T) {
 	ctx := context.Background()
 	safeHash := common.HexToHash("0x5afe")
 	overrideHash := common.HexToHash("0xa11c0")
+	safe := anchorRef(safeHash, 100)
 
 	t.Run("nil override returns the safe block", func(t *testing.T) {
-		f := &fakeL1{byArg: map[string]*state.L1BlockRefJSON{
-			"safe": anchorRef(safeHash, 100),
-		}}
-		got, err := selectAnchorBlock(ctx, f, nil)
+		got, err := selectAnchorBlock(ctx, &fakeL1{}, safe, nil)
 		require.NoError(t, err)
 		require.Equal(t, safeHash, got.Hash)
 		require.EqualValues(t, 100, got.Number)
@@ -59,11 +57,10 @@ func TestSelectAnchorBlock(t *testing.T) {
 	t.Run("canonical override below the safe head is accepted", func(t *testing.T) {
 		for _, height := range []uint64{50, 99} {
 			f := &fakeL1{byArg: map[string]*state.L1BlockRefJSON{
-				"safe":                       anchorRef(safeHash, 100),
 				overrideHash.Hex():           anchorRef(overrideHash, height),
 				hexutil.EncodeUint64(height): anchorRef(overrideHash, height),
 			}}
-			got, err := selectAnchorBlock(ctx, f, &overrideHash)
+			got, err := selectAnchorBlock(ctx, f, safe, &overrideHash)
 			require.NoError(t, err)
 			require.Equal(t, overrideHash, got.Hash)
 			require.EqualValues(t, height, got.Number)
@@ -72,11 +69,10 @@ func TestSelectAnchorBlock(t *testing.T) {
 
 	t.Run("pinning the safe block itself is accepted", func(t *testing.T) {
 		f := &fakeL1{byArg: map[string]*state.L1BlockRefJSON{
-			"safe":                    anchorRef(safeHash, 100),
 			safeHash.Hex():            anchorRef(safeHash, 100),
 			hexutil.EncodeUint64(100): anchorRef(safeHash, 100),
 		}}
-		got, err := selectAnchorBlock(ctx, f, &safeHash)
+		got, err := selectAnchorBlock(ctx, f, safe, &safeHash)
 		require.NoError(t, err)
 		require.Equal(t, safeHash, got.Hash)
 		require.EqualValues(t, 100, got.Number)
@@ -84,10 +80,9 @@ func TestSelectAnchorBlock(t *testing.T) {
 
 	t.Run("override above the safe head is rejected", func(t *testing.T) {
 		f := &fakeL1{byArg: map[string]*state.L1BlockRefJSON{
-			"safe":             anchorRef(safeHash, 100),
 			overrideHash.Hex(): anchorRef(overrideHash, 101),
 		}}
-		_, err := selectAnchorBlock(ctx, f, &overrideHash)
+		_, err := selectAnchorBlock(ctx, f, safe, &overrideHash)
 		require.ErrorContains(t, err, "above the L1 safe head")
 	})
 
@@ -95,36 +90,25 @@ func TestSelectAnchorBlock(t *testing.T) {
 		const height = 90
 		canonicalHash := common.HexToHash("0xca7")
 		f := &fakeL1{byArg: map[string]*state.L1BlockRefJSON{
-			"safe": anchorRef(safeHash, 100),
 			// the node still serves the reorged-out sibling by hash...
 			overrideHash.Hex(): anchorRef(overrideHash, height),
 			// but the canonical chain carries a different block at that height.
 			hexutil.EncodeUint64(height): anchorRef(canonicalHash, height),
 		}}
-		_, err := selectAnchorBlock(ctx, f, &overrideHash)
+		_, err := selectAnchorBlock(ctx, f, safe, &overrideHash)
 		require.ErrorContains(t, err, "not canonical")
 	})
 
 	t.Run("unknown override hash is rejected", func(t *testing.T) {
-		f := &fakeL1{byArg: map[string]*state.L1BlockRefJSON{
-			"safe": anchorRef(safeHash, 100),
-		}}
-		_, err := selectAnchorBlock(ctx, f, &overrideHash)
+		_, err := selectAnchorBlock(ctx, &fakeL1{}, safe, &overrideHash)
 		require.ErrorContains(t, err, "not found")
 	})
 
 	t.Run("override fetch error is propagated", func(t *testing.T) {
 		f := &fakeL1{
-			byArg:       map[string]*state.L1BlockRefJSON{"safe": anchorRef(safeHash, 100)},
 			errByMethod: map[string]error{"eth_getBlockByHash": errors.New("rpc down")},
 		}
-		_, err := selectAnchorBlock(ctx, f, &overrideHash)
+		_, err := selectAnchorBlock(ctx, f, safe, &overrideHash)
 		require.ErrorContains(t, err, "failed to fetch anchor block")
-	})
-
-	t.Run("safe fetch error is propagated", func(t *testing.T) {
-		f := &fakeL1{err: errors.New("rpc down")}
-		_, err := selectAnchorBlock(ctx, f, nil)
-		require.ErrorContains(t, err, "failed to fetch L1 safe block")
 	})
 }
