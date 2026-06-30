@@ -72,6 +72,23 @@ module Interop {
       this.currentL1 := BlockID(0, 0);
       this.chains := chains;
       this.logsDBs := logsDBs;
+      // After all field assignments, 'this' is fully usable.
+      new;
+      // All logsDBs have LatestSealedBlock() == None (empty), so FindSealedBlock(n) == None
+      // for all n (by LatestSealedBlock axiom), making LogsDBConsistentWithChainData vacuously true.
+      assert AllLogsDBsConsistentWithChainData() by {
+        reveal AllLogsDBsConsistentWithChainData;
+        reveal LogsDBConsistentWithChainData;
+        forall chainID | chainID in logsDBs.Keys
+          ensures LogsDBConsistentWithChainData(chainID)
+        {
+          reveal LogsDBConsistentWithChainData;
+          assert logsDBs[chainID].LatestSealedBlock() == None;
+          // LatestSealedBlock axiom: None => forall number :: FindSealedBlock(number) == None
+          assert forall number :: logsDBs[chainID].FindSealedBlock(number) == None;
+          // FindSealedBlock(n) == None for all n means the predicate body is vacuously true.
+        }
+      }
     }
 
     // ========================================================================
@@ -122,7 +139,7 @@ module Interop {
       logsDBs.Keys == CHAIN_IDS &&
       // All logsDBs are distinct.
       (forall k1, k2 :: k1 in logsDBs.Keys && k2 in logsDBs.Keys && k1 != k2 ==> logsDBs[k1] != logsDBs[k2]) &&
-      BlockSealsMatchOnChainTimestamps() &&
+      AllLogsDBsConsistentWithChainData() &&
 
       /* VerifiedDB invariants */
       verifiedDB.Valid() &&
@@ -710,18 +727,6 @@ module Interop {
             ts < logsDBs[chainID].FindSealedBlock(n).value.timestamp
     }
 
-    ghost predicate BlockSealsMatchOnChainTimestamps()
-      reads logsDBs.Values
-      requires logsDBs.Keys == chains.Keys
-    {
-      forall chainID :: chainID in logsDBs.Keys ==>
-        forall n :: logsDBs[chainID].FindSealedBlock(n).Some? ==>
-          var sealedBlock := logsDBs[chainID].FindSealedBlock(n).value;
-          var onChainBlock := chains[chainID].BlockInfo(sealedBlock.id);
-          onChainBlock.Some? &&
-          sealedBlock.timestamp == onChainBlock.value.timestamp
-    }
-
     ghost predicate VerifiedHeadsBoundedByTimestamp(ts: nat)
       reads verifiedDB
       requires verifiedDB.Has(ts)
@@ -809,6 +814,8 @@ module Interop {
       label BeforeSetPending:
       verifiedDB.SetPendingTransition(pendingTx);
 
+      assert VerifiedHeadsAreHighestBlocksUpToTimestamp();
+
       // SetPendingTransition only changes pendingTransition; db and lastTimestamp
       // are unchanged. Re-derive DBsInSync for all chains via the framing lemma.
       forall k | k in logsDBs.Keys ensures DBsInSync(k) {
@@ -827,6 +834,8 @@ module Interop {
         ClearPendingPreservesAllVerifiedHeadsBoundedByTimestamp@BeforeSetPending();
       }
 
+      // These predicates read verifiedDB/logsDBs.Values only; unchanged since BeforeSetPending.
+      assert AllLogsDBsConsistentWithChainData();
       assert AllVerifiedCrossValid() by {
         ClearPendingPreservesAllVerifiedCrossValid@BeforeSetPending();
       }
@@ -1421,7 +1430,13 @@ module Interop {
           var ok := chains[chainIDs[i]].RewindEngine(plan.resetAllChainsTo.value);
           if !ok { failedAny := true; }
         }
+        // Valid() and AllVerifiedCrossValid() read verifiedDB, logsDBs.Values only;
+        // both are unchanged by chain operations — assert explicitly for isolated VCs.
+        assert AllLogsDBsConsistentWithChainData();
         assert VerifiedHeadsAreHighestBlocksUpToTimestamp();
+        assert Valid();
+        assert unchanged(verifiedDB);
+        assert unchanged(logsDBs.Values);
         assert AllVerifiedCrossValid();
       }
       success := !failedAny;
@@ -1443,13 +1458,19 @@ module Interop {
     {
       for i := 0 to |chainIDs|
         invariant Valid()
+        invariant AllLogsDBsConsistentWithChainData()
         invariant |verifiedDB.db| == 0
         invariant forall k :: k in chainIDs[0..i] ==>
           logsDBs[k].LatestSealedBlock() == None
         invariant forall k :: k in chainIDs[0..i] ==>
           RewoundLogsDB(plan, k)
       {
+        label BeforeClear:
         logsDBs[chainIDs[i]].Clear();
+        // Re-establish AllLogsDBsConsistentWithChainData via the framing lemma:
+        // - chainIDs[i]: LatestSealedBlock() == None (Clear postcondition) => vacuous.
+        // - other chains: logsDBs[k] distinct from logsDBs[chainIDs[i]] => unchanged by Clear.
+        ClearPreservesAllLogsDBsConsistentWithChainData@BeforeClear(chainIDs[i]);
       }
     }
 
@@ -1523,9 +1544,6 @@ module Interop {
 
         RewindPreservesVerifiedHeadsHighest@BeforeRewind(chainID, plan.targetHeads[chainID]);
         assert VerifiedHeadsAreHighestBlocksUpToTimestamp();
-        assert BlockSealsMatchOnChainTimestamps() by {
-          RewindPreservesBlockSealsMatch@BeforeRewind(chainID, plan.targetHeads[chainID]);
-        }
         assert AllLogsDBsConsistentWithChainData() by {
           RewindPreservesAllLogsDBsConsistentWithChainData@BeforeRewind(chainID, plan.targetHeads[chainID]);
         }
@@ -2128,46 +2146,6 @@ module Interop {
       }
     }
 
-    // Framing lemma: logsDBs[chainID].Rewind preserves BlockSealsMatchOnChainTimestamps.
-    // Rewind removes seals above targetHead.number; remaining seals have unchanged FindSealedBlock
-    // data (Rewind postcondition), and chains is unchanged, so the timestamp-match property holds
-    // by congruence from the old state. Other chains are untouched.
-    // Intended to be called as RewindPreservesBlockSealsMatch@L(chainID, targetHead)
-    // where L is a label placed just before the Rewind call.
-    twostate lemma {:isolate_assertions} RewindPreservesBlockSealsMatch(
-        chainID: ChainID, targetHead: BlockID)
-      requires chainID in logsDBs.Keys
-      requires logsDBs.Keys == chains.Keys
-      requires forall k1, k2 :: k1 in logsDBs.Keys && k2 in logsDBs.Keys && k1 != k2 ==> logsDBs[k1] != logsDBs[k2]
-      requires logsDBs[chainID].LatestSealedBlock() == Some(targetHead)
-      requires forall n :: 0 <= n <= targetHead.number ==>
-        logsDBs[chainID].FindSealedBlock(n) == old(logsDBs[chainID].FindSealedBlock(n))
-      requires forall k :: k in logsDBs.Keys && k != chainID ==>
-        forall n :: logsDBs[k].FindSealedBlock(n) == old(logsDBs[k].FindSealedBlock(n))
-      requires old(BlockSealsMatchOnChainTimestamps())
-      ensures BlockSealsMatchOnChainTimestamps()
-    {
-      forall cid | cid in logsDBs.Keys
-        ensures forall n :: logsDBs[cid].FindSealedBlock(n).Some? ==>
-          var sealedBlock := logsDBs[cid].FindSealedBlock(n).value;
-          chains[cid].BlockInfo(sealedBlock.id).Some? &&
-          sealedBlock.timestamp == chains[cid].BlockInfo(sealedBlock.id).value.timestamp
-      {
-        forall n: nat | logsDBs[cid].FindSealedBlock(n).Some?
-          ensures var sealedBlock := logsDBs[cid].FindSealedBlock(n).value;
-            chains[cid].BlockInfo(sealedBlock.id).Some? &&
-            sealedBlock.timestamp == chains[cid].BlockInfo(sealedBlock.id).value.timestamp
-        {
-          if cid == chainID {
-            assert n <= targetHead.number;   // from LatestSealedBlock axiom (blocks above are None)
-            assert logsDBs[cid].FindSealedBlock(n) == old(logsDBs[cid].FindSealedBlock(n));
-          } else {
-            assert logsDBs[cid].FindSealedBlock(n) == old(logsDBs[cid].FindSealedBlock(n));
-          }
-        }
-      }
-    }
-
     // Framing lemma: logsDBs[chainID].Rewind preserves AllLogsDBsConsistentWithChainData.
     // Remaining sealed blocks (up to targetHead.number) have unchanged FindSealedBlock and
     // BlockLogs data (from Rewind postconditions + the BlockLogs preservation axiom), so
@@ -2211,6 +2189,49 @@ module Interop {
             assert logsDBs[cid].BlockLogs(blockID.number) == old(logsDBs[cid].BlockLogs(blockID.number));
             assert old(logsDBs[cid].FindSealedBlock(blockID.number)).Some?;
           } else {
+            assert logsDBs[cid].FindSealedBlock(blockID.number) == old(logsDBs[cid].FindSealedBlock(blockID.number));
+            assert logsDBs[cid].BlockLogs(blockID.number) == old(logsDBs[cid].BlockLogs(blockID.number));
+            assert old(logsDBs[cid].FindSealedBlock(blockID.number)).Some?;
+          }
+        }
+      }
+    }
+
+    // Framing lemma: logsDBs[clearedChainID].Clear preserves AllLogsDBsConsistentWithChainData.
+    // The cleared chain has LatestSealedBlock() == None so LogsDBConsistentWithChainData is vacuous.
+    // Other chains have unchanged FindSealedBlock and BlockLogs so LogsDBConsistentWithChainData
+    // holds by congruence from the old state.
+    // Intended to be called as ClearPreservesAllLogsDBsConsistentWithChainData@L(clearedChainID)
+    // where L is a label placed just before the Clear call.
+    twostate lemma {:isolate_assertions} ClearPreservesAllLogsDBsConsistentWithChainData(clearedChainID: ChainID)
+      requires clearedChainID in logsDBs.Keys
+      requires logsDBs.Keys == chains.Keys
+      requires forall k1, k2 :: k1 in logsDBs.Keys && k2 in logsDBs.Keys && k1 != k2 ==> logsDBs[k1] != logsDBs[k2]
+      requires logsDBs[clearedChainID].LatestSealedBlock() == None
+      requires forall k :: k in logsDBs.Keys && k != clearedChainID ==>
+        forall n :: logsDBs[k].FindSealedBlock(n) == old(logsDBs[k].FindSealedBlock(n))
+      requires forall k :: k in logsDBs.Keys && k != clearedChainID ==>
+        forall n :: old(logsDBs[k].FindSealedBlock(n)).Some? ==>
+          logsDBs[k].BlockLogs(n) == old(logsDBs[k].BlockLogs(n))
+      requires old(AllLogsDBsConsistentWithChainData())
+      ensures AllLogsDBsConsistentWithChainData()
+    {
+      reveal AllLogsDBsConsistentWithChainData;
+      reveal LogsDBConsistentWithChainData;
+      forall cid | cid in logsDBs.Keys
+        ensures LogsDBConsistentWithChainData(cid)
+      {
+        reveal LogsDBConsistentWithChainData;
+        if cid == clearedChainID {
+          assert forall number :: logsDBs[cid].FindSealedBlock(number) == None;
+        } else {
+          forall blockID: BlockID | logsDBs[cid].FindSealedBlock(blockID.number).Some?
+            ensures BlockExistedOnChain(cid, blockID) &&
+              var info := chains[cid].BlockInfo(blockID).value;
+              var logs := chains[cid].BlockLogs(blockID).value;
+              logsDBs[cid].FindSealedBlock(info.id.number).value.timestamp == info.timestamp &&
+              logsDBs[cid].BlockLogs(info.id.number) == logs
+          {
             assert logsDBs[cid].FindSealedBlock(blockID.number) == old(logsDBs[cid].FindSealedBlock(blockID.number));
             assert logsDBs[cid].BlockLogs(blockID.number) == old(logsDBs[cid].BlockLogs(blockID.number));
             assert old(logsDBs[cid].FindSealedBlock(blockID.number)).Some?;
@@ -3023,8 +3044,12 @@ module Interop {
               //   AllDBsInSyncUpTo at ts' for chainID: seal at blockID.number exists with id == blockID.
               assert old(logsDBs[chainID].FindSealedBlock(blockID.number)).Some?;
               assert old(logsDBs[chainID].FindSealedBlock(blockID.number)).value.id == blockID;
-              //   BlockSealsMatchOnChainTimestamps: seal timestamp == T_chain.
-              assert old(logsDBs[chainID].FindSealedBlock(blockID.number)).value.timestamp == T_chain;
+              //   AllLogsDBsConsistentWithChainData (opaque): reveal to extract timestamp fact.
+              assert old(logsDBs[chainID].FindSealedBlock(blockID.number)).value.timestamp == T_chain by {
+                reveal AllLogsDBsConsistentWithChainData;
+                reveal LogsDBConsistentWithChainData;
+                assert old(LogsDBConsistentWithChainData(chainID));
+              }
               //   verifiedDB non-decreasing (ts' ≤ ts): blockID.number ≤ plan.targetHeads[chainID].number.
               assert blockID.number <= plan.targetHeads[chainID].number;
               //   AllDBsInSyncUpTo + BlockSealsMatchOnChainTimestamps: seal at targetHead.number has timestamp ts.
@@ -3068,11 +3093,10 @@ module Interop {
       }
     }
 
-    // Proves BlockSealsMatchOnChainTimestamps() after a successful PersistFrontierLogs.
+    // Proves AllLogsDBsConsistentWithChainData() after a successful PersistFrontierLogs.
     // Called as AdvanceEstablishesBlockSealsMatchOnChainTimestamps@L(blocksAtTS) where L is
     // a label placed just before PersistFrontierLogs.
-    // Key: UpdatedAllLogsDBs -> UpdatedLogsDB -> LogsDBConsistentWithChainData instantiated
-    // at blockID := sealedBlock.id, giving seal.timestamp == on-chain timestamp for every block.
+    // Key: UpdatedAllLogsDBs -> UpdatedLogsDB body includes LogsDBConsistentWithChainData directly.
     twostate lemma AdvanceEstablishesBlockSealsMatchOnChainTimestamps(blocksAtTS: map<ChainID, BlockID>)
       requires old(Valid())
       requires logsDBs.Keys == CHAIN_IDS
@@ -3080,37 +3104,11 @@ module Interop {
       requires blocksAtTS.Keys == CHAIN_IDS
       requires BlocksExistedOnChain(blocksAtTS)
       requires UpdatedAllLogsDBs(blocksAtTS)
-      ensures BlockSealsMatchOnChainTimestamps()
+      ensures AllLogsDBsConsistentWithChainData()
     {
       reveal UpdatedAllLogsDBs;
       reveal UpdatedLogsDB;
-      forall chainID | chainID in logsDBs.Keys
-        ensures forall n :: logsDBs[chainID].FindSealedBlock(n).Some? ==>
-          chains[chainID].BlockInfo(logsDBs[chainID].FindSealedBlock(n).value.id).Some? &&
-          logsDBs[chainID].FindSealedBlock(n).value.timestamp ==
-          chains[chainID].BlockInfo(logsDBs[chainID].FindSealedBlock(n).value.id).value.timestamp
-      {
-        reveal LogsDBConsistentWithChainData;
-        forall n | logsDBs[chainID].FindSealedBlock(n).Some?
-          ensures chains[chainID].BlockInfo(logsDBs[chainID].FindSealedBlock(n).value.id).Some? &&
-            logsDBs[chainID].FindSealedBlock(n).value.timestamp ==
-            chains[chainID].BlockInfo(logsDBs[chainID].FindSealedBlock(n).value.id).value.timestamp
-        {
-          var sealedBlock := logsDBs[chainID].FindSealedBlock(n).value;
-          var sealedID := sealedBlock.id;
-          // Trigger LogsDBConsistentWithChainData at blockID := sealedID.
-          // sealedID.number == n, so FindSealedBlock(sealedID.number).Some? holds.
-          assert logsDBs[chainID].FindSealedBlock(sealedID.number).Some?;
-          // Consequent: BlockExistedOnChain(chainID, sealedID) && timestamp match.
-          assert BlockExistedOnChain(chainID, sealedID);
-          assert chains[chainID].BlockInfo(sealedID).Some?;
-          var info := chains[chainID].BlockInfo(sealedID).value;
-          // BlockInfo axiom: info.id == sealedID, so info.id.number == n.
-          assert info.id.number == n;
-          assert logsDBs[chainID].FindSealedBlock(info.id.number).Some?;
-          assert logsDBs[chainID].FindSealedBlock(info.id.number).value.timestamp == info.timestamp;
-        }
-      }
+      reveal AllLogsDBsConsistentWithChainData;
     }
 
     // Proves VerifiedHeadsAreHighestBlocksUpToTimestamp() after PersistFrontierLogs + Commit.
