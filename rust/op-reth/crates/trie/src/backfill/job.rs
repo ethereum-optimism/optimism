@@ -423,7 +423,7 @@ where
 
     /// Compute the per-block backfill diff using snapshot trie + leaf cursors.
     ///
-    /// The batched [`Self::run_batched_with_snapshot`] passes the open RW backfill provider
+    /// The batched [`Self::run_with_snapshot`] passes the open RW backfill provider
     /// (which implements [`OpProofsSnapshotProviderRO`] via the trait hierarchy), so cursors
     /// see the in-flight `update_snapshot` writes from earlier blocks in the same MDBX
     /// transaction.

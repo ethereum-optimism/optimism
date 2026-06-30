@@ -47,11 +47,10 @@ pub struct BackfillCommand<C: ChainSpecParser> {
     #[arg(long = "proofs-history.use-snapshot")]
     pub use_snapshot: bool,
 
-    /// Number of blocks committed per MDBX transaction during backfill.
+    /// Number of blocks committed per MDBX write transaction (1..=100).
     ///
-    /// Default `DEFAULT_BACKFILL_BATCH_SIZE` measured 2.7× throughput on a 1.2M-block op
-    /// mainnet backfill. Trade-offs: peak RSS grows with N and a crash mid-batch loses
-    /// up to N blocks of progress.
+    /// Larger N amortizes commit/fsync; trade-off is higher peak RSS
+    /// and up to N blocks of progress lost on crash.
     #[arg(
         long = "proofs-history.backfill-batch-size",
         value_name = "N",

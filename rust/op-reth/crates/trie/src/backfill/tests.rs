@@ -260,12 +260,8 @@ fn backfill_then_forward_write_preserves_state_roots() {
     }
 }
 
-/// Batched backfill (K > 1) must produce the same proofs DB state as the per-block path (K = 1).
-///
-/// Stronger than just asserting `earliest` lands at the right block: we compare the reconstructed
-/// state root at every backfilled block against reth's header on both runs. If batching had any
-/// divergent behavior (e.g. missing a changeset, mis-ordering history entries), state-root
-/// validation would catch it.
+/// Batched (K > 1) and per-block (K = 1) backfill must be observationally equivalent: both
+/// runs land the same proof window and reconstruct the same state root at every block in it.
 #[test]
 fn run_batched_matches_unbatched_state_roots() {
     use crate::test_utils::build_chain_with_storage_writes_and_initialize_storage;
@@ -329,18 +325,8 @@ fn run_batched_matches_unbatched_state_roots() {
     }
 }
 
-// ========================== Job-loop batching tests ==========================
-
-/// Job-loop atomicity: if validation fails mid-batch, the open RW tx is dropped, so the
-/// in-flight writes for *prior* blocks of the same batch must also roll back.
-///
-/// Setup: 5-block chain with `header[2].state_root` corrupted; backfill runs with K=10 so the
-/// entire range fits in one batch. The descending loop processes blocks 5, 4, 3, ..., calling
-/// `prepend_block` then `validate_state_root` per iteration. Blocks 5 and 4 prepend successfully
-/// and their validations pass; iteration 3 prepends, then validates against `header[2]` (the
-/// corrupted one) and returns `StateRootMismatch`. After the failure, `earliest` must remain at
-/// the original `NUM_BLOCKS` — proving that the in-flight writes for blocks 5, 4, and 3 were
-/// all rolled back when the open tx dropped.
+/// Job-loop atomicity: a validation failure mid-batch drops the open RW tx, rolling back
+/// the in-flight writes for every prior block in the same batch.
 #[test]
 fn run_rolls_back_in_flight_batch_writes_on_validation_failure() {
     let key_pair = deterministic_keypair();
