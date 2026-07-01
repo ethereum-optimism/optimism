@@ -39,7 +39,7 @@ func getContractBundleFromState(filepath string) (map[string]common.Address, err
 
 	for _, chain := range st.Chains {
 		// Skip chains whose addresses are only predicted and not yet broadcast.
-		if !chain.Deployed {
+		if chain.Deployed != nil && !*chain.Deployed {
 			continue
 		}
 		chainPrefix := fmt.Sprintf("opchain_%s", chain.ID.Hex())

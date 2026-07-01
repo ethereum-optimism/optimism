@@ -124,7 +124,7 @@ type ChainState struct {
 
 	// Deployed indicates whether the addresses in this chain have been deployed or are just addresses produced
 	// by the prediction step of the prepare command.
-	Deployed bool `json:"deployed"`
+	Deployed *bool `json:"deployed,omitempty"`
 
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 
@@ -141,14 +141,14 @@ func (s *State) SetChainContracts(id common.Hash, contracts addresses.OpChainCon
 	for _, chain := range s.Chains {
 		if chain.ID == id {
 			chain.OpChainContracts = contracts
-			chain.Deployed = deployed
+			chain.Deployed = &deployed
 			return
 		}
 	}
 	s.Chains = append(s.Chains, &ChainState{
 		ID:               id,
 		OpChainContracts: contracts,
-		Deployed:         deployed,
+		Deployed:         &deployed,
 	})
 }
 

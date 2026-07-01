@@ -69,7 +69,8 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.Len(t, s.Chains, 1)
 	require.Equal(t, chainA, s.Chains[0].ID)
 	require.Equal(t, common.HexToAddress("0xa1"), s.Chains[0].SystemConfigProxy)
-	require.False(t, s.Chains[0].Deployed)
+	require.NotNil(t, s.Chains[0].Deployed)
+	require.False(t, *s.Chains[0].Deployed)
 
 	// A different chain is also appended.
 	s.SetChainContracts(chainB, contractsWith("0xb1"), false)
@@ -84,7 +85,8 @@ func TestState_SetChainContracts(t *testing.T) {
 	got, err := s.Chain(chainA)
 	require.NoError(t, err)
 	require.Equal(t, common.HexToAddress("0xa2"), got.SystemConfigProxy)
-	require.True(t, got.Deployed)
+	require.NotNil(t, got.Deployed)
+	require.True(t, *got.Deployed)
 	require.NotNil(t, got.StartBlock, "other fields must be preserved on update")
 	require.Equal(t, common.HexToHash("0xdead"), got.StartBlock.Hash)
 }
