@@ -237,7 +237,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
 
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
-        _checkPermissionlessDeployment(doo, GameTypes.CANNON);
+        _checkSelectedPermissionlessDeployment(doo, GameTypes.CANNON);
     }
 
     /// @notice A CANNON_KONA initial deployment enables only CANNON_KONA and seeds the anchor root
@@ -248,7 +248,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
 
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
-        _checkPermissionlessDeployment(doo, GameTypes.CANNON_KONA);
+        _checkSelectedPermissionlessDeployment(doo, GameTypes.CANNON_KONA);
     }
 
     /// @notice Permissionless game types are rejected when super roots are enabled.
@@ -263,16 +263,22 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     /// @notice Asserts a permissionless deployment enabled only the selected fault game with the
     ///         default bond and seeded the ASR with the input anchor root and respected game type.
     /// @param doo The output of the deployment.
-    /// @param _enabledType The selected and expected respected game type.
-    function _checkPermissionlessDeployment(DeployOPChain.Output memory doo, GameType _enabledType) internal view {
+    /// @param _selectedType The selected and expected respected game type.
+    function _checkSelectedPermissionlessDeployment(
+        DeployOPChain.Output memory doo,
+        GameType _selectedType
+    )
+        internal
+        view
+    {
         uint256 defaultBond = deployOPChain.DEFAULT_INIT_BOND();
         GameType disabledPermissionlessType =
-            _enabledType.raw() == GameTypes.CANNON.raw() ? GameTypes.CANNON_KONA : GameTypes.CANNON;
+            _selectedType.raw() == GameTypes.CANNON.raw() ? GameTypes.CANNON_KONA : GameTypes.CANNON;
 
         IOPContractsManagerContainer.Implementations memory impls = IOPContractsManagerV2(opcmAddr).implementations();
-        assertEq(doo.disputeGameFactoryProxy.initBonds(_enabledType), defaultBond, "selected init bond");
+        assertEq(doo.disputeGameFactoryProxy.initBonds(_selectedType), defaultBond, "selected init bond");
         assertEq(
-            address(doo.disputeGameFactoryProxy.gameImpls(_enabledType)), impls.faultDisputeGameImpl, "selected impl"
+            address(doo.disputeGameFactoryProxy.gameImpls(_selectedType)), impls.faultDisputeGameImpl, "selected impl"
         );
         assertEq(doo.disputeGameFactoryProxy.initBonds(disabledPermissionlessType), 0, "unselected init bond");
         assertEq(
@@ -287,13 +293,13 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         );
 
         assertEq(
-            LibGameArgs.decode(doo.disputeGameFactoryProxy.gameArgs(_enabledType)).absolutePrestate,
+            LibGameArgs.decode(doo.disputeGameFactoryProxy.gameArgs(_selectedType)).absolutePrestate,
             deployOPChainInput.disputeAbsolutePrestate.raw(),
             "selected prestate wiring"
         );
 
         IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
-        assertEq(asr.respectedGameType().raw(), _enabledType.raw(), "respected game type");
+        assertEq(asr.respectedGameType().raw(), _selectedType.raw(), "respected game type");
         Proposal memory anchor = asr.getStartingAnchorRoot();
         assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.raw(), "anchor root");
         assertEq(anchor.l2SequenceNumber, 0, "anchor seq");
@@ -359,7 +365,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(doo.disputeGameFactoryProxy.initBonds(permType), expectedInitBond);
         assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(permType)), address(0));
 
-        // CANNON must be disabled for initial deployment (not deployed for super root path)
+        // CANNON must be disabled for the default permissioned initial deployment.
         if (!isSuperRoot) {
             assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "CANNON init bond should be 0");
             assertEq(
@@ -369,7 +375,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             );
         }
 
-        // Kona must be disabled for initial deployment
+        // Kona must be disabled for the default permissioned initial deployment.
         assertEq(doo.disputeGameFactoryProxy.initBonds(konaType), 0, "CANNON_KONA init bond should be 0");
         assertEq(
             address(doo.disputeGameFactoryProxy.gameImpls(konaType)),
