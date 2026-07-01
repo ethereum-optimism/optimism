@@ -35,6 +35,7 @@ type FaultyRandomChain struct {
 	state                         elState
 	targetNum                     uint64 // in elBelowTarget, byNumber >= this is "gone"
 	cooperative                   bool   // FCU lands the requested head (vs. ignores it)
+	byNumberErr                   error  // when set, L2BlockRefByNumber returns it (transient RPC failure)
 
 	newPayloadCalls int // synthetic-insert attempts
 	fcuCalls        int
@@ -84,6 +85,9 @@ func (f *FaultyRandomChain) L2BlockRefByLabel(ctx context.Context, label eth.Blo
 }
 
 func (f *FaultyRandomChain) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	if f.byNumberErr != nil {
+		return eth.L2BlockRef{}, f.byNumberErr
+	}
 	if f.state == elBelowTarget && num >= f.targetNum {
 		return eth.L2BlockRef{}, ethereum.NotFound
 	}
