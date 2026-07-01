@@ -62,10 +62,8 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     GameType disputeGameType = GameTypes.PERMISSIONED_CANNON;
     Claim disputeAbsolutePrestate = Claim.wrap(0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c);
     Hash startingAnchorRoot = Hash.wrap(0xdead000000000000000000000000000000000000000000000000000000000000);
-    Claim cannonAbsolutePrestate = Claim.wrap(0x1111111111111111111111111111111111111111111111111111111111111111);
-    Claim cannonKonaAbsolutePrestate = Claim.wrap(0x2222222222222222222222222222222222222222222222222222222222222222);
     // Non-placeholder anchor root for the permissionless deploy tests.
-    Hash permissionlessAnchorRoot = Hash.wrap(bytes32(uint256(0xc0ffee)));
+    Hash permissionlessAnchorRoot = Hash.wrap(0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47);
     uint256 disputeMaxGameDepth = 73;
     uint256 disputeSplitDepth = 30;
     Duration disputeClockExtension = Duration.wrap(3 hours);
@@ -134,8 +132,6 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             disputeGameType: disputeGameType,
             disputeAbsolutePrestate: disputeAbsolutePrestate,
             startingAnchorRoot: startingAnchorRoot,
-            cannonAbsolutePrestate: cannonAbsolutePrestate,
-            cannonKonaAbsolutePrestate: cannonKonaAbsolutePrestate,
             disputeMaxGameDepth: disputeMaxGameDepth,
             disputeSplitDepth: disputeSplitDepth,
             disputeClockExtension: disputeClockExtension,
@@ -264,14 +260,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChain.run(deployOPChainInput);
     }
 
-    /// @notice Permissioned deploys do not require the permissionless prestate inputs.
-    function test_run_permissionedZeroPermissionlessPrestates_succeeds() public {
-        deployOPChainInput.cannonAbsolutePrestate = Claim.wrap(bytes32(0));
-        deployOPChainInput.cannonKonaAbsolutePrestate = Claim.wrap(bytes32(0));
-        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
-        _checkDeploymentAssertions(doo);
-    }
-
     /// @notice Asserts a permissionless deployment enabled both fault games with the default bond and
     ///         non-zero impls, and seeded the ASR with the input anchor root and respected game type.
     /// @param doo The output of the deployment.
@@ -290,12 +278,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         // args distinguish their prestates.
         assertEq(
             LibGameArgs.decode(doo.disputeGameFactoryProxy.gameArgs(GameTypes.CANNON)).absolutePrestate,
-            deployOPChainInput.cannonAbsolutePrestate.raw(),
+            deployOPChainInput.disputeAbsolutePrestate.raw(),
             "CANNON prestate wiring"
         );
         assertEq(
             LibGameArgs.decode(doo.disputeGameFactoryProxy.gameArgs(GameTypes.CANNON_KONA)).absolutePrestate,
-            deployOPChainInput.cannonKonaAbsolutePrestate.raw(),
+            deployOPChainInput.disputeAbsolutePrestate.raw(),
             "CANNON_KONA prestate wiring"
         );
 
@@ -509,24 +497,6 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
         deployOPChainInput.disputeGameType = GameTypes.CANNON;
         // startingAnchorRoot stays at the 0xdead placeholder default.
         vm.expectRevert("DeployOPChainInput: permissionless startingAnchorRoot cannot be placeholder");
-        deployOPChain.run(deployOPChainInput);
-    }
-
-    function test_run_permissionlessZeroCannonAbsolutePrestate_reverts() public {
-        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        deployOPChainInput.disputeGameType = GameTypes.CANNON;
-        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
-        deployOPChainInput.cannonAbsolutePrestate = Claim.wrap(bytes32(0));
-        vm.expectRevert("DeployOPChainInput: cannonAbsolutePrestate not set");
-        deployOPChain.run(deployOPChainInput);
-    }
-
-    function test_run_permissionlessZeroCannonKonaAbsolutePrestate_reverts() public {
-        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        deployOPChainInput.disputeGameType = GameTypes.CANNON;
-        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
-        deployOPChainInput.cannonKonaAbsolutePrestate = Claim.wrap(bytes32(0));
-        vm.expectRevert("DeployOPChainInput: cannonKonaAbsolutePrestate not set");
         deployOPChain.run(deployOPChainInput);
     }
 

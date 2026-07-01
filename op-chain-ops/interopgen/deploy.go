@@ -245,8 +245,6 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		DisputeGameType:              cfg.DisputeGameType,
 		DisputeAbsolutePrestate:      cfg.DisputeAbsolutePrestate,
 		StartingAnchorRoot:           opcm.DefaultStartingAnchorRoot.Root,
-		CannonAbsolutePrestate:       cfg.DisputeAbsolutePrestate,
-		CannonKonaAbsolutePrestate:   cfg.DisputeKonaAbsolutePrestate,
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(cfg.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(cfg.DisputeSplitDepth),
 		DisputeClockExtension:        cfg.DisputeClockExtension,

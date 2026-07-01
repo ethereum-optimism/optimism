@@ -37,8 +37,6 @@ type DeployOPChainInput struct {
 	DisputeGameType              uint32
 	DisputeAbsolutePrestate      common.Hash
 	StartingAnchorRoot           common.Hash
-	CannonAbsolutePrestate       common.Hash
-	CannonKonaAbsolutePrestate   common.Hash
 	DisputeMaxGameDepth          *big.Int
 	DisputeSplitDepth            *big.Int
 	DisputeClockExtension        uint64

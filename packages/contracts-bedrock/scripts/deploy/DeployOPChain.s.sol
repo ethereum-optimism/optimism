@@ -138,7 +138,7 @@ contract DeployOPChain is Script {
                 initBond: DEFAULT_INIT_BOND,
                 gameType: GameTypes.CANNON,
                 gameArgs: abi.encode(
-                    IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.cannonAbsolutePrestate })
+                    IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate })
                 )
             })
             : IOPContractsManagerUtils.DisputeGameConfig({
@@ -170,7 +170,7 @@ contract DeployOPChain is Script {
                 initBond: DEFAULT_INIT_BOND,
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(
-                    IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.cannonKonaAbsolutePrestate })
+                    IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate })
                 )
             })
             : IOPContractsManagerUtils.DisputeGameConfig({
@@ -361,11 +361,6 @@ contract DeployOPChain is Script {
             require(
                 _i.startingAnchorRoot.raw() != ScriptConstants.DEFAULT_OUTPUT_ROOT().root.raw(),
                 "DeployOPChainInput: permissionless startingAnchorRoot cannot be placeholder"
-            );
-            require(_i.cannonAbsolutePrestate.raw() != bytes32(0), "DeployOPChainInput: cannonAbsolutePrestate not set");
-            require(
-                _i.cannonKonaAbsolutePrestate.raw() != bytes32(0),
-                "DeployOPChainInput: cannonKonaAbsolutePrestate not set"
             );
         }
     }
