@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -111,11 +110,8 @@ func initCommonChecks(intent *state.Intent, st *state.State) error {
 		return fmt.Errorf("unsupported state version: %d", st.Version)
 	}
 
-	if st.Create2Salt == (common.Hash{}) {
-		_, err := rand.Read(st.Create2Salt[:])
-		if err != nil {
-			return fmt.Errorf("failed to generate CREATE2 salt: %w", err)
-		}
+	if err := st.EnsureCreate2Salt(); err != nil {
+		return err
 	}
 
 	return nil

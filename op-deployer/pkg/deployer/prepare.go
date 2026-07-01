@@ -120,6 +120,10 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 	st.L1PredictSenderAddress = &deployer
 
+	if err := st.EnsureCreate2Salt(); err != nil {
+		return err
+	}
+
 	// Download the L1 artifacts referenced by the intent so the dry-run uses the
 	// same DeployOPChain script as the eventual broadcast.
 	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), cfg.CacheDir)

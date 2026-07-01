@@ -9,6 +9,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestState_EnsureCreate2Salt(t *testing.T) {
+	t.Run("generates a salt when unset", func(t *testing.T) {
+		s := &State{}
+		require.NoError(t, s.EnsureCreate2Salt())
+		require.NotEqual(t, common.Hash{}, s.Create2Salt, "salt should be randomised from zero")
+	})
+
+	t.Run("preserves an existing salt", func(t *testing.T) {
+		existing := common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000aa")
+		s := &State{Create2Salt: existing}
+		require.NoError(t, s.EnsureCreate2Salt())
+		require.Equal(t, existing, s.Create2Salt, "existing salt must not be regenerated")
+	})
+
+	t.Run("is idempotent across calls", func(t *testing.T) {
+		s := &State{}
+		require.NoError(t, s.EnsureCreate2Salt())
+		first := s.Create2Salt
+		require.NoError(t, s.EnsureCreate2Salt())
+		require.Equal(t, first, s.Create2Salt, "second call must not change the salt")
+	})
+}
+
 func TestState_CheckL1PredictSender(t *testing.T) {
 	deployer := common.HexToAddress("0x1111000000000000000000000000000000000001")
 	other := common.HexToAddress("0x2222000000000000000000000000000000000002")

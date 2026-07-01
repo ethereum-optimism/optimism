@@ -1,6 +1,7 @@
 package state
 
 import (
+	"crypto/rand"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/core"
@@ -92,6 +93,18 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 func (s *State) CheckL1PredictSender(deployer common.Address) error {
 	if s.L1PredictSenderAddress != nil && *s.L1PredictSenderAddress != deployer {
 		return fmt.Errorf("deployer address mismatch: expected %s, got %s", s.L1PredictSenderAddress.Hex(), deployer.Hex())
+	}
+	return nil
+}
+
+// EnsureCreate2Salt generates a random CREATE2 salt if one has not been set yet.
+// If a salt has been already set then it is preserved.
+func (s *State) EnsureCreate2Salt() error {
+	if s.Create2Salt != (common.Hash{}) {
+		return nil
+	}
+	if _, err := rand.Read(s.Create2Salt[:]); err != nil {
+		return fmt.Errorf("failed to generate CREATE2 salt: %w", err)
 	}
 	return nil
 }
