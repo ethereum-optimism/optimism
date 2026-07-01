@@ -49,8 +49,13 @@ module Interop {
 
     constructor(chains: map<ChainID, ChainContainer>)
       requires chains.Keys == CHAIN_IDS
-      ensures Valid()
       ensures this.chains == chains
+      ensures Valid()
+      ensures PendingTransitionIsConsistent()
+      ensures AllLogsDBsConsistentWithChainData()
+      ensures AllVerifiedCrossValid()
+      ensures verifiedDB.GetPendingTransition().Some? ==>
+        TransitionIsCrossValid(verifiedDB.GetPendingTransition().value)
     {
       var chainIDs := Enumerate(CHAIN_IDS);
       var logsDBs: map<ChainID, LogsDB> := map[];
@@ -88,6 +93,10 @@ module Interop {
           assert forall number :: logsDBs[chainID].FindSealedBlock(number) == None;
           // FindSealedBlock(n) == None for all n means the predicate body is vacuously true.
         }
+      }
+
+      assert AllVerifiedCrossValid() by {
+        reveal AllVerifiedCrossValid;
       }
     }
 
