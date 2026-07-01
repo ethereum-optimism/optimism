@@ -30,6 +30,10 @@ type State struct {
 	// Create2Salt is the salt used for CREATE2 deployments.
 	Create2Salt common.Hash `json:"create2Salt"`
 
+	// L1PredictSenderAddress is the address that performed the L1 deploy dry-run.
+	// It is used to verify that the same deployer is used for the relevant stages of the permissionless pipeline.
+	L1PredictSenderAddress *common.Address `json:"deployerAddress,omitempty"`
+
 	// AppliedIntent contains the chain intent that was last
 	// successfully applied. It is diffed against new intent
 	// in order to determine what deployment steps to take.
@@ -79,6 +83,17 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 		}
 	}
 	return nil, fmt.Errorf("chain not found: %s", id.Hex())
+}
+
+// CheckL1PredictSender verifies that deployer matches the L1 predict sender
+// pinned during the prepare dry-run, keeping the predicted L1 addresses valid
+// across the relevant stages of the permissionless pipeline. A nil L1PredictSenderAddress
+// means no sender was pinned, so any deployer is accepted (older pipeline).
+func (s *State) CheckL1PredictSender(deployer common.Address) error {
+	if s.L1PredictSenderAddress != nil && *s.L1PredictSenderAddress != deployer {
+		return fmt.Errorf("deployer address mismatch: expected %s, got %s", s.L1PredictSenderAddress.Hex(), deployer.Hex())
+	}
+	return nil
 }
 
 type AdditionalDisputeGameState struct {

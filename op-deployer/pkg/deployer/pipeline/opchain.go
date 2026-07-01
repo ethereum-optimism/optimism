@@ -21,6 +21,15 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return nil
 	}
 
+	// We make sure that the deployer address is the same as the one used in the dry-run, if any.
+	// We ensure a PrivateKey is provided in the env to avoid false negatives when non-live strategies
+	// are used.
+	if env.PrivateKey != "" {
+		if err := st.CheckL1PredictSender(env.Deployer); err != nil {
+			return err
+		}
+	}
+
 	thisIntent, err := intent.Chain(chainID)
 	if err != nil {
 		return fmt.Errorf("failed to get chain intent: %w", err)

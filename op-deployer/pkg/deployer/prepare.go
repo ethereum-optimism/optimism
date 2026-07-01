@@ -112,15 +112,20 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("intent has no chains to prepare")
 	}
 
+	// The sender of the deploy dry-run. Pin it into the state so a re-run cannot
+	// silently switch deployer keys.
+	deployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
+	if err := st.CheckL1PredictSender(deployer); err != nil {
+		return err
+	}
+	st.L1PredictSenderAddress = &deployer
+
 	// Download the L1 artifacts referenced by the intent so the dry-run uses the
 	// same DeployOPChain script as the eventual broadcast.
 	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), cfg.CacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to download L1 artifacts: %w", err)
 	}
-
-	// The sender of the deploy transaction.
-	deployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
 
 	l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
 	if err != nil {

@@ -9,6 +9,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestState_CheckL1PredictSender(t *testing.T) {
+	deployer := common.HexToAddress("0x1111000000000000000000000000000000000001")
+	other := common.HexToAddress("0x2222000000000000000000000000000000000002")
+
+	t.Run("unpinned state accepts any deployer", func(t *testing.T) {
+		require.NoError(t, (&State{}).CheckL1PredictSender(deployer))
+	})
+
+	t.Run("matching deployer succeeds", func(t *testing.T) {
+		pinned := deployer
+		require.NoError(t, (&State{L1PredictSenderAddress: &pinned}).CheckL1PredictSender(deployer))
+	})
+
+	t.Run("mismatched deployer fails", func(t *testing.T) {
+		pinned := other
+		err := (&State{L1PredictSenderAddress: &pinned}).CheckL1PredictSender(deployer)
+		require.ErrorContains(t, err, "deployer address mismatch")
+	})
+}
+
 func TestState_SetChainContracts(t *testing.T) {
 	chainA := common.HexToHash("0x0a")
 	chainB := common.HexToHash("0x0b")
