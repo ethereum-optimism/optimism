@@ -23,6 +23,7 @@ reth-node-builder.workspace = true
 reth-db.workspace = true
 
 clap = { workspace = true, features = ["derive", "env"] }
+rustls = { workspace = true, features = ["aws_lc_rs", "std"] }
 tracing.workspace = true
 eyre.workspace = true
 

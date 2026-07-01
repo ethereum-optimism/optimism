@@ -15,6 +15,13 @@ static MALLOC_CONF: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:19\0";
 fn main() {
     reth_cli_util::sigsegv_handler::install();
 
+    // rustls 0.23 no longer auto-selects a process-level CryptoProvider when
+    // multiple provider features are present in the dependency graph. Install one
+    // explicitly before any TLS is used (e.g. the flashblocks wss connection),
+    // otherwise op-reth panics on startup. See
+    // https://github.com/ethereum-optimism/optimism/issues/19322
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     // Enable backtraces unless a RUST_BACKTRACE value has already been explicitly provided.
     if std::env::var_os("RUST_BACKTRACE").is_none() {
         unsafe {
