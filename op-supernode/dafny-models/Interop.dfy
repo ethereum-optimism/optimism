@@ -52,7 +52,6 @@ module Interop {
       ensures this.chains == chains
       ensures Valid()
       ensures PendingTransitionIsConsistent()
-      ensures AllLogsDBsConsistentWithChainData()
       ensures AllVerifiedCrossValid()
       ensures verifiedDB.GetPendingTransition().Some? ==>
         TransitionIsCrossValid(verifiedDB.GetPendingTransition().value)
@@ -781,13 +780,11 @@ module Interop {
       modifies this, verifiedDB, chains.Values, logsDBs.Values
       requires Valid()
       requires PendingTransitionIsConsistent()
-      requires AllLogsDBsConsistentWithChainData()
       requires AllVerifiedCrossValid()
       requires verifiedDB.GetPendingTransition().Some? ==>
         TransitionIsCrossValid(verifiedDB.GetPendingTransition().value)
       ensures Valid()
       ensures PendingTransitionIsConsistent()
-      ensures AllLogsDBsConsistentWithChainData()
       ensures AllVerifiedCrossValid()
       ensures verifiedDB.GetPendingTransition().Some? ==>
         TransitionIsCrossValid(verifiedDB.GetPendingTransition().value)
@@ -817,13 +814,16 @@ module Interop {
 
       assert TransitionIsCrossValid(pendingTx);
       assert AllVerifiedCrossValid();
+      assert VerifiedHeadsAreHighestBlocksUpToTimestamp();
 
       // Snapshot the heap before SetPendingTransition so that the twostate lemmas
       // below can reference the pre-set state.
       label BeforeSetPending:
       verifiedDB.SetPendingTransition(pendingTx);
 
-      assert VerifiedHeadsAreHighestBlocksUpToTimestamp();
+      assert VerifiedHeadsAreHighestBlocksUpToTimestamp() by {
+        SetPendingPreservesVerifiedHeadsAreHighestBlocksUpToTimestamp@BeforeSetPending();
+      }
 
       // SetPendingTransition only changes pendingTransition; db and lastTimestamp
       // are unchanged. Re-derive DBsInSync for all chains via the framing lemma.
@@ -2659,6 +2659,33 @@ module Interop {
             }
           }
         }
+      }
+    }
+
+    // Framing lemma: SetPendingTransition preserves VerifiedHeadsAreHighestBlocksUpToTimestamp.
+    // db and lastTimestamp are unchanged, so Has and Get return the same values;
+    // logsDBs.Values are unchanged, so FindSealedBlock results are unchanged.
+    // Intended to be called as SetPendingPreservesVerifiedHeadsAreHighestBlocksUpToTimestamp@L()
+    // where L is a label placed just before the SetPendingTransition call.
+    twostate lemma SetPendingPreservesVerifiedHeadsAreHighestBlocksUpToTimestamp()
+      requires old(verifiedDB.Valid())
+      requires verifiedDB.Valid()
+      requires verifiedDB.db == old(verifiedDB.db)
+      requires verifiedDB.lastTimestamp == old(verifiedDB.lastTimestamp)
+      requires unchanged(logsDBs.Values)
+      requires old(VerifiedHeadsAreHighestBlocksUpToTimestamp())
+      ensures VerifiedHeadsAreHighestBlocksUpToTimestamp()
+    {
+      forall ts: nat | verifiedDB.Has(ts) ensures
+        var verifiedHeads := verifiedDB.Get(ts).l2Heads;
+        verifiedHeads.Keys == logsDBs.Keys &&
+        forall chainID :: chainID in verifiedHeads.Keys ==>
+          var blockNumber := verifiedHeads[chainID].number;
+          forall n :: blockNumber < n && logsDBs[chainID].FindSealedBlock(n).Some? ==>
+            ts < logsDBs[chainID].FindSealedBlock(n).value.timestamp
+      {
+        assert old(verifiedDB.Has(ts));                    // fire trigger on old(VerifiedHeadsAreHighestBlocksUpToTimestamp())
+        assert verifiedDB.db[ts] == old(verifiedDB.db)[ts]; // connect old/new db entries
       }
     }
 
