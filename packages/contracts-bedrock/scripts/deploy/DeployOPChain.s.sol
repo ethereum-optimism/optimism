@@ -530,20 +530,4 @@ contract DeployOPChain is Script {
             "OPCPA-120"
         );
     }
-
-    /// @notice Returns the starting anchor root for the permissioned game.
-    function startingAnchorRoot() public pure returns (bytes memory) {
-        // WARNING: For now always hardcode the starting permissioned game anchor root to 0xdead,
-        // and we do not set anything for the permissioned game. This is because we currently only
-        // support deploying straight to permissioned games, and the starting root does not
-        // matter for that, as long as it is non-zero, since no games will be played. We do not
-        // deploy the permissionless game (and therefore do not set a starting root for it here)
-        // because updating to the permissionless game will require updating its starting
-        // anchor root and deploy a new permissioned dispute game contract anyway.
-        //
-        // You can `console.logBytes(abi.encode(ScriptConstants.DEFAULT_OUTPUT_ROOT()))` to get the bytes that
-        // are hardcoded into `op-chain-ops/deployer/opcm/opchain.go`
-
-        return abi.encode(ScriptConstants.DEFAULT_OUTPUT_ROOT());
-    }
 }
