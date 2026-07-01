@@ -229,7 +229,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         _checkDeploymentAssertions(doo);
     }
 
-    /// @notice A CANNON initial deployment enables both permissionless fault games and seeds the
+    /// @notice A CANNON initial deployment enables only CANNON and seeds the
     ///         anchor root and respected game type from the input.
     function test_run_cannonGameType_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
@@ -240,8 +240,8 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         _checkPermissionlessDeployment(doo, GameTypes.CANNON);
     }
 
-    /// @notice A CANNON_KONA initial deployment behaves like CANNON but sets CANNON_KONA as the
-    ///         respected game type.
+    /// @notice A CANNON_KONA initial deployment enables only CANNON_KONA and seeds the anchor root
+    ///         and respected game type from the input.
     function test_run_cannonKonaGameType_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
@@ -260,35 +260,40 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChain.run(deployOPChainInput);
     }
 
-    /// @notice Asserts a permissionless deployment enabled both fault games with the default bond and
-    ///         non-zero impls, and seeded the ASR with the input anchor root and respected game type.
+    /// @notice Asserts a permissionless deployment enabled only the selected fault game with the
+    ///         default bond and seeded the ASR with the input anchor root and respected game type.
     /// @param doo The output of the deployment.
-    /// @param _respectedType The expected respected game type.
-    function _checkPermissionlessDeployment(DeployOPChain.Output memory doo, GameType _respectedType) internal view {
+    /// @param _enabledType The selected and expected respected game type.
+    function _checkPermissionlessDeployment(DeployOPChain.Output memory doo, GameType _enabledType) internal view {
         uint256 defaultBond = deployOPChain.DEFAULT_INIT_BOND();
+        GameType disabledPermissionlessType =
+            _enabledType.raw() == GameTypes.CANNON.raw() ? GameTypes.CANNON_KONA : GameTypes.CANNON;
 
-        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), defaultBond, "CANNON init bond");
-        assertNotEq(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)), address(0), "CANNON impl");
-        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON_KONA), defaultBond, "CANNON_KONA init bond");
-        assertNotEq(
-            address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON_KONA)), address(0), "CANNON_KONA impl"
+        IOPContractsManagerContainer.Implementations memory impls = IOPContractsManagerV2(opcmAddr).implementations();
+        assertEq(doo.disputeGameFactoryProxy.initBonds(_enabledType), defaultBond, "selected init bond");
+        assertEq(
+            address(doo.disputeGameFactoryProxy.gameImpls(_enabledType)), impls.faultDisputeGameImpl, "selected impl"
+        );
+        assertEq(doo.disputeGameFactoryProxy.initBonds(disabledPermissionlessType), 0, "unselected init bond");
+        assertEq(
+            address(doo.disputeGameFactoryProxy.gameImpls(disabledPermissionlessType)), address(0), "unselected impl"
+        );
+        assertEq(doo.disputeGameFactoryProxy.gameArgs(disabledPermissionlessType).length, 0, "unselected args");
+        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.PERMISSIONED_CANNON), 0, "permissioned init bond");
+        assertEq(
+            address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON)),
+            address(0),
+            "permissioned impl"
         );
 
-        // gameImpls is the shared faultDisputeGameImpl for both games, so only the per-game stored
-        // args distinguish their prestates.
         assertEq(
-            LibGameArgs.decode(doo.disputeGameFactoryProxy.gameArgs(GameTypes.CANNON)).absolutePrestate,
+            LibGameArgs.decode(doo.disputeGameFactoryProxy.gameArgs(_enabledType)).absolutePrestate,
             deployOPChainInput.disputeAbsolutePrestate.raw(),
-            "CANNON prestate wiring"
-        );
-        assertEq(
-            LibGameArgs.decode(doo.disputeGameFactoryProxy.gameArgs(GameTypes.CANNON_KONA)).absolutePrestate,
-            deployOPChainInput.disputeAbsolutePrestate.raw(),
-            "CANNON_KONA prestate wiring"
+            "selected prestate wiring"
         );
 
         IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
-        assertEq(asr.respectedGameType().raw(), _respectedType.raw(), "respected game type");
+        assertEq(asr.respectedGameType().raw(), _enabledType.raw(), "respected game type");
         Proposal memory anchor = asr.getStartingAnchorRoot();
         assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.raw(), "anchor root");
         assertEq(anchor.l2SequenceNumber, 0, "anchor seq");

@@ -115,6 +115,8 @@ contract DeployOPChain is Script {
     {
         (bool permissionless, GameType respectedGameType) =
             _initialDeployGameSelection(_input.disputeGameType, isSuperRoot);
+        bool enableCannon = permissionless && _input.disputeGameType.raw() == GameTypes.CANNON.raw();
+        bool enableCannonKona = permissionless && _input.disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
 
         // Shared permissioned game config for legacy permissioned games.
         IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerUtils
@@ -132,7 +134,7 @@ contract DeployOPChain is Script {
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
         // Config 0: CANNON
-        disputeGameConfigs[0] = permissionless
+        disputeGameConfigs[0] = enableCannon
             ? IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: DEFAULT_INIT_BOND,
@@ -164,7 +166,7 @@ contract DeployOPChain is Script {
             });
 
         // Config 2: CANNON_KONA
-        disputeGameConfigs[2] = permissionless
+        disputeGameConfigs[2] = enableCannonKona
             ? IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: DEFAULT_INIT_BOND,
