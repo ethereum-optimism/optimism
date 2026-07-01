@@ -713,6 +713,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
+        bool permissionlessInitialGameEnabled = false;
+
         // Iterate over each provided config and confirm that it matches the game type array.
         // This places a requirement on the user to order the configs properly but that's
         // probably a good thing, keeps the config consistent.
@@ -761,6 +763,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             }
 
             if (_cfg.disputeGameConfigs[i].enabled && (isCannonGame || isCannonKonaGame)) {
+                if (_isInitialDeployment) {
+                    permissionlessInitialGameEnabled = true;
+                }
+
                 IOPContractsManagerUtils.FaultDisputeGameConfig memory faultGameConfig =
                     abi.decode(_cfg.disputeGameConfigs[i].gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
                 if (faultGameConfig.absolutePrestate.raw() == bytes32(0)) {
@@ -786,14 +792,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         if (_isInitialDeployment) {
             bytes32 startingAnchorRoot = _cfg.startingAnchorRoot.root.raw();
-            bool permissionlessInitialRespectedGameType = _cfg.startingRespectedGameType.raw() == GameTypes.CANNON.raw()
-                || _cfg.startingRespectedGameType.raw() == GameTypes.CANNON_KONA.raw();
 
             if (startingAnchorRoot == bytes32(0)) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            if (permissionlessInitialRespectedGameType && startingAnchorRoot == PLACEHOLDER_STARTING_ANCHOR_ROOT) {
+            if (permissionlessInitialGameEnabled && startingAnchorRoot == PLACEHOLDER_STARTING_ANCHOR_ROOT) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
         }

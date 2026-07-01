@@ -1756,7 +1756,6 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             maximumBaseFee: type(uint128).max
         });
 
-        // Set up dispute game configs. All 7 game types are required.
         // In super root mode, SUPER_PERMISSIONED is enabled; otherwise PERMISSIONED_CANNON.
         address initialChallenger = makeAddr("deployChallenger");
         address initialProposer = makeAddr("deployProposer");
@@ -1966,10 +1965,14 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.disputeGameConfigs[0].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
         deployConfig.disputeGameConfigs[0].gameArgs =
             abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }));
+        deployConfig.startingRespectedGameType = GameTypes.CANNON;
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
         assertNotEq(
             address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON)), address(0), "CANNON impl should be set"
+        );
+        assertEq(
+            cts.anchorStateRegistry.respectedGameType().raw(), GameTypes.CANNON.raw(), "respected game type mismatch"
         );
     }
 
@@ -1993,8 +1996,38 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.disputeGameConfigs[2].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
         deployConfig.disputeGameConfigs[2].gameArgs =
             abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }));
+        deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
 
         IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        assertNotEq(
+            address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)),
+            address(0),
+            "CANNON_KONA impl should be set"
+        );
+        assertEq(
+            cts.anchorStateRegistry.respectedGameType().raw(),
+            GameTypes.CANNON_KONA.raw(),
+            "respected game type mismatch"
+        );
+    }
+
+    /// @notice Multiple permissionless games may be enabled at initial deployment when each config
+    ///         is structurally valid.
+    function test_deploy_multiplePermissionlessGamesEnabled_succeeds() public {
+        deployConfig.disputeGameConfigs[0].enabled = true;
+        deployConfig.disputeGameConfigs[0].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
+        deployConfig.disputeGameConfigs[0].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }));
+        deployConfig.disputeGameConfigs[2].enabled = true;
+        deployConfig.disputeGameConfigs[2].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
+        deployConfig.disputeGameConfigs[2].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }));
+        deployConfig.startingRespectedGameType = GameTypes.CANNON;
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        assertNotEq(
+            address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON)), address(0), "CANNON impl should be set"
+        );
         assertNotEq(
             address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)),
             address(0),
@@ -2046,7 +2079,6 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.disputeGameConfigs[0].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
         deployConfig.disputeGameConfigs[0].gameArgs =
             abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }));
-        deployConfig.startingRespectedGameType = GameTypes.CANNON;
         deployConfig.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(hex"dead")), l2SequenceNumber: 0 });
 
         // nosemgrep: sol-style-use-abi-encodecall
