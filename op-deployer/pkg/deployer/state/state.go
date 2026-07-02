@@ -99,6 +99,38 @@ type ChainState struct {
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`
 
 	StartBlock *L1BlockRefJSON `json:"startBlock"`
+
+	// Prestate is the resolved absolute prestate for this chain, or zero if unset.
+	Prestate common.Hash `json:"prestate,omitempty"`
+
+	// StartingAnchorRoot is the block-zero genesis output root, or zero if unset.
+	StartingAnchorRoot common.Hash `json:"startingAnchorRoot,omitempty"`
+}
+
+func (s *State) SetChainPrestate(id common.Hash, prestate common.Hash) {
+	for _, chain := range s.Chains {
+		if chain.ID == id {
+			chain.Prestate = prestate
+			return
+		}
+	}
+	s.Chains = append(s.Chains, &ChainState{
+		ID:       id,
+		Prestate: prestate,
+	})
+}
+
+func (s *State) SetChainStartingAnchorRoot(id common.Hash, root common.Hash) {
+	for _, chain := range s.Chains {
+		if chain.ID == id {
+			chain.StartingAnchorRoot = root
+			return
+		}
+	}
+	s.Chains = append(s.Chains, &ChainState{
+		ID:                 id,
+		StartingAnchorRoot: root,
+	})
 }
 
 type L1BlockRefJSON struct {
