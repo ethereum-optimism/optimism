@@ -2,10 +2,14 @@ package deployer
 
 import (
 	"flag"
+	"log/slog"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -107,4 +111,49 @@ func TestPrepareConfigCheck(t *testing.T) {
 	missingL1RPC := valid
 	missingL1RPC.L1RPCUrl = ""
 	require.ErrorContains(t, missingL1RPC.Check(), "l1 RPC URL must be specified")
+}
+
+func TestPredictChains_SkipsDeployed(t *testing.T) {
+	deployedID := common.HexToHash("0x0a")
+	freshID := common.HexToHash("0x0b")
+
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+		GlobalDeployOverrides: make(map[string]any),
+		Chains: []*state.ChainIntent{
+			{ID: deployedID},
+			{ID: freshID},
+		},
+	}
+
+	var deployedContracts addresses.OpChainContracts
+	deployedContracts.SystemConfigProxy = common.HexToAddress("0xdead")
+	st := &state.State{Create2Salt: common.HexToHash("0x03")}
+	st.SetChainContracts(deployedID, deployedContracts, true)
+
+	var ran []common.Hash
+	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		ran = append(ran, common.BigToHash(in.L2ChainId))
+		return opcm.DeployOPChainOutput{SystemConfigProxy: common.HexToAddress("0xbeef")}, nil
+	}
+
+	require.NoError(t, predictChains(testlog.Logger(t, slog.LevelInfo), intent, st, run))
+
+	require.Equal(t, []common.Hash{freshID}, ran)
+
+	deployed, err := st.Chain(deployedID)
+	require.NoError(t, err)
+	require.NotNil(t, deployed.Deployed)
+	require.True(t, *deployed.Deployed)
+	require.Equal(t, deployedContracts.SystemConfigProxy, deployed.SystemConfigProxy)
+
+	fresh, err := st.Chain(freshID)
+	require.NoError(t, err)
+	require.NotNil(t, fresh.Deployed)
+	require.False(t, *fresh.Deployed)
+	require.Equal(t, common.HexToAddress("0xbeef"), fresh.SystemConfigProxy)
 }

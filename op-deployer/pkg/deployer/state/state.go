@@ -133,6 +133,18 @@ type ChainState struct {
 	StartBlock *L1BlockRefJSON `json:"startBlock"`
 }
 
+// IsChainDeployed reports whether the chain's addresses have been broadcast.
+// States from older pipelines have no flag and are treated as deployed, any
+// unknown chain is treated as not yet deployed.
+func (s *State) IsChainDeployed(id common.Hash) bool {
+	for _, chain := range s.Chains {
+		if chain.ID == id {
+			return chain.Deployed == nil || *chain.Deployed
+		}
+	}
+	return false
+}
+
 // SetChainContracts records the L1 contract addresses for a chain. It creates
 // the chain entry if it does not exist and otherwise updates it in place,
 // preserving any other fields already set by other stages. deployed indicates whether the addresses

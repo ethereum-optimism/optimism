@@ -149,21 +149,40 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("failed to load DeployOPChain script: %w", err)
 	}
 
+	if err := predictChains(cfg.Logger, intent, st, deployScript.Run); err != nil {
+		return err
+	}
+
+	if err := pipeline.WriteState(cfg.Workdir, st); err != nil {
+		return fmt.Errorf("failed to write state: %w", err)
+	}
+
+	return nil
+}
+
+// predictChains predicts the L1 addresses for each undeployed chain in the intent
+// and records them as not deployed. Chains that have been deployed are skipped so a
+// re-runs don't overwrite their recorded addresses.
+func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error)) error {
 	for _, chain := range intent.Chains {
+		if st.IsChainDeployed(chain.ID) {
+			lgr.Info("skipping already deployed chain", "chain", chain.ID.Hex())
+			continue
+		}
+
 		dci, err := makePredictionInput(intent, st, chain)
 		if err != nil {
 			return fmt.Errorf("failed to build prediction input for chain %s: %w", chain.ID.Hex(), err)
 		}
 
-		out, err := deployScript.Run(dci)
+		out, err := run(dci)
 		if err != nil {
 			return fmt.Errorf("failed to predict L1 addresses for chain %s: %w", chain.ID.Hex(), err)
 		}
 
-		// Record the predicted addresses into the chain state marked as not deployed yet.
 		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), false)
 
-		cfg.Logger.Info(
+		lgr.Info(
 			"predicted L1 addresses",
 			"chain", chain.ID.Hex(),
 			"systemConfigProxy", out.SystemConfigProxy,
@@ -173,10 +192,6 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 			"disputeGameFactoryProxy", out.DisputeGameFactoryProxy,
 			"anchorStateRegistryProxy", out.AnchorStateRegistryProxy,
 		)
-	}
-
-	if err := pipeline.WriteState(cfg.Workdir, st); err != nil {
-		return fmt.Errorf("failed to write state: %w", err)
 	}
 
 	return nil

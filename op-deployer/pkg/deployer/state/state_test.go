@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -50,6 +51,28 @@ func TestState_CheckL1PredictSender(t *testing.T) {
 		err := (&State{L1PredictSenderAddress: &pinned}).CheckL1PredictSender(deployer)
 		require.ErrorContains(t, err, "deployer address mismatch")
 	})
+}
+
+func TestState_IsChainDeployed(t *testing.T) {
+	id := common.HexToHash("0x0a")
+	other := common.HexToHash("0x0b")
+
+	tests := []struct {
+		name   string
+		chains []*ChainState
+		want   bool
+	}{
+		{"unknown chain", nil, false},
+		{"deployed", []*ChainState{{ID: id, Deployed: ptr.New(true)}}, true},
+		{"not yet deployed", []*ChainState{{ID: id, Deployed: ptr.New(false)}}, false},
+		{"legacy pipeline with nil flag", []*ChainState{{ID: id, Deployed: nil}}, true},
+		{"other id only", []*ChainState{{ID: other, Deployed: ptr.New(true)}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, (&State{Chains: tt.chains}).IsChainDeployed(id))
+		})
+	}
 }
 
 func TestState_SetChainContracts(t *testing.T) {
