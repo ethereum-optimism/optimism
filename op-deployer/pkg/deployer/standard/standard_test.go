@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/superchain-registry/validation"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,22 @@ func TestDefaultHardforkSchedule(t *testing.T) {
 	require.NotNil(t, sched.HoloceneTime(0))
 	require.NotNil(t, sched.IsthmusTime(0))
 	require.NotNil(t, sched.JovianTime(0))
+}
+
+func TestIsPermissionlessGameType(t *testing.T) {
+	tests := []struct {
+		gameType uint32
+		expected bool
+	}{
+		{uint32(gameTypes.CannonGameType), true},
+		{uint32(gameTypes.PermissionedGameType), false},
+		{uint32(gameTypes.SuperPermissionedGameType), false},
+		{uint32(gameTypes.CannonKonaGameType), true},
+	}
+
+	for _, test := range tests {
+		require.Equal(t, test.expected, IsPermissionlessGameType(test.gameType))
+	}
 }
 
 func TestStandardAddresses(t *testing.T) {

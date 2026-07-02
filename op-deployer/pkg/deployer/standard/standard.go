@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/superchain"
 
@@ -49,6 +50,15 @@ var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55
 var VaultMinWithdrawalAmount = mustHexBigFromHex("0x8ac7230489e80000")
 
 var GovernanceTokenOwner = common.HexToAddress("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAdDEad")
+
+func IsPermissionlessGameType(gameType uint32) bool {
+	switch gameTypes.GameType(gameType) {
+	case gameTypes.CannonGameType, gameTypes.CannonKonaGameType:
+		return true
+	default:
+		return false
+	}
+}
 
 func L1VersionsFor(chainID uint64) (validation.Versions, error) {
 	switch chainID {

@@ -134,7 +134,23 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		return opcm.DeployOPChainInput{}, fmt.Errorf("OPCM implementation is not deployed")
 	}
 
-	// TODO(#20912): Populate StartingAnchorRoot and DisputeAbsolutePrestate from pipeline state for permissionless deploys.
+	prestate := proofParams.DisputeAbsolutePrestate
+	startingAnchorRoot := opcm.DefaultStartingAnchorRoot.Root
+	if standard.IsPermissionlessGameType(proofParams.DisputeGameType) {
+		chainState, err := st.Chain(chainID)
+		if err != nil {
+			return opcm.DeployOPChainInput{}, fmt.Errorf("permissionless deploy requires op-deployer prestate for chain %s: %w", chainID.Hex(), err)
+		}
+		if chainState.Prestate == (common.Hash{}) {
+			return opcm.DeployOPChainInput{}, fmt.Errorf("permissionless deploy requires op-deployer prestate for chain %s", chainID.Hex())
+		}
+		if chainState.StartingAnchorRoot == (common.Hash{}) || chainState.StartingAnchorRoot == opcm.DefaultStartingAnchorRoot.Root {
+			return opcm.DeployOPChainInput{}, fmt.Errorf("permissionless deploy requires the genesis-output-root stage for chain %s", chainID.Hex())
+		}
+		prestate = chainState.Prestate
+		startingAnchorRoot = chainState.StartingAnchorRoot
+	}
+
 	return opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner:       thisIntent.Roles.L1ProxyAdminOwner,
 		SystemConfigOwner:            thisIntent.Roles.SystemConfigOwner,
@@ -149,8 +165,8 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		SaltMixer:                    st.Create2Salt.String(), // passing through salt generated at state initialization
 		GasLimit:                     thisIntent.GasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
-		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
-		StartingAnchorRoot:           opcm.DefaultStartingAnchorRoot.Root,
+		DisputeAbsolutePrestate:      prestate,
+		StartingAnchorRoot:           startingAnchorRoot,
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)

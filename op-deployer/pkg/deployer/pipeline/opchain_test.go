@@ -10,10 +10,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -26,27 +28,12 @@ import (
 )
 
 func Test_makeDCI_OpcmAddress(t *testing.T) {
-	opcmV2Addr := common.HexToAddress("0x2222222222222222222222222222222222222222")
 	chainID := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000300")
-	salt := common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
-	superchainConfig := common.HexToAddress("0x3333333333333333333333333333333333333333")
+	baseIntent, baseChainIntent, baseState := makeDCITestInputs(chainID)
+	opcmV2Addr := baseState.ImplementationsDeployment.OpcmV2Impl
 
-	baseIntent := &state.Intent{
-		GlobalDeployOverrides: make(map[string]any),
-	}
-
-	baseChainIntent := &state.ChainIntent{
-		ID: chainID,
-		Roles: state.ChainRoles{
-			L1ProxyAdminOwner: common.HexToAddress("0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
-			SystemConfigOwner: common.HexToAddress("0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"),
-			Batcher:           common.HexToAddress("0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"),
-			UnsafeBlockSigner: common.HexToAddress("0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"),
-			Proposer:          common.HexToAddress("0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"),
-			Challenger:        common.HexToAddress("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
-		},
-		GasLimit: 60_000_000,
-	}
+	zeroOpcmState := *baseState
+	zeroOpcmState.ImplementationsDeployment = &addresses.ImplementationsContracts{}
 
 	tests := []struct {
 		name           string
@@ -59,37 +46,21 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 		expectedErrMsg string
 	}{
 		{
-			name:       "uses_opcm_v2",
-			intent:     baseIntent,
-			thisIntent: baseChainIntent,
-			chainID:    chainID,
-			st: &state.State{
-				Create2Salt: salt,
-				SuperchainDeployment: &addresses.SuperchainContracts{
-					SuperchainConfigProxy: superchainConfig,
-				},
-				ImplementationsDeployment: &addresses.ImplementationsContracts{
-					OpcmV2Impl: opcmV2Addr,
-				},
-			},
+			name:           "uses_opcm_v2",
+			intent:         baseIntent,
+			thisIntent:     baseChainIntent,
+			chainID:        chainID,
+			st:             baseState,
 			expectedOpcm:   opcmV2Addr,
 			shouldThrowErr: false,
 			expectedErrMsg: "",
 		},
 		{
-			name:       "opcm_v2_impl_zero_reverts",
-			intent:     baseIntent,
-			thisIntent: baseChainIntent,
-			chainID:    chainID,
-			st: &state.State{
-				Create2Salt: salt,
-				SuperchainDeployment: &addresses.SuperchainContracts{
-					SuperchainConfigProxy: superchainConfig,
-				},
-				ImplementationsDeployment: &addresses.ImplementationsContracts{
-					OpcmV2Impl: common.Address{}, // zero address
-				},
-			},
+			name:           "opcm_v2_impl_zero_reverts",
+			intent:         baseIntent,
+			thisIntent:     baseChainIntent,
+			chainID:        chainID,
+			st:             &zeroOpcmState,
 			expectedOpcm:   common.Address{},
 			shouldThrowErr: true,
 			expectedErrMsg: "OPCM implementation is not deployed",
@@ -115,6 +86,151 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 				t.Errorf("makeDCI() Opcm = %v, want %v", got.Opcm, tt.expectedOpcm)
 			}
 		})
+	}
+}
+
+func TestMakeDCIProofInputs(t *testing.T) {
+	chainID := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000300")
+	statePrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	stateAnchorRoot := common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222")
+	overridePrestate := common.HexToHash("0x3333333333333333333333333333333333333333333333333333333333333333")
+	ignoredOverridePrestate := common.HexToHash("0x4444444444444444444444444444444444444444444444444444444444444444")
+	ignoredStatePrestate := common.HexToHash("0x5555555555555555555555555555555555555555555555555555555555555555")
+	ignoredStateAnchorRoot := common.HexToHash("0x6666666666666666666666666666666666666666666666666666666666666666")
+
+	tests := []struct {
+		name                 string
+		globalDeployOverride map[string]any
+		chainDeployOverride  map[string]any
+		chains               []*state.ChainState
+		expectedPrestate     common.Hash
+		expectedAnchorRoot   common.Hash
+		expectedErrMsg       string
+	}{
+		{
+			name:               "permissioned default",
+			expectedPrestate:   standard.DisputeAbsolutePrestate,
+			expectedAnchorRoot: opcm.DefaultStartingAnchorRoot.Root,
+		},
+		{
+			name: "permissionless cannon uses state",
+			chainDeployOverride: map[string]any{
+				"respectedGameType": uint32(gameTypes.CannonGameType),
+			},
+			chains: []*state.ChainState{{
+				ID:                 chainID,
+				Prestate:           statePrestate,
+				StartingAnchorRoot: stateAnchorRoot,
+			}},
+			expectedPrestate:   statePrestate,
+			expectedAnchorRoot: stateAnchorRoot,
+		},
+		{
+			name: "permissionless cannon kona uses state",
+			chainDeployOverride: map[string]any{
+				"respectedGameType": uint32(gameTypes.CannonKonaGameType),
+			},
+			chains: []*state.ChainState{{
+				ID:                 chainID,
+				Prestate:           statePrestate,
+				StartingAnchorRoot: stateAnchorRoot,
+			}},
+			expectedPrestate:   statePrestate,
+			expectedAnchorRoot: stateAnchorRoot,
+		},
+		{
+			name: "permissionless missing prestate",
+			chainDeployOverride: map[string]any{
+				"respectedGameType": uint32(gameTypes.CannonGameType),
+			},
+			chains: []*state.ChainState{{
+				ID:                 chainID,
+				StartingAnchorRoot: stateAnchorRoot,
+			}},
+			expectedErrMsg: "op-deployer prestate",
+		},
+		{
+			name: "permissionless missing anchor root",
+			chainDeployOverride: map[string]any{
+				"respectedGameType": uint32(gameTypes.CannonGameType),
+			},
+			chains: []*state.ChainState{{
+				ID:       chainID,
+				Prestate: statePrestate,
+			}},
+			expectedErrMsg: "genesis-output-root stage",
+		},
+		{
+			name: "permissionless ignores prestate override",
+			chainDeployOverride: map[string]any{
+				"respectedGameType":         uint32(gameTypes.CannonGameType),
+				"faultGameAbsolutePrestate": ignoredOverridePrestate,
+			},
+			chains: []*state.ChainState{{
+				ID:                 chainID,
+				Prestate:           statePrestate,
+				StartingAnchorRoot: stateAnchorRoot,
+			}},
+			expectedPrestate:   statePrestate,
+			expectedAnchorRoot: stateAnchorRoot,
+		},
+		{
+			name: "permissioned ignores state",
+			chainDeployOverride: map[string]any{
+				"faultGameAbsolutePrestate": overridePrestate,
+			},
+			chains: []*state.ChainState{{
+				ID:                 chainID,
+				Prestate:           ignoredStatePrestate,
+				StartingAnchorRoot: ignoredStateAnchorRoot,
+			}},
+			expectedPrestate:   overridePrestate,
+			expectedAnchorRoot: opcm.DefaultStartingAnchorRoot.Root,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			intent, chainIntent, st := makeDCITestInputs(chainID)
+			intent.GlobalDeployOverrides = test.globalDeployOverride
+			chainIntent.DeployOverrides = test.chainDeployOverride
+			st.Chains = test.chains
+
+			got, err := makeDCI(intent, chainIntent, chainID, st)
+			if test.expectedErrMsg != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), test.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, test.expectedPrestate, got.DisputeAbsolutePrestate)
+			require.Equal(t, test.expectedAnchorRoot, got.StartingAnchorRoot)
+		})
+	}
+}
+
+func makeDCITestInputs(chainID common.Hash) (*state.Intent, *state.ChainIntent, *state.State) {
+	chainIntent := &state.ChainIntent{
+		ID: chainID,
+		Roles: state.ChainRoles{
+			L1ProxyAdminOwner: common.HexToAddress("0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+			SystemConfigOwner: common.HexToAddress("0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"),
+			Batcher:           common.HexToAddress("0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"),
+			UnsafeBlockSigner: common.HexToAddress("0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"),
+			Proposer:          common.HexToAddress("0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"),
+			Challenger:        common.HexToAddress("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
+		},
+		GasLimit: 60_000_000,
+	}
+	return &state.Intent{}, chainIntent, &state.State{
+		Create2Salt: common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234"),
+		SuperchainDeployment: &addresses.SuperchainContracts{
+			SuperchainConfigProxy: common.HexToAddress("0x3333333333333333333333333333333333333333"),
+		},
+		ImplementationsDeployment: &addresses.ImplementationsContracts{
+			OpcmV2Impl: common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		},
 	}
 }
 
