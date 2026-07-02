@@ -138,7 +138,23 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 	var ran []common.Hash
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
 		ran = append(ran, common.BigToHash(in.L2ChainId))
-		return opcm.DeployOPChainOutput{SystemConfigProxy: common.HexToAddress("0xbeef")}, nil
+		return opcm.DeployOPChainOutput{
+			OpChainProxyAdmin:                  common.Address{0x01},
+			AddressManager:                     common.Address{0x02},
+			L1ERC721BridgeProxy:                common.Address{0x03},
+			OptimismMintableERC20FactoryProxy:  common.Address{0x04},
+			L1StandardBridgeProxy:              common.Address{0x05},
+			L1CrossDomainMessengerProxy:        common.Address{0x06},
+			OptimismPortalProxy:                common.Address{0x07},
+			EthLockboxProxy:                    common.Address{0x08},
+			DisputeGameFactoryProxy:            common.Address{0x09},
+			AnchorStateRegistryProxy:           common.Address{0x0a},
+			FaultDisputeGame:                   common.Address{0x0b},
+			PermissionedDisputeGame:            common.Address{0x0c},
+			DelayedWETHPermissionedGameProxy:   common.Address{0x0d},
+			DelayedWETHPermissionlessGameProxy: common.Address{0x0e},
+			SystemConfigProxy:                  common.HexToAddress("0xbeef"),
+		}, nil
 	}
 
 	require.NoError(t, predictChains(testlog.Logger(t, slog.LevelInfo), intent, st, run))
