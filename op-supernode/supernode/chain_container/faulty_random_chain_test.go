@@ -36,6 +36,7 @@ type FaultyRandomChain struct {
 	targetNum                     uint64 // in elBelowTarget, byNumber >= this is "gone"
 	cooperative                   bool   // FCU lands the requested head (vs. ignores it)
 	byNumberErr                   error  // when set, L2BlockRefByNumber returns it (transient RPC failure)
+	fcuDeadlines                  int    // ForkchoiceUpdate returns context.DeadlineExceeded this many times first
 
 	newPayloadCalls int // synthetic-insert attempts
 	fcuCalls        int
@@ -108,6 +109,10 @@ func (f *FaultyRandomChain) NewPayload(ctx context.Context, payload *eth.Executi
 
 func (f *FaultyRandomChain) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	f.fcuCalls++
+	if f.fcuDeadlines > 0 {
+		f.fcuDeadlines-- // transient: the EL commits eventually; the CL deadline fired early
+		return nil, context.DeadlineExceeded
+	}
 	if f.cooperative {
 		f.elUnsafe = f.refForHash(state.HeadBlockHash)
 		f.elSafe = f.refForHash(state.SafeBlockHash)
