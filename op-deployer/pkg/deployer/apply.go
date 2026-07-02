@@ -370,9 +370,12 @@ func ApplyPipeline(
 		{"deploy-implementations", func() error {
 			return pipeline.DeployImplementations(pEnv, intent, st)
 		}},
+		{"generate-interop-depset", func() error {
+			return pipeline.GenerateInteropDepset(ctx, pEnv, intent, st)
+		}},
 	}
 
-	// Deploy all OP Chains first.
+	// Deploy all OP Chains after the shared dependency set is available.
 	for _, chain := range intent.Chains {
 		chainID := chain.ID
 		pline = append(pline, pipelineStage{
@@ -445,14 +448,6 @@ func ApplyPipeline(
 			},
 		})
 	}
-
-	// Generate the interop dependency set
-	pline = append(pline, pipelineStage{
-		"generate-interop-depset",
-		func() error {
-			return pipeline.GenerateInteropDepset(ctx, pEnv, intent, st)
-		},
-	})
 
 	// Validate that the deployed state renders into a valid L2 genesis and rollup
 	// config for every chain, so an invalid intent fails during apply rather than
