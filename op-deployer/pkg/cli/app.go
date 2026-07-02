@@ -36,6 +36,12 @@ func NewApp(versionWithMeta string) *cli.App {
 			Action: deployer.InitCLI(),
 		},
 		{
+			Name:   "prestate",
+			Usage:  "commits absolute prestates to state",
+			Flags:  cliapp.ProtectFlags(deployer.PrestateFlags),
+			Action: deployer.PrestateCLI(),
+		},
+		{
 			Name:   "apply",
 			Usage:  "applies a chain intent to the chain",
 			Flags:  cliapp.ProtectFlags(deployer.ApplyFlags),
