@@ -139,6 +139,13 @@ func TestMakeDCIProofInputs(t *testing.T) {
 			expectedAnchorRoot: stateAnchorRoot,
 		},
 		{
+			name: "permissionless missing chain state",
+			chainDeployOverride: map[string]any{
+				"respectedGameType": uint32(gameTypes.CannonGameType),
+			},
+			expectedErrMsg: "chain not found",
+		},
+		{
 			name: "permissionless missing prestate",
 			chainDeployOverride: map[string]any{
 				"respectedGameType": uint32(gameTypes.CannonGameType),

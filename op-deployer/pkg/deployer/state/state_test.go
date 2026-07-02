@@ -4,9 +4,158 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
+
+func TestState_SetChainPrestateUnknownChain(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	prestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	st := &State{}
+
+	err := st.SetChainPrestate(chainID, prestate)
+
+	require.ErrorContains(t, err, "chain not found")
+	require.Empty(t, st.Chains)
+}
+
+func TestState_SetChainPrestateUpdatesExistingChain(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	oldPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	newPrestate := common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222")
+	contracts := addresses.OpChainContracts{
+		OpChainCoreContracts: addresses.OpChainCoreContracts{
+			SystemConfigProxy: common.HexToAddress("0x100"),
+		},
+	}
+	games := []AdditionalDisputeGameState{{
+		GameType:    1,
+		GameAddress: common.HexToAddress("0x200"),
+	}}
+	startBlock := &L1BlockRefJSON{
+		Hash:   common.HexToHash("0x03"),
+		Number: 4,
+	}
+	existing := &ChainState{
+		ID:                     chainID,
+		OpChainContracts:       contracts,
+		Prestate:               oldPrestate,
+		AdditionalDisputeGames: games,
+		StartBlock:             startBlock,
+	}
+	st := &State{
+		Chains: []*ChainState{existing},
+	}
+
+	require.NoError(t, st.SetChainPrestate(chainID, newPrestate))
+
+	require.Len(t, st.Chains, 1)
+	require.Same(t, existing, st.Chains[0])
+	require.Equal(t, newPrestate, st.Chains[0].Prestate)
+	require.Equal(t, contracts, st.Chains[0].OpChainContracts)
+	require.Equal(t, games, st.Chains[0].AdditionalDisputeGames)
+	require.Same(t, startBlock, st.Chains[0].StartBlock)
+}
+
+func TestState_PrestateJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	prestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	st := &State{
+		Chains: []*ChainState{{
+			ID:       chainID,
+			Prestate: prestate,
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"prestate":"`+prestate.Hex()+`"`)
+
+	var roundTripped State
+	require.NoError(t, json.Unmarshal(data, &roundTripped))
+	chain, err := roundTripped.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, prestate, chain.Prestate)
+}
+
+func TestState_PrestateJSONOmitsZeroValue(t *testing.T) {
+	st := &State{
+		Chains: []*ChainState{{
+			ID: common.HexToHash("0x01"),
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "prestate")
+}
+
+func TestState_SetChainStartingAnchorRootUnknownChain(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	root := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	st := &State{}
+
+	err := st.SetChainStartingAnchorRoot(chainID, root)
+
+	require.ErrorContains(t, err, "chain not found")
+	require.Empty(t, st.Chains)
+}
+
+func TestState_SetChainStartingAnchorRootUpdatesExistingChain(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	prestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	oldRoot := common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222")
+	newRoot := common.HexToHash("0x3333333333333333333333333333333333333333333333333333333333333333")
+	existing := &ChainState{
+		ID:                 chainID,
+		Prestate:           prestate,
+		StartingAnchorRoot: oldRoot,
+	}
+	st := &State{
+		Chains: []*ChainState{existing},
+	}
+
+	require.NoError(t, st.SetChainStartingAnchorRoot(chainID, newRoot))
+
+	require.Len(t, st.Chains, 1)
+	require.Same(t, existing, st.Chains[0])
+	require.Equal(t, newRoot, st.Chains[0].StartingAnchorRoot)
+	require.Equal(t, prestate, st.Chains[0].Prestate)
+}
+
+func TestState_StartingAnchorRootJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	root := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	st := &State{
+		Chains: []*ChainState{{
+			ID:                 chainID,
+			StartingAnchorRoot: root,
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"startingAnchorRoot":"`+root.Hex()+`"`)
+
+	var roundTripped State
+	require.NoError(t, json.Unmarshal(data, &roundTripped))
+	chain, err := roundTripped.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, root, chain.StartingAnchorRoot)
+}
+
+func TestState_StartingAnchorRootJSONOmitsZeroValue(t *testing.T) {
+	st := &State{
+		Chains: []*ChainState{{
+			ID: common.HexToHash("0x01"),
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "startingAnchorRoot")
+}
 
 func TestBlockRef_Deserialize(t *testing.T) {
 	tests := []struct {
@@ -93,71 +242,4 @@ func TestBlockRef_Serialize(t *testing.T) {
 			require.JSONEq(t, test.expected, string(data))
 		})
 	}
-}
-
-func TestSetChainPrestate(t *testing.T) {
-	chainID := common.Hash{0x01}
-	prestate := common.Hash{0x02}
-	updatedPrestate := common.Hash{0x03}
-	startBlock := &L1BlockRefJSON{
-		Hash:   common.Hash{0x04},
-		Number: 1,
-	}
-
-	st := &State{}
-	st.SetChainPrestate(chainID, prestate)
-
-	require.Len(t, st.Chains, 1)
-	require.Equal(t, chainID, st.Chains[0].ID)
-	require.Equal(t, prestate, st.Chains[0].Prestate)
-
-	st.Chains[0].StartBlock = startBlock
-	st.SetChainPrestate(chainID, updatedPrestate)
-
-	require.Len(t, st.Chains, 1)
-	require.Equal(t, updatedPrestate, st.Chains[0].Prestate)
-	require.Same(t, startBlock, st.Chains[0].StartBlock)
-}
-
-func TestSetChainStartingAnchorRoot(t *testing.T) {
-	chainID := common.Hash{0x01}
-	root := common.Hash{0x02}
-	updatedRoot := common.Hash{0x03}
-	prestate := common.Hash{0x04}
-
-	st := &State{}
-	st.SetChainStartingAnchorRoot(chainID, root)
-
-	require.Len(t, st.Chains, 1)
-	require.Equal(t, chainID, st.Chains[0].ID)
-	require.Equal(t, root, st.Chains[0].StartingAnchorRoot)
-
-	st.Chains[0].Prestate = prestate
-	st.SetChainStartingAnchorRoot(chainID, updatedRoot)
-
-	require.Len(t, st.Chains, 1)
-	require.Equal(t, updatedRoot, st.Chains[0].StartingAnchorRoot)
-	require.Equal(t, prestate, st.Chains[0].Prestate)
-}
-
-func TestChainStateDeploymentInputsJSONRoundTrip(t *testing.T) {
-	chain := ChainState{
-		ID:                 common.Hash{0x01},
-		Prestate:           common.Hash{0x02},
-		StartingAnchorRoot: common.Hash{0x03},
-	}
-
-	data, err := json.Marshal(chain)
-	require.NoError(t, err)
-
-	var raw map[string]any
-	require.NoError(t, json.Unmarshal(data, &raw))
-	require.Equal(t, "0x0200000000000000000000000000000000000000000000000000000000000000", raw["prestate"])
-	require.Equal(t, "0x0300000000000000000000000000000000000000000000000000000000000000", raw["startingAnchorRoot"])
-
-	var decoded ChainState
-	require.NoError(t, json.Unmarshal(data, &decoded))
-	require.Equal(t, chain.ID, decoded.ID)
-	require.Equal(t, chain.Prestate, decoded.Prestate)
-	require.Equal(t, chain.StartingAnchorRoot, decoded.StartingAnchorRoot)
 }

@@ -81,6 +81,24 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 	return nil, fmt.Errorf("chain not found: %s", id.Hex())
 }
 
+func (s *State) SetChainPrestate(id common.Hash, prestate common.Hash) error {
+	chain, err := s.Chain(id)
+	if err != nil {
+		return err
+	}
+	chain.Prestate = prestate
+	return nil
+}
+
+func (s *State) SetChainStartingAnchorRoot(id common.Hash, root common.Hash) error {
+	chain, err := s.Chain(id)
+	if err != nil {
+		return err
+	}
+	chain.StartingAnchorRoot = root
+	return nil
+}
+
 type AdditionalDisputeGameState struct {
 	GameType      uint32
 	GameAddress   common.Address
@@ -94,43 +112,17 @@ type ChainState struct {
 
 	addresses.OpChainContracts
 
+	// Absolute prestate for permissionless games.
+	Prestate common.Hash `json:"prestate,omitzero"`
+
+	// Block-zero genesis output root for permissionless games.
+	StartingAnchorRoot common.Hash `json:"startingAnchorRoot,omitzero"`
+
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`
 
 	StartBlock *L1BlockRefJSON `json:"startBlock"`
-
-	// Prestate is the resolved absolute prestate for this chain, or zero if unset.
-	Prestate common.Hash `json:"prestate,omitempty"`
-
-	// StartingAnchorRoot is the block-zero genesis output root, or zero if unset.
-	StartingAnchorRoot common.Hash `json:"startingAnchorRoot,omitempty"`
-}
-
-func (s *State) SetChainPrestate(id common.Hash, prestate common.Hash) {
-	for _, chain := range s.Chains {
-		if chain.ID == id {
-			chain.Prestate = prestate
-			return
-		}
-	}
-	s.Chains = append(s.Chains, &ChainState{
-		ID:       id,
-		Prestate: prestate,
-	})
-}
-
-func (s *State) SetChainStartingAnchorRoot(id common.Hash, root common.Hash) {
-	for _, chain := range s.Chains {
-		if chain.ID == id {
-			chain.StartingAnchorRoot = root
-			return
-		}
-	}
-	s.Chains = append(s.Chains, &ChainState{
-		ID:                 id,
-		StartingAnchorRoot: root,
-	})
 }
 
 type L1BlockRefJSON struct {

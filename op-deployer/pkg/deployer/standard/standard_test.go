@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/superchain-registry/validation"
 
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/stretchr/testify/require"
@@ -28,14 +27,15 @@ func TestDefaultHardforkSchedule(t *testing.T) {
 }
 
 func TestIsPermissionlessGameType(t *testing.T) {
+	// Literals catch drift from DeployOPChain's hardcoded game types.
 	tests := []struct {
 		gameType uint32
 		expected bool
 	}{
-		{uint32(gameTypes.CannonGameType), true},
-		{uint32(gameTypes.PermissionedGameType), false},
-		{uint32(gameTypes.SuperPermissionedGameType), false},
-		{uint32(gameTypes.CannonKonaGameType), true},
+		{0, true},  // CANNON
+		{1, false}, // PERMISSIONED_CANNON
+		{5, false}, // SUPER_PERMISSIONED
+		{8, true},  // CANNON_KONA
 	}
 
 	for _, test := range tests {
