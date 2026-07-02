@@ -9,18 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestState_SetChainPrestateCreatesChain(t *testing.T) {
+func TestState_SetChainPrestateUnknownChain(t *testing.T) {
 	chainID := common.HexToHash("0x01")
 	prestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
 	st := &State{}
 
-	st.SetChainPrestate(chainID, prestate)
+	err := st.SetChainPrestate(chainID, prestate)
 
-	require.Len(t, st.Chains, 1)
-	require.Equal(t, &ChainState{
-		ID:       chainID,
-		Prestate: prestate,
-	}, st.Chains[0])
+	require.ErrorContains(t, err, "chain not found")
+	require.Empty(t, st.Chains)
 }
 
 func TestState_SetChainPrestateUpdatesExistingChain(t *testing.T) {
@@ -51,7 +48,7 @@ func TestState_SetChainPrestateUpdatesExistingChain(t *testing.T) {
 		Chains: []*ChainState{existing},
 	}
 
-	st.SetChainPrestate(chainID, newPrestate)
+	require.NoError(t, st.SetChainPrestate(chainID, newPrestate))
 
 	require.Len(t, st.Chains, 1)
 	require.Same(t, existing, st.Chains[0])
@@ -80,6 +77,18 @@ func TestState_PrestateJSONRoundTrip(t *testing.T) {
 	chain, err := roundTripped.Chain(chainID)
 	require.NoError(t, err)
 	require.Equal(t, prestate, chain.Prestate)
+}
+
+func TestState_PrestateJSONOmitsZeroValue(t *testing.T) {
+	st := &State{
+		Chains: []*ChainState{{
+			ID: common.HexToHash("0x01"),
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "prestate")
 }
 
 func TestBlockRef_Deserialize(t *testing.T) {

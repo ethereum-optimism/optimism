@@ -81,18 +81,14 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 	return nil, fmt.Errorf("chain not found: %s", id.Hex())
 }
 
-func (s *State) SetChainPrestate(id common.Hash, prestate common.Hash) {
-	for _, chain := range s.Chains {
-		if chain.ID == id {
-			chain.Prestate = prestate
-			return
-		}
+// SetChainPrestate refuses unknown chains because apply skips deploy-opchain for existing entries.
+func (s *State) SetChainPrestate(id common.Hash, prestate common.Hash) error {
+	chain, err := s.Chain(id)
+	if err != nil {
+		return err
 	}
-
-	s.Chains = append(s.Chains, &ChainState{
-		ID:       id,
-		Prestate: prestate,
-	})
+	chain.Prestate = prestate
+	return nil
 }
 
 type AdditionalDisputeGameState struct {
@@ -110,7 +106,7 @@ type ChainState struct {
 
 	// Prestate is the resolved absolute prestate, written by the prestate command,
 	// consumed by the deploy stage for permissionless games, zero when unset.
-	Prestate common.Hash `json:"prestate,omitempty"`
+	Prestate common.Hash `json:"prestate,omitzero"`
 
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 

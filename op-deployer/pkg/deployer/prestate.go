@@ -87,11 +87,9 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			continue
 		}
 
-		if _, err := st.Chain(chain.ID); err != nil {
+		if err := st.SetChainPrestate(chain.ID, resolved.hash); err != nil {
 			return fmt.Errorf("chain %s has no prepared state entry; run op-deployer prepare before op-deployer prestate: %w", chain.ID.Hex(), err)
 		}
-
-		st.SetChainPrestate(chain.ID, resolved.hash)
 		cfg.Logger.Info("committed dispute absolute prestate", "chainID", chain.ID.Hex(), "source", resolved.source, "prestate", resolved.hash.Hex())
 		committed++
 	}

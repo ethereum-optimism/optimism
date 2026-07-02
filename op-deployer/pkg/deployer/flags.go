@@ -82,7 +82,7 @@ var (
 	}
 	PrestateFlag = &cli.StringFlag{
 		Name:    PrestateFlagName,
-		Usage:   "Absolute prestate hash to write to state for every chain without a differing intent override.",
+		Usage:   "Absolute prestate hash to commit for each chain. Fails if an intent override differs.",
 		EnvVars: PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
 	}
 	DeploymentTargetFlag = &cli.StringFlag{
