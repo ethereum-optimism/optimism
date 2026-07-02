@@ -37,7 +37,7 @@ func NewApp(versionWithMeta string) *cli.App {
 		},
 		{
 			Name:   "prestate",
-			Usage:  "commits absolute prestates to state",
+			Usage:  "commits absolute prestate hashes to state",
 			Flags:  cliapp.ProtectFlags(deployer.PrestateFlags),
 			Action: deployer.PrestateCLI(),
 		},

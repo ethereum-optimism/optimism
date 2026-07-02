@@ -110,7 +110,7 @@ func TestPrestateResolutionAndCommitment(t *testing.T) {
 				prepared: true,
 			}},
 			wantErrParts: []string{
-				"no prestates committed",
+				"no prestate hashes committed",
 			},
 			wantNoWriteTo: map[common.Hash]common.Hash{chainA: common.Hash{}},
 		},

@@ -88,14 +88,14 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		}
 
 		if err := st.SetChainPrestate(chain.ID, resolved.hash); err != nil {
-			return fmt.Errorf("chain %s has no prepared state entry; run op-deployer prepare before op-deployer prestate: %w", chain.ID.Hex(), err)
+			return fmt.Errorf("run op-deployer prepare before op-deployer prestate for chain %s: %w", chain.ID.Hex(), err)
 		}
 		cfg.Logger.Info("committed dispute absolute prestate", "chainID", chain.ID.Hex(), "source", resolved.source, "prestate", resolved.hash.Hex())
 		committed++
 	}
 
 	if committed == 0 {
-		return fmt.Errorf("no prestates committed; provide --%s or set %s in the intent", PrestateFlagName, faultGameAbsolutePrestateOverride)
+		return fmt.Errorf("no prestate hashes committed: provide --%s or set %s in the intent", PrestateFlagName, faultGameAbsolutePrestateOverride)
 	}
 	if err := pipeline.WriteState(cfg.Workdir, st); err != nil {
 		return fmt.Errorf("failed to write state: %w", err)
