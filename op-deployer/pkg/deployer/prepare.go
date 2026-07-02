@@ -17,16 +17,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
-
-// placeholderRole is a non-zero sentinel used for the role addresses in the
-// prediction dry-run.
-var placeholderRole = common.Address{0x01}
 
 type PrepareConfig struct {
 	Workdir string
@@ -210,12 +205,12 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 	}
 
 	return opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner: placeholderRole,
-		SystemConfigOwner:      placeholderRole,
-		Batcher:                placeholderRole,
-		UnsafeBlockSigner:      placeholderRole,
-		Proposer:               placeholderRole,
-		Challenger:             placeholderRole,
+		OpChainProxyAdminOwner: standard.PlaceholderAddress,
+		SystemConfigOwner:      standard.PlaceholderAddress,
+		Batcher:                standard.PlaceholderAddress,
+		UnsafeBlockSigner:      standard.PlaceholderAddress,
+		Proposer:               standard.PlaceholderAddress,
+		Challenger:             standard.PlaceholderAddress,
 
 		BasefeeScalar:     standard.BasefeeScalar,
 		BlobBaseFeeScalar: standard.BlobBaseFeeScalar,

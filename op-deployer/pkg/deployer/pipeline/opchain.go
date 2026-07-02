@@ -22,9 +22,8 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	}
 
 	// We make sure that the deployer address is the same as the one used in the dry-run, if any.
-	// We ensure a PrivateKey is provided in the env to avoid false negatives when non-live strategies
-	// are used.
-	if env.PrivateKey != "" {
+	// Skip when the deployer is the placeholder, which means non-live strategies are being used.
+	if env.Deployer != standard.PlaceholderAddress {
 		if err := st.CheckL1PredictSender(env.Deployer); err != nil {
 			return err
 		}

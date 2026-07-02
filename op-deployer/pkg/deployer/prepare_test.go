@@ -69,7 +69,7 @@ func TestMakePredictionInput(t *testing.T) {
 		dci.OpChainProxyAdminOwner, dci.SystemConfigOwner, dci.Batcher,
 		dci.UnsafeBlockSigner, dci.Proposer, dci.Challenger,
 	} {
-		require.Equal(t, placeholderRole, role)
+		require.Equal(t, standard.PlaceholderAddress, role)
 		require.NotEqual(t, common.Address{}, role)
 	}
 }
