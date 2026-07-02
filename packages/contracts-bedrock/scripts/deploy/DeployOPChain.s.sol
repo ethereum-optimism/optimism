@@ -313,6 +313,7 @@ contract DeployOPChain is Script {
     }
 
     /// @notice Returns the permissionless mode and respected game type for an initial deployment.
+    /// @dev Permissionless deploys respect the requested game type before the permissioned/super-root default.
     function _initialDeployGameSelection(
         GameType _disputeGameType,
         bool _isSuperRoot
