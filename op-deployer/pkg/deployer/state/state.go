@@ -81,6 +81,20 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 	return nil, fmt.Errorf("chain not found: %s", id.Hex())
 }
 
+func (s *State) SetChainPrestate(id common.Hash, prestate common.Hash) {
+	for _, chain := range s.Chains {
+		if chain.ID == id {
+			chain.Prestate = prestate
+			return
+		}
+	}
+
+	s.Chains = append(s.Chains, &ChainState{
+		ID:       id,
+		Prestate: prestate,
+	})
+}
+
 type AdditionalDisputeGameState struct {
 	GameType      uint32
 	GameAddress   common.Address
@@ -93,6 +107,10 @@ type ChainState struct {
 	ID common.Hash `json:"id"`
 
 	addresses.OpChainContracts
+
+	// Prestate is the resolved absolute prestate, written by the prestate command,
+	// consumed by the deploy stage for permissionless games, zero when unset.
+	Prestate common.Hash `json:"prestate,omitempty"`
 
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 

@@ -4,9 +4,83 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
+
+func TestState_SetChainPrestateCreatesChain(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	prestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	st := &State{}
+
+	st.SetChainPrestate(chainID, prestate)
+
+	require.Len(t, st.Chains, 1)
+	require.Equal(t, &ChainState{
+		ID:       chainID,
+		Prestate: prestate,
+	}, st.Chains[0])
+}
+
+func TestState_SetChainPrestateUpdatesExistingChain(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	oldPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	newPrestate := common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222")
+	contracts := addresses.OpChainContracts{
+		OpChainCoreContracts: addresses.OpChainCoreContracts{
+			SystemConfigProxy: common.HexToAddress("0x100"),
+		},
+	}
+	games := []AdditionalDisputeGameState{{
+		GameType:    1,
+		GameAddress: common.HexToAddress("0x200"),
+	}}
+	startBlock := &L1BlockRefJSON{
+		Hash:   common.HexToHash("0x03"),
+		Number: 4,
+	}
+	existing := &ChainState{
+		ID:                     chainID,
+		OpChainContracts:       contracts,
+		Prestate:               oldPrestate,
+		AdditionalDisputeGames: games,
+		StartBlock:             startBlock,
+	}
+	st := &State{
+		Chains: []*ChainState{existing},
+	}
+
+	st.SetChainPrestate(chainID, newPrestate)
+
+	require.Len(t, st.Chains, 1)
+	require.Same(t, existing, st.Chains[0])
+	require.Equal(t, newPrestate, st.Chains[0].Prestate)
+	require.Equal(t, contracts, st.Chains[0].OpChainContracts)
+	require.Equal(t, games, st.Chains[0].AdditionalDisputeGames)
+	require.Same(t, startBlock, st.Chains[0].StartBlock)
+}
+
+func TestState_PrestateJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	prestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	st := &State{
+		Chains: []*ChainState{{
+			ID:       chainID,
+			Prestate: prestate,
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"prestate":"`+prestate.Hex()+`"`)
+
+	var roundTripped State
+	require.NoError(t, json.Unmarshal(data, &roundTripped))
+	chain, err := roundTripped.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, prestate, chain.Prestate)
+}
 
 func TestBlockRef_Deserialize(t *testing.T) {
 	tests := []struct {
