@@ -359,7 +359,7 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
 		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 		LiquidityControllerOwner:                 cfg.LiquidityControllerOwner,
-		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && lagoonAtGenesis(cfg.L2GenesisLagoonTimeOffset), cfg.UseL2CM),
+		DevFeatureBitmap:                         devFeatureBitmapForL2Genesis(multichainDepSet && lagoonAtGenesis(cfg.L2GenesisLagoonTimeOffset)),
 		UseInterop:                               multichainDepSet && lagoonAtGenesis(cfg.L2GenesisLagoonTimeOffset),
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
@@ -374,15 +374,11 @@ func lagoonAtGenesis(lagoonOffset *hexutil.Uint64) bool {
 	return lagoonOffset != nil && *lagoonOffset == 0
 }
 
-// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the Interop and L2CM flags.
-// TODO(#20084): drop useL2CM and the L2CMFlag branch once DevFeatures are removed.
-func devFeatureBitmapForL2Genesis(enableInterop, useL2CM bool) common.Hash {
+// devFeatureBitmapForL2Genesis returns the dev feature bitmap for the Interop flag.
+func devFeatureBitmapForL2Genesis(enableInterop bool) common.Hash {
 	var bitmap common.Hash
 	if enableInterop {
 		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.OptimismPortalInteropFlag)
-	}
-	if useL2CM {
-		bitmap = devfeatures.EnableDevFeature(bitmap, devfeatures.L2CMFlag)
 	}
 	return bitmap
 }
