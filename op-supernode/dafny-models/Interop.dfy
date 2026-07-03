@@ -1392,7 +1392,9 @@ module Interop {
           reveal LogsDBsUnchangedUpTo;
           RewindLogsDBsPreservesAllVerifiedCrossValid@BeforeRewindLogsDBs(plan);
         }
-        assert AllDBsInSyncUpTo(plan.resetAllChainsTo.value);
+        assert AllDBsInSyncUpTo(plan.resetAllChainsTo.value) by {
+          AllDBsInSyncImpliesAllDBsInSyncUpTo(plan.resetAllChainsTo.value);
+        }
         assert PlanConsistentWithVerified(plan);
         assert AllLogsDBsConsistentWithChainData();
       }
@@ -2775,7 +2777,8 @@ module Interop {
                                             verifiedDB.Get(ts).l2Heads, map[]))
         {
           assert ts < rewindAt;                     // ts <= lastTS < rewindAt
-          assert ts in old(verifiedDB.db);          // ts in verifiedDB.db = {k in old(db) | k < rewindAt}
+          SequentialContainsRange(old(verifiedDB.db), activationTimestamp);
+          assert ts in old(verifiedDB.db);
           assert old(verifiedDB.Has(ts));           // fires trigger on old(AllVerifiedCrossValid())
           assert verifiedDB.db[ts] == old(verifiedDB.db)[ts];
         }

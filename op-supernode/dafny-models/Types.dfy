@@ -134,7 +134,8 @@ module Types {
   {
     match plan.resetAllChainsTo {
       case None =>
-        plan.rewindAtOrAfter <= ACTIVATION_TIMESTAMP
+        plan.rewindAtOrAfter <= ACTIVATION_TIMESTAMP &&
+        |plan.targetHeads| == 0
       case Some(ts) =>
         ACTIVATION_TIMESTAMP < plan.rewindAtOrAfter &&
         ts == plan.rewindAtOrAfter - 1 &&
@@ -148,8 +149,9 @@ module Types {
   ghost predicate ValidPendingTransition(pending: PendingTransition)
   {
     pending.decision != Wait &&
-    (pending.decision == Rewind ==> pending.rewind.Some?) &&
+    (pending.decision == Rewind <==> pending.rewind.Some?) &&
     (pending.decision == Rewind ==> ValidRewindPlan(pending.rewind.value)) &&
+    (pending.decision == Rewind ==> pending.result.None?) &&
     (pending.decision == Advance ==> pending.result.Some?) &&
     (pending.decision == Advance ==> |pending.result.value.invalidHeads| == 0) &&
     (pending.decision == Invalidate ==> pending.result.Some?) &&
