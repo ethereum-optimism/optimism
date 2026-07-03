@@ -139,5 +139,11 @@ contract SetInteropDisputeGames is Script {
                 require(impl == address(0), "SetInteropDisputeGames: disabled game not cleared");
             }
         }
+
+        // The new respected game type must have a registered implementation.
+        require(
+            address(dgf.gameImpls(migrateInput.startingRespectedGameType)) != address(0),
+            "SetInteropDisputeGames: respected game has no implementation"
+        );
     }
 }

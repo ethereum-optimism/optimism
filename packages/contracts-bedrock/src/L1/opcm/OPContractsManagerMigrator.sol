@@ -262,26 +262,19 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///         AnchorStateRegistry, DisputeGameFactory and ETHLockbox. It re-initializes the shared
     ///         AnchorStateRegistry with the new respected game type and anchor root, then sets the
     ///         dispute game implementations on the shared DisputeGameFactory.
-    /// @dev Gated on OPTIMISM_PORTAL_INTEROP. It is additionally gated on the ZK_DISPUTE_GAME dev
-    ///      feature while ZK is the in-development target super game; that gate is removed in
-    ///      production, after which the function is fully general across super game types.
-    /// @dev In-flight games keep finalizing under their original rules: clones embed their impl and
-    ///      wasRespectedGameTypeWhenCreated at creation, so existing games are unaffected by the
-    ///      re-point.
-    /// @dev The shared AnchorStateRegistry is re-initialized (its initialized slot is reset by
-    ///      _upgrade), which re-seeds the anchor root. The caller MUST supply an honest anchor root
-    ///      in `startingAnchorRoot`; if it differs from the current one, its l2SequenceNumber MUST
-    ///      be strictly greater than the current anchor's or AnchorStateRegistry.initialize reverts
-    ///      (same constraint as migrate()).
-    /// @dev Unlike migrate(), this does NOT invalidate already-proven withdrawals: the AnchorState-
-    ///      Registry retirement timestamp is preserved (only set on first init), and in-flight games
-    ///      keep their wasRespectedGameTypeWhenCreated. As a consequence, the retired super games are
-    ///      NOT fenced — a previously-created, still-respected source game that resolves can still
-    ///      advance the shared anchor until it is blacklisted/retired out of band. This is an
-    ///      intentional trade-off (keep in-flight games finalizing) and is left to operational/sec
-    ///      review; callers wanting a hard cut-over must retire the old games separately.
+    /// @dev NOTE: Gated on OPTIMISM_PORTAL_INTEROP. It is additionally gated on the ZK_DISPUTE_GAME
+    ///      dev feature while ZK is the in-development target super game.
+    /// @dev NOTE: In-flight games can keep finalizing since wasRespectedGameTypeWhenCreated remains
+    ///      true for the retired game.
+    /// @dev NOTE: The shared AnchorStateRegistry is re-initialized, which re-seeds the anchor root.
+    ///      The caller MUST supply an honest anchor root in `startingAnchorRoot`; if it differs
+    ///      from the current one, its l2SequenceNumber MUST be strictly greater than the current
+    ///      anchor's or AnchorStateRegistry.initialize reverts (same constraint as migrate()).
+    /// @dev NOTE: Unlike migrate(), this does NOT invalidate already-proven withdrawals: the
+    ///      AnchorStateRegistry retirement timestamp is preserved. Retired games can therefore still
+    ///      advance the anchor unless they are blacklisted separately.
     /// @param _input The input parameters. `chainSystemConfigs` is the existing interop set;
-    ///        `disputeGameConfigs` enables the target game and disables (clears) the retired one;
+    ///        `disputeGameConfigs` enables the target game and disables the retired one;
     ///        `startingRespectedGameType` is the new (super) respected game type.
     function setInteropDisputeGames(MigrateInput calldata _input) public {
         // Check that at least one chain is supplied.
@@ -293,9 +286,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             revert OPContractsManagerMigrator_InteropNotEnabled();
         }
-        // TODO: remove this ZK_DISPUTE_GAME gate once the ZK implementation is finalized. The
-        // function itself is generic across super game types — this gate only exists while ZK is
-        // the in-development target, and should drop so any super game swap is allowed.
+        // TODO(#21529): remove this ZK_DISPUTE_GAME gate once the ZK game becomes the default super game post-interop.
         if (!contractsContainer().isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)) {
             revert OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
         }
@@ -305,22 +296,19 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();
         }
 
-        // All chains must share the same core contracts; validate the set, then resolve the shared
+        // All chains must share the same core contracts. Validate the set, then resolve the shared
         // infra from the first chain as the canonical reference (same convention as migrate()).
         _validateChainSystemConfigs(_input.chainSystemConfigs);
         ISystemConfig sysCfg = _input.chainSystemConfigs[0];
 
-        // Resolve the EXISTING shared infra — nothing is deployed here.
+        // Resolve the existing shared infra.
         IAnchorStateRegistry anchorStateRegistry =
             IOptimismPortal(payable(sysCfg.optimismPortal())).anchorStateRegistry();
         IDisputeGameFactory disputeGameFactory = anchorStateRegistry.disputeGameFactory();
         IDelayedWETH delayedWETH = IDelayedWETH(payable(sysCfg.delayedWETH()));
 
         // Assert every chain is actually part of this interop set: each portal must resolve to the
-        // same shared AnchorStateRegistry. Without this, the swap would silently mutate only the
-        // first chain's infra while leaving non-interop chains untouched. The dev-feature gate above
-        // only proves interop is allowed, not that this specific set already shares infra.
-        // Starts at 0 to mirror _validateChainSystemConfigs; chain 0 trivially matches its own ASR.
+        // same shared AnchorStateRegistry. Starts at 0 to mirror _validateChainSystemConfigs
         for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
             IOptimismPortal portal = IOptimismPortal(payable(_input.chainSystemConfigs[i].optimismPortal()));
             if (portal.anchorStateRegistry() != anchorStateRegistry) {
@@ -343,7 +331,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         );
 
         // Swap the dispute games on the shared DisputeGameFactory. An enabled config registers the
-        // new game; a disabled config clears the retired one (impl => address(0)).
+        // new game. A disabled config clears the retired one by setting the implementation to address(0).
         for (uint256 i = 0; i < _input.disputeGameConfigs.length; i++) {
             IDisputeGame gameImpl = IDisputeGame(address(0));
             bytes memory gameArgs = bytes("");
