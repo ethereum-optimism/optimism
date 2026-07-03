@@ -134,8 +134,7 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     {
         expectedImpls_ = new address[](_predeploys.length);
         for (uint256 i = 0; i < _predeploys.length; i++) {
-            address predeploy = _predeploys[i].predeploy;
-            expectedImpls_[i] = _getExpectedImplementation(predeploy, Predeploys.getName(predeploy));
+            expectedImpls_[i] = _getExpectedImplementation(_predeploys[i].predeploy);
         }
     }
 
@@ -159,32 +158,15 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         return false;
     }
 
-    /// @notice Helper to get the expected implementation address for a predeploy.
-    /// @dev Handles feature-specific implementations (CGT variants).
-    /// @param _predeploy The predeploy address.
-    /// @param _name The predeploy name.
-    /// @return expectedImpl_ The expected implementation address.
-    function _getExpectedImplementation(
-        address _predeploy,
-        string memory _name
-    )
-        internal
-        view
-        returns (address expectedImpl_)
-    {
-        // Handle feature-specific implementations
-        if (_predeploy == Predeploys.L1_BLOCK_ATTRIBUTES) {
-            // L1Block uses CGT variant on custom gas token networks
-            string memory implName = commonState.isCustomGasToken ? "L1BlockCGT" : "L1Block";
-            expectedImpl_ = _findImplByName(implName);
-        } else if (_predeploy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
-            // L2ToL1MessagePasser uses CGT variant on custom gas token networks
-            string memory implName = commonState.isCustomGasToken ? "L2ToL1MessagePasserCGT" : "L2ToL1MessagePasser";
-            expectedImpl_ = _findImplByName(implName);
-        } else {
-            // Standard implementation lookup
-            expectedImpl_ = _findImplByName(_name);
+    /// @notice Returns the expected implementation address for a predeploy.
+    function _getExpectedImplementation(address _predeploy) internal view returns (address expectedImpl_) {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].proxy == _predeploy) {
+                return _findImplByName(Predeploys.resolveVariant(records[i], commonState.isCustomGasToken).name);
+            }
         }
+        revert("L2ForkUpgrade: unmapped predeploy");
     }
 
     /// @notice Helper to find an implementation address by name.
@@ -196,8 +178,7 @@ contract L2ForkUpgrade_TestInit is CommonTest {
 
     /// @notice Returns the active proxied predeploys with their pre-upgrade versions.
     /// @dev Uses getUpgradeableRecords() which already filters non-proxied and deprecated records.
-    ///      Variant records (isVariant = true, e.g. L1BlockCGT) are skipped so each proxy appears
-    ///      once. Feature-gated predeploys disabled for the current chain config are also excluded.
+    ///      Feature-gated predeploys disabled for the current chain config are also excluded.
     ///      Disabled predeploys must be excluded before calling _getVersion: their proxy has an
     ///      implementation slot pointing to a code namespace with no code, so the delegatecall
     ///      returns empty bytes and Solidity's ABI decoder for `string` fails outside try/catch.
@@ -205,7 +186,6 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
         uint256 count = 0;
         for (uint256 i = 0; i < records.length; i++) {
-            if (records[i].isVariant) continue;
             if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
             count++;
         }
@@ -213,7 +193,6 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         predeploys_ = new PredeployState[](count);
         uint256 j = 0;
         for (uint256 i = 0; i < records.length; i++) {
-            if (records[i].isVariant) continue;
             if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
             predeploys_[j].predeploy = records[i].proxy;
             predeploys_[j].version = _getVersion(records[i].proxy);

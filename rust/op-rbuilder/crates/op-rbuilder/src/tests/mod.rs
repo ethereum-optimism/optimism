@@ -24,6 +24,9 @@ mod ordering;
 mod revert;
 
 #[cfg(test)]
+mod sdm;
+
+#[cfg(test)]
 mod smoke;
 
 #[cfg(test)]

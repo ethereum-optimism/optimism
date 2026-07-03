@@ -91,7 +91,7 @@ func TestSetInteropDisputeGames(t *testing.T) {
 	require.NoError(t, err)
 
 	const (
-		gameTypeSuperCannonKona = uint32(9)
+		gameTypeSuperCannonKona         = uint32(9)
 		gameTypeSuperPermissionedCannon = uint32(5)
 		gameTypeZK                      = uint32(10)
 	)
@@ -102,7 +102,7 @@ func TestSetInteropDisputeGames(t *testing.T) {
 	}
 
 	// Step 1: migrate the chain into an interop set with the standard super shape: the permissioned
-	// SUPER_PERMISSIONED_CANNON plus the permissionless SUPER_CANNON_KONA, with kona respected.
+	// SUPER_PERMISSIONED plus the permissionless SUPER_CANNON_KONA, with kona respected.
 	bytes32Type, err := abi.NewType("bytes32", "", nil)
 	require.NoError(t, err)
 	addressType, err := abi.NewType("address", "", nil)
@@ -157,7 +157,7 @@ func TestSetInteropDisputeGames(t *testing.T) {
 		MigrateInputV2: &MigrateInputV2{
 			ChainSystemConfigs: []common.Address{systemConfigProxy},
 			DisputeGameConfigs: []DisputeGameConfig{
-				// Keep the permissioned SUPER_PERMISSIONED_CANNON as the liveness backup. The script's
+				// Keep the permissioned SUPER_PERMISSIONED as the liveness backup. The script's
 				// checkOutput asserts each enabled game is still registered, so this proves the backup
 				// survives the swap (covers "previous games stay valid after the upgrade").
 				{Enabled: true, InitBond: big.NewInt(1000000000000000000), GameType: gameTypeSuperPermissionedCannon, GameArgs: spdgArgs},

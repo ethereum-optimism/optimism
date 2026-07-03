@@ -168,9 +168,8 @@ contract StandardValidatorUtils {
             internalRequire(address(dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0), "PDDG-SHAPE", _errors);
         _errors = internalRequire(address(dgf.gameImpls(GameTypes.CANNON_KONA)) == address(0), "CKDG-SHAPE", _errors);
         _errors = internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "SCDG-SHAPE", _errors);
-        _errors = internalRequire(
-            address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) != address(0), "SPDG-SHAPE", _errors
-        );
+        _errors =
+            internalRequire(address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0), "SPDG-SHAPE", _errors);
         _errors =
             internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) != address(0), "SCKDG-SHAPE", _errors);
         return _errors;
@@ -187,13 +186,11 @@ contract StandardValidatorUtils {
     {
         IDisputeGameFactory dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         _errors = internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "SCDG-NOSHAPE", _errors);
-        _errors = internalRequire(
-            address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) == address(0), "SPDG-NOSHAPE", _errors
-        );
+        _errors =
+            internalRequire(address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) == address(0), "SPDG-NOSHAPE", _errors);
         _errors =
             internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0), "SCKDG-NOSHAPE", _errors);
-        // TODO: add ZKDG-NOSHAPE check here once the super-root ZKDisputeGame is ready to be used
-        // after interop migration. After that, ZK_DISPUTE_GAME must never be registered on non-super-root chains.
+        // TODO(#21529): once ZK ships, add a ZKDG-NOSHAPE check so ZK can't be registered on a non-super-root chain.
         _errors = internalRequire(
             address(dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) != address(0), "PDDG-NOSHAPE", _errors
         );
@@ -266,10 +263,10 @@ contract StandardValidatorUtils {
         _errors = internalRequire(_factory.owner() == _l1PAOMultisig, "DF-30", _errors);
         _errors = internalRequire(IProxyAdminOwnedBase(address(_factory)).proxyAdmin() == _admin, "DF-40", _errors);
         // At least one permissioned game must be registered — either the legacy
-        // PERMISSIONED_CANNON or the super-root SUPER_PERMISSIONED_CANNON.
+        // PERMISSIONED_CANNON or the super-root SUPER_PERMISSIONED.
         _errors = internalRequire(
             address(_factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) != address(0)
-                || address(_factory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) != address(0),
+                || address(_factory.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0),
             "DF-50",
             _errors
         );

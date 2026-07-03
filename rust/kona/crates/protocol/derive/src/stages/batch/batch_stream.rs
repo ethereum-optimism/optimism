@@ -278,7 +278,7 @@ mod test {
     use kona_genesis::{ChainGenesis, HardForkConfig};
     use kona_protocol::{SingleBatch, SpanBatchElement};
     use op_alloy_consensus::OpBlock;
-    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+    use tracing_subscriber::layer::SubscriberExt;
 
     #[tokio::test]
     async fn test_batch_stream_flush() {
@@ -335,7 +335,8 @@ mod test {
     async fn test_batch_stream_inactive() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let data = vec![Ok(Batch::Single(SingleBatch::default()))];
         let config = Arc::new(RollupConfig {
@@ -437,7 +438,8 @@ mod test {
     async fn test_span_batch_extraction_error_flushes_stage() {
         let trace_store: TraceStorage = Default::default();
         let layer = CollectingLayer::new(trace_store.clone());
-        tracing_subscriber::Registry::default().with(layer).init();
+        let subscriber = tracing_subscriber::Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
 
         let parent_hash = b256!("1111111111111111111111111111111111111111000000000000000000000000");
         let l1_block_hash =

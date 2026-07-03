@@ -118,7 +118,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         // SUPER_CANNON is retired in favor of SUPER_CANNON_KONA.
         if (
             _input.startingRespectedGameType.raw() != GameTypes.SUPER_CANNON_KONA.raw()
-                && _input.startingRespectedGameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+                && _input.startingRespectedGameType.raw() != GameTypes.SUPER_PERMISSIONED.raw()
         ) {
             revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();
         }
@@ -282,7 +282,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             revert OPContractsManagerMigrator_NoChains();
         }
 
-        // Gate on both the interop and ZK dev features.
         if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             revert OPContractsManagerMigrator_InteropNotEnabled();
         }
@@ -506,7 +505,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         existingDGF.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)), hex"");
-        existingDGF.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)), hex"");
+        existingDGF.setImplementation(GameTypes.SUPER_PERMISSIONED, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.ZK_DISPUTE_GAME, IDisputeGame(address(0)), hex"");

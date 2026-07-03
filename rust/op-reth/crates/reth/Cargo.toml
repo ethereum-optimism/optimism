@@ -106,6 +106,7 @@ full = ["consensus", "evm", "node", "provider", "rpc", "trie", "pool", "network"
 
 alloy-compat = ["reth-optimism-primitives/alloy-compat"]
 cli = ["dep:reth-optimism-cli", "dep:reth-cli-util"]
+superchain-configs = ["reth-optimism-chainspec/superchain-configs"]
 consensus = [
     "dep:reth-consensus",
     "dep:reth-consensus-common",

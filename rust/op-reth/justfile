@@ -55,6 +55,18 @@ build:
 build-debug:
   cargo build --bin op-reth --features "{{FEATURES}}"
 
+# Regenerate the reth-optimism-chainspec superchain archive
+# (res/superchain-configs.tar + .sha256) and chain_specs.rs from the
+# superchain-registry submodule. The repo-root `just sync-superchain-rust` runs
+# this for op-reth.
+sync-superchain: update-superchain-registry-submodule
+  OP_RETH_SYNC_SUPERCHAIN=1 cargo build -p reth-optimism-chainspec --features superchain-configs
+
+# Initialize/update the superchain-registry submodule (delegates to the root recipe
+# that encapsulates the correct scoped, shallow update).
+update-superchain-registry-submodule:
+  cd "$(git rev-parse --show-toplevel)" && just update-superchain-registry-submodule
+
 # Build op-reth natively for the given target
 build-native target:
   cargo build --bin op-reth --target {{target}} --features "{{FEATURES}}" --profile "{{PROFILE}}"

@@ -9067,8 +9067,12 @@ dependencies = [
  "reth-primitives-traits",
  "serde",
  "serde_json",
+ "sha2",
+ "tar",
  "tar-no-std",
  "thiserror 2.0.18",
+ "toml",
+ "zstd",
 ]
 
 [[package]]
@@ -9342,6 +9346,7 @@ dependencies = [
  "reth-execution-errors",
  "reth-node-api",
  "reth-optimism-evm",
+ "reth-optimism-primitives",
  "reth-primitives-traits",
  "revm",
  "serde",
@@ -9488,6 +9493,7 @@ dependencies = [
  "alloy-rpc-client",
  "alloy-rpc-types-eth",
  "alloy-serde",
+ "async-trait",
  "c-kzg",
  "derive_more",
  "futures-util",

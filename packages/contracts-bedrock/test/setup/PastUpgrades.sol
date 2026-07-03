@@ -226,11 +226,11 @@ library PastUpgrades {
             )
         });
 
-        // SUPER_PERMISSIONED_CANNON (disabled)
+        // SUPER_PERMISSIONED (disabled)
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED,
             gameArgs: hex""
         });
 

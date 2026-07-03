@@ -282,8 +282,8 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, ()))
         });
         vm.startPrank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(gameImpl_), _implArgs);
-        disputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, 0);
+        disputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED, IDisputeGame(gameImpl_), _implArgs);
+        disputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED, 0);
         vm.stopPrank();
     }
 

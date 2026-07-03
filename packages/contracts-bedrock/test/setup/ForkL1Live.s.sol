@@ -112,8 +112,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
     ///      that point, this function will need to be updated to read the new contract from the superchain-registry
     ///      using either the `saveProxyAndImpl` or `artifacts.save()` functions.
     function _readSuperchainRegistry() internal {
-        string memory superchainBasePath = "./lib/superchain-registry/superchain/configs/";
-        string memory validationBasePath = "./lib/superchain-registry/validation/standard/";
+        string memory superchainBasePath = "../../superchain-registry/superchain/configs/";
+        string memory validationBasePath = "../../superchain-registry/validation/standard/";
 
         string memory superchainToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/superchain.toml"));
         string memory opToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/", opChain(), ".toml"));
@@ -124,7 +124,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         standardVersionsToml = standardVersionsToml.replace('"op-contracts/v2.0.0-rc.1"', "RELEASE");
 
         // Read the extra addresses JSON file which contains addresses no longer in the chain TOML.
-        string memory addressesJson = vm.readFile("./lib/superchain-registry/superchain/extra/addresses/addresses.json");
+        string memory addressesJson = vm.readFile("../../superchain-registry/superchain/extra/addresses/addresses.json");
         string memory chainId = vm.toString(vm.parseTomlUint(opToml, ".chain_id"));
 
         // Slightly hacky, we encode the uint chainId as an address to save it in Artifacts
@@ -255,8 +255,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
 
             // Determine the target SUPER_* game type.
-            GameType targetGameType =
-                isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED_CANNON;
+            GameType targetGameType = isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED;
 
             // Read the current anchor root sequence number so we can set a higher one.
             (, uint256 currentAnchorSeqNum) = asr.getAnchorRoot();
@@ -285,7 +284,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
                 initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameType: GameTypes.SUPER_PERMISSIONED,
                 gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
             });
             if (isPermissionless) {
@@ -369,7 +368,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
                 initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                gameType: GameTypes.SUPER_PERMISSIONED,
                 gameArgs: hex""
             });
             disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -433,9 +432,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         // With super root migration, standard game types are zeroed; read from SUPER_ variants.
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        GameType permGameType = Config.devFeatureSuperRootGamesMigration()
-            ? GameTypes.SUPER_PERMISSIONED_CANNON
-            : GameTypes.PERMISSIONED_CANNON;
+        GameType permGameType =
+            Config.devFeatureSuperRootGamesMigration() ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         address permissionedDisputeGame = address(disputeGameFactory.gameImpls(permGameType));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 

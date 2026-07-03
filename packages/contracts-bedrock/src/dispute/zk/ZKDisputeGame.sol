@@ -267,7 +267,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice Returns the encoded SuperRootProof bytes portion of extraData, without the 4-byte parentIndex prefix.
     /// @return superRootProof_ The encoded SuperRootProof bytes.
-    function superRootProof() public pure returns (bytes memory superRootProof_) {
+    function _superRootProof() internal pure returns (bytes memory superRootProof_) {
         superRootProof_ = _getArgBytes(_preExtraDataByteCount() + 4, _extraDataByteCount() - 4);
     }
 
@@ -287,7 +287,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     /// @param _chainId The L2 chain ID to get the output root claim for.
     /// @return outputRootClaim_ The output root claim for the specified L2 chain ID.
     function rootClaimByChainId(uint256 _chainId) public pure returns (Claim outputRootClaim_) {
-        Types.SuperRootProof memory proof = Encoding.decodeSuperRootProof(superRootProof());
+        Types.SuperRootProof memory proof = Encoding.decodeSuperRootProof(_superRootProof());
         Types.OutputRootWithChainId[] memory outputRoots = proof.outputRoots;
 
         for (uint256 i = 0; i < outputRoots.length; i++) {
@@ -336,7 +336,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
         if (!_verifyInitCallDataLength()) revert BadExtraData();
 
         // Revert if the super root proof in extraData does not match the root claim.
-        Types.SuperRootProof memory proof = Encoding.decodeSuperRootProof(superRootProof());
+        Types.SuperRootProof memory proof = Encoding.decodeSuperRootProof(_superRootProof());
         if (Hashing.hashSuperRootProof(proof) != rootClaim().raw()) revert BadExtraData();
 
         // Store the factory reference for parent game lookups.

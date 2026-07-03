@@ -1,0 +1,22 @@
+[package]
+name = "kona-sp1-aggregation"
+version = "0.0.1"
+publish = false
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+sha2.workspace = true
+sp1-zkvm.workspace = true
+sp1-lib.workspace = true
+kona-sp1-client-utils.workspace = true
+alloy-consensus.workspace = true
+alloy-primitives.workspace = true
+alloy-sol-types.workspace = true
+serde_cbor.workspace = true
+bincode.workspace = true
+
+[lints]
+workspace = true

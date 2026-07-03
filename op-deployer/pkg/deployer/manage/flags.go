@@ -114,7 +114,7 @@ var (
 		Name: "source-game-types",
 		Usage: "Comma-separated numeric type identifiers of the source super games to retire " +
 			"(cleared by the swap). Defaults to 9 (SUPER_CANNON_KONA), the permissionless super " +
-			"fault game that ZK replaces. SUPER_PERMISSIONED_CANNON (5) is intentionally kept as a " +
+			"fault game that ZK replaces. SUPER_PERMISSIONED (5) is intentionally kept as a " +
 			"permissioned liveness backup, mirroring the current SPDG + permissionless shape.",
 		EnvVars: deployer.PrefixEnvVar("SOURCE_GAME_TYPES"),
 		Value:   "9",

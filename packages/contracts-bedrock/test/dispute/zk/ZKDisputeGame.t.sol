@@ -1443,20 +1443,18 @@ contract ZKDisputeGame_RootClaim_Test is ZKDisputeGame_TestInit {
         vm.stopPrank();
     }
 
-    /// @notice Verifies that `superRootProof()` returns exactly the bytes packed after the 4-byte
-    ///         parentIndex header and that those bytes decode to a well-formed `SuperRootProof`
-    ///         whose fields match what setUp packed.
+    /// @notice Verifies that the bytes packed after the 4-byte parentIndex header in `extraData()`
+    ///         decode to a well-formed `SuperRootProof` whose fields match what setUp packed. This
+    ///         is the same slice `_superRootProof()` performs internally.
     function test_superRootProof_returnsExpectedBytes_succeeds() public view {
+        // _superRootProof() == extraData()[4:] (strip the 4-byte parentIndex prefix).
         bytes memory full = game.extraData();
-        bytes memory proofBytes = game.superRootProof();
-
-        // `superRootProof()` returns extraData[4:].
-        assertEq(proofBytes.length, full.length - 4);
+        bytes memory proofBytes = new bytes(full.length - 4);
         for (uint256 i = 0; i < proofBytes.length; i++) {
-            assertEq(proofBytes[i], full[i + 4]);
+            proofBytes[i] = full[i + 4];
         }
 
-        // The returned bytes decode to a SuperRootProof matching the values setUp packed.
+        // The slice decodes to a SuperRootProof matching the values setUp packed.
         Types.SuperRootProof memory decoded = Encoding.decodeSuperRootProof(proofBytes);
         assertEq(decoded.version, bytes1(0x01));
         assertEq(decoded.timestamp, uint64(childL2SequenceNumber));
