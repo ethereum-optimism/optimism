@@ -3,6 +3,9 @@ package interop
 import (
 	"errors"
 	"hash/fnv"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // errInjectedDBFault is the sentinel a planted verifiedDB fault returns. The
@@ -33,21 +36,35 @@ var faultMethods = []string{
 // Dafny oracle's own DB reads between rounds never trip it.
 type dbFault struct {
 	target string
-	skip   int // let this many matching calls pass first
+	skip   int // let this many matching calls pass before firing
+	seen   int // matching calls observed while active (fires on seen == skip+1)
 	done   bool
 	active bool
 }
 
 func (f *dbFault) gate(method string) error {
-	if !f.active || f.done || method != f.target {
+	if !f.active || method != f.target {
 		return nil
 	}
-	if f.skip > 0 {
-		f.skip--
+	f.seen++
+	if f.done || f.seen <= f.skip {
 		return nil
 	}
 	f.done = true
 	return errInjectedDBFault
+}
+
+// assertFiredIfReachable fails t when the target was hit enough times to fire
+// yet the fault never did — a wiring or recovery regression. A no-op when no
+// fault was armed, or when the target was unreachable this run (nothing to
+// prove).
+func (f *dbFault) assertFiredIfReachable(t *testing.T) {
+	t.Helper()
+	if f == nil || f.seen <= f.skip {
+		return
+	}
+	require.True(t, f.done,
+		"armed verifiedDB fault on %s was reachable (%d active hits) but never fired", f.target, f.seen)
 }
 
 // armDBFault derives a one-shot fault from the seed and installs it on the live

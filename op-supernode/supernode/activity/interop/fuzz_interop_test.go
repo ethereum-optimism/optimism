@@ -112,6 +112,7 @@ func FuzzInteropInvalid(f *testing.F) {
 		// during a production call, and must be recovered transparently
 		// (recordStep/observeStep) without changing the verifier's outcome.
 		fault := armDBFault(i, data)
+		defer fault.assertFiredIfReachable(t)
 		assertRoundValid(t, i)
 
 		plan, ok := mgr.BreakOne()
