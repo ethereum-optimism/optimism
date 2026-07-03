@@ -26,7 +26,7 @@ func minimalFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *Minimal
 		newKeyring(runtime.Keys, t.Require()),
 		l1Network,
 	)
-	l2EL := newL2ELFrontend(t, "sequencer", l2ChainID, runtime.L2EL.UserRPC(), runtime.L2EL.EngineRPC(), runtime.L2EL.JWTPath(), runtime.L2Network.RollupConfig())
+	l2EL := newL2ELFrontend(t, "sequencer", l2ChainID, runtime.L2EL.UserRPC(), runtime.L2EL.EngineRPC(), runtime.L2EL.JWTPath(), runtime.L2Network.RollupConfig(), runtime.L2EL)
 	l2CL := newL2CLFrontend(t, "sequencer", l2ChainID, runtime.L2CL.UserRPC(), runtime.L2CL)
 	l2CL.attachEL(l2EL)
 	l2Batcher := newL2BatcherFrontend(t, "main", l2ChainID, runtime.L2Batcher.UserRPC())

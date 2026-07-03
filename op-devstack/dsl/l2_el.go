@@ -161,6 +161,11 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
 	return block
 }
 
+// GasLimitAtBlock returns the gas limit of the block at the given number.
+func (el *L2ELNode) GasLimitAtBlock(num uint64) uint64 {
+	return uint64(el.PayloadByNumber(num).ExecutionPayload.GasLimit)
+}
+
 // ReorgTriggeredFn returns a lambda that checks that a L2 reorg occurred on or before the expected block
 // Composable with other lambdas to wait in parallel
 func (el *L2ELNode) ReorgTriggeredFn(target eth.L2BlockRef, attempts int) CheckFunc {

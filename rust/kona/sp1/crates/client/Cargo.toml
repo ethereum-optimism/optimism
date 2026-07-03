@@ -43,5 +43,12 @@ spin.workspace = true
 kzg-rs.workspace = true
 cfg-if.workspace = true
 
+[features]
+# Exposes witness-tampering helpers (e.g. `PreimageStore::overwrite_preimage`) used by host-side
+# test tooling. Never enabled by the guest program. Deliberately not named `test-utils`: that would
+# trigger Zepter's propagate-feature check and drag the dependencies' `test-utils` (incl. RPC deps
+# via kona-executor) into this crate, which is not wanted for a single tampering helper.
+test-tamper-witness = []
+
 [lints]
 workspace = true

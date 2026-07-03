@@ -282,6 +282,7 @@ where
             max_gas_per_txn: self.config.max_gas_per_txn,
             address_gas_limiter: self.address_gas_limiter.clone(),
             post_exec_mode,
+            interop_failsafe: self.config.interop_failsafe.clone(),
         };
 
         let builder = OpBuilder::new(best);

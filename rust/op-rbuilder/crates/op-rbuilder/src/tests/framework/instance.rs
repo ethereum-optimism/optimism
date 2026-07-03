@@ -116,6 +116,7 @@ impl LocalInstance {
         let da_config = builder_config.da_config.clone();
         let gas_limit_config = builder_config.gas_limit_config.clone();
         let sdm_post_exec_opt_in = builder_config.sdm_post_exec_opt_in.clone();
+        let interop_failsafe = builder_config.interop_failsafe.clone();
 
         let addons: OpAddOns<
             _,
@@ -136,7 +137,7 @@ impl LocalInstance {
             .with_components(
                 op_node
                     .components()
-                    .pool(pool_component(&args))
+                    .pool(pool_component(&args, interop_failsafe))
                     .payload(P::new_service(builder_config)?),
             )
             .with_add_ons(addons)
@@ -382,7 +383,10 @@ fn task_manager() -> Runtime {
     Runtime::test()
 }
 
-fn pool_component(args: &OpRbuilderArgs) -> OpPoolBuilder<FBPooledTransaction> {
+fn pool_component(
+    args: &OpRbuilderArgs,
+    interop_failsafe: reth_optimism_txpool::interop::InteropFailsafe,
+) -> OpPoolBuilder<FBPooledTransaction> {
     let rollup_args = &args.rollup_args;
     OpPoolBuilder::<FBPooledTransaction>::default()
         .with_enable_tx_conditional(
@@ -395,6 +399,7 @@ fn pool_component(args: &OpRbuilderArgs) -> OpPoolBuilder<FBPooledTransaction> {
             rollup_args.interop_min_responses,
             rollup_args.interop_safety_level,
         )
+        .with_interop_failsafe(interop_failsafe)
 }
 
 async fn spawn_attestation_provider() -> eyre::Result<AttestationServer> {

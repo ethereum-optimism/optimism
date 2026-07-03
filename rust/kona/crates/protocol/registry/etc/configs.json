@@ -48,7 +48,8 @@
             "holocene_time": 1736445601,
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
-            "karst_time": 1783526401
+            "karst_time": 1783526401,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -135,7 +136,8 @@
             "holocene_time": 1736445601,
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
-            "karst_time": 1783526401
+            "karst_time": 1783526401,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -1323,7 +1325,8 @@
             "holocene_time": 1736445601,
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
-            "karst_time": 1783526401
+            "karst_time": 1783526401,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -1410,7 +1413,8 @@
             "holocene_time": 1738573200,
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
-            "karst_time": 1783526401
+            "karst_time": 1783526401,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -2010,7 +2014,8 @@
             "holocene_time": 1736445601,
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
-            "karst_time": 1783526401
+            "karst_time": 1783526401,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -2182,7 +2187,8 @@
             "holocene_time": 1742396400,
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
-            "karst_time": 1783526401
+            "karst_time": 1783526401,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -2616,7 +2622,8 @@
             "holocene_time": 1736445601,
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
-            "karst_time": 1783526401
+            "karst_time": 1783526401,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -2909,94 +2916,6 @@
       },
       "chains": [
         {
-          "Name": "Ethernity Testnet",
-          "PublicRPC": "https://testnet.ethernitychain.io",
-          "SequencerRPC": "https://testnet.ethernitychain.io",
-          "Explorer": "https://testnet.ernscan.io",
-          "SuperchainLevel": 1,
-          "GovernedByOptimism": false,
-          "SuperchainTime": 0,
-          "DataAvailabilityType": "eth-da",
-          "l2_chain_id": 233,
-          "batch_inbox_address": "0xff00000000000000000000000000000000000233",
-          "block_time": 2,
-          "seq_window_size": 3600,
-          "max_sequencer_drift": 600,
-          "GasPayingToken": null,
-          "hardfork_configuration": {
-            "canyon_time": 1699981200,
-            "delta_time": 1703203200,
-            "ecotone_time": 1708534800,
-            "fjord_time": 1716998400,
-            "granite_time": 1723478400,
-            "holocene_time": 1732633200,
-            "pectra_blob_schedule_time": 1742486400,
-            "isthmus_time": 1744905600,
-            "jovian_time": 1763568001,
-            "karst_time": 1781712001
-          },
-          "optimism": {
-            "eip1559Elasticity": 6,
-            "eip1559Denominator": 50,
-            "eip1559DenominatorCanyon": 250
-          },
-          "alt_da": null,
-          "genesis": {
-            "l1": {
-              "number": 6037466,
-              "hash": "0x2d9c0b883cfc901f509bd94953c283c477adc57c8a20e234029244e68f00142a"
-            },
-            "l2": {
-              "number": 0,
-              "hash": "0x4715665848c513c54d71a3e60700743f2b37ec21df9b9d0b8eefee4c30cd557a"
-            },
-            "l2_time": 1717499232,
-            "system_config": {
-              "batcherAddr": "0x973a9e30d6d11355a459a69e7cbfba61c7627736",
-              "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
-              "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
-              "gasLimit": 30000000,
-              "baseFeeScalar": null,
-              "blobBaseFeeScalar": null,
-              "eip1559Denominator": null,
-              "eip1559Elasticity": null,
-              "operatorFeeScalar": null,
-              "operatorFeeConstant": null,
-              "minBaseFee": null,
-              "daFootprintGasScalar": null
-            }
-          },
-          "Roles": {
-            "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x5a19d3afd327bd01d390eb52c11c2a9a79bcfb32",
-            "Guardian": null,
-            "Challenger": null,
-            "Proposer": null,
-            "UnsafeBlockSigner": null,
-            "BatchSubmitter": null
-          },
-          "Addresses": {
-            "AddressManager": null,
-            "L1CrossDomainMessengerProxy": null,
-            "L1Erc721BridgeProxy": null,
-            "L1StandardBridgeProxy": "0xfd1a12b7a04b13c031d8b075ba5b9080a2cf246f",
-            "L2OutputOracleProxy": null,
-            "OptimismMintableErc20FactoryProxy": null,
-            "OptimismPortalProxy": "0x1f24d471ef7291c7f97dbd2f76299b30d3e3b6e3",
-            "SystemConfigProxy": "0x7c957fec1f6b3d1024442e989cb08b8f2285686c",
-            "ProxyAdmin": null,
-            "SuperchainConfig": null,
-            "AnchorStateRegistryProxy": null,
-            "DelayedWethProxy": null,
-            "DisputeGameFactoryProxy": "0x64d0bce6ed7c16cac7817f3597758e31afacd01b",
-            "FaultDisputeGame": null,
-            "Mips": null,
-            "PermissionedDisputeGame": null,
-            "PreimageOracle": null,
-            "DataAvailabilityChallenge": null
-          }
-        },
-        {
           "Name": "Binary Sepolia",
           "PublicRPC": "https://rpc.testnet.thebinaryholdings.com",
           "SequencerRPC": "https://sequencer.rpc.bnry.testnet.zeeve.net",
@@ -3188,7 +3107,8 @@
             "pectra_blob_schedule_time": 1742486400,
             "isthmus_time": 1744905600,
             "jovian_time": 1763568001,
-            "karst_time": 1781712001
+            "karst_time": 1781712001,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -3276,7 +3196,8 @@
             "pectra_blob_schedule_time": 1742486400,
             "isthmus_time": 1744905600,
             "jovian_time": 1763568001,
-            "karst_time": 1781712001
+            "karst_time": 1781712001,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -3364,7 +3285,8 @@
             "pectra_blob_schedule_time": 1742486400,
             "isthmus_time": 1744905600,
             "jovian_time": 1763568001,
-            "karst_time": 1781712001
+            "karst_time": 1781712001,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -3452,7 +3374,8 @@
             "pectra_blob_schedule_time": 1742486400,
             "isthmus_time": 1744905600,
             "jovian_time": 1763568001,
-            "karst_time": 1781712001
+            "karst_time": 1781712001,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -3540,7 +3463,8 @@
             "pectra_blob_schedule_time": 1742486400,
             "isthmus_time": 1744905600,
             "jovian_time": 1763568001,
-            "karst_time": 1781712001
+            "karst_time": 1781712001,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 10,
@@ -4109,94 +4033,6 @@
           }
         },
         {
-          "Name": "Creator Chain Testnet",
-          "PublicRPC": "https://rpc.creatorchain.io",
-          "SequencerRPC": "https://rpc.creatorchain.io",
-          "Explorer": "https://explorer.creatorchain.io",
-          "SuperchainLevel": 0,
-          "GovernedByOptimism": false,
-          "SuperchainTime": 0,
-          "DataAvailabilityType": "eth-da",
-          "l2_chain_id": 66665,
-          "batch_inbox_address": "0xfa5c2402828228a8dd700ba1e71f5e1128876fa8",
-          "block_time": 2,
-          "seq_window_size": 3600,
-          "max_sequencer_drift": 600,
-          "GasPayingToken": null,
-          "hardfork_configuration": {
-            "canyon_time": 0,
-            "delta_time": 0,
-            "ecotone_time": 0,
-            "fjord_time": 0,
-            "granite_time": 1723478400,
-            "holocene_time": 1732633200,
-            "pectra_blob_schedule_time": 1742486400,
-            "isthmus_time": 1744905600,
-            "jovian_time": 1763568001,
-            "karst_time": 1781712001
-          },
-          "optimism": {
-            "eip1559Elasticity": 6,
-            "eip1559Denominator": 50,
-            "eip1559DenominatorCanyon": 250
-          },
-          "alt_da": null,
-          "genesis": {
-            "l1": {
-              "number": 6576576,
-              "hash": "0xe84d982c811eafc34801b0fdab8249739495ada50d119a58128aae583a801529"
-            },
-            "l2": {
-              "number": 0,
-              "hash": "0x218eeee63576977ed59d751a04ef53ac7ecf6c053331a6f10672c38d211957ed"
-            },
-            "l2_time": 1724698536,
-            "system_config": {
-              "batcherAddr": "0xa488310ab2f8aa3294903930023bcab5880cb1ba",
-              "overhead": "0x00000000000000000000000000000000000000000000000000000000000000bc",
-              "scalar": "0x00000000000000000000000000000000000000000000000000000000000a6fe0",
-              "gasLimit": 30000000,
-              "baseFeeScalar": null,
-              "blobBaseFeeScalar": null,
-              "eip1559Denominator": null,
-              "eip1559Elasticity": null,
-              "operatorFeeScalar": null,
-              "operatorFeeConstant": null,
-              "minBaseFee": null,
-              "daFootprintGasScalar": null
-            }
-          },
-          "Roles": {
-            "SystemConfigOwner": null,
-            "ProxyAdminOwner": "0x34478c2eb9018d5a6487bf0440838cd4238e8cf2",
-            "Guardian": null,
-            "Challenger": null,
-            "Proposer": null,
-            "UnsafeBlockSigner": null,
-            "BatchSubmitter": null
-          },
-          "Addresses": {
-            "AddressManager": null,
-            "L1CrossDomainMessengerProxy": null,
-            "L1Erc721BridgeProxy": null,
-            "L1StandardBridgeProxy": "0x78558fd5c8dc65d10753f004bfc4cfa8e199c668",
-            "L2OutputOracleProxy": null,
-            "OptimismMintableErc20FactoryProxy": null,
-            "OptimismPortalProxy": "0x1cb215554f36f518791b2e7359a73c96bfcadf69",
-            "SystemConfigProxy": "0x978e8311a5a710ef6413aba3a6b89092ce4a58f5",
-            "ProxyAdmin": null,
-            "SuperchainConfig": null,
-            "AnchorStateRegistryProxy": null,
-            "DelayedWethProxy": null,
-            "DisputeGameFactoryProxy": "0x156670e48f72cb23eaadd8b51e398c678ab651af",
-            "FaultDisputeGame": null,
-            "Mips": null,
-            "PermissionedDisputeGame": null,
-            "PreimageOracle": null,
-            "DataAvailabilityChallenge": null
-          }
-        },
-        {
           "Name": "Camp Network Testnet V2",
           "PublicRPC": "https://rpc.camp-network-testnet.gelato.digital",
           "SequencerRPC": "https://rpc.camp-network-testnet.gelato.digital",
@@ -4305,7 +4141,8 @@
             "pectra_blob_schedule_time": 1742486400,
             "isthmus_time": 1744905600,
             "jovian_time": 1763568001,
-            "karst_time": 1781712001
+            "karst_time": 1781712001,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -4651,7 +4488,8 @@
             "pectra_blob_schedule_time": 1742486400,
             "isthmus_time": 1744905600,
             "jovian_time": 1763568001,
-            "karst_time": 1781712001
+            "karst_time": 1781712001,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -4821,7 +4659,8 @@
             "pectra_blob_schedule_time": 1742486400,
             "isthmus_time": 1744905600,
             "jovian_time": 1763568001,
-            "karst_time": 1781712001
+            "karst_time": 1781712001,
+            "keep_karst_upgrade_gas": true
           },
           "optimism": {
             "eip1559Elasticity": 6,

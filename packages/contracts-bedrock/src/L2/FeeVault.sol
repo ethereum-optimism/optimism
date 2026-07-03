@@ -134,6 +134,25 @@ abstract contract FeeVault is ProxyAdminOwnedBase, Initializable {
         emit WithdrawalNetworkUpdated(oldWithdrawalNetwork, _newWithdrawalNetwork);
     }
 
+    /// @notice Updates the recipient and network to which vault fees will be withdrawn.
+    ///         This function is safer than calling `setRecipient` and `setWithdrawalNetwork` separately,
+    ///         and should be preferred if both are being updated.
+    /// @param _newRecipient The new recipient address.
+    /// @param _newWithdrawalNetwork The new withdrawal network.
+    function setWithdrawalRoute(address _newRecipient, Types.WithdrawalNetwork _newWithdrawalNetwork) external {
+        _assertOnlyProxyAdminOwner();
+        require(_newRecipient != address(0), "FeeVault: zero recipient");
+
+        address oldRecipient = recipient;
+        Types.WithdrawalNetwork oldWithdrawalNetwork = withdrawalNetwork;
+
+        recipient = _newRecipient;
+        withdrawalNetwork = _newWithdrawalNetwork;
+
+        emit RecipientUpdated(oldRecipient, _newRecipient);
+        emit WithdrawalNetworkUpdated(oldWithdrawalNetwork, _newWithdrawalNetwork);
+    }
+
     /// @notice Triggers a withdrawal of funds to the fee wallet on L1 or L2.
     /// @return value_ The amount of ETH that was withdrawn.
     function withdraw() external returns (uint256 value_) {
