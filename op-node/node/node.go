@@ -538,7 +538,7 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 		return nil, nil, nil, fmt.Errorf("failed to create Engine client: %w", err)
 	}
 
-	if err := cfg.Rollup.ValidateL2Config(ctx, l2Source, cfg.Sync.SyncMode == sync.ELSync); err != nil {
+	if err := cfg.Rollup.ValidateL2Config(ctx, node.log, l2Source, cfg.Sync.SyncMode == sync.ELSync); err != nil {
 		return nil, nil, nil, err
 	}
 
