@@ -101,7 +101,6 @@ module LogsDB {
     twostate lemma ContainsMonotone(query: ContainsQuery)
       requires old(Contains(query))
       requires FindSealedBlock(query.blockNum) == old(FindSealedBlock(query.blockNum))
-      ensures Contains(query)
-    { assume false; }  // Admitted: Contains depends only on FindSealedBlock for the queried block.
+      ensures {:axiom} Contains(query)
   }
 }

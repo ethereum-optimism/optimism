@@ -1290,13 +1290,6 @@ module Interop {
         PlanConsistentWithAllLogs(plan)
       requires plan.resetAllChainsTo.Some? ==>
         AllDBsInSyncUpTo(plan.resetAllChainsTo.value)
-      // From ProcessBlock sealing blocks with their L2 timestamp (propagated via PersistFrontierLogs).
-      /*
-      requires plan.resetAllChainsTo.Some? ==>
-        forall c :: c in logsDBs.Keys && c in plan.targetHeads ==>
-          logsDBs[c].FindSealedBlock(plan.targetHeads[c].number).Some? &&
-          logsDBs[c].FindSealedBlock(plan.targetHeads[c].number).value.timestamp == plan.resetAllChainsTo.value
-      */
       requires AllVerifiedCrossValid()
       ensures Valid()
       ensures AllLogsDBsConsistentWithChainData()
@@ -1913,7 +1906,6 @@ module Interop {
       requires logsDBs[chainID].LatestSealedBlock().Some? ==>
         logsDBs[chainID].LatestSealedBlock().value.number + 1 == blockID.number &&
         info.parentHash == logsDBs[chainID].LatestSealedBlock().value.hash
-      //ensures {:axiom} unchanged(verifiedDB)
       ensures {:axiom} Valid()
       ensures {:axiom} UpdatedLogsDB(chainID, blockID)
 
