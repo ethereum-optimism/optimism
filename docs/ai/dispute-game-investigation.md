@@ -52,22 +52,22 @@ proposal is valid and who wins the bonds. Investigate and explain; never `move`,
      no block) — and it stays invalid thereafter, so the exact step it flips at matters. See
      `op-challenger/game/fault/trace/super/provider.go`.
 
-5. **Diagnose the responsible op-node** (`op-challenger/scripts/`, chain-agnostic,
-   `curl` + `python3`):
-   - `game-proposal-outputs.sh <rollup-rpc> <l1-rpc> --factory <f>` — per game, the node's
-     `optimism_outputAtBlock` and `optimism_safeHeadAtL1Block` at the game's `l1Head`.
-     Identical output roots but a **safe head below the proposed block** = an incomplete
+5. **Diagnose the responsible op-node** (chain-agnostic):
+   - `op-challenger game-proposal-outputs --l1-eth-rpc <l1> --rollup-rpc <rollup> --game-factory-address <f>`
+     (or pass explicit game addresses) — per game, the node's `optimism_outputAtBlock` and
+     `optimism_safeHeadAtL1Block` at the game's `l1Head`, with `rootMatch` / `safeHeadAtOrAboveBlock`
+     flags. Identical output roots but a **safe head below the proposed block** = an incomplete
      safe-head DB / lagging node: the challenger clamps to its safe head and disputes
      everything beyond it.
-   - `check-game-block-hashes.sh <node-rpc> <ref-rpc> <blocks…>` — block-hash cross-check
-     (a mismatch = real divergence).
+   - `op-challenger/scripts/check-game-block-hashes.sh <node-rpc> <ref-rpc> <blocks…>` — block-hash
+     cross-check (a mismatch = real divergence).
 
    Behind a load balancer, check each backend separately — one bad backend makes a
    single challenger emit *both* roots and attack its own claims. Clean test: every claim
    value should be either canonical or the bad node's single clamped value; anything else
    is a different fault.
 
-   These queries (and `game-proposal-outputs.sh`) target **output-root games** via op-node
+   These queries (and `game-proposal-outputs`) target **output-root games** via op-node
    `optimism_outputAtBlock` / `optimism_safeHeadAtL1Block`. For **super-root games** the data
    source is `superroot_atTimestamp` on the op-node **or op-supernode** — compare per the
    super-root rules in §4 (the response carries the `RequiredL1` / `VerifiedRequiredL1` that
