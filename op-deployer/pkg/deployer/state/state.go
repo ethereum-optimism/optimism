@@ -35,6 +35,9 @@ type State struct {
 	// It is used to verify that the same deployer address is used for the relevant stages of the permissionless pipeline.
 	L1PredictSenderAddress *common.Address `json:"deployerAddress,omitempty"`
 
+	// Prepared is set when this state was produced by the prepare pipeline.
+	Prepared bool `json:"prepared,omitempty"`
+
 	// AppliedIntent contains the chain intent that was last
 	// successfully applied. It is diffed against new intent
 	// in order to determine what deployment steps to take.
@@ -93,6 +96,15 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 func (s *State) CheckL1PredictSender(deployer common.Address) error {
 	if s.L1PredictSenderAddress != nil && *s.L1PredictSenderAddress != deployer {
 		return fmt.Errorf("deployer address mismatch: expected %s, got %s", s.L1PredictSenderAddress.Hex(), deployer.Hex())
+	}
+	return nil
+}
+
+// CheckNotPrepared returns an error if the state was produced by the prepare
+// pipeline.
+func (s *State) CheckNotPrepared() error {
+	if s.Prepared {
+		return fmt.Errorf("state was produced by the prepare pipeline and cannot be applied")
 	}
 	return nil
 }

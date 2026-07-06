@@ -114,6 +114,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 	st.L1PredictSenderAddress = &deployer
+	st.Prepared = true
 
 	if err := st.EnsureCreate2Salt(); err != nil {
 		return err

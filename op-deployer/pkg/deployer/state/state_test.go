@@ -53,6 +53,41 @@ func TestState_CheckL1PredictSender(t *testing.T) {
 	})
 }
 
+func TestState_CheckNotPrepared(t *testing.T) {
+	t.Run("non-prepared state can be applied", func(t *testing.T) {
+		require.NoError(t, (&State{}).CheckNotPrepared())
+	})
+
+	t.Run("prepared state cannot be applied", func(t *testing.T) {
+		err := (&State{Prepared: true}).CheckNotPrepared()
+		require.ErrorContains(t, err, "cannot be applied")
+	})
+}
+
+func TestState_PreparedSerialization(t *testing.T) {
+	t.Run("omitted when false for backward compatibility", func(t *testing.T) {
+		b, err := json.Marshal(&State{})
+		require.NoError(t, err)
+		require.NotContains(t, string(b), "prepared")
+	})
+
+	t.Run("round-trips when set", func(t *testing.T) {
+		b, err := json.Marshal(&State{Prepared: true})
+		require.NoError(t, err)
+		require.Contains(t, string(b), `"prepared":true`)
+
+		var got State
+		require.NoError(t, json.Unmarshal(b, &got))
+		require.True(t, got.Prepared)
+	})
+
+	t.Run("absent field defaults to not prepared", func(t *testing.T) {
+		var got State
+		require.NoError(t, json.Unmarshal([]byte(`{"version":1}`), &got))
+		require.False(t, got.Prepared)
+	})
+}
+
 func TestState_IsChainDeployed(t *testing.T) {
 	id := common.HexToHash("0x0a")
 	other := common.HexToHash("0x0b")

@@ -152,6 +152,11 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		return fmt.Errorf("failed to read state: %w", err)
 	}
 
+	// A state produced by the prepare pipeline MUST not be used with apply.
+	if err := st.CheckNotPrepared(); err != nil {
+		return err
+	}
+
 	if err := ApplyPipeline(ctx, ApplyPipelineOpts{
 		L1RPCUrl:           cfg.L1RPCUrl,
 		DeploymentTarget:   cfg.DeploymentTarget,
