@@ -167,13 +167,13 @@ run_scenario \
   "Scheduled: build_daily" \
   "scheduled_pipeline" "" "" "build_daily" \
   '{}' \
-  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests
+  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests
 
 run_scenario \
   "Scheduled: build_weekly" \
   "scheduled_pipeline" "" "" "build_weekly" \
   '{}' \
-  scheduled_weekly_tests scheduled_kona_link_checker
+  scheduled_kona_link_checker
 
 run_scenario \
   "API: main_dispatch (no github event)" \
