@@ -39,8 +39,10 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
 
 5. **Ship.** One commit (`rust: update reth to <version>`) describing the pin
    move, each shared dependency sync, and every API adaptation. Run the AI review
-   (code + security) before pushing; PR to `develop` with verification results
-   spelled out.
+   before pushing — code, security, **and the `reth-update-reviewer` agent**
+   (`docs/ai/reth-update-review.md`), which catches upstream changes that should
+   have forced an op- change but produced no diff in our tree. PR to `develop`
+   with verification results spelled out.
 
 6. **Compound.** If this bump taught you something the guide doesn't cover, fold
    it into `rust/UPDATING-RETH.md` in the same PR.
