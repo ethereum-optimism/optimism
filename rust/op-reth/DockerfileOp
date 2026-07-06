@@ -38,6 +38,17 @@ COPY . .
 # context; the git-free build.rs resolves it at /superchain-registry.
 COPY --from=superchain-registry superchain /superchain-registry/superchain
 
+# This build context (`rust/`) has no `.git`, so op-reth's build.rs can't discover its own commit
+# or release tag. Thread both in as build args (docker-bake.hcl / CI set them) so op-reth reports
+# a real commit and version instead of a placeholder. GIT_COMMIT is the commit SHA; OP_RETH_VERSION
+# is the per-image GIT_VERSION — the `op-reth/v*` release tag with its prefix stripped, e.g.
+# `v2.3.3`. Declared after `cargo chef cook` above so changing them doesn't bust the dep cache.
+ARG GIT_COMMIT=""
+ENV GIT_COMMIT=$GIT_COMMIT
+
+ARG OP_RETH_VERSION=""
+ENV OP_RETH_VERSION=$OP_RETH_VERSION
+
 RUN cargo auditable build --profile $BUILD_PROFILE --locked --features "$FEATURES" --bin op-reth --manifest-path /app/op-reth/bin/Cargo.toml
 
 RUN ls -la /app/target/$BUILD_PROFILE/op-reth

@@ -17,7 +17,10 @@ use std::borrow::Cow;
 pub(crate) fn op_reth_version_metadata() -> RethCliVersionConsts {
     RethCliVersionConsts {
         name_client: Cow::Borrowed(OP_NAME_CLIENT),
-        cargo_pkg_version: Cow::Borrowed(env!("CARGO_PKG_VERSION")),
+        // op-reth's release version (from the `op-reth/v*` git tag), resolved in `build.rs` — not
+        // `CARGO_PKG_VERSION`, which tracks the vendored reth-optimism library crates. Feeds
+        // `engine_getClientVersionV1` and the DB client version.
+        cargo_pkg_version: Cow::Borrowed(env!("OP_RETH_PKG_VERSION")),
         vergen_git_sha_long: Cow::Borrowed(env!("VERGEN_GIT_SHA")),
         vergen_git_sha: Cow::Borrowed(env!("VERGEN_GIT_SHA_SHORT")),
         vergen_build_timestamp: Cow::Borrowed(env!("VERGEN_BUILD_TIMESTAMP")),
