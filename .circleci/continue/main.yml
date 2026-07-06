@@ -132,6 +132,9 @@ parameters:
   c-run_ci_gate_skip:
     type: boolean
     default: false
+  c-run_circleci_schedule_trigger_check:
+    type: boolean
+    default: false
   c-run_publish_contract_artifacts:
     type: boolean
     default: false
@@ -681,6 +684,17 @@ jobs:
     steps:
       - utils/ci-gate:
           always-succeed: << parameters.always-succeed >>
+
+  circleci-schedule-trigger-check:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Check CircleCI schedule triggers
+          command: bun .circleci/scripts/test-schedule-triggers.js
 
   # Build a single Rust binary from a workspace. Will cache the binary by default.
   rust-build-binary:
@@ -2926,6 +2940,14 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+
+  circleci-schedule-trigger-check-workflow:
+    when: << pipeline.parameters.c-run_circleci_schedule_trigger_check >>
+    jobs:
+      - circleci-schedule-trigger-check:
+          context:
+            - circleci-api-token
+
   close-issue-workflow:
     when: << pipeline.parameters.c-run_close_issue >>
     jobs:
