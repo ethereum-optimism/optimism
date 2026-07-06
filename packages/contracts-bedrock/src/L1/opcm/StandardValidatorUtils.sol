@@ -185,6 +185,7 @@ contract StandardValidatorUtils {
         returns (string memory)
     {
         IDisputeGameFactory dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        _errors = internalRequire(address(dgf.gameImpls(GameTypes.CANNON)) == address(0), "PLDG-NOSHAPE", _errors);
         _errors = internalRequire(address(dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "SCDG-NOSHAPE", _errors);
         _errors =
             internalRequire(address(dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) == address(0), "SPDG-NOSHAPE", _errors);
