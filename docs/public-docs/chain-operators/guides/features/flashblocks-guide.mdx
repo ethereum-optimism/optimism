@@ -10,7 +10,7 @@ The Flashblocks setup involves three main components:
 
 *   **`rollup-boost`**: Coordination layer with Flashblocks enabled
 *   **`op-rbuilder`**: Execution client and builder with Flashblocks support
-*   **`op-reth`**: Fallback builder, a standard EL node (op-geth also works as a fallback EL, but reached [end-of-support](/notices/op-geth-deprecation) on 2026-05-31)
+*   **`op-reth`**: Fallback builder, a standard EL node
 
 Flashblocks are streamed from the `op-rbuilder` to `rollup-boost` over WebSockets, minimizing latency between the sequencer and the pre-confirmed state.
 
