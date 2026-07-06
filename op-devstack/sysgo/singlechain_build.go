@@ -182,23 +182,25 @@ func startL2CLForKey(
 	case MixedL2CLKona:
 		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
 	case MixedL2CLOpCon:
-		// op-con-node cannot sequence; keep sequencer slots on op-node and route
-		// only verifier slots to op-con-node.
-		if !isSequencer {
-			// Resolve the op-con-specific knobs from the L2CL options (per-node, so a
-			// parallel sibling test is unaffected). Only OpConL1FinalizedGuard is used
-			// by op-con-node today.
-			opconCfg := DefaultL2CLConfig()
-			if len(l2CLOpts) > 0 {
-				target := NewComponentTarget(clKey, l2Net.ChainID())
-				for _, opt := range l2CLOpts {
-					if opt == nil {
-						continue
-					}
-					opt.Apply(t, target, opconCfg)
+		// Resolve the op-con-specific knobs from the L2CL options (per-node, so a
+		// parallel sibling test is unaffected). Only OpConL1FinalizedGuard and
+		// OpConSequencer are used by op-con-node today.
+		opconCfg := DefaultL2CLConfig()
+		if len(l2CLOpts) > 0 {
+			target := NewComponentTarget(clKey, l2Net.ChainID())
+			for _, opt := range l2CLOpts {
+				if opt == nil {
+					continue
 				}
+				opt.Apply(t, target, opconCfg)
 			}
-			return startMixedOpConNode(t, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, followSource, opconCfg.OpConL1FinalizedGuard, nil)
+		}
+		// Verifier slots always route to op-con-node. Sequencer slots stay on
+		// op-node (the historical verifier-only default) unless the test opts the
+		// sequencer slot into op-con-node's sequencing mode via
+		// L2CLOpConSequencer().
+		if !isSequencer || opconCfg.OpConSequencer {
+			return startMixedOpConNode(t, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, followSource, opconCfg.OpConL1FinalizedGuard, nil)
 		}
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,13 +20,16 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// OpConNode launches `op-con-node` (the opql consensus-only verifier) as an
+// OpConNode launches `op-con-node` (the opql consensus-only node) as an
 // external subprocess and fronts its JSON-RPC, mirroring the kona-node path.
 //
-// op-con-node is verifier-only: it derives the safe L2 chain from L1 and drives
-// its paired execution engine over the Engine API. It does not sequence and has
-// no P2P gossip, so the unsafe head is followed from a trusted L2 execution RPC
-// (`--l2-follow-rpc`) when a follow source is wired, rather than over gossip.
+// op-con-node derives the safe L2 chain from L1 and drives its paired execution
+// engine over the Engine API. It has no P2P gossip, so as a verifier the unsafe
+// head is followed from a trusted L2 execution RPC (`--l2-follow-rpc`) when a
+// follow source is wired, rather than over gossip. With `--sequencer-enabled`
+// it instead produces the unsafe chain itself: it drives the EL build loop with
+// `noTxPool=false` (the EL packs its own mempool behind the forced deposit
+// prefix) and commits each built block as the new unsafe head.
 type OpConNode struct {
 	mu sync.Mutex
 
@@ -128,7 +132,9 @@ var _ L2CLNode = (*OpConNode)(nil)
 
 // startMixedOpConNode bootstraps op-con-node's flat rollup config + genesis
 // checkpoint from the standard rollup config, then launches `op-con-node run`
-// as a verifier paired with l2EL.
+// paired with l2EL — as a verifier, or as a sequencer when isSequencer is set
+// (--sequencer-enabled: op-con-node produces the unsafe chain by driving l2EL's
+// build loop, while still deriving its safe chain from L1).
 //
 // The binary is resolved via rustbin, which honors RUST_BINARY_PATH_OP_CON_NODE
 // (an absolute binary path) or RUST_SRC_DIR_OP_CON_NODE (the opql cargo project
@@ -142,6 +148,7 @@ func startMixedOpConNode(
 	l2EL L2ELNode,
 	clKey string,
 	elKey string,
+	isSequencer bool,
 	followSource string,
 	l1FinalizedGuard string,
 	metricsRegistrar L2MetricsRegistrar,
@@ -199,6 +206,17 @@ func startMixedOpConNode(
 	// L1 derivation only.
 	if followSource != "" {
 		args = append(args, "--l2-follow-rpc", strings.ReplaceAll(followSource, "ws://", "http://"))
+	}
+
+	// Sequencer mode: op-con-node produces the unsafe chain itself by driving
+	// l2EL's build loop (noTxPool=false — the EL packs its mempool behind the
+	// forced deposit prefix). The build heartbeat matches the chain's block time;
+	// op-con-node's own seal timer paces each block to its L2 timestamp.
+	if isSequencer {
+		args = append(args,
+			"--sequencer-enabled",
+			"--sequencer-build-interval-ms", strconv.FormatUint(l2Net.rollupCfg.BlockTime*1000, 10),
+		)
 	}
 
 	// Devstack L1 finality may not advance; default the derive-side guard to

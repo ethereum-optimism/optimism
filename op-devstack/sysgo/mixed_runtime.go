@@ -54,9 +54,10 @@ type MixedL2CLKind string
 const (
 	MixedL2CLOpNode MixedL2CLKind = "op-node"
 	MixedL2CLKona   MixedL2CLKind = "kona-node"
-	// MixedL2COpCon is op-con-node, the consensus-only verifier from the opql
-	// repo. It is verifier-only (no sequencing, no P2P), so the dispatch keeps
-	// sequencer slots on op-node and only routes verifier slots here.
+	// MixedL2COpCon is op-con-node, the consensus-only node from the opql repo.
+	// It has no P2P. The dispatch routes verifier slots here; sequencer slots
+	// stay on op-node (the historical verifier-only default) unless the test
+	// opts in to op-con-node's sequencing mode via L2CLOpConSequencer().
 	MixedL2CLOpCon MixedL2CLKind = "op-con-node"
 )
 

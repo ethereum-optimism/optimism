@@ -45,6 +45,13 @@ type L2CLConfig struct {
 	// and advances its L2 finalized head. Ignored by non-op-con CL kinds.
 	OpConL1FinalizedGuard string
 
+	// OpConSequencer routes this node's SEQUENCER slot to op-con-node when the
+	// devstack CL kind is op-con-node. By default sequencer slots stay on
+	// op-node (op-con-node was verifier-only before it grew a sequencing mode);
+	// tests that exercise op-con-node's sequencer opt in per-test with
+	// L2CLOpConSequencer(). Ignored for verifier slots and non-op-con CL kinds.
+	OpConSequencer bool
+
 	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
 	OffsetELSafe time.Duration
 
@@ -68,6 +75,15 @@ func L2CLIndexing() L2CLOption {
 func L2CLFollowSource(source string) L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.FollowSource = source
+	})
+}
+
+// L2CLOpConSequencer opts the sequencer slot into op-con-node when the devstack
+// CL kind is op-con-node (DEVSTACK_L2CL_KIND=op-con-node). With any other CL
+// kind this is a no-op, so tests using it remain valid ordinary suite additions.
+func L2CLOpConSequencer() L2CLOption {
+	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		cfg.OpConSequencer = true
 	})
 }
 
