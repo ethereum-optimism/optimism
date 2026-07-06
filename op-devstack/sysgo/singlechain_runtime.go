@@ -95,7 +95,6 @@ func startDefaultSingleChainPrimary(
 			IsSequencer:   true,
 			NoDiscovery:   true,
 			EnableReqResp: true,
-			UseReqResp:    true,
 			DependencySet: world.Interop.DependencySet,
 			L2CLOptions:   cfg.GlobalL2CLOptions,
 		})
@@ -379,7 +378,7 @@ func startMinimalChallenger(
 	}
 	cfg, err := sharedchallenger.NewPreInteropChallengerConfig(
 		t.Ctx(),
-		t.TempDir(),
+		t.TempDirWithPrefix("l2-challenger-"+l2Net.ChainID().String()),
 		l1EL.UserRPC(),
 		l1CL.beaconHTTPAddr,
 		l2CL.UserRPC(),

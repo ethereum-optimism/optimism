@@ -35,6 +35,8 @@ pub(super) struct OpPayloadSyncerCtx {
     metrics: Arc<OpRBuilderMetrics>,
     /// Operator opt-in flag for SDM PostExec production, shared with the admin RPC.
     sdm_post_exec_opt_in: SdmPostExecOptInFlag,
+    /// Interop failsafe gate shared with the txpool interop filter.
+    interop_failsafe: reth_optimism_txpool::interop::InteropFailsafe,
 }
 
 impl OpPayloadSyncerCtx {
@@ -55,6 +57,7 @@ impl OpPayloadSyncerCtx {
             max_gas_per_txn: builder_config.max_gas_per_txn,
             metrics,
             sdm_post_exec_opt_in: builder_config.sdm_post_exec_opt_in.clone(),
+            interop_failsafe: builder_config.interop_failsafe.clone(),
         })
     }
 
@@ -93,6 +96,7 @@ impl OpPayloadSyncerCtx {
             max_gas_per_txn: self.max_gas_per_txn,
             address_gas_limiter: AddressGasLimiter::new(GasLimiterArgs::default()),
             post_exec_mode,
+            interop_failsafe: self.interop_failsafe,
         }
     }
 }

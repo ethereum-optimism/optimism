@@ -266,6 +266,26 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     --jsonfile=./tmp/testlogs/log.json \
     -- -count=1 -parallel=$PARALLEL -timeout=60m -run "{{test_name}}"
 
+# Run the kona-sp1 range guest in SP1 execute mode against the action-test chain.
+#
+# Builds the guest ELFs (Dockerized SP1 toolchain) and the range-executor binary, then runs the SP1
+# execute action tests with KONA_SP1_RANGE_EXECUTOR_PATH set. Tests skip when that var is unset.
+action-tests-sp1 test_name='TestSP1.*':
+  #!/bin/bash
+  set -euo pipefail
+
+  echo "Building SP1 guest ELFs (Dockerized SP1 toolchain)..."
+  ( cd {{SOURCE}}/../sp1 && just build-elfs )
+
+  echo "Building kona-sp1-range-executor..."
+  ( cd {{SOURCE}}/../sp1 && just build-range-executor )
+
+  export KONA_SP1_RANGE_EXECUTOR_PATH="{{SOURCE}}/../../target/release/kona-sp1-range-executor"
+  echo "KONA_SP1_RANGE_EXECUTOR_PATH: $KONA_SP1_RANGE_EXECUTOR_PATH"
+
+  cd {{SOURCE}}/proofs
+  go test -count=1 -timeout=60m -run "{{test_name}}" .
+
 update-packages:
     #!/bin/bash
     cd {{SOURCE}}/optimism/op-deployer && just build-contracts copy-contract-artifacts

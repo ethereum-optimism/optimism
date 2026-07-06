@@ -11,7 +11,6 @@ func followL2Opts() []presets.Option {
 		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
 			func(_ devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
 				cfg.EnableReqRespSync = false
-				cfg.UseReqRespSync = false
 			})),
 		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
 			func(_ devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {

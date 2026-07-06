@@ -109,9 +109,9 @@ func (b *nutBundle) toDepositTransactions() ([]hexutil.Bytes, error) {
 	return txs, nil
 }
 
-// UpgradeTransactions returns the deposit transactions and total gas required for a
-// fork's NUT bundle. The fork name selects the embedded bundle JSON.
-func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
+// nutBundleForFork loads and parses the embedded NUT bundle for a fork,
+// returning an error for forks that have no bundle.
+func nutBundleForFork(fork forks.Name) (*nutBundle, error) {
 	var bundleJSON []byte
 	// bundleLabel is the concept-level identifier used to qualify intent
 	// strings (and therefore source hashes). It is decoupled from the fork
@@ -129,12 +129,22 @@ func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
 		bundleJSON = nuts.LagoonNUTBundleJSON
 		bundleLabel = "interop"
 	default:
-		return nil, 0, fmt.Errorf("no NUT bundle for fork %s", fork)
+		return nil, fmt.Errorf("no NUT bundle for fork %s", fork)
 	}
 
 	bundle, err := readNUTBundle(bundleLabel, bytes.NewReader(bundleJSON))
 	if err != nil {
-		return nil, 0, fmt.Errorf("reading %s NUT bundle: %w", fork, err)
+		return nil, fmt.Errorf("reading %s NUT bundle: %w", fork, err)
+	}
+	return bundle, nil
+}
+
+// UpgradeTransactions returns the deposit transactions and total gas required for a
+// fork's NUT bundle. The fork name selects the embedded bundle JSON.
+func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
+	bundle, err := nutBundleForFork(fork)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	txs, err := bundle.toDepositTransactions()
@@ -143,4 +153,16 @@ func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
 	}
 
 	return txs, bundle.totalGas(), nil
+}
+
+// UpgradeGas returns the total gas budget of a fork's NUT bundle: the extra gas
+// added to the fork's activation block gas limit so the upgrade transactions do
+// not need to fit within the regular block gas limit. It reports the same value
+// as UpgradeTransactions without building the deposit transactions.
+func UpgradeGas(fork forks.Name) (uint64, error) {
+	bundle, err := nutBundleForFork(fork)
+	if err != nil {
+		return 0, err
+	}
+	return bundle.totalGas(), nil
 }
