@@ -32,7 +32,7 @@ type State struct {
 	Create2Salt common.Hash `json:"create2Salt"`
 
 	// L1PredictSenderAddress is the address that performed the L1 deploy dry-run.
-	// It is used to verify that the same deployer is used for the relevant stages of the permissionless pipeline.
+	// It is used to verify that the same deployer address is used for the relevant stages of the permissionless pipeline.
 	L1PredictSenderAddress *common.Address `json:"deployerAddress,omitempty"`
 
 	// AppliedIntent contains the chain intent that was last
