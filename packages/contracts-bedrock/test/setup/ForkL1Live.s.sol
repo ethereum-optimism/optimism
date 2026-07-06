@@ -194,12 +194,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(permissionlessDelayedWeth)));
     }
 
-    /// @notice Returns true for supported permissionless fault dispute game types.
-    function _isPermissionlessGameType(GameType _gameType) internal pure returns (bool) {
-        uint32 rawGameType = _gameType.raw();
-        return rawGameType == GameTypes.CANNON.raw() || rawGameType == GameTypes.CANNON_KONA.raw();
-    }
-
     /// @notice Calls to the Deploy.s.sol contract etched by Setup.sol to a deterministic address, sets up the
     /// environment, and deploys new implementations.
     function _deployNewImplementations() internal {
@@ -383,20 +377,14 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 gameArgs: hex""
             });
 
-            IAnchorStateRegistry asr = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
-            bool overrideRespectedGameType = asr.respectedGameType().raw() == GameTypes.CANNON.raw();
-
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](overrideRespectedGameType ? 2 : 1);
+            // Permit the upgrade to (re)deploy the DelayedWETH proxy if it is missing on the forked
+            // chain. The standard path deploys no other proxies (unlike the super-root migration path
+            // above), so this is the only PermittedProxyDeployment instruction it needs.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "PermittedProxyDeployment",
                 data: bytes("DelayedWETH")
             });
-            if (overrideRespectedGameType) {
-                extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
-                    key: "overrides.cfg.startingRespectedGameType",
-                    data: abi.encode(GameTypes.CANNON_KONA)
-                });
-            }
         }
 
         vm.prank(_delegateCaller, true);
