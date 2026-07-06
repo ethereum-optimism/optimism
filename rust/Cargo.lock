@@ -9511,6 +9511,7 @@ dependencies = [
  "reth-cli-util",
  "reth-db",
  "reth-node-builder",
+ "reth-node-core",
  "reth-optimism-chainspec",
  "reth-optimism-cli",
  "reth-optimism-consensus",
@@ -9521,6 +9522,8 @@ dependencies = [
  "reth-optimism-primitives",
  "reth-optimism-rpc",
  "tracing",
+ "vergen",
+ "vergen-git2",
 ]
 
 [[package]]

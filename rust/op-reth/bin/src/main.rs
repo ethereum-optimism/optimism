@@ -5,6 +5,8 @@ use reth_optimism_cli::{Cli, chainspec::OpChainSpecParser};
 use reth_optimism_node::{args::RollupArgs, proof_history};
 use tracing::info;
 
+mod version;
+
 #[global_allocator]
 static ALLOC: reth_cli_util::allocator::Allocator = reth_cli_util::allocator::new_allocator();
 
@@ -21,6 +23,11 @@ fn main() {
             std::env::set_var("RUST_BACKTRACE", "1");
         }
     }
+
+    // Must run before anything reads `reth_node_core::version::version_metadata()` (the CLI
+    // parser below, RPC server setup, and p2p handshake all do), so that op-reth reports its
+    // own version instead of the pinned upstream reth crate's.
+    let _ = reth_node_core::version::try_init_version_metadata(version::op_reth_version_metadata());
 
     if let Err(err) =
         Cli::<OpChainSpecParser, RollupArgs>::parse().run(async move |builder, args| {
