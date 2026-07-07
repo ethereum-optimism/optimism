@@ -36,7 +36,10 @@ type OpConNode struct {
 	name    string
 	chainID eth.ChainID
 
-	userRPC          string
+	userRPC string
+	// signedPayloadWS is the ws:// URL of the sequencer's signed-payload
+	// multicast (--sequencer-payload-ws-addr); empty for verifier nodes.
+	signedPayloadWS  string
 	interopEndpoint  string // not supported yet
 	interopJwtSecret eth.Bytes32
 
@@ -124,17 +127,41 @@ func (n *OpConNode) UserRPC() string {
 	return n.userRPC
 }
 
+// SignedPayloadWS returns the ws:// URL of this node's signed-payload multicast
+// (the feed the op-conp2p publish path subscribes to). Empty unless the node was
+// started as a signing sequencer.
+func (n *OpConNode) SignedPayloadWS() string {
+	return n.signedPayloadWS
+}
+
 func (n *OpConNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
 	return n.interopEndpoint, n.interopJwtSecret
 }
 
 var _ L2CLNode = (*OpConNode)(nil)
 
+// opConSequencerSigning extends sequencer mode (isSequencer) with unsafe-block
+// SIGNING: op-con-node signs each block it builds with signerKeyHex and serves
+// the signed envelopes on a dedicated websocket (--sequencer-payload-ws-addr)
+// for the op-conp2p publish path.
+type opConSequencerSigning struct {
+	// signerKeyHex is the hex-encoded secp256k1 unsafe-block signing key. In
+	// devstack this is the SequencerP2PRole secret, so op-node verifiers accept
+	// the gossiped blocks against the deployed SystemConfig signer.
+	signerKeyHex string
+	// startStopped launches the sequencer idle (--sequencer-stopped); block
+	// production is enabled later via admin_startSequencer, letting the preset
+	// finish gossip wiring first so no early block misses the publish feed.
+	startStopped bool
+}
+
 // startMixedOpConNode bootstraps op-con-node's flat rollup config + genesis
 // checkpoint from the standard rollup config, then launches `op-con-node run`
 // paired with l2EL — as a verifier, or as a sequencer when isSequencer is set
 // (--sequencer-enabled: op-con-node produces the unsafe chain by driving l2EL's
-// build loop, while still deriving its safe chain from L1).
+// build loop, while still deriving its safe chain from L1). With seqSigning the
+// sequencer additionally signs each block and serves the signed-payload
+// websocket for the op-conp2p publish path.
 //
 // The binary is resolved via rustbin, which honors RUST_BINARY_PATH_OP_CON_NODE
 // (an absolute binary path) or RUST_SRC_DIR_OP_CON_NODE (the opql cargo project
@@ -151,6 +178,7 @@ func startMixedOpConNode(
 	isSequencer bool,
 	followSource string,
 	l1FinalizedGuard string,
+	seqSigning *opConSequencerSigning,
 	metricsRegistrar L2MetricsRegistrar,
 ) *OpConNode {
 	dir := t.TempDir()
@@ -239,6 +267,23 @@ func startMixedOpConNode(
 		args = append(args, "--unsafe-block-signer", signer)
 	}
 
+	// Signing sequencer: sign each built block and serve the signed envelopes on
+	// a dedicated websocket for the op-conp2p publish path.
+	var signedPayloadWS string
+	if seqSigning != nil {
+		t.Require().True(isSequencer, "opConSequencerSigning requires sequencer mode")
+		wsPort, err := getAvailableLocalPort()
+		t.Require().NoError(err, "op-con-node signed-payload ws port")
+		signedPayloadWS = fmt.Sprintf("ws://127.0.0.1:%s", wsPort)
+		args = append(args,
+			"--sequencer-signer-key", seqSigning.signerKeyHex,
+			"--sequencer-payload-ws-addr", "127.0.0.1:"+wsPort,
+		)
+		if seqSigning.startStopped {
+			args = append(args, "--sequencer-stopped")
+		}
+	}
+
 	var metricsHost, metricsPort string
 	if areMetricsEnabled() {
 		metricsHost = "127.0.0.1"
@@ -251,6 +296,7 @@ func startMixedOpConNode(
 		name:               clKey,
 		chainID:            l2Net.ChainID(),
 		userRPC:            fmt.Sprintf("http://127.0.0.1:%s", rpcPort),
+		signedPayloadWS:    signedPayloadWS,
 		execPath:           execPath,
 		args:               args,
 		env:                nil, // inherits os.Environ via SubProcess

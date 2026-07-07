@@ -33,20 +33,44 @@ type OpConP2PSidecar struct {
 // the rust binaries it is located by path rather than via rustbin.
 const opConP2PSidecarBinaryEnv = "OP_CONP2P_BIN"
 
+// OpConP2PSidecarOption customizes the sidecar's command line.
+type OpConP2PSidecarOption func(args []string) []string
+
+// WithSignedPayloadWS enables the sidecar's PUBLISH path: subscribe to a
+// sequencing op-con-node's signed-payload websocket at wsURL and publish each
+// node-signed unsafe block to the OP gossip /blocks topics.
+func WithSignedPayloadWS(wsURL string) OpConP2PSidecarOption {
+	return func(args []string) []string {
+		return append(args, "--signed-payload-ws", wsURL)
+	}
+}
+
+// WithFloodPublish makes the sidecar's gossipsub publish to all known peers on
+// the topic instead of only the mesh. With a single static peer and no
+// discovery, this removes the mesh-formation (GRAFT) delay so the very first
+// published block reaches the peer.
+func WithFloodPublish() OpConP2PSidecarOption {
+	return func(args []string) []string {
+		return append(args, "--p2p.gossip.mesh.floodpublish=true")
+	}
+}
+
 // startOpConP2PSidecar spawns op-conp2p, static-peered to the sequencer's gossip
 // address, delegating verdicts to the verifier at nodeUserRPC.
 //
 //   - nodeUserRPC: the verifier's JSON-RPC endpoint (exposes admin_verifyUnsafePayload).
 //   - rollupConfigPath: the standard op-node rollup.json (chain id + fork times
 //     drive the gossip topic selection); the same file the verifier consumes.
-//   - sequencerGossipMultiaddr: the sequencer CL's gossip multiaddr (from its
-//     opp2p_self), used as a static peer since the sidecar runs no discovery.
+//   - staticPeerMultiaddr: a gossip multiaddr (from an op-node's opp2p_self) the
+//     sidecar dials as a static peer, since it runs no discovery. On the receive
+//     path this is the sequencer CL; on the publish path, the receiving verifier.
 func StartOpConP2PSidecar(
 	t devtest.T,
 	name string,
 	nodeUserRPC string,
 	rollupConfigPath string,
-	sequencerGossipMultiaddr string,
+	staticPeerMultiaddr string,
+	opts ...OpConP2PSidecarOption,
 ) *OpConP2PSidecar {
 	bin := os.Getenv(opConP2PSidecarBinaryEnv)
 	t.Require().NotEmpty(bin, "set %s to the op-conp2p binary path (go build ./op-conp2p)", opConP2PSidecarBinaryEnv)
@@ -60,7 +84,7 @@ func StartOpConP2PSidecar(
 	args := []string{
 		"--rollup.config", rollupConfigPath,
 		"--node.rpc", nodeUserRPC,
-		"--p2p.static", sequencerGossipMultiaddr,
+		"--p2p.static", staticPeerMultiaddr,
 		"--p2p.no-discovery=true",
 		"--p2p.listen.ip", "127.0.0.1",
 		"--p2p.listen.tcp", tcpPort,
@@ -68,6 +92,9 @@ func StartOpConP2PSidecar(
 		"--p2p.priv.path", filepath.Join(dir, "p2p_priv.txt"),
 		"--p2p.peerstore.path", "memory",
 		"--p2p.discovery.path", "memory",
+	}
+	for _, opt := range opts {
+		args = opt(args)
 	}
 
 	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "op-conp2p", "src", "stdout"), log.LevelInfo)
@@ -77,7 +104,7 @@ func StartOpConP2PSidecar(
 		logpipe.LogCallback(func(line []byte) { logErr(logpipe.ParseGoStructuredLogs(line)) }),
 	)
 
-	t.Logger().Info("Starting op-conp2p sidecar", "name", name, "node_rpc", nodeUserRPC, "static_peer", sequencerGossipMultiaddr)
+	t.Logger().Info("Starting op-conp2p sidecar", "name", name, "node_rpc", nodeUserRPC, "static_peer", staticPeerMultiaddr)
 	t.Require().NoError(sub.Start(bin, args, nil), "must start op-conp2p sidecar")
 
 	s := &OpConP2PSidecar{name: name, p: t, sub: sub}

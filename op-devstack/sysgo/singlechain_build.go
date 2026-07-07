@@ -200,7 +200,7 @@ func startL2CLForKey(
 		// sequencer slot into op-con-node's sequencing mode via
 		// L2CLOpConSequencer().
 		if !isSequencer || opconCfg.OpConSequencer {
-			return startMixedOpConNode(t, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, followSource, opconCfg.OpConL1FinalizedGuard, nil)
+			return startMixedOpConNode(t, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, followSource, opconCfg.OpConL1FinalizedGuard, nil, nil)
 		}
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,

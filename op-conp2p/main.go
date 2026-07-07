@@ -52,6 +52,13 @@ var (
 		EnvVars: []string{envPrefix + "_NODE_RPC_TIMEOUT"},
 		Value:   2 * time.Second,
 	}
+	signedPayloadWSFlag = &cli.StringFlag{
+		Name: "signed-payload-ws",
+		Usage: "Websocket URL of a sequencing op-con-node's signed-payload multicast " +
+			"(--sequencer-payload-ws-addr). When set, the sidecar subscribes and PUBLISHES " +
+			"each node-signed unsafe block to the OP gossip /blocks topics (never re-signing).",
+		EnvVars: []string{envPrefix + "_SIGNED_PAYLOAD_WS"},
+	}
 )
 
 func main() {
@@ -60,7 +67,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "op-conp2p"
 	app.Usage = "OP gossip P2P sidecar for the opql consensus nodes"
-	app.Flags = append([]cli.Flag{rollupConfigFlag, nodeRPCFlag, nodeTimeoutFlag},
+	app.Flags = append([]cli.Flag{rollupConfigFlag, nodeRPCFlag, nodeTimeoutFlag, signedPayloadWSFlag},
 		opnodeflags.P2PFlags(envPrefix)...)
 	app.Action = func(cliCtx *cli.Context) error {
 		return run(cliCtx, logger)
@@ -111,6 +118,15 @@ func run(cliCtx *cli.Context, logger log.Logger) error {
 		return fmt.Errorf("failed to start p2p node: %w", err)
 	}
 	defer n.Close()
+
+	// Publish path: when a sequencing op-con-node's signed-payload feed is
+	// configured, bridge it onto gossip. The node signed each block already; the
+	// sidecar only re-encodes and publishes (see publish.go).
+	if wsURL := cliCtx.String(signedPayloadWSFlag.Name); wsURL != "" {
+		pub := &payloadPublisher{log: logger, url: wsURL, out: n.GossipOut()}
+		go pub.run(ctx)
+		logger.Info("signed-payload publish path enabled", "feed", wsURL)
+	}
 
 	logger.Info("op-conp2p sidecar started",
 		"chain_id", rollupCfg.L2ChainID,

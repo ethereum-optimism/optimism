@@ -102,6 +102,15 @@ func SkipOnOpConNode(t devtest.T, reason string) {
 	}
 }
 
+// SkipUnlessOpConNode skips the test unless the L2 consensus layer is
+// op-con-node. Use for topologies that only exist for op-con-node (e.g. the
+// op-con-node sequencer fronted by the op-conp2p publish sidecar).
+func SkipUnlessOpConNode(t devtest.T, reason string) {
+	if devstackL2CLKind() != MixedL2CLOpCon {
+		t.Skipf("skipping unless DEVSTACK_L2CL_KIND=op-con-node: %s", reason)
+	}
+}
+
 // devstackL2ELKind returns the L2 EL kind requested via the DEVSTACK_L2EL_KIND
 // environment variable. Returns the empty string when the variable is unset,
 // meaning "use the runtime's default".

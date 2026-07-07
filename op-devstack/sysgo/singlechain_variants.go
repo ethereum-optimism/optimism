@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,9 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"time"
+
+	"github.com/ethereum/go-ethereum/crypto"
+	gethrpc "github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
@@ -102,6 +106,151 @@ func addSingleChainOpConVerifierWithSidecar(t devtest.T, runtime *SingleChainRun
 	rollupPath := writeStandardRollupConfig(t, runtime.L2Network)
 	StartOpConP2PSidecar(t, "op-conp2p-"+name, nodeB.CL.UserRPC(), rollupPath, SequencerGossipMultiaddr(t, runtime.L2CL))
 	return nodeB
+}
+
+// NewSingleChainOpConSequencerP2PRuntime builds the mirror image of the
+// with-P2P verifier preset: op-con-node runs AS the sequencer — it builds L2
+// blocks on its op-reth, SIGNS each one (SequencerP2PRole key, the deployed
+// SystemConfig unsafe-block signer), and serves the signed envelopes on its
+// payload websocket. The op-conp2p sidecar subscribes to that feed and
+// PUBLISHES each block to OP gossip, where a stock op-node verifier (its own
+// gossip stack, static-peered by the sidecar) must accept and execute them.
+//
+// The sequencer launches stopped and is only started (admin_startSequencer)
+// once the verifier reports the sidecar as a connected peer, so the first
+// built block already has a live gossip route — there is no batcher in this
+// topology to fill unsafe gaps via L1 derivation.
+func NewSingleChainOpConSequencerP2PRuntime(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	t.Require().Equal(MixedL2CLOpCon, devstackL2CLKind(),
+		"the op-con-node sequencer P2P preset requires DEVSTACK_L2CL_KIND=op-con-node")
+
+	runtime := newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
+		BuildWorld:   newDefaultSingleChainWorld,
+		StartPrimary: startOpConSequencerPrimary,
+		// No batcher/proposer/challenger: the assertion surface is unsafe-head
+		// propagation over gossip; nothing here consumes L1 batches.
+		StartBatcher: false,
+	})
+
+	// The verifier peer is deliberately a STOCK op-node (bypassing the
+	// DEVSTACK_L2CL_KIND dispatch that owns the verifier slots): the strongest
+	// wire-format proof is op-node's own gossip decode + signature check
+	// accepting op-con-node's blocks.
+	nodeB := addSingleChainForcedOpNodeVerifier(t, runtime, "b", cfg.GlobalL2CLOptions...)
+
+	opcon, ok := runtime.L2CL.(*OpConNode)
+	t.Require().True(ok, "primary sequencer must be op-con-node")
+	t.Require().NotEmpty(opcon.SignedPayloadWS(), "op-con-node sequencer must serve the signed-payload ws")
+
+	// Publish sidecar: bridge the sequencer's signed-payload feed onto gossip,
+	// dialing the verifier as its static peer. Flood publish removes the
+	// mesh-formation delay so the first block is not dropped. The verdict RPC
+	// (node.rpc) points back at the sequencer itself: gossipsub validates
+	// locally published messages too, and the sequencer attributes its own
+	// signature and accepts.
+	rollupPath := writeStandardRollupConfig(t, runtime.L2Network)
+	StartOpConP2PSidecar(t, "op-conp2p-pub", opcon.UserRPC(), rollupPath,
+		SequencerGossipMultiaddr(t, nodeB.CL),
+		WithSignedPayloadWS(opcon.SignedPayloadWS()),
+		WithFloodPublish(),
+	)
+
+	// Only sequence once the gossip route exists end to end.
+	awaitCLPeerCount(t, nodeB.CL, 1)
+	startOpConSequencer(t, opcon)
+
+	// Peering is fully managed by the sidecar's static dial; nothing for the
+	// preset frontends to manage.
+	runtime.P2PEnabled = false
+	return runtime
+}
+
+// startOpConSequencerPrimary starts the primary as an op-con-node SEQUENCER
+// (signing + signed-payload websocket) paired with its own execution engine.
+// The signing key is the SequencerP2PRole secret so op-node verifiers accept
+// the blocks against the deployed SystemConfig's unsafe-block signer; the same
+// address seeds the sequencer's own admin_verifyUnsafePayload (the sidecar's
+// validator delegates self-published blocks back to it).
+func startOpConSequencerPrimary(
+	t devtest.T,
+	keys devkeys.Keys,
+	world singleChainRuntimeWorld,
+	l1EL *L1Geth,
+	l1CL *L1CLNode,
+	jwtPath string,
+	jwtSecret [32]byte,
+	cfg PresetConfig,
+) singleChainPrimaryRuntime {
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0))
+
+	secret, err := keys.Secret(devkeys.SequencerP2PRole.Key(world.L2Network.ChainID().ToBig()))
+	t.Require().NoError(err, "derive SequencerP2PRole secret")
+	signerAddr := crypto.PubkeyToAddress(secret.PublicKey)
+	t.Require().NoError(os.Setenv("DEVSTACK_OPCON_UNSAFE_SIGNER", signerAddr.Hex()),
+		"seed op-con-node unsafe-block signer env")
+
+	seqSigning := &opConSequencerSigning{
+		signerKeyHex: hex.EncodeToString(crypto.FromECDSA(secret)),
+		startStopped: true,
+	}
+	l2CL := startMixedOpConNode(t, world.L1Network, world.L2Network, l1EL, l1CL, l2EL,
+		"sequencer", "sequencer", true, "", "", seqSigning, nil)
+	return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
+}
+
+// addSingleChainForcedOpNodeVerifier launches an op-node verifier (with its own
+// op-reth EL and gossip stack) REGARDLESS of DEVSTACK_L2CL_KIND. Used when the
+// op-con-node under test occupies the sequencer slot and the verifier must be a
+// stock op-node.
+func addSingleChainForcedOpNodeVerifier(t devtest.T, runtime *SingleChainRuntime, name string, l2Opts ...L2CLOption) *SingleChainNodeRuntime {
+	jwtPath := runtime.L2EL.JWTPath()
+	jwtSecret := readJWTSecretFromPath(t, jwtPath)
+	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
+	l2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
+		Key:           name,
+		IsSequencer:   false,
+		NoDiscovery:   true,
+		EnableReqResp: true,
+		UseReqResp:    true,
+		L2CLOptions:   l2Opts,
+	})
+	node := newSingleChainNodeRuntime(name, false, l2EL, l2CL)
+	runtime.Nodes[name] = node
+	return node
+}
+
+// awaitCLPeerCount blocks until the CL reports at least min connected gossip
+// peers (opp2p_peers), or fails the test after 60s.
+func awaitCLPeerCount(t devtest.T, cl L2CLNode, min uint) {
+	p2pClient, err := GetP2PClient(t.Ctx(), t.Logger(), cl)
+	t.Require().NoError(err, "p2p client for peer-count wait")
+	ctx, cancel := context.WithTimeout(t.Ctx(), 60*time.Second)
+	defer cancel()
+	err = retry.Do0(ctx, 120, retry.Fixed(500*time.Millisecond), func() error {
+		dump, err := p2pClient.Peers(ctx, true)
+		if err != nil {
+			return err
+		}
+		if dump.TotalConnected < min {
+			return fmt.Errorf("connected peers %d < %d", dump.TotalConnected, min)
+		}
+		return nil
+	})
+	t.Require().NoError(err, "CL never reached %d connected gossip peers", min)
+}
+
+// startOpConSequencer enables block production on a stopped op-con-node
+// sequencer via admin_startSequencer.
+func startOpConSequencer(t devtest.T, node *OpConNode) {
+	client, err := gethrpc.DialContext(t.Ctx(), node.UserRPC())
+	t.Require().NoError(err, "dial op-con-node admin rpc")
+	defer client.Close()
+	ctx, cancel := context.WithTimeout(t.Ctx(), 10*time.Second)
+	defer cancel()
+	var result any
+	t.Require().NoError(client.CallContext(ctx, &result, "admin_startSequencer"),
+		"admin_startSequencer on the op-con-node sequencer")
+	t.Logger().Info("op-con-node sequencing started", "rpc", node.UserRPC())
 }
 
 // writeStandardRollupConfig marshals the network's rollup config (the standard
