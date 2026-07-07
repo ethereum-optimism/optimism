@@ -198,12 +198,6 @@ run_scenario \
   scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests circleci_schedule_trigger_check
 
 run_scenario \
-  "Scheduled: build_weekly" \
-  "scheduled_pipeline" "" "" "build_weekly" \
-  '{}' \
-  scheduled_kona_link_checker
-
-run_scenario \
   "API: main_dispatch (no github event)" \
   "api" "" "" "" \
   '{"c-main_dispatch": true, "c-github-event-type": "__not_set__"}' \
