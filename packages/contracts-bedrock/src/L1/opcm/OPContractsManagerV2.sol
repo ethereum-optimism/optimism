@@ -721,7 +721,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
             uint32 rawGameType = validGameTypes[i].raw();
             bool isCannonGame = rawGameType == GameTypes.CANNON.raw();
+            bool isPermissionedCannonGame = rawGameType == GameTypes.PERMISSIONED_CANNON.raw();
             bool isCannonKonaGame = rawGameType == GameTypes.CANNON_KONA.raw();
+            bool isSuperPermissionedGame = rawGameType == GameTypes.SUPER_PERMISSIONED.raw();
+            bool isZkDisputeGame = rawGameType == GameTypes.ZK_DISPUTE_GAME.raw();
 
             if (_cfg.disputeGameConfigs[i].gameType.raw() != rawGameType) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
@@ -732,14 +735,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            if (rawGameType == GameTypes.SUPER_PERMISSIONED.raw() && _cfg.disputeGameConfigs[i].initBond != 0) {
+            if (isSuperPermissionedGame && _cfg.disputeGameConfigs[i].initBond != 0) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
             // If game is enabled, we must have a non-zero init bond, except
             // SUPER_PERMISSIONED which does not use bonds.
             if (
-                rawGameType != GameTypes.SUPER_PERMISSIONED.raw() && _cfg.disputeGameConfigs[i].enabled
+                !isSuperPermissionedGame && _cfg.disputeGameConfigs[i].enabled
                     && _cfg.disputeGameConfigs[i].initBond == 0
             ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
@@ -747,8 +750,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
             // During initial deployment, only CANNON, PERMISSIONED_CANNON, CANNON_KONA, and
             // SUPER_PERMISSIONED may be enabled.
-            bool enableableAtInitialDeployment = isCannonGame || rawGameType == GameTypes.PERMISSIONED_CANNON.raw()
-                || isCannonKonaGame || rawGameType == GameTypes.SUPER_PERMISSIONED.raw();
+            bool enableableAtInitialDeployment =
+                isCannonGame || isPermissionedCannonGame || isCannonKonaGame || isSuperPermissionedGame;
 
             if (_isInitialDeployment && !enableableAtInitialDeployment && _cfg.disputeGameConfigs[i].enabled) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
@@ -756,7 +759,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
             // ZK_DISPUTE_GAME can only be enabled when the dev flag is on (upgrade path).
             if (
-                rawGameType == GameTypes.ZK_DISPUTE_GAME.raw() && _cfg.disputeGameConfigs[i].enabled
+                isZkDisputeGame && _cfg.disputeGameConfigs[i].enabled
                     && !isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)
             ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
