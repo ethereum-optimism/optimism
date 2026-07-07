@@ -29,7 +29,7 @@ impl VersionInfo {
     /// at compile time.
     pub const fn from_build() -> Self {
         Self {
-            version: crate::version::CARGO_PKG_VERSION,
+            version: crate::version::SHORT_VERSION,
             build_timestamp: crate::version::VERGEN_BUILD_TIMESTAMP,
             cargo_features: crate::version::VERGEN_CARGO_FEATURES,
             git_sha: crate::version::VERGEN_GIT_SHA,
@@ -55,5 +55,17 @@ impl VersionInfo {
 
         let gauge = gauge!("kona_node_info", &labels);
         gauge.set(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_build_uses_cli_short_version() {
+        let info = VersionInfo::from_build();
+
+        assert_eq!(info.version, crate::version::SHORT_VERSION);
     }
 }

@@ -1,8 +1,5 @@
 //! Version information for kona-node.
 
-/// The latest version from Cargo.toml.
-pub(crate) const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
-
 /// The 8 character short SHA of the latest commit.
 pub(crate) const VERGEN_GIT_SHA: &str = env!("VERGEN_GIT_SHA_SHORT");
 
