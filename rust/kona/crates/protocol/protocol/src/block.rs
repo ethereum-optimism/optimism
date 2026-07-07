@@ -13,7 +13,7 @@ use alloy_rpc_types_engine::{CancunPayloadFields, PraguePayloadFields};
 use alloy_rpc_types_eth::Block as RpcBlock;
 use derive_more::Display;
 use kona_genesis::ChainGenesis;
-use op_alloy_consensus::{DEPOSIT_TX_TYPE_ID, OpBlock, OpTxEnvelope};
+use op_alloy_consensus::{OpBlock, OpTxEnvelope};
 use op_alloy_rpc_types_engine::{OpExecutionPayload, OpExecutionPayloadSidecar, OpPayloadError};
 
 /// Block Header Info
@@ -249,15 +249,8 @@ impl L2BlockInfo {
         } else {
             first_tx
                 .map(|tx| {
-                    // A typed non-deposit transaction can be reported from its type byte alone;
-                    // only a potential deposit or legacy transaction needs to be decoded.
-                    match OpTxEnvelope::extract_type_byte(&mut tx.as_ref()) {
-                        None | Some(DEPOSIT_TX_TYPE_ID) => {
-                            OpTxEnvelope::decode_2718_exact(tx.as_ref())
-                                .map_err(FromBlockError::TxEnvelopeDecodeError)
-                        }
-                        Some(ty) => Err(FromBlockError::FirstTxNonDeposit(ty)),
-                    }
+                    OpTxEnvelope::decode_2718_exact(tx.as_ref())
+                        .map_err(FromBlockError::TxEnvelopeDecodeError)
                 })
                 .transpose()?
         };
@@ -500,12 +493,6 @@ mod tests {
         let err =
             L2BlockInfo::from_header_and_first_tx(&sealed, Some(&empty), &genesis).unwrap_err();
         assert!(matches!(err, FromBlockError::TxEnvelopeDecodeError(_)));
-
-        // First transaction is not a deposit (e.g. a CIP-64 transaction, type 0x7B).
-        let non_deposit = Bytes::from(alloc::vec![0x7B, 0x01, 0x02]);
-        let err = L2BlockInfo::from_header_and_first_tx(&sealed, Some(&non_deposit), &genesis)
-            .unwrap_err();
-        assert_eq!(err, FromBlockError::FirstTxNonDeposit(0x7B));
 
         // A valid legacy transaction decodes but is rejected as a non-deposit (type 0).
         let signature = Signature::new(U256::from(1), U256::from(1), false);
