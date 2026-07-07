@@ -72,7 +72,7 @@ function _dummyClaim() view returns (Claim) {
 /// @notice Base test initializer that can be used by other contracts outside of this test suite.
 abstract contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @dev The type of the game being tested.
-    GameType internal immutable GAME_TYPE = GameTypes.CANNON;
+    GameType internal immutable GAME_TYPE = GameTypes.CANNON_KONA;
 
     /// @dev The initial bond for the game.
     uint256 internal initBond;
@@ -101,6 +101,9 @@ abstract contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
 
         (address _impl, AlphabetVM _vm,) = setupFaultDisputeGame(absolutePrestate);
         gameImpl = IFaultDisputeGame(_impl);
+
+        vm.prank(systemConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(GAME_TYPE);
 
         // Set the init bond for the given game type.
         initBond = disputeGameFactory.initBonds(GAME_TYPE);
