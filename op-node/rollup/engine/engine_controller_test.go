@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum"
@@ -975,6 +976,136 @@ func TestFollowSource_SequencerExternalLocalSafeAheadForcesReset(t *testing.T) {
 	require.Equal(t, block3, initEvents[0].SafeL2Head)
 	require.Equal(t, block2, initEvents[0].FinalizedL2Head)
 	mockEngine.AssertExpectations(t)
+}
+
+func TestBuildStartDropsStaleSequencerBuildAfterFollowSourceReset(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(28029))
+	l1Origin := testutils.RandomBlockRef(rng)
+	mk := func(num uint64, parent common.Hash) eth.L2BlockRef {
+		return eth.L2BlockRef{
+			Hash: testutils.RandomHash(rng), Number: num,
+			ParentHash: parent, Time: l1Origin.Time + num,
+			L1Origin: l1Origin.ID(), SequenceNumber: num,
+		}
+	}
+	block27 := mk(27, testutils.RandomHash(rng))
+	oldParent28 := mk(28, block27.Hash)
+	upstream29 := mk(29, oldParent28.Hash)
+
+	interopTime := uint64(0)
+	cfg := &rollup.Config{LagoonTime: &interopTime}
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	var emitted []event.Event
+	emitter.ExpectMaybeRun(func(ev event.Event) {
+		emitted = append(emitted, ev)
+	})
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+		metrics.NoopMetrics, cfg, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, &testutils.MockL1Source{}, emitter, nil)
+	originResetter := &recordingOriginResetter{}
+	ec.SetOriginSelectorResetter(originResetter)
+
+	// The sequencer has already emitted a BuildStartEvent for block 29 on top of
+	// oldParent28, but the engine event has not handled it yet.
+	ec.unsafeHead = oldParent28
+	ec.SetLocalSafeHead(block27)
+	ec.SetDeprecatedSafeHead(block27)
+	ec.SetFinalizedHead(block27)
+	ec.lastForkchoice = eth.ForkchoiceState{
+		HeadBlockHash:      oldParent28.Hash,
+		SafeBlockHash:      block27.Hash,
+		FinalizedBlockHash: block27.Hash,
+	}
+	staleBuildStart := BuildStartEvent{Attributes: &derive.AttributesWithParent{
+		Attributes: &eth.PayloadAttributes{Timestamp: eth.Uint64Quantity(oldParent28.Time + cfg.BlockTime)},
+		Parent:     oldParent28,
+	}}
+
+	// FollowSource is a direct driver call, not an event. It can reset the engine
+	// to the upstream local-safe head before the already-queued BuildStartEvent is
+	// delivered to EngineController.onBuildStart.
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      upstream29.Hash,
+			SafeBlockHash:      upstream29.Hash,
+			FinalizedBlockHash: block27.Hash,
+		}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil,
+	)
+	ec.FollowSource(upstream29, upstream29, block27)
+	require.Equal(t, upstream29, ec.unsafeHead)
+	require.Equal(t, 1, originResetter.resets)
+
+	emittedBeforeStaleBuild := len(emitted)
+
+	// Handling the stale sequencer-originated BuildStartEvent must not call
+	// startPayload/ForkchoiceUpdate with oldParent28 as the FCU head, and must not
+	// emit BuildInvalidEvent or a critical invalid-build path.
+	ec.onBuildStart(context.Background(), staleBuildStart)
+
+	require.Len(t, emitted, emittedBeforeStaleBuild)
+	mockEngine.AssertNumberOfCalls(t, "ForkchoiceUpdate", 1)
+	mockEngine.AssertExpectations(t)
+}
+
+func TestBuildStartDropsStaleSequencerBuildForMismatchedUnsafeHead(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(2829))
+	l1Origin := testutils.RandomBlockRef(rng)
+	mk := func(num uint64, parent common.Hash) eth.L2BlockRef {
+		return eth.L2BlockRef{
+			Hash: testutils.RandomHash(rng), Number: num,
+			ParentHash: parent, Time: l1Origin.Time + num,
+			L1Origin: l1Origin.ID(), SequenceNumber: num,
+		}
+	}
+	block27 := mk(27, testutils.RandomHash(rng))
+	oldParent28 := mk(28, block27.Hash)
+	sameHeightReplacement28 := mk(28, block27.Hash)
+	upstream29 := mk(29, sameHeightReplacement28.Hash)
+
+	tests := []struct {
+		name        string
+		currentHead eth.L2BlockRef
+	}{
+		{
+			name:        "same height replacement",
+			currentHead: sameHeightReplacement28,
+		},
+		{
+			name:        "advanced upstream head",
+			currentHead: upstream29,
+		},
+		{
+			name:        "lower-number reset",
+			currentHead: block27,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockEngine := &testutils.MockEngine{}
+			emitter := &testutils.MockEmitter{}
+			emitter.ExpectMaybeRun(func(ev event.Event) {
+				require.Failf(t, "unexpected event", "stale sequencer build start emitted %T: %v", ev, ev)
+			})
+			ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+				metrics.NoopMetrics, &rollup.Config{BlockTime: 1}, &sync.Config{}, &testutils.MockL1Source{}, emitter, nil)
+			ec.unsafeHead = tt.currentHead
+			ec.SetLocalSafeHead(block27)
+			ec.SetDeprecatedSafeHead(block27)
+			ec.SetFinalizedHead(block27)
+
+			ec.onBuildStart(context.Background(), BuildStartEvent{Attributes: &derive.AttributesWithParent{
+				Attributes: &eth.PayloadAttributes{Timestamp: eth.Uint64Quantity(oldParent28.Time + 1)},
+				Parent:     oldParent28,
+			}})
+
+			mockEngine.AssertNotCalled(t, "ForkchoiceUpdate", mock.Anything, mock.Anything, mock.Anything)
+			mockEngine.AssertExpectations(t)
+			emitter.AssertExpectations(t)
+		})
+	}
 }
 
 // TestFollowSource_VerifierDivergenceStaysSoft verifies a follow-mode VERIFIER (no origin-

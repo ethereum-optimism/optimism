@@ -260,22 +260,51 @@ func TestSequencer_StartStop(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSequencerForkchoiceUpdateDropsStaleSameHeightBuild(t *testing.T) {
-	seq, _ := createSequencer(testlog.Logger(t, log.LevelError))
+func TestSequencerForkchoiceUpdateDropsStaleBuild(t *testing.T) {
 	oldHead := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 5}
-	newHead := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 5}
-
-	seq.active.Store(true)
-	seq.latestHead = oldHead
-	seq.latest = BuildingState{
-		Onto: oldHead,
-		Info: eth.PayloadInfo{ID: eth.PayloadID{0x01}},
+	tests := []struct {
+		name       string
+		newHead    eth.L2BlockRef
+		latestInfo eth.PayloadInfo
+	}{
+		{
+			name:       "same height replacement before build starts",
+			newHead:    eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 5},
+			latestInfo: eth.PayloadInfo{ID: eth.PayloadID{}},
+		},
+		{
+			name:       "same height replacement after build starts",
+			newHead:    eth.L2BlockRef{Hash: common.Hash{0xcc}, Number: 5},
+			latestInfo: eth.PayloadInfo{ID: eth.PayloadID{0x01}},
+		},
+		{
+			name:       "lower-number reset after build starts",
+			newHead:    eth.L2BlockRef{Hash: common.Hash{0xdd}, Number: 4},
+			latestInfo: eth.PayloadInfo{ID: eth.PayloadID{0x02}},
+		},
+		{
+			name:       "advanced upstream head after build starts",
+			newHead:    eth.L2BlockRef{Hash: common.Hash{0xee}, Number: 6},
+			latestInfo: eth.PayloadInfo{ID: eth.PayloadID{0x03}},
+		},
 	}
 
-	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: newHead})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			seq, _ := createSequencer(testlog.Logger(t, log.LevelError))
+			seq.active.Store(true)
+			seq.latestHead = oldHead
+			seq.latest = BuildingState{
+				Onto: oldHead,
+				Info: tt.latestInfo,
+			}
 
-	require.Equal(t, BuildingState{}, seq.latest)
-	require.Equal(t, newHead, seq.latestHead)
+			seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: tt.newHead})
+
+			require.Equal(t, BuildingState{}, seq.latest)
+			require.Equal(t, tt.newHead, seq.latestHead)
+		})
+	}
 }
 
 // TestSequencer_StaleBuild stops the sequencer after block-building,
