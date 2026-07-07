@@ -1606,10 +1606,17 @@ jobs:
       - go-restore-cache:
           namespace: fuzz-<<parameters.package_name>>
       - run:
-          name: Fuzz
+          name: Run fuzz seeds
           no_output_timeout: 15m
           command: |
-            just fuzz
+            case "<<parameters.package_name>>" in
+              op-challenger) go test -count=1 -run=Fuzz -v ./game/keccak/matrix ;;
+              op-node) go test -count=1 -run=Fuzz -v ./rollup/derive ;;
+              op-service) go test -count=1 -run=Fuzz -v ./eth ;;
+              op-chain-ops) go test -count=1 -run=Fuzz -v ./crossdomain ;;
+              cannon) go test -count=1 -run=Fuzz -v ./mipsevm/tests ;;
+              op-e2e) go test -count=1 -run=Fuzz -tags cgo_test -v ./opgeth ;;
+            esac
           working_directory: "<<parameters.package_name>>"
       - go-save-cache:
           namespace: fuzz-<<parameters.package_name>>
