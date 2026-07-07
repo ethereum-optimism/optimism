@@ -152,8 +152,8 @@ func armFault(i *Interop, mgr *cc.RandomChainManager, data []byte) *fault {
 	t := faultTargets[h%uint32(len(faultTargets))]
 	f := &fault{target: t.method, under: t.under, skip: int((h >> 8) % 4)}
 	i.verifiedDB = &faultVerifiedDB{VerifiedDB: i.verifiedDB.concrete(), f: f}
-	for _, rc := range mgr.Chains() {
-		rc.SetEngineFaultHook(f.gate)
+	for _, w := range mgr.EngineWrappers() {
+		w.SetGate(f.gate)
 	}
 	return f
 }

@@ -114,7 +114,8 @@ type RandomChainManager struct {
 	order  []eth.ChainID // deterministic iteration
 
 	l1Source   *RandomL1Source
-	containers []*simpleChainContainer // wired containers, for Close to release denyLists
+	containers []*simpleChainContainer            // wired containers, for Close to release denyLists
+	wrappers   map[eth.ChainID]*FaultyRandomChain // transient engine wrappers, keyed by chain
 }
 
 // NewRandomChainManager seeds the generator deterministically from the fuzz
@@ -542,12 +543,14 @@ func (m *RandomChainManager) BreakOne() (Plan, bool) {
 	return Plan{}, false
 }
 
-// ChainContainer wires a simpleChainContainer: RandomChain as the VirtualNode
-// and an EngineController wrapping the same RandomChain as l2Provider. A
-// non-empty dataDir roots a per-chain denyList (under dataDir/denylist/<id>) so
-// the container matches production wiring and exercises the rewind path; Stop
-// closes it. An empty dataDir leaves the denyList unset (read-path tests that
-// never touch the deny list).
+// ChainContainer wires a simpleChainContainer. The RandomChain is always wrapped
+// in a transient FaultyRandomChain, which serves as both the VirtualNode and the
+// EngineController's l2Provider. With no gate armed the wrapper is a faithful
+// pass-through, so this changes nothing until a fault is installed via
+// EngineWrappers().SetGate. A non-empty dataDir roots a per-chain denyList (under
+// dataDir/denylist/<id>) so the container matches production wiring and exercises
+// the rewind path; Stop closes it. An empty dataDir leaves the denyList unset
+// (read-path tests that never touch the deny list).
 func (m *RandomChainManager) ChainContainer(id eth.ChainID, dataDir string) (*simpleChainContainer, error) {
 	rc := m.chains[id]
 	if rc == nil {
@@ -561,10 +564,15 @@ func (m *RandomChainManager) ChainContainer(id eth.ChainID, dataDir string) (*si
 		}
 		denyList = dl
 	}
+	frc := &FaultyRandomChain{RandomChain: rc, transient: true}
+	if m.wrappers == nil {
+		m.wrappers = make(map[eth.ChainID]*FaultyRandomChain)
+	}
+	m.wrappers[id] = frc
 	c := &simpleChainContainer{
 		chainID:  id,
-		vn:       rc,
-		engine:   engine_controller.NewEngineControllerWithL2AndRollup(rc, rc.cfg),
+		vn:       frc,
+		engine:   engine_controller.NewEngineControllerWithL2AndRollup(frc, rc.cfg),
 		vncfg:    &opnodecfg.Config{Rollup: *rc.cfg},
 		denyList: denyList,
 		log:      gethlog.New(),
@@ -573,6 +581,18 @@ func (m *RandomChainManager) ChainContainer(id eth.ChainID, dataDir string) (*si
 	}
 	m.containers = append(m.containers, c)
 	return c, nil
+}
+
+// EngineWrappers returns the transient engine wrappers created by ChainContainer,
+// so a harness can arm a one-shot fault on each via SetGate.
+func (m *RandomChainManager) EngineWrappers() []*FaultyRandomChain {
+	out := make([]*FaultyRandomChain, 0, len(m.wrappers))
+	for _, id := range m.order {
+		if w := m.wrappers[id]; w != nil {
+			out = append(out, w)
+		}
+	}
+	return out
 }
 
 // Close releases resources held by wired containers (the per-chain denyList
@@ -641,28 +661,7 @@ type RandomChain struct {
 	fcApplied                     bool
 	fcUnsafe, fcSafe, fcFinalized eth.L2BlockRef
 
-	// engineFaultHook, when non-nil, is consulted at the top of each l2Provider
-	// method (named by the argument) before any state changes; a non-nil return
-	// aborts the call. Test-only fault injection; nil in production.
-	engineFaultHook func(method string) error
-
 	running atomic.Bool
-}
-
-// SetEngineFaultHook installs a fault hook consulted by the l2Provider methods.
-// Test-only; pass nil to clear.
-func (rc *RandomChain) SetEngineFaultHook(hook func(method string) error) {
-	rc.engineFaultHook = hook
-}
-
-// injectEngineFault returns the hook's verdict for method, or nil when unset.
-// No lock: the hook is set once before the single-goroutine harness run, like
-// VerifiedDB.faultHook.
-func (rc *RandomChain) injectEngineFault(method string) error {
-	if rc.engineFaultHook == nil {
-		return nil
-	}
-	return rc.engineFaultHook(method)
 }
 
 // firstVerifiable returns the first block verification can reach: the lowest
@@ -853,9 +852,6 @@ func (rc *RandomChain) L2BlockRefByLabel(ctx context.Context, label eth.BlockLab
 }
 
 func (rc *RandomChain) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
-	if err := rc.injectEngineFault("L2BlockRefByNumber"); err != nil {
-		return eth.L2BlockRef{}, err
-	}
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
 	if num >= uint64(len(rc.l2)) {
@@ -884,9 +880,6 @@ func (rc *RandomChain) OutputV0AtBlock(ctx context.Context, blockHash common.Has
 }
 
 func (rc *RandomChain) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
-	if err := rc.injectEngineFault("PayloadByNumber"); err != nil {
-		return nil, err
-	}
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
 	if number >= uint64(len(rc.l2)) {
@@ -918,9 +911,6 @@ func (rc *RandomChain) refForHash(h common.Hash) eth.L2BlockRef {
 }
 
 func (rc *RandomChain) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	if err := rc.injectEngineFault("ForkchoiceUpdate"); err != nil {
-		return nil, err
-	}
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 	rc.fcApplied = true
@@ -933,9 +923,6 @@ func (rc *RandomChain) ForkchoiceUpdate(ctx context.Context, state *eth.Forkchoi
 }
 
 func (rc *RandomChain) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
-	if err := rc.injectEngineFault("NewPayload"); err != nil {
-		return nil, err
-	}
 	return &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil
 }
 
@@ -1001,6 +988,29 @@ type FaultyRandomChain struct {
 
 	newPayloadCalls int // synthetic-insert attempts
 	fcuCalls        int
+
+	// ponytail: two personalities in one type. The default (transient == false)
+	// is the stateful elState machine above, used by the L0/L1 harnesses. When
+	// transient is true every override delegates straight to the embedded
+	// RandomChain, with gate consulted on the apply methods only -- this is the L2
+	// mode where the container always wraps a chain and a one-shot fault is armed
+	// later via SetGate. transient must be an explicit flag, not "gate == nil",
+	// because an armed-later wrapper starts with a nil gate yet must already
+	// delegate rather than fall into the stateful path.
+	transient bool
+	gate      func(method string) error // one-shot fault gate; nil = pass-through
+}
+
+// SetGate installs the transient one-shot fault gate. Consulted only in transient
+// mode. No lock: set once before the single-goroutine harness run.
+func (f *FaultyRandomChain) SetGate(g func(method string) error) { f.gate = g }
+
+// injectGate returns the gate's verdict for method, or nil when unset.
+func (f *FaultyRandomChain) injectGate(method string) error {
+	if f.gate == nil {
+		return nil
+	}
+	return f.gate(method)
 }
 
 // newFaultyRandomChain builds a faulty engine for chain rc presenting EL state
@@ -1036,6 +1046,9 @@ func flipHash(h common.Hash) common.Hash {
 }
 
 func (f *FaultyRandomChain) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	if f.transient {
+		return f.RandomChain.L2BlockRefByLabel(ctx, label)
+	}
 	switch label {
 	case eth.Unsafe:
 		return f.elUnsafe, nil
@@ -1047,6 +1060,9 @@ func (f *FaultyRandomChain) L2BlockRefByLabel(ctx context.Context, label eth.Blo
 }
 
 func (f *FaultyRandomChain) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	if f.transient {
+		return f.RandomChain.L2BlockRefByNumber(ctx, num)
+	}
 	if f.byNumberErr != nil {
 		return eth.L2BlockRef{}, f.byNumberErr
 	}
@@ -1057,6 +1073,9 @@ func (f *FaultyRandomChain) L2BlockRefByNumber(ctx context.Context, num uint64) 
 }
 
 func (f *FaultyRandomChain) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	if f.transient {
+		return f.RandomChain.PayloadByNumber(ctx, number)
+	}
 	if f.state == elBelowTarget && number >= f.targetNum {
 		return nil, ethereum.NotFound
 	}
@@ -1064,11 +1083,23 @@ func (f *FaultyRandomChain) PayloadByNumber(ctx context.Context, number uint64) 
 }
 
 func (f *FaultyRandomChain) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	if f.transient {
+		if err := f.injectGate("NewPayload"); err != nil {
+			return nil, err
+		}
+		return f.RandomChain.NewPayload(ctx, payload, parentBeaconBlockRoot)
+	}
 	f.newPayloadCalls++
 	return &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil
 }
 
 func (f *FaultyRandomChain) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	if f.transient {
+		if err := f.injectGate("ForkchoiceUpdate"); err != nil {
+			return nil, err
+		}
+		return f.RandomChain.ForkchoiceUpdate(ctx, state, attr)
+	}
 	f.fcuCalls++
 	if f.fcuDeadlines > 0 {
 		f.fcuDeadlines-- // transient: the EL commits eventually; the CL deadline fired early
