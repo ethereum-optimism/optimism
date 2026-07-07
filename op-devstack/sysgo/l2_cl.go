@@ -52,6 +52,13 @@ type L2CLConfig struct {
 	// L2CLOpConSequencer(). Ignored for verifier slots and non-op-con CL kinds.
 	OpConSequencer bool
 
+	// OpConUnsafePayloadWS makes an op-con-node verifier follow a sequencing
+	// op-con-node's signed-payload websocket multicast at this ws:// URL
+	// (--unsafe-payload-ws, the push analog of --l2-follow-rpc): subscribe,
+	// verify each block's unsafe-block signature against the expected signer,
+	// and ingest accepted blocks. Ignored by non-op-con CL kinds.
+	OpConUnsafePayloadWS string
+
 	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
 	OffsetELSafe time.Duration
 
@@ -84,6 +91,15 @@ func L2CLFollowSource(source string) L2CLOption {
 func L2CLOpConSequencer() L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.OpConSequencer = true
+	})
+}
+
+// L2CLOpConUnsafePayloadWS points an op-con-node verifier at a sequencing
+// op-con-node's signed-payload websocket multicast (--unsafe-payload-ws). No-op
+// for other CL kinds.
+func L2CLOpConUnsafePayloadWS(wsURL string) L2CLOption {
+	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		cfg.OpConUnsafePayloadWS = wsURL
 	})
 }
 

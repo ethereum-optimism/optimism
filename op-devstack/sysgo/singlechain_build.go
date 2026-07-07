@@ -183,8 +183,8 @@ func startL2CLForKey(
 		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
 	case MixedL2CLOpCon:
 		// Resolve the op-con-specific knobs from the L2CL options (per-node, so a
-		// parallel sibling test is unaffected). Only OpConL1FinalizedGuard and
-		// OpConSequencer are used by op-con-node today.
+		// parallel sibling test is unaffected). Only OpConL1FinalizedGuard,
+		// OpConSequencer, and OpConUnsafePayloadWS are used by op-con-node today.
 		opconCfg := DefaultL2CLConfig()
 		if len(l2CLOpts) > 0 {
 			target := NewComponentTarget(clKey, l2Net.ChainID())
@@ -200,7 +200,7 @@ func startL2CLForKey(
 		// sequencer slot into op-con-node's sequencing mode via
 		// L2CLOpConSequencer().
 		if !isSequencer || opconCfg.OpConSequencer {
-			return startMixedOpConNode(t, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, followSource, opconCfg.OpConL1FinalizedGuard, nil, nil)
+			return startMixedOpConNode(t, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, followSource, opconCfg.OpConUnsafePayloadWS, opconCfg.OpConL1FinalizedGuard, nil, nil)
 		}
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,

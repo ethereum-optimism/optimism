@@ -114,6 +114,20 @@ func NewSingleChainOpConSequencerP2PWrongSignerWithoutCheck(t devtest.T, opts ..
 	return out
 }
 
+// NewSingleChainOpConSequencerWSFollowWithoutCheck is the sidecar-less
+// distribution preset: the op-con-node sequencer (L2CL) signs and serves its
+// unsafe blocks on a payload websocket, and an op-con-node verifier (L2CLB)
+// consumes that feed directly via --unsafe-payload-ws — verifying each block's
+// signature and ingesting it — while deriving its safe chain from L1 (the
+// batcher runs). Requires DEVSTACK_L2CL_KIND=op-con-node. No proposer/challenger,
+// no initial sync checks.
+func NewSingleChainOpConSequencerWSFollowWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainOpConSequencerWSFollowWithoutCheck", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainOpConSequencerWSFollowRuntime(t, presetCfg), false)
+	presetOpts.applyPreset(out)
+	return out
+}
+
 // NewSingleChainMultiNodeNoFaultProofsBareVerifierWithoutCheck creates a
 // SingleChainMultiNode whose verifier has no unsafe source at all (no follow, no
 // CL P2P, no sidecar): the test drives the verifier's unsafe chain via

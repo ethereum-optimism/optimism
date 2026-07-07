@@ -285,6 +285,50 @@ func NewSingleChainOpConSequencerP2PWrongSignerRuntime(t devtest.T, cfg PresetCo
 	return runtime
 }
 
+// NewSingleChainOpConSequencerWSFollowRuntime wires the sidecar-less opql
+// distribution path: the op-con-node sequencer signs each unsafe block and
+// serves the signed envelopes on its payload websocket; an op-con-node verifier
+// consumes that feed DIRECTLY via --unsafe-payload-ws (the push analog of
+// --l2-follow-rpc) — no gossip, no sidecar — verifying each block's signature
+// against the expected unsafe-block signer before ingesting it. The batcher
+// runs, so the verifier's safe chain derives from L1 and consolidates against
+// the WS-fed unsafe chain.
+//
+// The sequencer launches stopped and is only started once the verifier is up:
+// the verifier's startup gates on its initial WS subscribe, and the feed is
+// best-effort live-forward (a block published before the verifier subscribes
+// would be an unsafe gap healable only via L1 derivation, muddying the
+// unsafe-path assertion).
+func NewSingleChainOpConSequencerWSFollowRuntime(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	t.Require().Equal(MixedL2CLOpCon, devstackL2CLKind(),
+		"the op-con-node sequencer WS-follow preset requires DEVSTACK_L2CL_KIND=op-con-node")
+
+	runtime := newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
+		BuildWorld:   newDefaultSingleChainWorld,
+		StartPrimary: startOpConSequencerPrimary,
+		// Batcher on: safe-head derivation runs alongside the WS unsafe feed.
+		StartBatcher: true,
+	})
+
+	opcon, ok := runtime.L2CL.(*OpConNode)
+	t.Require().True(ok, "primary sequencer must be op-con-node")
+	t.Require().NotEmpty(opcon.SignedPayloadWS(), "op-con-node sequencer must serve the signed-payload ws")
+
+	// Verifier "b": no follow source, no sidecar — its unsafe head can only come
+	// from the sequencer's signed-payload websocket. The expected unsafe-block
+	// signer env was seeded by startOpConSequencerPrimary. Startup blocks until
+	// the initial WS subscribe succeeds (the feed is already served while the
+	// sequencer is stopped), so once this returns the route is live.
+	wsOpts := append(append([]L2CLOption{}, cfg.GlobalL2CLOptions...),
+		L2CLOpConUnsafePayloadWS(opcon.SignedPayloadWS()))
+	addSingleChainOpNode(t, runtime, "b", false, "", wsOpts...)
+
+	startOpConSequencer(t, opcon)
+
+	runtime.P2PEnabled = false
+	return runtime
+}
+
 // startOpConSequencerPrimary starts the primary as an op-con-node SEQUENCER
 // (signing + signed-payload websocket) paired with its own execution engine.
 // The signing key is the SequencerP2PRole secret so op-node verifiers accept
@@ -333,7 +377,7 @@ func startOpConSequencerPrimaryWithSignerKey(
 		startStopped: true,
 	}
 	l2CL := startMixedOpConNode(t, world.L1Network, world.L2Network, l1EL, l1CL, l2EL,
-		"sequencer", "sequencer", true, "", "", seqSigning, nil)
+		"sequencer", "sequencer", true, "", "", "", seqSigning, nil)
 	return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
 }
 

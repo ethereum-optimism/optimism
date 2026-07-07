@@ -177,6 +177,7 @@ func startMixedOpConNode(
 	elKey string,
 	isSequencer bool,
 	followSource string,
+	unsafePayloadWS string,
 	l1FinalizedGuard string,
 	seqSigning *opConSequencerSigning,
 	metricsRegistrar L2MetricsRegistrar,
@@ -234,6 +235,14 @@ func startMixedOpConNode(
 	// L1 derivation only.
 	if followSource != "" {
 		args = append(args, "--l2-follow-rpc", strings.ReplaceAll(followSource, "ws://", "http://"))
+	}
+
+	// Follow a sequencing op-con-node's signed-payload websocket multicast (the
+	// push analog of --l2-follow-rpc): subscribe, verify each block's unsafe-block
+	// signature (--unsafe-block-signer seeds the expected signer), ingest accepted
+	// blocks. The safe chain still derives from L1.
+	if unsafePayloadWS != "" {
+		args = append(args, "--unsafe-payload-ws", unsafePayloadWS)
 	}
 
 	// Sequencer mode: op-con-node produces the unsafe chain itself by driving
