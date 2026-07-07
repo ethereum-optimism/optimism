@@ -911,6 +911,72 @@ func TestFollowSource_SequencerDivergenceForcesReset(t *testing.T) {
 	mockEngine.AssertExpectations(t)
 }
 
+func TestFollowSource_SequencerExternalLocalSafeAheadForcesReset(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(90210))
+	l1Origin := testutils.RandomBlockRef(rng)
+	mk := func(num uint64, parent common.Hash) eth.L2BlockRef {
+		return eth.L2BlockRef{
+			Hash: testutils.RandomHash(rng), Number: num,
+			ParentHash: parent, Time: l1Origin.Time + num,
+			L1Origin: l1Origin.ID(), SequenceNumber: num,
+		}
+	}
+	block1 := mk(1, testutils.RandomHash(rng))
+	block2 := mk(2, block1.Hash)
+	block3 := mk(3, block2.Hash)
+	currentBlock4 := mk(4, block3.Hash)
+	extBlock5 := mk(5, currentBlock4.Hash)
+
+	interopTime := uint64(0)
+	cfg := &rollup.Config{LagoonTime: &interopTime}
+	mockEngine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	var initEvents []ForkchoiceUpdateInitEvent
+	emitter.Mock.On("Emit", mock.Anything).Maybe().Run(func(args mock.Arguments) {
+		if ev, ok := args.Get(0).(ForkchoiceUpdateInitEvent); ok {
+			initEvents = append(initEvents, ev)
+		}
+	})
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0),
+		metrics.NoopMetrics, cfg, &sync.Config{L2FollowSourceEndpoint: "http://localhost"}, &testutils.MockL1Source{}, emitter, nil)
+
+	originResetter := &recordingOriginResetter{}
+	ec.SetOriginSelectorResetter(originResetter)
+
+	ec.unsafeHead = currentBlock4
+	ec.SetLocalSafeHead(block1)
+	ec.SetDeprecatedSafeHead(block1)
+	ec.SetFinalizedHead(block1)
+	ec.lastForkchoice = eth.ForkchoiceState{
+		HeadBlockHash:      currentBlock4.Hash,
+		SafeBlockHash:      block1.Hash,
+		FinalizedBlockHash: block1.Hash,
+	}
+
+	mockEngine.ExpectForkchoiceUpdate(
+		&eth.ForkchoiceState{
+			HeadBlockHash:      extBlock5.Hash,
+			SafeBlockHash:      block3.Hash,
+			FinalizedBlockHash: block2.Hash,
+		}, nil,
+		&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil,
+	)
+
+	ec.FollowSource(block3, extBlock5, block2)
+
+	require.Equal(t, 1, originResetter.resets, "sequencer must reset origins when upstream local-safe advances beyond its unsafe head")
+	require.Equal(t, extBlock5, ec.unsafeHead, "unsafe head must jump to the upstream local-safe head")
+	require.Equal(t, extBlock5, ec.localSafeHead, "local safe must jump to the upstream local-safe head")
+	require.Equal(t, block3, ec.deprecatedSafeHead, "cross safe must follow the upstream cross-safe head")
+	require.Equal(t, block2, ec.deprecatedFinalizedHead, "finalized head must follow the upstream finalized head")
+	require.Len(t, initEvents, 1, "sequencer must be told the reset head even when the FCU path is async/syncing")
+	require.Equal(t, extBlock5, initEvents[0].UnsafeL2Head)
+	require.Equal(t, block3, initEvents[0].SafeL2Head)
+	require.Equal(t, block2, initEvents[0].FinalizedL2Head)
+	mockEngine.AssertExpectations(t)
+}
+
 // TestFollowSource_VerifierDivergenceStaysSoft verifies a follow-mode VERIFIER (no origin-
 // selector resetter) keeps the soft follow path on divergence WITHOUT resetting origins —
 // there is no competing block production. The #21119 fix must not change this path.

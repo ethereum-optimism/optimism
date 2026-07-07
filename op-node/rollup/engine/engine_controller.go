@@ -1230,16 +1230,25 @@ func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUns
 		e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
 	}
 
-	if signalOnlySeq {
-		// Intentionally not propagating ForkchoiceUpdateEvent to other event Deriver avoiding side effects.
-		// If we do tryUpdateEngine instead, it will eventually emit ForkchoiceUpdateEvent, causing block building
-		// to never begin. Use fine grained ForkchoiceUpdateInitEvent to only propagate info to the sequencer component.
+	notifySequencer := func() {
 		e.emitter.Emit(ctx, ForkchoiceUpdateInitEvent{
 			UnsafeL2Head:    e.unsafeHead,
 			SafeL2Head:      e.SafeL2Head(),
 			FinalizedL2Head: e.FinalizedHead(),
 		})
+	}
+	if signalOnlySeq {
+		// Intentionally not propagating ForkchoiceUpdateEvent to other event Deriver avoiding side effects.
+		// If we do tryUpdateEngine instead, it will eventually emit ForkchoiceUpdateEvent, causing block building
+		// to never begin. Use fine grained ForkchoiceUpdateInitEvent to only propagate info to the sequencer component.
+		notifySequencer()
 	} else {
+		if e.originSelectorResetter != nil {
+			// A reset can ask an EL-sync engine to follow a head it has not fully imported yet.
+			// In that case tryUpdateEngine may return SYNCING without emitting ForkchoiceUpdateEvent,
+			// so update the sequencer's view of the reset head explicitly before it resumes.
+			notifySequencer()
+		}
 		// Time to apply the changes to the underlying engine
 		e.tryUpdateEngine(ctx)
 	}
@@ -1497,6 +1506,15 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 	logger.Info("Follow Source: Process external refs")
 
 	if e.unsafeHead.Number < eLocalSafeRef.Number {
+		// A follow-mode sequencer can still have an in-flight build on its old unsafe
+		// head while the followed source advances beyond it. Reset instead of taking
+		// the verifier's soft path so the sequencer drops work on the orphaned head
+		// before it can be submitted to the EL.
+		if e.originSelectorResetter != nil {
+			logger.Warn("Follow Source: Reset onto upstream chain ahead of active sequencer")
+			e.forceReset(e.ctx, eLocalSafeRef, eLocalSafeRef, eLocalSafeRef, eSafeBlockRef, eFinalizedRef, false)
+			return
+		}
 		// EL Sync target may be updated
 		logger.Debug("Follow Source: EL Sync: External local safe ahead of current unsafe")
 		followExternalRefs(true)

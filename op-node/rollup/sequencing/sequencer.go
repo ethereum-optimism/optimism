@@ -476,8 +476,9 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 		d.setLatestHead(x.UnsafeL2Head)
 		return
 	}
-	// Drop stale block-building job if the chain has moved past it already.
-	if d.latest != (BuildingState{}) && d.latest.Onto.Number < x.UnsafeL2Head.Number {
+	// Drop stale block-building jobs if the chain head changed underneath us. This
+	// includes ordinary advancement, same-height reorgs, and resets to an older head.
+	if d.latest != (BuildingState{}) && d.latest.Onto != (eth.L2BlockRef{}) && d.latest.Onto != x.UnsafeL2Head {
 		d.log.Debug("Dropping stale/completed block-building job",
 			"state", d.latest.Onto, "unsafe_head", x.UnsafeL2Head)
 		// The cleared state will block further BuildStarted/BuildSealed responses from continuing the stale build job.

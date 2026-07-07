@@ -260,6 +260,24 @@ func TestSequencer_StartStop(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSequencerForkchoiceUpdateDropsStaleSameHeightBuild(t *testing.T) {
+	seq, _ := createSequencer(testlog.Logger(t, log.LevelError))
+	oldHead := eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 5}
+	newHead := eth.L2BlockRef{Hash: common.Hash{0xbb}, Number: 5}
+
+	seq.active.Store(true)
+	seq.latestHead = oldHead
+	seq.latest = BuildingState{
+		Onto: oldHead,
+		Info: eth.PayloadInfo{ID: eth.PayloadID{0x01}},
+	}
+
+	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: newHead})
+
+	require.Equal(t, BuildingState{}, seq.latest)
+	require.Equal(t, newHead, seq.latestHead)
+}
+
 // TestSequencer_StaleBuild stops the sequencer after block-building,
 // but before processing the block locally,
 // and then continues it again, to check if the async-gossip gets cleared,
