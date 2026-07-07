@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -497,21 +498,9 @@ func (c *l2Configurator) WithOperatorFeeConstant(value uint64) {
 }
 
 func (c *l2Configurator) WithForkAtGenesis(fork opforks.Name) {
-	var future bool
-	for _, refFork := range opforks.All {
-		if refFork == opforks.Bedrock {
-			continue
-		}
-
-		if future {
-			c.WithForkAtOffset(refFork, nil)
-		} else {
-			c.WithForkAtOffset(refFork, new(uint64))
-		}
-
-		if refFork == fork {
-			future = true
-		}
+	require.True(c.t, opforks.IsValid(fork))
+	for k, v := range genesis.ForkOverridesAtGenesis(fork) {
+		c.builder.intent.Chains[c.chainIndex].DeployOverrides[k] = v
 	}
 }
 

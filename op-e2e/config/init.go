@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"maps"
 	"math/big"
 	"os"
 	"path"
@@ -315,30 +314,9 @@ func initAllocType(root string, allocType AllocType) {
 				}
 			}
 
-			baseUpgradeSchedule := map[string]any{
-				"l2GenesisRegolithTimeOffset": nil,
-				"l2GenesisCanyonTimeOffset":   nil,
-				"l2GenesisDeltaTimeOffset":    nil,
-				"l2GenesisEcotoneTimeOffset":  nil,
-				"l2GenesisFjordTimeOffset":    nil,
-				"l2GenesisGraniteTimeOffset":  nil,
-				"l2GenesisHoloceneTimeOffset": nil,
-				"l2GenesisIsthmusTimeOffset":  nil,
-				"l2GenesisJovianTimeOffset":   nil,
+			for k, v := range genesis.ForkOverridesAtGenesis(forks.Name(mode)) {
+				intent.GlobalDeployOverrides[k] = v
 			}
-
-			upgradeSchedule := new(genesis.UpgradeScheduleDeployConfig)
-			upgradeSchedule.ActivateForkAtGenesis(forks.Name(mode))
-			upgradeOverridesJSON, err := json.Marshal(upgradeSchedule)
-			if err != nil {
-				panic(fmt.Errorf("failed to marshal upgrade schedule: %w", err))
-			}
-			var upgradeOverrides map[string]any
-			if err := json.Unmarshal(upgradeOverridesJSON, &upgradeOverrides); err != nil {
-				panic(fmt.Errorf("failed to unmarshal upgrade schedule: %w", err))
-			}
-			maps.Copy(baseUpgradeSchedule, upgradeOverrides)
-			maps.Copy(intent.GlobalDeployOverrides, baseUpgradeSchedule)
 
 			st := &state.State{
 				Version: 1,
