@@ -97,7 +97,7 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
         assertEq(uint8(oldGame.status()), uint8(GameStatus.DEFENDER_WINS), "old super game must resolve DEFENDER_WINS");
 
         // ── 3. Run the OPCMv2.upgrade() that disables the source super game, enables ZK, ──
-        //       flips the respected type to ZK, and re-seeds the anchor.
+        //       flips the respected type to ZK, re-seeds the anchor.
         _buildZKFlipUpgradeInput();
         _runUpgradeAsPAO();
 
