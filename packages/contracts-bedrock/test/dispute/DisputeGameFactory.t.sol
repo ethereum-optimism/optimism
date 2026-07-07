@@ -133,8 +133,21 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         vm.stopPrank();
     }
 
-    /// @notice Sets up a super cannon game implementation
+    /// @notice Sets up a super cannon game implementation at the default SUPER_CANNON slot.
     function setupSuperFaultDisputeGame(Claim _absolutePrestate)
+        internal
+        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        return setupSuperFaultDisputeGame(_absolutePrestate, GameTypes.SUPER_CANNON);
+    }
+
+    /// @notice Sets up a super cannon game implementation registered at the given game type.
+    /// @dev The SuperFaultDisputeGame impl is type-agnostic (the game type is appended by the
+    ///      factory), so the same impl can be registered at SUPER_CANNON or SUPER_CANNON_KONA.
+    function setupSuperFaultDisputeGame(
+        Claim _absolutePrestate,
+        GameType _gameType
+    )
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
@@ -148,7 +161,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.SUPER_CANNON, immutableArgs);
+        _setGame(gameImpl_, _gameType, immutableArgs);
     }
 
     /// @notice Sets up a super permissioned game implementation
