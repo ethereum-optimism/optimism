@@ -765,6 +765,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
+            // If a permissionless game is being enabled the prestate must be not empty, otherwise revert with error.
             if (_cfg.disputeGameConfigs[i].enabled && (isCannonGame || isCannonKonaGame)) {
                 if (_isInitialDeployment) {
                     permissionlessInitialGameEnabled = true;
