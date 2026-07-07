@@ -35,6 +35,10 @@ type State struct {
 	// It is used to verify that the same deployer address is used for the relevant stages of the permissionless pipeline.
 	L1PredictSenderAddress *common.Address `json:"deployerAddress,omitempty"`
 
+	// L1PredictOPCMAddress is the OPCM address used for the L1 deploy dry-run.
+	// It is used to verify that the same OPCM is used for the relevant stages of the permissionless pipeline.
+	L1PredictOPCMAddress *common.Address `json:"predictOpcmAddress,omitempty"`
+
 	// Prepared is set when this state was produced by the prepare pipeline.
 	Prepared bool `json:"prepared,omitempty"`
 
@@ -89,13 +93,16 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 	return nil, fmt.Errorf("chain not found: %s", id.Hex())
 }
 
-// CheckL1PredictSender verifies that deployer matches the L1 predict sender
-// pinned during the prepare dry-run, keeping the predicted L1 addresses valid
-// across the relevant stages of the permissionless pipeline. A nil L1PredictSenderAddress
-// means no sender was pinned, so any deployer is accepted (older pipeline).
-func (s *State) CheckL1PredictSender(deployer common.Address) error {
+// CheckL1PredictInputs verifies that the deployer and OPCM match the values pinned
+// during the prepare dry-run, keeping the predicted L1 addresses valid across the
+// relevant stages of the permissionless pipeline. A nil pinned value means nothing
+// was pinned for that input, so any value is accepted (older pipeline).
+func (s *State) CheckL1PredictInputs(deployer common.Address, opcm common.Address) error {
 	if s.L1PredictSenderAddress != nil && *s.L1PredictSenderAddress != deployer {
 		return fmt.Errorf("deployer address mismatch: expected %s, got %s", s.L1PredictSenderAddress.Hex(), deployer.Hex())
+	}
+	if s.L1PredictOPCMAddress != nil && *s.L1PredictOPCMAddress != opcm {
+		return fmt.Errorf("opcm address mismatch: expected %s, got %s", s.L1PredictOPCMAddress.Hex(), opcm.Hex())
 	}
 	return nil
 }

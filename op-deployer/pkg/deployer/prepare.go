@@ -111,13 +111,20 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("intent has no chains to prepare")
 	}
 
-	// The sender of the deploy dry-run. Pin it into the state so a re-run cannot
-	// silently switch deployer keys.
+	// prepare predicts against an already deployed OPCM, so the intent must pin it.
+	if intent.OPCMAddress == nil {
+		return fmt.Errorf("intent.opcmAddress must be set to predict against an existing OPCM")
+	}
+
+	// The sender and OPCM of the deploy dry-run. Pin them into the state so a re-run
+	// cannot silently switch deployer keys or OPCM and invalidate the predicted addresses.
 	deployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
-	if err := st.CheckL1PredictSender(deployer); err != nil {
+	opcmAddr := *intent.OPCMAddress
+	if err := st.CheckL1PredictInputs(deployer, opcmAddr); err != nil {
 		return err
 	}
 	st.L1PredictSenderAddress = &deployer
+	st.L1PredictOPCMAddress = &opcmAddr
 	st.Prepared = true
 
 	if err := st.EnsureCreate2Salt(); err != nil {

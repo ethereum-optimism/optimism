@@ -33,23 +33,32 @@ func TestState_EnsureCreate2Salt(t *testing.T) {
 	})
 }
 
-func TestState_CheckL1PredictSender(t *testing.T) {
+func TestState_CheckL1PredictInputs(t *testing.T) {
 	deployer := common.HexToAddress("0x1111000000000000000000000000000000000001")
 	other := common.HexToAddress("0x2222000000000000000000000000000000000002")
+	opcm := common.HexToAddress("0x3333000000000000000000000000000000000003")
+	otherOPCM := common.HexToAddress("0x4444000000000000000000000000000000000004")
 
-	t.Run("unpinned state accepts any deployer", func(t *testing.T) {
-		require.NoError(t, (&State{}).CheckL1PredictSender(deployer))
+	t.Run("unpinned state accepts any inputs", func(t *testing.T) {
+		require.NoError(t, (&State{}).CheckL1PredictInputs(deployer, opcm))
 	})
 
-	t.Run("matching deployer succeeds", func(t *testing.T) {
-		pinned := deployer
-		require.NoError(t, (&State{L1PredictSenderAddress: &pinned}).CheckL1PredictSender(deployer))
+	t.Run("matching deployer and opcm succeeds", func(t *testing.T) {
+		pinnedSender := deployer
+		pinnedOPCM := opcm
+		require.NoError(t, (&State{L1PredictSenderAddress: &pinnedSender, L1PredictOPCMAddress: &pinnedOPCM}).CheckL1PredictInputs(deployer, opcm))
 	})
 
 	t.Run("mismatched deployer fails", func(t *testing.T) {
 		pinned := other
-		err := (&State{L1PredictSenderAddress: &pinned}).CheckL1PredictSender(deployer)
+		err := (&State{L1PredictSenderAddress: &pinned}).CheckL1PredictInputs(deployer, opcm)
 		require.ErrorContains(t, err, "deployer address mismatch")
+	})
+
+	t.Run("mismatched opcm fails", func(t *testing.T) {
+		pinned := otherOPCM
+		err := (&State{L1PredictOPCMAddress: &pinned}).CheckL1PredictInputs(deployer, opcm)
+		require.ErrorContains(t, err, "opcm address mismatch")
 	})
 }
 
