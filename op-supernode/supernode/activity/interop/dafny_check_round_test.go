@@ -45,7 +45,7 @@ func TestCheckOutputConsistentWithVerified(t *testing.T) {
 	t.Run("requires: invalid verifiedDB short-circuits", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		i.verifiedDB.lastTimestamp = 999
+		i.verifiedDB.concrete().lastTimestamp = 999
 		err := CheckOutputConsistentWithVerified(i, StepOutput{Decision: DecisionWait}, dafnySyncedObs())
 		require.ErrorContains(t, err, "requires verifiedDB.Valid()")
 	})
@@ -215,7 +215,7 @@ func TestCheckObservationConsistentWithVerified(t *testing.T) {
 	t.Run("requires: invalid verifiedDB short-circuits", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		i.verifiedDB.lastTimestamp = 999
+		i.verifiedDB.concrete().lastTimestamp = 999
 		err := CheckObservationConsistentWithVerified(i, dafnySyncedObs())
 		require.ErrorContains(t, err, "requires verifiedDB.Valid()")
 	})

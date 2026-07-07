@@ -119,7 +119,7 @@ func CheckOutputConsistentWithVerified(i *Interop, output StepOutput, obs RoundO
 	if i == nil {
 		return violation(pred, "0", "Interop is nil")
 	}
-	if err := CheckVerifiedDBValid(i.verifiedDB); err != nil {
+	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
 		return fmt.Errorf("%s requires verifiedDB.Valid(): %w", pred, err)
 	}
 	if err := CheckValidStepOutput(modelParamsFromInterop(i), output, obs); err != nil {
@@ -264,7 +264,7 @@ func CheckObservationConsistentWithVerified(i *Interop, obs RoundObservation) er
 	if i == nil {
 		return violation(pred, "0", "Interop is nil")
 	}
-	if err := CheckVerifiedDBValid(i.verifiedDB); err != nil {
+	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
 		return fmt.Errorf("%s requires verifiedDB.Valid(): %w", pred, err)
 	}
 	if err := CheckValidRoundObservation(modelParamsFromInterop(i), obs); err != nil {

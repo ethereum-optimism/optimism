@@ -126,8 +126,8 @@ func TestCheckInteropValidViolations(t *testing.T) {
 		t.Parallel()
 		i := dafnyTestInterop(t)
 		require.NoError(t, i.verifiedDB.Commit(dafnyVerifiedResult(1000, map[uint64]uint64{1: 100, 2: 200})))
-		putVerified(t, i.verifiedDB, dafnyVerifiedResult(1002, map[uint64]uint64{1: 102, 2: 202}))
-		i.verifiedDB.lastTimestamp = 1002 // keep the VerifiedDB cache conjunct quiet
+		putVerified(t, i.verifiedDB.concrete(), dafnyVerifiedResult(1002, map[uint64]uint64{1: 102, 2: 202}))
+		i.verifiedDB.concrete().lastTimestamp = 1002 // keep the VerifiedDB cache conjunct quiet
 		err := CheckInteropValid(i)
 		require.ErrorContains(t, err, "conjunct (4)")
 		require.ErrorContains(t, err, "VerifiedDB.dfy Valid()")
@@ -139,7 +139,7 @@ func TestCheckInteropValidViolations(t *testing.T) {
 	t.Run("conjunct 5: first-verifiable timestamp not in db", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		i.verifiedDB.firstTimestamp = 999 // stale cache: ACTIVATION_TIMESTAMP maps to 999
+		i.verifiedDB.concrete().firstTimestamp = 999 // stale cache: ACTIVATION_TIMESTAMP maps to 999
 		err := CheckInteropValid(i)
 		require.ErrorContains(t, err, "conjunct (5)")
 		require.ErrorContains(t, err, "ACTIVATION_TIMESTAMP 999 not in db")
@@ -149,7 +149,7 @@ func TestCheckInteropValidViolations(t *testing.T) {
 	t.Run("conjunct 6: committed timestamp below activation", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		i.verifiedDB.firstTimestamp = 1001 // stale cache: ACTIVATION_TIMESTAMP maps to 1001
+		i.verifiedDB.concrete().firstTimestamp = 1001 // stale cache: ACTIVATION_TIMESTAMP maps to 1001
 		err := CheckInteropValid(i)
 		require.ErrorContains(t, err, "conjunct (6)")
 		require.ErrorContains(t, err, "committed timestamp 1000 below ACTIVATION_TIMESTAMP 1001")
@@ -211,7 +211,7 @@ func TestCheckDBsInSyncUpTo(t *testing.T) {
 	t.Run("conjunct 2: verified entry misses the chain", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		putVerified(t, i.verifiedDB, dafnyVerifiedResult(1001, map[uint64]uint64{2: 201}))
+		putVerified(t, i.verifiedDB.concrete(), dafnyVerifiedResult(1001, map[uint64]uint64{2: 201}))
 		err := CheckDBsInSyncUpTo(i, dafnyChainID(1), 1002)
 		require.ErrorContains(t, err, "conjunct (2)")
 		require.ErrorContains(t, err, "not in verifiedDB.Get(1001).l2Heads")
@@ -257,7 +257,7 @@ func TestCheckDBsInSync(t *testing.T) {
 	t.Run("requires: invalid verifiedDB short-circuits", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		i.verifiedDB.lastTimestamp = 999 // break the VerifiedDB cache conjunct
+		i.verifiedDB.concrete().lastTimestamp = 999 // break the VerifiedDB cache conjunct
 		err := CheckDBsInSync(i, dafnyChainID(1))
 		require.ErrorContains(t, err, "requires verifiedDB.Valid()")
 		require.ErrorContains(t, err, "VerifiedDB.dfy Valid()")
@@ -276,7 +276,7 @@ func TestCheckDBsInSync(t *testing.T) {
 	t.Run("conjunct S1: last verified entry misses the chain", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		putVerified(t, i.verifiedDB, dafnyVerifiedResult(1002, map[uint64]uint64{2: 202}))
+		putVerified(t, i.verifiedDB.concrete(), dafnyVerifiedResult(1002, map[uint64]uint64{2: 202}))
 		err := CheckDBsInSync(i, dafnyChainID(1))
 		require.ErrorContains(t, err, "conjunct (S1)")
 	})
@@ -340,7 +340,7 @@ func TestCheckAllDBsInSync(t *testing.T) {
 	t.Run("requires: invalid verifiedDB short-circuits", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		i.verifiedDB.lastTimestamp = 999
+		i.verifiedDB.concrete().lastTimestamp = 999
 		err := CheckAllDBsInSync(i)
 		require.ErrorContains(t, err, "requires verifiedDB.Valid()")
 	})

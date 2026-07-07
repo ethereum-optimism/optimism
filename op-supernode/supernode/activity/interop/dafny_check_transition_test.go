@@ -88,7 +88,7 @@ func TestCheckAdvancesVerifiedDB(t *testing.T) {
 	t.Run("requires: invalid verifiedDB short-circuits", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		i.verifiedDB.lastTimestamp = 999
+		i.verifiedDB.concrete().lastTimestamp = 999
 		err := CheckAdvancesVerifiedDB(i, 1003, dafnyHeads(map[uint64]uint64{1: 103, 2: 203}))
 		require.ErrorContains(t, err, "requires verifiedDB.Valid()")
 	})
@@ -453,7 +453,7 @@ func TestCheckTransitionConsistentWithVerified(t *testing.T) {
 	t.Run("requires: invalid verifiedDB short-circuits", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		i.verifiedDB.lastTimestamp = 999
+		i.verifiedDB.concrete().lastTimestamp = 999
 		err := CheckTransitionConsistentWithVerified(i, dafnySyncedAdvance())
 		require.ErrorContains(t, err, "requires verifiedDB.Valid()")
 	})

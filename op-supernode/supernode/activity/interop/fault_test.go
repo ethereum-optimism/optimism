@@ -75,6 +75,57 @@ func (f *fault) gate(method string) error {
 	return errInjectedFault
 }
 
+// faultVerifiedDB wraps a real *VerifiedDB and gates the fault-target methods
+// before delegating. Embedding forwards the rest (Has/First/Last/Close) and
+// inherits concrete(), which returns the inner real DB so the Dafny oracle's
+// white-box reads bypass the gate.
+type faultVerifiedDB struct {
+	*VerifiedDB
+	f *fault
+}
+
+func (w *faultVerifiedDB) Commit(result VerifiedResult) error {
+	if err := w.f.gate("Commit"); err != nil {
+		return err
+	}
+	return w.VerifiedDB.Commit(result)
+}
+
+func (w *faultVerifiedDB) Get(ts uint64) (VerifiedResult, error) {
+	if err := w.f.gate("Get"); err != nil {
+		return VerifiedResult{}, err
+	}
+	return w.VerifiedDB.Get(ts)
+}
+
+func (w *faultVerifiedDB) Rewind(timestamp uint64) (bool, error) {
+	if err := w.f.gate("Rewind"); err != nil {
+		return false, err
+	}
+	return w.VerifiedDB.Rewind(timestamp)
+}
+
+func (w *faultVerifiedDB) SetPendingTransition(pending PendingTransition) error {
+	if err := w.f.gate("SetPendingTransition"); err != nil {
+		return err
+	}
+	return w.VerifiedDB.SetPendingTransition(pending)
+}
+
+func (w *faultVerifiedDB) GetPendingTransition() (*PendingTransition, error) {
+	if err := w.f.gate("GetPendingTransition"); err != nil {
+		return nil, err
+	}
+	return w.VerifiedDB.GetPendingTransition()
+}
+
+func (w *faultVerifiedDB) ClearPendingTransition() error {
+	if err := w.f.gate("ClearPendingTransition"); err != nil {
+		return err
+	}
+	return w.VerifiedDB.ClearPendingTransition()
+}
+
 // assertFiredIfReachable fails t when the target was hit enough times to fire
 // yet the fault never did — a wiring or recovery regression. A no-op when no
 // fault was armed, or when the target was unreachable this run.
@@ -100,7 +151,7 @@ func armFault(i *Interop, mgr *cc.RandomChainManager, data []byte) *fault {
 	}
 	t := faultTargets[h%uint32(len(faultTargets))]
 	f := &fault{target: t.method, under: t.under, skip: int((h >> 8) % 4)}
-	i.verifiedDB.faultHook = f.gate
+	i.verifiedDB = &faultVerifiedDB{VerifiedDB: i.verifiedDB.concrete(), f: f}
 	for _, rc := range mgr.Chains() {
 		rc.SetEngineFaultHook(f.gate)
 	}

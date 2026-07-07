@@ -111,7 +111,7 @@ func CheckAdvancesVerifiedDB(i *Interop, ts uint64, blocks map[eth.ChainID]eth.B
 	if i == nil {
 		return violation(pred, "0", "Interop is nil")
 	}
-	if err := CheckVerifiedDBValid(i.verifiedDB); err != nil {
+	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
 		return fmt.Errorf("%s requires verifiedDB.Valid(): %w", pred, err)
 	}
 	return checkAdvancesVerifiedDB(i, ts, blocks)
@@ -220,7 +220,7 @@ func AssertAdvancesAllLogsDBs(t dafnyT, i *Interop, ts uint64, blocks map[eth.Ch
 // callers have already checked i for nil.
 func checkPlanConsistentWithVerified(i *Interop, plan RewindPlan) error {
 	const pred = "Interop.dfy PlanConsistentWithVerified"
-	if i.verifiedDB == nil || i.verifiedDB.db == nil {
+	if i.verifiedDB == nil || i.verifiedDB.concrete() == nil || i.verifiedDB.concrete().db == nil {
 		return violation(pred, "0", "VerifiedDB has no underlying store")
 	}
 	if plan.ResetAllChainsTo == nil {
@@ -228,7 +228,7 @@ func checkPlanConsistentWithVerified(i *Interop, plan RewindPlan) error {
 	}
 	ts := *plan.ResetAllChainsTo
 
-	db, err := i.verifiedDB.allVerified()
+	db, err := i.verifiedDB.concrete().allVerified()
 	if err != nil {
 		return violation(pred, "0", "enumerate verified bucket: %v", err)
 	}
@@ -365,7 +365,7 @@ func checkRewoundVerifiedDB(i *Interop, plan RewindPlan) error {
 	}
 
 	if plan.ResetAllChainsTo == nil {
-		db, derr := i.verifiedDB.allVerified()
+		db, derr := i.verifiedDB.concrete().allVerified()
 		switch {
 		case derr != nil:
 			errs = append(errs, violation(pred, "0", "enumerate verified bucket: %v", derr))
@@ -413,7 +413,7 @@ func CheckRewoundVerifiedDB(i *Interop, plan RewindPlan) error {
 	if i == nil {
 		return violation(pred, "0", "Interop is nil")
 	}
-	if i.verifiedDB == nil || i.verifiedDB.db == nil {
+	if i.verifiedDB == nil || i.verifiedDB.concrete() == nil || i.verifiedDB.concrete().db == nil {
 		return violation(pred, "0", "VerifiedDB has no underlying store")
 	}
 	if err := checkPlanConsistentWithVerified(i, plan); err != nil {
@@ -537,7 +537,7 @@ func CheckTransitionConsistentWithVerified(i *Interop, pending PendingTransition
 	if i == nil {
 		return violation(pred, "0", "Interop is nil")
 	}
-	if err := CheckVerifiedDBValid(i.verifiedDB); err != nil {
+	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
 		return fmt.Errorf("%s requires verifiedDB.Valid(): %w", pred, err)
 	}
 	if err := CheckValidPendingTransition(modelParamsFromInterop(i), pending); err != nil {

@@ -162,7 +162,7 @@ type Interop struct {
 
 	messageExpiryWindow uint64
 
-	verifiedDB *VerifiedDB
+	verifiedDB verifiedStore
 	logsDBs    map[eth.ChainID]LogsDB
 
 	mu      sync.RWMutex

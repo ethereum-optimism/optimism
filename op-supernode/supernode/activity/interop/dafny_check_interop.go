@@ -78,14 +78,14 @@ func CheckInteropValid(i *Interop) error {
 	}
 
 	// Conjuncts (4)-(8) all read the verifiedDB store.
-	if i.verifiedDB == nil || i.verifiedDB.db == nil {
+	if i.verifiedDB == nil || i.verifiedDB.concrete() == nil || i.verifiedDB.concrete().db == nil {
 		errs = append(errs, violation(pred, "4", "VerifiedDB has no underlying store"))
 		return errors.Join(errs...)
 	}
 
-	if err := CheckVerifiedDBValid(i.verifiedDB); err != nil {
+	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
 		errs = append(errs, fmt.Errorf("%s conjunct (4): %w", pred, err))
-	} else if db, dbErr := i.verifiedDB.allVerified(); dbErr != nil {
+	} else if db, dbErr := i.verifiedDB.concrete().allVerified(); dbErr != nil {
 		errs = append(errs, violation(pred, "4", "enumerate verified bucket: %v", dbErr))
 	} else {
 		if _, initialized := i.verifiedDB.LastTimestamp(); initialized {
@@ -144,7 +144,7 @@ func CheckDBsInSyncUpTo(i *Interop, chainID eth.ChainID, upper uint64) error {
 	if i == nil {
 		return violation(pred, "0", "Interop is nil")
 	}
-	if i.verifiedDB == nil || i.verifiedDB.db == nil {
+	if i.verifiedDB == nil || i.verifiedDB.concrete() == nil || i.verifiedDB.concrete().db == nil {
 		return violation(pred, "0", "VerifiedDB has no underlying store")
 	}
 	db, ok := i.logsDBs[chainID]
@@ -252,7 +252,7 @@ func CheckDBsInSync(i *Interop, chainID eth.ChainID) error {
 	if i == nil {
 		return violation(pred, "0", "Interop is nil")
 	}
-	if err := CheckVerifiedDBValid(i.verifiedDB); err != nil {
+	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
 		return fmt.Errorf("%s requires verifiedDB.Valid(): %w", pred, err)
 	}
 	return checkDBsInSync(i, chainID)
@@ -300,7 +300,7 @@ func CheckAllDBsInSync(i *Interop) error {
 	if i == nil {
 		return violation(pred, "0", "Interop is nil")
 	}
-	if err := CheckVerifiedDBValid(i.verifiedDB); err != nil {
+	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
 		return fmt.Errorf("%s requires verifiedDB.Valid(): %w", pred, err)
 	}
 	var errs []error
