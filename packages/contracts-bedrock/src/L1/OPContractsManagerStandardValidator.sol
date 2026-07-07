@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 2.10.3
-    string public constant version = "2.10.3";
+    /// @custom:semver 2.10.4
+    string public constant version = "2.10.4";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -944,16 +944,6 @@ contract OPContractsManagerStandardValidator is ISemver {
                 _input.proposer,
                 _overrides,
                 "PDDG"
-            );
-            _errors = assertValidPermissionlessDisputeGame(
-                _errors,
-                _input.sysCfg,
-                GameTypes.CANNON,
-                _input.cannonPrestate,
-                _input.l2ChainID,
-                _proxyAdmin,
-                _overrides,
-                "PLDG"
             );
             _errors = assertValidPermissionlessDisputeGame(
                 _errors,

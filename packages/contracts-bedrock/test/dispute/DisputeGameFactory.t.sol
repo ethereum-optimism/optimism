@@ -208,6 +208,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         });
 
         _setGame(gameImpl_, GameTypes.CANNON, immutableArgs);
+        _setGame(gameImpl_, GameTypes.CANNON_KONA, immutableArgs);
     }
 
     function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
