@@ -709,7 +709,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
-        bool permissionlessInitialGameEnabled = false;
+        // The starting anchor root must be set for an initial deployment.
+        if (_isInitialDeployment && _cfg.startingAnchorRoot.root.raw() == bytes32(0)) {
+            revert OPContractsManagerV2_InvalidGameConfigs();
+        }
 
         // Iterate over each provided config and confirm that it matches the game type array.
         // This places a requirement on the user to order the configs properly but that's
@@ -761,12 +764,17 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // If a permissionless game is being enabled the prestate must be not empty, otherwise revert with error.
             if (_cfg.disputeGameConfigs[i].enabled && (isCannonGame || isCannonKonaGame)) {
-                if (_isInitialDeployment) {
-                    permissionlessInitialGameEnabled = true;
+                // TODO(#20912): Remove once deploy pipelines provide real anchor roots.
+                // A permissionless initial deployment must not use the placeholder anchor root.
+                if (
+                    _isInitialDeployment
+                        && _cfg.startingAnchorRoot.root.raw() == Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT
+                ) {
+                    revert OPContractsManagerV2_InvalidGameConfigs();
                 }
 
+                // If a permissionless game is being enabled the prestate must be not empty, otherwise revert.
                 IOPContractsManagerUtils.FaultDisputeGameConfig memory faultGameConfig =
                     abi.decode(_cfg.disputeGameConfigs[i].gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
                 if (faultGameConfig.absolutePrestate.raw() == bytes32(0)) {
@@ -788,20 +796,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
         if (!startingGameTypeFound) {
             revert OPContractsManagerV2_InvalidGameConfigs();
-        }
-
-        if (_isInitialDeployment) {
-            bytes32 startingAnchorRoot = _cfg.startingAnchorRoot.root.raw();
-
-            if (startingAnchorRoot == bytes32(0)) {
-                revert OPContractsManagerV2_InvalidGameConfigs();
-            }
-
-            // TODO(#20912): Remove once deploy pipelines provide real anchor roots.
-            // A permissionless initial deployment must not use the placeholder anchor root.
-            if (permissionlessInitialGameEnabled && startingAnchorRoot == Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT) {
-                revert OPContractsManagerV2_InvalidGameConfigs();
-            }
         }
     }
 
