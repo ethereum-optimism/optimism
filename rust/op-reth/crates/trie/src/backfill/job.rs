@@ -184,7 +184,10 @@ where
 
             let (_, commit_duration) = timed(|| bp.commit())?;
             // Amortize the batch's commit time across the blocks in it so per-block averages
-            // remain comparable across batch sizes.
+            // remain comparable across batch sizes. Note: intermediate `log_progress` lines
+            // fire before this add (inside the inner loop), so per-batch progress lines
+            // under-report `avg_commit` by one batch. The final summary logged after the
+            // outer loop exits is exact.
             phase_totals.commit += commit_duration;
             next_block = batch_end;
         }

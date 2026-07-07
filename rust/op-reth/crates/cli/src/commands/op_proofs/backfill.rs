@@ -6,12 +6,12 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::{
-    ProofsHistoryStorageArgs, ProofsHistoryWindowArg, ProofsStorageVersion,
+    ProofsHistoryBackfillArgs, ProofsHistoryStorageArgs, ProofsHistoryWindowArg,
+    ProofsStorageVersion,
 };
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
-    BackfillJob, DEFAULT_BACKFILL_BATCH_SIZE, OpProofsBackfillStore, OpProofsProviderRO,
-    db::MdbxProofsStorageV2,
+    BackfillJob, OpProofsBackfillStore, OpProofsProviderRO, db::MdbxProofsStorageV2,
 };
 use reth_provider::{
     BlockHashReader, BlockNumReader, ChangeSetReader, DBProvider, DatabaseProviderFactory,
@@ -19,12 +19,6 @@ use reth_provider::{
 };
 use std::sync::Arc;
 use tracing::info;
-
-/// Validate `--proofs-history.backfill-batch-size`. Bounded `1..=100`: see the CLI field.
-fn parse_backfill_batch_size(raw: &str) -> Result<usize, String> {
-    let n: usize = raw.parse().map_err(|e| format!("not a non-negative integer: {e}"))?;
-    if (1..=100).contains(&n) { Ok(n) } else { Err(format!("must be in 1..=100, got {n}")) }
-}
 
 /// Backfills the proofs storage to an older earliest block.
 #[derive(Debug, Parser)]
@@ -41,23 +35,9 @@ pub struct BackfillCommand<C: ChainSpecParser> {
     #[command(flatten)]
     pub proofs_history_window: ProofsHistoryWindowArg,
 
-    /// Use the trie-state snapshot to accelerate per-block reads during
-    /// backfill. If no snapshot exists, one is built at the current
-    /// `earliest` before the backfill loop begins. Requires v2 storage.
-    #[arg(long = "proofs-history.use-snapshot")]
-    pub use_snapshot: bool,
-
-    /// Number of blocks committed per MDBX write transaction (1..=100).
-    ///
-    /// Larger N amortizes commit/fsync; trade-off is higher peak RSS
-    /// and up to N blocks of progress lost on crash.
-    #[arg(
-        long = "proofs-history.backfill-batch-size",
-        value_name = "N",
-        default_value_t = DEFAULT_BACKFILL_BATCH_SIZE,
-        value_parser = parse_backfill_batch_size,
-    )]
-    pub backfill_batch_size: usize,
+    /// Shared backfill flags (batch size + snapshot toggle).
+    #[command(flatten)]
+    pub backfill_args: ProofsHistoryBackfillArgs,
 }
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
@@ -89,8 +69,8 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
                     &provider_factory,
                     storage,
                     self.proofs_history_window.window,
-                    self.use_snapshot,
-                    self.backfill_batch_size,
+                    self.backfill_args.use_snapshot,
+                    self.backfill_args.backfill_batch_size,
                 )?;
             }
         }
