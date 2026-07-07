@@ -20,8 +20,8 @@
     "sourceCodeHash": "0x0ef8461e8bc55314e61e60924465574db17bdf30bbbfe9739b52cac623bba2db"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0x9a704de7a4137faa533a63249c02268512af5ed4e188d2e1057e3d75f3a550de",
-    "sourceCodeHash": "0xeceae49028d9f20fd3606cfe4fecfd076e24773c2c455df00292608f25f4a934"
+    "initCodeHash": "0x6c04d1e2333f52dd27b42bbd889bf3ba6d5edc0670af4514fb1a646566dcc5fb",
+    "sourceCodeHash": "0x8a2409bb3f08ead8a9619a7f54a995aca224f17fc96121cac0e0f2f8531d3cf6"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
     "initCodeHash": "0x02f8cfb0213d614c34c12904f0d06b4f8fad14f7d127b3b780f9d5cc5ebba72a",
@@ -180,8 +180,8 @@
     "sourceCodeHash": "0x2cc9c53d544e5715e38a50ad266551fe7b0f05488e7a66f3f70bca618fbd7fc7"
   },
   "src/dispute/zk/ZKDisputeGame.sol:ZKDisputeGame": {
-    "initCodeHash": "0x66e573b7b42ba3b9addc46340bb3ca3ac21ae08496c13c14689dc48ab740a882",
-    "sourceCodeHash": "0xf193a08ff3404656cfe7ab74fd31d9acafe127fe5717f25635e06b003c6d8094"
+    "initCodeHash": "0x215801f4d42de7076f376c4cb67d0a19431c793635b42b18687ce53508fb9c9b",
+    "sourceCodeHash": "0xfd830061ff6bddb8c3f8fe34bfd8714a4bb6785f44864e29b723ab56273533ea"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
     "initCodeHash": "0x2e0ef4c341367eb59cc6c25190c64eff441d3fe130189da91d4d126f6bdbc9b5",

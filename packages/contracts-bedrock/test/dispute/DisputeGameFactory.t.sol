@@ -9,6 +9,7 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
+import { LibClone } from "@solady/utils/LibClone.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
@@ -1062,6 +1063,33 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
         vm.expectRevert(abi.encodeWithSelector(GameAlreadyExists.selector, uuid));
         vm.prank(proposer);
         disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rc, ed);
+    }
+
+    /// @notice Regression guard for the LibClone immutable-args length-overflow finding from the Solady audit
+    ///         here: https://cantina.xyz/portfolio/018cf146-6e36-49a9-82b3-9ae39904f95a
+    ///         CWIA clones must revert and not silently deploy a corrupted, codeless proxy that
+    ///         permanently traps the bond when the appended args exceed the 2-byte length field.
+    function test_create_oversizedExtraData_reverts() public {
+        // Register both game implementations on the factory.
+        setupZKDisputeGame(defaultZKParams);
+        setupSuperFaultDisputeGame(Claim.wrap(bytes32(0)));
+
+        // Create a ton of extra data, far past the 2-byte CWIA length limit.
+        bytes memory oversizedExtraData = new bytes(0xe0000);
+        Claim rootClaim = Claim.wrap(keccak256("rootClaim"));
+        vm.deal(address(this), 10 ether);
+
+        // ZK dispute game: the clone must revert instead of deploying a codeless proxy.
+        vm.expectRevert(LibClone.DeploymentFailed.selector);
+        disputeGameFactory.create{ value: defaultZKParams.challengerBond }(
+            GameTypes.ZK_DISPUTE_GAME, rootClaim, oversizedExtraData
+        );
+
+        // Super fault dispute game: same guarantee.
+        vm.expectRevert(LibClone.DeploymentFailed.selector);
+        disputeGameFactory.create{ value: DEFAULT_DISPUTE_GAME_INIT_BOND }(
+            GameTypes.SUPER_CANNON, rootClaim, oversizedExtraData
+        );
     }
 }
 
