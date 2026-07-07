@@ -108,10 +108,11 @@ func FuzzInteropInvalid(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		i, mgr := buildInterop(t, data)
-		// Compose a transient verifiedDB fault on top of the run: it fires once,
-		// during a production call, and must be recovered transparently
-		// (recordStep/observeStep) without changing the verifier's outcome.
-		fault := armDBFault(i, data)
+		// Compose a transient fault (a verifiedDB WAL method or an engine
+		// l2Provider method) on top of the run: it fires once, during a production
+		// call, and must be recovered transparently (recordStep/observeStep via
+		// pending-tx replay) without changing the verifier's outcome.
+		fault := armFault(i, mgr, data)
 		defer fault.assertFiredIfReachable(t)
 		assertRoundValid(t, i)
 
