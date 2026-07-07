@@ -54,10 +54,6 @@ import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManager
 ///      design. Look at _apply, squint, and imagine that it can output an upgrade plan rather than
 ///      actually executing the upgrade, and then you'll see how it can be improved.
 contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
-    // TODO(#20912): Remove once deploy pipelines provide real anchor roots.
-    /// @notice Placeholder anchor root historically used for permissioned initial deployments.
-    bytes32 internal constant PLACEHOLDER_STARTING_ANCHOR_ROOT = bytes32(hex"dead");
-
     /// @notice Contracts that represent the Superchain system.
     struct SuperchainContracts {
         ISuperchainConfig superchainConfig;
@@ -801,7 +797,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            if (permissionlessInitialGameEnabled && startingAnchorRoot == PLACEHOLDER_STARTING_ANCHOR_ROOT) {
+            // TODO(#20912): Remove once deploy pipelines provide real anchor roots.
+            // A permissionless initial deployment must not use the placeholder anchor root.
+            if (permissionlessInitialGameEnabled && startingAnchorRoot == Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
         }
