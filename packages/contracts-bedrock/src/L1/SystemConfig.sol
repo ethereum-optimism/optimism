@@ -92,8 +92,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Storage slot that the OPCM address is stored at.
     bytes32 public constant OPCM_SLOT = bytes32(uint256(keccak256("systemconfig.opcm")) - 1);
 
-    /// @notice Storage slot that the batch inbox address is stored at.
-    bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
+    /// @notice Legacy storage slot that the batch inbox address was stored at.
+    bytes32 internal constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
@@ -174,9 +174,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.14.2
+    /// @custom:semver 4.0.0
     function version() public pure virtual returns (string memory) {
-        return "3.14.2";
+        return "4.0.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -196,8 +196,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @param _gasLimit          Initial gas limit.
     /// @param _unsafeBlockSigner Initial unsafe block signer address.
     /// @param _config            Initial ResourceConfig.
-    /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
-    ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     /// @param _l2ChainId         The L2 chain ID that this SystemConfig configures.
     /// @param _superchainConfig  The SuperchainConfig contract address.
@@ -209,7 +207,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         IResourceMetering.ResourceConfig memory _config,
-        address _batchInbox,
         SystemConfig.Addresses memory _addresses,
         uint256 _l2ChainId,
         ISuperchainConfig _superchainConfig
@@ -230,7 +227,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         _setGasLimit(_gasLimit);
 
         Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
-        Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
+        Storage.setAddress(BATCH_INBOX_SLOT, address(0));
         Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
         Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
         Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
@@ -329,11 +326,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
             delayedWETH: delayedWETH(),
             opcm: lastUsedOPCM()
         });
-    }
-
-    /// @notice Getter for the BatchInbox address.
-    function batchInbox() external view returns (address addr_) {
-        addr_ = Storage.getAddress(BATCH_INBOX_SLOT);
     }
 
     /// @notice Getter for the StartBlock number.

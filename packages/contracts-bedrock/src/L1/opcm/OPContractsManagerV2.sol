@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.1.23
+    /// @custom:semver 7.1.24
     function version() public pure returns (string memory) {
-        return "7.1.23";
+        return "7.1.24";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -1010,7 +1010,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 _cfg.gasLimit,
                 _cfg.unsafeBlockSigner,
                 _cfg.resourceConfig,
-                _chainIdToBatchInboxAddress(_cfg.l2ChainId),
                 addrs,
                 _cfg.l2ChainId,
                 _cfg.superchainConfig

@@ -35,7 +35,6 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     event Initialized(uint8 version);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    function BATCH_INBOX_SLOT() external view returns (bytes32);
     function L1_CROSS_DOMAIN_MESSENGER_SLOT() external view returns (bytes32);
     function L1_ERC_721_BRIDGE_SLOT() external view returns (bytes32);
     function L1_STANDARD_BRIDGE_SLOT() external view returns (bytes32);
@@ -47,7 +46,6 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function OPCM_SLOT() external view returns (bytes32);
     function VERSION() external view returns (uint256);
     function basefeeScalar() external view returns (uint32);
-    function batchInbox() external view returns (address addr_);
     function batcherHash() external view returns (bytes32);
     function blobbasefeeScalar() external view returns (uint32);
     function disputeGameFactory() external view returns (address addr_);
@@ -63,7 +61,6 @@ interface ISystemConfig is IProxyAdminOwnedBase {
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         IResourceMetering.ResourceConfig memory _config,
-        address _batchInbox,
         Addresses memory _addresses,
         uint256 _l2ChainId,
         ISuperchainConfig _superchainConfig

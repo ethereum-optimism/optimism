@@ -185,7 +185,6 @@ contract Initializer_Test is CommonTest {
                             systemTxMaxGas: 0,
                             maximumBaseFee: 0
                         }),
-                        address(0),
                         ISystemConfig.Addresses({
                             l1CrossDomainMessenger: address(0),
                             l1ERC721Bridge: address(0),
@@ -223,7 +222,6 @@ contract Initializer_Test is CommonTest {
                             systemTxMaxGas: 0,
                             maximumBaseFee: 0
                         }),
-                        address(0),
                         ISystemConfig.Addresses({
                             l1CrossDomainMessenger: address(0),
                             l1ERC721Bridge: address(0),

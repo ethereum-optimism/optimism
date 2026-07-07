@@ -6847,7 +6847,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "The Batch Inbox Address (Can be changed in the `SystemConfig`. The RollupConfig's value is _only_ the value at genesis, and may not be the chain's current batch inbox.)",
+          "description": "The Batch Inbox Address. The rollup config is the source of truth for this value.",
           "fieldConfig": {
             "defaults": {
               "color": {

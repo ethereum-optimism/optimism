@@ -25,7 +25,6 @@ abstract contract SystemConfig_TestInit is CommonTest {
 
     bytes32 public constant EXAMPLE_FEATURE = "EXAMPLE_FEATURE";
 
-    address batchInbox;
     address owner;
     bytes32 batcherHash;
     uint64 gasLimit;
@@ -35,9 +34,10 @@ abstract contract SystemConfig_TestInit is CommonTest {
     uint32 basefeeScalar;
     uint32 blobbasefeeScalar;
 
+    bytes32 internal constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
+
     function setUp() public virtual override {
         super.setUp();
-        batchInbox = deploy.cfg().batchInboxAddress();
         owner = deploy.cfg().finalSystemOwner();
         basefeeScalar = deploy.cfg().basefeeScalar();
         blobbasefeeScalar = deploy.cfg().blobbasefeeScalar();
@@ -81,7 +81,7 @@ contract SystemConfig_Constructor_Test is SystemConfig_TestInit {
         assertEq(actual.systemTxMaxGas, 0);
         assertEq(actual.maximumBaseFee, 0);
         assertEq(impl.startBlock(), type(uint256).max);
-        assertEq(address(impl.batchInbox()), address(0));
+        assertEq(vm.load(address(impl), BATCH_INBOX_SLOT), bytes32(0));
         // Check addresses
         assertEq(address(impl.l1CrossDomainMessenger()), address(0));
         assertEq(address(impl.l1ERC721Bridge()), address(0));
@@ -128,7 +128,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         // Depends on start block being set to 0 in `initialize`
         uint256 cfgStartBlock = deploy.cfg().systemConfigStartBlock();
         assertEq(systemConfig.startBlock(), (cfgStartBlock == 0 ? block.number : cfgStartBlock));
-        assertEq(address(systemConfig.batchInbox()), address(batchInbox));
+        assertEq(vm.load(address(systemConfig), BATCH_INBOX_SLOT), bytes32(0));
 
         // Check address getters both for the single contract getter and the struct getter
         ISystemConfig.Addresses memory addrs = systemConfig.getAddresses();
@@ -145,11 +145,45 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         assertNotEq(systemConfig.l2ChainId(), 0);
     }
 
+    /// @notice Tests that initialization clears the legacy batch inbox slot.
+    function test_initialize_clearsLegacyBatchInboxSlot_succeeds() external {
+        bytes32 legacyBatchInbox = bytes32(uint256(uint160(address(0xBEEF))));
+        vm.store(address(systemConfig), BATCH_INBOX_SLOT, legacyBatchInbox);
+        assertEq(vm.load(address(systemConfig), BATCH_INBOX_SLOT), legacyBatchInbox);
+
+        // Wipe out the initialized slot so the proxy can be initialized again.
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+
+        vm.prank(address(systemConfig.proxyAdmin()));
+        systemConfig.initialize({
+            _owner: alice,
+            _basefeeScalar: basefeeScalar,
+            _blobbasefeeScalar: blobbasefeeScalar,
+            _batcherHash: bytes32(hex"abcd"),
+            _gasLimit: gasLimit,
+            _unsafeBlockSigner: address(1),
+            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
+            _addresses: ISystemConfig.Addresses({
+                l1CrossDomainMessenger: address(0),
+                l1ERC721Bridge: address(0),
+                l1StandardBridge: address(0),
+                optimismPortal: address(0),
+                optimismMintableERC20Factory: address(0),
+                delayedWETH: address(0),
+                opcm: address(0)
+            }),
+            _l2ChainId: 1234,
+            _superchainConfig: ISuperchainConfig(address(0))
+        });
+
+        assertEq(vm.load(address(systemConfig), BATCH_INBOX_SLOT), bytes32(0));
+    }
+
     /// @notice Tests that initialization reverts if the gas limit is too low.
     function test_initialize_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = systemConfig.minimumGasLimit();
 
-        // Wipe out the initialized slot so the proxy can be initialized again
+        // Wipe out the initialized slot so the proxy can be initialized again.
         vm.store(address(systemConfig), bytes32(0), bytes32(0));
 
         address admin = address(uint160(uint256(vm.load(address(systemConfig), Constants.PROXY_OWNER_ADDRESS))));
@@ -164,7 +198,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
             _gasLimit: minimumGasLimit - 1,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -222,7 +255,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
             _gasLimit: minimumGasLimit - 1,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -258,7 +290,6 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -291,7 +322,6 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -608,7 +638,6 @@ contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(0),
             _config: config,
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),

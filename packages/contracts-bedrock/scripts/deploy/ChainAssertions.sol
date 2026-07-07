@@ -17,7 +17,6 @@ import { Blueprint } from "src/libraries/Blueprint.sol";
 import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { Hash } from "src/dispute/lib/Types.sol";
 // Interfaces
-import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -35,11 +34,11 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
-import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IZKDisputeGame } from "interfaces/dispute/zk/IZKDisputeGame.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+    bytes32 internal constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
     /// @notice Checks that a call to the proxyAdmin function on a contract that follows the ProxyAdminOwnedBase
     /// interface fails.
@@ -80,7 +79,7 @@ library ChainAssertions {
         require(resourceConfig.maximumBaseFee == 0, "CHECK-SCFG-350");
         // Check _addresses
         require(config.startBlock() == type(uint256).max, "CHECK-SCFG-360");
-        require(config.batchInbox() == address(0), "CHECK-SCFG-370");
+        require(vm.load(address(config), BATCH_INBOX_SLOT) == bytes32(0), "CHECK-SCFG-370");
         require(config.l1CrossDomainMessenger() == address(0), "CHECK-SCFG-380");
         require(config.l1ERC721Bridge() == address(0), "CHECK-SCFG-390");
         require(config.l1StandardBridge() == address(0), "CHECK-SCFG-400");
@@ -111,12 +110,7 @@ library ChainAssertions {
         require(config.scalar() >> 248 == 1, "CHECK-SCFG-70");
         // Depends on start block being set to 0 in `initialize`
         require(config.startBlock() == block.number, "CHECK-SCFG-140");
-        require(
-            config.batchInbox()
-                == IOPContractsManagerUtils(IOPContractsManagerV2(address(_doi.opcm)).opcmUtils())
-                    .chainIdToBatchInboxAddress(_doi.l2ChainId),
-            "CHECK-SCFG-150"
-        );
+        require(vm.load(address(config), BATCH_INBOX_SLOT) == bytes32(0), "CHECK-SCFG-150");
         // Check _addresses
         require(config.l1CrossDomainMessenger() == _contracts.L1CrossDomainMessenger, "CHECK-SCFG-160");
         require(config.l1ERC721Bridge() == _contracts.L1ERC721Bridge, "CHECK-SCFG-170");
