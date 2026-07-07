@@ -641,7 +641,28 @@ type RandomChain struct {
 	fcApplied                     bool
 	fcUnsafe, fcSafe, fcFinalized eth.L2BlockRef
 
+	// engineFaultHook, when non-nil, is consulted at the top of each l2Provider
+	// method (named by the argument) before any state changes; a non-nil return
+	// aborts the call. Test-only fault injection; nil in production.
+	engineFaultHook func(method string) error
+
 	running atomic.Bool
+}
+
+// SetEngineFaultHook installs a fault hook consulted by the l2Provider methods.
+// Test-only; pass nil to clear.
+func (rc *RandomChain) SetEngineFaultHook(hook func(method string) error) {
+	rc.engineFaultHook = hook
+}
+
+// injectEngineFault returns the hook's verdict for method, or nil when unset.
+// No lock: the hook is set once before the single-goroutine harness run, like
+// VerifiedDB.faultHook.
+func (rc *RandomChain) injectEngineFault(method string) error {
+	if rc.engineFaultHook == nil {
+		return nil
+	}
+	return rc.engineFaultHook(method)
 }
 
 // firstVerifiable returns the first block verification can reach: the lowest
@@ -832,6 +853,9 @@ func (rc *RandomChain) L2BlockRefByLabel(ctx context.Context, label eth.BlockLab
 }
 
 func (rc *RandomChain) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	if err := rc.injectEngineFault("L2BlockRefByNumber"); err != nil {
+		return eth.L2BlockRef{}, err
+	}
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
 	if num >= uint64(len(rc.l2)) {
@@ -860,6 +884,9 @@ func (rc *RandomChain) OutputV0AtBlock(ctx context.Context, blockHash common.Has
 }
 
 func (rc *RandomChain) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	if err := rc.injectEngineFault("PayloadByNumber"); err != nil {
+		return nil, err
+	}
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
 	if number >= uint64(len(rc.l2)) {
@@ -891,6 +918,9 @@ func (rc *RandomChain) refForHash(h common.Hash) eth.L2BlockRef {
 }
 
 func (rc *RandomChain) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	if err := rc.injectEngineFault("ForkchoiceUpdate"); err != nil {
+		return nil, err
+	}
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 	rc.fcApplied = true
@@ -903,6 +933,9 @@ func (rc *RandomChain) ForkchoiceUpdate(ctx context.Context, state *eth.Forkchoi
 }
 
 func (rc *RandomChain) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	if err := rc.injectEngineFault("NewPayload"); err != nil {
+		return nil, err
+	}
 	return &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil
 }
 
