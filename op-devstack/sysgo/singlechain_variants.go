@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -165,6 +166,125 @@ func NewSingleChainOpConSequencerP2PRuntime(t devtest.T, cfg PresetConfig) *Sing
 	return runtime
 }
 
+// NewSingleChainOpConSequencerFanOutP2PRuntime extends the op-con-node
+// sequencer P2P topology to fan a single signed unsafe-block feed out to TWO
+// verifiers over gossip: a stock op-node ("hub", real gossip stack) and an
+// op-con-node fronted by a receive sidecar ("b", the assertion target). It
+// exercises the FULL op-con↔op-con loop — op-con-node signs and publishes, the
+// publish sidecar gossips, a receive sidecar delegates the verdict back to an
+// op-con-node verifier — in one topology, alongside op-con→op-node.
+//
+// The publish sidecar floodpublishes DIRECTLY to both the op-node hub and the
+// receive sidecar (not via mesh relay), so the very first block reaches both —
+// essential here because there is no batcher to backfill an unsafe gap. The
+// op-node hub doubles as the readiness oracle: once it reports both sidecars as
+// connected peers, the gossip routes exist and the sequencer is started.
+func NewSingleChainOpConSequencerFanOutP2PRuntime(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	t.Require().Equal(MixedL2CLOpCon, devstackL2CLKind(),
+		"the op-con-node sequencer fan-out P2P preset requires DEVSTACK_L2CL_KIND=op-con-node")
+
+	runtime := newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
+		BuildWorld:   newDefaultSingleChainWorld,
+		StartPrimary: startOpConSequencerPrimary,
+		StartBatcher: false, // unsafe-head propagation over gossip is the surface
+	})
+
+	// The expected unsafe-block signer for the op-con-node verifier's verdict
+	// (the op-node hub uses the on-chain SystemConfig value). Set by the primary
+	// starter already, but assert it is present for clarity.
+	addrFor := intentbuilder.RoleToAddrProvider(t, runtime.Keys, runtime.L2Network.ChainID())
+	t.Require().Equal(addrFor(devkeys.SequencerP2PRole).Hex(), os.Getenv("DEVSTACK_OPCON_UNSAFE_SIGNER"),
+		"sequencer signer env must match the SystemConfig unsafe-block signer")
+
+	opcon, ok := runtime.L2CL.(*OpConNode)
+	t.Require().True(ok, "primary sequencer must be op-con-node")
+	t.Require().NotEmpty(opcon.SignedPayloadWS(), "op-con-node sequencer must serve the signed-payload ws")
+
+	// Gossip hub: a stock op-node verifier with its own gossip stack. It is the
+	// publish sidecar's readiness oracle (queryable peer count) and an
+	// independent op-node receiver of the same feed.
+	hub := addSingleChainForcedOpNodeVerifier(t, runtime, "hub", cfg.GlobalL2CLOptions...)
+	hubAddr := SequencerGossipMultiaddr(t, hub.CL)
+
+	// op-con-node verifier "b" (the assertion target), fronted by a receive
+	// sidecar. The sidecar dials the hub so the hub counts it as a peer
+	// (readiness), and is itself dialed directly by the publish sidecar (block
+	// delivery). Node "b" has no follow source: its unsafe head can only come
+	// from gossip via this sidecar.
+	rollupPath := writeStandardRollupConfig(t, runtime.L2Network)
+	nodeB := addSingleChainOpNode(t, runtime, "b", false, "", cfg.GlobalL2CLOptions...)
+	recvSidecar := StartOpConP2PSidecar(t, "op-conp2p-recv-b", nodeB.CL.UserRPC(), rollupPath, hubAddr)
+
+	// Publish sidecar: bridge the sequencer's signed feed onto gossip, dialing
+	// BOTH receivers directly so floodpublish delivers block 1 to each.
+	StartOpConP2PSidecar(t, "op-conp2p-pub", opcon.UserRPC(), rollupPath,
+		strings.Join([]string{hubAddr, recvSidecar.GossipMultiaddr()}, ","),
+		WithSignedPayloadWS(opcon.SignedPayloadWS()),
+		WithFloodPublish(),
+	)
+
+	// Both sidecars connected to the hub ⇒ the gossip routes are live. Start
+	// sequencing only then, so no early block is published into a dead network.
+	awaitCLPeerCount(t, hub.CL, 2)
+	startOpConSequencer(t, opcon)
+
+	runtime.P2PEnabled = false
+	return runtime
+}
+
+// NewSingleChainOpConSequencerP2PWrongSignerRuntime is the negative security
+// variant of NewSingleChainOpConSequencerP2PRuntime: the op-con-node sequencer
+// signs each unsafe block with a key that is NOT the deployed SystemConfig
+// unsafe-block signer. The publish sidecar relays the (validly-hash-guarded but
+// wrongly-signed) envelope onto gossip verbatim, and the stock op-node verifier
+// must REJECT it in gossip validation (signature attribution failure) — so the
+// verifier's unsafe head must NOT advance even though the sequencer's own head
+// does.
+func NewSingleChainOpConSequencerP2PWrongSignerRuntime(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	t.Require().Equal(MixedL2CLOpCon, devstackL2CLKind(),
+		"the op-con-node sequencer P2P preset requires DEVSTACK_L2CL_KIND=op-con-node")
+
+	// A fixed key that is deliberately NOT any deployed role key, so its address
+	// is not the SystemConfig unsafe-block signer. Blocks signed with it must be
+	// rejected by the verifier.
+	const wrongSignerKeyHex = "1111111111111111111111111111111111111111111111111111111111111111"
+
+	runtime := newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
+		BuildWorld: newDefaultSingleChainWorld,
+		StartPrimary: func(t devtest.T, keys devkeys.Keys, world singleChainRuntimeWorld,
+			l1EL *L1Geth, l1CL *L1CLNode, jwtPath string, jwtSecret [32]byte, cfg PresetConfig) singleChainPrimaryRuntime {
+			// Seed the verifier's expected signer to the CORRECT (SystemConfig)
+			// address, so the rejection is due to the wrong signature — not a
+			// misconfigured expectation.
+			secret, err := keys.Secret(devkeys.SequencerP2PRole.Key(world.L2Network.ChainID().ToBig()))
+			t.Require().NoError(err, "derive SequencerP2PRole secret")
+			t.Require().NoError(os.Setenv("DEVSTACK_OPCON_UNSAFE_SIGNER",
+				crypto.PubkeyToAddress(secret.PublicKey).Hex()), "seed expected signer env")
+			return startOpConSequencerPrimaryWithSignerKey(t, world, l1EL, l1CL, jwtPath, jwtSecret, wrongSignerKeyHex)
+		},
+		StartBatcher: false,
+	})
+
+	nodeB := addSingleChainForcedOpNodeVerifier(t, runtime, "b", cfg.GlobalL2CLOptions...)
+
+	opcon, ok := runtime.L2CL.(*OpConNode)
+	t.Require().True(ok, "primary sequencer must be op-con-node")
+	t.Require().NotEmpty(opcon.SignedPayloadWS(), "op-con-node sequencer must serve the signed-payload ws")
+
+	rollupPath := writeStandardRollupConfig(t, runtime.L2Network)
+	StartOpConP2PSidecar(t, "op-conp2p-pub", opcon.UserRPC(), rollupPath,
+		SequencerGossipMultiaddr(t, nodeB.CL),
+		WithSignedPayloadWS(opcon.SignedPayloadWS()),
+		WithFloodPublish(),
+	)
+
+	awaitCLPeerCount(t, nodeB.CL, 1)
+	startOpConSequencer(t, opcon)
+
+	runtime.P2PEnabled = false
+	return runtime
+}
+
 // startOpConSequencerPrimary starts the primary as an op-con-node SEQUENCER
 // (signing + signed-payload websocket) paired with its own execution engine.
 // The signing key is the SequencerP2PRole secret so op-node verifiers accept
@@ -181,16 +301,35 @@ func startOpConSequencerPrimary(
 	jwtSecret [32]byte,
 	cfg PresetConfig,
 ) singleChainPrimaryRuntime {
-	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0))
-
 	secret, err := keys.Secret(devkeys.SequencerP2PRole.Key(world.L2Network.ChainID().ToBig()))
 	t.Require().NoError(err, "derive SequencerP2PRole secret")
+	// Seed the deployed SystemConfig unsafe-block signer as the expected signer
+	// so op-con-node verifiers (and the sequencer's own self-verdict) attribute
+	// the blocks; op-node verifiers use the on-chain value directly.
 	signerAddr := crypto.PubkeyToAddress(secret.PublicKey)
 	t.Require().NoError(os.Setenv("DEVSTACK_OPCON_UNSAFE_SIGNER", signerAddr.Hex()),
 		"seed op-con-node unsafe-block signer env")
+	return startOpConSequencerPrimaryWithSignerKey(t, world, l1EL, l1CL, jwtPath, jwtSecret,
+		hex.EncodeToString(crypto.FromECDSA(secret)))
+}
 
+// startOpConSequencerPrimaryWithSignerKey is startOpConSequencerPrimary with an
+// explicit unsafe-block signing key, so a test can sign with a key OTHER than
+// the deployed SystemConfig signer (the wrong-signer rejection test). It does
+// NOT touch DEVSTACK_OPCON_UNSAFE_SIGNER — the caller owns what the verifier
+// expects.
+func startOpConSequencerPrimaryWithSignerKey(
+	t devtest.T,
+	world singleChainRuntimeWorld,
+	l1EL *L1Geth,
+	l1CL *L1CLNode,
+	jwtPath string,
+	jwtSecret [32]byte,
+	signerKeyHex string,
+) singleChainPrimaryRuntime {
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0))
 	seqSigning := &opConSequencerSigning{
-		signerKeyHex: hex.EncodeToString(crypto.FromECDSA(secret)),
+		signerKeyHex: signerKeyHex,
 		startStopped: true,
 	}
 	l2CL := startMixedOpConNode(t, world.L1Network, world.L2Network, l1EL, l1CL, l2EL,
