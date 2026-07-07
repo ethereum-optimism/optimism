@@ -1178,3 +1178,18 @@ func TestConfig_ActivateAtGenesis(t *testing.T) {
 		require.Zero(t, cfg)
 	})
 }
+
+func TestConfigCurrentFork(t *testing.T) {
+	cfg := &Config{}
+
+	// Empty config defaults to Bedrock.
+	require.Equal(t, forks.Bedrock, cfg.CurrentFork())
+
+	cfg.SetActivationTime(forks.Delta, new(uint64(100)))
+	require.Equal(t, forks.Delta, cfg.CurrentFork())
+	cfg.SetActivationTime(forks.Ecotone, new(uint64(100)))
+	require.Equal(t, forks.Ecotone, cfg.CurrentFork())
+	// CurrentFork expects the config to be valid: newer forks having older timestamps is ignored.
+	cfg.SetActivationTime(forks.Karst, new(uint64(50)))
+	require.Equal(t, forks.Karst, cfg.CurrentFork())
+}

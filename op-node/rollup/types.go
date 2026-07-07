@@ -608,6 +608,19 @@ func (c *Config) IsLagoonActivationBlock(l2BlockTime uint64) bool {
 		!c.IsLagoon(l2BlockTime-c.BlockTime)
 }
 
+// CurrentFork returns the most recent fork based on the chronological order defined in forks.All.
+func (c *Config) CurrentFork() forks.Name {
+	// ActivationTime panics on Bedrock, so we use > 0 instead of >= 0 and return forks.Bedrock at
+	// the end.
+	for i := len(forks.All) - 1; i > 0; i-- {
+		fork := forks.All[i]
+		if timestamp := c.ActivationTime(fork); timestamp != nil {
+			return fork
+		}
+	}
+	return forks.Bedrock // Should never hit this since we will hit the error case above.
+}
+
 func (c *Config) ActivationTime(fork ForkName) *uint64 {
 	// NEW FORKS MUST BE ADDED HERE
 	switch fork {

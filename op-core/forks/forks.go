@@ -62,6 +62,10 @@ func From(start Name) []Name {
 	panic(fmt.Sprintf("invalid fork: %s", start))
 }
 
+func (fork Name) IsBefore(other Name) bool {
+	return len(From(other)) < len(From(fork))
+}
+
 var next, prev = func() (map[Name]Name, map[Name]Name) {
 	n := make(map[Name]Name, len(All))
 	p := make(map[Name]Name, len(All))

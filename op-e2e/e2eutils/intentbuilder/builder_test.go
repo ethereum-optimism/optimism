@@ -185,6 +185,12 @@ func TestBuilder(t *testing.T) {
 					"l2GenesisGraniteTimeOffset":  hexutil.Uint64(0),
 					"l2GenesisHoloceneTimeOffset": hexutil.Uint64(0),
 					"l2GenesisIsthmusTimeOffset":  hexutil.Uint64(isthmusOffset),
+					// Forks after the genesis fork are explicitly deactivated
+					// with a null override so they don't fall back to the
+					// deployer's default hardfork schedule.
+					"l2GenesisJovianTimeOffset": (*hexutil.Uint64)(nil),
+					"l2GenesisKarstTimeOffset":  (*hexutil.Uint64)(nil),
+					"l2GenesisLagoonTimeOffset": (*hexutil.Uint64)(nil),
 				},
 				L2DevGenesisParams: &state.L2DevGenesisParams{
 					Prefund: map[common.Address]*hexutil.U256{

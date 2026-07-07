@@ -521,13 +521,24 @@ func (c *l2Configurator) WithKeepKarstUpgradeGas() {
 
 func (c *l2Configurator) WithForkAtOffset(fork opforks.Name, offset *uint64) {
 	require.True(c.t, opforks.IsValid(fork))
-	key := fmt.Sprintf("l2Genesis%sTimeOffset", cases.Title(language.English).String(string(fork)))
+	forkToKey := func(f opforks.Name) string {
+		return fmt.Sprintf("l2Genesis%sTimeOffset", cases.Title(language.English).String(string(f)))
+	}
 
+	// The typing is important, or op-deployer merge-JSON tricks will fail.
+	//
+	// A nil offset writes an explicit null override rather than removing the key.
+	// Removing it would fall back to the deployer's default hardfork schedule,
+	// which now activates recent forks at genesis - so callers deactivating a
+	// future fork (e.g. WithForkAtGenesis) must merge a null to override that
+	// default off, not simply omit the override.
+	c.builder.intent.Chains[c.chainIndex].DeployOverrides[forkToKey(fork)] = (*hexutil.Uint64)(offset)
+
+	// If we are deactivating a fork, then we need to also deactivate all subsequent forks.
 	if offset == nil {
-		delete(c.builder.intent.Chains[c.chainIndex].DeployOverrides, key)
-	} else {
-		// The typing is important, or op-deployer merge-JSON tricks will fail
-		c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
+		for _, opFork := range opforks.From(fork) {
+			c.builder.intent.Chains[c.chainIndex].DeployOverrides[forkToKey(opFork)] = (*hexutil.Uint64)(nil)
+		}
 	}
 }
 
