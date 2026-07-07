@@ -77,7 +77,7 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
 
     /// @notice Path B: SuperPermissionedDisputeGame -> ZKDisputeGame (permissioned -> permissionless).
     function test_flip_spdgToZK_succeeds() public {
-        _runFlipAndAssert(GameTypes.SUPER_PERMISSIONED_CANNON);
+        _runFlipAndAssert(GameTypes.SUPER_PERMISSIONED);
     }
 
     /// @notice Drives the full migration for a given source super game type.
@@ -148,7 +148,7 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
 
     /// @notice Registers the source super game implementation in the factory.
     function _registerSourceSuperGame(GameType _sourceSuperType) internal {
-        if (_sourceSuperType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+        if (_sourceSuperType.raw() == GameTypes.SUPER_PERMISSIONED.raw()) {
             // SuperPermissionedDisputeGame resolves DEFENDER_WINS at init. Registered with
             // `flipProposer` as the proposer so the old game can be created from that account.
             setupSuperPermissionedDisputeGame(flipProposer);
@@ -178,7 +178,7 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
     /// @notice Resolves a freshly-created, uncontested source super game to DEFENDER_WINS.
     function _resolveSuperGame(GameType _sourceSuperType, IDisputeGame _game) internal {
         // SuperPermissionedDisputeGame resolves DEFENDER_WINS at init so nothing to do.
-        if (_sourceSuperType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+        if (_sourceSuperType.raw() == GameTypes.SUPER_PERMISSIONED.raw()) {
             return;
         }
         // SuperFaultDisputeGame: warp past the chess clock and resolve the uncontested root.
@@ -199,7 +199,7 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
         _pushDisabled(GameTypes.CANNON);
         _pushDisabled(GameTypes.PERMISSIONED_CANNON);
         _pushDisabled(GameTypes.CANNON_KONA);
-        _pushDisabled(GameTypes.SUPER_PERMISSIONED_CANNON);
+        _pushDisabled(GameTypes.SUPER_PERMISSIONED);
         _pushDisabled(GameTypes.SUPER_CANNON_KONA);
 
         _zkUpgradeInput.disputeGameConfigs.push(
