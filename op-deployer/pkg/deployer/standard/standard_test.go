@@ -24,6 +24,8 @@ func TestDefaultHardforkSchedule(t *testing.T) {
 	require.NotNil(t, sched.HoloceneTime(0))
 	require.NotNil(t, sched.IsthmusTime(0))
 	require.NotNil(t, sched.JovianTime(0))
+	require.NotNil(t, sched.KarstTime(0))
+	require.Nil(t, sched.LagoonTime(0))
 }
 
 func TestStandardAddresses(t *testing.T) {
