@@ -138,6 +138,7 @@ where
             };
 
         if output.is_halt() {
+            result.gas.spend_all();
             result.result = if output.halt_reason().is_some_and(|r| r.is_oog()) {
                 InstructionResult::PrecompileOOG
             } else {
@@ -438,6 +439,46 @@ mod test {
         precompiles
             .accelerated_precompiles
             .insert(ECRECOVER_ADDR, overspending_accelerated_precompile);
+
+        let call_inputs = create_call_inputs(ECRECOVER_ADDR, Bytes::from_static(b"test"), 1000);
+
+        let result = precompiles.run(&mut ctx, &call_inputs).unwrap().unwrap();
+        assert_eq!(result.result, InstructionResult::PrecompileOOG);
+        assert!(result.output.is_empty());
+        assert_eq!(result.gas.remaining(), 0);
+    }
+
+    /// A mock accelerated precompile that halts.
+    fn halting_accelerated_precompile<H, O>(
+        _input: &[u8],
+        _gas_limit: u64,
+        _hint_writer: &H,
+        _oracle_reader: &O,
+    ) -> EthPrecompileResult
+    where
+        H: HintWriterClient + Send + Sync,
+        O: PreimageOracleClient + Send + Sync,
+    {
+        Err(revm::precompile::PrecompileHalt::OutOfGas)
+    }
+
+    #[test]
+    fn test_run_halting_precompile_spends_all_gas() {
+        let (hint_chan, preimage_chan) = (
+            kona_preimage::BidirectionalChannel::new().unwrap(),
+            kona_preimage::BidirectionalChannel::new().unwrap(),
+        );
+        let hint_writer = kona_preimage::HintWriter::new(hint_chan.client);
+        let oracle_reader = kona_preimage::OracleReader::new(preimage_chan.client);
+
+        let mut ctx = create_test_context();
+
+        let mut precompiles =
+            OpFpvmPrecompiles::new_with_spec(OpSpecId::BEDROCK, hint_writer, oracle_reader);
+
+        // A halted precompile must consume all gas, matching revm's
+        // `precompile_output_to_interpreter_result`, rather than leaving gas refundable.
+        precompiles.accelerated_precompiles.insert(ECRECOVER_ADDR, halting_accelerated_precompile);
 
         let call_inputs = create_call_inputs(ECRECOVER_ADDR, Bytes::from_static(b"test"), 1000);
 
