@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Dry-run test for the workflow decision tree in config.yml.
-# Extracts the decision tree dynamically using yq, then runs it against
-# a table of scenarios, asserting the expected c-run_* flags are set.
+# Dry-run test for the workflow routing policy (compute-workflow-conditions.sh).
+# Seeds the params JSON, sets the trigger/branch/tag/schedule environment, runs
+# the routing script, then asserts the expected c-run_* flags are (or are not)
+# set in the resulting JSON.
 #
 # Usage:
 #   bash .circleci/scripts/test-decision-tree.sh
@@ -10,28 +11,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-CONFIG="${REPO_ROOT}/.circleci/config.yml"
-OUTPUT="/tmp/pipeline-parameters.json"
+ROUTING_SCRIPT="${SCRIPT_DIR}/compute-workflow-conditions.sh"
 
-# Extract the inline command from the "Compute workflow conditions..." step
-STEP_NAME="Compute workflow conditions from pipeline parameters and store in JSON file"
-DECISION_TREE=$(yq "
-  .jobs.prepare-continuation-config.steps[]
-  | select(.run.name == \"${STEP_NAME}\")
-  | .run.command
-" "${CONFIG}")
-
-if [[ -z "${DECISION_TREE}" ]]; then
-  echo "ERROR: Could not extract decision tree from ${CONFIG}" >&2
-  exit 1
-fi
-
-# Strip the source/init_json/finalize lines — we handle those ourselves
-DECISION_TREE=$(echo "${DECISION_TREE}" | grep -v '^\s*set -euo pipefail' \
-  | grep -v '^\s*source ' \
-  | grep -v '^\s*init_json' \
-  | grep -v '^\s*finalize ')
+# Use an isolated params file so the test never writes the pipeline's real
+# /tmp/pipeline-parameters.json. The routing script's finalize writes c-run_*
+# flags, which the later collect-params/compute steps would otherwise inherit.
+# Exported so the routing script (via workflow-helpers.sh) writes here too.
+OUTPUT="$(mktemp)"
+export OUTPUT
+trap 'rm -f "${OUTPUT}"' EXIT
 
 # --- Test harness ---
 PASS=0
@@ -60,21 +48,13 @@ run_scenario() {
     fi
   done
 
-  # Seed the JSON
+  # Seed the JSON and run the routing policy as the pipeline would.
   echo "${json_seed}" > "${OUTPUT}"
+  TRIGGER_SOURCE="${trigger}" BRANCH="${branch}" TAG="${tag}" SCHEDULE_NAME="${schedule}" \
+    bash "${ROUTING_SCRIPT}" >/dev/null || true
 
-  # Set environment
-  export TRIGGER_SOURCE="${trigger}"
-  export BRANCH="${branch}"
-  export TAG="${tag}"
-  export SCHEDULE_NAME="${schedule}"
-
-  # Source helpers and run decision tree
-  # shellcheck disable=SC1091
-  source "${SCRIPT_DIR}/workflow-helpers.sh"
+  local _json
   _json=$(cat "${OUTPUT}")
-
-  eval "${DECISION_TREE}" 2>/dev/null
 
   # Check expected workflows are enabled
   local all_pass=true
