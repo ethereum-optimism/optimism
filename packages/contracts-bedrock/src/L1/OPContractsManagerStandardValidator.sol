@@ -948,16 +948,6 @@ contract OPContractsManagerStandardValidator is ISemver {
             _errors = assertValidPermissionlessDisputeGame(
                 _errors,
                 _input.sysCfg,
-                GameTypes.CANNON,
-                _input.cannonPrestate,
-                _input.l2ChainID,
-                _proxyAdmin,
-                _overrides,
-                "PLDG"
-            );
-            _errors = assertValidPermissionlessDisputeGame(
-                _errors,
-                _input.sysCfg,
                 GameTypes.CANNON_KONA,
                 _input.cannonKonaPrestate,
                 _input.l2ChainID,

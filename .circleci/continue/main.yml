@@ -120,7 +120,7 @@ parameters:
   c-run_l2_fork_test:
     type: boolean
     default: false
-  c-run_scheduled_weekly_tests:
+  c-run_scheduled_daily_tests:
     type: boolean
     default: false
   c-run_contracts_feature_tests:
@@ -130,6 +130,9 @@ parameters:
     type: boolean
     default: false
   c-run_ci_gate_skip:
+    type: boolean
+    default: false
+  c-run_circleci_schedule_trigger_check:
     type: boolean
     default: false
   c-run_publish_contract_artifacts:
@@ -681,6 +684,17 @@ jobs:
     steps:
       - utils/ci-gate:
           always-succeed: << parameters.always-succeed >>
+
+  circleci-schedule-trigger-check:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Check CircleCI schedule triggers
+          command: bun .circleci/scripts/test-schedule-triggers.js
 
   # Build a single Rust binary from a workspace. Will cache the binary by default.
   rust-build-binary:
@@ -1543,7 +1557,7 @@ jobs:
       - utils/checkout-with-mise:
           enable-mise-cache: false
       - run:
-          name: Check l2-rpcs.json and weekly matrix are in sync
+          name: Check l2-rpcs.json and daily matrix are in sync
           command: bash .circleci/scripts/check-l2-chains-sync.sh
 
   todo-issues:
@@ -2926,6 +2940,14 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+
+  circleci-schedule-trigger-check-workflow:
+    when: << pipeline.parameters.c-run_circleci_schedule_trigger_check >>
+    jobs:
+      - circleci-schedule-trigger-check:
+          context:
+            - circleci-api-token
+
   close-issue-workflow:
     when: << pipeline.parameters.c-run_close_issue >>
     jobs:
@@ -2956,8 +2978,8 @@ workflows:
             - circleci-repo-rpc-secrets
             - slack
 
-  scheduled-weekly-tests:
-    when: << pipeline.parameters.c-run_scheduled_weekly_tests >>
+  scheduled-daily-tests:
+    when: << pipeline.parameters.c-run_scheduled_daily_tests >>
     jobs:
       - prep-go-modules:
           context:
@@ -2973,12 +2995,9 @@ workflows:
                 - ink
                 - mode
                 - metal
-                - arena-z
-                - swell
                 - unichain
                 - soneium
                 - world-chain
-                - base
                 - xlayer
           test_profile: ci
           context:
