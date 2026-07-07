@@ -310,20 +310,17 @@ contract DeployOPChain is Script {
         returns (bool permissionless_, GameType respectedGameType_)
     {
         permissionless_ =
-            _disputeGameType.raw() == GameTypes.CANNON.raw() ||
-            _disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
+            _disputeGameType.raw() == GameTypes.CANNON.raw() || _disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
 
         // PERMISSIONED_CANNON is the only **permissioned** type supported for an initial deploy.
         require(
-            permissionless_ ||
-                _disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw(),
+            permissionless_ || _disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw(),
             "DeployOPChain: unsupported dispute game type"
         );
 
         // Super roots don't support permissionless games and they deploy with SUPER_PERMISSIONED instead.
         require(
-            !(_isSuperRoot && permissionless_),
-            "DeployOPChain: permissionless game type not supported with super roots"
+            !(_isSuperRoot && permissionless_), "DeployOPChain: permissionless game type not supported with super roots"
         );
 
         respectedGameType_ = permissionless_
