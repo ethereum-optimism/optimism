@@ -77,7 +77,7 @@ contract DeployOPChain is Script {
         require(address(_input.opcm).code.length > 0, "DeployOPChain: OPCM address has no code");
 
         IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_input.opcm);
-        isSuperRoot = DevFeatures.isDevFeatureEnabled(opcmV2.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        isSuperRoot = _isSuperRootEnabled(opcmV2);
         IOPContractsManagerV2.FullConfig memory config = _toOPCMV2DeployInput(_input);
 
         vm.broadcast(msg.sender);
@@ -328,6 +328,13 @@ contract DeployOPChain is Script {
             : (_isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON);
     }
 
+    /// @notice Returns whether the given OPCM has the SUPER_ROOT_GAMES_MIGRATION dev feature enabled.
+    /// @param _opcm The OPCM to check.
+    /// @return Whether SUPER_ROOT_GAMES_MIGRATION is enabled.
+    function _isSuperRootEnabled(IOPContractsManagerV2 _opcm) internal view returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(_opcm.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+    }
+
     // -------- Validations --------
 
     /// @notice Checks if the input is valid.
@@ -349,9 +356,7 @@ contract DeployOPChain is Script {
 
         require(_i.opcm != address(0), "DeployOPChainInput: opcm not set");
         DeployUtils.assertValidContractAddress(_i.opcm);
-        bool superRoot = DevFeatures.isDevFeatureEnabled(
-            IOPContractsManagerV2(_i.opcm).devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION
-        );
+        bool superRoot = _isSuperRootEnabled(IOPContractsManagerV2(_i.opcm));
         bool permissionless = _isPermissionlessDeploy(_i.disputeGameType, superRoot);
 
         require(_i.disputeMaxGameDepth != 0, "DeployOPChainInput: disputeMaxGameDepth not set");
