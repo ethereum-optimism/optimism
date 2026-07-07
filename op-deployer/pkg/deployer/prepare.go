@@ -103,6 +103,10 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("failed to read state: %w", err)
 	}
 
+	if err := pipeline.ValidateInputs(intent, st); err != nil {
+		return err
+	}
+
 	if len(intent.Chains) == 0 {
 		return fmt.Errorf("intent has no chains to prepare")
 	}

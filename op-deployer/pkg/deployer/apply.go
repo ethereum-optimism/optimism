@@ -200,10 +200,10 @@ func ApplyPipeline(
 	opts ApplyPipelineOpts,
 ) error {
 	intent := opts.Intent
-	if err := intent.Check(); err != nil {
+	st := opts.State
+	if err := pipeline.ValidateInputs(intent, st); err != nil {
 		return err
 	}
-	st := opts.State
 
 	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
 	if err != nil {

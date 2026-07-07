@@ -17,6 +17,16 @@ func IsSupportedStateVersion(version int) bool {
 	return version == 1
 }
 
+func ValidateInputs(intent *state.Intent, st *state.State) error {
+	if err := intent.Check(); err != nil {
+		return err
+	}
+	if !IsSupportedStateVersion(st.Version) {
+		return fmt.Errorf("unsupported state version: %d", st.Version)
+	}
+	return nil
+}
+
 func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "init", "strategy", "live")
 	lgr.Info("initializing pipeline")
