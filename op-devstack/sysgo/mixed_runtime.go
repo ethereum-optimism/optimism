@@ -49,7 +49,17 @@ const (
 	MixedL2ELOpReth   MixedL2ELKind = "op-reth"
 	MixedL2ELOpRethV2 MixedL2ELKind = "op-reth-proof-v2"
 	MixedOpRbuilder   MixedL2ELKind = "op-rbuilder"
+	// MixedL2ELOpRethPremium boots op-reth-premium as a drop-in: it is launched with op-reth's
+	// CLI (a superset) and runs its subblocks producer (--subblocks.enable defaults to true). The
+	// binary must be supplied via RUST_BINARY_PATH_OP_RETH_PREMIUM (separate repo).
+	MixedL2ELOpRethPremium MixedL2ELKind = "op-reth-premium"
 )
+
+// opRethPremiumOpts prepends the binary selection so op-reth-premium is launched in place of
+// op-reth; caller options follow and may further customise (or override) the invocation.
+func opRethPremiumOpts(opts []OpRethOption) []OpRethOption {
+	return append([]OpRethOption{OpRethWithBinary("op-reth-premium")}, opts...)
+}
 
 type MixedL2CLKind string
 
@@ -209,6 +219,8 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", cfg.OpRethOptions...)
 		case MixedL2ELOpRethV2:
 			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", cfg.OpRethOptions...)
+		case MixedL2ELOpRethPremium:
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", opRethPremiumOpts(cfg.OpRethOptions)...)
 		default:
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
 		}
@@ -221,7 +233,6 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				IsSequencer:   spec.IsSequencer,
 				NoDiscovery:   true,
 				EnableReqResp: true,
-				UseReqResp:    true,
 				DependencySet: depSet,
 			})
 		case MixedL2CLKona:
@@ -330,7 +341,7 @@ func buildMixedOpRethNode(
 	storageVersion string,
 	opts ...OpRethOption,
 ) *OpReth {
-	tempDir := t.TempDir()
+	tempDir := t.TempDirWithPrefix("l2-el-" + NewComponentTarget(key, l2Net.ChainID()).String())
 
 	data, err := json.Marshal(l2Net.genesis)
 	t.Require().NoError(err, "must json-encode genesis")
@@ -345,12 +356,21 @@ func buildMixedOpRethNode(
 
 	tempP2PPath := filepath.Join(tempDir, "p2pkey.txt")
 
+	// Apply options before resolving the binary so OpRethWithBinary can select a CLI-compatible
+	// superset (e.g. op-reth-premium). cfg.ExtraArgs is appended to the CLI further below.
+	opRethCfg := DefaultOpRethConfig()
+	OpRethOptionBundle(opts).Apply(t, NewComponentTarget(key, l2Net.ChainID()), opRethCfg)
+	elBinary := opRethCfg.Binary
+	if elBinary == "" {
+		elBinary = "op-reth"
+	}
+
 	execPath, err := rustbin.Spec{
 		SrcDir:  "rust",
-		Package: "op-reth",
-		Binary:  "op-reth",
+		Package: elBinary,
+		Binary:  elBinary,
 	}.EnsureExists(t.Ctx(), t.Logger())
-	t.Require().NoError(err, "op-reth binary not available (build with 'just build-rust-release' or set RUST_JIT_BUILD=1)")
+	t.Require().NoError(err, "%s binary not available (build with 'just build-rust-release', set RUST_JIT_BUILD=1, or for op-reth-premium set RUST_BINARY_PATH_OP_RETH_PREMIUM)", elBinary)
 
 	args := []string{
 		"node",
@@ -423,8 +443,6 @@ func buildMixedOpRethNode(
 		"--proofs-history.storage-version="+storageVersion,
 	)
 
-	opRethCfg := DefaultOpRethConfig()
-	OpRethOptionBundle(opts).Apply(t, NewComponentTarget(key, l2Net.ChainID()), opRethCfg)
 	args = append(args, opRethCfg.ExtraArgs...)
 
 	return &OpReth{
@@ -497,7 +515,7 @@ func startMixedKonaNode(
 	metricsRegistrar L2MetricsRegistrar,
 	depSet coredepset.DependencySet,
 ) *KonaNode {
-	tempKonaDir := t.TempDir()
+	tempKonaDir := t.TempDirWithPrefix("l2-cl-kona-" + NewComponentTarget(clKey, l2Net.ChainID()).String())
 
 	tempP2PPath := filepath.Join(tempKonaDir, "p2pkey.txt")
 

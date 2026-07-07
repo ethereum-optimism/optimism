@@ -177,14 +177,14 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			shouldPass:    false,
 		},
 		{
-			name: "SUPER_PERMISSIONED_CANNON requires SuperPermissionedDisputeGameConfig",
+			name: "SUPER_PERMISSIONED requires SuperPermissionedDisputeGameConfig",
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
 				InitBond: big.NewInt(1000),
-				GameType: GameTypeSuperPermCannon,
+				GameType: GameTypeSuperPermissioned,
 				// Missing SuperPermissionedDisputeGameConfig
 			},
-			errorContains: fmt.Sprintf("superPermissionedDisputeGameConfig is required for game type %d", GameTypeSuperPermCannon),
+			errorContains: fmt.Sprintf("superPermissionedDisputeGameConfig is required for game type %d", GameTypeSuperPermissioned),
 			shouldPass:    false,
 		},
 		{
@@ -349,11 +349,11 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 			shouldPass: true,
 		},
 		{
-			name: "SUPER_PERMISSIONED_CANNON with correct SuperPermissionedDisputeGameConfig",
+			name: "SUPER_PERMISSIONED with correct SuperPermissionedDisputeGameConfig",
 			gameConfig: DisputeGameConfig{
 				Enabled:  true,
 				InitBond: big.NewInt(1000),
-				GameType: GameTypeSuperPermCannon,
+				GameType: GameTypeSuperPermissioned,
 				SuperPermissionedDisputeGameConfig: &SuperPermissionedDisputeGameConfig{
 					Proposer: common.HexToAddress("0x1111111111111111111111111111111111111111"),
 				},
@@ -629,7 +629,7 @@ func TestEncodedUpgradeInputV2_GameArgsEncoding(t *testing.T) {
 					{
 						Enabled:  true,
 						InitBond: big.NewInt(1000),
-						GameType: GameTypeSuperPermCannon,
+						GameType: GameTypeSuperPermissioned,
 						SuperPermissionedDisputeGameConfig: &SuperPermissionedDisputeGameConfig{
 							Proposer: proposer,
 						},

@@ -106,6 +106,7 @@ mod tests {
                         isthmus_time: None,
                         jovian_time: None,
                         karst_time: None,
+                        keep_karst_upgrade_gas: false,
                         lagoon_time: None,
                     },
                     superchain_config_addr: None,

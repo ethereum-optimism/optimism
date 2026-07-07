@@ -219,6 +219,9 @@ onto an older base, or accept the broader catch-up work as part of the bump.
 
 ## See also
 
+- `docs/ai/reth-update-review.md` — the review guide for these bumps: the risk
+  taxonomy and the `reth-update-reviewer` agent that surfaces upstream changes
+  which should have forced an op- change but didn't.
 - `docs/ai/rust-dev.md` — broader Rust workflow (build, test, lint).
 - `rust/Cargo.toml` — where the pin lives (~70 occurrences), plus
   `rust/op-rbuilder/Cargo.toml` and the two `rust/rollup-boost` crate

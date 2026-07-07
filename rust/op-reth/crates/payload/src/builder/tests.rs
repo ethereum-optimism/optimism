@@ -330,6 +330,43 @@ fn rebuilds_derived_block_with_embedded_post_exec_tx_regardless_of_opt_in() {
     }
 }
 
+/// `block_builder_with_mode` must use the supplied mode snapshot, not the live opt-in.
+/// Mismatch both ways to prove `Produce` still accepts `0x7D` and `Disabled` rejects it.
+#[test]
+fn block_builder_with_mode_honors_snapshot_over_live_opt_in() {
+    // Snapshot pins Produce with opt-in off.
+    let produce_ctx = interop_ctx(false, false, Some(Vec::new()));
+    let provider = StateProviderTest::default();
+    let mut db = State::builder()
+        .with_database(StateProviderDatabase::new(&provider))
+        .with_bundle_update()
+        .build();
+    let mut builder = produce_ctx
+        .block_builder_with_mode(&mut db, PostExecMode::Produce)
+        .expect("block builder can be created");
+    produce_ctx
+        .execute_sequencer_transactions(&mut builder, None)
+        .expect("Produce snapshot accepts the embedded 0x7D even with the opt-in off");
+
+    // Snapshot pins Disabled with opt-in on.
+    let disabled_ctx = interop_ctx(false, true, Some(Vec::new()));
+    let provider = StateProviderTest::default();
+    let mut db = State::builder()
+        .with_database(StateProviderDatabase::new(&provider))
+        .with_bundle_update()
+        .build();
+    let mut builder = disabled_ctx
+        .block_builder_with_mode(&mut db, PostExecMode::Disabled)
+        .expect("block builder can be created");
+    let err = disabled_ctx
+        .execute_sequencer_transactions(&mut builder, None)
+        .expect_err("Disabled snapshot rejects the embedded 0x7D even with the opt-in on");
+    assert!(
+        format!("{err:?}").contains("SDM not active"),
+        "expected the disabled-mode post-exec rejection, got: {err:?}",
+    );
+}
+
 #[test]
 fn execution_info_pre_refund_limit_uses_evm_gas_not_canonical_gas() {
     let mut info = ExecutionInfo::new();

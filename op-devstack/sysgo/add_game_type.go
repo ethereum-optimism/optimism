@@ -152,7 +152,7 @@ func addGameTypesForRuntime(
 	dummyCannonPrestate := common.HexToHash(sharedchallenger.DummyPermissionedPrestate)
 
 	// OPCMv2 requires all 6 game configs in order:
-	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
+	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_PERMISSIONED, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
 	// The CANNON (legacy) game type is permanently disabled, but its config slot must remain present
 	// and in order for the OPCMv2 upgrade.
 	configs := []embedded.DisputeGameConfig{
@@ -182,7 +182,7 @@ func addGameTypesForRuntime(
 				AbsolutePrestate: cannonKonaPrestate,
 			},
 		},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermissioned},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
 		{
 			Enabled:             enabled[gameTypes.ZKDisputeGameType],

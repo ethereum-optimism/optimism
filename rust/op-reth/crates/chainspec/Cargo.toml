@@ -20,7 +20,7 @@ reth-network-peers.workspace = true
 
 # op-reth
 reth-optimism-forks.workspace = true
-reth-optimism-primitives = { workspace = true, features = ["serde", "reth-codec"] }
+reth-optimism-primitives = { workspace = true, features = ["serde"] }
 
 # ethereum
 alloy-chains.workspace = true
@@ -60,7 +60,12 @@ sha2 = { workspace = true, features = ["std"] }
 tar.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "reth-codec"]
+# Enables `reth-optimism-primitives`' reth-codec (Compact DB codec / zstd compression).
+# On by default to preserve existing behavior; type-only consumers (e.g. zkVM targets) can
+# set `default-features = false` to avoid the native `zstd-sys` C build, which this crate
+# does not need (it has no Compact/zstd usage of its own).
+reth-codec = ["reth-optimism-primitives/reth-codec"]
 superchain-configs = ["miniz_oxide", "paste", "tar-no-std", "thiserror", "dep:serde"]
 std = [
     "alloy-chains/std",

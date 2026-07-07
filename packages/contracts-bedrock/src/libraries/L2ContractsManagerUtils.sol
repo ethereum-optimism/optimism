@@ -46,20 +46,25 @@ library L2ContractsManagerUtils {
     ///         Reverts if the predeploy is not upgradeable.
     /// @param _proxy The proxy address of the predeploy.
     /// @param _implementation The new implementation address.
-    function upgradeTo(address _proxy, address _implementation) internal {
+    /// @param _isDeploy True for the L2Genesis deploy path, false for an upgrade.
+    function upgradeTo(address _proxy, address _implementation, bool _isDeploy) internal {
         if (_implementation.code.length == 0) revert L2ContractsManager_EmptyImplementation(_implementation);
         if (!Predeploys.isUpgradeable(_proxy)) revert L2ContractsManager_NotUpgradeable(_proxy);
 
-        // We skip checking the version for those predeploys that have no code. This would be the case for newly added
-        // predeploys that are being introduced on this particular upgrade.
-        address implementation = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
+        // In deploy mode the proxy has no prior implementation and the canonical L2ProxyAdmin is not yet its admin,
+        // so the implementation read and the downgrade guard are skipped.
+        if (!_isDeploy) {
+            // We skip checking the version for those predeploys that have no code. This would be the case for newly
+            // added predeploys that are being introduced on this particular upgrade.
+            address implementation = IL2ProxyAdmin(Predeploys.PROXY_ADMIN).getProxyImplementation(_proxy);
 
-        // We avoid downgrading Predeploys
-        if (
-            implementation.code.length != 0
-                && SemverComp.gt(ISemver(_proxy).version(), ISemver(_implementation).version())
-        ) {
-            revert L2ContractsManager_DowngradeNotAllowed(address(_proxy));
+            // We avoid downgrading Predeploys
+            if (
+                implementation.code.length != 0
+                    && SemverComp.gt(ISemver(_proxy).version(), ISemver(_implementation).version())
+            ) {
+                revert L2ContractsManager_DowngradeNotAllowed(address(_proxy));
+            }
         }
 
         IProxy(payable(_proxy)).upgradeTo(_implementation);
@@ -106,17 +111,27 @@ library L2ContractsManagerUtils {
     /// @param _data The data to call upgradeToAndCall with.
     /// @param _slot The slot where the initialized value is located.
     /// @param _offset The offset of the initializer value in the slot.
+    /// @param _isDeploy True for the L2Genesis deploy path, false for an upgrade.
     function upgradeToAndCall(
         address _proxy,
         address _implementation,
         address _storageSetterImpl,
         bytes memory _data,
         bytes32 _slot,
-        uint8 _offset
+        uint8 _offset,
+        bool _isDeploy
     )
         internal
     {
         if (!Predeploys.isUpgradeable(_proxy)) revert L2ContractsManager_NotUpgradeable(_proxy);
+
+        // In deploy mode the proxy is fresh, so the StorageSetter dance and downgrade guard are skipped
+        // and a dummy StorageSetter address is acceptable as it is unused.
+        if (_isDeploy) {
+            if (_implementation.code.length == 0) revert L2ContractsManager_EmptyImplementation(_implementation);
+            IProxy(payable(_proxy)).upgradeToAndCall(_implementation, _data);
+            return;
+        }
 
         if (_storageSetterImpl.code.length == 0) revert L2ContractsManager_EmptyImplementation(_storageSetterImpl);
         if (_implementation.code.length == 0) revert L2ContractsManager_EmptyImplementation(_implementation);

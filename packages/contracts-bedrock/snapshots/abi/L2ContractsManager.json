@@ -23,6 +23,206 @@
     "type": "constructor"
   },
   {
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "contract ICrossDomainMessenger",
+                "name": "otherMessenger",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct L2ContractsManagerTypes.CrossDomainMessengerConfig",
+            "name": "crossDomainMessenger",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract IStandardBridge",
+                "name": "otherBridge",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct L2ContractsManagerTypes.StandardBridgeConfig",
+            "name": "standardBridge",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract IERC721Bridge",
+                "name": "otherBridge",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct L2ContractsManagerTypes.ERC721BridgeConfig",
+            "name": "erc721Bridge",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "bridge",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct L2ContractsManagerTypes.MintableERC20FactoryConfig",
+            "name": "mintableERC20Factory",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "bridge",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "remoteChainID",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct L2ContractsManagerTypes.MintableERC721FactoryConfig",
+            "name": "mintableERC721Factory",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "recipient",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "minWithdrawalAmount",
+                "type": "uint256"
+              },
+              {
+                "internalType": "enum Types.WithdrawalNetwork",
+                "name": "withdrawalNetwork",
+                "type": "uint8"
+              }
+            ],
+            "internalType": "struct L2ContractsManagerTypes.FeeVaultConfig",
+            "name": "sequencerFeeVault",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "recipient",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "minWithdrawalAmount",
+                "type": "uint256"
+              },
+              {
+                "internalType": "enum Types.WithdrawalNetwork",
+                "name": "withdrawalNetwork",
+                "type": "uint8"
+              }
+            ],
+            "internalType": "struct L2ContractsManagerTypes.FeeVaultConfig",
+            "name": "baseFeeVault",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "recipient",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "minWithdrawalAmount",
+                "type": "uint256"
+              },
+              {
+                "internalType": "enum Types.WithdrawalNetwork",
+                "name": "withdrawalNetwork",
+                "type": "uint8"
+              }
+            ],
+            "internalType": "struct L2ContractsManagerTypes.FeeVaultConfig",
+            "name": "l1FeeVault",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "recipient",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "minWithdrawalAmount",
+                "type": "uint256"
+              },
+              {
+                "internalType": "enum Types.WithdrawalNetwork",
+                "name": "withdrawalNetwork",
+                "type": "uint8"
+              }
+            ],
+            "internalType": "struct L2ContractsManagerTypes.FeeVaultConfig",
+            "name": "operatorFeeVault",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "owner",
+                "type": "address"
+              },
+              {
+                "internalType": "string",
+                "name": "gasPayingTokenName",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "gasPayingTokenSymbol",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct L2ContractsManagerTypes.LiquidityControllerConfig",
+            "name": "liquidityController",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bool",
+            "name": "isCustomGasToken",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "isInterop",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct L2ContractsManagerTypes.FullConfig",
+        "name": "_config",
+        "type": "tuple"
+      }
+    ],
+    "name": "deploy",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "getImplementations",
     "outputs": [

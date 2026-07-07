@@ -1263,6 +1263,40 @@ mod sdm {
         );
     }
 
+    /// A `Verify` block must include `0x7D` even when normal txs consume every verifier entry;
+    /// otherwise the payload-vs-block byte check is skipped.
+    #[test]
+    fn test_finish_rejects_verify_block_missing_post_exec_tx() {
+        const BLOCK_GAS_LIMIT: u64 = 100_000;
+        let target = Address::from([0x11; 20]);
+        let tx0 = legacy_tx(0, target);
+        let tx1 = legacy_tx(1, target);
+        // Make tx1 consume its verifier entry during normal settlement.
+        let entries = full_refund_for_second_tx(BLOCK_GAS_LIMIT, &tx0, &tx1);
+
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        let mut verifier = fixture.verifier(0, entries);
+        verifier.execute_transaction(&tx0).expect("first tx executes");
+        verifier.execute_transaction(&tx1).expect("refunded tx consumes its verifier entry");
+        assert!(
+            verifier.post_exec.remaining_verifier_indexes().is_empty(),
+            "the refunded tx must already have drained every verifier entry",
+        );
+
+        // No 0x7D ran, so only the missing-tx guard can catch this.
+        let Err(err) = verifier.finish() else {
+            panic!("a Verify block that applies refunds but omits the 0x7D must be rejected");
+        };
+        assert_invalid_post_exec(
+            err,
+            "post-exec payload present but block carries no post-exec tx",
+        );
+    }
+
     /// Followers running with SDM disabled must reject any block that carries a post-exec
     /// 0x7D tx. Silently short-circuiting the tx (which is what the pre-guard code did) would
     /// let a producer ship a payload with arbitrary refund entries that no follower validates,

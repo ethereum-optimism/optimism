@@ -16,6 +16,7 @@ reth-evm.workspace = true
 reth-execution-errors.workspace = true
 reth-node-api.workspace = true
 reth-optimism-evm = { workspace = true, features = ["std"] }
+reth-optimism-primitives = { workspace = true, features = ["serde", "reth-codec"] }
 reth-primitives-traits.workspace = true
 
 revm.workspace = true
@@ -30,4 +31,3 @@ thiserror.workspace = true
 
 [dev-dependencies]
 alloy-primitives.workspace = true
-reth-optimism-primitives = { workspace = true, features = ["serde", "reth-codec"] }

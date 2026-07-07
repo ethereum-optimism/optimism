@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 2.10.2
-    string public constant version = "2.10.2";
+    /// @custom:semver 2.10.4
+    string public constant version = "2.10.4";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -509,7 +509,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+        if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED.raw()) {
             return assertValidSuperPermissionedDisputeGame(_errors, _sysCfg, _admin, _proposer, _errorPrefix);
         }
 
@@ -595,7 +595,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         require(
-            _gameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw(),
+            _gameType.raw() != GameTypes.SUPER_PERMISSIONED.raw(),
             "OPContractsManagerStandardValidator: SPDG is not permissionless"
         );
 
@@ -676,7 +676,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         errors_ = _initialErrors;
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        address gameAddress = address(_factory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON));
+        address gameAddress = address(_factory.gameImpls(GameTypes.SUPER_PERMISSIONED));
 
         if (gameAddress == address(0)) {
             errors_ = internalRequire(false, string.concat(_errorPrefix, "-10"), errors_);
@@ -684,10 +684,10 @@ contract OPContractsManagerStandardValidator is ISemver {
             return (gameImpl_, errors_, failed_);
         }
 
-        bytes memory gameArgsBytes = _factory.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
+        bytes memory gameArgsBytes = _factory.gameArgs(GameTypes.SUPER_PERMISSIONED);
         bool lenCheckFailed;
         (errors_, lenCheckFailed) =
-            assertGameArgsLength(errors_, gameArgsBytes, GameTypes.SUPER_PERMISSIONED_CANNON, _errorPrefix);
+            assertGameArgsLength(errors_, gameArgsBytes, GameTypes.SUPER_PERMISSIONED, _errorPrefix);
         if (lenCheckFailed) {
             failed_ = true;
             return (gameImpl_, errors_, failed_);
@@ -720,7 +720,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     function expectedGameImpl(GameType _gameType) internal view returns (address) {
         uint32 raw = _gameType.raw();
         if (raw == GameTypes.PERMISSIONED_CANNON.raw()) return permissionedDisputeGameImpl;
-        if (raw == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) return superPermissionedDisputeGameImpl;
+        if (raw == GameTypes.SUPER_PERMISSIONED.raw()) return superPermissionedDisputeGameImpl;
         if (raw == GameTypes.SUPER_CANNON.raw()) return superFaultDisputeGameImpl;
         if (raw == GameTypes.SUPER_CANNON_KONA.raw()) return superFaultDisputeGameImpl;
         if (raw == GameTypes.ZK_DISPUTE_GAME.raw()) return zkDisputeGameImpl;
@@ -913,7 +913,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             _errors = assertValidPermissionedDisputeGame(
                 _errors,
                 _input.sysCfg,
-                GameTypes.SUPER_PERMISSIONED_CANNON,
+                GameTypes.SUPER_PERMISSIONED,
                 _input.cannonPrestate,
                 _input.l2ChainID,
                 _proxyAdmin,
@@ -944,16 +944,6 @@ contract OPContractsManagerStandardValidator is ISemver {
                 _input.proposer,
                 _overrides,
                 "PDDG"
-            );
-            _errors = assertValidPermissionlessDisputeGame(
-                _errors,
-                _input.sysCfg,
-                GameTypes.CANNON,
-                _input.cannonPrestate,
-                _input.l2ChainID,
-                _proxyAdmin,
-                _overrides,
-                "PLDG"
             );
             _errors = assertValidPermissionlessDisputeGame(
                 _errors,
@@ -1031,7 +1021,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             bool ok = LibGameArgs.isValidZKArgs(_gameArgsBytes);
             _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
             return (_errors, !ok);
-        } else if (rawGameType == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+        } else if (rawGameType == GameTypes.SUPER_PERMISSIONED.raw()) {
             bool ok = LibGameArgs.isValidSuperPermissionedArgs(_gameArgsBytes);
             _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
             return (_errors, !ok);

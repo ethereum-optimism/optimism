@@ -11,11 +11,11 @@ parameters:
   default_docker_image:
     type: string
     default: cimg/base:2026.03
-  # Pinned ci-base-clang image (cimg/base + clang/llvm-dev/libclang-dev) for Rust jobs.
+  # Pinned ci-base-clang image (cimg/base + clang/llvm-dev/libclang-dev + protobuf-compiler) for Rust jobs.
   # Provenance is verified by .github/workflows/security.yml.
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:d79c625a042269c64b2444ef1edf9bb4a399d1c892caee57f9021be067da5617
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
   base_image:
     type: string
     default: default
@@ -173,6 +173,7 @@ jobs:
           name: Detect file tree changes and store in JSON file
           command: .circleci/scripts/collect-params.sh detect
           environment:
+            c-circleci_changed: "^\\.circleci/"
             c-contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
             c-docs_changes_detected: "^docs/public-docs/"
             c-rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
@@ -215,8 +216,8 @@ jobs:
               scheduled_pipeline)
                 case "${SCHEDULE_NAME}" in
                   build_four_hours) run scheduled_todo_issues scheduled_cannon_full_tests ;;
-                  build_daily)      run scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests ;;
-                  build_weekly)     run scheduled_weekly_tests scheduled_kona_link_checker ;;
+                  build_daily)      run scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests circleci_schedule_trigger_check ;;
+                  build_weekly)     run scheduled_kona_link_checker ;;
                 esac
                 ;;
 
@@ -256,6 +257,9 @@ jobs:
                       run rust_ci_gate_short
                       run rust_e2e_gate_skip
                     fi
+                    if is_true circleci_changed; then
+                      run circleci_schedule_trigger_check
+                    fi
                   fi
 
                 # 2. Merge queue (pre-merge validation)
@@ -272,6 +276,9 @@ jobs:
                   else
                     run rust_ci_gate_short
                     run rust_e2e_gate_skip
+                  fi
+                  if is_true circleci_changed; then
+                    run circleci_schedule_trigger_check
                   fi
 
                 # 3. After merge (develop push)

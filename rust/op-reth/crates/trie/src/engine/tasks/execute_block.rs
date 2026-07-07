@@ -5,12 +5,13 @@ use crate::{
 use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use crossbeam_channel::Sender;
 use reth_evm::{ConfigureEvm, execute::Executor};
-use reth_primitives_traits::{AlloyBlockHeader, NodePrimitives, RecoveredBlock};
+use reth_primitives_traits::{AlloyBlockHeader, BlockBody, NodePrimitives, RecoveredBlock};
 use reth_provider::{
     BlockHashReader, BlockReader, DatabaseProviderFactory, HashedPostStateProvider, ProviderError,
     StateProviderFactory, StateReader, StateRootProvider,
 };
 use reth_revm::database::StateProviderDatabase;
+use reth_trie_common::EMPTY_ROOT_HASH;
 use std::time::Instant;
 use tracing::{debug, info};
 
@@ -54,6 +55,17 @@ where
     Store: OpProofsStore + Clone + 'static,
 {
     let start = Instant::now();
+
+    // Body-pruned guard: reth returns `Some(block)` with an empty body when transaction data has
+    // been pruned but body indices remain. Covers the sync path (advance_sync calls this task)
+    // and any direct EngineHandle::execute_block caller, so both get an accurate error rather
+    // than a downstream [`EngineError::StateRootMismatch`].
+    if block.header().transactions_root() != EMPTY_ROOT_HASH &&
+        block.body().transactions().is_empty()
+    {
+        return Err(EngineError::BlockBodyPruned(block.number()));
+    }
+
     let tip = state.get_tip()?;
     let parent_block_number = block.number().saturating_sub(1);
 

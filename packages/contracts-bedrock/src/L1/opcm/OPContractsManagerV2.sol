@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.1.22
+    /// @custom:semver 7.1.23
     function version() public pure returns (string memory) {
-        return "7.1.22";
+        return "7.1.23";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -700,7 +700,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         validGameTypes[0] = GameTypes.CANNON;
         validGameTypes[1] = GameTypes.PERMISSIONED_CANNON;
         validGameTypes[2] = GameTypes.CANNON_KONA;
-        validGameTypes[3] = GameTypes.SUPER_PERMISSIONED_CANNON;
+        validGameTypes[3] = GameTypes.SUPER_PERMISSIONED;
         validGameTypes[4] = GameTypes.SUPER_CANNON_KONA;
         validGameTypes[5] = GameTypes.ZK_DISPUTE_GAME;
 
@@ -723,16 +723,16 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             }
 
             if (
-                _cfg.disputeGameConfigs[i].gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+                _cfg.disputeGameConfigs[i].gameType.raw() == GameTypes.SUPER_PERMISSIONED.raw()
                     && _cfg.disputeGameConfigs[i].initBond != 0
             ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
             // If game is enabled, we must have a non-zero init bond, except
-            // SUPER_PERMISSIONED_CANNON which does not use bonds.
+            // SUPER_PERMISSIONED which does not use bonds.
             if (
-                _cfg.disputeGameConfigs[i].gameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+                _cfg.disputeGameConfigs[i].gameType.raw() != GameTypes.SUPER_PERMISSIONED.raw()
                     && _cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond == 0
             ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
@@ -740,7 +740,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
             // Check if this is a permissioned type.
             bool isPermissioned = validGameTypes[i].raw() == GameTypes.PERMISSIONED_CANNON.raw()
-                || validGameTypes[i].raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
+                || validGameTypes[i].raw() == GameTypes.SUPER_PERMISSIONED.raw();
 
             // During initial deployment, only permissioned types can be enabled, because no
             // prestate exists for permissionless games.

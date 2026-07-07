@@ -12,7 +12,6 @@ sp1_zkvm::entrypoint!(main);
 use kona_sp1_client_utils::witness::{DefaultWitnessData, WitnessData};
 use kona_sp1_ethereum_client_utils::executor::ETHDAWitnessExecutor;
 use rkyv::rancor::Error;
-use std::sync::Arc;
 
 /// Entrypoint to the range program.
 fn main() {
@@ -29,19 +28,16 @@ fn main() {
             .await
             .expect("Failed to load oracle and blob provider");
 
-        run_range_program(ETHDAWitnessExecutor::new(), oracle, beacon).await;
+        let boot_info = kona_sp1_client_utils::range::run_range_program(
+            ETHDAWitnessExecutor::new(),
+            oracle,
+            beacon,
+        )
+        .await
+        .expect("Failed to run range program");
+        sp1_zkvm::io::commit(&boot_info);
     });
 }
-
-use kona_proof::{l1::OracleL1ChainProvider, l2::OracleL2ChainProvider};
-use kona_sp1_client_utils::{
-    BlobStore,
-    boot::BootInfoStruct,
-    witness::{
-        executor::{WitnessExecutor, get_inputs_for_pipeline},
-        preimage_store::PreimageStore,
-    },
-};
 
 /// Sets up tracing for the range program
 #[cfg(feature = "tracing-subscriber")]
@@ -51,46 +47,4 @@ pub fn setup_tracing() {
 
     let subscriber = tracing_subscriber::fmt().with_max_level(Level::INFO).finish();
     tracing::subscriber::set_global_default(subscriber).map_err(|e| anyhow!(e)).unwrap();
-}
-
-/// Executes the range program with the given [`WitnessExecutor`], [`PreimageStore`], and
-/// [`BlobStore`].
-pub async fn run_range_program<E>(executor: E, oracle: Arc<PreimageStore>, beacon: BlobStore)
-where
-    E: WitnessExecutor<
-            O = PreimageStore,
-            B = BlobStore,
-            L1 = OracleL1ChainProvider<PreimageStore>,
-            L2 = OracleL2ChainProvider<PreimageStore>,
-        > + Send
-        + Sync,
-{
-    ////////////////////////////////////////////////////////////////
-    //                          PROLOGUE                          //
-    ////////////////////////////////////////////////////////////////
-    let (boot_info, input) = get_inputs_for_pipeline(oracle.clone()).await.unwrap();
-    let boot_info = match input {
-        Some((cursor, l1_provider, l2_provider)) => {
-            let rollup_config = Arc::new(boot_info.rollup_config.clone());
-            let l1_config = Arc::new(boot_info.l1_config.clone());
-
-            let pipeline = executor
-                .create_pipeline(
-                    rollup_config,
-                    l1_config,
-                    cursor.clone(),
-                    oracle,
-                    beacon,
-                    l1_provider,
-                    l2_provider.clone(),
-                )
-                .await
-                .unwrap();
-
-            executor.run(boot_info, pipeline, cursor, l2_provider).await.unwrap()
-        }
-        None => boot_info,
-    };
-
-    sp1_zkvm::io::commit(&BootInfoStruct::from(boot_info));
 }
