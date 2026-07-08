@@ -352,9 +352,19 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
     )
         internal
     {
-        // Grab some values before we upgrade, to be checked later
-        address initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
-        address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
+        // Grab values before we upgrade, to be checked later. Once the super-root migration has
+        // already been applied, the legacy PERMISSIONED_CANNON slot is cleared.
+        address initialChallenger;
+        address initialProposer;
+        if (
+            isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+                && address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0)
+        ) {
+            initialProposer = DisputeGames.superPermissionedGameProposer(disputeGameFactory);
+        } else {
+            initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
+            initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
+        }
 
         // Execute the SuperchainConfig upgrade.
         prankDelegateCall(superchainPAO);

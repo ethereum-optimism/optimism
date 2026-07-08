@@ -175,23 +175,67 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         artifacts.save("MipsSingleton", vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".MIPS")));
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        // The PermissionedDisputeGame and PermissionedDelayedWETHProxy are not listed in the registry for OP, so we
-        // look it up onchain.
-        address permissionedGameImpl = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        // The permissioned game is not always listed in the registry for OP, so look it up onchain.
+        GameType permissionedGameType = _registeredPermissionedGameType(disputeGameFactory);
+        address permissionedGameImpl = address(disputeGameFactory.gameImpls(permissionedGameType));
         artifacts.save("PermissionedDisputeGame", permissionedGameImpl);
 
-        // Get DelayedWETH for PERMISSIONED games
-        IDelayedWETH permissionedDelayedWeth =
-            DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.PERMISSIONED_CANNON);
+        // Get DelayedWETH for legacy PERMISSIONED games. SUPER_PERMISSIONED games do not have WETH args.
+        IDelayedWETH permissionedDelayedWeth = permissionedGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+            ? DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.PERMISSIONED_CANNON)
+            : IDelayedWETH(payable(address(0)));
         artifacts.save("PermissionedDelayedWETHProxy", address(permissionedDelayedWeth));
 
-        // Get DelayedWETH for the live permissionless game.
-        IDelayedWETH permissionlessDelayedWeth =
-            DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.CANNON_KONA);
-
-        // The SR seems out-of-date, so pull the DelayedWETH addresses from the games.
+        // The SR seems out-of-date, so pull the DelayedWETH addresses from the live permissionless game.
+        IDelayedWETH permissionlessDelayedWeth = DisputeGames.getGameImplDelayedWeth(
+            disputeGameFactory, _registeredPermissionlessGameType(disputeGameFactory)
+        );
         artifacts.save("DelayedWETHProxy", address(permissionlessDelayedWeth));
         artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(permissionlessDelayedWeth)));
+    }
+
+    function _registeredPermissionedGameType(IDisputeGameFactory _disputeGameFactory)
+        internal
+        view
+        returns (GameType)
+    {
+        if (address(_disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0)) {
+            return GameTypes.SUPER_PERMISSIONED;
+        }
+        if (address(_disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)) != address(0)) {
+            return GameTypes.PERMISSIONED_CANNON;
+        }
+        revert("ForkL1Live: no permissioned game registered");
+    }
+
+    function _registeredPermissionlessGameType(IDisputeGameFactory _disputeGameFactory)
+        internal
+        view
+        returns (GameType)
+    {
+        if (address(_disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)) != address(0)) {
+            return GameTypes.SUPER_CANNON_KONA;
+        }
+        if (address(_disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)) != address(0)) {
+            return GameTypes.CANNON_KONA;
+        }
+        if (address(_disputeGameFactory.gameImpls(GameTypes.CANNON)) != address(0)) {
+            return GameTypes.CANNON;
+        }
+        revert("ForkL1Live: no permissionless game registered");
+    }
+
+    function _isPermissionlessGameType(GameType _gameType) internal pure returns (bool) {
+        uint32 raw = _gameType.raw();
+        return raw == GameTypes.CANNON.raw() || raw == GameTypes.CANNON_KONA.raw()
+            || raw == GameTypes.SUPER_CANNON_KONA.raw();
+    }
+
+    function _migrationProposer(IDisputeGameFactory _disputeGameFactory) internal view returns (address) {
+        if (address(_disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0)) {
+            return DisputeGames.superPermissionedGameProposer(_disputeGameFactory);
+        }
+        return DisputeGames.permissionedGameProposer(_disputeGameFactory);
     }
 
     /// @notice Calls to the Deploy.s.sol contract etched by Setup.sol to a deterministic address, sets up the
@@ -234,11 +278,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             );
         }
 
-        // Grab the existing PermissionedDisputeGame parameters.
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        address challenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
-        address proposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
 
         // Prepare the upgrade input based on whether we're doing a super root migration.
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs;
@@ -248,8 +289,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             // Read the current respected game type from the ASR.
             IAnchorStateRegistry asr = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
             GameType originalGameType = asr.respectedGameType();
-            uint32 originalRaw = originalGameType.raw();
-            bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
+            bool isPermissionless = _isPermissionlessGameType(originalGameType);
+            address proposer = _migrationProposer(disputeGameFactory);
 
             // Determine the target SUPER_* game type.
             GameType targetGameType = isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED;
@@ -327,6 +368,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 data: abi.encode(targetGameType)
             });
         } else {
+            address challenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
+            address proposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
             // Standard upgrade path: CANNON disabled, remaining legacy types enabled, super types disabled.
             // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
             disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
@@ -443,9 +486,9 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         artifacts.save("ETHLockboxProxy", lockboxAddress);
 
         // Get the new DelayedWETH address and save it (might be a new proxy).
-        GameType wethGameType = Config.devFeatureSuperRootGamesMigration() ? GameTypes.SUPER_CANNON_KONA : permGameType;
-        IDelayedWETH newDelayedWeth =
-            IDelayedWETH(payable(LibGameArgs.decode(disputeGameFactory.gameArgs(wethGameType)).weth));
+        IDelayedWETH newDelayedWeth = DisputeGames.getGameImplDelayedWeth(
+            disputeGameFactory, _registeredPermissionlessGameType(disputeGameFactory)
+        );
         artifacts.save("DelayedWETHProxy", address(newDelayedWeth));
         artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(newDelayedWeth)));
     }
