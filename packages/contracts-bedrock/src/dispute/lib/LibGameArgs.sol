@@ -168,7 +168,7 @@ library LibGameArgs {
 
         assembly {
             // skip length prefix
-            let base := add(_args, 0x20)
+            let base := add(_args, 32)
             absolutePrestate := mload(base)
             verifier := shr(96, mload(add(base, 32)))
             maxChallengeDuration := shr(192, mload(add(base, 52)))

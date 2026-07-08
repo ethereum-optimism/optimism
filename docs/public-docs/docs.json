@@ -2115,6 +2115,7 @@
           {
             "group": "Tutorials",
             "pages": [
+              "app-developers/tutorials/deploy-a-contract",
               {
                 "group": "Bridging",
                 "pages": [

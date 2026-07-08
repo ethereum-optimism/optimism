@@ -4,7 +4,7 @@ import { readdirSync } from "node:fs";
 import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dir, "../..");
-const configPath = path.join(repoRoot, ".circleci/config.yml");
+const routingScriptPath = path.join(repoRoot, ".circleci/scripts/compute-workflow-conditions.sh");
 const continuationDir = path.join(repoRoot, ".circleci/continue");
 const apiBase = process.env.CIRCLECI_API_BASE ?? "https://circleci.com/api/v2";
 const projectSlug =
@@ -41,11 +41,9 @@ async function yqText(expression, file) {
 }
 
 async function extractDecisionTree() {
-  const stepName = "Compute workflow conditions from pipeline parameters and store in JSON file";
-  const expression = `.jobs.prepare-continuation-config.steps[] | select(.run.name == "${stepName}") | .run.command`;
-  const decisionTree = await yqText(expression, configPath);
+  const decisionTree = await Bun.file(routingScriptPath).text();
   if (decisionTree.trim() === "") {
-    console.error(`ERROR: Could not extract decision tree from ${configPath}`);
+    console.error(`ERROR: Could not read routing script ${routingScriptPath}`);
     process.exit(1);
   }
   return decisionTree;
@@ -150,7 +148,7 @@ async function fetchScheduleNames(token) {
 }
 const mappings = extractScheduleMappings(await extractDecisionTree());
 if (mappings.length === 0) {
-  console.error(`ERROR: no scheduled_pipeline schedule mappings found in ${configPath}`);
+  console.error(`ERROR: no scheduled_pipeline schedule mappings found in ${routingScriptPath}`);
   process.exit(1);
 }
 
