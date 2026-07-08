@@ -195,7 +195,7 @@ async fn custom_validator_wrapper_rejects_filtered_txs() {
     let block_hashes: Vec<B256> =
         block.body().transactions.iter().map(|tx| B256::from(*tx.tx_hash())).collect();
 
-    assert!(!block_hashes.contains(&above_hash), "below-threshold tx should not be included");
+    assert!(!block_hashes.contains(&above_hash), "above-threshold tx should not be included");
     assert!(block_hashes.contains(&below_hash), "below-threshold tx should be included");
 }
 
@@ -257,6 +257,6 @@ async fn default_validator_admits_all_txs() {
     let block_hashes: Vec<B256> =
         block.body().transactions.iter().map(|tx| B256::from(*tx.tx_hash())).collect();
 
-    assert!(block_hashes.contains(&above_hash), "below-threshold tx should be included");
+    assert!(block_hashes.contains(&above_hash), "above-threshold tx should be included");
     assert!(block_hashes.contains(&below_hash), "below-threshold tx should be included");
 }

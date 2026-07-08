@@ -488,7 +488,7 @@ impl<Txs> OpBuilder<'_, Txs> {
                 .execute_best_transactions(
                     &mut info,
                     &mut builder,
-                    RethBestTransactions(best_txs),
+                    RethPayloadTransactions(best_txs),
                     None,
                     None,
                 )?
@@ -612,20 +612,24 @@ impl<Txs> OpBuilder<'_, Txs> {
 /// it still owns the transaction; commit reports only the gas.
 ///
 /// A plain [`PayloadTransactions`] that doesn't care about inclusions can be
-/// adapted with [`RethBestTransactions`], whose `on_commit` is a no-op.
-pub trait OpBestTransactions: PayloadTransactions {
-    /// Called once per committed transaction, in commit order, after inclusion is
-    /// confirmed, with the gas it used.
+/// adapted with [`RethPayloadTransactions`], whose `on_commit` is a no-op.
+pub trait PayloadTransactionsWithCommitHook: PayloadTransactions {
+    /// Invoked exactly once for the transaction most recently returned by `next()`,
+    /// after it is successfully executed and committed to the block, and BEFORE any
+    /// subsequent `next()` call, with the gas that transaction used. It is NOT invoked
+    /// for transactions that are skipped or rejected — whether or not `mark_invalid`
+    /// was called for them. Implementors may therefore attribute `gas_used` to the
+    /// most-recently-yielded transaction.
     fn on_commit(&mut self, gas_used: u64);
 }
 
-/// Adapts a plain [`PayloadTransactions`] to [`OpBestTransactions`] by ignoring
+/// Adapts a plain [`PayloadTransactions`] to [`PayloadTransactionsWithCommitHook`] by ignoring
 /// commit notifications. Lets the standard build path pass a stock pool iterator
-/// where an [`OpBestTransactions`] is required.
+/// where a [`PayloadTransactionsWithCommitHook`] is required.
 #[derive(Debug)]
-pub struct RethBestTransactions<T>(pub T);
+pub struct RethPayloadTransactions<T>(pub T);
 
-impl<T: PayloadTransactions> PayloadTransactions for RethBestTransactions<T> {
+impl<T: PayloadTransactions> PayloadTransactions for RethPayloadTransactions<T> {
     type Transaction = T::Transaction;
 
     fn next(&mut self, ctx: ()) -> Option<Self::Transaction> {
@@ -637,7 +641,7 @@ impl<T: PayloadTransactions> PayloadTransactions for RethBestTransactions<T> {
     }
 }
 
-impl<T: PayloadTransactions> OpBestTransactions for RethBestTransactions<T> {
+impl<T: PayloadTransactions> PayloadTransactionsWithCommitHook for RethPayloadTransactions<T> {
     fn on_commit(&mut self, _gas_used: u64) {}
 }
 
@@ -1012,16 +1016,16 @@ where
     ///
     /// Returns `Ok(Some(()))` if the job was cancelled.
     ///
-    /// `best_txs` is an [`OpBestTransactions`]: its [`OpBestTransactions::on_commit`]
-    /// is invoked once per committed transaction, in commit order, with the
-    /// committed tx and the gas it used, so a custom iterator can maintain its own
-    /// per-inclusion state. A plain [`PayloadTransactions`] satisfies the trait via
-    /// the blanket impl, where `on_commit` is a no-op.
+    /// `best_txs` is a [`PayloadTransactionsWithCommitHook`]: its
+    /// [`PayloadTransactionsWithCommitHook::on_commit`] is invoked once per committed
+    /// transaction, in commit order, with the gas it used, so a custom iterator can
+    /// maintain its own per-inclusion state. A plain [`PayloadTransactions`] satisfies
+    /// the trait via [`RethPayloadTransactions`], where `on_commit` is a no-op.
     pub fn execute_best_transactions<Builder>(
         &self,
         info: &mut ExecutionInfo,
         builder: &mut Builder,
-        mut best_txs: impl OpBestTransactions<
+        mut best_txs: impl PayloadTransactionsWithCommitHook<
             Transaction: PoolTransaction<Consensus = TxTy<Evm::Primitives>> + OpPooledTx,
         >,
         gas_limit_cap: Option<u64>,
@@ -1153,7 +1157,7 @@ where
             info.total_fees += U256::from(miner_fee) * U256::from(tx_gas_used);
 
             // Report the gas used by each committed transaction so a custom
-            // `best_txs` can update its own per-inclusion state. `RethBestTransactions`
+            // `best_txs` can update its own per-inclusion state. `RethPayloadTransactions`
             // makes this a no-op for a plain `PayloadTransactions`.
             best_txs.on_commit(tx_gas_used);
 
