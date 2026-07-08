@@ -940,7 +940,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 
 	// L2Output Submitter
-	respectedGameType := gameTypes.PermissionedGameType
+	respectedGameType := gameTypes.SuperPermissionedGameType
 	if cfg.AllocType == config.AllocTypeFastGame {
 		respectedGameType = gameTypes.FastGameType
 	}

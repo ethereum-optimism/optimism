@@ -428,15 +428,22 @@ commands:
                 for feature in $FEATURES_STRING; do
                   feature=$(echo "$feature" | xargs)  # trim whitespace
                   if [ -n "$feature" ] && [ "$(echo "$feature" | tr '[:upper:]' '[:lower:]')" != "main" ]; then
+                    # A NO_<FEATURE> entry explicitly disables a default-enabled feature.
+                    if echo "$feature" | grep -q "^NO_"; then
+                      feature="${feature#NO_}"
+                      value="false"
+                    else
+                      value="true"
+                    fi
                     # Check if this feature is in the system features registry
                     if echo "$SYSTEM_FEATURES" | grep -qw "$feature"; then
                       env_var="SYS_FEATURE__${feature}"
-                      echo "Setting ${env_var}=true (system feature)"
-                      echo "export ${env_var}=true" >> $BASH_ENV
+                      echo "Setting ${env_var}=${value} (system feature)"
+                      echo "export ${env_var}=${value}" >> $BASH_ENV
                     else
                       env_var="DEV_FEATURE__${feature}"
-                      echo "Setting ${env_var}=true (dev feature)"
-                      echo "export ${env_var}=true" >> $BASH_ENV
+                      echo "Setting ${env_var}=${value} (dev feature)"
+                      echo "export ${env_var}=${value}" >> $BASH_ENV
                     fi
                   fi
                 done
@@ -2938,7 +2945,7 @@ workflows:
                 - CUSTOM_GAS_TOKEN
                 - OPTIMISM_PORTAL_INTEROP
                 - ZK_DISPUTE_GAME
-                - SUPER_ROOT_GAMES_MIGRATION
+                - NO_SUPER_ROOT_GAMES_MIGRATION
                 # TODO(#20084): Remove these commented out jobs when removing the L2CM feature toggle.
                 #   L2CM is enabled by default, so we do not need to explicitly enable it and run these additional jobs.
                 #   However they are kept here for now so that they can easily be reactivated.
@@ -3100,22 +3107,22 @@ workflows:
             - contracts-bedrock-tests CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP: terminal
             - contracts-bedrock-tests ZK_DISPUTE_GAME: terminal
-            - contracts-bedrock-tests SUPER_ROOT_GAMES_MIGRATION: terminal
+            - contracts-bedrock-tests NO_SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME: terminal
-            - contracts-bedrock-tests-heavy-fuzz-modified SUPER_ROOT_GAMES_MIGRATION: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified NO_SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-coverage CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP: terminal
             - contracts-bedrock-coverage ZK_DISPUTE_GAME: terminal
-            - contracts-bedrock-coverage SUPER_ROOT_GAMES_MIGRATION: terminal
+            - contracts-bedrock-coverage NO_SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP: terminal
             - contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet SUPER_ROOT_GAMES_MIGRATION: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet NO_SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-upgrade op-mainnet: terminal
             - contracts-bedrock-tests-upgrade ink-mainnet: terminal
             - contracts-bedrock-tests-upgrade unichain-mainnet: terminal

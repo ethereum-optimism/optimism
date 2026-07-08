@@ -1722,12 +1722,19 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
 
         l2ChainId = deploy.cfg().l2ChainID();
         cannonPrestate = Claim.wrap(bytes32(deploy.cfg().faultGameAbsolutePrestate()));
-        proposer = deploy.cfg().l2OutputOracleProposer();
-        challenger = deploy.cfg().l2OutputOracleChallenger();
+        if (isL1ForkTest()) {
+            proposer = DisputeGames.permissionedGameProposer(dgf);
+            challenger = DisputeGames.permissionedGameChallenger(dgf);
+        } else {
+            proposer = deploy.cfg().l2OutputOracleProposer();
+            challenger = deploy.cfg().l2OutputOracleChallenger();
+        }
 
-        // The deploy created SUPER_PERMISSIONED (enabled) + SUPER_CANNON_KONA (disabled).
-        // Run an upgrade to also enable SUPER_CANNON_KONA so that full validation passes.
-        _enableSuperCannonKona();
+        if (!isL1ForkTest()) {
+            _enableSuperCannonKona();
+        }
+
+        _mockSuperModeForkL1PAOOwnership();
     }
 
     /// @notice Runs an upgrade that enables SUPER_CANNON_KONA alongside SUPER_PERMISSIONED.
@@ -1798,6 +1805,20 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
             )
         );
         assertTrue(success, "super mode upgrade failed");
+    }
+
+    /// @notice Normalizes fork ownership to the L1 PAO expected by the validator.
+    function _mockSuperModeForkL1PAOOwnership() internal {
+        if (!isL1ForkTest()) return;
+
+        address l1PAOMultisig = standardValidator.l1PAOMultisig();
+        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(l1PAOMultisig));
+        vm.mockCall(
+            address(disputeGameFactory), abi.encodeCall(IDisputeGameFactory.owner, ()), abi.encode(l1PAOMultisig)
+        );
+
+        LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(dgf.gameArgs(GameTypes.SUPER_CANNON_KONA));
+        vm.mockCall(gameArgs.weth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(l1PAOMultisig));
     }
 
     /// @notice Runs the OPContractsManagerStandardValidator.validate function.
@@ -2007,6 +2028,13 @@ contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
         vm.mockCall(badVM, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
         vm.mockCall(badVM, abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION));
         assertEq("SCKDG-VM-10,SCKDG-VM-20", _validate(true));
+    }
+
+    /// @notice Tests SCKDG-DWETH-30 when SUPER_CANNON_KONA DelayedWETH owner is invalid.
+    function test_validate_superPermissionlessDisputeGameInvalidWethOwner_succeeds() public {
+        LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(dgf.gameArgs(GameTypes.SUPER_CANNON_KONA));
+        vm.mockCall(gameArgs.weth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0xbad)));
+        assertEq("SCKDG-DWETH-30", _validate(true));
     }
 }
 

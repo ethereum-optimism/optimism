@@ -45,6 +45,10 @@ func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
 	if hasFlag(flag, L2CMFlag) {
 		return true
 	}
+	// SuperRootGamesMigration is enabled by default. TODO(#21662): remove with the broader SuperRootGamesMigrationFlag cleanup.
+	if hasFlag(flag, SuperRootGamesMigrationFlag) {
+		return true
+	}
 	b := new(big.Int).SetBytes(bitmap[:])
 	f := new(big.Int).SetBytes(flag[:])
 

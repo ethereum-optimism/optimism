@@ -65,6 +65,9 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
         vm.assume(_feature != bytes32(0));
         // L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
         vm.assume((_feature & DevFeatures.L2CM) != DevFeatures.L2CM);
+        // SuperRootGamesMigration is hardcoded enabled. TODO(#21662): remove with the broader SuperRootGamesMigration
+        // cleanup.
+        vm.assume((_feature & DevFeatures.SUPER_ROOT_GAMES_MIGRATION) != DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         // Ensure `devFeatureBitmap` contains bytes32(0)
         vm.store(address(l2DevFeatureFlags), bytes32(uint256(keccak256("l2devfeatureflags.bitmap")) - 1), bytes32(0));
         assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(_feature));
@@ -76,9 +79,16 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.L2CM));
     }
 
+    /// @notice Tests that `isDevFeatureEnabled(SUPER_ROOT_GAMES_MIGRATION)` always returns true regardless of stored
+    /// bitmap.
+    /// @dev TODO(#21662): remove with the broader SuperRootGamesMigration cleanup.
+    function test_isDevFeatureEnabled_superRootGamesMigrationAlwaysEnabled_succeeds() public view {
+        assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION));
+    }
     /// @notice Tests that `isDevFeatureEnabled` returns true for a multi-bit query that includes
     ///         the L2CM flag, regardless of the stored bitmap.
     /// @dev TODO(#20084): remove with the broader L2CMFlag cleanup.
+
     function testFuzz_isDevFeatureEnabled_l2cmAlwaysEnabledMultiFlag_succeeds(uint8 _bitIndex) public view {
         vm.assume(bytes32(1 << uint256(_bitIndex)) != DevFeatures.L2CM);
         bytes32 featureWithL2CM = bytes32(1 << uint256(_bitIndex)) | DevFeatures.L2CM;
