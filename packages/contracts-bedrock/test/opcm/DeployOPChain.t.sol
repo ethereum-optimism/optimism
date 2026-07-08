@@ -232,7 +232,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     /// @notice Legacy CANNON is rejected as an initial deployment game type.
     function test_run_cannonGameType_reverts() public {
         deployOPChainInput.disputeGameType = GameTypes.CANNON;
-        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
 
         vm.expectRevert("DeployOPChain: unsupported dispute game type");
         deployOPChain.run(deployOPChainInput);
@@ -246,7 +245,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
 
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
-        _checkSelectedPermissionlessDeployment(doo, GameTypes.CANNON_KONA);
+        _checkCannonKonaPermissionlessDeployment(doo);
     }
 
     /// @notice Permissionless game types are rejected when super roots are enabled.
@@ -258,31 +257,24 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChain.run(deployOPChainInput);
     }
 
-    /// @notice Asserts a permissionless deployment enabled only the selected fault game with the
+    /// @notice Asserts a CANNON_KONA permissionless deployment enabled only CANNON_KONA with the
     ///         default bond and seeded the ASR with the input anchor root and respected game type.
     /// @param doo The output of the deployment.
-    /// @param _selectedType The selected and expected respected game type.
-    function _checkSelectedPermissionlessDeployment(
-        DeployOPChain.Output memory doo,
-        GameType _selectedType
-    )
-        internal
-        view
-    {
-        uint256 defaultBond = deployOPChain.DEFAULT_INIT_BOND();
-        GameType disabledPermissionlessType =
-            _selectedType.raw() == GameTypes.CANNON.raw() ? GameTypes.CANNON_KONA : GameTypes.CANNON;
-
+    function _checkCannonKonaPermissionlessDeployment(DeployOPChain.Output memory doo) internal view {
         IOPContractsManagerContainer.Implementations memory impls = IOPContractsManagerV2(opcmAddr).implementations();
-        assertEq(doo.disputeGameFactoryProxy.initBonds(_selectedType), defaultBond, "selected init bond");
         assertEq(
-            address(doo.disputeGameFactoryProxy.gameImpls(_selectedType)), impls.faultDisputeGameImpl, "selected impl"
+            doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON_KONA),
+            deployOPChain.DEFAULT_INIT_BOND(),
+            "selected init bond"
         );
-        assertEq(doo.disputeGameFactoryProxy.initBonds(disabledPermissionlessType), 0, "unselected init bond");
         assertEq(
-            address(doo.disputeGameFactoryProxy.gameImpls(disabledPermissionlessType)), address(0), "unselected impl"
+            address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON_KONA)),
+            impls.faultDisputeGameImpl,
+            "selected impl"
         );
-        assertEq(doo.disputeGameFactoryProxy.gameArgs(disabledPermissionlessType).length, 0, "unselected args");
+        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "unselected init bond");
+        assertEq(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)), address(0), "unselected impl");
+        assertEq(doo.disputeGameFactoryProxy.gameArgs(GameTypes.CANNON).length, 0, "unselected args");
         assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.PERMISSIONED_CANNON), 0, "permissioned init bond");
         assertEq(
             address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON)),
@@ -291,13 +283,13 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         );
 
         assertEq(
-            LibGameArgs.decode(doo.disputeGameFactoryProxy.gameArgs(_selectedType)).absolutePrestate,
+            LibGameArgs.decode(doo.disputeGameFactoryProxy.gameArgs(GameTypes.CANNON_KONA)).absolutePrestate,
             deployOPChainInput.disputeAbsolutePrestate.raw(),
             "selected prestate wiring"
         );
 
         IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
-        assertEq(asr.respectedGameType().raw(), _selectedType.raw(), "respected game type");
+        assertEq(asr.respectedGameType().raw(), GameTypes.CANNON_KONA.raw(), "respected game type");
         Proposal memory anchor = asr.getStartingAnchorRoot();
         assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.raw(), "anchor root");
         assertEq(anchor.l2SequenceNumber, 0, "anchor seq");
