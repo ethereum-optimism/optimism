@@ -13,12 +13,14 @@ type SystemConfig struct {
 	OperatorFeeConstant func() TypedCall[uint64]         `sol:"operatorFeeConstant"`
 	BasefeeScalar       func() TypedCall[uint32]         `sol:"baseFeeScalar"`
 	BlobbasefeeScalar   func() TypedCall[uint32]         `sol:"blobBaseFeeScalar"`
+	GasLimit            func() TypedCall[uint64]         `sol:"gasLimit"`
 	Owner               func() TypedCall[common.Address] `sol:"owner"`
 
 	// Write functions
 	SetOperatorFeeScalars func(operatorFeeScalar uint32, operatorFeeConstant uint64) TypedCall[any] `sol:"setOperatorFeeScalars"`
 	SetGasConfig          func(overhead *big.Int, scalar *big.Int) TypedCall[any]                   `sol:"setGasConfig"`
 	SetGasConfigEcotone   func(basefeeScalar uint32, blobbasefeeScalar uint32) TypedCall[any]       `sol:"setGasConfigEcotone"`
+	SetGasLimit           func(gasLimit uint64) TypedCall[any]                                      `sol:"setGasLimit"`
 }
 
 func NewSystemConfig(opts ...CallFactoryOption) *SystemConfig {
