@@ -352,15 +352,8 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
     )
         internal
     {
-        // Grab values before we upgrade, to be checked later.
-        address initialChallenger;
+        address initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
         address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
-        if (
-            !isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-                || address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)) != address(0)
-        ) {
-            initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
-        }
 
         // Execute the SuperchainConfig upgrade.
         prankDelegateCall(superchainPAO);
@@ -1522,13 +1515,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         skipIfNotForkTest("FutureForkLiveSetup: only runs in forked tests");
 
         if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
-            GameType originalGameType = optimismPortal2.respectedGameType();
-            if (GameTypes.isSuperGame(originalGameType)) {
-                vm.skip(true, "Skipping: fork chain already upgraded to SUPER_ game type");
-            }
-
-            uint32 originalRaw = originalGameType.raw();
-            bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
+            uint32 originalRaw = optimismPortal2.respectedGameType().raw();
+            bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw()
+                || originalRaw == GameTypes.SUPER_CANNON_KONA.raw();
             address currentProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
             _setupSuperRootConfigs(isPermissionless, currentProposer);
         }
@@ -2233,10 +2222,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         cts_ = opcmV2.deploy(deployConfig);
     }
 
-    function _initialPermissionedGameChallenger(bool _superRoot) internal view returns (address challenger_) {
-        if (!_superRoot) return DisputeGames.permissionedGameChallenger(disputeGameFactory);
-
-        challenger_ = address(0);
+    function _initialPermissionedGameChallenger(bool) internal view returns (address challenger_) {
+        challenger_ = DisputeGames.permissionedGameChallenger(disputeGameFactory);
     }
 
     function _initialPermissionedGameProposer(bool) internal view returns (address proposer_) {

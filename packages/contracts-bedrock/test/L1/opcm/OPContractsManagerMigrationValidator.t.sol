@@ -202,10 +202,8 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         cts_ = opcmV2.deploy(deployConfig);
     }
 
-    function _initialPermissionedGameChallenger(bool _superRoot) internal view returns (address challenger_) {
-        if (!_superRoot) return DisputeGames.permissionedGameChallenger(disputeGameFactory);
-
-        challenger_ = address(0);
+    function _initialPermissionedGameChallenger(bool) internal view returns (address challenger_) {
+        challenger_ = DisputeGames.permissionedGameChallenger(disputeGameFactory);
     }
 
     function _initialPermissionedGameProposer(bool) internal view returns (address proposer_) {

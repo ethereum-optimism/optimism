@@ -99,6 +99,10 @@ library DisputeGames {
     }
 
     function permissionedGameChallenger(IDisputeGameFactory _dgf) internal view returns (address challenger_) {
+        if (address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0)) {
+            return address(0);
+        }
+
         GameType gameType = GameTypes.PERMISSIONED_CANNON;
         (bool gameArgsExist, bytes memory gameArgsData) = _getGameArgs(_dgf, gameType);
         if (gameArgsExist) {
