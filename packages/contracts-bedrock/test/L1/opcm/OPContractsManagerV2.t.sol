@@ -1971,30 +1971,13 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
-    /// @notice CANNON may be enabled at initial deployment now that its prestate is supplied via the
-    ///         deploy config.
-    function test_deploy_cannonGameEnabled_succeeds() public {
+    /// @notice Deploy reverts when legacy CANNON is enabled, even with a valid prestate.
+    function test_deploy_cannonGameEnabled_reverts() public {
         deployConfig.disputeGameConfigs[0].enabled = true;
         deployConfig.disputeGameConfigs[0].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
         deployConfig.disputeGameConfigs[0].gameArgs =
             abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }));
         deployConfig.startingRespectedGameType = GameTypes.CANNON;
-
-        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
-        assertNotEq(
-            address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON)), address(0), "CANNON impl should be set"
-        );
-        assertEq(
-            cts.anchorStateRegistry.respectedGameType().raw(), GameTypes.CANNON.raw(), "respected game type mismatch"
-        );
-    }
-
-    /// @notice Deploy reverts when CANNON is enabled with a zero prestate.
-    function test_deploy_cannonGameEnabledZeroPrestate_reverts() public {
-        deployConfig.disputeGameConfigs[0].enabled = true;
-        deployConfig.disputeGameConfigs[0].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
-        deployConfig.disputeGameConfigs[0].gameArgs =
-            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(0)) }));
 
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
@@ -2024,9 +2007,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
-    /// @notice Multiple permissionless games may be enabled at initial deployment when each config
-    ///         is structurally valid.
-    function test_deploy_multiplePermissionlessGamesEnabled_succeeds() public {
+    /// @notice Deploy reverts when legacy CANNON is enabled alongside CANNON_KONA.
+    function test_deploy_multiplePermissionlessGamesEnabled_reverts() public {
         deployConfig.disputeGameConfigs[0].enabled = true;
         deployConfig.disputeGameConfigs[0].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
         deployConfig.disputeGameConfigs[0].gameArgs =
@@ -2035,16 +2017,11 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         deployConfig.disputeGameConfigs[2].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
         deployConfig.disputeGameConfigs[2].gameArgs =
             abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }));
-        deployConfig.startingRespectedGameType = GameTypes.CANNON;
+        deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
 
-        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
-        assertNotEq(
-            address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON)), address(0), "CANNON impl should be set"
-        );
-        assertNotEq(
-            address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)),
-            address(0),
-            "CANNON_KONA impl should be set"
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
         );
     }
 
@@ -2073,11 +2050,11 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Deploy reverts when an initial permissionless deploy uses a zero starting anchor root.
     function test_deploy_permissionlessZeroStartingAnchorRoot_reverts() public {
-        deployConfig.disputeGameConfigs[0].enabled = true;
-        deployConfig.disputeGameConfigs[0].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
-        deployConfig.disputeGameConfigs[0].gameArgs =
-            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }));
-        deployConfig.startingRespectedGameType = GameTypes.CANNON;
+        deployConfig.disputeGameConfigs[2].enabled = true;
+        deployConfig.disputeGameConfigs[2].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
+        deployConfig.disputeGameConfigs[2].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }));
+        deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
         deployConfig.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 });
 
         // nosemgrep: sol-style-use-abi-encodecall
@@ -2088,10 +2065,10 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Deploy reverts when an initial permissionless deploy uses the permissioned placeholder anchor root.
     function test_deploy_permissionlessPlaceholderStartingAnchorRoot_reverts() public {
-        deployConfig.disputeGameConfigs[0].enabled = true;
-        deployConfig.disputeGameConfigs[0].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
-        deployConfig.disputeGameConfigs[0].gameArgs =
-            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }));
+        deployConfig.disputeGameConfigs[2].enabled = true;
+        deployConfig.disputeGameConfigs[2].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
+        deployConfig.disputeGameConfigs[2].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }));
         deployConfig.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(hex"dead")), l2SequenceNumber: 0 });
 
         // nosemgrep: sol-style-use-abi-encodecall

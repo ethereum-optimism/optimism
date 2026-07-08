@@ -747,10 +747,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // During initial deployment, only CANNON, PERMISSIONED_CANNON, CANNON_KONA, and
-            // SUPER_PERMISSIONED may be enabled.
-            bool enableableAtInitialDeployment =
-                isCannonGame || isPermissionedCannonGame || isCannonKonaGame || isSuperPermissionedGame;
+            // Post-U19 initial deployments may enable only PERMISSIONED_CANNON,
+            // CANNON_KONA, and SUPER_PERMISSIONED. Legacy CANNON is rejected.
+            bool enableableAtInitialDeployment = isPermissionedCannonGame || isCannonKonaGame || isSuperPermissionedGame;
 
             if (_isInitialDeployment && !enableableAtInitialDeployment && _cfg.disputeGameConfigs[i].enabled) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
