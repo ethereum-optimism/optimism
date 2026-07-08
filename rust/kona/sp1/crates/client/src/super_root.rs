@@ -488,6 +488,11 @@ pub enum SuperRootError {
         /// Last timestamp in the requested span.
         end: u64,
     },
+    /// Range spans must have a previous timestamp to bind the previous super root.
+    InvalidTimestampSpanStart {
+        /// First timestamp in the requested span.
+        start: u64,
+    },
     /// Range transition coverage is too large to represent on this host.
     RangeTransitionCountOverflow {
         /// Number of timestamps in the inclusive span.
@@ -666,6 +671,9 @@ impl core::fmt::Display for SuperRootError {
             }
             Self::InvalidTimestampSpan { start, end } => {
                 write!(f, "invalid timestamp span {start}..={end}")
+            }
+            Self::InvalidTimestampSpanStart { start } => {
+                write!(f, "range timestamp span start {start} has no previous timestamp")
             }
             Self::RangeTransitionCountOverflow { timestamps, chains } => write!(
                 f,
@@ -868,12 +876,9 @@ fn ensure_range_previous_super_root_coverage(
 
     for (offset, proof) in previous_super_root_proofs.iter().enumerate() {
         let transition_timestamp = span.start + offset as u64;
-        let expected_timestamp = transition_timestamp.checked_sub(1).ok_or(
-            SuperRootError::RangePreviousRootTimestampMismatch {
-                expected: 0,
-                actual: proof.super_root.timestamp,
-            },
-        )?;
+        let expected_timestamp = transition_timestamp
+            .checked_sub(1)
+            .ok_or(SuperRootError::InvalidTimestampSpanStart { start: transition_timestamp })?;
         if proof.super_root.timestamp != expected_timestamp {
             return Err(SuperRootError::RangePreviousRootTimestampMismatch {
                 expected: expected_timestamp,
@@ -1144,25 +1149,38 @@ mod tests {
             root_claim: final_super_root,
             l2_sequence_number: 101,
             prover: address!("0x1234567890123456789012345678901234567890"),
-            range_outputs: vec![SuperRangeOutputs {
-                span: TimestampSpan::new(100, 101).expect("valid span"),
-                l1_head: B256::from([0x99; 32]),
-                previous_super_roots: vec![starting_root_hash, B256::from([0x44; 32])],
-                transitions: vec![
-                    SuperRangeTransition { timestamp: 100, optimistic_block: timestamp_100[0] },
-                    SuperRangeTransition { timestamp: 100, optimistic_block: timestamp_100[1] },
-                    SuperRangeTransition { timestamp: 101, optimistic_block: timestamp_101[0] },
-                    SuperRangeTransition { timestamp: 101, optimistic_block: timestamp_101[1] },
-                ],
-            }],
-            consolidation_outputs: vec![SuperConsolidationOutputs {
-                span: TimestampSpan::new(100, 101).expect("valid span"),
-                previous_super_root: starting_root_hash,
-                transitions: vec![
-                    consolidation_transition(100, timestamp_100, 0x44),
-                    consolidation_transition(101, timestamp_101, 0x55),
-                ],
-            }],
+            range_outputs: vec![
+                SuperRangeOutputs {
+                    span: TimestampSpan::new(100, 100).expect("valid span"),
+                    l1_head: B256::from([0x99; 32]),
+                    previous_super_roots: vec![starting_root_hash],
+                    transitions: vec![
+                        SuperRangeTransition { timestamp: 100, optimistic_block: timestamp_100[0] },
+                        SuperRangeTransition { timestamp: 100, optimistic_block: timestamp_100[1] },
+                    ],
+                },
+                SuperRangeOutputs {
+                    span: TimestampSpan::new(101, 101).expect("valid span"),
+                    l1_head: B256::from([0x99; 32]),
+                    previous_super_roots: vec![B256::from([0x44; 32])],
+                    transitions: vec![
+                        SuperRangeTransition { timestamp: 101, optimistic_block: timestamp_101[0] },
+                        SuperRangeTransition { timestamp: 101, optimistic_block: timestamp_101[1] },
+                    ],
+                },
+            ],
+            consolidation_outputs: vec![
+                SuperConsolidationOutputs {
+                    span: TimestampSpan::new(100, 100).expect("valid span"),
+                    previous_super_root: starting_root_hash,
+                    transitions: vec![consolidation_transition(100, timestamp_100, 0x44)],
+                },
+                SuperConsolidationOutputs {
+                    span: TimestampSpan::new(101, 101).expect("valid span"),
+                    previous_super_root: B256::from([0x44; 32]),
+                    transitions: vec![consolidation_transition(101, timestamp_101, 0x55)],
+                },
+            ],
             range_vkey: range_vkey(),
         }
     }
@@ -1261,7 +1279,7 @@ mod tests {
     #[test]
     fn aggregation_inputs_reject_intermediate_range_previous_root_mismatch() {
         let mut inputs = valid_aggregation_inputs();
-        inputs.range_outputs[0].previous_super_roots[1] = B256::from([0xee; 32]);
+        inputs.range_outputs[1].previous_super_roots[0] = B256::from([0xee; 32]);
 
         assert_eq!(
             inputs.validate(),
@@ -1444,6 +1462,21 @@ mod tests {
         assert_eq!(
             wrong_previous_timestamp.validate(),
             Err(SuperRootError::RangePreviousRootTimestampMismatch { expected: 100, actual: 101 })
+        );
+
+        let zero_start = SuperRangeInputs {
+            span: TimestampSpan::new(0, 0).expect("valid inclusive span"),
+            l1_head: B256::from([0x99; 32]),
+            chain_ids: vec![U256::from(10), U256::from(20)],
+            previous_super_root_proofs: vec![SuperRootProof::new(
+                0,
+                vec![output(10, 0x01), output(20, 0x02)],
+            )],
+            claimed_transitions: vec![transition(0, 10, 0x11, 0x12), transition(0, 20, 0x21, 0x22)],
+        };
+        assert_eq!(
+            zero_start.validate(),
+            Err(SuperRootError::InvalidTimestampSpanStart { start: 0 })
         );
 
         let missing_previous_chain = SuperRangeInputs {
