@@ -98,12 +98,12 @@ mod tests {
     use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
     use rstest::rstest;
 
-    // Any timestamp works for the gate checks below: interop is activated at genesis on the
-    // active spec, and never on the inactive one.
+    // Any timestamp works for the gate checks below: SDM's gating hardfork (Lagoon) is activated
+    // at genesis on the active spec, and never on the inactive one.
     const QUERY_TIMESTAMP: u64 = 2_000_000_000;
 
     fn sdm_active_chain_spec() -> Arc<OpChainSpec> {
-        Arc::new(OpChainSpecBuilder::optimism_mainnet().interop_activated().build())
+        Arc::new(OpChainSpecBuilder::optimism_mainnet().lagoon_activated().build())
     }
 
     fn sdm_inactive_chain_spec() -> Arc<OpChainSpec> {
