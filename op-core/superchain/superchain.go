@@ -3,10 +3,21 @@ package superchain
 import (
 	"fmt"
 	"path"
+	"slices"
 
-	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
+
+// legacySuperchainKeys are keys still present in the embedded superchain.toml files that the
+// Superchain struct deliberately no longer models. They are tolerated by the strict decoder so a
+// genuinely new/unexpected key is still rejected while this known legacy field is not.
+var legacySuperchainKeys = []string{"protocol_versions_addr"}
+
+func isLegacySuperchainKey(key string) bool {
+	return slices.Contains(legacySuperchainKeys, key)
+}
 
 type Superchain struct {
 	Name                   string         `toml:"name"`
@@ -41,7 +52,7 @@ func (c *ChainConfigLoader) GetSuperchain(network string) (Superchain, error) {
 		return sc, err
 	}
 
-	if _, err := toml.NewDecoder(zr).Decode(&sc); err != nil {
+	if err := jsonutil.DecodeTOMLStrict(zr, &sc, isLegacySuperchainKey); err != nil {
 		return sc, fmt.Errorf("error decoding superchain config: %w", err)
 	}
 
