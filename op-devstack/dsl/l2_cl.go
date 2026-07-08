@@ -527,6 +527,47 @@ func (cl *L2CLNode) VerifySafeHeadDatabaseMatches(sourceOfTruth *L2CLNode, args 
 	checkSafeHeadConsistent(cl.t, l1Block, cl, sourceOfTruth, opts.minRequiredL2Block)
 }
 
+// outputAtBlock fetches optimism_outputAtBlock for an L2 block with a short retry,
+// so a transient RPC hiccup counts as a retry rather than an instant failure.
+func (cl *L2CLNode) outputAtBlock(blockNum uint64) *eth.OutputResponse {
+	var resp *eth.OutputResponse
+	err := retry.Do0(cl.ctx, 5, retry.Fixed(500*time.Millisecond), func() error {
+		var innerErr error
+		resp, innerErr = cl.Escape().RollupAPI().OutputAtBlock(cl.ctx, blockNum)
+		return innerErr
+	})
+	cl.require.NoErrorf(err, "fetch output at L2 block %d", blockNum)
+	return resp
+}
+
+// VerifyOutputRootMatches compares optimism_outputAtBlock between this node
+// (the one under test) and sourceOfTruth for every L2 block from 1 up to the
+// lower of the two safe heads, asserting the output root, its inputs (state root,
+// withdrawal storage root), and the block ref agree at each height.
+//
+// The output root is a spec value — keccak256(v0 ++ stateRoot ++
+// messagePasserStorageRoot ++ blockHash) — so two nodes that derived the same safe
+// chain must produce byte-identical roots for every safe block. The embedded
+// syncStatus is node-local (each node's own current L1 and live heads) and is
+// intentionally not compared.
+func (cl *L2CLNode) VerifyOutputRootMatches(sourceOfTruth *L2CLNode) {
+	maxBlock := cl.HeadBlockRef(types.LocalSafe).Number
+	if other := sourceOfTruth.HeadBlockRef(types.LocalSafe).Number; other < maxBlock {
+		maxBlock = other
+	}
+	cl.require.Greater(maxBlock, uint64(0), "no safe blocks available to compare output roots")
+	cl.log.Info("Verifying output roots match", "maxBlock", maxBlock, "sourceOfTruth", sourceOfTruth.String())
+	for n := uint64(1); n <= maxBlock; n++ {
+		actual := cl.outputAtBlock(n)
+		expected := sourceOfTruth.outputAtBlock(n)
+		cl.require.Equalf(expected.BlockRef, actual.BlockRef, "block ref mismatch at L2 block %d", n)
+		cl.require.Equalf(expected.StateRoot, actual.StateRoot, "state root mismatch at L2 block %d", n)
+		cl.require.Equalf(expected.WithdrawalStorageRoot, actual.WithdrawalStorageRoot, "withdrawal storage root mismatch at L2 block %d", n)
+		cl.require.Equalf(expected.Version, actual.Version, "output version mismatch at L2 block %d", n)
+		cl.require.Equalf(expected.OutputRoot, actual.OutputRoot, "output root mismatch at L2 block %d", n)
+	}
+}
+
 func (cl *L2CLNode) WaitForNonZeroUnsafeTime(ctx context.Context) *eth.SyncStatus {
 	require := cl.require
 
