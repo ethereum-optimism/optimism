@@ -5,7 +5,7 @@ use crate::{
     },
     gas_limiter::{AddressGasLimiter, args::GasLimiterArgs},
     metrics::OpRBuilderMetrics,
-    sdm_admin::OperatorSdmOptInFlag,
+    sdm_admin::OperatorSdmOptIn,
     traits::ClientBounds,
 };
 use op_revm::OpSpecId;
@@ -34,7 +34,7 @@ pub(super) struct OpPayloadSyncerCtx {
     /// The metrics for the builder
     metrics: Arc<OpRBuilderMetrics>,
     /// Operator opt-in flag for SDM PostExec production, shared with the admin RPC.
-    operator_sdm_opt_in: OperatorSdmOptInFlag,
+    operator_sdm_opt_in: OperatorSdmOptIn,
     /// Interop failsafe gate shared with the txpool interop filter.
     interop_failsafe: reth_optimism_txpool::interop::InteropFailsafe,
 }

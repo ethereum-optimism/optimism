@@ -24,8 +24,25 @@ use std::{
 };
 
 /// Shared "operator wants to produce PostExec" flag. Cloned into both the RPC
-/// handler (writer) and every payload-builder ctx (reader).
-pub type OperatorSdmOptInFlag = Arc<AtomicBool>;
+/// handler (writer) and every payload-builder ctx (reader); all clones observe the
+/// same atomic. Access goes through [`OperatorSdmOptIn::enabled`]/[`OperatorSdmOptIn::set`]
+/// so the memory ordering lives in one place rather than at each call site.
+#[derive(Debug, Clone, Default)]
+pub struct OperatorSdmOptIn {
+    inner: Arc<AtomicBool>,
+}
+
+impl OperatorSdmOptIn {
+    /// Returns the current opt-in state.
+    pub fn enabled(&self) -> bool {
+        self.inner.load(Ordering::Acquire)
+    }
+
+    /// Sets the opt-in state.
+    pub fn set(&self, enabled: bool) {
+        self.inner.store(enabled, Ordering::Release);
+    }
+}
 
 /// Status snapshot returned by `admin_sdmStatus`.
 ///
@@ -62,26 +79,26 @@ pub trait SdmAdminApi {
 
 #[derive(Clone)]
 pub struct SdmAdminExt {
-    opt_in: OperatorSdmOptInFlag,
+    opt_in: OperatorSdmOptIn,
     chain_spec: Arc<OpChainSpec>,
 }
 
 impl SdmAdminExt {
-    pub fn new(opt_in: OperatorSdmOptInFlag, chain_spec: Arc<OpChainSpec>) -> Self {
+    pub fn new(opt_in: OperatorSdmOptIn, chain_spec: Arc<OpChainSpec>) -> Self {
         Self { opt_in, chain_spec }
     }
 }
 
 impl SdmAdminApiServer for SdmAdminExt {
     fn set_operator_sdm_opt_in(&self, enabled: bool) -> RpcResult<()> {
-        self.opt_in.store(enabled, Ordering::Release);
+        self.opt_in.set(enabled);
         gauge!("op_rbuilder_flags_sdm_enabled").set(enabled as i32);
         Ok(())
     }
 
     fn sdm_status(&self, query_timestamp: Option<u64>) -> RpcResult<SdmStatus> {
         let timestamp = query_timestamp.unwrap_or_else(current_unix_timestamp);
-        let opt_in = self.opt_in.load(Ordering::Acquire);
+        let opt_in = self.opt_in.enabled();
         let protocol_active = is_sdm_active_at_timestamp(&*self.chain_spec, timestamp);
         let activation_time = match self.chain_spec.op_fork_activation(OpHardfork::Lagoon) {
             ForkCondition::Timestamp(t) => Some(t),

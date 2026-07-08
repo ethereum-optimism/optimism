@@ -131,7 +131,7 @@ pub struct BuilderConfig<Specific: Clone> {
     /// Local operator opt-in for SDM PostExec production. Combined with the chain-spec
     /// Interop gate in [`OpPayloadBuilderCtx::post_exec_mode`]; both must be true to
     /// produce a PostExec tx. Mutated via the `admin_setSdmPostExecOptIn` RPC.
-    pub operator_sdm_opt_in: crate::sdm_admin::OperatorSdmOptInFlag,
+    pub operator_sdm_opt_in: crate::sdm_admin::OperatorSdmOptIn,
 
     /// Interop failsafe gate shared between the txpool interop filter and payload builder.
     pub interop_failsafe: InteropFailsafe,
