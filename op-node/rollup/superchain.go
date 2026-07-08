@@ -22,15 +22,25 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve chain %d config: %w", chainID, err)
 	}
-	chOpConfig := &params.OptimismConfig{
-		EIP1559Elasticity:        chConfig.Optimism.EIP1559Elasticity,
-		EIP1559Denominator:       chConfig.Optimism.EIP1559Denominator,
-		EIP1559DenominatorCanyon: chConfig.Optimism.EIP1559DenominatorCanyon,
-	}
 
 	superConfig, err := superchain.GetSuperchain(chain.Network)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get superchain %q from superchain registry: %w", chain.Network, err)
+	}
+
+	return rollupConfigFromRegistry(chConfig, superConfig), nil
+}
+
+// rollupConfigFromRegistry converts a superchain-registry chain config (with its parent
+// superchain, which supplies the L1 chain ID) into a rollup Config. It is the single place that
+// maps registry fields onto Config, kept separate from the registry lookup so it can be
+// unit-tested directly: feeding a fully-populated ChainConfig through it and checking the result
+// catches any registry field that fails to reach Config.
+func rollupConfigFromRegistry(chConfig *superchain.ChainConfig, superConfig superchain.Superchain) *Config {
+	chOpConfig := &params.OptimismConfig{
+		EIP1559Elasticity:        chConfig.Optimism.EIP1559Elasticity,
+		EIP1559Denominator:       chConfig.Optimism.EIP1559Denominator,
+		EIP1559DenominatorCanyon: chConfig.Optimism.EIP1559DenominatorCanyon,
 	}
 
 	sysCfg := chConfig.Genesis.SystemConfig
@@ -85,7 +95,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	}
 	applyHardforks(cfg, chConfig.Hardforks)
 
-	return cfg, nil
+	return cfg
 }
 
 func applyHardforks(cfg *Config, hardforks superchain.HardforkConfig) {
