@@ -59,20 +59,15 @@ func TestOpConSequencerFollowedByVerifier(gt *testing.T) {
 // needs the guard on BOTH nodes — with it disabled the sequencer's finalized
 // head never advances, so it cannot converge with the verifier's.
 //
-// SKIPPED pending an op-con-node fix: an op-con-node running AS a sequencer with
-// --l1-finalized-guard=required crashes at startup —
-//
-//	L1 source supervisor failed during startup: missing i64 field chain_id
-//
-// from verify_or_seed_rollup_config's `SELECT * FROM rollup_config`
-// (runtime/l1_source.rs). The existing TestOpConVerifierFollowModeFinalized only
-// puts the guard on a verifier fronting an op-node sequencer, so guard=required
-// on an op-con-node SEQUENCER is newly exercised here and hits this path. The
-// plain (non-finalized) TestOpConSequencerFollowedByVerifier — identical minus
-// the guard — passes. See docs/op-con-node-sequencer-acceptance-tests.md.
+// (Regression note: an op-con-node running AS a sequencer with
+// --l1-finalized-guard=required used to crash at startup — "L1 source supervisor
+// failed during startup: missing i64 field chain_id" — because
+// ensure_rollup_config (runtime/l1_source.rs) mistook the unseeded global-aggregate
+// rollup_config row, whose null chain_id column arrow-json omits, for a seeded
+// config and took the verify path. Fixed by seeding when chain_id is absent. This
+// test guards that path; the plain TestOpConSequencerFollowedByVerifier does not
+// exercise the guard.)
 func TestOpConSequencerFollowedByVerifierFinalized(gt *testing.T) {
-	gt.Skip("op-con-node sequencer + --l1-finalized-guard=required crashes at startup " +
-		"(missing i64 field chain_id in verify_or_seed_rollup_config); see test doc")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck(t,
 		presets.WithGlobalL2CLOption(sysgo.L2CLOpConSequencer()),
