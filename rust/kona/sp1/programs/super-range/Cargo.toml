@@ -9,7 +9,21 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+alloy-chains.workspace = true
+alloy-consensus.workspace = true
+alloy-primitives.workspace = true
+alloy-rlp.workspace = true
+anyhow.workspace = true
+kona-genesis.workspace = true
+kona-interop = { workspace = true, features = ["serde"] }
+kona-preimage.workspace = true
+kona-proof.workspace = true
+kona-registry.workspace = true
 kona-sp1-client-utils.workspace = true
+kona-sp1-ethereum-client-utils.workspace = true
+rkyv.workspace = true
+revm.workspace = true
+serde_json.workspace = true
 sp1-zkvm.workspace = true
 
 [lints]

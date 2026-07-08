@@ -7756,6 +7756,7 @@ dependencies = [
  "kona-driver",
  "kona-executor",
  "kona-genesis",
+ "kona-interop",
  "kona-preimage",
  "kona-proof",
  "kona-sp1-client-utils",

@@ -1887,6 +1887,7 @@ dependencies = [
  "kona-driver",
  "kona-executor",
  "kona-genesis",
+ "kona-interop",
  "kona-preimage",
  "kona-proof",
  "kona-sp1-client-utils",
@@ -1923,7 +1924,21 @@ dependencies = [
 name = "kona-sp1-super-range"
 version = "0.0.1"
 dependencies = [
+ "alloy-chains",
+ "alloy-consensus",
+ "alloy-primitives",
+ "alloy-rlp",
+ "anyhow",
+ "kona-genesis",
+ "kona-interop",
+ "kona-preimage",
+ "kona-proof",
+ "kona-registry",
  "kona-sp1-client-utils",
+ "kona-sp1-ethereum-client-utils",
+ "revm",
+ "rkyv",
+ "serde_json",
  "sp1-zkvm",
 ]
 
