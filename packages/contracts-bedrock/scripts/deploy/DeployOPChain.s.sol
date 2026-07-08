@@ -117,6 +117,8 @@ contract DeployOPChain is Script {
             _initialDeployGameSelection(_input.disputeGameType, isSuperRoot);
         bool enableCannon = permissionless && _input.disputeGameType.raw() == GameTypes.CANNON.raw();
         bool enableCannonKona = permissionless && _input.disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
+        // PERMISSIONED_CANNON is the default game in non-super-root, non-permissionless deployments.
+        bool enablePermissionedCannon = !isSuperRoot && !permissionless;
 
         // Shared permissioned game config for legacy permissioned games.
         IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerUtils
@@ -134,53 +136,26 @@ contract DeployOPChain is Script {
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
         // Config 0: CANNON
-        disputeGameConfigs[0] = enableCannon
-            ? IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: DEFAULT_INIT_BOND,
-                gameType: GameTypes.CANNON,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate })
-                )
-            })
-            : IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON,
-                gameArgs: bytes("")
-            });
+        disputeGameConfigs[0] = _createGameConfig(
+            enableCannon,
+            GameTypes.CANNON,
+            abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate })
+            )
+        );
 
-        // Config 1: PERMISSIONED_CANNON — enabled only in non-super-root permissioned mode.
-        disputeGameConfigs[1] = isSuperRoot || permissionless
-            ? IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.PERMISSIONED_CANNON,
-                gameArgs: bytes("")
-            })
-            : IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: DEFAULT_INIT_BOND,
-                gameType: GameTypes.PERMISSIONED_CANNON,
-                gameArgs: abi.encode(pdgConfig)
-            });
+        // Config 1: PERMISSIONED_CANNON
+        disputeGameConfigs[1] =
+            _createGameConfig(enablePermissionedCannon, GameTypes.PERMISSIONED_CANNON, abi.encode(pdgConfig));
 
         // Config 2: CANNON_KONA
-        disputeGameConfigs[2] = enableCannonKona
-            ? IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: DEFAULT_INIT_BOND,
-                gameType: GameTypes.CANNON_KONA,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate })
-                )
-            })
-            : IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.CANNON_KONA,
-                gameArgs: bytes("")
-            });
+        disputeGameConfigs[2] = _createGameConfig(
+            enableCannonKona,
+            GameTypes.CANNON_KONA,
+            abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate })
+            )
+        );
 
         // Config 3: SUPER_PERMISSIONED — enabled only in super-root mode.
         disputeGameConfigs[3] = isSuperRoot
@@ -333,6 +308,29 @@ contract DeployOPChain is Script {
     /// @return Whether SUPER_ROOT_GAMES_MIGRATION is enabled.
     function _isSuperRootEnabled(IOPContractsManagerV2 _opcm) internal view returns (bool) {
         return DevFeatures.isDevFeatureEnabled(_opcm.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+    }
+
+    /// @notice Returns a DisputeGameConfig with the appropriate values based on the parameters passed in.
+    ///         If the game is enabled the configuration is filled with the default init bond and the game
+    ///         arguments passed as parameter otherwise 0 is used for the bond and empty bytes for the arguments.
+    /// @param _enabled Whether the dispute game is enabled or not
+    /// @param _gameType The type of this dispute game
+    /// @param _enabledArgs The arguments for the dispute game config
+    function _createGameConfig(
+        bool _enabled,
+        GameType _gameType,
+        bytes memory _enabledArgs
+    )
+        internal
+        pure
+        returns (IOPContractsManagerUtils.DisputeGameConfig memory)
+    {
+        return IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: _enabled,
+            initBond: _enabled ? DEFAULT_INIT_BOND : 0,
+            gameType: _gameType,
+            gameArgs: _enabled ? _enabledArgs : bytes("")
+        });
     }
 
     // -------- Validations --------
