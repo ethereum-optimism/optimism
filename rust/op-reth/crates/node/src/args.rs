@@ -374,6 +374,20 @@ mod tests {
         assert_eq!(args, expected_args);
     }
 
+    /// The opt-in is also configurable via the `OP_RETH_OPERATOR_SDM_OPT_IN` environment variable.
+    /// Asserted through clap's arg metadata rather than by setting the variable in the process,
+    /// which would race with the other `RollupArgs` parse tests running in parallel.
+    #[test]
+    fn test_operator_sdm_opt_in_is_bound_to_env_var() {
+        use clap::CommandFactory;
+        let command = CommandParser::<RollupArgs>::command();
+        let arg = command
+            .get_arguments()
+            .find(|arg| arg.get_id().as_str() == "operator_sdm_opt_in")
+            .expect("operator_sdm_opt_in arg should exist");
+        assert_eq!(arg.get_env(), Some(std::ffi::OsStr::new("OP_RETH_OPERATOR_SDM_OPT_IN")));
+    }
+
     #[test]
     fn test_parse_optimism_many_args() {
         let expected_args = RollupArgs {
