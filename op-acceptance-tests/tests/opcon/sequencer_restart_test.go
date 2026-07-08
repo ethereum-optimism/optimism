@@ -57,6 +57,20 @@ func TestOpConSequencerResumesAfterRestart(gt *testing.T) {
 	// tip and resume producing tip+1 onward.
 	sys.L2CL.Start()
 
+	// Single-shot, no retry: the very first sync-status read after the restart must
+	// already report the restored unsafe head, never a genesis (unsafeL2 = 0) reset.
+	// op-con-node gates its RPC surface behind the post-checkpoint restore step
+	// (opql-runtime Program::settle_before_serve): the OUTPUT views are populated
+	// before the server accepts requests, so Start() returns only once syncStatus
+	// serves the real head. A consumer polling in this window — notably op-batcher
+	// reading the sequencer's optimism_syncStatus UnsafeL2 to decide what to batch —
+	// can no longer catch a transient reset-to-genesis. (op-node loads its head
+	// synchronously before serving, so under the default CL kind this holds too.)
+	// Before the gate landed this read raced the restore step and flaked at 0.
+	resumedHead := sys.L2CL.SyncStatus().UnsafeL2.Number
+	require.GreaterOrEqual(resumedHead, halted.Number,
+		"first syncStatus read after restart is below the halted tip: the RPC surface served an un-restored (genesis) head before the checkpoint restore step completed")
+
 	// Production resumes: the unsafe head climbs several blocks past where it halted.
 	// A build cursor that reset to genesis or wedged on a duplicate height would
 	// stall here (the head would not advance) and this would time out.
