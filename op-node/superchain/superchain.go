@@ -1,4 +1,8 @@
-package rollup
+// Package superchain loads OP-Stack rollup configs from the superchain-registry.
+// It is kept separate from op-node/rollup so that the many packages depending on
+// the rollup config types do not pull in op-core/superchain, which embeds the
+// multi-megabyte superchain config bundle and must generate it before it compiles.
+package superchain
 
 import (
 	"fmt"
@@ -6,14 +10,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-core/superchain"
+	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
 // Some chains may require a SystemConfigProvider to retrieve any values not part of the registry.
-func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
-	chain, err := superchain.GetChain(chainID)
+func LoadOPStackRollupConfig(chainID uint64) (*rollup.Config, error) {
+	chain, err := registry.GetChain(chainID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get chain %d from superchain registry: %w", chainID, err)
 	}
@@ -23,7 +28,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		return nil, fmt.Errorf("unable to retrieve chain %d config: %w", chainID, err)
 	}
 
-	superConfig, err := superchain.GetSuperchain(chain.Network)
+	superConfig, err := registry.GetSuperchain(chain.Network)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get superchain %q from superchain registry: %w", chain.Network, err)
 	}
@@ -36,7 +41,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 // maps registry fields onto Config, kept separate from the registry lookup so it can be
 // unit-tested directly: feeding a fully-populated ChainConfig through it and checking the result
 // catches any registry field that fails to reach Config.
-func rollupConfigFromRegistry(chConfig *superchain.ChainConfig, superConfig superchain.Superchain) *Config {
+func rollupConfigFromRegistry(chConfig *registry.ChainConfig, superConfig registry.Superchain) *rollup.Config {
 	chOpConfig := &params.OptimismConfig{
 		EIP1559Elasticity:        chConfig.Optimism.EIP1559Elasticity,
 		EIP1559Denominator:       chConfig.Optimism.EIP1559Denominator,
@@ -54,9 +59,9 @@ func rollupConfigFromRegistry(chConfig *superchain.ChainConfig, superConfig supe
 
 	addrs := chConfig.Addresses
 
-	var altDA *AltDAConfig
+	var altDA *rollup.AltDAConfig
 	if chConfig.AltDA != nil {
-		altDA = &AltDAConfig{
+		altDA = &rollup.AltDAConfig{
 			DAChallengeAddress: chConfig.AltDA.DaChallengeContractAddress,
 			DAChallengeWindow:  chConfig.AltDA.DaChallengeWindow,
 			DAResolveWindow:    chConfig.AltDA.DaResolveWindow,
@@ -64,8 +69,8 @@ func rollupConfigFromRegistry(chConfig *superchain.ChainConfig, superConfig supe
 		}
 	}
 
-	cfg := &Config{
-		Genesis: Genesis{
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
 				Hash:   chConfig.Genesis.L1.Hash,
 				Number: chConfig.Genesis.L1.Number,
@@ -98,7 +103,7 @@ func rollupConfigFromRegistry(chConfig *superchain.ChainConfig, superConfig supe
 	return cfg
 }
 
-func applyHardforks(cfg *Config, hardforks superchain.HardforkConfig) {
+func applyHardforks(cfg *rollup.Config, hardforks registry.HardforkConfig) {
 	regolithTime := uint64(0)
 	cfg.RegolithTime = &regolithTime
 	cfg.CanyonTime = hardforks.CanyonTime

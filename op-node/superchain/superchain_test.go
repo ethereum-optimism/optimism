@@ -1,4 +1,4 @@
-package rollup
+package superchain
 
 import (
 	"math/big"
@@ -7,7 +7,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-core/superchain"
+	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/stretchr/testify/require"
 )
@@ -16,44 +17,44 @@ import (
 // value, so the registry→Config conversion has a source for every Config field. Extend it whenever
 // ChainConfig gains a field, so TestRollupConfigFromRegistry_AllFieldsSet keeps covering the whole
 // conversion.
-func fullyPopulatedChainConfig() *superchain.ChainConfig {
+func fullyPopulatedChainConfig() *registry.ChainConfig {
 	portal := common.HexToAddress("0x1111111111111111111111111111111111111111")
 	sysCfgProxy := common.HexToAddress("0x2222222222222222222222222222222222222222")
 	daChallenge := common.HexToAddress("0x3333333333333333333333333333333333333333")
 
-	return &superchain.ChainConfig{
+	return &registry.ChainConfig{
 		ChainID:           10,
 		BatchInboxAddr:    common.HexToAddress("0xff00000000000000000000000000000000000010"),
 		BlockTime:         2,
 		SeqWindowSize:     3600,
 		MaxSequencerDrift: 600,
-		Optimism: &superchain.OptimismConfig{
+		Optimism: &registry.OptimismConfig{
 			EIP1559Elasticity:        6,
 			EIP1559Denominator:       50,
 			EIP1559DenominatorCanyon: ptr.New(uint64(250)),
 		},
-		AltDA: &superchain.AltDAConfig{
+		AltDA: &registry.AltDAConfig{
 			DaChallengeContractAddress: daChallenge,
 			DaChallengeWindow:          160,
 			DaResolveWindow:            160,
 			DaCommitmentType:           "KeccakCommitment",
 		},
-		Genesis: superchain.GenesisConfig{
+		Genesis: registry.GenesisConfig{
 			L2Time: 1234,
-			L1:     superchain.GenesisRef{Hash: common.HexToHash("0xaa"), Number: 100},
-			L2:     superchain.GenesisRef{Hash: common.HexToHash("0xbb")},
-			SystemConfig: superchain.SystemConfig{
+			L1:     registry.GenesisRef{Hash: common.HexToHash("0xaa"), Number: 100},
+			L2:     registry.GenesisRef{Hash: common.HexToHash("0xbb")},
+			SystemConfig: registry.SystemConfig{
 				BatcherAddr: common.HexToAddress("0x4444444444444444444444444444444444444444"),
 				Overhead:    common.HexToHash("0xbc"),
 				Scalar:      common.HexToHash("0xa6fe0"),
 				GasLimit:    30_000_000,
 			},
 		},
-		Addresses: superchain.AddressesConfig{
+		Addresses: registry.AddressesConfig{
 			OptimismPortalProxy: &portal,
 			SystemConfigProxy:   &sysCfgProxy,
 		},
-		Hardforks: superchain.HardforkConfig{
+		Hardforks: registry.HardforkConfig{
 			CanyonTime:             ptr.New(uint64(1)),
 			DeltaTime:              ptr.New(uint64(2)),
 			EcotoneTime:            ptr.New(uint64(3)),
@@ -75,7 +76,7 @@ func fullyPopulatedChainConfig() *superchain.ChainConfig {
 // the rollup Config.
 func TestRollupConfigFromRegistry(t *testing.T) {
 	chConfig := fullyPopulatedChainConfig()
-	cfg := rollupConfigFromRegistry(chConfig, superchain.Superchain{L1: superchain.L1Config{ChainID: 1}})
+	cfg := rollupConfigFromRegistry(chConfig, registry.Superchain{L1: registry.L1Config{ChainID: 1}})
 
 	require.Equal(t, big.NewInt(10), cfg.L2ChainID)
 	require.Equal(t, big.NewInt(1), cfg.L1ChainID)
@@ -92,7 +93,7 @@ func TestRollupConfigFromRegistry(t *testing.T) {
 // field that the conversion forgets to map stays at its zero value and fails here — the completeness
 // guard for the whole Config, not just the hardforks.
 func TestRollupConfigFromRegistry_AllFieldsSet(t *testing.T) {
-	cfg := rollupConfigFromRegistry(fullyPopulatedChainConfig(), superchain.Superchain{L1: superchain.L1Config{ChainID: 1}})
+	cfg := rollupConfigFromRegistry(fullyPopulatedChainConfig(), registry.Superchain{L1: registry.L1Config{ChainID: 1}})
 
 	v := reflect.ValueOf(*cfg)
 	typ := v.Type()
@@ -104,15 +105,15 @@ func TestRollupConfigFromRegistry_AllFieldsSet(t *testing.T) {
 }
 
 func TestApplyHardforks_NoForks(t *testing.T) {
-	cfg := Config{}
-	hardforks := superchain.HardforkConfig{}
+	cfg := rollup.Config{}
+	hardforks := registry.HardforkConfig{}
 	applyHardforks(&cfg, hardforks)
 	requireAllHardforksSetCorrectly(t, cfg, hardforks)
 }
 
 func TestApplyHardforks(t *testing.T) {
-	cfg := Config{}
-	hardforkCfg := superchain.HardforkConfig{}
+	cfg := rollup.Config{}
+	hardforkCfg := registry.HardforkConfig{}
 
 	// Set all hardforks
 	hardforkVal := reflect.ValueOf(&hardforkCfg).Elem()
@@ -134,7 +135,7 @@ func TestApplyHardforks(t *testing.T) {
 	requireAllHardforksSetCorrectly(t, cfg, hardforkCfg)
 }
 
-func requireAllHardforksSetCorrectly(t *testing.T, cfg Config, hardforkCfg superchain.HardforkConfig) {
+func requireAllHardforksSetCorrectly(t *testing.T, cfg rollup.Config, hardforkCfg registry.HardforkConfig) {
 	hardforkType := reflect.TypeOf(hardforkCfg)
 	hardforkVal := reflect.ValueOf(hardforkCfg)
 	cfgVal := reflect.ValueOf(&cfg).Elem()
