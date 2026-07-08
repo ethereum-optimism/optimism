@@ -148,19 +148,45 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		return opcm.DeployOPChainInput{}, fmt.Errorf("OPCM implementation is not deployed")
 	}
 
+	return BuildDeployOPChainInput(
+		proofParams,
+		thisIntent.Roles,
+		opcmAddr,
+		st.SuperchainDeployment.SuperchainConfigProxy,
+		chainID,
+		st.Create2Salt.String(),
+		thisIntent.GasLimit,
+		thisIntent,
+	), nil
+}
+
+func BuildDeployOPChainInput(
+	proofParams state.ChainProofParams,
+	roles state.ChainRoles,
+	opcmAddr common.Address,
+	superchainConfig common.Address,
+	l2ChainID common.Hash,
+	saltMixer string,
+	gasLimit uint64,
+	chain *state.ChainIntent,
+) opcm.DeployOPChainInput {
+	if gasLimit == 0 {
+		gasLimit = standard.GasLimit
+	}
+
 	return opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner:       thisIntent.Roles.L1ProxyAdminOwner,
-		SystemConfigOwner:            thisIntent.Roles.SystemConfigOwner,
-		Batcher:                      thisIntent.Roles.Batcher,
-		UnsafeBlockSigner:            thisIntent.Roles.UnsafeBlockSigner,
-		Proposer:                     thisIntent.Roles.Proposer,
-		Challenger:                   thisIntent.Roles.Challenger,
+		OpChainProxyAdminOwner:       roles.L1ProxyAdminOwner,
+		SystemConfigOwner:            roles.SystemConfigOwner,
+		Batcher:                      roles.Batcher,
+		UnsafeBlockSigner:            roles.UnsafeBlockSigner,
+		Proposer:                     roles.Proposer,
+		Challenger:                   roles.Challenger,
 		BasefeeScalar:                standard.BasefeeScalar,
 		BlobBaseFeeScalar:            standard.BlobBaseFeeScalar,
-		L2ChainId:                    chainID.Big(),
+		L2ChainId:                    l2ChainID.Big(),
 		Opcm:                         opcmAddr,
-		SaltMixer:                    st.Create2Salt.String(), // passing through salt generated at state initialization
-		GasLimit:                     thisIntent.GasLimit,
+		SaltMixer:                    saltMixer,
+		GasLimit:                     gasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
 		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
@@ -168,11 +194,11 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)
 		DisputeMaxClockDuration:      proofParams.DisputeMaxClockDuration, // 3.5 days (input in seconds)
 		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
-		OperatorFeeScalar:            thisIntent.OperatorFeeScalar,
-		OperatorFeeConstant:          thisIntent.OperatorFeeConstant,
-		SuperchainConfig:             st.SuperchainDeployment.SuperchainConfigProxy,
-		UseCustomGasToken:            thisIntent.IsCustomGasTokenEnabled(),
-	}, nil
+		OperatorFeeScalar:            chain.OperatorFeeScalar,
+		OperatorFeeConstant:          chain.OperatorFeeConstant,
+		SuperchainConfig:             superchainConfig,
+		UseCustomGasToken:            chain.IsCustomGasTokenEnabled(),
+	}
 }
 
 // OpChainContractsFromDeployOutput maps a DeployOPChain output to OpChainContracts

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"math/big"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -221,42 +220,29 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 		return opcm.DeployOPChainInput{}, fmt.Errorf("intent.superchainConfigProxy must be set")
 	}
 
-	gasLimit := chain.GasLimit
-	if gasLimit == 0 {
-		gasLimit = standard.GasLimit
-	}
-
 	proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("failed to resolve dispute params: %w", err)
 	}
 
-	return opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner: standard.PlaceholderAddress,
-		SystemConfigOwner:      standard.PlaceholderAddress,
-		Batcher:                standard.PlaceholderAddress,
-		UnsafeBlockSigner:      standard.PlaceholderAddress,
-		Proposer:               standard.PlaceholderAddress,
-		Challenger:             standard.PlaceholderAddress,
+	// Prediction runs against an already existing OPCM
+	placeholderRoles := state.ChainRoles{
+		L1ProxyAdminOwner: standard.PlaceholderAddress,
+		SystemConfigOwner: standard.PlaceholderAddress,
+		Batcher:           standard.PlaceholderAddress,
+		UnsafeBlockSigner: standard.PlaceholderAddress,
+		Proposer:          standard.PlaceholderAddress,
+		Challenger:        standard.PlaceholderAddress,
+	}
 
-		BasefeeScalar:     standard.BasefeeScalar,
-		BlobBaseFeeScalar: standard.BlobBaseFeeScalar,
-		L2ChainId:         chain.ID.Big(),
-		Opcm:              *intent.OPCMAddress,
-		SaltMixer:         st.Create2Salt.String(),
-		GasLimit:          gasLimit,
-
-		DisputeGameType:              proofParams.DisputeGameType,
-		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
-		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
-		DisputeClockExtension:        proofParams.DisputeClockExtension,
-		DisputeMaxClockDuration:      proofParams.DisputeMaxClockDuration,
-		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
-
-		SuperchainConfig:    *intent.SuperchainConfigProxy,
-		OperatorFeeScalar:   chain.OperatorFeeScalar,
-		OperatorFeeConstant: chain.OperatorFeeConstant,
-		UseCustomGasToken:   chain.IsCustomGasTokenEnabled(),
-	}, nil
+	return pipeline.BuildDeployOPChainInput(
+		proofParams,
+		placeholderRoles,
+		*intent.OPCMAddress,
+		*intent.SuperchainConfigProxy,
+		chain.ID,
+		st.Create2Salt.String(),
+		chain.GasLimit,
+		chain,
+	), nil
 }
