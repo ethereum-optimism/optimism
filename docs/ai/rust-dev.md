@@ -182,6 +182,8 @@ The OP fork → implied L1 (Ethereum) fork mapping is defined once, in `OpHardfo
 
 The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before bumping the reth pin in `rust/Cargo.toml` — or run the `/update-reth` skill (`.claude/skills/update-reth/`), which wraps the guide in an end-to-end agent workflow.
 
+When **reviewing** a bump (rather than performing one), use [reth-update-review.md](reth-update-review.md) and the `reth-update-reviewer` agent — they surface upstream `reth`/`revm`/`alloy` changes that should have forced a change in our in-tree op- forks but produced no diff in our tree.
+
 Agent-specific tips beyond what's in the guide:
 
 - The bump is iterative — run `cargo check --workspace --tests`, fix the first batch of errors, re-run, repeat. Don't try to enumerate every API change up front and don't ask the user to confirm every line of adaptation; just iterate to a green compile and report the diff at the end.

@@ -14,7 +14,18 @@ rss: true
 
 **op-node** implements the [rollup-node spec](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/rollup-node.md), functioning as the consensus layer (CL) client of an OP Stack chain. It builds, relays, and verifies the canonical L2 chain, working alongside an execution layer client such as op-reth.
 
-<Update label="June 26, 2026" description="v1.19.1" tags={["Latest", "Stable"]}>
+<Update label="July 7, 2026" description="v1.19.2" tags={["Latest", "Stable"]}>
+
+> [!Warning]
+> **All node operators must upgrade to op-node/v1.19.1 or later**. See the [op-node/v1.19.1 release notes](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.1) for more information about Karst activation and its incompatibility with older versions of op-reth. All of the callouts on that release page apply.
+
+This release fixes an issue encountered when using op-node with an EL that prunes historical bodies (e.g., when using op-reth with `--minimal` or `--prune.bodies.distance`).
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.2)
+
+</Update>
+
+<Update label="June 26, 2026" description="v1.19.1" tags={["Stable"]}>
 
 > [!Warning]
 > **This is a mandatory release for all node operators.** It includes the [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork.
