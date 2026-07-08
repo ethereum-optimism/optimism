@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -641,7 +642,17 @@ func (t *testingT) Skipped() bool {
 
 // TempDir implements devtest.T.
 func (t *testingT) TempDir() string {
-	dir, err := os.MkdirTemp(t.state.tempRoot, "op-up-*")
+	return t.TempDirWithPrefix("op-up")
+}
+
+// TempDirWithPrefix implements devtest.T.
+func (t *testingT) TempDirWithPrefix(prefix string) string {
+	prefix = strings.NewReplacer("/", "-", "\\", "-", " ", "-", "_", "-").Replace(strings.TrimSpace(prefix))
+	prefix = strings.Trim(prefix, "-")
+	if prefix == "" {
+		prefix = "op-up"
+	}
+	dir, err := os.MkdirTemp(t.state.tempRoot, prefix+"-*")
 	if err != nil {
 		t.failf("failed to create temp dir: %v", err)
 	}

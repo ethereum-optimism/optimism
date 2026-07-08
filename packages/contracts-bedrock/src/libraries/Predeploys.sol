@@ -294,7 +294,7 @@ library Predeploys {
         });
         records_[3] = PredeployRecord({
             proxy: SEQUENCER_FEE_WALLET,
-            variants: _variants("SequencerFeeVault", "SequencerFeeVault.sol:SequencerFeeVault", 1_506_000),
+            variants: _variants("SequencerFeeVault", "SequencerFeeVault.sol:SequencerFeeVault", 1_800_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
@@ -372,7 +372,7 @@ library Predeploys {
         });
         records_[10] = PredeployRecord({
             proxy: BASE_FEE_VAULT,
-            variants: _variants("BaseFeeVault", "BaseFeeVault.sol:BaseFeeVault", 1_503_000),
+            variants: _variants("BaseFeeVault", "BaseFeeVault.sol:BaseFeeVault", 1_800_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
@@ -381,7 +381,7 @@ library Predeploys {
         });
         records_[11] = PredeployRecord({
             proxy: L1_FEE_VAULT,
-            variants: _variants("L1FeeVault", "L1FeeVault.sol:L1FeeVault", 260_550),
+            variants: _variants("L1FeeVault", "L1FeeVault.sol:L1FeeVault", 1_800_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
@@ -390,7 +390,7 @@ library Predeploys {
         });
         records_[12] = PredeployRecord({
             proxy: OPERATOR_FEE_VAULT,
-            variants: _variants("OperatorFeeVault", "OperatorFeeVault.sol:OperatorFeeVault", 1_504_000),
+            variants: _variants("OperatorFeeVault", "OperatorFeeVault.sol:OperatorFeeVault", 1_800_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,

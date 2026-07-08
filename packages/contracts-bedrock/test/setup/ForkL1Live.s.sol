@@ -169,15 +169,12 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         saveProxyAndImpl("DisputeGameFactory", opToml, ".addresses.DisputeGameFactoryProxy");
 
         // Fault proof non-proxied contracts
-        // For chains that don't have a permissionless game, we save the dispute game and WETH
-        // addresses as the zero address.
         artifacts.save(
             "PreimageOracle", vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".PreimageOracle"))
         );
         artifacts.save("MipsSingleton", vm.parseJsonAddress(addressesJson, string.concat("$.", chainId, ".MIPS")));
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-
         // The PermissionedDisputeGame and PermissionedDelayedWETHProxy are not listed in the registry for OP, so we
         // look it up onchain.
         address permissionedGameImpl = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
@@ -188,9 +185,9 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.PERMISSIONED_CANNON);
         artifacts.save("PermissionedDelayedWETHProxy", address(permissionedDelayedWeth));
 
-        // Get DelayedWETH for PERMISSIONLESS games (CANNON)
+        // Get DelayedWETH for the live permissionless game.
         IDelayedWETH permissionlessDelayedWeth =
-            DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.CANNON);
+            DisputeGames.getGameImplDelayedWeth(disputeGameFactory, GameTypes.CANNON_KONA);
 
         // The SR seems out-of-date, so pull the DelayedWETH addresses from the games.
         artifacts.save("DelayedWETHProxy", address(permissionlessDelayedWeth));
@@ -330,18 +327,14 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 data: abi.encode(targetGameType)
             });
         } else {
-            // Standard upgrade path: legacy types enabled, super types disabled.
+            // Standard upgrade path: CANNON disabled, remaining legacy types enabled, super types disabled.
             // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
             disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
+                enabled: false,
+                initBond: 0,
                 gameType: GameTypes.CANNON,
-                gameArgs: abi.encode(
-                    IOPContractsManagerUtils.FaultDisputeGameConfig({
-                        absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate")))
-                    })
-                )
+                gameArgs: bytes("")
             });
             disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
@@ -384,7 +377,9 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 gameArgs: hex""
             });
 
-            // Standard path only needs DelayedWETH proxy deployment permission.
+            // Permit the upgrade to (re)deploy the DelayedWETH proxy if it is missing on the forked
+            // chain. The standard path deploys no other proxies (unlike the super-root migration path
+            // above), so this is the only PermittedProxyDeployment instruction it needs.
             extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "PermittedProxyDeployment",

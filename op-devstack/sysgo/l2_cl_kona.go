@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -131,6 +132,29 @@ func (k *KonaNode) Stop() {
 	err := k.sub.Stop(true)
 	k.p.Require().NoError(err, "Must stop")
 	k.sub = nil
+}
+
+func (k *KonaNode) StartControlled(ctx context.Context) error {
+	return runControlStart(ctx, k.Running, k.Start)
+}
+
+func (k *KonaNode) StopControlled(ctx context.Context) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.sub == nil {
+		return nil
+	}
+	if err := k.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
+		return err
+	}
+	k.sub = nil
+	return nil
+}
+
+func (k *KonaNode) Running() bool {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.sub != nil
 }
 
 func (k *KonaNode) UserRPC() string {

@@ -8,7 +8,7 @@ This guide explains the transaction flow process for rollup transactions. The pr
 *   The transaction needs to be written to L1 (Ethereum).
     This is typically performed by `op-batcher`, but any user can send an L1 transaction to submit an L2 transaction, in which case `op-batcher` is bypassed.
 
-*   The transaction needs to be executed to modify the state (by `op-geth`).
+*   The transaction needs to be executed to modify the state (by the execution client, `op-reth` by default).
     Afterwards, `op-proposer` writes a [commitment](https://en.wikipedia.org/wiki/Commitment_scheme) to the post-transaction state to L1.
     Note that `op-proposer` does not need to write a commitment after each transaction to L1; it is OK to commit to the state after a block of transactions.
 
@@ -98,7 +98,7 @@ The directions here are for [Foundry](https://book.getfoundry.sh/), but the conc
 
 State processing can be divided into two steps:
 
-1.  Applying the transaction to the old state to produce the new state, which is performed by [`op-geth`](https://github.com/ethereum-optimism/op-geth).
+1.  Applying the transaction to the old state to produce the new state, which is performed by the execution client (`op-reth` by default).
 
 2.  Proposing the new [Merkle root](https://en.wikipedia.org/wiki/Merkle_tree) of the state.
     Merkle roots are used because the actual state is long and would cost too much to write to L1.
@@ -106,8 +106,7 @@ State processing can be divided into two steps:
 
 ### State changes
 
-The state is stored and modified by [`op-geth`](https://github.com/ethereum-optimism/op-geth).
-It is a [slightly modified](https://op-geth.optimism.io/) version of the standard [geth](https://geth.ethereum.org/).
+The state is stored and modified by the execution client. The default is [`op-reth`](https://github.com/paradigmxyz/reth); [`op-geth`](https://op-geth.optimism.io/) — a slightly modified version of standard [geth](https://geth.ethereum.org/) — was previously supported but reached [end-of-support](/notices/op-geth-deprecation) on 2026-05-31.
 
 ### State root proposals
 

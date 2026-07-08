@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	faucetConfig "github.com/ethereum-optimism/optimism/op-faucet/config"
@@ -477,6 +478,13 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 				l2Cfg.WithForkAtGenesis(opforks.Lagoon)
 			}
 		}
+		if delaySeconds > 0 {
+			// The chain starts pre-Lagoon (at Karst) and activates Lagoon at
+			// runtime via its frozen NUT bundle.
+			preForkAllocs, err := nutsstate.PreForkState(opforks.Lagoon)
+			t.Require().NoError(err, "need frozen pre-Lagoon predeploy state")
+			wb.preForkPredeployAllocs = preForkAllocs
+		}
 	}
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
 	wb.Build()
@@ -631,7 +639,7 @@ func startTwoL2SharedSupernode(
 
 	snCfg := &snconfig.CLIConfig{
 		Chains:                     chainIDs,
-		DataDir:                    t.TempDir(),
+		DataDir:                    t.TempDirWithPrefix("supernode"),
 		L1NodeAddr:                 l1EL.UserRPC(),
 		L1HTTPPollInterval:         100 * time.Millisecond,
 		L1BeaconAddr:               l1CL.beaconHTTPAddr,
@@ -741,7 +749,7 @@ func startSingleChainSharedSupernode(
 
 	snCfg := &snconfig.CLIConfig{
 		Chains:                     []uint64{eth.EvilChainIDToUInt64(l2Net.ChainID())},
-		DataDir:                    t.TempDir(),
+		DataDir:                    t.TempDirWithPrefix("supernode"),
 		L1NodeAddr:                 l1EL.UserRPC(),
 		L1HTTPPollInterval:         100 * time.Millisecond,
 		L1BeaconAddr:               l1CL.beaconHTTPAddr,

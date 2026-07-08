@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Sourceable helper functions for the workflow decision tree in config.yml.
-# Provides JSON plumbing so config.yml only contains the routing policy.
+# Sourceable helper functions for compute-workflow-conditions.sh. Provides JSON
+# plumbing so the routing script only contains the routing policy.
 #
-# Usage (from config.yml inline command):
+# Usage:
 #   source .circleci/scripts/workflow-helpers.sh
 #   init_json
-#   ...decision tree using run/param/is_true/run_rust_and_docs...
+#   ...routing logic using run/param/is_true...
 #   finalize
 
-OUTPUT="/tmp/pipeline-parameters.json"
+# Overridable so tests can point at an isolated file instead of the pipeline's
+# real params file.
+OUTPUT="${OUTPUT:-/tmp/pipeline-parameters.json}"
 _json=""
 
 init_json() {
