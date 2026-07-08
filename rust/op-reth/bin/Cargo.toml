@@ -20,7 +20,10 @@ reth-optimism-payload-builder.workspace = true
 reth-optimism-primitives.workspace = true
 reth-optimism-forks.workspace = true
 reth-node-builder.workspace = true
+reth-node-core.workspace = true
 reth-db.workspace = true
+
+op-version.workspace = true
 
 clap = { workspace = true, features = ["derive", "env"] }
 tracing.workspace = true
