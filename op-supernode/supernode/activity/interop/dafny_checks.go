@@ -19,7 +19,9 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// === types ===
+// ===========================================================================
+// base helpers
+// ===========================================================================
 
 // dafnyT is the minimal testing surface needed by the Assert* wrappers;
 // *testing.T satisfies it.
@@ -106,6 +108,443 @@ func decisionInModel(d Decision) bool {
 		return false
 	}
 }
+
+// ===========================================================================
+// top-level invariants
+// ===========================================================================
+
+// CheckInvariants mirrors the requires/ensures of Interop.ProgressAndRecord in
+// op-supernode/dafny-models/Interop.dfy: Valid() &&
+// PendingTransitionIsConsistent(). Conjuncts:
+//
+//	(1) Valid(), via CheckInteropValid
+//	(2) PendingTransitionIsConsistent(); skipped when (1) failed (the model
+//	    predicate requires Valid())
+func CheckInvariants(i *Interop) error {
+	const pred = "Interop.dfy ProgressAndRecord requires/ensures"
+	if err := CheckInteropValid(i); err != nil {
+		return fmt.Errorf("%s conjunct (1): %w", pred, err)
+	}
+	if err := checkPendingTransitionIsConsistent(i); err != nil {
+		return fmt.Errorf("%s conjunct (2): %w", pred, err)
+	}
+	return nil
+}
+
+// AssertInvariants checks Interop.Valid() && PendingTransitionIsConsistent()
+// from Interop.dfy on the live Interop instance, mirroring the requires and
+// ensures of ProgressAndRecord. Tests call it before and after exercising
+// progressAndRecord / applyPendingTransition / applyRewindPlan.
+func AssertInvariants(t dafnyT, i *Interop) {
+	t.Helper()
+	failOnViolation(t, CheckInvariants(i))
+}
+
+// CheckInteropValid mirrors the class invariant Interop.Valid() in
+// op-supernode/dafny-models/Interop.dfy, with the model ghost constants
+// instantiated by modelParamsFromInterop. The model conjunct
+// `activationTimestamp == ACTIVATION_TIMESTAMP` is definitional under that
+// mapping (ModelParams.ActivationTimestamp is derived from the instance) and
+// has no separate check. Conjuncts:
+//
+//	(0) i is non-nil and the model state is reachable (mapping requirement)
+//	(1) chains.Keys == CHAIN_IDS (definitional under modelParamsFromInterop,
+//	    checked for explicitness)
+//	(2) logsDBs.Keys == CHAIN_IDS
+//	(3) all logsDBs are distinct
+//	(4) verifiedDB.Valid(), via the embedded CheckVerifiedDBValid; conjuncts
+//	    (5)-(7) read the model db and are skipped when it fails
+//	(5) lastTimestamp.Some? ==> ACTIVATION_TIMESTAMP in verifiedDB.db
+//	(6) forall ts in verifiedDB.db: ACTIVATION_TIMESTAMP <= ts
+//	(7) forall ts in verifiedDB.db: db[ts].l2Heads.Keys == CHAIN_IDS
+//	(8) pendingTransition.Some? ==>
+//	    ValidPendingTransition(GetPendingTransition().value)
+func CheckInteropValid(i *Interop) error {
+	const pred = "Interop.dfy Valid()"
+	if i == nil {
+		return violation(pred, "0", "Interop is nil")
+	}
+	p := modelParamsFromInterop(i)
+	var errs []error
+
+	if err := checkChainIDCoverage(pred, "1", "chains", i.chains, p.ChainIDs); err != nil {
+		errs = append(errs, err)
+	}
+	if err := checkChainIDCoverage(pred, "2", "logsDBs", i.logsDBs, p.ChainIDs); err != nil {
+		errs = append(errs, err)
+	}
+
+	ids := sortedLogsDBChainIDs(i)
+	for a := 0; a < len(ids); a++ {
+		for b := a + 1; b < len(ids); b++ {
+			if sameLogsDB(i.logsDBs[ids[a]], i.logsDBs[ids[b]]) {
+				errs = append(errs, violation(pred, "3",
+					"logsDBs for chains %s and %s are the same instance", ids[a], ids[b]))
+			}
+		}
+	}
+
+	// Conjuncts (4)-(8) all read the verifiedDB store.
+	if i.verifiedDB == nil || i.verifiedDB.concrete() == nil || i.verifiedDB.concrete().db == nil {
+		errs = append(errs, violation(pred, "4", "VerifiedDB has no underlying store"))
+		return errors.Join(errs...)
+	}
+
+	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
+		errs = append(errs, fmt.Errorf("%s conjunct (4): %w", pred, err))
+	} else if db, dbErr := i.verifiedDB.concrete().allVerified(); dbErr != nil {
+		errs = append(errs, violation(pred, "4", "enumerate verified bucket: %v", dbErr))
+	} else {
+		if _, initialized := i.verifiedDB.LastTimestamp(); initialized {
+			if _, ok := db[p.ActivationTimestamp]; !ok {
+				errs = append(errs, violation(pred, "5",
+					"lastTimestamp is Some but ACTIVATION_TIMESTAMP %d not in db", p.ActivationTimestamp))
+			}
+		}
+		for _, ts := range slices.Sorted(maps.Keys(db)) {
+			if ts < p.ActivationTimestamp {
+				errs = append(errs, violation(pred, "6",
+					"committed timestamp %d below ACTIVATION_TIMESTAMP %d", ts, p.ActivationTimestamp))
+			}
+			if err := checkChainIDCoverage(pred, "7",
+				fmt.Sprintf("db[%d].l2Heads", ts), db[ts].L2Heads, p.ChainIDs); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+
+	if pending, err := i.verifiedDB.GetPendingTransition(); err != nil {
+		errs = append(errs, violation(pred, "8", "GetPendingTransition failed: %v", err))
+	} else if pending != nil {
+		if err := CheckValidPendingTransition(p, *pending); err != nil {
+			errs = append(errs, fmt.Errorf("%s conjunct (8): stored pending transition invalid: %w", pred, err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+// AssertInteropValid fails t when CheckInteropValid reports violations.
+func AssertInteropValid(t dafnyT, i *Interop) {
+	t.Helper()
+	failOnViolation(t, CheckInteropValid(i))
+}
+
+// CheckPendingTransitionIsConsistent mirrors PendingTransitionIsConsistent()
+// in op-supernode/dafny-models/Interop.dfy. The model's `requires Valid()` is
+// checked first via CheckInteropValid; on failure the predicate body is
+// skipped (Valid() already implies ValidPendingTransition of the stored
+// pending transition, so it is not re-checked here, as in the model).
+// Conjuncts, matching on verifiedDB.GetPendingTransition():
+//
+//	(0) i is non-nil and reads succeed (mapping requirement)
+//	None case:
+//	  (N1) AllDBsInSync()
+//	Some(p) case:
+//	  (S1) TransitionConsistentWithVerified(p)
+//	  (S2) TransitionConsistentWithLogs(p)
+//	  (S3) matching on p.decision:
+//	    Rewind:     p.rewind.value.resetAllChainsTo.Some? ==>
+//	                AllDBsInSyncUpTo(resetAllChainsTo.value)
+//	    Invalidate: AllDBsInSync()
+//	    Advance:    verifiedDB.LastTimestamp().Some? ==>
+//	                AllDBsInSyncUpTo(LastTimestamp().value)
+func CheckPendingTransitionIsConsistent(i *Interop) error {
+	const pred = "Interop.dfy PendingTransitionIsConsistent"
+	if err := CheckInteropValid(i); err != nil {
+		return fmt.Errorf("%s requires Valid(): %w", pred, err)
+	}
+	return checkPendingTransitionIsConsistent(i)
+}
+
+// AssertPendingTransitionIsConsistent fails t when
+// CheckPendingTransitionIsConsistent reports violations.
+func AssertPendingTransitionIsConsistent(t dafnyT, i *Interop) {
+	t.Helper()
+	failOnViolation(t, CheckPendingTransitionIsConsistent(i))
+}
+
+// ===========================================================================
+// invariant helpers
+// ===========================================================================
+
+// sameLogsDB reports whether two LogsDB interface values are the same model
+// object; uncomparable dynamic types are treated as distinct.
+func sameLogsDB(a, b LogsDB) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	va, vb := reflect.ValueOf(a), reflect.ValueOf(b)
+	if !va.Comparable() || !vb.Comparable() {
+		return false
+	}
+	return va.Equal(vb)
+}
+
+// sortedLogsDBChainIDs returns the key set of i.logsDBs in ascending order so
+// violation reports are deterministic.
+func sortedLogsDBChainIDs(i *Interop) []eth.ChainID {
+	return slices.SortedFunc(maps.Keys(i.logsDBs), eth.ChainID.Cmp)
+}
+
+// checkPendingTransitionIsConsistent is the body of
+// PendingTransitionIsConsistent(); callers have already established the
+// model's `requires Valid()` (which includes ValidPendingTransition of the
+// stored pending transition).
+func checkPendingTransitionIsConsistent(i *Interop) error {
+	const pred = "Interop.dfy PendingTransitionIsConsistent"
+	pending, err := i.verifiedDB.GetPendingTransition()
+	if err != nil {
+		return violation(pred, "0", "GetPendingTransition failed: %v", err)
+	}
+
+	if pending == nil {
+		return checkAllDBsInSyncBody(i, pred, "N1")
+	}
+
+	var errs []error
+	if err := checkTransitionConsistentWithVerified(i, *pending); err != nil {
+		errs = append(errs, fmt.Errorf("%s conjunct (S1): %w", pred, err))
+	}
+	if err := checkTransitionConsistentWithLogs(i, *pending); err != nil {
+		errs = append(errs, fmt.Errorf("%s conjunct (S2): %w", pred, err))
+	}
+	switch pending.Decision {
+	case DecisionRewind:
+		if pending.Rewind != nil && pending.Rewind.ResetAllChainsTo != nil {
+			if err := CheckAllDBsInSyncUpTo(i, *pending.Rewind.ResetAllChainsTo); err != nil {
+				errs = append(errs, fmt.Errorf("%s conjunct (S3): %w", pred, err))
+			}
+		}
+	case DecisionInvalidate:
+		if err := checkAllDBsInSyncBody(i, pred, "S3"); err != nil {
+			errs = append(errs, err)
+		}
+	case DecisionAdvance:
+		if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
+			if err := CheckAllDBsInSyncUpTo(i, lastTS); err != nil {
+				errs = append(errs, fmt.Errorf("%s conjunct (S3): %w", pred, err))
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// checkAllDBsInSyncBody loops checkDBsInSync over all chains; callers have
+// already established `requires verifiedDB.Valid()`. label names the
+// enclosing conjunct in violation reports.
+func checkAllDBsInSyncBody(i *Interop, pred, label string) error {
+	var errs []error
+	for _, k := range sortedLogsDBChainIDs(i) {
+		if err := checkDBsInSync(i, k); err != nil {
+			errs = append(errs, fmt.Errorf("%s conjunct (%s): AllDBsInSync: chain %s: %w", pred, label, k, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// ===========================================================================
+// DBs-in-sync
+// ===========================================================================
+
+// CheckDBsInSyncUpTo mirrors DBsInSyncUpTo(chainID, upperTS) in
+// op-supernode/dafny-models/Interop.dfy: for every timestamp t in
+// [ACTIVATION_TIMESTAMP, upper] the verified entry exists, covers chainID, and
+// its head for chainID is sealed in the chain's logsDB with the same id
+// (SealedBlockForVerifiedAtTimestamp). The scan is O(upper -
+// ACTIVATION_TIMESTAMP) and intended for test workloads only (SPEC.md).
+// Conjuncts, each quantified over t:
+//
+//	(0) i is non-nil, the verifiedDB store is reachable, chainID in
+//	    logsDBs.Keys, and DB reads only fail with not-found sentinels
+//	    (mapping requirement and the model's requires clause)
+//	(1) verifiedDB.Has(t)
+//	(2) chainID in verifiedDB.Get(t).l2Heads
+//	(3) SealedBlockForVerifiedAtTimestamp(chainID, t).Some?, i.e.
+//	    FindSealedBlock(l2Heads[chainID].number) finds a seal
+//	(4) the found seal's id == verifiedDB.Get(t).l2Heads[chainID]
+func CheckDBsInSyncUpTo(i *Interop, chainID eth.ChainID, upper uint64) error {
+	const pred = "Interop.dfy DBsInSyncUpTo"
+	if i == nil {
+		return violation(pred, "0", "Interop is nil")
+	}
+	if i.verifiedDB == nil || i.verifiedDB.concrete() == nil || i.verifiedDB.concrete().db == nil {
+		return violation(pred, "0", "VerifiedDB has no underlying store")
+	}
+	db, ok := i.logsDBs[chainID]
+	if !ok || db == nil {
+		return violation(pred, "0", "chain %s has no logsDB", chainID)
+	}
+	p := modelParamsFromInterop(i)
+
+	var errs []error
+	for t := p.ActivationTimestamp; t <= upper; t++ {
+		result, err := i.verifiedDB.Get(t)
+		switch {
+		case errors.Is(err, ErrNotFound):
+			errs = append(errs, violation(pred, "1", "verifiedDB.Has(%d) is false", t))
+		case err != nil:
+			errs = append(errs, violation(pred, "0", "verifiedDB.Get(%d) failed: %v", t, err))
+		default:
+			head, inHeads := result.L2Heads[chainID]
+			if !inHeads {
+				errs = append(errs, violation(pred, "2",
+					"chain %s not in verifiedDB.Get(%d).l2Heads", chainID, t))
+				break
+			}
+			seal, found, ferr := findSealedOption(db, head.Number)
+			if ferr != nil {
+				errs = append(errs, violation(pred, "0",
+					"chain %s FindSealedBlock(%d) failed: %v", chainID, head.Number, ferr))
+			} else if !found {
+				errs = append(errs, violation(pred, "3",
+					"chain %s: no sealed block %d for verified head at ts %d", chainID, head.Number, t))
+			} else if seal.ID() != head {
+				errs = append(errs, violation(pred, "4",
+					"chain %s: sealed block %s != verified head %s at ts %d", chainID, seal.ID(), head, t))
+			}
+		}
+		if t == upper { // guards against uint64 wrap of t++
+			break
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// AssertDBsInSyncUpTo fails t when CheckDBsInSyncUpTo reports violations.
+func AssertDBsInSyncUpTo(t dafnyT, i *Interop, chainID eth.ChainID, upper uint64) {
+	t.Helper()
+	failOnViolation(t, CheckDBsInSyncUpTo(i, chainID, upper))
+}
+
+// checkDBsInSync is the body of DBsInSync(chainID); callers have already
+// established the model's `requires verifiedDB.Valid()`.
+func checkDBsInSync(i *Interop, chainID eth.ChainID) error {
+	const pred = "Interop.dfy DBsInSync"
+	db, ok := i.logsDBs[chainID]
+	if !ok || db == nil {
+		return violation(pred, "0", "chain %s has no logsDB", chainID)
+	}
+
+	lastTS, initialized := i.verifiedDB.LastTimestamp()
+	if !initialized {
+		if latest, has := db.LatestSealedBlock(); has {
+			return violation(pred, "N1",
+				"verifiedDB is empty but chain %s LatestSealedBlock is Some(%s)", chainID, latest)
+		}
+		return nil
+	}
+
+	result, err := i.verifiedDB.Get(lastTS)
+	if err != nil {
+		return violation(pred, "0", "verifiedDB.Get(%d) failed: %v", lastTS, err)
+	}
+
+	var errs []error
+	if head, inHeads := result.L2Heads[chainID]; !inHeads {
+		errs = append(errs, violation(pred, "S1",
+			"chain %s not in verifiedDB.Get(%d).l2Heads", chainID, lastTS))
+	} else if latest, has := db.LatestSealedBlock(); !has {
+		errs = append(errs, violation(pred, "S2",
+			"chain %s LatestSealedBlock is None but last verified head is %s", chainID, head))
+	} else if latest != head {
+		errs = append(errs, violation(pred, "S2",
+			"chain %s LatestSealedBlock %s != last verified head %s at ts %d", chainID, latest, head, lastTS))
+	}
+	if err := CheckDBsInSyncUpTo(i, chainID, lastTS); err != nil {
+		errs = append(errs, fmt.Errorf("%s conjunct (S3): %w", pred, err))
+	}
+	return errors.Join(errs...)
+}
+
+// CheckDBsInSync mirrors DBsInSync(chainID) in
+// op-supernode/dafny-models/Interop.dfy. The model's `requires
+// verifiedDB.Valid()` is checked first via CheckVerifiedDBValid; on failure
+// the predicate body is skipped (composite checkers short-circuit dependent
+// conjuncts, SPEC.md). Conjuncts, matching on verifiedDB.LastTimestamp():
+//
+//	(0) i is non-nil and chainID in logsDBs.Keys (mapping requirement and the
+//	    model's requires clause)
+//	None case:
+//	  (N1) logsDBs[chainID].LatestSealedBlock() == None
+//	Some(ts) case:
+//	  (S1) chainID in verifiedDB.Get(ts).l2Heads
+//	  (S2) logsDBs[chainID].LatestSealedBlock() == Some(l2Heads[chainID])
+//	  (S3) DBsInSyncUpTo(chainID, ts)
+func CheckDBsInSync(i *Interop, chainID eth.ChainID) error {
+	const pred = "Interop.dfy DBsInSync"
+	if i == nil {
+		return violation(pred, "0", "Interop is nil")
+	}
+	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
+		return fmt.Errorf("%s requires verifiedDB.Valid(): %w", pred, err)
+	}
+	return checkDBsInSync(i, chainID)
+}
+
+// AssertDBsInSync fails t when CheckDBsInSync reports violations.
+func AssertDBsInSync(t dafnyT, i *Interop, chainID eth.ChainID) {
+	t.Helper()
+	failOnViolation(t, CheckDBsInSync(i, chainID))
+}
+
+// CheckAllDBsInSyncUpTo mirrors AllDBsInSyncUpTo(upper) in
+// op-supernode/dafny-models/Interop.dfy: DBsInSyncUpTo(k, upper) for every k
+// in logsDBs.Keys. Violations carry the failing chain's ID; conjunct labels
+// are those of CheckDBsInSyncUpTo.
+func CheckAllDBsInSyncUpTo(i *Interop, upper uint64) error {
+	const pred = "Interop.dfy AllDBsInSyncUpTo"
+	if i == nil {
+		return violation(pred, "0", "Interop is nil")
+	}
+	var errs []error
+	for _, k := range sortedLogsDBChainIDs(i) {
+		if err := CheckDBsInSyncUpTo(i, k, upper); err != nil {
+			errs = append(errs, fmt.Errorf("%s: chain %s: %w", pred, k, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// AssertAllDBsInSyncUpTo fails t when CheckAllDBsInSyncUpTo reports
+// violations.
+func AssertAllDBsInSyncUpTo(t dafnyT, i *Interop, upper uint64) {
+	t.Helper()
+	failOnViolation(t, CheckAllDBsInSyncUpTo(i, upper))
+}
+
+// CheckAllDBsInSync mirrors AllDBsInSync() in
+// op-supernode/dafny-models/Interop.dfy: DBsInSync(k) for every k in
+// logsDBs.Keys. The model's `requires verifiedDB.Valid()` is checked once via
+// CheckVerifiedDBValid; on failure the per-chain bodies are skipped.
+// Violations carry the failing chain's ID; conjunct labels are those of
+// CheckDBsInSync.
+func CheckAllDBsInSync(i *Interop) error {
+	const pred = "Interop.dfy AllDBsInSync"
+	if i == nil {
+		return violation(pred, "0", "Interop is nil")
+	}
+	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
+		return fmt.Errorf("%s requires verifiedDB.Valid(): %w", pred, err)
+	}
+	var errs []error
+	for _, k := range sortedLogsDBChainIDs(i) {
+		if err := checkDBsInSync(i, k); err != nil {
+			errs = append(errs, fmt.Errorf("%s: chain %s: %w", pred, k, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// AssertAllDBsInSync fails t when CheckAllDBsInSync reports violations.
+func AssertAllDBsInSync(t dafnyT, i *Interop) {
+	t.Helper()
+	failOnViolation(t, CheckAllDBsInSync(i))
+}
+
+// ===========================================================================
+// pure predicates
+// ===========================================================================
 
 // CheckValidRewindPlan mirrors ValidRewindPlan(plan) in
 // op-supernode/dafny-models/Types.dfy. The match on plan.resetAllChainsTo maps
@@ -291,284 +730,9 @@ func AssertValidRoundObservation(t dafnyT, p ModelParams, obs RoundObservation) 
 	failOnViolation(t, CheckValidRoundObservation(p, obs))
 }
 
-// === verifieddb ===
-
-// allVerified snapshots the verified bucket as the model state
-// `db: map<nat, VerifiedResult>` of VerifiedDB.dfy, via a read-only bbolt
-// View. An entry that does not map to the model (key not an 8-byte
-// big-endian timestamp, value not a JSON VerifiedResult) is an error.
-func (v *VerifiedDB) allVerified() (map[uint64]VerifiedResult, error) {
-	v.mu.RLock()
-	defer v.mu.RUnlock()
-
-	out := make(map[uint64]VerifiedResult)
-	err := v.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(bucketName)
-		if b == nil {
-			return nil
-		}
-		return b.ForEach(func(k, val []byte) error {
-			if len(k) != u64Len {
-				return fmt.Errorf("key %x is not an %d-byte big-endian timestamp", k, u64Len)
-			}
-			var result VerifiedResult
-			if err := json.Unmarshal(val, &result); err != nil {
-				return fmt.Errorf("value at key %d is not a VerifiedResult: %w", binary.BigEndian.Uint64(k), err)
-			}
-			out[binary.BigEndian.Uint64(k)] = result
-			return nil
-		})
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// checkSequential mirrors Sequential(m) in op-supernode/dafny-models/Utils.dfy
-// over the key set of a nat-keyed map: nil iff keys is empty or every key
-// strictly below the maximum has an immediate successor. keys must be the
-// distinct keys of a map, in any order.
-func checkSequential(keys []uint64) error {
-	if len(keys) == 0 {
-		return nil
-	}
-	sorted := slices.Clone(keys)
-	slices.Sort(sorted)
-	for i := 1; i < len(sorted); i++ {
-		if sorted[i] != sorted[i-1]+1 {
-			return fmt.Errorf("gap at %d (next committed key is %d)", sorted[i-1]+1, sorted[i])
-		}
-	}
-	return nil
-}
-
-// CheckVerifiedDBValid mirrors the class invariant VerifiedDB.Valid() in
-// op-supernode/dafny-models/VerifiedDB.dfy, with the model `db` enumerated
-// from the bbolt verified bucket (allVerified) rather than the cached
-// timestamp fields, and `lastTimestamp: Option<nat>` mapped to the Go
-// (lastTimestamp, initialized) pair. Conjuncts:
-//
-//	(0) every stored entry maps to the model db: map<nat, VerifiedResult>
-//	    and the store is reachable (mapping requirement; the remaining
-//	    conjuncts assume it)
-//	(1) Sequential(db): committed timestamps form a contiguous range
-//	(2) forall ts in db: db[ts].timestamp == ts
-//	(3) lastTimestamp == (if |db| == 0 then None else Some(MaxKey(db)))
-//	(4) forall t1 <= t2 in db, cid in both l2Heads:
-//	    db[t1].l2Heads[cid].number <= db[t2].l2Heads[cid].number
-func CheckVerifiedDBValid(v *VerifiedDB) error {
-	const pred = "VerifiedDB.dfy Valid()"
-	if v == nil || v.db == nil {
-		return violation(pred, "0", "VerifiedDB has no underlying store")
-	}
-	db, err := v.allVerified()
-	if err != nil {
-		return violation(pred, "0", "verified bucket does not map to db: map<nat, VerifiedResult>: %v", err)
-	}
-	last, initialized := v.LastTimestamp()
-
-	var errs []error
-	keys := slices.Sorted(maps.Keys(db))
-
-	if err := checkSequential(keys); err != nil {
-		errs = append(errs, violation(pred, "1", "committed timestamps not sequential: %v", err))
-	}
-
-	for _, ts := range keys {
-		if db[ts].Timestamp != ts {
-			errs = append(errs, violation(pred, "2",
-				"entry at key %d has timestamp field %d", ts, db[ts].Timestamp))
-		}
-	}
-
-	switch {
-	case len(db) == 0 && initialized:
-		errs = append(errs, violation(pred, "3",
-			"db is empty but lastTimestamp is Some(%d)", last))
-	case len(db) > 0 && !initialized:
-		errs = append(errs, violation(pred, "3",
-			"db has %d entries but lastTimestamp is None", len(db)))
-	case len(db) > 0 && last != keys[len(keys)-1]:
-		errs = append(errs, violation(pred, "3",
-			"lastTimestamp %d != MaxKey(db) %d", last, keys[len(keys)-1]))
-	}
-
-	// Consecutive-occurrence comparisons over ascending timestamps cover all
-	// t1 <= t2 pairs of conjunct (4) by transitivity of <=.
-	type seen struct {
-		number uint64
-		ts     uint64
-	}
-	lastSeen := make(map[eth.ChainID]seen)
-	for _, ts := range keys {
-		heads := db[ts].L2Heads
-		for _, cid := range slices.SortedFunc(maps.Keys(heads), eth.ChainID.Cmp) {
-			if prev, ok := lastSeen[cid]; ok && heads[cid].Number < prev.number {
-				errs = append(errs, violation(pred, "4",
-					"chain %s l2Heads number decreases from %d at ts %d to %d at ts %d",
-					cid, prev.number, prev.ts, heads[cid].Number, ts))
-			}
-			lastSeen[cid] = seen{number: heads[cid].Number, ts: ts}
-		}
-	}
-
-	return errors.Join(errs...)
-}
-
-// AssertVerifiedDBValid fails t when CheckVerifiedDBValid reports violations.
-func AssertVerifiedDBValid(t dafnyT, v *VerifiedDB) {
-	t.Helper()
-	failOnViolation(t, CheckVerifiedDBValid(v))
-}
-
-// === logsdb ===
-
-// findSealedOption maps LogsDB.FindSealedBlock's (BlockSeal, error) result to
-// the model's Option<BlockSeal>: ErrFuture/ErrSkipped mean None, any other
-// error breaks the model mapping.
-func findSealedOption(db LogsDB, number uint64) (suptypes.BlockSeal, bool, error) {
-	seal, err := db.FindSealedBlock(number)
-	switch {
-	case err == nil:
-		return seal, true, nil
-	case errors.Is(err, suptypes.ErrFuture), errors.Is(err, suptypes.ErrSkipped):
-		return suptypes.BlockSeal{}, false, nil
-	default:
-		return suptypes.BlockSeal{}, false, err
-	}
-}
-
-// CheckLogsDBSealsWellFormed mirrors the function axioms of FirstSealedBlock,
-// LatestSealedBlock, and FindSealedBlock in
-// op-supernode/dafny-models/LogsDB.dfy. Option mapping: LatestSealedBlock
-// ok==false ↔ None; FirstSealedBlock/FindSealedBlock ErrFuture/ErrSkipped ↔
-// None; model BlockID ↔ eth.BlockID{Hash: seal.Hash, Number: seal.Number}.
-// Conjuncts:
-//
-//	(0) db is non-nil and every FirstSealedBlock/FindSealedBlock error is a
-//	    not-found sentinel (mapping requirement; the remaining conjuncts
-//	    assume it)
-//	(E1) FirstSealedBlock None <==> LatestSealedBlock None (each axiom's None
-//	    case forces FindSealedBlock to None everywhere, contradicting the
-//	    other's Some case)
-//	(B1) first.number <= latest.number (FindSealedBlock(first.number).Some?
-//	    plus LatestSealedBlock's `forall number > latest.number ==> None`)
-//	(F1) FindSealedBlock(first.number).Some? && value.id == first
-//	    (FirstSealedBlock axiom, Some case)
-//	(L1) FindSealedBlock(latest.number).Some? && value.id == latest
-//	    (LatestSealedBlock axiom, Some case)
-//	(N1) forall n in [first.number, latest.number]:
-//	    FindSealedBlock(n).Some? ==> value.id.number == n
-//	    (first FindSealedBlock axiom)
-//	(T1) found seals' timestamps strictly increase with block number
-//	    (second FindSealedBlock axiom, consecutive found pairs cover all
-//	    pairs by transitivity of <)
-//
-// The model does not exclude not-found gaps strictly inside the sealed range,
-// so the checker tolerates them. The scan is O(latest.number - first.number)
-// FindSealedBlock calls and is intended for test workloads only.
-func CheckLogsDBSealsWellFormed(db LogsDB) error {
-	const pred = "LogsDB.dfy sealed-block axioms"
-	if db == nil {
-		return violation(pred, "0", "LogsDB is nil")
-	}
-	latest, hasLatest := db.LatestSealedBlock()
-	first, err := db.FirstSealedBlock()
-	hasFirst := err == nil
-	if err != nil && !errors.Is(err, suptypes.ErrFuture) && !errors.Is(err, suptypes.ErrSkipped) {
-		return violation(pred, "0", "FirstSealedBlock failed: %v", err)
-	}
-	if hasFirst != hasLatest {
-		return violation(pred, "E1",
-			"FirstSealedBlock is None: %t but LatestSealedBlock is None: %t", !hasFirst, !hasLatest)
-	}
-	if !hasLatest {
-		return nil
-	}
-
-	var errs []error
-	if first.Number > latest.Number {
-		errs = append(errs, violation(pred, "B1",
-			"first sealed number %d > latest sealed number %d", first.Number, latest.Number))
-	}
-
-	firstID := eth.BlockID{Hash: first.Hash, Number: first.Number}
-	if seal, found, ferr := findSealedOption(db, first.Number); ferr != nil {
-		errs = append(errs, violation(pred, "0", "FindSealedBlock(%d) failed: %v", first.Number, ferr))
-	} else if !found || seal.ID() != firstID {
-		errs = append(errs, violation(pred, "F1",
-			"FindSealedBlock(%d) = (%s, found=%t) does not match FirstSealedBlock %s",
-			first.Number, seal.ID(), found, firstID))
-	}
-	if seal, found, ferr := findSealedOption(db, latest.Number); ferr != nil {
-		errs = append(errs, violation(pred, "0", "FindSealedBlock(%d) failed: %v", latest.Number, ferr))
-	} else if !found || seal.ID() != latest {
-		errs = append(errs, violation(pred, "L1",
-			"FindSealedBlock(%d) = (%s, found=%t) does not match LatestSealedBlock %s",
-			latest.Number, seal.ID(), found, latest))
-	}
-
-	var prev suptypes.BlockSeal
-	prevFound := false
-	for n := first.Number; n <= latest.Number; n++ {
-		seal, found, ferr := findSealedOption(db, n)
-		if ferr != nil {
-			errs = append(errs, violation(pred, "0", "FindSealedBlock(%d) failed: %v", n, ferr))
-		} else if found {
-			if seal.Number != n {
-				errs = append(errs, violation(pred, "N1",
-					"FindSealedBlock(%d) returned seal with number %d", n, seal.Number))
-			}
-			if prevFound && seal.Timestamp <= prev.Timestamp {
-				errs = append(errs, violation(pred, "T1",
-					"timestamp %d at block %d does not exceed timestamp %d at block %d",
-					seal.Timestamp, n, prev.Timestamp, prev.Number))
-			}
-			prev, prevFound = seal, true
-		}
-		if n == latest.Number { // guards against uint64 wrap of n++
-			break
-		}
-	}
-
-	return errors.Join(errs...)
-}
-
-// AssertLogsDBSealsWellFormed fails t when CheckLogsDBSealsWellFormed reports
-// violations.
-func AssertLogsDBSealsWellFormed(t dafnyT, db LogsDB) {
-	t.Helper()
-	failOnViolation(t, CheckLogsDBSealsWellFormed(db))
-}
-
-// CheckFetchReceiptsPost mirrors the FetchReceipts postcondition
-// `ensures info.id == blockID` in
-// op-supernode/dafny-models/ChainContainer.dfy, with model info.id mapped to
-// eth.BlockID{Hash: info.Hash(), Number: info.NumberU64()}. Conjuncts:
-//
-//	(0) info is non-nil (mapping requirement)
-//	(1) info.id == blockID
-func CheckFetchReceiptsPost(blockID eth.BlockID, info eth.BlockInfo) error {
-	const pred = "ChainContainer.dfy FetchReceipts ensures"
-	if info == nil {
-		return violation(pred, "0", "info is nil")
-	}
-	got := eth.BlockID{Hash: info.Hash(), Number: info.NumberU64()}
-	if got != blockID {
-		return violation(pred, "1", "info.id %s != blockID %s", got, blockID)
-	}
-	return nil
-}
-
-// AssertFetchReceiptsPost fails t when CheckFetchReceiptsPost reports
-// violations.
-func AssertFetchReceiptsPost(t dafnyT, blockID eth.BlockID, info eth.BlockInfo) {
-	t.Helper()
-	failOnViolation(t, CheckFetchReceiptsPost(blockID, info))
-}
-
-// === round ===
+// ===========================================================================
+// round consistency
+// ===========================================================================
 
 // modelNextTimestamp mirrors NextTimestamp() in Interop.dfy: the successor of
 // the last committed timestamp, or ACTIVATION_TIMESTAMP when the verifiedDB is
@@ -906,7 +1070,9 @@ func AssertObservationConsistentWithLogs(t dafnyT, i *Interop, obs RoundObservat
 	failOnViolation(t, CheckObservationConsistentWithLogs(i, obs))
 }
 
-// === transition ===
+// ===========================================================================
+// transition consistency
+// ===========================================================================
 
 // sortedChainIDs returns the key set of a chain-keyed map in ascending order
 // so violation reports are deterministic.
@@ -1525,425 +1691,283 @@ func AssertTransitionConsistentWithLogs(t dafnyT, i *Interop, pending PendingTra
 	failOnViolation(t, CheckTransitionConsistentWithLogs(i, pending))
 }
 
-// checkAllDBsInSyncBody loops checkDBsInSync over all chains; callers have
-// already established `requires verifiedDB.Valid()`. label names the
-// enclosing conjunct in violation reports.
-func checkAllDBsInSyncBody(i *Interop, pred, label string) error {
-	var errs []error
-	for _, k := range sortedLogsDBChainIDs(i) {
-		if err := checkDBsInSync(i, k); err != nil {
-			errs = append(errs, fmt.Errorf("%s conjunct (%s): AllDBsInSync: chain %s: %w", pred, label, k, err))
-		}
-	}
-	return errors.Join(errs...)
-}
+// ===========================================================================
+// verifieddb (leaf)
+// ===========================================================================
 
-// checkPendingTransitionIsConsistent is the body of
-// PendingTransitionIsConsistent(); callers have already established the
-// model's `requires Valid()` (which includes ValidPendingTransition of the
-// stored pending transition).
-func checkPendingTransitionIsConsistent(i *Interop) error {
-	const pred = "Interop.dfy PendingTransitionIsConsistent"
-	pending, err := i.verifiedDB.GetPendingTransition()
+// allVerified snapshots the verified bucket as the model state
+// `db: map<nat, VerifiedResult>` of VerifiedDB.dfy, via a read-only bbolt
+// View. An entry that does not map to the model (key not an 8-byte
+// big-endian timestamp, value not a JSON VerifiedResult) is an error.
+func (v *VerifiedDB) allVerified() (map[uint64]VerifiedResult, error) {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+
+	out := make(map[uint64]VerifiedResult)
+	err := v.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketName)
+		if b == nil {
+			return nil
+		}
+		return b.ForEach(func(k, val []byte) error {
+			if len(k) != u64Len {
+				return fmt.Errorf("key %x is not an %d-byte big-endian timestamp", k, u64Len)
+			}
+			var result VerifiedResult
+			if err := json.Unmarshal(val, &result); err != nil {
+				return fmt.Errorf("value at key %d is not a VerifiedResult: %w", binary.BigEndian.Uint64(k), err)
+			}
+			out[binary.BigEndian.Uint64(k)] = result
+			return nil
+		})
+	})
 	if err != nil {
-		return violation(pred, "0", "GetPendingTransition failed: %v", err)
+		return nil, err
 	}
-
-	if pending == nil {
-		return checkAllDBsInSyncBody(i, pred, "N1")
-	}
-
-	var errs []error
-	if err := checkTransitionConsistentWithVerified(i, *pending); err != nil {
-		errs = append(errs, fmt.Errorf("%s conjunct (S1): %w", pred, err))
-	}
-	if err := checkTransitionConsistentWithLogs(i, *pending); err != nil {
-		errs = append(errs, fmt.Errorf("%s conjunct (S2): %w", pred, err))
-	}
-	switch pending.Decision {
-	case DecisionRewind:
-		if pending.Rewind != nil && pending.Rewind.ResetAllChainsTo != nil {
-			if err := CheckAllDBsInSyncUpTo(i, *pending.Rewind.ResetAllChainsTo); err != nil {
-				errs = append(errs, fmt.Errorf("%s conjunct (S3): %w", pred, err))
-			}
-		}
-	case DecisionInvalidate:
-		if err := checkAllDBsInSyncBody(i, pred, "S3"); err != nil {
-			errs = append(errs, err)
-		}
-	case DecisionAdvance:
-		if lastTS, initialized := i.verifiedDB.LastTimestamp(); initialized {
-			if err := CheckAllDBsInSyncUpTo(i, lastTS); err != nil {
-				errs = append(errs, fmt.Errorf("%s conjunct (S3): %w", pred, err))
-			}
-		}
-	}
-	return errors.Join(errs...)
+	return out, nil
 }
 
-// CheckPendingTransitionIsConsistent mirrors PendingTransitionIsConsistent()
-// in op-supernode/dafny-models/Interop.dfy. The model's `requires Valid()` is
-// checked first via CheckInteropValid; on failure the predicate body is
-// skipped (Valid() already implies ValidPendingTransition of the stored
-// pending transition, so it is not re-checked here, as in the model).
-// Conjuncts, matching on verifiedDB.GetPendingTransition():
-//
-//	(0) i is non-nil and reads succeed (mapping requirement)
-//	None case:
-//	  (N1) AllDBsInSync()
-//	Some(p) case:
-//	  (S1) TransitionConsistentWithVerified(p)
-//	  (S2) TransitionConsistentWithLogs(p)
-//	  (S3) matching on p.decision:
-//	    Rewind:     p.rewind.value.resetAllChainsTo.Some? ==>
-//	                AllDBsInSyncUpTo(resetAllChainsTo.value)
-//	    Invalidate: AllDBsInSync()
-//	    Advance:    verifiedDB.LastTimestamp().Some? ==>
-//	                AllDBsInSyncUpTo(LastTimestamp().value)
-func CheckPendingTransitionIsConsistent(i *Interop) error {
-	const pred = "Interop.dfy PendingTransitionIsConsistent"
-	if err := CheckInteropValid(i); err != nil {
-		return fmt.Errorf("%s requires Valid(): %w", pred, err)
+// checkSequential mirrors Sequential(m) in op-supernode/dafny-models/Utils.dfy
+// over the key set of a nat-keyed map: nil iff keys is empty or every key
+// strictly below the maximum has an immediate successor. keys must be the
+// distinct keys of a map, in any order.
+func checkSequential(keys []uint64) error {
+	if len(keys) == 0 {
+		return nil
 	}
-	return checkPendingTransitionIsConsistent(i)
-}
-
-// AssertPendingTransitionIsConsistent fails t when
-// CheckPendingTransitionIsConsistent reports violations.
-func AssertPendingTransitionIsConsistent(t dafnyT, i *Interop) {
-	t.Helper()
-	failOnViolation(t, CheckPendingTransitionIsConsistent(i))
-}
-
-// CheckInvariants mirrors the requires/ensures of Interop.ProgressAndRecord in
-// op-supernode/dafny-models/Interop.dfy: Valid() &&
-// PendingTransitionIsConsistent(). Conjuncts:
-//
-//	(1) Valid(), via CheckInteropValid
-//	(2) PendingTransitionIsConsistent(); skipped when (1) failed (the model
-//	    predicate requires Valid())
-func CheckInvariants(i *Interop) error {
-	const pred = "Interop.dfy ProgressAndRecord requires/ensures"
-	if err := CheckInteropValid(i); err != nil {
-		return fmt.Errorf("%s conjunct (1): %w", pred, err)
-	}
-	if err := checkPendingTransitionIsConsistent(i); err != nil {
-		return fmt.Errorf("%s conjunct (2): %w", pred, err)
+	sorted := slices.Clone(keys)
+	slices.Sort(sorted)
+	for i := 1; i < len(sorted); i++ {
+		if sorted[i] != sorted[i-1]+1 {
+			return fmt.Errorf("gap at %d (next committed key is %d)", sorted[i-1]+1, sorted[i])
+		}
 	}
 	return nil
 }
 
-// AssertInvariants checks Interop.Valid() && PendingTransitionIsConsistent()
-// from Interop.dfy on the live Interop instance, mirroring the requires and
-// ensures of ProgressAndRecord. Tests call it before and after exercising
-// progressAndRecord / applyPendingTransition / applyRewindPlan.
-func AssertInvariants(t dafnyT, i *Interop) {
-	t.Helper()
-	failOnViolation(t, CheckInvariants(i))
-}
-
-// === interop ===
-
-// sameLogsDB reports whether two LogsDB interface values are the same model
-// object; uncomparable dynamic types are treated as distinct.
-func sameLogsDB(a, b LogsDB) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	va, vb := reflect.ValueOf(a), reflect.ValueOf(b)
-	if !va.Comparable() || !vb.Comparable() {
-		return false
-	}
-	return va.Equal(vb)
-}
-
-// sortedLogsDBChainIDs returns the key set of i.logsDBs in ascending order so
-// violation reports are deterministic.
-func sortedLogsDBChainIDs(i *Interop) []eth.ChainID {
-	return slices.SortedFunc(maps.Keys(i.logsDBs), eth.ChainID.Cmp)
-}
-
-// CheckInteropValid mirrors the class invariant Interop.Valid() in
-// op-supernode/dafny-models/Interop.dfy, with the model ghost constants
-// instantiated by modelParamsFromInterop. The model conjunct
-// `activationTimestamp == ACTIVATION_TIMESTAMP` is definitional under that
-// mapping (ModelParams.ActivationTimestamp is derived from the instance) and
-// has no separate check. Conjuncts:
+// CheckVerifiedDBValid mirrors the class invariant VerifiedDB.Valid() in
+// op-supernode/dafny-models/VerifiedDB.dfy, with the model `db` enumerated
+// from the bbolt verified bucket (allVerified) rather than the cached
+// timestamp fields, and `lastTimestamp: Option<nat>` mapped to the Go
+// (lastTimestamp, initialized) pair. Conjuncts:
 //
-//	(0) i is non-nil and the model state is reachable (mapping requirement)
-//	(1) chains.Keys == CHAIN_IDS (definitional under modelParamsFromInterop,
-//	    checked for explicitness)
-//	(2) logsDBs.Keys == CHAIN_IDS
-//	(3) all logsDBs are distinct
-//	(4) verifiedDB.Valid(), via the embedded CheckVerifiedDBValid; conjuncts
-//	    (5)-(7) read the model db and are skipped when it fails
-//	(5) lastTimestamp.Some? ==> ACTIVATION_TIMESTAMP in verifiedDB.db
-//	(6) forall ts in verifiedDB.db: ACTIVATION_TIMESTAMP <= ts
-//	(7) forall ts in verifiedDB.db: db[ts].l2Heads.Keys == CHAIN_IDS
-//	(8) pendingTransition.Some? ==>
-//	    ValidPendingTransition(GetPendingTransition().value)
-func CheckInteropValid(i *Interop) error {
-	const pred = "Interop.dfy Valid()"
-	if i == nil {
-		return violation(pred, "0", "Interop is nil")
-	}
-	p := modelParamsFromInterop(i)
-	var errs []error
-
-	if err := checkChainIDCoverage(pred, "1", "chains", i.chains, p.ChainIDs); err != nil {
-		errs = append(errs, err)
-	}
-	if err := checkChainIDCoverage(pred, "2", "logsDBs", i.logsDBs, p.ChainIDs); err != nil {
-		errs = append(errs, err)
-	}
-
-	ids := sortedLogsDBChainIDs(i)
-	for a := 0; a < len(ids); a++ {
-		for b := a + 1; b < len(ids); b++ {
-			if sameLogsDB(i.logsDBs[ids[a]], i.logsDBs[ids[b]]) {
-				errs = append(errs, violation(pred, "3",
-					"logsDBs for chains %s and %s are the same instance", ids[a], ids[b]))
-			}
-		}
-	}
-
-	// Conjuncts (4)-(8) all read the verifiedDB store.
-	if i.verifiedDB == nil || i.verifiedDB.concrete() == nil || i.verifiedDB.concrete().db == nil {
-		errs = append(errs, violation(pred, "4", "VerifiedDB has no underlying store"))
-		return errors.Join(errs...)
-	}
-
-	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
-		errs = append(errs, fmt.Errorf("%s conjunct (4): %w", pred, err))
-	} else if db, dbErr := i.verifiedDB.concrete().allVerified(); dbErr != nil {
-		errs = append(errs, violation(pred, "4", "enumerate verified bucket: %v", dbErr))
-	} else {
-		if _, initialized := i.verifiedDB.LastTimestamp(); initialized {
-			if _, ok := db[p.ActivationTimestamp]; !ok {
-				errs = append(errs, violation(pred, "5",
-					"lastTimestamp is Some but ACTIVATION_TIMESTAMP %d not in db", p.ActivationTimestamp))
-			}
-		}
-		for _, ts := range slices.Sorted(maps.Keys(db)) {
-			if ts < p.ActivationTimestamp {
-				errs = append(errs, violation(pred, "6",
-					"committed timestamp %d below ACTIVATION_TIMESTAMP %d", ts, p.ActivationTimestamp))
-			}
-			if err := checkChainIDCoverage(pred, "7",
-				fmt.Sprintf("db[%d].l2Heads", ts), db[ts].L2Heads, p.ChainIDs); err != nil {
-				errs = append(errs, err)
-			}
-		}
-	}
-
-	if pending, err := i.verifiedDB.GetPendingTransition(); err != nil {
-		errs = append(errs, violation(pred, "8", "GetPendingTransition failed: %v", err))
-	} else if pending != nil {
-		if err := CheckValidPendingTransition(p, *pending); err != nil {
-			errs = append(errs, fmt.Errorf("%s conjunct (8): stored pending transition invalid: %w", pred, err))
-		}
-	}
-
-	return errors.Join(errs...)
-}
-
-// AssertInteropValid fails t when CheckInteropValid reports violations.
-func AssertInteropValid(t dafnyT, i *Interop) {
-	t.Helper()
-	failOnViolation(t, CheckInteropValid(i))
-}
-
-// CheckDBsInSyncUpTo mirrors DBsInSyncUpTo(chainID, upperTS) in
-// op-supernode/dafny-models/Interop.dfy: for every timestamp t in
-// [ACTIVATION_TIMESTAMP, upper] the verified entry exists, covers chainID, and
-// its head for chainID is sealed in the chain's logsDB with the same id
-// (SealedBlockForVerifiedAtTimestamp). The scan is O(upper -
-// ACTIVATION_TIMESTAMP) and intended for test workloads only (SPEC.md).
-// Conjuncts, each quantified over t:
-//
-//	(0) i is non-nil, the verifiedDB store is reachable, chainID in
-//	    logsDBs.Keys, and DB reads only fail with not-found sentinels
-//	    (mapping requirement and the model's requires clause)
-//	(1) verifiedDB.Has(t)
-//	(2) chainID in verifiedDB.Get(t).l2Heads
-//	(3) SealedBlockForVerifiedAtTimestamp(chainID, t).Some?, i.e.
-//	    FindSealedBlock(l2Heads[chainID].number) finds a seal
-//	(4) the found seal's id == verifiedDB.Get(t).l2Heads[chainID]
-func CheckDBsInSyncUpTo(i *Interop, chainID eth.ChainID, upper uint64) error {
-	const pred = "Interop.dfy DBsInSyncUpTo"
-	if i == nil {
-		return violation(pred, "0", "Interop is nil")
-	}
-	if i.verifiedDB == nil || i.verifiedDB.concrete() == nil || i.verifiedDB.concrete().db == nil {
+//	(0) every stored entry maps to the model db: map<nat, VerifiedResult>
+//	    and the store is reachable (mapping requirement; the remaining
+//	    conjuncts assume it)
+//	(1) Sequential(db): committed timestamps form a contiguous range
+//	(2) forall ts in db: db[ts].timestamp == ts
+//	(3) lastTimestamp == (if |db| == 0 then None else Some(MaxKey(db)))
+//	(4) forall t1 <= t2 in db, cid in both l2Heads:
+//	    db[t1].l2Heads[cid].number <= db[t2].l2Heads[cid].number
+func CheckVerifiedDBValid(v *VerifiedDB) error {
+	const pred = "VerifiedDB.dfy Valid()"
+	if v == nil || v.db == nil {
 		return violation(pred, "0", "VerifiedDB has no underlying store")
 	}
-	db, ok := i.logsDBs[chainID]
-	if !ok || db == nil {
-		return violation(pred, "0", "chain %s has no logsDB", chainID)
+	db, err := v.allVerified()
+	if err != nil {
+		return violation(pred, "0", "verified bucket does not map to db: map<nat, VerifiedResult>: %v", err)
 	}
-	p := modelParamsFromInterop(i)
+	last, initialized := v.LastTimestamp()
 
 	var errs []error
-	for t := p.ActivationTimestamp; t <= upper; t++ {
-		result, err := i.verifiedDB.Get(t)
-		switch {
-		case errors.Is(err, ErrNotFound):
-			errs = append(errs, violation(pred, "1", "verifiedDB.Has(%d) is false", t))
-		case err != nil:
-			errs = append(errs, violation(pred, "0", "verifiedDB.Get(%d) failed: %v", t, err))
-		default:
-			head, inHeads := result.L2Heads[chainID]
-			if !inHeads {
-				errs = append(errs, violation(pred, "2",
-					"chain %s not in verifiedDB.Get(%d).l2Heads", chainID, t))
-				break
-			}
-			seal, found, ferr := findSealedOption(db, head.Number)
-			if ferr != nil {
-				errs = append(errs, violation(pred, "0",
-					"chain %s FindSealedBlock(%d) failed: %v", chainID, head.Number, ferr))
-			} else if !found {
-				errs = append(errs, violation(pred, "3",
-					"chain %s: no sealed block %d for verified head at ts %d", chainID, head.Number, t))
-			} else if seal.ID() != head {
-				errs = append(errs, violation(pred, "4",
-					"chain %s: sealed block %s != verified head %s at ts %d", chainID, seal.ID(), head, t))
-			}
-		}
-		if t == upper { // guards against uint64 wrap of t++
-			break
+	keys := slices.Sorted(maps.Keys(db))
+
+	if err := checkSequential(keys); err != nil {
+		errs = append(errs, violation(pred, "1", "committed timestamps not sequential: %v", err))
+	}
+
+	for _, ts := range keys {
+		if db[ts].Timestamp != ts {
+			errs = append(errs, violation(pred, "2",
+				"entry at key %d has timestamp field %d", ts, db[ts].Timestamp))
 		}
 	}
+
+	switch {
+	case len(db) == 0 && initialized:
+		errs = append(errs, violation(pred, "3",
+			"db is empty but lastTimestamp is Some(%d)", last))
+	case len(db) > 0 && !initialized:
+		errs = append(errs, violation(pred, "3",
+			"db has %d entries but lastTimestamp is None", len(db)))
+	case len(db) > 0 && last != keys[len(keys)-1]:
+		errs = append(errs, violation(pred, "3",
+			"lastTimestamp %d != MaxKey(db) %d", last, keys[len(keys)-1]))
+	}
+
+	// Consecutive-occurrence comparisons over ascending timestamps cover all
+	// t1 <= t2 pairs of conjunct (4) by transitivity of <=.
+	type seen struct {
+		number uint64
+		ts     uint64
+	}
+	lastSeen := make(map[eth.ChainID]seen)
+	for _, ts := range keys {
+		heads := db[ts].L2Heads
+		for _, cid := range slices.SortedFunc(maps.Keys(heads), eth.ChainID.Cmp) {
+			if prev, ok := lastSeen[cid]; ok && heads[cid].Number < prev.number {
+				errs = append(errs, violation(pred, "4",
+					"chain %s l2Heads number decreases from %d at ts %d to %d at ts %d",
+					cid, prev.number, prev.ts, heads[cid].Number, ts))
+			}
+			lastSeen[cid] = seen{number: heads[cid].Number, ts: ts}
+		}
+	}
+
 	return errors.Join(errs...)
 }
 
-// AssertDBsInSyncUpTo fails t when CheckDBsInSyncUpTo reports violations.
-func AssertDBsInSyncUpTo(t dafnyT, i *Interop, chainID eth.ChainID, upper uint64) {
+// AssertVerifiedDBValid fails t when CheckVerifiedDBValid reports violations.
+func AssertVerifiedDBValid(t dafnyT, v *VerifiedDB) {
 	t.Helper()
-	failOnViolation(t, CheckDBsInSyncUpTo(i, chainID, upper))
+	failOnViolation(t, CheckVerifiedDBValid(v))
 }
 
-// checkDBsInSync is the body of DBsInSync(chainID); callers have already
-// established the model's `requires verifiedDB.Valid()`.
-func checkDBsInSync(i *Interop, chainID eth.ChainID) error {
-	const pred = "Interop.dfy DBsInSync"
-	db, ok := i.logsDBs[chainID]
-	if !ok || db == nil {
-		return violation(pred, "0", "chain %s has no logsDB", chainID)
-	}
+// ===========================================================================
+// logsdb (leaf)
+// ===========================================================================
 
-	lastTS, initialized := i.verifiedDB.LastTimestamp()
-	if !initialized {
-		if latest, has := db.LatestSealedBlock(); has {
-			return violation(pred, "N1",
-				"verifiedDB is empty but chain %s LatestSealedBlock is Some(%s)", chainID, latest)
-		}
+// findSealedOption maps LogsDB.FindSealedBlock's (BlockSeal, error) result to
+// the model's Option<BlockSeal>: ErrFuture/ErrSkipped mean None, any other
+// error breaks the model mapping.
+func findSealedOption(db LogsDB, number uint64) (suptypes.BlockSeal, bool, error) {
+	seal, err := db.FindSealedBlock(number)
+	switch {
+	case err == nil:
+		return seal, true, nil
+	case errors.Is(err, suptypes.ErrFuture), errors.Is(err, suptypes.ErrSkipped):
+		return suptypes.BlockSeal{}, false, nil
+	default:
+		return suptypes.BlockSeal{}, false, err
+	}
+}
+
+// CheckLogsDBSealsWellFormed mirrors the function axioms of FirstSealedBlock,
+// LatestSealedBlock, and FindSealedBlock in
+// op-supernode/dafny-models/LogsDB.dfy. Option mapping: LatestSealedBlock
+// ok==false ↔ None; FirstSealedBlock/FindSealedBlock ErrFuture/ErrSkipped ↔
+// None; model BlockID ↔ eth.BlockID{Hash: seal.Hash, Number: seal.Number}.
+// Conjuncts:
+//
+//	(0) db is non-nil and every FirstSealedBlock/FindSealedBlock error is a
+//	    not-found sentinel (mapping requirement; the remaining conjuncts
+//	    assume it)
+//	(E1) FirstSealedBlock None <==> LatestSealedBlock None (each axiom's None
+//	    case forces FindSealedBlock to None everywhere, contradicting the
+//	    other's Some case)
+//	(B1) first.number <= latest.number (FindSealedBlock(first.number).Some?
+//	    plus LatestSealedBlock's `forall number > latest.number ==> None`)
+//	(F1) FindSealedBlock(first.number).Some? && value.id == first
+//	    (FirstSealedBlock axiom, Some case)
+//	(L1) FindSealedBlock(latest.number).Some? && value.id == latest
+//	    (LatestSealedBlock axiom, Some case)
+//	(N1) forall n in [first.number, latest.number]:
+//	    FindSealedBlock(n).Some? ==> value.id.number == n
+//	    (first FindSealedBlock axiom)
+//	(T1) found seals' timestamps strictly increase with block number
+//	    (second FindSealedBlock axiom, consecutive found pairs cover all
+//	    pairs by transitivity of <)
+//
+// The model does not exclude not-found gaps strictly inside the sealed range,
+// so the checker tolerates them. The scan is O(latest.number - first.number)
+// FindSealedBlock calls and is intended for test workloads only.
+func CheckLogsDBSealsWellFormed(db LogsDB) error {
+	const pred = "LogsDB.dfy sealed-block axioms"
+	if db == nil {
+		return violation(pred, "0", "LogsDB is nil")
+	}
+	latest, hasLatest := db.LatestSealedBlock()
+	first, err := db.FirstSealedBlock()
+	hasFirst := err == nil
+	if err != nil && !errors.Is(err, suptypes.ErrFuture) && !errors.Is(err, suptypes.ErrSkipped) {
+		return violation(pred, "0", "FirstSealedBlock failed: %v", err)
+	}
+	if hasFirst != hasLatest {
+		return violation(pred, "E1",
+			"FirstSealedBlock is None: %t but LatestSealedBlock is None: %t", !hasFirst, !hasLatest)
+	}
+	if !hasLatest {
 		return nil
 	}
 
-	result, err := i.verifiedDB.Get(lastTS)
-	if err != nil {
-		return violation(pred, "0", "verifiedDB.Get(%d) failed: %v", lastTS, err)
-	}
-
 	var errs []error
-	if head, inHeads := result.L2Heads[chainID]; !inHeads {
-		errs = append(errs, violation(pred, "S1",
-			"chain %s not in verifiedDB.Get(%d).l2Heads", chainID, lastTS))
-	} else if latest, has := db.LatestSealedBlock(); !has {
-		errs = append(errs, violation(pred, "S2",
-			"chain %s LatestSealedBlock is None but last verified head is %s", chainID, head))
-	} else if latest != head {
-		errs = append(errs, violation(pred, "S2",
-			"chain %s LatestSealedBlock %s != last verified head %s at ts %d", chainID, latest, head, lastTS))
+	if first.Number > latest.Number {
+		errs = append(errs, violation(pred, "B1",
+			"first sealed number %d > latest sealed number %d", first.Number, latest.Number))
 	}
-	if err := CheckDBsInSyncUpTo(i, chainID, lastTS); err != nil {
-		errs = append(errs, fmt.Errorf("%s conjunct (S3): %w", pred, err))
-	}
-	return errors.Join(errs...)
-}
 
-// CheckDBsInSync mirrors DBsInSync(chainID) in
-// op-supernode/dafny-models/Interop.dfy. The model's `requires
-// verifiedDB.Valid()` is checked first via CheckVerifiedDBValid; on failure
-// the predicate body is skipped (composite checkers short-circuit dependent
-// conjuncts, SPEC.md). Conjuncts, matching on verifiedDB.LastTimestamp():
-//
-//	(0) i is non-nil and chainID in logsDBs.Keys (mapping requirement and the
-//	    model's requires clause)
-//	None case:
-//	  (N1) logsDBs[chainID].LatestSealedBlock() == None
-//	Some(ts) case:
-//	  (S1) chainID in verifiedDB.Get(ts).l2Heads
-//	  (S2) logsDBs[chainID].LatestSealedBlock() == Some(l2Heads[chainID])
-//	  (S3) DBsInSyncUpTo(chainID, ts)
-func CheckDBsInSync(i *Interop, chainID eth.ChainID) error {
-	const pred = "Interop.dfy DBsInSync"
-	if i == nil {
-		return violation(pred, "0", "Interop is nil")
+	firstID := eth.BlockID{Hash: first.Hash, Number: first.Number}
+	if seal, found, ferr := findSealedOption(db, first.Number); ferr != nil {
+		errs = append(errs, violation(pred, "0", "FindSealedBlock(%d) failed: %v", first.Number, ferr))
+	} else if !found || seal.ID() != firstID {
+		errs = append(errs, violation(pred, "F1",
+			"FindSealedBlock(%d) = (%s, found=%t) does not match FirstSealedBlock %s",
+			first.Number, seal.ID(), found, firstID))
 	}
-	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
-		return fmt.Errorf("%s requires verifiedDB.Valid(): %w", pred, err)
+	if seal, found, ferr := findSealedOption(db, latest.Number); ferr != nil {
+		errs = append(errs, violation(pred, "0", "FindSealedBlock(%d) failed: %v", latest.Number, ferr))
+	} else if !found || seal.ID() != latest {
+		errs = append(errs, violation(pred, "L1",
+			"FindSealedBlock(%d) = (%s, found=%t) does not match LatestSealedBlock %s",
+			latest.Number, seal.ID(), found, latest))
 	}
-	return checkDBsInSync(i, chainID)
-}
 
-// AssertDBsInSync fails t when CheckDBsInSync reports violations.
-func AssertDBsInSync(t dafnyT, i *Interop, chainID eth.ChainID) {
-	t.Helper()
-	failOnViolation(t, CheckDBsInSync(i, chainID))
-}
-
-// CheckAllDBsInSyncUpTo mirrors AllDBsInSyncUpTo(upper) in
-// op-supernode/dafny-models/Interop.dfy: DBsInSyncUpTo(k, upper) for every k
-// in logsDBs.Keys. Violations carry the failing chain's ID; conjunct labels
-// are those of CheckDBsInSyncUpTo.
-func CheckAllDBsInSyncUpTo(i *Interop, upper uint64) error {
-	const pred = "Interop.dfy AllDBsInSyncUpTo"
-	if i == nil {
-		return violation(pred, "0", "Interop is nil")
-	}
-	var errs []error
-	for _, k := range sortedLogsDBChainIDs(i) {
-		if err := CheckDBsInSyncUpTo(i, k, upper); err != nil {
-			errs = append(errs, fmt.Errorf("%s: chain %s: %w", pred, k, err))
+	var prev suptypes.BlockSeal
+	prevFound := false
+	for n := first.Number; n <= latest.Number; n++ {
+		seal, found, ferr := findSealedOption(db, n)
+		if ferr != nil {
+			errs = append(errs, violation(pred, "0", "FindSealedBlock(%d) failed: %v", n, ferr))
+		} else if found {
+			if seal.Number != n {
+				errs = append(errs, violation(pred, "N1",
+					"FindSealedBlock(%d) returned seal with number %d", n, seal.Number))
+			}
+			if prevFound && seal.Timestamp <= prev.Timestamp {
+				errs = append(errs, violation(pred, "T1",
+					"timestamp %d at block %d does not exceed timestamp %d at block %d",
+					seal.Timestamp, n, prev.Timestamp, prev.Number))
+			}
+			prev, prevFound = seal, true
+		}
+		if n == latest.Number { // guards against uint64 wrap of n++
+			break
 		}
 	}
+
 	return errors.Join(errs...)
 }
 
-// AssertAllDBsInSyncUpTo fails t when CheckAllDBsInSyncUpTo reports
+// AssertLogsDBSealsWellFormed fails t when CheckLogsDBSealsWellFormed reports
 // violations.
-func AssertAllDBsInSyncUpTo(t dafnyT, i *Interop, upper uint64) {
+func AssertLogsDBSealsWellFormed(t dafnyT, db LogsDB) {
 	t.Helper()
-	failOnViolation(t, CheckAllDBsInSyncUpTo(i, upper))
+	failOnViolation(t, CheckLogsDBSealsWellFormed(db))
 }
 
-// CheckAllDBsInSync mirrors AllDBsInSync() in
-// op-supernode/dafny-models/Interop.dfy: DBsInSync(k) for every k in
-// logsDBs.Keys. The model's `requires verifiedDB.Valid()` is checked once via
-// CheckVerifiedDBValid; on failure the per-chain bodies are skipped.
-// Violations carry the failing chain's ID; conjunct labels are those of
-// CheckDBsInSync.
-func CheckAllDBsInSync(i *Interop) error {
-	const pred = "Interop.dfy AllDBsInSync"
-	if i == nil {
-		return violation(pred, "0", "Interop is nil")
+// CheckFetchReceiptsPost mirrors the FetchReceipts postcondition
+// `ensures info.id == blockID` in
+// op-supernode/dafny-models/ChainContainer.dfy, with model info.id mapped to
+// eth.BlockID{Hash: info.Hash(), Number: info.NumberU64()}. Conjuncts:
+//
+//	(0) info is non-nil (mapping requirement)
+//	(1) info.id == blockID
+func CheckFetchReceiptsPost(blockID eth.BlockID, info eth.BlockInfo) error {
+	const pred = "ChainContainer.dfy FetchReceipts ensures"
+	if info == nil {
+		return violation(pred, "0", "info is nil")
 	}
-	if err := CheckVerifiedDBValid(i.verifiedDB.concrete()); err != nil {
-		return fmt.Errorf("%s requires verifiedDB.Valid(): %w", pred, err)
+	got := eth.BlockID{Hash: info.Hash(), Number: info.NumberU64()}
+	if got != blockID {
+		return violation(pred, "1", "info.id %s != blockID %s", got, blockID)
 	}
-	var errs []error
-	for _, k := range sortedLogsDBChainIDs(i) {
-		if err := checkDBsInSync(i, k); err != nil {
-			errs = append(errs, fmt.Errorf("%s: chain %s: %w", pred, k, err))
-		}
-	}
-	return errors.Join(errs...)
+	return nil
 }
 
-// AssertAllDBsInSync fails t when CheckAllDBsInSync reports violations.
-func AssertAllDBsInSync(t dafnyT, i *Interop) {
+// AssertFetchReceiptsPost fails t when CheckFetchReceiptsPost reports
+// violations.
+func AssertFetchReceiptsPost(t dafnyT, blockID eth.BlockID, info eth.BlockInfo) {
 	t.Helper()
-	failOnViolation(t, CheckAllDBsInSync(i))
+	failOnViolation(t, CheckFetchReceiptsPost(blockID, info))
 }
