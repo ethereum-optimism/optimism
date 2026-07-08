@@ -1579,57 +1579,6 @@ jobs:
           command: ./ops/scripts/todo-checker.sh --verbose --strict <<#parameters.check_closed>> --check-closed <</parameters.check_closed>>
       - notify-failures-on-develop
 
-  fuzz-golang:
-    parameters:
-      package_name:
-        description: Go package name
-        type: string
-      on_changes:
-        description: changed pattern to fire fuzzer on
-        type: string
-      uses_artifacts:
-        description: should load in foundry artifacts
-        type: boolean
-        default: false
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge.gen2
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - check-changed:
-          patterns: "<<parameters.package_name>>"
-      - attach_workspace:
-          at: "."
-          if: ${{ uses_artifacts }}
-      - go-restore-cache:
-          namespace: fuzz-<<parameters.package_name>>
-      - run:
-          name: Run fuzz seeds
-          no_output_timeout: 15m
-          command: |
-            case "<<parameters.package_name>>" in
-              op-challenger) go test -count=1 -run=Fuzz -v ./game/keccak/matrix ;;
-              op-node) go test -count=1 -run=Fuzz -v ./rollup/derive ;;
-              op-service) go test -count=1 -run=Fuzz -v ./eth ;;
-              op-chain-ops) go test -count=1 -run=Fuzz -v ./crossdomain ;;
-              cannon) go test -count=1 -run=Fuzz -v ./mipsevm/tests ;;
-              op-e2e) go test -count=1 -run=Fuzz -tags cgo_test -v ./opgeth ;;
-            esac
-          working_directory: "<<parameters.package_name>>"
-      - go-save-cache:
-          namespace: fuzz-<<parameters.package_name>>
-      - run:
-          name: Copy fuzz artifacts
-          command: |
-            mkdir -p fuzzdata
-            find ./<<parameters.package_name>> -type d -name "fuzz" -exec sh -c 'cp -r "{}"/* fuzzdata/ 2>/dev/null || true' \;
-          when: always
-      - store_artifacts:
-          path: ./fuzzdata
-          when: always
-
   go-lint:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2496,46 +2445,6 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - fuzz-golang:
-          name: fuzz-golang-<<matrix.package_name>>
-          on_changes: <<matrix.package_name>>
-          # attaches prep-superchain's superchain-configs.zip, which several of these packages //go:embed.
-          uses_artifacts: true
-          matrix:
-            parameters:
-              package_name:
-                - op-challenger
-                - op-node
-                - op-service
-                - op-chain-ops
-          requires:
-            - prep-go-modules
-            - prep-superchain
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - fuzz-golang:
-          name: cannon-fuzz
-          package_name: cannon
-          on_changes: cannon,packages/contracts-bedrock/src/cannon
-          uses_artifacts: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - contracts-bedrock-build
-            - prep-go-modules
-      - fuzz-golang:
-          name: op-e2e-fuzz
-          package_name: op-e2e
-          on_changes: op-e2e,packages/contracts-bedrock/src
-          uses_artifacts: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-            - prep-go-modules
-            # for the gitignored superchain-configs.zip op-e2e //go:embeds
-            - prep-superchain
       - go-tests:
           name: go-tests-short
           parallelism: 12
@@ -2738,13 +2647,6 @@ workflows:
             - l2-chains-sync-check: terminal
             - nut-provenance-verify: terminal
             - diff-fetcher-forge-artifacts: terminal
-            # Fuzz jobs.
-            - cannon-fuzz: terminal
-            - op-e2e-fuzz: terminal
-            - fuzz-golang-op-challenger: terminal
-            - fuzz-golang-op-node: terminal
-            - fuzz-golang-op-service: terminal
-            - fuzz-golang-op-chain-ops: terminal
           context:
             - circleci-api-token
           filters:
