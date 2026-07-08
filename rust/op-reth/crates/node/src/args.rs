@@ -112,7 +112,7 @@ pub struct RollupArgs {
     pub enable_tx_conditional: bool,
 
     /// Local operator opt-in for SDM `PostExec` production at process boot. The admin RPC
-    /// (`admin_setSdmPostExecOptIn`) can still toggle it at runtime. Defaults to disabled.
+    /// (`admin_setOperatorSdmOptIn`) can still toggle it at runtime. Defaults to disabled.
     #[arg(
         long = "rollup.operator-sdm-opt-in",
         env = "OP_RETH_OPERATOR_SDM_OPT_IN",

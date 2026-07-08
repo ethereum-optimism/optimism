@@ -2,7 +2,7 @@
 //!
 //! The protocol gate (hardfork activation) is a consensus rule shared by every node. This module
 //! adds an orthogonal *operator* gate: even on an SDM-active chain, the local builder produces
-//! PostExec txs only when the operator has opted in via [`admin_setSdmPostExecOptIn`]. Both must
+//! PostExec txs only when the operator has opted in via [`admin_setOperatorSdmOptIn`]. Both must
 //! be true in order for SDM to be active.
 //!
 //! State is in-memory and starts disabled on every process boot; persistence is
@@ -51,8 +51,7 @@ impl OperatorSdmOptIn {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SdmStatus {
-    /// Whether the operator has opted in via `admin_setSdmPostExecOptIn`.
-    #[serde(rename = "postExecOptIn")]
+    /// Whether the operator has opted in via `admin_setOperatorSdmOptIn`.
     pub operator_sdm_opt_in: bool,
     /// Whether SDM is active per the chain spec at `query_timestamp`.
     pub protocol_active: bool,
@@ -67,7 +66,7 @@ pub struct SdmStatus {
 #[cfg_attr(test, rpc(server, client, namespace = "admin"))]
 pub trait SdmAdminApi {
     /// Toggle local PostExec production. Starts disabled on process boot.
-    #[method(name = "setSdmPostExecOptIn")]
+    #[method(name = "setOperatorSdmOptIn")]
     fn set_operator_sdm_opt_in(&self, enabled: bool) -> RpcResult<()>;
 
     /// Report the local opt-in flag, the chain-spec gate at `query_timestamp`,

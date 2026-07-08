@@ -159,7 +159,7 @@ impl LocalInstance {
                 }
 
                 // Same wiring as the production launcher: the admin namespace exposes
-                // `admin_setSdmPostExecOptIn` / `admin_sdmStatus`, sharing the opt-in flag
+                // `admin_setOperatorSdmOptIn` / `admin_sdmStatus`, sharing the opt-in flag
                 // with every payload-builder ctx.
                 let sdm_admin_ext =
                     SdmAdminExt::new(operator_sdm_opt_in.clone(), ctx.provider().chain_spec());
@@ -269,7 +269,7 @@ impl LocalInstance {
     }
 
     /// jsonrpsee client over the node's user-facing RPC IPC endpoint, for calling extension
-    /// namespaces (e.g. `admin_setSdmPostExecOptIn` via `SdmAdminApiClient`) in tests.
+    /// namespaces (e.g. `admin_setOperatorSdmOptIn` via `SdmAdminApiClient`) in tests.
     pub async fn rpc_client(
         &self,
     ) -> eyre::Result<impl SubscriptionClientT + Send + Sync + Unpin + use<>> {

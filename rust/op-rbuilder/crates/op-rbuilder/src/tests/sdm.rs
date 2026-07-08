@@ -1,7 +1,7 @@
 //! SDM PostExec (`0x7D`) production tests.
 //!
 //! These run against a chain spec with Interop (Lagoon) active at genesis, so the SDM
-//! protocol gate is on and the operator opt-in (`admin_setSdmPostExecOptIn`) decides
+//! protocol gate is on and the operator opt-in (`admin_setOperatorSdmOptIn`) decides
 //! whether the builder produces the trailing PostExec tx. The driver round-trips every
 //! built payload through `newPayload` on the same node, which re-executes it with the
 //! post-exec mode derived from the block's own transactions — so a block whose state

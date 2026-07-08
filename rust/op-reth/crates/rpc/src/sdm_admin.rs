@@ -3,7 +3,7 @@
 //! The protocol gate (hardfork activation) is a consensus rule shared by every node. This module
 //! adds an orthogonal *operator* gate: even on an SDM-active chain, op-reth's standard payload
 //! builder produces `PostExec` txs only when the operator has opted in via
-//! `admin_setSdmPostExecOptIn`. Both must be true in order for SDM to be active.
+//! `admin_setOperatorSdmOptIn`. Both must be true in order for SDM to be active.
 //!
 //! State is in-memory and starts disabled on every process boot; persistence is deliberately
 //! out of scope.
@@ -23,8 +23,7 @@ use std::{
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SdmStatus {
-    /// Whether the operator has opted in via `admin_setSdmPostExecOptIn`.
-    #[serde(rename = "postExecOptIn")]
+    /// Whether the operator has opted in via `admin_setOperatorSdmOptIn`.
     pub operator_sdm_opt_in: bool,
     /// Whether SDM is active per the chain spec at `query_timestamp`.
     pub protocol_active: bool,
@@ -38,7 +37,7 @@ pub struct SdmStatus {
 #[cfg_attr(test, rpc(server, client, namespace = "admin"))]
 pub trait SdmAdminApi {
     /// Toggle local `PostExec` production. Starts disabled on process boot.
-    #[method(name = "setSdmPostExecOptIn")]
+    #[method(name = "setOperatorSdmOptIn")]
     fn set_operator_sdm_opt_in(&self, enabled: bool) -> RpcResult<()>;
 
     /// Report the local opt-in flag, the chain-spec gate at `query_timestamp`, and the AND.
@@ -152,10 +151,9 @@ mod tests {
         assert!(api.sdm_status(ts).unwrap().effective, "re-enabling restores effective");
     }
 
-    /// Wire compatibility: the Rust field `operator_sdm_opt_in` must still serialize under the
-    /// historical `postExecOptIn` key so existing clients keep working after the rename.
+    /// The status serializes with camelCase JSON keys.
     #[test]
-    fn sdm_status_serializes_with_stable_wire_names() {
+    fn sdm_status_serializes_with_camel_case_keys() {
         let json = serde_json::to_value(SdmStatus {
             operator_sdm_opt_in: true,
             protocol_active: false,
@@ -164,10 +162,9 @@ mod tests {
         })
         .unwrap();
 
-        assert_eq!(json["postExecOptIn"], serde_json::json!(true));
+        assert_eq!(json["operatorSdmOptIn"], serde_json::json!(true));
         assert_eq!(json["protocolActive"], serde_json::json!(false));
         assert_eq!(json["effective"], serde_json::json!(false));
         assert_eq!(json["activationTime"], serde_json::json!(123));
-        assert!(json.get("operatorSdmOptIn").is_none(), "must not leak the Rust field name");
     }
 }
