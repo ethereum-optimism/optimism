@@ -122,8 +122,8 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     {
         // Get initial proposer/challenger from existing DGF.
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        address initialChallenger = _initialPermissionedGameChallenger(superRoot);
-        address initialProposer = _initialPermissionedGameProposer(superRoot);
+        address initialChallenger = _initialPermissionedGameChallenger();
+        address initialProposer = _initialPermissionedGameProposer();
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
@@ -202,11 +202,11 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         cts_ = opcmV2.deploy(deployConfig);
     }
 
-    function _initialPermissionedGameChallenger(bool) internal view returns (address challenger_) {
+    function _initialPermissionedGameChallenger() internal view returns (address challenger_) {
         challenger_ = DisputeGames.permissionedGameChallenger(disputeGameFactory);
     }
 
-    function _initialPermissionedGameProposer(bool) internal view returns (address proposer_) {
+    function _initialPermissionedGameProposer() internal view returns (address proposer_) {
         proposer_ = DisputeGames.permissionedGameProposer(disputeGameFactory);
     }
 
