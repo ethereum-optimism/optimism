@@ -1,0 +1,16 @@
+[package]
+name = "kona-sp1-super-range"
+version = "0.0.1"
+publish = false
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+kona-sp1-client-utils.workspace = true
+sp1-zkvm.workspace = true
+
+[lints]
+workspace = true

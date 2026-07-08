@@ -1,5 +1,10 @@
 [workspace]
-members = ["range", "aggregation"]
+members = [
+  "range",
+  "aggregation",
+  "super-range",
+  "super-aggregation",
+]
 resolver = "2"
 
 [workspace.package]
