@@ -231,13 +231,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             || raw == GameTypes.SUPER_CANNON_KONA.raw();
     }
 
-    function _migrationProposer(IDisputeGameFactory _disputeGameFactory) internal view returns (address) {
-        if (address(_disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0)) {
-            return DisputeGames.superPermissionedGameProposer(_disputeGameFactory);
-        }
-        return DisputeGames.permissionedGameProposer(_disputeGameFactory);
-    }
-
     /// @notice Calls to the Deploy.s.sol contract etched by Setup.sol to a deterministic address, sets up the
     /// environment, and deploys new implementations.
     function _deployNewImplementations() internal {
@@ -290,7 +283,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             IAnchorStateRegistry asr = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
             GameType originalGameType = asr.respectedGameType();
             bool isPermissionless = _isPermissionlessGameType(originalGameType);
-            address proposer = _migrationProposer(disputeGameFactory);
+            address proposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
 
             // Determine the target SUPER_* game type.
             GameType targetGameType = isPermissionless ? GameTypes.SUPER_CANNON_KONA : GameTypes.SUPER_PERMISSIONED;

@@ -352,18 +352,14 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
     )
         internal
     {
-        // Grab values before we upgrade, to be checked later. Once the super-root migration has
-        // already been applied, the legacy PERMISSIONED_CANNON slot is cleared.
+        // Grab values before we upgrade, to be checked later.
         address initialChallenger;
-        address initialProposer;
+        address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
         if (
-            isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-                && address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0)
+            !isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+                || address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)) != address(0)
         ) {
-            initialProposer = DisputeGames.superPermissionedGameProposer(disputeGameFactory);
-        } else {
             initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
-            initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
         }
 
         // Execute the SuperchainConfig upgrade.
@@ -2243,10 +2239,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         challenger_ = address(0);
     }
 
-    function _initialPermissionedGameProposer(bool _superRoot) internal view returns (address proposer_) {
-        if (!_superRoot) return DisputeGames.permissionedGameProposer(disputeGameFactory);
-
-        proposer_ = DisputeGames.superPermissionedGameProposer(disputeGameFactory);
+    function _initialPermissionedGameProposer(bool) internal view returns (address proposer_) {
+        proposer_ = DisputeGames.permissionedGameProposer(disputeGameFactory);
     }
 
     /// @notice Helper function to create the default migration input.

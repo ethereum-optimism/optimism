@@ -208,10 +208,8 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         challenger_ = address(0);
     }
 
-    function _initialPermissionedGameProposer(bool _superRoot) internal view returns (address proposer_) {
-        if (!_superRoot) return DisputeGames.permissionedGameProposer(disputeGameFactory);
-
-        proposer_ = DisputeGames.superPermissionedGameProposer(disputeGameFactory);
+    function _initialPermissionedGameProposer(bool) internal view returns (address proposer_) {
+        proposer_ = DisputeGames.permissionedGameProposer(disputeGameFactory);
     }
 
     /// @notice Creates the default migration input with both SPDG and SCKDG.
