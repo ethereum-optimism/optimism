@@ -5,6 +5,7 @@ use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpExecutionPayload
 use reth_consensus::ConsensusError;
 use reth_node_api::{
     BuiltPayload, EngineApiValidator, EngineTypes, NodePrimitives, PayloadValidator,
+    InsertBlockErrorKind,
     payload::{
         EngineApiMessageVersion, EngineObjectValidationError, MessageValidationKind,
         NewPayloadError, PayloadOrAttributes, PayloadTypes, VersionSpecificValidationError,
@@ -20,6 +21,7 @@ use reth_optimism_payload_builder::{
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpBlock};
 use reth_primitives_traits::{Block, RecoveredBlock, SealedBlock, SignedTransaction};
 use reth_provider::StateProviderFactory;
+use reth_storage_api::{StateProviderBox, errors::ProviderResult};
 use reth_trie_common::{HashedPostState, KeyHasher};
 use std::{marker::PhantomData, sync::Arc};
 
@@ -125,26 +127,29 @@ where
 {
     type Block = alloy_consensus::Block<Tx>;
 
-    fn validate_block_post_execution_with_hashed_state(
+    fn validate_block_post_execution_with_hashed_state<'a>(
         &self,
-        state_updates: &HashedPostState,
+        state_updates: impl FnOnce() -> &'a HashedPostState,
         block: &RecoveredBlock<Self::Block>,
-    ) -> Result<(), ConsensusError> {
+        parent_state: impl FnOnce() -> ProviderResult<StateProviderBox>,
+    ) -> Result<(), InsertBlockErrorKind>
+    where
+        Self: Sized,
+    {
         if self.chain_spec().is_isthmus_active_at_timestamp(block.timestamp()) {
-            let Ok(state) = self.provider.state_by_block_hash(block.parent_hash()) else {
-                // FIXME: we don't necessarily have access to the parent block here because the
-                // parent block isn't necessarily part of the canonical chain yet. Instead this
-                // function should receive the list of in memory blocks as input
-                return Ok(());
-            };
-            let predeploy_storage_updates = state_updates
+            // Failing to load the parent state is an internal/provider error, not an invalid block;
+            // `?` surfaces it as `InsertBlockErrorKind::Provider`.
+            let parent_state = parent_state()?;
+            let predeploy_storage_updates = state_updates()
                 .storages
                 .get(&self.hashed_addr_l2tol1_msg_passer)
                 .cloned()
                 .unwrap_or_default();
+            // A mismatch is a consensus violation; `?` surfaces the `ConsensusError` as
+            // `InsertBlockErrorKind::Consensus`.
             isthmus::verify_withdrawals_root_prehashed(
                 predeploy_storage_updates,
-                state,
+                parent_state,
                 block.header(),
             )
             .map_err(|err| {
@@ -306,11 +311,13 @@ mod test {
     use super::*;
 
     use crate::engine;
+    use alloy_consensus::{BlockBody, Header};
     use alloy_op_hardforks::OP_SEPOLIA_JOVIAN_TIMESTAMP;
     use alloy_primitives::{Address, B64, B256, b64};
     use alloy_rpc_types_engine::PayloadAttributes;
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
     use reth_optimism_chainspec::OP_SEPOLIA;
+    use reth_optimism_primitives::OpTransactionSigned;
     use reth_provider::noop::NoopProvider;
     use reth_trie_common::KeccakKeyHasher;
 
@@ -491,5 +498,59 @@ mod test {
             &validator, EngineApiMessageVersion::V3, &attributes,
         );
         assert_invalid_params_error!(result, "MissingMinBaseFeeInPayloadAttributes");
+    }
+
+    /// An Isthmus-active block (Jovian timestamp) with an otherwise empty body and the given
+    /// `withdrawals_root` header field.
+    fn isthmus_block(
+        withdrawals_root: B256,
+    ) -> RecoveredBlock<alloy_consensus::Block<OpTransactionSigned>> {
+        let header = Header {
+            timestamp: OP_SEPOLIA_JOVIAN_TIMESTAMP,
+            withdrawals_root: Some(withdrawals_root),
+            ..Default::default()
+        };
+        let body = BlockBody::<OpTransactionSigned> { transactions: vec![], ..Default::default() };
+        RecoveredBlock::new_sealed(
+            SealedBlock::seal_slow(alloy_consensus::Block { header, body }),
+            vec![],
+        )
+    }
+
+    fn validate_post_execution(
+        block: &RecoveredBlock<alloy_consensus::Block<OpTransactionSigned>>,
+        parent_state: impl FnOnce() -> ProviderResult<StateProviderBox>,
+    ) -> Result<(), InsertBlockErrorKind> {
+        let validator =
+            OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), NoopProvider::default());
+        let hashed_state = HashedPostState::default();
+        <OpEngineValidator<_, OpTransactionSigned, _> as PayloadValidator<OpPayloadTypes>>::validate_block_post_execution_with_hashed_state(
+            &validator,
+            || &hashed_state,
+            block,
+            parent_state,
+        )
+    }
+
+    /// Post-Isthmus, the `withdrawals_root` header field (the `L2ToL1MessagePasser` storage root)
+    /// is verified against the parent state the engine supplies; a value that does not match must
+    /// be rejected.
+    #[test]
+    fn isthmus_rejects_mismatched_withdrawals_root() {
+        let block = isthmus_block(B256::repeat_byte(0xab));
+        // The noop parent state reports a zero `L2ToL1MessagePasser` storage root; the bogus header
+        // value does not match it.
+        let result = validate_post_execution(&block, || NoopProvider::default().latest());
+        assert!(result.is_err(), "mismatched withdrawals_root must be rejected, got {result:?}");
+    }
+
+    /// Control: a header whose `withdrawals_root` matches the parent state's storage root is
+    /// accepted, confirming the check discriminates rather than rejecting unconditionally.
+    #[test]
+    fn isthmus_accepts_matching_withdrawals_root() {
+        let block = isthmus_block(B256::ZERO);
+        // The noop parent state reports a zero storage root, so a zero header value matches.
+        let result = validate_post_execution(&block, || NoopProvider::default().latest());
+        assert!(result.is_ok(), "matching withdrawals_root must be accepted, got {result:?}");
     }
 }
