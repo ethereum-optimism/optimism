@@ -33,7 +33,7 @@ type State struct {
 
 	// L1PredictSenderAddress is the address that performed the L1 deploy dry-run.
 	// It is used to verify that the same deployer address is used for the relevant stages of the permissionless pipeline.
-	L1PredictSenderAddress *common.Address `json:"deployerAddress,omitempty"`
+	L1PredictSenderAddress *common.Address `json:"predictSenderAddress,omitempty"`
 
 	// L1PredictOPCMAddress is the OPCM address used for the L1 deploy dry-run.
 	// It is used to verify that the same OPCM is used for the relevant stages of the permissionless pipeline.
