@@ -75,6 +75,9 @@ func (g *FaultDisputeGame) L2SequenceNumber() uint64 {
 }
 
 func (g *FaultDisputeGame) StartingL2SequenceNumber() uint64 {
+	if g.GameType() == gameTypes.SuperCannonKonaGameType {
+		return contract.Read(g.game.StartingSequenceNumber())
+	}
 	return contract.Read(g.game.StartingBlockNumber())
 }
 

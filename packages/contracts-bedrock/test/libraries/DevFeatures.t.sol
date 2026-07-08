@@ -93,8 +93,12 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
 
     /// @notice Tests that ALL_FEATURES against empty bitmap returns false.
     function test_isDevFeatureEnabled_allFeaturesAgainstEmpty_succeeds() public pure {
-        // Strip L2CM because it is hardcoded enabled regardless of bitmap.
-        assertFalse(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES & ~DevFeatures.L2CM));
+        // Strip default-on features because they are hardcoded enabled regardless of bitmap.
+        assertFalse(
+            DevFeatures.isDevFeatureEnabled(
+                EMPTY_FEATURES, ALL_FEATURES & ~DevFeatures.L2CM & ~DevFeatures.SUPER_ROOT_GAMES_MIGRATION
+            )
+        );
     }
 
     /// @notice Fuzz test: any non-zero feature should match itself exactly.
@@ -118,17 +122,25 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
     /// @notice Fuzz test: feature not found when bitmap has none of the feature's bits.
     function testFuzz_isDevFeatureEnabled_featureNotInDisjointBitmap_succeeds(bytes32 _feature) public pure {
         vm.assume(_feature != bytes32(0));
-        // L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
+        // Default-on features are hardcoded enabled. TODO(#20084): remove with the broader DevFeatures cleanup.
         vm.assume((_feature & DevFeatures.L2CM) != DevFeatures.L2CM);
+        vm.assume((_feature & DevFeatures.SUPER_ROOT_GAMES_MIGRATION) != DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         bytes32 disjointBitmap = ~_feature;
         assertFalse(DevFeatures.isDevFeatureEnabled(disjointBitmap, _feature));
     }
 
-    /// @notice Tests that L2CM is hardcoded enabled regardless of the bitmap.
-    /// @dev TODO(#20084): remove with the broader L2CMFlag cleanup.
-    function test_isDevFeatureEnabled_l2cmAlwaysEnabled_succeeds() public pure {
-        assertTrue(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, DevFeatures.L2CM));
-        assertTrue(DevFeatures.isDevFeatureEnabled(~DevFeatures.L2CM, DevFeatures.L2CM));
-        assertTrue(DevFeatures.isDevFeatureEnabled(DevFeatures.L2CM, DevFeatures.L2CM));
+    /// @notice Tests that default-on features are hardcoded enabled regardless of the bitmap.
+    /// @dev TODO(#20084): remove with the broader DevFeatures cleanup.
+    function test_isDevFeatureEnabled_defaultOnFeaturesAlwaysEnabled_succeeds() public pure {
+        assertDefaultOnFeatureEnabled(DevFeatures.L2CM);
+        assertDefaultOnFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+    }
+
+    function assertDefaultOnFeatureEnabled(bytes32 _feature) internal pure {
+        assertTrue(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, _feature));
+        assertTrue(DevFeatures.isDevFeatureEnabled(~_feature, _feature));
+        assertTrue(DevFeatures.isDevFeatureEnabled(_feature, _feature));
+        assertTrue(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, FEATURE_A | _feature));
+        assertTrue(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, FEATURE_B | _feature));
     }
 }

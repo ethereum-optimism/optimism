@@ -59,6 +59,9 @@ library DevFeatures {
     function isDevFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
         // L2CM is enabled by default. TODO(#20084): remove with the broader L2CMFlag cleanup.
         if (hasFlag(_feature, L2CM)) return true;
+        // SuperRootGamesMigration is enabled by default. TODO(#21662): remove with the broader SuperRootGamesMigration
+        // cleanup.
+        if (hasFlag(_feature, SUPER_ROOT_GAMES_MIGRATION)) return true;
         return _feature != 0 && hasFlag(_bitmap, _feature);
     }
 

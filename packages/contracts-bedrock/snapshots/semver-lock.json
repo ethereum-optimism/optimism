@@ -20,8 +20,8 @@
     "sourceCodeHash": "0x0ef8461e8bc55314e61e60924465574db17bdf30bbbfe9739b52cac623bba2db"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0x329258d680be5edb56bf031c4710bea41119040d044a5864ecce9242aa26df8d",
-    "sourceCodeHash": "0x65a92fe93cf18173186362608b3f4def5ce150091b20cd6d91a17bb500ade057"
+    "initCodeHash": "0xbe79f81825933eec7eaacd9461168763c8602e280d603cda76d6d28c2c8a1cd5",
+    "sourceCodeHash": "0x75ffb2b6f85a446041c1ea1204224801e8fa081db49189e665941e0df41be747"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
     "initCodeHash": "0x67bbf6c9b344870cdbd7b041ddad6fb69057a4b48ec6dd96876af55d14fc1943",
@@ -72,16 +72,16 @@
     "sourceCodeHash": "0x8876e106997cbaa64501bba7e5aa1fd8931873b8acef9f34f9d1ec2676df97d6"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0xd2c135b9af72bec48c8bb0efc621e925e7a162e0fbe3c8d8f34561e1f02f2d8e",
-    "sourceCodeHash": "0xd32fa9f689b79265c8f9a4e6db13f0d7b843ec5b49e93dd661cde39e751158ba"
+    "initCodeHash": "0x14f90ee442149cda2b981d042ba395d1b49ea60fe00d3b0824f4640137a36f5e",
+    "sourceCodeHash": "0x99edc33661fb2932013e847545225f51358a447d5caafefbf2a2b5929451205d"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x76784e1bc7abe615094033f3eb16d3a6bd5caf28c2717377a3dd25e6825228f3",
     "sourceCodeHash": "0x3cfbb6e64a29ecc84d7a35cf4b5786fed354a4f474bbf8be719948a50a64f883"
   },
   "src/L2/L2DevFeatureFlags.sol:L2DevFeatureFlags": {
-    "initCodeHash": "0xf40700bb13be97bf454488c8c6b45cb9ceeb0067c49bbadb931edc2619fb55b0",
-    "sourceCodeHash": "0x3e41be291b8bf2a13817dce34df954291d5f73daa54a9b81395ef0543d5f876f"
+    "initCodeHash": "0x396ef49052519f0f1db136b09aebaddd50f1b9cf1ad37cef78f5305b446e8638",
+    "sourceCodeHash": "0x8f47d92f93b275a362127f5459686cff07b982708d45f3a707735eafdf6727a3"
   },
   "src/L2/L2ERC721Bridge.sol:L2ERC721Bridge": {
     "initCodeHash": "0x6a93ded273dc3c1b0ea3f351412e97f0c22efd89c9760e74258c8d4c315d1b5c",

@@ -19,9 +19,9 @@ Active flags:
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `L2CM` | L2ContractsManager + supporting L2 predeploys — **enabled by default** |
 | `ZKDisputeGame` | ZK dispute game system |
-| `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade |
+| `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
 
-The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `L2CM`, which is enabled by default on both the Go and Solidity sides (the bitmap no longer acts as a circuit breaker for it; removal tracked in #20084).
+The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `L2CM` and `SuperRootGamesMigration`, which are enabled by default on both the Go and Solidity sides (the bitmap no longer acts as a circuit breaker for them; removal tracked in #20084 for L2CM and #21662 for SuperRootGamesMigration).
 
 **Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` all need updating; there is no compile-time link between them.
 
@@ -64,7 +64,7 @@ A separate, **test-only** assembler exists for Foundry tests and fork scripts. I
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
 - `DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION`
 
-Each is read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol` (functions `devFeatureInterop()`, `devFeatureL2CM()`, etc.). The only callers are under `test/`:
+Each is read via `vm.envOr(...)` in `packages/contracts-bedrock/scripts/libraries/Config.sol` (functions `devFeatureInterop()`, `devFeatureL2CM()`, etc.). Most default to false; `L2CM` and `SUPER_ROOT_GAMES_MIGRATION` default to true. The only callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
 - `test/setup/CommonTest.sol`, `test/setup/ForkL1Live.s.sol`, `test/setup/ForkL2Live.s.sol` — branch on individual `Config.devFeature*` returns
@@ -119,13 +119,15 @@ It does **not** flow to op-node, op-program, or kona at runtime. They learn abou
 For **L2CM specifically** there are two independent gates:
 
 1. **Hardfork timestamp** — `IsL2CM(time)` in `op-node/rollup/toggles.go` returns `IsKarst(time)`. This decides **when** L2CM upgrade transactions are executed across the network.
-2. **Bitmap** — gates **whether the L2CM machinery exists at all** on a given chain (predeploys installed, implementations deployed, upgrade paths active). Since #20439 the L2CM bit is enabled by default, so on new deploys the machinery is always provisioned.
+2. **Default-on feature predicate** — formerly gated whether the L2CM machinery exists at all on a given chain (predeploys installed, implementations deployed, upgrade paths active). Since #20439 the L2CM bit is enabled by default, so on new deploys the machinery is always provisioned even when the stored bitmap is zero.
 
-So: hardfork is the network-wide "go" signal; bitmap is the per-chain "is this feature provisioned" switch. Other flags (interop, super-root migration) are bitmap-only, no parallel hardfork timestamp.
+So: hardfork is the network-wide "go" signal; the default-on predicate is the per-feature provisioning switch. Interop and ZK dispute games still use bitmap opt-ins. Super-root migration has no parallel hardfork timestamp and is default-on in the predicate.
 
 ## G. Lifecycle direction
 
 - L2CM remains **default-on** (#20439): `IsDevFeatureEnabled` / `isDevFeatureEnabled` return `true` for it regardless of the bitmap.
+- SuperRootGamesMigration is now **default-on** (#21662): `IsDevFeatureEnabled` / `isDevFeatureEnabled` return `true` for it regardless of the bitmap.
+- **#20084** tracks removing the L2CM flag and eventually the wider DevFeatures scaffolding. **#21662** tracks removing `DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION`.
 
 ## File index
 

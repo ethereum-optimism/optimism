@@ -3,10 +3,14 @@ package fault
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/registry"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -138,4 +142,24 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewCannonKonaRegisterTaskUsesKonaVMForPrestateConversion(t *testing.T) {
+	const expectedPrestate = "0x1234000000000000000000000000000000000000000000000000000000000000"
+	vmBin := filepath.Join(t.TempDir(), "cannon-kona")
+	require.NoError(t, os.WriteFile(vmBin, []byte("#!/bin/sh\nprintf '%s\\n' '{\"witnessHash\":\""+expectedPrestate+"\",\"witness\":\"0x\",\"step\":0,\"exited\":false}'\n"), 0o755))
+
+	cfg := &config.Config{
+		Datadir:                    t.TempDir(),
+		Cannon:                     vm.Config{},
+		CannonKona:                 vm.Config{VmType: gameTypes.CannonKonaGameType, VmBin: vmBin},
+		CannonKonaAbsolutePreState: filepath.Join(t.TempDir(), "prestate.json"),
+	}
+	task := NewCannonKonaRegisterTask(gameTypes.CannonKonaGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+	provider, err := task.getBottomPrestateProvider(context.Background(), common.HexToHash(expectedPrestate))
+	require.NoError(t, err)
+
+	actualPrestate, err := provider.AbsolutePreStateCommitment(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, common.HexToHash(expectedPrestate), actualPrestate)
 }

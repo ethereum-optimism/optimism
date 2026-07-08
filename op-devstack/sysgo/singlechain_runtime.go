@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	opchallenger "github.com/ethereum-optimism/optimism/op-challenger"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	challengermetrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
@@ -88,6 +90,13 @@ func startDefaultSingleChainPrimary(
 	jwtSecret [32]byte,
 	cfg PresetConfig,
 ) singleChainPrimaryRuntime {
+	safeDBPath := filepath.Join(t.TempDirWithPrefix("l2-safe-db-"+world.L2Network.ChainID().String()), "safe-head.db")
+	l2CLOptions := make([]L2CLOption, 0, len(cfg.GlobalL2CLOptions)+1)
+	l2CLOptions = append(l2CLOptions, cfg.GlobalL2CLOptions...)
+	l2CLOptions = append(l2CLOptions, L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		cfg.SafeDBPath = safeDBPath
+	}))
+
 	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0))
 	if world.Interop != nil {
 		l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
@@ -96,11 +105,11 @@ func startDefaultSingleChainPrimary(
 			NoDiscovery:   true,
 			EnableReqResp: true,
 			DependencySet: world.Interop.DependencySet,
-			L2CLOptions:   cfg.GlobalL2CLOptions,
+			L2CLOptions:   l2CLOptions,
 		})
 		return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
 	}
-	l2CL := startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, cfg.GlobalL2CLOptions)
+	l2CL := startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLOptions)
 	return singleChainPrimaryRuntime{
 		EL: l2EL,
 		CL: l2CL,
@@ -132,6 +141,8 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 		l2Batcher = startMinimalBatcher(t, keys, world.L2Network, l1EL, primary.CL, primary.EL, cfg.BatcherOptions...)
 	}
 
+	applyMinimalGameTypeOptions(t, keys, world.L1Network, world.L2Network, l1EL, cfg.AddedGameTypes, cfg.RespectedGameTypes)
+
 	var l2Proposer *L2Proposer
 	if spec.StartProposer {
 		l2Proposer = startMinimalProposer(t, keys, world.L2Network, l1EL, primary.CL, cfg.ProposerOptions...)
@@ -139,10 +150,8 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	var l2Challenger *L2Challenger
 	if spec.StartChallenger {
-		l2Challenger = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL)
+		l2Challenger = startMinimalChallenger(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, primary.EL, primary.CL, cfg.AddedGameTypes)
 	}
-
-	applyMinimalGameTypeOptions(t, keys, world.L1Network, world.L2Network, l1EL, cfg.AddedGameTypes, cfg.RespectedGameTypes)
 
 	testSequencer := startTestSequencerForRPCs(t, keys, "test-sequencer", jwtPath, jwtSecret, world.L1Network, l1EL, l1CL, world.L2Network.ChainID(), primary.EL.UserRPC(), primary.CL.UserRPC())
 	testSequencerRuntime := newTestSequencerRuntime(testSequencer, spec.TestSequencer)
@@ -317,16 +326,23 @@ func startMinimalProposer(
 		PprofConfig:                  oppprof.CLIConfig{},
 		DGFAddress:                   l2Net.deployment.DisputeGameFactoryProxyAddr().Hex(),
 		ProposalInterval:             6 * time.Second,
-		DisputeGameType:              1,
+		DisputeGameType:              superPermissionedGameType,
 		ActiveSequencerCheckDuration: 5 * time.Second,
 		WaitNodeSync:                 false,
-		RollupRpc:                    l2CL.UserRPC(),
 	}
 	for _, opt := range proposerOpts {
 		if opt == nil {
 			continue
 		}
 		opt(NewComponentTarget("main", l2Net.ChainID()), proposerCLIConfig)
+	}
+	switch proposerCLIConfig.DisputeGameType {
+	case superPermissionedGameType, superCannonKonaGameType:
+		proposerCLIConfig.RollupRpc = ""
+		proposerCLIConfig.SuperNodeRpcs = []string{l2CL.UserRPC()}
+	default:
+		proposerCLIConfig.SuperNodeRpcs = nil
+		proposerCLIConfig.RollupRpc = l2CL.UserRPC()
 	}
 
 	proposer, err := ps.ProposerServiceFromCLIConfig(t.Ctx(), "0.0.1", proposerCLIConfig, logger)
@@ -357,6 +373,7 @@ func startMinimalChallenger(
 	l1CL *L1CLNode,
 	l2EL L2ELNode,
 	l2CL L2CLNode,
+	addedGameTypes []gameTypes.GameType,
 ) *L2Challenger {
 	require := t.Require()
 	challengerSecret, err := keys.Secret(devkeys.ChallengerRole.Key(l2Net.ChainID().ToBig()))
@@ -367,14 +384,37 @@ func startMinimalChallenger(
 
 	rollupCfgs := []*rollup.Config{l2Net.rollupCfg}
 	l2Geneses := []*core.Genesis{l2Net.genesis}
+	dependencySet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
+		l2Net.ChainID(): {},
+	})
+	require.NoError(err)
+
 	options := []sharedchallenger.Option{
 		sharedchallenger.WithFactoryAddress(l2Net.deployment.DisputeGameFactoryProxyAddr()),
 		sharedchallenger.WithPrivKey(challengerSecret),
 		sharedchallenger.WithPermissionedCannonConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 		sharedchallenger.WithPermissionedGameType(),
 		sharedchallenger.WithFastGames(),
-		sharedchallenger.WithCannonKonaConfig(rollupCfgs, l1Net.genesis, l2Geneses),
-		sharedchallenger.WithCannonKonaGameType(),
+	}
+	var cannonKonaEnabled, superCannonKonaEnabled bool
+	for _, gameType := range addedGameTypes {
+		cannonKonaEnabled = cannonKonaEnabled || gameType == gameTypes.CannonKonaGameType
+		superCannonKonaEnabled = superCannonKonaEnabled || gameType == gameTypes.SuperCannonKonaGameType
+	}
+	require.False(cannonKonaEnabled && superCannonKonaEnabled, "minimal challenger cannot use legacy and interop Cannon Kona prestates simultaneously")
+	if cannonKonaEnabled {
+		options = append(options,
+			sharedchallenger.WithCannonKonaConfig(rollupCfgs, l1Net.genesis, l2Geneses),
+			sharedchallenger.WithCannonKonaGameType(),
+		)
+	}
+	if superCannonKonaEnabled {
+		options = append(options,
+			sharedchallenger.WithDepset(dependencySet),
+			sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
+			sharedchallenger.WithSuperCannonKonaGameType(),
+			sharedchallenger.WithSuperRPC(l2CL.UserRPC()),
+		)
 	}
 	cfg, err := sharedchallenger.NewPreInteropChallengerConfig(
 		t.Ctx(),
@@ -429,16 +469,8 @@ func applyMinimalGameTypeOptions(
 	}
 	l1ChainID := l1Net.ChainID()
 
-	// Filter out permissioned game type — it's always included by the V2 upgrade.
-	var filteredGameTypes []gameTypes.GameType
-	for _, gameType := range addedGameTypes {
-		if gameType == gameTypes.PermissionedGameType {
-			continue
-		}
-		filteredGameTypes = append(filteredGameTypes, gameType)
-	}
-	if len(filteredGameTypes) > 0 {
-		addGameTypesForRuntime(t, keys, filteredGameTypes, l1ChainID, l1EL.UserRPC(), l2Net)
+	if len(addedGameTypes) > 0 {
+		addGameTypesForRuntime(t, keys, addedGameTypes, l1ChainID, l1EL.UserRPC(), l2Net)
 	}
 	for _, gameType := range respectedGameTypes {
 		setRespectedGameTypeForRuntime(t, keys, gameType, l1ChainID, l1EL.UserRPC(), l2Net)

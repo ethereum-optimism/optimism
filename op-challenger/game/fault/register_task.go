@@ -121,7 +121,7 @@ func newCannonVMRegisterTaskWithConfig(
 	preStateBaseURL *url.URL,
 	preState string,
 ) *RegisterTask {
-	stateConverter := cannon.NewStateConverter(cfg.Cannon)
+	stateConverter := cannon.NewStateConverter(vmCfg)
 	return &RegisterTask{
 		gameType:      gameType,
 		syncValidator: syncValidator,

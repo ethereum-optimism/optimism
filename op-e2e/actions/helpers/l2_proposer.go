@@ -3,8 +3,6 @@ package helpers
 import (
 	"context"
 	"crypto/ecdsa"
-	"encoding/binary"
-	"errors"
 	"math/big"
 	"time"
 
@@ -21,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
@@ -42,6 +41,7 @@ type ProposerCfg struct {
 	AllowNonFinalized      bool
 	AllocType              config.AllocType
 	ChainID                eth.ChainID
+	L2ChainID              eth.ChainID
 }
 
 type L2Proposer struct {
@@ -53,6 +53,7 @@ type L2Proposer struct {
 	address                common.Address
 	privKey                *ecdsa.PrivateKey
 	lastTx                 common.Hash
+	l2ChainID              eth.ChainID
 	allocType              config.AllocType
 }
 
@@ -135,6 +136,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		address:                address,
 		privKey:                cfg.ProposerKey,
 		allocType:              cfg.AllocType,
+		l2ChainID:              cfg.L2ChainID,
 	}
 }
 
@@ -194,16 +196,34 @@ func estimateGasPending(ctx context.Context, ec *ethclient.Client, msg ethereum.
 }
 
 func (p *L2Proposer) fetchNextOutput(t Testing) (source.Proposal, bool, error) {
-	output, shouldPropose, err := p.driver.FetchDGFOutput(t.Ctx())
-	if err != nil || !shouldPropose {
-		return source.Proposal{}, false, err
+	isSuperPermissioned := gameTypes.GameType(p.driver.Cfg.DisputeGameType) == gameTypes.SuperPermissionedGameType
+	var output source.Proposal
+	if isSuperPermissioned {
+		sequenceNum, err := p.driver.FetchCurrentBlockNumber(t.Ctx())
+		if err != nil || sequenceNum == 0 {
+			return source.Proposal{}, false, err
+		}
+		output, err = p.driver.FetchOutput(t.Ctx(), sequenceNum)
+		if err != nil {
+			return source.Proposal{}, false, err
+		}
+		super := eth.NewSuperV1(output.Legacy.BlockRef.Time, eth.ChainIDAndOutput{
+			ChainID: p.l2ChainID,
+			Output:  eth.Bytes32(output.Root),
+		})
+		output.Root = common.Hash(eth.SuperRoot(super))
+		output.SequenceNum = output.Legacy.BlockRef.Time
+		output.Super = super
+	} else {
+		var shouldPropose bool
+		var err error
+		output, shouldPropose, err = p.driver.FetchDGFOutput(t.Ctx())
+		if err != nil || !shouldPropose {
+			return source.Proposal{}, false, err
+		}
 	}
-	if output.IsSuperRootProposal() {
-		return source.Proposal{}, false, errors.New("unexpected super root proposal")
-	}
-	encodedBlockNumber := make([]byte, 32)
-	binary.BigEndian.PutUint64(encodedBlockNumber[24:], output.SequenceNum)
-	game, err := p.disputeGameFactory.Games(&bind.CallOpts{}, p.driver.Cfg.DisputeGameType, output.Root, encodedBlockNumber)
+
+	game, err := p.disputeGameFactory.Games(&bind.CallOpts{}, p.driver.Cfg.DisputeGameType, output.Root, output.ExtraData())
 	if err != nil {
 		return source.Proposal{}, false, err
 	}

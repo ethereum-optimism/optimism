@@ -22,7 +22,8 @@ const (
 	methodCreateGame  = "create"
 	methodVersion     = "version"
 
-	methodClaim = "claimData"
+	methodGameCreator = "gameCreator"
+	methodRootClaim   = "rootClaim"
 )
 
 type gameMetadata struct {
@@ -42,9 +43,7 @@ type DisputeGameFactory struct {
 
 func NewDisputeGameFactory(addr common.Address, caller *batching.MultiCaller, networkTimeout time.Duration) *DisputeGameFactory {
 	factoryABI := snapshots.LoadDisputeGameFactoryABI()
-	// Note: Games might have different ABIs (eg SuperFaultDisputeGame) but since only a very small part of the ABI
-	// is actually needed, proposer always uses the latest FaultDisputeGameABI. Compatibility with other ABIs is tested
-	// in disputegamefactory_test.go
+	// All dispute game types expose gameCreator and rootClaim, even when their remaining ABIs differ.
 	gameABI := snapshots.LoadFaultDisputeGameABI()
 	return &DisputeGameFactory{
 		caller:         caller,
@@ -136,13 +135,17 @@ func (f *DisputeGameFactory) gameAtIndex(ctx context.Context, idx uint64) (gameM
 	gameContract := batching.NewBoundContract(f.gameABI, address)
 	cCtx, cancel = context.WithTimeout(ctx, f.networkTimeout)
 	defer cancel()
-	result, err = f.caller.SingleCall(cCtx, rpcblock.Latest, gameContract.Call(methodClaim, big.NewInt(0)))
+	results, err := f.caller.Call(
+		cCtx,
+		rpcblock.Latest,
+		gameContract.Call(methodGameCreator),
+		gameContract.Call(methodRootClaim),
+	)
 	if err != nil {
-		return gameMetadata{}, fmt.Errorf("failed to load root claim of game %v: %w", idx, err)
+		return gameMetadata{}, fmt.Errorf("failed to load metadata of game %v: %w", idx, err)
 	}
-	// We don't need most of the claim data, only the claim and the claimant which is the game proposer
-	claimant := result.GetAddress(2)
-	claim := result.GetHash(4)
+	claimant := results[0].GetAddress(0)
+	claim := results[1].GetHash(0)
 
 	return gameMetadata{
 		GameType:  gameType,

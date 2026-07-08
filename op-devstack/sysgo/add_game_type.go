@@ -11,10 +11,12 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -104,7 +106,7 @@ func addGameTypesForRuntime(
 
 	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
-	chainOps := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
+	chainOps := devkeys.ChainOperatorKeys(l2Net.ChainID().ToBig())
 	proposer, err := keys.Address(chainOps(devkeys.ProposerRole))
 	require.NoError(err, "failed to get proposer address")
 	challenger, err := keys.Address(chainOps(devkeys.ChallengerRole))
@@ -117,6 +119,14 @@ func addGameTypesForRuntime(
 	initBond := eth.GWei(80_000_000).ToBig() // 0.08 ETH
 
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
+	dummyCannonPrestate := common.HexToHash(sharedchallenger.DummyPermissionedPrestate)
+	startingAnchorRoot := opcm.DefaultStartingAnchorRoot
+	anchorRootData := encodeStartingAnchorRoot(
+		t,
+		eth.Bytes32(startingAnchorRoot.Root),
+		bigs.Uint64Strict(startingAnchorRoot.L2BlockNumber),
+	)
+	respectedGameTypeData := encodeStartingRespectedGameType(t, superPermissionedGameType)
 
 	// Download the contracts artifacts once; reused for the mock verifier deploy and the upgrade.
 	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
@@ -131,27 +141,13 @@ func addGameTypesForRuntime(
 		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t, mockVerifier)
 	}
 
-	// dummyCannonPrestate is used for the PermissionedCannon game type now that the legacy
-	// fault-proof program is no longer wired into devstack. Permissioned games skip prestate
-	// validation and are never executed by the challenger, so the prestate is never resolved at
-	// claim time.
-	dummyCannonPrestate := common.HexToHash(sharedchallenger.DummyPermissionedPrestate)
-
-	// OPCMv2 requires all 6 game configs in order:
-	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_PERMISSIONED, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
-	// The CANNON (legacy) game type is permanently disabled, but its config slot must remain present
-	// and in order for the OPCMv2 upgrade.
+	// OPCMv2 requires all 6 game configs in order. Keep the legacy Cannon Kona
+	// slot available for pre-Isthmus hard-fork tests while using super-root games
+	// for post-migration configurations.
 	configs := []embedded.DisputeGameConfig{
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannon},
 		{
-			Enabled:  false,
-			InitBond: initBond,
-			GameType: embedded.GameTypeCannon,
-			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
-				AbsolutePrestate: dummyCannonPrestate,
-			},
-		},
-		{
-			Enabled:  true, // Permissioned cannon is always enabled.
+			Enabled:  enabled[gameTypes.PermissionedGameType],
 			InitBond: initBond,
 			GameType: embedded.GameTypePermissionedCannon,
 			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
@@ -168,8 +164,22 @@ func addGameTypesForRuntime(
 				AbsolutePrestate: cannonKonaPrestate,
 			},
 		},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermissioned},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
+		{
+			Enabled:  true,
+			InitBond: new(big.Int),
+			GameType: embedded.GameTypeSuperPermissioned,
+			SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
+				Proposer: proposer,
+			},
+		},
+		{
+			Enabled:  enabled[gameTypes.SuperCannonKonaGameType],
+			InitBond: initBond,
+			GameType: embedded.GameTypeSuperCannonKona,
+			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+				AbsolutePrestate: cannonKonaPrestate,
+			},
+		},
 		{
 			Enabled:             enabled[gameTypes.ZKDisputeGameType],
 			InitBond:            initBond,
@@ -191,6 +201,8 @@ func addGameTypesForRuntime(
 			SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
 			DisputeGameConfigs: configs,
 			ExtraInstructions: []embedded.ExtraInstruction{
+				{Key: "overrides.cfg.startingAnchorRoot", Data: anchorRootData},
+				{Key: "overrides.cfg.startingRespectedGameType", Data: respectedGameTypeData},
 				{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
 			},
 		},

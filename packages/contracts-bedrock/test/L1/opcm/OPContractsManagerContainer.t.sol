@@ -148,6 +148,9 @@ contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsMana
         bytes32 feature = bytes32(uint256(1) << _bitIndex);
         // L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
         vm.assume(feature != DevFeatures.L2CM);
+        // SuperRootGamesMigration is hardcoded enabled. TODO(#21662): remove with the broader SuperRootGamesMigration
+        // cleanup.
+        vm.assume(feature != DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
         // Create a bitmap with all bits set except the one we're testing.
         bytes32 bitmap = bytes32(type(uint256).max ^ (uint256(1) << _bitIndex));
@@ -162,6 +165,9 @@ contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsMana
     function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public {
         // L2CM is hardcoded enabled. TODO(#20084): remove with the broader L2CMFlag cleanup.
         vm.assume((_feature & DevFeatures.L2CM) != DevFeatures.L2CM);
+        // SuperRootGamesMigration is hardcoded enabled. TODO(#21662): remove with the broader SuperRootGamesMigration
+        // cleanup.
+        vm.assume((_feature & DevFeatures.SUPER_ROOT_GAMES_MIGRATION) != DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         OPContractsManagerContainer container = _deploy(bytes32(0));
 
         assertFalse(container.isDevFeatureEnabled(_feature));

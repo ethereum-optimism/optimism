@@ -1722,12 +1722,15 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
 
         l2ChainId = deploy.cfg().l2ChainID();
         cannonPrestate = Claim.wrap(bytes32(deploy.cfg().faultGameAbsolutePrestate()));
-        proposer = deploy.cfg().l2OutputOracleProposer();
-        challenger = deploy.cfg().l2OutputOracleChallenger();
+        if (isL1ForkTest()) {
+            proposer = DisputeGames.permissionedGameProposer(dgf);
+        } else {
+            proposer = deploy.cfg().l2OutputOracleProposer();
+        }
 
-        // The deploy created SUPER_PERMISSIONED (enabled) + SUPER_CANNON_KONA (disabled).
-        // Run an upgrade to also enable SUPER_CANNON_KONA so that full validation passes.
         _enableSuperCannonKona();
+
+        _mockSuperModeForkL1PAOOwnership();
     }
 
     /// @notice Runs an upgrade that enables SUPER_CANNON_KONA alongside SUPER_PERMISSIONED.
@@ -1798,6 +1801,20 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
             )
         );
         assertTrue(success, "super mode upgrade failed");
+    }
+
+    /// @notice Normalizes fork ownership to the L1 PAO expected by the validator.
+    function _mockSuperModeForkL1PAOOwnership() internal {
+        if (!isL1ForkTest()) return;
+
+        address l1PAOMultisig = standardValidator.l1PAOMultisig();
+        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(l1PAOMultisig));
+        vm.mockCall(
+            address(disputeGameFactory), abi.encodeCall(IDisputeGameFactory.owner, ()), abi.encode(l1PAOMultisig)
+        );
+
+        LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(dgf.gameArgs(GameTypes.SUPER_CANNON_KONA));
+        vm.mockCall(gameArgs.weth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(l1PAOMultisig));
     }
 
     /// @notice Runs the OPContractsManagerStandardValidator.validate function.
@@ -2008,6 +2025,13 @@ contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
         vm.mockCall(badVM, abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION));
         assertEq("SCKDG-VM-10,SCKDG-VM-20", _validate(true));
     }
+
+    /// @notice Tests SCKDG-DWETH-30 when SUPER_CANNON_KONA DelayedWETH owner is invalid.
+    function test_validate_superPermissionlessDisputeGameInvalidWethOwner_succeeds() public {
+        LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(dgf.gameArgs(GameTypes.SUPER_CANNON_KONA));
+        vm.mockCall(gameArgs.weth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0xbad)));
+        assertEq("SCKDG-DWETH-30", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_ZKDisputeGame_Test
@@ -2095,17 +2119,25 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
         if (isL1ForkTest()) {
             // In fork mode read the actual values from the deployed contracts so _validate()
             // is consistent with the real on-chain state.
-            LibGameArgs.GameArgs memory pddgArgs = LibGameArgs.decode(dgf.gameArgs(GameTypes.PERMISSIONED_CANNON));
-            cannonPrestate = Claim.wrap(pddgArgs.absolutePrestate);
-            l2ChainId = pddgArgs.l2ChainId;
-            proposer = pddgArgs.proposer;
-            challenger = pddgArgs.challenger;
+            GameType permissionlessGameType = DisputeGames.permissionlessGameType(dgf);
+            LibGameArgs.GameArgs memory permissionlessGameArgs =
+                LibGameArgs.decode(dgf.gameArgs(permissionlessGameType));
+            cannonKonaPrestate = Claim.wrap(permissionlessGameArgs.absolutePrestate);
+            l2ChainId = permissionlessGameArgs.l2ChainId;
+            proposer = DisputeGames.permissionedGameProposer(dgf);
 
-            LibGameArgs.GameArgs memory cannonKonaArgs = LibGameArgs.decode(dgf.gameArgs(GameTypes.CANNON_KONA));
-            cannonKonaPrestate = Claim.wrap(cannonKonaArgs.absolutePrestate);
+            GameType permissionedGameType = DisputeGames.permissionedGameType(dgf);
+            if (GameTypes.isSuperGame(permissionedGameType)) {
+                cannonPrestate = cannonKonaPrestate;
+            } else {
+                LibGameArgs.GameArgs memory permissionedGameArgs =
+                    LibGameArgs.decode(dgf.gameArgs(permissionedGameType));
+                cannonPrestate = Claim.wrap(permissionedGameArgs.absolutePrestate);
+                l2ChainId = permissionedGameArgs.l2ChainId;
+            }
 
-            // ZK game is not deployed on mainnet. Mock it using the same ASR and WETH as CANNON_KONA
-            // (same on-chain infrastructure) so _assertValidZKGameArgs passes its checks.
+            // ZK game is not deployed on mainnet. Mock it using the same ASR and WETH as the active
+            // permissionless game (same on-chain infrastructure) so _assertValidZKGameArgs passes its checks.
             // ZK_DISPUTE_GAME is a super game: chain scoping comes from the SuperRootProof
             // preimage, so the 140-byte layout has no l2ChainId field.
             bytes memory zkArgs = abi.encodePacked(
@@ -2114,8 +2146,8 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 uint64(7 days),
                 uint64(3 days),
                 uint256(0.08 ether),
-                cannonKonaArgs.anchorStateRegistry,
-                cannonKonaArgs.weth
+                permissionlessGameArgs.anchorStateRegistry,
+                permissionlessGameArgs.weth
             );
             vm.mockCall(
                 address(dgf),

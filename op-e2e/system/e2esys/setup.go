@@ -608,6 +608,12 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	if err != nil {
 		return nil, err
 	}
+	if cfg.AllocType != config.AllocTypeFastGame {
+		sequencerCfg := cfg.Nodes[RoleSeq]
+		if sequencerCfg != nil && sequencerCfg.SafeDBPath == "" {
+			sequencerCfg.SafeDBPath = t.TempDir()
+		}
+	}
 
 	sys := &System{
 		t:             t,
@@ -940,13 +946,19 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 
 	// L2Output Submitter
-	respectedGameType := gameTypes.PermissionedGameType
+	respectedGameType := gameTypes.SuperPermissionedGameType
+	rollupRPC := ""
+	var superNodeRPCs []string
 	if cfg.AllocType == config.AllocTypeFastGame {
 		respectedGameType = gameTypes.FastGameType
+		rollupRPC = sys.RollupNodes[RoleSeq].UserRPC().RPC()
+	} else {
+		superNodeRPCs = []string{sys.RollupNodes[RoleSeq].UserRPC().RPC()}
 	}
 	proposerCLIConfig := &l2os.CLIConfig{
 		L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
-		RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
+		RollupRpc:         rollupRPC,
+		SuperNodeRpcs:     superNodeRPCs,
 		DGFAddress:        config.L1Deployments(cfg.AllocType).DisputeGameFactoryProxy.Hex(),
 		ProposalInterval:  6 * time.Second,
 		DisputeGameType:   uint32(respectedGameType),

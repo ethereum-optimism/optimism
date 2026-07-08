@@ -62,6 +62,7 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 		AllowNonFinalized:      true,
 		AllocType:              allocType,
 		ChainID:                eth.ChainIDFromBig(sd.L1Cfg.Config.ChainID),
+		L2ChainID:              eth.ChainIDFromBig(sd.RollupCfg.L2ChainID),
 	}, miner.EthClient(), rollupSeqCl)
 
 	// L1 block
@@ -85,7 +86,8 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 	sequencer.ActL1SafeSignal(t)
 	sequencer.ActL1FinalizedSignal(t)
 	sequencer.ActL2PipelineFull(t)
-	require.Equal(t, sequencer.SyncStatus().UnsafeL2, sequencer.SyncStatus().FinalizedL2)
+	proposedL2 := sequencer.SyncStatus().FinalizedL2
+	require.Equal(t, sequencer.SyncStatus().UnsafeL2, proposedL2)
 	require.True(t, proposer.CanPropose(t))
 
 	// make proposals until there is nothing left to propose
@@ -111,12 +113,18 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 	require.NoError(t, err)
 	require.Greater(t, len(latestGames), 0, "latest games must be greater than 0")
 	latestGame := latestGames[0]
-	gameBlockNumber := new(big.Int)
-	gameBlockNumber.SetBytes(latestGame.ExtraData[0:32])
-	block, err := seqEngine.EthClient().BlockByNumber(t.Ctx(), gameBlockNumber)
+	superRoot, err := eth.UnmarshalSuperRoot(latestGame.ExtraData)
+	require.NoError(t, err)
+	superV1, ok := superRoot.(*eth.SuperV1)
+	require.True(t, ok)
+	require.Len(t, superV1.Chains, 1)
+	require.Equal(t, eth.ChainIDFromBig(sd.RollupCfg.L2ChainID), superV1.Chains[0].ChainID)
+	require.Equal(t, proposedL2.Time, superV1.Timestamp)
+	block, err := seqEngine.EthClient().BlockByNumber(t.Ctx(), new(big.Int).SetUint64(proposedL2.Number))
 	require.NoError(t, err)
 	require.Less(t, block.Time(), latestGame.Timestamp, "output is registered with L1 timestamp of proposal tx, past L2 block")
-	outputComputed, err := sequencer.RollupClient().OutputAtBlock(t.Ctx(), bigs.Uint64Strict(gameBlockNumber))
+	outputComputed, err := sequencer.RollupClient().OutputAtBlock(t.Ctx(), proposedL2.Number)
 	require.NoError(t, err)
-	require.Equal(t, eth.Bytes32(latestGame.RootClaim), outputComputed.OutputRoot, "output roots must match")
+	require.Equal(t, outputComputed.OutputRoot, superV1.Chains[0].Output, "output roots must match")
+	require.Equal(t, eth.Bytes32(latestGame.RootClaim), eth.SuperRoot(superV1), "super roots must match")
 }
