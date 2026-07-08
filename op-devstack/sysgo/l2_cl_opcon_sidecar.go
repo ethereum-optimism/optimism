@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -35,9 +36,13 @@ type OpConP2PSidecar struct {
 	// sidecar's own dialable multiaddr — see GossipMultiaddr. Needed to peer two
 	// sidecars directly (publish-side ↔ receive-side), since a sidecar exposes no
 	// opp2p RPC to query its own address.
-	listenHost string
-	listenTCP  string
-	peerIDCh   chan string
+	//
+	// peerID is written exactly once by the (single-goroutine) stderr callback and
+	// read only after peerIDReady is closed, which provides the happens-before.
+	listenHost  string
+	listenTCP   string
+	peerID      string
+	peerIDReady chan struct{}
 }
 
 // opConP2PPeerIDRe extracts the libp2p peer id from op-conp2p's Info startup log
@@ -126,23 +131,26 @@ func StartOpConP2PSidecar(
 	}
 
 	s := &OpConP2PSidecar{
-		name:       name,
-		p:          t,
-		listenHost: "127.0.0.1",
-		listenTCP:  tcpPort,
-		peerIDCh:   make(chan string, 1),
+		name:        name,
+		p:           t,
+		listenHost:  "127.0.0.1",
+		listenTCP:   tcpPort,
+		peerIDReady: make(chan struct{}),
 	}
 
 	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "op-conp2p", "src", "stdout"), log.LevelInfo)
 	logErr := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "op-conp2p", "src", "stderr"), log.LevelInfo)
-	// The sidecar logs its own peer id once at startup (Info, on stderr). Tee the
-	// raw stderr lines to capture it so GossipMultiaddr can hand this sidecar's
-	// dialable address to a peer sidecar.
+	// The sidecar logs its own peer id once at startup (Info, on stderr), on the
+	// "op-conp2p sidecar started" line. Tee the raw stderr lines to capture it so
+	// GossipMultiaddr can hand this sidecar's dialable address to a peer sidecar.
+	// Match only the sidecar's own startup line (not any other "peer_id="-keyed
+	// log, e.g. a remote peer connection), and stop scanning once captured so the
+	// ANSI-strip + regex don't run on every line for the process lifetime.
 	stdErr := logpipe.LogCallback(func(line []byte) {
-		if m := opConP2PPeerIDRe.FindSubmatch(ansiEscapeRe.ReplaceAll(line, nil)); m != nil {
-			select {
-			case s.peerIDCh <- string(m[1]):
-			default:
+		if s.peerID == "" && bytes.Contains(line, []byte("sidecar started")) {
+			if m := opConP2PPeerIDRe.FindSubmatch(ansiEscapeRe.ReplaceAll(line, nil)); m != nil {
+				s.peerID = string(m[1])
+				close(s.peerIDReady)
 			}
 		}
 		logErr(logpipe.ParseGoStructuredLogs(line))
@@ -169,13 +177,8 @@ func (s *OpConP2PSidecar) GossipMultiaddr() string {
 	ctx, cancel := context.WithTimeout(s.p.Ctx(), 30*time.Second)
 	defer cancel()
 	select {
-	case peerID := <-s.peerIDCh:
-		// Put it back so a second caller (or a reconnect) still sees it.
-		select {
-		case s.peerIDCh <- peerID:
-		default:
-		}
-		return fmt.Sprintf("/ip4/%s/tcp/%s/p2p/%s", s.listenHost, s.listenTCP, peerID)
+	case <-s.peerIDReady:
+		return fmt.Sprintf("/ip4/%s/tcp/%s/p2p/%s", s.listenHost, s.listenTCP, s.peerID)
 	case <-ctx.Done():
 		s.p.Require().Fail("op-conp2p sidecar never logged its peer id", "sidecar %s", s.name)
 		return ""

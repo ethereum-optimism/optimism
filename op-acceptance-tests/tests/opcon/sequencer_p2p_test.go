@@ -2,7 +2,6 @@ package opcon
 
 import (
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -76,14 +75,22 @@ func TestOpConSequencerFanOutViaP2P(gt *testing.T) {
 }
 
 // TestOpConSequencerWrongSignerRejectedViaP2P is the negative security case for
-// the publish path: the op-con-node sequencer signs each unsafe block with a key
-// that is NOT the deployed SystemConfig unsafe-block signer. The publish sidecar
-// still relays the (hash-consistent but wrongly-signed) envelope onto gossip
-// verbatim — it holds no signer policy — so the acceptance decision falls to the
-// receiver. A stock op-node verifier must reject every such block in gossip
-// signature validation, so its unsafe head must never advance even though the
-// sequencer's own head does. This proves end-to-end signature attribution over
-// the publish path (the property the publish path exists to carry).
+// the publish path: an op-con-node sequencer signs each unsafe block with a key
+// that is NOT the canonical (deployed SystemConfig) unsafe-block signer, and
+// those blocks must NOT propagate to a verifier over gossip.
+//
+// The rejection happens at the source, not at the far verifier. The op-conp2p
+// publish sidecar delegates its gossipsub validator to the sequencer's own
+// admin_verifyUnsafePayload, and go-libp2p-pubsub runs that validator even on
+// locally-published messages — so the sequencer, which recognizes only the
+// canonical signer, rejects its own wrongly-signed block and the sidecar never
+// forwards it. (The sidecar cannot be made to forward it by pointing the
+// sequencer at the wrong signer: the sequencer resolves the canonical signer
+// from L1 derivation regardless of the fallback env.) The op-node verifier
+// therefore never receives the block, and its unsafe head — for which gossip is
+// the only source here (no batcher, no follow source) — stays at genesis. This
+// proves the publish path refuses to gossip a non-canonically-signed block; a
+// regression that let the sidecar propagate it would advance the verifier.
 //
 // Only meaningful for an op-con-node sequencer (a stock op-node sequencer signs
 // natively), so the test skips on other CL kinds.
@@ -93,20 +100,16 @@ func TestOpConSequencerWrongSignerRejectedViaP2P(gt *testing.T) {
 	sys := presets.NewSingleChainOpConSequencerP2PWrongSignerWithoutCheck(t)
 
 	// Local block production does not depend on gossip acceptance: the sequencer
-	// advances its own unsafe head past a few blocks, so wrongly-signed blocks
-	// have definitely been published to gossip.
-	sys.L2CL.Advanced(types.LocalUnsafe, 3, 60)
+	// builds and signs (with the wrong key) a run of unsafe blocks, advancing its
+	// OWN head, and attempts to publish each over gossip. Use its advance as the
+	// clock (a positive DSL wait, not a fixed sleep) so many wrongly-signed blocks
+	// have been produced and offered to the publish path.
+	sys.L2CL.Advanced(types.LocalUnsafe, 8, 60)
 
-	// The op-node verifier rejects each block's signature (wrong signer) in
-	// gossip validation, so its unsafe head stays at genesis. Confirm it holds
-	// across a window covering several more sequencer blocks (no batcher, no
-	// follow source ⇒ gossip is its only unsafe source).
-	blockTime := sys.L2Chain.Escape().RollupConfig().BlockTime
+	// None of those blocks are propagated (the publish sidecar's validator rejects
+	// each at the source), so the op-node verifier never receives one and its
+	// unsafe head never leaves genesis. Unsafe heads never regress, so a single
+	// check after the sequencer has produced many blocks catches any propagation.
 	require.Zero(t, sys.L2CLB.SyncStatus().UnsafeL2.Number,
-		"verifier accepted a wrongly-signed block")
-	for range 6 {
-		time.Sleep(time.Duration(blockTime) * time.Second)
-		require.Zero(t, sys.L2CLB.SyncStatus().UnsafeL2.Number,
-			"verifier unsafe head advanced on a wrongly-signed gossip block")
-	}
+		"a wrongly-signed block propagated over gossip to the verifier")
 }

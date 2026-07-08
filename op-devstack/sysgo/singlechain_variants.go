@@ -225,6 +225,15 @@ func NewSingleChainOpConSequencerFanOutP2PRuntime(t devtest.T, cfg PresetConfig)
 
 	// Both sidecars connected to the hub ⇒ the gossip routes are live. Start
 	// sequencing only then, so no early block is published into a dead network.
+	//
+	// NOTE: this gates on the hub seeing both sidecars, which does not directly
+	// observe the publish→receive-sidecar edge that floodpublishes block 1 to the
+	// assertion target (node "b" has no batcher/backfill, so a lost block 1 wedges
+	// it). In practice the publish sidecar has been dialing the receive sidecar for
+	// the whole awaitCLPeerCount window plus the ~block-time build delay before
+	// block 1, and localhost dial+subscribe is sub-second, so the edge is up first.
+	// A fully race-free gate would need op-conp2p to report its own connected
+	// topic-peer count (it exposes no such RPC today); tracked as a follow-up.
 	awaitCLPeerCount(t, hub.CL, 2)
 	startOpConSequencer(t, opcon)
 
@@ -253,9 +262,17 @@ func NewSingleChainOpConSequencerP2PWrongSignerRuntime(t devtest.T, cfg PresetCo
 		BuildWorld: newDefaultSingleChainWorld,
 		StartPrimary: func(t devtest.T, keys devkeys.Keys, world singleChainRuntimeWorld,
 			l1EL *L1Geth, l1CL *L1CLNode, jwtPath string, jwtSecret [32]byte, cfg PresetConfig) singleChainPrimaryRuntime {
-			// Seed the verifier's expected signer to the CORRECT (SystemConfig)
-			// address, so the rejection is due to the wrong signature — not a
-			// misconfigured expectation.
+			// The sequencer resolves the canonical unsafe-block signer (the deployed
+			// SystemConfig / SequencerP2PRole address) from its L1 derivation, so
+			// DEVSTACK_OPCON_UNSAFE_SIGNER is only a fallback and is set to that same
+			// correct address here to match the other single-chain presets (they all
+			// write the same value under devtest.ParallelT, keeping the shared env
+			// write race-free). Because the sequencer signs with wrongSignerKeyHex,
+			// its OWN admin_verifyUnsafePayload — which the op-conp2p publish sidecar
+			// invokes as its gossipsub validator, and which go-libp2p-pubsub runs
+			// even on locally-published messages — rejects the block, so the sidecar
+			// never propagates it. That rejection-at-the-source is the property under
+			// test: a non-canonically-signed block is refused entry to gossip.
 			secret, err := keys.Secret(devkeys.SequencerP2PRole.Key(world.L2Network.ChainID().ToBig()))
 			t.Require().NoError(err, "derive SequencerP2PRole secret")
 			t.Require().NoError(os.Setenv("DEVSTACK_OPCON_UNSAFE_SIGNER",
