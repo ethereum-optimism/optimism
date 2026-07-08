@@ -329,42 +329,12 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         );
 
         _pushPermittedProxyDeploymentInstruction();
-        _pushCannonKonaRespectedGameTypeOverrideIfNeeded();
     }
 
     function _pushPermittedProxyDeploymentInstruction() internal {
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") })
         );
-    }
-
-    function _pushCannonKonaRespectedGameTypeOverrideIfNeeded() internal {
-        if (optimismPortal2.anchorStateRegistry().respectedGameType().raw() != GameTypes.CANNON.raw()) {
-            return;
-        }
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.CANNON_KONA)
-            })
-        );
-    }
-
-    function _clearStartingRespectedGameTypeOverride() internal {
-        bytes32 targetKeyHash = keccak256(bytes("overrides.cfg.startingRespectedGameType"));
-        uint256 writeIndex;
-        for (uint256 readIndex; readIndex < v2UpgradeInput.extraInstructions.length; readIndex++) {
-            if (keccak256(bytes(v2UpgradeInput.extraInstructions[readIndex].key)) == targetKeyHash) {
-                continue;
-            }
-            if (writeIndex != readIndex) {
-                v2UpgradeInput.extraInstructions[writeIndex] = v2UpgradeInput.extraInstructions[readIndex];
-            }
-            writeIndex++;
-        }
-        while (v2UpgradeInput.extraInstructions.length > writeIndex) {
-            v2UpgradeInput.extraInstructions.pop();
-        }
     }
 
     /// @notice Helper function that runs an OPCM V2 upgrade, asserts that the upgrade was successful,
@@ -761,9 +731,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         uint256 originalBond = disputeGameFactory.initBonds(GameTypes.CANNON_KONA);
 
         // First, disable CannonKona and clear its bond so the factory entry is removed.
-        // If the chain's current respectedGameType is CANNON_KONA, we must override it to
-        // PERMISSIONED_CANNON since we can't disable the respected game type.
-        _clearStartingRespectedGameTypeOverride();
+        // CANNON_KONA is the respected game type, so we must override it to PERMISSIONED_CANNON
+        // before disabling it (the respected game type cannot itself be disabled).
         v2UpgradeInput.disputeGameConfigs[2].enabled = false;
         v2UpgradeInput.disputeGameConfigs[2].initBond = 0;
         v2UpgradeInput.extraInstructions.push(
@@ -840,9 +809,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
 
         // Disable CannonKona and zero its bond, then ensure it is removed.
-        // If the chain's current respectedGameType is CANNON_KONA, we must override it to
-        // PERMISSIONED_CANNON since we can't disable the respected game type.
-        _clearStartingRespectedGameTypeOverride();
+        // CANNON_KONA is the respected game type, so we must override it to PERMISSIONED_CANNON
+        // before disabling it (the respected game type cannot itself be disabled).
         v2UpgradeInput.disputeGameConfigs[2].enabled = false;
         v2UpgradeInput.disputeGameConfigs[2].initBond = 0;
         v2UpgradeInput.extraInstructions.push(
@@ -912,7 +880,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({ key: "SomeCustomKey", data: bytes("Data2") })
         );
-        _pushCannonKonaRespectedGameTypeOverrideIfNeeded();
 
         // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
@@ -938,7 +905,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                 data: bytes("DelayedWETH")
             })
         );
-        _pushCannonKonaRespectedGameTypeOverrideIfNeeded();
         runCurrentUpgradeV2(chainPAO);
     }
 
@@ -974,7 +940,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         /// This is a hack because fork live has an outdated superchain registry reference that it
         /// pulls the addresses from
         IAnchorStateRegistry anchorStateRegistry = optimismPortal2.anchorStateRegistry();
-        _clearStartingRespectedGameTypeOverride();
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType",
@@ -1001,7 +966,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
             abi.encode(GameTypes.CANNON_KONA)
         );
-        _clearStartingRespectedGameTypeOverride();
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType",
@@ -1026,7 +990,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             abi.encode(GameTypes.CANNON_KONA)
         );
         GameType before = anchorStateRegistry.respectedGameType();
-        _clearStartingRespectedGameTypeOverride();
         runCurrentUpgradeV2(chainPAO);
         assertEq(
             anchorStateRegistry.respectedGameType().raw(),
@@ -1043,7 +1006,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.CANNON_KONA)),
             abi.encode(true)
         );
-        _clearStartingRespectedGameTypeOverride();
         v2UpgradeInput.disputeGameConfigs[2].enabled = false;
         v2UpgradeInput.disputeGameConfigs[2].initBond = 0;
         v2UpgradeInput.extraInstructions.push(
@@ -1061,7 +1023,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     /// @notice Tests that the respected game type override is rejected when CANNON_KONA dev feature is off.
     function test_upgrade_respectedGameTypeOverrideWithoutDevFeature_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.CANNON_KONA);
-        _clearStartingRespectedGameTypeOverride();
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType",
@@ -1358,8 +1319,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                 )
             })
         );
-
-        _clearStartingRespectedGameTypeOverride();
 
         // Add override instructions.
         v2UpgradeInput.extraInstructions.push(
