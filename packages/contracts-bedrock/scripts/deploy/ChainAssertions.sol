@@ -423,17 +423,10 @@ library ChainAssertions {
 
         // The below check cannot be done in the standard validator because the assertion only applies at deploy time.
         Proposal memory actualRoot = _anchorStateRegistryProxy.getStartingAnchorRoot();
-        if (_isProxy) {
-            require(
-                _anchorStateRegistryProxy.respectedGameType().raw() == _expectedRespectedGameType.raw(), "ANCHORP-30"
-            );
-            require(actualRoot.root.raw() == _expectedRoot.raw(), "ANCHORP-40");
-            require(actualRoot.l2SequenceNumber == 0, "ANCHORP-50");
-        } else {
-            require(_anchorStateRegistryProxy.respectedGameType().raw() == GameType.wrap(0).raw(), "ANCHORP-30");
-            require(actualRoot.root.raw() == bytes32(0), "ANCHORP-40");
-            require(actualRoot.l2SequenceNumber == 0, "ANCHORP-50");
-        }
+
+        require(_anchorStateRegistryProxy.respectedGameType().raw() == _expectedRespectedGameType.raw(), "ANCHORP-30");
+        require(actualRoot.root.raw() == _expectedRoot.raw(), "ANCHORP-40");
+        require(actualRoot.l2SequenceNumber == 0, "ANCHORP-50");
     }
 
     /// @notice Asserts that the ZKDisputeGame implementation is setup correctly.
