@@ -32,23 +32,17 @@ import (
 // degrades to an ordinary op-node-sequencer L1-reorg check — a valid suite
 // addition rather than an op-con-only test.
 //
-// SKIPPED pending an op-con-node feature: sequencer-mode L1-reorg recovery is not
-// implemented. Observed failure — after the L1 reorg the sequencer's safe head
-// never re-derives onto the new L1 (WaitL1OriginHash(Safe) times out). The
-// sequencer keeps extending its UNSAFE chain at normal cadence on the
-// reorged-away L1 origin (unsafe climbed 7 → ~96) while its safe head stays
-// frozen at the pre-reorg block, so the two chains diverge permanently: the
-// batcher submits stale-origin blocks that are underivable on the new canonical
-// L1. op-con-node's build loop does not rewind its unsafe head / rebuild on an L1
-// reorg — the sequencer analog of the follow-mode source-reorg recovery
-// (l2_follow.rs) and the engine-boundary divergence floor, neither of which
-// drives the self-produced sequencer cursor. The verifier variant
-// (TestOpConVerifierRecoversFromL1Reorg) passes because an op-node sequencer
-// rebuilds + re-batches on the new L1, feeding the op-con verifier valid batches.
-// See docs/op-con-node-sequencer-acceptance-tests.md.
+// Exercises op-con-node's sequencer-mode L1-reorg recovery (implemented as three
+// cooperating layers — see docs/op-con-node-sequencer-acceptance-tests.md bug #4):
+// (a) an origin-canonical imported-unsafe chain that drops, per row, blocks built
+// on a since-reorged L1 origin from the append-only observation log; (b) a
+// reorg-aware build driver that rewinds its build cursor to re-produce the reorged
+// height on the new L1; and (c) an origin-canonical safe head so the build
+// forkchoice update (safe <= head) can commit the rebuilt sibling. After the reorg
+// the sequencer rewinds, rebuilds its unsafe chain on the new canonical origin, and
+// resumes production; the bare op-con verifier re-derives the same safe chain and
+// converges.
 func TestOpConSequencerRecoversFromL1Reorg(gt *testing.T) {
-	gt.Skip("op-con-node sequencer does not rebuild its chain on an L1 reorg " +
-		"(unsafe keeps extending the reorged-away origin; safe never re-derives); see test doc")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNodeNoFaultProofsBareVerifierWithTestSeqWithoutCheck(t,
 		presets.WithGlobalL2CLOption(sysgo.L2CLOpConSequencer()))
