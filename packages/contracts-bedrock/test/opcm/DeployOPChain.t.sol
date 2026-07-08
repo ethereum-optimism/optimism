@@ -229,15 +229,13 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         _checkDeploymentAssertions(doo);
     }
 
-    /// @notice A CANNON initial deployment enables only CANNON and seeds the
-    ///         anchor root and respected game type from the input.
-    function test_run_cannonGameType_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+    /// @notice Legacy CANNON is rejected as an initial deployment game type.
+    function test_run_cannonGameType_reverts() public {
         deployOPChainInput.disputeGameType = GameTypes.CANNON;
         deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
 
-        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
-        _checkSelectedPermissionlessDeployment(doo, GameTypes.CANNON);
+        vm.expectRevert("DeployOPChain: unsupported dispute game type");
+        deployOPChain.run(deployOPChainInput);
     }
 
     /// @notice A CANNON_KONA initial deployment enables only CANNON_KONA and seeds the anchor root
@@ -254,7 +252,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     /// @notice Permissionless game types are rejected when super roots are enabled.
     function test_run_permissionlessGameTypeWithSuperRoot_reverts() public {
         skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        deployOPChainInput.disputeGameType = GameTypes.CANNON;
+        deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
         deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
         vm.expectRevert("DeployOPChain: permissionless game type not supported with super roots");
         deployOPChain.run(deployOPChainInput);
@@ -505,7 +503,7 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
 
     function test_run_permissionlessPlaceholderStartingAnchorRoot_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        deployOPChainInput.disputeGameType = GameTypes.CANNON;
+        deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
         // startingAnchorRoot stays at the 0xdead placeholder default.
         vm.expectRevert("DeployOPChainInput: permissionless startingAnchorRoot cannot be placeholder");
         deployOPChain.run(deployOPChainInput);

@@ -115,7 +115,6 @@ contract DeployOPChain is Script {
     {
         (bool permissionless, GameType respectedGameType) =
             _initialDeployGameSelection(_input.disputeGameType, isSuperRoot);
-        bool enableCannon = permissionless && _input.disputeGameType.raw() == GameTypes.CANNON.raw();
         bool enableCannonKona = permissionless && _input.disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
         // PERMISSIONED_CANNON is the default game in non-super-root, non-permissionless deployments.
         bool enablePermissionedCannon = !isSuperRoot && !permissionless;
@@ -135,14 +134,13 @@ contract DeployOPChain is Script {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
-        // Config 0: CANNON
-        disputeGameConfigs[0] = _createGameConfig(
-            enableCannon,
-            GameTypes.CANNON,
-            abi.encode(
-                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate })
-            )
-        );
+        // Config 0: legacy CANNON slot, disabled after U19 and kept to satisfy OPCMV2's 6-config shape.
+        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON,
+            gameArgs: bytes("")
+        });
 
         // Config 1: PERMISSIONED_CANNON
         disputeGameConfigs[1] =
@@ -284,8 +282,7 @@ contract DeployOPChain is Script {
         pure
         returns (bool permissionless_, GameType respectedGameType_)
     {
-        permissionless_ =
-            _disputeGameType.raw() == GameTypes.CANNON.raw() || _disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
+        permissionless_ = _disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
 
         // PERMISSIONED_CANNON is the only **permissioned** type supported for an initial deploy.
         require(
