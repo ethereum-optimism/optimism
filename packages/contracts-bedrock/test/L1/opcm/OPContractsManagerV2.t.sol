@@ -2125,7 +2125,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
     function test_deploy_permissionedPlaceholderStartingAnchorRoot_succeeds() public {
         deployConfig.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(hex"dead")), l2SequenceNumber: 0 });
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,PLDG-10,CKDG-10";
+        string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
         Proposal memory startingAnchorRoot = cts.anchorStateRegistry.getStartingAnchorRoot();
         assertEq(startingAnchorRoot.root.raw(), bytes32(hex"dead"), "starting anchor root mismatch");

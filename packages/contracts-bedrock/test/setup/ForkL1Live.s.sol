@@ -410,7 +410,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
         } else {
             // Standard upgrade path: CANNON disabled, remaining legacy types enabled, super types disabled.
             // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
-            uint256 cannonInitBond = _permissionlessGameInitBondForUpgrade(disputeGameFactory, GameTypes.CANNON);
             uint256 cannonKonaInitBond =
                 _permissionlessGameInitBondForUpgrade(disputeGameFactory, GameTypes.CANNON_KONA);
 
