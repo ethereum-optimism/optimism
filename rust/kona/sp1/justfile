@@ -6,6 +6,12 @@ default:
 build-range-executor:
     cd ../.. && cargo build -p kona-sp1-range-executor --release
 
+# Build the super-range-executor host binary, used by acceptance smoke tests to run the
+# super-range guest in SP1 execute mode. The binary embeds the super-range guest ELF, so build the
+# ELFs first (build-elfs).
+build-super-range-executor:
+    cd ../.. && cargo build -p kona-sp1-super-range-executor --release
+
 # Build all ELF files.
 # ELF builds use the nested guest workspace with SP1 precompile-patched crypto,
 # including substrate-bn for bn128 through revm-precompile's `bn` feature.

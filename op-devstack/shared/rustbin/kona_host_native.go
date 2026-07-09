@@ -37,6 +37,14 @@ func RunKonaSP1Range(t require.TestingT, logger log.Logger, vmConfig *vm.Config,
 	return runOracleServer(t, logger, "kona-sp1-range-executor", args, dir)
 }
 
+// RunKonaSP1SuperRange runs the kona-sp1 super-range executor. Returns false if the guest
+// rejects the synthesized super-range claim and true otherwise.
+func RunKonaSP1SuperRange(t require.TestingT, logger log.Logger, executorPath string, dir string, args ...string) bool {
+	require.NotEmpty(t, executorPath)
+	argv := append([]string{executorPath}, args...)
+	return runOracleServer(t, logger, "kona-sp1-super-range-executor", argv, dir)
+}
+
 // runOracleServer executes a kona oracle-server binary and interprets its exit code: exit 1 means
 // the program rejected the claim (returns false), exit 0 means it accepted (returns true), and any
 // other failure fails the test.

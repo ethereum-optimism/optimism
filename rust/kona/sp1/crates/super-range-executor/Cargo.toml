@@ -1,0 +1,47 @@
+[package]
+name = "kona-sp1-super-range-executor"
+version = "0.0.1"
+publish = false
+license.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "kona-sp1-super-range-executor"
+path = "src/main.rs"
+
+[dependencies]
+sp1-sdk.workspace = true
+
+# local
+kona-sp1-client-utils.workspace = true
+kona-sp1-elfs.workspace = true
+kona-sp1-ethereum-client-utils.workspace = true
+kona-sp1-host-utils.workspace = true
+
+# kona
+kona-host = { workspace = true, features = ["interop"] }
+kona-interop = { workspace = true, features = ["serde"] }
+kona-preimage = { workspace = true, features = ["std"] }
+kona-proof.workspace = true
+kona-protocol.workspace = true
+
+# alloy
+alloy-primitives.workspace = true
+
+# rpc / serialization
+jsonrpsee-http-client.workspace = true
+jsonrpsee-core.workspace = true
+rkyv.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+# general
+anyhow.workspace = true
+async-trait.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+
+[lints]
+workspace = true

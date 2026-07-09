@@ -7818,6 +7818,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-sp1-super-range-executor"
+version = "0.0.1"
+dependencies = [
+ "alloy-primitives",
+ "anyhow",
+ "async-trait",
+ "clap",
+ "jsonrpsee-core",
+ "jsonrpsee-http-client",
+ "kona-host",
+ "kona-interop",
+ "kona-preimage",
+ "kona-proof",
+ "kona-protocol",
+ "kona-sp1-client-utils",
+ "kona-sp1-elfs",
+ "kona-sp1-ethereum-client-utils",
+ "kona-sp1-host-utils",
+ "rkyv",
+ "serde",
+ "serde_json",
+ "sp1-sdk",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.23",
+]
+
+[[package]]
 name = "kona-std-fpvm"
 version = "0.2.0"
 dependencies = [
