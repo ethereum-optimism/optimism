@@ -1,5 +1,9 @@
 package proofs
 
+// NOTE(experiment #21675): touched only to make CI schedule the rust-e2e-ci
+// workflow so TestActivationBlockNUTBundle runs. Contracts-only changes do not
+// trigger rust_changes_detected. Do not merge.
+
 import (
 	"context"
 	"math/big"
