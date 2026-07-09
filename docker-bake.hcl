@@ -356,7 +356,6 @@ target "op-reth" {
   }
   args = {
     BUILD_PROFILE = "maxperf"
-    FEATURES = ""
     GIT_VERSION = "${GIT_VERSION}"
     GIT_COMMIT = "${GIT_COMMIT}"
     GIT_DATE = "${GIT_DATE}"

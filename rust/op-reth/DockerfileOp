@@ -21,13 +21,10 @@ ENV BUILD_PROFILE=$BUILD_PROFILE
 ARG RUSTFLAGS=""
 ENV RUSTFLAGS="$RUSTFLAGS"
 
-ARG FEATURES=""
-ENV FEATURES=$FEATURES
-
 # Allow cook to fail on patched crates (op-alloy-network) whose crates.io
 # version conflicts with alloy 1.8.  All other dependencies are still cached.
 # The real build below uses the workspace [patch.crates-io] sources.
-RUN cargo chef cook --profile $BUILD_PROFILE --locked --features "$FEATURES" --recipe-path recipe.json --manifest-path /app/op-reth/bin/Cargo.toml || true
+RUN cargo chef cook --profile $BUILD_PROFILE --locked --recipe-path recipe.json --manifest-path /app/op-reth/bin/Cargo.toml || true
 
 # Declared after `cargo chef cook` so that a new commit invalidates only the app
 # build layer, not the cached dependency build.
@@ -47,7 +44,7 @@ COPY . .
 # context; the git-free build.rs resolves it at /superchain-registry.
 COPY --from=superchain-registry superchain /superchain-registry/superchain
 
-RUN cargo auditable build --profile $BUILD_PROFILE --locked --features "$FEATURES" --bin op-reth --manifest-path /app/op-reth/bin/Cargo.toml
+RUN cargo auditable build --profile $BUILD_PROFILE --locked --bin op-reth --manifest-path /app/op-reth/bin/Cargo.toml
 
 RUN ls -la /app/target/$BUILD_PROFILE/op-reth
 RUN cp /app/target/$BUILD_PROFILE/op-reth /app/op-reth

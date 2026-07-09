@@ -8,12 +8,6 @@ const UNKNOWN: &str = "unknown";
 
 /// Resolve this binary's [`BuildInfo`] from the compile-time build environment.
 ///
-/// Expands to a [`BuildInfo::resolve`] call over the standard build-time
-/// environment variables (`GIT_VERSION`, `GIT_COMMIT`, `GIT_DATE`, `FEATURES`,
-/// `BUILD_PROFILE`). Because a macro expands at its call site, the `option_env!`
-/// reads happen in the calling binary crate — so each binary bakes its own
-/// values.
-///
 /// ```
 /// let info = op_version::build_info!();
 /// println!("{}", info.short_version());
@@ -25,7 +19,6 @@ macro_rules! build_info {
             option_env!("GIT_VERSION"),
             option_env!("GIT_COMMIT"),
             option_env!("GIT_DATE"),
-            option_env!("FEATURES"),
             option_env!("BUILD_PROFILE"),
         )
     };
@@ -53,14 +46,15 @@ impl BuildInfo {
         git_version: Option<&str>,
         git_commit: Option<&str>,
         git_date: Option<&str>,
-        features: Option<&str>,
         build_profile: Option<&str>,
     ) -> Self {
         Self {
             version: resolve_version(git_version),
             commit_sha: non_placeholder(git_commit).unwrap_or(UNKNOWN).to_string(),
             build_timestamp: non_placeholder(git_date).unwrap_or(UNKNOWN).to_string(),
-            cargo_features: features.unwrap_or("none").to_string(),
+            // Cargo features can't be derived reliably without a build script, so
+            // we don't track them; the field is a fixed placeholder.
+            cargo_features: UNKNOWN.to_string(),
             build_profile: non_placeholder(build_profile).unwrap_or(UNKNOWN).to_string(),
             // Approximate the target triple from the compiled-in arch/OS.
             target_triple: format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS),
@@ -82,7 +76,7 @@ impl BuildInfo {
         &self.build_timestamp
     }
 
-    /// The enabled cargo features (empty string if none were injected).
+    /// The cargo features the binary was built with.
     pub fn cargo_features(&self) -> &str {
         &self.cargo_features
     }
@@ -174,23 +168,16 @@ mod tests {
 
     #[test]
     fn short_sha_is_panic_safe_and_width_selectable() {
-        let bi = BuildInfo::resolve(
-            Some("v1.2.3"),
-            Some("abcdef1234567890"),
-            Some("1"),
-            Some("f"),
-            Some("p"),
-        );
+        let bi = BuildInfo::resolve(Some("v1.2.3"), Some("abcdef1234567890"), Some("1"), Some("p"));
         assert_eq!(bi.short_sha(), "abcdef12");
         assert_eq!(bi.short_version(), "1.2.3 (abcdef12)");
-        let missing = BuildInfo::resolve(Some("v1"), None, None, None, None);
+        let missing = BuildInfo::resolve(Some("v1"), None, None, None);
         assert_eq!(missing.short_sha(), UNKNOWN);
     }
 
     #[test]
     fn long_version_has_five_lines() {
-        let bi =
-            BuildInfo::resolve(Some("v1.2.3"), Some("abc"), Some("123"), Some(""), Some("release"));
+        let bi = BuildInfo::resolve(Some("v1.2.3"), Some("abc"), Some("123"), Some("release"));
         assert_eq!(bi.long_version().lines().count(), 5);
         assert!(bi.long_version().contains("Version: 1.2.3"));
     }
