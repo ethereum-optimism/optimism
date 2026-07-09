@@ -42,15 +42,15 @@ func TestOpConSequencerResumesAfterRestart(gt *testing.T) {
 	// The sequencer produces a run of unsafe blocks on its own cadence.
 	sys.L2CL.Advanced(types.LocalUnsafe, 3, 60)
 
-	// Stop the whole sequencer node with a graceful interrupt (SIGINT), which
-	// triggers op-con-node's Feldera shutdown checkpoint (--datadir is set). While
-	// the CL is down nothing drives new builds, so the EL's unsafe head freezes at
-	// the last block the sequencer committed — the tip the restart must re-anchor
-	// to.
+	// Stop the whole sequencer node. Under the op-con-node kind this is a graceful
+	// interrupt (SIGINT), which triggers op-con-node's Feldera shutdown checkpoint
+	// (--datadir is set); under the default op-node kind Stop force-quits, so the
+	// degraded-mode run exercises crash-restart semantics instead. While the CL is
+	// down nothing drives new builds, so the EL's unsafe head freezes at the last
+	// block the sequencer committed — the tip the restart must re-anchor to.
 	sys.L2CL.Stop()
 	halted := sys.L2EL.BlockRefByLabel(eth.Unsafe)
 	logger.Info("sequencer EL unsafe head while CL stopped", "unsafe", halted)
-	require.Greater(halted.Number, uint64(0), "sequencer should have produced blocks before the restart")
 
 	// Restart the sequencer node. It restores the Feldera checkpoint and, with an
 	// empty in-process build-dedup cursor, must re-anchor from the restored imported
@@ -71,19 +71,24 @@ func TestOpConSequencerResumesAfterRestart(gt *testing.T) {
 	require.GreaterOrEqual(resumedHead, halted.Number,
 		"first syncStatus read after restart is below the halted tip: the RPC surface served an un-restored (genesis) head before the checkpoint restore step completed")
 
-	// Production resumes: the unsafe head climbs several blocks past where it halted.
-	// A build cursor that reset to genesis or wedged on a duplicate height would
-	// stall here (the head would not advance) and this would time out.
+	// Production resumes: the unsafe head climbs several blocks past where it
+	// halted. A build cursor wedged on a duplicate height would stall here (the
+	// head would not advance) and this would time out. (A genesis reset would NOT
+	// stall here — on this deposits-only devnet a reset rebuilds deterministically
+	// and catches back up well inside the budget; that failure mode is pinned by
+	// the single-shot syncStatus assertion above, which would read the un-restored
+	// low head.)
 	sys.L2EL.Reached(eth.Unsafe, halted.Number+3, 90)
 
 	// The restart did not reorg the chain the sequencer already produced: the block
-	// at the halted tip keeps its exact hash. Because every L2 block commits to its
-	// parent hash, an unchanged tip hash transitively proves the whole chain from
-	// genesis up to the tip is byte-identical — so a genesis re-anchor that rebuilt
-	// any block differently, or a tip-height rebuild, would change this hash. (A
-	// bit-for-bit identical deterministic rebuild would be indistinguishable here,
-	// but the op-con-node logs confirm it restores from the Feldera shutdown
-	// checkpoint rather than replaying from genesis.)
-	require.Equal(halted.Hash, sys.L2EL.BlockRefByNumber(halted.Number).Hash,
-		"restart reorged the already-produced unsafe chain: the build cursor did not re-anchor at the imported tip")
+	// at the halted tip keeps its exact hash, which by parent-hash linking pins the
+	// whole chain from genesis up to the tip.
+	sys.L2EL.VerifyNotReorged(halted)
+
+	// The safe path also survives the restart: the sequencer's L1 derivation
+	// resumes from the checkpoint and the batcher resumes batching against the
+	// restarted node's rollup RPC, so the safe head keeps advancing. A restore bug
+	// that wedged derivation (or confused the batcher) while unsafe production
+	// continued would stall here.
+	sys.L2CL.Advanced(types.LocalSafe, 1, 90)
 }

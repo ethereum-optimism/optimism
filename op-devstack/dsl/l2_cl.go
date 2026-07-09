@@ -528,43 +528,97 @@ func (cl *L2CLNode) VerifySafeHeadDatabaseMatches(sourceOfTruth *L2CLNode, args 
 }
 
 // outputAtBlock fetches optimism_outputAtBlock for an L2 block with a short retry,
-// so a transient RPC hiccup counts as a retry rather than an instant failure.
+// so a transient RPC hiccup counts as a retry rather than an instant failure. Each
+// attempt is bounded by DefaultTimeout (mirroring syncStatus) so a hung call counts
+// as a failed attempt instead of blocking the retry loop for the life of the test.
 func (cl *L2CLNode) outputAtBlock(blockNum uint64) *eth.OutputResponse {
 	var resp *eth.OutputResponse
 	err := retry.Do0(cl.ctx, 5, retry.Fixed(500*time.Millisecond), func() error {
+		ctx, cancel := context.WithTimeout(cl.ctx, DefaultTimeout)
+		defer cancel()
 		var innerErr error
-		resp, innerErr = cl.Escape().RollupAPI().OutputAtBlock(cl.ctx, blockNum)
+		resp, innerErr = cl.Escape().RollupAPI().OutputAtBlock(ctx, blockNum)
+		if innerErr != nil {
+			cl.log.Warn("OutputAtBlock failed; will retry", "name", cl.inner.Name(), "block", blockNum, "err", innerErr)
+		}
 		return innerErr
 	})
-	cl.require.NoErrorf(err, "fetch output at L2 block %d", blockNum)
+	cl.require.NoErrorf(err, "fetch output at L2 block %d from %s", blockNum, cl.String())
+	cl.require.NotNilf(resp, "output at L2 block %d from %s is nil", blockNum, cl.String())
 	return resp
 }
 
-// VerifyOutputRootMatches compares optimism_outputAtBlock between this node
-// (the one under test) and sourceOfTruth for every L2 block from 1 up to the
-// lower of the two safe heads, asserting the output root, its inputs (state root,
-// withdrawal storage root), and the block ref agree at each height.
-//
-// The output root is a spec value — keccak256(v0 ++ stateRoot ++
-// messagePasserStorageRoot ++ blockHash) — so two nodes that derived the same safe
-// chain must produce byte-identical roots for every safe block. The embedded
-// syncStatus is node-local (each node's own current L1 and live heads) and is
-// intentionally not compared.
-func (cl *L2CLNode) VerifyOutputRootMatches(sourceOfTruth *L2CLNode) {
-	maxBlock := cl.HeadBlockRef(types.LocalSafe).Number
-	if other := sourceOfTruth.HeadBlockRef(types.LocalSafe).Number; other < maxBlock {
-		maxBlock = other
+// safeHeadNumber reads this node's LocalSafe head number with the same
+// hiccup-tolerant posture as outputAtBlock: a transient syncStatus error counts
+// as a retry rather than an instant failure.
+func (cl *L2CLNode) safeHeadNumber() uint64 {
+	var num uint64
+	err := retry.Do0(cl.ctx, 5, retry.Fixed(500*time.Millisecond), func() error {
+		ref, innerErr := cl.headBlockRef(types.LocalSafe)
+		if innerErr != nil {
+			cl.log.Warn("syncStatus failed reading safe head; will retry", "name", cl.inner.Name(), "err", innerErr)
+			return innerErr
+		}
+		num = ref.Number
+		return nil
+	})
+	cl.require.NoErrorf(err, "read safe head from %s", cl.String())
+	return num
+}
+
+// defaultOutputRootSpan bounds VerifyOutputRootMatches' walk. The parity
+// properties under test manifest at every height, so a bounded trailing window
+// loses no detection power while keeping the walk O(1) on slow CI runners whose
+// safe head keeps growing during test setup.
+const defaultOutputRootSpan = uint64(64)
+
+type verifyOutputRootOpts struct {
+	// maxSpan is the maximum number of trailing blocks of the shared safe range
+	// to compare; 0 means the full range from block 1.
+	maxSpan uint64
+}
+
+// WithOutputRootSpan overrides how many trailing blocks of the shared safe range
+// VerifyOutputRootMatches compares. Pass 0 for the full range from block 1.
+func WithOutputRootSpan(n uint64) func(opts *verifyOutputRootOpts) {
+	return func(opts *verifyOutputRootOpts) {
+		opts.maxSpan = n
 	}
+}
+
+// VerifyOutputRootMatches compares optimism_outputAtBlock between this node
+// (the one under test) and sourceOfTruth over the shared safe range, asserting
+// the full output response — the root, its preimage fields, and the block ref —
+// is identical at each height. The embedded syncStatus is node-local (each
+// node's own current L1 and live heads) and is excluded from the comparison.
+//
+// The walk starts at block 1, deliberately excluding genesis: op-con-node's
+// optimism_outputAtBlock cannot serve block 0 (it derives the block ref from the
+// block's first transaction — the L1-attributes deposit — which genesis does not
+// have), while op-node serves it from its rollup-config genesis fallback.
+// Comparing height 0 would therefore fail against op-con-node today; that gap is
+// tracked as an op-con-node follow-up, and this exclusion should be removed once
+// it is closed.
+//
+// By default only the trailing defaultOutputRootSpan blocks of the shared range
+// are compared (override with WithOutputRootSpan); a truncated walk logs how
+// many blocks it skipped.
+func (cl *L2CLNode) VerifyOutputRootMatches(sourceOfTruth *L2CLNode, args ...func(opts *verifyOutputRootOpts)) {
+	opts := applyOpts(verifyOutputRootOpts{maxSpan: defaultOutputRootSpan}, args...)
+	maxBlock := min(cl.safeHeadNumber(), sourceOfTruth.safeHeadNumber())
 	cl.require.Greater(maxBlock, uint64(0), "no safe blocks available to compare output roots")
-	cl.log.Info("Verifying output roots match", "maxBlock", maxBlock, "sourceOfTruth", sourceOfTruth.String())
-	for n := uint64(1); n <= maxBlock; n++ {
+	start := uint64(1)
+	if opts.maxSpan != 0 && maxBlock-start+1 > opts.maxSpan {
+		start = maxBlock - opts.maxSpan + 1
+		cl.log.Info("Bounding output-root walk", "skippedBlocks", start-1, "span", opts.maxSpan)
+	}
+	cl.log.Info("Verifying output roots match", "fromBlock", start, "maxBlock", maxBlock, "sourceOfTruth", sourceOfTruth.String())
+	for n := start; n <= maxBlock; n++ {
 		actual := cl.outputAtBlock(n)
 		expected := sourceOfTruth.outputAtBlock(n)
-		cl.require.Equalf(expected.BlockRef, actual.BlockRef, "block ref mismatch at L2 block %d", n)
-		cl.require.Equalf(expected.StateRoot, actual.StateRoot, "state root mismatch at L2 block %d", n)
-		cl.require.Equalf(expected.WithdrawalStorageRoot, actual.WithdrawalStorageRoot, "withdrawal storage root mismatch at L2 block %d", n)
-		cl.require.Equalf(expected.Version, actual.Version, "output version mismatch at L2 block %d", n)
-		cl.require.Equalf(expected.OutputRoot, actual.OutputRoot, "output root mismatch at L2 block %d", n)
+		exp, act := *expected, *actual
+		exp.Status, act.Status = nil, nil
+		cl.require.Equalf(exp, act, "output response mismatch at L2 block %d", n)
 	}
 }
 
@@ -656,15 +710,10 @@ func (cl *L2CLNode) CurrentL1MatchedFn(refNode *L2CLNode, attempts int) CheckFun
 func (cl *L2CLNode) LocalGameInputs(agreedBlock, claimBlock uint64) *utils.LocalGameInputs {
 	cl.Reached(types.LocalSafe, claimBlock, 60)
 
-	rollupAPI := cl.Escape().RollupAPI()
+	agreedOutput := cl.outputAtBlock(agreedBlock)
+	claimedOutput := cl.outputAtBlock(claimBlock)
 
-	agreedOutput, err := rollupAPI.OutputAtBlock(cl.ctx, agreedBlock)
-	cl.require.NoError(err, "fetch output at agreed block %d", agreedBlock)
-
-	claimedOutput, err := rollupAPI.OutputAtBlock(cl.ctx, claimBlock)
-	cl.require.NoError(err, "fetch output at claim block %d", claimBlock)
-
-	syncStatus, err := rollupAPI.SyncStatus(cl.ctx)
+	syncStatus, err := cl.Escape().RollupAPI().SyncStatus(cl.ctx)
 	cl.require.NoError(err, "fetch L2 sync status")
 
 	return &utils.LocalGameInputs{

@@ -126,6 +126,18 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
 	return block
 }
 
+// VerifyNotReorged asserts that the block at ref's height on this EL still has
+// ref's hash. Because every L2 block commits to its parent hash, an unchanged
+// hash at ref.Number transitively pins every ancestor, so this verifies the
+// whole chain up to ref survived. Callers should first wait for the head to
+// reach or pass ref (e.g. Reached), at which point the read is settled history
+// and needs no wait of its own.
+func (el *L2ELNode) VerifyNotReorged(ref eth.L2BlockRef) {
+	el.log.Info("Verifying block not reorged", "name", el.inner.Name(), "block", ref)
+	got := el.BlockRefByNumber(ref.Number)
+	el.require.Equalf(ref.Hash, got.Hash, "block %d was reorged: expected hash %s, now %s", ref.Number, ref.Hash, got.Hash)
+}
+
 // ReorgTriggeredFn returns a lambda that checks that a L2 reorg occurred on or before the expected block
 // Composable with other lambdas to wait in parallel
 func (el *L2ELNode) ReorgTriggeredFn(target eth.L2BlockRef, attempts int) CheckFunc {

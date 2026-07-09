@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -42,25 +41,21 @@ func TestOpConSequencerSafeHeadDatabaseMatches(gt *testing.T) {
 	sys := presets.NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck(t,
 		// Route the sequencer slot to op-con-node (no-op for other CL kinds).
 		opConSequencerOpt(),
-		// Give every op-node in the topology a SafeDB path so that, under the default
-		// op-node CL kind, both the sequencer and the verifier can answer
-		// optimism_safeHeadAtL1Block. op-con-node serves its own from SQL and ignores
-		// this path, so it is harmless when the slots route to op-con-node.
-		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
-			cfg.SafeDBPath = p.TempDir()
-		})),
+		// Under the default op-node CL kind both slots need a SafeDB to answer
+		// optimism_safeHeadAtL1Block; op-con-node ignores the path (see safeDBOpt).
+		safeDBOpt(),
 	)
 
 	// The op-con sequencer produces blocks and the batcher lands them on L1; both
 	// the sequencer's own L1 derivation and the verifier's advance their safe heads
 	// and converge on the same safe chain.
-	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 60),
-		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 60),
-	)
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 60)
+	awaitSafeConvergence(t, sys, 60)
 
 	// The verifier's safe-head-at-L1 history must match the op-con sequencer's, which
-	// serves it as the source of truth from rollup_rpc_safe_head_at_l1_history.
-	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
+	// serves it as the source of truth from rollup_rpc_safe_head_at_l1_history. Pin
+	// the walk depth to the converged safe head (mirroring the upstream safeheaddb
+	// tests): without it, a history truncated to its newest entry would still pass,
+	// since the walk stops at the first missing lower entry.
+	startSafeBlock := sys.L2CLB.HeadBlockRef(types.LocalSafe).Number
+	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(startSafeBlock))
 }

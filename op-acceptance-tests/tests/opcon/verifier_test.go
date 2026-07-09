@@ -89,26 +89,22 @@ func TestOpConVerifierViaP2P(gt *testing.T) {
 func TestOpConVerifierSafeHeadDatabaseMatches(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNodeNoFaultProofsWithP2PWithoutCheck(t,
-		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(p devtest.T, _ sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
-			// Enable the op-node sequencer's SafeDB so it can answer
-			// optimism_safeHeadAtL1Block as the source of truth. (The op-con-node
-			// verifier serves its own from SQL and needs no file path.)
-			cfg.SafeDBPath = p.TempDir()
-		})),
+		// Enable the op-node sequencer's SafeDB so it can answer
+		// optimism_safeHeadAtL1Block as the source of truth. (The op-con-node
+		// verifier serves its own from SQL and ignores the path — see safeDBOpt.)
+		safeDBOpt(),
 	)
 
 	// The op-node sequencer batches blocks to L1; both it and the op-con-node
 	// verifier advance their safe heads (the verifier derives safe from L1 and
 	// gets unsafe over P2P via the sidecar).
-	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 60),
-		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 60),
-	)
-
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 60)
+	awaitSafeConvergence(t, sys, 60)
 
 	// The verifier's safe-head-at-L1 history must match the sequencer's SafeDB.
-	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
+	// Pin the walk depth to the converged safe head so a history truncated to its
+	// newest entry cannot pass (the walk stops at the first missing lower entry).
+	startSafeBlock := sys.L2CLB.HeadBlockRef(types.LocalSafe).Number
+	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(startSafeBlock))
 }
 
 // TestOpConVerifierFillsUnsafeGaps is the op-con-node variant of the op-node
@@ -173,11 +169,7 @@ func TestOpConVerifierResumesAfterRestart(gt *testing.T) {
 	sys := presets.NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck(t)
 
 	// Verifier derives the safe chain from L1 and converges on the sequencer.
-	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 60),
-		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 60),
-	)
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 60)
+	awaitSafeConvergence(t, sys, 60)
 
 	// Stop the verifier (writing a shutdown checkpoint); the sequencer keeps
 	// batching to L1.

@@ -4,9 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // These tests pin op-con-node's optimism_outputAtBlock RPC — the one rollup RPC
@@ -46,11 +44,7 @@ func TestOpConVerifierOutputRootMatches(gt *testing.T) {
 
 	// The op-node sequencer produces + batches; the op-con-node verifier derives the
 	// same safe chain from L1. Both advance their safe heads and converge.
-	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 60),
-		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 60),
-	)
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 60)
+	awaitSafeConvergence(t, sys, 60)
 
 	// The op-con verifier's output roots must match the op-node sequencer's for
 	// every block in the shared safe range.
@@ -77,11 +71,7 @@ func TestOpConSequencerOutputRootMatches(gt *testing.T) {
 
 	// The op-con sequencer produces + batches; the op-con verifier derives the same
 	// safe chain from L1. Both advance their safe heads and converge.
-	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 60),
-		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 60),
-	)
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 60)
+	awaitSafeConvergence(t, sys, 60)
 
 	// The verifier's output roots must match the op-con sequencer's (source of
 	// truth) for every block in the shared safe range.
