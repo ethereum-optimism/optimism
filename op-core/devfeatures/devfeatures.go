@@ -1,8 +1,6 @@
 package devfeatures
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -42,12 +40,7 @@ var (
 // It performs a bitwise AND between the bitmap and flag to determine if the feature
 // is set. This follows the same pattern as the Solidity DevFeatures library.
 func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
-	b := new(big.Int).SetBytes(bitmap[:])
-	f := new(big.Int).SetBytes(flag[:])
-
-	featuresIsNonZero := f.Cmp(big.NewInt(0)) != 0
-	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
-	return featuresIsNonZero && bitmapContainsFeatures
+	return flag != (common.Hash{}) && hasFlag(bitmap, flag)
 }
 
 // hasFlag reports whether all bits of flag are set in features.
