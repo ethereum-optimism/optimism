@@ -102,16 +102,17 @@ func newSuperCannonVMRegisterTaskWithConfig(
 	}
 }
 
-func NewCannonRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
-	return newCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, l2Client, rollupClient, syncValidator, cfg.Cannon, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState)
+func NewCannonRegisterTask(gameType gameTypes.GameType, logger log.Logger, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
+	return newCannonVMRegisterTaskWithConfig(gameType, logger, cfg, m, serverExecutor, l2Client, rollupClient, syncValidator, cfg.Cannon, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState)
 }
 
-func NewCannonKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
-	return newCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, l2Client, rollupClient, syncValidator, cfg.CannonKona, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState)
+func NewCannonKonaRegisterTask(gameType gameTypes.GameType, logger log.Logger, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
+	return newCannonVMRegisterTaskWithConfig(gameType, logger, cfg, m, serverExecutor, l2Client, rollupClient, syncValidator, cfg.CannonKona, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState)
 }
 
 func newCannonVMRegisterTaskWithConfig(
 	gameType gameTypes.GameType,
+	logger log.Logger,
 	cfg *config.Config,
 	m caching.Metrics,
 	serverExecutor vm.OracleServerExecutor,
@@ -141,7 +142,7 @@ func newCannonVMRegisterTaskWithConfig(
 		// Permissioned games never reach step() so their VM prestate is never actually used. Since they
 		// are often configured with a placeholder prestate that isn't published (e.g. when using
 		// --prestates-url), fall back to an empty placeholder provider rather than failing to resolve the game.
-		getBottomPrestateProvider = tolerateMissingPrestate(getBottomPrestateProvider, stateConverter)
+		getBottomPrestateProvider = tolerateMissingPrestate(logger.New("gameType", gameType), getBottomPrestateProvider, stateConverter)
 	}
 	return &RegisterTask{
 		gameType:               gameType,
@@ -217,12 +218,14 @@ func cachePrestates(
 // The returned provider yields an empty placeholder when the source can't find the prestate, which is safe
 // for game types that never reach step() and so never use the VM prestate (i.e. permissioned games).
 func tolerateMissingPrestate(
+	logger log.Logger,
 	source func(ctx context.Context, prestateHash common.Hash) (faultTypes.PrestateProvider, error),
 	stateConverter vm.StateConverter,
 ) func(ctx context.Context, prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
 	return func(ctx context.Context, prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
 		provider, err := source(ctx, prestateHash)
 		if errors.Is(err, prestates.ErrPrestateUnavailable) {
+			logger.Warn("Prestate unavailable, using empty placeholder", "prestateHash", prestateHash, "err", err)
 			return vm.NewPrestateProvider("", stateConverter), nil
 		}
 		return provider, err

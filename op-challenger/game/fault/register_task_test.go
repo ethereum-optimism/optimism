@@ -38,14 +38,19 @@ func TestCannonRegisterTask_BottomPrestateProvider(t *testing.T) {
 	requiredPrestate := common.Hash{0xaa}
 
 	t.Run("permissioned game tolerates missing prestate", func(t *testing.T) {
-		task := NewCannonRegisterTask(gameTypes.PermissionedGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+		task := NewCannonRegisterTask(gameTypes.PermissionedGameType, logger, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
 		provider, err := task.getBottomPrestateProvider(context.Background(), requiredPrestate)
 		require.NoError(t, err)
 		require.NotNil(t, provider)
+		require.NotNil(t, logs.FindLog(
+			testlog.NewLevelFilter(log.LevelWarn),
+			testlog.NewMessageContainsFilter("Prestate unavailable")))
 	})
 
 	t.Run("cannon game requires prestate", func(t *testing.T) {
-		task := NewCannonRegisterTask(gameTypes.CannonGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+		logger := testlog.Logger(t, log.LvlInfo)
+		task := NewCannonRegisterTask(gameTypes.CannonGameType, logger, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
 		_, err := task.getBottomPrestateProvider(context.Background(), requiredPrestate)
 		require.ErrorIs(t, err, prestates.ErrPrestateUnavailable)
 	})
