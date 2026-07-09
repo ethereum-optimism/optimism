@@ -51,9 +51,23 @@ Compiled ELF binaries for the zkVM programs, used by the prover:
 
 In the optimism monorepo port, these files are generated on demand and ignored
 by git, matching the Cannon prestate artifact workflow. Generate real v6.3.1
-ELFs with `just build-elfs`. Host-toolchain workspace builds embed empty
-build-output placeholders when generated ELFs are absent, so proving fails fast
-until the real artifacts are built.
+ELFs and `elf/vkeys.toml` on linux/amd64 with `just build-elfs`; CI persists
+the manifest with the generated ELFs.
+Use `just build-elfs-native` only for local iteration.
+Host-toolchain workspace builds embed empty build-output placeholders when
+generated ELFs are absent, so proving fails fast until the real artifacts are
+built.
+
+Custom chains and devnets can compile separate SP1 artifacts with custom kona
+registry inputs:
+
+```bash
+KONA_CUSTOM_CONFIGS_DIR=/path/to/custom/configs just build-elfs
+```
+
+The directory must contain `chainList.json`, `configs.json`, and `depsets.json`.
+Those files are compiled into the kona crates used by the guest programs, so
+custom configs produce different ELFs and verification-key hashes.
 
 ## CI TODOs
 
@@ -61,11 +75,11 @@ TODO(#18326): the monorepo's CircleCI runs the
 workspace-wide build, clippy, tests, cargo-hack, udeps, docs, typos, and zepter
 gates over the SP1 host-side crates that are workspace members. The guest
 program entrypoints live in their own workspace for SP1 patch scoping and are
-not covered by those host workspace gates. The following standalone-kona GitHub
-workflow behavior is not yet reproduced:
+not covered by those host workspace gates. The `kona-build-sp1-elfs` job runs
+`just build-elfs` in rust-e2e CI; scheduled vkey drift coverage is tracked in
+#21661. The following standalone-kona GitHub workflow behavior is not yet
+reproduced:
 
-- ELF build (`sp1/justfile build-elfs`, Dockerized `cargo-prove --tag v6.3.1`).
-  This requires the SP1 v6.3.1 toolchain from `sp1up` and Docker in CI.
 - Codecov flag wiring for SP1 coverage.
 - no-std checks for the SP1/zkVM crates. The monorepo `rust-check-no-std` job is
   package-allowlisted and does not include SP1; add SP1 there if no-std coverage
@@ -95,6 +109,13 @@ The SP1 integration follows the same fault proof workflow as the native Kona imp
 ## Building
 
 Build utilities are provided in the `build` crate. Programs can be compiled for the zkVM target using the SP1 toolchain.
+
+The `cargo prove` subcommand is pinned by `mise.toml`. Install the native Succinct
+toolchain for non-Docker local builds with:
+
+```bash
+just install-sp1-toolchain
+```
 
 ## Testing (SP1 execute action tests)
 

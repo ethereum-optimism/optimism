@@ -183,6 +183,28 @@ jobs:
           path: rust/kona/tests/proofs/tmp/testlogs
           when: always
 
+  # Build SP1 guest ELFs and persist them for future rust-e2e consumers.
+  kona-build-sp1-elfs:
+    machine:
+      image: <<pipeline.parameters.c-base_image>>
+      docker_layer_caching: true
+    resource_class: xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - run:
+          name: Build SP1 guest ELFs
+          working_directory: rust/kona/sp1
+          no_output_timeout: 40m
+          command: just build-elfs
+      - store_artifacts:
+          path: rust/kona/sp1/elf
+      - persist_to_workspace:
+          root: .
+          paths:
+            - rust/kona/sp1/elf/
+
   required-rust-e2e:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -255,6 +277,9 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - kona-build-sp1-elfs:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       # -----------------------------------------------------------------------
       # Required gate — fans in on all E2E test jobs
       # -----------------------------------------------------------------------
@@ -265,6 +290,7 @@ workflows:
             - rust-e2e-restart: terminal
             - op-reth-e2e-sysgo-tests: terminal
             - kona-proof-action-single: terminal
+            - kona-build-sp1-elfs: terminal
           context:
             - circleci-api-token
   rust-e2e-gate-skip:
