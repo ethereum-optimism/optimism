@@ -16,14 +16,14 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	vn "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
-	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -277,7 +277,7 @@ func (m *RandomChainManager) generateChain(idNum, l2Depth uint64) *RandomChain {
 		safeDB = append(safeDB, SafeHeadEntry{L1: l1[k].ID(), L2: l2[n].Ref.ID()})
 	}
 
-	return &RandomChain{
+	res := RandomChain{
 		parent:  m,
 		chainID: eth.ChainIDFromUInt64(idNum),
 		cfg: &rollup.Config{
@@ -301,6 +301,8 @@ func (m *RandomChainManager) generateChain(idNum, l2Depth uint64) *RandomChain {
 		currentL1:   uint64(len(l1)) - 1,
 		finalizedL1: uint64(len(l1)) / 2,
 	}
+	res.setState(vn.VNStateNotStarted)
+	return &res
 }
 
 func (m *RandomChainManager) Chain(id eth.ChainID) *RandomChain { return m.chains[id] }
@@ -661,7 +663,7 @@ type RandomChain struct {
 	fcApplied                     bool
 	fcUnsafe, fcSafe, fcFinalized eth.L2BlockRef
 
-	running atomic.Bool
+	state atomic.Int32
 }
 
 // firstVerifiable returns the first block verification can reach: the lowest
@@ -707,19 +709,19 @@ func (rc *RandomChain) initMessage(blockNum uint64) *messages.Message {
 // --- virtual_node.VirtualNode ----------------------------------------------
 
 func (rc *RandomChain) Start(ctx context.Context) error {
-	rc.running.Store(true)
+	rc.setState(vn.VNStateRunning)
 	return nil
 }
 
 func (rc *RandomChain) Stop(ctx context.Context) error {
-	rc.running.Store(false)
+	rc.setState(vn.VNStateStopped)
 	return nil
 }
 
 // SafeHeadAtL1 returns the highest entry whose L1.Number <= l1BlockNum.
 func (rc *RandomChain) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
-	if !rc.running.Load() {
-		return eth.BlockID{}, eth.BlockID{}, virtual_node.ErrVirtualNodeNotRunning
+	if rc.State() != vn.VNStateRunning {
+		return eth.BlockID{}, eth.BlockID{}, vn.ErrVirtualNodeNotRunning
 	}
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
@@ -735,8 +737,8 @@ func (rc *RandomChain) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth
 }
 
 func (rc *RandomChain) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
-	if !rc.running.Load() {
-		return eth.BlockID{}, virtual_node.ErrVirtualNodeNotRunning
+	if rc.State() != vn.VNStateRunning {
+		return eth.BlockID{}, vn.ErrVirtualNodeNotRunning
 	}
 	// Genesis is safe at L1 0 (the real VN uses 0, not cfg.Genesis.L1).
 	if rc.cfg != nil && target == rc.cfg.Genesis.L2 {
@@ -769,8 +771,8 @@ func (rc *RandomChain) safeDBLookup(l2 eth.BlockID) (eth.BlockID, error) {
 }
 
 func (rc *RandomChain) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
-	if !rc.running.Load() {
-		return eth.BlockID{}, eth.BlockID{}, virtual_node.ErrVirtualNodeNotRunning
+	if rc.State() != vn.VNStateRunning {
+		return eth.BlockID{}, eth.BlockID{}, vn.ErrVirtualNodeNotRunning
 	}
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
@@ -783,8 +785,8 @@ func (rc *RandomChain) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth
 }
 
 func (rc *RandomChain) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	if !rc.running.Load() {
-		return nil, virtual_node.ErrVirtualNodeNotRunning
+	if rc.State() != vn.VNStateRunning {
+		return nil, vn.ErrVirtualNodeNotRunning
 	}
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
@@ -810,6 +812,14 @@ func (rc *RandomChain) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) 
 		PendingSafeL2:      safeL2,
 		FinalizedL2:        rc.l2[rc.finalized].Ref,
 	}, nil
+}
+
+func (rc *RandomChain) State() vn.VNState {
+	return vn.VNState(rc.state.Load())
+}
+
+func (rc *RandomChain) setState(state vn.VNState) {
+	rc.state.Store(int32(state))
 }
 
 // --- engine_controller l2Provider set --------------------------------------
@@ -951,7 +961,7 @@ func blockInfoFor(blk *L2Block) eth.BlockInfo {
 func (rc *RandomChain) Close() {}
 
 // l2Provider is unexported; assert conformance via the real constructor.
-var _ virtual_node.VirtualNode = (*RandomChain)(nil)
+var _ vn.VirtualNode = (*RandomChain)(nil)
 var _ = engine_controller.NewEngineControllerWithL2AndRollup((*RandomChain)(nil), nil)
 
 // ---------------------------------------------------------------------------
