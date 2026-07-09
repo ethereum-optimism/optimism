@@ -269,6 +269,41 @@ impl TransactionEnvMut for OpTx {
     }
 
     fn set_access_list(&mut self, access_list: alloy_eips::eip2930::AccessList) {
-        self.0.base.access_list = access_list;
+        // Delegate to `TxEnv` so a legacy tx type is upgraded to EIP-2930: revm neither prices
+        // nor prewarms an access list on a legacy-typed transaction.
+        self.0.base.set_access_list(access_list);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_eips::eip2930::AccessListItem;
+    use op_revm::transaction::deposit::DEPOSIT_TRANSACTION_TYPE;
+    use revm::context_interface::TransactionType;
+
+    /// A single-entry access list, distinct from the empty default so the test can assert it was
+    /// actually written through.
+    fn sample_access_list() -> alloy_eips::eip2930::AccessList {
+        alloy_eips::eip2930::AccessList(vec![AccessListItem {
+            address: Address::from([0x11; 20]),
+            storage_keys: vec![B256::from([0x22; 32])],
+        }])
+    }
+
+    #[test_case::test_case(TransactionType::Legacy as u8, TransactionType::Eip2930 as u8; "legacy_upgrades_to_eip2930")]
+    #[test_case::test_case(TransactionType::Eip1559 as u8, TransactionType::Eip1559 as u8; "eip1559_is_unchanged")]
+    #[test_case::test_case(DEPOSIT_TRANSACTION_TYPE, DEPOSIT_TRANSACTION_TYPE; "deposit_is_unchanged")]
+    fn set_access_list_upgrades_legacy_tx_type(tx_type: u8, expected_tx_type: u8) {
+        let mut tx = OpTx(OpTransaction {
+            base: TxEnv { tx_type, ..Default::default() },
+            ..Default::default()
+        });
+        let access_list = sample_access_list();
+
+        tx.set_access_list(access_list.clone());
+
+        assert_eq!(tx.0.base.tx_type, expected_tx_type);
+        assert_eq!(tx.0.base.access_list, access_list);
     }
 }
