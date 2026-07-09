@@ -116,8 +116,9 @@ contract DeployOPChain is Script {
         (bool permissionless, GameType respectedGameType) =
             _initialDeployGameSelection(_input.disputeGameType, isSuperRoot);
         bool enableCannonKona = permissionless && _input.disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
-        // PERMISSIONED_CANNON is the default game in non-super-root, non-permissionless deployments.
-        bool enablePermissionedCannon = !isSuperRoot && !permissionless;
+        // Non-super-root deploys always register PERMISSIONED_CANNON. In CANNON_KONA mode,
+        // the ASR respects CANNON_KONA first but the guardian can switch to PERMISSIONED_CANNON.
+        bool enablePermissionedCannon = !isSuperRoot;
 
         // Shared permissioned game config for legacy permissioned games.
         IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerUtils

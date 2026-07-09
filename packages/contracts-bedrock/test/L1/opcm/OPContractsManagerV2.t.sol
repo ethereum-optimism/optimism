@@ -2002,6 +2002,13 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             address(0),
             "CANNON_KONA impl should be set"
         );
+        if (!isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+            assertNotEq(
+                address(cts.disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)),
+                address(0),
+                "PERMISSIONED_CANNON fallback should be registered alongside CANNON_KONA"
+            );
+        }
         assertEq(
             cts.anchorStateRegistry.respectedGameType().raw(),
             GameTypes.CANNON_KONA.raw(),

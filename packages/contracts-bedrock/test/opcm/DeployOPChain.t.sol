@@ -23,6 +23,7 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { Claim, Duration, GameType, GameTypes, Hash, Proposal } from "src/dispute/lib/Types.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -237,8 +238,8 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChain.run(deployOPChainInput);
     }
 
-    /// @notice A CANNON_KONA initial deployment enables only CANNON_KONA and seeds the anchor root
-    ///         and respected game type from the input.
+    /// @notice Non-super-root CANNON_KONA deploys respect CANNON_KONA and register
+    ///         PERMISSIONED_CANNON for guardian fallback.
     function test_run_cannonKonaGameType_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
@@ -246,6 +247,27 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
 
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
         _checkCannonKonaPermissionlessDeployment(doo);
+    }
+
+    /// @notice Verifies the guardian can switch a CANNON_KONA deploy to PERMISSIONED_CANNON
+    ///         and the trusted proposer can create a respected fallback game.
+    function test_run_cannonKonaGameTypeFallback_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
+        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+
+        IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
+        vm.prank(doo.systemConfigProxy.guardian());
+        asr.setRespectedGameType(GameTypes.PERMISSIONED_CANNON);
+
+        uint256 bond = doo.disputeGameFactoryProxy.initBonds(GameTypes.PERMISSIONED_CANNON);
+        vm.deal(proposer, bond);
+        vm.prank(proposer, proposer);
+        IDisputeGame game = doo.disputeGameFactoryProxy.create{ value: bond }(
+            GameTypes.PERMISSIONED_CANNON, Claim.wrap(keccak256("fallback proposal")), abi.encode(uint256(1))
+        );
+        assertTrue(asr.isGameRespected(game), "fallback game must be respected");
     }
 
     /// @notice Permissionless game types are rejected when super roots are enabled.
@@ -257,9 +279,10 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChain.run(deployOPChainInput);
     }
 
-    /// @notice Asserts a CANNON_KONA permissionless deployment enabled only CANNON_KONA with the
-    ///         default bond and seeded the ASR with the input anchor root and respected game type.
-    /// @param doo The output of the deployment.
+    /// @notice Asserts non-super-root CANNON_KONA deploys register the permissioned fallback
+    ///         with matching bond, prestate, proposer, and challenger.
+    ///
+    /// @param doo The deployment output.
     function _checkCannonKonaPermissionlessDeployment(DeployOPChain.Output memory doo) internal view {
         IOPContractsManagerContainer.Implementations memory impls = IOPContractsManagerV2(opcmAddr).implementations();
         assertEq(
@@ -275,11 +298,15 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "unselected init bond");
         assertEq(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)), address(0), "unselected impl");
         assertEq(doo.disputeGameFactoryProxy.gameArgs(GameTypes.CANNON).length, 0, "unselected args");
-        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.PERMISSIONED_CANNON), 0, "permissioned init bond");
+        assertEq(
+            doo.disputeGameFactoryProxy.initBonds(GameTypes.PERMISSIONED_CANNON),
+            deployOPChain.DEFAULT_INIT_BOND(),
+            "fallback init bond"
+        );
         assertEq(
             address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON)),
-            address(0),
-            "permissioned impl"
+            impls.permissionedDisputeGameImpl,
+            "fallback impl"
         );
 
         assertEq(
@@ -287,6 +314,11 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             deployOPChainInput.disputeAbsolutePrestate.raw(),
             "selected prestate wiring"
         );
+        LibGameArgs.GameArgs memory pdgArgs =
+            LibGameArgs.decode(doo.disputeGameFactoryProxy.gameArgs(GameTypes.PERMISSIONED_CANNON));
+        assertEq(pdgArgs.absolutePrestate, deployOPChainInput.disputeAbsolutePrestate.raw(), "fallback prestate");
+        assertEq(pdgArgs.proposer, proposer, "fallback proposer");
+        assertEq(pdgArgs.challenger, challenger, "fallback challenger");
 
         IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
         assertEq(asr.respectedGameType().raw(), GameTypes.CANNON_KONA.raw(), "respected game type");
