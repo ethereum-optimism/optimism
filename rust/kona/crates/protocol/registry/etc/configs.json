@@ -4837,6 +4837,114 @@
           }
         }
       ]
+    },
+    {
+      "name": "sepolia-devnet-2",
+      "config": {
+        "name": "sepolia-devnet-2",
+        "l1": {
+          "chain_id": 11155111,
+          "public_rpc": "https://ethereum-sepolia-rpc.publicnode.com",
+          "explorer": ""
+        },
+        "hardforks": {},
+        "superchain_config_addr": "0x289d2a1b1ae6e0470d8b72e53b6e3f485f251dbb",
+        "op_contracts_manager_proxy_addr": null
+      },
+      "chains": [
+        {
+          "Name": "sepolia-devnet-2",
+          "PublicRPC": "https://sepolia-devnet-2.optimism.io/rpc",
+          "SequencerRPC": "",
+          "Explorer": "",
+          "SuperchainLevel": 0,
+          "GovernedByOptimism": false,
+          "SuperchainTime": 0,
+          "DataAvailabilityType": "eth-da",
+          "l2_chain_id": 420130015,
+          "batch_inbox_address": "0x00ab2d21a3e869a42603c37731699d1eedf89eb3",
+          "block_time": 2,
+          "seq_window_size": 3600,
+          "max_sequencer_drift": 600,
+          "GasPayingToken": null,
+          "hardfork_configuration": {
+            "canyon_time": 0,
+            "delta_time": 0,
+            "ecotone_time": 0,
+            "fjord_time": 0,
+            "granite_time": 0,
+            "holocene_time": 0,
+            "isthmus_time": 0,
+            "jovian_time": 0,
+            "karst_time": 0
+          },
+          "optimism": {
+            "eip1559Elasticity": 6,
+            "eip1559Denominator": 50,
+            "eip1559DenominatorCanyon": 250
+          },
+          "alt_da": null,
+          "genesis": {
+            "l1": {
+              "number": 11231178,
+              "hash": "0x46fb808baa0c4cf0b71e2f85bff8529011a84944529ccbf257e9c82ca88200ba"
+            },
+            "l2": {
+              "number": 0,
+              "hash": "0x782e7ef559d86bd85ca14b3b51bcd64b2a5abba5bf3017d83d34e666d8dc0a57"
+            },
+            "l2_time": 1783536096,
+            "system_config": {
+              "batcherAddr": "0x62a6ed699757efa7c6d7e14e11aff684e904e91a",
+              "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "scalar": "0x010000000000000000000000000000000000000000000000000c3c9d00000558",
+              "gasLimit": 60000000,
+              "baseFeeScalar": null,
+              "blobBaseFeeScalar": null,
+              "eip1559Denominator": null,
+              "eip1559Elasticity": null,
+              "operatorFeeScalar": null,
+              "operatorFeeConstant": null,
+              "minBaseFee": null,
+              "daFootprintGasScalar": null
+            }
+          },
+          "Roles": {
+            "SystemConfigOwner": null,
+            "ProxyAdminOwner": "0xe934dc97e347c6acef74364b50125bb8689c40ff",
+            "Guardian": null,
+            "Challenger": null,
+            "Proposer": null,
+            "UnsafeBlockSigner": null,
+            "BatchSubmitter": null
+          },
+          "Addresses": {
+            "AddressManager": null,
+            "L1CrossDomainMessengerProxy": null,
+            "L1Erc721BridgeProxy": null,
+            "L1StandardBridgeProxy": "0x9982b5a612b42da6f6c5d4de076082a8e22760c6",
+            "L2OutputOracleProxy": null,
+            "OptimismMintableErc20FactoryProxy": null,
+            "OptimismPortalProxy": "0xce313e6d194260417ff9fee5c58f487d1da9fce0",
+            "SystemConfigProxy": "0x5f91ea5eea70e505b457a442dc7a8e5d9641b937",
+            "ProxyAdmin": null,
+            "SuperchainConfig": null,
+            "AnchorStateRegistryProxy": null,
+            "DelayedWethProxy": null,
+            "DisputeGameFactoryProxy": "0x900bcac02abea47cf0a5d6c5d2cdacf2e831318d",
+            "FaultDisputeGame": null,
+            "Mips": null,
+            "PermissionedDisputeGame": null,
+            "PreimageOracle": null,
+            "DataAvailabilityChallenge": null
+          },
+          "interop": {
+            "dependencies": {
+              "420130015": {}
+            }
+          }
+        }
+      ]
     }
   ]
 }

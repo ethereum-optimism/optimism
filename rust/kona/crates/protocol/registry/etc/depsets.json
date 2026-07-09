@@ -5,5 +5,11 @@
       "420120010": {}
     },
     "overrideMessageExpiryWindow": null
+  },
+  {
+    "dependencies": {
+      "420130015": {}
+    },
+    "overrideMessageExpiryWindow": null
   }
 ]
