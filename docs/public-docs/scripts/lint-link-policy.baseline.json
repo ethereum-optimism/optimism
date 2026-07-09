@@ -223,7 +223,7 @@
     },
     {
       "rule": "unresolved-spec-anchor",
-      "file": "chain-operators/guides/configuration/rollup.mdx",
+      "file": "chain-operators/reference/rollup-deployment-configuration.mdx",
       "url": "https://specs.optimism.io/protocol/safe-extensions.html?utm_source=op-docs&utm_medium=docs#deputy-guardian-module"
     },
     {
