@@ -98,8 +98,9 @@ pub struct ProofsHistoryBackfillArgs {
     /// and up to N blocks of progress lost on crash. Very large N can
     /// also exceed MDBX's per-tx dirty-page ceiling on storage-heavy
     /// blocks — the batch fails cleanly (whole tx rolls back) and can
-    /// be retried with a lower value. Default 50 measured ~2.5×
-    /// throughput vs K=1 on op-mainnet (1.296M blocks, ~17 h).
+    /// be retried with a lower value. Default 25 measured ~2.6×
+    /// throughput vs K=1 on op-mainnet — the sweet spot on the K
+    /// sweep before dirty-page pressure starts slowing cursor reads.
     #[arg(
         long = "proofs-history.backfill-batch-size",
         value_name = "N",

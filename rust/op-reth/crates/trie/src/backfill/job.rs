@@ -68,10 +68,12 @@ impl PhaseTimings {
 
 /// Default number of blocks written per MDBX transaction.
 ///
-/// `50` measured 2.7× throughput on a 1.2M-block op mainnet backfill. Tune via
+/// `25` measured ~2.6× throughput on a 1.296M-block op-mainnet backfill and sits at the sweet
+/// spot on the K sweep: bitmap + commit amortization has done most of its work, but the open
+/// tx's dirty-page pressure hasn't yet started slowing cursor reads. Tune via
 /// [`BackfillJob::with_batch_size`] / `--proofs-history.backfill-batch-size` — see that flag
 /// for the throughput / memory / restart-loss trade-offs.
-pub const DEFAULT_BACKFILL_BATCH_SIZE: usize = 50;
+pub const DEFAULT_BACKFILL_BATCH_SIZE: usize = 25;
 
 /// Backfill job for proofs storage.
 #[derive(Debug)]
