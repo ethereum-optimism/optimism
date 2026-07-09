@@ -33,6 +33,7 @@ import { IOPContractsManagerMigrator } from "interfaces/L1/opcm/IOPContractsMana
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -351,7 +352,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
     )
         internal
     {
-        // Grab some values before we upgrade, to be checked later
         address initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
         address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
 
@@ -489,6 +489,23 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         public
     {
         _runOpcmV2UpgradeAndChecks(opcmV2, _delegateCaller, _revertBytes, _expectedValidatorErrors);
+    }
+
+    /// @notice Reloads fork-live contract handles after rerunning ForkL1Live, which may overwrite artifacts.
+    function _reloadForkLiveContracts() internal {
+        systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
+        optimismPortal2 = IOptimismPortal2(payable(artifacts.mustGetAddress("OptimismPortalProxy")));
+        ethLockbox = IETHLockbox(artifacts.getAddress("ETHLockboxProxy"));
+        superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        disputeGameFactory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
+        anchorStateRegistry = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
+        delayedWeth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
+        opcmV2 = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
+        proxyAdmin = IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));
+        proxyAdminOwner = proxyAdmin.owner();
+        superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
+        superchainProxyAdminOwner = superchainProxyAdmin.owner();
+        setSystemConfig(systemConfig);
     }
 
     /// @notice Extracts the absolute prestate embedded in a dispute game config.
@@ -1492,6 +1509,33 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             );
         }
     }
+
+    /// @notice Tests that future fork-live setup still works after the current upgrade has already been applied.
+    function test_forkLiveSetup_currentUpgradeAlreadyApplied_succeeds() public {
+        skipIfNotForkTest("FutureForkLiveSetup: only runs in forked tests");
+
+        if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
+            uint32 originalRaw = optimismPortal2.respectedGameType().raw();
+            bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw()
+                || originalRaw == GameTypes.SUPER_CANNON_KONA.raw();
+            address currentProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
+            _setupSuperRootConfigs(isPermissionless, currentProposer);
+        }
+
+        // First apply the current upgrade. The fork state now represents a future live chain
+        // where this upgrade has already landed.
+        runCurrentUpgradeV2(chainPAO);
+
+        // Rerun the same setup path normal fork-live tests use. This must rediscover addresses
+        // from the already-upgraded state and reapply the current upgrade idempotently.
+        deploy.cfg().setUseUpgradedFork(true);
+        forkL1Live.run();
+        _reloadForkLiveContracts();
+
+        // Reapply through the upgrade test helper too, so StandardValidator runs after rereading
+        // fork-live artifacts from the already-upgraded state.
+        runCurrentUpgradeV2(chainPAO);
+    }
 }
 
 /// @title OPContractsManagerV2_IsPermittedUpgradeSequence_Test
@@ -2089,8 +2133,8 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     {
         // Set up dispute game configs first since they're needed for the struct literal.
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        address initialChallenger = _initialPermissionedGameChallenger(superRoot);
-        address initialProposer = _initialPermissionedGameProposer(superRoot);
+        address initialChallenger = _initialPermissionedGameChallenger();
+        address initialProposer = _initialPermissionedGameProposer();
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -2178,16 +2222,12 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         cts_ = opcmV2.deploy(deployConfig);
     }
 
-    function _initialPermissionedGameChallenger(bool _superRoot) internal view returns (address challenger_) {
-        if (!_superRoot) return DisputeGames.permissionedGameChallenger(disputeGameFactory);
-
-        challenger_ = address(0);
+    function _initialPermissionedGameChallenger() internal view returns (address challenger_) {
+        challenger_ = DisputeGames.permissionedGameChallenger(disputeGameFactory);
     }
 
-    function _initialPermissionedGameProposer(bool _superRoot) internal view returns (address proposer_) {
-        if (!_superRoot) return DisputeGames.permissionedGameProposer(disputeGameFactory);
-
-        proposer_ = DisputeGames.superPermissionedGameProposer(disputeGameFactory);
+    function _initialPermissionedGameProposer() internal view returns (address proposer_) {
+        proposer_ = DisputeGames.permissionedGameProposer(disputeGameFactory);
     }
 
     /// @notice Helper function to create the default migration input.
