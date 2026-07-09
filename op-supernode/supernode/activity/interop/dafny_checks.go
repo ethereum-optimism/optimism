@@ -14,7 +14,8 @@ import (
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -1831,15 +1832,15 @@ func AssertVerifiedDBValid(t dafnyT, v *VerifiedDB) {
 // findSealedOption maps LogsDB.FindSealedBlock's (BlockSeal, error) result to
 // the model's Option<BlockSeal>: ErrFuture/ErrSkipped mean None, any other
 // error breaks the model mapping.
-func findSealedOption(db LogsDB, number uint64) (suptypes.BlockSeal, bool, error) {
+func findSealedOption(db LogsDB, number uint64) (messages.BlockSeal, bool, error) {
 	seal, err := db.FindSealedBlock(number)
 	switch {
 	case err == nil:
 		return seal, true, nil
-	case errors.Is(err, suptypes.ErrFuture), errors.Is(err, suptypes.ErrSkipped):
-		return suptypes.BlockSeal{}, false, nil
+	case errors.Is(err, interop.ErrFuture), errors.Is(err, interop.ErrSkipped):
+		return messages.BlockSeal{}, false, nil
 	default:
-		return suptypes.BlockSeal{}, false, err
+		return messages.BlockSeal{}, false, err
 	}
 }
 
@@ -1880,7 +1881,7 @@ func CheckLogsDBSealsWellFormed(db LogsDB) error {
 	latest, hasLatest := db.LatestSealedBlock()
 	first, err := db.FirstSealedBlock()
 	hasFirst := err == nil
-	if err != nil && !errors.Is(err, suptypes.ErrFuture) && !errors.Is(err, suptypes.ErrSkipped) {
+	if err != nil && !errors.Is(err, interop.ErrFuture) && !errors.Is(err, interop.ErrSkipped) {
 		return violation(pred, "0", "FirstSealedBlock failed: %v", err)
 	}
 	if hasFirst != hasLatest {
@@ -1913,7 +1914,7 @@ func CheckLogsDBSealsWellFormed(db LogsDB) error {
 			latest.Number, seal.ID(), found, latest))
 	}
 
-	var prev suptypes.BlockSeal
+	var prev messages.BlockSeal
 	prevFound := false
 	for n := first.Number; n <= latest.Number; n++ {
 		seal, found, ferr := findSealedOption(db, n)

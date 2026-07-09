@@ -23,7 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -40,7 +40,7 @@ type L2Block struct {
 	InitLog *gethtypes.Log
 	// ExecMsgs holds executing messages keyed by their flat log index in the
 	// block's receipts.
-	ExecMsgs map[uint32]*supervisortypes.Message
+	ExecMsgs map[uint32]*messages.Message
 }
 
 // Output mirrors engine_controller.OutputV0AtBlockNumber's payload branch.
@@ -86,9 +86,9 @@ func (b *L2Block) Receipts() gethtypes.Receipts {
 }
 
 // addExecMsg appends msg at the next flat log index (the init log occupies 0).
-func (b *L2Block) addExecMsg(msg *supervisortypes.Message) {
+func (b *L2Block) addExecMsg(msg *messages.Message) {
 	if b.ExecMsgs == nil {
-		b.ExecMsgs = make(map[uint32]*supervisortypes.Message)
+		b.ExecMsgs = make(map[uint32]*messages.Message)
 	}
 	b.ExecMsgs[uint32(1+len(b.ExecMsgs))] = msg
 }
@@ -373,11 +373,11 @@ type Plan struct {
 // expiry, and activation gates and are rejected at the initiating-log lookup. The
 // fourth trips the expiry gate by stamping an ancient initiating timestamp. Every
 // kind surfaces as the same InvalidHead.
-var execMsgBreakers = []func(*supervisortypes.Message){
-	func(m *supervisortypes.Message) { m.PayloadHash[0] ^= 0xff },                         // checksum: payload no longer hashes to the sealed log
-	func(m *supervisortypes.Message) { m.Identifier.LogIndex++ },                          // dangling: no matching log at that index
-	func(m *supervisortypes.Message) { m.Identifier.Origin[0] ^= 0xff },                   // wrong origin: address mismatch shifts the derived checksum
-	func(m *supervisortypes.Message) { m.Identifier.Timestamp = genExpiredInitTimestamp }, // expiry: initiating message too old for the window
+var execMsgBreakers = []func(*messages.Message){
+	func(m *messages.Message) { m.PayloadHash[0] ^= 0xff },                         // checksum: payload no longer hashes to the sealed log
+	func(m *messages.Message) { m.Identifier.LogIndex++ },                          // dangling: no matching log at that index
+	func(m *messages.Message) { m.Identifier.Origin[0] ^= 0xff },                   // wrong origin: address mismatch shifts the derived checksum
+	func(m *messages.Message) { m.Identifier.Timestamp = genExpiredInitTimestamp }, // expiry: initiating message too old for the window
 }
 
 // BreakOneExecMsg corrupts one reachable executing message with a uniformly
@@ -690,17 +690,17 @@ func (rc *RandomChain) randomInitBlockBefore(ts uint64) (blockNum uint64, ok boo
 
 // initMessage builds the executing-message reference to this chain's planted
 // init log at blockNum.
-func (rc *RandomChain) initMessage(blockNum uint64) *supervisortypes.Message {
+func (rc *RandomChain) initMessage(blockNum uint64) *messages.Message {
 	il := rc.l2[blockNum].InitLog
-	return &supervisortypes.Message{
-		Identifier: supervisortypes.Identifier{
+	return &messages.Message{
+		Identifier: messages.Identifier{
 			Origin:      il.Address,
 			ChainID:     rc.chainID,
 			BlockNumber: blockNum,
 			LogIndex:    0,
 			Timestamp:   rc.l2[blockNum].Ref.Time,
 		},
-		PayloadHash: crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(il)),
+		PayloadHash: crypto.Keccak256Hash(messages.LogToMessagePayload(il)),
 	}
 }
 

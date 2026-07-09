@@ -85,19 +85,13 @@ func assertRewindInvariants(t *testing.T, frc *FaultyRandomChain, target eth.L2B
 	case elAtTarget:
 		// I2: already at target -> idempotent no-op. No synthetic insert, no FCU.
 		require.NoError(t, err, "rewind to an already-rewound EL must succeed")
-		// DISABLED for exploration: known-broken on the pinned audit commit
-		// (issue-20929 root cause 3, RewindToTimestamp not idempotent). Trigger
-		// seed: f.Add("trigger-i2"). Uncomment to reproduce.
-		// require.Zero(t, frc.newPayloadCalls, "state A must not insert a synthetic payload")
-		// require.Zero(t, frc.fcuCalls, "state A must not issue an FCU")
+		require.Zero(t, frc.newPayloadCalls, "state A must not insert a synthetic payload")
+		require.Zero(t, frc.fcuCalls, "state A must not issue an FCU")
 
 	case elSyntheticStuck:
 		// I3: synthetic-stuck with target present -> skip to Step 4, no new synthetic.
 		require.NoError(t, err, "synthetic-stuck rewind must recover")
-		// DISABLED for exploration: known-broken on the pinned audit commit
-		// (issue-20929 root cause 3). Trigger seed: f.Add("i3-stuck"). Uncomment
-		// to reproduce.
-		// require.Zero(t, frc.newPayloadCalls, "state B must skip synthetic insertion")
+		require.Zero(t, frc.newPayloadCalls, "state B must skip synthetic insertion")
 		require.Equal(t, target.Hash, frc.elUnsafe.Hash, "state B must converge to target")
 
 	case elAboveTarget:

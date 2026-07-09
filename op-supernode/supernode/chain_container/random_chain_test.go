@@ -7,8 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -16,9 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newMessage(chainID, blockNum uint64, logIdx uint32, ts uint64) *supervisortypes.Message {
-	return &supervisortypes.Message{
-		Identifier: supervisortypes.Identifier{
+func newMessage(chainID, blockNum uint64, logIdx uint32, ts uint64) *messages.Message {
+	return &messages.Message{
+		Identifier: messages.Identifier{
 			Origin:      params.InteropCrossL2InboxAddress,
 			ChainID:     eth.ChainIDFromUInt64(chainID),
 			BlockNumber: blockNum,
@@ -31,13 +30,13 @@ func newMessage(chainID, blockNum uint64, logIdx uint32, ts uint64) *supervisort
 
 func TestL2BlockReceiptsDecode(t *testing.T) {
 	m := newMessage(10, 100, 0, 5000)
-	blk := &L2Block{ExecMsgs: map[uint32]*supervisortypes.Message{0: m}}
+	blk := &L2Block{ExecMsgs: map[uint32]*messages.Message{0: m}}
 
 	rcpts := blk.Receipts()
 	require.Len(t, rcpts, 1)
 	require.Len(t, rcpts[0].Logs, 1)
 
-	decoded, err := processors.DecodeExecutingMessageLog(rcpts[0].Logs[0])
+	decoded, err := messages.DecodeExecutingMessageLog(rcpts[0].Logs[0])
 	require.NoError(t, err)
 	require.Equal(t, m.Identifier.ChainID, decoded.ChainID)
 	require.Equal(t, m.Identifier.BlockNumber, decoded.BlockNum)
@@ -107,7 +106,7 @@ func TestRandomChainL2Provider(t *testing.T) {
 					BlockHash:       blkHash,
 				},
 			},
-			ExecMsgs: map[uint32]*supervisortypes.Message{0: newMessage(10, 0, 0, 1234)},
+			ExecMsgs: map[uint32]*messages.Message{0: newMessage(10, 0, 0, 1234)},
 		}},
 	}
 
@@ -230,13 +229,13 @@ func TestGeneratedExecutingMessages(t *testing.T) {
 			require.Equal(t, initLog.Address, msg.Identifier.Origin)
 			require.Equal(t, uint32(0), msg.Identifier.LogIndex)
 			require.Equal(t,
-				crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(initLog)),
+				crypto.Keccak256Hash(messages.LogToMessagePayload(initLog)),
 				msg.PayloadHash)
 		}
 	}
 
 	// init logs must not read as executing-message events
-	em, err := processors.DecodeExecutingMessageLog(chains[0].l2[1].InitLog)
+	em, err := messages.DecodeExecutingMessageLog(chains[0].l2[1].InitLog)
 	require.NoError(t, err)
 	require.Nil(t, em)
 }
@@ -249,14 +248,14 @@ func TestBreakOneExecMsg(t *testing.T) {
 		blk int
 	}
 	var m *RandomChainManager
-	var before map[key]supervisortypes.Message
+	var before map[key]messages.Message
 	var id eth.ChainID
 	var ts uint64
 	var ok bool
 	for s := 0; s < 50 && !ok; s++ {
 		m = NewRandomChainManager([]byte{byte(s)})
 		m.Generate()
-		before = map[key]supervisortypes.Message{}
+		before = map[key]messages.Message{}
 		for _, rc := range m.Chains() {
 			for i := range rc.l2 {
 				if msg := rc.l2[i].ExecMsgs[1]; msg != nil {

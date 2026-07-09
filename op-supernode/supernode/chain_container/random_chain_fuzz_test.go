@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,7 +52,7 @@ func FuzzRandomChainReadPath(f *testing.F) {
 				require.Len(t, rcpts, 1) // Receipts packs all logs into one receipt
 				require.Len(t, rcpts[0].Logs, 1+len(blk.ExecMsgs))
 				for _, lg := range rcpts[0].Logs {
-					_, derr := processors.DecodeExecutingMessageLog(lg)
+					_, derr := messages.DecodeExecutingMessageLog(lg)
 					require.NoError(t, derr)
 				}
 			}

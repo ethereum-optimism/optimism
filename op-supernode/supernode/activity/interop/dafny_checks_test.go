@@ -13,7 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -704,11 +705,11 @@ func TestAssertVerifiedDBValid(t *testing.T) {
 // views the LogsDB.dfy checker reads; other LogsDB methods panic (nil embed).
 type sealsMockLogsDB struct {
 	LogsDB
-	first     suptypes.BlockSeal
+	first     messages.BlockSeal
 	firstErr  error
 	latest    eth.BlockID
 	hasLatest bool
-	seals     map[uint64]suptypes.BlockSeal
+	seals     map[uint64]messages.BlockSeal
 	findErrs  map[uint64]error
 }
 
@@ -716,29 +717,29 @@ func (m *sealsMockLogsDB) LatestSealedBlock() (eth.BlockID, bool) {
 	return m.latest, m.hasLatest
 }
 
-func (m *sealsMockLogsDB) FirstSealedBlock() (suptypes.BlockSeal, error) {
+func (m *sealsMockLogsDB) FirstSealedBlock() (messages.BlockSeal, error) {
 	if m.firstErr != nil {
-		return suptypes.BlockSeal{}, m.firstErr
+		return messages.BlockSeal{}, m.firstErr
 	}
 	return m.first, nil
 }
 
-func (m *sealsMockLogsDB) FindSealedBlock(number uint64) (suptypes.BlockSeal, error) {
+func (m *sealsMockLogsDB) FindSealedBlock(number uint64) (messages.BlockSeal, error) {
 	if err, ok := m.findErrs[number]; ok {
-		return suptypes.BlockSeal{}, err
+		return messages.BlockSeal{}, err
 	}
 	if seal, ok := m.seals[number]; ok {
 		return seal, nil
 	}
-	return suptypes.BlockSeal{}, suptypes.ErrFuture
+	return messages.BlockSeal{}, interop.ErrFuture
 }
 
 var _ LogsDB = (*sealsMockLogsDB)(nil)
 
 // dafnySeal builds a BlockSeal at the given number and timestamp with a
 // number-derived hash.
-func dafnySeal(number, timestamp uint64) suptypes.BlockSeal {
-	return suptypes.BlockSeal{
+func dafnySeal(number, timestamp uint64) messages.BlockSeal {
+	return messages.BlockSeal{
 		Hash:      common.Hash{0xd0, byte(number)},
 		Number:    number,
 		Timestamp: timestamp,
@@ -747,10 +748,10 @@ func dafnySeal(number, timestamp uint64) suptypes.BlockSeal {
 
 // dafnySealedMock builds a mock whose first/latest/find views agree over the
 // given seals, which must be in ascending block-number order.
-func dafnySealedMock(seals ...suptypes.BlockSeal) *sealsMockLogsDB {
+func dafnySealedMock(seals ...messages.BlockSeal) *sealsMockLogsDB {
 	m := &sealsMockLogsDB{
-		firstErr: suptypes.ErrFuture,
-		seals:    make(map[uint64]suptypes.BlockSeal, len(seals)),
+		firstErr: interop.ErrFuture,
+		seals:    make(map[uint64]messages.BlockSeal, len(seals)),
 		findErrs: make(map[uint64]error),
 	}
 	for _, s := range seals {
@@ -785,7 +786,7 @@ func TestCheckLogsDBSealsWellFormedPass(t *testing.T) {
 	t.Run("gap inside sealed range is not excluded by the model", func(t *testing.T) {
 		t.Parallel()
 		db := dafnySealedMock(dafnySeal(5, 1000), dafnySeal(7, 1002))
-		db.findErrs[6] = suptypes.ErrSkipped
+		db.findErrs[6] = interop.ErrSkipped
 		require.NoError(t, CheckLogsDBSealsWellFormed(db))
 	})
 
@@ -841,7 +842,7 @@ func TestCheckLogsDBSealsWellFormedViolations(t *testing.T) {
 	t.Run("conjunct E1: latest present but first absent", func(t *testing.T) {
 		t.Parallel()
 		db := dafnySealedMock(dafnySeal(5, 1000))
-		db.firstErr = suptypes.ErrFuture
+		db.firstErr = interop.ErrFuture
 		err := CheckLogsDBSealsWellFormed(db)
 		require.ErrorContains(t, err, "conjunct (E1)")
 	})
@@ -874,7 +875,7 @@ func TestCheckLogsDBSealsWellFormedViolations(t *testing.T) {
 	t.Run("conjunct F1: first number not found", func(t *testing.T) {
 		t.Parallel()
 		db := dafnySealedMock(dafnySeal(5, 1000), dafnySeal(6, 1001))
-		db.findErrs[5] = suptypes.ErrSkipped
+		db.findErrs[5] = interop.ErrSkipped
 		err := CheckLogsDBSealsWellFormed(db)
 		require.ErrorContains(t, err, "conjunct (F1)")
 		require.ErrorContains(t, err, "found=false")
@@ -891,7 +892,7 @@ func TestCheckLogsDBSealsWellFormedViolations(t *testing.T) {
 	t.Run("conjunct L1: latest number not found", func(t *testing.T) {
 		t.Parallel()
 		db := dafnySealedMock(dafnySeal(5, 1000), dafnySeal(6, 1001))
-		db.findErrs[6] = suptypes.ErrFuture
+		db.findErrs[6] = interop.ErrFuture
 		err := CheckLogsDBSealsWellFormed(db)
 		require.ErrorContains(t, err, "conjunct (L1)")
 		require.ErrorContains(t, err, "found=false")
@@ -1174,7 +1175,7 @@ func TestCheckOutputConsistentWithLogs(t *testing.T) {
 	t.Run("conjunct R2: sealed block differs from verified head", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		mockLogsDBFor(t, i, 1).seals[101] = suptypes.BlockSeal{
+		mockLogsDBFor(t, i, 1).seals[101] = messages.BlockSeal{
 			Hash: common.Hash{0xff}, Number: 101, Timestamp: 1001,
 		}
 		err := CheckOutputConsistentWithLogs(i, StepOutput{Decision: DecisionRewind}, dafnyRewindObs())
@@ -1356,7 +1357,7 @@ func TestCheckObservationConsistentWithLogs(t *testing.T) {
 	t.Run("conjunct 2: sealed block differs from verified head", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		mockLogsDBFor(t, i, 2).seals[201] = suptypes.BlockSeal{
+		mockLogsDBFor(t, i, 2).seals[201] = messages.BlockSeal{
 			Hash: common.Hash{0xff}, Number: 201, Timestamp: 1001,
 		}
 		err := CheckObservationConsistentWithLogs(i, dafnyRewindObs())
@@ -1707,7 +1708,7 @@ func TestCheckPlanConsistentWithLogs(t *testing.T) {
 	t.Run("conjunct S2: sealed block differs from target head", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		mockLogsDBFor(t, i, 1).seals[101] = suptypes.BlockSeal{
+		mockLogsDBFor(t, i, 1).seals[101] = messages.BlockSeal{
 			Hash: common.Hash{0xff}, Number: 101, Timestamp: 1001,
 		}
 		err := CheckPlanConsistentWithLogs(i, dafnySyncedPlan(), dafnyChainID(1))
@@ -1944,7 +1945,7 @@ func TestCheckTransitionConsistentWithLogs(t *testing.T) {
 	t.Run("conjunct R2: rewind plan inconsistent with one chain's logs", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		mockLogsDBFor(t, i, 1).seals[101] = suptypes.BlockSeal{
+		mockLogsDBFor(t, i, 1).seals[101] = messages.BlockSeal{
 			Hash: common.Hash{0xff}, Number: 101, Timestamp: 1001,
 		}
 		plan := dafnySyncedPlan()
@@ -1991,7 +1992,7 @@ func TestCheckPendingTransitionIsConsistent(t *testing.T) {
 	t.Run("conjunct N1: no pending transition with diverged DBs", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		mockLogsDBFor(t, i, 2).seals[201] = suptypes.BlockSeal{
+		mockLogsDBFor(t, i, 2).seals[201] = messages.BlockSeal{
 			Hash: common.Hash{0xff}, Number: 201, Timestamp: 1001,
 		}
 		err := CheckPendingTransitionIsConsistent(i)
@@ -2212,8 +2213,8 @@ func dafnyTestInterop(t *testing.T) *Interop {
 
 // dafnyHeadSeal builds a seal whose ID matches a dafnyVerifiedResult head at
 // the given number.
-func dafnyHeadSeal(number, timestamp uint64) suptypes.BlockSeal {
-	return suptypes.BlockSeal{Hash: common.HexToHash("0xaa"), Number: number, Timestamp: timestamp}
+func dafnyHeadSeal(number, timestamp uint64) messages.BlockSeal {
+	return messages.BlockSeal{Hash: common.HexToHash("0xaa"), Number: number, Timestamp: timestamp}
 }
 
 // dafnySyncedInterop extends dafnyTestInterop with verified results at
@@ -2410,7 +2411,7 @@ func TestCheckDBsInSyncUpTo(t *testing.T) {
 	t.Run("conjunct 4: sealed block diverges from verified head", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		mockLogsDBFor(t, i, 1).seals[101] = suptypes.BlockSeal{
+		mockLogsDBFor(t, i, 1).seals[101] = messages.BlockSeal{
 			Hash: common.Hash{0xff}, Number: 101, Timestamp: 1001,
 		}
 		err := CheckDBsInSyncUpTo(i, dafnyChainID(1), 1002)
@@ -2475,7 +2476,7 @@ func TestCheckDBsInSync(t *testing.T) {
 	t.Run("conjunct S3: interior logsDB/verifiedDB divergence", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		mockLogsDBFor(t, i, 1).seals[101] = suptypes.BlockSeal{
+		mockLogsDBFor(t, i, 1).seals[101] = messages.BlockSeal{
 			Hash: common.Hash{0xff}, Number: 101, Timestamp: 1001,
 		}
 		err := CheckDBsInSync(i, dafnyChainID(1))
@@ -2529,7 +2530,7 @@ func TestCheckAllDBsInSync(t *testing.T) {
 	t.Run("reports only the diverged chain", func(t *testing.T) {
 		t.Parallel()
 		i := dafnySyncedInterop(t)
-		mockLogsDBFor(t, i, 2).seals[201] = suptypes.BlockSeal{
+		mockLogsDBFor(t, i, 2).seals[201] = messages.BlockSeal{
 			Hash: common.Hash{0xff}, Number: 201, Timestamp: 1001,
 		}
 		err := CheckAllDBsInSync(i)
