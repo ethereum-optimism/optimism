@@ -129,6 +129,7 @@ case "${TRIGGER_SOURCE}" in
     # Simple dispatch flags: each enables its workflows when the flag is set.
     # main_dispatch and labeled_pr have bespoke conditions, handled separately.
     for flag in $(yq -r '.api_dispatch | keys | .[]' "${ROUTING}"); do
+      # Keep this skip-list in sync with bespoke api_dispatch conditions.
       case "${flag}" in
         main_dispatch | labeled_pr) continue ;;
       esac

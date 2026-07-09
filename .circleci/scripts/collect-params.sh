@@ -76,7 +76,7 @@ case "${MODE}" in
     ;;
 
   *)
-    echo "ERROR: Unknown mode '${MODE}'. Use str, bool, or detect." >&2
+    echo "ERROR: Unknown mode '${MODE}'. Use str, bool, detect, or detect_all." >&2
     exit 1
     ;;
 esac
