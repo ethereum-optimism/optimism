@@ -5,8 +5,8 @@ pragma solidity ^0.8.0;
 ///         it's easier to integrate with op-deployer. Note that users should typically set a
 ///         single nibble to 1 and the rest to zero, which gives us 64 potential features, like:
 ///         0x0000000000000000000000000000000000000000000000000000000000000001
-///         0x0000000000000000000000000000000000000000000000000000000000000010
 ///         0x0000000000000000000000000000000000000000000000000000000000000100
+///         0x0000000000000000000000000000000000000000000000000000000000001000
 ///         etc.
 ///         We'll expand to using all available bits if we need more than 64 concurrent features.
 /// @dev ADDING A NEW DEV FEATURE:
@@ -31,9 +31,6 @@ library DevFeatures {
     /// @notice The feature that enables the Interop migration functions on the OptimismPortal2 contract.
     bytes32 public constant OPTIMISM_PORTAL_INTEROP =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000001);
-
-    /// @notice The feature that gates the respected game type override for CANNON_KONA during upgrades.
-    bytes32 public constant CANNON_KONA = bytes32(0x0000000000000000000000000000000000000000000000000000000000000010);
 
     /// @notice The feature that enables deployment of V2 dispute game contracts.
     /// @custom:legacy
@@ -62,8 +59,6 @@ library DevFeatures {
     function isDevFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
         // L2CM is enabled by default. TODO(#20084): remove with the broader L2CMFlag cleanup.
         if (hasFlag(_feature, L2CM)) return true;
-        // CannonKona is enabled by default. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
-        if (hasFlag(_feature, CANNON_KONA)) return true;
         return _feature != 0 && hasFlag(_bitmap, _feature);
     }
 
