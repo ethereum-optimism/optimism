@@ -4,7 +4,7 @@ use crate::{
     OpEngineApiBuilder, OpEngineTypes,
     args::RollupArgs,
     engine::OpEngineValidator,
-    txpool::{OpTransactionPool, OpTransactionValidator},
+    txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
 use alloy_primitives::Sealed;
 use op_alloy_consensus::{OpPooledTransaction, TxPostExec, interop::SafetyLevel};
@@ -17,7 +17,7 @@ use reth_network::{
     types::BasicNetworkPrimitives,
 };
 use reth_node_api::{
-    AddOnsContext, BuildNextEnv, EngineTypes, FullNodeComponents, HeaderTy, NodeAddOns,
+    AddOnsContext, BlockTy, BuildNextEnv, EngineTypes, FullNodeComponents, HeaderTy, NodeAddOns,
     NodePrimitives, PayloadAttributesBuilder, PayloadTypes, PrimitivesTy, TxTy,
 };
 use reth_node_builder::{
@@ -25,7 +25,6 @@ use reth_node_builder::{
     components::{
         BasicPayloadServiceBuilder, ComponentsBuilder, ConsensusBuilder, ExecutorBuilder,
         NetworkBuilder, PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
-        TxPoolBuilder,
     },
     node::{FullNodeTypes, NodeTypes},
     rpc::{
@@ -64,8 +63,9 @@ use reth_rpc_api::{
 use reth_rpc_server_types::RethRpcModule;
 use reth_tracing::tracing::{debug, info};
 use reth_transaction_pool::{
-    EthPoolTransaction, PoolPooledTx, PoolTransaction, TransactionPool,
-    TransactionValidationTaskExecutor, blobstore::DiskFileBlobStore,
+    CoinbaseTipOrdering, EthPoolTransaction, PoolPooledTx, PoolTransaction, TransactionOrdering,
+    TransactionPool, TransactionValidationTaskExecutor, TransactionValidator,
+    blobstore::DiskFileBlobStore,
 };
 use reth_trie_common::KeccakKeyHasher;
 use std::{marker::PhantomData, sync::Arc};
@@ -1073,12 +1073,54 @@ where
     }
 }
 
+/// Wraps the [`OpTransactionValidator`] built by [`OpPoolBuilder`] into the final validator used by
+/// the pool.
+///
+/// This is the seam that lets a downstream builder inject additional validation behavior (for
+/// example, admission control that rejects transactions before they enter the mempool) without
+/// forking pool construction. The default, [`IdentityValidatorWrapper`], returns the
+/// [`OpTransactionValidator`] unchanged, so the default pool behaves exactly as before.
+pub trait OpValidatorWrapper<Provider, T, Evm>: Send {
+    /// The validator produced after wrapping.
+    type Validator: TransactionValidator;
+
+    /// Wrap the built [`OpTransactionValidator`] into the final validator.
+    fn wrap(
+        self,
+        validator: OpTransactionValidator<Provider, T, Evm>,
+        provider: Provider,
+    ) -> Self::Validator;
+}
+
+/// The default [`OpValidatorWrapper`]: returns the [`OpTransactionValidator`] unchanged.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct IdentityValidatorWrapper;
+
+impl<Provider, T, Evm> OpValidatorWrapper<Provider, T, Evm> for IdentityValidatorWrapper
+where
+    OpTransactionValidator<Provider, T, Evm>: TransactionValidator,
+{
+    type Validator = OpTransactionValidator<Provider, T, Evm>;
+
+    fn wrap(
+        self,
+        validator: OpTransactionValidator<Provider, T, Evm>,
+        _provider: Provider,
+    ) -> Self::Validator {
+        validator
+    }
+}
+
 /// A basic optimism transaction pool.
 ///
 /// This contains various settings that can be configured and take precedence over the node's
 /// config.
 #[derive(Debug)]
-pub struct OpPoolBuilder<T = crate::txpool::OpPooledTransaction> {
+pub struct OpPoolBuilder<
+    T = crate::txpool::OpPooledTransaction,
+    O = CoinbaseTipOrdering<T>,
+    W = IdentityValidatorWrapper,
+> {
     /// Enforced overrides that are applied to the pool config.
     pub pool_config_overrides: PoolBuilderConfigOverrides,
     /// Enable transaction conditionals.
@@ -1093,6 +1135,10 @@ pub struct OpPoolBuilder<T = crate::txpool::OpPooledTransaction> {
     pub interop_safety_level: SafetyLevel,
     /// Shared interop failsafe gate, passed to the interop filter client this builder constructs.
     pub interop_failsafe: InteropFailsafe,
+    /// The transaction ordering used by the pool.
+    pub ordering: O,
+    /// The validator wrapper applied to the built [`OpTransactionValidator`].
+    pub validator_wrapper: W,
     /// Marker for the pooled transaction type.
     _pd: core::marker::PhantomData<T>,
 }
@@ -1106,12 +1152,14 @@ impl<T> Default for OpPoolBuilder<T> {
             interop_min_responses: None,
             interop_safety_level: SafetyLevel::CrossUnsafe,
             interop_failsafe: InteropFailsafe::default(),
+            ordering: CoinbaseTipOrdering::default(),
+            validator_wrapper: IdentityValidatorWrapper,
             _pd: Default::default(),
         }
     }
 }
 
-impl<T> Clone for OpPoolBuilder<T> {
+impl<T, O: Clone, W: Clone> Clone for OpPoolBuilder<T, O, W> {
     fn clone(&self) -> Self {
         Self {
             pool_config_overrides: self.pool_config_overrides.clone(),
@@ -1120,12 +1168,14 @@ impl<T> Clone for OpPoolBuilder<T> {
             interop_min_responses: self.interop_min_responses,
             interop_safety_level: self.interop_safety_level,
             interop_failsafe: self.interop_failsafe.clone(),
+            ordering: self.ordering.clone(),
+            validator_wrapper: self.validator_wrapper.clone(),
             _pd: core::marker::PhantomData,
         }
     }
 }
 
-impl<T> OpPoolBuilder<T> {
+impl<T, O, W> OpPoolBuilder<T, O, W> {
     /// Sets the `enable_tx_conditional` flag on the pool builder.
     pub const fn with_enable_tx_conditional(mut self, enable_tx_conditional: bool) -> Self {
         self.enable_tx_conditional = enable_tx_conditional;
@@ -1161,22 +1211,61 @@ impl<T> OpPoolBuilder<T> {
         self.interop_failsafe = interop_failsafe;
         self
     }
+
+    /// Sets a custom transaction ordering for the pool, replacing the default
+    /// [`CoinbaseTipOrdering`].
+    pub fn with_ordering<NewO>(self, ordering: NewO) -> OpPoolBuilder<T, NewO, W> {
+        OpPoolBuilder {
+            pool_config_overrides: self.pool_config_overrides,
+            enable_tx_conditional: self.enable_tx_conditional,
+            interop_endpoints: self.interop_endpoints,
+            interop_min_responses: self.interop_min_responses,
+            interop_safety_level: self.interop_safety_level,
+            interop_failsafe: self.interop_failsafe,
+            ordering,
+            validator_wrapper: self.validator_wrapper,
+            _pd: core::marker::PhantomData,
+        }
+    }
+
+    /// Sets a custom validator wrapper, replacing the default [`IdentityValidatorWrapper`]. The
+    /// wrapper receives the built [`OpTransactionValidator`] and returns the final validator used
+    /// by the pool.
+    pub fn with_validator_wrapper<NewW>(
+        self,
+        validator_wrapper: NewW,
+    ) -> OpPoolBuilder<T, O, NewW> {
+        OpPoolBuilder {
+            pool_config_overrides: self.pool_config_overrides,
+            enable_tx_conditional: self.enable_tx_conditional,
+            interop_endpoints: self.interop_endpoints,
+            interop_min_responses: self.interop_min_responses,
+            interop_safety_level: self.interop_safety_level,
+            interop_failsafe: self.interop_failsafe,
+            ordering: self.ordering,
+            validator_wrapper,
+            _pd: core::marker::PhantomData,
+        }
+    }
 }
 
-impl<Node, T, Evm> PoolBuilder<Node, Evm> for OpPoolBuilder<T>
+impl<Node, T, O, W, Evm> PoolBuilder<Node, Evm> for OpPoolBuilder<T, O, W>
 where
     Node: FullNodeTypes<Types: NodeTypes<ChainSpec: OpHardforks>>,
     T: EthPoolTransaction<Consensus = TxTy<Node::Types>> + OpPooledTx,
     Evm: ConfigureEvm<Primitives = PrimitivesTy<Node::Types>> + Clone + 'static,
+    O: TransactionOrdering<Transaction = T> + 'static,
+    W: OpValidatorWrapper<Node::Provider, T, Evm>,
+    W::Validator: TransactionValidator<Transaction = T, Block = BlockTy<Node::Types>> + 'static,
 {
-    type Pool = OpTransactionPool<Node::Provider, DiskFileBlobStore, Evm, T>;
+    type Pool = OpCustomTransactionPool<DiskFileBlobStore, W::Validator, O>;
 
     async fn build_pool(
         self,
         ctx: &BuilderContext<Node>,
         evm_config: Evm,
     ) -> eyre::Result<Self::Pool> {
-        let Self { pool_config_overrides, .. } = self;
+        let Self { pool_config_overrides, ordering, validator_wrapper, .. } = self;
 
         // Interop filter used for txpool validation.
         let interop_client = if self.interop_endpoints.is_empty() {
@@ -1221,23 +1310,43 @@ where
                         .unwrap_or_else(|| ctx.config().txpool.additional_validation_tasks),
                 )
                 .build_with_tasks(ctx.task_executor().clone(), blob_store.clone())
-                .map(|validator| {
-                    let v = OpTransactionValidator::new(validator)
-                        // In --dev mode we can't require gas fees because we're unable to decode
-                        // the L1 block info
-                        .require_l1_data_gas_fee(!ctx.config().dev.dev);
-                    if let Some(client) = interop_client.clone() {
-                        v.with_interop(client)
-                    } else {
-                        v
+                .map({
+                    // `map` invokes this closure exactly once, but its bound is `FnMut`, so the
+                    // moved-in wrapper is taken out of an `Option` on the single call.
+                    let mut validator_wrapper = Some(validator_wrapper);
+                    let interop_client = interop_client.clone();
+                    move |validator| {
+                        let v = OpTransactionValidator::new(validator)
+                            // In --dev mode we can't require gas fees because we're unable to
+                            // decode the L1 block info
+                            .require_l1_data_gas_fee(!ctx.config().dev.dev);
+                        let op_validator = if let Some(client) = interop_client.clone() {
+                            v.with_interop(client)
+                        } else {
+                            v
+                        };
+                        // Apply the validator wrapper. The default identity wrapper returns the
+                        // OpTransactionValidator unchanged, so the standard pool is unaffected.
+                        validator_wrapper
+                            .take()
+                            .expect("validator wrapper is applied exactly once")
+                            .wrap(op_validator, ctx.provider().clone())
                     }
                 });
 
         let final_pool_config = pool_config_overrides.apply(ctx.pool_config());
 
-        let inner_pool = TxPoolBuilder::new(ctx)
-            .with_validator(validator)
-            .build(blob_store, final_pool_config.clone());
+        // Construct the inner pool directly so the custom ordering can be threaded through. This
+        // duplicates the body of `TxPoolBuilder::build` (which hardcodes `CoinbaseTipOrdering` and
+        // deliberately does not spawn maintenance, so the pool can be wrapped in `OpPool` first).
+        // We inline it only to substitute the ordering; the surrounding interop/failsafe/
+        // maintenance wiring still calls op-reth's own code unchanged.
+        let inner_pool = reth_transaction_pool::Pool::new(
+            validator,
+            ordering,
+            blob_store,
+            final_pool_config.clone(),
+        );
 
         // Enable the interop filter on reorg whenever interop is scheduled or already active
         let interop_filter_enabled =
