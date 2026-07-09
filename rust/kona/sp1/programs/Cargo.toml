@@ -118,6 +118,7 @@ too_long_first_doc_paragraph = "allow"
 [workspace.dependencies]
 # Guest path dependencies. Paths are relative to rust/kona/sp1/programs.
 kona-proof = { path = "../../crates/proof/proof", version = "0.3.0", default-features = false }
+kona-proof-interop = { path = "../../crates/proof/proof-interop", version = "0.2.0", default-features = false }
 kona-preimage = { path = "../../crates/proof/preimage", version = "0.3.0", default-features = false }
 kona-interop = { path = "../../crates/protocol/interop", version = "0.4.5", default-features = false }
 kona-genesis = { path = "../../crates/protocol/genesis", version = "0.4.5", default-features = false }
@@ -136,6 +137,7 @@ alloy-chains = { version = "0.2.33", default-features = false }
 alloy-sol-types = { version = "1.6.0", default-features = false }
 alloy-consensus = { version = "2.0.5", default-features = false }
 alloy-rlp = { version = "0.3.13", default-features = false }
+alloy-op-evm = { version = "0.32.0", path = "../../../alloy-op-evm", default-features = false }
 sp1-lib = { version = "6.2.4", features = ["verify"] }
 sp1-zkvm = { version = "6.2.4", features = ["verify"] }
 sha2 = { version = "0.10.9", default-features = false }

@@ -29,8 +29,10 @@ spin.workspace = true
 # alloy
 alloy-chains.workspace = true
 alloy-consensus.workspace = true
+alloy-op-evm.workspace = true
 alloy-primitives.workspace = true
 alloy-rlp.workspace = true
+revm.workspace = true
 
 [lints]
 workspace = true
