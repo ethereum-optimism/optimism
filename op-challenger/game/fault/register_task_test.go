@@ -3,10 +3,14 @@ package fault
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/registry"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -20,6 +24,32 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCannonRegisterTask_BottomPrestateProvider(t *testing.T) {
+	// A base URL that never resolves a prestate, matching a challenger configured with --prestates-url
+	// where the (placeholder) prestate for a permissioned game is not published.
+	baseURL, err := url.Parse("file:///nonexistent-prestates/")
+	require.NoError(t, err)
+	cfg := &config.Config{
+		Datadir:                       t.TempDir(),
+		Cannon:                        vm.Config{VmType: gameTypes.CannonGameType},
+		CannonAbsolutePreStateBaseURL: baseURL,
+	}
+	requiredPrestate := common.Hash{0xaa}
+
+	t.Run("permissioned game tolerates missing prestate", func(t *testing.T) {
+		task := NewCannonRegisterTask(gameTypes.PermissionedGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+		provider, err := task.getBottomPrestateProvider(context.Background(), requiredPrestate)
+		require.NoError(t, err)
+		require.NotNil(t, provider)
+	})
+
+	t.Run("cannon game requires prestate", func(t *testing.T) {
+		task := NewCannonRegisterTask(gameTypes.CannonGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+		_, err := task.getBottomPrestateProvider(context.Background(), requiredPrestate)
+		require.ErrorIs(t, err, prestates.ErrPrestateUnavailable)
+	})
+}
 
 func TestRegisterOracle_MissingGameImpl(t *testing.T) {
 	// Test versions with and without game args support

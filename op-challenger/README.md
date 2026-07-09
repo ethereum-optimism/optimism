@@ -55,7 +55,10 @@ below can then be used to create and interact with games.
 proofs. The `permissioned` game type (configured via the `--cannon-*` flags)
 is played only by trusted actors and resolves at the output-root level without
 ever reaching `step()`, so it does not run a fault-proof program and its server
-binary may be omitted when only the `permissioned` game type is configured.
+binary may be omitted when only the `permissioned` game type is configured. For
+the same reason the absolute prestate is never used, so a permissioned game is
+still resolved even when its (often placeholder) prestate cannot be found via
+`--prestates-url`.
 
 #### Devnet Management Commands
 

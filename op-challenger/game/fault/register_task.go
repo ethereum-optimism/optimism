@@ -2,6 +2,7 @@ package fault
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -122,26 +123,34 @@ func newCannonVMRegisterTaskWithConfig(
 	preState string,
 ) *RegisterTask {
 	stateConverter := cannon.NewStateConverter(cfg.Cannon)
+	// Don't validate the absolute prestate or genesis output root for permissioned games
+	// Only trusted actors participate in these games so they aren't expected to reach the step() call and
+	// are often configured without valid prestates but the challenger should still resolve the games.
+	skipPrestateValidation := gameType == gameTypes.PermissionedGameType
+	getBottomPrestateProvider := cachePrestates(
+		gameType,
+		stateConverter,
+		m,
+		preStateBaseURL,
+		preState,
+		filepath.Join(cfg.Datadir, vmCfg.VmType.String()+"-prestates"),
+		func(ctx context.Context, path string) faultTypes.PrestateProvider {
+			return vm.NewPrestateProvider(path, stateConverter)
+		})
+	if skipPrestateValidation {
+		// Permissioned games never reach step() so their VM prestate is never actually used. Since they
+		// are often configured with a placeholder prestate that isn't published (e.g. when using
+		// --prestates-url), fall back to an empty placeholder provider rather than failing to resolve the game.
+		getBottomPrestateProvider = tolerateMissingPrestate(getBottomPrestateProvider, stateConverter)
+	}
 	return &RegisterTask{
-		gameType:      gameType,
-		syncValidator: syncValidator,
-		// Don't validate the absolute prestate or genesis output root for permissioned games
-		// Only trusted actors participate in these games so they aren't expected to reach the step() call and
-		// are often configured without valid prestates but the challenger should still resolve the games.
-		skipPrestateValidation: gameType == gameTypes.PermissionedGameType,
+		gameType:               gameType,
+		syncValidator:          syncValidator,
+		skipPrestateValidation: skipPrestateValidation,
 		getTopPrestateProvider: func(ctx context.Context, prestateBlock uint64) (faultTypes.PrestateProvider, error) {
 			return outputs.NewPrestateProvider(rollupClient, prestateBlock), nil
 		},
-		getBottomPrestateProvider: cachePrestates(
-			gameType,
-			stateConverter,
-			m,
-			preStateBaseURL,
-			preState,
-			filepath.Join(cfg.Datadir, vmCfg.VmType.String()+"-prestates"),
-			func(ctx context.Context, path string) faultTypes.PrestateProvider {
-				return vm.NewPrestateProvider(path, stateConverter)
-			}),
+		getBottomPrestateProvider: getBottomPrestateProvider,
 		newTraceAccessor: func(
 			logger log.Logger,
 			m metrics.Metricer,
@@ -202,6 +211,22 @@ func cachePrestates(
 			return newPrestateProvider(ctx, prestatePath), nil
 		})
 	return prestateProviderCache.GetOrCreate
+}
+
+// tolerateMissingPrestate wraps a bottom prestate provider so that an unavailable prestate is not fatal.
+// The returned provider yields an empty placeholder when the source can't find the prestate, which is safe
+// for game types that never reach step() and so never use the VM prestate (i.e. permissioned games).
+func tolerateMissingPrestate(
+	source func(ctx context.Context, prestateHash common.Hash) (faultTypes.PrestateProvider, error),
+	stateConverter vm.StateConverter,
+) func(ctx context.Context, prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
+	return func(ctx context.Context, prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
+		provider, err := source(ctx, prestateHash)
+		if errors.Is(err, prestates.ErrPrestateUnavailable) {
+			return vm.NewPrestateProvider("", stateConverter), nil
+		}
+		return provider, err
+	}
 }
 
 func (e *RegisterTask) Register(
