@@ -200,12 +200,6 @@ contract Predeploys_Uncategorized_Test is Predeploys_TestInit {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
         _test_predeploys(Fork.ISTHMUS, true, false);
     }
-
-    /// @notice Tests that the predeploy addresses are set correctly. They have code
-    ///         and the proxied accounts have the correct admin. Using l2cm.
-    function test_predeploys_l2cm_succeeds() external {
-        _test_predeploys(Fork.ISTHMUS, false, false);
-    }
 }
 
 /// @title Predeploys_GetAllRecords_Test

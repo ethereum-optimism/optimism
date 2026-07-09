@@ -32,6 +32,8 @@ library DevFeatures {
     bytes32 public constant OPTIMISM_PORTAL_INTEROP =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000001);
 
+    // Bit 0x10 is retired (formerly CANNON_KONA, now unconditionally enabled).
+
     /// @notice The feature that enables deployment of V2 dispute game contracts.
     /// @custom:legacy
     /// This feature is no longer used, but is kept here for legacy reasons.
