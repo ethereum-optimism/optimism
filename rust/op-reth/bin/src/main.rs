@@ -48,7 +48,7 @@ fn main() {
         extra_data: Cow::Owned(String::new()), // Governed by the protocol on L2.
     });
     if result.is_err() {
-        eprintln!("Error: build info is already embedded. This a bug.")
+        eprintln!("Error: build info is already embedded. This is a bug.")
     }
 
     if let Err(err) =
