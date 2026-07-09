@@ -4,16 +4,32 @@ description: Reference for the OP Stack rollup deployment configuration values.
 diataxis: reference
 ---
 
-This page is the reference for the deployment configuration values used to deploy an OP Stack chain.
-These values are supplied in the deployment configuration JSON file and set the L1 contract parameters and the L2 genesis state.
-Each entry lists its type, default, recommended value, and standard-configuration requirement.
+This page is the reference for the values in the `DeployConfig` — the flat JSON
+configuration that sets the L1 contract parameters and the L2 genesis state when
+an OP Stack chain is deployed. Each entry lists its type, default, recommended
+value, and standard-configuration requirement.
+
+<Info>
+  **The recommended way to deploy an OP Stack chain is [OP Deployer](/chain-operators/tools/op-deployer/overview).**
+  OP Deployer takes a declarative [intent file](/chain-operators/tools/op-deployer/usage/init) (`intent.toml`)
+  rather than a hand-written `DeployConfig` JSON, and derives the `DeployConfig`
+  documented here from that intent as part of its deployment pipeline. Most chain
+  operators set the intent file and never edit a `DeployConfig` directly.
+
+  This page documents the underlying `DeployConfig` surface: the exhaustive set of
+  values a deployment ultimately resolves to. Use it to understand what an intent
+  setting maps to, to interpret the `DeployConfig` that OP Deployer can emit for an
+  applied deployment (via `op-deployer inspect deploy-config`), or as background for
+  the lower-level [custom deployments](/chain-operators/tools/op-deployer/reference/custom-deployments)
+  OP Deployer also supports.
+</Info>
 
 The authoritative source for these values is the `DeployConfig` struct in [`op-chain-ops/genesis/config.go`](https://github.com/ethereum-optimism/optimism/blob/b003efacdbdf197744ded0e83630ddf82c458c30/op-chain-ops/genesis/config.go).
 The JSON key for each value is the `json:"..."` tag on the corresponding field there; when a value on this page and the source disagree, the source wins.
 
 <Info>
   Deploy-config values are largely immutable after a chain is deployed, so this page targets the values you set at genesis.
-  The output-oracle proposal fields (the `l2OutputOracle*` values) describe the legacy `L2OutputOracle` proposal system; chains using [permissionless fault proofs](/op-stack/fault-proofs/explainer) set the fault-proof deployment values instead. [TODO: needs source] Confirm the current fault-proof deploy-config fields (`FaultProofDeployConfig` in `op-chain-ops/genesis/config.go`) that should replace the `l2OutputOracle*` proposal fields for fault-proof chains before publishing.
+  The output-oracle proposal fields (the [`l2OutputOracle*` values](#proposal-fields)) describe the legacy `L2OutputOracle` proposal system and apply only to chains still on that system. Chains using [permissionless fault proofs](/op-stack/fault-proofs/explainer) — the standard configuration for new OP Stack chains — set the [fault-proof deployment values](#fault-proofs) instead: `useFaultProofs` together with the `faultGame*`, `preimageOracle*`, `proofMaturityDelaySeconds`, `disputeGameFinalityDelaySeconds`, and `respectedGameType` fields documented in the [Fault proofs](#fault-proofs) section below.
 </Info>
 
 <Info>
@@ -562,9 +578,12 @@ The `minBaseFee` is an absolute minimum expressed in wei.
 
 ### Proposal fields
 
-These fields apply to output root proposals. The
-l2OutputOracleSubmissionInterval is configurable, see the section below for
-guidance.
+These `l2OutputOracle*` fields configure the legacy `L2OutputOracle` proposal
+system and apply only to chains still on that system. Chains using
+[permissionless fault proofs](/op-stack/fault-proofs/explainer) — the standard
+configuration for new chains — set the [Fault proofs](#fault-proofs) fields
+instead. The `l2OutputOracleSubmissionInterval` is configurable; see the entry
+below for guidance.
 
 #### l2OutputOracleStartingBlockNumber
 

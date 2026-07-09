@@ -988,7 +988,11 @@
     },
     {
       "source": "/operators/chain-operators/configuration/rollup",
-      "destination": "/chain-operators/guides/configuration/rollup"
+      "destination": "/chain-operators/reference/rollup-deployment-configuration"
+    },
+    {
+      "source": "/chain-operators/guides/configuration/rollup",
+      "destination": "/chain-operators/reference/rollup-deployment-configuration"
     },
     {
       "source": "/operators/chain-operators/deploy",
@@ -1894,7 +1898,6 @@
                   "chain-operators/guides/configuration/getting-started",
                   "chain-operators/guides/configuration/batcher",
                   "chain-operators/guides/configuration/proposer",
-                  "chain-operators/guides/configuration/rollup",
                   "chain-operators/guides/configuration/op-challenger-config-guide"
                 ]
               },
@@ -2009,6 +2012,7 @@
             "pages": [
               "chain-operators/reference/architecture",
               "chain-operators/reference/opcm",
+              "chain-operators/reference/rollup-deployment-configuration",
               "chain-operators/reference/standard-configuration"
             ]
           },
