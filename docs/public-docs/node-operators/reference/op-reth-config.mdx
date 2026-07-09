@@ -1678,6 +1678,10 @@ Derive dev accounts from a fixed mnemonic instead of random ones.
 
 Options for data pruning.
 
+<Warning>
+  On OP Stack nodes, prefer pruning only the state and receipt segments — `--prune.receipts.distance`, `--prune.account-history.distance`, `--prune.storage-history.distance`, and `--prune.minimum-distance` — and leave block bodies intact. Body pruning (`--minimal`, or `--prune.bodies.distance`) is unsupported and advised against; if you enable it anyway, `--prune.bodies.distance` must always exceed op-node's `--syncmode.offset-el-safe` (in blocks), or execution-layer sync fails with `l2 block is missing L1 info deposit tx`. See [Pruning op-reth](/node-operators/guides/management/archive-node#pruning-op-reth).
+</Warning>
+
 ### full
 
 Run full node. Only the most recent [`MINIMUM_UNWIND_SAFE_DISTANCE`] block states are stored

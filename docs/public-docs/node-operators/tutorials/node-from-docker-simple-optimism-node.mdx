@@ -4,7 +4,7 @@ description: Run an OP Stack node via the simple-optimism-node Docker wrapper. R
 ---
 
 <Warning>
-  **op-geth reaches end-of-support on 2026-05-31 and will not support the L1 Glamsterdam hardfork.** `simple-optimism-node` currently defaults to op-geth and does not yet support op-reth. For new deployments, use the [direct docker-compose tutorial](/node-operators/tutorials/node-from-docker), which runs the official op-reth + op-node images. This page is retained for operators already using simple-optimism-node and its bundled Grafana dashboard. See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the full migration plan.
+  **op-geth has reached end-of-support (2026-05-31) and does not support the now-active Karst hardfork, so op-geth nodes can no longer follow the canonical chain.** `simple-optimism-node` currently defaults to op-geth and does not yet support op-reth. For new deployments, use the [direct docker-compose tutorial](/node-operators/tutorials/node-from-docker), which runs the official op-reth + op-node images. This page is retained for operators already using simple-optimism-node and its bundled Grafana dashboard. See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the full migration plan.
 </Warning>
 
 This page walks through using [`simple-optimism-node`](https://github.com/smartcontracts/simple-optimism-node), a community-maintained Docker wrapper that bundles an OP Stack node together with monitoring (Grafana) and health checks.
