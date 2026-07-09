@@ -25,7 +25,8 @@ use spin::RwLock;
 use tracing::info;
 
 use crate::{
-    client::{advance_to_target, fetch_safe_head_hash},
+    client::fetch_safe_head_hash,
+    metrics::CycleTrackerDriverMetrics,
     precompiles::{CustomCrypto, ZkvmOpEvmFactory},
 };
 
@@ -174,15 +175,18 @@ pub trait WitnessExecutor {
         // Run the derivation pipeline until we are able to produce the output root of the claimed
         // L2 block.
 
-        // Use custom advance to target with cycle tracking.
+        // Derive to the claimed L2 block using kona-driver's shared derivation loop, feeding the
+        // SP1 cycle-tracker collector so the per-phase (derivation / execution) cost breakdown is
+        // reported to the host.
         #[cfg(target_os = "zkvm")]
         println!("cycle-tracker-report-start: block-execution-and-derivation");
-        let (safe_head, output_root) = advance_to_target(
-            &mut driver,
-            rollup_config.as_ref(),
-            Some(boot.claimed_l2_block_number),
-        )
-        .await?;
+        let (safe_head, output_root) = driver
+            .advance_to_target_with_metrics(
+                rollup_config.as_ref(),
+                Some(boot.claimed_l2_block_number),
+                &CycleTrackerDriverMetrics,
+            )
+            .await?;
         #[cfg(target_os = "zkvm")]
         println!("cycle-tracker-report-end: block-execution-and-derivation");
 

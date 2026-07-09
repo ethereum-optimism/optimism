@@ -1,6 +1,9 @@
 //! The driver of the kona derivation pipeline.
 
-use crate::{DriverError, DriverPipeline, DriverResult, Executor, PipelineCursor, TipCursor};
+use crate::{
+    DriverError, DriverMetrics, DriverPhase, DriverPipeline, DriverResult, Executor,
+    NoopDriverMetrics, PipelineCursor, TipCursor,
+};
 use alloc::{sync::Arc, vec::Vec};
 use alloy_consensus::BlockBody;
 use alloy_primitives::{B256, Bytes};
@@ -213,8 +216,32 @@ where
     pub async fn advance_to_target(
         &mut self,
         cfg: &RollupConfig,
-        mut target: Option<u64>,
+        target: Option<u64>,
     ) -> DriverResult<(L2BlockInfo, B256), E::Error> {
+        self.advance_to_target_with_metrics(cfg, target, &NoopDriverMetrics).await
+    }
+
+    /// Advances the derivation pipeline to the target block number, reporting per-phase progress
+    /// to the provided [`DriverMetrics`] collector.
+    ///
+    /// This is the instrumented form of [`Self::advance_to_target`]. Each loop iteration reports
+    /// [`DriverPhase::PayloadDerivation`] around payload production and
+    /// [`DriverPhase::BlockExecution`] around block execution (including any Holocene deposit-only
+    /// retry). Iterations that reach the target, exhaust the data source, or discard a block may
+    /// report a [`DriverMetrics::phase_start`] without a matching [`DriverMetrics::phase_end`]; see
+    /// the [`DriverMetrics`] contract for details.
+    ///
+    /// See [`Self::advance_to_target`] for the full description of arguments, return value, and
+    /// error behavior.
+    pub async fn advance_to_target_with_metrics<M>(
+        &mut self,
+        cfg: &RollupConfig,
+        mut target: Option<u64>,
+        metrics: &M,
+    ) -> DriverResult<(L2BlockInfo, B256), E::Error>
+    where
+        M: DriverMetrics + Sync,
+    {
         loop {
             // Check if we have reached the target block number.
             let pipeline_cursor = self.cursor.read();
@@ -226,6 +253,7 @@ where
                 return Ok((tip_cursor.l2_safe_head, tip_cursor.l2_safe_head_output_root));
             }
 
+            metrics.phase_start(DriverPhase::PayloadDerivation);
             let mut attributes = match self.pipeline.produce_payload(tip_cursor.l2_safe_head).await
             {
                 Ok(attrs) => attrs.take_inner(),
@@ -251,8 +279,11 @@ where
                     return Err(DriverError::Pipeline(e));
                 }
             };
+            metrics.phase_end(DriverPhase::PayloadDerivation);
 
             self.executor.update_safe_head(tip_cursor.l2_safe_head_header.clone());
+
+            metrics.phase_start(DriverPhase::BlockExecution);
             let outcome = match self.executor.execute_payload(attributes.clone()).await {
                 Ok(outcome) => outcome,
                 Err(e) => {
@@ -293,6 +324,7 @@ where
                     }
                 }
             };
+            metrics.phase_end(DriverPhase::BlockExecution);
 
             // Construct the block.
             let block = OpBlock {
