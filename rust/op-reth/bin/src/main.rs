@@ -28,7 +28,7 @@ fn main() {
     // Install op-reth's own build metadata before clap reads it in `Cli::parse`.
     const CLIENT_NAME: &str = "op-reth";
     let info = op_version::build_info!();
-    if let Err(_) = try_init_version_metadata(RethCliVersionConsts {
+    let result = try_init_version_metadata(RethCliVersionConsts {
         name_client: Cow::Borrowed(CLIENT_NAME),
         cargo_pkg_version: Cow::Owned(info.version().to_string()),
         vergen_git_sha_long: Cow::Owned(info.commit_sha().to_string()),
@@ -46,7 +46,8 @@ fn main() {
             info.target_triple()
         )),
         extra_data: Cow::Owned(String::new()), // Governed by the protocol on L2.
-    }) {
+    });
+    if result.is_err() {
         eprintln!("Error: build info is already embedded. This a bug.")
     }
 

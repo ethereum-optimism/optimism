@@ -72,12 +72,12 @@ impl BuildInfo {
         &self.version
     }
 
-    /// The full commit SHA, or [`UNKNOWN`].
+    /// The full commit SHA.
     pub fn commit_sha(&self) -> &str {
         &self.commit_sha
     }
 
-    /// The build timestamp, or [`UNKNOWN`].
+    /// The build timestamp.
     pub fn build_timestamp(&self) -> &str {
         &self.build_timestamp
     }
@@ -87,7 +87,7 @@ impl BuildInfo {
         &self.cargo_features
     }
 
-    /// The build profile, or [`UNKNOWN`].
+    /// The build profile.
     pub fn build_profile(&self) -> &str {
         &self.build_profile
     }
