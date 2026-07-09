@@ -86,7 +86,7 @@ parameters:
   go-cache-version:
     type: string
     default: "v0.1"
-  # Workflow activation flags (set by the decision tree in config.yml)
+  # Workflow activation flags (set by compute-workflow-conditions.sh)
   c-run_main:
     type: boolean
     default: false
