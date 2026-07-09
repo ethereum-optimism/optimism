@@ -1781,6 +1781,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-proof-interop"
+version = "0.2.0"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-evm",
+ "alloy-op-evm",
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-rpc-types-engine",
+ "async-trait",
+ "kona-executor",
+ "kona-genesis",
+ "kona-interop",
+ "kona-mpt",
+ "kona-preimage",
+ "kona-proof",
+ "kona-protocol",
+ "kona-registry",
+ "op-alloy-consensus",
+ "op-alloy-rpc-types-engine",
+ "op-revm",
+ "revm",
+ "serde",
+ "serde_json",
+ "spin 0.10.0",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "kona-protocol"
 version = "0.4.5"
 dependencies = [
@@ -1881,6 +1912,10 @@ dependencies = [
 name = "kona-sp1-ethereum-client-utils"
 version = "0.0.1"
 dependencies = [
+ "alloy-chains",
+ "alloy-consensus",
+ "alloy-primitives",
+ "alloy-rlp",
  "anyhow",
  "async-trait",
  "kona-derive",
@@ -1890,7 +1925,10 @@ dependencies = [
  "kona-interop",
  "kona-preimage",
  "kona-proof",
+ "kona-proof-interop",
+ "kona-registry",
  "kona-sp1-client-utils",
+ "serde_json",
  "spin 0.10.0",
 ]
 
@@ -1924,21 +1962,11 @@ dependencies = [
 name = "kona-sp1-super-range"
 version = "0.0.1"
 dependencies = [
- "alloy-chains",
- "alloy-consensus",
- "alloy-primitives",
- "alloy-rlp",
  "anyhow",
- "kona-genesis",
- "kona-interop",
- "kona-preimage",
  "kona-proof",
- "kona-registry",
  "kona-sp1-client-utils",
  "kona-sp1-ethereum-client-utils",
- "revm",
  "rkyv",
- "serde_json",
  "sp1-zkvm",
 ]
 

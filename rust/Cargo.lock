@@ -7750,6 +7750,10 @@ version = "0.0.1"
 name = "kona-sp1-ethereum-client-utils"
 version = "0.0.1"
 dependencies = [
+ "alloy-chains",
+ "alloy-consensus 2.0.5",
+ "alloy-primitives",
+ "alloy-rlp",
  "anyhow",
  "async-trait",
  "kona-derive",
@@ -7759,7 +7763,10 @@ dependencies = [
  "kona-interop",
  "kona-preimage",
  "kona-proof",
+ "kona-proof-interop",
+ "kona-registry",
  "kona-sp1-client-utils",
+ "serde_json",
  "spin 0.10.0",
 ]
 
