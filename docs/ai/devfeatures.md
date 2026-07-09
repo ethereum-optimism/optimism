@@ -126,7 +126,6 @@ So: hardfork is the network-wide "go" signal; bitmap is the per-chain "is this f
 ## G. Lifecycle direction
 
 - L2CM remains **default-on** (#20439): `IsDevFeatureEnabled` / `isDevFeatureEnabled` return `true` for it regardless of the bitmap.
-- The former CannonKona DevFeatures bitmap toggle has been removed. Do not confuse that removed toggle with the still-valid `GameTypes.CANNON_KONA` and `GameTypes.SUPER_CANNON_KONA` dispute game types.
 
 ## File index
 
