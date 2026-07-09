@@ -23,8 +23,7 @@ var (
 	// OptimismPortalInteropFlag enables interop features in OptimismPortal2.
 	OptimismPortalInteropFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 
-	// CannonKonaFlag enables Kona as the default cannon prover.
-	CannonKonaFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000010")
+	// Hash 0x10 is retired (formerly CannonKonaFlag, now unconditionally enabled).
 
 	// DeployV2DisputeGamesFlag enables deployment of V2 dispute game contracts.
 	DeployV2DisputeGamesFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100")
@@ -43,10 +42,6 @@ var (
 // It performs a bitwise AND between the bitmap and flag to determine if the feature
 // is set. This follows the same pattern as the Solidity DevFeatures library.
 func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
-	// CannonKona is enabled by default. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
-	if hasFlag(flag, CannonKonaFlag) {
-		return true
-	}
 	b := new(big.Int).SetBytes(bitmap[:])
 	f := new(big.Int).SetBytes(flag[:])
 
