@@ -289,7 +289,9 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         v2UpgradeInput.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: _permissionlessGameInitBondForUpgrade(GameTypes.CANNON_KONA),
+                initBond: DisputeGames.permissionlessGameInitBondForUpgrade(
+                    disputeGameFactory, GameTypes.CANNON_KONA, DEFAULT_DISPUTE_GAME_INIT_BOND
+                ),
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
@@ -336,15 +338,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") })
         );
-    }
-
-    /// @notice Returns the permissionless game init bond to use in upgrade inputs.
-    /// @dev Uses the live bond when present, otherwise falls back to a valid nonzero default.
-    /// @param _gameType Game type to check.
-    /// @return The init bond to use for the upgrade config.
-    function _permissionlessGameInitBondForUpgrade(GameType _gameType) internal view returns (uint256) {
-        uint256 initBond = disputeGameFactory.initBonds(_gameType);
-        return initBond == 0 ? DEFAULT_DISPUTE_GAME_INIT_BOND : initBond;
     }
 
     /// @notice Helper function that runs an OPCM V2 upgrade, asserts that the upgrade was successful,
@@ -754,7 +747,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that repeatedly upgrading can enable a previously disabled game type.
     function test_upgrade_enableGameType_succeeds() public {
-        uint256 originalBond = _permissionlessGameInitBondForUpgrade(GameTypes.CANNON_KONA);
+        uint256 originalBond = DisputeGames.permissionlessGameInitBondForUpgrade(
+            disputeGameFactory, GameTypes.CANNON_KONA, DEFAULT_DISPUTE_GAME_INIT_BOND
+        );
 
         // First, disable CannonKona and clear its bond so the factory entry is removed.
         // CANNON_KONA is the respected game type, so we must override it to PERMISSIONED_CANNON

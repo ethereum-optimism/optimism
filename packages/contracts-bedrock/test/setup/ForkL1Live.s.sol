@@ -233,27 +233,6 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             || raw == GameTypes.SUPER_CANNON_KONA.raw();
     }
 
-    /// @notice Returns the permissionless game init bond to use in upgrade inputs. Uses the live
-    ///         bond when present, otherwise falls back to a valid nonzero default. A fork can have
-    ///         a stale nonzero bond for an unregistered game, so the impl check comes first.
-    /// @param _disputeGameFactory Dispute game factory used to inspect game config.
-    /// @param _gameType Game type to check.
-    /// @return The init bond to use for the upgrade config.
-    function _permissionlessGameInitBondForUpgrade(
-        IDisputeGameFactory _disputeGameFactory,
-        GameType _gameType
-    )
-        internal
-        view
-        returns (uint256)
-    {
-        if (address(_disputeGameFactory.gameImpls(_gameType)) == address(0)) {
-            return DEFAULT_PERMISSIONLESS_INIT_BOND;
-        }
-        uint256 initBond = _disputeGameFactory.initBonds(_gameType);
-        return initBond == 0 ? DEFAULT_PERMISSIONLESS_INIT_BOND : initBond;
-    }
-
     /// @notice Calls to the Deploy.s.sol contract etched by Setup.sol to a deterministic address, sets up the
     /// environment, and deploys new implementations.
     function _deployNewImplementations() internal {
@@ -388,8 +367,9 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             address proposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
             // Standard upgrade path: CANNON disabled, remaining legacy types enabled, super types disabled.
             // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
-            uint256 cannonKonaInitBond =
-                _permissionlessGameInitBondForUpgrade(disputeGameFactory, GameTypes.CANNON_KONA);
+            uint256 cannonKonaInitBond = DisputeGames.permissionlessGameInitBondForUpgrade(
+                disputeGameFactory, GameTypes.CANNON_KONA, DEFAULT_PERMISSIONLESS_INIT_BOND
+            );
 
             disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
