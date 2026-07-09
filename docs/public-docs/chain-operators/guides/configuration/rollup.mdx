@@ -1,16 +1,19 @@
 ---
 title: Rollup deployment configuration
-description: Learn about the OP Stack rollup deployment configurations.
+description: Reference for the OP Stack rollup deployment configuration values.
+diataxis: reference
 ---
 
-<Warning>
-    This documentation is out of date.
-</Warning>
+This page is the reference for the deployment configuration values used to deploy an OP Stack chain.
+These values are supplied in the deployment configuration JSON file and set the L1 contract parameters and the L2 genesis state.
+Each entry lists its type, default, recommended value, and standard-configuration requirement.
+
+The authoritative source for these values is the `DeployConfig` struct in [`op-chain-ops/genesis/config.go`](https://github.com/ethereum-optimism/optimism/blob/b003efacdbdf197744ded0e83630ddf82c458c30/op-chain-ops/genesis/config.go).
+The JSON key for each value is the `json:"..."` tag on the corresponding field there; when a value on this page and the source disagree, the source wins.
 
 <Info>
-  The Rollup configuration is an active work in progress and will likely evolve
-  significantly as time goes on. If something isn't working about your
-  configuration, you can refer to the [source code](https://github.com/ethereum-optimism/optimism/blob/develop/op-chain-ops/genesis/config.go).
+  Deploy-config values are largely immutable after a chain is deployed, so this page targets the values you set at genesis.
+  The output-oracle proposal fields (the `l2OutputOracle*` values) describe the legacy `L2OutputOracle` proposal system; chains using [permissionless fault proofs](/op-stack/fault-proofs/explainer) set the fault-proof deployment values instead. [TODO: needs source] Confirm the current fault-proof deploy-config fields (`FaultProofDeployConfig` in `op-chain-ops/genesis/config.go`) that should replace the `l2OutputOracle*` proposal fields for fault-proof chains before publishing.
 </Info>
 
 <Info>
@@ -23,7 +26,7 @@ description: Learn about the OP Stack rollup deployment configurations.
 
 ## Deployment configuration values
 
-These values are provided to the deployment configuration JSON file when 
+These values are provided to the deployment configuration JSON file when
 deploying the L1 contracts.
 
 ### Offset values
