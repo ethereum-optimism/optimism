@@ -7,9 +7,9 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod cli;
+pub mod cli_metrics;
 pub mod commands;
 pub mod flags;
-pub mod metrics;
 
 pub(crate) mod version;
 
