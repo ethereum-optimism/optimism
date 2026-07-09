@@ -10,7 +10,7 @@ The Flashblocks setup involves three main components:
 
 *   **`rollup-boost`**: Coordination layer with Flashblocks enabled
 *   **`op-rbuilder`**: Execution client and builder with Flashblocks support
-*   **`op-geth`**: Fallback builder, a standard EL node (can be `op-reth` as well)
+*   **`op-reth`**: Fallback builder, a standard EL node
 
 Flashblocks are streamed from the `op-rbuilder` to `rollup-boost` over WebSockets, minimizing latency between the sequencer and the pre-confirmed state.
 
@@ -21,13 +21,13 @@ For full details on design choices, data structures, and invariants, see the [Fl
 Flashblocks relies on several components working together:
 
 *   **`op-node`**: Consensus layer, initiates `engine_forkchoiceUpdated` calls and leads block building.
-*   **`op-geth`**: Default block builder, produces standard blocks.
+*   **`op-reth`**: Fallback block builder, produces standard blocks.
 *   **`op-rbuilder`**: Reth-based execution client that builds both standard blocks and flashblocks.
     *   Exposes flashblocks on a WebSocket stream (not recommended for public exposure).
     *   Each event on the stream corresponds to a 250 ms flashblock.
 *   **`rollup-boost`**: Sits between `op-node` and execution layers, coordinating block building in flashblocks mode.
-    *   Validates `op-rbuilder` payloads against `op-geth`
-    *   Falls back to `op-geth` if `op-rbuilder` diverges or lags
+    *   Validates `op-rbuilder` payloads against `op-reth`
+    *   Falls back to `op-reth` if `op-rbuilder` diverges or lags
 *   **`flashblocks-websocket-proxy`**: Relays the flashblocks stream from the active sequencer to RPC providers.
 *   **`op-node-rbuilder`** *(optional)*: `op-node` pointing only to `op-rbuilder`, used for syncing at startup.
 *   **`op-conductor`** *(optional but recommended)*: Manages multiple sequencers, ensuring only one healthy leader streams blocks.
@@ -63,7 +63,7 @@ flowchart LR
 ```
 
 *   Single-sequencer setup.
-*   `op-node` coordinates block production through `rollup-boost`, targeting `op-rbuilder` instead of `op-geth`.
+*   `op-node` coordinates block production through `rollup-boost`, targeting `op-rbuilder` instead of the fallback `op-reth`.
 *   `op-rbuilder` acts as a full execution client: it builds blocks, exposes Ethereum JSON-RPC, and processes transactions.
 *   In addition, `op-rbuilder` emits flashblocks every 250 ms, streamed over a WebSocket interface (e.g. `wss://`).
 *   These flashblocks give early visibility into transaction inclusion before the final regular block is sealed.

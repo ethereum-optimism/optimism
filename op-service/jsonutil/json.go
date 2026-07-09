@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 
@@ -57,6 +58,31 @@ func newTOMLDecoder(r io.Reader) Decoder {
 func (d *tomlDecoder) Decode(v interface{}) error {
 	if _, err := toml.NewDecoder(d.r).Decode(v); err != nil {
 		return fmt.Errorf("failed to decode TOML: %w", err)
+	}
+	return nil
+}
+
+// DecodeTOMLStrict decodes TOML from r into v and returns an error if the source contains any key
+// that no field of v captures and allowUnknown does not accept. A nil allowUnknown rejects every
+// unknown key.
+//
+// BurntSushi/toml silently drops unmapped keys by default; this rejects them instead, so a struct
+// is forced to stay in sync with its source — a newly added source key that nothing maps becomes a
+// load error rather than a silently-dropped value. allowUnknown is a predicate rather than a set so
+// callers can choose how to match (slice membership, map lookup, prefix, …).
+func DecodeTOMLStrict(r io.Reader, v any, allowUnknown func(key string) bool) error {
+	md, err := toml.NewDecoder(r).Decode(v)
+	if err != nil {
+		return fmt.Errorf("failed to decode TOML: %w", err)
+	}
+	var unknown []string
+	for _, key := range md.Undecoded() {
+		if k := key.String(); allowUnknown == nil || !allowUnknown(k) {
+			unknown = append(unknown, k)
+		}
+	}
+	if len(unknown) > 0 {
+		return fmt.Errorf("unknown TOML keys not represented in the target struct: %s", strings.Join(unknown, ", "))
 	}
 	return nil
 }

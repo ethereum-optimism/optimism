@@ -34,6 +34,7 @@ src_validation = [
     "test/L2/betanet-fork/L2VerifyBetanetForkUpgrade.t.sol",  # Tests L2 betanet fork upgrade workflow - no src counterpart
     "test/L2/L2GenesisForkUpgrade.t.sol",                     # Tests L2 genesis fork upgrade workflow
     "test/dispute/zk/ZKDisputeGameIntegration.t.sol",         # Integration tests for ZK dispute game lifecycle
+    "test/dispute/zk/ZKDisputeGameSuperMigration.t.sol",      # Integration tests for ZK dispute game super migration
 ]
 
 # PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:

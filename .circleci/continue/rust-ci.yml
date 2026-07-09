@@ -17,14 +17,11 @@ parameters:
   c-base_image:
     type: string
     default: default
-  # Workflow activation flags (set by the decision tree in config.yml)
+  # Workflow activation flags (set by compute-workflow-conditions.sh)
   c-run_rust_ci:
     type: boolean
     default: false
   c-run_rust_ci_gate_short:
-    type: boolean
-    default: false
-  c-run_scheduled_kona_link_checker:
     type: boolean
     default: false
   c-run_kona_publish_prestates:
@@ -626,20 +623,6 @@ jobs:
           command: |
             just build-<<parameters.target>>
 
-  # Kona Link Checker
-  kona-link-checker:
-    docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - run:
-          name: Check links
-          working_directory: rust/kona
-          command: |
-            lychee --config ./lychee.toml --cache-exclude-status 429 '**/README.md' || true
-
   # Verifies that the committed `etc/{chainList,configs,depsets}.json` snapshots
   # in `kona-registry` match what `KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry`
   # would regenerate from the current `superchain-registry` submodule. Catches
@@ -1049,16 +1032,6 @@ workflows:
           always-succeed: true
           context:
             - circleci-api-token
-
-  # ==========================================================================
-  # Kona scheduled workflows
-  # ==========================================================================
-  scheduled-kona-link-checker:
-    when: << pipeline.parameters.c-run_scheduled_kona_link_checker >>
-    jobs:
-      - kona-link-checker:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
 
   # Kona publish prestate artifacts - on push to develop
   kona-publish-prestates:

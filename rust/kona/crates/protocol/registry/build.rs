@@ -97,9 +97,15 @@ fn main() {
                     continue;
                 }
 
-                // Read the config file as a `ChainConfig`
+                // Read the config file as a `ChainConfig`. ChainConfig rejects unknown fields, so a
+                // registry key promoted into the config that ChainConfig does not yet model fails
+                // here rather than being silently dropped.
                 let config = std::fs::read_to_string(config_file_path).unwrap();
-                let config: ChainConfig = toml::from_str(&config).unwrap();
+                let config: ChainConfig = toml::from_str(&config).unwrap_or_else(|e| {
+                    panic!(
+                        "failed to parse superchain-registry chain config {config_file_name}: {e}"
+                    )
+                });
                 superchain.chains.push(config);
             }
             superchains.superchains.push(superchain);

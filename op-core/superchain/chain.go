@@ -13,8 +13,9 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/BurntSushi/toml"
 	"github.com/klauspost/compress/zstd"
+
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 //go:embed superchain-configs.zip
@@ -170,7 +171,10 @@ func (c *Chain) populateConfig() {
 	defer configFile.Close()
 
 	var cfg ChainConfig
-	if _, err := toml.NewDecoder(configFile).Decode(&cfg); err != nil {
+	// No allowed-unknown keys: the ChainConfig struct models every field the registry chain
+	// configs carry (TestAllEmbeddedConfigsDecodeStrictly enforces this), so any unmodeled key is a
+	// drift to reject rather than drop.
+	if err := jsonutil.DecodeTOMLStrict(configFile, &cfg, nil); err != nil {
 		c.err = fmt.Errorf("error decoding chain config file %s/%s: %w", c.Network, c.Name, err)
 		return
 	}
