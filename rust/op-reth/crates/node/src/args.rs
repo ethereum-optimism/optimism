@@ -111,6 +111,22 @@ pub struct RollupArgs {
     #[arg(long = "rollup.enable-tx-conditional", default_value = "false")]
     pub enable_tx_conditional: bool,
 
+    /// Retain RPC-submitted transactions in the local txpool even when they are forwarded to a
+    /// configured sequencer (`--rollup.sequencer`).
+    ///
+    /// Off by default for forwarding nodes: such a node does not build blocks, so retaining
+    /// forwarded txs in its local pool produces a mempool view — and a `pending` nonce — that
+    /// need not match the sequencer's. Mirrors op-geth's `--rollup.enabletxpooladmission`.
+    ///
+    /// When no sequencer is configured this flag has no effect: RPC-submitted transactions always
+    /// enter the local pool (that is how sequencer / non-forwarding nodes work).
+    #[arg(
+        long = "rollup.enabletxpooladmission",
+        alias = "rollup.enable-tx-pool-admission",
+        default_value_t = false
+    )]
+    pub enable_txpool_admission: bool,
+
     /// HTTP endpoint(s) for the interop filter, used to validate the interop messages referenced
     /// by incoming transactions. Repeat the flag to configure multiple endpoints; each check is
     /// fanned out to all of them and combined by quorum agreement (see
@@ -230,6 +246,7 @@ impl Default for RollupArgs {
             compute_pending_block: false,
             discovery_v4: false,
             enable_tx_conditional: false,
+            enable_txpool_admission: false,
             interop_http: Vec::new(),
             interop_min_responses: None,
             interop_safety_level: SafetyLevel::CrossUnsafe,
@@ -312,6 +329,23 @@ mod tests {
         let expected_args = RollupArgs { enable_tx_conditional: true, ..Default::default() };
         let args =
             CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.enable-tx-conditional"])
+                .args;
+        assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_optimism_enable_txpool_admission() {
+        // off by default
+        assert!(!RollupArgs::default().enable_txpool_admission);
+
+        let expected_args = RollupArgs { enable_txpool_admission: true, ..Default::default() };
+        // primary flag (op-geth spelling)
+        let args =
+            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.enabletxpooladmission"]).args;
+        assert_eq!(args, expected_args);
+        // dashed alias
+        let args =
+            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.enable-tx-pool-admission"])
                 .args;
         assert_eq!(args, expected_args);
     }
