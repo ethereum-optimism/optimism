@@ -1,23 +1,29 @@
 #!/usr/bin/env bash
-# Workflow routing decision tree for the CircleCI setup pipeline.
+# Workflow routing policy for the CircleCI setup pipeline.
 #
-# Reads the change-detection / dispatch params already written to
-# /tmp/pipeline-parameters.json by earlier steps and enables the matching
-# c-run_* workflow flags based on the trigger source, branch, tag, and schedule.
+# Decides WHICH continuation workflows run, based on the trigger source, branch,
+# tag, schedule name, and the change-detection / dispatch params already written
+# to /tmp/pipeline-parameters.json by earlier steps. The workflow lists
+# themselves live in routing.yml — this script only holds the conditions.
+#
+# Each enabled workflow sets c-run_<name>: true in the JSON, which maps 1:1 to
+# "when: << pipeline.parameters.c-run_<name> >>" in a continuation config.
 #
 # Inputs (set by the config.yml step environment):
 #   BRANCH, TRIGGER_SOURCE, TAG, SCHEDULE_NAME
 #
 # Helpers (workflow-helpers.sh):
-#   run foo     → sets c-run_foo: true in JSON (maps 1:1 to
-#                 "when: << pipeline.parameters.c-run_foo >>" in a continuation config)
-#   is_true x   → checks if c-x is true in JSON (set by earlier steps)
-#   param x     → reads raw value of c-x from JSON
-#   finalize    → strips intermediate params, keeps only the listed whitelist + all c-run_* flags
+#   run <wf...>            enable workflows by literal name
+#   run_group <sec> <key>  enable the workflows listed under routing.yml sec.key
+#   is_true <x>            true if c-x is true in the JSON
+#   param <x>              raw value of c-x from the JSON
+#   finalize               strip intermediate params, keep c-run_* + passthrough
 #
 # How to add a new workflow:
-#   1. Add "c-run_your_workflow: {type: boolean, default: false}" in the relevant continuation config
-#   2. Add "run your_workflow" in the appropriate branch below
+#   1. Declare "c-run_<name>: {type: boolean, default: false}" in a continuation
+#      config under .circleci/continue/.
+#   2. Wire it in here (literal "run <name>" for a one-off, or add it to the
+#      relevant routing.yml list and use run_group).
 set -euo pipefail
 
 # shellcheck disable=SC1091  # sourced helper resolved at runtime, not by shellcheck
@@ -26,12 +32,9 @@ init_json
 
 case "${TRIGGER_SOURCE}" in
 
-  # Scheduled pipelines: map schedule name → workflows
+  # Scheduled pipelines: map schedule name -> workflows (routing.yml schedules).
   scheduled_pipeline)
-    case "${SCHEDULE_NAME}" in
-      build_four_hours) run scheduled_todo_issues scheduled_cannon_full_tests ;;
-      build_daily)      run scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests circleci_schedule_trigger_check ;;
-    esac
+    run_group schedules "${SCHEDULE_NAME}"
     ;;
 
   # Webhook (push events)
@@ -116,27 +119,29 @@ case "${TRIGGER_SOURCE}" in
     fi
     ;;
 
-  # API triggers: dispatch flags select workflows
+  # API triggers: dispatch flags select workflows (routing.yml api_dispatch).
   api)
     run release
+    # main_dispatch only fires for genuine API dispatches, not github-event triggers.
     if is_true main_dispatch && [[ "$(param github-event-type)" == "__not_set__" ]]; then
-      run main contracts_feature_tests
+      run_group api_dispatch main_dispatch
     fi
-    if is_true fault_proofs_dispatch;     then run develop_fault_proofs; fi
-    if is_true kontrol_dispatch;          then run develop_kontrol_tests; fi
-    if is_true cannon_full_test_dispatch; then run scheduled_cannon_full_tests; fi
-    if is_true reproducibility_dispatch;  then run scheduled_preimage_reproducibility; fi
-    if is_true stale_check_dispatch;      then run scheduled_stale_check; fi
-    if is_true heavy_fuzz_dispatch;       then run scheduled_heavy_fuzz_tests; fi
-    if is_true publish_contract_artifacts_dispatch; then run publish_contract_artifacts; fi
-    if is_true l2_fork_test_dispatch;     then run l2_fork_test; fi
-    if is_true rust_ci_dispatch;          then run rust_ci; fi
-    if is_true rust_e2e_dispatch;         then run rust_e2e_ci; fi
+    # Simple dispatch flags: each enables its workflows when the flag is set.
+    # main_dispatch and labeled_pr have bespoke conditions, handled separately.
+    for flag in $(yq -r '.api_dispatch | keys | .[]' "${ROUTING}"); do
+      # Keep this skip-list in sync with bespoke api_dispatch conditions.
+      case "${flag}" in
+        main_dispatch | labeled_pr) continue ;;
+      esac
+      if is_true "${flag}"; then
+        run_group api_dispatch "${flag}"
+      fi
+    done
+    # GitHub "pull_request labeled" event triggers issue-close automation.
     if [[ "$(param github-event-type)" == "pull_request" && "$(param github-event-action)" == "labeled" ]]; then
-      run close_issue
+      run_group api_dispatch labeled_pr
     fi
     ;;
 esac
 
-# Params to forward to continuation configs (everything else is stripped)
-finalize "c-default_docker_image,c-rust_base_image,c-base_image,c-github-event-base64,c-go-cache-version,c-publish_contract_artifacts_ref"
+finalize

@@ -86,7 +86,7 @@ parameters:
   go-cache-version:
     type: string
     default: "v0.1"
-  # Workflow activation flags (set by the decision tree in config.yml)
+  # Workflow activation flags (set by compute-workflow-conditions.sh)
   c-run_main:
     type: boolean
     default: false
@@ -1646,7 +1646,9 @@ jobs:
 
   # Builds op-core/superchain/superchain-configs.zip from the pinned commit and
   # makes it available to downstream Go-build jobs via persist_to_workspace.
-  # The zip itself is gitignored; this job is the only place it gets built in CI.
+  # The zip itself is gitignored; this is the only job that persists it to the
+  # workspace. Jobs that don't attach the workspace (the rust-e2e Go tests,
+  # faultproofs, interop-deposits-diff) rebuild it inline via `just build-superchain-go`.
   #
   # Always rebuilds — no cache. The script is fast (depth-1 SR clone + zip
   # ~10s) and most of the job's wall-clock is mise restore anyway. Always
