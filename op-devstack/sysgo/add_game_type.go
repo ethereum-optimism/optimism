@@ -8,11 +8,12 @@ import (
 	"runtime"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -115,45 +116,38 @@ func addGameTypesForRuntime(
 	}
 	initBond := eth.GWei(80_000_000).ToBig() // 0.08 ETH
 
-	cannonPrestate := PrestateForGameType(t, gameTypes.CannonGameType)
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
+
+	// Download the contracts artifacts once; reused for the mock verifier deploy and the upgrade.
+	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
+	require.NoError(err, "failed to download artifacts")
 
 	var zkDisputeGameConfig *embedded.ZKDisputeGameConfig
 	if enabled[gameTypes.ZKDisputeGameType] {
-		// Deploy ZKMockVerifier so the verifier address has deployed code, satisfying the
-		// on-chain ZKDG-80 check (verifier.code.length > 0). ZK proofs are never verified
-		// in devstack — the smoke test only checks game registration.
-		_, filename, _, ok := runtime.Caller(0)
-		require.Truef(ok, "failed to get caller filename for ZKMockVerifier path")
-		monorepoDir, mErr := op_service.FindMonorepoRoot(filename)
-		require.NoError(mErr, "failed to find monorepo root for ZKMockVerifier")
-		artifactPath := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts", "ZKMockVerifier.sol", "ZKMockVerifier.json")
-		zkArtifact, aErr := foundry.ReadArtifact(artifactPath)
-		require.NoError(aErr, "failed to read ZKMockVerifier artifact")
-		deployTx := txplan.NewPlannedTx(
-			txplan.WithChainID(client),
-			txplan.WithPrivateKey(l1PAOKey),
-			txplan.WithPendingNonce(client),
-			txplan.WithAgainstLatestBlockEthClient(client),
-			txplan.WithData(zkArtifact.Bytecode.Object),
-			txplan.WithEstimator(client, true),
-			txplan.WithRetrySubmission(client, 5, retry.Exponential()),
-			txplan.WithRetryInclusion(client, 5, retry.Exponential()),
-		)
-		receipt, rErr := deployTx.Included.Eval(t.Ctx())
-		require.NoError(rErr, "failed to deploy ZKMockVerifier")
-		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t, receipt.ContractAddress)
+		// Deploy the no-op ZKMockVerifier so the verifier address has code (ZKDG-80). DEV ONLY;
+		// op-deployer owns the deploy. ZK proofs are never verified in devstack.
+		mockVerifier, mErr := deployer.DeployZKMockVerifier(t.Ctx(), client, l1PAOKey, artifactsFS)
+		require.NoError(mErr, "failed to deploy ZKMockVerifier")
+		zkDisputeGameConfig = ZKDisputeGameConfigForRuntime(t, mockVerifier)
 	}
 
+	// dummyCannonPrestate is used for the PermissionedCannon game type now that the legacy
+	// fault-proof program is no longer wired into devstack. Permissioned games skip prestate
+	// validation and are never executed by the challenger, so the prestate is never resolved at
+	// claim time.
+	dummyCannonPrestate := common.HexToHash(sharedchallenger.DummyPermissionedPrestate)
+
 	// OPCMv2 requires all 6 game configs in order:
-	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_PERMISSIONED_CANNON, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
+	// CANNON, PERMISSIONED_CANNON, CANNON_KONA, SUPER_PERMISSIONED, SUPER_CANNON_KONA, ZK_DISPUTE_GAME.
+	// The CANNON (legacy) game type is permanently disabled, but its config slot must remain present
+	// and in order for the OPCMv2 upgrade.
 	configs := []embedded.DisputeGameConfig{
 		{
-			Enabled:  enabled[gameTypes.CannonGameType],
+			Enabled:  false,
 			InitBond: initBond,
 			GameType: embedded.GameTypeCannon,
 			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
-				AbsolutePrestate: cannonPrestate,
+				AbsolutePrestate: dummyCannonPrestate,
 			},
 		},
 		{
@@ -161,7 +155,7 @@ func addGameTypesForRuntime(
 			InitBond: initBond,
 			GameType: embedded.GameTypePermissionedCannon,
 			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
-				AbsolutePrestate: cannonPrestate,
+				AbsolutePrestate: dummyCannonPrestate,
 				Proposer:         proposer,
 				Challenger:       challenger,
 			},
@@ -174,7 +168,7 @@ func addGameTypesForRuntime(
 				AbsolutePrestate: cannonKonaPrestate,
 			},
 		},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon},
+		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermissioned},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
 		{
 			Enabled:             enabled[gameTypes.ZKDisputeGameType],
@@ -189,9 +183,6 @@ func addGameTypesForRuntime(
 			configs[i].InitBond = new(big.Int)
 		}
 	}
-
-	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
-	require.NoError(err, "failed to download artifacts")
 
 	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
 		Prank: l1PAO,
@@ -221,8 +212,6 @@ func ZKDisputeGameConfigForRuntime(t devtest.CommonT, verifier common.Address) *
 
 func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.Hash {
 	switch gameType {
-	case gameTypes.CannonGameType:
-		return getAbsolutePrestate(t, "op-program/bin/prestate-proof-mt64.json")
 	case gameTypes.CannonKonaGameType:
 		return getCannonKonaAbsolutePrestate(t)
 	default:

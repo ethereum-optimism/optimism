@@ -39,14 +39,6 @@
       "target": "op-faucet",
       "paths": ["op-faucet/**"]
     },
-    "op-program": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-program",
-      "paths": ["op-program/**", "op-preimage/**"]
-    },
     "op-proposer": {
       "type": "go",
       "check": "go",
@@ -61,7 +53,7 @@
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
       "target": "op-challenger",
-      "paths": ["op-challenger/**", "op-program/**", "cannon/**", "op-preimage/**", "rust/kona/**"]
+      "paths": ["op-challenger/**", "cannon/**", "op-preimage/**", "rust/kona/**"]
     },
     "op-dispute-mon": {
       "type": "go",
@@ -87,14 +79,6 @@
       "target": "da-server",
       "paths": ["op-alt-da/**"]
     },
-    "op-supervisor": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "op-supervisor",
-      "paths": ["op-supervisor/**"]
-    },
     "op-supernode": {
       "type": "go",
       "check": "go",
@@ -110,14 +94,6 @@
       "bake_file": "docker-bake.hcl",
       "target": "op-test-sequencer",
       "paths": ["op-test-sequencer/**"]
-    },
-    "cannon": {
-      "type": "go",
-      "check": "go",
-      "mode": "bake",
-      "bake_file": "docker-bake.hcl",
-      "target": "cannon",
-      "paths": ["cannon/**", "op-preimage/**"]
     },
     "op-deployer": {
       "type": "go",
@@ -183,13 +159,21 @@
       "target": "op-reth",
       "paths": ["rust/**"]
     },
-    "cannon-builder": {
+    "op-rbuilder": {
       "type": "rust",
-      "check": "none",
+      "check": "rust",
       "mode": "bake",
       "bake_file": "docker-bake.hcl",
-      "target": "cannon-builder",
-      "paths": ["rust/kona/docker/cannon/**"]
+      "target": "op-rbuilder",
+      "paths": ["rust/**"]
+    },
+    "rollup-boost": {
+      "type": "rust",
+      "check": "rust",
+      "mode": "bake",
+      "bake_file": "docker-bake.hcl",
+      "target": "rollup-boost",
+      "paths": ["rust/**"]
     },
     "ci-base-clang": {
       "check": "none",

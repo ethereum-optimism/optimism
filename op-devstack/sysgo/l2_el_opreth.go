@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -18,6 +19,10 @@ import (
 type OpRethConfig struct {
 	// ExtraArgs are appended to the generated CLI args.
 	ExtraArgs []string
+	// Binary selects the EL binary to launch. Empty means "op-reth". A CLI-compatible superset
+	// (e.g. "op-reth-premium", which accepts every op-reth subcommand/flag plus the --subblocks.*
+	// namespace) may be selected via OpRethWithBinary.
+	Binary string
 }
 
 // DefaultOpRethConfig returns a zero-valued OpRethConfig that callers can mutate via OpRethOptions.
@@ -60,19 +65,24 @@ func OpRethWithExtraArgs(args ...string) OpRethOption {
 	})
 }
 
-// OpRethWithSDMEnabled enables Sequencer-Defined Metering on the op-reth node.
-func OpRethWithSDMEnabled() OpRethOption {
-	return OpRethWithExtraArgs("--rollup.sdm-enabled")
+// OpRethWithBinary selects the EL binary to launch instead of the default "op-reth". The binary
+// must be a CLI superset of op-reth (it is invoked with op-reth's subcommands and flags). Used to
+// boot "op-reth-premium" as a drop-in sequencer; since that binary lives in a separate repo it must
+// be supplied via RUST_BINARY_PATH_OP_RETH_PREMIUM (or RUST_SRC_DIR_OP_RETH_PREMIUM + RUST_JIT_BUILD).
+func OpRethWithBinary(binary string) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.Binary = binary
+	})
 }
 
-// OpRethWithSupervisorURL wires the op-reth node to the given supervisor HTTP endpoint.
-// An empty supervisorURL is a no-op so callers can pass the value unconditionally.
-func OpRethWithSupervisorURL(supervisorURL string) OpRethOption {
+// OpRethWithInteropURL wires the op-reth node to the given interop filter HTTP endpoint.
+// An empty interopURL is a no-op so callers can pass the value unconditionally.
+func OpRethWithInteropURL(interopURL string) OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
-		if supervisorURL == "" {
+		if interopURL == "" {
 			return
 		}
-		cfg.ExtraArgs = append(cfg.ExtraArgs, "--rollup.supervisor-http="+supervisorURL)
+		cfg.ExtraArgs = append(cfg.ExtraArgs, "--rollup.interop-http="+interopURL)
 	})
 }
 
@@ -193,9 +203,36 @@ func (n *OpReth) Start() {
 func (n *OpReth) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	if n.sub == nil {
+		n.p.Logger().Warn("op-reth already stopped")
+		return
+	}
 	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
 	n.sub = nil
+}
+
+func (n *OpReth) StartControlled(ctx context.Context) error {
+	return runControlStart(ctx, n.Running, n.Start)
+}
+
+func (n *OpReth) StopControlled(ctx context.Context) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sub == nil {
+		return nil
+	}
+	if err := n.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
+		return err
+	}
+	n.sub = nil
+	return nil
+}
+
+func (n *OpReth) Running() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.sub != nil
 }
 
 func (n *OpReth) UserRPC() string {

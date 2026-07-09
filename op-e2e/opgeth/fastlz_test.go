@@ -97,26 +97,31 @@ func FuzzFjordCostFunction(f *testing.F) {
 	gpoCaller, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, opGeth.L2Client)
 	require.NoError(f, err)
 
-	isFjord, err := gpoCaller.IsFjord(&bind.CallOpts{})
+	// Bound every RPC/engine call so a wedged call fails fast with a clear
+	// error instead of hanging until the CI job's no-output timeout kills it.
+	// The one-time setup calls share the 60s ctx above; they complete well
+	// within it. The per-iteration GetL1Fee uses a fresh deadline below, since
+	// the fuzzing phase outlives this ctx.
+	isFjord, err := gpoCaller.IsFjord(&bind.CallOpts{Context: ctx})
 	require.NoError(f, err)
 	require.True(f, isFjord)
 
-	_, err = opGeth.AddL2Block(context.Background())
+	_, err = opGeth.AddL2Block(ctx)
 	require.NoError(f, err)
 
-	baseFee, err := gpoCaller.L1BaseFee(&bind.CallOpts{})
+	baseFee, err := gpoCaller.L1BaseFee(&bind.CallOpts{Context: ctx})
 	require.NoError(f, err)
 	require.Greater(f, baseFee.Uint64(), uint64(0))
 
-	blobBaseFee, err := gpoCaller.BlobBaseFee(&bind.CallOpts{})
+	blobBaseFee, err := gpoCaller.BlobBaseFee(&bind.CallOpts{Context: ctx})
 	require.NoError(f, err)
 	require.Greater(f, blobBaseFee.Uint64(), uint64(0))
 
-	baseFeeScalar, err := gpoCaller.BaseFeeScalar(&bind.CallOpts{})
+	baseFeeScalar, err := gpoCaller.BaseFeeScalar(&bind.CallOpts{Context: ctx})
 	require.NoError(f, err)
 	require.Greater(f, baseFeeScalar, uint32(0))
 
-	blobBaseFeeScalar, err := gpoCaller.BlobBaseFeeScalar(&bind.CallOpts{})
+	blobBaseFeeScalar, err := gpoCaller.BlobBaseFeeScalar(&bind.CallOpts{Context: ctx})
 	require.NoError(f, err)
 	require.Equal(f, blobBaseFeeScalar, uint32(0))
 
@@ -160,7 +165,12 @@ func FuzzFjordCostFunction(f *testing.F) {
 			return
 		}
 
-		l1FeeSolidity, err := gpoCaller.GetL1Fee(&bind.CallOpts{}, fuzzedData)
+		// Fresh per-iteration deadline: the fuzzing phase outlives any single
+		// setup-scoped context, so a wedged eth_call still fails fast here.
+		callCtx, callCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer callCancel()
+
+		l1FeeSolidity, err := gpoCaller.GetL1Fee(&bind.CallOpts{Context: callCtx}, fuzzedData)
 		require.NoError(t, err)
 
 		// remove the adjustment

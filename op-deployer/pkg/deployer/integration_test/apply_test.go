@@ -262,9 +262,8 @@ func TestEndToEndApply(t *testing.T) {
 		validateOPChainDeployment(t, cg, st, intent, false)
 	})
 
-	t.Run("with calldata broadcasts and prestate generation", func(t *testing.T) {
+	t.Run("with calldata broadcasts", func(t *testing.T) {
 		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
-		mockPreStateBuilder := devnet.NewMockPreStateBuilder()
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -277,18 +276,10 @@ func TestEndToEndApply(t *testing.T) {
 				Logger:             lgr,
 				StateWriter:        pipeline.NoopStateWriter(),
 				CacheDir:           testCacheDir,
-				PreStateBuilder:    mockPreStateBuilder,
 			},
 		))
 
 		require.Greater(t, len(st.DeploymentCalldata), 0)
-		require.Equal(t, 1, mockPreStateBuilder.Invocations())
-		require.Equal(t, len(intent.Chains), mockPreStateBuilder.LastOptsCount())
-		require.NotNil(t, st.PrestateManifest)
-		for _, val := range *st.PrestateManifest {
-			_, err := hexutil.Decode(val) // the not-empty val check is covered here as well
-			require.NoError(t, err)
-		}
 	})
 
 	t.Run("with custom gas token", func(t *testing.T) {
@@ -685,13 +676,9 @@ func TestInvalidL2Genesis(t *testing.T) {
 			opts, intent, _ := setupGenesisChain(t, devnet.DefaultChainID)
 			intent.GlobalDeployOverrides = tt.overrides
 
-			mockPreStateBuilder := devnet.NewMockPreStateBuilder()
-			opts.PreStateBuilder = mockPreStateBuilder
-
 			err := deployer.ApplyPipeline(ctx, opts)
 			require.Error(t, err)
 			require.ErrorContains(t, err, "failed to combine L2 init config")
-			require.Equal(t, 0, mockPreStateBuilder.Invocations())
 		})
 	}
 }
@@ -930,14 +917,17 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								},
 							},
 							{
-								Enabled:  false,
-								InitBond: big.NewInt(0),
+								Enabled:  true,
+								InitBond: big.NewInt(1000000000000000000),
 								GameType: embedded.GameTypeCannonKona,
+								FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+									AbsolutePrestate: testPrestate,
+								},
 							},
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
-								GameType: embedded.GameTypeSuperPermCannon,
+								GameType: embedded.GameTypeSuperPermissioned,
 							},
 							{
 								Enabled:  false,
@@ -966,86 +956,6 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				encodedData, err := upgradeConfig.EncodedUpgradeInputV2()
 				require.NoError(t, err, "Should encode UpgradeInputV2")
 				require.NotEmpty(t, encodedData, "Encoded data should not be empty")
-
-				// Build expected hex encoding
-				// Structure breakdown:
-				// - Tuple offset (0x20)
-				// - SystemConfig address (0x034edd2a225f7f429a63e0f1d2084b9e0a93b538)
-				// - DisputeGameConfigs array offset (0x60) and ExtraInstructions array offset (0x580)
-				// - DisputeGameConfigs[]: 6 configs
-				//   [0] Cannon: enabled=true, initBond=1e18, gameType=0, gameArgs="PRESTATE"
-				//   [1] PermissionedCannon: enabled=true, initBond=1e18, gameType=1, gameArgs="PRESTATE"+proposer+challenger
-				//   [2] CannonKona: enabled=false, initBond=0, gameType=8, gameArgs=empty
-				//   [3] SuperPermCannon: enabled=false, initBond=0, gameType=5, gameArgs=empty
-				//   [4] SuperCannonKona: enabled=false, initBond=0, gameType=9, gameArgs=empty
-				//   [5] ZKDisputeGame: enabled=false, initBond=0, gameType=10, gameArgs=empty
-				// - ExtraInstructions[]: 1 instruction
-				//   [0] key="PermittedProxyDeployment", data="DelayedWETH"
-				expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
-					"000000000000000000000000034edd2a225f7f429a63e0f1d2084b9e0a93b538" + // systemConfig address
-					"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs
-					"0000000000000000000000000000000000000000000000000000000000000580" + // offset to extraInstructions
-					"0000000000000000000000000000000000000000000000000000000000000006" + // disputeGameConfigs.length (6)
-					"00000000000000000000000000000000000000000000000000000000000000c0" + // offset to disputeGameConfigs[0]
-					"0000000000000000000000000000000000000000000000000000000000000180" + // offset to disputeGameConfigs[1]
-					"0000000000000000000000000000000000000000000000000000000000000280" + // offset to disputeGameConfigs[2]
-					"0000000000000000000000000000000000000000000000000000000000000320" + // offset to disputeGameConfigs[3]
-					"00000000000000000000000000000000000000000000000000000000000003c0" + // offset to disputeGameConfigs[4]
-					"0000000000000000000000000000000000000000000000000000000000000460" + // offset to disputeGameConfigs[5]
-					// DisputeGameConfigs[0] - Cannon
-					"0000000000000000000000000000000000000000000000000000000000000001" + // enabled=true
-					"0000000000000000000000000000000000000000000000000de0b6b3a7640000" + // initBond=1e18
-					"0000000000000000000000000000000000000000000000000000000000000000" + // gameType=0 (Cannon)
-					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
-					"0000000000000000000000000000000000000000000000000000000000000020" + // gameArgs.length (32 bytes)
-					"5052455354415445000000000000000000000000000000000000000000000000" + // gameArgs data "PRESTATE"
-					// DisputeGameConfigs[1] - PermissionedCannon
-					"0000000000000000000000000000000000000000000000000000000000000001" + // enabled=true
-					"0000000000000000000000000000000000000000000000000de0b6b3a7640000" + // initBond=1e18
-					"0000000000000000000000000000000000000000000000000000000000000001" + // gameType=1 (PermissionedCannon)
-					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
-					"0000000000000000000000000000000000000000000000000000000000000060" + // gameArgs.length (96 bytes)
-					"5052455354415445000000000000000000000000000000000000000000000000" + // gameArgs data "PRESTATE"
-					"0000000000000000000000005000000000000000000000000000000000000000" + // proposer address
-					"0000000000000000000000004300000000000000000000000000000000000000" + // challenger address
-					// DisputeGameConfigs[2] - CannonKona (disabled)
-					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
-					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
-					"0000000000000000000000000000000000000000000000000000000000000008" + // gameType=8 (CannonKona)
-					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
-					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
-					// DisputeGameConfigs[3] - SuperPermCannon (disabled)
-					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
-					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
-					"0000000000000000000000000000000000000000000000000000000000000005" + // gameType=5 (SuperPermCannon)
-					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
-					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
-					// DisputeGameConfigs[4] - SuperCannonKona (disabled)
-					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
-					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
-					"0000000000000000000000000000000000000000000000000000000000000009" + // gameType=9 (SuperCannonKona)
-					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
-					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
-					// DisputeGameConfigs[5] - ZKDisputeGame (disabled)
-					"0000000000000000000000000000000000000000000000000000000000000000" + // enabled=false
-					"0000000000000000000000000000000000000000000000000000000000000000" + // initBond=0
-					"000000000000000000000000000000000000000000000000000000000000000a" + // gameType=10 (ZKDisputeGame)
-					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
-					"0000000000000000000000000000000000000000000000000000000000000000" + // gameArgs.length (0)
-					// ExtraInstructions array
-					"0000000000000000000000000000000000000000000000000000000000000001" + // extraInstructions.length (1)
-					"0000000000000000000000000000000000000000000000000000000000000020" + // offset to extraInstructions[0]
-					// ExtraInstructions[0] - PermittedProxyDeployment
-					"0000000000000000000000000000000000000000000000000000000000000040" + // offset to key
-					"0000000000000000000000000000000000000000000000000000000000000080" + // offset to data
-					"0000000000000000000000000000000000000000000000000000000000000018" + // key.length (24 bytes)
-					"5065726d697474656450726f78794465706c6f796d656e74000000000000000" + // "PermittedProxyDeployment"
-					"0" + // padding
-					"000000000000000000000000000000000000000000000000000000000000000b" + // data.length (11 bytes)
-					"44656c617965645745544800000000000000000000000000000000000000000" + // "DelayedWETH"
-					"0" // padding
-
-				require.Equal(t, expected, hex.EncodeToString(encodedData), "Encoded calldata should match expected structure")
 
 				err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
 				require.NoError(t, err, "OPCM V2 chain upgrade should succeed")

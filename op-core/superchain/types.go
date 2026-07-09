@@ -50,7 +50,11 @@ type HardforkConfig struct {
 	IsthmusTime  *uint64 `toml:"isthmus_time"`
 	JovianTime   *uint64 `toml:"jovian_time"`
 	KarstTime    *uint64 `toml:"karst_time"`
-	InteropTime  *uint64 `toml:"interop_time"`
+	// KeepKarstUpgradeGas opts out of the fix for the Karst upgrade-gas leak. It is a behavioral
+	// flag, not a scheduled time: set for chains that activated Karst with the leak baked into
+	// their history, so the inflated activation-block gas limit is kept on every later block.
+	KeepKarstUpgradeGas bool    `toml:"keep_karst_upgrade_gas"`
+	LagoonTime          *uint64 `toml:"lagoon_time"`
 	// Optional Forks
 	PectraBlobScheduleTime *uint64 `toml:"pectra_blob_schedule_time,omitempty"`
 }

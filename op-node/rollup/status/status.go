@@ -45,9 +45,6 @@ func NewStatusTracker(log log.Logger, metrics Metrics) *StatusTracker {
 }
 
 func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
-	// TODO(#16917) Remove Event System Refactor Comments
-	//  L1UnsafeEvent, L1SafeEvent is removed and OnL1Unsafe is synchronously called at L1Handler
-	//  FinalizeL1Event is removed and OnL1Finalized is synchronously called at L1Handler
 	st.mu.Lock()
 	defer st.mu.Unlock()
 

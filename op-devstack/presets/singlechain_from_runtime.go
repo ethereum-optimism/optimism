@@ -13,7 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // Initial-sync-check budgets for singleChainMultiNodeFromRuntime. Attempts are
@@ -103,16 +104,16 @@ func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 			// than burn the whole budget. See #20649.
 			crossSafeCheck = preset.L2CLB.MatchedWithProgressFn(
 				preset.L2CL,
-				types.CrossSafe, types.LocalUnsafe,
+				safety.CrossSafe, safety.LocalUnsafe,
 				initialSyncCrossSafeELSyncMaxWait,
 				initialSyncCrossSafeELSyncStallTimeout,
 			)
 		} else {
-			crossSafeCheck = preset.L2CLB.MatchedFn(preset.L2CL, types.CrossSafe, initialSyncCheckAttemptsCrossSafe)
+			crossSafeCheck = preset.L2CLB.MatchedFn(preset.L2CL, safety.CrossSafe, initialSyncCheckAttemptsCrossSafe)
 		}
 		runInitialSyncChecks(t, preset.L2ELB, isELSync,
 			crossSafeCheck,
-			preset.L2CLB.MatchedFn(preset.L2CL, types.LocalUnsafe, initialSyncCheckAttemptsLocalUnsafe),
+			preset.L2CLB.MatchedFn(preset.L2CL, safety.LocalUnsafe, initialSyncCheckAttemptsLocalUnsafe),
 		)
 	}
 	return preset

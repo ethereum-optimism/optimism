@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -20,9 +21,7 @@ type KonaNode struct {
 	name    string
 	chainID eth.ChainID
 
-	userRPC          string
-	interopEndpoint  string // warning: currently not fully supported
-	interopJwtSecret eth.Bytes32
+	userRPC string
 
 	userProxy *tcpproxy.Proxy
 
@@ -95,8 +94,22 @@ func (k *KonaNode) Start() {
 	err := k.sub.Start(k.execPath, k.args, k.env)
 	k.p.Require().NoError(err, "Must start")
 
+	// Wait for kona-node to log its RPC address, but fail fast if the process exits first
+	// (e.g. a crash on boot) rather than blocking on the context until the test times out.
 	var userRPCAddr string
-	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
+	select {
+	case userRPCAddr = <-userRPCChan:
+	case <-k.sub.Exited():
+		// Re-check the RPC channel in case the address was logged in the same instant the
+		// process exited; otherwise the process died before becoming ready.
+		select {
+		case userRPCAddr = <-userRPCChan:
+		default:
+			k.p.Require().FailNow("kona-node exited before its RPC server became ready")
+		}
+	case <-k.p.Ctx().Done():
+		k.p.Require().NoError(k.p.Ctx().Err(), "need user RPC")
+	}
 
 	if areMetricsEnabled() {
 		var metricsTarget PrometheusMetricsTarget
@@ -121,12 +134,31 @@ func (k *KonaNode) Stop() {
 	k.sub = nil
 }
 
-func (k *KonaNode) UserRPC() string {
-	return k.userRPC
+func (k *KonaNode) StartControlled(ctx context.Context) error {
+	return runControlStart(ctx, k.Running, k.Start)
 }
 
-func (k *KonaNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
-	return k.interopEndpoint, k.interopJwtSecret
+func (k *KonaNode) StopControlled(ctx context.Context) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.sub == nil {
+		return nil
+	}
+	if err := k.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
+		return err
+	}
+	k.sub = nil
+	return nil
+}
+
+func (k *KonaNode) Running() bool {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.sub != nil
+}
+
+func (k *KonaNode) UserRPC() string {
+	return k.userRPC
 }
 
 var _ L2CLNode = (*KonaNode)(nil)

@@ -25,6 +25,10 @@ func (cl *L1CLNode) Escape() stack.L1CLNode {
 	return cl.inner
 }
 
+func (cl *L1CLNode) BeaconHTTPAddr() string {
+	return cl.inner.BeaconHTTPAddr()
+}
+
 func (cl *L1CLNode) Start() {
 	lifecycle, ok := cl.inner.(stack.Lifecycle)
 	cl.require.Truef(ok, "L1CL node %s is not lifecycle-controllable", cl.inner.Name())

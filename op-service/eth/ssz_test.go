@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"unsafe"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/holiman/uint256"
@@ -374,40 +375,49 @@ func TestOPB01(t *testing.T) {
 	require.Equal(t, ErrBadTransactionOffset, err)
 }
 
-// TestOPB04 verifies that the SSZ marshaling code
-// properly returns an error when the ExtraData field
-// cannot be represented in the outputted SSZ.
+// TestOPB04 verifies that layoutSSZ accepts ExecutionPayloads whose encoded
+// size is exactly math.MaxUint32 and rejects anything larger. It exercises the
+// boundary directly via layoutSSZ rather than calling MarshalSSZ, which would
+// otherwise allocate ~8 GiB to encode a payload at the limit.
 func TestOPB04(t *testing.T) {
-	data := make([]byte, math.MaxUint32)
-
-	var buf bytes.Buffer
-	// First, test the maximum len - which in this case is the max uint32
-	// minus the execution payload fixed part.
-	payload := &ExecutionPayload{
-		ExtraData:   data[:math.MaxUint32-executionPayloadFixedPart(BlockV1)],
-		Withdrawals: nil,
+	// fakeExtraData returns a payload whose ExtraData has the requested length
+	// without allocating len bytes of backing memory. layoutSSZ only reads
+	// len(ExtraData), never the bytes, so a 1-byte backing array is enough.
+	fakeExtraData := func(length int) []byte {
+		backing := [1]byte{}
+		return unsafe.Slice(&backing[0], length)[:length:length]
 	}
 
-	_, err := payload.MarshalSSZ(&buf)
-	require.NoError(t, err)
-	buf.Reset()
-
 	tests := []struct {
+		name        string
 		version     BlockVersion
 		withdrawals *types.Withdrawals
 	}{
-		{BlockV1, nil},
-		{BlockV2, &types.Withdrawals{}},
+		{"V1", BlockV1, nil},
+		{"V2", BlockV2, &types.Withdrawals{}},
 	}
 
 	for _, test := range tests {
-		payload := &ExecutionPayload{
-			ExtraData:   data[:math.MaxUint32-executionPayloadFixedPart(test.version)+1],
-			Withdrawals: test.withdrawals,
-		}
-		_, err := payload.MarshalSSZ(&buf)
-		require.Error(t, err)
-		require.Equal(t, ErrExtraDataTooLarge, err)
+		fixed := executionPayloadFixedPart(test.version)
+
+		t.Run(test.name+"/at_limit", func(t *testing.T) {
+			payload := &ExecutionPayload{
+				ExtraData:   fakeExtraData(int(math.MaxUint32 - fixed)),
+				Withdrawals: test.withdrawals,
+			}
+			layout, err := payload.layoutSSZ()
+			require.NoError(t, err)
+			require.Equal(t, uint32(math.MaxUint32), layout.total)
+		})
+
+		t.Run(test.name+"/over_limit", func(t *testing.T) {
+			payload := &ExecutionPayload{
+				ExtraData:   fakeExtraData(int(math.MaxUint32-fixed) + 1),
+				Withdrawals: test.withdrawals,
+			}
+			_, err := payload.layoutSSZ()
+			require.ErrorIs(t, err, ErrExtraDataTooLarge)
+		})
 	}
 }
 

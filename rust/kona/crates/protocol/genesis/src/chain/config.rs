@@ -32,6 +32,10 @@ pub type L1ChainConfig = alloy_genesis::ChainConfig;
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+// Reject any registry key the struct does not model, so a superchain-registry field that is added
+// but not wired up here fails loudly at deserialization (or at KONA_SYNC_SUPERCHAIN=true
+// regeneration) instead of being silently dropped. Mirrors HardForkConfig, which is already strict.
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ChainConfig {
     /// Chain name (e.g. "Base")
     #[cfg_attr(feature = "serde", serde(rename = "Name", alias = "name"))]
@@ -195,6 +199,7 @@ impl ChainConfig {
 #[cfg(feature = "serde")]
 mod tests {
     use super::*;
+    use alloc::string::ToString;
 
     #[test]
     fn test_chain_config_json() {
@@ -297,6 +302,9 @@ mod tests {
         assert!(!json.contains("interop"), "expected `interop` key to be omitted; got: {json}");
     }
 
+    // Guards the `deny_unknown_fields` attribute on ChainConfig: an otherwise-valid config with one
+    // extra top-level key must be rejected. (The rest of the config must deserialize cleanly so the
+    // parser reaches the unknown key and that is the sole error.)
     #[test]
     fn test_chain_config_unknown_field_json() {
         let raw: &str = r#"
@@ -324,9 +332,9 @@ mod tests {
                 "holocene_time": 1736445601
             },
             "optimism": {
-            "eip1559Elasticity": "0x6",
-            "eip1559Denominator": "0x32",
-            "eip1559DenominatorCanyon": "0xfa"
+                "eip1559Elasticity": 6,
+                "eip1559Denominator": 50,
+                "eip1559DenominatorCanyon": 250
             },
             "alt_da": null,
             "genesis": {
@@ -378,6 +386,9 @@ mod tests {
         "#;
 
         let err = serde_json::from_str::<ChainConfig>(raw).unwrap_err();
-        assert_eq!(err.classify(), serde_json::error::Category::Data);
+        assert!(
+            err.to_string().contains("unknown field `unknown_field`"),
+            "expected deny_unknown_fields to reject the extra key, got: {err}"
+        );
     }
 }

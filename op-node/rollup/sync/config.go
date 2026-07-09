@@ -65,8 +65,7 @@ func (m *Mode) Clone() any {
 
 type Config struct {
 	// SyncMode is defined above.
-	SyncMode        Mode `json:"syncmode"`
-	SyncModeReqResp bool `json:"syncmode_reqresp"`
+	SyncMode Mode `json:"syncmode"`
 
 	// SkipSyncStartCheck skip the sanity check of consistency of L1 origins of the unsafe L2 blocks when determining the sync-starting point.
 	// This defers the L1-origin verification, and is recommended to use in when utilizing --syncmode=execution-layer on op-node and --syncmode=snap on op-geth
@@ -91,9 +90,6 @@ func (c *Config) Check() error {
 	}
 	if c.OffsetELSafe < 0 {
 		return errors.New("sync.offset-el-safe must be >= 0")
-	}
-	if c.OffsetELSafe > 0 && c.SyncMode != ELSync {
-		return fmt.Errorf("sync.offset-el-safe is only supported with EL sync (syncmode=%s)", ELSyncString)
 	}
 	return nil
 }

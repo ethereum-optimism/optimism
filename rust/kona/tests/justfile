@@ -175,10 +175,9 @@ long-running-test FILTER="" OUTPUT_LOGS_DIR="":
 
 # Run action tests for the single-chain client program on the native target.
 #
-# Runs every Test* in op-e2e/actions/proofs/. Tests that exercise op-program-only
-# behavior (and aren't expected to pass under kona-host) opt themselves out by
-# calling helpers.SkipIfKona(t) at the top — the runner sets KONA_HOST_PATH,
-# which the helper detects.
+# Runs every Test* in rust/kona/tests/proofs/. These tests run only here (under
+# kona-host); the runner sets KONA_HOST_PATH and the package is excluded from the
+# monorepo go-tests suite.
 action-tests-single test_name='.*' *args='': action-tests-build (action-tests-single-run test_name args)
 
 # Build action tests for host program
@@ -203,7 +202,7 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
   echo "Running action tests for the client program on the native target"
 
-  PROOFS_DIR="{{SOURCE}}/../../../op-e2e/actions/proofs"
+  PROOFS_DIR="{{SOURCE}}/proofs"
   if [ ! -d "$PROOFS_DIR" ]; then
     echo "Error: proofs directory not found: $PROOFS_DIR" >&2
     exit 1
@@ -252,7 +251,7 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     xargs -I {} gotestsum --format=testname \
       --junitfile=./tmp/test-results/results-$NODE_INDEX.xml \
       --jsonfile=./tmp/testlogs/log-$NODE_INDEX.json \
-      -- -count=1 -parallel=$PARALLEL -coverprofile=coverage-$NODE_INDEX.out -timeout=60m -run '^{}$' \
+      -- -count=1 -parallel=$PARALLEL -timeout=60m -run '^{}$' \
       < /tmp/tests_shard.txt
 
     # xargs calls gotestsum multiple times appending to the same jsonfile,
@@ -265,24 +264,27 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
   {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
     --junitfile=./tmp/test-results/results.xml \
     --jsonfile=./tmp/testlogs/log.json \
-    -- -count=1 -parallel=$PARALLEL -coverprofile=coverage.out -timeout=60m -run "{{test_name}}"
+    -- -count=1 -parallel=$PARALLEL -timeout=60m -run "{{test_name}}"
 
-# Run action tests for the interop client program on the native target
-action-tests-interop test_name='TestInteropFaultProofs' *args='': action-tests-build (action-tests-interop-run test_name args)
-
-action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
+# Run the kona-sp1 range guest in SP1 execute mode against the action-test chain.
+#
+# Builds the guest ELFs (Dockerized SP1 toolchain) and the range-executor binary, then runs the SP1
+# execute action tests with KONA_SP1_RANGE_EXECUTOR_PATH set. Tests skip when that var is unset.
+action-tests-sp1 test_name='TestSP1.*':
   #!/bin/bash
   set -euo pipefail
 
-  echo "Building host program for the native target"
-  just build-native --bin kona-host
-  export KONA_HOST_PATH="{{SOURCE}}/../target/debug/kona-host"
+  echo "Building SP1 guest ELFs (Dockerized SP1 toolchain)..."
+  ( cd {{SOURCE}}/../sp1 && just build-elfs )
 
-  # GitHub actions patch - do not print logs.
-  # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
-  echo "Running action tests for the client program on the native target"
+  echo "Building kona-sp1-range-executor..."
+  ( cd {{SOURCE}}/../sp1 && just build-range-executor )
 
-  cd {{SOURCE}}/../../../op-e2e/actions/interop && GITHUB_ACTIONS=false {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
+  export KONA_SP1_RANGE_EXECUTOR_PATH="{{SOURCE}}/../../target/release/kona-sp1-range-executor"
+  echo "KONA_SP1_RANGE_EXECUTOR_PATH: $KONA_SP1_RANGE_EXECUTOR_PATH"
+
+  cd {{SOURCE}}/proofs
+  go test -count=1 -timeout=60m -run "{{test_name}}" .
 
 update-packages:
     #!/bin/bash

@@ -8,8 +8,8 @@ package interop
 import (
 	"fmt"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // ---------------------------------------------------------------------------
@@ -53,13 +53,9 @@ func (i *Interop) BackfillCompleted() bool {
 // ---------------------------------------------------------------------------
 // Activation-timestamp inspection
 // ---------------------------------------------------------------------------
-
-// ActivationTimestamp returns the immutable protocol-defined interop
-// activation timestamp. This is the value that fronts protocol-facing RPC
-// responses and never advances at runtime.
-func (i *Interop) ActivationTimestamp() uint64 {
-	return i.activationTimestamp
-}
+//
+// Note: ActivationTimestamp is part of the production VerificationActivity
+// interface and lives in interop.go alongside IsActiveAt.
 
 // VerificationStartTimestamp returns the L2 timestamp at which the main loop
 // begins verification on the most recent Start. Returns 0 before
@@ -89,14 +85,14 @@ func (i *Interop) FirstVerifiableTimestamp() uint64 {
 // FirstSealedBlock returns the earliest block sealed in the logs DB for the
 // given chain, along with its timestamp. Returns an error if the chain is
 // unknown or the logs DB is empty.
-func (i *Interop) FirstSealedBlock(chainID eth.ChainID) (suptypes.BlockSeal, error) {
+func (i *Interop) FirstSealedBlock(chainID eth.ChainID) (messages.BlockSeal, error) {
 	db, ok := i.logsDBs[chainID]
 	if !ok {
-		return suptypes.BlockSeal{}, fmt.Errorf("interop: no logs DB for chain %s", chainID)
+		return messages.BlockSeal{}, fmt.Errorf("interop: no logs DB for chain %s", chainID)
 	}
 	seal, err := db.FirstSealedBlock()
 	if err != nil {
-		return suptypes.BlockSeal{}, fmt.Errorf("interop: first sealed block for chain %s: %w", chainID, err)
+		return messages.BlockSeal{}, fmt.Errorf("interop: first sealed block for chain %s: %w", chainID, err)
 	}
 	return seal, nil
 }
@@ -104,18 +100,18 @@ func (i *Interop) FirstSealedBlock(chainID eth.ChainID) (suptypes.BlockSeal, err
 // LatestSealedBlock returns the most recent block sealed in the logs DB for
 // the given chain along with its timestamp. Returns an error if the chain is
 // unknown and (zero, false) if the DB is empty.
-func (i *Interop) LatestSealedBlock(chainID eth.ChainID) (suptypes.BlockSeal, bool, error) {
+func (i *Interop) LatestSealedBlock(chainID eth.ChainID) (messages.BlockSeal, bool, error) {
 	db, ok := i.logsDBs[chainID]
 	if !ok {
-		return suptypes.BlockSeal{}, false, fmt.Errorf("interop: no logs DB for chain %s", chainID)
+		return messages.BlockSeal{}, false, fmt.Errorf("interop: no logs DB for chain %s", chainID)
 	}
 	id, has := db.LatestSealedBlock()
 	if !has {
-		return suptypes.BlockSeal{}, false, nil
+		return messages.BlockSeal{}, false, nil
 	}
 	seal, err := db.FindSealedBlock(id.Number)
 	if err != nil {
-		return suptypes.BlockSeal{}, false, fmt.Errorf("interop: latest sealed block for chain %s: find %d: %w", chainID, id.Number, err)
+		return messages.BlockSeal{}, false, fmt.Errorf("interop: latest sealed block for chain %s: find %d: %w", chainID, id.Number, err)
 	}
 	return seal, true, nil
 }

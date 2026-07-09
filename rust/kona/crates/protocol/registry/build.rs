@@ -13,24 +13,36 @@ use kona_genesis::{
 use serde::de::DeserializeOwned;
 
 fn main() {
-    // Always reset `etc/depsets.json` to the empty list before deriving the embedded
-    // depsets from KONA_BIND / KONA_CUSTOM_CONFIGS, so the file content is deterministic
-    // for the configured inputs and never carries stale entries from a prior build.
+    // The three committed snapshots under `etc/` are `include_str!`d at compile time,
+    // but `include_str!` does not register file dependencies with cargo. Declare them
+    // here so a hand-edit, a `KONA_SYNC_SUPERCHAIN=true` regeneration, or a custom-config merge
+    // busts the cache instead of silently reusing a stale compilation of `lib.rs`.
+    println!("cargo:rerun-if-changed=etc/chainList.json");
+    println!("cargo:rerun-if-changed=etc/configs.json");
+    println!("cargo:rerun-if-changed=etc/depsets.json");
+
     let etc_dir = std::path::Path::new("etc");
     if !etc_dir.exists() {
         std::fs::create_dir_all(etc_dir).unwrap();
     }
     let depsets_path = std::path::Path::new("etc/depsets.json");
-    write_depsets(depsets_path, &[]);
 
-    // If the `KONA_BIND` environment variable is _not_ set, then return early.
+    // If the `KONA_SYNC_SUPERCHAIN` environment variable is _not_ set, then return early.
+    // The committed `etc/depsets.json` snapshot is the authoritative input in this
+    // mode; do not touch it. (Custom-config merges, if enabled, additively layer
+    // on top of the committed snapshot.)
     let kona_bind: bool =
-        std::env::var("KONA_BIND").unwrap_or_else(|_| "false".to_string()) == "true";
-    println!("cargo:rerun-if-env-changed=KONA_BIND");
+        matches!(std::env::var("KONA_SYNC_SUPERCHAIN").as_deref(), Ok("1" | "true"));
+    println!("cargo:rerun-if-env-changed=KONA_SYNC_SUPERCHAIN");
     if !kona_bind {
         merge_custom_configs();
         return;
     }
+
+    // Reset `etc/depsets.json` to the empty list before re-deriving from the
+    // superchain-registry submodule, so the file content is deterministic for the
+    // configured inputs and never carries stale entries from a prior build.
+    write_depsets(depsets_path, &[]);
 
     // Resolve the monorepo root via `git rev-parse --show-toplevel` so we don't
     // depend on this crate's location inside the workspace.
@@ -42,13 +54,12 @@ fn main() {
     let repo_root = String::from_utf8(repo_root.stdout).unwrap();
     let repo_root = repo_root.trim_end();
 
-    // The `superchain-registry` submodule lives under
-    // `packages/contracts-bedrock/lib/superchain-registry` at the monorepo root.
-    let superchain_registry =
-        format!("{repo_root}/packages/contracts-bedrock/lib/superchain-registry");
+    // The `superchain-registry` submodule lives at the monorepo root.
+    let superchain_registry = format!("{repo_root}/superchain-registry");
     assert!(
         std::path::Path::new(&superchain_registry).exists(),
-        "Git Submodule missing. Please run `just source` to initialize the submodule."
+        "Git Submodule missing. Please run `just update-superchain-registry-submodule` \
+         from the repo root to initialize it."
     );
 
     // Copy the `superchain-registry/chainList.json` file to `etc/chainList.json`
@@ -86,9 +97,15 @@ fn main() {
                     continue;
                 }
 
-                // Read the config file as a `ChainConfig`
+                // Read the config file as a `ChainConfig`. ChainConfig rejects unknown fields, so a
+                // registry key promoted into the config that ChainConfig does not yet model fails
+                // here rather than being silently dropped.
                 let config = std::fs::read_to_string(config_file_path).unwrap();
-                let config: ChainConfig = toml::from_str(&config).unwrap();
+                let config: ChainConfig = toml::from_str(&config).unwrap_or_else(|e| {
+                    panic!(
+                        "failed to parse superchain-registry chain config {config_file_name}: {e}"
+                    )
+                });
                 superchain.chains.push(config);
             }
             superchains.superchains.push(superchain);
@@ -128,14 +145,6 @@ fn merge_custom_configs() {
         std::env::var("KONA_CUSTOM_CONFIGS").unwrap_or_else(|_| "false".to_string()) == "true";
     println!("cargo:rerun-if-env-changed=KONA_CUSTOM_CONFIGS");
     println!("cargo:rerun-if-env-changed=KONA_CUSTOM_CONFIGS_TEST");
-
-    // if we're running tests, bust the cache if the base etc configs are updated. This ensures that
-    // the test build can be repeated after modifying the base configs
-    if std::env::var("KONA_CUSTOM_CONFIGS_TEST") == Ok("true".to_string()) {
-        println!("cargo:rerun-if-changed=etc/chainList.json");
-        println!("cargo:rerun-if-changed=etc/configs.json");
-        println!("cargo:rerun-if-changed=etc/depsets.json");
-    }
 
     if !kona_custom_configs {
         return;

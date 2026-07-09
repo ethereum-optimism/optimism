@@ -33,12 +33,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -49,7 +51,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // SuperSystem is an interface for the system (collection of connected resources)
@@ -96,7 +97,7 @@ type SuperSystem interface {
 		ctx context.Context,
 		id string,
 		sender string,
-		msgIdentifier supervisortypes.Identifier,
+		msgIdentifier messages.Identifier,
 		msgHash [32]byte,
 		expectedError error,
 	) (*types.Receipt, error)
@@ -106,10 +107,16 @@ type SuperSystem interface {
 type SuperSystemConfig struct {
 	SupportTimeTravel bool
 	BatcherUsesBlobs  bool
+	// L2ELKind selects the L2 execution-layer backend (op-geth or op-reth).
+	// Defaults to services.DefaultELKind() when unset.
+	L2ELKind services.ELKind
 }
 
 // NewSuperSystem creates a new SuperSystem from a recipe. It creates an interopE2ESystem.
 func NewSuperSystem(t *testing.T, recipe *interopgen.InteropDevRecipe, w WorldResourcePaths, config SuperSystemConfig) SuperSystem {
+	if config.L2ELKind == "" {
+		config.L2ELKind = services.DefaultELKind()
+	}
 	s2 := &interopE2ESystem{recipe: recipe, config: &config}
 	s2.prepare(t, w)
 	return s2
@@ -211,7 +218,7 @@ func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstan
 	l1FinalizedDistance := uint64(3)
 	l1Clock := clock.SystemClock
 	if s.config.SupportTimeTravel {
-		s.timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		s.timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = s.timeTravelClock
 	}
 	// Start the L1 chain
@@ -503,7 +510,7 @@ func (s *interopE2ESystem) ValidateMessage(
 	ctx context.Context,
 	id string,
 	sender string,
-	msgIdentifier supervisortypes.Identifier,
+	msgIdentifier messages.Identifier,
 	msgHash [32]byte,
 	expectedError error,
 ) (*types.Receipt, error) {
@@ -528,7 +535,7 @@ func (s *interopE2ESystem) ValidateMessage(
 	auth.AccessList = []types.AccessTuple{
 		{
 			Address:     predeploys.CrossL2InboxAddr,
-			StorageKeys: supervisortypes.EncodeAccessList([]supervisortypes.Access{access}),
+			StorageKeys: messages.EncodeAccessList([]messages.Access{access}),
 		},
 	}
 

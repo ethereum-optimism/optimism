@@ -17,7 +17,13 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 )
+
+// historyPrunedErrCode is the JSON-RPC error code an execution engine returns when the requested
+// block predates its earliest retained history (EIP-4444 history expiry). reth returns this for
+// any block below its earliest available history height.
+const historyPrunedErrCode = 4444
 
 var (
 	ErrBlockTimeZero                 = errors.New("block time cannot be 0")
@@ -133,9 +139,18 @@ type Config struct {
 	// Active if KarstTime != nil && L2 block timestamp >= *KarstTime, inactive otherwise.
 	KarstTime *uint64 `json:"karst_time,omitempty"`
 
-	// InteropTime sets the activation time for an experimental feature-set, activated like a hardfork.
-	// Active if InteropTime != nil && L2 block timestamp >= *InteropTime, inactive otherwise.
-	InteropTime *uint64 `json:"interop_time,omitempty"`
+	// KeepKarstUpgradeGas opts out of the fix for the Karst upgrade-gas leak, where the
+	// one-time upgrade gas added to the Karst activation block was persisting on every later
+	// block instead of only the activation block.
+	// Defaults to false: the upgrade gas is subtracted again at the block right after the
+	// Karst activation block, so the gas limit reverts. Set to true only on chains that
+	// already activated Karst with the leak baked into their history — the inflated gas limit
+	// is kept, and the operator clears it themselves with a setGasLimit whenever they choose.
+	KeepKarstUpgradeGas bool `json:"keep_karst_upgrade_gas,omitempty"`
+
+	// LagoonTime sets the activation time for an experimental feature-set, activated like a hardfork.
+	// Active if LagoonTime != nil && L2 block timestamp >= *LagoonTime, inactive otherwise.
+	LagoonTime *uint64 `json:"lagoon_time,omitempty"`
 
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
@@ -183,7 +198,7 @@ func (cfg *Config) ValidateL1Config(ctx context.Context, logger log.Logger, clie
 }
 
 // ValidateL2Config checks L2 config variables for errors.
-func (cfg *Config) ValidateL2Config(ctx context.Context, client L2Client, skipL2GenesisBlockHash bool) error {
+func (cfg *Config) ValidateL2Config(ctx context.Context, logger log.Logger, client L2Client, skipL2GenesisBlockHash bool) error {
 	// Validate the L2 Client Chain ID
 	if err := cfg.CheckL2ChainID(ctx, client); err != nil {
 		return err
@@ -193,7 +208,7 @@ func (cfg *Config) ValidateL2Config(ctx context.Context, client L2Client, skipL2
 	if skipL2GenesisBlockHash {
 		return nil
 	}
-	if err := cfg.CheckL2GenesisBlockHash(ctx, client); err != nil {
+	if err := cfg.CheckL2GenesisBlockHash(ctx, logger, client); err != nil {
 		return err
 	}
 
@@ -273,15 +288,29 @@ func (cfg *Config) CheckL2ChainID(ctx context.Context, client L2Client) error {
 }
 
 // CheckL2GenesisBlockHash checks that the configured L2 genesis block hash is valid for the given client.
-func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, client L2Client) error {
+func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, logger log.Logger, client L2Client) error {
 	l2GenesisBlockRef, err := client.L2BlockRefByNumber(ctx, cfg.Genesis.L2.Number)
 	if err != nil {
+		// The execution engine may no longer retain the genesis block, either because it was never
+		// found or because history expiry has pruned it. The genesis block hash is fully determined
+		// by the rollup config, so accept the configured value rather than failing initialization.
+		if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) || isHistoryPrunedErr(err) {
+			logger.Warn("L2 genesis block not retained by execution engine, skipping validity check", "err", err)
+			return nil
+		}
 		return fmt.Errorf("failed to get L2 genesis blockhash: %w", err)
 	}
 	if l2GenesisBlockRef.Hash != cfg.Genesis.L2.Hash {
 		return fmt.Errorf("incorrect L2 genesis block hash %s, expected %s", l2GenesisBlockRef.Hash, cfg.Genesis.L2.Hash)
 	}
 	return nil
+}
+
+// isHistoryPrunedErr reports whether err is the JSON-RPC error an execution engine returns when the
+// requested block has been pruned by history expiry (see historyPrunedErrCode).
+func isHistoryPrunedErr(err error) bool {
+	var rpcErr rpc.Error
+	return errors.As(err, &rpcErr) && rpcErr.ErrorCode() == historyPrunedErrCode
 }
 
 // Check verifies that the given configuration makes sense
@@ -491,9 +520,9 @@ func (c *Config) IsKarst(timestamp uint64) bool {
 	return c.IsForkActive(forks.Karst, timestamp)
 }
 
-// IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
-func (c *Config) IsInterop(timestamp uint64) bool {
-	return c.IsForkActive(forks.Interop, timestamp)
+// IsLagoon returns true if the Lagoon hardfork is active at or past the given timestamp.
+func (c *Config) IsLagoon(timestamp uint64) bool {
+	return c.IsForkActive(forks.Lagoon, timestamp)
 }
 
 func (c *Config) IsRegolithActivationBlock(l2BlockTime uint64) bool {
@@ -570,17 +599,19 @@ func (c *Config) IsKarstActivationBlock(l2BlockTime uint64) bool {
 		!c.IsKarst(l2BlockTime-c.BlockTime)
 }
 
-func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
-	return c.IsInterop(l2BlockTime) &&
+// IsLagoonActivationBlock returns whether the specified block is the first block subject to the
+// Lagoon upgrade.
+func (c *Config) IsLagoonActivationBlock(l2BlockTime uint64) bool {
+	return c.IsLagoon(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&
-		!c.IsInterop(l2BlockTime-c.BlockTime)
+		!c.IsLagoon(l2BlockTime-c.BlockTime)
 }
 
 func (c *Config) ActivationTime(fork ForkName) *uint64 {
 	// NEW FORKS MUST BE ADDED HERE
 	switch fork {
-	case forks.Interop:
-		return c.InteropTime
+	case forks.Lagoon:
+		return c.LagoonTime
 	case forks.Karst:
 		return c.KarstTime
 	case forks.Jovian:
@@ -614,8 +645,8 @@ func (c *Config) ActivationTime(fork ForkName) *uint64 {
 func (c *Config) SetActivationTime(fork ForkName, timestamp *uint64) {
 	// NEW FORKS MUST BE ADDED HERE
 	switch fork {
-	case forks.Interop:
-		c.InteropTime = timestamp
+	case forks.Lagoon:
+		c.LagoonTime = timestamp
 	case forks.Karst:
 		c.KarstTime = timestamp
 	case forks.Jovian:
@@ -727,7 +758,10 @@ func (c *Config) NewPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
 
 // GetPayloadVersion returns the EngineAPIMethod suitable for the chain hard fork version.
 func (c *Config) GetPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
-	if c.IsIsthmus(timestamp) {
+	if c.IsKarst(timestamp) {
+		// Osaka
+		return eth.GetPayloadV5
+	} else if c.IsIsthmus(timestamp) {
 		return eth.GetPayloadV4
 	} else if c.IsEcotone(timestamp) {
 		// Cancun
@@ -804,6 +838,10 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	c.forEachFork(func(name string, _ string, time *uint64) {
 		banner += fmt.Sprintf("  - %v: %s\n", name, fmtForkTimeOrUnset(time))
 	})
+	if c.KeepKarstUpgradeGas {
+		// Only reported when set, since it is an opt-out behavioral flag, not a scheduled time.
+		banner += "Keep Karst upgrade gas: true\n"
+	}
 	if c.AltDAConfig != nil {
 		banner += fmt.Sprintf("Node supports Alt-DA Mode with CommitmentType %v\n", c.AltDAConfig.CommitmentType)
 	}
@@ -841,6 +879,10 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 	c.forEachFork(func(_ string, logName string, time *uint64) {
 		ctx = append(ctx, logName, fmtForkTimeOrUnset(time))
 	})
+	if c.KeepKarstUpgradeGas {
+		// Only reported when set, since it is an opt-out behavioral flag, not a scheduled time.
+		ctx = append(ctx, "keep_karst_upgrade_gas", true)
+	}
 	if c.AltDAConfig != nil {
 		ctx = append(ctx, "alt_da", *c.AltDAConfig)
 	}
@@ -862,7 +904,7 @@ func (c *Config) forEachFork(callback func(name string, logName string, time *ui
 	callback("Isthmus", "isthmus_time", c.IsthmusTime)
 	callback("Jovian", "jovian_time", c.JovianTime)
 	callback("Karst", "karst_time", c.KarstTime)
-	callback("Interop", "interop_time", c.InteropTime)
+	callback("Lagoon", "lagoon_time", c.LagoonTime)
 }
 
 func (c *Config) ParseRollupConfig(in io.Reader) error {

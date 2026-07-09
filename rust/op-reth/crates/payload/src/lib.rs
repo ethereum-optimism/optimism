@@ -12,7 +12,7 @@
 extern crate alloc;
 
 pub mod builder;
-pub use builder::OpPayloadBuilder;
+pub use builder::{OpPayloadBuilder, PayloadTransactionsWithCommitHook, RethPayloadTransactions};
 pub mod error;
 pub mod payload;
 use op_alloy_rpc_types_engine::OpExecutionData;
@@ -78,6 +78,14 @@ where
     type BuiltPayload = OpBuiltPayload<N>;
     type PayloadAttributes = crate::payload::OpPayloadAttrs;
 
+    // `block_to_payload` and `From<OpBuiltPayload<N>> for OpExecData` are two
+    // separate conversion paths to the same `ExecutionData` type — kept parallel
+    // (not delegating to each other) to mirror upstream `EthPayloadTypes`. The
+    // BAL travels differently in each: here as a separate `bal` arg supplied by
+    // the caller, in `From` as a field of the built payload itself. Once OP
+    // gains BAL support, dropping it on either path would be silent corruption,
+    // so each path threads its own source through to the shared lower-level
+    // helper.
     fn block_to_payload(
         block: SealedBlock<
             <<Self::BuiltPayload as BuiltPayload>::Primitives as NodePrimitives>::Block,

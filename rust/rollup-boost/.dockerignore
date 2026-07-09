@@ -17,7 +17,6 @@ integration_logs
 
 # Cargo artifacts
 **/.cargo
-**/Cargo.lock
 
 # Documentation
 **/*.md

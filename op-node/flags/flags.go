@@ -126,19 +126,20 @@ var (
 	}
 	SyncModeReqRespFlag = &cli.BoolFlag{
 		Name:     "syncmode.req-resp",
+		Usage:    "Deprecated, no-op flag. The Req/Resp CL P2P sync protocol has been removed; this is always disabled.",
 		Required: false,
 		Value:    false,
 		EnvVars:  prefixEnvVars("SYNCMODE_REQ_RESP"),
 		Category: RollupCategory,
+		Hidden:   true,
 	}
 	SyncModeOffsetELSafeFlag = &cli.DurationFlag{
 		Name: "syncmode.offset-el-safe",
 		Usage: "After execution-layer sync completes, set safe and finalized heads to this duration behind the synced tip " +
-			"(converted to L2 blocks via rollup block time using ceiling division). Default 0 (safe/finalized stay at the tip). " +
-			"Set to e.g. 168h to force derivation of the most recent 7 days of blocks before they are considered safe.",
+			"(converted to L2 blocks via rollup block time using ceiling division). Default 12h, matching the OP Mainnet sequencing window.",
 		EnvVars:  prefixEnvVars("SYNCMODE_OFFSET_EL_SAFE"),
 		Category: RollupCategory,
-		Value:    0,
+		Value:    12 * time.Hour,
 	}
 	RPCAdminPersistence = &cli.StringFlag{
 		Name:     "rpc.admin-state",
@@ -222,7 +223,7 @@ var (
 			openum.EnumString(engine.Kinds),
 		EnvVars: prefixEnvVars("L2_ENGINE_KIND"),
 		Value: func() *engine.Kind {
-			out := engine.Geth
+			out := engine.Reth
 			return &out
 		}(),
 		Category: RollupCategory,
@@ -414,33 +415,6 @@ var (
 		Category: SequencerCategory,
 	}
 	/* Interop flags, experimental. */
-	InteropRPCAddr = &cli.StringFlag{
-		Name: "interop.rpc.addr",
-		Usage: "Interop Websocket-only RPC listening address, for supervisor service to manage syncing of the op-node." +
-			"Applies only to Interop-enabled networks. Optional, disabled if left empty. " +
-			"Do not enable if you do not run a supervisor service.",
-		EnvVars:  prefixEnvVars("INTEROP_RPC_ADDR"),
-		Value:    "",
-		Category: InteropCategory,
-	}
-	InteropRPCPort = &cli.IntFlag{
-		Name: "interop.rpc.port",
-		Usage: "Interop RPC listening port, to serve supervisor syncing." +
-			"Applies only to Interop-enabled networks.",
-		EnvVars:  prefixEnvVars("INTEROP_RPC_PORT"),
-		Value:    9645, // Note: op-service/rpc/cli.go uses 8545 as the default.
-		Category: InteropCategory,
-	}
-	InteropJWTSecret = &cli.StringFlag{
-		Name: "interop.jwt-secret",
-		Usage: "Interop RPC server authentication. Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. " +
-			"A new key will be generated if the file is empty. " +
-			"Applies only to Interop-enabled networks.",
-		EnvVars:     prefixEnvVars("INTEROP_JWT_SECRET"),
-		Value:       "",
-		Destination: new(string),
-		Category:    InteropCategory,
-	}
 	InteropDependencySet = &cli.PathFlag{
 		Name:      "interop.dependency-set",
 		Usage:     "Dependency-set configuration, point at JSON file.",
@@ -482,7 +456,6 @@ var optionalFlags = []cli.Flag{
 	BeaconFetchAllSidecars,
 	BeaconSlotDurationOverride,
 	SyncModeFlag,
-	SyncModeReqRespFlag,
 	SyncModeOffsetELSafeFlag,
 	FetchWithdrawalRootFromState,
 	L1TrustRPC,
@@ -516,9 +489,6 @@ var optionalFlags = []cli.Flag{
 	L2EngineKind,
 	L2EngineRpcTimeout,
 	L2FollowSource,
-	InteropRPCAddr,
-	InteropRPCPort,
-	InteropJWTSecret,
 	InteropDependencySet,
 	IgnoreMissingPectraBlobSchedule,
 	ExperimentalOPStackAPI,
@@ -530,6 +500,7 @@ var DeprecatedFlags = []cli.Flag{
 	BetaExtraNetworks,
 	BackupL2UnsafeSyncRPC,
 	BackupL2UnsafeSyncRPCTrustRPC,
+	SyncModeReqRespFlag,
 	// Deprecated P2P Flags are added at the init step
 }
 

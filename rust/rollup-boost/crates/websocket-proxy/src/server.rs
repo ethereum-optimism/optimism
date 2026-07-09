@@ -1,18 +1,24 @@
-use crate::auth::Authentication;
-use crate::client::ClientConnection;
-use crate::metrics::Metrics;
-use crate::rate_limit::{RateLimit, RateLimitError};
-use crate::registry::Registry;
-use axum::body::Body;
-use axum::extract::{ConnectInfo, Path, State, WebSocketUpgrade};
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use axum::routing::{any, get};
-use axum::{Error, Router};
+use crate::{
+    auth::Authentication,
+    client::ClientConnection,
+    metrics::Metrics,
+    rate_limit::{RateLimit, RateLimitError},
+    registry::Registry,
+};
+use axum::{
+    body::Body,
+    extract::{ConnectInfo, Path, State, WebSocketUpgrade},
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    routing::{any, get},
+    Error, Router,
+};
 use http::{HeaderMap, HeaderValue};
 use serde_json::json;
-use std::net::{IpAddr, SocketAddr};
-use std::sync::Arc;
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 

@@ -24,6 +24,9 @@ pub struct ExecutionPayloadFlashblockDeltaV1 {
     pub block_hash: B256,
     /// The transactions of the block.
     pub transactions: Vec<Bytes>,
+    /// Latest mutable synthetic post-exec transaction for the materialized block view.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub post_exec_tx: Option<Bytes>,
     /// Array of [`Withdrawal`] enabled with V2
     pub withdrawals: Vec<Withdrawal>,
     /// The withdrawals root of the block.

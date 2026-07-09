@@ -6,7 +6,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -72,7 +73,7 @@ func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	logger := t.Logger()
 
 	// Advance few blocks to make sure reference node advanced
-	sys.L2CL.Advanced(types.LocalUnsafe, 10, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, 10, 30)
 
 	sys.L2CLB.Stop()
 
@@ -267,7 +268,7 @@ func TestELP2PFCUUnavailableHash(gt *testing.T) {
 	genesis := sys.L2ELB.BlockRefByNumber(0)
 
 	// Advance few blocks to make sure reference node advanced
-	sys.L2CL.Advanced(types.LocalUnsafe, 10, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, 10, 30)
 
 	sys.L2CLB.Stop()
 
@@ -322,7 +323,7 @@ func TestSafeDoesNotAdvanceWhenUnsafeIsSyncing_NoELP2P(gt *testing.T) {
 	logger := t.Logger()
 
 	// Advance few blocks to make sure reference node advanced
-	sys.L2CL.Advanced(types.LocalUnsafe, 10, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, 10, 30)
 
 	sys.L2CLB.Stop()
 
@@ -419,7 +420,7 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	ctx := t.Ctx()
 
 	// Advance few blocks to make sure reference node advanced
-	sys.L2CL.Advanced(types.LocalUnsafe, 4, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, 4, 30)
 
 	// At this point, L2ELB has no ELP2P, and L2CL connection
 	startNum := sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number
@@ -463,7 +464,7 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	// Post invalid payload with the fault that can be only checked at the EL side
 	sys.L2CLB.PostUnsafePayload(payload)
 	// ex) op-geth error msg: "ignoring bad block: invalid merkle root"
-	sys.L2CLB.NotAdvanced(types.LocalUnsafe, attempts)
+	sys.L2CLB.NotAdvanced(safety.LocalUnsafe, attempts)
 	sys.L2ELB.NotAdvanced(eth.Unsafe, attempts)
 	// EL did not advance
 	sys.L2ELB.UnsafeHead().NumEqualTo(startNum + 1)
@@ -484,7 +485,7 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	// Post invalid payload with the fault that can be only checked at the EL side
 	sys.L2CLB.PostUnsafePayload(payload)
 	// ex) op-geth error msg: "ignoring bad block: links to previously rejected block"
-	sys.L2CLB.NotAdvanced(types.LocalUnsafe, attempts)
+	sys.L2CLB.NotAdvanced(safety.LocalUnsafe, attempts)
 	sys.L2ELB.NotAdvanced(eth.Unsafe, attempts)
 	// EL did not advance
 	sys.L2ELB.UnsafeHead().NumEqualTo(startNum + 1)

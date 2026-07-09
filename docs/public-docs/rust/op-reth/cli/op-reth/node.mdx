@@ -1101,13 +1101,11 @@ Rollup:
       --rollup.enable-tx-conditional
           Enable transaction conditional support on sequencer
 
-      --rollup.supervisor-http <SUPERVISOR_HTTP_URL>
-          HTTP endpoint for the supervisor
+      --rollup.interop-http <INTEROP_HTTP_URL>
+          HTTP endpoint for the interop filter, used to validate the interop messages referenced by incoming transactions. When not set, interop transaction validation is disabled: a node that builds blocks will then include transactions carrying invalid interop messages, producing invalid blocks. It is only safe to leave this unset on nodes that do not build blocks.
 
-          [default: http://localhost:1337/]
-
-      --rollup.supervisor-safety-level <SUPERVISOR_SAFETY_LEVEL>
-          Safety level for the supervisor
+      --rollup.interop-safety-level <INTEROP_SAFETY_LEVEL>
+          Safety level for interop filter validation
 
           [default: CrossUnsafe]
 

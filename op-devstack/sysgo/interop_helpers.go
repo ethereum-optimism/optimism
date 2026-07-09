@@ -23,7 +23,7 @@ func validateSimpleInteropPresetConfig(t devtest.T, cfg PresetConfig, l2Nets ...
 	}
 	if cfg.RequireInteropNotAtGen {
 		for _, l2Net := range l2Nets {
-			interopTime := l2Net.genesis.Config.InteropTime
+			interopTime := l2Net.genesis.Config.LagoonTime
 			require.NotNilf(interopTime, "chain %s must have interop", l2Net.ChainID())
 			require.NotZerof(*interopTime, "chain %s interop must not be at genesis", l2Net.ChainID())
 		}

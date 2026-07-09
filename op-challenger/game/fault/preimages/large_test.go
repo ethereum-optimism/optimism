@@ -348,7 +348,7 @@ func TestLargePreimageUploader_UploadPreimage_Succeeds(t *testing.T) {
 
 func newTestLargePreimageUploader(t *testing.T) (*LargePreimageUploader, *clock.AdvancingClock, *mockTxSender, *mockPreimageOracleContract) {
 	logger := testlog.Logger(t, log.LevelError)
-	cl := clock.NewAdvancingClock(time.Second)
+	cl := clock.NewAdvancingClock()
 	cl.Start()
 	txSender := &mockTxSender{}
 	contract := &mockPreimageOracleContract{

@@ -6,30 +6,30 @@ import { Test } from "test/setup/Test.sol";
 
 // Scripts
 import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
-import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 
 /// @title GenerateNUTBundle_Harness
 /// @notice Harness contract that exposes internal functions for testing.
 contract GenerateNUTBundle_Harness is GenerateNUTBundle {
-    /// @notice Builds the upgrade transaction bundle Output struct without writing to disk.
-    function buildOutput() external returns (Output memory) {
-        return _buildOutput();
-    }
-
     /// @notice Returns the fork name used by the generated bundle.
     function upgradeName() external pure returns (string memory) {
         return UPGRADE_NAME;
     }
 
     /// @notice Asserts that the given output is valid.
-    function assertValidOutput(Output memory _output) external pure {
+    function assertValidOutput(Output memory _output) external view {
         _assertValidOutput(_output);
+    }
+
+    /// @notice Builds the implementation deployment configurations.
+    function buildImplementationDeploymentConfigs() external {
+        _buildImplementationDeploymentConfigs();
     }
 }
 
@@ -82,7 +82,7 @@ contract GenerateNUTBundleTest is Test {
         // 3. Upgrade execution
 
         // Verify implementation deployments
-        string[] memory implementationsToUpgrade = UpgradeUtils.getImplementationsNamesToUpgrade();
+        string[] memory implementationsToUpgrade = script.getStandardDeploymentNames();
         for (uint256 i = 0; i < implementationsToUpgrade.length; i++) {
             assertEq(
                 output.txns[i].intent,
@@ -134,13 +134,28 @@ contract GenerateNUTBundleTest is Test {
         }
     }
 
-    /// @notice Tests that the number of implementations in the deployment list matches the number of fields in the
-    /// Implementations struct.
-    function test_implementationCount_matchesStructFields_succeeds() public pure {
-        L2ContractsManagerTypes.Implementations memory emptyImpl;
-        uint256 structFieldCount = abi.encode(emptyImpl).length / 32;
-        string[] memory names = UpgradeUtils.getImplementationsNamesToUpgrade();
-        assertEq(names.length, structFieldCount, "Deployment list must equal Implementations struct field count");
+    /// @notice Tests that the implementation deployment list length matches the ImplRecord array length.
+    /// @dev The deployment list is: 1 StorageSetter + all registry records.
+    ///      The ImplRecord array passed to the L2CM constructor must have one entry per deployment.
+    ///      If these diverge, a new predeploy was added to one location but not the other.
+    function test_implementationCount_matchesImplRecordArray_succeeds() public {
+        script.run();
+
+        assertEq(
+            script.implementationConfigs().length,
+            script.implRecords().length,
+            "Config count (registry records + StorageSetter) must equal ImplRecord array length"
+        );
+    }
+
+    /// @notice Tests that the registry implementation count matches the implementation config count.
+    function test_registryRecordCount_matchesImplementationConfigs_succeeds() public {
+        script.buildImplementationDeploymentConfigs();
+        assertEq(
+            script.implementationConfigs().length,
+            Predeploys.getUpgradeableImpls().length + 1,
+            "Implementation configs must be upgradeable impls + 1 StorageSetter"
+        );
     }
 
     /// @notice Tests that a bundle with an incorrect number of transactions is rejected.

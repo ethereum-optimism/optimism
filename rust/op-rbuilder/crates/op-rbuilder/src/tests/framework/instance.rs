@@ -3,6 +3,7 @@ use crate::{
     builders::{BuilderConfig, FlashblocksBuilder, PayloadBuilder, StandardBuilder},
     primitives::reth::engine_api_builder::OpEngineApiBuilder,
     revert_protection::{EthApiExtServer, RevertProtectionExt},
+    sdm_admin::{SdmAdminApiServer, SdmAdminExt},
     tests::{
         EngineApi, Ipc, TEE_DEBUG_ADDRESS, TransactionPoolObserver, builder_signer, create_test_db,
         framework::driver::ChainDriver, get_available_port,
@@ -26,6 +27,7 @@ use http::{Request, Response, StatusCode};
 use http_body_util::Full;
 use hyper::{body::Bytes as HyperBytes, server::conn::http1, service::service_fn};
 use hyper_util::rt::TokioIo;
+use jsonrpsee::core::client::SubscriptionClientT;
 use moka::future::Cache;
 use nanoid::nanoid;
 use op_alloy_network::Optimism;
@@ -33,8 +35,9 @@ use parking_lot::Mutex;
 use reth::{
     args::{DatadirArgs, NetworkArgs, RpcServerArgs},
     core::exit::NodeExitFuture,
-    tasks::TaskManager,
+    tasks::Runtime,
 };
+use reth_chainspec::ChainSpecProvider;
 use reth_node_builder::{NodeBuilder, NodeConfig};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_cli::commands::Commands;
@@ -59,7 +62,7 @@ pub struct LocalInstance {
     signer: Signer,
     config: NodeConfig<OpChainSpec>,
     args: OpRbuilderArgs,
-    task_manager: Option<TaskManager>,
+    task_manager: Option<Runtime>,
     exit_future: NodeExitFuture,
     _node_handle: Box<dyn Any + Send>,
     pool_observer: TransactionPoolObserver,
@@ -112,6 +115,8 @@ impl LocalInstance {
             .expect("Failed to convert rollup args to builder config");
         let da_config = builder_config.da_config.clone();
         let gas_limit_config = builder_config.gas_limit_config.clone();
+        let sdm_post_exec_opt_in = builder_config.sdm_post_exec_opt_in.clone();
+        let interop_failsafe = builder_config.interop_failsafe.clone();
 
         let addons: OpAddOns<
             _,
@@ -127,12 +132,12 @@ impl LocalInstance {
 
         let node_builder = NodeBuilder::<_, OpChainSpec>::new(config.clone())
             .with_database(create_test_db(config.clone()))
-            .with_launch_context(task_manager.executor())
+            .with_launch_context(task_manager.clone())
             .with_types::<OpNode>()
             .with_components(
                 op_node
                     .components()
-                    .pool(pool_component(&args))
+                    .pool(pool_component(&args, interop_failsafe))
                     .payload(P::new_service(builder_config)?),
             )
             .with_add_ons(addons)
@@ -152,6 +157,14 @@ impl LocalInstance {
                     ctx.modules
                         .add_or_replace_configured(revert_protection_ext.into_rpc())?;
                 }
+
+                // Same wiring as the production launcher: the admin namespace exposes
+                // `admin_setSdmPostExecOptIn` / `admin_sdmStatus`, sharing the opt-in flag
+                // with every payload-builder ctx.
+                let sdm_admin_ext =
+                    SdmAdminExt::new(sdm_post_exec_opt_in.clone(), ctx.provider().chain_spec());
+                ctx.modules
+                    .add_or_replace_configured(sdm_admin_ext.into_rpc())?;
 
                 Ok(())
             })
@@ -255,6 +268,16 @@ impl LocalInstance {
         &self.config.rpc.auth_ipc_path
     }
 
+    /// jsonrpsee client over the node's user-facing RPC IPC endpoint, for calling extension
+    /// namespaces (e.g. `admin_setSdmPostExecOptIn` via `SdmAdminApiClient`) in tests.
+    pub async fn rpc_client(
+        &self,
+    ) -> eyre::Result<impl SubscriptionClientT + Send + Sync + Unpin + use<>> {
+        Ok(reth_ipc::client::IpcClientBuilder::default()
+            .build(self.rpc_ipc())
+            .await?)
+    }
+
     pub fn engine_api(&self) -> EngineApi<Ipc> {
         EngineApi::<Ipc>::with_ipc(self.auth_ipc())
     }
@@ -335,6 +358,8 @@ pub fn default_node_config() -> NodeConfig<OpChainSpec> {
             .parse()
             .expect("Failed to parse data dir path"),
         static_files_path: None,
+        rocksdb_path: None,
+        pprof_dumps_path: None,
     };
 
     NodeConfig::<OpChainSpec>::new(chain_spec())
@@ -354,11 +379,14 @@ fn chain_spec() -> Arc<OpChainSpec> {
     CHAIN_SPEC.clone()
 }
 
-fn task_manager() -> TaskManager {
-    TaskManager::new(tokio::runtime::Handle::current())
+fn task_manager() -> Runtime {
+    Runtime::test()
 }
 
-fn pool_component(args: &OpRbuilderArgs) -> OpPoolBuilder<FBPooledTransaction> {
+fn pool_component(
+    args: &OpRbuilderArgs,
+    interop_failsafe: reth_optimism_txpool::interop::InteropFailsafe,
+) -> OpPoolBuilder<FBPooledTransaction> {
     let rollup_args = &args.rollup_args;
     OpPoolBuilder::<FBPooledTransaction>::default()
         .with_enable_tx_conditional(
@@ -366,10 +394,12 @@ fn pool_component(args: &OpRbuilderArgs) -> OpPoolBuilder<FBPooledTransaction> {
             // to garbage collect transactions out of the bundle range.
             rollup_args.enable_tx_conditional || args.enable_revert_protection,
         )
-        .with_supervisor(
-            rollup_args.supervisor_http.clone(),
-            rollup_args.supervisor_safety_level,
+        .with_interop(
+            rollup_args.interop_http.clone(),
+            rollup_args.interop_min_responses,
+            rollup_args.interop_safety_level,
         )
+        .with_interop_failsafe(interop_failsafe)
 }
 
 async fn spawn_attestation_provider() -> eyre::Result<AttestationServer> {

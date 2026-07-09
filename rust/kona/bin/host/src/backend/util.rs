@@ -2,10 +2,32 @@
 
 use crate::{KeyValueStore, Result};
 use alloy_consensus::EMPTY_ROOT_HASH;
-use alloy_primitives::keccak256;
+use alloy_primitives::{B256, keccak256};
 use alloy_rlp::EMPTY_STRING_CODE;
+use alloy_rpc_client::ClientRef;
+use alloy_rpc_types::debug::ExecutionWitness;
 use kona_preimage::{PreimageKey, PreimageKeyType};
+use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use tokio::sync::RwLock;
+
+/// Fetches a block's execution witness via `debug_executePayload`.
+///
+/// Any failure — including "method not found" — is returned as an error rather than swallowed. The
+/// `L2PayloadWitness` hint is high-level, so the `get_preimage` loop retries it; retrying is cheap
+/// and lets the fetch recover if the node is upgraded.
+pub(crate) async fn fetch_execution_witness(
+    client: ClientRef<'_>,
+    parent_block_hash: B256,
+    payload_attributes: OpPayloadAttributes,
+) -> anyhow::Result<ExecutionWitness> {
+    client
+        .request::<(B256, OpPayloadAttributes), ExecutionWitness>(
+            "debug_executePayload",
+            (parent_block_hash, payload_attributes),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("debug_executePayload failed: {e}"))
+}
 
 /// Constructs a merkle patricia trie from the ordered list passed and stores all encoded
 /// intermediate nodes of the trie in the [`KeyValueStore`].

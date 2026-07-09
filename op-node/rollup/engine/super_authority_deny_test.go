@@ -107,7 +107,6 @@ func runSuperAuthorityTest(t *testing.T, tc superAuthorityTestCase) {
 		metrics.NoopMetrics,
 		cfg,
 		&sync.Config{},
-		false,
 		&testutils.MockL1Source{},
 		emitter,
 		sa,

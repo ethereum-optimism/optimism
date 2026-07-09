@@ -1,4 +1,7 @@
-use super::super::context::OpPayloadBuilderCtx;
+use super::super::context::{
+    OpPayloadBuilderCtx, build_current_post_exec_tx, compute_post_exec_mode,
+    last_receipt_with_cumulative_gas,
+};
 use crate::{
     builders::{BuilderConfig, BuilderTransactions, generator::BuildArguments},
     gas_limiter::AddressGasLimiter,
@@ -11,20 +14,20 @@ use alloy_consensus::{
 };
 use alloy_eips::{eip7685::EMPTY_REQUESTS_HASH, merge::BEACON_NONCE};
 use alloy_evm::Database;
-use alloy_primitives::U256;
-use reth::payload::PayloadBuilderAttributes;
+use alloy_primitives::{Address, U256};
 use reth_basic_payload_builder::{BuildOutcome, BuildOutcomeKind, MissingPayloadBehaviour};
-use reth_chain_state::ExecutedBlock;
 use reth_evm::{ConfigureEvm, execute::BlockBuilder};
+use reth_execution_types::{BlockExecutionOutput, BlockExecutionResult};
 use reth_node_api::{Block, PayloadBuilderError};
 use reth_optimism_consensus::{calculate_receipt_root_no_memo_optimism, isthmus};
-use reth_optimism_evm::{OpEvmConfig, OpNextBlockEnvAttributes};
+use reth_optimism_evm::{OpEvmConfig, OpNextBlockEnvAttributes, PostExecExecutorExt, PostExecMode};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_node::{OpBuiltPayload, OpPayloadBuilderAttributes};
+use reth_optimism_payload_builder::OpPayloadAttrs;
 use reth_optimism_primitives::OpTransactionSigned;
+use reth_payload_primitives::BuiltPayloadExecutedBlock;
 use reth_payload_util::{BestPayloadTransactions, NoopPayloadTransactions, PayloadTransactions};
-use reth_primitives::RecoveredBlock;
-use reth_primitives_traits::InMemorySize;
+use reth_primitives_traits::{InMemorySize, Recovered, RecoveredBlock};
 use reth_provider::{ExecutionOutcome, StateProvider};
 use reth_revm::{
     State, database::StateProviderDatabase, db::states::bundle_state::BundleRetention,
@@ -117,7 +120,7 @@ where
     BuilderTx: BuilderTransactions + Clone + Send + Sync,
     Txs: OpPayloadTransactions<Pool::Transaction>,
 {
-    type Attributes = OpPayloadBuilderAttributes<OpTransactionSigned>;
+    type Attributes = OpPayloadAttrs;
     type BuiltPayload = OpBuiltPayload;
 
     fn try_build(
@@ -129,13 +132,26 @@ where
         let reth_basic_payload_builder::BuildArguments {
             cached_reads,
             config,
-            cancel: _, // TODO
-            best_payload: _,
+            // TODO: thread `cancel` through the build path.
+            ..
         } = args;
+
+        let payload_id = config.payload_id;
+        let builder_attrs = OpPayloadBuilderAttributes::from_rpc_attrs(
+            config.parent_header.hash(),
+            payload_id,
+            config.attributes.0,
+        )
+        .map_err(PayloadBuilderError::other)?;
 
         let args = BuildArguments {
             cached_reads,
-            config,
+            config: reth_basic_payload_builder::PayloadConfig {
+                parent_header: config.parent_header,
+                parent_block_info: config.parent_block_info,
+                attributes: builder_attrs,
+                payload_id,
+            },
             cancel: CancellationToken::new(),
         };
 
@@ -160,8 +176,20 @@ where
             reth_basic_payload_builder::HeaderForPayload<Self::BuiltPayload>,
         >,
     ) -> Result<Self::BuiltPayload, PayloadBuilderError> {
+        let payload_id = config.payload_id;
+        let builder_attrs = OpPayloadBuilderAttributes::from_rpc_attrs(
+            config.parent_header.hash(),
+            payload_id,
+            config.attributes.0,
+        )
+        .map_err(PayloadBuilderError::other)?;
         let args = BuildArguments {
-            config,
+            config: reth_basic_payload_builder::PayloadConfig {
+                parent_header: config.parent_header,
+                parent_block_info: config.parent_block_info,
+                attributes: builder_attrs,
+                payload_id,
+            },
             cached_reads: Default::default(),
             cancel: Default::default(),
         };
@@ -225,10 +253,7 @@ where
                 .attributes
                 .gas_limit
                 .unwrap_or(config.parent_header.gas_limit),
-            parent_beacon_block_root: config
-                .attributes
-                .payload_attributes
-                .parent_beacon_block_root,
+            parent_beacon_block_root: config.attributes.parent_beacon_block_root(),
             extra_data,
         };
 
@@ -237,6 +262,11 @@ where
             .next_evm_env(&config.parent_header, &block_env_attributes)
             .map_err(PayloadBuilderError::other)?;
 
+        let post_exec_mode = compute_post_exec_mode(
+            &self.evm_config,
+            timestamp,
+            &self.config.sdm_post_exec_opt_in,
+        );
         let ctx = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
             da_config: self.config.da_config.clone(),
@@ -251,6 +281,8 @@ where
             extra_ctx: Default::default(),
             max_gas_per_txn: self.config.max_gas_per_txn,
             address_gas_limiter: self.address_gas_limiter.clone(),
+            post_exec_mode,
+            interop_failsafe: self.config.interop_failsafe.clone(),
         };
 
         let builder = OpBuilder::new(best);
@@ -340,15 +372,13 @@ impl<Txs: PayloadTxsBounds> OpBuilder<'_, Txs> {
         info!(target: "payload_builder", id=%ctx.payload_id(), parent_header = ?ctx.parent().hash(), parent_number = ctx.parent().number, "building new payload");
 
         // 1. apply pre-execution changes
-        ctx.evm_config
-            .builder_for_next_block(db, ctx.parent(), ctx.block_env_attributes.clone())
-            .map_err(PayloadBuilderError::other)?
-            .apply_pre_execution_changes()?;
+        let mut builder = ctx.block_builder_for_next_block(db)?;
+        builder.apply_pre_execution_changes()?;
 
         let sequencer_tx_start_time = Instant::now();
 
         // 3. execute sequencer transactions
-        let mut info = ctx.execute_sequencer_transactions(db)?;
+        let mut info = ctx.execute_sequencer_transactions(&mut builder)?;
 
         let sequencer_tx_time = sequencer_tx_start_time.elapsed();
         ctx.metrics.sequencer_tx_duration.record(sequencer_tx_time);
@@ -358,7 +388,7 @@ impl<Txs: PayloadTxsBounds> OpBuilder<'_, Txs> {
 
         // gas reserved for builder tx
         let builder_txs =
-            match builder_tx.add_builder_txs(&state_provider, &mut info, ctx, db, true) {
+            match builder_tx.add_builder_txs(&state_provider, &mut info, ctx, &mut builder, true) {
                 Ok(builder_txs) => builder_txs,
                 Err(e) => {
                     error!(target: "payload_builder", "Error adding builder txs to block: {}", e);
@@ -409,7 +439,7 @@ impl<Txs: PayloadTxsBounds> OpBuilder<'_, Txs> {
             if ctx
                 .execute_best_transactions(
                     &mut info,
-                    db,
+                    &mut builder,
                     &mut best_txs,
                     block_gas_limit,
                     block_da_limit,
@@ -422,9 +452,39 @@ impl<Txs: PayloadTxsBounds> OpBuilder<'_, Txs> {
         }
 
         // Add builder tx to the block
-        if let Err(e) = builder_tx.add_builder_txs(&state_provider, &mut info, ctx, db, false) {
+        if let Err(e) =
+            builder_tx.add_builder_txs(&state_provider, &mut info, ctx, &mut builder, false)
+        {
             error!(target: "payload_builder", "Error adding builder txs to fallback block: {}", e);
         };
+
+        // Materialize the canonical SDM PostExec (`0x7D`) tx when producing. The executor has
+        // applied refund settlement to state and receipts throughout the build, and a verifier
+        // re-executes the block with the mode derived from the block's own transactions — without
+        // the trailing PostExec tx carrying the refund entries it runs with SDM disabled and
+        // computes a different state root. Same produce-side rules as op-reth's
+        // `try_include_post_exec_tx` and the flashblocks builder's `materialize_post_exec`:
+        // empty entries → no tx, zero-address sender, appended last (consensus requires at most
+        // one PostExec tx, in the final position). A derived block (`no_tx_pool`) must reproduce
+        // exactly the attribute transactions, so never append one there.
+        if matches!(ctx.post_exec_mode, PostExecMode::Produce) && !ctx.force_empty() {
+            let entries = builder.executor_mut().take_post_exec_entries();
+            if let Some(post_exec_tx) = build_current_post_exec_tx(ctx, entries) {
+                let gas_output = builder.execute_transaction(Recovered::new_unchecked(
+                    post_exec_tx.clone(),
+                    Address::ZERO,
+                ))?;
+                info.cumulative_gas_used += gas_output.tx_gas_used();
+                let receipt =
+                    last_receipt_with_cumulative_gas(builder.executor(), info.cumulative_gas_used)
+                        .expect("executor must record a receipt for the post-exec tx");
+                info.executed_transactions.push(post_exec_tx);
+                info.executed_senders.push(Address::ZERO);
+                info.receipts.push(receipt);
+            }
+        }
+
+        drop(builder);
 
         let state_merge_start_time = Instant::now();
 
@@ -556,8 +616,8 @@ impl<Txs: PayloadTxsBounds> OpBuilder<'_, Txs> {
             receipts_root,
             withdrawals_root,
             logs_bloom,
-            timestamp: ctx.attributes().payload_attributes.timestamp,
-            mix_hash: ctx.attributes().payload_attributes.prev_randao,
+            timestamp: ctx.attributes().timestamp(),
+            mix_hash: ctx.attributes().prev_randao(),
             nonce: BEACON_NONCE.into(),
             base_fee_per_gas: Some(ctx.base_fee()),
             number: ctx.parent().number + 1,
@@ -565,10 +625,12 @@ impl<Txs: PayloadTxsBounds> OpBuilder<'_, Txs> {
             difficulty: U256::ZERO,
             gas_used: info.cumulative_gas_used,
             extra_data,
-            parent_beacon_block_root: ctx.attributes().payload_attributes.parent_beacon_block_root,
+            parent_beacon_block_root: ctx.attributes().parent_beacon_block_root(),
             blob_gas_used,
             excess_blob_gas,
             requests_hash,
+            block_access_list_hash: None,
+            slot_number: None,
         };
 
         // seal the block
@@ -584,15 +646,29 @@ impl<Txs: PayloadTxsBounds> OpBuilder<'_, Txs> {
         let sealed_block = Arc::new(block.seal_slow());
         info!(target: "payload_builder", id=%ctx.attributes().payload_id(), "sealed built block");
 
+        let execution_output = BlockExecutionOutput {
+            state: execution_outcome.bundle.clone(),
+            result: BlockExecutionResult {
+                receipts: execution_outcome
+                    .receipts
+                    .first()
+                    .cloned()
+                    .unwrap_or_default(),
+                requests: Default::default(),
+                gas_used: info.cumulative_gas_used,
+                blob_gas_used: blob_gas_used.unwrap_or_default(),
+            },
+        };
+
         // create the executed block data
-        let executed = ExecutedBlock {
+        let executed = BuiltPayloadExecutedBlock {
             recovered_block: Arc::new(
                 RecoveredBlock::<alloy_consensus::Block<OpTransactionSigned>>::new_sealed(
                     sealed_block.as_ref().clone(),
                     info.executed_senders,
                 ),
             ),
-            execution_output: Arc::new(execution_outcome),
+            execution_output: Arc::new(execution_output),
             hashed_state: Arc::new(hashed_state),
             trie_updates: Arc::new(trie_output),
         };

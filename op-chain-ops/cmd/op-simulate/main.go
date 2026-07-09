@@ -9,14 +9,12 @@ import (
 	"math/big"
 	"os"
 	"path"
+	"runtime/pprof"
 	"time"
-
-	"github.com/ethereum-optimism/optimism/op-service/superutil"
 
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/holiman/uint256"
-	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -35,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -184,9 +183,9 @@ func fetchChainConfig(ctx context.Context, cl *rpc.Client) (*params.ChainConfig,
 	// if we recognize the chain ID, we can get the chain config
 	id := (*big.Int)(&idResult)
 	if id.IsUint64() {
-		cfg, err := superutil.LoadOPStackChainConfigFromChainID(bigs.Uint64Strict(id))
+		cfg, err := opparams.LoadChainConfigFromChainID(bigs.Uint64Strict(id))
 		if err == nil {
-			return cfg, nil
+			return cfg.GethChainConfig(), nil
 		}
 		// ignore error, try to fetch chain config in full
 	}
@@ -316,8 +315,11 @@ func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 	vmConfig := vm.Config{}
 
 	if doProfile {
-		prof := profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile)
-		defer prof.Stop()
+		stopProfile, err := startCPUProfile("cpu.pprof")
+		if err != nil {
+			return err
+		}
+		defer stopProfile()
 	}
 
 	// run the transaction
@@ -334,4 +336,19 @@ func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 		"ok", receipt.Status == types.ReceiptStatusSuccessful, "logs", len(receipt.Logs))
 
 	return nil
+}
+
+func startCPUProfile(path string) (func(), error) {
+	file, err := os.Create(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CPU profile: %w", err)
+	}
+	if err := pprof.StartCPUProfile(file); err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("failed to start CPU profile: %w", err)
+	}
+	return func() {
+		pprof.StopCPUProfile()
+		_ = file.Close()
+	}, nil
 }

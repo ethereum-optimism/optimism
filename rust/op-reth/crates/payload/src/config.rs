@@ -1,6 +1,10 @@
 //! Additional configuration for the OP builder
 
-use std::sync::{Arc, atomic::AtomicU64};
+use reth_optimism_txpool::interop::InteropFailsafe;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, AtomicU64, Ordering},
+};
 
 /// Settings for the OP builder.
 #[derive(Debug, Clone, Default)]
@@ -9,34 +13,59 @@ pub struct OpBuilderConfig {
     pub da_config: OpDAConfig,
     /// Gas limit configuration for the OP builder.
     pub gas_limit_config: OpGasLimitConfig,
-    /// Whether post-exec transactions should be injected for produced payloads.
+    /// Local SDM `PostExec` production opt-in. Shared with the admin RPC.
+    pub sdm_post_exec_opt_in: SdmPostExecOptIn,
+    /// Interop failsafe gate. Set by the interop filter client; read by the builder to exclude
+    /// interop txs from blocks while it is enabled.
+    pub interop_failsafe: InteropFailsafe,
+    /// Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes.
     ///
-    /// This is a temporary integration-test override; SDM has no scheduled Jovian/Karst
-    /// activation.
-    pub sdm_enabled: bool,
+    /// `None` disables the limit (the historical behavior). When set, the payload builder stops
+    /// pulling mempool transactions once including the next one would push the block's total
+    /// EIP-2718 encoded transaction size past this value. This bounds the size of the
+    /// `engine_getPayload` response so it does not exceed the limits assumed by consensus-layer
+    /// clients (e.g. the common 10 MiB JSON payload cap). op-geth enforces an equivalent but
+    /// non-configurable cap via `params.MaxBlockSize`.
+    pub max_uncompressed_block_size: Option<u64>,
 }
 
 impl OpBuilderConfig {
     /// Creates a new OP builder configuration with the given data availability configuration.
-    pub const fn new(da_config: OpDAConfig, gas_limit_config: OpGasLimitConfig) -> Self {
-        Self { da_config, gas_limit_config, sdm_enabled: false }
-    }
-
-    /// Creates a new OP builder configuration with SDM (Sequencer-Defined Metering) enabled per
-    /// the given flag.
-    #[must_use]
-    pub const fn new_with_sdm(
-        da_config: OpDAConfig,
-        gas_limit_config: OpGasLimitConfig,
-        sdm_enabled: bool,
-    ) -> Self {
-        Self { da_config, gas_limit_config, sdm_enabled }
+    pub fn new(da_config: OpDAConfig, gas_limit_config: OpGasLimitConfig) -> Self {
+        Self {
+            da_config,
+            gas_limit_config,
+            sdm_post_exec_opt_in: SdmPostExecOptIn::default(),
+            interop_failsafe: InteropFailsafe::default(),
+            max_uncompressed_block_size: None,
+        }
     }
 
     /// Returns the Data Availability configuration for the OP builder, if it has configured
     /// constraints.
     pub fn constrained_da_config(&self) -> Option<&OpDAConfig> {
         if self.da_config.is_empty() { None } else { Some(&self.da_config) }
+    }
+}
+
+/// Shareable operator opt-in flag for SDM `PostExec` production.
+///
+/// `false` on construction. The admin RPC writes; the payload builder reads. The protocol gate
+/// (chain spec Interop activation) is checked separately; both must be true to actually produce.
+#[derive(Debug, Clone, Default)]
+pub struct SdmPostExecOptIn {
+    inner: Arc<AtomicBool>,
+}
+
+impl SdmPostExecOptIn {
+    /// Returns the current opt-in state.
+    pub fn enabled(&self) -> bool {
+        self.inner.load(Ordering::Acquire)
+    }
+
+    /// Sets the opt-in state.
+    pub fn set(&self, enabled: bool) {
+        self.inner.store(enabled, Ordering::Release);
     }
 }
 

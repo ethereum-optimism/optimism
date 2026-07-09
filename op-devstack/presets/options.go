@@ -5,6 +5,7 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -154,6 +155,27 @@ func WithGlobalL2CLOption(opt sysgo.L2CLOption) Option {
 	}
 }
 
+// WithSupernodeVerifierSyncMode overrides the supernode VN's sync mode.
+func WithSupernodeVerifierSyncMode(mode nodeSync.Mode) Option {
+	return option{
+		kinds: optionKindSupernodeVerifierSyncMode,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			m := mode
+			cfg.SupernodeVerifierSyncMode = &m
+		},
+	}
+}
+
+// WithInteropActivationDelay sets the Interop activation offset past genesis.
+func WithInteropActivationDelay(delaySeconds uint64) Option {
+	return option{
+		kinds: optionKindInteropActivationDelay,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.InteropActivationDelaySeconds = delaySeconds
+		},
+	}
+}
+
 func WithGlobalSyncTesterELOption(opt sysgo.SyncTesterELOption) Option {
 	var kinds optionKinds
 	if opt != nil {
@@ -208,6 +230,22 @@ func WithOPRBuilderOption(opt sysgo.OPRBuilderNodeOption) Option {
 				return
 			}
 			cfg.OPRBuilderOptions = append(cfg.OPRBuilderOptions, opt)
+		},
+	}
+}
+
+func WithOpRethOption(opt sysgo.OpRethOption) Option {
+	var kinds optionKinds
+	if opt != nil {
+		kinds = optionKindOpReth
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			if opt == nil {
+				return
+			}
+			cfg.OpRethOptions = append(cfg.OpRethOptions, opt)
 		},
 	}
 }
@@ -317,6 +355,32 @@ func WithoutHonestProposer() Option {
 		kinds: optionKindSkipHonestProposer,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.SkipHonestProposer = true
+		},
+	}
+}
+
+// WithInteropAtGenesis activates the Interop hardfork at genesis on the L2 chain and provisions
+// a DependencySet for op-node startup without a supervisor. Required by presets that exercise
+// Interop-gated consensus features (e.g. SDM PostExec).
+func WithInteropAtGenesis() Option {
+	return option{
+		kinds: optionKindInteropAtGenesis,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.InteropAtGenesis = true
+		},
+	}
+}
+
+// WithSupernodeVNSequencerForBootstrap enables sequencing on the supernode VN of
+// the light-sequencer supernode interop preset and starts the light follow-mode
+// ELSync sequencers stopped, so the VN can bootstrap the chain the light sequencers
+// EL-sync from. Pair with the system's BootstrapLightSequencersViaVNHandoff method,
+// which drives the bootstrap and hands sequencing off to the light sequencers (#21164).
+func WithSupernodeVNSequencerForBootstrap() Option {
+	return option{
+		kinds: optionKindSupernodeVNSequencerForBootstrap,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.SupernodeVNSequencerForBootstrap = true
 		},
 	}
 }

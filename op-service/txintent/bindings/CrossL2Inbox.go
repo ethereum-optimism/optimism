@@ -3,8 +3,8 @@ package bindings
 import (
 	"math/big"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	supTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -17,5 +17,5 @@ type ABIIdentifier struct {
 }
 
 type CrossL2Inbox struct {
-	ValidateMessage func(identifier supTypes.Identifier, msgHash eth.Bytes32) TypedCall[any] `sol:"validateMessage"`
+	ValidateMessage func(identifier messages.Identifier, msgHash eth.Bytes32) TypedCall[any] `sol:"validateMessage"`
 }

@@ -3,7 +3,7 @@
 use crate::fpvm_evm::precompiles::{
     ecrecover::ECRECOVER_ADDR, kzg_point_eval::KZG_POINT_EVAL_ADDR,
 };
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use alloc::{string::String, vec, vec::Vec};
 use alloy_primitives::{Address, Bytes};
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use op_revm::{
@@ -17,7 +17,7 @@ use revm::{
     precompile::{
         EthPrecompileResult, PrecompileError, PrecompileOutput, Precompiles, bls12_381_const, bn254,
     },
-    primitives::{hardfork::SpecId, hash_map::HashMap},
+    primitives::{AddressSet, hardfork::SpecId, hash_map::HashMap},
 };
 
 /// The FPVM-accelerated precompiles.
@@ -138,23 +138,30 @@ where
             };
 
         if output.is_halt() {
+            result.gas.spend_all();
             result.result = if output.halt_reason().is_some_and(|r| r.is_oog()) {
                 InstructionResult::PrecompileOOG
             } else {
                 InstructionResult::PrecompileError
             };
-        } else {
-            let underflow = result.gas.record_regular_cost(output.gas_used);
-            assert!(underflow, "Gas underflow is not possible");
+        } else if result.gas.record_regular_cost(output.gas_used) {
             result.result = InstructionResult::Return;
             result.output = output.bytes;
+        } else {
+            // Mirror revm's `EthPrecompiles::run`: a precompile reporting more gas than the
+            // call limit gracefully out-of-gases instead of panicking. Unreachable for the
+            // registered precompile set (each checks cost <= gas_limit before returning `Ok`),
+            // but matching upstream keeps the FPVM and op-reth aligned by construction and
+            // avoids halting the fault-proof program on a future precompile that omits the check.
+            result.gas.spend_all();
+            result.result = InstructionResult::PrecompileOOG;
         }
 
         Ok(Some(result))
     }
 
     #[inline]
-    fn warm_addresses(&self) -> Box<impl Iterator<Item = Address>> {
+    fn warm_addresses(&self) -> &AddressSet {
         self.inner.warm_addresses()
     }
 
@@ -343,6 +350,7 @@ mod test {
             value: revm::interpreter::CallValue::Transfer(alloy_primitives::U256::ZERO),
             scheme: revm::interpreter::CallScheme::Call,
             is_static: false,
+            charged_new_account_state_gas: false,
         }
     }
 
@@ -393,6 +401,91 @@ mod test {
         let interpreter_result = result.unwrap();
         assert_eq!(interpreter_result.result, InstructionResult::Return);
         assert_eq!(interpreter_result.output.as_ref(), b"mock");
+    }
+
+    /// A mock accelerated precompile that reports spending more gas than the call limit.
+    fn overspending_accelerated_precompile<H, O>(
+        _input: &[u8],
+        gas_limit: u64,
+        _hint_writer: &H,
+        _oracle_reader: &O,
+    ) -> EthPrecompileResult
+    where
+        H: HintWriterClient + Send + Sync,
+        O: PreimageOracleClient + Send + Sync,
+    {
+        Ok(revm::precompile::EthPrecompileOutput::new(
+            gas_limit.saturating_add(1),
+            Bytes::from_static(b"overspend"),
+        ))
+    }
+
+    #[test]
+    fn test_run_overspending_precompile_oogs_without_panicking() {
+        let (hint_chan, preimage_chan) = (
+            kona_preimage::BidirectionalChannel::new().unwrap(),
+            kona_preimage::BidirectionalChannel::new().unwrap(),
+        );
+        let hint_writer = kona_preimage::HintWriter::new(hint_chan.client);
+        let oracle_reader = kona_preimage::OracleReader::new(preimage_chan.client);
+
+        let mut ctx = create_test_context();
+
+        let mut precompiles =
+            OpFpvmPrecompiles::new_with_spec(OpSpecId::BEDROCK, hint_writer, oracle_reader);
+
+        // A precompile that reports gas_used > gas_limit must gracefully OOG, matching
+        // revm's `EthPrecompiles::run`, rather than panicking the fault-proof program.
+        precompiles
+            .accelerated_precompiles
+            .insert(ECRECOVER_ADDR, overspending_accelerated_precompile);
+
+        let call_inputs = create_call_inputs(ECRECOVER_ADDR, Bytes::from_static(b"test"), 1000);
+
+        let result = precompiles.run(&mut ctx, &call_inputs).unwrap().unwrap();
+        assert_eq!(result.result, InstructionResult::PrecompileOOG);
+        assert!(result.output.is_empty());
+        assert_eq!(result.gas.remaining(), 0);
+    }
+
+    /// A mock accelerated precompile that halts.
+    fn halting_accelerated_precompile<H, O>(
+        _input: &[u8],
+        _gas_limit: u64,
+        _hint_writer: &H,
+        _oracle_reader: &O,
+    ) -> EthPrecompileResult
+    where
+        H: HintWriterClient + Send + Sync,
+        O: PreimageOracleClient + Send + Sync,
+    {
+        Err(revm::precompile::PrecompileHalt::OutOfGas)
+    }
+
+    #[test]
+    fn test_run_halting_precompile_spends_all_gas() {
+        let (hint_chan, preimage_chan) = (
+            kona_preimage::BidirectionalChannel::new().unwrap(),
+            kona_preimage::BidirectionalChannel::new().unwrap(),
+        );
+        let hint_writer = kona_preimage::HintWriter::new(hint_chan.client);
+        let oracle_reader = kona_preimage::OracleReader::new(preimage_chan.client);
+
+        let mut ctx = create_test_context();
+
+        let mut precompiles =
+            OpFpvmPrecompiles::new_with_spec(OpSpecId::BEDROCK, hint_writer, oracle_reader);
+
+        // A halted precompile must consume all gas, matching revm's
+        // `precompile_output_to_interpreter_result`, rather than leaving gas refundable.
+        precompiles.accelerated_precompiles.insert(ECRECOVER_ADDR, halting_accelerated_precompile);
+
+        let call_inputs = create_call_inputs(ECRECOVER_ADDR, Bytes::from_static(b"test"), 1000);
+
+        let result = precompiles.run(&mut ctx, &call_inputs).unwrap().unwrap();
+        assert_eq!(result.result, InstructionResult::PrecompileOOG);
+        assert!(result.output.is_empty());
+        assert_eq!(result.gas.remaining(), 0);
     }
 
     #[test]
@@ -685,6 +778,7 @@ mod test {
             value: revm::interpreter::CallValue::Transfer(alloy_primitives::U256::ZERO),
             scheme: revm::interpreter::CallScheme::Call,
             is_static: false,
+            charged_new_account_state_gas: false,
         };
 
         let result = precompiles.run(&mut ctx, &call_inputs).unwrap();

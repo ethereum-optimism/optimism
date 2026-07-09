@@ -96,6 +96,7 @@ impl OpExecutionPayloadEnvelope {
                     .fee_recipient,
                 withdrawals: Some(payload.execution_payload.withdrawals().clone()),
                 parent_beacon_block_root: Some(payload.parent_beacon_block_root),
+                slot_number: None,
             },
             OpExecutionPayloadEnvelope::V4(payload) => PayloadAttributes {
                 timestamp: payload.execution_payload.payload_inner.timestamp(),
@@ -119,6 +120,7 @@ impl OpExecutionPayloadEnvelope {
                         .clone(),
                 ),
                 parent_beacon_block_root: Some(payload.parent_beacon_block_root),
+                slot_number: None,
             },
         }
     }
@@ -196,6 +198,7 @@ impl From<NewPayload> for ExecutionPayload {
 pub enum PayloadVersion {
     V3,
     V4,
+    V5,
 }
 
 impl PayloadVersion {
@@ -203,6 +206,7 @@ impl PayloadVersion {
         match self {
             PayloadVersion::V3 => "v3",
             PayloadVersion::V4 => "v4",
+            PayloadVersion::V5 => "v5",
         }
     }
 }

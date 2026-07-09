@@ -34,7 +34,7 @@ func TestInteropMon(gt *testing.T) {
 		MetricsConfig: opmetrics.CLIConfig{
 			Enabled: true,
 		},
-	}, clients, []monitor.FailsafeClient{}, t.Logger())
+	}, clients, t.Logger())
 	t.Require().NoError(err)
 	require.NoError(im.Start(t.Ctx()))
 

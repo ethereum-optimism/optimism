@@ -1,6 +1,7 @@
 //! Contains the hardfork configuration for the chain.
 
 use alloc::string::{String, ToString};
+use alloy_op_hardforks::OpHardfork;
 use core::fmt::Display;
 
 /// Hardfork configuration.
@@ -72,11 +73,21 @@ pub struct HardForkConfig {
     /// otherwise.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub karst_time: Option<u64>,
-    /// `interop_time` sets the activation time for the Interop network upgrade.
-    /// Active if `interop_time` != None && L2 block timestamp >= `Some(interop_time)`, inactive
+    /// `keep_karst_upgrade_gas` opts out of the fix for the Karst upgrade-gas leak, where the
+    /// one-time upgrade gas added to the Karst activation block was persisting on every later
+    /// block instead of only the activation block.
+    ///
+    /// Defaults to `false`: the upgrade gas is subtracted again at the block right after the
+    /// Karst activation block, so the gas limit reverts. Set to `true` only on chains that
+    /// already activated Karst with the leak baked into their history — the inflated gas limit
+    /// is kept, and the operator clears it themselves with a `setGasLimit` whenever they choose.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "core::ops::Not::not"))]
+    pub keep_karst_upgrade_gas: bool,
+    /// `lagoon_time` sets the activation time for the Lagoon network upgrade.
+    /// Active if `lagoon_time` != None && L2 block timestamp >= `Some(lagoon_time)`, inactive
     /// otherwise.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    pub interop_time: Option<u64>,
+    pub lagoon_time: Option<u64>,
 }
 
 impl Display for HardForkConfig {
@@ -89,6 +100,10 @@ impl Display for HardForkConfig {
         writeln!(f, "🍴 Scheduled Hardforks:")?;
         for (name, time) in self.iter() {
             writeln!(f, "-> {} Activation Time: {}", name, fmt_time(time))?;
+        }
+        if self.keep_karst_upgrade_gas {
+            // Behavioral opt-out flag rather than a scheduled time; only shown when set.
+            writeln!(f, "-> Keep Karst upgrade gas: true")?;
         }
         Ok(())
     }
@@ -109,9 +124,99 @@ impl HardForkConfig {
             ("Isthmus", self.isthmus_time),
             ("Jovian", self.jovian_time),
             ("Karst", self.karst_time),
-            ("Interop", self.interop_time),
+            // keep_karst_upgrade_gas is a behavioral flag, not a scheduled time, so it is
+            // deliberately excluded from this hardfork-activation-time iterator (Display reports
+            // it separately when set).
+            ("Lagoon", self.lagoon_time),
         ]
         .into_iter()
+    }
+
+    /// Returns the activation timestamp of `fork`. Bedrock (block-activated) and any fork without a
+    /// dedicated timestamp field return `None`.
+    pub const fn fork_time(&self, fork: OpHardfork) -> Option<u64> {
+        match fork {
+            OpHardfork::Regolith => self.regolith_time,
+            OpHardfork::Canyon => self.canyon_time,
+            OpHardfork::Ecotone => self.ecotone_time,
+            OpHardfork::Fjord => self.fjord_time,
+            OpHardfork::Granite => self.granite_time,
+            OpHardfork::Holocene => self.holocene_time,
+            OpHardfork::Isthmus => self.isthmus_time,
+            OpHardfork::Jovian => self.jovian_time,
+            OpHardfork::Karst => self.karst_time,
+            OpHardfork::Lagoon => self.lagoon_time,
+            // Bedrock is block-activated; OpHardfork is #[non_exhaustive].
+            _ => None,
+        }
+    }
+
+    /// Sets the activation timestamp of `fork`. No-op for Bedrock (block-activated) and forks
+    /// without a dedicated timestamp field.
+    pub const fn set_fork_time(&mut self, fork: OpHardfork, time: Option<u64>) {
+        match fork {
+            OpHardfork::Regolith => self.regolith_time = time,
+            OpHardfork::Canyon => self.canyon_time = time,
+            OpHardfork::Ecotone => self.ecotone_time = time,
+            OpHardfork::Fjord => self.fjord_time = time,
+            OpHardfork::Granite => self.granite_time = time,
+            OpHardfork::Holocene => self.holocene_time = time,
+            OpHardfork::Isthmus => self.isthmus_time = time,
+            OpHardfork::Jovian => self.jovian_time = time,
+            OpHardfork::Karst => self.karst_time = time,
+            OpHardfork::Lagoon => self.lagoon_time = time,
+            _ => {}
+        }
+    }
+
+    /// Activates every fork up to and including `fork` at genesis (timestamp 0), leaving later
+    /// forks unset. Mirrors op-node's `Config.ActivateAtGenesis`. The optional Pectra blob schedule
+    /// is not part of the mainline sequence and is never touched.
+    pub fn activate_at_genesis(&mut self, fork: OpHardfork) {
+        for f in OpHardfork::VARIANTS.iter().copied() {
+            self.set_fork_time(f, Some(0));
+            if f == fork {
+                break;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod activate_tests {
+    use super::*;
+
+    #[test]
+    fn activate_at_genesis_sets_forks_through_target() {
+        let mut cfg = HardForkConfig::default();
+        cfg.activate_at_genesis(OpHardfork::Jovian);
+        for fork in [
+            OpHardfork::Regolith,
+            OpHardfork::Canyon,
+            OpHardfork::Ecotone,
+            OpHardfork::Fjord,
+            OpHardfork::Granite,
+            OpHardfork::Holocene,
+            OpHardfork::Isthmus,
+            OpHardfork::Jovian,
+        ] {
+            assert_eq!(cfg.fork_time(fork), Some(0), "{fork:?} must be active at genesis");
+        }
+        // Later forks stay unset, and the optional Pectra blob schedule is never touched.
+        assert_eq!(cfg.fork_time(OpHardfork::Karst), None);
+        assert_eq!(cfg.fork_time(OpHardfork::Lagoon), None);
+        assert_eq!(cfg.pectra_blob_schedule_time, None);
+    }
+
+    #[test]
+    fn set_and_get_fork_time_round_trip() {
+        let mut cfg = HardForkConfig::default();
+        cfg.set_fork_time(OpHardfork::Karst, Some(123));
+        assert_eq!(cfg.karst_time, Some(123));
+        assert_eq!(cfg.fork_time(OpHardfork::Karst), Some(123));
+        // Bedrock is block-activated: setting it is a no-op, getting it is None.
+        cfg.set_fork_time(OpHardfork::Bedrock, Some(99));
+        assert_eq!(cfg.fork_time(OpHardfork::Bedrock), None);
     }
 }
 
@@ -145,7 +250,8 @@ mod tests {
             isthmus_time: None,
             jovian_time: None,
             karst_time: None,
-            interop_time: None,
+            keep_karst_upgrade_gas: false,
+            lagoon_time: None,
         };
 
         let deserialized: HardForkConfig = serde_json::from_str(raw).unwrap();
@@ -193,7 +299,8 @@ mod tests {
             isthmus_time: None,
             jovian_time: None,
             karst_time: None,
-            interop_time: None,
+            keep_karst_upgrade_gas: false,
+            lagoon_time: None,
         };
 
         let deserialized: HardForkConfig = toml::from_str(raw).unwrap();
@@ -228,7 +335,8 @@ mod tests {
             isthmus_time: Some(9),
             jovian_time: Some(10),
             karst_time: Some(11),
-            interop_time: Some(12),
+            keep_karst_upgrade_gas: false,
+            lagoon_time: Some(12),
         };
 
         let mut iter = hardforks.iter();
@@ -243,7 +351,7 @@ mod tests {
         assert_eq!(iter.next(), Some(("Isthmus", Some(9))));
         assert_eq!(iter.next(), Some(("Jovian", Some(10))));
         assert_eq!(iter.next(), Some(("Karst", Some(11))));
-        assert_eq!(iter.next(), Some(("Interop", Some(12))));
+        assert_eq!(iter.next(), Some(("Lagoon", Some(12))));
         assert_eq!(iter.next(), None);
     }
 }

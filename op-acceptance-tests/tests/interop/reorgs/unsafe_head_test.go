@@ -83,14 +83,21 @@ func TestReorgUnsafeHead(gt *testing.T) {
 		}
 	}
 
-	// start batcher on chain A
-	sys.L2BatcherA.Start()
+	// Don't read eth.Unsafe ("latest") for the parent: it can lag the EL's
+	// post-forkchoice canonical swap and return the original head, and building on
+	// that stale parent would forkchoice the EL back onto the original chain,
+	// undoing the reorg. Wait until the divergence height has actually reorged,
+	// then extend that confirmed conflicting block explicitly.
+	sys.L2ELA.ReorgExact(originalRef_A, 30)
+	conflictingHead := sys.L2ELA.BlockRefByNumber(divergenceBlockNumber_A)
+	l.Info("EL reflects conflicting block at divergence height",
+		"number", conflictingHead.Number, "hash", conflictingHead.Hash, "parent", conflictingHead.ParentID().Hash)
 
-	// sequence a second block with op-test-sequencer (no L1 origin override)
+	// sequence a second block extending the confirmed conflicting head
 	{
 		l.Info("Sequencing with op-test-sequencer (no L1 origin override)")
 		err := ia.New(ctx, seqtypes.BuildOpts{
-			Parent:   sys.L2ELA.BlockRefByLabel(eth.Unsafe).Hash,
+			Parent:   conflictingHead.Hash,
 			L1Origin: nil,
 		})
 		require.NoError(t, err, "Expected to be able to create a new block job for sequencing on op-test-sequencer, but got error")
@@ -117,18 +124,24 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	waitCancel()
 	require.NoError(t, err, "op-node never observed test-sequencer's committed unsafe head %s", expectedUnsafe.Hash)
 
+	// Only start the batcher now that op-node and the EL agree on the conflicting
+	// chain. Earlier, during the reorg window, the batcher could pick its block
+	// range from op-node's syncStatus (conflicting head) but load block content
+	// by number from the EL (still the original) and anchor the ORIGINAL block to
+	// L1 — pinning it as safe and making the unsafe reorg impossible to keep.
+	sys.L2BatcherA.Start()
+
 	// continue sequencing with consensus node (op-node)
 	sys.L2ACL.StartSequencer()
 
 	sys.L2A.WaitForBlock()
 
-	reorgedRef_A, err := sys.L2ELA.Escape().EthClient().BlockRefByNumber(ctx, divergenceBlockNumber_A)
-	require.NoError(t, err, "Expected to be able to call BlockRefByNumber API, but got error")
-
-	l.Info("Reorged chain A on divergence block number (prior the reorg)", "number", divergenceBlockNumber_A, "head", originalRef_A.Hash, "parent", originalRef_A.ParentID().Hash)
-	l.Info("Reorged chain A on divergence block number (after the reorg)", "number", divergenceBlockNumber_A, "head", reorgedRef_A.Hash, "parent", reorgedRef_A.ParentID().Hash)
-	require.NotEqual(t, originalRef_A.Hash, reorgedRef_A.Hash, "Expected to get different heads on divergence block number, but got the same hash, so no reorg happened on chain A")
-	require.Equal(t, originalRef_A.ParentID().Hash, reorgedRef_A.ParentHash, "Expected to get same parent hashes on divergence block number, but got different hashes")
+	// Poll for the reorg rather than reading once: ReorgExact waits until the
+	// divergence height has a different hash with the same parent. The generous
+	// attempt budget tolerates a slow-to-canonicalize op-reth under CI load.
+	l.Info("Asserting chain A reorged on divergence block number",
+		"number", divergenceBlockNumber_A, "original", originalRef_A.Hash, "parent", originalRef_A.ParentID().Hash)
+	sys.L2ELA.ReorgExact(originalRef_A, 30)
 
 	err = wait.For(ctx, 5*time.Second, func() (bool, error) {
 		safeL2Head_A_sequencer := sys.L2ACL.SafeL2BlockRef()

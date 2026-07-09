@@ -507,27 +507,6 @@
     }
   },
   {
-    "name": "Swellchain",
-    "identifier": "mainnet/swell",
-    "chainId": 1923,
-    "rpc": [
-      "https://swell-mainnet.alt.technology"
-    ],
-    "explorers": [
-      "https://explorer.swellnetwork.io"
-    ],
-    "superchainLevel": 1,
-    "governedByOptimism": true,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "Unichain",
     "identifier": "mainnet/unichain",
     "chainId": 130,
@@ -612,27 +591,6 @@
     }
   },
   {
-    "name": "arena-z",
-    "identifier": "mainnet/arena-z",
-    "chainId": 7897,
-    "rpc": [
-      "https://rpc.arena-z.gg"
-    ],
-    "explorers": [
-      "https://explorer.arena-z.gg"
-    ],
-    "superchainLevel": 1,
-    "governedByOptimism": true,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "mainnet"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "Binary Sepolia",
     "identifier": "sepolia/tbn",
     "chainId": 625,
@@ -676,27 +634,6 @@
     }
   },
   {
-    "name": "Creator Chain Testnet",
-    "identifier": "sepolia/creator-chain-testnet",
-    "chainId": 66665,
-    "rpc": [
-      "https://rpc.creatorchain.io"
-    ],
-    "explorers": [
-      "https://explorer.creatorchain.io"
-    ],
-    "superchainLevel": 0,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "Cyber Testnet",
     "identifier": "sepolia/cyber",
     "chainId": 111557560,
@@ -707,27 +644,6 @@
       "https://testnet.cyberscan.co/"
     ],
     "superchainLevel": 0,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia"
-    },
-    "faultProofs": {
-      "status": "none"
-    }
-  },
-  {
-    "name": "Ethernity Testnet",
-    "identifier": "sepolia/ethernity",
-    "chainId": 233,
-    "rpc": [
-      "https://testnet.ethernitychain.io"
-    ],
-    "explorers": [
-      "https://testnet.ernscan.io"
-    ],
-    "superchainLevel": 1,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -1197,27 +1113,6 @@
     "parent": {
       "type": "L2",
       "chain": "rehearsal-0-bn"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
-    "name": "arena-z-testnet",
-    "identifier": "sepolia/arena-z",
-    "chainId": 9899,
-    "rpc": [
-      "https://testnet-rpc.arena-z.gg"
-    ],
-    "explorers": [
-      "https://testnet-explorer.arena-z.gg"
-    ],
-    "superchainLevel": 1,
-    "governedByOptimism": true,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia"
     },
     "faultProofs": {
       "status": "permissioned"

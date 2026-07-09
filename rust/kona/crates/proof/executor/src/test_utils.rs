@@ -59,13 +59,14 @@ pub async fn load_test_fixture(fixture_path: PathBuf) -> LoadedExecutorTestFixtu
 pub fn execute_loaded_fixture(
     loaded: LoadedExecutorTestFixture,
     sdm_active_override: Option<bool>,
-) -> ExecutorResult<BlockBuildingOutcome> {
+) -> ExecutorResult<BlockBuildingOutcome<op_alloy_consensus::OpReceiptEnvelope>> {
     let LoadedExecutorTestFixture { fixture_dir: _fixture_dir, fixture, provider } = loaded;
     let ExecutorTestFixture { rollup_config, parent_header, executing_payload, .. } = fixture;
 
     let mut executor = StatelessL2Builder::new(
         &rollup_config,
         OpEvmFactory::<alloy_op_evm::OpTx>::default(),
+        alloy_op_evm::block::OpAlloyReceiptBuilder::default(),
         provider,
         NoopTrieHinter,
         parent_header.seal_slow(),
@@ -212,6 +213,7 @@ impl ExecutorTestFixtureCreator {
         let mut executor = StatelessL2Builder::new(
             rollup_config,
             OpEvmFactory::<alloy_op_evm::OpTx>::default(),
+            alloy_op_evm::block::OpAlloyReceiptBuilder::default(),
             self,
             NoopTrieHinter,
             parent_header,

@@ -32,6 +32,10 @@ type rewindTestEnv struct {
 func setupRewindTest(gt *testing.T) *rewindTestEnv {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
+	// Match production: supernode runs on Holocene+ chains. Without activating a fork at
+	// genesis the chain is pre-Holocene, where ExtraData must be empty — and the rewind's
+	// synthetic block (which perturbs ExtraData to fork a new block hash) is then rejected.
+	dp.DeployConfig.ActivateForkAtGenesis(helpers.DefaultFork)
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	logger := testlog.Logger(t, log.LevelInfo)
 
@@ -67,11 +71,6 @@ func (env *rewindTestEnv) buildUnsafeBlocks(numL1Blocks int) {
 	env.sequencer.ActBuildToL1Head(env.t)
 }
 
-// timestampForBlock returns the timestamp for a given L2 block number.
-func (env *rewindTestEnv) timestampForBlock(blockNum uint64) uint64 {
-	return env.sd.RollupCfg.Genesis.L2Time + (env.sd.RollupCfg.BlockTime * blockNum)
-}
-
 // batchSubmitAndSync submits L2 blocks to L1 and syncs the sequencer to advance safe head.
 func (env *rewindTestEnv) batchSubmitAndSync() {
 	env.batcher.ActSubmitAll(env.t)
@@ -97,9 +96,21 @@ func (env *rewindTestEnv) getHeads() (unsafe, safe, finalized eth.L2BlockRef) {
 
 // rewindToBlock rewinds the engine to the given block number and returns the resulting heads.
 func (env *rewindTestEnv) rewindToBlock(blockNum uint64) (unsafe, safe, finalized eth.L2BlockRef) {
-	err := env.ec.RewindToTimestamp(context.Background(), env.timestampForBlock(blockNum))
+	target := env.canonicalPayload(blockNum)
+	err := env.ec.Rewind(context.Background(), target)
 	require.NoError(env.t, err)
 	return env.getHeads()
+}
+
+// canonicalPayload fetches the canonical execution payload for the given block number from
+// the live engine — emulating the WAL-captured payload that production callers would supply.
+func (env *rewindTestEnv) canonicalPayload(blockNum uint64) *eth.ExecutionPayloadEnvelope {
+	ref, err := env.engCl.L2BlockRefByNumber(context.Background(), blockNum)
+	require.NoError(env.t, err)
+	envelope, err := env.engCl.PayloadByHash(context.Background(), ref.Hash)
+	require.NoError(env.t, err)
+	require.NotNil(env.t, envelope)
+	return envelope
 }
 
 func TestRewindToTimestamp(gt *testing.T) {
@@ -265,6 +276,7 @@ func RewindFinalizedHeadBackward(gt *testing.T) {
 	require.Greater(gt, rewindTarget, uint64(0), "rewind target should be past genesis")
 	require.Less(gt, rewindTarget, finalizedBefore.Number, "rewind target should be behind finalized")
 
-	err := env.ec.RewindToTimestamp(context.Background(), env.timestampForBlock(rewindTarget))
+	target := env.canonicalPayload(rewindTarget)
+	err := env.ec.Rewind(context.Background(), target)
 	require.ErrorIs(gt, err, engine_controller.ErrRewindOverFinalizedHead)
 }

@@ -1,16 +1,15 @@
-use crate::debug_api::ExecutionMode;
 use crate::{
     BlockSelectionPolicy, ClientArgs, EngineApiExt, Flashblocks, FlashblocksService,
-    RollupBoostLibArgs, update_execution_mode_gauge,
-};
-use crate::{
+    RollupBoostLibArgs,
     client::rpc::RpcClient,
+    debug_api::ExecutionMode,
     health::HealthHandle,
     payload::{
         NewPayload, NewPayloadV3, NewPayloadV4, OpExecutionPayloadEnvelope, PayloadSource,
         PayloadTraceContext, PayloadVersion,
     },
     probe::{Health, Probes},
+    update_execution_mode_gauge,
 };
 use alloy_primitives::{B256, Bytes, bytes};
 use alloy_rpc_types_engine::{
@@ -20,15 +19,13 @@ use alloy_rpc_types_engine::{
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
 use dashmap::DashMap;
 use http_body_util::{BodyExt, Full};
-use jsonrpsee::RpcModule;
-use jsonrpsee::core::BoxError;
-use jsonrpsee::core::{RegisterMethodError, RpcResult, async_trait};
-use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::server::HttpBody;
-use jsonrpsee::server::HttpRequest;
-use jsonrpsee::server::HttpResponse;
-use jsonrpsee::types::ErrorObject;
-use jsonrpsee::types::error::INVALID_REQUEST_CODE;
+use jsonrpsee::{
+    RpcModule,
+    core::{BoxError, RegisterMethodError, RpcResult, async_trait},
+    proc_macros::rpc,
+    server::{HttpBody, HttpRequest, HttpResponse},
+    types::{ErrorObject, error::INVALID_REQUEST_CODE},
+};
 use metrics::counter;
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
@@ -36,10 +33,12 @@ use op_alloy_rpc_types_engine::{
 };
 use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
-use std::net::{IpAddr, SocketAddr};
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    net::{IpAddr, SocketAddr},
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, instrument};
 
@@ -486,6 +485,12 @@ pub trait EngineApi {
         payload_id: PayloadId,
     ) -> RpcResult<OpExecutionPayloadEnvelopeV4>;
 
+    #[method(name = "engine_getPayloadV5")]
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<OpExecutionPayloadEnvelopeV4>;
+
     #[method(name = "engine_newPayloadV4")]
     async fn new_payload_v4(
         &self,
@@ -702,6 +707,35 @@ impl<T: EngineApiExt> EngineApiServer for RollupBoostServer<T> {
         err,
         fields(
             otel.kind = ?SpanKind::Server,
+            %payload_id,
+            payload_source,
+            gas_delta,
+            tx_count_delta,
+        )
+    )]
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<OpExecutionPayloadEnvelopeV4> {
+        info!("received get_payload_v5");
+
+        // Osaka reuses the V4-shaped OP envelope (OP Stack has no blobs); only the engine
+        // method version bumps to V5.
+        match self.get_payload(payload_id, PayloadVersion::V5).await? {
+            OpExecutionPayloadEnvelope::V4(v4) => Ok(v4),
+            OpExecutionPayloadEnvelope::V3(_) => Err(ErrorObject::owned(
+                INVALID_REQUEST_CODE,
+                "Payload version 3 not supported",
+                None::<String>,
+            )),
+        }
+    }
+
+    #[instrument(
+        skip_all,
+        err,
+        fields(
+            otel.kind = ?SpanKind::Server,
         )
     )]
     async fn new_payload_v4(
@@ -742,22 +776,20 @@ pub fn from_buffered_request(req: BufferedRequest) -> HttpRequest {
 #[allow(clippy::complexity)]
 pub mod tests {
     use super::*;
-    use crate::probe::ProbeLayer;
-    use crate::proxy::ProxyLayer;
-    use alloy_primitives::hex;
-    use alloy_primitives::{FixedBytes, U256};
-    use alloy_rpc_types_engine::JwtSecret;
+    use crate::{probe::ProbeLayer, proxy::ProxyLayer};
+    use alloy_primitives::{FixedBytes, U256, hex};
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
     use http::{StatusCode, Uri};
-    use jsonrpsee::RpcModule;
-    use jsonrpsee::http_client::HttpClient;
-    use jsonrpsee::server::{Server, ServerBuilder, ServerHandle};
+    use jsonrpsee::{
+        RpcModule,
+        http_client::HttpClient,
+        server::{Server, ServerBuilder, ServerHandle},
+    };
     use parking_lot::Mutex;
-    use std::net::SocketAddr;
-    use std::str::FromStr;
-    use std::sync::Arc;
+    use reth_rpc_layer::JwtSecret;
+    use std::{net::SocketAddr, str::FromStr, sync::Arc};
     use tokio::time::sleep;
 
     #[derive(Debug, Clone)]
@@ -1096,7 +1128,8 @@ pub mod tests {
                 let mut get_payload_requests = mock_engine_server.get_payload_requests.lock();
                 get_payload_requests.push(params.0);
 
-                // Return the response based on the call index, or the last one if we exceed the list
+                // Return the response based on the call index, or the last one if we exceed the
+                // list
                 let response_index = get_payload_requests.len().saturating_sub(1);
                 if response_index < mock_engine_server.get_payload_responses.len() {
                     mock_engine_server.get_payload_responses[response_index].clone()
@@ -1253,8 +1286,8 @@ pub mod tests {
 
     #[tokio::test]
     async fn l2_client_fails_fcu() {
-        // If the canonical l2 client fails the FCU call, it does not matter what the builder returns
-        // the FCU call should fail
+        // If the canonical l2 client fails the FCU call, it does not matter what the builder
+        // returns the FCU call should fail
         let mut l2_mock = MockEngineServer::new();
         l2_mock.fcu_response = Err(ErrorObject::owned(
             INVALID_REQUEST_CODE,

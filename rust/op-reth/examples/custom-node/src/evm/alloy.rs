@@ -5,13 +5,12 @@ use alloy_primitives::{Address, Bytes};
 use op_revm::{L1BlockInfo, OpHaltReason, OpSpecId, OpTransaction, precompiles::OpPrecompiles};
 use revm::{
     Context, Inspector, Journal,
-    context::{BlockEnv, CfgEnv, result::ResultAndState},
+    context::{BlockEnv, CfgEnv, DBErrorMarker, result::ResultAndState},
     context_interface::result::EVMError,
     handler::PrecompileProvider,
     inspector::NoOpInspector,
     interpreter::InterpreterResult,
 };
-use std::error::Error;
 
 /// EVM context contains data that EVM needs for execution of [`CustomTxEnv`].
 pub type CustomContext<DB> =
@@ -47,6 +46,14 @@ where
 
     fn take_last_post_exec_tx_result(&mut self) -> alloy_op_evm::post_exec::PostExecExecutedTx {
         Self::take_last_post_exec_tx_result(self)
+    }
+
+    fn warming_state(&self) -> alloy_op_evm::post_exec::WarmingState {
+        self.inner.warming_state()
+    }
+
+    fn seed_warming_state(&mut self, state: alloy_op_evm::post_exec::WarmingState) {
+        self.inner.seed_warming_state(state);
     }
 }
 
@@ -126,7 +133,7 @@ impl EvmFactory for CustomEvmFactory {
     type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> = CustomEvm<DB, I, Self::Precompiles>;
     type Context<DB: Database> = OpEvmContext<DB>;
     type Tx = CustomTxEnv;
-    type Error<DBError: Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
+    type Error<DBError: DBErrorMarker> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type BlockEnv = BlockEnv;

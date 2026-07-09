@@ -1,11 +1,13 @@
 //! Utility methods used by protocol types.
 
 use alloc::vec::Vec;
-use alloy_consensus::{Transaction, TxType, Typed2718};
+use alloy_consensus::{Transaction, Typed2718};
+use alloy_op_hardforks::OpHardfork;
 use alloy_primitives::{B256, U256};
 use alloy_rlp::{Buf, Header};
 use kona_genesis::{RollupConfig, SystemConfig};
-use op_alloy_consensus::{OpBlock, decode_holocene_extra_data, decode_jovian_extra_data};
+use kona_hardforks::{Hardfork, Hardforks};
+use op_alloy_consensus::{OpBlock, OpTxType, decode_holocene_extra_data, decode_jovian_extra_data};
 
 use crate::{
     L1BlockInfoBedrockOnlyFields as _, L1BlockInfoEcotoneBaseFields as _, L1BlockInfoTx,
@@ -59,6 +61,21 @@ pub fn to_system_config(
         ..Default::default()
     };
 
+    // Starting with Karst, each NUT-bundle fork adds one-time upgrade gas to its activation block's
+    // gas limit so the upgrade transactions exceed the normal budget. Subtract it back here so the
+    // reconstructed config holds the steady-state limit. This runs during reconstruction, before
+    // update_with_receipts in the caller, so a setGasLimit in the same block's L1 origin takes
+    // precedence. Mirrors op-node's PayloadToSystemConfig.
+    let gas_to_strip = upgrade_gas_to_strip(rollup_config, block.header.timestamp);
+    if gas_to_strip > 0 {
+        cfg.gas_limit = cfg.gas_limit.checked_sub(gas_to_strip).ok_or(
+            OpBlockConversionError::GasLimitBelowUpgradeGas {
+                gas_limit: cfg.gas_limit,
+                upgrade_gas: gas_to_strip,
+            },
+        )?;
+    }
+
     // After holocene's activation, the EIP-1559 parameters are stored in the block header's nonce.
     if rollup_config.is_jovian_active(block.header.timestamp) {
         let (elasticity, denominator, min_base_fee) =
@@ -84,6 +101,39 @@ pub fn to_system_config(
     Ok(cfg)
 }
 
+/// Returns the one-time NUT-bundle upgrade gas to subtract from the system config reconstructed
+/// from a block with the given timestamp. Starting with Karst, upgrade gas is added to a fork's
+/// activation block to accommodate its NUT bundle; subtracting it again at the next block reverts
+/// the gas limit to the steady state. Karst can opt out via `keep_karst_upgrade_gas` (for chains
+/// that activated Karst with the leak baked into their history); later forks have no opt-out.
+fn upgrade_gas_to_strip(rollup_config: &RollupConfig, block_timestamp: u64) -> u64 {
+    for fork in OpHardfork::Karst.forks_from() {
+        if !rollup_config.is_fork_activation_block(fork, block_timestamp) {
+            continue;
+        }
+        // At most one fork activates per block, so the first activation fork found is the only one.
+        if fork == OpHardfork::Karst && rollup_config.hardforks.keep_karst_upgrade_gas {
+            return 0;
+        }
+        return upgrade_gas(fork);
+    }
+    0
+}
+
+/// Returns the one-time upgrade gas a NUT-bundle fork adds to its activation block. Forks without a
+/// NUT bundle (everything before Karst) add none.
+///
+/// [`OpHardfork`] is `#[non_exhaustive]`, so an exhaustive match that fails to compile when a new
+/// fork is added is not possible here; the `upgrade_gas_covers_known_forks` test guards instead,
+/// failing when a new variant appears so that its upgrade gas is reviewed.
+pub fn upgrade_gas(fork: OpHardfork) -> u64 {
+    match fork {
+        OpHardfork::Karst => Hardforks::KARST.upgrade_gas(),
+        OpHardfork::Lagoon => Hardforks::LAGOON.upgrade_gas(),
+        _ => 0,
+    }
+}
+
 fn encode_scalar(blob_base_fee_scalar: u32, base_fee_scalar: u32) -> U256 {
     // Translate Ecotone values back into encoded scalar if needed.
     // We do not know if it was derived from a v0 or v1 scalar,
@@ -95,47 +145,55 @@ fn encode_scalar(blob_base_fee_scalar: u32, base_fee_scalar: u32) -> U256 {
     buf.into()
 }
 
+/// Maximum EIP-2718 transaction-type byte. A leading byte above this is the RLP list header of a
+/// legacy transaction rather than a type identifier.
+const EIP2718_MAX_TX_TYPE: u8 = 0x7F;
+
 /// Reads transaction data from a reader.
-pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, TxType), SpanBatchError> {
-    let mut tx_data = Vec::new();
+pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, OpTxType), SpanBatchError> {
     let first_byte =
         *r.first().ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
-    let mut tx_type = 0;
-    if first_byte <= 0x7F {
-        // EIP-2718: Non-legacy tx, so write tx type
-        tx_type = first_byte;
-        tx_data.push(tx_type);
+    let tx_type_id = if first_byte <= EIP2718_MAX_TX_TYPE {
         r.advance(1);
-    }
+        first_byte
+    } else {
+        u8::from(OpTxType::Legacy)
+    };
 
     // Read the RLP header with a different reader pointer. This prevents the initial pointer from
     // being advanced in the case that what we read is invalid.
     let rlp_header = Header::decode(&mut (**r).as_ref())
         .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
+    if !rlp_header.list {
+        return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+    }
 
-    let tx_payload = if rlp_header.list {
-        // Grab the raw RLP for the transaction data from `r`. It was unaffected since we copied it.
-        let payload_length_with_header = rlp_header.payload_length + rlp_header.length();
-        if payload_length_with_header > MAX_SPAN_BATCH_ELEMENTS as usize {
-            return Err(SpanBatchError::TooBigSpanBatchSize);
-        }
-        if r.len() < payload_length_with_header {
-            return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
-        }
-        let payload = r[0..payload_length_with_header].to_vec();
-        r.advance(payload_length_with_header);
-        Ok(payload)
-    } else {
-        Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))
-    }?;
-    tx_data.extend_from_slice(&tx_payload);
+    let payload_length_with_header = rlp_header.payload_length + rlp_header.length();
+    if payload_length_with_header > MAX_SPAN_BATCH_ELEMENTS as usize {
+        return Err(SpanBatchError::TooBigSpanBatchSize);
+    }
+    if r.len() < payload_length_with_header {
+        return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+    }
 
-    Ok((
-        tx_data,
-        tx_type
-            .try_into()
-            .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType))?,
-    ))
+    let tx_type = match OpTxType::try_from(tx_type_id) {
+        // Deposits are not valid span-batch transactions, and an unknown byte is invalid too.
+        Ok(OpTxType::Deposit) | Err(_) => {
+            return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType));
+        }
+        Ok(ty) => ty,
+    };
+
+    let is_typed_tx = tx_type != OpTxType::Legacy;
+    let tx_data_capacity = payload_length_with_header + usize::from(is_typed_tx);
+    let mut tx_data = Vec::with_capacity(tx_data_capacity);
+    if is_typed_tx {
+        tx_data.push(u8::from(tx_type));
+    }
+    tx_data.extend_from_slice(&r[..payload_length_with_header]);
+    r.advance(payload_length_with_header);
+
+    Ok((tx_data, tx_type))
 }
 
 #[cfg(test)]
@@ -146,6 +204,16 @@ mod tests {
     use alloy_eips::eip1898::BlockNumHash;
     use alloy_primitives::{U256, address, bytes, uint};
     use kona_genesis::{ChainGenesis, HardForkConfig};
+
+    /// `HardForkConfig` with every fork through Jovian active at genesis, plus Karst at
+    /// `karst_time` — matching the op-node upgrade-gas test's `ActivateAtGenesis(Jovian)`
+    /// schedule (Jovian must be active before Karst can activate).
+    fn karst_at(karst_time: u64) -> HardForkConfig {
+        let mut hardforks = HardForkConfig::default();
+        hardforks.activate_at_genesis(OpHardfork::Jovian);
+        hardforks.karst_time = Some(karst_time);
+        hardforks
+    }
 
     #[test]
     fn test_to_system_config_invalid_genesis_hash() {
@@ -283,6 +351,133 @@ mod tests {
             da_footprint_gas_scalar: None,
         };
         assert_eq!(config, expected);
+    }
+
+    #[test]
+    fn test_to_system_config_strips_karst_upgrade_gas() {
+        const BASE_GAS_LIMIT: u64 = 30_000_000;
+        let karst_gas = Hardforks::KARST.upgrade_gas();
+        let karst_time = 100u64;
+        let block = OpBlock {
+            header: alloy_consensus::Header {
+                number: 1,
+                timestamp: karst_time,
+                // The activation block carries base + the one-time upgrade gas.
+                gas_limit: BASE_GAS_LIMIT + karst_gas,
+                // Jovian extra data: version 0x01 + denominator + elasticity + minBaseFee
+                // (Karst is active, which implies Jovian).
+                extra_data: bytes!("010000beef0000babe0000000000000000"),
+                ..Default::default()
+            },
+            body: alloy_consensus::BlockBody {
+                transactions: vec![op_alloy_consensus::OpTxEnvelope::Deposit(
+                    alloy_primitives::Sealed::new(op_alloy_consensus::TxDeposit {
+                        input: alloy_primitives::Bytes::from(&RAW_ISTHMUS_INFO_TX),
+                        ..Default::default()
+                    }),
+                )],
+                ..Default::default()
+            },
+        };
+        let block_hash = block.header.hash_slow();
+        let rollup_config = RollupConfig {
+            block_time: 2,
+            genesis: ChainGenesis {
+                l2: BlockNumHash { hash: block_hash, ..Default::default() },
+                ..Default::default()
+            },
+            hardforks: karst_at(karst_time),
+            ..Default::default()
+        };
+        assert!(rollup_config.is_first_karst_block(block.header.timestamp));
+        let config = to_system_config(&block, &rollup_config).unwrap();
+        assert_eq!(config.gas_limit, BASE_GAS_LIMIT, "Karst upgrade gas must be stripped");
+    }
+
+    #[test]
+    fn test_to_system_config_keeps_karst_upgrade_gas() {
+        const BASE_GAS_LIMIT: u64 = 30_000_000;
+        let karst_gas = Hardforks::KARST.upgrade_gas();
+        let block = OpBlock {
+            header: alloy_consensus::Header {
+                number: 1,
+                timestamp: 100,
+                gas_limit: BASE_GAS_LIMIT + karst_gas,
+                extra_data: bytes!("010000beef0000babe0000000000000000"),
+                ..Default::default()
+            },
+            body: alloy_consensus::BlockBody {
+                transactions: vec![op_alloy_consensus::OpTxEnvelope::Deposit(
+                    alloy_primitives::Sealed::new(op_alloy_consensus::TxDeposit {
+                        input: alloy_primitives::Bytes::from(&RAW_ISTHMUS_INFO_TX),
+                        ..Default::default()
+                    }),
+                )],
+                ..Default::default()
+            },
+        };
+        // keep_karst_upgrade_gas = true: the activation block's inflated gas limit is kept,
+        // so an already-affected chain's history still validates.
+        let rollup_config = RollupConfig {
+            block_time: 2,
+            hardforks: HardForkConfig { keep_karst_upgrade_gas: true, ..karst_at(100) },
+            ..Default::default()
+        };
+        assert!(rollup_config.is_first_karst_block(block.header.timestamp));
+        let config = to_system_config(&block, &rollup_config).unwrap();
+        assert_eq!(
+            config.gas_limit,
+            BASE_GAS_LIMIT + karst_gas,
+            "upgrade gas must be kept when keep_karst_upgrade_gas is set"
+        );
+    }
+
+    #[test]
+    fn test_upgrade_gas_to_strip() {
+        let karst_gas = Hardforks::KARST.upgrade_gas();
+        let lagoon_gas = Hardforks::LAGOON.upgrade_gas();
+        let (karst_time, lagoon_time) = (1000u64, 2000u64);
+        let cfg = RollupConfig {
+            block_time: 2,
+            hardforks: HardForkConfig { lagoon_time: Some(lagoon_time), ..karst_at(karst_time) },
+            ..Default::default()
+        };
+
+        // Each NUT-bundle fork strips its own upgrade gas at its activation block, nowhere else.
+        assert_eq!(upgrade_gas_to_strip(&cfg, karst_time), karst_gas);
+        assert_eq!(upgrade_gas_to_strip(&cfg, karst_time - 2), 0);
+        assert_eq!(upgrade_gas_to_strip(&cfg, karst_time + 2), 0);
+        assert_eq!(upgrade_gas_to_strip(&cfg, lagoon_time), lagoon_gas);
+
+        // keep_karst_upgrade_gas opts out of Karst only; later forks have no opt-out.
+        let kept = RollupConfig {
+            block_time: 2,
+            hardforks: HardForkConfig {
+                lagoon_time: Some(lagoon_time),
+                keep_karst_upgrade_gas: true,
+                ..karst_at(karst_time)
+            },
+            ..Default::default()
+        };
+        assert_eq!(upgrade_gas_to_strip(&kept, karst_time), 0);
+        assert_eq!(upgrade_gas_to_strip(&kept, lagoon_time), lagoon_gas);
+    }
+
+    #[test]
+    fn upgrade_gas_covers_known_forks() {
+        // OpHardfork is #[non_exhaustive], so upgrade_gas can't fail to compile on a new variant.
+        // This guards instead: when a fork is added upstream, VARIANTS grows and this fails,
+        // prompting a review of whether the new fork ships a NUT bundle.
+        assert_eq!(OpHardfork::VARIANTS.len(), 11, "new OpHardfork variant: review upgrade_gas()");
+        for &fork in OpHardfork::VARIANTS {
+            let gas = upgrade_gas(fork);
+            match fork {
+                OpHardfork::Karst | OpHardfork::Lagoon => {
+                    assert!(gas > 0, "{fork:?} must reserve upgrade gas")
+                }
+                _ => assert_eq!(gas, 0, "{fork:?} must not reserve upgrade gas"),
+            }
+        }
     }
 
     #[test]

@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func TestIntegration_Ingest_HappyPath_SequentialBlocks(t *testing.T) {
@@ -86,7 +86,7 @@ func TestIntegration_Ingest_InvalidExecutingMessageDecode_ErrorInvalidExecutingM
 	malformed := &gethTypes.Log{
 		Address: params.InteropCrossL2InboxAddress,
 		Topics: []common.Hash{
-			types.ExecutingMessageEventTopic,
+			messages.ExecutingMessageEventTopic,
 			{0xab, 0xcd},
 		},
 		Data: []byte{0x01, 0x02, 0x03},

@@ -397,7 +397,6 @@ impl From<AttributesMismatch> for AttributesMatch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::AttributesMismatch::EIP1559Parameters;
     use alloy_consensus::EMPTY_ROOT_HASH;
     use alloy_primitives::{Bytes, FixedBytes, address, b256};
     use alloy_rpc_types_eth::BlockTransactions;
@@ -795,8 +794,9 @@ mod tests {
         assert!(check.is_mismatch());
     }
 
-    /// Check that, when the eip1559 params are specified and empty, the check fails because we
-    /// fallback on canyon params for the attributes but not for the block (edge case).
+    /// Check that, when the eip1559 params are specified and empty, the check fails: the attributes
+    /// fall back to canyon params, but the block's all-zero extraData is rejected at decode (a zero
+    /// denominator is invalid per the Holocene header rules).
     #[test]
     fn test_eip1559_parameters_specified_both_and_empty() {
         let (cfg, mut attributes, mut block) = eip1559_test_setup();
@@ -807,9 +807,8 @@ mod tests {
         let check = AttributesMatch::check(&cfg, &attributes, &block);
         assert_eq!(
             check,
-            AttributesMatch::Mismatch(EIP1559Parameters(
-                BaseFeeParams { max_change_denominator: 250, elasticity_multiplier: 6 },
-                BaseFeeParams { max_change_denominator: 0, elasticity_multiplier: 0 }
+            AttributesMatch::Mismatch(AttributesMismatch::UnknownExtraDataDecodingError(
+                EIP1559ParamError::ZeroDenominator
             ))
         );
         assert!(check.is_mismatch());
@@ -975,16 +974,13 @@ mod tests {
 
         let check = AttributesMatch::check(&cfg, &attributes, &block);
 
-        // Note that in this case we *always* have a mismatch because there isn't enough bytes in
-        // the default representation of the extra params to represent a u128
+        // The block's all-zero extraData is rejected at decode (a zero denominator is invalid per
+        // the Holocene header rules), so the check fails there regardless of the attributes'
+        // (here intentionally oversized) canyon params.
         assert_eq!(
             check,
-            AttributesMatch::Mismatch(EIP1559Parameters(
-                BaseFeeParams {
-                    max_change_denominator: u64::MAX as u128,
-                    elasticity_multiplier: u64::MAX as u128
-                },
-                BaseFeeParams { max_change_denominator: 0, elasticity_multiplier: 0 }
+            AttributesMatch::Mismatch(AttributesMismatch::UnknownExtraDataDecodingError(
+                EIP1559ParamError::ZeroDenominator
             ))
         );
         assert!(check.is_mismatch());

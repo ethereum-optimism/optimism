@@ -14,7 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -23,7 +24,7 @@ func TestPostInbox(gt *testing.T) {
 	sys := presets.NewTwoL2SupernodeInterop(t, 60)
 	devtest.RunParallel(t, []*dsl.L2Network{sys.L2A, sys.L2B}, func(t devtest.T, net *dsl.L2Network) {
 		require := t.Require()
-		activationBlock := net.AwaitActivation(t, forks.Interop)
+		activationBlock := net.AwaitActivation(t, forks.Lagoon)
 
 		el := net.PrimaryEL()
 		implAddrBytes, err := el.EthClient().GetStorageAt(t.Ctx(), predeploys.CrossL2InboxAddr,
@@ -48,11 +49,10 @@ func TestPostInteropUpgradeComprehensive(gt *testing.T) {
 	sys.L2A.WaitForBlock()
 	sys.L2B.WaitForBlock()
 
-	// Get interop activation time
-	interopTime := sys.L2A.Escape().ChainConfig().InteropTime
-	require.NotNil(interopTime, "InteropTime must be set")
+	lagoonTime := sys.L2A.Escape().ChainConfig().LagoonTime
+	require.NotNil(lagoonTime, "Lagoon activation time must be set")
 
-	logger.Info("Starting comprehensive post-interop upgrade tests", "interopTime", *interopTime)
+	logger.Info("Starting comprehensive post-interop upgrade tests", "lagoonTime", *lagoonTime)
 
 	// 1. Check that chains reach cross-safe past the activation block
 	logger.Info("Checking cross-safe progression past activation block")
@@ -77,7 +77,7 @@ func testActivationCrossSafe(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 
 	devtest.RunParallel(t, []*dsl.L2Network{sys.L2A, sys.L2B}, func(t devtest.T, net *dsl.L2Network) {
 		// Gate test to not time out before upgrade happens
-		forkTimestamp := net.Escape().ChainConfig().InteropTime
+		forkTimestamp := net.Escape().ChainConfig().LagoonTime
 		t.Gate().NotNil(forkTimestamp, "Must have fork configured")
 		t.Gate().Greater(*forkTimestamp, uint64(0), "Must not start fork at genesis")
 		upgradeTime := time.Unix(int64(*forkTimestamp), 0)
@@ -85,19 +85,19 @@ func testActivationCrossSafe(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 			t.Gate().True(upgradeTime.Before(deadline), "test must not time out before upgrade happens")
 		}
 
-		activationBlock := net.AwaitActivation(t, forks.Interop)
+		activationBlock := net.AwaitActivation(t, forks.Lagoon)
 
 		// Wait for the corresponding CL to reach cross-safe past activation
 		if net.ChainID() == sys.L2A.ChainID() {
-			sys.L2ACL.Reached(stypes.CrossSafe, activationBlock.Number, 60)
+			sys.L2ACL.Reached(safety.CrossSafe, activationBlock.Number, 60)
 		} else {
-			sys.L2BCL.Reached(stypes.CrossSafe, activationBlock.Number, 60)
+			sys.L2BCL.Reached(safety.CrossSafe, activationBlock.Number, 60)
 		}
 
 		logger.Info("Validating activation block timing",
 			"chainID", net.ChainID(),
 			"derivedBlockNumber", activationBlock.Number,
-			"interopTime", *forkTimestamp)
+			"lagoonTime", *forkTimestamp)
 	})
 
 	logger.Info("Activation cross-safe validation completed successfully")
@@ -110,17 +110,17 @@ func testSafetyProgression(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
 
 	delta := uint64(3) // Minimum blocks of progression expected
 	dsl.CheckAll(t,
-		sys.L2ACL.AdvancedFn(stypes.LocalUnsafe, delta, 30),
-		sys.L2BCL.AdvancedFn(stypes.LocalUnsafe, delta, 30),
+		sys.L2ACL.AdvancedFn(safety.LocalUnsafe, delta, 30),
+		sys.L2BCL.AdvancedFn(safety.LocalUnsafe, delta, 30),
 
-		sys.L2ACL.AdvancedFn(stypes.LocalSafe, delta, 30),
-		sys.L2BCL.AdvancedFn(stypes.LocalSafe, delta, 30),
+		sys.L2ACL.AdvancedFn(safety.LocalSafe, delta, 30),
+		sys.L2BCL.AdvancedFn(safety.LocalSafe, delta, 30),
 
-		sys.L2ACL.AdvancedFn(stypes.CrossUnsafe, delta, 30),
-		sys.L2BCL.AdvancedFn(stypes.CrossUnsafe, delta, 30),
+		sys.L2ACL.AdvancedFn(safety.CrossUnsafe, delta, 30),
+		sys.L2BCL.AdvancedFn(safety.CrossUnsafe, delta, 30),
 
-		sys.L2ACL.AdvancedFn(stypes.CrossSafe, delta, 60),
-		sys.L2BCL.AdvancedFn(stypes.CrossSafe, delta, 60),
+		sys.L2ACL.AdvancedFn(safety.CrossSafe, delta, 60),
+		sys.L2BCL.AdvancedFn(safety.CrossSafe, delta, 60),
 	)
 
 	logger.Info("Safety progression validation completed successfully")
@@ -146,8 +146,8 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.TwoL2SupernodeInterop
 
 	// Verify cross-safe progression for both messages
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedRefFn(stypes.CrossSafe, initMsg.BlockID(), 60),
-		sys.L2BCL.ReachedRefFn(stypes.CrossSafe, execMsg.BlockID(), 60),
+		sys.L2ACL.ReachedRefFn(safety.CrossSafe, initMsg.BlockID(), 60),
+		sys.L2BCL.ReachedRefFn(safety.CrossSafe, execMsg.BlockID(), 60),
 	)
 
 	logger.Info("Interop message inclusion test completed successfully")

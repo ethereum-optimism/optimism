@@ -6,13 +6,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type L2CLNode interface {
 	stack.Lifecycle
 	UserRPC() string
-	InteropRPC() (endpoint string, jwtSecret eth.Bytes32)
 }
 
 type L2CLConfig struct {
@@ -24,14 +22,10 @@ type L2CLConfig struct {
 	// SafeDBPath is the path to the safe DB to use. Disabled if empty.
 	SafeDBPath string
 
-	IsSequencer  bool
-	IndexingMode bool
+	IsSequencer bool
 
-	// EnableReqRespSync is the flag to enable/disable req-resp sync.
+	// EnableReqRespSync enables/disables the req-resp sync server (serving payloads to peers).
 	EnableReqRespSync bool
-
-	// UseReqRespSync controls whether to use the req-resp sync protocol. EnableReqRespSync == false && UseReqRespSync == true is not allowed, and node will fail to start.
-	UseReqRespSync bool
 
 	// NoDiscovery is the flag to enable/disable discovery
 	NoDiscovery bool
@@ -49,12 +43,6 @@ type L2CLConfig struct {
 func L2CLSequencer() L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.IsSequencer = true
-	})
-}
-
-func L2CLIndexing() L2CLOption {
-	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
-		cfg.IndexingMode = true
 	})
 }
 
@@ -78,9 +66,7 @@ func DefaultL2CLConfig() *L2CLConfig {
 		VerifierSyncMode:  nodeSync.CLSync,
 		SafeDBPath:        "",
 		IsSequencer:       false,
-		IndexingMode:      false,
 		EnableReqRespSync: true,
-		UseReqRespSync:    false,
 		NoDiscovery:       false,
 		FollowSource:      "",
 	}

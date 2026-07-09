@@ -1,0 +1,121 @@
+// Package superchain loads OP-Stack rollup configs from the superchain-registry.
+// It is kept separate from op-node/rollup so that the many packages depending on
+// the rollup config types do not pull in op-core/superchain, which embeds the
+// multi-megabyte superchain config bundle and must generate it before it compiles.
+package superchain
+
+import (
+	"fmt"
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/params"
+
+	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
+
+// LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
+// Some chains may require a SystemConfigProvider to retrieve any values not part of the registry.
+func LoadOPStackRollupConfig(chainID uint64) (*rollup.Config, error) {
+	chain, err := registry.GetChain(chainID)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get chain %d from superchain registry: %w", chainID, err)
+	}
+
+	chConfig, err := chain.Config()
+	if err != nil {
+		return nil, fmt.Errorf("unable to retrieve chain %d config: %w", chainID, err)
+	}
+
+	superConfig, err := registry.GetSuperchain(chain.Network)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get superchain %q from superchain registry: %w", chain.Network, err)
+	}
+
+	return rollupConfigFromRegistry(chConfig, superConfig), nil
+}
+
+// rollupConfigFromRegistry converts a superchain-registry chain config (with its parent
+// superchain, which supplies the L1 chain ID) into a rollup Config. It is the single place that
+// maps registry fields onto Config, kept separate from the registry lookup so it can be
+// unit-tested directly: feeding a fully-populated ChainConfig through it and checking the result
+// catches any registry field that fails to reach Config.
+func rollupConfigFromRegistry(chConfig *registry.ChainConfig, superConfig registry.Superchain) *rollup.Config {
+	chOpConfig := &params.OptimismConfig{
+		EIP1559Elasticity:        chConfig.Optimism.EIP1559Elasticity,
+		EIP1559Denominator:       chConfig.Optimism.EIP1559Denominator,
+		EIP1559DenominatorCanyon: chConfig.Optimism.EIP1559DenominatorCanyon,
+	}
+
+	sysCfg := chConfig.Genesis.SystemConfig
+
+	genesisSysConfig := eth.SystemConfig{
+		BatcherAddr: sysCfg.BatcherAddr,
+		Overhead:    eth.Bytes32(sysCfg.Overhead),
+		Scalar:      eth.Bytes32(sysCfg.Scalar),
+		GasLimit:    sysCfg.GasLimit,
+	}
+
+	addrs := chConfig.Addresses
+
+	var altDA *rollup.AltDAConfig
+	if chConfig.AltDA != nil {
+		altDA = &rollup.AltDAConfig{
+			DAChallengeAddress: chConfig.AltDA.DaChallengeContractAddress,
+			DAChallengeWindow:  chConfig.AltDA.DaChallengeWindow,
+			DAResolveWindow:    chConfig.AltDA.DaResolveWindow,
+			CommitmentType:     chConfig.AltDA.DaCommitmentType,
+		}
+	}
+
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1: eth.BlockID{
+				Hash:   chConfig.Genesis.L1.Hash,
+				Number: chConfig.Genesis.L1.Number,
+			},
+			L2: eth.BlockID{
+				Hash:   chConfig.Genesis.L2.Hash,
+				Number: chConfig.Genesis.L2.Number,
+			},
+			L2Time:       chConfig.Genesis.L2Time,
+			SystemConfig: genesisSysConfig,
+		},
+		// The below chain parameters can be different per OP-Stack chain,
+		// therefore they are read from the superchain-registry configs.
+		// Note: hardcoded values are not yet represented in the registry but should be
+		// soon, then will be read and set in the same fashion.
+		BlockTime:              chConfig.BlockTime,
+		MaxSequencerDrift:      chConfig.MaxSequencerDrift,
+		SeqWindowSize:          chConfig.SeqWindowSize,
+		ChannelTimeoutBedrock:  300,
+		L1ChainID:              new(big.Int).SetUint64(superConfig.L1.ChainID),
+		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
+		BatchInboxAddress:      chConfig.BatchInboxAddr,
+		DepositContractAddress: *addrs.OptimismPortalProxy,
+		L1SystemConfigAddress:  *addrs.SystemConfigProxy,
+		AltDAConfig:            altDA,
+		ChainOpConfig:          chOpConfig,
+	}
+	applyHardforks(cfg, chConfig.Hardforks)
+
+	return cfg
+}
+
+func applyHardforks(cfg *rollup.Config, hardforks registry.HardforkConfig) {
+	regolithTime := uint64(0)
+	cfg.RegolithTime = &regolithTime
+	cfg.CanyonTime = hardforks.CanyonTime
+	cfg.DeltaTime = hardforks.DeltaTime
+	cfg.EcotoneTime = hardforks.EcotoneTime
+	cfg.FjordTime = hardforks.FjordTime
+	cfg.GraniteTime = hardforks.GraniteTime
+	cfg.HoloceneTime = hardforks.HoloceneTime
+	cfg.PectraBlobScheduleTime = hardforks.PectraBlobScheduleTime
+	cfg.IsthmusTime = hardforks.IsthmusTime
+	cfg.LagoonTime = hardforks.LagoonTime
+	cfg.JovianTime = hardforks.JovianTime
+	cfg.KarstTime = hardforks.KarstTime
+	cfg.KeepKarstUpgradeGas = hardforks.KeepKarstUpgradeGas
+}

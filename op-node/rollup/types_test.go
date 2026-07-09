@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -209,7 +210,7 @@ func TestRandomConfigDescription(t *testing.T) {
 		k := uint64(1677119343)
 		config.KarstTime = &k
 		it := uint64(1677119344)
-		config.InteropTime = &it
+		config.LagoonTime = &it
 
 		out := config.Description(nil)
 		// Don't check human-readable part of the date, it's timezone-dependent.
@@ -223,7 +224,7 @@ func TestRandomConfigDescription(t *testing.T) {
 		require.Contains(t, out, fmt.Sprintf("Isthmus: @ %d ~ ", i))
 		require.Contains(t, out, fmt.Sprintf("Jovian: @ %d ~ ", j))
 		require.Contains(t, out, fmt.Sprintf("Karst: @ %d ~ ", k))
-		require.Contains(t, out, fmt.Sprintf("Interop: @ %d ~ ", it))
+		require.Contains(t, out, fmt.Sprintf("Lagoon: @ %d ~ ", it))
 	})
 }
 
@@ -345,9 +346,9 @@ func TestActivations(t *testing.T) {
 			},
 		},
 		{
-			name: "Interop",
+			name: "Lagoon",
 			setUpgradeTime: func(t *uint64, c *Config) {
-				c.InteropTime = t
+				c.LagoonTime = t
 			},
 			checkEnabled: func(t uint64, c *Config) bool {
 				return c.IsInterop(t)
@@ -378,6 +379,7 @@ func TestActivations(t *testing.T) {
 type mockL2Client struct {
 	chainID *big.Int
 	Hash    common.Hash
+	err     error
 }
 
 func (m *mockL2Client) ChainID(context.Context) (*big.Int, error) {
@@ -385,11 +387,21 @@ func (m *mockL2Client) ChainID(context.Context) (*big.Int, error) {
 }
 
 func (m *mockL2Client) L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error) {
+	if m.err != nil {
+		return eth.L2BlockRef{}, m.err
+	}
 	return eth.L2BlockRef{
 		Hash:   m.Hash,
 		Number: 100,
 	}, nil
 }
+
+// historyPrunedRPCError implements rpc.Error with the EIP-4444 history-pruned error code,
+// matching what an execution engine with history expiry returns for an expired block.
+type historyPrunedRPCError struct{}
+
+func (historyPrunedRPCError) Error() string  { return "pruned history unavailable" }
+func (historyPrunedRPCError) ErrorCode() int { return historyPrunedErrCode }
 
 func TestValidateL2Config(t *testing.T) {
 	config := randConfig()
@@ -397,7 +409,7 @@ func TestValidateL2Config(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), &mockClient, false)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
 	assert.NoError(t, err)
 }
 
@@ -407,10 +419,10 @@ func TestValidateL2ConfigInvalidChainIdFails(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), &mockClient, false)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
 	assert.Error(t, err)
 	config.L2ChainID = big.NewInt(99)
-	err = config.ValidateL2Config(context.TODO(), &mockClient, false)
+	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
 	assert.Error(t, err)
 }
 
@@ -420,10 +432,10 @@ func TestValidateL2ConfigInvalidGenesisHashFails(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x00}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), &mockClient, false)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
 	assert.Error(t, err)
 	config.Genesis.L2.Hash = [32]byte{0x02}
-	err = config.ValidateL2Config(context.TODO(), &mockClient, false)
+	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
 	assert.Error(t, err)
 }
 
@@ -433,10 +445,10 @@ func TestValidateL2ConfigInvalidGenesisHashSkippedWhenRequested(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x00}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), &mockClient, true)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, true)
 	assert.NoError(t, err)
 	config.Genesis.L2.Hash = [32]byte{0x02}
-	err = config.ValidateL2Config(context.TODO(), &mockClient, true)
+	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, true)
 	assert.NoError(t, err)
 }
 
@@ -456,13 +468,29 @@ func TestCheckL2BlockRefByNumber(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.CheckL2GenesisBlockHash(context.TODO(), &mockClient)
+	err := config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
 	assert.NoError(t, err)
 	mockClient.Hash = common.Hash{0x02}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
 	assert.Error(t, err)
 	mockClient.Hash = common.Hash{0x00}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	assert.Error(t, err)
+
+	// A history-pruned execution engine can no longer serve the genesis block; the configured
+	// genesis hash is authoritative, so the check is skipped rather than failing.
+	mockClient = mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, err: historyPrunedRPCError{}}
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	assert.NoError(t, err)
+
+	// A NotFound result is likewise tolerated.
+	mockClient = mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, err: ethereum.NotFound}
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	assert.NoError(t, err)
+
+	// Any other fetch error still fails the check.
+	mockClient = mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, err: errors.New("connection refused")}
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
 	assert.Error(t, err)
 }
 
@@ -629,7 +657,7 @@ func TestConfig_Check(t *testing.T) {
 				cfg.IsthmusTime = &isthmusTime
 				cfg.JovianTime = &jovianTime
 				cfg.KarstTime = &karstTime
-				cfg.InteropTime = &interopTime
+				cfg.LagoonTime = &interopTime
 			},
 			expectedErr: nil,
 		},
@@ -796,6 +824,7 @@ func TestGetPayloadVersion(t *testing.T) {
 		name           string
 		isthmusTime    uint64
 		ecotoneTime    uint64
+		karstTime      uint64
 		payloadTime    uint64
 		expectedMethod eth.EngineAPIMethod
 	}{
@@ -804,6 +833,7 @@ func TestGetPayloadVersion(t *testing.T) {
 			ecotoneTime:    10,
 			payloadTime:    5,
 			isthmusTime:    20,
+			karstTime:      30,
 			expectedMethod: eth.GetPayloadV2,
 		},
 		{
@@ -811,6 +841,7 @@ func TestGetPayloadVersion(t *testing.T) {
 			ecotoneTime:    10,
 			payloadTime:    15,
 			isthmusTime:    20,
+			karstTime:      30,
 			expectedMethod: eth.GetPayloadV3,
 		},
 		{
@@ -818,7 +849,16 @@ func TestGetPayloadVersion(t *testing.T) {
 			ecotoneTime:    10,
 			payloadTime:    25,
 			isthmusTime:    20,
+			karstTime:      30,
 			expectedMethod: eth.GetPayloadV4,
+		},
+		{
+			name:           "Karst",
+			ecotoneTime:    10,
+			payloadTime:    35,
+			isthmusTime:    20,
+			karstTime:      30,
+			expectedMethod: eth.GetPayloadV5,
 		},
 	}
 
@@ -827,6 +867,7 @@ func TestGetPayloadVersion(t *testing.T) {
 		t.Run(fmt.Sprintf("TestGetPayloadVersion_%s", test.name), func(t *testing.T) {
 			config.EcotoneTime = &test.ecotoneTime
 			config.IsthmusTime = &test.isthmusTime
+			config.KarstTime = &test.karstTime
 			assert.Equal(t, config.GetPayloadVersion(test.payloadTime), test.expectedMethod)
 		})
 	}
@@ -845,7 +886,7 @@ func TestConfig_IsActivationBlock(t *testing.T) {
 		{forks.Granite, func(cfg *Config, ts uint64) { cfg.GraniteTime = &ts }},
 		{forks.Holocene, func(cfg *Config, ts uint64) { cfg.HoloceneTime = &ts }},
 		{forks.Isthmus, func(cfg *Config, ts uint64) { cfg.IsthmusTime = &ts }},
-		{forks.Interop, func(cfg *Config, ts uint64) { cfg.InteropTime = &ts }},
+		{forks.Lagoon, func(cfg *Config, ts uint64) { cfg.LagoonTime = &ts }},
 	}
 
 	for _, tc := range tests {
@@ -986,6 +1027,18 @@ func TestConfig_IsForkActive(t *testing.T) {
 			require.True(t, cfg.IsForkActive(fork, 101))
 		})
 	}
+}
+
+func TestConfig_IsSDM(t *testing.T) {
+	var cfg Config
+	require.False(t, cfg.IsSDM(0))
+	require.False(t, cfg.IsSDM(100))
+
+	activation := uint64(100)
+	cfg.LagoonTime = &activation
+	require.False(t, cfg.IsSDM(99))
+	require.True(t, cfg.IsSDM(100))
+	require.True(t, cfg.IsSDM(101))
 }
 
 // TestConfig_ActivationBlockAndForFork combines tests for IsActivationBlock and IsActivationBlockForFork.

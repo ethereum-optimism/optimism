@@ -1,20 +1,18 @@
 package filter
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestIntegration_Init_FreshStart_SealsAnchor(t *testing.T) {
+func TestIntegration_Init_FreshStart_StartsWithEmptyDB(t *testing.T) {
 	t.Parallel()
 
 	si := newSeededIngester(t, seedSpec{
 		AnchorNumber:   99,
 		AnchorTime:     1198,
 		StartTimestamp: 1200,
-		NoSealAnchor:   true,
 		NoIngest:       true,
 		Blocks:         []seedBlock{{Num: 100, Ts: 1200}}, // head, not ingested
 	})
@@ -23,12 +21,11 @@ func TestIntegration_Init_FreshStart_SealsAnchor(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(100), nextBlock)
 
-	latest, ok := si.LatestBlock()
-	require.True(t, ok)
-	require.Equal(t, uint64(99), latest.Number)
+	_, ok := si.LatestBlock()
+	require.False(t, ok, "fresh start must not seal any block before the first ingestion")
 }
 
-func TestIntegration_Init_AnchorOnly_NotInitialized(t *testing.T) {
+func TestIntegration_Init_EmptyDB_NotInitialized(t *testing.T) {
 	t.Parallel()
 
 	si := newSeededIngester(t, seedSpec{
@@ -38,7 +35,7 @@ func TestIntegration_Init_AnchorOnly_NotInitialized(t *testing.T) {
 	})
 
 	require.False(t, si.earliestIngestedBlockSet.Load(),
-		"earliestIngestedBlockSet must stay false when only the anchor is sealed")
+		"earliestIngestedBlockSet must stay false until the first block is ingested")
 }
 
 func TestIntegration_Init_Resume_FromExistingDB_FindsEarliest(t *testing.T) {
@@ -63,20 +60,6 @@ func TestIntegration_Init_Resume_FromExistingDB_FindsEarliest(t *testing.T) {
 	require.Equal(t, uint64(102), latest.Number)
 }
 
-func TestIntegration_Init_Resume_AnchorOnly_DoesNotMarkInitialized(t *testing.T) {
-	t.Parallel()
-
-	si := newSeededIngester(t, seedSpec{
-		AnchorNumber: 99,
-		AnchorTime:   1198,
-		NoIngest:     true,
-	})
-
-	si2 := reopenSeededIngester(t, si)
-	require.False(t, si2.earliestIngestedBlockSet.Load(),
-		"resuming with only the anchor must not mark the ingester initialized")
-}
-
 func TestIntegration_Init_FirstSealedBlock_OnEmptyDB_NeverReached(t *testing.T) {
 	t.Parallel()
 
@@ -84,7 +67,6 @@ func TestIntegration_Init_FirstSealedBlock_OnEmptyDB_NeverReached(t *testing.T) 
 		AnchorNumber:   99,
 		AnchorTime:     1198,
 		StartTimestamp: 1200,
-		NoSealAnchor:   true,
 		NoIngest:       true,
 		Blocks:         []seedBlock{{Num: 100, Ts: 1200}},
 	})
@@ -92,8 +74,7 @@ func TestIntegration_Init_FirstSealedBlock_OnEmptyDB_NeverReached(t *testing.T) 
 	_, hasSealed := si.logsDB.LatestSealedBlock()
 	require.False(t, hasSealed)
 
-	// initIngestion takes the fresh-start branch, which seals the parent without
-	// consulting FirstSealedBlock.
+	// initIngestion takes the fresh-start branch without consulting FirstSealedBlock.
 	_, err := si.initIngestion()
 	require.NoError(t, err)
 }
@@ -136,24 +117,4 @@ func TestIntegration_Init_Close_FlushesAndStops(t *testing.T) {
 	latest, ok := si2.LatestBlock()
 	require.True(t, ok)
 	require.Equal(t, uint64(100), latest.Number)
-}
-
-func TestIntegration_Init_SealParentBlockFails_IngesterNotReady(t *testing.T) {
-	t.Parallel()
-
-	si := newSeededIngester(t, seedSpec{
-		AnchorNumber:   99,
-		AnchorTime:     1198,
-		StartTimestamp: 1200,
-		NoSealAnchor:   true,
-		NoIngest:       true,
-		Blocks:         []seedBlock{{Num: 100, Ts: 1200}},
-	})
-
-	si.eth.SetInfoByNumberErr(errors.New("rpc not ready"))
-
-	_, err := si.initIngestion()
-	require.Error(t, err)
-	require.False(t, si.Ready())
-	require.Nil(t, si.Error(), "startup failure must not set an IngesterError (silent-startup-failure contract)")
 }

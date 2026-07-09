@@ -50,13 +50,16 @@ reth-tracing.workspace = true
 # eth
 alloy-eips.workspace = true
 alloy-consensus.workspace = true
+alloy-genesis.workspace = true
 alloy-primitives.workspace = true
 alloy-rlp.workspace = true
 
 # misc
 futures-util.workspace = true
 derive_more.workspace = true
+page_size.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 
 tokio = { workspace = true, features = ["sync", "macros", "time", "rt-multi-thread"] }

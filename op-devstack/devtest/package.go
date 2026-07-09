@@ -93,8 +93,12 @@ func (t *implP) SkipNow() {
 }
 
 func (t *implP) TempDir() string {
+	return t.TempDirWithPrefix("op-dev")
+}
+
+func (t *implP) TempDirWithPrefix(prefix string) string {
 	// The last "*" will be replaced with the random temp dir name
-	tempDir, err := os.MkdirTemp("", "op-dev-*")
+	tempDir, err := os.MkdirTemp("", tempDirPattern(prefix))
 	if err != nil {
 		t.Errorf("failed to create temp dir: %v", err)
 		t.FailNow()

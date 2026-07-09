@@ -291,8 +291,11 @@ type mockGameCaller struct {
 	withdrawalsCalls     int
 	withdrawalsErr       error
 	withdrawals          []*contracts.WithdrawalRequest
+	resolvedCalls        int
 	resolvedErr          error
 	resolved             map[int]bool
+	anchorStateRegistry  common.Address
+	anchorStateRegErr    error
 }
 
 func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
@@ -324,6 +327,13 @@ func (m *mockGameCaller) GetExtendedMetadata(_ context.Context, _ rpcblock.Block
 		L1Head:    common.Hash{0xaa},
 		RootClaim: mockRootClaim,
 	}, nil
+}
+
+func (m *mockGameCaller) GetAnchorStateRegistry(_ context.Context, _ rpcblock.Block) (common.Address, error) {
+	if m.anchorStateRegErr != nil {
+		return common.Address{}, m.anchorStateRegErr
+	}
+	return m.anchorStateRegistry, nil
 }
 
 func (m *mockGameCaller) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]faultTypes.Claim, error) {
@@ -363,6 +373,7 @@ func (m *mockGameCaller) GetBalanceAndDelay(_ context.Context, _ rpcblock.Block)
 }
 
 func (m *mockGameCaller) IsResolved(_ context.Context, _ rpcblock.Block, claims ...faultTypes.Claim) ([]bool, error) {
+	m.resolvedCalls++
 	if m.resolvedErr != nil {
 		return nil, m.resolvedErr
 	}
