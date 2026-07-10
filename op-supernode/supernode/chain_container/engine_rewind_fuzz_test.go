@@ -20,19 +20,19 @@ func fnvSeed(data []byte) uint32 {
 // at or below the safe head, returning the timestamp to pass to
 // RewindToTimestamp and the target block the EC computes from it. ok is false
 // when the generated chain has no such block (a generation skip, not a fault).
-func pickRewindTarget(rc *RandomChain, h uint32) (ts uint64, target eth.L2BlockRef, ok bool) {
+func pickRewindTarget(rc *RandomChain, h uint32) (payload *eth.ExecutionPayloadEnvelope, target eth.L2BlockRef, ok bool) {
 	lo := rc.finalized + 1
 	hi := rc.safe
 	if lo > hi {
-		return 0, eth.L2BlockRef{}, false
+		return nil, eth.L2BlockRef{}, false
 	}
 	n := lo + uint64((h>>8)%uint32(hi-lo+1))
-	ts = rc.l2[n].Ref.Time
-	num, err := rc.cfg.TargetBlockNumber(ts)
+	payload = rc.l2[n].Payload
+	num, err := rc.cfg.TargetBlockNumber(rc.l2[n].Ref.Time)
 	if err != nil || num <= rc.finalized || num >= uint64(len(rc.l2)) {
-		return 0, eth.L2BlockRef{}, false
+		return nil, eth.L2BlockRef{}, false
 	}
-	return ts, rc.l2[num].Ref, true
+	return payload, rc.l2[num].Ref, true
 }
 
 // FuzzEngineRewind drives the real EngineController.RewindToTimestamp against a
@@ -57,7 +57,7 @@ func FuzzEngineRewind(f *testing.F) {
 		rc := chains[0]
 
 		h := fnvSeed(data)
-		ts, target, ok := pickRewindTarget(rc, h)
+		payload, target, ok := pickRewindTarget(rc, h)
 		if !ok {
 			t.Skip("no rewindable target")
 		}
@@ -66,7 +66,7 @@ func FuzzEngineRewind(f *testing.F) {
 		frc := newFaultyRandomChain(rc, state, target)
 
 		ec := engine_controller.NewEngineControllerWithL2AndRollup(frc, rc.cfg)
-		err := ec.RewindToTimestamp(context.Background(), ts)
+		err := ec.Rewind(context.Background(), payload)
 
 		assertRewindInvariants(t, frc, target, err)
 	})

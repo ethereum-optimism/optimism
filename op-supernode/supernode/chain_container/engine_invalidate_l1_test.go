@@ -71,7 +71,9 @@ func TestInvalidateBlockClassification(t *testing.T) {
 				payloadHash = flipHash(target.Hash)
 			}
 
-			rewound, err := c.InvalidateBlock(ctx, height, payloadHash, target.Time, eth.Bytes32{}, eth.Bytes32{})
+			parentPayload := rc.l2[height-1].Payload
+
+			rewound, err := c.InvalidateBlock(ctx, height, payloadHash, target.Time, eth.Bytes32{}, eth.Bytes32{}, parentPayload)
 
 			require.Equal(t, tc.wantRewound, rewound)
 			if tc.wantErr != nil {
@@ -104,7 +106,9 @@ func TestInvalidateBlockELBelowHeight(t *testing.T) {
 	frc := newFaultyRandomChain(rc, elBelowTarget, target)
 	c.engine = engine_controller.NewEngineControllerWithL2AndRollup(frc, rc.cfg)
 
-	rewound, err := c.InvalidateBlock(ctx, height, target.Hash, target.Time, eth.Bytes32{}, eth.Bytes32{})
+	parentPayload := rc.l2[height-1].Payload
+
+	rewound, err := c.InvalidateBlock(ctx, height, target.Hash, target.Time, eth.Bytes32{}, eth.Bytes32{}, parentPayload)
 
 	// FIXED SPEC (issue-20929 root cause 4): EL below the invalidated height means
 	// the block is already off the canonical chain -> classify as
