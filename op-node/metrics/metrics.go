@@ -5,6 +5,7 @@ import (
 	"context"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
@@ -418,25 +419,18 @@ func (m *Metrics) RecordHardforkActivationTimes(cfg *rollup.Config) {
 		chainID = cfg.L2ChainID.String()
 	}
 
-	record := func(fork string, ts *uint64, basis string) {
+	cfg.ForEachFork(func(_ string, logName string, basis rollup.ForkActivationBasis, ts *uint64) {
 		if ts == nil {
 			return
 		}
-		m.HardforkActivationTime.WithLabelValues(chainID, fork, basis).Set(float64(*ts))
+		fork := strings.TrimSuffix(logName, "_time")
+		m.HardforkActivationTime.WithLabelValues(chainID, fork, string(basis)).Set(float64(*ts))
+	})
+	if cfg.KeepKarstUpgradeGas && cfg.KarstTime != nil {
+		// Behavioral opt-out flag, not a scheduled fork: reported only when set, valued at the
+		// Karst activation time it modifies. Absence of the series means the flag is unset.
+		m.HardforkActivationTime.WithLabelValues(chainID, "keep_karst_upgrade_gas", string(rollup.L2TimestampBasis)).Set(float64(*cfg.KarstTime))
 	}
-
-	record("regolith", cfg.RegolithTime, "l2_timestamp")
-	record("canyon", cfg.CanyonTime, "l2_timestamp")
-	record("delta", cfg.DeltaTime, "l2_timestamp")
-	record("ecotone", cfg.EcotoneTime, "l2_timestamp")
-	record("fjord", cfg.FjordTime, "l2_timestamp")
-	record("granite", cfg.GraniteTime, "l2_timestamp")
-	record("holocene", cfg.HoloceneTime, "l2_timestamp")
-	record("isthmus", cfg.IsthmusTime, "l2_timestamp")
-	record("jovian", cfg.JovianTime, "l2_timestamp")
-	record("karst", cfg.KarstTime, "l2_timestamp")
-	record("lagoon", cfg.LagoonTime, "l2_timestamp")
-	record("pectra_blob_schedule", cfg.PectraBlobScheduleTime, "l1_origin_timestamp")
 }
 
 // RecordUp sets the up metric to 1.

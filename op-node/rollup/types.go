@@ -835,7 +835,7 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	banner += fmt.Sprintf("  L1 block: %s %d\n", c.Genesis.L1.Hash, c.Genesis.L1.Number)
 	// Report the upgrade configuration
 	banner += "Post-Bedrock Network Upgrades (timestamp based):\n"
-	c.forEachFork(func(name string, _ string, time *uint64) {
+	c.ForEachFork(func(name string, _ string, _ ForkActivationBasis, time *uint64) {
 		banner += fmt.Sprintf("  - %v: %s\n", name, fmtForkTimeOrUnset(time))
 	})
 	if c.KeepKarstUpgradeGas {
@@ -876,7 +876,7 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 		"l1_block_hash", c.Genesis.L1.Hash.String(),
 		"l1_block_number", c.Genesis.L1.Number,
 	}
-	c.forEachFork(func(_ string, logName string, time *uint64) {
+	c.ForEachFork(func(_ string, logName string, _ ForkActivationBasis, time *uint64) {
 		ctx = append(ctx, logName, fmtForkTimeOrUnset(time))
 	})
 	if c.KeepKarstUpgradeGas {
@@ -889,22 +889,35 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 	log.Info("Rollup Config", ctx...)
 }
 
-func (c *Config) forEachFork(callback func(name string, logName string, time *uint64)) {
-	callback("Regolith", "regolith_time", c.RegolithTime)
-	callback("Canyon", "canyon_time", c.CanyonTime)
-	callback("Delta", "delta_time", c.DeltaTime)
-	callback("Ecotone", "ecotone_time", c.EcotoneTime)
-	callback("Fjord", "fjord_time", c.FjordTime)
-	callback("Granite", "granite_time", c.GraniteTime)
-	callback("Holocene", "holocene_time", c.HoloceneTime)
+// ForkActivationBasis describes which timestamp a fork activation time is compared against.
+type ForkActivationBasis string
+
+const (
+	// L2TimestampBasis marks forks that activate based on the L2 block timestamp.
+	L2TimestampBasis ForkActivationBasis = "l2_timestamp"
+	// L1OriginTimestampBasis marks forks that activate based on the L1 origin block timestamp.
+	L1OriginTimestampBasis ForkActivationBasis = "l1_origin_timestamp"
+)
+
+// ForEachFork invokes the callback for each hardfork in activation order. This is the canonical
+// list of forks — callers that report or inspect fork configuration should use it rather than
+// enumerating fork fields themselves.
+func (c *Config) ForEachFork(callback func(name string, logName string, basis ForkActivationBasis, time *uint64)) {
+	callback("Regolith", "regolith_time", L2TimestampBasis, c.RegolithTime)
+	callback("Canyon", "canyon_time", L2TimestampBasis, c.CanyonTime)
+	callback("Delta", "delta_time", L2TimestampBasis, c.DeltaTime)
+	callback("Ecotone", "ecotone_time", L2TimestampBasis, c.EcotoneTime)
+	callback("Fjord", "fjord_time", L2TimestampBasis, c.FjordTime)
+	callback("Granite", "granite_time", L2TimestampBasis, c.GraniteTime)
+	callback("Holocene", "holocene_time", L2TimestampBasis, c.HoloceneTime)
 	if c.PectraBlobScheduleTime != nil {
 		// only report if config is set
-		callback("Pectra Blob Schedule", "pectra_blob_schedule_time", c.PectraBlobScheduleTime)
+		callback("Pectra Blob Schedule", "pectra_blob_schedule_time", L1OriginTimestampBasis, c.PectraBlobScheduleTime)
 	}
-	callback("Isthmus", "isthmus_time", c.IsthmusTime)
-	callback("Jovian", "jovian_time", c.JovianTime)
-	callback("Karst", "karst_time", c.KarstTime)
-	callback("Lagoon", "lagoon_time", c.LagoonTime)
+	callback("Isthmus", "isthmus_time", L2TimestampBasis, c.IsthmusTime)
+	callback("Jovian", "jovian_time", L2TimestampBasis, c.JovianTime)
+	callback("Karst", "karst_time", L2TimestampBasis, c.KarstTime)
+	callback("Lagoon", "lagoon_time", L2TimestampBasis, c.LagoonTime)
 }
 
 func (c *Config) ParseRollupConfig(in io.Reader) error {

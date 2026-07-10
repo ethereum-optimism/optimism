@@ -31,6 +31,36 @@ func TestRecordHardforkActivationTimes(t *testing.T) {
 	}, got)
 }
 
+func TestRecordHardforkActivationTimesKeepKarstUpgradeGas(t *testing.T) {
+	karst := uint64(1_950_000_000)
+
+	m := NewMetrics("test", nil)
+	m.RecordHardforkActivationTimes(&rollup.Config{
+		L2ChainID:           big.NewInt(10),
+		KarstTime:           &karst,
+		KeepKarstUpgradeGas: true,
+	})
+
+	got, err := gatherHardforkActivationTimes(m)
+	require.NoError(t, err)
+	require.Equal(t, map[string]float64{
+		"10/karst/l2_timestamp":                  float64(karst),
+		"10/keep_karst_upgrade_gas/l2_timestamp": float64(karst),
+	}, got)
+
+	// Flag unset: no keep_karst_upgrade_gas series is emitted.
+	m2 := NewMetrics("test", nil)
+	m2.RecordHardforkActivationTimes(&rollup.Config{
+		L2ChainID: big.NewInt(10),
+		KarstTime: &karst,
+	})
+	got2, err := gatherHardforkActivationTimes(m2)
+	require.NoError(t, err)
+	require.Equal(t, map[string]float64{
+		"10/karst/l2_timestamp": float64(karst),
+	}, got2)
+}
+
 func gatherHardforkActivationTimes(m *Metrics) (map[string]float64, error) {
 	mfs, err := m.registry.Gather()
 	if err != nil {
