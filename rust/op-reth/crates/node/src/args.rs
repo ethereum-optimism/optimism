@@ -4,6 +4,7 @@
 
 use clap::builder::ArgPredicate;
 use op_alloy_consensus::interop::SafetyLevel;
+use reth_optimism_trie::DEFAULT_BACKFILL_BATCH_SIZE;
 use std::path::PathBuf;
 use url::Url;
 
@@ -77,6 +78,57 @@ pub struct ProofsHistoryWindowArg {
 impl Default for ProofsHistoryWindowArg {
     fn default() -> Self {
         Self { window: DEFAULT_PROOFS_HISTORY_WINDOW }
+    }
+}
+
+/// Validate `--proofs-history.backfill-batch-size`. Must be `>= 1`; no upper cap — operators
+/// can tune above the default when their environment supports it.
+pub fn parse_backfill_batch_size(raw: &str) -> Result<usize, String> {
+    let n: usize = raw.parse().map_err(|e| format!("not a non-negative integer: {e}"))?;
+    if n >= 1 { Ok(n) } else { Err("must be >= 1".to_string()) }
+}
+
+/// Shared backfill args. Used by `op-proofs backfill` (explicit) and `op-proofs init`
+/// (implicit post-init backfill) so the flag names, defaults, and parsers stay in sync.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::Args)]
+pub struct ProofsHistoryBackfillArgs {
+    /// Number of blocks committed per MDBX write transaction (>= 1).
+    ///
+    /// Larger N amortizes commit/fsync; trade-off is higher peak RSS
+    /// and up to N blocks of progress lost on crash. Very large N can
+    /// also exceed MDBX's per-tx dirty-page ceiling on storage-heavy
+    /// blocks — the batch fails cleanly (whole tx rolls back) and can
+    /// be retried with a lower value. Default 25 measured ~2.6×
+    /// throughput vs K=1 on op-mainnet — the sweet spot on the K
+    /// sweep before dirty-page pressure starts slowing cursor reads.
+    #[arg(
+        long = "proofs-history.backfill-batch-size",
+        value_name = "N",
+        default_value_t = DEFAULT_BACKFILL_BATCH_SIZE,
+        value_parser = parse_backfill_batch_size,
+    )]
+    pub backfill_batch_size: usize,
+
+    /// Use the trie-state snapshot to accelerate per-block reads during
+    /// backfill. If no snapshot exists, one is bootstrapped at the current
+    /// `earliest` before the backfill loop begins. Requires v2 storage.
+    ///
+    /// Defaults to `true`. Pass `--proofs-history.use-snapshot false` to
+    /// force the non-snapshot path (per-block reads via the reth DB).
+    #[arg(
+        long = "proofs-history.use-snapshot",
+        value_name = "BOOL",
+        default_value_t = true,
+        default_missing_value = "true",
+        num_args = 0..=1,
+        action = clap::ArgAction::Set,
+    )]
+    pub use_snapshot: bool,
+}
+
+impl Default for ProofsHistoryBackfillArgs {
+    fn default() -> Self {
+        Self { backfill_batch_size: DEFAULT_BACKFILL_BATCH_SIZE, use_snapshot: true }
     }
 }
 
