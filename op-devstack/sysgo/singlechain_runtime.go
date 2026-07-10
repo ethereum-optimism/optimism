@@ -157,7 +157,6 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	testSequencer := startTestSequencerForRPCs(t, keys, "test-sequencer", jwtPath, jwtSecret, world.L1Network, l1EL, l1CL, world.L2Network.ChainID(), primary.EL.UserRPC(), primary.CL.UserRPC())
 	testSequencerRuntime := newTestSequencerRuntime(testSequencer, spec.TestSequencer)
-	faucetService := startFaucets(t, keys, world.L1Network.ChainID(), world.L2Network.ChainID(), l1EL.UserRPC(), primary.EL.UserRPC())
 
 	return &SingleChainRuntime{
 		Keys:          keys,
@@ -170,7 +169,6 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 		L2Batcher:     l2Batcher,
 		L2Proposer:    l2Proposer,
 		L2Challenger:  l2Challenger,
-		FaucetService: faucetService,
 		TimeTravel:    timeTravelClock,
 		TestSequencer: testSequencerRuntime,
 		Nodes: map[string]*SingleChainNodeRuntime{

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
@@ -35,6 +36,32 @@ type EOA struct {
 	// el is the execution-layer node that this user operates against.
 	// This may be a L1 or L2 EL node.
 	el ELNode
+
+	// funding is non-nil only for prefunded "funder" EOAs created via NewFundingEOA.
+	// It enables the Fund* / NewFundedEOA* helpers and makes their funding
+	// transactions safe to issue concurrently.
+	funding *fundingState
+}
+
+// fundingState carries the extra state a prefunded funder EOA needs to hand out
+// funds. Funder EOAs replace the former op-faucet service + dsl.Funder: they own
+// a genesis-prefunded key and mint/fund child EOAs from the test's wallet.
+//
+// The op-faucet service serialized funding via a tx-manager-managed nonce so that
+// concurrent requests wouldn't collide. We reproduce that here with a mutex and a
+// locally-tracked nonce: the lock is only held while assigning the next nonce, so
+// many funding transactions can still be in-flight (and included) concurrently.
+//
+// NOTE: this assumes the funder key is used from a single process (true for sysgo,
+// where every test gets its own devnet). Pointing a preset at a shared external
+// devnet would reintroduce cross-process races on the shared funder key.
+type fundingState struct {
+	// wallet mints fresh child identities for NewFundedEOA(s).
+	wallet *HDWallet
+
+	mu     sync.Mutex
+	nonce  uint64
+	inited bool
 }
 
 // InitMessage represents an initiating message that has been sent and included on chain.
@@ -114,8 +141,31 @@ func NewEOA(key *Key, el ELNode) *EOA {
 	}
 }
 
+// NewFundingEOA creates a prefunded funder EOA: an EOA whose key is expected to be
+// prefunded at genesis, able to mint and fund child EOAs from the given wallet.
+// It replaces the former dsl.Faucet + dsl.Funder pair for a single chain.
+func NewFundingEOA(key *Key, el ELNode, wallet *HDWallet) *EOA {
+	eoa := NewEOA(key, el)
+	eoa.funding = &fundingState{wallet: wallet}
+	return eoa
+}
+
 func (u *EOA) AsEL(el ELNode) *EOA {
 	return NewEOA(u.key, el)
+}
+
+// AsFunder returns this funder EOA bound to a different EL node on the same chain,
+// sharing the underlying funding (nonce) state. Use it when funds must be handed
+// out via a specific EL node (e.g. an archive node) rather than the preset's default.
+func (u *EOA) AsFunder(el ELNode) *EOA {
+	u.requireFunding()
+	u.require.Equal(u.ChainID(), el.ChainID(), "funder EL must be on the same chain")
+	return &EOA{
+		commonImpl: u.commonImpl,
+		key:        u.key,
+		el:         el,
+		funding:    u.funding,
+	}
 }
 
 func (u *EOA) String() string {
@@ -190,6 +240,105 @@ func (u *EOA) Transact(opts ...txplan.Option) *txplan.PlannedTx {
 	_, err := tx.Success.Eval(u.ctx)
 	u.require.NoError(err, "must transact")
 	return tx
+}
+
+// =============================================================================
+// Funding helpers (funder EOAs created via NewFundingEOA)
+// =============================================================================
+
+// requireFunding asserts this EOA was created as a funder via NewFundingEOA.
+func (u *EOA) requireFunding() *fundingState {
+	u.require.NotNil(u.funding, "EOA %s is not a funding EOA (create it with NewFundingEOA)", u)
+	return u.funding
+}
+
+// next reserves the next nonce for a funding transaction. The lock is held only
+// for nonce assignment, so funding txs can be submitted and included concurrently.
+func (fs *fundingState) next(u *EOA) uint64 {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	if !fs.inited {
+		n, err := u.el.stackEL().EthClient().PendingNonceAt(u.ctx, u.Address())
+		u.require.NoError(err, "must read funder nonce")
+		fs.nonce = n
+		fs.inited = true
+	}
+	nonce := fs.nonce
+	fs.nonce++
+	return nonce
+}
+
+// fundSend transfers amount to the target address using a locally-managed nonce,
+// waiting for the funding transaction to be included. Zero amounts are a no-op.
+func (u *EOA) fundSend(to common.Address, amount eth.ETH) {
+	if amount.IsZero() {
+		return
+	}
+	fs := u.requireFunding()
+	nonce := fs.next(u)
+	u.Transact(u.PlanTransfer(to, amount), txplan.WithStaticNonce(nonce))
+}
+
+// Fund transfers amount to the target EOA and waits until its balance reflects it.
+func (u *EOA) Fund(to *EOA, amount eth.ETH) eth.ETH {
+	current := to.balance()
+	u.fundSend(to.Address(), amount)
+	final := current.Add(amount)
+	to.WaitForBalance(final)
+	return final
+}
+
+// FundNoWait transfers amount to the target EOA without waiting for the target's
+// balance to update (the funding tx is still awaited for inclusion).
+func (u *EOA) FundNoWait(to *EOA, amount eth.ETH) {
+	u.fundSend(to.Address(), amount)
+}
+
+// FundAtLeast tops the target EOA up so that its balance is at least amount.
+func (u *EOA) FundAtLeast(to *EOA, amount eth.ETH) eth.ETH {
+	current := to.balance()
+	if current.Lt(amount) {
+		missing := amount.Sub(current)
+		u.fundSend(to.Address(), missing)
+		final := current.Add(missing)
+		to.WaitForBalance(final)
+		return final
+	}
+	return current
+}
+
+// NewFundedEOA mints a fresh child EOA from the funder's wallet on the funder's
+// chain and funds it with at least the given amount. A zero amount yields a fresh,
+// unfunded EOA.
+func (u *EOA) NewFundedEOA(amount eth.ETH) *EOA {
+	fs := u.requireFunding()
+	u.require.NotNil(fs.wallet, "funding EOA has no wallet to mint child EOAs")
+	child := fs.wallet.NewEOA(u.el)
+	u.FundAtLeast(child, amount)
+	return child
+}
+
+// NewFundedEOAs mints and funds count fresh child EOAs concurrently.
+func (u *EOA) NewFundedEOAs(count int, amount eth.ETH) []*EOA {
+	eoas := func() []*EOA {
+		eoas := make([]*EOA, count)
+		var wg sync.WaitGroup
+		defer wg.Wait()
+		for idx := range len(eoas) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				eoas[idx] = u.NewFundedEOA(amount)
+			}()
+		}
+		return eoas
+	}()
+	for _, eoa := range eoas {
+		// Sanity-check to surface funding failures early rather than as
+		// confusing nil-dereferences downstream.
+		u.require.NotNil(eoa)
+	}
+	return eoas
 }
 
 // balance looks up the user balance in the latest block.

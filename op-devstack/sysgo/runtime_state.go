@@ -12,7 +12,6 @@ import (
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
@@ -86,7 +85,6 @@ type SingleChainRuntime struct {
 	L2Proposer   *L2Proposer
 	L2Challenger *L2Challenger
 
-	FaucetService *faucet.Service
 	TimeTravel    *clock.AdvancingClock
 	TestSequencer *TestSequencerRuntime
 
@@ -158,7 +156,6 @@ type MultiChainRuntime struct {
 
 	Supernode *SuperNode
 
-	FaucetService      *faucet.Service
 	TimeTravel         *clock.AdvancingClock
 	TestSequencer      *TestSequencerRuntime
 	L2ChallengerConfig *challengerconfig.Config

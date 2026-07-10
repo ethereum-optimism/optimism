@@ -34,10 +34,8 @@ type MixedOpProofPreset struct {
 
 	Wallet *dsl.HDWallet
 
-	FaucetL1 *dsl.Faucet
-	FaucetL2 *dsl.Faucet
-	FunderL1 *dsl.Funder
-	FunderL2 *dsl.Funder
+	FunderL1 *dsl.EOA
+	FunderL2 *dsl.EOA
 
 	TestSequencer *dsl.TestSequencer
 }
@@ -111,8 +109,6 @@ func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
 	t.Require().NotNil(seqNode, "expected a sequencer node")
 	t.Require().NotNil(valNode, "expected a validator node")
 
-	wallet := dsl.NewRandomHDWallet(t, 30)
-
 	out := &MixedOpProofPreset{
 		Log:           t.Logger(),
 		T:             t,
@@ -124,12 +120,10 @@ func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
 		L2CLSequencer: seqNode.CL,
 		L2ELValidator: valNode.EL,
 		L2CLValidator: valNode.CL,
-		Wallet:        wallet,
-		FaucetL1:      frontends.FaucetL1,
-		FaucetL2:      frontends.FaucetL2,
+		Wallet:        frontends.Wallet,
+		FunderL1:      frontends.FunderL1,
+		FunderL2:      frontends.FunderL2,
 		TestSequencer: frontends.TestSequencer,
 	}
-	out.FunderL1 = dsl.NewFunder(wallet, out.FaucetL1, out.L1EL)
-	out.FunderL2 = dsl.NewFunder(wallet, out.FaucetL2, out.L2ELSequencer)
 	return out
 }

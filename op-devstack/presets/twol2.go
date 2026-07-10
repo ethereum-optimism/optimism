@@ -77,16 +77,12 @@ type TwoL2SupernodeInterop struct {
 	L2BatcherA *dsl.L2Batcher
 	L2BatcherB *dsl.L2Batcher
 
-	// Faucets for funding test accounts
-	FaucetA *dsl.Faucet
-	FaucetB *dsl.Faucet
-
 	// Wallet for test account management
 	Wallet *dsl.HDWallet
 
-	// Funders for creating funded EOAs
-	FunderA *dsl.Funder
-	FunderB *dsl.Funder
+	// Prefunded funder EOAs for creating funded EOAs (one per chain)
+	FunderA *dsl.EOA
+	FunderB *dsl.EOA
 
 	// GenesisTime is the genesis timestamp of the L2 chains
 	GenesisTime uint64

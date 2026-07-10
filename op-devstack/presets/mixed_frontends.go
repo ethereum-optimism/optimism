@@ -4,7 +4,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -20,18 +19,11 @@ type MixedSingleChainFrontends struct {
 	L1CL          *dsl.L1CLNode
 	L2Network     *dsl.L2Network
 	L2Batcher     *dsl.L2Batcher
-	FaucetL1      *dsl.Faucet
-	FaucetL2      *dsl.Faucet
+	Wallet        *dsl.HDWallet
+	FunderL1      *dsl.EOA
+	FunderL2      *dsl.EOA
 	TestSequencer *dsl.TestSequencer
 	Nodes         []MixedSingleChainNodeFrontends
-}
-
-func newFaucetFrontendByName(t devtest.T, name string, chainID eth.ChainID, faucetRPC string) *faucetFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), faucetRPC, client.WithLazyDial())
-	t.Require().NoError(err)
-	t.Cleanup(rpcCl.Close)
-
-	return newPresetFaucet(t, name, chainID, rpcCl)
 }
 
 func NewMixedSingleChainFrontends(t devtest.T, runtime *sysgo.MixedSingleChainRuntime) *MixedSingleChainFrontends {
@@ -95,16 +87,10 @@ func NewMixedSingleChainFrontends(t devtest.T, runtime *sysgo.MixedSingleChainRu
 	t.Require().NotNil(primaryL2EL, "missing primary mixed L2 EL")
 	t.Require().NotNil(primaryL2CL, "missing primary mixed L2 CL")
 
-	l1FaucetName, l1FaucetRPC, ok := defaultFaucetForChain(runtime.FaucetService, l1ChainID)
-	t.Require().Truef(ok, "missing default faucet for chain %s", l1ChainID)
-	l2FaucetName, l2FaucetRPC, ok := defaultFaucetForChain(runtime.FaucetService, l2ChainID)
-	t.Require().Truef(ok, "missing default faucet for chain %s", l2ChainID)
-	faucetL1Frontend := newFaucetFrontendByName(t, l1FaucetName, l1ChainID, l1FaucetRPC)
-	faucetL2Frontend := newFaucetFrontendByName(t, l2FaucetName, l2ChainID, l2FaucetRPC)
-	l1Network.AddFaucet(faucetL1Frontend)
-	l2Network.AddFaucet(faucetL2Frontend)
-	faucetL1 := dsl.NewFaucet(faucetL1Frontend)
-	faucetL2 := dsl.NewFaucet(faucetL2Frontend)
+	keys := l2Backend.Keys()
+	wallet := dsl.NewRandomHDWallet(t, 30) // Random for test isolation
+	funderL1 := newFunderEOA(t, keys, l1ELDSL, wallet)
+	funderL2 := newFunderEOA(t, keys, primaryL2EL, wallet)
 
 	var testSequencer *dsl.TestSequencer
 	if backend := runtime.TestSequencer; backend != nil {
@@ -124,8 +110,9 @@ func NewMixedSingleChainFrontends(t devtest.T, runtime *sysgo.MixedSingleChainRu
 		L1CL:          l1CLDSL,
 		L2Network:     dsl.NewL2Network(l2Network, primaryL2EL, primaryL2CL, l1ELDSL, nil, nil),
 		L2Batcher:     dsl.NewL2Batcher(l2Batcher),
-		FaucetL1:      faucetL1,
-		FaucetL2:      faucetL2,
+		Wallet:        wallet,
+		FunderL1:      funderL1,
+		FunderL2:      funderL2,
 		TestSequencer: testSequencer,
 		Nodes:         nodes,
 	}

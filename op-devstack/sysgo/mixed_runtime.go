@@ -18,7 +18,6 @@ import (
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -167,7 +166,6 @@ type MixedSingleChainRuntime struct {
 	L2Network     *L2Network
 	Nodes         []MixedSingleChainNodeRefs
 	L2Batcher     *L2Batcher
-	FaucetService *faucet.Service
 	TestSequencer *TestSequencerRuntime
 }
 
@@ -279,7 +277,6 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	require.NotNil(sequencerNode, "mixed runtime requires at least one sequencer node")
 
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, sequencerNode.cl, sequencerNode.el, cfg.BatcherOptions...)
-	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), sequencerNode.el.UserRPC())
 
 	var testSequencer *testSequencer
 	if cfg.WithTestSequencer {
@@ -309,7 +306,6 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		L2Network:     l2Net,
 		Nodes:         mixedNodeRefs(nodes),
 		L2Batcher:     l2Batcher,
-		FaucetService: faucetService,
 		TestSequencer: newTestSequencerRuntime(testSequencer, cfg.TestSequencerName),
 	}
 }

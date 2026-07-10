@@ -440,14 +440,14 @@ func TestEIP7934BlockSizeLimitDisabled(gt *testing.T) {
 // spamTxs floods L2 with large-calldata transactions to drive the L2 base fee up.
 func spamTxs(sys *presets.Minimal) {
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
-	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
+	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FunderL2)
 	runSpam(sys.T, eoas, l2BlockTime, predeploys.L1BlockAddr)
 }
 
 // spamL1Txs floods L1 with large-calldata transactions to drive the L1 base fee up.
 func spamL1Txs(sys *presets.Minimal) {
 	l1BlockTime := sys.L1EL.EstimateBlockTime()
-	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l1BlockTime, sys.L1EL, sys.Wallet, sys.FaucetL1)
+	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l1BlockTime, sys.L1EL, sys.Wallet, sys.FunderL1)
 	// The target only needs to absorb calldata, so any address works.
 	runSpam(sys.T, eoas, l1BlockTime, common.Address{0x42})
 }

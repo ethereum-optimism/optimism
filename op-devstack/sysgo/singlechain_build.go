@@ -20,10 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
-	faucetConfig "github.com/ethereum-optimism/optimism/op-faucet/config"
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
-	fconf "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/config"
-	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	opNodeFlags "github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
@@ -653,61 +649,6 @@ func startTestSequencer(
 	}
 }
 
-func startFaucets(
-	t devtest.T,
-	keys devkeys.Keys,
-	l1ChainID eth.ChainID,
-	l2ChainID eth.ChainID,
-	l1ELRPC string,
-	l2ELRPC string,
-) *faucet.Service {
-	require := t.Require()
-	logger := t.Logger().New("component", "faucet")
-
-	funderKey, err := keys.Secret(devkeys.UserKey(funderMnemonicIndex))
-	require.NoError(err, "need faucet funder key")
-	funderKeyStr := hexutil.Encode(crypto.FromECDSA(funderKey))
-
-	faucets := map[ftypes.FaucetID]*fconf.FaucetEntry{
-		ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", l1ChainID)): {
-			ELRPC:   endpoint.MustRPC{Value: endpoint.URL(l1ELRPC)},
-			ChainID: l1ChainID,
-			TxCfg: fconf.TxManagerConfig{
-				PrivateKey: funderKeyStr,
-			},
-		},
-		ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", l2ChainID)): {
-			ELRPC:   endpoint.MustRPC{Value: endpoint.URL(l2ELRPC)},
-			ChainID: l2ChainID,
-			TxCfg: fconf.TxManagerConfig{
-				PrivateKey: funderKeyStr,
-			},
-		},
-	}
-
-	cfg := &faucetConfig.Config{
-		RPC: oprpc.CLIConfig{
-			ListenAddr: "127.0.0.1",
-		},
-		Faucets: &fconf.Config{
-			Faucets: faucets,
-		},
-	}
-
-	srv, err := faucet.FromConfig(t.Ctx(), cfg, logger)
-	require.NoError(err, "failed to create faucet service")
-	require.NoError(srv.Start(t.Ctx()), "failed to start faucet service")
-
-	t.Cleanup(func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // force-close
-		logger.Info("Closing faucet service")
-		closeErr := srv.Stop(ctx)
-		logger.Info("Closed faucet service", "err", closeErr)
-	})
-
-	return srv
-}
 
 func copyControlRPCMap(in map[eth.ChainID]string) map[eth.ChainID]string {
 	if len(in) == 0 {

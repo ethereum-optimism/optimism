@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"crypto/ecdsa"
 	"math/big"
 	"path/filepath"
 	"slices"
@@ -33,6 +34,14 @@ import (
 
 // funderMnemonicIndex the funding account is not one of the 30 standard account, but still derived from a user-key.
 const funderMnemonicIndex = 10_000
+
+// FunderKey returns the private key of the genesis-prefunded funder account.
+// Every sysgo runtime prefunds this account at genesis (see the WithPrefundedAccount
+// calls in this package), so tests hand out funds from a prefunded EOA
+// (dsl.NewFundingEOA) rather than a hosted faucet service.
+func FunderKey(keys devkeys.Keys) (*ecdsa.PrivateKey, error) {
+	return keys.Secret(devkeys.UserKey(funderMnemonicIndex))
+}
 const devFeatureBitmapKey = "devFeatureBitmap"
 
 // proxyImplementationSlot is the EIP-1967 proxy implementation storage slot used

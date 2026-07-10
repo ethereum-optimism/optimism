@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	devpresets "github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -79,10 +78,8 @@ type MixedOpKonaPreset struct {
 
 	Wallet *dsl.HDWallet
 
-	FaucetL1 *dsl.Faucet
-	Faucet   *dsl.Faucet
-	FunderL1 *dsl.Funder
-	Funder   *dsl.Funder
+	FunderL1 *dsl.EOA
+	Funder   *dsl.EOA
 }
 
 func (m *MixedOpKonaPreset) L2ELNodes() []dsl.L2ELNode {
@@ -144,9 +141,9 @@ func mixedOpKonaFromRuntime(t devtest.T, runtime *sysgo.MixedSingleChainRuntime)
 		L1CL:      frontends.L1CL,
 		L2Chain:   frontends.L2Network,
 		L2Batcher: frontends.L2Batcher,
-		Wallet:    dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
-		FaucetL1:  frontends.FaucetL1,
-		Faucet:    frontends.FaucetL2,
+		Wallet:    frontends.Wallet,
+		FunderL1:  frontends.FunderL1,
+		Funder:    frontends.FunderL2,
 	}
 	for _, node := range frontends.Nodes {
 		switch {
@@ -163,11 +160,7 @@ func mixedOpKonaFromRuntime(t devtest.T, runtime *sysgo.MixedSingleChainRuntime)
 			out.L2ELKonaValidatorNodes = append(out.L2ELKonaValidatorNodes, *node.EL)
 			out.L2CLKonaValidatorNodes = append(out.L2CLKonaValidatorNodes, *node.CL)
 		}
-		if out.Funder == nil && node.Spec.IsSequencer {
-			out.Funder = dsl.NewFunder(out.Wallet, out.Faucet, node.EL)
-		}
 	}
-	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
 	return out, frontends
 }
 

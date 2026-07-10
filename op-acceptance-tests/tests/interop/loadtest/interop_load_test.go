@@ -117,8 +117,8 @@ func setupL2s(t devtest.T) (*L2, *L2) {
 	blockTimeA := time.Duration(sys.L2A.Escape().RollupConfig().BlockTime) * time.Second
 	blockTimeB := time.Duration(sys.L2B.Escape().RollupConfig().BlockTime) * time.Second
 
-	l2A := setupL2(t, sys.Wallet, blockTimeA, sys.L2A.Escape().ChainConfig(), sys.L2A.PublicRPC(), sys.FaucetA)
-	l2B := setupL2(t, sys.Wallet, blockTimeB, sys.L2B.Escape().ChainConfig(), sys.L2B.PublicRPC(), sys.FaucetB)
+	l2A := setupL2(t, sys.Wallet, blockTimeA, sys.L2A.Escape().ChainConfig(), sys.L2A.PublicRPC(), sys.FunderA)
+	l2B := setupL2(t, sys.Wallet, blockTimeB, sys.L2B.Escape().ChainConfig(), sys.L2B.PublicRPC(), sys.FunderB)
 
 	var deployWg sync.WaitGroup
 	defer deployWg.Wait()
@@ -136,7 +136,7 @@ func setupL2s(t devtest.T) (*L2, *L2) {
 	return l2A, l2B
 }
 
-func setupL2(t devtest.T, wallet *dsl.HDWallet, blockTime time.Duration, config *params.ChainConfig, el *dsl.L2ELNode, faucet *dsl.Faucet) *L2 {
+func setupL2(t devtest.T, wallet *dsl.HDWallet, blockTime time.Duration, config *params.ChainConfig, el *dsl.L2ELNode, funder *dsl.EOA) *L2 {
 	budgetAmount := eth.OneEther
 	if budgetStr, exists := os.LookupEnv("NAT_INTEROP_LOADTEST_BUDGET"); exists {
 		ethAmt, err := strconv.ParseFloat(budgetStr, 64)
@@ -146,7 +146,7 @@ func setupL2(t devtest.T, wallet *dsl.HDWallet, blockTime time.Duration, config 
 	}
 	const numEOAsPerChain = 1 // TODO(16448): Burst tests exhibit strange behavior with many EOAs.
 	amountPerEOA := budgetAmount.Div(numEOAsPerChain)
-	innerEOAs := dsl.NewFunder(wallet, faucet, el).NewFundedEOAs(numEOAsPerChain, amountPerEOA)
+	innerEOAs := funder.NewFundedEOAs(numEOAsPerChain, amountPerEOA)
 	reliableEL := newReliableEL(el.Escape().EthClient(), blockTime, ResubmitterObserver(el.ChainID()))
 	eoas := make([]*SyncEOA, 0, len(innerEOAs))
 	budget := accounting.NewBudget(budgetAmount)

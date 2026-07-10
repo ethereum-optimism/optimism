@@ -28,7 +28,7 @@ const (
 )
 
 type testSystem struct {
-	FunderL2 *dsl.Funder
+	FunderL2 *dsl.EOA
 	L2EL     *dsl.L2ELNode
 	L2Chain  *dsl.L2Network
 }
@@ -39,10 +39,9 @@ func newSystem(t devtest.T) *testSystem {
 	t.Require().True(l2.IsForkActive(forks.Isthmus), "Isthmus fork must be active for Pectra features")
 
 	l2EL := l2.ArchiveEL()
-	wallet := dsl.NewRandomHDWallet(t, 30)
 
 	return &testSystem{
-		FunderL2: dsl.NewFunder(wallet, preset.FaucetL2, l2EL),
+		FunderL2: preset.FunderL2.AsFunder(l2EL),
 		L2EL:     l2EL,
 		L2Chain:  l2,
 	}
