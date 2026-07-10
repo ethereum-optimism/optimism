@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -30,27 +31,30 @@ func TestCannonRegisterTask_BottomPrestateProvider(t *testing.T) {
 	// where the (placeholder) prestate for a permissioned game is not published.
 	baseURL, err := url.Parse("file:///nonexistent-prestates/")
 	require.NoError(t, err)
-	cfg := &config.Config{
-		Datadir:                       t.TempDir(),
-		Cannon:                        vm.Config{VmType: gameTypes.CannonGameType},
-		CannonAbsolutePreStateBaseURL: baseURL,
+	newCfg := func(t *testing.T) *config.Config {
+		return &config.Config{
+			Datadir:                       t.TempDir(),
+			Cannon:                        vm.Config{VmType: gameTypes.CannonGameType},
+			CannonAbsolutePreStateBaseURL: baseURL,
+		}
 	}
 	requiredPrestate := common.Hash{0xaa}
 
-	t.Run("permissioned game tolerates missing prestate", func(t *testing.T) {
-		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
-		task := NewCannonRegisterTask(gameTypes.PermissionedGameType, logger, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+	t.Run("permissioned game uses placeholder prestate without loading it", func(t *testing.T) {
+		cfg := newCfg(t)
+		task := NewCannonRegisterTask(gameTypes.PermissionedGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
 		provider, err := task.getBottomPrestateProvider(context.Background(), requiredPrestate)
 		require.NoError(t, err)
-		require.NotNil(t, provider)
-		require.NotNil(t, logs.FindLog(
-			testlog.NewLevelFilter(log.LevelWarn),
-			testlog.NewMessageContainsFilter("Prestate unavailable")))
+		vmProvider, ok := provider.(*vm.PrestateProvider)
+		require.True(t, ok)
+		require.Empty(t, vmProvider.PrestatePath())
+		// No load is ever attempted, so the prestates dir the downloader would create must not exist
+		require.NoDirExists(t, filepath.Join(cfg.Datadir, "cannon-prestates"))
 	})
 
 	t.Run("cannon game requires prestate", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlInfo)
-		task := NewCannonRegisterTask(gameTypes.CannonGameType, logger, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+		cfg := newCfg(t)
+		task := NewCannonRegisterTask(gameTypes.CannonGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
 		_, err := task.getBottomPrestateProvider(context.Background(), requiredPrestate)
 		require.ErrorIs(t, err, prestates.ErrPrestateUnavailable)
 	})
