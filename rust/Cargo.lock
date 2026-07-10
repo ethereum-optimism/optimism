@@ -7329,6 +7329,7 @@ dependencies = [
  "op-alloy-network",
  "op-alloy-provider",
  "op-alloy-rpc-types-engine",
+ "op-version",
  "reqwest 0.13.2",
  "rstest",
  "serde_json",
@@ -7342,8 +7343,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber 0.3.23",
  "url",
- "vergen",
- "vergen-git2",
 ]
 
 [[package]]
@@ -9509,9 +9508,11 @@ version = "1.11.3"
 dependencies = [
  "clap",
  "eyre",
+ "op-version",
  "reth-cli-util",
  "reth-db",
  "reth-node-builder",
+ "reth-node-core",
  "reth-optimism-chainspec",
  "reth-optimism-cli",
  "reth-optimism-consensus",
@@ -9572,6 +9573,10 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
 ]
+
+[[package]]
+name = "op-version"
+version = "0.1.0"
 
 [[package]]
 name = "opaque-debug"

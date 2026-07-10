@@ -20,7 +20,10 @@ reth-optimism-payload-builder.workspace = true
 reth-optimism-primitives.workspace = true
 reth-optimism-forks.workspace = true
 reth-node-builder.workspace = true
+reth-node-core.workspace = true
 reth-db.workspace = true
+
+op-version.workspace = true
 
 clap = { workspace = true, features = ["derive", "env"] }
 tracing.workspace = true
@@ -32,34 +35,64 @@ workspace = true
 [features]
 default = ["jemalloc", "otlp", "reth-optimism-evm/portable", "js-tracer", "keccak-cache-global", "asm-keccak"]
 
-otlp = ["reth-optimism-cli/otlp"]
+otlp = [
+    "reth-optimism-cli/otlp",
+    "reth-node-core/otlp",
+]
 
 js-tracer = [
     "reth-optimism-node/js-tracer",
     "reth-node-builder/js-tracer",
 ]
 
-jemalloc = ["reth-cli-util/jemalloc", "reth-optimism-cli/jemalloc"]
+jemalloc = [
+    "reth-cli-util/jemalloc",
+    "reth-optimism-cli/jemalloc",
+    "reth-node-core/jemalloc",
+]
 jemalloc-prof = ["jemalloc", "reth-cli-util/jemalloc-prof", "reth-optimism-cli/jemalloc-prof"]
 jemalloc-symbols = ["jemalloc-prof", "reth-optimism-cli/jemalloc-symbols"]
 tracy-allocator = ["reth-cli-util/tracy-allocator", "tracy"]
-tracy = ["reth-optimism-cli/tracy"]
+tracy = [
+    "reth-optimism-cli/tracy",
+    "reth-node-core/tracy",
+]
 
-asm-keccak = ["reth-optimism-cli/asm-keccak", "reth-optimism-node/asm-keccak"]
+asm-keccak = [
+    "reth-optimism-cli/asm-keccak",
+    "reth-optimism-node/asm-keccak",
+    "reth-node-core/asm-keccak",
+]
 keccak-cache-global = [
     "reth-optimism-cli/keccak-cache-global",
     "reth-optimism-node/keccak-cache-global",
+    "reth-node-core/keccak-cache-global",
 ]
 dev = [
     "reth-optimism-cli/dev",
     "reth-optimism-primitives/arbitrary",
 ]
 
-min-error-logs = ["tracing/release_max_level_error"]
-min-warn-logs = ["tracing/release_max_level_warn"]
-min-info-logs = ["tracing/release_max_level_info"]
-min-debug-logs = ["tracing/release_max_level_debug"]
-min-trace-logs = ["tracing/release_max_level_trace"]
+min-error-logs = [
+    "tracing/release_max_level_error",
+    "reth-node-core/min-error-logs",
+]
+min-warn-logs = [
+    "tracing/release_max_level_warn",
+    "reth-node-core/min-warn-logs",
+]
+min-info-logs = [
+    "tracing/release_max_level_info",
+    "reth-node-core/min-info-logs",
+]
+min-debug-logs = [
+    "tracing/release_max_level_debug",
+    "reth-node-core/min-debug-logs",
+]
+min-trace-logs = [
+    "tracing/release_max_level_trace",
+    "reth-node-core/min-trace-logs",
+]
 
 
 [[bin]]
