@@ -1,0 +1,135 @@
+// Package rustengine is a spike-only Go client for the Rust op-script-engine, used by the
+// parity test to drive the Rust engine over a Unix-socket JSON-RPC connection
+// (go-ethereum rpc.DialIPC, reth-ipc newline framing; the #20415 transport).
+package rustengine
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"time"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+)
+
+// Engine is a handle to a spawned Rust op-script-engine subprocess.
+type Engine struct {
+	cmd     *exec.Cmd
+	cl      *rpc.Client
+	tmpDir  string
+}
+
+// Spawn launches the Rust engine binary and dials its Unix socket. The child's stderr is
+// forwarded to logw (engine tracing). Call Close to terminate it.
+func Spawn(binPath, artifactsDir string, chainID uint64, create2Deployer bool, logw io.Writer) (*Engine, error) {
+	tmpDir, err := os.MkdirTemp("", "op-script-engine")
+	if err != nil {
+		return nil, err
+	}
+	sock := filepath.Join(tmpDir, "engine.sock")
+
+	args := []string{"--socket", sock, "--chain-id", fmt.Sprintf("%d", chainID), "--artifacts", artifactsDir}
+	if create2Deployer {
+		args = append(args, "--create2-deployer")
+	}
+	cmd := exec.Command(binPath, args...)
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	go func() {
+		sc := bufio.NewScanner(stderr)
+		for sc.Scan() {
+			fmt.Fprintf(logw, "[engine] %s\n", sc.Text())
+		}
+	}()
+
+	e := &Engine{cmd: cmd, tmpDir: tmpDir}
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		if _, statErr := os.Stat(sock); statErr == nil {
+			cl, dialErr := rpc.DialIPC(context.Background(), sock)
+			if dialErr == nil {
+				e.cl = cl
+				return e, nil
+			}
+		}
+		if time.Now().After(deadline) {
+			e.Close()
+			return nil, fmt.Errorf("engine never became ready on %s", sock)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func (e *Engine) Close() {
+	if e.cl != nil {
+		e.cl.Close()
+	}
+	if e.cmd != nil && e.cmd.Process != nil {
+		_ = e.cmd.Process.Kill()
+		_ = e.cmd.Wait()
+	}
+	if e.tmpDir != "" {
+		_ = os.RemoveAll(e.tmpDir)
+	}
+}
+
+func (e *Engine) LoadContract(file, contract string, from common.Address) (common.Address, error) {
+	var out common.Address
+	err := e.cl.Call(&out, "script_loadContract", file, contract, from.Hex())
+	return out, err
+}
+
+func (e *Engine) AllowCheatcodes(addr common.Address) error {
+	var ok bool
+	return e.cl.Call(&ok, "script_allowCheatcodes", addr.Hex())
+}
+
+func (e *Engine) SetEnv(key, value string) error {
+	var ok bool
+	return e.cl.Call(&ok, "script_setEnv", key, value)
+}
+
+func (e *Engine) Call(from, to common.Address, input []byte) ([]byte, error) {
+	var out hexutil.Bytes
+	err := e.cl.Call(&out, "script_call", from.Hex(), to.Hex(), hexutil.Encode(input))
+	return out, err
+}
+
+func (e *Engine) GetNonce(addr common.Address) (uint64, error) {
+	var out uint64
+	err := e.cl.Call(&out, "script_getNonce", addr.Hex())
+	return out, err
+}
+
+func (e *Engine) StateDump() (*foundry.ForgeAllocs, error) {
+	var raw json.RawMessage
+	if err := e.cl.Call(&raw, "script_stateDump"); err != nil {
+		return nil, err
+	}
+	var allocs foundry.ForgeAllocs
+	if err := json.Unmarshal(raw, &allocs); err != nil {
+		return nil, fmt.Errorf("decode state dump: %w", err)
+	}
+	return &allocs, nil
+}
+
+func (e *Engine) TakeBroadcasts() ([]script.Broadcast, error) {
+	var out []script.Broadcast
+	err := e.cl.Call(&out, "script_takeBroadcasts")
+	return out, err
+}
