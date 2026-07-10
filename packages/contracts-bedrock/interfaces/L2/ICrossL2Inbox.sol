@@ -12,6 +12,7 @@ struct Identifier {
 }
 
 interface ICrossL2Inbox {
+    error NoExecutingDeposits();
     error NotInAccessList();
     error BlockNumberTooHigh();
     error TimestampTooHigh();

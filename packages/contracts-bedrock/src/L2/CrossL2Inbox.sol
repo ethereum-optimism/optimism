@@ -29,6 +29,9 @@ struct Identifier {
 ///      in the tx's access list. Nodes pre-check message validity before execution. The checksum
 ///      combines the message's `Identifier` and `msgHash` with type-3 bit masking.
 contract CrossL2Inbox is ISemver {
+    /// @notice Thrown when trying to validate a cross chain message in a deposit transaction.
+    error NoExecutingDeposits();
+
     /// @notice Thrown when trying to validate a cross chain message with a checksum
     ///         that is invalid or was not provided in the transaction's access list to set the slot
     ///         as warm.
@@ -47,8 +50,8 @@ contract CrossL2Inbox is ISemver {
     error LogIndexTooHigh();
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.2
-    string public constant version = "1.0.2";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice The mask for the most significant bits of the checksum.
     /// @dev    Used to set the most significant byte to zero.
@@ -74,6 +77,9 @@ contract CrossL2Inbox is ISemver {
     /// @param _id      Identifier of the message.
     /// @param _msgHash Hash of the message payload to call target with.
     function validateMessage(Identifier calldata _id, bytes32 _msgHash) external {
+        // Deposits have a zero gas price. When the base fee is positive, user transactions cannot.
+        if (block.basefee > 0 && tx.gasprice == 0) revert NoExecutingDeposits();
+
         bytes32 checksum = calculateChecksum(_id, _msgHash);
         (bool isWarm,) = _isWarm(checksum);
         if (!isWarm) revert NotInAccessList();
