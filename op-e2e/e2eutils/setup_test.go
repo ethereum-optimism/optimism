@@ -54,7 +54,15 @@ func TestSetupL2AllocFrozenPreForkState(t *testing.T) {
 	}
 	dp := MakeDeployParams(t, tp)
 	proxyAddr := predeploys.L2CrossDomainMessengerAddr
-	generatedProxy := Setup(t, dp, &AllocParams{}).L2Cfg.Alloc[proxyAddr]
+	defaultSetup := Setup(t, dp, &AllocParams{})
+	generatedProxy, ok := defaultSetup.L2Cfg.Alloc[proxyAddr]
+	require.True(t, ok)
+	generatedImplementationHash, ok := generatedProxy.Storage[genesis.ImplementationSlot]
+	require.True(t, ok)
+	generatedImplementationAddr := common.BytesToAddress(generatedImplementationHash.Bytes())
+	generatedImplementation, ok := defaultSetup.L2Cfg.Alloc[generatedImplementationAddr]
+	require.True(t, ok)
+	require.NotEmpty(t, generatedImplementation.Code)
 
 	t.Run("sparse overlay retains the generated implementation", func(t *testing.T) {
 		unrelatedAddr := common.HexToAddress("0x1234")
@@ -75,11 +83,15 @@ func TestSetupL2AllocFrozenPreForkState(t *testing.T) {
 		require.True(t, ok)
 		require.NotEqual(t, common.Hash{}, implementation)
 		require.Equal(t, generatedProxy.Storage[genesis.ImplementationSlot], implementation)
+		sparseImplementation, ok := setup.L2Cfg.Alloc[generatedImplementationAddr]
+		require.True(t, ok)
+		require.Equal(t, generatedImplementation, sparseImplementation)
 		require.Equal(t, unrelatedAccount, setup.L2Cfg.Alloc[unrelatedAddr])
 	})
 
-	t.Run("frozen allocation removes only the generated implementation", func(t *testing.T) {
-		frozenProxy := Setup(t, dp, &AllocParams{L2AllocIsFrozenPreForkState: true}).L2Cfg.Alloc[proxyAddr]
+	t.Run("frozen allocation removes the generated implementation", func(t *testing.T) {
+		setup := Setup(t, dp, &AllocParams{L2AllocIsFrozenPreForkState: true})
+		frozenProxy := setup.L2Cfg.Alloc[proxyAddr]
 
 		expectedProxy := generatedProxy
 		expectedProxy.Storage = make(map[common.Hash]common.Hash, len(generatedProxy.Storage)-1)
@@ -91,16 +103,26 @@ func TestSetupL2AllocFrozenPreForkState(t *testing.T) {
 		require.Contains(t, generatedProxy.Storage, genesis.ImplementationSlot)
 		require.Contains(t, generatedProxy.Storage, genesis.AdminSlot)
 		require.Equal(t, expectedProxy, frozenProxy)
+		_, generatedImplementationPresent := setup.L2Cfg.Alloc[generatedImplementationAddr]
+		require.False(t, generatedImplementationPresent,
+			"frozen allocation must not inherit the generated implementation account at %s", generatedImplementationAddr)
 	})
 
-	t.Run("explicit account remains authoritative when frozen", func(t *testing.T) {
+	t.Run("explicit proxy and historical implementation remain authoritative when frozen", func(t *testing.T) {
 		unrelatedSlot := common.HexToHash("0x01")
+		historicalImplementationAddr := common.HexToAddress("0x1234")
+		require.NotEqual(t, generatedImplementationAddr, historicalImplementationAddr)
+		historicalImplementation := types.Account{
+			Nonce:   8,
+			Balance: big.NewInt(5678),
+			Code:    []byte{0x60, 0x02, 0x56},
+		}
 		explicit := types.Account{
 			Nonce:   7,
 			Balance: big.NewInt(1234),
 			Code:    []byte{0x60, 0x00, 0x56},
 			Storage: map[common.Hash]common.Hash{
-				genesis.ImplementationSlot: common.HexToHash("0x1234"),
+				genesis.ImplementationSlot: common.BytesToHash(historicalImplementationAddr.Bytes()),
 				unrelatedSlot:              common.HexToHash("0x5678"),
 			},
 		}
@@ -113,10 +135,17 @@ func TestSetupL2AllocFrozenPreForkState(t *testing.T) {
 		}
 
 		setup := Setup(t, dp, &AllocParams{
-			L2Alloc:                     types.GenesisAlloc{proxyAddr: explicit},
+			L2Alloc: types.GenesisAlloc{
+				proxyAddr:                    explicit,
+				historicalImplementationAddr: historicalImplementation,
+			},
 			L2AllocIsFrozenPreForkState: true,
 		})
 		require.Equal(t, expected, setup.L2Cfg.Alloc[proxyAddr])
+		require.Equal(t, historicalImplementation, setup.L2Cfg.Alloc[historicalImplementationAddr])
+		_, generatedImplementationPresent := setup.L2Cfg.Alloc[generatedImplementationAddr]
+		require.False(t, generatedImplementationPresent,
+			"frozen allocation must not retain the stale generated implementation account at %s", generatedImplementationAddr)
 	})
 
 	t.Run("proxy-disabled account is not pruned when frozen", func(t *testing.T) {
