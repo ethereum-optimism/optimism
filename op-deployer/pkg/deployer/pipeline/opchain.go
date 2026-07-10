@@ -151,6 +151,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		DisputeGameType:              proofParams.DisputeGameType,
 		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
 		StartingAnchorRoot:           opcm.DefaultStartingAnchorRoot.Root,
+		CannonAbsolutePrestate:       proofParams.DisputeAbsolutePrestate,
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)

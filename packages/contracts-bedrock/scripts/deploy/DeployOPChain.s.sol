@@ -28,7 +28,7 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
+import { Claim, GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 contract DeployOPChain is Script {
@@ -119,11 +119,13 @@ contract DeployOPChain is Script {
         // Non-super-root deploys always register PERMISSIONED_CANNON. In CANNON_KONA mode,
         // the ASR respects CANNON_KONA first but the guardian can switch to PERMISSIONED_CANNON.
         bool enablePermissionedCannon = !isSuperRoot;
+        Claim permissionedCannonPrestate =
+            enableCannonKona ? _input.cannonAbsolutePrestate : _input.disputeAbsolutePrestate;
 
         // Shared permissioned game config for legacy permissioned games.
         IOPContractsManagerUtils.PermissionedDisputeGameConfig memory pdgConfig = IOPContractsManagerUtils
             .PermissionedDisputeGameConfig({
-            absolutePrestate: _input.disputeAbsolutePrestate,
+            absolutePrestate: permissionedCannonPrestate,
             proposer: _input.proposer,
             challenger: _input.challenger
         });
@@ -360,6 +362,10 @@ contract DeployOPChain is Script {
         require(_i.disputeMaxClockDuration.raw() != 0, "DeployOPChainInput: disputeMaxClockDuration not set");
         require(_i.disputeAbsolutePrestate.raw() != bytes32(0), "DeployOPChainInput: disputeAbsolutePrestate not set");
         require(_i.startingAnchorRoot.raw() != bytes32(0), "DeployOPChainInput: startingAnchorRoot not set");
+
+        if (_i.disputeGameType.raw() == GameTypes.CANNON_KONA.raw()) {
+            require(_i.cannonAbsolutePrestate.raw() != bytes32(0), "DeployOPChainInput: cannonAbsolutePrestate not set");
+        }
 
         if (permissionless) {
             require(
