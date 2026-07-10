@@ -282,6 +282,9 @@ impl SuperAggregationInputs {
             });
         }
 
+        // TODO(#21700): Bind the configured chain universe and timestamp-indexed activation
+        // schedule, including an authenticated pre-activation output root for newly activated
+        // chains.
         let chain_ids = self
             .starting_super_root_proof
             .super_root
@@ -1291,6 +1294,53 @@ mod tests {
     }
 
     #[test]
+    fn aggregation_inputs_reject_timestamp_coverage_gaps() {
+        let mut missing_consolidation_timestamp = valid_aggregation_inputs();
+        missing_consolidation_timestamp.consolidation_outputs.pop();
+        assert_eq!(
+            missing_consolidation_timestamp.validate(),
+            Err(SuperRootError::ConsolidationSpanStartMismatch { expected: 102, actual: 101 })
+        );
+
+        let mut missing_range_timestamp = valid_aggregation_inputs();
+        missing_range_timestamp.range_outputs.pop();
+        assert_eq!(
+            missing_range_timestamp.validate(),
+            Err(SuperRootError::RangeSpanStartMismatch { expected: 102, actual: 101 })
+        );
+    }
+
+    #[test]
+    fn aggregation_inputs_reject_chain_coverage_gaps() {
+        let mut missing_consolidation_chain = valid_aggregation_inputs();
+        missing_consolidation_chain.consolidation_outputs[0].transitions[0].optimistic_blocks.pop();
+        assert_eq!(
+            missing_consolidation_chain.validate(),
+            Err(SuperRootError::InvalidRangeTransitionCount { expected: 2, actual: 1 })
+        );
+
+        let mut missing_range_chain = valid_aggregation_inputs();
+        missing_range_chain.range_outputs[0].transitions.pop();
+        assert_eq!(
+            missing_range_chain.validate(),
+            Err(SuperRootError::InvalidRangeTransitionCount { expected: 2, actual: 1 })
+        );
+    }
+
+    #[test]
+    fn aggregation_inputs_reject_consolidation_previous_root_mismatch() {
+        let mut inputs = valid_aggregation_inputs();
+        let expected = inputs.consolidation_outputs[1].previous_super_root;
+        let actual = B256::from([0xee; 32]);
+        inputs.consolidation_outputs[1].previous_super_root = actual;
+
+        assert_eq!(
+            inputs.validate(),
+            Err(SuperRootError::PreviousSuperRootMismatch { expected, actual })
+        );
+    }
+
+    #[test]
     fn chain_ordering_requires_non_empty_strictly_increasing_ids() {
         assert_eq!(ensure_strictly_increasing_chains(&[]), Err(SuperRootError::EmptyOutputRoots));
 
@@ -1588,13 +1638,16 @@ mod tests {
     }
 
     #[test]
-    fn range_vkey_input_serializes_with_json() {
-        let vkey = [0, 1, 2, 3, 4, 5, 6, 7];
+    fn aggregation_inputs_serialize_with_dynamic_range_vkey() {
+        let mut inputs = valid_aggregation_inputs();
+        inputs.range_vkey = [0, 1, 2, 3, 4, 5, 6, 7];
 
-        let encoded = serde_json::to_vec(&vkey).expect("vkey serializes");
-        let decoded: [u32; 8] = serde_json::from_slice(&encoded).expect("vkey deserializes");
+        let encoded = serde_json::to_vec(&inputs).expect("aggregation inputs serialize");
+        let decoded: SuperAggregationInputs =
+            serde_json::from_slice(&encoded).expect("aggregation inputs deserialize");
 
-        assert_eq!(decoded, vkey);
+        assert_eq!(decoded, inputs);
+        assert_eq!(decoded.range_vkey, [0, 1, 2, 3, 4, 5, 6, 7]);
     }
 
     #[test]
