@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -100,8 +101,9 @@ type AllocParams struct {
 	L1Alloc          types.GenesisAlloc
 	L2Alloc          types.GenesisAlloc
 	PrefundTestUsers bool
-	// L2AllocIsFrozenPreForkState makes the absence of a proxied predeploy's account
-	// authoritative by removing its implementation from the generated genesis state.
+	// L2AllocIsFrozenPreForkState treats L2Alloc as authoritative for proxied predeploys
+	// by removing generated implementation accounts absent from it and clearing the generated
+	// implementation slot when the proxy itself is absent.
 	L2AllocIsFrozenPreForkState bool
 }
 
@@ -185,14 +187,20 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 			if predeploy.ProxyDisabled {
 				continue
 			}
-			if _, ok := alloc.L2Alloc[predeploy.Address]; ok {
-				continue
-			}
 			account, ok := l2Genesis.Alloc[predeploy.Address]
 			if !ok {
 				continue
 			}
-			delete(account.Storage, genesis.ImplementationSlot)
+			generatedImpl, hasImpl := account.Storage[genesis.ImplementationSlot]
+			if hasImpl && generatedImpl != (common.Hash{}) {
+				generatedImplAddr := common.BytesToAddress(generatedImpl.Bytes())
+				if _, ok := alloc.L2Alloc[generatedImplAddr]; !ok {
+					delete(l2Genesis.Alloc, generatedImplAddr)
+				}
+			}
+			if _, ok := alloc.L2Alloc[predeploy.Address]; !ok {
+				delete(account.Storage, genesis.ImplementationSlot)
+			}
 		}
 	}
 	for addr, val := range alloc.L2Alloc {
