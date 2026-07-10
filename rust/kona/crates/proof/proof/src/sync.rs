@@ -136,8 +136,10 @@ mod tests {
         let safe_head = b256(0xBB);
         let mut preimage = [0u8; 128];
         preimage[96..128].copy_from_slice(safe_head.as_slice());
-        let oracle =
-            MockOracle::single(PreimageKey::new(*agreed_root, PreimageKeyType::Keccak256), preimage.to_vec());
+        let oracle = MockOracle::single(
+            PreimageKey::new(*agreed_root, PreimageKeyType::Keccak256),
+            preimage.to_vec(),
+        );
 
         let got = fetch_safe_head_hash(&oracle, agreed_root).await.unwrap();
         assert_eq!(got, safe_head);
@@ -165,8 +167,10 @@ mod tests {
         // `get_exact` with a `[u8; 128]` buffer is what enforces the length here; this test guards
         // against a future refactor swapping to `get`.
         let agreed_root = b256(0xAA);
-        let oracle =
-            MockOracle::single(PreimageKey::new(*agreed_root, PreimageKeyType::Keccak256), vec![0u8; 127]);
+        let oracle = MockOracle::single(
+            PreimageKey::new(*agreed_root, PreimageKeyType::Keccak256),
+            vec![0u8; 127],
+        );
 
         let err = fetch_safe_head_hash(&oracle, agreed_root).await.unwrap_err();
         match err {
