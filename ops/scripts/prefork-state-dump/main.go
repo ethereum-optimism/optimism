@@ -13,6 +13,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -24,28 +25,59 @@ import (
 	config "github.com/ethereum-optimism/optimism/op-e2e/config"
 )
 
-// predeployScoped keeps every predeploy and preinstall, plus the
-// impls they point at via their EIP-1967 slot — with full per-account storage.
-// Everything else (e.g. prefunded EOAs) is dropped.
+// predeployNamespaceSize mirrors Predeploys.PREDEPLOY_COUNT: the L2 predeploy
+// namespace spans 0x4200…0000 through 0x4200…07FF, and genesis etches a Proxy at
+// every slot in it. We scan the full range rather than a name list so the dump
+// captures every proxy the era genesis produces — including the bare proxies at
+// slots that only become active predeploys in a LATER fork. The fork-era
+// predeploys package cannot name those slots, but the frozen state must still
+// carry their bare proxies: the state is overlaid per-account onto a
+// current-source base genesis, so a captured bare proxy authoritatively resets a
+// slot to its era shape instead of inheriting a future implementation.
+const predeployNamespaceSize = 2048
+
+var namespaceBase = common.HexToAddress("0x4200000000000000000000000000000000000000")
+
+// predeployScoped keeps every predeploy and preinstall, plus the impls they point
+// at via their EIP-1967 slot — with full per-account storage. Everything else
+// (e.g. prefunded EOAs) is dropped.
 func predeployScoped(full *foundry.ForgeAllocs) *foundry.ForgeAllocs {
 	out := &foundry.ForgeAllocs{Accounts: make(types.GenesisAlloc)}
-	for _, p := range predeploys.Predeploys {
-		acct, ok := full.Accounts[p.Address]
+
+	capture := func(addr common.Address) {
+		acct, ok := full.Accounts[addr]
 		if !ok {
-			continue
+			return
 		}
-		out.Accounts[p.Address] = acct
-		if p.ProxyDisabled {
-			continue
+		if _, seen := out.Accounts[addr]; seen {
+			return
 		}
+		out.Accounts[addr] = acct
+
+		// Follow the EIP-1967 implementation pointer, if set, and keep the impl too.
+		// A bare proxy (impl slot zero) or a non-proxied preinstall has none to follow.
 		implAddr := common.BytesToAddress(acct.Storage[genesis.ImplementationSlot].Bytes())
 		if implAddr == (common.Address{}) {
-			continue
+			return
 		}
 		if implAcct, ok := full.Accounts[implAddr]; ok {
 			out.Accounts[implAddr] = implAcct
 		}
 	}
+
+	// Full predeploy namespace: captures every proxy (bare or active) and the impls
+	// active proxies point at.
+	base := new(big.Int).SetBytes(namespaceBase.Bytes())
+	for i := int64(0); i < predeployNamespaceSize; i++ {
+		capture(common.BigToAddress(new(big.Int).Add(base, big.NewInt(i))))
+	}
+
+	// Non-namespace preinstalls (Create2Deployer, Safe, EntryPoint, Permit2, …) live
+	// outside the 0x4200 namespace; pick them up from the predeploys registry.
+	for _, p := range predeploys.Predeploys {
+		capture(p.Address)
+	}
+
 	return out
 }
 
