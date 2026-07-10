@@ -419,12 +419,12 @@ func (m *Metrics) RecordHardforkActivationTimes(cfg *rollup.Config) {
 		chainID = cfg.L2ChainID.String()
 	}
 
-	cfg.ForEachFork(func(_ string, logName string, basis rollup.ForkActivationBasis, ts *uint64) {
-		if ts == nil {
+	cfg.ForEachFork(func(fork rollup.Fork) {
+		if fork.Time == nil {
 			return
 		}
-		fork := strings.TrimSuffix(logName, "_time")
-		m.HardforkActivationTime.WithLabelValues(chainID, fork, string(basis)).Set(float64(*ts))
+		label := strings.TrimSuffix(fork.LogName, "_time")
+		m.HardforkActivationTime.WithLabelValues(chainID, label, string(fork.Basis)).Set(float64(*fork.Time))
 	})
 	if cfg.KeepKarstUpgradeGas && cfg.KarstTime != nil {
 		// Behavioral opt-out flag, not a scheduled fork: reported only when set, valued at the
