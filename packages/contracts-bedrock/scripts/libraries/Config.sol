@@ -336,6 +336,11 @@ library Config {
         return vm.envOr("DEV_FEATURE__ZK_DISPUTE_GAME", false);
     }
 
+    /// @notice Returns true if the development feature cannon_kona is enabled.
+    function devFeatureCannonKona() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__CANNON_KONA", false);
+    }
+
     /// @notice Returns true if the development feature super root games migration is enabled.
     function devFeatureSuperRootGamesMigration() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION", false);

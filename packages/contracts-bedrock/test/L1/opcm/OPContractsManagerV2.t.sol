@@ -932,6 +932,11 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests upgrading the respected game type to CANNON_KONA via the override key.
     function test_upgrade_respectedGameTypeCannonToKona_succeeds() public {
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.CANNON_KONA)),
+            abi.encode(true)
+        );
         /// This is a hack because fork live has an outdated superchain registry reference that it
         /// pulls the addresses from
         IAnchorStateRegistry anchorStateRegistry = optimismPortal2.anchorStateRegistry();
@@ -951,6 +956,11 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that overriding to CANNON_KONA is a no-op when already CANNON_KONA.
     function test_upgrade_respectedGameTypeAlreadyKona_succeeds() public {
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.CANNON_KONA)),
+            abi.encode(true)
+        );
         vm.mockCall(
             address(anchorStateRegistry),
             abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
@@ -990,6 +1000,12 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that overriding to a disabled game type reverts during upgrade.
     function test_upgrade_respectedGameTypeOverrideToDisabled_reverts() public {
+        address opcmV2Container = address(opcmV2.contractsContainer());
+        vm.mockCall(
+            opcmV2Container,
+            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.CANNON_KONA)),
+            abi.encode(true)
+        );
         v2UpgradeInput.disputeGameConfigs[2].enabled = false;
         v2UpgradeInput.disputeGameConfigs[2].initBond = 0;
         v2UpgradeInput.extraInstructions.push(
@@ -1001,6 +1017,25 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
             chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Tests that the respected game type override is rejected when CANNON_KONA dev feature is off.
+    function test_upgrade_respectedGameTypeOverrideWithoutDevFeature_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.CANNON_KONA);
+        v2UpgradeInput.extraInstructions.push(
+            IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingRespectedGameType",
+                data: abi.encode(GameTypes.CANNON_KONA)
+            })
+        );
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInstruction.selector,
+                "overrides.cfg.startingRespectedGameType"
+            )
         );
     }
 

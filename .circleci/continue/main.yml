@@ -2939,6 +2939,10 @@ workflows:
                 - OPTIMISM_PORTAL_INTEROP
                 - ZK_DISPUTE_GAME
                 - SUPER_ROOT_GAMES_MIGRATION
+                 # TODO(#20084): Remove this commented out job when removing the CANNON_KONA feature toggle.
+                #   CANNON_KONA is now enabled by default, so we do not need to explicitly enable it and run this
+                #   additional job. However it is kept here for now so that it can easily be reactivated.
+                # - CANNON_KONA
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack

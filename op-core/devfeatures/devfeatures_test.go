@@ -83,15 +83,13 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 	hardcoded := []struct {
 		name string
 		flag common.Hash
-	}{}
+	}{
+		{"CannonKona", CannonKonaFlag},
+	}
 
 	t.Run("all against empty", func(t *testing.T) {
 		// Strip hardcoded-enabled flags.
-		stripped := ALL_FEATURES
-		for _, c := range hardcoded {
-			stripped = and(stripped, not(c.flag))
-		}
-		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, stripped))
+		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, and(ALL_FEATURES, not(CannonKonaFlag))))
 	})
 
 	for _, c := range hardcoded {
