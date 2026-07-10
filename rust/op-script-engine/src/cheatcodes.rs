@@ -5,7 +5,7 @@
 use alloy_primitives::{Address, B256, Bytes, U256};
 use revm::{
     Inspector,
-    context_interface::{ContextTr, JournalTr},
+    context_interface::{ContextTr, JournalTr, journaled_state::account::JournaledAccountTr},
     interpreter::{
         CallInputs, CallOutcome, CallScheme, CreateInputs, CreateOutcome, CreateScheme, Gas,
         InstructionResult, InterpreterResult,
@@ -112,21 +112,20 @@ fn read_nonce(ctx: &mut ScriptContext, addr: Address) -> u64 {
 }
 
 fn bump_nonce(ctx: &mut ScriptContext, addr: Address) {
-    if let Ok(acc) = ctx.journal_mut().load_account_mut(addr) {
-        acc.data.info.nonce += 1;
+    if let Ok(mut acc) = ctx.journal_mut().load_account_mut(addr) {
+        acc.data.bump_nonce();
     }
-    ctx.journal_mut().touch_account(addr);
 }
 
 fn cheat_outcome(output: Bytes, gas_limit: u64, memory_offset: std::ops::Range<usize>) -> CallOutcome {
-    CallOutcome {
-        result: InterpreterResult {
+    CallOutcome::new(
+        InterpreterResult {
             result: InstructionResult::Return,
             output,
             gas: Gas::new(gas_limit), // 0 spent -> only the CALL opcode overhead is charged
         },
         memory_offset,
-    }
+    )
 }
 
 fn addr_from_word(word: &[u8]) -> Address {
@@ -245,12 +244,16 @@ impl Inspector<ScriptContext> for CheatInspector {
         }
         if let Some(frame) = self.frames.pop() {
             if let Some(cap) = frame.captured {
-                self.emit_broadcast(cap, outcome.result.gas.spent());
+                #[allow(deprecated)]
+                let gas_used = outcome.result.gas.spent();
+                self.emit_broadcast(cap, gas_used);
             }
         }
     }
 
     fn create(&mut self, ctx: &mut ScriptContext, inputs: &mut CreateInputs) -> Option<CreateOutcome> {
+        // `CreateInputs.set_call` overrides the creator, the CREATE equivalent of op-geth's
+        // `CallerOverride`, so revm's *state* deploys at the pranked address too.
         let mut captured = None;
         if let Some(parent) = self.frames.last_mut() {
             if let Some(prank) = parent.prank.clone() {
@@ -259,27 +262,22 @@ impl Inspector<ScriptContext> for CheatInspector {
                     parent.prank = None;
                 }
                 if prank.broadcast {
-                    let (salt, kind) = match inputs.scheme {
-                        CreateScheme::Create2 { salt } => (B256::from(salt), BroadcastKind::Create2),
-                        _ => (B256::ZERO, BroadcastKind::Create),
-                    };
-                    match kind {
-                        BroadcastKind::Create2 => {
-                            // The prank sender's nonce is bumped (the "tx" nonce), but the
-                            // creation is attributed to the deterministic deployer.
+                    let init_code = inputs.init_code().clone();
+                    let value = inputs.value();
+                    match inputs.scheme() {
+                        CreateScheme::Create2 { salt } => {
+                            let salt = B256::from(salt);
                             let sender = prank.sender.unwrap_or(parent_addr);
-                            bump_nonce(ctx, sender);
-                            let from = if self.use_create2_deployer {
-                                CREATE2_DEPLOYER
-                            } else {
-                                sender
-                            };
-                            inputs.caller = from;
+                            bump_nonce(ctx, sender); // "tx" nonce bump on the pranked sender
+                            let from =
+                                if self.use_create2_deployer { CREATE2_DEPLOYER } else { sender };
+                            inputs.set_call(from);
+                            let to = crate::allocs::create2_address(&from, &salt, &init_code);
                             captured = Some(Capture {
                                 from,
-                                to: Address::ZERO,
-                                input: inputs.init_code.clone(),
-                                value: inputs.value,
+                                to,
+                                input: init_code,
+                                value,
                                 salt,
                                 nonce: 0,
                                 kind: BroadcastKind::Create2,
@@ -287,21 +285,22 @@ impl Inspector<ScriptContext> for CheatInspector {
                         }
                         _ => {
                             let from = prank.sender.unwrap_or(parent_addr);
-                            inputs.caller = from;
-                            let pre = read_nonce(ctx, from); // prestate; CREATE itself bumps it
+                            inputs.set_call(from);
+                            let pre = read_nonce(ctx, from); // prestate; the CREATE bumps it
+                            let to = crate::allocs::create_address(&from, pre);
                             captured = Some(Capture {
                                 from,
-                                to: Address::ZERO,
-                                input: inputs.init_code.clone(),
-                                value: inputs.value,
-                                salt,
+                                to,
+                                input: init_code,
+                                value,
+                                salt: B256::ZERO,
                                 nonce: pre,
                                 kind: BroadcastKind::Create,
                             });
                         }
                     }
                 } else if let Some(sender) = prank.sender {
-                    inputs.caller = sender;
+                    inputs.set_call(sender);
                 }
             }
         }
@@ -317,9 +316,10 @@ impl Inspector<ScriptContext> for CheatInspector {
         outcome: &mut CreateOutcome,
     ) {
         if let Some(frame) = self.frames.pop() {
-            if let Some(mut cap) = frame.captured {
-                cap.to = outcome.address.unwrap_or(Address::ZERO);
-                self.emit_broadcast(cap, outcome.result.gas.spent());
+            if let Some(cap) = frame.captured {
+                #[allow(deprecated)]
+                let gas_used = outcome.result.gas.spent();
+                self.emit_broadcast(cap, gas_used);
             }
         }
     }

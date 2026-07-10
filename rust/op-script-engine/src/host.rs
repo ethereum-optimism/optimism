@@ -85,6 +85,7 @@ impl ScriptHost {
                 balance: U256::ZERO,
                 nonce: 0,
                 code_hash: placeholder.hash_slow(),
+                account_id: None,
                 code: Some(placeholder),
             },
         );

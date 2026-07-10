@@ -9573,6 +9573,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "op-script-engine"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-sol-types",
+ "clap",
+ "jsonrpsee",
+ "reth-ipc",
+ "revm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.23",
+]
+
+[[package]]
 name = "opaque-debug"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

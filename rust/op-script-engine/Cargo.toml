@@ -15,7 +15,15 @@ path = "src/bin/op-script-engine.rs"
 
 [dependencies]
 # revm
-revm = { workspace = true, features = ["std"] }
+# The optional_* features re-enable the CfgEnv disable-flags the workspace turns off; we need
+# them to reproduce op-geth's raw `vm.EVM.Call` semantics (no fee/limit enforcement).
+revm = { workspace = true, features = [
+  "std",
+  "optional_balance_check",
+  "optional_block_gas_limit",
+  "optional_eip3607",
+  "optional_no_base_fee",
+] }
 
 # alloy
 alloy-primitives = { workspace = true, features = ["std", "map"] }

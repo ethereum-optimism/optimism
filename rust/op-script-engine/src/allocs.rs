@@ -75,3 +75,16 @@ pub fn create_address(sender: &Address, nonce: u64) -> Address {
     let hash = keccak256(&out);
     Address::from_slice(&hash[12..])
 }
+
+/// CREATE2 address = keccak256(0xff ++ deployer ++ salt ++ keccak256(init_code))[12..],
+/// mirroring `crypto.CreateAddress2`.
+pub fn create2_address(deployer: &Address, salt: &B256, init_code: &[u8]) -> Address {
+    let init_hash = keccak256(init_code);
+    let mut buf = Vec::with_capacity(1 + 20 + 32 + 32);
+    buf.push(0xff);
+    buf.extend_from_slice(deployer.as_slice());
+    buf.extend_from_slice(salt.as_slice());
+    buf.extend_from_slice(init_hash.as_slice());
+    let hash = keccak256(&buf);
+    Address::from_slice(&hash[12..])
+}
