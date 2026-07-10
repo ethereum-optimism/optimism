@@ -27,6 +27,7 @@ members = [
   "kona/sp1/crates/ethereum/host",
   "kona/sp1/crates/host",
   "kona/sp1/crates/proof",
+  "kona/sp1/crates/range-executor",
 
   # Op-Alloy
   "op-alloy/crates/*",
@@ -66,6 +67,9 @@ members = [
 
   # In-test OP execution layer for op-e2e/actions parity
   "op-reth-test-engine/",
+
+  # Shared build/version metadata (op-reth + kona-node)
+  "op-version/",
 ]
 default-members = [
   "kona/bin/host",
@@ -251,6 +255,9 @@ incremental = false
 
 # ==================== WORKSPACE DEPENDENCIES ====================
 [workspace.dependencies]
+# Shared OP Stack binary build/version metadata
+op-version = { path = "op-version" }
+
 # ==================== KONA INTERNAL CRATES ====================
 # Binaries
 kona-host = { path = "kona/bin/host", version = "1.0.2", default-features = false }

@@ -47,8 +47,8 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
         executeScript = new ExecuteNUTBundle();
         generateScript = new GenerateNUTBundle();
 
-        // Generate bundle
-        GenerateNUTBundle.Output memory output = generateScript.run();
+        // Build bundle without rewriting the tracked NUT snapshot.
+        GenerateNUTBundle.Output memory output = generateScript.buildOutput();
         delete currentBundleTxns;
         for (uint256 i = 0; i < output.txns.length; i++) {
             currentBundleTxns.push(output.txns[i]);

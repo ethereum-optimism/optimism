@@ -1,35 +1,50 @@
 //! Version information for kona-node.
 
-/// The latest version from Cargo.toml.
-pub(crate) const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+use std::sync::LazyLock;
 
-/// The 8 character short SHA of the latest commit.
-pub(crate) const VERGEN_GIT_SHA: &str = env!("VERGEN_GIT_SHA_SHORT");
+use op_version::BuildInfo;
+
+static BUILD_INFO: LazyLock<BuildInfo> = LazyLock::new(|| op_version::build_info!());
+
+static SHORT_VERSION: LazyLock<String> = LazyLock::new(|| BUILD_INFO.short_version());
+static LONG_VERSION: LazyLock<String> = LazyLock::new(|| BUILD_INFO.long_version());
+
+/// The resolved release version (no leading `v`), e.g. `1.2.3` or `0.0.0-dev`.
+pub(crate) fn version() -> &'static str {
+    BUILD_INFO.version()
+}
+
+/// The short commit SHA.
+pub(crate) fn git_sha() -> &'static str {
+    BUILD_INFO.short_sha()
+}
 
 /// The build timestamp.
-pub(crate) const VERGEN_BUILD_TIMESTAMP: &str = env!("VERGEN_BUILD_TIMESTAMP");
+pub(crate) fn build_timestamp() -> &'static str {
+    BUILD_INFO.build_timestamp()
+}
 
-/// The target triple.
-pub(crate) const VERGEN_CARGO_TARGET_TRIPLE: &str = env!("VERGEN_CARGO_TARGET_TRIPLE");
+/// The enabled cargo features (empty string if none were injected).
+pub(crate) fn cargo_features() -> &'static str {
+    BUILD_INFO.cargo_features()
+}
 
-/// The build features.
-pub(crate) const VERGEN_CARGO_FEATURES: &str = env!("VERGEN_CARGO_FEATURES");
-
-/// The short version information for kona-node.
-pub(crate) const SHORT_VERSION: &str = env!("KONA_NODE_SHORT_VERSION");
-
-/// The long version information for kona-node.
-pub(crate) const LONG_VERSION: &str = concat!(
-    env!("KONA_NODE_LONG_VERSION_0"),
-    "\n",
-    env!("KONA_NODE_LONG_VERSION_1"),
-    "\n",
-    env!("KONA_NODE_LONG_VERSION_2"),
-    "\n",
-    env!("KONA_NODE_LONG_VERSION_3"),
-    "\n",
-    env!("KONA_NODE_LONG_VERSION_4")
-);
+/// The target triple, approximated from the compiled-in arch/OS.
+pub(crate) fn target_triple() -> &'static str {
+    BUILD_INFO.target_triple()
+}
 
 /// The build profile name.
-pub(crate) const BUILD_PROFILE_NAME: &str = env!("KONA_NODE_BUILD_PROFILE");
+pub(crate) fn build_profile() -> &'static str {
+    BUILD_INFO.build_profile()
+}
+
+/// The short version information, e.g. `1.2.3 (abc12345)`.
+pub(crate) fn short_version() -> &'static str {
+    &SHORT_VERSION
+}
+
+/// The long, multi-line version information.
+pub(crate) fn long_version() -> &'static str {
+    &LONG_VERSION
+}

@@ -1,4 +1,8 @@
-package rollup
+// Package superchain loads OP-Stack rollup configs from the superchain-registry.
+// It is kept separate from op-node/rollup so that the many packages depending on
+// the rollup config types do not pull in op-core/superchain, which embeds the
+// multi-megabyte superchain config bundle and must generate it before it compiles.
+package superchain
 
 import (
 	"fmt"
@@ -6,14 +10,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-core/superchain"
+	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
 // Some chains may require a SystemConfigProvider to retrieve any values not part of the registry.
-func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
-	chain, err := superchain.GetChain(chainID)
+func LoadOPStackRollupConfig(chainID uint64) (*rollup.Config, error) {
+	chain, err := registry.GetChain(chainID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get chain %d from superchain registry: %w", chainID, err)
 	}
@@ -22,15 +27,25 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve chain %d config: %w", chainID, err)
 	}
+
+	superConfig, err := registry.GetSuperchain(chain.Network)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get superchain %q from superchain registry: %w", chain.Network, err)
+	}
+
+	return rollupConfigFromRegistry(chConfig, superConfig), nil
+}
+
+// rollupConfigFromRegistry converts a superchain-registry chain config (with its parent
+// superchain, which supplies the L1 chain ID) into a rollup Config. It is the single place that
+// maps registry fields onto Config, kept separate from the registry lookup so it can be
+// unit-tested directly: feeding a fully-populated ChainConfig through it and checking the result
+// catches any registry field that fails to reach Config.
+func rollupConfigFromRegistry(chConfig *registry.ChainConfig, superConfig registry.Superchain) *rollup.Config {
 	chOpConfig := &params.OptimismConfig{
 		EIP1559Elasticity:        chConfig.Optimism.EIP1559Elasticity,
 		EIP1559Denominator:       chConfig.Optimism.EIP1559Denominator,
 		EIP1559DenominatorCanyon: chConfig.Optimism.EIP1559DenominatorCanyon,
-	}
-
-	superConfig, err := superchain.GetSuperchain(chain.Network)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get superchain %q from superchain registry: %w", chain.Network, err)
 	}
 
 	sysCfg := chConfig.Genesis.SystemConfig
@@ -44,9 +59,9 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 
 	addrs := chConfig.Addresses
 
-	var altDA *AltDAConfig
+	var altDA *rollup.AltDAConfig
 	if chConfig.AltDA != nil {
-		altDA = &AltDAConfig{
+		altDA = &rollup.AltDAConfig{
 			DAChallengeAddress: chConfig.AltDA.DaChallengeContractAddress,
 			DAChallengeWindow:  chConfig.AltDA.DaChallengeWindow,
 			DAResolveWindow:    chConfig.AltDA.DaResolveWindow,
@@ -54,8 +69,8 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		}
 	}
 
-	cfg := &Config{
-		Genesis: Genesis{
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
 				Hash:   chConfig.Genesis.L1.Hash,
 				Number: chConfig.Genesis.L1.Number,
@@ -85,10 +100,10 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	}
 	applyHardforks(cfg, chConfig.Hardforks)
 
-	return cfg, nil
+	return cfg
 }
 
-func applyHardforks(cfg *Config, hardforks superchain.HardforkConfig) {
+func applyHardforks(cfg *rollup.Config, hardforks registry.HardforkConfig) {
 	regolithTime := uint64(0)
 	cfg.RegolithTime = &regolithTime
 	cfg.CanyonTime = hardforks.CanyonTime
@@ -102,4 +117,5 @@ func applyHardforks(cfg *Config, hardforks superchain.HardforkConfig) {
 	cfg.LagoonTime = hardforks.LagoonTime
 	cfg.JovianTime = hardforks.JovianTime
 	cfg.KarstTime = hardforks.KarstTime
+	cfg.KeepKarstUpgradeGas = hardforks.KeepKarstUpgradeGas
 }

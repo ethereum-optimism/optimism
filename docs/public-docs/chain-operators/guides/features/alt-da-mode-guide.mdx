@@ -22,7 +22,7 @@ You should use at least the following compatible op\* versions when running your
 *   op-node/v1.9.1
 *   op-proposer/v1.9.1
 *   op-batcher/v1.9.1
-*   [Latest version of op-geth](https://github.com/ethereum-optimism/op-geth/releases/latest)
+*   Latest version of op-reth (see the [execution clients guide](/node-operators/guides/configuration/execution-clients)). op-geth reached [end-of-support](/notices/op-geth-deprecation) on 2026-05-31.
 
 <Steps>
   <Step title="Setup your DA server">
@@ -39,7 +39,7 @@ You should use at least the following compatible op\* versions when running your
 
   <Step title="Configure your `op-node`">
   *   Spin up your OP chain as usual but set `--altda.enabled=true` and point both `op-batcher` and `op-node` to the DA server.
-    *   No configuration changes are required for `op-geth` or `op-proposer`.
+    *   No configuration changes are required for your execution client (`op-reth`) or `op-proposer`.
   
     ```
        Alt-DA (EXPERIMENTAL)

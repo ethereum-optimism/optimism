@@ -6,7 +6,7 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:758f67c7212e7d05c3d02c34f26766ef86f657d3bb811da07cc01e37b736ebef
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
   c-base_image:
     type: string
     default: default
@@ -28,7 +28,7 @@ parameters:
     default: cimg/base:2026.03
   rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:d79c625a042269c64b2444ef1edf9bb4a399d1c892caee57f9021be067da5617
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
   base_image:
     type: string
     default: default
@@ -86,7 +86,7 @@ parameters:
   go-cache-version:
     type: string
     default: "v0.1"
-  # Workflow activation flags (set by the decision tree in config.yml)
+  # Workflow activation flags (set by compute-workflow-conditions.sh)
   c-run_main:
     type: boolean
     default: false
@@ -120,7 +120,7 @@ parameters:
   c-run_l2_fork_test:
     type: boolean
     default: false
-  c-run_scheduled_weekly_tests:
+  c-run_scheduled_daily_tests:
     type: boolean
     default: false
   c-run_contracts_feature_tests:
@@ -130,6 +130,9 @@ parameters:
     type: boolean
     default: false
   c-run_ci_gate_skip:
+    type: boolean
+    default: false
+  c-run_circleci_schedule_trigger_check:
     type: boolean
     default: false
   c-run_publish_contract_artifacts:
@@ -681,6 +684,17 @@ jobs:
     steps:
       - utils/ci-gate:
           always-succeed: << parameters.always-succeed >>
+
+  circleci-schedule-trigger-check:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Check CircleCI schedule triggers
+          command: bun .circleci/scripts/test-schedule-triggers.js
 
   # Build a single Rust binary from a workspace. Will cache the binary by default.
   rust-build-binary:
@@ -1543,7 +1557,7 @@ jobs:
       - utils/checkout-with-mise:
           enable-mise-cache: false
       - run:
-          name: Check l2-rpcs.json and weekly matrix are in sync
+          name: Check l2-rpcs.json and daily matrix are in sync
           command: bash .circleci/scripts/check-l2-chains-sync.sh
 
   todo-issues:
@@ -1564,50 +1578,6 @@ jobs:
           name: Check TODO issues
           command: ./ops/scripts/todo-checker.sh --verbose --strict <<#parameters.check_closed>> --check-closed <</parameters.check_closed>>
       - notify-failures-on-develop
-
-  fuzz-golang:
-    parameters:
-      package_name:
-        description: Go package name
-        type: string
-      on_changes:
-        description: changed pattern to fire fuzzer on
-        type: string
-      uses_artifacts:
-        description: should load in foundry artifacts
-        type: boolean
-        default: false
-    docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
-    resource_class: xlarge.gen2
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-          enable-mise-cache: true
-      - check-changed:
-          patterns: "<<parameters.package_name>>"
-      - attach_workspace:
-          at: "."
-          if: ${{ uses_artifacts }}
-      - go-restore-cache:
-          namespace: fuzz-<<parameters.package_name>>
-      - run:
-          name: Fuzz
-          no_output_timeout: 15m
-          command: |
-            just fuzz
-          working_directory: "<<parameters.package_name>>"
-      - go-save-cache:
-          namespace: fuzz-<<parameters.package_name>>
-      - run:
-          name: Copy fuzz artifacts
-          command: |
-            mkdir -p fuzzdata
-            find ./<<parameters.package_name>> -type d -name "fuzz" -exec sh -c 'cp -r "{}"/* fuzzdata/ 2>/dev/null || true' \;
-          when: always
-      - store_artifacts:
-          path: ./fuzzdata
-          when: always
 
   go-lint:
     docker:
@@ -1676,7 +1646,9 @@ jobs:
 
   # Builds op-core/superchain/superchain-configs.zip from the pinned commit and
   # makes it available to downstream Go-build jobs via persist_to_workspace.
-  # The zip itself is gitignored; this job is the only place it gets built in CI.
+  # The zip itself is gitignored; this is the only job that persists it to the
+  # workspace. Jobs that don't attach the workspace (the rust-e2e Go tests,
+  # faultproofs, interop-deposits-diff) rebuild it inline via `just build-superchain-go`.
   #
   # Always rebuilds — no cache. The script is fast (depth-1 SR clone + zip
   # ~10s) and most of the job's wall-clock is mise restore anyway. Always
@@ -2475,46 +2447,6 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - fuzz-golang:
-          name: fuzz-golang-<<matrix.package_name>>
-          on_changes: <<matrix.package_name>>
-          # attaches prep-superchain's superchain-configs.zip, which several of these packages //go:embed.
-          uses_artifacts: true
-          matrix:
-            parameters:
-              package_name:
-                - op-challenger
-                - op-node
-                - op-service
-                - op-chain-ops
-          requires:
-            - prep-go-modules
-            - prep-superchain
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - fuzz-golang:
-          name: cannon-fuzz
-          package_name: cannon
-          on_changes: cannon,packages/contracts-bedrock/src/cannon
-          uses_artifacts: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - contracts-bedrock-build
-            - prep-go-modules
-      - fuzz-golang:
-          name: op-e2e-fuzz
-          package_name: op-e2e
-          on_changes: op-e2e,packages/contracts-bedrock/src
-          uses_artifacts: true
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-            - prep-go-modules
-            # for the gitignored superchain-configs.zip op-e2e //go:embeds
-            - prep-superchain
       - go-tests:
           name: go-tests-short
           parallelism: 12
@@ -2717,13 +2649,6 @@ workflows:
             - l2-chains-sync-check: terminal
             - nut-provenance-verify: terminal
             - diff-fetcher-forge-artifacts: terminal
-            # Fuzz jobs.
-            - cannon-fuzz: terminal
-            - op-e2e-fuzz: terminal
-            - fuzz-golang-op-challenger: terminal
-            - fuzz-golang-op-node: terminal
-            - fuzz-golang-op-service: terminal
-            - fuzz-golang-op-chain-ops: terminal
           context:
             - circleci-api-token
           filters:
@@ -2926,6 +2851,14 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+
+  circleci-schedule-trigger-check-workflow:
+    when: << pipeline.parameters.c-run_circleci_schedule_trigger_check >>
+    jobs:
+      - circleci-schedule-trigger-check:
+          context:
+            - circleci-api-token
+
   close-issue-workflow:
     when: << pipeline.parameters.c-run_close_issue >>
     jobs:
@@ -2956,8 +2889,8 @@ workflows:
             - circleci-repo-rpc-secrets
             - slack
 
-  scheduled-weekly-tests:
-    when: << pipeline.parameters.c-run_scheduled_weekly_tests >>
+  scheduled-daily-tests:
+    when: << pipeline.parameters.c-run_scheduled_daily_tests >>
     jobs:
       - prep-go-modules:
           context:
@@ -2973,12 +2906,9 @@ workflows:
                 - ink
                 - mode
                 - metal
-                - arena-z
-                - swell
                 - unichain
                 - soneium
                 - world-chain
-                - base
                 - xlayer
           test_profile: ci
           context:

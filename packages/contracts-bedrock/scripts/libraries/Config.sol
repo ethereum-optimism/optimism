@@ -332,8 +332,9 @@ library Config {
     }
 
     /// @notice Returns true if the development feature l2cm is enabled.
+    /// @dev Defaults to true: L2CM is the default genesis codepath. See TODO(#20084).
     function devFeatureL2CM() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__L2CM", false);
+        return vm.envOr("DEV_FEATURE__L2CM", true);
     }
 
     /// @notice Returns true if the development feature ZK_DISPUTE_GAME is enabled.

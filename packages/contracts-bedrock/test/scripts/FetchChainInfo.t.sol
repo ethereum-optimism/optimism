@@ -354,6 +354,59 @@ contract FetchChainInfoTest is Test {
         _test_modernPermissionless_succeeds(true);
     }
 
+    /// @notice Once CANNON is deprecated, a chain with only CANNON_KONA registered (no CANNON) must
+    ///         still be reported as permissionless, with CANNON_KONA as the fault dispute game impl.
+    function test_modernPermissionlessCannonKonaOnly_succeeds() public {
+        TestContext memory ctx = _prepareModernTestContext();
+
+        ctx.disputeGameFactory = address(new DisputeGameFactoryMock());
+        ctx.permissionedGame = address(new PermissionedDisputeGameMock());
+        ctx.permissionlessCannonKonaGame = address(new PermissionlessCannonKonaDisputeGameMock());
+        ctx.superchainConfig = address(new ModernMockContract());
+        ctx.mips = address(new OracleMock());
+        ctx.preimageOracle = address(new ModernMockContract());
+        ctx.anchorStateRegistry = address(new ModernMockContract());
+
+        ModernMockContract(payable(ctx.l1StandardBridgeProxy)).set_messenger(ctx.l1CrossDomainMessenger);
+        ModernMockContract(payable(ctx.l1CrossDomainMessenger)).set_portal(ctx.optimismPortal);
+        ModernMockContract(payable(ctx.systemConfigProxy)).set_disputeGameFactory(ctx.disputeGameFactory);
+        ModernMockContract(payable(ctx.optimismPortal)).set_superchainConfig(ctx.superchainConfig);
+        ModernMockContract(payable(ctx.optimismPortal)).set_guardian(TEST_GUARDIAN);
+        ModernMockContract(payable(ctx.optimismPortal)).set_systemConfig(ctx.systemConfigProxy);
+
+        // CANNON is intentionally not registered, only CANNON_KONA and the permissioned game exist.
+        DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
+            GameTypes.CANNON_KONA, ctx.permissionlessCannonKonaGame
+        );
+        DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
+            GameTypes.PERMISSIONED_CANNON, ctx.permissionedGame
+        );
+
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_challenger(TEST_CHALLENGER);
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_proposer(TEST_PROPOSER);
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_vm(ctx.mips);
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_anchorStateRegistry(ctx.anchorStateRegistry);
+
+        OracleMock(payable(ctx.mips)).set_oracle(ctx.preimageOracle);
+
+        _setupAddressManagerSlot(ctx.l1CrossDomainMessenger, TEST_ADDRESS_MANAGER);
+
+        fetchChainInfo = new FetchChainInfo();
+        fetchChainInfo.run(ctx.input, ctx.output);
+
+        assertTrue(ctx.output.permissionless(), "Permissionless proofs should be enabled");
+        assertEq(
+            ctx.output.faultDisputeGameImpl(),
+            ctx.permissionlessCannonKonaGame,
+            "FaultDisputeGame should fall back to CANNON_KONA"
+        );
+        assertEq(
+            ctx.output.faultDisputeGameCannonKonaImpl(),
+            ctx.permissionlessCannonKonaGame,
+            "FaultDisputeGameCannonKona should match"
+        );
+    }
+
     // Test to verify fallback mechanism for guardian() to GUARDIAN()
     function test_guardianFallback_succeeds() public {
         TestContext memory ctx = _prepareTestContext();

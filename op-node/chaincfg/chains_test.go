@@ -36,6 +36,27 @@ func TestGetRollupConfig(t *testing.T) {
 	}
 }
 
+func TestKarstUpgradeGasCompatibilityByNetwork(t *testing.T) {
+	// These values preserve each chain's behavior when it activated Karst.
+	tests := []struct {
+		network string
+		want    bool
+	}{
+		{network: "mode-mainnet", want: false},
+		{network: "metal-mainnet", want: false},
+		{network: "zora-mainnet", want: false},
+		{network: "op-mainnet", want: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.network, func(t *testing.T) {
+			cfg, err := GetRollupConfig(test.network)
+			require.NoError(t, err)
+			require.Equal(t, test.want, cfg.KeepKarstUpgradeGas)
+		})
+	}
+}
+
 var defaultOpConfig = &params.OptimismConfig{
 	EIP1559Elasticity:        6,
 	EIP1559Denominator:       50,
@@ -79,6 +100,7 @@ var mainnetCfg = rollup.Config{
 	IsthmusTime:            u64Ptr(1746806401),
 	JovianTime:             u64Ptr(1764691201),
 	KarstTime:              u64Ptr(1783526401),
+	KeepKarstUpgradeGas:    true,
 	ChainOpConfig:          defaultOpConfig,
 }
 
@@ -120,6 +142,7 @@ var sepoliaCfg = rollup.Config{
 	IsthmusTime:            u64Ptr(1744905600),
 	JovianTime:             u64Ptr(1763568001),
 	KarstTime:              u64Ptr(1781712001),
+	KeepKarstUpgradeGas:    true,
 	ChainOpConfig:          defaultOpConfig,
 }
 

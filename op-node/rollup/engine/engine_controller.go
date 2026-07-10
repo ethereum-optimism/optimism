@@ -585,12 +585,9 @@ func (e *EngineController) checkNewPayloadStatus(status eth.ExecutePayloadStatus
 		// Allow SYNCING and ACCEPTED if engine EL sync is enabled
 		return status == eth.ExecutionValid || status == eth.ExecutionSyncing || status == eth.ExecutionAccepted
 	}
-	// if SyncModeReqResp is false, meaning we no longer use Req/Res P2P protocol, we should also tolerate SYNCING response, when in sync.CLSync mode, so that
+	// In CLSync mode we tolerate a SYNCING response (in addition to VALID), so that
 	// the CL node can get to making an FCU call after NewPayload returns SYNCING, and can trigger the EL sync behavior.
-	if !e.syncCfg.SyncModeReqResp {
-		return status == eth.ExecutionValid || status == eth.ExecutionSyncing
-	}
-	return status == eth.ExecutionValid
+	return status == eth.ExecutionValid || status == eth.ExecutionSyncing
 }
 
 // checkForkchoiceUpdatedStatus checks returned status of engine_forkchoiceUpdatedV1 request for next unsafe payload.

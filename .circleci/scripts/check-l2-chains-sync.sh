@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks that the chain names in the scheduled-weekly-tests matrix in
+# Checks that the chain names in the scheduled-daily-tests matrix in
 # .circleci/continue/main.yml match the keys in ./circleci/l2-rpcs.json.
 set -euo pipefail
 
@@ -11,11 +11,11 @@ MAIN_YML_PATH="$REPO_ROOT/$MAIN_YML_FILE"
 
 json_chains=$(jq -r 'keys | sort | .[]' "$L2_RPCS_PATH")
 
-# Extract the fork_op_chain list from the scheduled-weekly-tests matrix block.
+# Extract the fork_op_chain list from the scheduled-daily-tests matrix block.
 # Relies on the block structure: the list appears after `fork_op_chain:` and
 # ends at the next non-list line (e.g. `test_profile:`).
 yaml_chains=$(awk '
-  /scheduled-weekly-tests/    { in_workflow=1 }
+  /scheduled-daily-tests/     { in_workflow=1 }
   in_workflow && /fork_op_chain:/ { in_list=1; next }
   in_workflow && in_list && /^[[:space:]]*- / {
     sub(/^[[:space:]]*- /, ""); print; next
@@ -24,9 +24,9 @@ yaml_chains=$(awk '
 ' "$MAIN_YML_PATH" | sort)
 
 if [ "$json_chains" = "$yaml_chains" ]; then
-  echo "OK: $L2_RPCS_FILE and scheduled-weekly-tests matrix are in sync."
+  echo "OK: $L2_RPCS_FILE and scheduled-daily-tests matrix are in sync."
 else
-  echo "ERROR: $L2_RPCS_FILE and the scheduled-weekly-tests matrix are out of sync."
+  echo "ERROR: $L2_RPCS_FILE and the scheduled-daily-tests matrix are out of sync."
   echo ""
   echo "  In l2-rpcs.json only:"
   comm -23 <(echo "$json_chains") <(echo "$yaml_chains") | sed 's/^/    /'

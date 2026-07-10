@@ -59,6 +59,10 @@ Each service justfile has a `generate-mocks` target:
 cd <service> && just generate-mocks
 ```
 
+## Conventions
+
+- **Pointers to values**: use `ptr.New(v)` from `github.com/ethereum-optimism/optimism/op-service/ptr` to take the address of a literal or expression — common for optional `*uint64` config fields like fork-activation times (`cfg.SomeTime = ptr.New(uint64(123))`). Don't define a local `ptr`/`ptrTo` helper; the shared one avoids per-package duplicates, and a local `func ptr` collides with importing the `ptr` package in the same package.
+
 ## Linting
 
 The repo uses a **custom golangci-lint build** with additional analyzer plugins. The standard `golangci-lint` binary will not catch all issues — always lint through `just`.

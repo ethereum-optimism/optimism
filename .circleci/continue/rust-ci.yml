@@ -13,18 +13,15 @@ parameters:
     default: cimg/base:2026.03
   c-rust_base_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:758f67c7212e7d05c3d02c34f26766ef86f657d3bb811da07cc01e37b736ebef
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
   c-base_image:
     type: string
     default: default
-  # Workflow activation flags (set by the decision tree in config.yml)
+  # Workflow activation flags (set by compute-workflow-conditions.sh)
   c-run_rust_ci:
     type: boolean
     default: false
   c-run_rust_ci_gate_short:
-    type: boolean
-    default: false
-  c-run_scheduled_kona_link_checker:
     type: boolean
     default: false
   c-run_kona_publish_prestates:
@@ -491,17 +488,32 @@ jobs:
           command: |
             # Use develop as the base branch
             BASE_BRANCH="develop"
+            SUPERCHAIN_TAR="rust/op-reth/crates/chainspec/res/superchain-configs.tar"
+
+            # `git checkout` switches between base and PR without touching the superchain-registry
+            # submodule working tree or the gitignored res/superchain-configs.tar. op-reth
+            # chainspec's build.rs (superchain-configs is a hard dep of the op-reth bin) regenerates
+            # that tar from the submodule and validates it against the committed .sha256, so on a PR
+            # that bumps the submodule it panics on a base-vs-PR mismatch. After each checkout,
+            # re-sync the submodule to the checked-out pin and drop the stale tar so build.rs
+            # regenerates it from the now-current submodule.
+            sync_superchain() {
+              just update-superchain-registry-submodule
+              rm -f "$SUPERCHAIN_TAR"
+            }
 
             # Save current state
             git stash || true
             git fetch origin $BASE_BRANCH
             git checkout origin/$BASE_BRANCH
+            sync_superchain
 
             # Generate vectors on base
             cargo run --bin op-reth --features "dev" --manifest-path rust/op-reth/bin/Cargo.toml -- test-vectors compact --write
 
             # Return to PR branch
             git checkout -
+            sync_superchain
             git stash pop || true
       - run:
           name: Read compact vectors on PR branch
@@ -610,20 +622,6 @@ jobs:
           no_output_timeout: 40m
           command: |
             just build-<<parameters.target>>
-
-  # Kona Link Checker
-  kona-link-checker:
-    docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - run:
-          name: Check links
-          working_directory: rust/kona
-          command: |
-            lychee --config ./lychee.toml --cache-exclude-status 429 '**/README.md' || true
 
   # Verifies that the committed `etc/{chainList,configs,depsets}.json` snapshots
   # in `kona-registry` match what `KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry`
@@ -1034,16 +1032,6 @@ workflows:
           always-succeed: true
           context:
             - circleci-api-token
-
-  # ==========================================================================
-  # Kona scheduled workflows
-  # ==========================================================================
-  scheduled-kona-link-checker:
-    when: << pipeline.parameters.c-run_scheduled_kona_link_checker >>
-    jobs:
-      - kona-link-checker:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
 
   # Kona publish prestate artifacts - on push to develop
   kona-publish-prestates:

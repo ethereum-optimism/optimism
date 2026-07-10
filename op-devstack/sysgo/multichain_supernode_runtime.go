@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	faucetConfig "github.com/ethereum-optimism/optimism/op-faucet/config"
@@ -355,7 +356,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			IsSequencer:      true,
 			NoDiscovery:      true,
 			EnableReqResp:    true,
-			UseReqResp:       false,
 			DependencySet:    runtimeDepSet,
 			L2FollowSource:   supernodeL2ACL.UserRPC(),
 			L2CLOptions:      cfg.GlobalL2CLOptions,
@@ -369,7 +369,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			IsSequencer:      true,
 			NoDiscovery:      true,
 			EnableReqResp:    true,
-			UseReqResp:       false,
 			DependencySet:    runtimeDepSet,
 			L2FollowSource:   supernodeL2BCL.UserRPC(),
 			L2CLOptions:      cfg.GlobalL2CLOptions,
@@ -479,6 +478,13 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 				l2Cfg.WithForkAtGenesis(opforks.Lagoon)
 			}
 		}
+		if delaySeconds > 0 {
+			// The chain starts pre-Lagoon (at Karst) and activates Lagoon at
+			// runtime via its frozen NUT bundle.
+			preForkAllocs, err := nutsstate.PreForkState(opforks.Lagoon)
+			t.Require().NoError(err, "need frozen pre-Lagoon predeploy state")
+			wb.preForkPredeployAllocs = preForkAllocs
+		}
 	}
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
 	wb.Build()
@@ -535,7 +541,6 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 		IsSequencer:    false,
 		NoDiscovery:    true,
 		EnableReqResp:  false,
-		UseReqResp:     false,
 		L2FollowSource: chain.CL.UserRPC(),
 		DependencySet:  runtime.DependencySet,
 		// Follow nodes catch up to their follow source via EL sync.
@@ -615,7 +620,7 @@ func startTwoL2SharedSupernode(
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
 			RuntimeConfigReloadInterval:     0,
-			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync, SyncModeReqResp: true},
+			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync},
 			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
@@ -634,7 +639,7 @@ func startTwoL2SharedSupernode(
 
 	snCfg := &snconfig.CLIConfig{
 		Chains:                     chainIDs,
-		DataDir:                    t.TempDir(),
+		DataDir:                    t.TempDirWithPrefix("supernode"),
 		L1NodeAddr:                 l1EL.UserRPC(),
 		L1HTTPPollInterval:         100 * time.Millisecond,
 		L1BeaconAddr:               l1CL.beaconHTTPAddr,
@@ -731,7 +736,7 @@ func startSingleChainSharedSupernode(
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
-			Sync:                            nodeSync.Config{SyncMode: verifierSyncMode, SyncModeReqResp: true},
+			Sync:                            nodeSync.Config{SyncMode: verifierSyncMode},
 			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
@@ -744,7 +749,7 @@ func startSingleChainSharedSupernode(
 
 	snCfg := &snconfig.CLIConfig{
 		Chains:                     []uint64{eth.EvilChainIDToUInt64(l2Net.ChainID())},
-		DataDir:                    t.TempDir(),
+		DataDir:                    t.TempDirWithPrefix("supernode"),
 		L1NodeAddr:                 l1EL.UserRPC(),
 		L1HTTPPollInterval:         100 * time.Millisecond,
 		L1BeaconAddr:               l1CL.beaconHTTPAddr,

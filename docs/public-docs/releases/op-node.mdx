@@ -14,7 +14,38 @@ rss: true
 
 **op-node** implements the [rollup-node spec](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/rollup-node.md), functioning as the consensus layer (CL) client of an OP Stack chain. It builds, relays, and verifies the canonical L2 chain, working alongside an execution layer client such as op-reth.
 
-<Update label="June 2, 2026" description="v1.19.0" tags={["Latest", "Stable"]}>
+<Update label="July 7, 2026" description="v1.19.2" tags={["Latest", "Stable"]}>
+
+> [!Warning]
+> **All node operators must upgrade to op-node/v1.19.1 or later**. See the [op-node/v1.19.1 release notes](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.1) for more information about Karst activation and its incompatibility with older versions of op-reth. All of the callouts on that release page apply.
+
+This release fixes an issue encountered when using op-node with an EL that prunes historical bodies (e.g., when using op-reth with `--minimal` or `--prune.bodies.distance`).
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.2)
+
+</Update>
+
+<Update label="June 26, 2026" description="v1.19.1" tags={["Stable"]}>
+
+> [!Warning]
+> **This is a mandatory release for all node operators.** It includes the [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork.
+>
+> The following Mainnet chains will activate on **1783526401 (Wed Jul 8 2026 16:00:01 UTC)**, pending governance approval: op, ink, zora, mode, lisk, metal, unichain, soneium, ethernity, tbn
+>
+> **Reminder:** op-geth has reached [end of support](https://docs.optimism.io/notices/op-geth-deprecation), so you must be running op-reth to support the karst activation. For more details on this network upgrade see our [notice page](https://docs.optimism.io/notices/upgrade-19).
+
+> [!IMPORTANT]
+> **Operators must use op-reth/v2.3.2 with this release.** Prior versions of op-reth will not work with this version of op-node after Karst due to a new engine API method (`getPayloadV5`) used after Karst. See the [notice page](https://docs.optimism.io/notices/upgrade-19) for more details about recommended versions (including flashblocks components).
+
+Note that some chains have a new `keep_karst_upgrade_gas` boolean field in their superchain registry configuration. Chains with this value set to `true` are encouraged to manually reset their gas limit after Karst activates on Sepolia and Mainnet. See the [notice page](https://docs.optimism.io/notices/upgrade-19) for more information.
+
+**Update:** op-node contains a [known issue](https://github.com/ethereum-optimism/optimism/issues/21584) that impacts CL-syncing op-reth nodes that prune block bodies (when `--minimal` or `--prune.bodies.distance` are set). A fix is in the works. In the meantime, the recommendation is to enable EL syncing or disable pruning (the latter requires a resync).
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.19.1)
+
+</Update>
+
+<Update label="June 2, 2026" description="v1.19.0" tags={["Stable"]}>
 
 > [!WARNING]
 > This is a mandatory release for all node operators. It includes [Sepolia](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/sepolia/op.toml#L25) and [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork. 
@@ -196,7 +227,7 @@ This is a maintenance release.
 
 </Update>
 
-<Update label="December 19, 2025" description="v1.16.4" tags={["Stable"]}>
+<Update label="December 20, 2025" description="v1.16.4" tags={["Stable"]}>
 
 > [!WARNING]
 > **This is an essential release for chains impacted by recent superchain registry updates: [Cyber](https://github.com/ethereum-optimism/superchain-registry/commit/8fadc870f1da03dd176cde2f618ba4d1d424d423), [Funki](https://github.com/ethereum-optimism/superchain-registry/commit/d317982f8a46d385d94dcbd57aa88ffc78cbfa3e)**
@@ -269,18 +300,6 @@ Additionally, Swell Mainnet will activate Isthmus 12 hours prior to Jovian, Dece
 > DO NOT USE THIS RELEASE. The Jovian activation timestamps are being updated in a new release.
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.16.0)
-
-</Update>
-
-<Update label="October 24, 2025" description="v1.14.3" tags={["Stable"]}>
-
-This release adds the worldchain-sepolia Isthmus activation time and improves robustness in the L1 beacon client. 
-
-It also allows L2 chain configs to be passed to NewL1ChainConfig, which was previously preventing L3s from upgrading to a Fusaka compatible release.
-
-The corresponding op-geth release is [v1.101603.2](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101603.2)
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.14.3)
 
 </Update>
 

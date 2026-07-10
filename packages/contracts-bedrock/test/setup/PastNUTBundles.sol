@@ -182,7 +182,7 @@ library PastNUTBundles {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory _currentTxns
     )
         internal
-        pure
+        view
         returns (bool skip_, string memory reason_, address priorL2CM_)
     {
         priorL2CM_ = extractL2CM(_priorTxns, _entry.path);
@@ -192,6 +192,19 @@ library PastNUTBundles {
             return (true, "L2CM matches current", priorL2CM_);
         }
 
+        // Skip prior bundles whose effects are already present on the fork.
+        if (isBundleApplied(priorL2CM_)) {
+            return (true, "already applied on fork", priorL2CM_);
+        }
+
         return (false, "", priorL2CM_);
+    }
+
+    /// @notice Returns whether a NUT bundle, identified by its L2ContractsManager, is already
+    ///         present on the forked chain.
+    /// @param _l2cm The bundle's L2ContractsManager address.
+    /// @return applied_ Whether the bundle's effects are already present on the fork.
+    function isBundleApplied(address _l2cm) internal view returns (bool applied_) {
+        applied_ = Predeploys.CONDITIONAL_DEPLOYER.code.length != 0 && _l2cm.code.length != 0;
     }
 }

@@ -50,7 +50,7 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     /// @notice Fork name for the current generated NUT bundle.
     string internal currentFork;
 
-    /// @dev Cache from `generateScript.run()` to avoid re-reading the artifact during parallel fork setup.
+    /// @dev Cache from `generateScript.buildOutput()` to avoid re-reading the artifact during parallel fork setup.
     NetworkUpgradeTxns.NetworkUpgradeTxn[] internal currentBundleTxns;
 
     /// @notice Common state
@@ -81,8 +81,8 @@ contract L2ForkUpgrade_TestInit is CommonTest {
             // Initialize scripts
             executeScript = new ExecuteNUTBundle();
             generateScript = new GenerateNUTBundle();
-            // Generate bundle
-            GenerateNUTBundle.Output memory output = generateScript.run();
+            // Build bundle without rewriting the tracked NUT snapshot.
+            GenerateNUTBundle.Output memory output = generateScript.buildOutput();
             currentFork = output.fork;
             delete currentBundleTxns;
             for (uint256 i = 0; i < output.txns.length; i++) {
@@ -107,12 +107,9 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     }
 
     /// @notice Returns true when the current bundle has already been applied to the forked chain.
-    ///         Uses two checks: ConditionalDeployer exists (Karst ran) and this bundle's
-    ///         L2ContractsManager was deployed at its expected address.
     function _isCurrentBundleAlreadyApplied() internal view returns (bool) {
-        if (Predeploys.CONDITIONAL_DEPLOYER.code.length == 0) return false;
         address l2cm = PastNUTBundles.extractL2CM(_currentBundleTxns(), Constants.CURRENT_BUNDLE_PATH);
-        return l2cm.code.length > 0;
+        return PastNUTBundles.isBundleApplied(l2cm);
     }
 
     /// @notice Copies the cached current bundle transactions from storage to memory.

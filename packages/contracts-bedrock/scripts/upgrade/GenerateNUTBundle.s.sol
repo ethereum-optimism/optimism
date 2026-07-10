@@ -82,16 +82,22 @@ contract GenerateNUTBundle is Script {
     /// @notice Generates the upgrade transaction bundle and writes the artifact to disk.
     /// @return output_ Output containing all generated transactions in execution order.
     function run() public returns (Output memory output_) {
-        setUp();
-
-        output_ = _buildOutput();
-
-        _assertValidOutput(output_);
+        output_ = buildOutput();
 
         // Write transactions to artifact with metadata
         NetworkUpgradeTxns.BundleMetadata memory metadata =
             NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
         NetworkUpgradeTxns.writeArtifact(output_.txns, metadata, Constants.CURRENT_BUNDLE_PATH);
+    }
+
+    /// @notice Builds the upgrade transaction bundle without writing the artifact to disk.
+    /// @return output_ Output containing all generated transactions in execution order.
+    function buildOutput() public returns (Output memory output_) {
+        setUp();
+
+        output_ = _buildOutput();
+
+        _assertValidOutput(output_);
     }
 
     /// @notice Builds the upgrade transaction bundle Output struct.

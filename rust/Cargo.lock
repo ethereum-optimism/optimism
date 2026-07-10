@@ -7329,6 +7329,7 @@ dependencies = [
  "op-alloy-network",
  "op-alloy-provider",
  "op-alloy-rpc-types-engine",
+ "op-version",
  "reqwest 0.13.2",
  "rstest",
  "serde_json",
@@ -7342,8 +7343,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber 0.3.23",
  "url",
- "vergen",
- "vergen-git2",
 ]
 
 [[package]]
@@ -7529,6 +7528,7 @@ dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-eips 2.0.5",
  "alloy-hardforks",
+ "alloy-op-hardforks",
  "alloy-primitives",
  "alloy-rlp",
  "alloy-rpc-types-engine",
@@ -7542,6 +7542,7 @@ dependencies = [
  "brotli-decompressor",
  "derive_more 2.1.1",
  "kona-genesis",
+ "kona-hardforks",
  "kona-registry",
  "miniz_oxide 0.9.1",
  "op-alloy-consensus",
@@ -7724,6 +7725,7 @@ dependencies = [
  "kona-driver",
  "kona-executor",
  "kona-genesis",
+ "kona-interop",
  "kona-preimage",
  "kona-proof",
  "kona-protocol",
@@ -7837,6 +7839,27 @@ dependencies = [
  "kona-sp1-ethereum-host-utils",
  "kona-sp1-host-utils",
  "tracing",
+]
+
+[[package]]
+name = "kona-sp1-range-executor"
+version = "0.0.1"
+dependencies = [
+ "alloy-primitives",
+ "anyhow",
+ "clap",
+ "kona-host",
+ "kona-preimage",
+ "kona-proof",
+ "kona-sp1-client-utils",
+ "kona-sp1-elfs",
+ "kona-sp1-ethereum-client-utils",
+ "kona-sp1-ethereum-host-utils",
+ "kona-sp1-host-utils",
+ "sp1-sdk",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.23",
 ]
 
 [[package]]
@@ -9485,9 +9508,11 @@ version = "1.11.3"
 dependencies = [
  "clap",
  "eyre",
+ "op-version",
  "reth-cli-util",
  "reth-db",
  "reth-node-builder",
+ "reth-node-core",
  "reth-optimism-chainspec",
  "reth-optimism-cli",
  "reth-optimism-consensus",
@@ -9548,6 +9573,10 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
 ]
+
+[[package]]
+name = "op-version"
+version = "0.1.0"
 
 [[package]]
 name = "opaque-debug"
@@ -13362,6 +13391,7 @@ dependencies = [
  "alloy-rpc-types-admin",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth 2.0.5",
+ "alloy-signer-local 2.0.5",
  "clap",
  "eyre",
  "futures",

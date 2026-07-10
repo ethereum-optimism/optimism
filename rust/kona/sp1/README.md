@@ -16,6 +16,15 @@ zkVM programs that execute inside the SP1 prover:
 
 - **`range`**: Verifies OP Stack state transitions across a range of L2 blocks with Ethereum DA. Generates proofs for multi-block execution that can be verified on-chain.
 - **`aggregation`**: Aggregates multiple range program proofs into a single proof, enabling efficient verification of longer block ranges.
+- **`super-range`**: Scaffold for the unified multi-chain super-root range
+  program, with modes for proving ranges and span-shaped consolidation.
+- **`super-aggregation`**: Scaffold for aggregating unified super-range
+  proofs into the public values consumed by `ZKDisputeGame`.
+
+The super-root aggregation scaffold currently accepts the range program verification
+key as input to support development. This dynamic-vkey mode is not production
+sound until the range vkey is embedded in the aggregation program or
+publicly bound by the verifier path.
 
 ### Crates (`crates/`)
 
@@ -38,6 +47,8 @@ Compiled ELF binaries for the zkVM programs, used by the prover:
 - **`range-elf`**: Compiled range program. SP1 v6.2.4 no longer exposes a
   separate bump-allocator feature, so this port keeps one range artifact instead
   of separate bump and embedded variants.
+- **`super-aggregation-elf`**: Compiled super-root aggregation program
+- **`super-range-elf`**: Compiled unified super-root range/consolidation program
 
 In the optimism monorepo port, these files are generated on demand and ignored
 by git, matching the Cannon prestate artifact workflow. Generate real v6.2.4
@@ -85,6 +96,45 @@ The SP1 integration follows the same fault proof workflow as the native Kona imp
 ## Building
 
 Build utilities are provided in the `build` crate. Programs can be compiled for the zkVM target using the SP1 toolchain.
+
+## Testing (SP1 execute action tests)
+
+The `range-executor` crate (`crates/range-executor`) builds a host binary,
+`kona-sp1-range-executor`, that runs the `range` guest in SP1 **execute** mode (no
+proving) against a real chain's witness. It accepts the same boot inputs as the native
+kona-host `single` CLI, generates the witness via the kona-host preimage server, runs the
+`range` ELF in the SP1 emulator, and exits `0` (valid claim) / `1` (invalid claim) / `2`
+(infrastructure error) — mirroring the native fault-proof program convention.
+
+The op-e2e action test `TestSP1RangeSimpleEmptyChain`
+(`rust/kona/tests/proofs/sp1_simple_program_test.go`) drives this binary against an
+in-process action-test chain, exercising the program end-to-end on real inputs. Run it
+with:
+
+```bash
+cd rust/kona/tests && just action-tests-sp1
+```
+
+That recipe builds the guest ELFs (`just build-elfs`, Dockerized SP1 toolchain), builds
+the `range-executor` binary (which embeds the `range` ELF), and runs the test with
+`KONA_SP1_RANGE_EXECUTOR_PATH` set. The test skips when that variable is unset, so the
+heavy SP1 toolchain is only required when explicitly running the SP1 action tests.
+
+For faster coverage of the range-program logic, the same executor also supports
+`--native-core`. This mode still generates the real witness, but runs the shared range
+core natively instead of executing the SP1 ELF. Use the default SP1 execute path for a
+small smoke test of the ELF, SP1 stdin, and public-values boundary; use `--native-core`
+when broad action-test coverage would otherwise multiply SP1 emulator cost.
+
+The test covers both an honest claim and an invalid claim. Note the invalid-claim path is
+driven by **corrupting the claim in the witness**, not by passing a wrong claimed output
+root: witness generation runs on the configured `--claimed-l2-output-root`, and the
+host-side generator rejects a wrong one *before* the guest runs (a confusing infra error,
+exit 2). So an invalid-claim test keeps the real claim and sets the `--corrupt-claimed-root`
+flag (via `WithCorruptClaim()` in the Go harness), which tampers the claim in the generated
+witness so the guest re-derives the real root, finds the mismatch, and aborts (exit 1) — a
+soundness smoke test that a false transition cannot be executed (and thus could not be
+proven). Do **not** write an SP1 negative test by passing a junk `WithL2Claim(...)`.
 
 ## Dependencies
 

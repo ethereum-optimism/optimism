@@ -22,4 +22,4 @@ mod job;
 mod tests;
 
 pub use error::BackfillError;
-pub use job::BackfillJob;
+pub use job::{BackfillJob, DEFAULT_BACKFILL_BATCH_SIZE};

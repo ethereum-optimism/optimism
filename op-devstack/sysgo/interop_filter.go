@@ -101,7 +101,7 @@ func startInteropFilter(
 	cfg := &filter.Config{
 		L2RPCs:              l2RPCs,
 		RollupConfigs:       rollupConfigs,
-		DataDir:             t.TempDir(),
+		DataDir:             t.TempDirWithPrefix(name),
 		BackfillDuration:    30 * time.Second,
 		MessageExpiryWindow: 7 * 24 * 3600, // 7 days in seconds
 		PollInterval:        500 * time.Millisecond,

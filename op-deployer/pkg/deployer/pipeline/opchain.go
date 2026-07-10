@@ -174,6 +174,9 @@ func BuildDeployOPChainInput(
 		gasLimit = standard.GasLimit
 	}
 
+	// TODO(#20912): Populate StartingAnchorRoot and DisputeAbsolutePrestate from pipeline state for permissionless
+	// deploys. This also needs a second prestate field in ChainProofParams: CannonAbsolutePrestate below reuses the
+	// single existing field, and DeployOPChain.checkInput rejects equal prestates for CANNON_KONA deploys.
 	return opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner:       roles.L1ProxyAdminOwner,
 		SystemConfigOwner:            roles.SystemConfigOwner,
@@ -189,6 +192,8 @@ func BuildDeployOPChainInput(
 		GasLimit:                     gasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
 		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
+		StartingAnchorRoot:           opcm.DefaultStartingAnchorRoot.Root,
+		CannonAbsolutePrestate:       proofParams.DisputeAbsolutePrestate,
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)

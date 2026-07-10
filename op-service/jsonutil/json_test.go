@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -157,4 +158,67 @@ func appendDataToFile(outputPath string, data []byte) error {
 
 	_, err = file.Write(data)
 	return err
+}
+
+func TestDecodeTOMLStrict(t *testing.T) {
+	type inner struct {
+		A int `toml:"a"`
+	}
+	type cfg struct {
+		Name  string `toml:"name"`
+		Inner inner  `toml:"inner"`
+	}
+
+	const clean = `
+name = "x"
+[inner]
+a = 1
+`
+	const withExtra = `
+name = "x"
+extra = true
+`
+
+	t.Run("clean input passes", func(t *testing.T) {
+		var c cfg
+		require.NoError(t, DecodeTOMLStrict(strings.NewReader(clean), &c, nil))
+		require.Equal(t, "x", c.Name)
+		require.Equal(t, 1, c.Inner.A)
+	})
+
+	t.Run("nil predicate rejects unknown key", func(t *testing.T) {
+		var c cfg
+		err := DecodeTOMLStrict(strings.NewReader(withExtra), &c, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "extra")
+	})
+
+	t.Run("nested unknown key reported with dotted path", func(t *testing.T) {
+		var c cfg
+		err := DecodeTOMLStrict(strings.NewReader(`
+[inner]
+a = 1
+b = 2
+`), &c, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "inner.b")
+	})
+
+	t.Run("predicate allows the listed key", func(t *testing.T) {
+		var c cfg
+		allow := func(k string) bool { return k == "extra" }
+		require.NoError(t, DecodeTOMLStrict(strings.NewReader(withExtra), &c, allow))
+		require.Equal(t, "x", c.Name)
+	})
+
+	t.Run("predicate does not allow other keys", func(t *testing.T) {
+		var c cfg
+		allow := func(k string) bool { return k == "extra" }
+		err := DecodeTOMLStrict(strings.NewReader(`
+name = "x"
+other = true
+`), &c, allow)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "other")
+	})
 }
