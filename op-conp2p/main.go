@@ -54,9 +54,11 @@ var (
 	}
 	signedPayloadWSFlag = &cli.StringFlag{
 		Name: "signed-payload-ws",
-		Usage: "Websocket URL of a sequencing op-con-node's signed-payload multicast " +
-			"(--sequencer-payload-ws-addr). When set, the sidecar subscribes and PUBLISHES " +
-			"each node-signed unsafe block to the OP gossip /blocks topics (never re-signing).",
+		Usage: "Websocket URL of a sequencing node's Direct Sync server " +
+			"(--sequencer-payload-ws-addr). When set, the sidecar holds a cursor " +
+			"subscription (the producer's ring replays reconnect/gap windows) and " +
+			"PUBLISHES each node-signed unsafe block's canonical bytes verbatim to " +
+			"the OP gossip /blocks topics (never re-signing, never re-encoding).",
 		EnvVars: []string{envPrefix + "_SIGNED_PAYLOAD_WS"},
 	}
 )
@@ -102,6 +104,11 @@ func run(cliCtx *cli.Context, logger log.Logger) error {
 
 	runCfg := &delegatingRuntimeConfig{node: node, log: logger}
 	gossipIn := &loggingGossipIn{log: logger}
+	// Serve P2P req-resp (payloads-by-number) from the node's Direct Sync pull
+	// endpoint: gossip peers backfill recent blocks from this node's replay
+	// ring (and, on op-con-ex-node, its bounded store). Heights the node no
+	// longer retains answer NotFound.
+	l2Chain := &directSyncChain{node: node, log: logger}
 
 	n, err := p2p.NewNodeP2P(
 		ctx,
@@ -109,7 +116,7 @@ func run(cliCtx *cli.Context, logger log.Logger) error {
 		logger,
 		p2pConfig,
 		gossipIn,
-		nil, // no L2Chain: gossip-only, no req-resp server
+		l2Chain,
 		runCfg,
 		opmetrics.NoopMetrics,
 		clock.SystemClock,
@@ -119,9 +126,10 @@ func run(cliCtx *cli.Context, logger log.Logger) error {
 	}
 	defer n.Close()
 
-	// Publish path: when a sequencing op-con-node's signed-payload feed is
-	// configured, bridge it onto gossip. The node signed each block already; the
-	// sidecar only re-encodes and publishes (see publish.go).
+	// Publish path: when a sequencing node's Direct Sync feed is configured,
+	// bridge it onto gossip via a cursor subscription (the producer's ring
+	// replays reconnect/gap windows). The node signed + encoded each block
+	// already; the sidecar publishes the canonical bytes verbatim (publish.go).
 	if wsURL := cliCtx.String(signedPayloadWSFlag.Name); wsURL != "" {
 		pub := &payloadPublisher{log: logger, url: wsURL, out: n.GossipOut()}
 		go pub.run(ctx)

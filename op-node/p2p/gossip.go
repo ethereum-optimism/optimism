@@ -539,6 +539,12 @@ type GossipOut interface {
 	GossipTopicInfo
 	SignAndPublishL2Payload(ctx context.Context, msg *eth.ExecutionPayloadEnvelope, signer Signer) error
 	PublishSignedL2Payload(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error
+	// PublishRawSignedL2Payload publishes an already-encoded `signature(65) || SSZ`
+	// gossip body VERBATIM — the Direct Sync feed's canonical bytes, decompressed —
+	// selecting the versioned blocks topic by the payload's timestamp. The bytes
+	// were encoded and signed by the node; publishing them untouched preserves
+	// byte fidelity by construction (no re-encode).
+	PublishRawSignedL2Payload(ctx context.Context, payloadTimestamp uint64, data []byte) error
 	Close() error
 }
 
@@ -639,6 +645,10 @@ func (p *publisher) PublishSignedL2Payload(ctx context.Context, signedEnvelope *
 	data := buf.Bytes()
 	timestamp := uint64(signedEnvelope.Envelope.ExecutionPayload.Timestamp)
 	return p.publishRawSignedPayload(ctx, timestamp, data)
+}
+
+func (p *publisher) PublishRawSignedL2Payload(ctx context.Context, payloadTimestamp uint64, data []byte) error {
+	return p.publishRawSignedPayload(ctx, payloadTimestamp, data)
 }
 
 func (p *publisher) SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, signer Signer) error {

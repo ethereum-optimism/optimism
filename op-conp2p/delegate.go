@@ -1,18 +1,16 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/golang/snappy"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 
@@ -62,9 +60,11 @@ var (
 
 // The sidecar never verifies signatures locally, so these are inert. They are
 // only consulted by the built-in path, which the delegate replaces.
-func (d *delegatingRuntimeConfig) P2PSequencerAddress() common.Address         { return common.Address{} }
-func (d *delegatingRuntimeConfig) PreviousP2PSequencerAddress() common.Address { return common.Address{} }
-func (d *delegatingRuntimeConfig) ConfirmCurrentSigner()                       {}
+func (d *delegatingRuntimeConfig) P2PSequencerAddress() common.Address { return common.Address{} }
+func (d *delegatingRuntimeConfig) PreviousP2PSequencerAddress() common.Address {
+	return common.Address{}
+}
+func (d *delegatingRuntimeConfig) ConfirmCurrentSigner() {}
 
 // ValidateUnsafeBlockSignature delegates the gossipsub verdict to the consensus
 // node. It builds a superset request that serves both node kinds:
@@ -116,48 +116,18 @@ func (d *delegatingRuntimeConfig) ValidateUnsafeBlockSignature(
 	}
 }
 
-// buildVerifyRequest assembles the superset request object for
-// admin_verifyUnsafePayload from the gossip wire pieces.
+// buildVerifyRequest assembles the UNIFIED request for
+// admin_verifyUnsafePayload: `{version, payload}` where payload is the
+// canonical `snappy(signature(65) || SSZ)` envelope — the exact Direct Sync
+// carrier bytes, one shape for both node kinds.
 func buildVerifyRequest(version eth.BlockVersion, signature eth.Bytes65, payloadBytes []byte) (map[string]any, error) {
-	payloadHash := crypto.Keccak256Hash(payloadBytes)
-
-	// Decode the SSZ payload (mirrors op-node's BuildBlocksValidator) so the
-	// op-con-node JSON path has executionPayload + parentBeaconBlockRoot.
-	var envelope eth.ExecutionPayloadEnvelope
-	if version.HasParentBeaconBlockRoot() {
-		if err := envelope.UnmarshalSSZ(version, uint32(len(payloadBytes)), bytes.NewReader(payloadBytes)); err != nil {
-			return nil, fmt.Errorf("failed to decode execution payload envelope: %w", err)
-		}
-	} else {
-		var payload eth.ExecutionPayload
-		if err := payload.UnmarshalSSZ(version, uint32(len(payloadBytes)), bytes.NewReader(payloadBytes)); err != nil {
-			return nil, fmt.Errorf("failed to decode execution payload: %w", err)
-		}
-		envelope = eth.ExecutionPayloadEnvelope{ExecutionPayload: &payload}
-	}
-
-	payloadJSON, err := json.Marshal(envelope.ExecutionPayload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal execution payload: %w", err)
-	}
-
-	// Raw signature-prefixed bytes (the decompressed gossip body), which
-	// op-con-ex-node decodes directly via op-alloy.
 	raw := make([]byte, 0, len(signature)+len(payloadBytes))
 	raw = append(raw, signature[:]...)
 	raw = append(raw, payloadBytes...)
-
-	req := map[string]any{
-		"executionPayload": json.RawMessage(payloadJSON),
-		"signature":        hexutil.Encode(signature[:]),
-		"payloadHash":      payloadHash.Hex(),
-		"version":          versionToInt(version),
-		"payload":          hexutil.Encode(raw),
-	}
-	if envelope.ParentBeaconBlockRoot != nil {
-		req["parentBeaconBlockRoot"] = envelope.ParentBeaconBlockRoot.Hex()
-	}
-	return req, nil
+	return map[string]any{
+		"version": versionToInt(version),
+		"payload": hexutil.Encode(snappy.Encode(nil, raw)),
+	}, nil
 }
 
 func versionToInt(v eth.BlockVersion) int {

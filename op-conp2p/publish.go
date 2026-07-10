@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,120 +9,69 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 )
 
-// The publish path closes the sidecar loop for a SEQUENCING op-con-node: the
-// node signs each unsafe block it builds and multicasts the signed envelope
-// over a websocket (opql_subscribeSignedUnsafePayloads); the sidecar subscribes
-// to that feed and re-publishes each envelope to the OP gossipsub /blocks
-// topics, exactly as op-node's sequencer would.
+// The publish path closes the sidecar loop for a SEQUENCING node: the node
+// signs + canonically encodes each unsafe block it builds and serves it over
+// the Direct Sync websocket; the sidecar holds a CURSOR subscription to that
+// feed and re-publishes each payload's bytes VERBATIM to the OP gossipsub
+// /blocks topics (PublishRawSignedL2Payload — no re-encode, so byte fidelity
+// with what the node signed holds by construction).
 //
-// The signer symmetry mirrors the receive path: the NODE owns the key and the
-// signature; the sidecar holds zero signer state and only re-encodes bytes. The
-// block is published WITH the node-provided signature (PublishSignedL2Payload),
-// never re-signed here.
+// Loss handling: the sidecar tracks the last published block and passes
+// `fromBlock = last + 1` on every (re)subscribe, so the producer's replay ring
+// heals disconnects and in-stream gaps (a detected gap forces a resubscribe,
+// which replays the hole). A cursor that fell below the producer's ring
+// (-32020) downgrades once to a live subscribe — those blocks are gone from
+// gossip's perspective and verifiers recover them via req-resp or L1.
 //
-// Delivery is best-effort/live-forward, matching the feed's semantics: on a
-// dropped connection the sidecar reconnects with backoff and resumes from the
-// next live block; a gap means dropped blocks (verifiers fill them via L1
-// derivation or req-resp sync, not via the sidecar).
+// The signer symmetry mirrors the receive path: the NODE owns the key; the
+// sidecar holds zero signer state and never re-signs.
 
-// Subscription method triple served by op-con-node's signed-payload websocket
-// (crates/nodes/op-con-node/src/runtime/signed_payload_ws.rs).
+// Direct Sync method names served by the node's websocket
+// (crates/lib/opql-direct-sync/src/ws_server.rs).
 const (
-	subscribeSignedPayloadsMethod = "opql_subscribeSignedUnsafePayloads"
-	signedPayloadNotifMethod      = "opql_signedUnsafePayload"
+	subscribeUnsafePayloadsMethod = "opql_subscribeUnsafePayloads"
+	unsafePayloadNotifMethod      = "opql_unsafePayload"
 )
 
-// publishReconnectBackoff paces reconnect attempts after the feed drops. The
-// feed is best-effort, so we reconnect forever (a live sidecar must survive
-// sequencer restarts).
+// errBelowHorizon is the producer's below-horizon rejection code: the cursor
+// predates its signed replay ring.
+const errBelowHorizon = -32020
+
+// publishReconnectBackoff paces reconnect attempts after the feed drops. We
+// reconnect forever (a live sidecar must survive sequencer restarts).
 const publishReconnectBackoff = 2 * time.Second
 
-// signedPayloadMsg is op-con-node's signed-envelope wire shape — the SAME shape
-// admin_verifyUnsafePayload consumes, so the fields mirror buildVerifyRequest's
-// output in reverse.
-type signedPayloadMsg struct {
-	ExecutionPayload      *eth.ExecutionPayload `json:"executionPayload"`
-	ParentBeaconBlockRoot *common.Hash          `json:"parentBeaconBlockRoot"`
-	Signature             hexutil.Bytes         `json:"signature"`
-	PayloadHash           common.Hash           `json:"payloadHash"`
-}
-
-// toSignedEnvelope validates the message and converts it to the pre-signed
-// publish type. The node-supplied payloadHash is checked against a local
-// re-encode of the payload (keccak of the exact bytes the gossip message will
-// carry): a mismatch means the re-encode diverged from what the node signed, so
-// publishing would produce a block every verifier rejects — fail loudly instead.
-func (m *signedPayloadMsg) toSignedEnvelope() (*opsigner.SignedExecutionPayloadEnvelope, error) {
-	if m.ExecutionPayload == nil {
-		return nil, errors.New("missing executionPayload")
-	}
-	if len(m.Signature) != 65 {
-		return nil, fmt.Errorf("signature must be 65 bytes, got %d", len(m.Signature))
-	}
-	envelope := &eth.ExecutionPayloadEnvelope{
-		ExecutionPayload:      m.ExecutionPayload,
-		ParentBeaconBlockRoot: m.ParentBeaconBlockRoot,
-	}
-
-	// Re-encode exactly as PublishSignedL2Payload will (envelope SSZ when a
-	// parent beacon root is present, bare payload SSZ otherwise) and check the
-	// signed hash covers those bytes.
-	var buf bytes.Buffer
-	if envelope.ParentBeaconBlockRoot != nil {
-		if _, err := envelope.MarshalSSZ(&buf); err != nil {
-			return nil, fmt.Errorf("failed to SSZ-encode payload envelope: %w", err)
-		}
-	} else {
-		if _, err := envelope.ExecutionPayload.MarshalSSZ(&buf); err != nil {
-			return nil, fmt.Errorf("failed to SSZ-encode payload: %w", err)
-		}
-	}
-	if got := opsigner.PayloadHash(buf.Bytes()); got != m.PayloadHash {
-		return nil, fmt.Errorf("payload hash mismatch: node signed %s but local re-encode hashes to %s", m.PayloadHash, got)
-	}
-
-	signed := &opsigner.SignedExecutionPayloadEnvelope{Envelope: envelope}
-	copy(signed.Signature[:], m.Signature)
-	// OP gossip carries the raw recovery id (0/1) in the v byte; verifiers
-	// reject the Ethereum-legacy 27/28 encoding outright. Normalizing here does
-	// not alter the signed content — v is recovery metadata, not part of the
-	// signed message — so a feed using the legacy encoding still publishes as
-	// valid gossip.
-	if v := signed.Signature[64]; v == 27 || v == 28 {
-		signed.Signature[64] = v - 27
-	}
-	return signed, nil
-}
-
-// payloadPublisher bridges the node's signed-payload websocket feed onto the OP
-// gossip /blocks topics.
+// payloadPublisher bridges the node's Direct Sync feed onto the OP gossip
+// /blocks topics.
 type payloadPublisher struct {
 	log log.Logger
 	url string
 	out p2p.GossipOut
 
-	// lastBlock tracks feed contiguity for gap warnings (0 = none seen yet).
+	// lastBlock is the highest block published to gossip (0 = none yet); the
+	// resubscribe cursor is lastBlock + 1.
 	lastBlock uint64
+	// liveOnly is set after a below-horizon rejection: the missed range cannot
+	// be replayed, so the next subscribe joins live.
+	liveOnly bool
 }
 
-// run subscribes to the signed-payload feed and publishes every received
-// envelope, reconnecting forever on drops. Returns when ctx is done.
+// run holds the cursor subscription and publishes every signed payload,
+// reconnecting forever on drops. Returns when ctx is done.
 func (p *payloadPublisher) run(ctx context.Context) {
 	for {
 		err := p.consumeFeed(ctx)
 		if ctx.Err() != nil {
 			return
 		}
-		p.log.Warn("signed-payload feed dropped; reconnecting", "url", p.url, "err", err)
+		p.log.Warn("direct-sync feed dropped; reconnecting from cursor",
+			"url", p.url, "cursor", p.cursor(), "err", err)
 		select {
 		case <-ctx.Done():
 			return
@@ -132,14 +80,23 @@ func (p *payloadPublisher) run(ctx context.Context) {
 	}
 }
 
-// consumeFeed dials the websocket, subscribes, and publishes envelopes until
-// the connection fails or ctx is done.
+func (p *payloadPublisher) cursor() uint64 {
+	if p.lastBlock == 0 || p.liveOnly {
+		return 0 // live join
+	}
+	return p.lastBlock + 1
+}
+
+// consumeFeed dials the websocket, subscribes from the cursor, and publishes
+// payloads until the connection fails or ctx is done. A detected in-stream gap
+// returns an error on purpose: the reconnect resubscribes from the cursor and
+// the producer's ring replays the hole.
 func (p *payloadPublisher) consumeFeed(ctx context.Context) error {
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	conn, _, err := websocket.DefaultDialer.DialContext(dialCtx, p.url, nil)
 	cancel()
 	if err != nil {
-		return fmt.Errorf("failed to dial signed-payload ws %q: %w", p.url, err)
+		return fmt.Errorf("failed to dial direct-sync ws %q: %w", p.url, err)
 	}
 	defer conn.Close()
 
@@ -148,33 +105,62 @@ func (p *payloadPublisher) consumeFeed(ctx context.Context) error {
 	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stop()
 
-	if err := subscribeSignedPayloads(conn); err != nil {
-		return err
+	if err := subscribeUnsafePayloads(conn, p.cursor()); err != nil {
+		var below *belowHorizonError
+		if !errors.As(err, &below) {
+			return err
+		}
+		p.log.Warn("cursor fell below the producer's signed ring; joining live "+
+			"(verifiers recover the gap via req-resp or L1)",
+			"cursor", p.cursor(), "oldestSigned", below.oldestSigned)
+		p.liveOnly = true
+		if err := subscribeUnsafePayloads(conn, p.cursor()); err != nil {
+			return err
+		}
 	}
-	p.log.Info("subscribed to signed-payload feed", "url", p.url)
+	p.liveOnly = false
+	p.log.Info("subscribed to direct-sync feed", "url", p.url, "nextCursor", p.cursor())
 
 	for {
 		_, data, err := conn.ReadMessage()
 		if err != nil {
-			return fmt.Errorf("signed-payload ws read failed: %w", err)
+			return fmt.Errorf("direct-sync ws read failed: %w", err)
 		}
-		envelope, ok := decodeSignedPayloadNotification(p.log, data)
+		decoded, ok := decodeUnsafePayloadNotification(p.log, data)
 		if !ok {
 			continue
 		}
-		p.publish(ctx, envelope)
+		if gap := p.publish(ctx, decoded); gap {
+			// Force a resubscribe from the cursor: the ring replays the hole.
+			return fmt.Errorf("direct-sync feed gap at block %d (cursor %d); resubscribing",
+				decoded.blockNumber(), p.cursor())
+		}
 	}
 }
 
-// subscribeSignedPayloads performs the JSON-RPC subscription handshake. The
-// feed is served by jsonrpsee with explicit method names, so this speaks the
-// raw subscription protocol rather than geth's namespace convention.
-func subscribeSignedPayloads(conn *websocket.Conn) error {
+// belowHorizonError carries the producer's -32020 rejection.
+type belowHorizonError struct {
+	oldestSigned string
+}
+
+func (e *belowHorizonError) Error() string {
+	return fmt.Sprintf("cursor below signed horizon (oldest %s)", e.oldestSigned)
+}
+
+// subscribeUnsafePayloads performs the JSON-RPC subscription handshake,
+// passing the cursor when non-zero. The feed is served by jsonrpsee with
+// explicit method names, so this speaks the raw subscription protocol rather
+// than geth's namespace convention.
+func subscribeUnsafePayloads(conn *websocket.Conn, fromBlock uint64) error {
+	params := []any{}
+	if fromBlock > 0 {
+		params = append(params, map[string]any{"fromBlock": hexutil.EncodeUint64(fromBlock)})
+	}
 	req := map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,
-		"method":  subscribeSignedPayloadsMethod,
-		"params":  []any{},
+		"method":  subscribeUnsafePayloadsMethod,
+		"params":  params,
 	}
 	if err := conn.WriteJSON(req); err != nil {
 		return fmt.Errorf("failed to send subscribe request: %w", err)
@@ -185,14 +171,22 @@ func subscribeSignedPayloads(conn *websocket.Conn) error {
 		ID     json.RawMessage `json:"id"`
 		Result json.RawMessage `json:"result"`
 		Error  *struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
+			Code    int             `json:"code"`
+			Message string          `json:"message"`
+			Data    json.RawMessage `json:"data"`
 		} `json:"error"`
 	}
 	if err := conn.ReadJSON(&resp); err != nil {
 		return fmt.Errorf("failed to read subscribe response: %w", err)
 	}
 	if resp.Error != nil {
+		if resp.Error.Code == errBelowHorizon {
+			var data struct {
+				OldestSigned string `json:"oldestSigned"`
+			}
+			_ = json.Unmarshal(resp.Error.Data, &data)
+			return &belowHorizonError{oldestSigned: data.OldestSigned}
+		}
 		return fmt.Errorf("subscribe request rejected: %s (code %d)", resp.Error.Message, resp.Error.Code)
 	}
 	if len(resp.Result) == 0 {
@@ -201,10 +195,11 @@ func subscribeSignedPayloads(conn *websocket.Conn) error {
 	return nil
 }
 
-// decodeSignedPayloadNotification parses one websocket message into a publishable
-// envelope. Non-notification frames and undecodable payloads are logged and
-// skipped (best-effort feed; a bad message must not kill the subscription).
-func decodeSignedPayloadNotification(logger log.Logger, data []byte) (*opsigner.SignedExecutionPayloadEnvelope, bool) {
+// decodeUnsafePayloadNotification parses one websocket message into a
+// publishable decoded payload. Non-notification frames, undecodable payloads,
+// and UNSIGNED (cold-tier) messages are logged and skipped — an unsigned
+// payload carries no gossip-valid signature and must never be published.
+func decodeUnsafePayloadNotification(logger log.Logger, data []byte) (*decodedDirectSyncPayload, bool) {
 	var notif struct {
 		Method string `json:"method"`
 		Params struct {
@@ -212,40 +207,47 @@ func decodeSignedPayloadNotification(logger log.Logger, data []byte) (*opsigner.
 		} `json:"params"`
 	}
 	if err := json.Unmarshal(data, &notif); err != nil {
-		logger.Warn("undecodable signed-payload ws frame; skipping", "err", err)
+		logger.Warn("undecodable direct-sync ws frame; skipping", "err", err)
 		return nil, false
 	}
-	if notif.Method != signedPayloadNotifMethod {
+	if notif.Method != unsafePayloadNotifMethod {
 		return nil, false
 	}
-	var msg signedPayloadMsg
+	var msg directSyncMsg
 	if err := json.Unmarshal(notif.Params.Result, &msg); err != nil {
-		logger.Warn("undecodable signed-payload envelope; skipping", "err", err)
+		logger.Warn("undecodable direct-sync message; skipping", "err", err)
 		return nil, false
 	}
-	envelope, err := msg.toSignedEnvelope()
+	if !msg.Signed {
+		logger.Warn("direct-sync feed delivered an unsigned payload; not gossiping")
+		return nil, false
+	}
+	decoded, err := decodeDirectSyncPayload(&msg)
 	if err != nil {
-		logger.Error("signed-payload envelope failed publish validation; skipping", "err", err)
+		logger.Error("direct-sync payload failed decode; skipping", "err", err)
 		return nil, false
 	}
-	return envelope, true
+	return decoded, true
 }
 
-// publish re-publishes one node-signed envelope to the versioned /blocks topic
-// (fork selection by payload timestamp, inside PublishSignedL2Payload).
-func (p *payloadPublisher) publish(ctx context.Context, signed *opsigner.SignedExecutionPayloadEnvelope) {
-	block := uint64(signed.Envelope.ExecutionPayload.BlockNumber)
+// publish re-publishes one node-signed payload's bytes verbatim to the
+// versioned /blocks topic. Returns gap=true when the block does not extend the
+// published sequence (the caller resubscribes from the cursor to replay it).
+func (p *payloadPublisher) publish(ctx context.Context, decoded *decodedDirectSyncPayload) (gap bool) {
+	block := decoded.blockNumber()
 	if p.lastBlock != 0 && block > p.lastBlock+1 {
-		p.log.Warn("signed-payload feed gap; the skipped blocks were not published",
-			"from", p.lastBlock, "to", block, "missing", block-p.lastBlock-1)
+		return true
 	}
-	p.lastBlock = block
 
-	if err := p.out.PublishSignedL2Payload(ctx, signed); err != nil {
+	if err := p.out.PublishRawSignedL2Payload(ctx, decoded.timestamp(), decoded.raw); err != nil {
 		p.log.Error("failed to publish signed unsafe payload to gossip",
-			"block", block, "hash", signed.Envelope.ExecutionPayload.BlockHash, "err", err)
-		return
+			"block", block, "hash", decoded.envelope.ExecutionPayload.BlockHash, "err", err)
+		return false
+	}
+	if block > p.lastBlock {
+		p.lastBlock = block
 	}
 	p.log.Info("published signed unsafe payload to gossip",
-		"block", block, "hash", signed.Envelope.ExecutionPayload.BlockHash)
+		"block", block, "hash", decoded.envelope.ExecutionPayload.BlockHash)
+	return false
 }
