@@ -277,6 +277,19 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertTrue(asr.isGameRespected(game), "fallback game must be respected");
     }
 
+    /// @notice checkOutput rejects a permissionless deployment output missing the permissioned fallback.
+    function test_checkOutput_missingPermissionedFallback_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
+        deployOPChainInput.disputeAbsolutePrestate = cannonKonaAbsolutePrestate;
+        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+
+        doo.permissionedDisputeGame = IPermissionedDisputeGame(address(0));
+        vm.expectRevert("DeployOPChain: permissionedDisputeGame output mismatch");
+        deployOPChain.checkOutput(deployOPChainInput, doo);
+    }
+
     /// @notice Permissionless game types are rejected when super roots are enabled.
     function test_run_permissionlessGameTypeWithSuperRoot_reverts() public {
         skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
@@ -303,6 +316,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             impls.faultDisputeGameImpl,
             "selected impl"
         );
+        assertEq(address(doo.faultDisputeGame), impls.faultDisputeGameImpl, "output faultDisputeGame");
         assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "unselected init bond");
         assertEq(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON)), address(0), "unselected impl");
         assertEq(doo.disputeGameFactoryProxy.gameArgs(GameTypes.CANNON).length, 0, "unselected args");
@@ -316,6 +330,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             impls.permissionedDisputeGameImpl,
             "fallback impl"
         );
+        assertEq(address(doo.permissionedDisputeGame), impls.permissionedDisputeGameImpl, "output fallback");
 
         assertEq(
             LibGameArgs.decode(doo.disputeGameFactoryProxy.gameArgs(GameTypes.CANNON_KONA)).absolutePrestate,

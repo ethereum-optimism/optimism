@@ -98,9 +98,12 @@ contract DeployOPChain is Script {
         vm.label(address(output_.disputeGameFactoryProxy), "disputeGameFactoryProxy");
         vm.label(address(output_.anchorStateRegistryProxy), "anchorStateRegistryProxy");
         vm.label(address(output_.delayedWETHPermissionedGameProxy), "delayedWETHPermissionedGameProxy");
-        // TODO: Eventually switch from Permissioned to Permissionless.
-        // vm.label(address(output_.faultDisputeGame), "faultDisputeGame");
-        // vm.label(address(output_.delayedWETHPermissionlessGameProxy), "delayedWETHPermissionlessGameProxy");
+        // TODO: OPCMV2 uses one shared DelayedWETH for all game types; both Output WETH fields
+        // alias it, so only one label is set above. Revisit the WETH label and field naming in
+        // a follow-up PR.
+        if (address(output_.faultDisputeGame) != address(0)) {
+            vm.label(address(output_.faultDisputeGame), "faultDisputeGame");
+        }
     }
 
     // -------- Features --------
@@ -218,6 +221,8 @@ contract DeployOPChain is Script {
     {
         GameType permGameType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         address permissionedDgImpl = address(_chainContracts.disputeGameFactory.gameImpls(permGameType));
+        // TODO(#21695): Read SUPER_CANNON_KONA once super-root permissionless deploys land.
+        address faultDgImpl = address(_chainContracts.disputeGameFactory.gameImpls(GameTypes.CANNON_KONA));
 
         output_ = Output({
             opChainProxyAdmin: _chainContracts.proxyAdmin,
@@ -231,8 +236,7 @@ contract DeployOPChain is Script {
             ethLockboxProxy: _chainContracts.ethLockbox,
             disputeGameFactoryProxy: _chainContracts.disputeGameFactory,
             anchorStateRegistryProxy: _chainContracts.anchorStateRegistry,
-            // Explicitly set to address(0) maintaining consistency with OPCM v1 behavior.
-            faultDisputeGame: IFaultDisputeGame(address(0)),
+            faultDisputeGame: IFaultDisputeGame(faultDgImpl),
             permissionedDisputeGame: IPermissionedDisputeGame(permissionedDgImpl),
             delayedWETHPermissionedGameProxy: _chainContracts.delayedWETH,
             delayedWETHPermissionlessGameProxy: IDelayedWETH(payable(_chainContracts.delayedWETH))
@@ -427,11 +431,21 @@ contract DeployOPChain is Script {
         IOPContractsManagerContainer.Implementations memory implementations = opcmV2.implementations();
 
         (bool permissionless, GameType respectedGameType) = _initialDeployGameSelection(_i.disputeGameType, isSuperRoot);
-        address expectedDGImpl = permissionless
-            ? implementations.faultDisputeGameImpl
-            : (isSuperRoot ? implementations.superPermissionedDisputeGameImpl : implementations.permissionedDisputeGameImpl);
+        address expectedPermissionedDGImpl =
+            isSuperRoot ? implementations.superPermissionedDisputeGameImpl : implementations.permissionedDisputeGameImpl;
+        // TODO(#21695): Use superFaultDisputeGameImpl for super-root permissionless deploys.
+        address expectedRespectedDGImpl =
+            permissionless ? implementations.faultDisputeGameImpl : expectedPermissionedDGImpl;
         ChainAssertions.checkDisputeGameFactory(
-            _o.disputeGameFactoryProxy, _i.opChainProxyAdminOwner, expectedDGImpl, true, respectedGameType
+            _o.disputeGameFactoryProxy, _i.opChainProxyAdminOwner, expectedRespectedDGImpl, true, respectedGameType
+        );
+        require(
+            address(_o.faultDisputeGame) == (permissionless ? expectedRespectedDGImpl : address(0)),
+            "DeployOPChain: faultDisputeGame output mismatch"
+        );
+        require(
+            address(_o.permissionedDisputeGame) == expectedPermissionedDGImpl,
+            "DeployOPChain: permissionedDisputeGame output mismatch"
         );
         ChainAssertions.checkAnchorStateRegistryProxy(
             _o.anchorStateRegistryProxy, true, respectedGameType, _i.startingAnchorRoot
