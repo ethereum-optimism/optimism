@@ -29,8 +29,8 @@ type Minimal struct {
 
 	Wallet *dsl.HDWallet
 
-	FunderL1 *dsl.EOA
-	FunderL2 *dsl.EOA
+	FunderL1 *dsl.FunderEOA
+	FunderL2 *dsl.FunderEOA
 
 	// May be nil if not using sysgo
 	challengerConfig *challengerConfig.Config

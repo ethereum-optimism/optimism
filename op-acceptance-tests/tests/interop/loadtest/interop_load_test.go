@@ -136,7 +136,7 @@ func setupL2s(t devtest.T) (*L2, *L2) {
 	return l2A, l2B
 }
 
-func setupL2(t devtest.T, wallet *dsl.HDWallet, blockTime time.Duration, config *params.ChainConfig, el *dsl.L2ELNode, funder *dsl.EOA) *L2 {
+func setupL2(t devtest.T, wallet *dsl.HDWallet, blockTime time.Duration, config *params.ChainConfig, el *dsl.L2ELNode, funder *dsl.FunderEOA) *L2 {
 	budgetAmount := eth.OneEther
 	if budgetStr, exists := os.LookupEnv("NAT_INTEROP_LOADTEST_BUDGET"); exists {
 		ethAmt, err := strconv.ParseFloat(budgetStr, 64)
@@ -148,7 +148,7 @@ func setupL2(t devtest.T, wallet *dsl.HDWallet, blockTime time.Duration, config 
 	amountPerEOA := budgetAmount.Div(numEOAsPerChain)
 	innerEOAs := funder.NewFundedEOAs(numEOAsPerChain, amountPerEOA)
 	reliableEL := newReliableEL(el.Escape().EthClient(), blockTime, ResubmitterObserver(el.ChainID()))
-	eoas := make([]*SyncEOA, 0, len(innerEOAs))
+	eoas := make([]*dsl.SyncEOA, 0, len(innerEOAs))
 	budget := accounting.NewBudget(budgetAmount)
 	oracle := setupOracle(t, el, blockTime)
 	for _, eoa := range innerEOAs {
@@ -157,7 +157,7 @@ func setupL2(t devtest.T, wallet *dsl.HDWallet, blockTime time.Duration, config 
 			reliableEL,
 			txinclude.WithBudget(txinclude.NewTxBudget(budget, txinclude.WithOPCostOracle(oracle))),
 		)
-		eoas = append(eoas, NewSyncEOA(p, eoa.Plan()))
+		eoas = append(eoas, dsl.NewSyncEOA(p, eoa.Plan()))
 	}
 	return &L2{
 		Config:    config,

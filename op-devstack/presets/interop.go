@@ -36,8 +36,8 @@ type SingleChainInterop struct {
 
 	Wallet *dsl.HDWallet
 
-	FunderL1 *dsl.EOA
-	FunderA  *dsl.EOA
+	FunderL1 *dsl.FunderEOA
+	FunderA  *dsl.FunderEOA
 
 	// May be nil if not using sysgo
 	challengerConfig *challengerConfig.Config
@@ -75,7 +75,7 @@ type SimpleInterop struct {
 	L2ELB      *dsl.L2ELNode
 	L2CLB      *dsl.L2CLNode
 
-	FunderB *dsl.EOA
+	FunderB *dsl.FunderEOA
 }
 
 func (s *SimpleInterop) L2Networks() []*dsl.L2Network {

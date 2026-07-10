@@ -20,8 +20,8 @@ type MixedSingleChainFrontends struct {
 	L2Network     *dsl.L2Network
 	L2Batcher     *dsl.L2Batcher
 	Wallet        *dsl.HDWallet
-	FunderL1      *dsl.EOA
-	FunderL2      *dsl.EOA
+	FunderL1      *dsl.FunderEOA
+	FunderL2      *dsl.FunderEOA
 	TestSequencer *dsl.TestSequencer
 	Nodes         []MixedSingleChainNodeFrontends
 }

@@ -156,7 +156,7 @@ func TestRandomDirectedGraph(gt *testing.T) {
 
 	// fund EOAs per chain
 	eoasPerChain := make([][]*dsl.EOA, l2ChainNum)
-	for chainIdx, funder := range []*dsl.EOA{sys.FunderA, sys.FunderB} {
+	for chainIdx, funder := range []*dsl.FunderEOA{sys.FunderA, sys.FunderB} {
 		eoas := funder.NewFundedEOAs(pubSubPairCnt, fundAmount)
 		eoasPerChain[chainIdx] = eoas
 	}

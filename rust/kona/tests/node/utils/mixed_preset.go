@@ -78,8 +78,8 @@ type MixedOpKonaPreset struct {
 
 	Wallet *dsl.HDWallet
 
-	FunderL1 *dsl.EOA
-	Funder   *dsl.EOA
+	FunderL1 *dsl.FunderEOA
+	Funder   *dsl.FunderEOA
 }
 
 func (m *MixedOpKonaPreset) L2ELNodes() []dsl.L2ELNode {

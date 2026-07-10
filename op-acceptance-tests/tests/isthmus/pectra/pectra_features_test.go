@@ -28,7 +28,7 @@ const (
 )
 
 type testSystem struct {
-	FunderL2 *dsl.EOA
+	FunderL2 *dsl.FunderEOA
 	L2EL     *dsl.L2ELNode
 	L2Chain  *dsl.L2Network
 }

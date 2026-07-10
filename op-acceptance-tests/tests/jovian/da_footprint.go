@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-func SpamCalldata(t devtest.T, l2BlockTime time.Duration, el *dsl.L2ELNode, wallet *dsl.HDWallet, funder *dsl.EOA) {
+func SpamCalldata(t devtest.T, l2BlockTime time.Duration, el *dsl.L2ELNode, wallet *dsl.HDWallet, funder *dsl.FunderEOA) {
 	eoas := loadtest.FundEOAs(t, eth.HundredEther, 25, l2BlockTime, el, wallet, funder)
 	rr := loadtest.NewRoundRobin(eoas)
 

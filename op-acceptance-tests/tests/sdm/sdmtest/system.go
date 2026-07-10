@@ -28,7 +28,7 @@ type RethSystem struct {
 	L2ELVerifier *dsl.L2ELNode
 	L2CLVerifier *dsl.L2CLNode
 	L2Batcher    *dsl.L2Batcher
-	FunderL2     *dsl.EOA
+	FunderL2     *dsl.FunderEOA
 }
 
 // FinishRethSystem wraps a built MixedSingleChainRuntime in DSL frontends, derives the verifier
