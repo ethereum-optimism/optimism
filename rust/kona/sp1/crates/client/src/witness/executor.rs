@@ -19,13 +19,12 @@ use kona_proof::{
     executor::KonaExecutor,
     l1::{OracleL1ChainProvider, OraclePipeline},
     l2::OracleL2ChainProvider,
-    sync::new_oracle_pipeline_cursor,
+    sync::{fetch_safe_head_hash, new_oracle_pipeline_cursor},
 };
 use spin::RwLock;
 use tracing::info;
 
 use crate::{
-    client::fetch_safe_head_hash,
     metrics::CycleTrackerDriverMetrics,
     precompiles::{CustomCrypto, ZkvmOpEvmFactory},
 };
