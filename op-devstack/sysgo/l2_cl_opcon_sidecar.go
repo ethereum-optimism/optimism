@@ -24,7 +24,7 @@ import (
 // This is the launcher half of docs/sidecar-p2p-design.md phase 2. It is
 // parameterized (it takes the verifier RPC, the rollup config path, and the
 // sequencer's gossip multiaddr) so a with-P2P preset can wire it in place of the
-// follow-mode (`--l2-follow-rpc`) source. Full preset + acceptance-test wiring is
+// follow-mode (`--follow-el`) source. Full preset + acceptance-test wiring is
 // tracked as the remaining run-verification step.
 type OpConP2PSidecar struct {
 	name string

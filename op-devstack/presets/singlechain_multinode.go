@@ -117,7 +117,7 @@ func NewSingleChainOpConSequencerP2PWrongSignerWithoutCheck(t devtest.T, opts ..
 // NewSingleChainOpConSequencerWSFollowWithoutCheck is the sidecar-less
 // distribution preset: the op-con-node sequencer (L2CL) signs and serves its
 // unsafe blocks on a payload websocket, and an op-con-node verifier (L2CLB)
-// consumes that feed directly via --unsafe-payload-ws — verifying each block's
+// consumes that feed directly via --follow-direct — verifying each block's
 // signature and ingesting it — while deriving its safe chain from L1 (the
 // batcher runs). Requires DEVSTACK_L2CL_KIND=op-con-node. No proposer/challenger,
 // no initial sync checks.

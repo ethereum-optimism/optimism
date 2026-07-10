@@ -26,7 +26,7 @@ import (
 
 // TestOpConSequencerFollowedByVerifier is the op-con-sequencer flip of
 // TestOpConVerifierFollowMode: an op-con-node verifier tracks an op-con-node
-// SEQUENCER's unsafe head via follow mode (--l2-follow-rpc pointed at the
+// SEQUENCER's unsafe head via follow mode (--follow-el pointed at the
 // sequencer's L2 EL) while deriving its safe chain from L1, and CurrentL1
 // tracks the sequencer. Both nodes are op-con-node — the whole chain, from
 // block production to follow-mode consumption, is opql.
@@ -97,7 +97,7 @@ func TestOpConSequencerFollowedByVerifierFinalized(gt *testing.T) {
 // TestOpConSequencerVerifiedViaSignedPayloadWS exercises the sidecar-less opql
 // distribution path: the op-con-node sequencer signs each unsafe block and
 // serves the signed envelopes on its payload websocket; an op-con-node verifier
-// consumes that feed directly via --unsafe-payload-ws (the push analog of
+// consumes that feed directly via --follow-direct (the push analog of
 // follow mode), verifies each block's signature against the deployed
 // SystemConfig unsafe-block signer, and ingests it — no gossip, no sidecar. The
 // batcher runs, so the verifier also derives its safe chain from L1 and must

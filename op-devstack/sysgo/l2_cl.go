@@ -54,7 +54,7 @@ type L2CLConfig struct {
 
 	// OpConUnsafePayloadWS makes an op-con-node verifier follow a sequencing
 	// op-con-node's signed-payload websocket multicast at this ws:// URL
-	// (--unsafe-payload-ws, the push analog of --l2-follow-rpc): subscribe,
+	// (--follow-direct, the push analog of --follow-el): subscribe,
 	// verify each block's unsafe-block signature against the expected signer,
 	// and ingest accepted blocks. Ignored by non-op-con CL kinds.
 	OpConUnsafePayloadWS string
@@ -95,7 +95,7 @@ func L2CLOpConSequencer() L2CLOption {
 }
 
 // L2CLOpConUnsafePayloadWS points an op-con-node verifier at a sequencing
-// op-con-node's signed-payload websocket multicast (--unsafe-payload-ws). No-op
+// op-con-node's signed-payload websocket multicast (--follow-direct). No-op
 // for other CL kinds.
 func L2CLOpConUnsafePayloadWS(wsURL string) L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {

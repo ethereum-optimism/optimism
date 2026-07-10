@@ -186,7 +186,7 @@ func TestOpConVerifierResumesAfterRestart(gt *testing.T) {
 // TestOpConVerifierFollowMode is the op-con-node analogue of the op-node
 // sync/follow_l2 test (which skips kona — "single-chain test sequencer requires
 // an op-node CL node"). op-node's CL follow source has no direct op-con-node
-// equivalent, but op-con-node's own follow mode (--l2-follow-rpc, pointed at the
+// equivalent, but op-con-node's own follow mode (--follow-el, pointed at the
 // sequencer's L2 execution RPC) is the same idea: the verifier's unsafe head
 // tracks the sequencer via the follow source while its safe head derives from L1.
 //
@@ -361,7 +361,7 @@ func TestOpConVerifierRecoversFromL1Reorg(gt *testing.T) {
 // "single-chain test sequencer requires an op-node CL node"). It extends
 // TestOpConVerifierRecoversFromL1Reorg's safe-side reorg check with the unsafe
 // (follow-mode) side: the verifier additionally runs op-con-node's follow mode
-// (--l2-follow-rpc pointed at the sequencer's L2 EL), so an L1 reorg reorgs *both*
+// (--follow-el pointed at the sequencer's L2 EL), so an L1 reorg reorgs *both*
 // of the verifier's inputs at once — the L1-derived safe chain and the follow
 // source's unsafe chain — and the verifier must recover both.
 //

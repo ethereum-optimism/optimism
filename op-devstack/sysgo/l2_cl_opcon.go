@@ -25,7 +25,7 @@ import (
 //
 // op-con-node derives the safe L2 chain from L1 and drives its paired execution
 // engine over the Engine API. It has no P2P gossip, so as a verifier the unsafe
-// head is followed from a trusted L2 execution RPC (`--l2-follow-rpc`) when a
+// head is followed from a trusted L2 execution RPC (`--follow-el`) when a
 // follow source is wired, rather than over gossip. With `--sequencer-enabled`
 // it instead produces the unsafe chain itself: it drives the EL build loop with
 // `noTxPool=false` (the EL packs its own mempool behind the forced deposit
@@ -234,15 +234,15 @@ func startMixedOpConNode(
 	// (op-con-node has no P2P). Without it, op-con-node tracks the safe chain via
 	// L1 derivation only.
 	if followSource != "" {
-		args = append(args, "--l2-follow-rpc", strings.ReplaceAll(followSource, "ws://", "http://"))
+		args = append(args, "--follow-el", strings.ReplaceAll(followSource, "ws://", "http://"))
 	}
 
 	// Follow a sequencing op-con-node's signed-payload websocket multicast (the
-	// push analog of --l2-follow-rpc): subscribe, verify each block's unsafe-block
+	// push analog of --follow-el): subscribe, verify each block's unsafe-block
 	// signature (--unsafe-block-signer seeds the expected signer), ingest accepted
 	// blocks. The safe chain still derives from L1.
 	if unsafePayloadWS != "" {
-		args = append(args, "--unsafe-payload-ws", unsafePayloadWS)
+		args = append(args, "--follow-direct", unsafePayloadWS)
 	}
 
 	// Sequencer mode: op-con-node produces the unsafe chain itself by driving
