@@ -56,9 +56,11 @@ proofs. The `permissioned` game type (configured via the `--cannon-*` flags)
 is played only by trusted actors and resolves at the output-root level without
 ever reaching `step()`, so it does not run a fault-proof program and its server
 binary may be omitted when only the `permissioned` game type is configured. For
-the same reason the absolute prestate is never used, so the challenger never
-loads it for permissioned games and resolves them even when their (often
-placeholder) prestate is not published via `--prestates-url`.
+the same reason the absolute prestate is never used: the challenger never loads
+it for permissioned games, resolves them even when their (often placeholder)
+prestate is not published via `--prestates-url`, and the prestate flags
+(`--cannon-prestate` / `--prestates-url`) may likewise be omitted when only the
+`permissioned` game type is configured.
 
 #### Devnet Management Commands
 
