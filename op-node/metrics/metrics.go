@@ -9,6 +9,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 
@@ -28,6 +29,7 @@ const Namespace = "op_node"
 
 type Metricer interface {
 	RecordInfo(version string)
+	RecordHardforkActivationTimes(cfg *rollup.Config)
 	RecordUp()
 	SetDerivationIdle(status bool)
 	SetSequencerState(active bool)
@@ -73,8 +75,9 @@ type Metricer interface {
 
 // Metrics tracks all the metrics for the op-node.
 type Metrics struct {
-	Info *prometheus.GaugeVec
-	Up   prometheus.Gauge
+	Info                   *prometheus.GaugeVec
+	Up                     prometheus.Gauge
+	HardforkActivationTime *prometheus.GaugeVec
 
 	metrics.RPCMetrics
 
@@ -178,6 +181,11 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Name:      "up",
 			Help:      "1 if the op node has finished starting up",
 		}),
+		HardforkActivationTime: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "hardfork_activation_timestamp",
+			Help:      "Configured hardfork activation timestamp by fork",
+		}, []string{"chain_id", "fork", "activation_basis"}),
 
 		RPCMetrics: metrics.MakeRPCMetrics(ns, factory),
 
@@ -404,6 +412,33 @@ func (m *Metrics) RecordInfo(version string) {
 	m.Info.WithLabelValues(version).Set(1)
 }
 
+func (m *Metrics) RecordHardforkActivationTimes(cfg *rollup.Config) {
+	chainID := ""
+	if cfg.L2ChainID != nil {
+		chainID = cfg.L2ChainID.String()
+	}
+
+	record := func(fork string, ts *uint64, basis string) {
+		if ts == nil {
+			return
+		}
+		m.HardforkActivationTime.WithLabelValues(chainID, fork, basis).Set(float64(*ts))
+	}
+
+	record("regolith", cfg.RegolithTime, "l2_timestamp")
+	record("canyon", cfg.CanyonTime, "l2_timestamp")
+	record("delta", cfg.DeltaTime, "l2_timestamp")
+	record("ecotone", cfg.EcotoneTime, "l2_timestamp")
+	record("fjord", cfg.FjordTime, "l2_timestamp")
+	record("granite", cfg.GraniteTime, "l2_timestamp")
+	record("holocene", cfg.HoloceneTime, "l2_timestamp")
+	record("isthmus", cfg.IsthmusTime, "l2_timestamp")
+	record("jovian", cfg.JovianTime, "l2_timestamp")
+	record("karst", cfg.KarstTime, "l2_timestamp")
+	record("lagoon", cfg.LagoonTime, "l2_timestamp")
+	record("pectra_blob_schedule", cfg.PectraBlobScheduleTime, "l1_origin_timestamp")
+}
+
 // RecordUp sets the up metric to 1.
 func (m *Metrics) RecordUp() {
 	m.Up.Set(1)
@@ -610,6 +645,9 @@ type noopMetricer struct {
 var NoopMetrics Metricer = new(noopMetricer)
 
 func (n *noopMetricer) RecordInfo(version string) {
+}
+
+func (n *noopMetricer) RecordHardforkActivationTimes(cfg *rollup.Config) {
 }
 
 func (n *noopMetricer) RecordUp() {
