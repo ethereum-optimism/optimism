@@ -248,6 +248,24 @@ impl OpNode {
         self
     }
 
+    /// The pool builder configured the way every OP node's pool expects: tx-conditional support,
+    /// interop endpoints and quorum, and the shared interop failsafe gate.
+    ///
+    /// Generic over the pooled-transaction type so a downstream node can start from this base and
+    /// chain [`with_ordering`](OpPoolBuilder::with_ordering) /
+    /// [`with_validator_wrapper`](OpPoolBuilder::with_validator_wrapper) to swap in a custom `T`,
+    /// ordering, or validator wrapper.
+    pub fn standard_pool_builder<T>(&self) -> OpPoolBuilder<T> {
+        OpPoolBuilder::<T>::default()
+            .with_enable_tx_conditional(self.args.enable_tx_conditional)
+            .with_interop(
+                self.args.interop_http.clone(),
+                self.args.interop_min_responses,
+                self.args.interop_safety_level,
+            )
+            .with_interop_failsafe(self.interop_failsafe.clone())
+    }
+
     /// Returns the components for the given [`RollupArgs`].
     pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node>
     where
@@ -258,16 +276,7 @@ impl OpNode {
         ComponentsBuilder::default()
             .node_types::<Node>()
             .executor(OpExecutorBuilder::default())
-            .pool(
-                OpPoolBuilder::default()
-                    .with_enable_tx_conditional(self.args.enable_tx_conditional)
-                    .with_interop(
-                        self.args.interop_http.clone(),
-                        self.args.interop_min_responses,
-                        self.args.interop_safety_level,
-                    )
-                    .with_interop_failsafe(self.interop_failsafe.clone()),
-            )
+            .pool(self.standard_pool_builder())
             .payload(BasicPayloadServiceBuilder::new(
                 OpPayloadBuilder::new(compute_pending_block)
                     .with_da_config(self.da_config.clone())
@@ -1715,3 +1724,54 @@ where
 
 /// Network primitive types used by Optimism networks.
 pub type OpNetworkPrimitives = BasicNetworkPrimitives<OpPrimitives, OpPooledTransaction>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn standard_pool_builder_forwards_base_config() {
+        let args = RollupArgs {
+            enable_tx_conditional: true,
+            interop_http: vec!["http://interop.local".to_string()],
+            interop_min_responses: Some(2),
+            interop_safety_level: SafetyLevel::CrossSafe,
+            ..Default::default()
+        };
+        let node = OpNode::new(args.clone());
+
+        let pool = node.standard_pool_builder::<OpPooledTransaction>();
+
+        assert_eq!(pool.enable_tx_conditional, args.enable_tx_conditional);
+        assert_eq!(pool.interop_endpoints, args.interop_http);
+        assert_eq!(pool.interop_min_responses, args.interop_min_responses);
+        assert_eq!(pool.interop_safety_level, args.interop_safety_level);
+
+        assert!(!pool.interop_failsafe.enabled(), "failsafe starts disabled");
+        node.interop_failsafe.set(true);
+        assert!(
+            pool.interop_failsafe.enabled(),
+            "pool must observe writes to the node's interop failsafe gate"
+        );
+        node.interop_failsafe.set(false);
+        assert!(
+            !pool.interop_failsafe.enabled(),
+            "pool must observe the gate being cleared, proving a single shared handle"
+        );
+    }
+
+    #[test]
+    fn standard_pool_builder_preserves_base_config_when_chaining_seams() {
+        let node = OpNode::new(RollupArgs { enable_tx_conditional: true, ..Default::default() });
+
+        let pool = node
+            .standard_pool_builder::<OpPooledTransaction>()
+            .with_ordering(CoinbaseTipOrdering::<OpPooledTransaction>::default())
+            .with_validator_wrapper(IdentityValidatorWrapper);
+
+        assert!(pool.enable_tx_conditional, "base config must survive chaining the seams");
+
+        let _: &CoinbaseTipOrdering<OpPooledTransaction> = &pool.ordering;
+        let _: &IdentityValidatorWrapper = &pool.validator_wrapper;
+    }
+}
