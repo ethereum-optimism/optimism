@@ -137,7 +137,12 @@ where
             let otlp_status = runner.block_on(self.cli.traces.init_otlp_tracing(&mut layers))?;
             let otlp_logs_status = runner.block_on(self.cli.traces.init_otlp_logs(&mut layers))?;
 
-            self.guard = Some(self.cli.logs.init_tracing_with_layers(layers, false)?);
+            // Install the runtime-reloadable log filter layer only when the `debug` RPC namespace
+            // is enabled, so `debug_verbosity` / `debug_vmodule` work at runtime. Mirrors the
+            // Ethereum CLI; without this the reload handle is never installed and those methods
+            // fail with `-32603 "Log filter reload not available"` even with `debug` served.
+            let enable_reload = self.cli.command.debug_namespace_enabled();
+            self.guard = Some(self.cli.logs.init_tracing_with_layers(layers, enable_reload)?);
             info!(target: "reth::cli", "Initialized tracing, debug log directory: {}", self.cli.logs.log_file_directory);
 
             match otlp_status {

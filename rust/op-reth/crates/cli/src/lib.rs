@@ -212,4 +212,54 @@ mod test {
             _ => panic!("unexpected command"),
         }
     }
+
+    /// The `debug` RPC namespace gates whether the runtime-reloadable log filter layer is
+    /// installed (backing `debug_verbosity` / `debug_vmodule`). Guards the wiring in
+    /// `CliApp::init_tracing`, which previously hardcoded `false`.
+    ///
+    /// Note: `is_namespace_enabled` treats IPC (on by default) as exposing every namespace, so
+    /// the negative case must also pass `--ipcdisable`.
+    #[test]
+    fn debug_namespace_gates_log_reload() {
+        // `debug` present in --http.api -> reload enabled
+        let with_debug = Cli::<OpChainSpecParser, RollupArgs>::parse_from([
+            "op-reth",
+            "node",
+            "--http",
+            "--http.api",
+            "eth,debug,net",
+        ]);
+        assert!(with_debug.command.debug_namespace_enabled());
+
+        // `debug` present in --ws.api -> reload enabled
+        let with_debug_ws = Cli::<OpChainSpecParser, RollupArgs>::parse_from([
+            "op-reth", "node", "--ws", "--ws.api", "eth,debug",
+        ]);
+        assert!(with_debug_ws.command.debug_namespace_enabled());
+
+        // no `debug` on http/ws AND IPC disabled -> reload disabled
+        let without_debug = Cli::<OpChainSpecParser, RollupArgs>::parse_from([
+            "op-reth",
+            "node",
+            "--http",
+            "--http.api",
+            "eth,net",
+            "--ipcdisable",
+        ]);
+        assert!(!without_debug.command.debug_namespace_enabled());
+
+        // IPC left enabled (default) exposes all namespaces -> reload enabled
+        let ipc_default = Cli::<OpChainSpecParser, RollupArgs>::parse_from([
+            "op-reth",
+            "node",
+            "--http",
+            "--http.api",
+            "eth,net",
+        ]);
+        assert!(ipc_default.command.debug_namespace_enabled());
+
+        // non-node command -> reload disabled
+        let non_node = Cli::<OpChainSpecParser, RollupArgs>::parse_from(["op-reth", "config"]);
+        assert!(!non_node.command.debug_namespace_enabled());
+    }
 }

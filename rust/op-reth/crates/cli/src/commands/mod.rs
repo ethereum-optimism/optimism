@@ -9,6 +9,7 @@ use reth_cli_commands::{
     node::{self, NoArgs},
     p2p, prune, re_execute, stage,
 };
+use reth_rpc_server_types::RethRpcModule;
 use std::{fmt, sync::Arc};
 
 pub mod import;
@@ -92,5 +93,15 @@ impl<
             Self::ReExecute(cmd) => cmd.chain_spec(),
             Self::OpProofs(cmd) => cmd.chain_spec(),
         }
+    }
+
+    /// Returns `true` if this is a `node` command with the `debug` RPC namespace enabled.
+    ///
+    /// Used to decide whether to install the runtime-reloadable log filter layer that backs the
+    /// `debug_verbosity` / `debug_vmodule` RPC methods. Mirrors the Ethereum CLI
+    /// (`Command::debug_namespace_enabled`); without it those methods return
+    /// `-32603 "Log filter reload not available"` even when the `debug` namespace is served.
+    pub fn debug_namespace_enabled(&self) -> bool {
+        matches!(self, Self::Node(cmd) if cmd.rpc.is_namespace_enabled(RethRpcModule::Debug))
     }
 }
