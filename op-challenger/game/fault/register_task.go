@@ -125,7 +125,7 @@ func newCannonVMRegisterTaskWithConfig(
 	// Don't validate the absolute prestate or genesis output root for permissioned games
 	// Only trusted actors participate in these games so they aren't expected to reach the step() call and
 	// are often configured without valid prestates but the challenger should still resolve the games.
-	skipPrestateValidation := gameType == gameTypes.PermissionedGameType
+	skipPrestateValidation := gameType.IsPermissioned()
 	var getBottomPrestateProvider func(ctx context.Context, prestateHash common.Hash) (faultTypes.PrestateProvider, error)
 	if skipPrestateValidation {
 		// Permissioned games never reach step() so their VM prestate is never actually used. Since they
