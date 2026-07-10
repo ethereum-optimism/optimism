@@ -45,6 +45,32 @@ Other recurring concerns:
 - **Safe head advancement**: updating the safe L2 head as derivation progresses.
 - **Reorg handling**: rewinding derivation state on L1 reorgs.
 
+## Rollup config
+
+Both clients derive against a `rollup.Config` (Go) / `RollupConfig` (Rust) loaded from the
+[superchain-registry](https://github.com/ethereum-optimism/superchain-registry). Adding a
+field that comes from the registry means wiring it through **every** ingestion enumeration on
+**both** clients — not just the config struct and the op-deployer/deploy-config
+(`DeployConfig.RollupConfig`) path:
+
+- **op-node (Go)**: the TOML-decoded `superchain.HardforkConfig` (`op-core/superchain`) **and**
+  the `superchain.ChainConfig` → `rollup.Config` conversion in `op-node/rollup/superchain.go`
+  (`applyHardforks` / `rollupConfigFromRegistry`). Miss either and a chain loaded via
+  `--network` silently omits the field.
+- **kona (Rust)**: `HardForkConfig` / `ChainConfig::as_rollup_config`
+  (`rust/kona/crates/protocol/genesis`).
+
+The failure mode is silent: the TOML/serde decoders **drop keys that no struct field models**, so
+a registry field left unwired is read and thrown away with no error. Two guards catch it:
+
+- **Strict decoding** rejects unknown keys — `jsonutil.DecodeTOMLStrict` (Go, used by
+  `op-core/superchain`) and `#[serde(deny_unknown_fields)]` (kona's `ChainConfig` /
+  `HardForkConfig`). A registry bump that adds an unmodeled field then fails to load instead of
+  dropping it.
+- **A reflection completeness test** (`TestRollupConfigFromRegistry_AllFieldsSet`) asserts every
+  `rollup.Config` field is populated from a fully-populated `ChainConfig`, catching a field that
+  is modeled but never copied in the conversion.
+
 ## Invariants
 
 - **Deterministic derivation**: the same L1 data always produces the same L2 chain.
