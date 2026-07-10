@@ -125,6 +125,7 @@ kona-genesis = { path = "../../crates/protocol/genesis", version = "0.4.5", defa
 kona-registry = { path = "../../crates/protocol/registry", version = "0.4.5", default-features = false }
 kona-sp1-client-utils = { path = "../crates/client" }
 kona-sp1-ethereum-client-utils = { path = "../crates/ethereum/client" }
+kona-sp1-range-vkeys = { path = "../crates/range-vkeys" }
 
 # Feature anchor only: revm's `bn` forwards to revm-precompile/bn so the guest
 # build uses the SP1-patched substrate-bn backend for bn128.

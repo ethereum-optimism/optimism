@@ -193,6 +193,8 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - rust-restore-build-cache: &sp1-guest-checks-cache-args
+          directory: rust/kona/sp1/programs
       - run:
           name: Build SP1 guest ELFs
           working_directory: rust/kona/sp1
@@ -204,6 +206,19 @@ jobs:
           root: .
           paths:
             - rust/kona/sp1/elf/
+      - run:
+          name: Lint SP1 guest programs
+          working_directory: rust
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: just lint-sp1-guest
+      - run:
+          name: Check + test the range-vkeys crate
+          working_directory: rust
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: just check-range-vkeys
+      - rust-save-build-cache: *sp1-guest-checks-cache-args
 
   required-rust-e2e:
     docker:

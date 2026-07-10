@@ -4,7 +4,8 @@ default:
 SP1_TAG := "v6.3.1"
 
 # Build the range-executor host binary, used by the SP1 execute action tests to run the range guest
-# in SP1 execute mode. The binary embeds the range guest ELF, so build the ELFs first (build-elfs).
+# in SP1 execute mode. The binary loads the range guest ELF at runtime, so build the ELFs before
+# running it (build-elfs).
 build-range-executor:
     cd ../.. && cargo build -p kona-sp1-range-executor --release
 
@@ -18,10 +19,10 @@ build-elfs:
     just _vkeys-header > "$m"
     just build-range-elfs
     just _append-vkey range "$m"
-    just build-agg-elf
-    just _append-vkey aggregation "$m"
     just build-super-range-elf
     just _append-vkey super-range "$m"
+    just build-agg-elf
+    just _append-vkey aggregation "$m"
     just build-super-aggregation-elf
     just _append-vkey super-aggregation "$m"
 
@@ -143,7 +144,7 @@ build-elfs-native:
     set -euo pipefail
     m=elf/vkeys.toml
     just _vkeys-header > "$m"
-    for name in range aggregation super-range super-aggregation; do
+    for name in range super-range aggregation super-aggregation; do
       just _build-elf "${name}" native
       just _append-vkey "${name}" "$m"
     done

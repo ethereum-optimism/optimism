@@ -17,14 +17,14 @@ pub fn main() {
     // Range program proofs are read from SP1's proof stream in this exact public-output order.
     for range_output in &inputs.range_outputs {
         sp1_lib::verify::verify_sp1_proof(
-            &inputs.range_vkey,
+            &kona_sp1_range_vkeys::SUPER_RANGE_VKEY,
             &range_public_values_digest(range_output),
         );
     }
 
     for consolidation_output in &inputs.consolidation_outputs {
         sp1_lib::verify::verify_sp1_proof(
-            &inputs.range_vkey,
+            &kona_sp1_range_vkeys::SUPER_RANGE_VKEY,
             &consolidation_public_values_digest(consolidation_output),
         );
     }

@@ -211,8 +211,8 @@ pub enum SuperInteropOutputs {
 /// Range program proofs are supplied separately through SP1 stdin with `write_proof`, in the same
 /// order as these public range program outputs: first all range-mode proofs, then all
 /// consolidation-mode proofs.
-/// This typed input carries the range-program public outputs and vkey that the aggregation program
-/// uses to verify those proof-stream entries.
+/// This typed input carries the range-program public outputs that the aggregation program uses to
+/// verify those proof-stream entries against its embedded verification key.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SuperAggregationInputs {
     /// L1 head committed to by `ZKDisputeGame`.
@@ -232,11 +232,6 @@ pub struct SuperAggregationInputs {
     /// Public outputs from verified consolidation-mode proofs, ordered to match the proof
     /// stream after the range-mode proofs.
     pub consolidation_outputs: Vec<SuperConsolidationOutputs>,
-    /// Interim dynamically supplied range program verification key.
-    ///
-    /// This is development-only until the range vkey is embedded in the aggregation program
-    /// See <https://github.com/ethereum-optimism/optimism/issues/21412/>
-    pub range_vkey: [u32; 8],
 }
 
 sol! {
@@ -1150,10 +1145,6 @@ mod tests {
         }
     }
 
-    fn range_vkey() -> [u32; 8] {
-        [1, 2, 3, 4, 5, 6, 7, 8]
-    }
-
     fn valid_aggregation_inputs() -> SuperAggregationInputs {
         let starting_super_root_proof =
             SuperRootProof::new(99, vec![output(10, 0x01), output(20, 0x02)]);
@@ -1202,7 +1193,6 @@ mod tests {
                     transitions: vec![consolidation_transition(101, timestamp_101, 0x55)],
                 },
             ],
-            range_vkey: range_vkey(),
         }
     }
 
@@ -1667,16 +1657,6 @@ mod tests {
             timestamp_mismatch.validate(),
             Err(SuperRootError::ConsolidationTimestampMismatch { expected: 100, actual: 101 })
         );
-    }
-
-    #[test]
-    fn range_vkey_input_serializes_with_json() {
-        let vkey = [0, 1, 2, 3, 4, 5, 6, 7];
-
-        let encoded = serde_json::to_vec(&vkey).expect("vkey serializes");
-        let decoded: [u32; 8] = serde_json::from_slice(&encoded).expect("vkey deserializes");
-
-        assert_eq!(decoded, vkey);
     }
 
     #[test]

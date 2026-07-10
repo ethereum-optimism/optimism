@@ -60,7 +60,7 @@ build-release *args='':
 build-sp1:
   cargo build -p kona-sp1-host-utils -p kona-sp1-client-utils \
     -p kona-sp1-ethereum-host-utils -p kona-sp1-ethereum-client-utils \
-    -p kona-sp1-proof-utils -p kona-sp1-build-utils -p kona-sp1-elfs
+    -p kona-sp1-elfs
 
 # Build kona-node
 build-kona-node:
@@ -99,8 +99,9 @@ test-docs:
 
 ############################### Lint ################################
 
-# Run all lints (includes the SP1 guest program workspace)
-lint: fmt-check lint-clippy lint-docs lint-sp1-guest
+# Run all lints for the outer workspace. SP1 guests require generated vkeys and are linted by CI
+# after their ELFs are built.
+lint: fmt-check lint-clippy lint-docs
 
 # Check formatting (requires nightly)
 fmt-check:
@@ -118,8 +119,20 @@ fmt-fix: fmt-fix-sp1-guest
 lint-clippy:
   cargo clippy --workspace --all-features --all-targets -- -D warnings
 
-# lock check + fmt-check + clippy for the SP1 guest program workspace (shared by `just lint` and CI)
-lint-sp1-guest: check-sp1-guest-lock fmt-check-sp1-guest lint-clippy-sp1-guest
+# lock check + fmt-check + clippy for the SP1 guest program workspace
+lint-sp1-guest: check-no-self-embed check-sp1-guest-lock fmt-check-sp1-guest lint-clippy-sp1-guest
+
+check-no-self-embed:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd kona/sp1
+  # A leaf guest must not depend on the range-vkey crate: it would embed its own vkey
+  # (RANGE_VKEY = f(range ELF)), closing a build cycle. Only aggregation guests may depend on it.
+  # Direct-dep check only; no shared guest crate depends on range-vkeys today.
+  for f in programs/range/Cargo.toml programs/super-range/Cargo.toml; do
+    test -f "$f"
+    ! grep -q kona-sp1-range-vkeys "$f"
+  done
 
 # Runs before the `--locked` clippy so a kona-only dependency change produces a
 # clear fix hint instead of cargo's cryptic "cannot update the lock file because
@@ -149,6 +162,13 @@ fmt-fix-sp1-guest:
 
 lint-clippy-sp1-guest:
   cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --all-features --all-targets --locked -- -D warnings
+
+# fmt-check + clippy + test the standalone range-vkeys crate (in neither workspace, so nothing
+# else covers it). Requires elf/vkeys.toml and is invoked only after the guest ELFs are built.
+check-range-vkeys:
+  cargo +{{NIGHTLY}} fmt --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all -- --check
+  cargo clippy --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all-targets --locked -- -D warnings
+  cargo test --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --locked
 
 # Lint Rust documentation
 lint-docs:

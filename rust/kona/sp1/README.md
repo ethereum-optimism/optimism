@@ -21,23 +21,18 @@ zkVM programs that execute inside the SP1 prover:
 - **`super-aggregation`**: Scaffold for aggregating unified super-range
   proofs into the public values consumed by `ZKDisputeGame`.
 
-The super-root aggregation scaffold currently accepts the range program verification
-key as input to support development. This dynamic-vkey mode is not production
-sound until the range vkey is embedded in the aggregation program or
-publicly bound by the verifier path.
-
 ### Crates (`crates/`)
 
 Supporting libraries for the SP1 fault proof system:
 
-- **`build`**: Build utilities for compiling SP1 programs
 - **`client`**: Client-side utilities and types for witness execution in the zkVM
-- **`elfs`**: Management and references to compiled ELF binaries
+- **`elfs`**: Runtime loading of compiled ELF binaries
 - **`ethereum`**: Ethereum-specific data availability utilities
   - `client/`: Client-side Ethereum DA utilities
   - `host/`: Host-side Ethereum DA witness generation
 - **`host`**: Host utilities for witness generation, proof orchestration, and preimage serving
-- **`proof`**: High-level proof generation utilities and workflows
+- **`range-vkeys`**: Compile-time range and super-range guest verification keys, embedded from
+  generated `elf/vkeys.toml` and used only by the aggregation guests
 
 ### ELF Binaries (`elf/`)
 
@@ -49,14 +44,16 @@ Compiled ELF binaries for the zkVM programs, used by the prover:
 - **`super-aggregation-elf`**: Compiled super-root aggregation program
 - **`super-range-elf`**: Compiled unified super-root range/consolidation program
 
-In the optimism monorepo port, these files are generated on demand and ignored
-by git, matching the Cannon prestate artifact workflow. Generate real v6.3.1
-ELFs and `elf/vkeys.toml` on linux/amd64 with `just build-elfs`; CI persists
-the manifest with the generated ELFs.
-Use `just build-elfs-native` only for local iteration.
-Host-toolchain workspace builds embed empty build-output placeholders when
-generated ELFs are absent, so proving fails fast until the real artifacts are
-built.
+In the optimism monorepo port, these files and `elf/vkeys.toml` are generated on demand and
+ignored by git, matching the Cannon prestate artifact workflow. `just build-elfs` builds the leaf
+guests first, generates their vkeys, and then builds the aggregation guests with those vkeys
+embedded through `kona-sp1-range-vkeys`. Use `just build-elfs-native` only for local iteration.
+
+Host-toolchain workspace builds need neither ELFs nor `vkeys.toml`. Host binaries load guest
+artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails as an
+infrastructure error. Release automation will eventually pin per-version vkeys from the generated
+manifest into `superchain-registry/validation/standard/standard-prestates.toml` and verify
+reproducible builds.
 
 Custom chains and devnets can compile separate SP1 artifacts with custom kona
 registry inputs:
@@ -73,11 +70,10 @@ custom configs produce different ELFs and verification-key hashes.
 
 TODO(#18326): the monorepo's CircleCI runs the
 workspace-wide build, clippy, tests, cargo-hack, udeps, docs, typos, and zepter
-gates over the SP1 host-side crates that are workspace members. The guest
-program entrypoints live in their own workspace for SP1 patch scoping and are
-not covered by those host workspace gates. The `kona-build-sp1-elfs` job runs
-`just build-elfs` in rust-e2e CI; scheduled vkey drift coverage is tracked in
-#21661. The following standalone-kona GitHub workflow behavior is not yet
+gates over the SP1 host-side crates that are workspace members. The guest program entrypoints and
+`range-vkeys` crate live outside that workspace. The `kona-build-sp1-elfs` rust-e2e job runs
+`just build-elfs`, lints all guests, and checks and tests `range-vkeys`; scheduled vkey drift
+coverage is tracked in #21661. The following standalone-kona GitHub workflow behavior is not yet
 reproduced:
 
 - Codecov flag wiring for SP1 coverage.
@@ -87,9 +83,8 @@ reproduced:
 
 ### Guest Precompile Patches
 
-The guest programs (`programs/range` and `programs/aggregation`) are isolated in
-`programs/Cargo.toml`, a nested Cargo workspace with its own `Cargo.lock` and
-`[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
+All four guest programs are isolated in `programs/Cargo.toml`, a nested Cargo workspace with its
+own `Cargo.lock` and `[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
 `crypto-bigint`, `k256`, `p256`, and `substrate-bn` to the SP1 forks, so the
 generated ELFs get zkVM precompile-accelerated crypto without changing the host
 `rust/` workspace dependency graph.
@@ -108,7 +103,7 @@ The SP1 integration follows the same fault proof workflow as the native Kona imp
 
 ## Building
 
-Build utilities are provided in the `build` crate. Programs can be compiled for the zkVM target using the SP1 toolchain.
+Programs are compiled for the zkVM target through the recipes in this directory's `justfile`.
 
 The `cargo prove` subcommand is pinned by `mise.toml`. Install the native Succinct
 toolchain for non-Docker local builds with:
@@ -135,10 +130,11 @@ with:
 cd rust/kona/tests && just action-tests-sp1
 ```
 
-That recipe builds the guest ELFs (`just build-elfs`, Dockerized SP1 toolchain), builds
-the `range-executor` binary (which embeds the `range` ELF), and runs the test with
-`KONA_SP1_RANGE_EXECUTOR_PATH` set. The test skips when that variable is unset, so the
-heavy SP1 toolchain is only required when explicitly running the SP1 action tests.
+That recipe builds the guest ELFs (`just build-elfs`, Dockerized SP1 toolchain), builds the
+`range-executor` binary, and runs the test with `KONA_SP1_RANGE_EXECUTOR_PATH` and
+`KONA_SP1_ELF_DIR` set. The executor loads the `range` ELF at runtime. The test skips when the
+executor-path variable is unset, so the heavy SP1 toolchain is only required when explicitly
+running the SP1 action tests.
 
 For faster coverage of the range-program logic, the same executor also supports
 `--native-core`. This mode still generates the real witness, but runs the shared range

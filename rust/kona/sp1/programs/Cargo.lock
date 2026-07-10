@@ -1854,6 +1854,7 @@ dependencies = [
  "alloy-sol-types",
  "bincode",
  "kona-sp1-client-utils",
+ "kona-sp1-range-vkeys",
  "serde_cbor",
  "sha2",
  "sp1-lib",
@@ -1936,11 +1937,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-sp1-range-vkeys"
+version = "0.0.1"
+
+[[package]]
 name = "kona-sp1-super-aggregation"
 version = "0.0.1"
 dependencies = [
  "bincode",
  "kona-sp1-client-utils",
+ "kona-sp1-range-vkeys",
  "sha2",
  "sp1-lib",
  "sp1-zkvm",

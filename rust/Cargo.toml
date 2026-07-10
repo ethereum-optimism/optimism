@@ -20,13 +20,11 @@ members = [
   "kona/crates/providers/*",
   "kona/crates/utilities/*",
   "kona/examples/*",
-  "kona/sp1/crates/build",
   "kona/sp1/crates/client",
   "kona/sp1/crates/elfs",
   "kona/sp1/crates/ethereum/client",
   "kona/sp1/crates/ethereum/host",
   "kona/sp1/crates/host",
-  "kona/sp1/crates/proof",
   "kona/sp1/crates/range-executor",
 
   # Op-Alloy
@@ -489,7 +487,6 @@ op-alloy = { version = "2.0.0", path = "op-alloy/crates/op-alloy", default-featu
 op-alloy-flz = { version = "0.13.1", default-features = false }
 
 # ==================== SP1 ====================
-sp1-build = "6.3.1"
 sp1-sdk = { version = "6.3.1", default-features = false, features = [
   "network",
 ] }
@@ -554,7 +551,6 @@ serde = { version = "1.0.228", default-features = false, features = [
 serde_json = { version = "1.0.149", default-features = false, features = [
   "alloc",
 ] }
-serde_cbor = "0.11.2"
 
 # ==================== METRICS ====================
 metrics = { version = "0.24.3", default-features = false }
