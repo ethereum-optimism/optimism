@@ -18,6 +18,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -99,6 +100,9 @@ type AllocParams struct {
 	L1Alloc          types.GenesisAlloc
 	L2Alloc          types.GenesisAlloc
 	PrefundTestUsers bool
+	// L2AllocIsFrozenPreForkState makes the absence of a proxied predeploy's account
+	// authoritative by removing its implementation from the generated genesis state.
+	L2AllocIsFrozenPreForkState bool
 }
 
 var etherScalar = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
@@ -174,6 +178,21 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 			l2Genesis.Alloc[addr] = types.Account{
 				Balance: Ether(1e12),
 			}
+		}
+	}
+	if alloc.L2AllocIsFrozenPreForkState {
+		for _, predeploy := range predeploys.Predeploys {
+			if predeploy.ProxyDisabled {
+				continue
+			}
+			if _, ok := alloc.L2Alloc[predeploy.Address]; ok {
+				continue
+			}
+			account, ok := l2Genesis.Alloc[predeploy.Address]
+			if !ok {
+				continue
+			}
+			delete(account.Storage, genesis.ImplementationSlot)
 		}
 	}
 	for addr, val := range alloc.L2Alloc {

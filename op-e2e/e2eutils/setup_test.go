@@ -2,11 +2,15 @@ package e2eutils
 
 import (
 	"encoding/hex"
+	"math/big"
 	"os"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 )
@@ -38,4 +42,91 @@ func TestSetup(t *testing.T) {
 	expAllocs := config.L1Deployments(tp.AllocType)
 	require.Contains(t, sd.L1Cfg.Alloc, expAllocs.AddressManager)
 	require.Contains(t, sd.L2Cfg.Alloc, predeploys.L1BlockAddr)
+}
+
+func TestSetupL2AllocFrozenPreForkState(t *testing.T) {
+	tp := &TestParams{
+		MaxSequencerDrift:   40,
+		SequencerWindowSize: 120,
+		ChannelTimeout:      120,
+		L1BlockTime:         15,
+		AllocType:           config.DefaultAllocType,
+	}
+	dp := MakeDeployParams(t, tp)
+	proxyAddr := predeploys.L2CrossDomainMessengerAddr
+	generatedProxy := Setup(t, dp, &AllocParams{}).L2Cfg.Alloc[proxyAddr]
+
+	t.Run("sparse overlay retains the generated implementation", func(t *testing.T) {
+		unrelatedAddr := common.HexToAddress("0x1234")
+		unrelatedAccount := types.Account{
+			Nonce:   3,
+			Balance: big.NewInt(44),
+			Code:    []byte{0x60, 0x01},
+			Storage: map[common.Hash]common.Hash{
+				common.HexToHash("0x02"): common.HexToHash("0x03"),
+			},
+		}
+
+		setup := Setup(t, dp, &AllocParams{
+			L2Alloc: types.GenesisAlloc{unrelatedAddr: unrelatedAccount},
+		})
+		sparseProxy := setup.L2Cfg.Alloc[proxyAddr]
+		implementation, ok := sparseProxy.Storage[genesis.ImplementationSlot]
+		require.True(t, ok)
+		require.NotEqual(t, common.Hash{}, implementation)
+		require.Equal(t, generatedProxy.Storage[genesis.ImplementationSlot], implementation)
+		require.Equal(t, unrelatedAccount, setup.L2Cfg.Alloc[unrelatedAddr])
+	})
+
+	t.Run("frozen allocation removes only the generated implementation", func(t *testing.T) {
+		frozenProxy := Setup(t, dp, &AllocParams{L2AllocIsFrozenPreForkState: true}).L2Cfg.Alloc[proxyAddr]
+
+		expectedProxy := generatedProxy
+		expectedProxy.Storage = make(map[common.Hash]common.Hash, len(generatedProxy.Storage)-1)
+		for slot, value := range generatedProxy.Storage {
+			expectedProxy.Storage[slot] = value
+		}
+		delete(expectedProxy.Storage, genesis.ImplementationSlot)
+
+		require.Contains(t, generatedProxy.Storage, genesis.ImplementationSlot)
+		require.Contains(t, generatedProxy.Storage, genesis.AdminSlot)
+		require.Equal(t, expectedProxy, frozenProxy)
+	})
+
+	t.Run("explicit account remains authoritative when frozen", func(t *testing.T) {
+		unrelatedSlot := common.HexToHash("0x01")
+		explicit := types.Account{
+			Nonce:   7,
+			Balance: big.NewInt(1234),
+			Code:    []byte{0x60, 0x00, 0x56},
+			Storage: map[common.Hash]common.Hash{
+				genesis.ImplementationSlot: common.HexToHash("0x1234"),
+				unrelatedSlot:              common.HexToHash("0x5678"),
+			},
+		}
+		expected := explicit
+		expected.Balance = new(big.Int).Set(explicit.Balance)
+		expected.Code = append([]byte(nil), explicit.Code...)
+		expected.Storage = make(map[common.Hash]common.Hash, len(explicit.Storage))
+		for slot, value := range explicit.Storage {
+			expected.Storage[slot] = value
+		}
+
+		setup := Setup(t, dp, &AllocParams{
+			L2Alloc:                     types.GenesisAlloc{proxyAddr: explicit},
+			L2AllocIsFrozenPreForkState: true,
+		})
+		require.Equal(t, expected, setup.L2Cfg.Alloc[proxyAddr])
+	})
+
+	t.Run("proxy-disabled account is not pruned when frozen", func(t *testing.T) {
+		wethAddr := predeploys.WETHAddr
+		generatedWETH, ok := Setup(t, dp, &AllocParams{}).L2Cfg.Alloc[wethAddr]
+		require.True(t, ok)
+		require.NotEmpty(t, generatedWETH.Code)
+
+		frozenWETH, ok := Setup(t, dp, &AllocParams{L2AllocIsFrozenPreForkState: true}).L2Cfg.Alloc[wethAddr]
+		require.True(t, ok)
+		require.Equal(t, generatedWETH, frozenWETH)
+	})
 }
