@@ -62,11 +62,16 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     string saltMixer = "saltMixer";
     uint64 gasLimit = 60_000_000;
     GameType disputeGameType = GameTypes.PERMISSIONED_CANNON;
+    // Prestates are real release hashes from the superchain registry's standard-prestates.toml;
+    // the tests only need them to be non-zero and distinct from each other.
+    // cannon32 v1.3.1 (op-program).
     Claim disputeAbsolutePrestate = Claim.wrap(0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c);
-    Hash startingAnchorRoot = Hash.wrap(0xdead000000000000000000000000000000000000000000000000000000000000);
-    Claim cannonAbsolutePrestate = Claim.wrap(0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c);
+    Hash startingAnchorRoot = Hash.wrap(Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT);
+    // cannon64 v1.6.1 (op-program).
+    Claim cannonAbsolutePrestate = Claim.wrap(0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8);
+    // cannon64-kona-interop v1.2.13 (Kona).
     Claim cannonKonaAbsolutePrestate = Claim.wrap(0x035ef680a6fa34c50d8d8169075b5d133ecd7b38fe2b2a83cc76fc81ae5d7c52);
-    // Non-placeholder anchor root for the permissionless deploy tests.
+    // Arbitrary non-placeholder anchor root for the permissionless deploy tests.
     Hash permissionlessAnchorRoot = Hash.wrap(0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47);
     uint256 disputeMaxGameDepth = 73;
     uint256 disputeSplitDepth = 30;
@@ -569,6 +574,18 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
         deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
         deployOPChainInput.cannonAbsolutePrestate = Claim.wrap(bytes32(0));
         vm.expectRevert("DeployOPChainInput: cannonAbsolutePrestate not set");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    /// @notice The Cannon fallback prestate and the selected Kona prestate can never legitimately
+    ///         be equal (they commit to different fault-proof programs).
+    function test_run_cannonKonaEqualPrestates_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
+        deployOPChainInput.disputeAbsolutePrestate = cannonKonaAbsolutePrestate;
+        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
+        deployOPChainInput.cannonAbsolutePrestate = cannonKonaAbsolutePrestate;
+        vm.expectRevert("DeployOPChainInput: cannonAbsolutePrestate must differ from disputeAbsolutePrestate");
         deployOPChain.run(deployOPChainInput);
     }
 

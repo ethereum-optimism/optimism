@@ -122,6 +122,10 @@ contract DeployOPChain is Script {
         // Non-super-root deploys always register PERMISSIONED_CANNON. In CANNON_KONA mode,
         // the ASR respects CANNON_KONA first but the guardian can switch to PERMISSIONED_CANNON.
         bool enablePermissionedCannon = !isSuperRoot;
+        // disputeAbsolutePrestate always carries the SELECTED game's prestate. In CANNON_KONA mode
+        // that is the Kona prestate, so the permissioned fallback takes its Cannon prestate from
+        // the dedicated field; in permissioned mode the selected game IS the permissioned Cannon
+        // game, so the selected prestate is already the right one.
         Claim permissionedCannonPrestate =
             enableCannonKona ? _input.cannonAbsolutePrestate : _input.disputeAbsolutePrestate;
 
@@ -369,6 +373,12 @@ contract DeployOPChain is Script {
 
         if (_i.disputeGameType.raw() == GameTypes.CANNON_KONA.raw()) {
             require(_i.cannonAbsolutePrestate.raw() != bytes32(0), "DeployOPChainInput: cannonAbsolutePrestate not set");
+            // The two prestates commit to different fault-proof programs (op-program vs Kona),
+            // so equal values always indicate a misconfigured producer.
+            require(
+                _i.cannonAbsolutePrestate.raw() != _i.disputeAbsolutePrestate.raw(),
+                "DeployOPChainInput: cannonAbsolutePrestate must differ from disputeAbsolutePrestate"
+            );
         }
 
         if (permissionless) {

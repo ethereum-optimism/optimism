@@ -134,7 +134,9 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		return opcm.DeployOPChainInput{}, fmt.Errorf("OPCM implementation is not deployed")
 	}
 
-	// TODO(#20912): Populate StartingAnchorRoot and DisputeAbsolutePrestate from pipeline state for permissionless deploys.
+	// TODO(#20912): Populate StartingAnchorRoot and DisputeAbsolutePrestate from pipeline state for permissionless
+	// deploys. This also needs a second prestate field in ChainProofParams: CannonAbsolutePrestate below reuses the
+	// single existing field, and DeployOPChain.checkInput rejects equal prestates for CANNON_KONA deploys.
 	return opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner:       thisIntent.Roles.L1ProxyAdminOwner,
 		SystemConfigOwner:            thisIntent.Roles.SystemConfigOwner,
