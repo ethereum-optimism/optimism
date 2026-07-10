@@ -59,6 +59,21 @@ abstract contract CrossL2Inbox_TestInit is CommonTest {
 /// @title CrossL2Inbox_ValidateMessage_Test
 /// @notice Tests the `validateMessage` function of the `CrossL2Inbox` contract.
 contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
+    /// @notice Test that `validateMessage` reverts when executed in a deposit transaction.
+    function testFuzz_validateMessage_depositTransaction_reverts(
+        Identifier memory _id,
+        bytes32 _messageHash
+    )
+        external
+    {
+        _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
+        _id.logIndex = bound(_id.logIndex, 0, type(uint32).max);
+        _id.timestamp = bound(_id.timestamp, 0, type(uint64).max);
+
+        vm.expectRevert(ICrossL2Inbox.NoExecutingDeposits.selector);
+        crossL2Inbox.validateMessage(_id, _messageHash);
+    }
+
     /// @notice Test that `validateMessage` reverts when the slot is not warm.
     function testFuzz_validateMessage_accessList_reverts(Identifier memory _id, bytes32 _messageHash) external {
         // Bound values types to ensure they are not too large
@@ -70,6 +85,7 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
         vm.cool(address(crossL2Inbox));
 
         // Expect revert
+        vm.txGasPrice(block.basefee);
         vm.expectRevert(ICrossL2Inbox.NotInAccessList.selector);
         crossL2Inbox.validateMessage(_id, _messageHash);
     }
@@ -216,6 +232,7 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
         _id.timestamp = bound(_id.timestamp, 0, type(uint64).max);
 
         // Try and retry the message without any access list
+        vm.txGasPrice(block.basefee);
         vm.expectCall(address(crossL2Inbox), abi.encodeCall(ICrossL2Inbox.validateMessage, (_id, _messageHash)), 2);
         validateMessageRelayer.validateAndRetry(_id, _messageHash);
     }
