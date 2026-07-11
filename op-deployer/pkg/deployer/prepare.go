@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -208,6 +209,12 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 	return nil
 }
 
+// Sentinel inputs for the prediction dry-run of permissionless deploys.
+var (
+	predictionStartingAnchorRoot     = common.Hash{0x01}
+	predictionCannonAbsolutePrestate = common.Hash{0x01}
+)
+
 // makePredictionInput builds the DeployOPChain input for the prediction dry-run.
 // The OPCM, superchain config and salt mixer are taken from the committed intent
 // and state so the prediction matches the eventual broadcast. Role addresses are set to
@@ -235,6 +242,14 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 		Challenger:        standard.PlaceholderAddress,
 	}
 
+	startingAnchorRoot := opcm.DefaultStartingAnchorRoot.Root
+	cannonAbsolutePrestate := proofParams.DisputeAbsolutePrestate
+
+	if pipeline.IsPermissionlessGameType(proofParams.DisputeGameType) {
+		startingAnchorRoot = predictionStartingAnchorRoot
+		cannonAbsolutePrestate = predictionCannonAbsolutePrestate
+	}
+
 	return pipeline.BuildDeployOPChainInput(
 		proofParams,
 		placeholderRoles,
@@ -243,6 +258,8 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 		chain.ID,
 		st.Create2Salt.String(),
 		chain.GasLimit,
+		startingAnchorRoot,
+		cannonAbsolutePrestate,
 		chain,
 	), nil
 }

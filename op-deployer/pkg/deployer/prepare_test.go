@@ -1,17 +1,31 @@
 package deployer
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	opdenv "github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
@@ -76,6 +90,36 @@ func TestMakePredictionInput(t *testing.T) {
 		require.Equal(t, standard.PlaceholderAddress, role)
 		require.NotEqual(t, common.Address{}, role)
 	}
+
+	// Permissioned predictions mirror the eventual broadcast values.
+	require.Equal(t, standard.DisputeGameType, dci.DisputeGameType)
+	require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot)
+	require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
+}
+
+func TestMakePredictionInput_Permissionless(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	st := &state.State{Create2Salt: common.HexToHash("0x03")}
+	chain := &state.ChainIntent{
+		ID:              common.HexToHash("0x0a"),
+		DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeCannonKona},
+	}
+
+	dci, err := makePredictionInput(&state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+	}, st, chain)
+	require.NoError(t, err)
+	require.Equal(t, embedded.GameTypeCannonKona, dci.DisputeGameType)
+
+	// The dry run executes DeployOPChain.checkInput and the OPCM's config validation, which
+	// for permissionless deploys reject a zero or permissioned-placeholder anchor root and a
+	// Cannon prestate that is unset or equal to the Kona prestate.
+	require.NotEqual(t, common.Hash{}, dci.StartingAnchorRoot)
+	require.NotEqual(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot)
+	require.NotEqual(t, common.Hash{}, dci.CannonAbsolutePrestate)
+	require.NotEqual(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 }
 
 func TestMakePredictionInput_MissingRequiredAddresses(t *testing.T) {
@@ -111,6 +155,145 @@ func TestPrepareConfigCheck(t *testing.T) {
 	missingL1RPC := valid
 	missingL1RPC.L1RPCUrl = ""
 	require.ErrorContains(t, missingL1RPC.Check(), "l1 RPC URL must be specified")
+}
+
+// TestPredictionDryRun_Permissionless exercises the prediction dry-run end to end for a
+// permissionless chain: it deploys a superchain + OPCM onto anvil, then runs
+// the DeployOPChain script against a fork with the prediction input.
+func TestPredictionDryRun_Permissionless(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
+	require.NoError(t, err)
+
+	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+	require.NoError(t, err)
+
+	_, afacts := testutil.LocalArtifacts(t)
+	lgr := testlog.Logger(t, slog.LevelInfo)
+	anvil, err := devnet.NewAnvil(lgr)
+	require.NoError(t, err)
+	require.NoError(t, anvil.Start())
+	t.Cleanup(func() {
+		require.NoError(t, anvil.Stop())
+	})
+
+	l1RPCUrl := anvil.RPCUrl()
+	privateKey := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+
+	l1RPC, err := rpc.Dial(l1RPCUrl)
+	require.NoError(t, err)
+	l1Client := ethclient.NewClient(l1RPC)
+
+	host, err := opdenv.DefaultScriptHost(
+		broadcaster.NoopBroadcaster(),
+		lgr,
+		common.Address{'D'},
+		afacts,
+		script.WithForkHook(func(cfg *script.ForkConfig) (forking.ForkSource, error) {
+			src, err := forking.RPCSourceByNumber(cfg.URLOrAlias, l1RPC, *cfg.BlockNumber)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create RPC fork source: %w", err)
+			}
+			return forking.Cache(src), nil
+		}),
+	)
+	require.NoError(t, err)
+
+	latest, err := l1Client.HeaderByNumber(ctx, nil)
+	require.NoError(t, err)
+
+	_, err = host.CreateSelectFork(
+		script.ForkWithURLOrAlias("main"),
+		script.ForkWithBlockNumberU256(latest.Number),
+	)
+	require.NoError(t, err)
+
+	salt := common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
+	deployIntent := &state.Intent{
+		GlobalDeployOverrides: make(map[string]any),
+		SuperchainRoles: &addresses.SuperchainRoles{
+			SuperchainProxyAdminOwner: common.Address{'S'},
+			SuperchainGuardian:        common.Address{'G'},
+			Challenger:                common.HexToAddress("0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"),
+		},
+	}
+	deployState := &state.State{Version: 1, Create2Salt: salt}
+
+	pEnv := &pipeline.Env{
+		Logger:       lgr,
+		Scripts:      &opcm.Scripts{},
+		ForgeClient:  forgeClient,
+		UseForge:     true,
+		Context:      ctx,
+		Broadcaster:  broadcaster.NoopBroadcaster(),
+		StateWriter:  pipeline.NoopStateWriter(),
+		L1ScriptHost: host,
+		L1RPCUrl:     l1RPCUrl,
+		PrivateKey:   privateKey,
+	}
+
+	require.NoError(t, pipeline.DeploySuperchain(pEnv, deployIntent, deployState))
+	require.NoError(t, pipeline.DeployImplementations(pEnv, deployIntent, deployState))
+
+	opcmAddr := deployState.ImplementationsDeployment.OpcmV2Impl
+	superchainConfigProxy := deployState.SuperchainDeployment.SuperchainConfigProxy
+	require.NotEqual(t, common.Address{}, opcmAddr)
+	require.NotEqual(t, common.Address{}, superchainConfigProxy)
+
+	chain := &state.ChainIntent{
+		ID:              common.HexToHash("0x0300"),
+		DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeCannonKona},
+	}
+	predictIntent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfigProxy,
+		Chains:                []*state.ChainIntent{chain},
+	}
+	predictState := &state.State{Version: 1, Create2Salt: salt}
+
+	// runPrediction mirrors Prepare: a fresh fork of the live L1 with a no-op
+	// broadcaster, running the DeployOPChain script with the prediction input.
+	runPrediction := func(mutate func(*opcm.DeployOPChainInput)) opcm.DeployOPChainOutput {
+		predictHost, err := opdenv.DefaultForkedScriptHost(
+			ctx,
+			broadcaster.NoopBroadcaster(),
+			lgr,
+			common.Address{'D'},
+			afacts,
+			l1RPC,
+		)
+		require.NoError(t, err)
+
+		deployScript, err := opcm.NewDeployOPChainScript(predictHost)
+		require.NoError(t, err)
+
+		dci, err := makePredictionInput(predictIntent, predictState, chain)
+		require.NoError(t, err)
+		if mutate != nil {
+			mutate(&dci)
+		}
+
+		out, err := deployScript.Run(dci)
+		require.NoError(t, err)
+		return out
+	}
+
+	out := runPrediction(nil)
+	require.NotEqual(t, common.Address{}, out.SystemConfigProxy)
+	require.NotEqual(t, common.Address{}, out.OptimismPortalProxy)
+	require.NotEqual(t, common.Address{}, out.DisputeGameFactoryProxy)
+	require.NotEqual(t, common.Address{}, out.AnchorStateRegistryProxy)
+	// The permissionless game must be registered alongside the permissioned fallback.
+	require.NotEqual(t, common.Address{}, out.FaultDisputeGame)
+	require.NotEqual(t, common.Address{}, out.PermissionedDisputeGame)
+
+	// A different placeholder anchor root must produce identical predicted addresses
+	outDifferentRoot := runPrediction(func(dci *opcm.DeployOPChainInput) {
+		dci.StartingAnchorRoot = common.Hash{0xaa}
+	})
+	require.Equal(t, out, outDifferentRoot)
 }
 
 func TestPredictChains_SkipsDeployed(t *testing.T) {

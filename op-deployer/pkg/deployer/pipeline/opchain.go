@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -143,6 +144,10 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
+	if IsPermissionlessGameType(proofParams.DisputeGameType) {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("apply only supports permissioned deploys: permissionless chains are deployed through the prepare flow")
+	}
+
 	opcmAddr := st.ImplementationsDeployment.OpcmV2Impl
 	if opcmAddr == (common.Address{}) {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("OPCM implementation is not deployed")
@@ -156,8 +161,16 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		chainID,
 		st.Create2Salt.String(),
 		thisIntent.GasLimit,
+		opcm.DefaultStartingAnchorRoot.Root,
+		proofParams.DisputeAbsolutePrestate,
 		thisIntent,
 	), nil
+}
+
+// IsPermissionlessGameType reports whether the given dispute game type deploys a
+// permissionless chain.
+func IsPermissionlessGameType(gameType uint32) bool {
+	return gameType == uint32(embedded.GameTypeCannonKona)
 }
 
 func BuildDeployOPChainInput(
@@ -168,15 +181,14 @@ func BuildDeployOPChainInput(
 	l2ChainID common.Hash,
 	saltMixer string,
 	gasLimit uint64,
+	startingAnchorRoot common.Hash,
+	cannonAbsolutePrestate common.Hash,
 	chain *state.ChainIntent,
 ) opcm.DeployOPChainInput {
 	if gasLimit == 0 {
 		gasLimit = standard.GasLimit
 	}
 
-	// TODO(#20912): Populate StartingAnchorRoot and DisputeAbsolutePrestate from pipeline state for permissionless
-	// deploys. This also needs a second prestate field in ChainProofParams: CannonAbsolutePrestate below reuses the
-	// single existing field, and DeployOPChain.checkInput rejects equal prestates for CANNON_KONA deploys.
 	return opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner:       roles.L1ProxyAdminOwner,
 		SystemConfigOwner:            roles.SystemConfigOwner,
@@ -191,9 +203,9 @@ func BuildDeployOPChainInput(
 		SaltMixer:                    saltMixer,
 		GasLimit:                     gasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
-		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
-		StartingAnchorRoot:           opcm.DefaultStartingAnchorRoot.Root,
-		CannonAbsolutePrestate:       proofParams.DisputeAbsolutePrestate,
+		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate, // This is for Permissioned games
+		StartingAnchorRoot:           startingAnchorRoot,
+		CannonAbsolutePrestate:       cannonAbsolutePrestate, // This is for Permissionless games
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)

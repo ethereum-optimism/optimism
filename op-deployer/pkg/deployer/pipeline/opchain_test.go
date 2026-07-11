@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -117,8 +118,30 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 				t.Errorf("makeDCI() Opcm = %v, want %v", got.Opcm, tt.expectedOpcm)
 			}
 			require.Equal(t, standard.DisputeAbsolutePrestate, got.CannonAbsolutePrestate)
+			require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, got.StartingAnchorRoot)
 		})
 	}
+}
+
+func Test_makeDCI_RejectsPermissionlessGameType(t *testing.T) {
+	chainID := common.HexToHash("0x0300")
+	intent := &state.Intent{GlobalDeployOverrides: make(map[string]any)}
+	chainIntent := &state.ChainIntent{
+		ID:              chainID,
+		DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeCannonKona},
+	}
+	st := &state.State{
+		Create2Salt: common.HexToHash("0x01"),
+		SuperchainDeployment: &addresses.SuperchainContracts{
+			SuperchainConfigProxy: common.HexToAddress("0x3333333333333333333333333333333333333333"),
+		},
+		ImplementationsDeployment: &addresses.ImplementationsContracts{
+			OpcmV2Impl: common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		},
+	}
+
+	_, err := makeDCI(intent, chainIntent, chainID, st)
+	require.ErrorContains(t, err, "permissionless")
 }
 
 func TestShouldDeployOPChain(t *testing.T) {
