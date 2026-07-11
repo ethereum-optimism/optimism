@@ -244,18 +244,21 @@ func (m *RandomChainManager) generateChain(idNum, l2Depth uint64) *RandomChain {
 		h := m.randHash()
 		stateRoot := m.randHash()
 		withdrawals := m.randHash()
+		timestamp := genGenesisTime + uint64(i)*genL2BlockTime
 		l2[i] = L2Block{
 			Ref: eth.L2BlockRef{
 				Hash:       h,
 				Number:     uint64(i),
 				ParentHash: l2Parent,
-				Time:       genGenesisTime + uint64(i)*genL2BlockTime,
+				Time:       timestamp,
 				L1Origin:   l1[uint64(i)*uint64(len(l1))/l2Depth].ID(),
 			},
 			Payload: &eth.ExecutionPayloadEnvelope{
 				ExecutionPayload: &eth.ExecutionPayload{
+					ParentHash:      l2Parent,
 					BlockHash:       h,
 					BlockNumber:     eth.Uint64Quantity(i),
+					Timestamp:       eth.Uint64Quantity(timestamp),
 					StateRoot:       eth.Bytes32(stateRoot),
 					WithdrawalsRoot: &withdrawals,
 				},
