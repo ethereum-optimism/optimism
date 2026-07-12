@@ -358,7 +358,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // disabling the currently-respected game type, since the validation requires the starting
         // respected game type to correspond to an enabled game config.
         if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingRespectedGameType")) {
-            abi.decode(_instruction.data, (GameType));
             return true;
         }
 
