@@ -2566,24 +2566,6 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # IN-MEMORY (all) - op-node/op-geth
-      - op-acceptance-tests:
-          name: memory-all-opn-op-geth
-          parallelism: 2
-          acceptance_test_jobs: "8"
-          no_output_timeout: 120m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - slack
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-            - rust-binaries-for-sysgo
-            - go-binaries-for-sysgo
-            - prep-go-modules
-            # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
-            - prep-superchain
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
           name: memory-all-opn-op-reth
@@ -2635,7 +2617,6 @@ workflows:
             - semgrep-scan-local: terminal
             - semgrep-test: terminal
             - go-tests-short: terminal
-            - memory-all-opn-op-geth: terminal
             - memory-all-opn-op-reth: terminal
             - memory-all-kona-op-reth: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
