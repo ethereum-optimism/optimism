@@ -1,6 +1,7 @@
 package e2eutils
 
 import (
+	"fmt"
 	"math/big"
 	"os"
 	"path"
@@ -142,6 +143,53 @@ func GetL2AllocsMode(dc *genesis.DeployConfig, t uint64) genesis.L2AllocsMode {
 	return genesis.L2AllocsDelta
 }
 
+func removeGeneratedPredeployImplementations(generated, overlay types.GenesisAlloc) {
+	for _, predeploy := range predeploys.Predeploys {
+		if predeploy.ProxyDisabled {
+			continue
+		}
+		account, ok := generated[predeploy.Address]
+		if !ok {
+			continue
+		}
+		generatedImpl, hasImpl := account.Storage[genesis.ImplementationSlot]
+		if hasImpl && generatedImpl != (common.Hash{}) {
+			generatedImplAddr := common.BytesToAddress(generatedImpl.Bytes())
+			if _, ok := overlay[generatedImplAddr]; !ok {
+				delete(generated, generatedImplAddr)
+			}
+		}
+		if _, ok := overlay[predeploy.Address]; !ok {
+			delete(account.Storage, genesis.ImplementationSlot)
+		}
+	}
+}
+
+func validatePredeployImplementations(alloc types.GenesisAlloc) error {
+	for _, predeploy := range predeploys.Predeploys {
+		if predeploy.ProxyDisabled {
+			continue
+		}
+		account, ok := alloc[predeploy.Address]
+		if !ok {
+			continue
+		}
+		implHash := account.Storage[genesis.ImplementationSlot]
+		if implHash == (common.Hash{}) {
+			continue
+		}
+		implAddr := common.BytesToAddress(implHash.Bytes())
+		impl, ok := alloc[implAddr]
+		if !ok {
+			return fmt.Errorf("predeploy %s implementation %s missing from alloc", predeploy.Address, implAddr)
+		}
+		if len(impl.Code) == 0 {
+			return fmt.Errorf("predeploy %s implementation %s has no code", predeploy.Address, implAddr)
+		}
+	}
+	return nil
+}
+
 // Setup computes the testing setup configurations from deployment configuration and optional allocation parameters.
 func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *SetupData {
 	deployConf := deployParams.DeployConfig.Copy()
@@ -183,28 +231,13 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		}
 	}
 	if alloc.L2AllocIsFrozenPreForkState {
-		for _, predeploy := range predeploys.Predeploys {
-			if predeploy.ProxyDisabled {
-				continue
-			}
-			account, ok := l2Genesis.Alloc[predeploy.Address]
-			if !ok {
-				continue
-			}
-			generatedImpl, hasImpl := account.Storage[genesis.ImplementationSlot]
-			if hasImpl && generatedImpl != (common.Hash{}) {
-				generatedImplAddr := common.BytesToAddress(generatedImpl.Bytes())
-				if _, ok := alloc.L2Alloc[generatedImplAddr]; !ok {
-					delete(l2Genesis.Alloc, generatedImplAddr)
-				}
-			}
-			if _, ok := alloc.L2Alloc[predeploy.Address]; !ok {
-				delete(account.Storage, genesis.ImplementationSlot)
-			}
-		}
+		removeGeneratedPredeployImplementations(l2Genesis.Alloc, alloc.L2Alloc)
 	}
 	for addr, val := range alloc.L2Alloc {
 		l2Genesis.Alloc[addr] = val
+	}
+	if alloc.L2AllocIsFrozenPreForkState {
+		require.NoError(t, validatePredeployImplementations(l2Genesis.Alloc))
 	}
 
 	var pcfg *rollup.AltDAConfig

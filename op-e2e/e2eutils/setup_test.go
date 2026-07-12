@@ -159,3 +159,57 @@ func TestSetupL2AllocFrozenPreForkState(t *testing.T) {
 		require.Equal(t, generatedWETH, frozenWETH)
 	})
 }
+
+func TestValidatePredeployImplementations(t *testing.T) {
+	proxyAddr := predeploys.L2CrossDomainMessengerAddr
+	implAddr := common.HexToAddress("0x1234")
+	proxyAccount := types.Account{Storage: map[common.Hash]common.Hash{
+		genesis.ImplementationSlot: common.BytesToHash(implAddr.Bytes()),
+	}}
+
+	t.Run("implementation with code succeeds", func(t *testing.T) {
+		alloc := types.GenesisAlloc{
+			proxyAddr: proxyAccount,
+			implAddr:  {Code: []byte{0x60, 0x00}},
+		}
+
+		require.NoError(t, validatePredeployImplementations(alloc))
+	})
+
+	t.Run("zero implementation slot succeeds", func(t *testing.T) {
+		alloc := types.GenesisAlloc{
+			proxyAddr: {Storage: map[common.Hash]common.Hash{
+				genesis.ImplementationSlot: common.Hash{},
+			}},
+		}
+
+		require.NoError(t, validatePredeployImplementations(alloc))
+	})
+
+	t.Run("missing implementation fails", func(t *testing.T) {
+		err := validatePredeployImplementations(types.GenesisAlloc{proxyAddr: proxyAccount})
+
+		require.ErrorContains(t, err, "missing from alloc")
+		require.ErrorContains(t, err, proxyAddr.Hex())
+		require.ErrorContains(t, err, implAddr.Hex())
+	})
+
+	t.Run("implementation without code fails", func(t *testing.T) {
+		err := validatePredeployImplementations(types.GenesisAlloc{
+			proxyAddr: proxyAccount,
+			implAddr:  {Balance: big.NewInt(1)},
+		})
+
+		require.ErrorContains(t, err, "has no code")
+		require.ErrorContains(t, err, proxyAddr.Hex())
+		require.ErrorContains(t, err, implAddr.Hex())
+	})
+
+	t.Run("proxy-disabled predeploy is ignored", func(t *testing.T) {
+		alloc := types.GenesisAlloc{
+			predeploys.WETHAddr: proxyAccount,
+		}
+
+		require.NoError(t, validatePredeployImplementations(alloc))
+	})
+}
