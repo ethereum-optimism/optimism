@@ -391,9 +391,16 @@ impl RollupNode {
         modules
             .merge(P2pRpc::new(p2p_rpc_tx).into_rpc())
             .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
-        modules
-            .merge(AdminRpc::new(sequencer_admin_client, network_admin_tx).into_rpc())
-            .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
+        // Only register the admin API namespace when the operator explicitly enables it via
+        // `--rpc.enable-admin`. Op-node's admin API is opt-in by the same flag; Kona previously
+        // merged the admin module unconditionally, which — combined with the default
+        // `--rpc.addr=0.0.0.0` bind — exposed `admin_postUnsafePayload` and sequencer control
+        // methods to any anonymous TCP client that could route to the RPC port.
+        if config.enable_admin() {
+            modules
+                .merge(AdminRpc::new(sequencer_admin_client, network_admin_tx).into_rpc())
+                .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
+        }
         modules
             .merge(RollupRpc::new(engine_rpc_client.clone(), l1_watcher_queries_tx).into_rpc())
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;

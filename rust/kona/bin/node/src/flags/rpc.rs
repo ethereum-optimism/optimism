@@ -19,7 +19,11 @@ pub struct RpcArgs {
     #[arg(long = "rpc.no-restart", default_value = "false", env = "KONA_NODE_RPC_NO_RESTART")]
     pub no_restart: bool,
     /// RPC listening address.
-    #[arg(long = "rpc.addr", default_value = "0.0.0.0", env = "KONA_NODE_RPC_ADDR")]
+    ///
+    /// Defaults to `127.0.0.1` (localhost only). Operators who need to expose the RPC server
+    /// on other interfaces should set this explicitly, and should also decide whether
+    /// `--rpc.enable-admin` is appropriate for that exposure.
+    #[arg(long = "rpc.addr", default_value = "127.0.0.1", env = "KONA_NODE_RPC_ADDR")]
     pub listen_addr: IpAddr,
     /// RPC listening port.
     #[arg(long = "port", alias = "rpc.port", default_value = "9545", env = "KONA_NODE_RPC_PORT")]
