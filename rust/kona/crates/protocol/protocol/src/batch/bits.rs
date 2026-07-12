@@ -25,19 +25,22 @@ impl SpanBatchBits {
     /// Decodes a standard span-batch bitlist from a reader.
     /// The bitlist is encoded as big-endian integer, left-padded with zeroes to a multiple of 8
     /// bits. The encoded bitlist cannot be longer than `bit_length`.
+    ///
+    /// # Consensus-critical
+    ///
+    /// Op-node's `decodeSpanBatchBits` (in `op-node/rollup/derive/span_batch_util.go`) uses
+    /// `io.ReadFull` and returns `io.ErrUnexpectedEOF` on short input. Kona must reject the
+    /// same input to avoid cross-client L2 state divergence. A previous version of this
+    /// function silently zero-padded truncated input; that behavior caused Kona to derive a
+    /// different L2 state than op-node for the same L1 calldata.
     pub fn decode(b: &mut &[u8], bit_length: usize) -> Result<Self, SpanBatchError> {
         let buffer_len = bit_length / 8 + if bit_length.is_multiple_of(8) { 0 } else { 1 };
-        let bits = if b.len() < buffer_len {
-            let mut bits = vec![0; buffer_len];
-            bits[..b.len()].copy_from_slice(b);
-            b.advance(b.len());
-            bits
-        } else {
-            let v = b[..buffer_len].to_vec();
-            b.advance(buffer_len);
-            v
-        };
-        let sb_bits = Self(bits);
+        if b.len() < buffer_len {
+            return Err(SpanBatchError::BitfieldTooShort);
+        }
+        let v = b[..buffer_len].to_vec();
+        b.advance(buffer_len);
+        let sb_bits = Self(v);
 
         if sb_bits.bit_len() > bit_length {
             return Err(SpanBatchError::BitfieldTooLong);
@@ -227,5 +230,32 @@ mod test {
         assert_eq!(bits.get_bit(17), Some(1));
         assert_eq!(bits.get_bit(32), None);
         assert_eq!(bits.0.len(), 3);
+    }
+
+    /// Regression: `decode` must reject truncated input rather than silently zero-padding.
+    ///
+    /// Op-node's `decodeSpanBatchBits` returns `io.ErrUnexpectedEOF` for the same input; Kona
+    /// must reject to avoid cross-client L2 state divergence.
+    #[test]
+    fn decode_rejects_truncated_input() {
+        let mut empty: &[u8] = &[];
+        assert!(matches!(
+            SpanBatchBits::decode(&mut empty, 1),
+            Err(SpanBatchError::BitfieldTooShort)
+        ));
+
+        let mut short: &[u8] = &[0xFF];
+        assert!(matches!(
+            SpanBatchBits::decode(&mut short, 16),
+            Err(SpanBatchError::BitfieldTooShort)
+        ));
+    }
+
+    /// Sanity check: full-length input is accepted verbatim.
+    #[test]
+    fn decode_accepts_full_input() {
+        let mut buf: &[u8] = &[0x01];
+        let out = SpanBatchBits::decode(&mut buf, 1).expect("full input accepted");
+        assert_eq!(out.as_ref(), &[0x01]);
     }
 }
