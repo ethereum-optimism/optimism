@@ -101,22 +101,49 @@ pub fn default_config() -> Config {
 }
 
 /// Computes the [`MessageId`] of a `gossipsub` message.
+///
+/// # Security
+///
+/// The snappy frame header is validated against [`MAX_GOSSIP_SIZE`] BEFORE any allocation.
+/// Without this pre-check, `snap::raw::Decoder::decompress_vec` pre-allocates
+/// `vec![0; decompress_len(input)]` — up to `u32::MAX` (~4 GiB) — before inspecting any
+/// frame content. A 7-byte attacker-controlled snappy frame declaring `u32::MAX`
+/// decompressed length would OOM-kill the process. This function is invoked as
+/// gossipsub's `message_id_fn` on every inbound PUBLISH before signature validation, so the
+/// primitive is unauthenticated and remotely reachable.
+///
+/// Op-node's parallel `BuildMsgIdFn` (in `op-node/p2p/gossip.go`) performs the same
+/// pre-check via `snappy.DecodedLen(pmsg.Data)` bounded to `maxGossipSize`.
 fn compute_message_id(msg: &Message) -> MessageId {
-    let mut decoder = Decoder::new();
-    let id = decoder.decompress_vec(&msg.data).map_or_else(
-        |_| {
-            warn!(target: "cfg", "Failed to decompress message, using invalid snappy");
-            let domain_invalid_snappy: Vec<u8> = vec![0x0, 0x0, 0x0, 0x0];
-            sha256([domain_invalid_snappy.as_slice(), msg.data.as_slice()].concat().as_slice())
-                [..20]
-                .to_vec()
-        },
-        |data| {
-            let domain_valid_snappy: Vec<u8> = vec![0x1, 0x0, 0x0, 0x0];
-            sha256([domain_valid_snappy.as_slice(), data.as_slice()].concat().as_slice())[..20]
-                .to_vec()
-        },
-    );
+    let bounded_ok = snap::raw::decompress_len(&msg.data)
+        .ok()
+        .filter(|&n| n <= MAX_GOSSIP_SIZE);
+
+    let id = if bounded_ok.is_some() {
+        let mut decoder = Decoder::new();
+        decoder.decompress_vec(&msg.data).map_or_else(
+            |_| {
+                warn!(target: "cfg", "Failed to decompress message, using invalid snappy");
+                let domain_invalid_snappy: Vec<u8> = vec![0x0, 0x0, 0x0, 0x0];
+                sha256([domain_invalid_snappy.as_slice(), msg.data.as_slice()].concat().as_slice())
+                    [..20]
+                    .to_vec()
+            },
+            |data| {
+                let domain_valid_snappy: Vec<u8> = vec![0x1, 0x0, 0x0, 0x0];
+                sha256([domain_valid_snappy.as_slice(), data.as_slice()].concat().as_slice())[..20]
+                    .to_vec()
+            },
+        )
+    } else {
+        warn!(
+            target: "cfg",
+            "Rejecting oversized snappy header before decompression (MAX_GOSSIP_SIZE)"
+        );
+        let domain_invalid_snappy: Vec<u8> = vec![0x0, 0x0, 0x0, 0x0];
+        sha256([domain_invalid_snappy.as_slice(), msg.data.as_slice()].concat().as_slice())[..20]
+            .to_vec()
+    };
 
     MessageId(id)
 }
@@ -160,5 +187,34 @@ mod tests {
         let id = compute_message_id(&msg);
         let hashed = sha256(&[&[0x1, 0x0, 0x0, 0x0], [1, 2, 3, 4, 5].as_slice()].concat());
         assert_eq!(id.0, hashed[..20].to_vec());
+    }
+
+    /// Regression: a 7-byte snappy frame declaring `u32::MAX` decompressed length must be
+    /// rejected before any allocation. Prior versions of `compute_message_id` would call
+    /// `decompress_vec` unconditionally, triggering a ~4 GiB pre-allocation and OOM-killing
+    /// the process. The bomb payload is verbatim `[0xFF, 0xFF, 0xFF, 0xFF, 0x0F, 0x00, 0x41]`.
+    #[test]
+    fn compute_message_id_rejects_snappy_bomb_without_alloc() {
+        // Header: varint(u32::MAX) + literal-chunk-tag + one literal byte.
+        let bomb = vec![0xFFu8, 0xFF, 0xFF, 0xFF, 0x0F, 0x00, 0x41];
+        assert_eq!(
+            snap::raw::decompress_len(&bomb).unwrap(),
+            u32::MAX as usize,
+            "sanity: bomb header must declare u32::MAX"
+        );
+        assert!(bomb.len() <= MAX_GOSSIP_SIZE);
+
+        let msg = Message {
+            source: None,
+            data: bomb.clone(),
+            sequence_number: None,
+            topic: libp2p::gossipsub::TopicHash::from_raw("test"),
+        };
+
+        // If this test triggers a 4 GiB allocation, the guard is broken.
+        let id = compute_message_id(&msg);
+        // Bomb takes the oversized-header rejection branch: hash uses invalid-snappy domain.
+        let expected = sha256(&[&[0x0, 0x0, 0x0, 0x0], bomb.as_slice()].concat());
+        assert_eq!(id.0, expected[..20].to_vec());
     }
 }
