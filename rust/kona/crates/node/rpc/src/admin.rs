@@ -63,6 +63,13 @@ where
         &self,
         payload: OpExecutionPayloadEnvelope,
     ) -> RpcResult<()> {
+        // Restrict unsafe-payload injection to sequencer mode, matching every other admin
+        // method in this trait. Without this check, any client that reaches the RPC port
+        // could inject a forged execution payload as the local unsafe head, poisoning the
+        // node's view of L2 state without going through P2P validation.
+        if self.sequencer_admin_client.is_none() {
+            return Err(ErrorObject::from(ErrorCode::MethodNotFound));
+        }
         kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "admin_postUnsafePayload");
         self.network_sender
             .send(NetworkAdminQuery::PostUnsafePayload { payload })
