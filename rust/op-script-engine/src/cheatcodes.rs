@@ -3,6 +3,7 @@
 //! single revm `Inspector`, mirroring the semantics of `op-chain-ops/script`.
 
 use alloy_primitives::{Address, B256, Bytes, U256};
+use alloy_sol_types::{SolCall, sol};
 use revm::{
     Inspector,
     context_interface::{ContextTr, JournalTr, journaled_state::account::JournaledAccountTr},
@@ -10,19 +11,43 @@ use revm::{
         CallInputs, CallOutcome, CallScheme, CreateInputs, CreateOutcome, CreateScheme, Gas,
         InstructionResult, InterpreterResult,
     },
+    primitives::KECCAK_EMPTY,
+    state::Bytecode,
 };
 use serde::Serialize;
 
 use crate::ScriptContext;
 use crate::addresses::{CONSOLE_ADDR, CREATE2_DEPLOYER, VM_ADDR};
+use crate::artifacts::Artifacts;
 
-// Cheatcode selectors (from the Vm artifact methodIdentifiers).
-const SEL_GET_NONCE: [u8; 4] = [0x2d, 0x03, 0x35, 0xab];
-const SEL_BROADCAST0: [u8; 4] = [0xaf, 0xc9, 0x80, 0x40]; // broadcast()
-const SEL_BROADCAST1: [u8; 4] = [0xe6, 0x96, 0x2c, 0xdb]; // broadcast(address)
-const SEL_START_BROADCAST0: [u8; 4] = [0x7f, 0xb5, 0x29, 0x7f]; // startBroadcast()
-const SEL_START_BROADCAST1: [u8; 4] = [0x7f, 0xec, 0x2a, 0x8d]; // startBroadcast(address)
-const SEL_STOP_BROADCAST: [u8; 4] = [0x76, 0xea, 0xdd, 0x36]; // stopBroadcast()
+sol! {
+    #[allow(missing_docs, clippy::too_many_arguments)]
+    interface Vm {
+        function getNonce(address account) external view returns (uint64);
+        function etch(address who, bytes calldata code) external;
+        function store(address account, bytes32 slot, bytes32 value) external;
+        function load(address account, bytes32 slot) external view returns (bytes32);
+        function deal(address who, uint256 newBalance) external;
+        function setNonce(address account, uint64 newNonce) external;
+        function resetNonce(address account) external;
+        function chainId(uint256 newChainId) external;
+        function label(address account, string calldata newLabel) external;
+        function allowCheatcodes(address account) external;
+        function getCode(string calldata artifactPath) external view returns (bytes memory);
+        function getDeployedCode(string calldata artifactPath) external view returns (bytes memory);
+        function computeCreate2Address(bytes32 salt, bytes32 initCodeHash) external pure returns (address);
+        function prank(address msgSender) external;
+        function prank(address msgSender, address txOrigin) external;
+        function startPrank(address msgSender) external;
+        function startPrank(address msgSender, address txOrigin) external;
+        function stopPrank() external;
+        function broadcast() external;
+        function broadcast(address signer) external;
+        function startBroadcast() external;
+        function startBroadcast(address signer) external;
+        function stopBroadcast() external;
+    }
+}
 
 /// A broadcast captured by `vm.broadcast()` / `vm.startBroadcast()`. Serializes to the same
 /// JSON as `op-chain-ops/script.Broadcast`.
@@ -61,6 +86,9 @@ impl BroadcastKind {
 #[derive(Debug, Clone)]
 struct Prank {
     sender: Option<Address>,
+    /// tx.origin override (2-arg prank forms). Not exercised by the L2Genesis path, which only
+    /// uses 1-arg pranks; stored for completeness.
+    origin: Option<Address>,
     repeat: bool,
     broadcast: bool,
 }
@@ -91,6 +119,10 @@ pub struct CheatInspector {
     pub env_vars: std::collections::HashMap<String, String>,
     pub use_create2_deployer: bool,
     pub broadcasts: Vec<Broadcast>,
+    /// Artifacts loader, used by `vm.getCode` / `vm.getDeployedCode` to resolve bytecode by name.
+    pub artifacts: Option<Artifacts>,
+    /// `vm.label` names, kept only so labels are accepted; they don't affect the state dump.
+    pub labels: std::collections::HashMap<Address, String>,
     frames: Vec<Frame>,
 }
 
@@ -167,15 +199,70 @@ fn hex(bytes: &[u8]) -> String {
     s
 }
 
-fn addr_from_word(word: &[u8]) -> Address {
-    // 32-byte ABI word, address in the low 20 bytes.
-    Address::from_slice(&word[12..32])
+/// Decode a cheatcode's ABI arguments (selector already stripped) into its `sol!` call struct.
+fn decode<T: SolCall>(args: &[u8]) -> Result<T, String> {
+    T::abi_decode_raw(args).map_err(|e| format!("failed to decode cheatcode args: {e}"))
 }
 
 fn abi_u64(v: u64) -> Bytes {
     let mut out = [0u8; 32];
     out[24..32].copy_from_slice(&v.to_be_bytes());
     Bytes::from(out.to_vec())
+}
+
+/// ABI-encode a single `address` return: 32-byte left-padded.
+fn abi_address(a: &Address) -> Bytes {
+    let mut out = [0u8; 32];
+    out[12..32].copy_from_slice(a.as_slice());
+    Bytes::from(out.to_vec())
+}
+
+/// ABI-encode a single dynamic `bytes` return: head offset `0x20`, length, right-padded data.
+/// Matches geth `abi.Arguments.PackValues` for a lone `bytes` output.
+fn abi_bytes(data: &[u8]) -> Bytes {
+    let padded = data.len().div_ceil(32) * 32;
+    let mut out = Vec::with_capacity(32 + 32 + padded);
+    out.extend_from_slice(&U256::from(0x20).to_be_bytes::<32>());
+    out.extend_from_slice(&U256::from(data.len()).to_be_bytes::<32>());
+    out.extend_from_slice(data);
+    out.resize(32 + 32 + padded, 0);
+    Bytes::from(out)
+}
+
+/// `vm.etch`: set the account code (mirrors `state.SetCode`). Empty code clears it to
+/// `KECCAK_EMPTY`, which — combined with a later `resetNonce` — makes the account EIP-161 empty.
+fn cheat_etch(ctx: &mut ScriptContext, who: Address, code: Bytes) {
+    let bytecode = Bytecode::new_raw(code);
+    if let Ok(mut acc) = ctx.journal_mut().load_account_mut(who) {
+        acc.data.set_code_and_hash_slow(bytecode);
+        acc.data.touch();
+    }
+}
+
+/// `vm.deal`: set an account's balance (mirrors `state.SetBalance`).
+fn cheat_deal(ctx: &mut ScriptContext, who: Address, balance: U256) {
+    if let Ok(mut acc) = ctx.journal_mut().load_account_mut(who) {
+        acc.data.set_balance(balance);
+        acc.data.touch();
+    }
+}
+
+/// `vm.setNonce`: set an account's nonce (mirrors `state.SetNonce`).
+fn cheat_set_nonce(ctx: &mut ScriptContext, who: Address, nonce: u64) {
+    if let Ok(mut acc) = ctx.journal_mut().load_account_mut(who) {
+        acc.data.set_nonce(nonce);
+        acc.data.touch();
+    }
+}
+
+/// `vm.resetNonce`: 0 for an EOA (empty code), 1 for a contract. Mirrors the Go host's
+/// undocumented `resetNonce`.
+fn cheat_reset_nonce(ctx: &mut ScriptContext, who: Address) {
+    if let Ok(mut acc) = ctx.journal_mut().load_account_mut(who) {
+        let n = if *acc.data.code_hash() == KECCAK_EMPTY { 0 } else { 1 };
+        acc.data.set_nonce(n);
+        acc.data.touch();
+    }
 }
 
 impl CheatInspector {
@@ -188,42 +275,164 @@ impl CheatInspector {
         }
         let sel: [u8; 4] = data[0..4].try_into().unwrap();
         let args = &data[4..];
-        match sel {
-            SEL_GET_NONCE if args.len() >= 32 => {
-                let addr = addr_from_word(&args[0..32]);
-                Ok(abi_u64(read_nonce(ctx, addr)))
-            }
-            SEL_BROADCAST0 => {
-                self.set_prank(None, false, true);
-                Ok(Bytes::new())
-            }
-            SEL_BROADCAST1 if args.len() >= 32 => {
-                let who = addr_from_word(&args[0..32]);
-                self.set_prank(Some(who), false, true);
-                Ok(Bytes::new())
-            }
-            SEL_START_BROADCAST0 => {
-                self.set_prank(None, true, true);
-                Ok(Bytes::new())
-            }
-            SEL_START_BROADCAST1 if args.len() >= 32 => {
-                let who = addr_from_word(&args[0..32]);
-                self.set_prank(Some(who), true, true);
-                Ok(Bytes::new())
-            }
-            SEL_STOP_BROADCAST => {
-                if let Some(f) = self.frames.last_mut() {
-                    f.prank = None;
-                }
-                Ok(Bytes::new())
-            }
-            _ => Err(format!("unrecognized 4 byte signature: {}", hex(&sel))),
+
+        // --- state readers / writers ---
+        if sel == Vm::getNonceCall::SELECTOR {
+            let c = decode::<Vm::getNonceCall>(args)?;
+            return Ok(abi_u64(read_nonce(ctx, c.account)));
+        }
+        if sel == Vm::etchCall::SELECTOR {
+            let c = decode::<Vm::etchCall>(args)?;
+            cheat_etch(ctx, c.who, c.code);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::storeCall::SELECTOR {
+            let c = decode::<Vm::storeCall>(args)?;
+            let slot = U256::from_be_bytes(c.slot.0);
+            let value = U256::from_be_bytes(c.value.0);
+            let _ = ctx.journal_mut().sstore(c.account, slot, value);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::loadCall::SELECTOR {
+            let c = decode::<Vm::loadCall>(args)?;
+            let slot = U256::from_be_bytes(c.slot.0);
+            let val = ctx
+                .journal_mut()
+                .sload(c.account, slot)
+                .map(|s| s.data)
+                .unwrap_or_default();
+            return Ok(Bytes::from(val.to_be_bytes::<32>().to_vec()));
+        }
+        if sel == Vm::dealCall::SELECTOR {
+            let c = decode::<Vm::dealCall>(args)?;
+            cheat_deal(ctx, c.who, c.newBalance);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::setNonceCall::SELECTOR {
+            let c = decode::<Vm::setNonceCall>(args)?;
+            cheat_set_nonce(ctx, c.account, c.newNonce);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::resetNonceCall::SELECTOR {
+            let c = decode::<Vm::resetNonceCall>(args)?;
+            cheat_reset_nonce(ctx, c.account);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::chainIdCall::SELECTOR {
+            let c = decode::<Vm::chainIdCall>(args)?;
+            ctx.cfg.chain_id = c.newChainId.saturating_to::<u64>();
+            return Ok(Bytes::new());
+        }
+
+        // --- artifact / address utilities ---
+        if sel == Vm::getCodeCall::SELECTOR {
+            let c = decode::<Vm::getCodeCall>(args)?;
+            let art = self.read_artifact(&c.artifactPath)?;
+            return Ok(abi_bytes(&art.bytecode));
+        }
+        if sel == Vm::getDeployedCodeCall::SELECTOR {
+            let c = decode::<Vm::getDeployedCodeCall>(args)?;
+            let art = self.read_artifact(&c.artifactPath)?;
+            return Ok(abi_bytes(&art.deployed_bytecode));
+        }
+        if sel == Vm::computeCreate2AddressCall::SELECTOR {
+            let c = decode::<Vm::computeCreate2AddressCall>(args)?;
+            let addr = crate::allocs::create2_address_from_hash(
+                &CREATE2_DEPLOYER,
+                &c.salt,
+                &c.initCodeHash,
+            );
+            return Ok(abi_address(&addr));
+        }
+
+        // --- label / access control (no state-dump effect; accept and continue) ---
+        if sel == Vm::labelCall::SELECTOR {
+            let c = decode::<Vm::labelCall>(args)?;
+            self.labels.insert(c.account, c.newLabel);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::allowCheatcodesCall::SELECTOR {
+            let c = decode::<Vm::allowCheatcodesCall>(args)?;
+            self.allowed.insert(c.account);
+            return Ok(Bytes::new());
+        }
+
+        // --- prank family (non-broadcast caller override) ---
+        if sel == Vm::prank_0Call::SELECTOR {
+            let c = decode::<Vm::prank_0Call>(args)?;
+            self.set_prank(Some(c.msgSender), None, false, false);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::prank_1Call::SELECTOR {
+            let c = decode::<Vm::prank_1Call>(args)?;
+            self.set_prank(Some(c.msgSender), Some(c.txOrigin), false, false);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::startPrank_0Call::SELECTOR {
+            let c = decode::<Vm::startPrank_0Call>(args)?;
+            self.set_prank(Some(c.msgSender), None, true, false);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::startPrank_1Call::SELECTOR {
+            let c = decode::<Vm::startPrank_1Call>(args)?;
+            self.set_prank(Some(c.msgSender), Some(c.txOrigin), true, false);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::stopPrankCall::SELECTOR {
+            self.stop_prank(false);
+            return Ok(Bytes::new());
+        }
+
+        // --- broadcast family ---
+        if sel == Vm::broadcast_0Call::SELECTOR {
+            self.set_prank(None, None, false, true);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::broadcast_1Call::SELECTOR {
+            let c = decode::<Vm::broadcast_1Call>(args)?;
+            self.set_prank(Some(c.signer), None, false, true);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::startBroadcast_0Call::SELECTOR {
+            self.set_prank(None, None, true, true);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::startBroadcast_1Call::SELECTOR {
+            let c = decode::<Vm::startBroadcast_1Call>(args)?;
+            self.set_prank(Some(c.signer), None, true, true);
+            return Ok(Bytes::new());
+        }
+        if sel == Vm::stopBroadcastCall::SELECTOR {
+            self.stop_prank(true);
+            return Ok(Bytes::new());
+        }
+
+        Err(format!("unrecognized 4 byte signature: {}", hex(&sel)))
+    }
+
+    fn read_artifact(&self, spec: &str) -> Result<crate::artifacts::Artifact, String> {
+        self.artifacts
+            .as_ref()
+            .ok_or_else(|| "no artifacts dir configured".to_string())?
+            .read_spec(spec)
+            .map_err(|e| e.to_string())
+    }
+
+    fn set_prank(
+        &mut self,
+        sender: Option<Address>,
+        origin: Option<Address>,
+        repeat: bool,
+        broadcast: bool,
+    ) {
+        if let Some(f) = self.frames.last_mut() {
+            f.prank = Some(Prank { sender, origin, repeat, broadcast });
         }
     }
 
-    fn set_prank(&mut self, sender: Option<Address>, repeat: bool, broadcast: bool) {
+    fn stop_prank(&mut self, _broadcast: bool) {
         if let Some(f) = self.frames.last_mut() {
-            f.prank = Some(Prank { sender, repeat, broadcast });
+            f.prank = None;
         }
     }
 }

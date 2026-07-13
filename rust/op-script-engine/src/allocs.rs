@@ -79,7 +79,12 @@ pub fn create_address(sender: &Address, nonce: u64) -> Address {
 /// CREATE2 address = keccak256(0xff ++ deployer ++ salt ++ keccak256(init_code))[12..],
 /// mirroring `crypto.CreateAddress2`.
 pub fn create2_address(deployer: &Address, salt: &B256, init_code: &[u8]) -> Address {
-    let init_hash = keccak256(init_code);
+    create2_address_from_hash(deployer, salt, &keccak256(init_code))
+}
+
+/// CREATE2 address from a pre-computed init-code hash = keccak256(0xff ++ deployer ++ salt ++
+/// init_hash)[12..]. Mirrors `crypto.CreateAddress2` and the `vm.computeCreate2Address` cheatcode.
+pub fn create2_address_from_hash(deployer: &Address, salt: &B256, init_hash: &B256) -> Address {
     let mut buf = Vec::with_capacity(1 + 20 + 32 + 32);
     buf.push(0xff);
     buf.extend_from_slice(deployer.as_slice());

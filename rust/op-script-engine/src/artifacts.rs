@@ -44,22 +44,22 @@ impl Artifacts {
         self.read_path(&path)
     }
 
-    /// Reads an artifact from a `file:contract` or `file` spec, mirroring the forge
-    /// `getDeployedCode("ScriptExample.s.sol:NonceGetter")` convention.
-    pub fn read_spec(&self, spec: &str) -> Result<Artifact, ArtifactError> {
-        let (file, contract) = match spec.split_once(':') {
+    /// Resolves a `vm.getCode` / `vm.getDeployedCode` artifact-path argument to an artifact,
+    /// byte-for-byte matching the Go host's `CheatCodesPrecompile.getArtifact`
+    /// (`op-chain-ops/script/cheatcodes_external.go`):
+    ///   - a `*.json` path resolves via the `forge-artifacts/`/`out/`-stripped dir + file stem;
+    ///   - otherwise `"Foo"` -> file `Foo.sol` / contract `Foo`, and `"Foo.sol:Bar"` ->
+    ///     file `Foo.sol` / contract `Bar`.
+    pub fn read_spec(&self, input: &str) -> Result<Artifact, ArtifactError> {
+        if let Some((name, contract)) = parse_artifact_path_input(input) {
+            return self.read(&name, &contract);
+        }
+        // fetching by relative file path, or using a contract version, is not supported
+        let (name, contract) = match input.split_once(':') {
             Some((f, c)) => (f.to_string(), c.to_string()),
-            None => {
-                // "Foo.sol" -> contract "Foo"
-                let stem = Path::new(spec)
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .and_then(|s| s.split('.').next())
-                    .ok_or_else(|| ArtifactError::BadSpec(spec.to_string()))?;
-                (spec.to_string(), stem.to_string())
-            }
+            None => (format!("{input}.sol"), input.to_string()),
         };
-        self.read(&file, &contract)
+        self.read(&name, &contract)
     }
 
     fn read_path(&self, path: &Path) -> Result<Artifact, ArtifactError> {
@@ -77,6 +77,44 @@ impl Artifacts {
         })?;
         Ok(Artifact { bytecode, deployed_bytecode: deployed })
     }
+}
+
+/// Mirrors the Go host's `parseArtifactPathInput`: resolves a `*.json` forge-artifact path into
+/// its `(dir, contract)` pair, stripping a leading `forge-artifacts/` or `out/`. Returns `None`
+/// for non-`.json` inputs (handled by the `file`/`file:contract` fallback).
+fn parse_artifact_path_input(input: &str) -> Option<(String, String)> {
+    let clean = clean_path(input.trim());
+    let clean = clean.strip_prefix("./").unwrap_or(&clean);
+    if !clean.ends_with(".json") {
+        return None;
+    }
+    let clean = clean
+        .strip_prefix("forge-artifacts/")
+        .or_else(|| clean.strip_prefix("out/"))
+        .unwrap_or(clean);
+    let (dir, file) = match clean.rsplit_once('/') {
+        Some((d, f)) => (d, f),
+        None => ("", clean),
+    };
+    let contract = file.strip_suffix(".json").unwrap_or(file);
+    if dir.is_empty() || contract.is_empty() {
+        return None;
+    }
+    Some((dir.to_string(), contract.to_string()))
+}
+
+/// A minimal `path.Clean` sufficient for artifact-path inputs: collapses `//` and drops `.`
+/// segments. Full lexical normalization is unnecessary for the forge-artifact paths we see.
+fn clean_path(p: &str) -> String {
+    let mut out: Vec<&str> = Vec::new();
+    for seg in p.split('/') {
+        if seg.is_empty() || seg == "." {
+            continue;
+        }
+        out.push(seg);
+    }
+    let joined = out.join("/");
+    if p.starts_with('/') { format!("/{joined}") } else { joined }
 }
 
 fn extract_object(v: &serde_json::Value, key: &str) -> Option<Bytes> {

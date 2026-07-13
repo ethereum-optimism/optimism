@@ -112,13 +112,17 @@ impl ScriptHost {
             ..Default::default()
         };
 
+        let artifacts = config.artifacts_dir.clone().map(Artifacts::new);
+
         let mut inspector = CheatInspector::default();
         inspector.use_create2_deployer = config.use_create2_deployer;
+        // The inspector resolves `vm.getCode` / `vm.getDeployedCode` by name from the same FS.
+        inspector.artifacts = artifacts.clone();
 
         let ctx = Context::mainnet().with_db(cache).with_cfg(cfg).with_block(block);
         let evm = ctx.build_mainnet_with_inspector(inspector);
 
-        Self { evm, artifacts: config.artifacts_dir.map(Artifacts::new), chain_id: config.chain_id }
+        Self { evm, artifacts, chain_id: config.chain_id }
     }
 
     fn db(&self) -> &Db {
@@ -231,6 +235,60 @@ impl ScriptHost {
 
     pub fn take_broadcasts(&mut self) -> Vec<Broadcast> {
         std::mem::take(&mut self.evm.inspector.broadcasts)
+    }
+
+    /// Wipe an account: clear code and zero the nonce/balance, making it EIP-161 empty (so it is
+    /// dropped from the dump). Storage is retained, mirroring `script.Host.Wipe`. Operates on the
+    /// committed DB state, so it is called between execution and `state_dump`.
+    pub fn wipe(&mut self, addr: Address) {
+        if let Some(acc) = self.db_mut().cache.accounts.get_mut(&addr) {
+            acc.info.code = Some(Bytecode::default());
+            acc.info.code_hash = KECCAK_EMPTY;
+            acc.info.nonce = 0;
+            acc.info.balance = U256::ZERO;
+        }
+    }
+
+    /// Deploy a forge script from the script-deployer, run its `run(input)` entrypoint from
+    /// `deployer` (tx.origin), then wipe the script account. Mirrors `forgeScriptImpl.Call` +
+    /// `forgeScriptBackendImpl.{Deploy,Call,Destroy}` (`op-chain-ops/script/deploy.go`): the script
+    /// is deployed with the code-size checks disabled and granted cheatcode access.
+    pub fn run_script(
+        &mut self,
+        file: &str,
+        contract: &str,
+        calldata: Bytes,
+        deployer: Address,
+    ) -> Result<Bytes, HostError> {
+        let bytecode = self
+            .artifacts
+            .as_ref()
+            .ok_or_else(|| HostError::Evm("no artifacts dir configured".into()))?
+            .read(file, contract)?
+            .bytecode;
+
+        let deploy_nonce = self.get_nonce(SCRIPT_DEPLOYER);
+        let expected = allocs::create_address(&SCRIPT_DEPLOYER, deploy_nonce);
+        self.allow_cheatcodes(expected);
+        self.evm.inspector.labels.insert(expected, contract.to_string());
+
+        // Scripts exceed the EIP-170/EIP-3860 limits; deploy with the size checks lifted, exactly
+        // as forge's Deploy does via EnforceMaxCodeSize(false). Restored right after the CREATE so
+        // script-internal deployments are still size-checked (matching the Go host).
+        let prev_limit = self.evm.ctx.cfg.limit_contract_code_size;
+        self.evm.ctx.cfg.limit_contract_code_size = Some(usize::MAX);
+        let deployed = self.create(SCRIPT_DEPLOYER, bytecode);
+        self.evm.ctx.cfg.limit_contract_code_size = prev_limit;
+        let deployed = deployed?;
+        if deployed != expected {
+            return Err(HostError::Evm(format!(
+                "script deployed to {deployed:?}, expected {expected:?}"
+            )));
+        }
+
+        let out = self.call(deployer, deployed, calldata)?;
+        self.wipe(deployed);
+        Ok(out)
     }
 
     /// Dumps state into forge-allocs form, applying the same pruning as

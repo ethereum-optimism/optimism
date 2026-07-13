@@ -99,6 +99,27 @@ pub fn build_module(engine: Engine) -> RpcModule<Engine> {
     })
     .unwrap();
 
+    m.register_method("script_runScript", |params, ctx, _| {
+        let (file, contract, calldata, deployer): (String, String, String, String) =
+            params.parse().map_err(err)?;
+        ctx.run(move |h| {
+            let out = h
+                .run_script(&file, &contract, bytes(&calldata)?, addr(&deployer)?)
+                .map_err(|e| e.to_string())?;
+            Ok(hexstr(&out))
+        })
+    })
+    .unwrap();
+
+    m.register_method("script_wipe", |params, ctx, _| {
+        let a: String = params.one().map_err(err)?;
+        ctx.run(move |h| {
+            h.wipe(addr(&a)?);
+            Ok(serde_json::Value::Bool(true))
+        })
+    })
+    .unwrap();
+
     m.register_method("script_allowCheatcodes", |params, ctx, _| {
         let a: String = params.one().map_err(err)?;
         ctx.run(move |h| {
