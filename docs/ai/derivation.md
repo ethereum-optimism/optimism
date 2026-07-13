@@ -47,7 +47,8 @@ Other recurring concerns:
 
 ## Rollup config
 
-Both clients derive against a `rollup.Config` (Go) / `RollupConfig` (Rust) loaded from the
+Both clients' derivation rules are configured by consensus parameters in `rollup.Config` (Go) /
+`RollupConfig` (Rust), which can be loaded from the
 [superchain-registry](https://github.com/ethereum-optimism/superchain-registry). Adding a
 field that comes from the registry means wiring it through **every** ingestion enumeration on
 **both** clients — not just the config struct and the op-deployer/deploy-config
@@ -55,18 +56,19 @@ field that comes from the registry means wiring it through **every** ingestion e
 
 - **op-node (Go)**: the TOML-decoded `superchain.HardforkConfig` (`op-core/superchain`) **and**
   the `superchain.ChainConfig` → `rollup.Config` conversion in `op-node/rollup/superchain.go`
-  (`applyHardforks` / `rollupConfigFromRegistry`). Miss either and a chain loaded via
-  `--network` silently omits the field.
+  (`applyHardforks` / `rollupConfigFromRegistry`).
 - **kona (Rust)**: `HardForkConfig` / `ChainConfig::as_rollup_config`
   (`rust/kona/crates/protocol/genesis`).
 
-The failure mode is silent: the TOML/serde decoders **drop keys that no struct field models**, so
-a registry field left unwired is read and thrown away with no error. Two guards catch it:
+Both steps used to drop an unwired field silently — the TOML/serde decoders ignored keys that no
+struct field modeled, and the conversion left the `rollup.Config` field at its zero value — so a
+chain loaded via `--network` derived against a config quietly missing the field. Two guards now
+make that loud:
 
-- **Strict decoding** rejects unknown keys — `jsonutil.DecodeTOMLStrict` (Go, used by
-  `op-core/superchain`) and `#[serde(deny_unknown_fields)]` (kona's `ChainConfig` /
-  `HardForkConfig`). A registry bump that adds an unmodeled field then fails to load instead of
-  dropping it.
+- **Strict decoding** rejects registry keys that no struct field models —
+  `jsonutil.DecodeTOMLStrict` (Go, used by `op-core/superchain`) and
+  `#[serde(deny_unknown_fields)]` (kona's `ChainConfig` / `HardForkConfig`). A registry bump that
+  adds an unmodeled field fails to load until the struct consumes it.
 - **A reflection completeness test** (`TestRollupConfigFromRegistry_AllFieldsSet`) asserts every
   `rollup.Config` field is populated from a fully-populated `ChainConfig`, catching a field that
   is modeled but never copied in the conversion.
