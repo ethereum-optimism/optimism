@@ -26,6 +26,7 @@ use crate::addresses::{
 use crate::allocs::{self, AllocAccount, ForgeAllocs};
 use crate::artifacts::{ArtifactError, Artifacts};
 use crate::cheatcodes::{Broadcast, CheatInspector};
+use crate::precompiles::{HostPrecompile, OutputCapture};
 
 /// forge's `DefaultFoundryGasLimit` (int64.max).
 pub const FOUNDRY_GAS_LIMIT: u64 = 9_223_372_036_854_775_807;
@@ -249,6 +250,82 @@ impl ScriptHost {
         }
     }
 
+    /// Mint a fresh CREATE address off the script-deployer and bump its nonce, mirroring
+    /// `script.Host.NewScriptAddress`. Used to place OPCM input/output precompiles so that
+    /// (a) they never collide with the subsequent script deploy and (b) they fall inside the
+    /// script-deployer nonce range that `state_dump` prunes.
+    pub fn new_script_address(&mut self) -> Address {
+        let nonce = self.get_nonce(SCRIPT_DEPLOYER);
+        let addr = allocs::create_address(&SCRIPT_DEPLOYER, nonce);
+        // Bump the script-deployer nonce via `insert_account_info` (not a raw field write): a bare
+        // `cache.accounts.entry(..).or_default()` leaves `account_state = NotExisting`, so the
+        // account stays invisible to the EVM and the next cold load panics (`ColdLoadSkipped`).
+        // `insert_account_info` promotes `NotExisting -> None`, making the bumped nonce visible.
+        let mut info =
+            self.db().cache.accounts.get(&SCRIPT_DEPLOYER).map(|a| a.info.clone()).unwrap_or_default();
+        info.nonce = nonce + 1;
+        self.db_mut().insert_account_info(SCRIPT_DEPLOYER, info);
+        addr
+    }
+
+    /// Insert the 1-byte placeholder code the Go host writes at every precompile-override address
+    /// (`script.Host.SetPrecompile`), so Solidity's `EXTCODESIZE > 0` guard before an external call
+    /// to the precompile passes. Uses `insert_account_info` so the account is EVM-visible (a raw
+    /// `.or_default()` write would leave it `NotExisting` and the code invisible).
+    fn insert_placeholder_code(&mut self, addr: Address) {
+        let placeholder = Bytecode::new_raw(Bytes::from(vec![0u8]));
+        let info = AccountInfo {
+            balance: U256::ZERO,
+            nonce: 0,
+            code_hash: placeholder.hash_slow(),
+            account_id: None,
+            code: Some(placeholder),
+        };
+        self.db_mut().insert_account_info(addr, info);
+    }
+
+    /// Install an input getter-snapshot precompile (OPCM `RunScript*` input `I`) at a freshly
+    /// minted script address and return that address, to be passed as an ABI arg to `run(...)`.
+    pub fn install_input_precompile(
+        &mut self,
+        snapshot: alloy_primitives::map::HashMap<[u8; 4], Bytes>,
+    ) -> Address {
+        let addr = self.new_script_address();
+        self.evm.inspector.precompiles.insert(addr, HostPrecompile::InputSnapshot(snapshot));
+        self.insert_placeholder_code(addr);
+        addr
+    }
+
+    /// Install an output setter-capture precompile (OPCM `RunScriptSingle` output `O`) at a freshly
+    /// minted script address and return that address. `getters` are `O`'s valid field-getter
+    /// selectors (a call to any other selector reverts, matching the Go host).
+    pub fn install_output_precompile(
+        &mut self,
+        getters: alloy_primitives::map::HashSet<[u8; 4]>,
+    ) -> Address {
+        let addr = self.new_script_address();
+        self.evm
+            .inspector
+            .precompiles
+            .insert(addr, HostPrecompile::OutputCapture(OutputCapture::new(getters)));
+        self.insert_placeholder_code(addr);
+        addr
+    }
+
+    /// Drain the captured `set(...)` calldata from an output precompile, in call order, for the Go
+    /// side to replay through `WithFieldSetter`.
+    pub fn take_captured_sets(&mut self, addr: Address) -> Vec<Bytes> {
+        match self.evm.inspector.precompiles.get_mut(&addr) {
+            Some(HostPrecompile::OutputCapture(out)) => std::mem::take(&mut out.captured),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Remove an installed precompile override (cleanup after a `RunScript*` invocation).
+    pub fn remove_precompile(&mut self, addr: Address) {
+        self.evm.inspector.precompiles.remove(&addr);
+    }
+
     /// Deploy a forge script from the script-deployer, run its `run(input)` entrypoint from
     /// `deployer` (tx.origin), then wipe the script account. Mirrors `forgeScriptImpl.Call` +
     /// `forgeScriptBackendImpl.{Deploy,Call,Destroy}` (`op-chain-ops/script/deploy.go`): the script
@@ -342,6 +419,11 @@ impl ScriptHost {
         }
         for a in [SCRIPT_DEPLOYER, FORGE_DEPLOYER, VM_ADDR, CONSOLE_ADDR] {
             allocs.remove(&allocs::fmt_addr(&a));
+        }
+        // OPCM input/output precompile addresses (script.go prunes `h.precompiles`). These are
+        // already in the pruned script-deployer nonce range, but prune explicitly for robustness.
+        for a in self.evm.inspector.precompiles.keys() {
+            allocs.remove(&allocs::fmt_addr(a));
         }
 
         allocs

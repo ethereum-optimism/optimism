@@ -10,6 +10,7 @@ pub mod allocs;
 pub mod artifacts;
 pub mod cheatcodes;
 pub mod host;
+pub mod precompiles;
 pub mod rpc;
 
 pub use allocs::ForgeAllocs;

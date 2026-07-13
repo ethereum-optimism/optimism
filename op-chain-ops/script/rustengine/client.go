@@ -130,6 +130,51 @@ func (e *Engine) GetNonce(addr common.Address) (uint64, error) {
 	return out, err
 }
 
+// InstallInputPrecompile installs a getter-snapshot precompile (OPCM RunScript* input) at a
+// freshly minted script address and returns that address, to be passed as an ABI arg to run().
+func (e *Engine) InstallInputPrecompile(snapshot map[[4]byte][]byte) (common.Address, error) {
+	m := make(map[string]string, len(snapshot))
+	for sel, data := range snapshot {
+		m[hexutil.Encode(sel[:])] = hexutil.Encode(data)
+	}
+	var out common.Address
+	err := e.cl.Call(&out, "script_installInputPrecompile", m)
+	return out, err
+}
+
+// InstallOutputPrecompile installs a setter-capture precompile (OPCM RunScriptSingle output) at a
+// freshly minted script address and returns that address. getters are the output struct's valid
+// field-getter selectors.
+func (e *Engine) InstallOutputPrecompile(getters [][4]byte) (common.Address, error) {
+	sels := make([]string, len(getters))
+	for i, g := range getters {
+		sels[i] = hexutil.Encode(g[:])
+	}
+	var out common.Address
+	err := e.cl.Call(&out, "script_installOutputPrecompile", sels)
+	return out, err
+}
+
+// TakeCapturedSets drains the raw set() calldata captured by an output precompile, in call order,
+// for replay through the Go WithFieldSetter precompile.
+func (e *Engine) TakeCapturedSets(addr common.Address) ([][]byte, error) {
+	var raw []hexutil.Bytes
+	if err := e.cl.Call(&raw, "script_takeCapturedSets", addr.Hex()); err != nil {
+		return nil, err
+	}
+	out := make([][]byte, len(raw))
+	for i, b := range raw {
+		out[i] = b
+	}
+	return out, nil
+}
+
+// RemovePrecompile removes an installed input/output precompile override.
+func (e *Engine) RemovePrecompile(addr common.Address) error {
+	var ok bool
+	return e.cl.Call(&ok, "script_removePrecompile", addr.Hex())
+}
+
 func (e *Engine) StateDump() (*foundry.ForgeAllocs, error) {
 	var raw json.RawMessage
 	if err := e.cl.Call(&raw, "script_stateDump"); err != nil {

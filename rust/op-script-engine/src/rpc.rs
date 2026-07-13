@@ -65,6 +65,15 @@ fn u256(s: &str) -> Result<U256, String> {
     U256::from_str(s).map_err(|e| format!("bad u256 {s:?}: {e}"))
 }
 
+/// Parse a 4-byte function selector from hex (with or without `0x`).
+fn sel4(s: &str) -> Result<[u8; 4], String> {
+    let b = bytes(s)?;
+    if b.len() != 4 {
+        return Err(format!("selector must be 4 bytes, got {}", b.len()));
+    }
+    Ok([b[0], b[1], b[2], b[3]])
+}
+
 fn hexstr(b: &[u8]) -> serde_json::Value {
     serde_json::Value::String(format!("0x{}", alloy_primitives::hex::encode(b)))
 }
@@ -107,6 +116,53 @@ pub fn build_module(engine: Engine) -> RpcModule<Engine> {
                 .run_script(&file, &contract, bytes(&calldata)?, addr(&deployer)?)
                 .map_err(|e| e.to_string())?;
             Ok(hexstr(&out))
+        })
+    })
+    .unwrap();
+
+    // --- OPCM RunScript* path: input/output precompiles (design §4) ---
+
+    m.register_method("script_installInputPrecompile", |params, ctx, _| {
+        let snapshot: std::collections::HashMap<String, String> = params.one().map_err(err)?;
+        ctx.run(move |h| {
+            let mut map = alloy_primitives::map::HashMap::default();
+            for (sel, data) in &snapshot {
+                map.insert(sel4(sel)?, bytes(data)?);
+            }
+            let addr = h.install_input_precompile(map);
+            Ok(serde_json::Value::String(format!("0x{:x}", addr)))
+        })
+    })
+    .unwrap();
+
+    m.register_method("script_installOutputPrecompile", |params, ctx, _| {
+        let getters: Vec<String> = params.one().map_err(err)?;
+        ctx.run(move |h| {
+            let mut set = alloy_primitives::map::HashSet::default();
+            for g in &getters {
+                set.insert(sel4(g)?);
+            }
+            let addr = h.install_output_precompile(set);
+            Ok(serde_json::Value::String(format!("0x{:x}", addr)))
+        })
+    })
+    .unwrap();
+
+    m.register_method("script_takeCapturedSets", |params, ctx, _| {
+        let a: String = params.one().map_err(err)?;
+        ctx.run(move |h| {
+            let sets = h.take_captured_sets(addr(&a)?);
+            let out: Vec<serde_json::Value> = sets.iter().map(|b| hexstr(b)).collect();
+            Ok(serde_json::Value::Array(out))
+        })
+    })
+    .unwrap();
+
+    m.register_method("script_removePrecompile", |params, ctx, _| {
+        let a: String = params.one().map_err(err)?;
+        ctx.run(move |h| {
+            h.remove_precompile(addr(&a)?);
+            Ok(serde_json::Value::Bool(true))
         })
     })
     .unwrap();

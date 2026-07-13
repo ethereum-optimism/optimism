@@ -19,6 +19,7 @@ use serde::Serialize;
 use crate::ScriptContext;
 use crate::addresses::{CONSOLE_ADDR, CREATE2_DEPLOYER, VM_ADDR};
 use crate::artifacts::Artifacts;
+use crate::precompiles::{HostPrecompile, PrecompileOutcome};
 
 sol! {
     #[allow(missing_docs, clippy::too_many_arguments)]
@@ -124,6 +125,9 @@ pub struct CheatInspector {
     pub artifacts: Option<Artifacts>,
     /// `vm.label` names, kept only so labels are accepted; they don't affect the state dump.
     pub labels: std::collections::HashMap<Address, String>,
+    /// OPCM input/output precompiles installed at arbitrary addresses (`RunScript*` path). The
+    /// revm-inspector replacement for op-geth's per-address `PrecompileOverrides`.
+    pub precompiles: alloy_primitives::map::HashMap<Address, HostPrecompile>,
     frames: Vec<Frame>,
 }
 
@@ -192,7 +196,7 @@ fn encode_error_string(msg: &str) -> Bytes {
 }
 
 /// Lowercase, unprefixed hex, matching Go's `%x` used in the host's revert messages.
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
     for b in bytes {
         s.push_str(&format!("{b:02x}"));
@@ -302,12 +306,16 @@ impl CheatInspector {
             let c = decode::<Vm::storeCall>(args)?;
             let slot = U256::from_be_bytes(c.slot.0);
             let value = U256::from_be_bytes(c.value.0);
+            // `sstore` assumes the account is already loaded (warm); warm it first so a `vm.store`
+            // to an untouched account (e.g. the first write in a script) does not cold-load-panic.
+            let _ = ctx.journal_mut().load_account(c.account);
             let _ = ctx.journal_mut().sstore(c.account, slot, value);
             return Ok(Bytes::new());
         }
         if sel == Vm::loadCall::SELECTOR {
             let c = decode::<Vm::loadCall>(args)?;
             let slot = U256::from_be_bytes(c.slot.0);
+            let _ = ctx.journal_mut().load_account(c.account);
             let val = ctx
                 .journal_mut()
                 .sload(c.account, slot)
@@ -468,6 +476,19 @@ impl Inspector<ScriptContext> for CheatInspector {
             let outcome = match self.dispatch_cheatcode(ctx, &data) {
                 Ok(out) => cheat_outcome(out, inputs.gas_limit, memory_offset),
                 Err(reason) => cheat_revert(reason, inputs.gas_limit, memory_offset),
+            };
+            return Some(outcome);
+        }
+
+        // OPCM input/output precompile (RunScript* path). 0 gas, like the Go precompile.
+        if let Some(pc) = self.precompiles.get_mut(&target) {
+            let data = inputs.input.bytes(ctx);
+            let memory_offset = inputs.return_memory_offset.clone();
+            let outcome = match pc.run(&data) {
+                PrecompileOutcome::Return(out) => cheat_outcome(out, inputs.gas_limit, memory_offset),
+                PrecompileOutcome::Revert(reason) => {
+                    cheat_revert(reason, inputs.gas_limit, memory_offset)
+                }
             };
             return Some(outcome);
         }
