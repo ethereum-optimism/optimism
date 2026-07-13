@@ -203,19 +203,13 @@ RUN <<-EOF
     tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge
     rm "${DOWNLOAD_PATH}"
 EOF
-# Pre-install the solc versions the contracts build needs. Without this,
-# forge's parallel compile jobs lazily install missing solc versions
-# concurrently into the cold /root/.svm cache, which intermittently fails with
-# "Text file busy" (foundry-rs/foundry#4736). `forge build --use <version>`
-# pins a single solc version, so forge installs exactly that version and the
-# installs happen serially; run against an empty temp project so nothing is
-# actually compiled. The version list matches the `install-solc-compilers`
-# command in .circleci/continue/main.yml.
+# Pre-install solc versions serially (matching .circleci install-solc-compilers) so
+# forge's parallel jobs never race installing them (foundry-rs/foundry#4736).
+# `forge build --use <version>` in an empty dir installs one version, compiles nothing.
 RUN <<-EOF
     set -e
     cd "$(mktemp -d)"
-    # forge does not retry the solc download; retry so a transient
-    # binaries.soliditylang.org drop doesn't flake the build.
+    # Retry: forge doesn't retry the solc download itself.
     for version in 0.8.15 0.8.19 0.8.25 0.8.28; do
       n=0
       until forge build --use "${version}"; do
