@@ -1,10 +1,11 @@
 use crate::{InvalidCrossTx, OpPooledTx, interop_filter::InteropFilterClient};
 use alloy_consensus::{BlockHeader, Transaction};
+use alloy_primitives::U256;
 use op_revm::L1BlockInfo;
 use parking_lot::RwLock;
 use reth_chainspec::ChainSpecProvider;
 use reth_evm::ConfigureEvm;
-use reth_optimism_evm::RethL1BlockInfo;
+use reth_optimism_evm::{RethL1BlockInfo, revm_spec_by_timestamp_after_bedrock};
 use reth_optimism_forks::OpHardforks;
 use reth_primitives_traits::{
     Block, BlockBody, BlockTy, GotExpected, SealedBlock,
@@ -237,7 +238,7 @@ where
 
             let encoded = valid_tx.transaction().encoded_2718();
 
-            let cost_addition = match l1_block_info.l1_tx_data_fee(
+            let mut cost_addition = match l1_block_info.l1_tx_data_fee(
                 self.chain_spec(),
                 self.block_timestamp(),
                 &encoded,
@@ -248,6 +249,26 @@ where
                     return TransactionValidationOutcome::Error(*valid_tx.hash(), Box::new(err));
                 }
             };
+
+            // Post-Isthmus, execution charges the operator fee up front based on the tx gas
+            // limit (see `L1BlockInfo::tx_cost`), so pool admission must reserve it as well or
+            // under-funded transactions are admitted and later fail in the block. The operator
+            // fee params are only populated once a post-Isthmus L1-info block has been tracked;
+            // until then (`operator_fee_charge` panics on unset params) no fee is reserved.
+            if self.chain_spec().is_isthmus_active_at_timestamp(self.block_timestamp()) &&
+                l1_block_info.operator_fee_scalar.is_some() &&
+                l1_block_info.operator_fee_constant.is_some()
+            {
+                let spec =
+                    revm_spec_by_timestamp_after_bedrock(self.chain_spec(), self.block_timestamp());
+                let operator_fee = l1_block_info.operator_fee_charge(
+                    &encoded,
+                    U256::from(valid_tx.transaction().gas_limit()),
+                    spec,
+                );
+                cost_addition = cost_addition.saturating_add(operator_fee);
+            }
+
             let cost = valid_tx.transaction().cost().saturating_add(cost_addition);
 
             // Checks for max cost
@@ -328,5 +349,166 @@ impl OpForkTracker {
     /// Returns `true` if Lagoon fork is activated.
     pub(crate) fn is_interop_activated(&self) -> bool {
         self.interop.load(Ordering::Relaxed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::OpPooledTransaction;
+    use alloy_consensus::{SignableTransaction, TxEip1559, transaction::Recovered};
+    use alloy_eips::eip2718::Encodable2718;
+    use alloy_primitives::{Address, Signature, TxKind, U256};
+    use reth_optimism_chainspec::OP_MAINNET;
+    use reth_optimism_evm::OpEvmConfig;
+    use reth_optimism_forks::OpHardfork;
+    use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
+    use reth_provider::test_utils::{ExtendedAccount, MockEthProvider};
+    use reth_transaction_pool::{
+        TransactionOrigin, TransactionValidationOutcome, blobstore::InMemoryBlobStore,
+        validate::EthTransactionValidatorBuilder,
+    };
+
+    const GAS_LIMIT: u64 = 100_000;
+    const MAX_FEE_PER_GAS: u128 = 1_000_000_000;
+    const OPERATOR_FEE_SCALAR: u64 = 1_000_000;
+    const OPERATOR_FEE_CONSTANT: u64 = 500;
+
+    /// Builds a validator tracking a post-Isthmus timestamp, an account for `signer` with
+    /// `balance`, and (optionally) operator fee params, mirroring the state after a
+    /// post-Isthmus L1-info block has been processed.
+    fn isthmus_validator(
+        signer: Address,
+        balance: U256,
+        operator_fee_params_set: bool,
+    ) -> OpTransactionValidator<
+        MockEthProvider<OpPrimitives, Arc<reth_optimism_chainspec::OpChainSpec>>,
+        OpPooledTransaction,
+        OpEvmConfig,
+    > {
+        let client = MockEthProvider::<OpPrimitives>::new()
+            .with_chain_spec(OP_MAINNET.clone())
+            .with_genesis_block();
+        client.add_account(signer, ExtendedAccount::new(0, balance));
+        let evm_config = OpEvmConfig::optimism(OP_MAINNET.clone());
+        let validator = EthTransactionValidatorBuilder::new(client, evm_config)
+            .no_shanghai()
+            .no_cancun()
+            .build(InMemoryBlobStore::default());
+        let validator = OpTransactionValidator::new(validator);
+
+        let isthmus_ts = OP_MAINNET
+            .op_fork_activation(OpHardfork::Isthmus)
+            .as_timestamp()
+            .expect("OP mainnet activates Isthmus by timestamp");
+        validator.block_info.timestamp.store(isthmus_ts, Ordering::Relaxed);
+        if operator_fee_params_set {
+            let mut info = validator.block_info.l1_block_info.write();
+            info.operator_fee_scalar = Some(U256::from(OPERATOR_FEE_SCALAR));
+            info.operator_fee_constant = Some(U256::from(OPERATOR_FEE_CONSTANT));
+        }
+        validator
+    }
+
+    /// A signed EIP-1559 transaction recovered to `signer`, plus the operator fee execution
+    /// will charge for it at `timestamp` (gas-limit based, like `L1BlockInfo::tx_cost`).
+    fn pooled_tx_and_operator_fee(
+        signer: Address,
+        timestamp: u64,
+        operator_fee_params_set: bool,
+    ) -> (OpPooledTransaction, U256) {
+        let tx = TxEip1559 {
+            chain_id: OP_MAINNET.chain().id(),
+            nonce: 0,
+            gas_limit: GAS_LIMIT,
+            max_fee_per_gas: MAX_FEE_PER_GAS,
+            max_priority_fee_per_gas: 0,
+            to: TxKind::Call(Address::ZERO),
+            ..Default::default()
+        };
+        let signed: OpTransactionSigned = tx.into_signed(Signature::test_signature()).into();
+        let recovered = Recovered::new_unchecked(signed, signer);
+        let encoded = recovered.encoded_2718();
+        let len = encoded.len();
+
+        let operator_fee = if operator_fee_params_set {
+            let info = L1BlockInfo {
+                operator_fee_scalar: Some(U256::from(OPERATOR_FEE_SCALAR)),
+                operator_fee_constant: Some(U256::from(OPERATOR_FEE_CONSTANT)),
+                ..Default::default()
+            };
+            let spec = revm_spec_by_timestamp_after_bedrock(OP_MAINNET.clone(), timestamp);
+            info.operator_fee_charge(&encoded, U256::from(GAS_LIMIT), spec)
+        } else {
+            U256::ZERO
+        };
+
+        (OpPooledTransaction::new(recovered, len), operator_fee)
+    }
+
+    fn isthmus_timestamp() -> u64 {
+        OP_MAINNET
+            .op_fork_activation(OpHardfork::Isthmus)
+            .as_timestamp()
+            .expect("OP mainnet activates Isthmus by timestamp")
+    }
+
+    /// The intrinsic pool cost of the test transaction (gas * max fee + value); the L1 data
+    /// fee is zero because the tracked `L1BlockInfo` has zeroed L1 fee params.
+    fn intrinsic_cost() -> U256 {
+        U256::from(GAS_LIMIT as u128 * MAX_FEE_PER_GAS)
+    }
+
+    #[tokio::test]
+    async fn operator_fee_short_balance_is_rejected() {
+        let signer = Address::random();
+        let (_, operator_fee) = pooled_tx_and_operator_fee(signer, isthmus_timestamp(), true);
+        assert!(operator_fee > U256::ZERO, "test requires a non-zero operator fee");
+
+        // Covers gas * max fee + value + L1 data fee, but is one wei short of the operator fee.
+        let balance = intrinsic_cost() + operator_fee - U256::from(1);
+        let validator = isthmus_validator(signer, balance, true);
+        let (tx, _) = pooled_tx_and_operator_fee(signer, isthmus_timestamp(), true);
+
+        let outcome = validator.validate_one(TransactionOrigin::External, tx).await;
+        let TransactionValidationOutcome::Invalid(_, err) = outcome else {
+            panic!(
+                "expected invalid outcome for balance short of the operator fee, got {outcome:?}"
+            );
+        };
+        assert!(err.to_string().to_lowercase().contains("enough funds"), "unexpected error: {err}");
+    }
+
+    #[tokio::test]
+    async fn operator_fee_covered_balance_is_accepted() {
+        let signer = Address::random();
+        let (_, operator_fee) = pooled_tx_and_operator_fee(signer, isthmus_timestamp(), true);
+
+        let balance = intrinsic_cost() + operator_fee;
+        let validator = isthmus_validator(signer, balance, true);
+        let (tx, _) = pooled_tx_and_operator_fee(signer, isthmus_timestamp(), true);
+
+        let outcome = validator.validate_one(TransactionOrigin::External, tx).await;
+        assert!(
+            matches!(outcome, TransactionValidationOutcome::Valid { .. }),
+            "expected valid outcome, got {outcome:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_operator_fee_params_do_not_panic_or_reserve() {
+        let signer = Address::random();
+
+        // Post-Isthmus timestamp but operator fee params never tracked (e.g. validator booted
+        // before the first block): no reservation is possible, but validation must not panic.
+        let balance = intrinsic_cost();
+        let validator = isthmus_validator(signer, balance, false);
+        let (tx, _) = pooled_tx_and_operator_fee(signer, isthmus_timestamp(), false);
+
+        let outcome = validator.validate_one(TransactionOrigin::External, tx).await;
+        assert!(
+            matches!(outcome, TransactionValidationOutcome::Valid { .. }),
+            "expected valid outcome, got {outcome:?}"
+        );
     }
 }
