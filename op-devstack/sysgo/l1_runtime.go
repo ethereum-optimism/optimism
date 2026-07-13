@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -128,6 +129,15 @@ func startL1WithClockConfig(t devtest.T, l1Net *L1Network, jwtPath string, l1Clo
 		"--verbosity", "5",
 		"--miner.recommit", "2s",
 		"--gcmode", "archive",
+		// Pin the gas ceiling to the genesis gas limit so the L1 gas limit stays
+		// constant. The fake-PoS L1 builder bumps a reorg block's gas limit by
+		// +100 to force a distinct block hash (op-test-sequencer's
+		// builders/fakepos/job.go). If geth is left to drift the gas limit upward
+		// toward its default ceiling (60M), a block already stepped +delta plus
+		// that +100 exceeds the ±parentGasLimit/1024 bound and geth rejects it as
+		// a bad block, killing the L1 node. A constant ceiling keeps the +100 well
+		// within bounds (matching the in-process node's Miner.GasCeil intent).
+		"--miner.gaslimit", strconv.FormatUint(l1Net.genesis.GasLimit, 10),
 	}
 	require.NoError(sub.Start(execPath, args, nil), "must start geth subprocess")
 
