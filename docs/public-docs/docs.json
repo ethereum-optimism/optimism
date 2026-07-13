@@ -7,6 +7,10 @@
     "light": "#FF0420",
     "dark": "#FF0420"
   },
+  "thumbnails": {
+    "appearance": "dark",
+    "background": "/public/img/og-background.svg"
+  },
   "favicon": "/public/favicon.png",
   "metadata": {
     "apple-touch-icon": "/public/apple-touch-icon.png"
