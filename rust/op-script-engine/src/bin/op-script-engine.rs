@@ -24,6 +24,10 @@ struct Args {
     /// Disable the max contract code-size check.
     #[arg(long, default_value_t = false)]
     no_max_code_size: bool,
+    /// Reset the access list before each broadcast so its gasUsed reflects a standalone tx
+    /// (op-geth's WithIsolatedBroadcasts). op-deployer's broadcasting hosts enable this.
+    #[arg(long, default_value_t = false)]
+    isolated_broadcasts: bool,
     /// Block number for the EVM block environment.
     #[arg(long, default_value_t = 0)]
     block_num: u64,
@@ -58,6 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         chain_id: args.chain_id,
         no_max_code_size: args.no_max_code_size,
         use_create2_deployer: args.create2_deployer,
+        isolate_broadcasts: args.isolated_broadcasts,
         artifacts_dir: args.artifacts.map(Into::into),
         block_num: args.block_num,
         timestamp: args.timestamp,

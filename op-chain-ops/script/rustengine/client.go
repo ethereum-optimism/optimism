@@ -37,9 +37,13 @@ type SpawnOpts struct {
 	ChainID         uint64
 	Create2Deployer bool
 	NoMaxCodeSize   bool
-	BlockNum        uint64
-	Timestamp       uint64
-	PrevRandao      common.Hash
+	// IsolatedBroadcasts mirrors script.WithIsolatedBroadcasts: reset the access list before each
+	// broadcast so its recorded gasUsed reflects a standalone tx. op-deployer's broadcasting hosts
+	// (env.DefaultScriptHost) enable this so the broadcast gas-limit padding is sound.
+	IsolatedBroadcasts bool
+	BlockNum           uint64
+	Timestamp          uint64
+	PrevRandao         common.Hash
 }
 
 // Spawn launches the Rust engine binary and dials its Unix socket. The child's stderr is
@@ -57,6 +61,9 @@ func Spawn(binPath string, opts SpawnOpts, logw io.Writer) (*Engine, error) {
 	}
 	if opts.NoMaxCodeSize {
 		args = append(args, "--no-max-code-size")
+	}
+	if opts.IsolatedBroadcasts {
+		args = append(args, "--isolated-broadcasts")
 	}
 	if opts.BlockNum != 0 {
 		args = append(args, "--block-num", fmt.Sprintf("%d", opts.BlockNum))

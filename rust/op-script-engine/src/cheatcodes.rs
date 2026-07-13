@@ -120,6 +120,12 @@ pub struct CheatInspector {
     pub allowed: alloy_primitives::map::HashSet<Address>,
     pub env_vars: std::collections::HashMap<String, String>,
     pub use_create2_deployer: bool,
+    /// Mirrors op-geth's `WithIsolatedBroadcasts`: reset the access list before each broadcast
+    /// sub-call so its recorded `gasUsed` measures the cost of an equivalent standalone tx (cold
+    /// access list), not the script's already-warm state. op-deployer needs this — the recorded
+    /// `gasUsed` feeds the broadcast gas-limit padding, and a warm-list underestimate makes live
+    /// txs run out of gas.
+    pub isolate_broadcasts: bool,
     pub broadcasts: Vec<Broadcast>,
     /// Artifacts loader, used by `vm.getCode` / `vm.getDeployedCode` to resolve bytecode by name.
     pub artifacts: Option<Artifacts>,
@@ -149,6 +155,22 @@ impl CheatInspector {
 
 fn read_nonce(ctx: &mut ScriptContext, addr: Address) -> u64 {
     ctx.journal_mut().load_account(addr).map(|a| a.data.info.nonce).unwrap_or(0)
+}
+
+/// Reset the access list for an isolated broadcast sub-call, the analog of op-geth's
+/// `WithIsolatedBroadcasts` (`state.Finalise(true)` + `prelude(from, dest)`): re-cool every account
+/// and storage slot loaded so far so the broadcast executes with a fresh, standalone-tx access list,
+/// then re-warm the tx prelude (sender + recipient). revm keys warm/cold on `transaction_id`, so
+/// bumping it re-cools everything except the static warm set (coinbase + precompiles) while leaving
+/// committed state, journal history and snapshots intact. Without this, the broadcast's recorded
+/// `gasUsed` reflects the script's already-warm state and underestimates the standalone tx.
+fn isolate_broadcast(ctx: &mut ScriptContext, from: Address, dest: Option<Address>) {
+    let j = ctx.journal_mut();
+    j.transaction_id.increment();
+    let _ = j.load_account(from);
+    if let Some(to) = dest {
+        let _ = j.load_account(to);
+    }
 }
 
 fn bump_nonce(ctx: &mut ScriptContext, addr: Address) {
@@ -525,6 +547,7 @@ impl Inspector<ScriptContext> for CheatInspector {
         }
 
         // Real sub-call: apply an active broadcast prank from the parent frame.
+        let isolate = self.isolate_broadcasts;
         let mut captured = None;
         if let Some(parent) = self.frames.last_mut() {
             if let Some(prank) = parent.prank.clone() {
@@ -540,6 +563,9 @@ impl Inspector<ScriptContext> for CheatInspector {
                     inputs.caller = from;
                     let pre = read_nonce(ctx, from);
                     bump_nonce(ctx, from); // onEnter-style bump so the call looks like a tx
+                    if isolate {
+                        isolate_broadcast(ctx, from, Some(target));
+                    }
                     captured = Some(Capture {
                         from,
                         to: target,
@@ -590,6 +616,7 @@ impl Inspector<ScriptContext> for CheatInspector {
     ) -> Option<CreateOutcome> {
         // `CreateInputs.set_call` overrides the creator, the CREATE equivalent of op-geth's
         // `CallerOverride`, so revm's *state* deploys at the pranked address too.
+        let isolate = self.isolate_broadcasts;
         let mut captured = None;
         if let Some(parent) = self.frames.last_mut() {
             if let Some(prank) = parent.prank.clone() {
@@ -608,6 +635,10 @@ impl Inspector<ScriptContext> for CheatInspector {
                             let from =
                                 if self.use_create2_deployer { CREATE2_DEPLOYER } else { sender };
                             inputs.set_call(from);
+                            // geth's onEnter isolates CREATE(2) broadcasts with dest = nil.
+                            if isolate {
+                                isolate_broadcast(ctx, from, None);
+                            }
                             let to = crate::allocs::create2_address(&from, &salt, &init_code);
                             captured = Some(Capture {
                                 from,
@@ -623,6 +654,9 @@ impl Inspector<ScriptContext> for CheatInspector {
                             let from = prank.sender.unwrap_or(parent_addr);
                             inputs.set_call(from);
                             let pre = read_nonce(ctx, from); // prestate; the CREATE bumps it
+                            if isolate {
+                                isolate_broadcast(ctx, from, None);
+                            }
                             let to = crate::allocs::create_address(&from, pre);
                             captured = Some(Capture {
                                 from,

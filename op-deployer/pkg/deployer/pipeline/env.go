@@ -29,11 +29,12 @@ import (
 type Env struct {
 	StateWriter  StateWriter
 	L1ScriptHost *script.Host
-	// L1Engine, when non-nil, routes the non-forked L1 deploy stages through the out-of-process
-	// Rust op-script-engine instead of L1ScriptHost. It is set only for the non-forked
-	// DeploymentTargetGenesis path when ScriptEngine resolves to rust; forked targets and the go
-	// engine leave it nil and use L1ScriptHost. L1Artifacts provides the ABIs the engine-backed
-	// scripts pack against (the L1 bundle's ArtifactsFS).
+	// L1Engine, when non-nil, routes the L1 deploy stages through the out-of-process Rust
+	// op-script-engine instead of L1ScriptHost. It is set when ScriptEngine resolves to rust, for
+	// both the non-forked DeploymentTargetGenesis path and the forked Live/Calldata/Noop targets
+	// (in which case the engine runs in fork mode). --script-engine=go leaves it nil and uses
+	// L1ScriptHost. L1Artifacts provides the ABIs the engine-backed scripts pack against (the L1
+	// bundle's ArtifactsFS).
 	L1Engine     *rustengine.Engine
 	L1Artifacts  *foundry.ArtifactsFS
 	L1Client     *ethclient.Client

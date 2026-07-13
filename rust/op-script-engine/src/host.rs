@@ -42,6 +42,10 @@ pub struct HostConfig {
     pub chain_id: u64,
     pub no_max_code_size: bool,
     pub use_create2_deployer: bool,
+    /// Mirrors op-geth's `WithIsolatedBroadcasts`: reset the access list before each broadcast
+    /// sub-call so its recorded `gasUsed` reflects an equivalent standalone tx. op-deployer's
+    /// broadcasting hosts (env.DefaultScriptHost) enable this.
+    pub isolate_broadcasts: bool,
     pub artifacts_dir: Option<std::path::PathBuf>,
     /// Block environment, mirroring `script.Context`'s BlockNum/Timestamp/PrevRandao.
     pub block_num: u64,
@@ -59,6 +63,7 @@ impl Default for HostConfig {
             chain_id: 1337,
             no_max_code_size: false,
             use_create2_deployer: false,
+            isolate_broadcasts: false,
             artifacts_dir: None,
             block_num: 0,
             timestamp: 0,
@@ -148,6 +153,7 @@ impl ScriptHost {
 
         let mut inspector = CheatInspector::default();
         inspector.use_create2_deployer = config.use_create2_deployer;
+        inspector.isolate_broadcasts = config.isolate_broadcasts;
         // The inspector resolves `vm.getCode` / `vm.getDeployedCode` by name from the same FS.
         inspector.artifacts = artifacts.clone();
 
