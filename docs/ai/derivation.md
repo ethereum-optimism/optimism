@@ -60,10 +60,7 @@ field that comes from the registry means wiring it through **every** ingestion e
 - **kona (Rust)**: `HardForkConfig` / `ChainConfig::as_rollup_config`
   (`rust/kona/crates/protocol/genesis`).
 
-Both steps used to drop an unwired field silently — the TOML/serde decoders ignored keys that no
-struct field modeled, and the conversion left the `rollup.Config` field at its zero value — so a
-chain loaded via `--network` derived against a config quietly missing the field. Two guards now
-make that loud:
+Two guards fail loudly on a field left unwired:
 
 - **Strict decoding** rejects registry keys that no struct field models —
   `jsonutil.DecodeTOMLStrict` (Go, used by `op-core/superchain`) and
