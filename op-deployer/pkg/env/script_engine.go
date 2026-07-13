@@ -12,10 +12,11 @@ const (
 	ScriptEngineRust ScriptEngineKind = "rust"
 )
 
-// DefaultScriptEngine is used when no engine is explicitly selected. It stays "go" until the
-// Rust engine covers every op-deployer script path (fork mode, OPCM apply) and CI provisions the
-// binary for all jobs that transitively run op-deployer; flipping the default is a separate step.
-const DefaultScriptEngine = ScriptEngineGo
+// DefaultScriptEngine is used when no engine is explicitly selected. The L2 genesis stage — the only
+// stage that consults the engine selection (pipeline.GenerateL2Genesis) — runs on the Rust engine by
+// default; select ScriptEngineGo to fall back to the in-process Go script.Host. Every other op-deployer
+// stage (L1 deploy, OPCM apply, forked hosts) still runs on the Go host regardless of this value.
+const DefaultScriptEngine = ScriptEngineRust
 
 // Resolve maps the empty (unset) kind to the default engine.
 func (k ScriptEngineKind) Resolve() ScriptEngineKind {

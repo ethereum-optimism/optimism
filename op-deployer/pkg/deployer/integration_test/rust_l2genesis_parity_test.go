@@ -70,6 +70,9 @@ func TestRustEngineL2GenesisParity(t *testing.T) {
 				Logger:             lgr,
 				StateWriter:        pipeline.NoopStateWriter(),
 				CacheDir:           testutils.IsolatedTestDirWithAutoCleanup(t),
+				// Pin the reference dump to the Go engine so this stays a Go-vs-Rust parity check even
+				// though the default engine is now Rust.
+				ScriptEngine: env.ScriptEngineGo,
 			}))
 			require.NotEmpty(t, st.Chains)
 			require.NotNil(t, st.Chains[0].Allocs)
