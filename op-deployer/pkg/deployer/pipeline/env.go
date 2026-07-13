@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -34,6 +35,7 @@ type Env struct {
 	Scripts      *opcm.Scripts
 	ForgeClient  *forge.Client
 	UseForge     bool
+	ScriptEngine env.ScriptEngineKind
 	L1RPCUrl     string
 	PrivateKey   string
 	Context      context.Context

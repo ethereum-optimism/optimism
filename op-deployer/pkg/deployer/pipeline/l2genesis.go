@@ -5,6 +5,8 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script/rustengine"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -62,21 +64,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	lgr.Info("generating L2 genesis", "id", chainID.Hex())
 
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		pEnv.Logger,
-		pEnv.Deployer,
-		bundle.L2,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create L2 script host: %w", err)
-	}
-
-	script, err := opcm.NewL2GenesisScript(host)
-	if err != nil {
-		return fmt.Errorf("failed to create L2Genesis script: %w", err)
-	}
-
 	overrides, schedule, err := calculateL2GenesisOverrides(intent, thisIntent)
 	if err != nil {
 		return fmt.Errorf("failed to calculate L2 genesis overrides: %w", err)
@@ -90,7 +77,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		return err
 	}
 
-	if err := script.Run(opcm.L2GenesisInput{
+	input := opcm.L2GenesisInput{
 		L1ChainID:                                new(big.Int).SetUint64(intent.L1ChainID),
 		L2ChainID:                                chainID.Big(),
 		L1CrossDomainMessengerProxy:              thisChainState.L1CrossDomainMessengerProxy,
@@ -121,15 +108,20 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		LiquidityControllerOwner:   cgt.LiquidityControllerOwner,
 		DevFeatureBitmap:           devFeatureBitmap,
 		UseInterop:                 intent.UseInterop,
-	}); err != nil {
-		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
 
-	host.Wipe(pEnv.Deployer)
-
-	dump, err := host.StateDump()
+	engine := pEnv.ScriptEngine.Resolve()
+	var dump *foundry.ForgeAllocs
+	switch engine {
+	case env.ScriptEngineRust:
+		dump, err = runL2GenesisRust(pEnv, bundle, input)
+	case env.ScriptEngineGo:
+		dump, err = runL2GenesisGo(pEnv, bundle, input)
+	default:
+		return fmt.Errorf("unknown script engine %q", engine)
+	}
 	if err != nil {
-		return fmt.Errorf("failed to dump state: %w", err)
+		return fmt.Errorf("failed to run L2Genesis script (%s engine): %w", engine, err)
 	}
 
 	if err := genesis.CheckL2GenesisAllocs(dump, genesis.CheckL2AllocsOpts{
@@ -146,6 +138,79 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 	}
 
 	return nil
+}
+
+// runL2GenesisGo runs the L2Genesis script on the in-process Go script.Host and returns the
+// resulting allocs (deploy from the script deployer, wipe the deployer, dump).
+func runL2GenesisGo(pEnv *Env, bundle ArtifactsBundle, input opcm.L2GenesisInput) (*foundry.ForgeAllocs, error) {
+	host, err := env.DefaultScriptHost(
+		broadcaster.NoopBroadcaster(),
+		pEnv.Logger,
+		pEnv.Deployer,
+		bundle.L2,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create L2 script host: %w", err)
+	}
+
+	scr, err := opcm.NewL2GenesisScript(host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create L2Genesis script: %w", err)
+	}
+
+	if err := scr.Run(input); err != nil {
+		return nil, fmt.Errorf("failed to call L2Genesis script: %w", err)
+	}
+
+	host.Wipe(pEnv.Deployer)
+
+	dump, err := host.StateDump()
+	if err != nil {
+		return nil, fmt.Errorf("failed to dump state: %w", err)
+	}
+	return dump, nil
+}
+
+// runL2GenesisRust runs the L2Genesis script in the out-of-process Rust op-script-engine over a
+// Unix-socket JSON-RPC connection, mirroring runL2GenesisGo. The engine reads artifacts from the
+// L2 bundle's on-disk directory and is driven with the same ABI-packed run(input) calldata.
+func runL2GenesisRust(pEnv *Env, bundle ArtifactsBundle, input opcm.L2GenesisInput) (*foundry.ForgeAllocs, error) {
+	artifactsDir, err := rustengine.ArtifactsDir(bundle.L2)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve L2 artifacts directory: %w", err)
+	}
+
+	art, err := (&foundry.ArtifactsFS{FS: bundle.L2}).ReadArtifact("L2Genesis.s.sol", "L2Genesis")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read L2Genesis artifact: %w", err)
+	}
+	packed, err := art.ABI.Pack("run", input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ABI-pack L2Genesis run input: %w", err)
+	}
+
+	binPath, err := rustengine.EngineBinary(pEnv.Context, pEnv.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to provision op-script-engine binary: %w", err)
+	}
+
+	eng, err := rustengine.Spawn(binPath, artifactsDir, script.DefaultContext.ChainID.Uint64(), true, rustengine.NewLogWriter(pEnv.Logger))
+	if err != nil {
+		return nil, fmt.Errorf("failed to spawn op-script-engine: %w", err)
+	}
+	defer eng.Close()
+
+	if _, err := eng.RunScript("L2Genesis.s.sol", "L2Genesis", packed, pEnv.Deployer); err != nil {
+		return nil, fmt.Errorf("engine failed to run L2Genesis: %w", err)
+	}
+	if err := eng.Wipe(pEnv.Deployer); err != nil {
+		return nil, fmt.Errorf("engine failed to wipe deployer: %w", err)
+	}
+	dump, err := eng.StateDump()
+	if err != nil {
+		return nil, fmt.Errorf("engine failed to dump state: %w", err)
+	}
+	return dump, nil
 }
 
 func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIntent) (l2GenesisOverrides, *genesis.UpgradeScheduleDeployConfig, error) {
