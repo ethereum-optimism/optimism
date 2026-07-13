@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
@@ -22,12 +23,16 @@ type testAPI struct{}
 func (b *testAPI) DummyAPI() {}
 
 type testRouter struct {
-	routes []string
-	apis   map[string][]rpc.API
+	routes    []string
+	apis      map[string][]rpc.API
+	addRPCErr func(route string) error
 }
 
 func (t *testRouter) AddRPC(route string) error {
 	t.routes = append(t.routes, route)
+	if t.addRPCErr != nil {
+		return t.addRPCErr(route)
+	}
 	return nil
 }
 
@@ -76,4 +81,41 @@ func TestBackend(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, b.SyncTesters(), 2)
+}
+
+func TestBackendFromConfigJoinsRouteSetupErrors(t *testing.T) {
+	srv := oprpc.NewServer("127.0.0.1", 0, "")
+	srv.AddAPI(rpc.API{
+		Namespace: "eth",
+		Service:   &testAPI{},
+	})
+	require.NoError(t, srv.Start())
+	t.Cleanup(func() {
+		_ = srv.Stop()
+	})
+
+	cfg := &stconf.Config{
+		SyncTesters: map[sttypes.SyncTesterID]*stconf.SyncTesterEntry{
+			"syncTesterA": {
+				ELRPC:   endpoint.MustRPC{Value: endpoint.URL("http://" + srv.Endpoint())},
+				ChainID: eth.ChainIDFromUInt64(1),
+			},
+			"syncTesterB": {
+				ELRPC:   endpoint.MustRPC{Value: endpoint.URL("http://" + srv.Endpoint())},
+				ChainID: eth.ChainIDFromUInt64(2),
+			},
+		},
+	}
+	r := &testRouter{
+		routes: make([]string, 0),
+		apis:   make(map[string][]rpc.API),
+		addRPCErr: func(route string) error {
+			return fmt.Errorf("failed route %s", route)
+		},
+	}
+
+	_, err := FromConfig(testlog.Logger(t, log.LevelInfo), &metrics.NoopMetrics{}, cfg, r)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "/chain/1/synctest")
+	require.ErrorContains(t, err, "/chain/2/synctest")
 }

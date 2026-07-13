@@ -53,7 +53,7 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 	b.syncTesters.Range(func(id sttypes.SyncTesterID, st *SyncTester) bool {
 		path := "/chain/" + st.chainID.String() + "/synctest"
 		if err := router.AddRPC(path); err != nil {
-			syncTesterErr = errors.Join(fmt.Errorf("failed to set up synctest route: %w", err))
+			syncTesterErr = errors.Join(syncTesterErr, fmt.Errorf("failed to set up synctest route: %w", err))
 			return true
 		}
 		if err := router.AddAPIToRPC(path, rpc.API{
