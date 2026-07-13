@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.1.24
+    /// @custom:semver 7.1.25
     function version() public pure returns (string memory) {
-        return "7.1.24";
+        return "7.1.25";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -714,6 +714,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
+        bool superRootGamesMigrationEnabled = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
         // Iterate over each provided config and confirm that it matches the game type array.
         // This places a requirement on the user to order the configs properly but that's
         // probably a good thing, keeps the config consistent.
@@ -723,6 +725,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             bool isPermissionedCannonGame = rawGameType == GameTypes.PERMISSIONED_CANNON.raw();
             bool isCannonKonaGame = rawGameType == GameTypes.CANNON_KONA.raw();
             bool isSuperPermissionedGame = rawGameType == GameTypes.SUPER_PERMISSIONED.raw();
+            bool isSuperCannonKonaGame = rawGameType == GameTypes.SUPER_CANNON_KONA.raw();
             bool isZkDisputeGame = rawGameType == GameTypes.ZK_DISPUTE_GAME.raw();
 
             if (_cfg.disputeGameConfigs[i].gameType.raw() != rawGameType) {
@@ -747,11 +750,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // Post-U19 initial deployments may enable only PERMISSIONED_CANNON,
-            // CANNON_KONA, and SUPER_PERMISSIONED. Legacy CANNON is rejected.
-            bool enableableAtInitialDeployment = isPermissionedCannonGame || isCannonKonaGame || isSuperPermissionedGame;
-
-            if (_isInitialDeployment && !enableableAtInitialDeployment && _cfg.disputeGameConfigs[i].enabled) {
+            // Initial deployments may only enable the active fault game family. Legacy CANNON and
+            // ZK dispute games are not valid initial game types.
+            bool inActiveGameFamily = superRootGamesMigrationEnabled
+                ? (isSuperPermissionedGame || isSuperCannonKonaGame)
+                : (isPermissionedCannonGame || isCannonKonaGame);
+            if (_isInitialDeployment && _cfg.disputeGameConfigs[i].enabled && !inActiveGameFamily) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
@@ -763,7 +767,13 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            if (_cfg.disputeGameConfigs[i].enabled && (isCannonGame || isCannonKonaGame)) {
+            // SUPER_CANNON_KONA joins the permissionless checks only at initial deployment.
+            // Upgrade validation for super games is unchanged.
+            bool isInitialSuperPermissionlessGame = _isInitialDeployment && isSuperCannonKonaGame;
+            if (
+                _cfg.disputeGameConfigs[i].enabled
+                    && (isCannonGame || isCannonKonaGame || isInitialSuperPermissionlessGame)
+            ) {
                 // TODO(#20912): Remove once deploy pipelines provide real anchor roots.
                 // A permissionless initial deployment must not use the placeholder anchor root.
                 if (
