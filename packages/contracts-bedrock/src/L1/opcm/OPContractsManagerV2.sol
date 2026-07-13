@@ -750,12 +750,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // Initial deployments may only enable the active fault game family. Legacy CANNON and
-            // ZK dispute games are not valid initial game types.
-            bool inActiveGameFamily = superRootGamesMigrationEnabled
+            // Upgrades may re-register pre-migration game types.
+            // DeployOPChain adds the permissioned fallback. StandardValidator checks it. OPCM does not require it.
+            bool validForInitialDeploy = superRootGamesMigrationEnabled
                 ? (isSuperPermissionedGame || isSuperCannonKonaGame)
                 : (isPermissionedCannonGame || isCannonKonaGame);
-            if (_isInitialDeployment && _cfg.disputeGameConfigs[i].enabled && !inActiveGameFamily) {
+            if (_isInitialDeployment && _cfg.disputeGameConfigs[i].enabled && !validForInitialDeploy) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 

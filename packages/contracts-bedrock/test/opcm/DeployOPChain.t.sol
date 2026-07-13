@@ -302,6 +302,18 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChain.checkOutput(deployOPChainInput, doo);
     }
 
+    /// @notice A standalone checkOutput call derives the super-root mode from its input instead of script storage.
+    function test_checkOutput_freshScriptSuperRoot_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        _setPermissionlessInput(GameTypes.SUPER_CANNON_KONA);
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = 1234;
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+
+        DeployOPChain freshDeployOPChain = new DeployOPChain();
+        assertFalse(freshDeployOPChain.isSuperRoot(), "fresh script must have default storage");
+        freshDeployOPChain.checkOutput(deployOPChainInput, doo);
+    }
+
     /// @notice SUPER_CANNON_KONA deploys with a SUPER_PERMISSIONED fallback.
     function test_run_superCannonKonaGameType_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
@@ -340,21 +352,21 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertTrue(asr.isGameRespected(game), "fallback game must be respected");
     }
 
-    /// @notice Wrong-family CANNON_KONA requests are rejected by OPCM.
+    /// @notice CANNON_KONA is rejected when the OPCM uses super roots.
     function test_run_cannonKonaGameTypeWithSuperRoot_reverts() public {
         skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         _setPermissionlessInput(GameTypes.CANNON_KONA);
 
-        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector);
+        vm.expectRevert("DeployOPChainInput: dispute game type does not match OPCM mode");
         deployOPChain.run(deployOPChainInput);
     }
 
-    /// @notice Wrong-family SUPER_CANNON_KONA requests are rejected by OPCM.
+    /// @notice SUPER_CANNON_KONA is rejected when the OPCM does not use super roots.
     function test_run_superCannonKonaGameTypeWithoutSuperRoot_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         _setPermissionlessInput(GameTypes.SUPER_CANNON_KONA);
 
-        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector);
+        vm.expectRevert("DeployOPChainInput: dispute game type does not match OPCM mode");
         deployOPChain.run(deployOPChainInput);
     }
 

@@ -279,7 +279,8 @@ contract DeployOPChain is Script {
     }
 
     /// @notice Returns the permissionless mode and respected game type for an initial deployment.
-    /// @dev Permissionless deploys respect the requested game type before the permissioned/super-root default.
+    /// @dev CANNON_KONA and SUPER_CANNON_KONA prestates are not interchangeable, so the type must be explicit.
+    ///      PERMISSIONED_CANNON selects the permissioned game for the OPCM mode; SUPER_PERMISSIONED has no prestate.
     function _initialDeployGameSelection(
         GameType _disputeGameType,
         bool _isSuperRoot
@@ -355,6 +356,13 @@ contract DeployOPChain is Script {
         DeployUtils.assertValidContractAddress(_i.opcm);
         bool superRoot = _isSuperRootEnabled(IOPContractsManagerV2(_i.opcm));
         (bool permissionless,) = _initialDeployGameSelection(_i.disputeGameType, superRoot);
+        if (permissionless) {
+            GameType expectedGameType = superRoot ? GameTypes.SUPER_CANNON_KONA : GameTypes.CANNON_KONA;
+            require(
+                _i.disputeGameType.raw() == expectedGameType.raw(),
+                "DeployOPChainInput: dispute game type does not match OPCM mode"
+            );
+        }
 
         require(_i.disputeMaxGameDepth != 0, "DeployOPChainInput: disputeMaxGameDepth not set");
         require(_i.disputeSplitDepth != 0, "DeployOPChainInput: disputeSplitDepth not set");
@@ -429,13 +437,14 @@ contract DeployOPChain is Script {
 
         // Check dispute games and get superchain config
         IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_i.opcm);
+        bool superRoot = _isSuperRootEnabled(opcmV2);
         IOPContractsManagerContainer.Implementations memory implementations = opcmV2.implementations();
 
-        (bool permissionless, GameType respectedGameType) = _initialDeployGameSelection(_i.disputeGameType, isSuperRoot);
+        (bool permissionless, GameType respectedGameType) = _initialDeployGameSelection(_i.disputeGameType, superRoot);
         address expectedPermissionedDGImpl =
-            isSuperRoot ? implementations.superPermissionedDisputeGameImpl : implementations.permissionedDisputeGameImpl;
+            superRoot ? implementations.superPermissionedDisputeGameImpl : implementations.permissionedDisputeGameImpl;
         address expectedFaultDGImpl =
-            isSuperRoot ? implementations.superFaultDisputeGameImpl : implementations.faultDisputeGameImpl;
+            superRoot ? implementations.superFaultDisputeGameImpl : implementations.faultDisputeGameImpl;
         address expectedRespectedDGImpl = permissionless ? expectedFaultDGImpl : expectedPermissionedDGImpl;
         ChainAssertions.checkDisputeGameFactory(
             _o.disputeGameFactoryProxy, _i.opChainProxyAdminOwner, expectedRespectedDGImpl, true, respectedGameType

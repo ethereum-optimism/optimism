@@ -2116,9 +2116,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
-    /// @notice Deploy reverts when CANNON_KONA is enabled in super-root mode, even with a valid
-    ///         prestate and bond. The respected type stays at the enabled default so the revert
-    ///         can only come from the family check.
+    /// @notice Deploy rejects CANNON_KONA in super-root mode with an otherwise valid config.
     function test_deploy_cannonKonaInSuperMode_reverts() public {
         skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
@@ -2130,9 +2128,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
-    /// @notice Deploy reverts when SUPER_CANNON_KONA is enabled in normal-root mode, even with a
-    ///         valid prestate and bond. The respected type stays at the enabled default so the
-    ///         revert can only come from the family check.
+    /// @notice Deploy rejects SUPER_CANNON_KONA in normal-root mode with an otherwise valid config.
     function test_deploy_superCannonKonaInNormalMode_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
