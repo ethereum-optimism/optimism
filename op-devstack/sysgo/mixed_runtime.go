@@ -203,7 +203,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		l1Net, l2Net = buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
 	}
 	jwtPath, jwtSecret := writeJWTSecret(t)
-	l1EL, l1CL := startInProcessL1(t, l1Net, jwtPath)
+	l1EL, l1CL := startL1(t, l1Net, jwtPath)
 
 	metricsRegistrar := mixedNoopMetricsRegistrar{}
 

@@ -23,7 +23,6 @@ type PresetConfig struct {
 	OpRethOptions              []OpRethOption
 	GlobalL2CLOptions          []L2CLOption
 	GlobalSyncTesterELOptions  []SyncTesterELOption
-	L1ELKind                   string
 	L1GethExecPath             string
 	AddedGameTypes             []gameTypes.GameType
 	RespectedGameTypes         []gameTypes.GameType

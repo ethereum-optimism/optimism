@@ -172,7 +172,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 		timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = timeTravelClock
 	}
-	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+	l1EL, l1CL := startL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 	l2EL := startSupernodeEL(t, l2Net, jwtPath, jwtSecret)
 
 	var depSetStatic *depset.StaticConfigDependencySet
@@ -247,7 +247,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = timeTravelClock
 	}
-	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+	l1EL, l1CL := startL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 	if cfg.PreGenesisSuperGame != nil {
 		preparePreGenesisSuperGame(t, keys, wb, l1Net, l1EL, migration, cfg.PreGenesisSuperGame, l2ANet, l2BNet)
 	}

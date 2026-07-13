@@ -122,7 +122,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 		timeTravelClock = clock.NewAdvancingClock()
 		l1Clock = timeTravelClock
 	}
-	l1EL, l1CL := startInProcessL1WithClockConfig(t, world.L1Network, jwtPath, l1Clock, cfg)
+	l1EL, l1CL := startL1WithClockConfig(t, world.L1Network, jwtPath, l1Clock, cfg)
 
 	primary := spec.StartPrimary(t, keys, world, l1EL, l1CL, jwtPath, jwtSecret, cfg)
 	primaryNode := newSingleChainNodeRuntime("sequencer", true, primary.EL, primary.CL)

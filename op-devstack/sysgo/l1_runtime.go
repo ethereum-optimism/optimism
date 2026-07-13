@@ -19,12 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-const DevstackL1ELKindEnvVar = "DEVSTACK_L1EL_KIND"
-
-// DevstackL1ELInProcessKind opts the L1 EL back into the in-process op-geth
-// library node. Subprocess geth is the default (see useSubprocessL1Geth).
-const DevstackL1ELInProcessKind = "in-process"
-
 const GethExecPathEnvVar = "SYSGO_GETH_EXEC_PATH"
 
 func writeJWTSecret(t devtest.T) (string, [32]byte) {
@@ -35,66 +29,19 @@ func writeJWTSecret(t devtest.T) (string, [32]byte) {
 	return jwtPath, jwtSecret
 }
 
-func startInProcessL1(t devtest.T, l1Net *L1Network, jwtPath string) (*L1Geth, *L1CLNode) {
-	return startInProcessL1WithClock(t, l1Net, jwtPath, clock.SystemClock)
+func startL1(t devtest.T, l1Net *L1Network, jwtPath string) (*L1Geth, *L1CLNode) {
+	return startL1WithClock(t, l1Net, jwtPath, clock.SystemClock)
 }
 
-func startInProcessL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l1Clock clock.Clock) (*L1Geth, *L1CLNode) {
-	return startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, PresetConfig{})
+func startL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l1Clock clock.Clock) (*L1Geth, *L1CLNode) {
+	return startL1WithClockConfig(t, l1Net, jwtPath, l1Clock, PresetConfig{})
 }
 
-func startInProcessL1WithClockConfig(t devtest.T, l1Net *L1Network, jwtPath string, l1Clock clock.Clock, cfg PresetConfig) (*L1Geth, *L1CLNode) {
-	if useSubprocessL1Geth(cfg) {
-		return startSubprocessL1WithClock(t, l1Net, jwtPath, l1Clock, cfg)
-	}
-
-	require := t.Require()
-	l1ChainID := l1Net.ChainID()
-
-	blobPath := t.TempDirWithPrefix("l1-el")
-	bcn := fakebeacon.NewBeacon(t.Logger().New("component", "l1cl"), blobstore.New(), l1Net.genesis.Timestamp, l1Net.blockTime)
-	t.Cleanup(func() {
-		_ = bcn.Close()
-	})
-	require.NoError(bcn.Start("127.0.0.1:0"))
-	beaconAddr := bcn.BeaconAddr()
-	require.NotEmpty(beaconAddr, "beacon API listener must be up")
-
-	l1Geth, fp, err := geth.InitL1(
-		l1Net.blockTime,
-		20,
-		l1Net.genesis,
-		l1Clock,
-		filepath.Join(blobPath, "l1_el"),
-		bcn,
-		geth.WithAuth(jwtPath),
-	)
-	require.NoError(err)
-	require.NoError(l1Geth.Node.Start())
-	t.Cleanup(func() {
-		t.Logger().Info("Closing L1 geth")
-		_ = l1Geth.Close()
-	})
-
-	l1EL := &L1Geth{
-		name:     "l1",
-		chainID:  l1ChainID,
-		userRPC:  l1Geth.Node.HTTPEndpoint(),
-		authRPC:  l1Geth.Node.HTTPAuthEndpoint(),
-		l1Geth:   l1Geth,
-		blobPath: blobPath,
-	}
-	l1CL := &L1CLNode{
-		name:           "l1",
-		chainID:        l1ChainID,
-		beaconHTTPAddr: beaconAddr,
-		beacon:         bcn,
-		fakepos:        &FakePoS{fakepos: fp, p: t},
-	}
-	return l1EL, l1CL
-}
-
-func startSubprocessL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l1Clock clock.Clock, cfg PresetConfig) (*L1Geth, *L1CLNode) {
+// startL1WithClockConfig starts the L1: a geth subprocess (the execution layer)
+// driven by an in-process fake PoS + fake beacon that stand in for the L1
+// consensus layer. The geth binary is resolved from PresetConfig.L1GethExecPath
+// / SYSGO_GETH_EXEC_PATH, falling back to the mise-pinned `geth` on PATH.
+func startL1WithClockConfig(t devtest.T, l1Net *L1Network, jwtPath string, l1Clock clock.Clock, cfg PresetConfig) (*L1Geth, *L1CLNode) {
 	require := t.Require()
 	l1ChainID := l1Net.ChainID()
 
@@ -232,17 +179,6 @@ func startSubprocessL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l
 		fakepos:        fp,
 	}
 	return l1EL, l1CL
-}
-
-// useSubprocessL1Geth reports whether the L1 EL should run as a geth subprocess.
-// Subprocess is the default; set PresetConfig.L1ELKind or DEVSTACK_L1EL_KIND to
-// "in-process" to opt back into the in-process op-geth library node.
-func useSubprocessL1Geth(cfg PresetConfig) bool {
-	kind := cfg.L1ELKind
-	if kind == "" {
-		kind = os.Getenv(DevstackL1ELKindEnvVar)
-	}
-	return kind != DevstackL1ELInProcessKind
 }
 
 func readJWTSecret(t devtest.T, jwtPath string) [32]byte {

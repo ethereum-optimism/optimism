@@ -3,7 +3,6 @@ package sysgo
 import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -18,7 +17,6 @@ type L1Geth struct {
 	chainID  eth.ChainID
 	userRPC  string
 	authRPC  string
-	l1Geth   *geth.GethInstance
 	blobPath string
 }
 
