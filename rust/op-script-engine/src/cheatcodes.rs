@@ -128,6 +128,45 @@ fn cheat_outcome(output: Bytes, gas_limit: u64, memory_offset: std::ops::Range<u
     )
 }
 
+/// A loud revert from the cheatcode precompile, carrying an ABI-encoded `Error(string)` reason so
+/// the message is visible to Solidity `try/catch` and in traces. Mirrors the Go host's
+/// `encodeRevert` (`op-chain-ops/script/precompile.go`): unimplemented / undispatched cheatcodes
+/// revert rather than silently returning empty success.
+fn cheat_revert(reason: String, gas_limit: u64, memory_offset: std::ops::Range<usize>) -> CallOutcome {
+    CallOutcome::new(
+        InterpreterResult {
+            result: InstructionResult::Revert,
+            output: encode_error_string(&reason),
+            gas: Gas::new(gas_limit), // cheat precompile costs 0 gas, same as the success path
+        },
+        memory_offset,
+    )
+}
+
+/// ABI-encode a Solidity `Error(string)` revert payload, byte-identical to the Go host's
+/// `encodeRevert`: selector `0x08c379a0`, offset `0x20`, length, right-padded UTF-8 bytes.
+fn encode_error_string(msg: &str) -> Bytes {
+    const ERROR_SELECTOR: [u8; 4] = [0x08, 0xc3, 0x79, 0xa0]; // keccak256("Error(string)")[:4]
+    let msg = msg.as_bytes();
+    let padded_len = msg.len().div_ceil(32) * 32;
+    let mut out = Vec::with_capacity(4 + 32 + 32 + padded_len);
+    out.extend_from_slice(&ERROR_SELECTOR);
+    out.extend_from_slice(&U256::from(0x20).to_be_bytes::<32>()); // offset to string
+    out.extend_from_slice(&U256::from(msg.len()).to_be_bytes::<32>()); // string length
+    out.extend_from_slice(msg);
+    out.resize(4 + 32 + 32 + padded_len, 0); // right-pad to 32 bytes
+    Bytes::from(out)
+}
+
+/// Lowercase, unprefixed hex, matching Go's `%x` used in the host's revert messages.
+fn hex(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        s.push_str(&format!("{b:02x}"));
+    }
+    s
+}
+
 fn addr_from_word(word: &[u8]) -> Address {
     // 32-byte ABI word, address in the low 20 bytes.
     Address::from_slice(&word[12..32])
@@ -140,43 +179,45 @@ fn abi_u64(v: u64) -> Bytes {
 }
 
 impl CheatInspector {
-    /// Handle a call to the VM cheatcode precompile. Returns the ABI-encoded return data.
-    fn dispatch_cheatcode(&mut self, ctx: &mut ScriptContext, data: &[u8]) -> Bytes {
+    /// Handle a call to the VM cheatcode precompile. `Ok` carries the ABI-encoded return data;
+    /// `Err` carries a revert reason for an unimplemented / undispatched cheatcode. Mirrors the
+    /// Go host: an unrecognized selector reverts loudly rather than returning empty success.
+    fn dispatch_cheatcode(&mut self, ctx: &mut ScriptContext, data: &[u8]) -> Result<Bytes, String> {
         if data.len() < 4 {
-            return Bytes::new();
+            return Err(format!("expected at least 4 bytes, but got '{}'", hex(data)));
         }
         let sel: [u8; 4] = data[0..4].try_into().unwrap();
         let args = &data[4..];
         match sel {
             SEL_GET_NONCE if args.len() >= 32 => {
                 let addr = addr_from_word(&args[0..32]);
-                abi_u64(read_nonce(ctx, addr))
+                Ok(abi_u64(read_nonce(ctx, addr)))
             }
             SEL_BROADCAST0 => {
                 self.set_prank(None, false, true);
-                Bytes::new()
+                Ok(Bytes::new())
             }
             SEL_BROADCAST1 if args.len() >= 32 => {
                 let who = addr_from_word(&args[0..32]);
                 self.set_prank(Some(who), false, true);
-                Bytes::new()
+                Ok(Bytes::new())
             }
             SEL_START_BROADCAST0 => {
                 self.set_prank(None, true, true);
-                Bytes::new()
+                Ok(Bytes::new())
             }
             SEL_START_BROADCAST1 if args.len() >= 32 => {
                 let who = addr_from_word(&args[0..32]);
                 self.set_prank(Some(who), true, true);
-                Bytes::new()
+                Ok(Bytes::new())
             }
             SEL_STOP_BROADCAST => {
                 if let Some(f) = self.frames.last_mut() {
                     f.prank = None;
                 }
-                Bytes::new()
+                Ok(Bytes::new())
             }
-            _ => Bytes::new(),
+            _ => Err(format!("unrecognized 4 byte signature: {}", hex(&sel))),
         }
     }
 
@@ -198,8 +239,12 @@ impl Inspector<ScriptContext> for CheatInspector {
         // cheatcode precompile.
         if target == VM_ADDR {
             let data = inputs.input.bytes(ctx);
-            let out = self.dispatch_cheatcode(ctx, &data);
-            return Some(cheat_outcome(out, inputs.gas_limit, inputs.return_memory_offset.clone()));
+            let memory_offset = inputs.return_memory_offset.clone();
+            let outcome = match self.dispatch_cheatcode(ctx, &data) {
+                Ok(out) => cheat_outcome(out, inputs.gas_limit, memory_offset),
+                Err(reason) => cheat_revert(reason, inputs.gas_limit, memory_offset),
+            };
+            return Some(outcome);
         }
 
         // Real sub-call: apply an active broadcast prank from the parent frame.
@@ -337,5 +382,31 @@ impl CheatInspector {
             kind: cap.kind.as_str().to_string(),
             nonce: cap.nonce,
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Byte-for-byte parity with the Go host's `encodeRevert` (op-chain-ops/script/precompile.go):
+    // selector 0x08c379a0, 0x20 offset, length, right-padded UTF-8 payload.
+    #[test]
+    fn error_string_encoding_matches_go() {
+        let out = encode_error_string("unrecognized 4 byte signature: deadbeef");
+        assert_eq!(&out[0..4], &[0x08, 0xc3, 0x79, 0xa0]);
+        assert_eq!(U256::from_be_slice(&out[4..36]), U256::from(0x20));
+        let len = "unrecognized 4 byte signature: deadbeef".len();
+        assert_eq!(U256::from_be_slice(&out[36..68]), U256::from(len));
+        assert_eq!(&out[68..68 + len], "unrecognized 4 byte signature: deadbeef".as_bytes());
+        // right-padded to a 32-byte boundary, zero padding.
+        assert_eq!(out.len(), 4 + 32 + 32 + len.div_ceil(32) * 32);
+        assert!(out[68 + len..].iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn hex_is_lowercase_unprefixed() {
+        assert_eq!(hex(&[0xde, 0xad, 0xbe, 0xef]), "deadbeef");
+        assert_eq!(hex(&[0x00, 0x0a]), "000a");
     }
 }
