@@ -4,7 +4,7 @@
   "description": "Optimism Documentation",
   "main": "index.js",
   "scripts": {
-    "prebuild": "tsx scripts/generate-actions-components.ts && tsx scripts/generate-releases.ts",
+    "prebuild": "tsx scripts/generate-actions-components.ts && tsx scripts/generate-releases.ts && node scripts/prebuild-static-asset-probe.mjs",
     "prebuild:local": "tsx scripts/generate-actions-components.ts --local && tsx scripts/generate-releases.ts",
     "dev": "mint dev"
   },
