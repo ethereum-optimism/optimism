@@ -48,6 +48,18 @@ func TestMonitorTransientError(t *testing.T) {
 	require.Equal(t, inner.receipt, receipt)
 }
 
+func TestMonitorIndexingInProgressTransient(t *testing.T) {
+	// op-reth reports "transaction indexing is in progress" (note the "is"),
+	// which must be treated as transient just like geth's "in progress" wording.
+	inner := &mockReceiptGetter{
+		errs:    []error{errors.New("transaction indexing is in progress: transaction indexing is in progress")},
+		receipt: &types.Receipt{},
+	}
+	receipt, err := NewMonitor(inner, time.Millisecond).TransactionReceipt(context.Background(), inner.receipt.TxHash)
+	require.NoError(t, err)
+	require.Equal(t, inner.receipt, receipt)
+}
+
 func TestMonitorFatalError(t *testing.T) {
 	want := errors.New("connection refused")
 	inner := &mockReceiptGetter{

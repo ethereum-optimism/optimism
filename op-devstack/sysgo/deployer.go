@@ -42,6 +42,7 @@ const funderMnemonicIndex = 10_000
 func FunderKey(keys devkeys.Keys) (*ecdsa.PrivateKey, error) {
 	return keys.Secret(devkeys.UserKey(funderMnemonicIndex))
 }
+
 const devFeatureBitmapKey = "devFeatureBitmap"
 
 // proxyImplementationSlot is the EIP-1967 proxy implementation storage slot used

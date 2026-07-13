@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
@@ -81,8 +82,9 @@ func (f *FunderEOA) fund(addr common.Address, amount eth.ETH) {
 	if amount.IsZero() {
 		return
 	}
-	_, err := f.inner.Include(f.t, txplan.WithTo(&addr), txplan.WithValue(amount))
+	res, err := f.inner.Include(f.t, txplan.WithTo(&addr), txplan.WithValue(amount))
 	f.require.NoError(err, "must fund %s with %s", addr, amount)
+	f.require.Equal(types.ReceiptStatusSuccessful, res.Receipt.Status, "funding tx to %s reverted", addr)
 }
 
 // NewFundedEOA mints a fresh child EOA on the funder's chain and funds it with at

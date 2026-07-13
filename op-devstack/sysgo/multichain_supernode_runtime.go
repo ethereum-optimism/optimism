@@ -217,8 +217,8 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 				Batcher: l2Batcher,
 			},
 		},
-		Supernode:     supernode,
-		TimeTravel:    timeTravelClock,
+		Supernode:  supernode,
+		TimeTravel: timeTravelClock,
 	}
 }
 
@@ -1016,4 +1016,3 @@ func startTestSequencerForL2Chains(
 		service:    sq,
 	}
 }
-

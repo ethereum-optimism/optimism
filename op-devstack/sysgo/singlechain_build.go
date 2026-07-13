@@ -649,7 +649,6 @@ func startTestSequencer(
 	}
 }
 
-
 func copyControlRPCMap(in map[eth.ChainID]string) map[eth.ChainID]string {
 	if len(in) == 0 {
 		return nil
