@@ -31,17 +31,9 @@ func writeJWTSecret(t devtest.T) (string, [32]byte) {
 }
 
 func startL1(t devtest.T, l1Net *L1Network, jwtPath string) (*L1Geth, *L1CLNode) {
-	return startL1WithClock(t, l1Net, jwtPath, clock.SystemClock)
+	return startL1WithClockConfig(t, l1Net, jwtPath, clock.SystemClock, PresetConfig{})
 }
 
-func startL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l1Clock clock.Clock) (*L1Geth, *L1CLNode) {
-	return startL1WithClockConfig(t, l1Net, jwtPath, l1Clock, PresetConfig{})
-}
-
-// startL1WithClockConfig starts the L1: a geth subprocess (the execution layer)
-// driven by an in-process fake PoS + fake beacon that stand in for the L1
-// consensus layer. The geth binary is resolved from PresetConfig.L1GethExecPath
-// / SYSGO_GETH_EXEC_PATH, falling back to the mise-pinned `geth` on PATH.
 func startL1WithClockConfig(t devtest.T, l1Net *L1Network, jwtPath string, l1Clock clock.Clock, cfg PresetConfig) (*L1Geth, *L1CLNode) {
 	require := t.Require()
 	l1ChainID := l1Net.ChainID()
@@ -129,22 +121,7 @@ func startL1WithClockConfig(t devtest.T, l1Net *L1Network, jwtPath string, l1Clo
 		"--verbosity", "5",
 		"--miner.recommit", "2s",
 		"--gcmode", "archive",
-		// Cap geth's cache far below its multi-GB default (ethconfig defaults to a
-		// 2 GiB database cache alone). The fake L1 is tiny — a few dozen blocks —
-		// so it needs almost none, and acceptance tests run many devstacks
-		// concurrently (each now with its own L1 geth subprocess). At geth's
-		// default cache, that concurrency exhausts the CI runner's memory and the
-		// job is OOM-killed. The removed in-process node ran with an unset
-		// (near-zero) cache; this restores that footprint.
-		"--cache", "128",
-		// Pin the gas ceiling to the genesis gas limit so the L1 gas limit stays
-		// constant. The fake-PoS L1 builder bumps a reorg block's gas limit by
-		// +100 to force a distinct block hash (op-test-sequencer's
-		// builders/fakepos/job.go). If geth is left to drift the gas limit upward
-		// toward its default ceiling (60M), a block already stepped +delta plus
-		// that +100 exceeds the ±parentGasLimit/1024 bound and geth rejects it as
-		// a bad block, killing the L1 node. A constant ceiling keeps the +100 well
-		// within bounds (matching the in-process node's Miner.GasCeil intent).
+		"--cache", "0", // Default is multiple gigabytes, which puts way too much load on CI boxes.
 		"--miner.gaslimit", strconv.FormatUint(l1Net.genesis.GasLimit, 10),
 	}
 	require.NoError(sub.Start(execPath, args, nil), "must start geth subprocess")
