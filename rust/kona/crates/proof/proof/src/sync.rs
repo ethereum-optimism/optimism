@@ -53,7 +53,7 @@ where
 }
 
 /// Fetches the safe head hash of the L2 chain based on the agreed upon L2 output root in the
-/// [`BootInfo`](crate::BootInfo).
+/// [`BootInfo`].
 ///
 /// Decodes the agreed L2 output root's preimage into its safe head block hash. The preimage is the
 /// 128-byte output-root V0 layout; the safe head hash occupies bytes `[96..128]`. Only version `0`
