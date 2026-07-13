@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"strings"
 	"testing"
 
@@ -20,9 +21,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/lmittmann/w3"
 	"github.com/stretchr/testify/require"
 )
 
@@ -116,6 +119,8 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 				t.Errorf("makeDCI() Opcm = %v, want %v", got.Opcm, tt.expectedOpcm)
 			}
 			require.Equal(t, standard.DisputeAbsolutePrestate, got.CannonAbsolutePrestate)
+			require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
+			require.Equal(t, common.Big0, got.StartingAnchorRoot.L2SequenceNumber)
 		})
 	}
 }
@@ -226,6 +231,57 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 
 	err = DeployOPChain(pEnv, intent, st, chainID)
 	require.NoError(t, err)
+
+	startingAnchorRoot := opcm.Proposal{
+		Root:             common.HexToHash("0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47"),
+		L2SequenceNumber: big.NewInt(1234),
+	}
+	forgeOutput, err := opcm.DeployOPChainViaForge(&opcm.ForgeEnv{
+		Client:     forgeClient,
+		Context:    ctx,
+		L1RPCUrl:   l1RPCUrl,
+		PrivateKey: privateKey,
+	}, opcm.DeployOPChainInput{
+		OpChainProxyAdminOwner:       common.Address{'A'},
+		SystemConfigOwner:            common.Address{'B'},
+		Batcher:                      common.Address{'C'},
+		UnsafeBlockSigner:            common.Address{'D'},
+		Proposer:                     common.Address{'E'},
+		Challenger:                   common.Address{'F'},
+		BasefeeScalar:                standard.BasefeeScalar,
+		BlobBaseFeeScalar:            standard.BlobBaseFeeScalar,
+		L2ChainId:                    new(big.Int).Add(chainID.Big(), big.NewInt(1)),
+		Opcm:                         st.ImplementationsDeployment.OpcmV2Impl,
+		SaltMixer:                    "starting-anchor-root-regression",
+		GasLimit:                     60_000_000,
+		DisputeGameType:              standard.DisputeGameType,
+		DisputeAbsolutePrestate:      standard.DisputeAbsolutePrestate,
+		StartingAnchorRoot:           startingAnchorRoot,
+		CannonAbsolutePrestate:       standard.DisputeAbsolutePrestate,
+		DisputeMaxGameDepth:          new(big.Int).SetUint64(standard.DisputeMaxGameDepth),
+		DisputeSplitDepth:            new(big.Int).SetUint64(standard.DisputeSplitDepth),
+		DisputeClockExtension:        standard.DisputeClockExtension,
+		DisputeMaxClockDuration:      standard.DisputeMaxClockDuration,
+		AllowCustomDisputeParameters: false,
+		OperatorFeeScalar:            0,
+		OperatorFeeConstant:          0,
+		SuperchainConfig:             st.SuperchainDeployment.SuperchainConfigProxy,
+		UseCustomGasToken:            false,
+	})
+	require.NoError(t, err)
+
+	getStartingAnchorRoot := w3.MustNewFunc("getStartingAnchorRoot()", "(bytes32 root, uint256 l2SequenceNumber)")
+	callData, err := getStartingAnchorRoot.EncodeArgs()
+	require.NoError(t, err)
+	result, err := l1Client.CallContract(ctx, ethereum.CallMsg{
+		To:   &forgeOutput.AnchorStateRegistryProxy,
+		Data: callData,
+	}, nil)
+	require.NoError(t, err)
+	var actualAnchorRoot opcm.Proposal
+	require.NoError(t, getStartingAnchorRoot.DecodeReturns(result, &actualAnchorRoot))
+	require.Equal(t, startingAnchorRoot.Root, actualAnchorRoot.Root)
+	require.Equal(t, startingAnchorRoot.L2SequenceNumber, actualAnchorRoot.L2SequenceNumber)
 
 	require.Len(t, st.Chains, 1)
 	require.Equal(t, chainID, st.Chains[0].ID)

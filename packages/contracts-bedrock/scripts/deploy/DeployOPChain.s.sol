@@ -203,7 +203,7 @@ contract DeployOPChain is Script {
             systemConfigOwner: _input.systemConfigOwner,
             unsafeBlockSigner: _input.unsafeBlockSigner,
             batcher: _input.batcher,
-            startingAnchorRoot: Proposal({ root: _input.startingAnchorRoot, l2SequenceNumber: 0 }),
+            startingAnchorRoot: _input.startingAnchorRoot,
             startingRespectedGameType: respectedGameType,
             basefeeScalar: _input.basefeeScalar,
             blobBasefeeScalar: _input.blobBaseFeeScalar,
@@ -369,7 +369,7 @@ contract DeployOPChain is Script {
         require(_i.disputeSplitDepth != 0, "DeployOPChainInput: disputeSplitDepth not set");
         require(_i.disputeMaxClockDuration.raw() != 0, "DeployOPChainInput: disputeMaxClockDuration not set");
         require(_i.disputeAbsolutePrestate.raw() != bytes32(0), "DeployOPChainInput: disputeAbsolutePrestate not set");
-        require(_i.startingAnchorRoot.raw() != bytes32(0), "DeployOPChainInput: startingAnchorRoot not set");
+        require(_i.startingAnchorRoot.root.raw() != bytes32(0), "DeployOPChainInput: startingAnchorRoot not set");
 
         if (_i.disputeGameType.raw() == GameTypes.CANNON_KONA.raw()) {
             require(_i.cannonAbsolutePrestate.raw() != bytes32(0), "DeployOPChainInput: cannonAbsolutePrestate not set");
@@ -383,7 +383,7 @@ contract DeployOPChain is Script {
 
         if (permissionless) {
             require(
-                _i.startingAnchorRoot.raw() != ScriptConstants.DEFAULT_OUTPUT_ROOT().root.raw(),
+                _i.startingAnchorRoot.root.raw() != ScriptConstants.DEFAULT_OUTPUT_ROOT().root.raw(),
                 "DeployOPChainInput: permissionless startingAnchorRoot cannot be placeholder"
             );
         }

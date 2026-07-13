@@ -9,16 +9,25 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+var (
+	commonAddressType = reflect.TypeFor[common.Address]()
+	commonHashType    = reflect.TypeFor[common.Hash]()
+	bigIntType        = reflect.TypeFor[big.Int]()
+)
+
 func GoStructToABITuple(structType reflect.Type, tupleName string) (abi.Type, error) {
-	var components []abi.ArgumentMarshaling
+	components, err := goStructToABIComponents(structType)
+	if err != nil {
+		return abi.Type{}, err
+	}
+	return abi.NewType("tuple", tupleName, components)
+}
+
+func goStructToABIComponents(structType reflect.Type) ([]abi.ArgumentMarshaling, error) {
+	components := make([]abi.ArgumentMarshaling, 0, structType.NumField())
 
 	for i := 0; i < structType.NumField(); i++ {
 		field := structType.Field(i)
-
-		abiType, err := GoTypeToABIType(field.Type)
-		if err != nil {
-			return abi.Type{}, fmt.Errorf("unsupported field type %s: %w", field.Type, err)
-		}
 
 		// Use ABI tag if present, otherwise use field name
 		fieldName := field.Name
@@ -26,28 +35,63 @@ func GoStructToABITuple(structType reflect.Type, tupleName string) (abi.Type, er
 			fieldName = abiTag
 		}
 
-		components = append(components, abi.ArgumentMarshaling{
-			Name: fieldName,
-			Type: abiType,
-		})
+		component, err := GoTypeToABIComponent(field.Type, fieldName)
+		if err != nil {
+			return nil, fmt.Errorf("unsupported field type %s: %w", field.Type, err)
+		}
+		components = append(components, component)
 	}
 
-	return abi.NewType("tuple", tupleName, components)
+	return components, nil
+}
+
+func GoTypeToABIComponent(goType reflect.Type, name string) (abi.ArgumentMarshaling, error) {
+	for goType.Kind() == reflect.Pointer {
+		goType = goType.Elem()
+	}
+
+	// Handle named primitive ABI types before the generic struct case below.
+	switch goType {
+	case commonAddressType, commonHashType, bigIntType:
+		abiType, err := GoTypeToABIType(goType)
+		if err != nil {
+			return abi.ArgumentMarshaling{}, err
+		}
+		return abi.ArgumentMarshaling{Name: name, Type: abiType}, nil
+	}
+
+	if goType.Kind() == reflect.Struct {
+		components, err := goStructToABIComponents(goType)
+		if err != nil {
+			return abi.ArgumentMarshaling{}, err
+		}
+		return abi.ArgumentMarshaling{
+			Name:       name,
+			Type:       "tuple",
+			Components: components,
+		}, nil
+	}
+
+	abiType, err := GoTypeToABIType(goType)
+	if err != nil {
+		return abi.ArgumentMarshaling{}, err
+	}
+	return abi.ArgumentMarshaling{Name: name, Type: abiType}, nil
 }
 
 func GoTypeToABIType(goType reflect.Type) (string, error) {
 	// handle pointers by dereferencing
-	if goType.Kind() == reflect.Ptr {
+	if goType.Kind() == reflect.Pointer {
 		goType = goType.Elem()
 	}
 
 	// non-standard go types (need to catch these first)
 	switch goType {
-	case reflect.TypeOf(common.Address{}):
+	case commonAddressType:
 		return "address", nil
-	case reflect.TypeOf(common.Hash{}):
+	case commonHashType:
 		return "bytes32", nil
-	case reflect.TypeOf(big.NewInt(0)).Elem():
+	case bigIntType:
 		return "uint256", nil
 	}
 
@@ -139,7 +183,7 @@ type BytesScriptEncoder[T any] struct {
 }
 
 func (e *BytesScriptEncoder[T]) Encode(input T) ([]byte, error) {
-	inputType, err := GoStructToABITuple(reflect.TypeOf(input), e.TypeName)
+	inputType, err := GoStructToABITuple(reflect.TypeFor[T](), e.TypeName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create input type: %w", err)
 	}
@@ -154,7 +198,7 @@ type BytesScriptDecoder[T any] struct {
 
 func (d *BytesScriptDecoder[T]) Decode(rawOutput []byte) (T, error) {
 	var zero T
-	outputType, err := GoStructToABITuple(reflect.TypeOf(zero), d.TypeName)
+	outputType, err := GoStructToABITuple(reflect.TypeFor[T](), d.TypeName)
 	if err != nil {
 		return zero, fmt.Errorf("failed to create output type: %w", err)
 	}

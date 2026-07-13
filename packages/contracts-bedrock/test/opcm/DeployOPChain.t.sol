@@ -66,13 +66,17 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     // the tests only need them to be non-zero and distinct from each other.
     // cannon32 v1.3.1 (op-program).
     Claim disputeAbsolutePrestate = Claim.wrap(0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c);
-    Hash startingAnchorRoot = Hash.wrap(Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT);
+    Proposal startingAnchorRoot =
+        Proposal({ root: Hash.wrap(Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT), l2SequenceNumber: 0 });
     // cannon64 v1.6.1 (op-program).
     Claim cannonAbsolutePrestate = Claim.wrap(0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8);
     // cannon64-kona-interop v1.2.13 (Kona).
     Claim cannonKonaAbsolutePrestate = Claim.wrap(0x035ef680a6fa34c50d8d8169075b5d133ecd7b38fe2b2a83cc76fc81ae5d7c52);
     // Arbitrary non-placeholder anchor root for the permissionless deploy tests.
-    Hash permissionlessAnchorRoot = Hash.wrap(0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47);
+    Proposal permissionlessAnchorRoot = Proposal({
+        root: Hash.wrap(0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47),
+        l2SequenceNumber: 0
+    });
     uint256 disputeMaxGameDepth = 73;
     uint256 disputeSplitDepth = 30;
     Duration disputeClockExtension = Duration.wrap(3 hours);
@@ -231,6 +235,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     }
 
     function test_runWithBytes_succeeds() public {
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = 1234;
         bytes memory inputBytes = abi.encode(deployOPChainInput);
         bytes memory outputBytes = deployOPChain.runWithBytes(inputBytes);
         DeployOPChain.Output memory doo = abi.decode(outputBytes, (DeployOPChain.Output));
@@ -351,8 +356,8 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
         assertEq(asr.respectedGameType().raw(), GameTypes.CANNON_KONA.raw(), "respected game type");
         Proposal memory anchor = asr.getStartingAnchorRoot();
-        assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.raw(), "anchor root");
-        assertEq(anchor.l2SequenceNumber, 0, "anchor seq");
+        assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.root.raw(), "anchor root");
+        assertEq(anchor.l2SequenceNumber, deployOPChainInput.startingAnchorRoot.l2SequenceNumber, "anchor seq");
     }
 
     /// @notice Validates the full standard shape of a CANNON_KONA deployment with its permissioned fallback.
@@ -456,8 +461,8 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
         assertEq(asr.respectedGameType().raw(), permType.raw(), "ASR respected game type");
         Proposal memory anchor = asr.getStartingAnchorRoot();
-        assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.raw(), "ASR anchor root");
-        assertEq(anchor.l2SequenceNumber, 0, "ASR anchor seq");
+        assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.root.raw(), "ASR anchor root");
+        assertEq(anchor.l2SequenceNumber, deployOPChainInput.startingAnchorRoot.l2SequenceNumber, "ASR anchor seq");
     }
 }
 
@@ -590,7 +595,7 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
     }
 
     function test_run_zeroStartingAnchorRoot_reverts() public {
-        deployOPChainInput.startingAnchorRoot = Hash.wrap(bytes32(0));
+        deployOPChainInput.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 });
         vm.expectRevert("DeployOPChainInput: startingAnchorRoot not set");
         deployOPChain.run(deployOPChainInput);
     }
