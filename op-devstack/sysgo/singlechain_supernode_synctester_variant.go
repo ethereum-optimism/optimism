@@ -135,9 +135,9 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 				Batcher:     l2Batcher,
 			},
 		},
-		Supernode:     supernode,
-		TimeTravel:    timeTravelClock,
-		DelaySeconds:  delaySeconds,
+		Supernode:    supernode,
+		TimeTravel:   timeTravelClock,
+		DelaySeconds: delaySeconds,
 		SyncTester: &SyncTesterRuntime{
 			Service: syncTester,
 			EL:      syncTesterEL,
