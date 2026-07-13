@@ -36,69 +36,78 @@ import (
 )
 
 // TestRustEngineL2GenesisParity is the L2Genesis milestone gate for the Rust script engine
-// (op-geth decoupling spike). It:
+// (op-geth decoupling spike). For each L2Genesis alloc mode it:
 //  1. runs the real genesis pipeline (the authoritative Go reference dump);
-//  2. reconstructs the exact L2GenesisInput the pipeline fed the L2Genesis script (default mode),
-//     validated by running the same input through a fresh Go host and asserting byte-parity with
-//     the reference dump;
+//  2. reconstructs the exact L2GenesisInput the pipeline fed the L2Genesis script, validated by
+//     running the same input through a fresh Go host and asserting byte-parity with the reference;
 //  3. replays the identical ABI-packed run() calldata through the Rust engine and asserts the Rust
 //     ForgeAllocs dump is byte-identical to the reference.
+//
+// The "default" subtest is the milestone gate; the other modes exercise the extra cheat surface
+// (custom gas token, interop, l2cm dev features) for stronger coverage.
 func TestRustEngineL2GenesisParity(t *testing.T) {
 	bin := buildRustScriptEngine(t)
 
-	lgr := testlog.Logger(t, slog.LevelWarn)
-	_, pk, dk := shared.DefaultPrivkey(t)
-	deployerAddr := crypto.PubkeyToAddress(pk.PublicKey)
-	l1ChainID := big.NewInt(900)
-	l2ChainID := uint256.NewInt(1)
-	loc, artifactsFS := testutil.LocalArtifacts(t)
-	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
+	for _, mode := range allocModes(t) {
+		mode := mode
+		t.Run(mode.name, func(t *testing.T) {
+			lgr := testlog.Logger(t, slog.LevelWarn)
+			_, pk, dk := shared.DefaultPrivkey(t)
+			deployerAddr := crypto.PubkeyToAddress(pk.PublicKey)
+			l1ChainID := big.NewInt(900)
+			l2ChainID := uint256.NewInt(1)
+			loc, artifactsFS := testutil.LocalArtifacts(t)
+			intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 
-	require.NoError(t, deployer.ApplyPipeline(context.Background(), deployer.ApplyPipelineOpts{
-		DeploymentTarget:   deployer.DeploymentTargetGenesis,
-		L1RPCUrl:           "",
-		DeployerPrivateKey: pk,
-		Intent:             intent,
-		State:              st,
-		Logger:             lgr,
-		StateWriter:        pipeline.NoopStateWriter(),
-		CacheDir:           testutils.IsolatedTestDirWithAutoCleanup(t),
-	}))
-	require.NotEmpty(t, st.Chains)
-	require.NotNil(t, st.Chains[0].Allocs)
-	referenceDump := st.Chains[0].Allocs.Data
+			mode.configure(t, intent)
 
-	chainID := intent.Chains[0].ID
-	input := buildDefaultL2GenesisInput(t, intent, st, chainID)
+			require.NoError(t, deployer.ApplyPipeline(context.Background(), deployer.ApplyPipelineOpts{
+				DeploymentTarget:   deployer.DeploymentTargetGenesis,
+				L1RPCUrl:           "",
+				DeployerPrivateKey: pk,
+				Intent:             intent,
+				State:              st,
+				Logger:             lgr,
+				StateWriter:        pipeline.NoopStateWriter(),
+				CacheDir:           testutils.IsolatedTestDirWithAutoCleanup(t),
+			}))
+			require.NotEmpty(t, st.Chains)
+			require.NotNil(t, st.Chains[0].Allocs)
+			referenceDump := st.Chains[0].Allocs.Data
 
-	// Leg A: a fresh Go host with the reconstructed input must reproduce the reference dump.
-	// This proves the reconstruction is exact, so the Rust comparison is meaningful.
-	goDump := runGoL2Genesis(t, lgr, deployerAddr, artifactsFS, input)
-	requireAllocsJSONEq(t, "go-manual-vs-reference", referenceDump, goDump)
+			chainID := intent.Chains[0].ID
+			input := buildL2GenesisInput(t, intent, st, chainID)
 
-	// Leg B: the identical run() calldata through the Rust engine.
-	art, err := (&foundry.ArtifactsFS{FS: artifactsFS}).ReadArtifact("L2Genesis.s.sol", "L2Genesis")
-	require.NoError(t, err)
-	packed, err := art.ABI.Pack("run", input)
-	require.NoError(t, err)
+			// Leg A: a fresh Go host with the reconstructed input must reproduce the reference
+			// dump. This proves the reconstruction is exact, so the Rust comparison is meaningful.
+			goDump := runGoL2Genesis(t, lgr, deployerAddr, artifactsFS, input)
+			requireAllocsJSONEq(t, "go-manual-vs-reference", referenceDump, goDump)
 
-	re, err := rustengine.Spawn(bin, forgeArtifactsDir(t), 1337, true, testWriter{t})
-	require.NoError(t, err)
-	defer re.Close()
+			// Leg B: the identical run() calldata through the Rust engine.
+			art, err := (&foundry.ArtifactsFS{FS: artifactsFS}).ReadArtifact("L2Genesis.s.sol", "L2Genesis")
+			require.NoError(t, err)
+			packed, err := art.ABI.Pack("run", input)
+			require.NoError(t, err)
 
-	_, err = re.RunScript("L2Genesis.s.sol", "L2Genesis", packed, deployerAddr)
-	require.NoError(t, err)
-	require.NoError(t, re.Wipe(deployerAddr))
-	rustDump, err := re.StateDump()
-	require.NoError(t, err)
+			re, err := rustengine.Spawn(bin, forgeArtifactsDir(t), 1337, true, testWriter{t})
+			require.NoError(t, err)
+			defer re.Close()
 
-	// Guard against a trivial (empty) match: L2Genesis produces thousands of accounts.
-	require.Greater(t, len(referenceDump.Accounts), 2000, "reference dump should be non-trivial")
-	require.Equal(t, len(referenceDump.Accounts), len(rustDump.Accounts), "rust dump account count")
-	t.Logf("L2Genesis parity: %d accounts, byte-identical across Go host and Rust engine",
-		len(rustDump.Accounts))
+			_, err = re.RunScript("L2Genesis.s.sol", "L2Genesis", packed, deployerAddr)
+			require.NoError(t, err)
+			require.NoError(t, re.Wipe(deployerAddr))
+			rustDump, err := re.StateDump()
+			require.NoError(t, err)
 
-	requireAllocsJSONEq(t, "rust-vs-reference", referenceDump, rustDump)
+			// Guard against a trivial (empty) match: L2Genesis produces thousands of accounts.
+			require.Greater(t, len(referenceDump.Accounts), 2000, "reference dump should be non-trivial")
+			require.Equal(t, len(referenceDump.Accounts), len(rustDump.Accounts), "rust dump account count")
+			t.Logf("[%s] L2Genesis parity: %d accounts, byte-identical across Go host and Rust engine",
+				mode.name, len(rustDump.Accounts))
+
+			requireAllocsJSONEq(t, "rust-vs-reference", referenceDump, rustDump)
+		})
+	}
 }
 
 // runGoL2Genesis mirrors pipeline.GenerateL2Genesis lines 65-133 (minus validation): build a
@@ -116,10 +125,11 @@ func runGoL2Genesis(t *testing.T, lgr log.Logger, deployer common.Address, artif
 	return dump
 }
 
-// buildDefaultL2GenesisInput reconstructs the L2GenesisInput that pipeline.GenerateL2Genesis
-// builds for the "default" mode (no global/deploy overrides), reading the chain intent/state that
-// the pipeline populated.
-func buildDefaultL2GenesisInput(t *testing.T, intent *state.Intent, st *state.State, chainID common.Hash) opcm.L2GenesisInput {
+// buildL2GenesisInput reconstructs the L2GenesisInput that pipeline.GenerateL2Genesis builds for a
+// given mode, reading the chain intent/state that the pipeline populated. It mirrors the pipeline's
+// default overrides (no global/deploy override keys other than devFeatureBitmap are used by the
+// test modes), buildCGTConfig, and buildDevFeatureBitmap.
+func buildL2GenesisInput(t *testing.T, intent *state.Intent, st *state.State, chainID common.Hash) opcm.L2GenesisInput {
 	t.Helper()
 	thisIntent, err := intent.Chain(chainID)
 	require.NoError(t, err)
@@ -130,6 +140,26 @@ func buildDefaultL2GenesisInput(t *testing.T, intent *state.Intent, st *state.St
 	vaultMin := func() *big.Int { return standard.VaultMinWithdrawalAmount.ToInt() }
 	localNet := genesis.WithdrawalNetwork("local")
 	localWd := big.NewInt(int64(localNet.ToUint8()))
+
+	// buildCGTConfig
+	cgtName, cgtSymbol := "", ""
+	nativeLiquidity := big.NewInt(0)
+	var liquidityOwner common.Address
+	if thisIntent.IsCustomGasTokenEnabled() {
+		cgtName = thisIntent.CustomGasToken.Name
+		cgtSymbol = thisIntent.CustomGasToken.Symbol
+		nativeLiquidity = thisIntent.GetInitialLiquidity()
+		liquidityOwner = thisIntent.GetLiquidityControllerOwner()
+	}
+
+	// buildDevFeatureBitmap
+	var devFeatureBitmap common.Hash
+	switch v := intent.GlobalDeployOverrides["devFeatureBitmap"].(type) {
+	case common.Hash:
+		devFeatureBitmap = v
+	case string:
+		devFeatureBitmap = common.HexToHash(v)
+	}
 
 	return opcm.L2GenesisInput{
 		L1ChainID:                                new(big.Int).SetUint64(intent.L1ChainID),
@@ -154,13 +184,13 @@ func buildDefaultL2GenesisInput(t *testing.T, intent *state.Intent, st *state.St
 		Fork:                                     big.NewInt(schedule.SolidityForkNumber(1)),
 		EnableGovernance:                         false,
 		FundDevAccounts:                          intent.FundDevAccounts,
-		UseCustomGasToken:                        false,
+		UseCustomGasToken:                        thisIntent.IsCustomGasTokenEnabled(),
 		UseInterop:                               intent.UseInterop,
-		GasPayingTokenName:                       "",
-		GasPayingTokenSymbol:                     "",
-		NativeAssetLiquidityAmount:               big.NewInt(0),
-		LiquidityControllerOwner:                 common.Address{},
-		DevFeatureBitmap:                         common.Hash{},
+		GasPayingTokenName:                       cgtName,
+		GasPayingTokenSymbol:                     cgtSymbol,
+		NativeAssetLiquidityAmount:               nativeLiquidity,
+		LiquidityControllerOwner:                 liquidityOwner,
+		DevFeatureBitmap:                         devFeatureBitmap,
 	}
 }
 
