@@ -446,6 +446,12 @@ where
                 gas: ResultGas::default().with_total_gas_spent(gas_used),
                 logs: Vec::new(),
             })
+        } else {
+            // A non-deposit tx that errors must have its journal changes discarded and its
+            // `transaction_id` advanced, as `EthHandler::catch_error` does upstream. Otherwise the
+            // failed tx's partial state and EIP-2929 warm/cold stamps persist in the shared journal
+            // and leak into the next tx executed on the same EVM.
+            evm.ctx().journal_mut().discard_tx();
         }
 
         // do the cleanup
