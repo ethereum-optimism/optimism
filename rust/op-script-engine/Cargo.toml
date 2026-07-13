@@ -29,6 +29,9 @@ revm = { workspace = true, features = [
 alloy-primitives = { workspace = true, features = ["std", "map"] }
 alloy-sol-types = { workspace = true, features = ["std"] }
 
+# secp256k1 for the `vm.addr` cheatcode (private key -> address).
+k256 = { workspace = true, features = ["arithmetic"] }
+
 # serde
 serde = { workspace = true, features = ["std", "derive"] }
 serde_json = { workspace = true, features = ["std"] }

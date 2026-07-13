@@ -110,6 +110,20 @@ func (e *Engine) Call(from, to common.Address, input []byte) ([]byte, error) {
 	return out, err
 }
 
+// RunScript deploys a forge script from the script-deployer, runs its run(input) entrypoint from
+// deployer, then wipes the script account — mirroring the Go host's DeployScript.Call flow.
+func (e *Engine) RunScript(file, contract string, calldata []byte, deployer common.Address) ([]byte, error) {
+	var out hexutil.Bytes
+	err := e.cl.Call(&out, "script_runScript", file, contract, hexutil.Encode(calldata), deployer.Hex())
+	return out, err
+}
+
+// Wipe clears an account's code/nonce/balance, matching script.Host.Wipe.
+func (e *Engine) Wipe(addr common.Address) error {
+	var ok bool
+	return e.cl.Call(&ok, "script_wipe", addr.Hex())
+}
+
 func (e *Engine) GetNonce(addr common.Address) (uint64, error) {
 	var out uint64
 	err := e.cl.Call(&out, "script_getNonce", addr.Hex())

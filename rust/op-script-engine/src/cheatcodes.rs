@@ -36,6 +36,7 @@ sol! {
         function getCode(string calldata artifactPath) external view returns (bytes memory);
         function getDeployedCode(string calldata artifactPath) external view returns (bytes memory);
         function computeCreate2Address(bytes32 salt, bytes32 initCodeHash) external pure returns (address);
+        function addr(uint256 privateKey) external pure returns (address);
         function prank(address msgSender) external;
         function prank(address msgSender, address txOrigin) external;
         function startPrank(address msgSender) external;
@@ -229,6 +230,17 @@ fn abi_bytes(data: &[u8]) -> Bytes {
     Bytes::from(out)
 }
 
+/// `vm.addr`: derive the address of a secp256k1 private key, matching the Go host's
+/// `crypto.PubkeyToAddress(crypto.ToECDSA(privKey))` = keccak256(uncompressed_pubkey[1..])[12..].
+fn cheat_addr(private_key: U256) -> Result<Address, String> {
+    use k256::elliptic_curve::sec1::ToEncodedPoint;
+    let bytes: [u8; 32] = private_key.to_be_bytes();
+    let sk = k256::SecretKey::from_slice(&bytes).map_err(|e| format!("invalid private key: {e}"))?;
+    let point = sk.public_key().to_encoded_point(false); // 0x04 || X(32) || Y(32)
+    let hash = alloy_primitives::keccak256(&point.as_bytes()[1..]);
+    Ok(Address::from_slice(&hash[12..]))
+}
+
 /// `vm.etch`: set the account code (mirrors `state.SetCode`). Empty code clears it to
 /// `KECCAK_EMPTY`, which — combined with a later `resetNonce` — makes the account EIP-161 empty.
 fn cheat_etch(ctx: &mut ScriptContext, who: Address, code: Bytes) {
@@ -343,6 +355,10 @@ impl CheatInspector {
                 &c.initCodeHash,
             );
             return Ok(abi_address(&addr));
+        }
+        if sel == Vm::addrCall::SELECTOR {
+            let c = decode::<Vm::addrCall>(args)?;
+            return Ok(abi_address(&cheat_addr(c.privateKey)?));
         }
 
         // --- label / access control (no state-dump effect; accept and continue) ---
