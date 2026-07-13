@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"reflect"
 	"strings"
 
@@ -23,9 +24,30 @@ var EngineSpec = rustbin.Spec{
 	Binary:  "op-script-engine",
 }
 
+// EngineBinaryPathEnv is the env var holding a pre-built op-script-engine path. It must match the
+// name rustbin.Spec.EnsureExists derives from EngineSpec.Binary ("op-script-engine" ->
+// "OP_SCRIPT_ENGINE"). CI's rust-workspace-binaries job builds the whole rust/ workspace at release
+// and persists rust/target/release/op-script-engine; the go-tests jobs point this env at it so the
+// cargo-less Go executors resolve the pre-built binary instead of rebuilding.
+const EngineBinaryPathEnv = "RUST_BINARY_PATH_OP_SCRIPT_ENGINE"
+
 // EngineBinary locates or builds the op-script-engine binary and returns its absolute path.
 func EngineBinary(ctx context.Context, logger log.Logger) (string, error) {
 	return EngineSpec.EnsureExists(ctx, logger)
+}
+
+// PrebuiltEngineBinary returns the path in EngineBinaryPathEnv when it is set and exists on disk,
+// and whether such a binary was found. Test provisioning helpers prefer a CI-supplied pre-built
+// binary (Go executors without cargo) over an in-test cargo build.
+func PrebuiltEngineBinary() (string, bool) {
+	p := os.Getenv(EngineBinaryPathEnv)
+	if p == "" {
+		return "", false
+	}
+	if _, err := os.Stat(p); err != nil {
+		return "", false
+	}
+	return p, true
 }
 
 // ArtifactsDir recovers the on-disk directory backing a forge-artifacts filesystem so it can be

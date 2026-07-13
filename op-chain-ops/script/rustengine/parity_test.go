@@ -21,10 +21,15 @@ import (
 
 const artifactsRel = "../testdata/test-artifacts"
 
-// buildEngine compiles the Rust engine (a no-op if already built) and returns the binary path.
+// buildEngine returns the Rust engine binary path. It prefers a pre-built binary named by
+// RUST_BINARY_PATH_OP_SCRIPT_ENGINE (how CI supplies it to the cargo-less Go executors); otherwise
+// it cargo-builds locally, and skips only when neither a pre-built binary nor cargo is available.
 func buildEngine(t *testing.T) string {
+	if p, ok := PrebuiltEngineBinary(); ok {
+		return p
+	}
 	if _, err := exec.LookPath("cargo"); err != nil {
-		t.Skip("cargo not available; skipping Rust engine parity test")
+		t.Skip("no pre-built engine (RUST_BINARY_PATH_OP_SCRIPT_ENGINE) and cargo unavailable; skipping Rust engine parity test")
 	}
 	root, err := filepath.Abs("../../..")
 	require.NoError(t, err)

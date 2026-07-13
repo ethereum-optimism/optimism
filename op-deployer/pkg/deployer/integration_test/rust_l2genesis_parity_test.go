@@ -203,10 +203,15 @@ func requireAllocsJSONEq(t *testing.T, label string, want, got *foundry.ForgeAll
 	require.JSONEq(t, string(wb), string(gb), "state dump mismatch: %s", label)
 }
 
-// buildRustScriptEngine compiles the Rust engine (a no-op if already built) and returns its path.
+// buildRustScriptEngine returns the Rust engine binary path. It prefers a pre-built binary named by
+// RUST_BINARY_PATH_OP_SCRIPT_ENGINE (how CI supplies it to the cargo-less Go executors); otherwise
+// it cargo-builds locally, and skips only when neither a pre-built binary nor cargo is available.
 func buildRustScriptEngine(t *testing.T) string {
+	if p, ok := rustengine.PrebuiltEngineBinary(); ok {
+		return p
+	}
 	if _, err := exec.LookPath("cargo"); err != nil {
-		t.Skip("cargo not available; skipping Rust engine parity test")
+		t.Skip("no pre-built engine (RUST_BINARY_PATH_OP_SCRIPT_ENGINE) and cargo unavailable; skipping Rust engine parity test")
 	}
 	rustDir := filepath.Join(monorepoRoot(t), "rust")
 	cmd := exec.Command("cargo", "build", "-p", "op-script-engine", "--bin", "op-script-engine")

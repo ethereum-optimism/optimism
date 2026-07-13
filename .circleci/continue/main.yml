@@ -1815,10 +1815,15 @@ jobs:
       - attach_workspace:
           at: .
       - run:
-          name: Configure op-reth binary path
+          name: Configure Rust binary paths
           command: |
             ROOT_DIR="$(pwd)"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
+            # rust-workspace-binaries builds the whole rust/ workspace at release and persists
+            # rust/target/release/, so op-script-engine (a workspace member) is present here.
+            # op-deployer's Rust script engine and its parity tests (op-chain-ops/script/rustengine,
+            # op-deployer integration_test) resolve this pre-built binary instead of rebuilding.
+            echo "export RUST_BINARY_PATH_OP_SCRIPT_ENGINE=$ROOT_DIR/rust/target/release/op-script-engine" >> "$BASH_ENV"
       - go-restore-cache:
           namespace: go-tests
       - run:

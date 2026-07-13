@@ -80,6 +80,14 @@ build-op-reth:
 build-op-reth-debug:
   cargo build --bin op-reth
 
+# Build op-script-engine (op-deployer's out-of-process forge-script engine)
+build-op-script-engine:
+  cargo build --release --bin op-script-engine
+
+# Build op-script-engine in debug mode (faster compilation for local test iteration)
+build-op-script-engine-debug:
+  cargo build --bin op-script-engine
+
 ############################### Test ################################
 
 # Run all tests (unit + doc tests)
