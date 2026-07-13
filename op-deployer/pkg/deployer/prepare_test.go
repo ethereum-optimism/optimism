@@ -2,9 +2,12 @@ package deployer
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -133,6 +136,34 @@ func TestMakePredictionInput_MissingRequiredAddresses(t *testing.T) {
 
 	_, err = makePredictionInput(&state.Intent{OPCMAddress: &opcmAddr}, st, chain)
 	require.ErrorContains(t, err, "superchainConfigProxy must be set")
+}
+
+func TestValidateL1ChainID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID     any    `json:"id"`
+			Method string `json:"method"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, "eth_chainId", req.Method)
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      req.ID,
+			"result":  "0x384", // 900
+		}))
+	}))
+	defer srv.Close()
+
+	l1RPC, err := rpc.Dial(srv.URL)
+	require.NoError(t, err)
+	defer l1RPC.Close()
+
+	ctx := context.Background()
+	require.NoError(t, validateL1ChainID(ctx, l1RPC, &state.Intent{L1ChainID: 900}))
+
+	err = validateL1ChainID(ctx, l1RPC, &state.Intent{L1ChainID: 901})
+	require.ErrorContains(t, err, "l1 chain ID mismatch: got 900, expected 901")
 }
 
 func TestPrepareConfigCheck(t *testing.T) {

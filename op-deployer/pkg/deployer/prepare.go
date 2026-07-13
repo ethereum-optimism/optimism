@@ -18,6 +18,7 @@ import (
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
@@ -144,6 +145,10 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 	defer l1RPC.Close()
 
+	if err := validateL1ChainID(ctx, l1RPC, intent); err != nil {
+		return err
+	}
+
 	l1Host, err := env.DefaultForkedScriptHost(
 		ctx,
 		broadcaster.NoopBroadcaster(),
@@ -169,6 +174,19 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("failed to write state: %w", err)
 	}
 
+	return nil
+}
+
+// validateL1ChainID checks that the L1 RPC endpoint serves the chain the intent was
+// written for, so a prediction cannot silently run against a fork of the wrong L1.
+func validateL1ChainID(ctx context.Context, l1RPC *rpc.Client, intent *state.Intent) error {
+	l1ChainID, err := ethclient.NewClient(l1RPC).ChainID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get L1 chain ID: %w", err)
+	}
+	if l1ChainID.Cmp(intent.L1ChainIDBig()) != 0 {
+		return fmt.Errorf("l1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
+	}
 	return nil
 }
 
