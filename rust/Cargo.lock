@@ -9586,6 +9586,7 @@ dependencies = [
  "reth-ipc",
  "revm",
  "revm-database",
+ "rustls",
  "serde",
  "serde_json",
  "thiserror 2.0.18",

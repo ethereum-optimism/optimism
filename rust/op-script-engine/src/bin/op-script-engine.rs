@@ -51,6 +51,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args = Args::parse();
 
+    // Install the rustls crypto provider before any https fork dial. rustls 0.23 ships no default
+    // provider, so the reqwest transport AlloyDB uses fails on the first https L1 request without
+    // this (a real Live-deploy L1 is https; local anvil is plain http and unaffected). Idempotent.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // Fresh socket path each run (Go passes a unique tmp path); remove any stale file.
     let _ = std::fs::remove_file(&args.socket);
 
