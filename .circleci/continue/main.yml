@@ -1716,6 +1716,25 @@ jobs:
       - go-save-cache:
           namespace: check-nut-locks
 
+  check-nut-prefork-states:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: large.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - attach_workspace:
+          at: .
+      - go-restore-cache:
+          namespace: check-nut-prefork-states
+      - run:
+          name: check NUT pre-fork states
+          command: |
+            just _check-nut-prefork-states
+      - go-save-cache:
+          namespace: check-nut-prefork-states
+
   nut-provenance-verify:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -2442,6 +2461,13 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - check-nut-prefork-states:
+          requires:
+            - contracts-bedrock-build
+            - prep-superchain
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - nut-provenance-verify:
           requires:
             - prep-go-modules
@@ -2625,6 +2651,7 @@ workflows:
             - check-generated-mocks-op-service: terminal
             # Misc checks that run on the merge queue.
             - check-nut-locks: terminal
+            - check-nut-prefork-states: terminal
             - check-op-geth-version: terminal
             - op-deployer-forge-version: terminal
             - l2-chains-sync-check: terminal
