@@ -75,9 +75,9 @@ func TestRustEngineForkedParity(t *testing.T) {
 		GameArgs:            gameargs.GameArgs{}.PackPermissionless(),
 	}
 
-	// ---- Leg A: in-process Go forked host ----
+	// ---- Leg A: in-process Go forked host (non-isolated, matching the non-isolated engine) ----
 	var goBroadcasts []script.Broadcast
-	gh := goForkedHost(t, artifactsFS, srv.URL, forkBlock, func(b script.Broadcast) {
+	gh := goForkedHost(t, artifactsFS, srv.URL, forkBlock, false, func(b script.Broadcast) {
 		goBroadcasts = append(goBroadcasts, b)
 	})
 	goVersion := contractVersionAt(t, gh, forkDGF)
@@ -141,10 +141,12 @@ func TestRustEngineForkedParity(t *testing.T) {
 }
 
 // goForkedHost builds a fork-backed Go script.Host at a fixed block, dialing forkURL. It mirrors
-// env.ForkedScriptHost but (1) captures broadcasts via the passed hook and (2) omits
-// WithIsolatedBroadcasts — see the TestRustEngineForkedParity note.
+// env.ForkedScriptHost and captures broadcasts via the passed hook. isolate toggles
+// WithIsolatedBroadcasts (the production env.DefaultForkedScriptHost setting): the non-isolated form
+// is used by TestRustEngineForkedParity to isolate the fork-state variable; the isolated form by
+// TestRustEngineForkedIsolatedParity to validate the engine's broadcast isolation.
 func goForkedHost(t *testing.T, artifactsFS foundry.StatDirFs, forkURL string, blockNumber uint64,
-	onBroadcast script.BroadcastHook) *script.Host {
+	isolate bool, onBroadcast script.BroadcastHook) *script.Host {
 	t.Helper()
 	forkRPC, err := rpc.Dial(forkURL)
 	require.NoError(t, err)
@@ -153,11 +155,7 @@ func goForkedHost(t *testing.T, artifactsFS foundry.StatDirFs, forkURL string, b
 	scriptCtx := script.DefaultContext
 	scriptCtx.Sender = forkDeployer
 	scriptCtx.Origin = forkDeployer
-	h := script.NewHost(
-		testlog.Logger(t, log.LevelError),
-		&foundry.ArtifactsFS{FS: artifactsFS},
-		nil,
-		scriptCtx,
+	opts := []script.HostOption{
 		script.WithBroadcastHook(onBroadcast),
 		script.WithCreate2Deployer(),
 		script.WithForkHook(func(cfg *script.ForkConfig) (forking.ForkSource, error) {
@@ -167,6 +165,16 @@ func goForkedHost(t *testing.T, artifactsFS foundry.StatDirFs, forkURL string, b
 			}
 			return forking.Cache(src), nil
 		}),
+	}
+	if isolate {
+		opts = append(opts, script.WithIsolatedBroadcasts())
+	}
+	h := script.NewHost(
+		testlog.Logger(t, log.LevelError),
+		&foundry.ArtifactsFS{FS: artifactsFS},
+		nil,
+		scriptCtx,
+		opts...,
 	)
 	require.NoError(t, h.EnableCheats())
 	_, err = h.CreateSelectFork(

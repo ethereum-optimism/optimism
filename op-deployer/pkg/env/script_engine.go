@@ -12,16 +12,17 @@ const (
 	ScriptEngineRust ScriptEngineKind = "rust"
 )
 
-// DefaultScriptEngine is the engine used for non-forked script execution when none is explicitly
-// selected. The choice is made per host-kind (see host.go):
+// DefaultScriptEngine is the engine used when none is explicitly selected. The Rust
+// op-script-engine is the default; select ScriptEngineGo via --script-engine=go to fall back to the
+// in-process Go script.Host. Selection is governed solely by this resolved value, never by host kind
+// or binary availability.
 //
-//   - Non-forked hosts (in-memory genesis: the apply.go DeploymentTargetGenesis L1 deploy stages,
-//     pipeline.GenerateL2Genesis, interopgen) default to the Rust op-script-engine; select
-//     ScriptEngineGo via --script-engine=go to fall back to the in-process Go script.Host.
-//   - Forked hosts (CreateSelectFork against a live L1: apply Live/Calldata, bootstrap, upgrade,
-//     manage, sysgo opcm_upgrade) always run on the Go script.Host and ignore this value. The Rust
-//     engine has no fork mode yet, so that is a deliberate per-host-kind selection, not a silent
-//     fallback — Rust fork mode is a follow-up milestone.
+// The Rust engine supports both non-forked hosts (in-memory genesis: the apply.go
+// DeploymentTargetGenesis L1 deploy, pipeline.GenerateL2Genesis, interopgen) and fork mode
+// (CreateSelectFork against a live L1). The apply.go Live/Calldata/Noop forked hosts route through
+// the engine's fork mode by default. The env.DefaultForkedScriptHost / ForkedScriptHost constructors
+// (used by bootstrap, upgrade, manage, sysgo opcm_upgrade, and the forked test suites) still build
+// the Go script.Host directly and are being migrated to the engine seam.
 const DefaultScriptEngine = ScriptEngineRust
 
 // Resolve maps the empty (unset) kind to the default engine.
