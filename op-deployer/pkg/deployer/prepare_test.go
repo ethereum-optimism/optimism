@@ -111,7 +111,7 @@ func TestMakePredictionInput_Permissionless(t *testing.T) {
 		SuperchainConfigProxy: &superchainConfig,
 	}, st, chain)
 	require.NoError(t, err)
-	require.Equal(t, embedded.GameTypeCannonKona, dci.DisputeGameType)
+	require.Equal(t, uint32(embedded.GameTypeCannonKona), dci.DisputeGameType)
 
 	// The dry run executes DeployOPChain.checkInput and the OPCM's config validation, which
 	// for permissionless deploys reject a zero or permissioned-placeholder anchor root and a
