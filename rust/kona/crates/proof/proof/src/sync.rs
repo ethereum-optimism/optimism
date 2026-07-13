@@ -103,8 +103,14 @@ pub enum SyncStartError {
     },
     /// The claim targets the safe head block itself (a zero-step transition), but the claimed
     /// output root does not match the agreed output root.
-    #[error("Claimed output root does not match agreed output root at safe head {safe_head}")]
+    #[error(
+        "Claimed output root {claimed} does not match agreed output root {agreed} at safe head {safe_head}"
+    )]
     ClaimedRootMismatch {
+        /// The claimed (disputed) L2 output root.
+        claimed: B256,
+        /// The agreed L2 output root.
+        agreed: B256,
         /// The safe head L2 block number the claim targets.
         safe_head: u64,
     },
@@ -174,7 +180,11 @@ where
     // In this case, the only valid output root is the agreed output root (a zero-step transition).
     if boot.claimed_l2_block_number == safe_head.number {
         if boot.claimed_l2_output_root != boot.agreed_l2_output_root {
-            return Err(SyncStartError::ClaimedRootMismatch { safe_head: safe_head.number });
+            return Err(SyncStartError::ClaimedRootMismatch {
+                claimed: boot.claimed_l2_output_root,
+                agreed: boot.agreed_l2_output_root,
+                safe_head: safe_head.number,
+            });
         }
 
         info!(
@@ -365,7 +375,7 @@ mod tests {
         let rollup_config = Arc::new(boot.rollup_config.clone());
 
         let err = prepare_derivation(&boot, rollup_config, Arc::new(oracle)).await.unwrap_err();
-        assert!(matches!(err, SyncStartError::ClaimedRootMismatch { safe_head: 3 }));
+        assert!(matches!(err, SyncStartError::ClaimedRootMismatch { safe_head: 3, .. }));
         assert!(err.to_string().contains("does not match agreed output root"));
     }
 

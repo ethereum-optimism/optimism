@@ -72,7 +72,7 @@ where
                 boot.claimed_l2_output_root,
             ));
         }
-        Err(SyncStartError::ClaimedRootMismatch { safe_head }) => {
+        Err(SyncStartError::ClaimedRootMismatch { safe_head, .. }) => {
             error!(
                 target: "client",
                 claimed = boot.claimed_l2_block_number,
