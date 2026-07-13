@@ -33,6 +33,20 @@ func TestBytesScriptEncoderNestedTupleGolden(t *testing.T) {
 	require.Equal(t, common.FromHex(expected), encoded)
 }
 
+func TestBytesScriptDecoderNestedTuple(t *testing.T) {
+	input := nestedTupleInput{StartingAnchorRoot: nestedTupleProposal{
+		Root:             common.HexToHash("0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47"),
+		L2SequenceNumber: big.NewInt(1234),
+	}}
+	encoded, err := (&BytesScriptEncoder[nestedTupleInput]{TypeName: "nestedTupleInput"}).Encode(input)
+	require.NoError(t, err)
+
+	decoded, err := (&BytesScriptDecoder[nestedTupleInput]{TypeName: "nestedTupleInput"}).Decode(encoded)
+	require.NoError(t, err)
+	require.Equal(t, input.StartingAnchorRoot.Root, decoded.StartingAnchorRoot.Root)
+	require.Zero(t, input.StartingAnchorRoot.L2SequenceNumber.Cmp(decoded.StartingAnchorRoot.L2SequenceNumber))
+}
+
 func TestGoStructToABITupleNestedTuple(t *testing.T) {
 	tupleType, err := GoStructToABITuple(reflect.TypeFor[nestedTupleInput](), "nestedTupleInput")
 	require.NoError(t, err)

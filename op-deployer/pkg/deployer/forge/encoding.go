@@ -148,33 +148,14 @@ func GoTypeToABIType(goType reflect.Type) (string, error) {
 	return "", fmt.Errorf("unable to convert go type to abi type: %s", goType)
 }
 
-func ConvertAnonStructToTyped[T any](anonStruct interface{}) (T, error) {
-	var result T
-
-	srcVal := reflect.ValueOf(anonStruct)
-	destVal := reflect.ValueOf(&result).Elem()
-
-	// Ensure both are structs
-	if srcVal.Kind() != reflect.Struct || destVal.Kind() != reflect.Struct {
-		return result, fmt.Errorf("both source and destination must be structs")
-	}
-
-	// Check field count matches
-	if srcVal.NumField() != destVal.NumField() {
-		return result, fmt.Errorf("field count mismatch: source has %d, destination has %d",
-			srcVal.NumField(), destVal.NumField())
-	}
-
-	// Copy fields by index (assumes same field order)
-	for i := 0; i < srcVal.NumField(); i++ {
-		srcField := srcVal.Field(i)
-		destField := destVal.Field(i)
-
-		if destField.CanSet() {
-			destField.Set(srcField)
+// ConvertAnonStructToTyped returns conversion failures as errors.
+func ConvertAnonStructToTyped[T any](anonStruct any) (result T, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("cannot convert anonymous struct to %T: %v", result, r)
 		}
-	}
-
+	}()
+	result = *abi.ConvertType(anonStruct, new(T)).(*T)
 	return result, nil
 }
 
