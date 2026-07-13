@@ -41,10 +41,23 @@ type FunderEOA struct {
 
 // NewFunderEOA wraps a prefunded EOA as a funder that mints child EOAs from wallet.
 func NewFunderEOA(eoa *EOA, wallet *HDWallet) *FunderEOA {
-	reliableEL := txinclude.NewReliableEL(eoa.el.stackEL().EthClient(), funderBlockTime)
+	client := eoa.el.stackEL().EthClient()
+	// Use a Monitor for reliable receipt polling, but a plain sender with NO
+	// resubmitter. The funder must send each funding tx exactly once: with a
+	// resubmitter, once a funding tx is mined the next resubmit returns
+	// "nonce too low", which Persistent treats as "advance the nonce and re-send"
+	// — re-sending the value transfer and over-funding the recipient. Sending
+	// once (and letting the Monitor await the receipt) keeps funding exact.
+	el := struct {
+		*txinclude.Monitor
+		txinclude.Sender
+	}{
+		Monitor: txinclude.NewMonitor(client, funderBlockTime),
+		Sender:  client,
+	}
 	signer := txinclude.NewPkSigner(eoa.Key().Priv(), eoa.ChainID().ToBig())
 	includer := txinclude.NewLimit(
-		txinclude.NewPersistent(signer, reliableEL, txinclude.WithStartNonce(eoa.PendingNonce())),
+		txinclude.NewPersistent(signer, el, txinclude.WithStartNonce(eoa.PendingNonce())),
 		funderMaxConcurrentTxs,
 	)
 	return &FunderEOA{
