@@ -66,8 +66,7 @@ impl Artifacts {
         if !path.exists() {
             return Err(ArtifactError::NotFound(path.to_path_buf()));
         }
-        let data =
-            std::fs::read(path).map_err(|e| ArtifactError::Io(path.to_path_buf(), e))?;
+        let data = std::fs::read(path).map_err(|e| ArtifactError::Io(path.to_path_buf(), e))?;
         let v: serde_json::Value = serde_json::from_slice(&data)
             .map_err(|e| ArtifactError::Parse(path.to_path_buf(), e))?;
         let bytecode = extract_object(&v, "bytecode")

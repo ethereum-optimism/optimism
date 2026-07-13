@@ -206,6 +206,20 @@ func (e *Engine) RemovePrecompile(addr common.Address) error {
 	return e.cl.Call(&ok, "script_removePrecompile", addr.Hex())
 }
 
+// ImportState imports a forge-allocs dump into the engine's committed state, mirroring
+// script.Host.ImportState (balance + nonce + code + every storage slot, per account).
+func (e *Engine) ImportState(allocs *foundry.ForgeAllocs) error {
+	var ok bool
+	return e.cl.Call(&ok, "script_importState", allocs)
+}
+
+// GetCode returns the code at addr, mirroring script.Host.GetCode (empty when absent).
+func (e *Engine) GetCode(addr common.Address) ([]byte, error) {
+	var out hexutil.Bytes
+	err := e.cl.Call(&out, "script_getCode", addr.Hex())
+	return out, err
+}
+
 func (e *Engine) StateDump() (*foundry.ForgeAllocs, error) {
 	var raw json.RawMessage
 	if err := e.cl.Call(&raw, "script_stateDump"); err != nil {

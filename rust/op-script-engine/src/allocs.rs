@@ -5,14 +5,16 @@
 use std::collections::BTreeMap;
 
 use alloy_primitives::{Address, B256, U256, keccak256};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// One account in a forge allocs dump.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocAccount {
     /// hexutil.U256, e.g. "0x0".
+    #[serde(default = "hex_zero")]
     pub balance: String,
     /// hexutil.Uint64, e.g. "0x1".
+    #[serde(default = "hex_zero")]
     pub nonce: String,
     /// hexutil.Bytes, omitted when empty (matches Go `code,omitempty`).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -24,6 +26,10 @@ pub struct AllocAccount {
 
 /// Map of address -> account, keyed by lowercase 0x-hex address string.
 pub type ForgeAllocs = BTreeMap<String, AllocAccount>;
+
+fn hex_zero() -> String {
+    "0x0".to_string()
+}
 
 pub fn fmt_addr(a: &Address) -> String {
     format!("0x{:x}", a)

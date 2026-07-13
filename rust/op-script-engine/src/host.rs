@@ -20,9 +20,7 @@ use revm::{
     state::{AccountInfo, Bytecode},
 };
 
-use crate::addresses::{
-    CONSOLE_ADDR, DEFAULT_SENDER, FORGE_DEPLOYER, SCRIPT_DEPLOYER, VM_ADDR,
-};
+use crate::addresses::{CONSOLE_ADDR, DEFAULT_SENDER, FORGE_DEPLOYER, SCRIPT_DEPLOYER, VM_ADDR};
 use crate::allocs::{self, AllocAccount, ForgeAllocs};
 use crate::artifacts::{ArtifactError, Artifacts};
 use crate::cheatcodes::{Broadcast, CheatInspector};
@@ -83,8 +81,7 @@ pub struct ScriptHost {
 }
 
 /// The concrete revm context type used throughout the engine.
-pub type ScriptContext =
-    Context<BlockEnv, TxEnv, CfgEnv, Db, revm::Journal<Db>>;
+pub type ScriptContext = Context<BlockEnv, TxEnv, CfgEnv, Db, revm::Journal<Db>>;
 
 impl ScriptHost {
     pub fn new(config: HostConfig) -> Self {
@@ -183,8 +180,79 @@ impl ScriptHost {
         acc.info.code = Some(bytecode);
     }
 
+    /// Imports a forge-allocs dump into the committed DB, mirroring `script.Host.ImportState`
+    /// (balance + nonce + code + every storage slot, per account). Accounts are inserted via
+    /// `insert_account_info` so they are visible to the EVM (avoids the CacheDB `NotExisting`
+    /// cold-load trap).
+    pub fn import_state(&mut self, allocs: ForgeAllocs) -> Result<(), HostError> {
+        let parse = |what: &str, s: &str| -> Result<U256, HostError> {
+            let digits = s.strip_prefix("0x").unwrap_or(s);
+            U256::from_str_radix(digits, 16)
+                .map_err(|e| HostError::Evm(format!("bad {what} {s:?}: {e}")))
+        };
+        for (addr_str, acct) in allocs {
+            let addr: Address = addr_str
+                .parse()
+                .map_err(|e| HostError::Evm(format!("bad address {addr_str:?}: {e}")))?;
+            let balance = parse("balance", &acct.balance)?;
+            let nonce = parse("nonce", &acct.nonce)?
+                .try_into()
+                .map_err(|_| HostError::Evm(format!("nonce {} overflows u64", acct.nonce)))?;
+
+            let code = match &acct.code {
+                Some(c) if c != "0x" => {
+                    let raw = alloy_primitives::hex::decode(c.strip_prefix("0x").unwrap_or(c))
+                        .map_err(|e| HostError::Evm(format!("bad code for {addr_str}: {e}")))?;
+                    Some(Bytecode::new_raw(Bytes::from(raw)))
+                }
+                _ => None,
+            };
+            let code_hash = code.as_ref().map(|b| b.hash_slow()).unwrap_or(KECCAK_EMPTY);
+
+            let db = self.db_mut();
+            if let Some(b) = &code {
+                db.cache.contracts.insert(code_hash, b.clone());
+            }
+            db.insert_account_info(
+                addr,
+                AccountInfo { balance, nonce, code_hash, code, account_id: None },
+            );
+
+            if let Some(storage) = acct.storage {
+                let acc =
+                    self.db_mut().cache.accounts.get_mut(&addr).expect("account just inserted");
+                for (slot, value) in storage {
+                    let k = parse("storage slot", &slot)?;
+                    let v = parse("storage value", &value)?;
+                    acc.storage.insert(k, v);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Deployed code at `addr`, mirroring `script.Host.GetCode` (empty when absent).
+    pub fn get_code(&self, addr: Address) -> Bytes {
+        let db = self.db();
+        let Some(acc) = db.cache.accounts.get(&addr) else {
+            return Bytes::new();
+        };
+        if acc.info.code_hash == KECCAK_EMPTY {
+            return Bytes::new();
+        }
+        if let Some(c) = &acc.info.code {
+            return c.original_bytes();
+        }
+        db.cache.contracts.get(&acc.info.code_hash).map(|c| c.original_bytes()).unwrap_or_default()
+    }
+
     /// Loads an artifact by `file`/`contract` and deploys it via CREATE from `from`.
-    pub fn load_contract(&mut self, file: &str, contract: &str, from: Address) -> Result<Address, HostError> {
+    pub fn load_contract(
+        &mut self,
+        file: &str,
+        contract: &str,
+        from: Address,
+    ) -> Result<Address, HostError> {
         let art = self
             .artifacts
             .as_ref()
@@ -207,7 +275,8 @@ impl ScriptHost {
             chain_id: Some(self.chain_id),
             ..Default::default()
         };
-        let result = self.evm.inspect_tx_commit(tx).map_err(|e| HostError::Evm(format!("{e:?}")))?;
+        let result =
+            self.evm.inspect_tx_commit(tx).map_err(|e| HostError::Evm(format!("{e:?}")))?;
         match result {
             ExecutionResult::Success { output: Output::Create(_, Some(addr)), .. } => Ok(addr),
             ExecutionResult::Success { .. } => Err(HostError::NoCreateAddress),
@@ -236,7 +305,8 @@ impl ScriptHost {
             chain_id: Some(self.chain_id),
             ..Default::default()
         };
-        let result = self.evm.inspect_tx_commit(tx).map_err(|e| HostError::Evm(format!("{e:?}")))?;
+        let result =
+            self.evm.inspect_tx_commit(tx).map_err(|e| HostError::Evm(format!("{e:?}")))?;
         // The tx-level caller-nonce bump was already undone at frame entry (see
         // pending_caller_nonce_undo), so in-run nonce increments on the caller (broadcast
         // bumps, CREATEs from the caller) persist exactly like geth's raw EVM.Call.
@@ -277,8 +347,13 @@ impl ScriptHost {
         // `cache.accounts.entry(..).or_default()` leaves `account_state = NotExisting`, so the
         // account stays invisible to the EVM and the next cold load panics (`ColdLoadSkipped`).
         // `insert_account_info` promotes `NotExisting -> None`, making the bumped nonce visible.
-        let mut info =
-            self.db().cache.accounts.get(&SCRIPT_DEPLOYER).map(|a| a.info.clone()).unwrap_or_default();
+        let mut info = self
+            .db()
+            .cache
+            .accounts
+            .get(&SCRIPT_DEPLOYER)
+            .map(|a| a.info.clone())
+            .unwrap_or_default();
         info.nonce = nonce + 1;
         self.db_mut().insert_account_info(SCRIPT_DEPLOYER, info);
         addr

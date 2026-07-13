@@ -148,10 +148,7 @@ impl CheatInspector {
 }
 
 fn read_nonce(ctx: &mut ScriptContext, addr: Address) -> u64 {
-    ctx.journal_mut()
-        .load_account(addr)
-        .map(|a| a.data.info.nonce)
-        .unwrap_or(0)
+    ctx.journal_mut().load_account(addr).map(|a| a.data.info.nonce).unwrap_or(0)
 }
 
 fn bump_nonce(ctx: &mut ScriptContext, addr: Address) {
@@ -167,7 +164,11 @@ fn decrement_nonce(ctx: &mut ScriptContext, addr: Address) {
     }
 }
 
-fn cheat_outcome(output: Bytes, gas_limit: u64, memory_offset: std::ops::Range<usize>) -> CallOutcome {
+fn cheat_outcome(
+    output: Bytes,
+    gas_limit: u64,
+    memory_offset: std::ops::Range<usize>,
+) -> CallOutcome {
     CallOutcome::new(
         InterpreterResult {
             result: InstructionResult::Return,
@@ -182,7 +183,11 @@ fn cheat_outcome(output: Bytes, gas_limit: u64, memory_offset: std::ops::Range<u
 /// the message is visible to Solidity `try/catch` and in traces. Mirrors the Go host's
 /// `encodeRevert` (`op-chain-ops/script/precompile.go`): unimplemented / undispatched cheatcodes
 /// revert rather than silently returning empty success.
-fn cheat_revert(reason: String, gas_limit: u64, memory_offset: std::ops::Range<usize>) -> CallOutcome {
+fn cheat_revert(
+    reason: String,
+    gas_limit: u64,
+    memory_offset: std::ops::Range<usize>,
+) -> CallOutcome {
     CallOutcome::new(
         InterpreterResult {
             result: InstructionResult::Revert,
@@ -252,7 +257,8 @@ fn abi_bytes(data: &[u8]) -> Bytes {
 fn cheat_addr(private_key: U256) -> Result<Address, String> {
     use k256::elliptic_curve::sec1::ToEncodedPoint;
     let bytes: [u8; 32] = private_key.to_be_bytes();
-    let sk = k256::SecretKey::from_slice(&bytes).map_err(|e| format!("invalid private key: {e}"))?;
+    let sk =
+        k256::SecretKey::from_slice(&bytes).map_err(|e| format!("invalid private key: {e}"))?;
     let point = sk.public_key().to_encoded_point(false); // 0x04 || X(32) || Y(32)
     let hash = alloy_primitives::keccak256(&point.as_bytes()[1..]);
     Ok(Address::from_slice(&hash[12..]))
@@ -298,7 +304,11 @@ impl CheatInspector {
     /// Handle a call to the VM cheatcode precompile. `Ok` carries the ABI-encoded return data;
     /// `Err` carries a revert reason for an unimplemented / undispatched cheatcode. Mirrors the
     /// Go host: an unrecognized selector reverts loudly rather than returning empty success.
-    fn dispatch_cheatcode(&mut self, ctx: &mut ScriptContext, data: &[u8]) -> Result<Bytes, String> {
+    fn dispatch_cheatcode(
+        &mut self,
+        ctx: &mut ScriptContext,
+        data: &[u8],
+    ) -> Result<Bytes, String> {
         if data.len() < 4 {
             return Err(format!("expected at least 4 bytes, but got '{}'", hex(data)));
         }
@@ -329,11 +339,7 @@ impl CheatInspector {
             let c = decode::<Vm::loadCall>(args)?;
             let slot = U256::from_be_bytes(c.slot.0);
             let _ = ctx.journal_mut().load_account(c.account);
-            let val = ctx
-                .journal_mut()
-                .sload(c.account, slot)
-                .map(|s| s.data)
-                .unwrap_or_default();
+            let val = ctx.journal_mut().sload(c.account, slot).map(|s| s.data).unwrap_or_default();
             return Ok(Bytes::from(val.to_be_bytes::<32>().to_vec()));
         }
         if sel == Vm::dealCall::SELECTOR {
@@ -486,7 +492,11 @@ impl Inspector<ScriptContext> for CheatInspector {
 
         // console.log sink: swallow, 0 gas (matches Go console precompile RequiredGas=0).
         if target == CONSOLE_ADDR {
-            return Some(cheat_outcome(Bytes::new(), inputs.gas_limit, inputs.return_memory_offset.clone()));
+            return Some(cheat_outcome(
+                Bytes::new(),
+                inputs.gas_limit,
+                inputs.return_memory_offset.clone(),
+            ));
         }
         // cheatcode precompile.
         if target == VM_ADDR {
@@ -504,7 +514,9 @@ impl Inspector<ScriptContext> for CheatInspector {
             let data = inputs.input.bytes(ctx);
             let memory_offset = inputs.return_memory_offset.clone();
             let outcome = match pc.run(&data) {
-                PrecompileOutcome::Return(out) => cheat_outcome(out, inputs.gas_limit, memory_offset),
+                PrecompileOutcome::Return(out) => {
+                    cheat_outcome(out, inputs.gas_limit, memory_offset)
+                }
                 PrecompileOutcome::Revert(reason) => {
                     cheat_revert(reason, inputs.gas_limit, memory_offset)
                 }
@@ -548,7 +560,12 @@ impl Inspector<ScriptContext> for CheatInspector {
         None
     }
 
-    fn call_end(&mut self, _ctx: &mut ScriptContext, inputs: &CallInputs, outcome: &mut CallOutcome) {
+    fn call_end(
+        &mut self,
+        _ctx: &mut ScriptContext,
+        inputs: &CallInputs,
+        outcome: &mut CallOutcome,
+    ) {
         // Frame push/pop must stay symmetric with `call`: cheat targets AND installed host
         // precompiles (OPCM input/output) short-circuit in `call` without pushing a frame, so
         // popping here would drop the caller's frame — losing an active startBroadcast/startPrank.
@@ -566,7 +583,11 @@ impl Inspector<ScriptContext> for CheatInspector {
         }
     }
 
-    fn create(&mut self, ctx: &mut ScriptContext, inputs: &mut CreateInputs) -> Option<CreateOutcome> {
+    fn create(
+        &mut self,
+        ctx: &mut ScriptContext,
+        inputs: &mut CreateInputs,
+    ) -> Option<CreateOutcome> {
         // `CreateInputs.set_call` overrides the creator, the CREATE equivalent of op-geth's
         // `CallerOverride`, so revm's *state* deploys at the pranked address too.
         let mut captured = None;

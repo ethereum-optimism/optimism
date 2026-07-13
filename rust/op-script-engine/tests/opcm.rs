@@ -62,7 +62,8 @@ fn opcm_run_script_single() {
     calldata.extend_from_slice(abi_address(&input_addr).as_ref());
     calldata.extend_from_slice(abi_address(&output_addr).as_ref());
 
-    let res = host.run_script("OPCMExample.s.sol", "OPCMExample", Bytes::from(calldata), DEFAULT_SENDER);
+    let res =
+        host.run_script("OPCMExample.s.sol", "OPCMExample", Bytes::from(calldata), DEFAULT_SENDER);
     let out = res.expect("run_script should succeed");
     println!("run output: 0x{}", alloy_primitives::hex::encode(&out));
 

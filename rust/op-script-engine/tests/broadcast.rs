@@ -72,5 +72,9 @@ fn broadcast_leg() {
         2,
         "0xc0ffee nonce"
     );
-    assert_eq!(host.get_nonce(address!("0x000000000000000000000000000000000000cafe")), 1, "0xcafe nonce");
+    assert_eq!(
+        host.get_nonce(address!("0x000000000000000000000000000000000000cafe")),
+        1,
+        "0xcafe nonce"
+    );
 }

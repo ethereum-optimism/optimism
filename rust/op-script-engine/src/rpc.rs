@@ -102,7 +102,8 @@ pub fn build_module(engine: Engine) -> RpcModule<Engine> {
     m.register_method("script_call", |params, ctx, _| {
         let (from, to, input): (String, String, String) = params.parse().map_err(err)?;
         ctx.run(move |h| {
-            let out = h.call(addr(&from)?, addr(&to)?, bytes(&input)?).map_err(|e| e.to_string())?;
+            let out =
+                h.call(addr(&from)?, addr(&to)?, bytes(&input)?).map_err(|e| e.to_string())?;
             Ok(hexstr(&out))
         })
     })
@@ -173,6 +174,21 @@ pub fn build_module(engine: Engine) -> RpcModule<Engine> {
             h.wipe(addr(&a)?);
             Ok(serde_json::Value::Bool(true))
         })
+    })
+    .unwrap();
+
+    m.register_method("script_importState", |params, ctx, _| {
+        let allocs: crate::allocs::ForgeAllocs = params.one().map_err(err)?;
+        ctx.run(move |h| {
+            h.import_state(allocs).map_err(|e| e.to_string())?;
+            Ok(serde_json::Value::Bool(true))
+        })
+    })
+    .unwrap();
+
+    m.register_method("script_getCode", |params, ctx, _| {
+        let a: String = params.one().map_err(err)?;
+        ctx.run(move |h| Ok(hexstr(&h.get_code(addr(&a)?))))
     })
     .unwrap();
 
