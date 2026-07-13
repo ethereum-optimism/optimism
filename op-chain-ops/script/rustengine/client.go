@@ -24,9 +24,9 @@ import (
 
 // Engine is a handle to a spawned Rust op-script-engine subprocess.
 type Engine struct {
-	cmd     *exec.Cmd
-	cl      *rpc.Client
-	tmpDir  string
+	cmd    *exec.Cmd
+	cl     *rpc.Client
+	tmpDir string
 }
 
 // SpawnOpts is the engine host context: the fields of script.Context (plus host options)
