@@ -297,6 +297,7 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 	}
 
 	n.metrics.RecordInfo(n.appVersion)
+	n.metrics.RecordHardforkActivationTimes(&cfg.Rollup)
 	n.metrics.RecordUp()
 
 	n.pprofService, err = initPProf(cfg, n)

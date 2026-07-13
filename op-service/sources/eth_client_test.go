@@ -104,6 +104,36 @@ func randHeader() (*types.Header, *RPCHeader) {
 	return hdr, rhdr
 }
 
+func TestToCallArgIncludesFeeFields(t *testing.T) {
+	to := common.Address{0x01}
+	accessList := types.AccessList{
+		{Address: common.Address{0x02}, StorageKeys: []common.Hash{{0x03}}},
+	}
+	msg := ethereum.CallMsg{
+		From:       common.Address{0x04},
+		To:         &to,
+		Gas:        123_456,
+		GasPrice:   big.NewInt(1),
+		GasFeeCap:  big.NewInt(2),
+		GasTipCap:  big.NewInt(3),
+		Value:      big.NewInt(4),
+		Data:       []byte{0x05, 0x06},
+		AccessList: accessList,
+	}
+
+	arg, ok := ToCallArg(msg).(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, msg.From, arg["from"])
+	require.Equal(t, msg.To, arg["to"])
+	require.Equal(t, hexutil.Uint64(msg.Gas), arg["gas"])
+	require.Equal(t, (*hexutil.Big)(msg.GasPrice), arg["gasPrice"])
+	require.Equal(t, (*hexutil.Big)(msg.GasFeeCap), arg["maxFeePerGas"])
+	require.Equal(t, (*hexutil.Big)(msg.GasTipCap), arg["maxPriorityFeePerGas"])
+	require.Equal(t, (*hexutil.Big)(msg.Value), arg["value"])
+	require.Equal(t, hexutil.Bytes(msg.Data), arg["data"])
+	require.Equal(t, accessList, arg["accessList"])
+}
+
 func TestEthClient_InfoByHash(t *testing.T) {
 	m := new(mockRPC)
 	_, rhdr := randHeader()
