@@ -246,6 +246,8 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		GasLimit:                cfg.GasLimit,
 		DisputeGameType:         cfg.DisputeGameType,
 		DisputeAbsolutePrestate: selectedAbsolutePrestate,
+		// TODO(#20912): Replace this placeholder with a real proposal before enabling
+		// permissionless interopgen deployments. The generated recipe currently uses PERMISSIONED_CANNON.
 		StartingAnchorRoot: opcm.Proposal{
 			Root:             opcm.DefaultStartingAnchorRoot.Root,
 			L2SequenceNumber: common.Big0,
