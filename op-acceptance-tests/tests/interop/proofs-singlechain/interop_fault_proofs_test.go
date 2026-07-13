@@ -20,7 +20,7 @@ func TestInteropSingleChainFaultProofsWithSDM(gt *testing.T) {
 	sysgo.SkipOnOpGeth(t, "SDM PostExec is op-reth only")
 
 	sys := presets.NewSingleChainInterop(t)
-	err := sys.L2ELA.Escape().L2EthClient().RPC().CallContext(t.Ctx(), nil, "admin_setSdmPostExecOptIn", true)
-	t.Require().NoError(err, "admin_setSdmPostExecOptIn(true) RPC failed")
+	err := sys.L2ELA.Escape().L2EthClient().RPC().CallContext(t.Ctx(), nil, "admin_setOperatorSdmOptIn", true)
+	t.Require().NoError(err, "admin_setOperatorSdmOptIn(true) RPC failed")
 	sfp.RunSingleChainSuperFaultProofSDMSmokeTest(t, sys)
 }

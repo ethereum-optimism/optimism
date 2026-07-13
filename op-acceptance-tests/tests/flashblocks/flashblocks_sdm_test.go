@@ -60,7 +60,7 @@ func TestFlashblocksSDMMaterializesPostExecBlock(gt *testing.T) {
 	// rust/op-reth/crates/rpc/src/sdm_admin.rs and
 	// rust/op-rbuilder/crates/op-rbuilder/src/sdm_admin.rs). A runtime opt-in set
 	// over RPC is dropped on restart, so callers — tests here, operators in prod —
-	// must re-issue admin_setSdmPostExecOptIn after every boot (op-reth can instead
+	// must re-issue admin_setOperatorSdmOptIn after every boot (op-reth can instead
 	// seed it at boot via --rollup.operator-sdm-opt-in).
 	setFlashblocksSDMEnabled(t, sys.L2EL.Escape().L2EthClient().RPC(), true)
 	setFlashblocksSDMEnabled(t, sys.L2OPRBuilder.Escape().L2EthClient().RPC(), true)
@@ -321,6 +321,6 @@ func flashblocksDeployContract(t devtest.T, eoa *dsl.EOA, hexBytecode string) co
 
 func setFlashblocksSDMEnabled(t devtest.T, rpcClient client.RPC, enabled bool) {
 	t.Helper()
-	err := rpcClient.CallContext(t.Ctx(), nil, "admin_setSdmPostExecOptIn", enabled)
-	t.Require().NoError(err, "admin_setSdmPostExecOptIn(%v) RPC failed", enabled)
+	err := rpcClient.CallContext(t.Ctx(), nil, "admin_setOperatorSdmOptIn", enabled)
+	t.Require().NoError(err, "admin_setOperatorSdmOptIn(%v) RPC failed", enabled)
 }
