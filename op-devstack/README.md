@@ -109,8 +109,8 @@ and returns a typed output that the test then may use.
 - `OP_RETH_EXEC_PATH=/home/USERHERE/projects/reth/target/release/op-reth` to select the op-reth executable to run
 
 ### Go stack env vars:
-- `DEVSTACK_L1EL_KIND=geth` to select geth as default L1 EL node
-- `SYSGO_GETH_EXEC_PATH=/path/to/geth` to select the geth executable to run
+- The L1 EL runs as a `geth` subprocess by default. Set `DEVSTACK_L1EL_KIND=in-process` to opt back into the in-process op-geth library node.
+- `SYSGO_GETH_EXEC_PATH=/path/to/geth` to select the geth executable to run (optional; defaults to the mise-pinned `geth` on PATH)
 
 ### Metrics env vars:
 - `SYSGO_METRICS_ENABLED` set to `true` to enable metrics to be exposed via prometheus and grafana for all running components that expose metrics (default: `false`)

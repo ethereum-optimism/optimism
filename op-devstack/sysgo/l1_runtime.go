@@ -21,6 +21,10 @@ import (
 
 const DevstackL1ELKindEnvVar = "DEVSTACK_L1EL_KIND"
 
+// DevstackL1ELInProcessKind opts the L1 EL back into the in-process op-geth
+// library node. Subprocess geth is the default (see useSubprocessL1Geth).
+const DevstackL1ELInProcessKind = "in-process"
+
 const GethExecPathEnvVar = "SYSGO_GETH_EXEC_PATH"
 
 func writeJWTSecret(t devtest.T) (string, [32]byte) {
@@ -96,9 +100,13 @@ func startSubprocessL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l
 
 	execPath := cfg.L1GethExecPath
 	if execPath == "" {
-		var ok bool
-		execPath, ok = os.LookupEnv(GethExecPathEnvVar)
-		require.True(ok, "%s must be set when %s=geth", GethExecPathEnvVar, DevstackL1ELKindEnvVar)
+		execPath = os.Getenv(GethExecPathEnvVar)
+	}
+	if execPath == "" {
+		// Fall back to the mise-pinned geth binary on PATH.
+		lookedUp, err := exec.LookPath("geth")
+		require.NoError(err, "no %s set and no `geth` found on PATH (expected the mise-pinned geth)", GethExecPathEnvVar)
+		execPath = lookedUp
 	}
 	_, err := os.Stat(execPath)
 	require.NotErrorIs(err, os.ErrNotExist, "geth executable must exist")
@@ -226,12 +234,15 @@ func startSubprocessL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l
 	return l1EL, l1CL
 }
 
+// useSubprocessL1Geth reports whether the L1 EL should run as a geth subprocess.
+// Subprocess is the default; set PresetConfig.L1ELKind or DEVSTACK_L1EL_KIND to
+// "in-process" to opt back into the in-process op-geth library node.
 func useSubprocessL1Geth(cfg PresetConfig) bool {
 	kind := cfg.L1ELKind
 	if kind == "" {
 		kind = os.Getenv(DevstackL1ELKindEnvVar)
 	}
-	return kind == "geth"
+	return kind != DevstackL1ELInProcessKind
 }
 
 func readJWTSecret(t devtest.T, jwtPath string) [32]byte {
