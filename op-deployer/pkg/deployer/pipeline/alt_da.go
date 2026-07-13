@@ -54,11 +54,7 @@ func DeployAltDA(env *Env, intent *state.Intent, st *state.State, chainID common
 			return err
 		}
 	} else {
-		deployAltDAScript, err := opcm.NewDeployAltDAScript(env.L1ScriptHost)
-		if err != nil {
-			return fmt.Errorf("failed to load DeployAltDA script: %w", err)
-		}
-		output, err = deployAltDAScript.Run(input)
+		output, err = env.DeployAltDA(input)
 		if err != nil {
 			return fmt.Errorf("failed to deploy alt-da contracts: %w", err)
 		}

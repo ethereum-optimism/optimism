@@ -77,12 +77,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 			return err
 		}
 	} else {
-		readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)
-		if err != nil {
-			return fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
-		}
-
-		impls, err = readImplementations.Run(readInput)
+		impls, err = env.ReadImplementationAddresses(readInput)
 		if err != nil {
 			return fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
 		}

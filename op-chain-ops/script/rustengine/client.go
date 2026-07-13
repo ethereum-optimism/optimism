@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -152,6 +153,12 @@ func (e *Engine) GetNonce(addr common.Address) (uint64, error) {
 	var out uint64
 	err := e.cl.Call(&out, "script_getNonce", addr.Hex())
 	return out, err
+}
+
+// SetBalance sets an account's balance, matching script.Host.SetBalance.
+func (e *Engine) SetBalance(addr common.Address, bal *uint256.Int) error {
+	var ok bool
+	return e.cl.Call(&ok, "script_setBalance", addr.Hex(), bal.Hex())
 }
 
 // InstallInputPrecompile installs a getter-snapshot precompile (OPCM RunScript* input) at a

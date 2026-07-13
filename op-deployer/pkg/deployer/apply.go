@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script/rustengine"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
@@ -238,6 +239,11 @@ func ApplyPipeline(
 	var l1RPC *rpc.Client
 	var l1Client *ethclient.Client
 	var l1Host *script.Host
+	// l1Engine, when set, routes the non-forked L1 deploy stages through the out-of-process Rust
+	// op-script-engine (only for DeploymentTargetGenesis on the rust engine); l1Host is then nil.
+	var l1Engine *rustengine.Engine
+	var l1EngineFA *foundry.ArtifactsFS
+	var opcmScripts *opcm.Scripts
 
 	// Forked L1 host (Live/Calldata/Noop targets): always the Go script.Host — the Rust
 	// op-script-engine has no fork mode yet (a follow-up milestone). Deliberate per-host-kind
@@ -319,31 +325,42 @@ func ApplyPipeline(
 			return fmt.Errorf("failed to initialize L1 host: %w", err)
 		}
 	case DeploymentTargetGenesis:
-		// Non-forked genesis L1 deploy host. The L1 OPCM deploy stages (deploy-superchain /
-		// -implementations / -opchain) still run on this Go host; only the L2 genesis stage of the
-		// pipeline consults pEnv.ScriptEngine and defaults to Rust (pipeline.GenerateL2Genesis).
-		// Routing the non-forked L1 deploy stages through the engine is a follow-up round.
+		// Non-forked genesis L1 deploy host. This is a non-forked host, so per the engine
+		// selection (env.DefaultScriptEngine) it runs on the Rust op-script-engine by default,
+		// with --script-engine=go falling back to the in-process Go script.Host. Forked targets
+		// (Live/Calldata/Noop, above) always stay on the Go host — the Rust engine has no fork mode.
 		bcaster = broadcaster.NoopBroadcaster()
-		l1Host, err = env.DefaultScriptHost(
-			bcaster,
-			opts.Logger,
-			deployer,
-			bundle.L1,
-			script.WithNoMaxCodeSize(), // Allow unoptimized contracts from the forge lite profile in genesis deployments
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create L1 script host: %w", err)
+		if opts.ScriptEngine.Resolve() == env.ScriptEngineRust {
+			l1Engine, opcmScripts, l1EngineFA, err = initGenesisL1Engine(ctx, opts, bundle, deployer)
+			if err != nil {
+				return fmt.Errorf("failed to initialize L1 script engine: %w", err)
+			}
+			defer l1Engine.Close()
+		} else {
+			l1Host, err = env.DefaultScriptHost(
+				bcaster,
+				opts.Logger,
+				deployer,
+				bundle.L1,
+				script.WithNoMaxCodeSize(), // Allow unoptimized contracts from the forge lite profile in genesis deployments
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create L1 script host: %w", err)
+			}
 		}
 	default:
 		return fmt.Errorf("invalid deployment target: '%s'", opts.DeploymentTarget)
 	}
 
-	// Now that we have the host, we can load the deployment scripts
+	// Now that we have the host, we can load the deployment scripts (unless the L1 engine already
+	// built engine-backed scripts above).
 	//
 	// This step will error out if the ABIs don't match the Go types
-	opcmScripts, err := opcm.NewScripts(l1Host)
-	if err != nil {
-		return fmt.Errorf("failed to load OPCM script: %w", err)
+	if opcmScripts == nil {
+		opcmScripts, err = opcm.NewScripts(l1Host)
+		if err != nil {
+			return fmt.Errorf("failed to load OPCM script: %w", err)
+		}
 	}
 
 	// Initialize Forge client if UseForge flag is enabled
@@ -361,6 +378,8 @@ func ApplyPipeline(
 	pEnv := &pipeline.Env{
 		StateWriter:  opts.StateWriter,
 		L1ScriptHost: l1Host,
+		L1Engine:     l1Engine,
+		L1Artifacts:  l1EngineFA,
 		L1Client:     l1Client,
 		Logger:       opts.Logger,
 		Broadcaster:  bcaster,
@@ -512,4 +531,48 @@ func ApplyPipeline(
 	}
 
 	return nil
+}
+
+// initGenesisL1Engine spawns the out-of-process Rust op-script-engine for the non-forked L1 deploy
+// stages of a genesis deployment and builds the engine-backed OPCM Scripts bundle. The engine's
+// host context mirrors the Go env.DefaultScriptHost used for the same path: the default script
+// chain/context, the CREATE2 deployer preloaded, and the EIP-170/3860 code-size limits lifted (the
+// forge lite profile emits unoptimized contracts). The returned engine must be Closed by the caller.
+func initGenesisL1Engine(
+	ctx context.Context,
+	opts ApplyPipelineOpts,
+	bundle pipeline.ArtifactsBundle,
+	deployer common.Address,
+) (*rustengine.Engine, *opcm.Scripts, *foundry.ArtifactsFS, error) {
+	artifactsDir, err := rustengine.ArtifactsDir(bundle.L1)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to resolve L1 artifacts directory: %w", err)
+	}
+
+	binPath, err := rustengine.EngineBinary(ctx, opts.Logger)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to provision op-script-engine binary: %w", err)
+	}
+
+	eng, err := rustengine.Spawn(binPath, rustengine.SpawnOpts{
+		ArtifactsDir:    artifactsDir,
+		ChainID:         script.DefaultContext.ChainID.Uint64(),
+		Create2Deployer: true,
+		NoMaxCodeSize:   true,
+		BlockNum:        script.DefaultContext.BlockNum,
+		Timestamp:       script.DefaultContext.Timestamp,
+		PrevRandao:      script.DefaultContext.PrevRandao,
+	}, rustengine.NewLogWriter(opts.Logger))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to spawn op-script-engine for L1: %w", err)
+	}
+
+	fa := &foundry.ArtifactsFS{FS: bundle.L1}
+	origin := func() common.Address { return deployer }
+	scripts, err := pipeline.NewEngineScripts(eng, fa, origin)
+	if err != nil {
+		eng.Close()
+		return nil, nil, nil, fmt.Errorf("failed to load engine-backed OPCM scripts: %w", err)
+	}
+	return eng, scripts, fa, nil
 }

@@ -175,3 +175,37 @@ func (w testWriter) Write(p []byte) (int, error) {
 	w.t.Logf("%s", strings.TrimRight(string(p), "\n"))
 	return len(p), nil
 }
+
+// TestRustEngineSetBalance exercises the Engine.SetBalance client + script_setBalance RPC (used by
+// the L1 prefund-dev-genesis stage) and checks it matches the Go host's SetBalance byte-for-byte in
+// the resulting state dump. SetBalance is not hit by the L2Genesis / L1-deploy parity legs, so this
+// is its dedicated coverage.
+func TestRustEngineSetBalance(t *testing.T) {
+	bin := buildEngine(t)
+	art := absArtifacts(t)
+	logw := testWriter{t}
+	logger := testlog.Logger(t, log.LevelError)
+	af := foundry.OpenArtifactsDir(artifactsRel)
+
+	addr := common.HexToAddress("0x00000000000000000000000000000000000000aa")
+	bal := new(uint256.Int).Mul(uint256.NewInt(7), uint256.NewInt(1_000_000_000_000_000_000)) // 7e18
+
+	// Go host
+	gh := script.NewHost(logger, af, nil, script.DefaultContext)
+	require.NoError(t, gh.EnableCheats())
+	gh.SetBalance(addr, bal)
+	gd, err := gh.StateDump()
+	require.NoError(t, err)
+
+	// Rust engine
+	re, err := Spawn(bin, SpawnOpts{ArtifactsDir: art, ChainID: 1337}, logw)
+	require.NoError(t, err)
+	defer re.Close()
+	require.NoError(t, re.SetBalance(addr, bal))
+	rd, err := re.StateDump()
+	require.NoError(t, err)
+
+	require.Contains(t, rd.Accounts, addr, "funded account must appear in the engine dump")
+	require.Equal(t, bal.ToBig(), rd.Accounts[addr].Balance, "engine balance")
+	requireAllocsEqual(t, "setBalance", gd, rd)
+}
