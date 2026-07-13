@@ -1002,14 +1002,6 @@ type FaultyRandomChain struct {
 	newPayloadCalls int // synthetic-insert attempts
 	fcuCalls        int
 
-	// ponytail: two personalities in one type. The default (transient == false)
-	// is the stateful elState machine above, used by the L0/L1 harnesses. When
-	// transient is true every override delegates straight to the embedded
-	// RandomChain, with gate consulted on the apply methods only -- this is the L2
-	// mode where the container always wraps a chain and a one-shot fault is armed
-	// later via SetGate. transient must be an explicit flag, not "gate == nil",
-	// because an armed-later wrapper starts with a nil gate yet must already
-	// delegate rather than fall into the stateful path.
 	transient bool
 	gate      func(method string) error // one-shot fault gate; nil = pass-through
 }
@@ -1056,6 +1048,13 @@ func newFaultyRandomChain(rc *RandomChain, state elState, target eth.L2BlockRef)
 func flipHash(h common.Hash) common.Hash {
 	h[0] ^= 0xff
 	return h
+}
+
+func (f *FaultyRandomChain) Stop(ctx context.Context) error {
+	if f.transient {
+		return nil
+	}
+	return f.RandomChain.Stop(ctx)
 }
 
 func (f *FaultyRandomChain) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
