@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -12,6 +14,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
+	op_service "github.com/ethereum-optimism/optimism/op-service"
 )
 
 // EngineSpec provisions the op-script-engine binary the same way the rest of the monorepo
@@ -48,6 +51,41 @@ func PrebuiltEngineBinary() (string, bool) {
 		return "", false
 	}
 	return p, true
+}
+
+// ProvisionTestBinary makes the engine binary resolvable for a test package's TestMain,
+// independently of the tests' working directory (some test runners chdir into temp dirs, which
+// breaks rustbin's monorepo discovery). It is a no-op when a pre-built binary is supplied via
+// EngineBinaryPathEnv (CI). Otherwise, when cargo is available and the monorepo root is findable,
+// it cargo-builds the debug binary once and points EngineBinaryPathEnv at it. A machine with
+// neither leaves the env unset, so engine consumers fail loudly at provisioning instead of
+// silently skipping.
+func ProvisionTestBinary() {
+	if _, ok := PrebuiltEngineBinary(); ok {
+		return
+	}
+	if _, err := exec.LookPath("cargo"); err != nil {
+		return
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return
+	}
+	root, err := op_service.FindMonorepoRoot(wd)
+	if err != nil {
+		return
+	}
+	rustDir := filepath.Join(root, "rust")
+	cmd := exec.Command("cargo", "build", "-p", "op-script-engine", "--bin", "op-script-engine")
+	cmd.Dir = rustDir
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		panic(fmt.Sprintf("failed to build op-script-engine for tests: %v", err))
+	}
+	if err := os.Setenv(EngineBinaryPathEnv, filepath.Join(rustDir, "target", "debug", "op-script-engine")); err != nil {
+		panic(fmt.Sprintf("failed to set %s: %v", EngineBinaryPathEnv, err))
+	}
 }
 
 // ArtifactsDir recovers the on-disk directory backing a forge-artifacts filesystem so it can be
