@@ -149,6 +149,10 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 
+	if err := resolveSuperchainConfigProxy(ctx, l1RPC, intent, opcmAddr); err != nil {
+		return err
+	}
+
 	l1Host, err := env.DefaultForkedScriptHost(
 		ctx,
 		broadcaster.NoopBroadcaster(),
@@ -187,6 +191,20 @@ func validateL1ChainID(ctx context.Context, l1RPC *rpc.Client, intent *state.Int
 	if l1ChainID.Cmp(intent.L1ChainIDBig()) != 0 {
 		return fmt.Errorf("l1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
 	}
+	return nil
+}
+
+// resolveSuperchainConfigProxy fills the intent's superchainConfigProxy from the pinned
+// OPCM when it is unset.
+func resolveSuperchainConfigProxy(ctx context.Context, l1RPC *rpc.Client, intent *state.Intent, opcmAddr common.Address) error {
+	if intent.SuperchainConfigProxy != nil {
+		return nil
+	}
+	superCfgAddr, err := opcm.NewContract(opcmAddr, ethclient.NewClient(l1RPC)).SuperchainConfig(ctx)
+	if err != nil {
+		return fmt.Errorf("error resolving SuperchainConfig from OPCM at %s: %w", opcmAddr, err)
+	}
+	intent.SuperchainConfigProxy = &superCfgAddr
 	return nil
 }
 
