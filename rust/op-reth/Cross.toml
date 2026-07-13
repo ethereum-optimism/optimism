@@ -35,4 +35,4 @@ env.passthrough = [
 ]
 
 [build.env]
-passthrough = ["JEMALLOC_SYS_WITH_LG_PAGE"]
+passthrough = ["JEMALLOC_SYS_WITH_LG_PAGE", "GIT_VERSION", "GIT_COMMIT", "GIT_DATE"]

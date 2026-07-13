@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -114,6 +115,7 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 			if got.Opcm != tt.expectedOpcm {
 				t.Errorf("makeDCI() Opcm = %v, want %v", got.Opcm, tt.expectedOpcm)
 			}
+			require.Equal(t, standard.DisputeAbsolutePrestate, got.CannonAbsolutePrestate)
 		})
 	}
 }

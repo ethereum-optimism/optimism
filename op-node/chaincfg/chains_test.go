@@ -36,6 +36,27 @@ func TestGetRollupConfig(t *testing.T) {
 	}
 }
 
+func TestKarstUpgradeGasCompatibilityByNetwork(t *testing.T) {
+	// These values preserve each chain's behavior when it activated Karst.
+	tests := []struct {
+		network string
+		want    bool
+	}{
+		{network: "mode-mainnet", want: false},
+		{network: "metal-mainnet", want: false},
+		{network: "zora-mainnet", want: false},
+		{network: "op-mainnet", want: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.network, func(t *testing.T) {
+			cfg, err := GetRollupConfig(test.network)
+			require.NoError(t, err)
+			require.Equal(t, test.want, cfg.KeepKarstUpgradeGas)
+		})
+	}
+}
+
 var defaultOpConfig = &params.OptimismConfig{
 	EIP1559Elasticity:        6,
 	EIP1559Denominator:       50,

@@ -97,7 +97,6 @@ keccak-cache-global = [
     "reth-optimism-node/keccak-cache-global",
 ]
 
-# Jemalloc feature for vergen to generate correct env vars
 jemalloc = [
     "reth-node-core/jemalloc",
     "reth-node-metrics/jemalloc",

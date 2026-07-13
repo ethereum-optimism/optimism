@@ -134,6 +134,9 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		return opcm.DeployOPChainInput{}, fmt.Errorf("OPCM implementation is not deployed")
 	}
 
+	// TODO(#20912): Populate StartingAnchorRoot and DisputeAbsolutePrestate from pipeline state for permissionless
+	// deploys. This also needs a second prestate field in ChainProofParams: CannonAbsolutePrestate below reuses the
+	// single existing field, and DeployOPChain.checkInput rejects equal prestates for CANNON_KONA deploys.
 	return opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner:       thisIntent.Roles.L1ProxyAdminOwner,
 		SystemConfigOwner:            thisIntent.Roles.SystemConfigOwner,
@@ -149,6 +152,8 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		GasLimit:                     thisIntent.GasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
 		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
+		StartingAnchorRoot:           opcm.DefaultStartingAnchorRoot.Root,
+		CannonAbsolutePrestate:       proofParams.DisputeAbsolutePrestate,
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)

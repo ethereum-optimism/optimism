@@ -16,6 +16,15 @@ zkVM programs that execute inside the SP1 prover:
 
 - **`range`**: Verifies OP Stack state transitions across a range of L2 blocks with Ethereum DA. Generates proofs for multi-block execution that can be verified on-chain.
 - **`aggregation`**: Aggregates multiple range program proofs into a single proof, enabling efficient verification of longer block ranges.
+- **`super-range`**: Scaffold for the unified multi-chain super-root range
+  program, with modes for proving ranges and span-shaped consolidation.
+- **`super-aggregation`**: Scaffold for aggregating unified super-range
+  proofs into the public values consumed by `ZKDisputeGame`.
+
+The super-root aggregation scaffold currently accepts the range program verification
+key as input to support development. This dynamic-vkey mode is not production
+sound until the range vkey is embedded in the aggregation program or
+publicly bound by the verifier path.
 
 ### Crates (`crates/`)
 
@@ -38,6 +47,8 @@ Compiled ELF binaries for the zkVM programs, used by the prover:
 - **`range-elf`**: Compiled range program. SP1 v6.2.4 no longer exposes a
   separate bump-allocator feature, so this port keeps one range artifact instead
   of separate bump and embedded variants.
+- **`super-aggregation-elf`**: Compiled super-root aggregation program
+- **`super-range-elf`**: Compiled unified super-root range/consolidation program
 
 In the optimism monorepo port, these files are generated on demand and ignored
 by git, matching the Cannon prestate artifact workflow. Generate real v6.2.4
