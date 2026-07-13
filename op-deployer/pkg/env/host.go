@@ -20,10 +20,11 @@ import (
 // DefaultScriptHost builds the non-forked, in-memory Go script.Host.
 //
 // Non-forked script execution defaults to the Rust op-script-engine (DefaultScriptEngine); that
-// routing happens per operation at the callers that consult the engine selection
-// (pipeline.GenerateL2Genesis, op-chain-ops/interopgen). This Go host backs the
-// --script-engine=go fallback and the non-forked stages not yet routed to the engine
-// (L1 deploy / OPCM apply, inspect). Forked callers must use ForkedScriptHost instead.
+// routing happens per operation at the callers that consult the engine selection (the
+// DeploymentTargetGenesis L1 deploy stages in apply.go, pipeline.GenerateL2Genesis,
+// op-chain-ops/interopgen). This Go host backs the --script-engine=go fallback and the non-forked
+// callers not yet routed to the engine (e.g. inspect/semvers). Forked callers must use
+// ForkedScriptHost instead.
 func DefaultScriptHost(
 	bcaster broadcaster.Broadcaster,
 	lgr log.Logger,
