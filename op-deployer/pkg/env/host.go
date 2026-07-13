@@ -17,6 +17,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// DefaultScriptHost builds the non-forked, in-memory Go script.Host.
+//
+// Non-forked script execution defaults to the Rust op-script-engine (DefaultScriptEngine); that
+// routing happens per operation at the callers that consult the engine selection
+// (pipeline.GenerateL2Genesis, op-chain-ops/interopgen). This Go host backs the
+// --script-engine=go fallback and the non-forked stages not yet routed to the engine
+// (L1 deploy / OPCM apply, inspect). Forked callers must use ForkedScriptHost instead.
 func DefaultScriptHost(
 	bcaster broadcaster.Broadcaster,
 	lgr log.Logger,
@@ -46,6 +53,12 @@ func DefaultScriptHost(
 	return h, nil
 }
 
+// DefaultForkedScriptHost builds a fork-backed Go script.Host bound to the latest block of forkRPC.
+//
+// Forked hosts (CreateSelectFork against a live L1 — apply Live/Calldata, bootstrap, upgrade,
+// manage, sysgo opcm_upgrade) always run on the Go script.Host regardless of the configured script
+// engine: the Rust op-script-engine has no fork mode yet. This is a deliberate per-host-kind
+// selection, not a silent fallback — Rust fork mode is a follow-up milestone.
 func DefaultForkedScriptHost(
 	ctx context.Context,
 	bcaster broadcaster.Broadcaster,
@@ -73,6 +86,9 @@ func DefaultForkedScriptHost(
 	)
 }
 
+// ForkedScriptHost builds a fork-backed Go script.Host at an explicit block number. Like
+// DefaultForkedScriptHost, forked hosts always run on the Go engine (Rust fork mode is a follow-up
+// milestone); see the DefaultForkedScriptHost doc for the per-host-kind engine rationale.
 func ForkedScriptHost(
 	bcaster broadcaster.Broadcaster,
 	lgr log.Logger,

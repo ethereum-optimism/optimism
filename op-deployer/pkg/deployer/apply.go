@@ -239,6 +239,9 @@ func ApplyPipeline(
 	var l1Client *ethclient.Client
 	var l1Host *script.Host
 
+	// Forked L1 host (Live/Calldata/Noop targets): always the Go script.Host — the Rust
+	// op-script-engine has no fork mode yet (a follow-up milestone). Deliberate per-host-kind
+	// selection, see env.DefaultForkedScriptHost.
 	initForkHost := func() error {
 		l1Host, err = env.DefaultScriptHost(
 			bcaster,
@@ -316,6 +319,10 @@ func ApplyPipeline(
 			return fmt.Errorf("failed to initialize L1 host: %w", err)
 		}
 	case DeploymentTargetGenesis:
+		// Non-forked genesis L1 deploy host. The L1 OPCM deploy stages (deploy-superchain /
+		// -implementations / -opchain) still run on this Go host; only the L2 genesis stage of the
+		// pipeline consults pEnv.ScriptEngine and defaults to Rust (pipeline.GenerateL2Genesis).
+		// Routing the non-forked L1 deploy stages through the engine is a follow-up round.
 		bcaster = broadcaster.NoopBroadcaster()
 		l1Host, err = env.DefaultScriptHost(
 			bcaster,
