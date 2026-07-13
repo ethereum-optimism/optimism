@@ -203,35 +203,25 @@ RUN <<-EOF
     tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge
     rm "${DOWNLOAD_PATH}"
 EOF
-# Install svm (the solc version manager forge uses internally) and pre-install
-# the solc versions the contracts build needs, one at a time. Without this,
+# Pre-install the solc versions the contracts build needs. Without this,
 # forge's parallel compile jobs lazily install missing solc versions
 # concurrently into the cold /root/.svm cache, which intermittently fails with
-# "Text file busy" (foundry-rs/foundry#4736). The version list matches the
-# `install-solc-compilers` command in .circleci/continue/main.yml.
+# "Text file busy" (foundry-rs/foundry#4736). `forge build --use <version>`
+# pins a single solc version, so forge installs exactly that version and the
+# installs happen serially; run against an empty temp project so nothing is
+# actually compiled. The version list matches the `install-solc-compilers`
+# command in .circleci/continue/main.yml.
 RUN <<-EOF
     set -e
-    SVM_VERSION=0.5.19
-    case "${BUILDARCH}" in
-      amd64) SVM_PLATFORM=x86_64-unknown-linux-gnu; SVM_SHA=13e429ea7c6edcd5ccd56fc24c97abfa801421a84a9bb797689cada39b05475a ;;
-      arm64) SVM_PLATFORM=aarch64-unknown-linux-gnu; SVM_SHA=10c1bc74051b5825e5426543b102857c7f7ce757d3f235b6e95fbc794a852062 ;;
-      *) echo "Unsupported BUILDARCH: ${BUILDARCH}" && exit 1 ;;
-    esac
-    SVM_URL="https://github.com/alloy-rs/svm-rs/releases/download/v${SVM_VERSION}/svm-rs-${SVM_PLATFORM}.tar.gz"
-    DOWNLOAD_PATH="/tmp/svm.tar.gz"
-    curl -fL --retry 5 --retry-all-errors --retry-delay 2 -o "${DOWNLOAD_PATH}" "${SVM_URL}"
-    ACTUAL_SHA="$(sha256sum "${DOWNLOAD_PATH}" | awk '{print $1}')"
-    [ "${ACTUAL_SHA}" = "${SVM_SHA}" ] || (echo "svm checksum mismatch: Expected ${SVM_SHA}, got ${ACTUAL_SHA}" && exit 1)
-    tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin --strip-components=1 "svm-rs-${SVM_PLATFORM}/svm"
-    rm "${DOWNLOAD_PATH}"
-    # svm has no built-in download retry; retry each install so a transient
+    cd "$(mktemp -d)"
+    # forge does not retry the solc download; retry so a transient
     # binaries.soliditylang.org drop doesn't flake the build.
     for version in 0.8.15 0.8.19 0.8.25 0.8.28; do
       n=0
-      until svm install "${version}"; do
+      until forge build --use "${version}"; do
         n=$((n+1))
         [ "${n}" -ge 5 ] && exit 1
-        echo "svm install ${version} retry ${n}/5 in 2s" >&2
+        echo "solc ${version} install retry ${n}/5 in 2s" >&2
         sleep 2
       done
     done
