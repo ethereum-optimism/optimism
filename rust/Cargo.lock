@@ -9580,6 +9580,7 @@ dependencies = [
  "alloy-sol-types",
  "clap",
  "jsonrpsee",
+ "k256",
  "reth-ipc",
  "revm",
  "serde",
