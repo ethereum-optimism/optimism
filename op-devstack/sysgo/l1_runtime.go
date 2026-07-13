@@ -129,6 +129,14 @@ func startL1WithClockConfig(t devtest.T, l1Net *L1Network, jwtPath string, l1Clo
 		"--verbosity", "5",
 		"--miner.recommit", "2s",
 		"--gcmode", "archive",
+		// Cap geth's cache far below its multi-GB default (ethconfig defaults to a
+		// 2 GiB database cache alone). The fake L1 is tiny — a few dozen blocks —
+		// so it needs almost none, and acceptance tests run many devstacks
+		// concurrently (each now with its own L1 geth subprocess). At geth's
+		// default cache, that concurrency exhausts the CI runner's memory and the
+		// job is OOM-killed. The removed in-process node ran with an unset
+		// (near-zero) cache; this restores that footprint.
+		"--cache", "128",
 		// Pin the gas ceiling to the genesis gas limit so the L1 gas limit stays
 		// constant. The fake-PoS L1 builder bumps a reorg block's gas limit by
 		// +100 to force a distinct block hash (op-test-sequencer's
