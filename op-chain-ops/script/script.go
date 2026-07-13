@@ -968,3 +968,15 @@ func (h *Host) CreateSelectFork(opts ...ForkOption) (*big.Int, error) {
 	}
 	return id.U256().ToBig(), nil
 }
+
+// ExportDiff exports the fork-overlay state diff of the currently active fork, in the
+// forking.ExportDiff shape (per-account nonce/balance/storage/codeHash plus a code map). It errors
+// when no fork is active. Note that exporting finalizes (flushes) the fork state, matching
+// forking.ForkableState.ExportDiff.
+func (h *Host) ExportDiff() (*forking.ExportDiff, error) {
+	id, ok := h.state.ActiveFork()
+	if !ok {
+		return nil, errors.New("no fork is active")
+	}
+	return h.state.ExportDiff(id)
+}
