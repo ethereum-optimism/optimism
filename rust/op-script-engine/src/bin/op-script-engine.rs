@@ -62,6 +62,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         block_num: args.block_num,
         timestamp: args.timestamp,
         prev_randao,
+        // Fork mode bridges async RPC reads to revm's sync DB via this multi-thread runtime handle.
+        runtime_handle: Some(tokio::runtime::Handle::current()),
     });
     let module = build_module(engine);
 

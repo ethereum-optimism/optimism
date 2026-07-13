@@ -24,10 +24,17 @@ revm = { workspace = true, features = [
   "optional_eip3607",
   "optional_no_base_fee",
 ] }
+# Fork mode: AlloyDB (RPC-backed base state) + WrapDatabaseAsync (async->sync bridge).
+# The `alloydb` feature pulls in database-interface/asyncdb and the alloy provider stack.
+revm-database = { workspace = true, features = ["alloydb"] }
 
 # alloy
 alloy-primitives = { workspace = true, features = ["std", "map"] }
 alloy-sol-types = { workspace = true, features = ["std"] }
+# Fork mode: the engine dials the L1 archive directly (Option A, unidirectional transport).
+alloy-provider = { workspace = true }
+alloy-eips = { workspace = true }
+url = { workspace = true }
 
 # secp256k1 for the `vm.addr` cheatcode (private key -> address).
 k256 = { workspace = true, features = ["arithmetic"] }
@@ -40,7 +47,16 @@ serde_json = { workspace = true, features = ["std"] }
 thiserror = { workspace = true, features = ["std"] }
 
 # rpc / transport (bin only, but simplest to keep unconditional for the spike)
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "sync"] }
+# `net` + `time` enable the tokio IO/time drivers the alloy reqwest transport needs when the
+# engine dials the fork RPC.
+tokio = { workspace = true, features = [
+  "rt-multi-thread",
+  "macros",
+  "signal",
+  "sync",
+  "net",
+  "time",
+] }
 jsonrpsee = { workspace = true }
 reth-ipc = { workspace = true }
 

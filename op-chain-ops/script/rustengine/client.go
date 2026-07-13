@@ -237,3 +237,29 @@ func (e *Engine) TakeBroadcasts() ([]script.Broadcast, error) {
 	err := e.cl.Call(&out, "script_takeBroadcasts")
 	return out, err
 }
+
+// ForkMeta is the pinned-block metadata the engine returns from CreateSelectFork.
+type ForkMeta struct {
+	BlockNumber uint64      `json:"blockNumber"`
+	BlockHash   common.Hash `json:"blockHash"`
+	StateRoot   common.Hash `json:"stateRoot"`
+}
+
+// CreateSelectFork installs an RPC-backed fork base state in the engine, pinned to blockNumber
+// (nil = latest), mirroring the Go host's CreateSelectFork. The engine dials url directly (Option A,
+// unidirectional transport), so url must be a plain http(s) archive endpoint the engine can reach.
+func (e *Engine) CreateSelectFork(url string, blockNumber *uint64) (*ForkMeta, error) {
+	var out ForkMeta
+	if err := e.cl.Call(&out, "script_createSelectFork", url, blockNumber); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ForkDiff returns the accumulated fork-overlay diff in forking.ExportDiff JSON shape. Test-surface
+// only: production forked callers consume broadcasts.
+func (e *Engine) ForkDiff() (json.RawMessage, error) {
+	var raw json.RawMessage
+	err := e.cl.Call(&raw, "script_forkDiff")
+	return raw, err
+}

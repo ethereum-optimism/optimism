@@ -253,7 +253,32 @@ pub fn build_module(engine: Engine) -> RpcModule<Engine> {
     .unwrap();
 
     m.register_method("script_stateDump", |_params, ctx, _| {
-        ctx.run(|h| serde_json::to_value(h.state_dump()).map_err(|e| e.to_string()))
+        ctx.run(|h| {
+            // Mirror script.go:801-803: a state dump while a fork is active is an error (the forked
+            // callers extract broadcasts, never allocs).
+            if h.is_forked() {
+                return Err("cannot state-dump while a fork is active".to_string());
+            }
+            serde_json::to_value(h.state_dump()).map_err(|e| e.to_string())
+        })
+    })
+    .unwrap();
+
+    // --- Fork mode (design §1): install an RPC-backed base state + export the overlay diff ---
+
+    m.register_method("script_createSelectFork", |params, ctx, _| {
+        // (url, blockNumber?) — blockNumber null/absent means "latest" (mirrors
+        // DefaultForkedScriptHost's HeaderByNumber(nil)).
+        let (url, block): (String, Option<u64>) = params.parse().map_err(err)?;
+        ctx.run(move |h| {
+            let meta = h.create_select_fork(&url, block).map_err(|e| e.to_string())?;
+            serde_json::to_value(meta).map_err(|e| e.to_string())
+        })
+    })
+    .unwrap();
+
+    m.register_method("script_forkDiff", |_params, ctx, _| {
+        ctx.run(|h| h.fork_diff().map_err(|e| e.to_string()))
     })
     .unwrap();
 

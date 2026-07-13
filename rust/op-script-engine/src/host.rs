@@ -8,22 +8,27 @@
 
 use std::collections::BTreeMap;
 
-use alloy_primitives::{Address, B256, Bytes, U256};
+use alloy_eips::BlockId;
+use alloy_primitives::{Address, B256, Bytes, U256, map::HashSet};
+use alloy_provider::network::Ethereum;
+use alloy_provider::{Provider, RootProvider};
 use revm::{
-    Context, ExecuteCommitEvm, InspectCommitEvm, MainBuilder, MainContext, MainnetEvm,
+    Context, ExecuteCommitEvm, ExecuteEvm, InspectEvm, MainBuilder, MainContext, MainnetEvm,
     context::{
         BlockEnv, CfgEnv, TxEnv,
         result::{ExecutionResult, Output},
     },
-    database::{CacheDB, EmptyDB},
+    database::{AlloyDB, CacheDB, DbAccount, WrapDatabaseAsync},
     primitives::{KECCAK_EMPTY, TxKind, hardfork::SpecId},
     state::{AccountInfo, Bytecode},
 };
+use tokio::runtime::Handle;
 
 use crate::addresses::{CONSOLE_ADDR, DEFAULT_SENDER, FORGE_DEPLOYER, SCRIPT_DEPLOYER, VM_ADDR};
 use crate::allocs::{self, AllocAccount, ForgeAllocs};
 use crate::artifacts::{ArtifactError, Artifacts};
 use crate::cheatcodes::{Broadcast, CheatInspector};
+use crate::fork::{ForkDiff, ForkMeta, ForkUnderlay};
 use crate::precompiles::{HostPrecompile, OutputCapture};
 
 /// forge's `DefaultFoundryGasLimit` (int64.max).
@@ -42,6 +47,10 @@ pub struct HostConfig {
     pub block_num: u64,
     pub timestamp: u64,
     pub prev_randao: B256,
+    /// Tokio runtime handle used to bridge the async fork RPC reads to the synchronous revm
+    /// `Database` trait (`WrapDatabaseAsync::with_handle`). Required for fork mode; `None`
+    /// leaves fork mode unavailable (non-forked genesis needs no runtime).
+    pub runtime_handle: Option<Handle>,
 }
 
 impl Default for HostConfig {
@@ -54,6 +63,7 @@ impl Default for HostConfig {
             block_num: 0,
             timestamp: 0,
             prev_randao: B256::ZERO,
+            runtime_handle: None,
         }
     }
 }
@@ -72,12 +82,24 @@ pub enum HostError {
     Artifact(#[from] ArtifactError),
 }
 
-type Db = CacheDB<EmptyDB>;
+type Db = CacheDB<ForkUnderlay>;
+
+/// State tracked while a fork is active. `None` when unforked (the non-forked genesis default).
+struct ForkState {
+    diff: ForkDiff,
+}
 
 pub struct ScriptHost {
     evm: MainnetEvm<ScriptContext, CheatInspector>,
     artifacts: Option<Artifacts>,
     chain_id: u64,
+    runtime_handle: Option<Handle>,
+    /// Installed fork + its accumulated overlay diff, or `None` when unforked.
+    fork: Option<ForkState>,
+    /// Set once any CALL/CREATE has executed. A fork must be installed BEFORE any script runs
+    /// (op-deployer calls `CreateSelectFork` right after host construction), so a fork install
+    /// after execution is a loud error.
+    executed_any: bool,
 }
 
 /// The concrete revm context type used throughout the engine.
@@ -85,7 +107,7 @@ pub type ScriptContext = Context<BlockEnv, TxEnv, CfgEnv, Db, revm::Journal<Db>>
 
 impl ScriptHost {
     pub fn new(config: HostConfig) -> Self {
-        let mut cache: Db = CacheDB::new(EmptyDB::default());
+        let mut cache: Db = CacheDB::new(ForkUnderlay::default());
 
         // EnableCheats: VM_ADDR gets a 1-byte placeholder so solidity EXTCODESIZE guards pass.
         let placeholder = Bytecode::new_raw(Bytes::from(vec![0u8]));
@@ -132,7 +154,14 @@ impl ScriptHost {
         let ctx = Context::mainnet().with_db(cache).with_cfg(cfg).with_block(block);
         let evm = ctx.build_mainnet_with_inspector(inspector);
 
-        Self { evm, artifacts, chain_id: config.chain_id }
+        Self {
+            evm,
+            artifacts,
+            chain_id: config.chain_id,
+            runtime_handle: config.runtime_handle,
+            fork: None,
+            executed_any: false,
+        }
     }
 
     fn db(&self) -> &Db {
@@ -261,6 +290,56 @@ impl ScriptHost {
         self.create(from, art.bytecode)
     }
 
+    /// Run one raw tx through the inspector, fold its finalized touched set into the fork diff
+    /// (only while a fork is active), then commit. This is exactly `inspect_tx_commit`
+    /// (`inspect_one_tx` + `finalize` + `commit`) with a diff write-log spliced between finalize
+    /// and commit, so the unforked path is byte-identical to before.
+    fn execute(&mut self, tx: TxEnv) -> Result<ExecutionResult, HostError> {
+        self.executed_any = true;
+        let output = self.evm.inspect_one_tx(tx).map_err(|e| HostError::Evm(format!("{e:?}")))?;
+        let state = self.evm.finalize();
+        if self.fork.is_some() {
+            let excluded = self.fork_excluded_set();
+            // Snapshot each touched account's PRE-commit info (the fork-loaded original) so the diff
+            // fold can distinguish a real write from a plain read/touch. `finalize` cleared only the
+            // journal; the CacheDB still holds the loaded base until `commit` below.
+            let mut base: std::collections::HashMap<Address, (u64, U256, B256)> =
+                std::collections::HashMap::new();
+            for (addr, account) in state.iter() {
+                if account.is_touched() && !excluded.contains(addr) {
+                    if let Some(a) = self.db().cache.accounts.get(addr) {
+                        base.insert(*addr, (a.info.nonce, a.info.balance, a.info.code_hash));
+                    }
+                }
+            }
+            self.fork
+                .as_mut()
+                .expect("fork present")
+                .diff
+                .record_evm_state(&state, |a| excluded.contains(a), &base);
+        }
+        self.evm.commit(state);
+        Ok(output)
+    }
+
+    /// The persistent/excluded account set for the fork diff: well-known script/cheatcode/console
+    /// accounts, the installed OPCM precompiles, and the whole script-deployer CREATE range. In Go
+    /// these route to the fallback (non-fork) state, so their writes never enter the fork diff.
+    fn fork_excluded_set(&self) -> HashSet<Address> {
+        let mut s = HashSet::default();
+        for a in [DEFAULT_SENDER, VM_ADDR, CONSOLE_ADDR, SCRIPT_DEPLOYER, FORGE_DEPLOYER] {
+            s.insert(a);
+        }
+        for a in self.evm.inspector.precompiles.keys() {
+            s.insert(*a);
+        }
+        let n = self.get_nonce(SCRIPT_DEPLOYER);
+        for i in 0..=n {
+            s.insert(allocs::create_address(&SCRIPT_DEPLOYER, i));
+        }
+        s
+    }
+
     pub fn create(&mut self, from: Address, init_code: Bytes) -> Result<Address, HostError> {
         self.evm.inspector.reset_call_state();
         let nonce = self.get_nonce(from);
@@ -275,8 +354,7 @@ impl ScriptHost {
             chain_id: Some(self.chain_id),
             ..Default::default()
         };
-        let result =
-            self.evm.inspect_tx_commit(tx).map_err(|e| HostError::Evm(format!("{e:?}")))?;
+        let result = self.execute(tx)?;
         match result {
             ExecutionResult::Success { output: Output::Create(_, Some(addr)), .. } => Ok(addr),
             ExecutionResult::Success { .. } => Err(HostError::NoCreateAddress),
@@ -305,8 +383,7 @@ impl ScriptHost {
             chain_id: Some(self.chain_id),
             ..Default::default()
         };
-        let result =
-            self.evm.inspect_tx_commit(tx).map_err(|e| HostError::Evm(format!("{e:?}")))?;
+        let result = self.execute(tx)?;
         // The tx-level caller-nonce bump was already undone at frame entry (see
         // pending_caller_nonce_undo), so in-run nonce increments on the caller (broadcast
         // bumps, CREATEs from the caller) persist exactly like geth's raw EVM.Call.
@@ -318,6 +395,90 @@ impl ScriptHost {
             }
             ExecutionResult::Halt { reason, .. } => Err(HostError::Halted(format!("{reason:?}"))),
         }
+    }
+
+    /// Install an RPC-backed fork as the base state, pinned to a block, mirroring the Go host's
+    /// `CreateSelectFork` + `WithForkHook(RPCSourceByNumber)`. The engine dials the L1 archive
+    /// directly (Option A, unidirectional transport). Reads fall through the overlay to the fork;
+    /// writes layer over it natively via `CacheDB`.
+    ///
+    /// Semantics matched to Go: the block state is hash-pinned (reorg-safe); the EVM block env is
+    /// NOT changed (block.number/timestamp stay at spawn-time — Go swaps state only); the
+    /// persistent/excluded accounts are served from the local overlay. One fork per process,
+    /// installed before any script runs.
+    pub fn create_select_fork(
+        &mut self,
+        url: &str,
+        block_number: Option<u64>,
+    ) -> Result<ForkMeta, HostError> {
+        if self.fork.is_some() {
+            return Err(HostError::Evm("a fork is already installed".into()));
+        }
+        if self.executed_any {
+            return Err(HostError::Evm(
+                "cannot create a fork after a script has executed".into(),
+            ));
+        }
+        let handle = self
+            .runtime_handle
+            .clone()
+            .ok_or_else(|| HostError::Evm("fork mode needs a tokio runtime handle".into()))?;
+        let url = url::Url::parse(url).map_err(|e| HostError::Evm(format!("bad fork url: {e}")))?;
+        let provider = RootProvider::<Ethereum>::new_http(url);
+
+        let block_id = match block_number {
+            Some(n) => BlockId::from(n),
+            None => BlockId::latest(),
+        };
+        let block = handle
+            .block_on(async { provider.get_block(block_id).await })
+            .map_err(|e| HostError::Evm(format!("fork eth_getBlock failed: {e}")))?
+            .ok_or_else(|| HostError::Evm("fork block not found".into()))?;
+        let block_hash = block.header.hash;
+        let meta = ForkMeta {
+            block_number: block.header.number,
+            block_hash,
+            state_root: block.header.state_root,
+        };
+
+        // Hash-pin every read (never number-pin), matching Go RPCSource exactly.
+        let alloydb = AlloyDB::<Ethereum, _>::new(provider, BlockId::from(block_hash));
+        let wrapped = WrapDatabaseAsync::with_handle(alloydb, handle);
+        self.db_mut().db = ForkUnderlay::Fork(Box::new(wrapped));
+
+        self.install_local_fork_accounts();
+        self.fork = Some(ForkState { diff: ForkDiff::default() });
+        Ok(meta)
+    }
+
+    /// Pre-insert the persistent/excluded accounts into the LOCAL overlay so cold reads for them
+    /// never fall through to the fork — the analog of Go's persistent map + `MakeExcluded`. They
+    /// are inserted as `NotExisting` so they read exactly like the non-fork base (e.g. the deployer
+    /// nonce stays a host-local 0, the sharpest edge). `VM_ADDR` already carries its placeholder
+    /// code from `new`, so it is left untouched.
+    fn install_local_fork_accounts(&mut self) {
+        for a in [DEFAULT_SENDER, CONSOLE_ADDR, SCRIPT_DEPLOYER, FORGE_DEPLOYER] {
+            self.db_mut().cache.accounts.entry(a).or_insert_with(DbAccount::new_not_existing);
+        }
+    }
+
+    /// Whether a fork is currently installed.
+    pub fn is_forked(&self) -> bool {
+        self.fork.is_some()
+    }
+
+    /// The accumulated fork-overlay diff in `forking.ExportDiff` JSON shape. Errors when unforked.
+    /// Test-surface only: production forked callers consume broadcasts.
+    pub fn fork_diff(&self) -> Result<serde_json::Value, HostError> {
+        match &self.fork {
+            Some(f) => Ok(f.diff.to_json()),
+            None => Err(HostError::Evm("no fork is active".into())),
+        }
+    }
+
+    /// Whether the fork diff has recorded any change (the gate's non-vacuity guard).
+    pub fn fork_diff_any(&self) -> bool {
+        self.fork.as_ref().map(|f| f.diff.any()).unwrap_or(false)
     }
 
     pub fn take_broadcasts(&mut self) -> Vec<Broadcast> {
