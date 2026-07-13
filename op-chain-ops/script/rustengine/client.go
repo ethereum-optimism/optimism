@@ -29,18 +29,42 @@ type Engine struct {
 	tmpDir  string
 }
 
+// SpawnOpts is the engine host context: the fields of script.Context (plus host options)
+// that the engine supports. Zero values match script.DefaultContext apart from ChainID.
+type SpawnOpts struct {
+	ArtifactsDir    string
+	ChainID         uint64
+	Create2Deployer bool
+	NoMaxCodeSize   bool
+	BlockNum        uint64
+	Timestamp       uint64
+	PrevRandao      common.Hash
+}
+
 // Spawn launches the Rust engine binary and dials its Unix socket. The child's stderr is
 // forwarded to logw (engine tracing). Call Close to terminate it.
-func Spawn(binPath, artifactsDir string, chainID uint64, create2Deployer bool, logw io.Writer) (*Engine, error) {
+func Spawn(binPath string, opts SpawnOpts, logw io.Writer) (*Engine, error) {
 	tmpDir, err := os.MkdirTemp("", "op-script-engine")
 	if err != nil {
 		return nil, err
 	}
 	sock := filepath.Join(tmpDir, "engine.sock")
 
-	args := []string{"--socket", sock, "--chain-id", fmt.Sprintf("%d", chainID), "--artifacts", artifactsDir}
-	if create2Deployer {
+	args := []string{"--socket", sock, "--chain-id", fmt.Sprintf("%d", opts.ChainID), "--artifacts", opts.ArtifactsDir}
+	if opts.Create2Deployer {
 		args = append(args, "--create2-deployer")
+	}
+	if opts.NoMaxCodeSize {
+		args = append(args, "--no-max-code-size")
+	}
+	if opts.BlockNum != 0 {
+		args = append(args, "--block-num", fmt.Sprintf("%d", opts.BlockNum))
+	}
+	if opts.Timestamp != 0 {
+		args = append(args, "--timestamp", fmt.Sprintf("%d", opts.Timestamp))
+	}
+	if opts.PrevRandao != (common.Hash{}) {
+		args = append(args, "--prev-randao", opts.PrevRandao.Hex())
 	}
 	cmd := exec.Command(binPath, args...)
 	stderr, err := cmd.StderrPipe()

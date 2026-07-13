@@ -44,6 +44,7 @@ fn state_dump_leg() {
         no_max_code_size: false,
         use_create2_deployer: false,
         artifacts_dir: Some(artifacts_dir()),
+        ..Default::default()
     });
 
     let addr = host

@@ -92,7 +92,7 @@ func TestRustEngineL2GenesisParity(t *testing.T) {
 			packed, err := art.ABI.Pack("run", input)
 			require.NoError(t, err)
 
-			re, err := rustengine.Spawn(bin, forgeArtifactsDir(t), 1337, true, testWriter{t})
+			re, err := rustengine.Spawn(bin, rustengine.SpawnOpts{ArtifactsDir: forgeArtifactsDir(t), ChainID: 1337, Create2Deployer: true}, testWriter{t})
 			require.NoError(t, err)
 			defer re.Close()
 

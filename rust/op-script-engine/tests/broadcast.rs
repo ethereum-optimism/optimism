@@ -20,6 +20,7 @@ fn broadcast_leg() {
         no_max_code_size: false,
         use_create2_deployer: true,
         artifacts_dir: Some(artifacts_dir()),
+        ..Default::default()
     });
 
     let addr = host

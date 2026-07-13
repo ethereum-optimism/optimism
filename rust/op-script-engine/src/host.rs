@@ -40,11 +40,23 @@ pub struct HostConfig {
     pub no_max_code_size: bool,
     pub use_create2_deployer: bool,
     pub artifacts_dir: Option<std::path::PathBuf>,
+    /// Block environment, mirroring `script.Context`'s BlockNum/Timestamp/PrevRandao.
+    pub block_num: u64,
+    pub timestamp: u64,
+    pub prev_randao: B256,
 }
 
 impl Default for HostConfig {
     fn default() -> Self {
-        Self { chain_id: 1337, no_max_code_size: false, use_create2_deployer: false, artifacts_dir: None }
+        Self {
+            chain_id: 1337,
+            no_max_code_size: false,
+            use_create2_deployer: false,
+            artifacts_dir: None,
+            block_num: 0,
+            timestamp: 0,
+            prev_randao: B256::ZERO,
+        }
     }
 }
 
@@ -103,12 +115,12 @@ impl ScriptHost {
         }
 
         let block = BlockEnv {
-            number: U256::ZERO,
-            timestamp: U256::ZERO,
+            number: U256::from(config.block_num),
+            timestamp: U256::from(config.timestamp),
             gas_limit: FOUNDRY_GAS_LIMIT,
             basefee: 0,
             difficulty: U256::ZERO,
-            prevrandao: Some(B256::ZERO),
+            prevrandao: Some(config.prev_randao),
             beneficiary: Address::ZERO,
             ..Default::default()
         };
@@ -206,9 +218,12 @@ impl ScriptHost {
         }
     }
 
-    /// Raw message call, matching `vm.EVM.Call`: the caller nonce is left untouched.
+    /// Raw message call, matching `vm.EVM.Call`: the caller nonce is left untouched — including
+    /// DURING execution (the inspector undoes revm's tx-level bump at first frame entry, so
+    /// scripts that CREATE from the caller derive geth-identical addresses).
     pub fn call(&mut self, from: Address, to: Address, input: Bytes) -> Result<Bytes, HostError> {
         self.evm.inspector.reset_call_state();
+        self.evm.inspector.pending_caller_nonce_undo = Some(from);
         let pre_nonce = self.get_nonce(from);
         let tx = TxEnv {
             caller: from,
@@ -222,8 +237,9 @@ impl ScriptHost {
             ..Default::default()
         };
         let result = self.evm.inspect_tx_commit(tx).map_err(|e| HostError::Evm(format!("{e:?}")))?;
-        // Undo the transaction-level caller-nonce bump (raw EVM.Call does not touch it).
-        self.set_nonce(from, pre_nonce);
+        // The tx-level caller-nonce bump was already undone at frame entry (see
+        // pending_caller_nonce_undo), so in-run nonce increments on the caller (broadcast
+        // bumps, CREATEs from the caller) persist exactly like geth's raw EVM.Call.
         match result {
             ExecutionResult::Success { output: Output::Call(bytes), .. } => Ok(bytes),
             ExecutionResult::Success { output: Output::Create(bytes, _), .. } => Ok(bytes),

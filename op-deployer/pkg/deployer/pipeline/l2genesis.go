@@ -194,7 +194,14 @@ func runL2GenesisRust(pEnv *Env, bundle ArtifactsBundle, input opcm.L2GenesisInp
 		return nil, fmt.Errorf("failed to provision op-script-engine binary: %w", err)
 	}
 
-	eng, err := rustengine.Spawn(binPath, artifactsDir, script.DefaultContext.ChainID.Uint64(), true, rustengine.NewLogWriter(pEnv.Logger))
+	eng, err := rustengine.Spawn(binPath, rustengine.SpawnOpts{
+		ArtifactsDir:    artifactsDir,
+		ChainID:         script.DefaultContext.ChainID.Uint64(),
+		Create2Deployer: true,
+		BlockNum:        script.DefaultContext.BlockNum,
+		Timestamp:       script.DefaultContext.Timestamp,
+		PrevRandao:      script.DefaultContext.PrevRandao,
+	}, rustengine.NewLogWriter(pEnv.Logger))
 	if err != nil {
 		return nil, fmt.Errorf("failed to spawn op-script-engine: %w", err)
 	}

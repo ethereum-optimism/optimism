@@ -85,7 +85,7 @@ func TestRustEngineParity(t *testing.T) {
 		gh.AllowCheatcodes(gAddr)
 
 		// Rust engine
-		re, err := Spawn(bin, art, 1337, false, logw)
+		re, err := Spawn(bin, SpawnOpts{ArtifactsDir: art, ChainID: 1337}, logw)
 		require.NoError(t, err)
 		defer re.Close()
 		rAddr, err := re.LoadContract("ScriptExample.s.sol", "ScriptExample", script.DefaultContext.Origin)
@@ -127,7 +127,7 @@ func TestRustEngineParity(t *testing.T) {
 		require.NoError(t, err)
 		gh.AllowCheatcodes(gAddr)
 
-		re, err := Spawn(bin, art, 1337, true, logw)
+		re, err := Spawn(bin, SpawnOpts{ArtifactsDir: art, ChainID: 1337, Create2Deployer: true}, logw)
 		require.NoError(t, err)
 		defer re.Close()
 		rAddr, err := re.LoadContract("ScriptExample.s.sol", "ScriptExample", script.DefaultContext.Origin)

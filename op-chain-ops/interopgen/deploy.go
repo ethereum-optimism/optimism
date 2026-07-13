@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -34,7 +35,16 @@ var (
 	defaultInitBond = big.NewInt(8e16)
 )
 
+// Deploy builds the interop dev world on the default script engine
+// (env.DefaultScriptEngine); see DeployWithEngine.
 func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, cfg *WorldConfig) (*WorldDeployment, *WorldOutput, error) {
+	return DeployWithEngine(logger, fa, srcFS, cfg, env.DefaultScriptEngine)
+}
+
+// DeployWithEngine builds the interop dev world (L1 genesis with superchain/OPCM/L2 chain
+// deployments, plus every L2 genesis) on the selected script engine: the out-of-process
+// Rust op-script-engine, or the in-process Go script.Host as fallback.
+func DeployWithEngine(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, cfg *WorldConfig, engine env.ScriptEngineKind) (*WorldDeployment, *WorldOutput, error) {
 	// Sanity check all L2s have consistent chain ID and attach to the same L1
 	for id, l2Cfg := range cfg.L2s {
 		if fmt.Sprintf("%d", l2Cfg.L2ChainID) != id {
@@ -49,7 +59,16 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 		L2s: make(map[string]*L2Deployment),
 	}
 
-	l1Host := CreateL1(logger, fa, srcFS, cfg.L1)
+	hf, err := newHostFactory(logger, fa, srcFS, engine)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	l1Host, err := CreateL1(hf, cfg.L1)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create L1 host: %w", err)
+	}
+	defer l1Host.Close()
 	if err := l1Host.EnableCheats(); err != nil {
 		return nil, nil, fmt.Errorf("failed to enable cheats in L1 state: %w", err)
 	}
@@ -62,7 +81,7 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 	//
 	// If done this way, any errors (such as ABI mismatches) will be caught before the first transaction is sent.
 	//
-	opcmScripts, err := opcm.NewScripts(l1Host)
+	opcmScripts, err := loadOPCMScripts(l1Host)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load OPCM script: %w", err)
 	}
@@ -84,10 +103,12 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 	// to put into the L2 genesis configs, and can thus not mutate the L1 state
 	// after creating the final config for any particular L2. Will add comments.
 
-	for l2ChainID, l2Cfg := range cfg.L2s {
-		l2Deployment, err := DeployL2ToL1(l1Host, cfg.Superchain, superDeployment, l2Cfg)
+	// Iterate the L2s in sorted order so the L1 deployment is deterministic
+	// (like MigrateInterop's sorted chain list).
+	for _, l2ChainID := range slices.Sorted(maps.Keys(cfg.L2s)) {
+		l2Deployment, err := DeployL2ToL1(l1Host, cfg.Superchain, superDeployment, cfg.L2s[l2ChainID])
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to deploy L2 %d to L1: %w", &l2ChainID, err)
+			return nil, nil, fmt.Errorf("failed to deploy L2 %s to L1: %w", l2ChainID, err)
 		}
 		deployments.L2s[l2ChainID] = l2Deployment
 	}
@@ -112,23 +133,37 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 	genesisTimestamp := l1Out.Genesis.Timestamp
 
 	for l2ChainID, l2Cfg := range cfg.L2s {
-		l2Host := CreateL2(logger, fa, srcFS, l2Cfg, genesisTimestamp)
-		if err := l2Host.EnableCheats(); err != nil {
-			return nil, nil, fmt.Errorf("failed to enable cheats in L2 state %s: %w", l2ChainID, err)
-		}
-		if err := GenesisL2(l2Host, l2Cfg, deployments.L2s[l2ChainID], len(cfg.L2s) > 1); err != nil {
-			return nil, nil, fmt.Errorf("failed to apply genesis data to L2 %s: %w", l2ChainID, err)
-		}
-		l2Out, err := CompleteL2(l2Host, l2Cfg, l1GenesisBlock, deployments.L2s[l2ChainID])
+		l2Out, err := deployL2(hf, l2ChainID, l2Cfg, genesisTimestamp, deployments.L2s[l2ChainID], l1GenesisBlock, len(cfg.L2s) > 1)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to complete L2 %s: %w", l2ChainID, err)
+			return nil, nil, err
 		}
 		out.L2s[l2ChainID] = l2Out
 	}
 	return deployments, out, nil
 }
 
-func CreateL1(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, cfg *L1Config) *script.Host {
+// deployL2 builds one L2's genesis: create the L2 host, apply the L2 genesis script, and
+// complete the L2 output. Isolated so the host is closed per L2 chain.
+func deployL2(hf *hostFactory, l2ChainID string, l2Cfg *L2Config, genesisTimestamp uint64, deployment *L2Deployment, l1GenesisBlock *types.Block, multichainDepSet bool) (*L2Output, error) {
+	l2Host, err := CreateL2(hf, l2Cfg, genesisTimestamp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create L2 host %s: %w", l2ChainID, err)
+	}
+	defer l2Host.Close()
+	if err := l2Host.EnableCheats(); err != nil {
+		return nil, fmt.Errorf("failed to enable cheats in L2 state %s: %w", l2ChainID, err)
+	}
+	if err := GenesisL2(l2Host, l2Cfg, deployment, multichainDepSet); err != nil {
+		return nil, fmt.Errorf("failed to apply genesis data to L2 %s: %w", l2ChainID, err)
+	}
+	l2Out, err := CompleteL2(l2Host, l2Cfg, l1GenesisBlock, deployment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to complete L2 %s: %w", l2ChainID, err)
+	}
+	return l2Out, nil
+}
+
+func CreateL1(hf *hostFactory, cfg *L1Config) (*DeployHost, error) {
 	l1Context := script.Context{
 		ChainID:      cfg.ChainID,
 		Sender:       sysGenesisDeployer,
@@ -140,11 +175,10 @@ func CreateL1(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceM
 		PrevRandao:   cfg.L1GenesisBlockMixHash,
 		BlobHashes:   nil,
 	}
-	l1Host := script.NewHost(logger.New("role", "l1", "chain", cfg.ChainID), fa, srcFS, l1Context, script.WithCreate2Deployer(), script.WithNoMaxCodeSize())
-	return l1Host
+	return hf.newHost(hf.logger.New("role", "l1", "chain", cfg.ChainID), l1Context, true, true)
 }
 
-func CreateL2(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, l2Cfg *L2Config, genesisTimestamp uint64) *script.Host {
+func CreateL2(hf *hostFactory, l2Cfg *L2Config, genesisTimestamp uint64) (*DeployHost, error) {
 	l2Context := script.Context{
 		ChainID:      new(big.Int).SetUint64(l2Cfg.L2ChainID),
 		Sender:       sysGenesisDeployer,
@@ -156,17 +190,50 @@ func CreateL2(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceM
 		PrevRandao:   l2Cfg.L2GenesisBlockMixHash,
 		BlobHashes:   nil,
 	}
-	l2Host := script.NewHost(logger.New("role", "l2", "chain", l2Cfg.L2ChainID), fa, srcFS, l2Context)
-	l2Host.SetEnvVar("OUTPUT_MODE", "none") // we don't use the cheatcode, but capture the state outside of EVM execution
-	l2Host.SetEnvVar("FORK", "jovian")      // latest fork
-	return l2Host
+	l2Host, err := hf.newHost(hf.logger.New("role", "l2", "chain", l2Cfg.L2ChainID), l2Context, false, false)
+	if err != nil {
+		return nil, err
+	}
+	// we don't use the cheatcode, but capture the state outside of EVM execution
+	if err := l2Host.SetEnvVar("OUTPUT_MODE", "none"); err != nil {
+		l2Host.Close()
+		return nil, err
+	}
+	// latest fork
+	if err := l2Host.SetEnvVar("FORK", "jovian"); err != nil {
+		l2Host.Close()
+		return nil, err
+	}
+	return l2Host, nil
+}
+
+// OPCMScripts holds the typed OPCM deployment scripts used on the L1 host, ABI-validated
+// at load time (before anything is deployed), like opcm.NewScripts.
+type OPCMScripts struct {
+	DeploySuperchain      opcm.DeploySuperchainScript
+	DeployImplementations opcm.DeployImplementationsScript
+}
+
+func loadOPCMScripts(h *DeployHost) (*OPCMScripts, error) {
+	deploySuperchain, err := loadScriptWithOutput[opcm.DeploySuperchainInput, opcm.DeploySuperchainOutput](h, "DeploySuperchain.s.sol", "DeploySuperchain")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load DeploySuperchain script: %w", err)
+	}
+	deployImplementations, err := loadScriptWithOutput[opcm.DeployImplementationsInput, opcm.DeployImplementationsOutput](h, "DeployImplementations.s.sol", "DeployImplementations")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load DeployImplementations script: %w", err)
+	}
+	return &OPCMScripts{
+		DeploySuperchain:      deploySuperchain,
+		DeployImplementations: deployImplementations,
+	}, nil
 }
 
 // PrepareInitialL1 deploys basics such as preinstalls to L1  (incl. EIP-4788)
-func PrepareInitialL1(l1Host *script.Host, cfg *L1Config) (*L1Deployment, error) {
+func PrepareInitialL1(l1Host *DeployHost, cfg *L1Config) (*L1Deployment, error) {
 	l1Host.SetTxOrigin(sysGenesisDeployer)
 
-	if err := opcm.InsertPreinstalls(l1Host); err != nil {
+	if err := insertPreinstalls(l1Host); err != nil {
 		return nil, fmt.Errorf("failed to install preinstalls in L1: %w", err)
 	}
 	// No global contracts inserted at this point.
@@ -174,7 +241,7 @@ func PrepareInitialL1(l1Host *script.Host, cfg *L1Config) (*L1Deployment, error)
 	return &L1Deployment{}, nil
 }
 
-func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superCfg *SuperchainConfig) (*SuperchainDeployment, error) {
+func DeploySuperchainToL1(l1Host *DeployHost, opcmScripts *OPCMScripts, superCfg *SuperchainConfig) (*SuperchainDeployment, error) {
 	l1Host.SetTxOrigin(superCfg.Deployer)
 
 	superDeployment, err := opcmScripts.DeploySuperchain.Run(opcm.DeploySuperchainInput{
@@ -217,14 +284,14 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 	}, nil
 }
 
-func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployment *SuperchainDeployment, cfg *L2Config) (*L2Deployment, error) {
+func DeployL2ToL1(l1Host *DeployHost, superCfg *SuperchainConfig, superDeployment *SuperchainDeployment, cfg *L2Config) (*L2Deployment, error) {
 	if cfg.UseAltDA {
 		return nil, errors.New("alt-da mode not supported yet")
 	}
 
 	l1Host.SetTxOrigin(cfg.Deployer)
 
-	deployOPChainScript, err := opcm.NewDeployOPChainScript(l1Host)
+	deployOPChainScript, err := loadScriptWithOutput[opcm.DeployOPChainInput, opcm.DeployOPChainOutput](l1Host, "DeployOPChain.s.sol", "DeployOPChain")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load DeployOPChain script: %w", err)
 	}
@@ -265,7 +332,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 }
 
 func MigrateInterop(
-	l1Host *script.Host, l1GenesisTimestamp uint64, superCfg *SuperchainConfig, superDeployment *SuperchainDeployment, l2Cfgs map[string]*L2Config, l2Deployments map[string]*L2Deployment,
+	l1Host *DeployHost, l1GenesisTimestamp uint64, superCfg *SuperchainConfig, superDeployment *SuperchainDeployment, l2Cfgs map[string]*L2Config, l2Deployments map[string]*L2Deployment,
 ) (*InteropDeployment, error) {
 	l2ChainIDs := slices.Collect(maps.Keys(l2Deployments))
 	sort.Strings(l2ChainIDs)
@@ -315,7 +382,7 @@ func MigrateInterop(
 			StartingRespectedGameType: GameTypeSuperCannonKona,
 		},
 	}
-	output, err := manage.Migrate(l1Host, imi)
+	output, err := migrate(l1Host, imi)
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate interop: %w", err)
 	}
@@ -325,8 +392,8 @@ func MigrateInterop(
 	}, nil
 }
 
-func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, multichainDepSet bool) error {
-	genesisScript, err := opcm.NewL2GenesisScript(l2Host)
+func GenesisL2(l2Host *DeployHost, cfg *L2Config, deployment *L2Deployment, multichainDepSet bool) error {
+	genesisScript, err := loadScriptWithoutOutput[opcm.L2GenesisInput](l2Host, "L2Genesis.s.sol", "L2Genesis")
 	if err != nil {
 		return fmt.Errorf("failed to create L2 genesis script: %w", err)
 	}
@@ -387,7 +454,7 @@ func devFeatureBitmapForL2Genesis(enableInterop, useL2CM bool) common.Hash {
 	return bitmap
 }
 
-func CompleteL1(l1Host *script.Host, cfg *L1Config) (*L1Output, error) {
+func CompleteL1(l1Host *DeployHost, cfg *L1Config) (*L1Output, error) {
 	l1Genesis, err := genesis.NewL1Genesis(&genesis.DeployConfig{
 		L2InitializationConfig: genesis.L2InitializationConfig{
 			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
@@ -433,7 +500,7 @@ func CompleteL1(l1Host *script.Host, cfg *L1Config) (*L1Output, error) {
 	}, nil
 }
 
-func CompleteL2(l2Host *script.Host, cfg *L2Config, l1Block *types.Block, deployment *L2Deployment) (*L2Output, error) {
+func CompleteL2(l2Host *DeployHost, cfg *L2Config, l1Block *types.Block, deployment *L2Deployment) (*L2Output, error) {
 	deployCfg := &genesis.DeployConfig{
 		L2InitializationConfig: cfg.L2InitializationConfig,
 		L1DependenciesConfig: genesis.L1DependenciesConfig{

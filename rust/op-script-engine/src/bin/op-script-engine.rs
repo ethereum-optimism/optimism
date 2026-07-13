@@ -24,6 +24,15 @@ struct Args {
     /// Disable the max contract code-size check.
     #[arg(long, default_value_t = false)]
     no_max_code_size: bool,
+    /// Block number for the EVM block environment.
+    #[arg(long, default_value_t = 0)]
+    block_num: u64,
+    /// Block timestamp for the EVM block environment.
+    #[arg(long, default_value_t = 0)]
+    timestamp: u64,
+    /// Block prev-randao (mix hash) for the EVM block environment, 0x-prefixed 32-byte hex.
+    #[arg(long)]
+    prev_randao: Option<String>,
 }
 
 #[tokio::main]
@@ -41,11 +50,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Fresh socket path each run (Go passes a unique tmp path); remove any stale file.
     let _ = std::fs::remove_file(&args.socket);
 
+    let prev_randao = match &args.prev_randao {
+        Some(s) => s.parse::<alloy_primitives::B256>()?,
+        None => alloy_primitives::B256::ZERO,
+    };
     let engine = Engine::spawn(HostConfig {
         chain_id: args.chain_id,
         no_max_code_size: args.no_max_code_size,
         use_create2_deployer: args.create2_deployer,
         artifacts_dir: args.artifacts.map(Into::into),
+        block_num: args.block_num,
+        timestamp: args.timestamp,
+        prev_randao,
     });
     let module = build_module(engine);
 

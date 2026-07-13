@@ -68,7 +68,7 @@ func TestRustEngineOPCMParity(t *testing.T) {
 		goDump, err := gh.StateDump()
 		require.NoError(t, err)
 
-		re, err := Spawn(bin, art, 1337, false, logw)
+		re, err := Spawn(bin, SpawnOpts{ArtifactsDir: art, ChainID: 1337}, logw)
 		require.NoError(t, err)
 		defer re.Close()
 		rustOutput, err := RunScriptSingle[OPCMExampleInput, OPCMExampleOutput](
@@ -94,7 +94,7 @@ func TestRustEngineOPCMParity(t *testing.T) {
 		goDump, err := gh.StateDump()
 		require.NoError(t, err)
 
-		re, err := Spawn(bin, art, 1337, false, logw)
+		re, err := Spawn(bin, SpawnOpts{ArtifactsDir: art, ChainID: 1337}, logw)
 		require.NoError(t, err)
 		defer re.Close()
 		require.NoError(t, RunScriptVoid[OPCMExampleInput](

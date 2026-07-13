@@ -128,12 +128,18 @@ pub struct CheatInspector {
     /// OPCM input/output precompiles installed at arbitrary addresses (`RunScript*` path). The
     /// revm-inspector replacement for op-geth's per-address `PrecompileOverrides`.
     pub precompiles: alloy_primitives::map::HashMap<Address, HostPrecompile>,
+    /// Set by `ScriptHost::call` (top-level CALL) to the tx caller: revm's tx pipeline bumps the
+    /// caller nonce pre-execution, but geth's raw `EVM.Call` does not, so scripts must observe
+    /// the un-bumped nonce mid-run (e.g. a broadcast-pranked CREATE from the caller derives its
+    /// address from that nonce). The first frame entry undoes the bump inside the journal.
+    pub pending_caller_nonce_undo: Option<Address>,
     frames: Vec<Frame>,
 }
 
 impl CheatInspector {
     pub fn reset_call_state(&mut self) {
         self.frames.clear();
+        self.pending_caller_nonce_undo = None;
     }
 
     fn is_cheat_target(addr: &Address) -> bool {
@@ -151,6 +157,13 @@ fn read_nonce(ctx: &mut ScriptContext, addr: Address) -> u64 {
 fn bump_nonce(ctx: &mut ScriptContext, addr: Address) {
     if let Ok(mut acc) = ctx.journal_mut().load_account_mut(addr) {
         acc.data.bump_nonce();
+    }
+}
+
+fn decrement_nonce(ctx: &mut ScriptContext, addr: Address) {
+    if let Ok(mut acc) = ctx.journal_mut().load_account_mut(addr) {
+        let nonce = acc.data.nonce();
+        acc.data.set_nonce(nonce.saturating_sub(1));
     }
 }
 
@@ -463,6 +476,12 @@ impl CheatInspector {
 
 impl Inspector<ScriptContext> for CheatInspector {
     fn call(&mut self, ctx: &mut ScriptContext, inputs: &mut CallInputs) -> Option<CallOutcome> {
+        // Top-level CALL: undo the tx-pipeline caller-nonce bump before any script code runs,
+        // matching geth's raw `EVM.Call` (which never bumps the caller nonce).
+        if let Some(caller) = self.pending_caller_nonce_undo.take() {
+            decrement_nonce(ctx, caller);
+        }
+
         let target = inputs.target_address;
 
         // console.log sink: swallow, 0 gas (matches Go console precompile RequiredGas=0).
@@ -530,7 +549,12 @@ impl Inspector<ScriptContext> for CheatInspector {
     }
 
     fn call_end(&mut self, _ctx: &mut ScriptContext, inputs: &CallInputs, outcome: &mut CallOutcome) {
-        if Self::is_cheat_target(&inputs.target_address) {
+        // Frame push/pop must stay symmetric with `call`: cheat targets AND installed host
+        // precompiles (OPCM input/output) short-circuit in `call` without pushing a frame, so
+        // popping here would drop the caller's frame — losing an active startBroadcast/startPrank.
+        if Self::is_cheat_target(&inputs.target_address)
+            || self.precompiles.contains_key(&inputs.target_address)
+        {
             return;
         }
         if let Some(frame) = self.frames.pop() {
