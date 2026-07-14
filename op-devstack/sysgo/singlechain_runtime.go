@@ -220,9 +220,9 @@ func startMinimalBatcher(
 	logger.SetContext(t.Ctx())
 	logger.Info("Batcher key acquired", "addr", crypto.PubkeyToAddress(batcherSecret.PublicKey))
 
-	compressionAlgo := derive.Brotli
+	compressionAlgo := derive.Zlib
 	if l2Net.rollupCfg.IsFjord(l2Net.rollupCfg.Genesis.L2Time) {
-		compressionAlgo = derive.Zlib
+		compressionAlgo = derive.Brotli
 	}
 
 	batcherCLIConfig := &bss.CLIConfig{
