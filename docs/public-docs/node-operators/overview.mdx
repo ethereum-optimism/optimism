@@ -1,6 +1,7 @@
 ---
 title: Node Operator Overview
 description: Learn about running nodes on OP Stack networks.
+diataxis: explanation
 ---
 
 ## Overview
@@ -14,6 +15,20 @@ The information provided in this section covers standard configurations and feat
 Running your own node gives you the benefit of trustless verification, enhanced privacy, and gives you local access to the blockchain.
 However, it also requires time and resources to set up and maintain.
 So you should consider your goals and use cases before deciding to run a node because there are many third-party RPC providers available.
+
+## System requirements
+
+Before you start, check that your machine can handle the network and node type you're targeting.
+Requirements scale with both:
+
+*   **RAM:** 16GB is the suggested minimum for an OP Mainnet node.
+*   **CPU:** A reasonably modern CPU.
+*   **Disk:** An SSD, sized to the network and node type. A full OP Mainnet node needs hundreds of gigabytes and grows steadily; an archive node needs multiple terabytes and grows much faster, so use an NVMe SSD for archive nodes.
+
+Test networks are far lighter than OP Mainnet — an OP Sepolia full node syncs into tens of gigabytes rather than hundreds.
+If you're setting up for the first time, start on OP Sepolia to validate your setup before committing OP Mainnet-scale disk.
+
+For the current OP Mainnet storage figures and their growth rates, see the [hardware requirements](/node-operators/tutorials/run-node-from-source#hardware-requirements) in the from-source tutorial.
 
 ## Node Architecture
 
