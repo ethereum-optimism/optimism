@@ -96,22 +96,37 @@ fetch_chain() {
 }
 
 predeploys() {
-  # Read the release's source of truth so new upgradeable predeploys are included automatically.
+  # Supported releases use either the legacy list or structured records as their source of truth.
   perl -0ne '
-    my (%address, %name);
+    my %address;
     while (/address\s+internal\s+constant\s+(\w+)\s*=\s*(0x[0-9a-fA-F]{40});/g) {
       $address{$1} = lc $2;
     }
-    while (/if \(_addr == (\w+)\) return "([^"]+)";/g) {
-      $name{$1} = $2;
+
+    if (my ($body) = /function getUpgradeablePredeploys\(\).*?\{(.*?)\n    \}/s) {
+      my %name;
+      while (/if \(_addr == (\w+)\) return "([^"]+)";/g) {
+        $name{$1} = $2;
+      }
+      while ($body =~ /predeploys_\[\d+\]\s*=\s*Predeploys\.(\w+);/g) {
+        my $constant = $1;
+        die "missing address or name for $constant\n" if !$address{$constant} || !$name{$constant};
+        print "$address{$constant}\t$name{$constant}\n";
+      }
+      next;
     }
-    my ($body) = /function getUpgradeablePredeploys\(\).*?\{(.*?)\n    \}/s;
-    die "getUpgradeablePredeploys not found\n" if !defined $body;
-    while ($body =~ /predeploys_\[\d+\]\s*=\s*Predeploys\.(\w+);/g) {
-      my $constant = $1;
-      die "missing address or name for $constant\n" if !$address{$constant} || !$name{$constant};
-      print "$address{$constant}\t$name{$constant}\n";
+
+    my $count = 0;
+    while (/records_\[\d+\]\s*=\s*PredeployRecord\(\{(.*?)\n\s*\}\);/sg) {
+      my $record = $1;
+      next if $record !~ /isProxied:\s*true/ || $record !~ /isDeprecated:\s*false/;
+      my ($constant) = $record =~ /proxy:\s*(\w+)/;
+      my ($name) = $record =~ /variants:\s*_variants\(\s*"([^"]+)"/s;
+      die "missing address or name for record\n" if !$constant || !$address{$constant} || !$name;
+      print "$address{$constant}\t$name\n";
+      $count++;
     }
+    die "unsupported Predeploys.sol layout\n" if !$count;
   ' "$PREDEPLOYS_SOL"
 }
 
@@ -140,6 +155,7 @@ retry() {
 
 artifact_for() {
   local name="$1" source=""
+  # Supported releases have unique source basenames; find returns the first match if that changes.
   while IFS= read -r source; do break; done < <(find "$CONTRACTS_DIR/src" -name "$name.sol" -print)
   [[ -n "$source" ]] || return 1
   printf '%s:%s\n' "${source#"$CONTRACTS_DIR"/}" "$name"
@@ -257,7 +273,7 @@ verify_target() {
 verify_implementation() {
   local name="$1" address="$2" variant artifact
   local errors=()
-  # Custom gas token chains may deploy the same predeploy as its CGT artifact.
+  # On CGT chains, Forge may exhaust retries on the default artifact before trying the CGT variant.
   for variant in "$name" "${name}CGT"; do
     artifact="$(artifact_for "$variant")" || continue
     if run_verify "$variant Implementation" "$address" "$artifact"; then
