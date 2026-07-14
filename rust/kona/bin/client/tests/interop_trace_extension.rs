@@ -12,7 +12,8 @@ use kona_client::interop::{FaultProofProgramError, run};
 use kona_genesis::{DependencySet, L1ChainConfig, RollupConfig};
 use kona_interop::{OutputRootWithChain, SuperRoot};
 use kona_preimage::{
-    HintWriterClient, PreimageKey, PreimageOracleClient,
+    DEPENDENCY_SET_KEY, HintWriterClient, L1_CONFIG_KEY, L1_HEAD_KEY, L2_CLAIM_BLOCK_NUMBER_KEY,
+    L2_CLAIM_KEY, L2_OUTPUT_ROOT_KEY, L2_ROLLUP_CONFIG_KEY, PreimageKey, PreimageOracleClient,
     errors::{PreimageOracleError, PreimageOracleResult},
 };
 use kona_proof_interop::{PreState, TransitionState};
@@ -101,10 +102,17 @@ fn setup_interop_preimages(
 
     let mut preimages = HashMap::new();
 
-    preimages.insert(PreimageKey::new_local(1), b256(0x11).as_slice().to_vec());
-    preimages.insert(PreimageKey::new_local(2), agreed_pre_state_commitment.as_slice().to_vec());
-    preimages.insert(PreimageKey::new_local(3), claimed_post_state.as_slice().to_vec());
-    preimages.insert(PreimageKey::new_local(4), claimed_l2_timestamp.to_be_bytes().to_vec());
+    preimages.insert(PreimageKey::new_local(L1_HEAD_KEY.to()), b256(0x11).as_slice().to_vec());
+    preimages.insert(
+        PreimageKey::new_local(L2_OUTPUT_ROOT_KEY.to()),
+        agreed_pre_state_commitment.as_slice().to_vec(),
+    );
+    preimages
+        .insert(PreimageKey::new_local(L2_CLAIM_KEY.to()), claimed_post_state.as_slice().to_vec());
+    preimages.insert(
+        PreimageKey::new_local(L2_CLAIM_BLOCK_NUMBER_KEY.to()),
+        claimed_l2_timestamp.to_be_bytes().to_vec(),
+    );
 
     let mut rollup_configs: HashMap<u64, RollupConfig> = HashMap::new();
     for chain_id in [CHAIN_A, CHAIN_B] {
@@ -112,13 +120,13 @@ fn setup_interop_preimages(
         rollup_configs.insert(chain_id, cfg);
     }
     preimages.insert(
-        PreimageKey::new_local(6),
+        PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to()),
         serde_json::to_vec(&rollup_configs).expect("serialize rollup configs"),
     );
 
     let l1_config = L1ChainConfig { chain_id: L1_CHAIN_ID, ..L1ChainConfig::default() };
     preimages.insert(
-        PreimageKey::new_local(7),
+        PreimageKey::new_local(L1_CONFIG_KEY.to()),
         serde_json::to_vec(&l1_config).expect("serialize l1 config"),
     );
 
@@ -126,8 +134,10 @@ fn setup_interop_preimages(
     dependencies.insert(CHAIN_A, kona_genesis::ChainDependency {});
     dependencies.insert(CHAIN_B, kona_genesis::ChainDependency {});
     let depset = DependencySet { dependencies, override_message_expiry_window: None };
-    preimages
-        .insert(PreimageKey::new_local(8), serde_json::to_vec(&depset).expect("serialize depset"));
+    preimages.insert(
+        PreimageKey::new_local(DEPENDENCY_SET_KEY.to()),
+        serde_json::to_vec(&depset).expect("serialize depset"),
+    );
 
     preimages.insert(PreimageKey::new_keccak256(*agreed_pre_state_commitment), pre_state_rlp);
 
@@ -141,7 +151,7 @@ async fn trace_extension_transition_state_at_game_timestamp_accepts_matching_cla
     let (preimages, agreed_commit) =
         setup_interop_preimages(transition_state_prestate(t), t, B256::ZERO);
     let mut preimages = preimages;
-    preimages.insert(PreimageKey::new_local(3), agreed_commit.as_slice().to_vec());
+    preimages.insert(PreimageKey::new_local(L2_CLAIM_KEY.to()), agreed_commit.as_slice().to_vec());
 
     let oracle = MockOracle::from_preimages(preimages);
     let hints = MockHintWriter::default();
@@ -186,7 +196,7 @@ async fn trace_extension_super_root_at_game_timestamp_accepts_matching_claim() {
     let t: u64 = 1000;
     let (preimages, agreed_commit) = setup_interop_preimages(super_root_prestate(t), t, B256::ZERO);
     let mut preimages = preimages;
-    preimages.insert(PreimageKey::new_local(3), agreed_commit.as_slice().to_vec());
+    preimages.insert(PreimageKey::new_local(L2_CLAIM_KEY.to()), agreed_commit.as_slice().to_vec());
 
     let oracle = MockOracle::from_preimages(preimages);
     let hints = MockHintWriter::default();
@@ -238,7 +248,7 @@ async fn rejects_transition_state_with_timestamp_after_game_timestamp() {
         B256::ZERO,
     );
     let mut preimages = preimages;
-    preimages.insert(PreimageKey::new_local(3), agreed_commit.as_slice().to_vec());
+    preimages.insert(PreimageKey::new_local(L2_CLAIM_KEY.to()), agreed_commit.as_slice().to_vec());
 
     let oracle = MockOracle::from_preimages(preimages);
     let hints = MockHintWriter::default();
@@ -258,7 +268,7 @@ async fn rejects_super_root_with_timestamp_after_game_timestamp() {
         B256::ZERO,
     );
     let mut preimages = preimages;
-    preimages.insert(PreimageKey::new_local(3), agreed_commit.as_slice().to_vec());
+    preimages.insert(PreimageKey::new_local(L2_CLAIM_KEY.to()), agreed_commit.as_slice().to_vec());
 
     let oracle = MockOracle::from_preimages(preimages);
     let hints = MockHintWriter::default();

@@ -9,12 +9,15 @@ use anyhow::{anyhow, bail, ensure};
 use kona_derive::BlobProvider;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_preimage::{CommsClient, PreimageKey, PreimageOracleClient};
+use kona_preimage::{
+    CommsClient, DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L2_ROLLUP_CONFIG_KEY, PreimageKey,
+    PreimageOracleClient,
+};
 use kona_proof::{
     BootInfo, FlushableCache, l1::OracleL1ChainProvider, l2::OracleL2ChainProvider,
     sync::new_oracle_pipeline_cursor,
 };
-use kona_proof_interop::{HintType, boot::DEPENDENCY_SET_KEY};
+use kona_proof_interop::HintType;
 use kona_registry::{DEPENDENCY_SETS, L1_CONFIGS, ROLLUP_CONFIGS};
 use kona_sp1_client_utils::{
     boot::BootInfoStruct,
@@ -26,11 +29,6 @@ use kona_sp1_client_utils::{
 };
 
 use crate::executor::ETHDAWitnessExecutor;
-
-/// Local preimage key for dev/test rollup-config fallback.
-const L2_ROLLUP_CONFIG_KEY: U256 = U256::from_be_slice(&[6]);
-/// Local preimage key for dev/test L1-config fallback.
-const L1_CONFIG_KEY: U256 = U256::from_be_slice(&[7]);
 
 /// Builds range-mode public outputs from typed inputs and an oracle-backed witness source.
 pub async fn build_range_outputs<O, B>(
@@ -90,6 +88,10 @@ where
     {
         dependency_set.clone()
     } else {
+        eprintln!(
+            "No embedded dependency set found for proof chain ids {:?}, falling back to preimage oracle. This is insecure in production without additional validation!",
+            chain_ids
+        );
         let serialized = oracle
             .get(PreimageKey::new_local(DEPENDENCY_SET_KEY.to()))
             .await
