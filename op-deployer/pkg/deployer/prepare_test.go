@@ -391,6 +391,8 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 func TestPredictChains_SkipsDeployed(t *testing.T) {
 	deployedID := common.HexToHash("0x0a")
 	freshID := common.HexToHash("0x0b")
+	deployedPrestate := common.HexToHash("0xdead")
+	freshPrestate := common.HexToHash("0xbeef")
 
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
 	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
@@ -409,6 +411,9 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 	deployedContracts.SystemConfigProxy = common.HexToAddress("0xdead")
 	st := &state.State{Create2Salt: common.HexToHash("0x03")}
 	st.SetChainContracts(deployedID, deployedContracts, true)
+	st.SetChainContracts(freshID, addresses.OpChainContracts{}, false)
+	require.NoError(t, st.SetChainPrestate(deployedID, deployedPrestate))
+	require.NoError(t, st.SetChainPrestate(freshID, freshPrestate))
 
 	var ran []common.Hash
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -441,10 +446,74 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 	require.NotNil(t, deployed.Deployed)
 	require.True(t, *deployed.Deployed)
 	require.Equal(t, deployedContracts.SystemConfigProxy, deployed.SystemConfigProxy)
+	require.Equal(t, deployedPrestate, deployed.Prestate)
 
 	fresh, err := st.Chain(freshID)
 	require.NoError(t, err)
 	require.NotNil(t, fresh.Deployed)
 	require.False(t, *fresh.Deployed)
 	require.Equal(t, common.HexToAddress("0xbeef"), fresh.SystemConfigProxy)
+	require.Equal(t, common.Hash{}, fresh.Prestate)
+}
+
+func TestPrepareChainsBuildsInteropDepSetBeforePrediction(t *testing.T) {
+	firstID := common.HexToHash("0x0a")
+	secondID := common.HexToHash("0x0b")
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+		GlobalDeployOverrides: make(map[string]any),
+		Chains: []*state.ChainIntent{
+			{ID: firstID},
+			{ID: secondID},
+		},
+	}
+	st := &state.State{Create2Salt: common.HexToHash("0x03")}
+
+	var predictions int
+	run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		predictions++
+		require.NotNil(t, st.InteropDepSet)
+		require.Len(t, st.InteropDepSet.Chains(), 2)
+		return opcm.DeployOPChainOutput{}, nil
+	}
+
+	require.NoError(t, prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run))
+	require.Equal(t, 2, predictions)
+}
+
+func TestPredictChainsPermissionlessWithoutPrestate(t *testing.T) {
+	chainID := common.HexToHash("0x0a")
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+		GlobalDeployOverrides: make(map[string]any),
+		Chains: []*state.ChainIntent{{
+			ID: chainID,
+			DeployOverrides: map[string]any{
+				"respectedGameType": embedded.GameTypeCannonKona,
+			},
+		}},
+	}
+	st := &state.State{Create2Salt: common.HexToHash("0x03")}
+	lgr, logs := testlog.CaptureLogger(t, slog.LevelInfo)
+
+	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		require.Equal(t, uint32(embedded.GameTypeCannonKona), in.DisputeGameType)
+		return opcm.DeployOPChainOutput{}, nil
+	}
+
+	require.NoError(t, predictChains(lgr, intent, st, run))
+	chain, err := st.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, common.Hash{}, chain.Prestate)
+	logs.RequireMessageContainedOnce(
+		t,
+		"run op-deployer prestate before continue",
+		testlog.NewAttributesFilter("chain", chainID.Hex()),
+	)
 }

@@ -170,7 +170,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("failed to load DeployOPChain script: %w", err)
 	}
 
-	if err := predictChains(cfg.Logger, intent, st, deployScript.Run); err != nil {
+	if err := prepareChains(cfg.Logger, intent, st, deployScript.Run); err != nil {
 		return err
 	}
 
@@ -179,6 +179,18 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 
 	return nil
+}
+
+// prepareChains builds the dependency set consumed by prestate generation before
+// predicting any chain addresses.
+func prepareChains(lgr log.Logger, intent *state.Intent, st *state.State, run func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error)) error {
+	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
+	if err != nil {
+		return fmt.Errorf("failed to create interop dependency set: %w", err)
+	}
+	st.InteropDepSet = interopDepSet
+
+	return predictChains(lgr, intent, st, run)
 }
 
 // validateL1ChainID checks that the L1 RPC endpoint serves the chain the intent was
@@ -229,6 +241,16 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 		}
 
 		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), false)
+		if err := st.SetChainPrestate(chain.ID, common.Hash{}); err != nil {
+			return fmt.Errorf("failed to clear prestate for chain %s: %w", chain.ID.Hex(), err)
+		}
+
+		if pipeline.IsPermissionlessGameType(dci.DisputeGameType) {
+			lgr.Info(
+				"no prestate committed yet; run op-deployer prestate before continue",
+				"chain", chain.ID.Hex(),
+			)
+		}
 
 		lgr.Info(
 			"predicted L1 addresses",
