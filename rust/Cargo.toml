@@ -70,6 +70,9 @@ members = [
 
   # Shared build/version metadata (op-reth + kona-node)
   "op-version/",
+
+  # Rust forge-script executor (op-geth decoupling; replaces op-chain-ops/script EVM host)
+  "op-script-engine/",
 ]
 default-members = [
   "kona/bin/host",
@@ -399,6 +402,7 @@ reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v2.3.0" }
 reth-prune = { git = "https://github.com/paradigmxyz/reth", tag = "v2.3.0" }
 reth-prune-types = { git = "https://github.com/paradigmxyz/reth", tag = "v2.3.0", default-features = false }
 reth-revm = { git = "https://github.com/paradigmxyz/reth", tag = "v2.3.0", default-features = false }
+reth-ipc = { git = "https://github.com/paradigmxyz/reth", tag = "v2.3.0" }
 reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v2.3.0" }
 reth-rpc-api = { git = "https://github.com/paradigmxyz/reth", tag = "v2.3.0" }
 reth-rpc-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v2.3.0" }

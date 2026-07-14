@@ -29,6 +29,11 @@ type AccountDiff struct {
 }
 
 func (d *AccountDiff) Copy() *AccountDiff {
+	// A nil AccountDiff marks a deleted account (DeleteAccount stores nil in the diff map); preserve
+	// the deletion instead of dereferencing nil.
+	if d == nil {
+		return nil
+	}
 	var out AccountDiff
 	if d.Nonce != nil {
 		v := *d.Nonce // copy the value

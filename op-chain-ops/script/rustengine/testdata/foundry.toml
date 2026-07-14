@@ -1,0 +1,16 @@
+[profile.default]
+src = 'src'
+out = 'test-artifacts'
+script = 'scripts'
+optimizer = true
+optimizer_runs = 999999
+remappings = []
+extra_output = ['storageLayout']
+bytecode_hash = 'none'
+ast = true
+evm_version = "cancun"
+ignored_error_codes = ["transient-storage", "code-size", "init-code-size", 5159]
+gas_limit = 9223372036854775807
+ffi = false
+fs_permissions = []
+libs = []

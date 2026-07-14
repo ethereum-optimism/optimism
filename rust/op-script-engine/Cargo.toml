@@ -1,0 +1,72 @@
+[package]
+name = "op-script-engine"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Rust forge-script executor for the OP Stack (op-geth decoupling): revm-based host with a foundry-style cheatcode inspector, byte-parity with op-chain-ops/script."
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "op-script-engine"
+path = "src/bin/op-script-engine.rs"
+
+[dependencies]
+# revm
+# The optional_* features re-enable the CfgEnv disable-flags the workspace turns off; we need
+# them to reproduce op-geth's raw `vm.EVM.Call` semantics (no fee/limit enforcement).
+revm = { workspace = true, features = [
+  "std",
+  "optional_balance_check",
+  "optional_block_gas_limit",
+  "optional_eip3607",
+  "optional_no_base_fee",
+] }
+# Fork mode: AlloyDB (RPC-backed base state) + WrapDatabaseAsync (async->sync bridge).
+# The `alloydb` feature pulls in database-interface/asyncdb and the alloy provider stack.
+revm-database = { workspace = true, features = ["alloydb"] }
+
+# alloy
+alloy-primitives = { workspace = true, features = ["std", "map"] }
+alloy-sol-types = { workspace = true, features = ["std"] }
+# Fork mode: the engine dials the L1 archive directly (Option A, unidirectional transport).
+# reqwest-rustls-tls gives the reqwest transport a rustls TLS backend so the engine can dial a real
+# https L1 (a live-deploy L1 is https; local anvil is plain http). The workspace alloy-provider dep
+# enables only "reqwest"/"debug-api", so the tls feature must be added here.
+alloy-provider = { workspace = true, features = ["reqwest-rustls-tls"] }
+alloy-eips = { workspace = true }
+url = { workspace = true }
+# rustls 0.23 ships no default crypto provider; the bin installs the ring provider before the first
+# https dial (see main).
+rustls = { workspace = true, features = ["ring"] }
+
+# secp256k1 for the `vm.addr` cheatcode (private key -> address).
+k256 = { workspace = true, features = ["arithmetic"] }
+
+# serde
+serde = { workspace = true, features = ["std", "derive"] }
+serde_json = { workspace = true, features = ["std"] }
+
+# errors
+thiserror = { workspace = true, features = ["std"] }
+
+# rpc / transport (bin only, but simplest to keep unconditional for the spike)
+# `net` + `time` enable the tokio IO/time drivers the alloy reqwest transport needs when the
+# engine dials the fork RPC.
+tokio = { workspace = true, features = [
+  "rt-multi-thread",
+  "macros",
+  "signal",
+  "sync",
+  "net",
+  "time",
+] }
+jsonrpsee = { workspace = true }
+reth-ipc = { workspace = true }
+
+# cli + logging (bin)
+clap = { workspace = true, features = ["derive"] }
+tracing = { workspace = true, features = ["std"] }
+tracing-subscriber = { workspace = true, features = ["std", "fmt", "env-filter"] }

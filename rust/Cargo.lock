@@ -9575,6 +9575,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "op-script-engine"
+version = "0.1.0"
+dependencies = [
+ "alloy-eips 2.0.5",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-sol-types",
+ "clap",
+ "jsonrpsee",
+ "k256",
+ "reth-ipc",
+ "revm",
+ "revm-database",
+ "rustls",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.23",
+ "url",
+]
+
+[[package]]
 name = "op-version"
 version = "0.1.0"
 
@@ -14783,12 +14807,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a69c3ce73454a09ef89a66177239d7c4f5f697227ae27254c99451866603b19d"
 dependencies = [
  "alloy-eips 2.0.5",
+ "alloy-provider",
+ "alloy-transport",
  "derive_more 2.1.1",
  "revm-bytecode",
  "revm-database-interface",
  "revm-primitives",
  "revm-state",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -14803,6 +14830,7 @@ dependencies = [
  "revm-state",
  "serde",
  "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]
