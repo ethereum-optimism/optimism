@@ -43,6 +43,11 @@ func TestMain(m *testing.M) {
 		panic(fmt.Sprintf("provision op-reth-test-engine: %v", err))
 	}
 	enginePath = path
+	// Share the resolved binary with helpers.NewL2Engine's own resolver so the sequencer smoke
+	// reuses it rather than cargo-building a second copy.
+	if os.Getenv("RUST_BINARY_PATH_OP_RETH_TEST_ENGINE") == "" {
+		_ = os.Setenv("RUST_BINARY_PATH_OP_RETH_TEST_ENGINE", path)
+	}
 	os.Exit(m.Run())
 }
 
