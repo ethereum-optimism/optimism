@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -286,6 +287,9 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 
 	if pipeline.IsPermissionlessGameType(proofParams.DisputeGameType) {
 		startingAnchorRoot.Root = predictionStartingAnchorRoot
+	}
+
+	if proofParams.DisputeGameType == uint32(embedded.GameTypeCannonKona) {
 		cannonAbsolutePrestate = predictionCannonAbsolutePrestate
 	}
 

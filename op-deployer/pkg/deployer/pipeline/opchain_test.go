@@ -130,10 +130,6 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 func Test_makeDCI_RejectsPermissionlessGameType(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 	intent := &state.Intent{GlobalDeployOverrides: make(map[string]any)}
-	chainIntent := &state.ChainIntent{
-		ID:              chainID,
-		DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeCannonKona},
-	}
 	st := &state.State{
 		Create2Salt: common.HexToHash("0x01"),
 		SuperchainDeployment: &addresses.SuperchainContracts{
@@ -144,8 +140,60 @@ func Test_makeDCI_RejectsPermissionlessGameType(t *testing.T) {
 		},
 	}
 
-	_, err := makeDCI(intent, chainIntent, chainID, st)
-	require.ErrorContains(t, err, "permissionless")
+	tests := []struct {
+		name     string
+		gameType embedded.GameType
+	}{
+		{name: "CANNON_KONA", gameType: embedded.GameTypeCannonKona},
+		{name: "SUPER_CANNON_KONA", gameType: embedded.GameTypeSuperCannonKona},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chainIntent := &state.ChainIntent{
+				ID:              chainID,
+				DeployOverrides: map[string]any{"respectedGameType": tt.gameType},
+			}
+
+			_, err := makeDCI(intent, chainIntent, chainID, st)
+			require.ErrorContains(t, err, "permissionless")
+		})
+	}
+}
+
+func TestIsPermissionlessGameType(t *testing.T) {
+	tests := []struct {
+		name     string
+		gameType embedded.GameType
+		expected bool
+	}{
+		{
+			name:     "CANNON_KONA",
+			gameType: embedded.GameTypeCannonKona,
+			expected: true,
+		},
+		{
+			name:     "SUPER_CANNON_KONA",
+			gameType: embedded.GameTypeSuperCannonKona,
+			expected: true,
+		},
+		{
+			name:     "PERMISSIONED_CANNON",
+			gameType: embedded.GameTypePermissionedCannon,
+			expected: false,
+		},
+		{
+			name:     "SUPER_PERMISSIONED",
+			gameType: embedded.GameTypeSuperPermissioned,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, IsPermissionlessGameType(uint32(tt.gameType)))
+		})
+	}
 }
 
 func TestShouldDeployOPChain(t *testing.T) {

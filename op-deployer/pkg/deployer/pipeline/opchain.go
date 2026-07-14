@@ -173,7 +173,12 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 // IsPermissionlessGameType reports whether the given dispute game type deploys a
 // permissionless chain.
 func IsPermissionlessGameType(gameType uint32) bool {
-	return gameType == uint32(embedded.GameTypeCannonKona)
+	switch embedded.GameType(gameType) {
+	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
+		return true
+	default:
+		return false
+	}
 }
 
 func BuildDeployOPChainInput(
