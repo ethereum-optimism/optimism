@@ -17,9 +17,11 @@
 //! `keccak256(slot) → slot` for every imported slot, so the execution stage can resolve them.
 //! The preimage DB is address-independent and reth deletes it once Ecotone (Cancun) activates.
 //!
-//! NOTE: the MDBX env layout below is replicated from reth's private `SlotPreimages::open` /
-//! `insert_preimages` at rev `9384bc53d8c0c77e59cac83fdaaf3b372c6d2216` (v2.3.0). It must stay
-//! byte-compatible with that code; revisit on every reth bump until an upstream helper exists.
+//! NOTE: the MDBX env layout below is replicated from reth's `SlotPreimages::open` /
+//! `insert_preimages` at rev `f2eecc65482af4085e43eedb27a32024bf177a0d` (post-v2.4.0). It must
+//! stay byte-compatible with that code; revisit on every reth bump until an upstream helper
+//! exists. As of this rev the upstream type is `pub` (paradigmxyz/reth#26398 landed after
+//! v2.4.0); the replica can be dropped in favor of it — tracked in ethereum-optimism/optimism#21523.
 
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, B256, keccak256};
