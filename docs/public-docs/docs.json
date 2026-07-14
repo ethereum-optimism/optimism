@@ -59,6 +59,10 @@
   },
   "redirects": [
     {
+      "source": "/chain-operators/reference/architecture",
+      "destination": "/chain-operators/guides/management/network-architecture"
+    },
+    {
       "source": "/stack/interop/op-supervisor",
       "destination": "/op-stack/interop/explainer"
     },
@@ -972,7 +976,7 @@
     },
     {
       "source": "/operators/chain-operators/architecture",
-      "destination": "/chain-operators/reference/architecture"
+      "destination": "/chain-operators/guides/management/network-architecture"
     },
     {
       "source": "/operators/chain-operators/configuration",
@@ -1919,6 +1923,7 @@
                 "group": "Management",
                 "pages": [
                   "chain-operators/guides/management/best-practices",
+                  "chain-operators/guides/management/network-architecture",
                   "chain-operators/guides/management/gas-target-limit",
                   "chain-operators/guides/management/key-management",
                   "chain-operators/guides/management/operations",
@@ -2011,7 +2016,6 @@
           {
             "group": "Reference",
             "pages": [
-              "chain-operators/reference/architecture",
               "chain-operators/reference/opcm",
               "chain-operators/reference/standard-configuration"
             ]
