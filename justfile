@@ -23,6 +23,11 @@ FRAUD_PROOF_TEST_PKGS := "./op-e2e/faultproofs/..."
 help:
   @just --list
 
+# Install the repo's git hooks (core.hooksPath -> .githooks). Idempotent; run once per clone.
+install-git-hooks:
+  git config core.hooksPath .githooks
+  @echo "Installed git hooks: core.hooksPath -> .githooks"
+
 # Initializes/updates the superchain-registry submodule — the single canonical SR
 # commit pin. Scoped to ONLY this submodule (never a bare `git submodule update`).
 # With no ref it initializes at the pinned commit (shallow) and leaves an
