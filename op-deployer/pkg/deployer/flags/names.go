@@ -24,7 +24,6 @@ const (
 	VerifierTypeFlagName     = "verifier"
 	VerifierUrlFlagName      = "verifier-url"
 	UseForgeFlagName         = "use-forge"
-	ScriptEngineFlagName     = "script-engine"
 )
 
 func DefaultCacheDir() string {

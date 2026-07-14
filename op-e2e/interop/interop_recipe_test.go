@@ -30,9 +30,8 @@ func TestInteropDevRecipe(t *testing.T) {
 	require.NoError(t, worldCfg.Check(logger))
 
 	fa := foundry.OpenArtifactsDir("../../packages/contracts-bedrock/forge-artifacts")
-	srcFS := foundry.NewSourceMapFS(os.DirFS("../../packages/contracts-bedrock"))
 
-	worldDeployment, worldOutput, err := interopgen.Deploy(logger, fa, srcFS, worldCfg)
+	worldDeployment, worldOutput, err := interopgen.Deploy(logger, fa, worldCfg)
 	require.NoError(t, err)
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("  ", "  ")

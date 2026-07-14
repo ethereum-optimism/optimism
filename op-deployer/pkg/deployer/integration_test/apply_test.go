@@ -805,7 +805,6 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		// Create the forked script backend (rust engine by default) for the upgrade
 		fl1, err := scriptbackend.NewForkedL1(
 			ctx,
-			"",
 			lgr,
 			implementationsConfig.L1ProxyAdminOwner,
 			afactsFS,

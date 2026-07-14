@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -31,7 +30,6 @@ const (
 	VerifierTypeFlagName     = flags.VerifierTypeFlagName
 	VerifierUrlFlagName      = flags.VerifierUrlFlagName
 	UseForgeFlagName         = flags.UseForgeFlagName
-	ScriptEngineFlagName     = flags.ScriptEngineFlagName
 )
 
 var (
@@ -134,15 +132,9 @@ var (
 	}
 	UseForgeFlag = &cli.BoolFlag{
 		Name:    UseForgeFlagName,
-		Usage:   "use Forge instead of script.Host for deployment scripts",
+		Usage:   "use the external Forge binary instead of the in-process script engine for deployment scripts",
 		EnvVars: PrefixEnvVar("USE_FORGE"),
 		Value:   false,
-	}
-	ScriptEngineFlag = &cli.StringFlag{
-		Name:    ScriptEngineFlagName,
-		Usage:   "script engine for deployment scripts: \"go\" (in-process script.Host) or \"rust\" (out-of-process op-script-engine)",
-		EnvVars: PrefixEnvVar("SCRIPT_ENGINE"),
-		Value:   string(env.DefaultScriptEngine),
 	}
 )
 
@@ -165,7 +157,6 @@ var ApplyFlags = []cli.Flag{
 	VerifierFlag,
 	VerifierUrlFlag,
 	UseForgeFlag,
-	ScriptEngineFlag,
 }
 
 var UpgradeFlags = []cli.Flag{

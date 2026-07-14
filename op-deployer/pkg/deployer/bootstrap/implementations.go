@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/cliutil"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
@@ -55,11 +54,6 @@ type ImplementationsConfig struct {
 	UseForge                        bool               `cli:"use-forge"`
 
 	Logger log.Logger
-
-	// ScriptEngine selects the forge-script backend for the forked L1 deploy. The empty value
-	// resolves to the default (rust); set it to env.ScriptEngineGo to fall back to the in-process
-	// Go script.Host.
-	ScriptEngine env.ScriptEngineKind
 
 	privateKeyECDSA *ecdsa.PrivateKey
 }
@@ -139,12 +133,6 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to populate config: %w", err)
 	}
 	cfg.Logger = l
-
-	engineKind, err := env.ParseScriptEngine(cliCtx.String(deployer.ScriptEngineFlag.Name))
-	if err != nil {
-		return err
-	}
-	cfg.ScriptEngine = engineKind
 
 	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
 	artifactsLocator := new(artifacts.Locator)
@@ -274,7 +262,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			return dio, fmt.Errorf("failed to create broadcaster: %w", err)
 		}
 
-		fl1, err := scriptbackend.NewForkedL1(ctx, cfg.ScriptEngine, lgr, chainDeployer, artifactsFS, cfg.L1RPCUrl, bcaster)
+		fl1, err := scriptbackend.NewForkedL1(ctx, lgr, chainDeployer, artifactsFS, cfg.L1RPCUrl, bcaster)
 		if err != nil {
 			return dio, fmt.Errorf("failed to create forked L1 backend: %w", err)
 		}

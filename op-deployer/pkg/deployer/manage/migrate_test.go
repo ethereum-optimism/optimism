@@ -97,7 +97,7 @@ func TestInteropMigration(t *testing.T) {
 
 	bcast := new(broadcaster.CalldataBroadcaster)
 	// Route through the default (rust) forked backend so the migration runs on the engine's fork mode.
-	fl1, err := scriptbackend.NewForkedL1(ctx, "", lgr, l1ProxyAdminOwner, afactsFS, l1RPC, bcast)
+	fl1, err := scriptbackend.NewForkedL1(ctx, lgr, l1ProxyAdminOwner, afactsFS, l1RPC, bcast)
 	require.NoError(t, err)
 	defer fl1.Close()
 

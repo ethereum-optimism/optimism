@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/rustengine"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 // These helpers spawn the Rust op-script-engine for the pipeline tests, replacing the deleted Go
@@ -41,7 +42,7 @@ func newForkedL1EngineForTest(t *testing.T, ctx context.Context, lgr log.Logger,
 		defer rpcClient.Close()
 		latest, err := ethclient.NewClient(rpcClient).HeaderByNumber(ctx, nil)
 		require.NoError(t, err)
-		b := latest.Number.Uint64()
+		b := bigs.Uint64Strict(latest.Number)
 		forkBlock = &b
 	}
 	_, err = eng.CreateSelectFork(l1RPCUrl, forkBlock)

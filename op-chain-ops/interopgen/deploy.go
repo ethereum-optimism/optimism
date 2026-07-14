@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -36,17 +35,9 @@ var (
 	defaultInitBond = big.NewInt(8e16)
 )
 
-// Deploy builds the interop dev world on the default script engine
-// (env.DefaultScriptEngine); see DeployWithEngine.
-func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, cfg *WorldConfig) (*WorldDeployment, *WorldOutput, error) {
-	return DeployWithEngine(logger, fa, srcFS, cfg, env.DefaultScriptEngine)
-}
-
-// DeployWithEngine builds the interop dev world (L1 genesis with superchain/OPCM/L2 chain
-// deployments, plus every L2 genesis) on the out-of-process Rust op-script-engine. srcFS is
-// accepted for API compatibility and is currently unused.
-func DeployWithEngine(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, cfg *WorldConfig, engine env.ScriptEngineKind) (*WorldDeployment, *WorldOutput, error) {
-	_ = srcFS
+// Deploy builds the interop dev world (L1 genesis with superchain/OPCM/L2 chain deployments, plus
+// every L2 genesis) on the out-of-process Rust op-script-engine.
+func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, cfg *WorldConfig) (*WorldDeployment, *WorldOutput, error) {
 	// Sanity check all L2s have consistent chain ID and attach to the same L1
 	for id, l2Cfg := range cfg.L2s {
 		if fmt.Sprintf("%d", l2Cfg.L2ChainID) != id {
@@ -61,7 +52,7 @@ func DeployWithEngine(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry
 		L2s: make(map[string]*L2Deployment),
 	}
 
-	hf, err := newHostFactory(logger, fa, engine)
+	hf, err := newHostFactory(logger, fa)
 	if err != nil {
 		return nil, nil, err
 	}

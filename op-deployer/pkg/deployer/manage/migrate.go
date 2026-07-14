@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -124,11 +123,6 @@ func MigrateCLI(cliCtx *cli.Context) error {
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlag.Name)
 	if l1RPCUrl == "" {
 		return fmt.Errorf("missing required flag: %s", deployer.L1RPCURLFlag.Name)
-	}
-
-	engineKind, err := env.ParseScriptEngine(cliCtx.String(deployer.ScriptEngineFlag.Name))
-	if err != nil {
-		return err
 	}
 
 	privateKey := cliCtx.String(deployer.PrivateKeyFlag.Name)
@@ -273,7 +267,7 @@ func MigrateCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to create broadcaster: %w", err)
 	}
 
-	fl1, err := scriptbackend.NewForkedL1(ctx, engineKind, lgr, deployerAddr, artifactsFS, l1RPCUrl, bcaster)
+	fl1, err := scriptbackend.NewForkedL1(ctx, lgr, deployerAddr, artifactsFS, l1RPCUrl, bcaster)
 	if err != nil {
 		return fmt.Errorf("failed to create forked L1 backend: %w", err)
 	}

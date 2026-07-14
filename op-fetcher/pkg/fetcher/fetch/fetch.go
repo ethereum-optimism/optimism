@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch/script"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
@@ -36,11 +35,6 @@ func FetchChainInfoCLI() func(ctx *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		engineKind, err := env.ParseScriptEngine(cliCtx.String(ScriptEngineFlag.Name))
-		if err != nil {
-			return err
-		}
-		fetcher.ScriptEngine = engineKind
 
 		result, err := fetcher.FetchChainInfo(cliCtx.Context)
 		if err != nil {
@@ -77,11 +71,7 @@ type Fetcher struct {
 	L1RPCURL              string
 	SystemConfigProxy     common.Address
 	L1StandardBridgeProxy common.Address
-	// ScriptEngine selects the forge-script backend for the forked L1 read. The empty value
-	// resolves to the default (rust); set it to env.ScriptEngineGo to fall back to the in-process
-	// Go script.Host.
-	ScriptEngine env.ScriptEngineKind
-	lgr          log.Logger
+	lgr                   log.Logger
 }
 
 func NewFetcher(lgr log.Logger, l1RPCURL string, systemConfigProxy, l1StandardBridge common.Address) (*Fetcher, error) {
@@ -107,7 +97,6 @@ func (f *Fetcher) FetchChainInfo(ctx context.Context) (script.FetchChainInfoOutp
 
 	fl1, err := scriptbackend.NewForkedL1(
 		ctx,
-		f.ScriptEngine,
 		f.lgr,
 		deployerAddress,
 		artifactsFS,
@@ -125,9 +114,8 @@ func (f *Fetcher) FetchChainInfo(ctx context.Context) (script.FetchChainInfoOutp
 	})
 }
 
-// extractedArtifacts materializes the embedded forge-artifacts onto disk. Both backends read them
-// from there: the Rust engine takes an on-disk --artifacts directory, and serving the Go host from
-// the same directory keeps the two paths identical.
+// extractedArtifacts materializes the embedded forge-artifacts onto disk, where the Rust engine
+// reads them via its on-disk --artifacts directory.
 func extractedArtifacts() (foundry.StatDirFs, func(), error) {
 	dir, err := os.MkdirTemp("", "op-fetcher-artifacts-")
 	if err != nil {

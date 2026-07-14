@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -40,11 +39,8 @@ func executeOPCMUpgrade(
 ) {
 	require := t.Require()
 	bcaster := new(broadcaster.CalldataBroadcaster)
-	// devstack has no --script-engine flag, so the forked upgrade runs on the default engine.
-	// Set explicitly (rather than a bare "") so the selection is visible and centrally changeable
-	// via env.DefaultScriptEngine; the CLI callers (apply/bootstrap/upgrade/manage) thread the flag.
 	fl1, err := scriptbackend.NewForkedL1(
-		t.Ctx(), env.DefaultScriptEngine, t.Logger(), common.Address{'D'}, artifactsFS, l1ELRPC, bcaster,
+		t.Ctx(), t.Logger(), common.Address{'D'}, artifactsFS, l1ELRPC, bcaster,
 	)
 	require.NoError(err, "failed to create forked script backend")
 	defer fl1.Close()

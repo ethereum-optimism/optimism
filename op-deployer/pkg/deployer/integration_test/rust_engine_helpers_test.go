@@ -1,7 +1,6 @@
 package integration_test
 
 import (
-	"encoding/json"
 	"io"
 	"math/big"
 	"os/exec"
@@ -103,24 +102,20 @@ func buildL2GenesisInput(t *testing.T, intent *state.Intent, st *state.State, ch
 	}
 }
 
-func requireAllocsJSONEq(t *testing.T, label string, want, got *foundry.ForgeAllocs) {
-	t.Helper()
-	wb, err := json.Marshal(want)
-	require.NoError(t, err)
-	gb, err := json.Marshal(got)
-	require.NoError(t, err)
-	require.JSONEq(t, string(wb), string(gb), "state dump mismatch: %s", label)
-}
-
 // buildRustScriptEngine returns the Rust engine binary path. It prefers a pre-built binary named by
 // RUST_BINARY_PATH_OP_SCRIPT_ENGINE (how CI supplies it to the cargo-less Go executors); otherwise
-// it cargo-builds locally, and skips only when neither a pre-built binary nor cargo is available.
+// it cargo-builds locally. Under REQUIRE_RUST_ENGINE (CI) it fails the gate when neither is
+// available, so a provisioning break can't silently skip the byte-parity golden; local dev skips.
 func buildRustScriptEngine(t *testing.T) string {
 	if p, ok := rustengine.PrebuiltEngineBinary(); ok {
 		return p
 	}
 	if _, err := exec.LookPath("cargo"); err != nil {
-		t.Skip("no pre-built engine (RUST_BINARY_PATH_OP_SCRIPT_ENGINE) and cargo unavailable; skipping Rust engine golden test")
+		msg := "no pre-built engine (RUST_BINARY_PATH_OP_SCRIPT_ENGINE) and cargo unavailable"
+		if rustengine.RequireEngine() {
+			t.Fatal(msg + " (" + rustengine.RequireEngineEnv + " is set)")
+		}
+		t.Skip(msg + "; skipping Rust engine golden test")
 	}
 	rustDir := filepath.Join(monorepoRoot(t), "rust")
 	cmd := exec.Command("cargo", "build", "-p", "op-script-engine", "--bin", "op-script-engine")

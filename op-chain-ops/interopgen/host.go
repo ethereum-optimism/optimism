@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/rustengine"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
@@ -58,10 +57,7 @@ type hostFactory struct {
 	artifactsDir string
 }
 
-func newHostFactory(logger log.Logger, fa *foundry.ArtifactsFS, engine env.ScriptEngineKind) (*hostFactory, error) {
-	if _, err := engine.Resolve(); err != nil {
-		return nil, err
-	}
+func newHostFactory(logger log.Logger, fa *foundry.ArtifactsFS) (*hostFactory, error) {
 	binPath, err := rustengine.EngineBinary(context.Background(), logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to locate op-script-engine binary: %w", err)

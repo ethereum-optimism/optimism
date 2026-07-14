@@ -14,8 +14,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/rustengine"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -65,10 +63,9 @@ func L2SemversCLI(cliCtx *cli.Context) error {
 	}
 
 	ps, err := L2Semvers(L2SemversConfig{
-		Lgr:          l,
-		Artifacts:    artifactsFS,
-		ChainState:   chainState,
-		ScriptEngine: cliCfg.ScriptEngine,
+		Lgr:        l,
+		Artifacts:  artifactsFS,
+		ChainState: chainState,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to get L2 semvers: %w", err)
@@ -85,9 +82,6 @@ type L2SemversConfig struct {
 	Lgr        log.Logger
 	Artifacts  foundry.StatDirFs
 	ChainState *state.ChainState
-	// ScriptEngine selects the script engine that reads the semvers (empty resolves to the
-	// default, env.DefaultScriptEngine, the Rust op-script-engine).
-	ScriptEngine env.ScriptEngineKind
 }
 
 type L2PredeploySemvers struct {
@@ -140,9 +134,6 @@ func (r rustSemverReader) getCode(addr common.Address) ([]byte, error) {
 // newSemverReader spawns the Rust op-script-engine, importing the chain state. The returned cleanup
 // func must be called when done (it terminates the Rust subprocess).
 func newSemverReader(cfg L2SemversConfig) (semverReader, func(), error) {
-	if _, err := cfg.ScriptEngine.Resolve(); err != nil {
-		return nil, nil, err
-	}
 	artifactsDir, err := rustengine.ArtifactsDir(cfg.Artifacts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to resolve artifacts directory: %w", err)

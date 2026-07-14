@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -41,7 +40,6 @@ type ApplyConfig struct {
 	CacheDir         string
 	privateKeyECDSA  *ecdsa.PrivateKey
 	UseForge         bool
-	ScriptEngine     env.ScriptEngineKind
 }
 
 func (a *ApplyConfig) Check() error {
@@ -95,11 +93,6 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			return fmt.Errorf("failed to parse deployment target: %w", err)
 		}
 
-		scriptEngine, err := env.ParseScriptEngine(cliCtx.String(ScriptEngineFlagName))
-		if err != nil {
-			return err
-		}
-
 		ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 
 		if err := Apply(ctx, ApplyConfig{
@@ -110,7 +103,6 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			Logger:           l,
 			CacheDir:         cacheDir,
 			UseForge:         cliCtx.Bool(UseForgeFlagName),
-			ScriptEngine:     scriptEngine,
 		}); err != nil {
 			return err
 		}
@@ -169,7 +161,6 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		StateWriter:        pipeline.WorkdirStateWriter(cfg.Workdir),
 		CacheDir:           cfg.CacheDir,
 		UseForge:           cfg.UseForge,
-		ScriptEngine:       cfg.ScriptEngine,
 		PrivateKey:         cfg.PrivateKey,
 		Workdir:            cfg.Workdir,
 	}); err != nil {
@@ -194,7 +185,6 @@ type ApplyPipelineOpts struct {
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
 	UseForge           bool
-	ScriptEngine       env.ScriptEngineKind
 	PrivateKey         string
 	Workdir            string
 }
@@ -243,11 +233,6 @@ func ApplyPipeline(
 	var l1Engine *rustengine.Engine
 	var l1EngineFA *foundry.ArtifactsFS
 	var opcmScripts *opcm.Scripts
-
-	// The Rust op-script-engine is the only script engine; validate the requested value.
-	if _, rerr := opts.ScriptEngine.Resolve(); rerr != nil {
-		return rerr
-	}
 
 	// initForkHost builds the forked L1 host for the Live/Calldata/Noop targets via the Rust engine's
 	// fork mode (CreateSelectFork against opts.L1RPCUrl).
@@ -338,20 +323,19 @@ func ApplyPipeline(
 	}
 
 	pEnv := &pipeline.Env{
-		StateWriter:  opts.StateWriter,
-		L1Engine:     l1Engine,
-		L1Artifacts:  l1EngineFA,
-		L1Client:     l1Client,
-		Logger:       opts.Logger,
-		Broadcaster:  bcaster,
-		Deployer:     deployer,
-		Scripts:      opcmScripts,
-		ForgeClient:  forgeClient,
-		UseForge:     opts.UseForge,
-		ScriptEngine: opts.ScriptEngine,
-		L1RPCUrl:     opts.L1RPCUrl,
-		PrivateKey:   opts.PrivateKey,
-		Context:      ctx,
+		StateWriter: opts.StateWriter,
+		L1Engine:    l1Engine,
+		L1Artifacts: l1EngineFA,
+		L1Client:    l1Client,
+		Logger:      opts.Logger,
+		Broadcaster: bcaster,
+		Deployer:    deployer,
+		Scripts:     opcmScripts,
+		ForgeClient: forgeClient,
+		UseForge:    opts.UseForge,
+		L1RPCUrl:    opts.L1RPCUrl,
+		PrivateKey:  opts.PrivateKey,
+		Context:     ctx,
 	}
 
 	pline := []pipelineStage{
@@ -466,9 +450,8 @@ func ApplyPipeline(
 	}
 
 	// drainForkedBroadcasts moves the broadcasts a forked engine captured during a stage into the
-	// Go broadcaster, mirroring the Go host's synchronous WithBroadcastHook delivery. It runs only
-	// for the forked-target engine path: the Go host feeds the broadcaster directly, and the
-	// non-forked genesis engine uses a Noop broadcaster (no broadcasts to deliver).
+	// Go broadcaster. It runs only for the forked-target engine path; the non-forked genesis engine
+	// uses a Noop broadcaster, so it has no broadcasts to deliver.
 	drainForkedBroadcasts := func() error {
 		if l1Engine == nil || opts.DeploymentTarget == DeploymentTargetGenesis {
 			return nil

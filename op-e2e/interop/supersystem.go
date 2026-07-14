@@ -189,12 +189,11 @@ func (s *interopE2ESystem) prepareWorld(w WorldResourcePaths) (*interopgen.World
 	logger := s.logger.New("role", "world")
 	require.NoError(s.t, worldCfg.Check(logger))
 
-	// create the foundry artifacts and source map
+	// create the foundry artifacts
 	foundryArtifacts := foundry.OpenArtifactsDir(w.FoundryArtifacts)
-	sourceMap := foundry.NewSourceMapFS(os.DirFS(w.SourceMap))
 
-	// deploy the world, using the logger, foundry artifacts, source map, and world configuration
-	worldDeployment, worldOutput, err := interopgen.Deploy(logger, foundryArtifacts, sourceMap, worldCfg)
+	// deploy the world, using the logger, foundry artifacts, and world configuration
+	worldDeployment, worldOutput, err := interopgen.Deploy(logger, foundryArtifacts, worldCfg)
 	require.NoError(s.t, err)
 
 	return worldDeployment, worldOutput

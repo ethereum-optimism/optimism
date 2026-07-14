@@ -109,9 +109,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		UseInterop:                 intent.UseInterop,
 	}
 
-	if _, err := pEnv.ScriptEngine.Resolve(); err != nil {
-		return err
-	}
 	dump, err := runL2GenesisRust(pEnv, bundle, input)
 	if err != nil {
 		return fmt.Errorf("failed to run L2Genesis script: %w", err)

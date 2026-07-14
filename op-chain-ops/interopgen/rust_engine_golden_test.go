@@ -2,7 +2,6 @@ package interopgen
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -42,9 +40,8 @@ func TestRustEngineInteropgenGolden(t *testing.T) {
 
 	logger := testlog.Logger(t, log.LevelInfo)
 	fa := foundry.OpenArtifactsDir("../../packages/contracts-bedrock/forge-artifacts")
-	srcFS := foundry.NewSourceMapFS(os.DirFS("../../packages/contracts-bedrock"))
 
-	rsDep, rsOut, err := DeployWithEngine(logger, fa, srcFS, buildInteropWorldConfig(t, logger), env.ScriptEngineRust)
+	rsDep, rsOut, err := Deploy(logger, fa, buildInteropWorldConfig(t, logger))
 	require.NoError(t, err, "rust-engine deploy failed")
 
 	// WorldDeployment: all contract addresses, committed raw.

@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -31,19 +30,18 @@ type Env struct {
 	// the non-forked DeploymentTargetGenesis path and the forked Live/Calldata/Noop targets (in which
 	// case the engine runs in fork mode). L1Artifacts provides the ABIs the engine-backed scripts pack
 	// against (the L1 bundle's ArtifactsFS).
-	L1Engine     *rustengine.Engine
-	L1Artifacts  *foundry.ArtifactsFS
-	L1Client     *ethclient.Client
-	Broadcaster  broadcaster.Broadcaster
-	Deployer     common.Address
-	Logger       log.Logger
-	Scripts      *opcm.Scripts
-	ForgeClient  *forge.Client
-	UseForge     bool
-	ScriptEngine env.ScriptEngineKind
-	L1RPCUrl     string
-	PrivateKey   string
-	Context      context.Context
+	L1Engine    *rustengine.Engine
+	L1Artifacts *foundry.ArtifactsFS
+	L1Client    *ethclient.Client
+	Broadcaster broadcaster.Broadcaster
+	Deployer    common.Address
+	Logger      log.Logger
+	Scripts     *opcm.Scripts
+	ForgeClient *forge.Client
+	UseForge    bool
+	L1RPCUrl    string
+	PrivateKey  string
+	Context     context.Context
 }
 
 type StateWriter interface {

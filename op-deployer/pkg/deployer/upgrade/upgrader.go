@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
@@ -38,11 +37,6 @@ func UpgradeCLI(upgrader Upgrader) func(*cli.Context) error {
 			return fmt.Errorf("missing required flag: %s", deployer.L1RPCURLFlag.Name)
 		}
 
-		engineKind, err := env.ParseScriptEngine(cliCtx.String(deployer.ScriptEngineFlag.Name))
-		if err != nil {
-			return err
-		}
-
 		artifactsURL := upgrader.ArtifactsURL()
 		overrideArtifactsURL := cliCtx.String(OverrideArtifactsURLFlag.Name)
 		if overrideArtifactsURL != "" {
@@ -62,7 +56,7 @@ func UpgradeCLI(upgrader Upgrader) func(*cli.Context) error {
 			return fmt.Errorf("failed to download L1 artifacts: %w, url: %s", err, artifactsLocator)
 		}
 
-		fl1, err := scriptbackend.NewForkedL1(ctx, engineKind, lgr, depAddr, artifactsFS, l1RPC, bcaster)
+		fl1, err := scriptbackend.NewForkedL1(ctx, lgr, depAddr, artifactsFS, l1RPC, bcaster)
 		if err != nil {
 			return fmt.Errorf("failed to create forked L1 backend: %w", err)
 		}

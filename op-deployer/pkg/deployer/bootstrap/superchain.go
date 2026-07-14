@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -35,11 +34,6 @@ type SuperchainConfig struct {
 	ArtifactsLocator *artifacts.Locator
 	CacheDir         string
 	UseForge         bool
-
-	// ScriptEngine selects the forge-script backend for the forked L1 deploy. The empty value
-	// resolves to the default (rust); set it to env.ScriptEngineGo to fall back to the in-process
-	// Go script.Host.
-	ScriptEngine env.ScriptEngineKind
 
 	privateKeyECDSA *ecdsa.PrivateKey
 
@@ -101,10 +95,6 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	outfile := cliCtx.String(OutfileFlagName)
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 	useForge := cliCtx.Bool(deployer.UseForgeFlagName)
-	engineKind, err := env.ParseScriptEngine(cliCtx.String(deployer.ScriptEngineFlag.Name))
-	if err != nil {
-		return err
-	}
 	cfg := SuperchainConfig{
 		L1RPCUrl:                  l1RPCUrl,
 		PrivateKey:                privateKey,
@@ -112,7 +102,6 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		ArtifactsLocator:          artifactsLocator,
 		CacheDir:                  cacheDir,
 		UseForge:                  useForge,
-		ScriptEngine:              engineKind,
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
 		Guardian:                  guardian,
 		Paused:                    paused,
@@ -227,7 +216,7 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 			return dso, fmt.Errorf("failed to create broadcaster: %w", err)
 		}
 
-		fl1, err := scriptbackend.NewForkedL1(ctx, cfg.ScriptEngine, lgr, chainDeployer, artifactsFS, cfg.L1RPCUrl, bcaster)
+		fl1, err := scriptbackend.NewForkedL1(ctx, lgr, chainDeployer, artifactsFS, cfg.L1RPCUrl, bcaster)
 		if err != nil {
 			return dso, fmt.Errorf("failed to create forked L1 backend: %w", err)
 		}

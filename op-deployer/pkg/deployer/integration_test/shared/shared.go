@@ -23,7 +23,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -433,9 +432,7 @@ func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.Stat
 
 		// Create fresh broadcaster and forked backend for this upgrade
 		bcaster := NewImpersonationBroadcaster(lgr, ethClient, rpcClient, prank, networkChainID)
-		// No CLI flag in this test path; run on the default engine, set explicitly so the choice
-		// is visible and centrally changeable via env.DefaultScriptEngine.
-		fl1, err := scriptbackend.NewForkedL1(ctx, env.DefaultScriptEngine, lgr, prank, afactsFS, l1RPCUrl, bcaster)
+		fl1, err := scriptbackend.NewForkedL1(ctx, lgr, prank, afactsFS, l1RPCUrl, bcaster)
 		require.NoError(t, err)
 
 		// Run the upgrade

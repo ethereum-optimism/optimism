@@ -28,10 +28,9 @@ import (
 // make the genesis hash pins non-deterministic.
 const goldenCreate2Salt = "0x00000000000000000000000000000000000000000000000000000000deadbeef"
 
-// The *Golden tests here are the goldenized form of the corresponding *Parity tests: they run only
-// the Rust engine (the default) and pin its output against a fixture recorded from the Go host at the
-// base commit. They omit ApplyPipelineOpts.ScriptEngine so they keep working after the --script-engine
-// flag is removed. See testdata/goldens/README.md.
+// The *Golden tests here are the goldenized form of the corresponding *Parity tests: they run the
+// Rust engine (the only engine) and pin its output against a fixture recorded from the now-deleted Go
+// host at the base commit. See testdata/goldens/README.md.
 
 // TestRustEngineL2GenesisGolden goldenizes TestRustEngineL2GenesisParity: it drives the L2Genesis
 // script directly through the Rust engine (via the reconstructed L2GenesisInput) and pins the

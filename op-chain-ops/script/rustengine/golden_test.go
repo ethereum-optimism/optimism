@@ -1,8 +1,6 @@
 package rustengine
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -64,39 +62,6 @@ func requireTextMatchesGolden(t *testing.T, name, got string) {
 	require.NoError(t, err, "golden %s missing (it pins the deleted Go host's output; see goldens/README.md)", name)
 	require.Equal(t, string(want), got,
 		"golden %s: Rust engine output diverged from the recorded Go host pin", name)
-}
-
-// requireHashMatchesGolden pins a large canonical-JSON blob by its SHA-256 rather than committing the
-// multi-MB dump. The caller MUST run its structural non-vacuity guards before calling this, so a hash
-// of an empty/garbage value can never pass. On mismatch the actual canonical JSON is written to a temp
-// file (logged) so the divergence is debuggable, then the test fails.
-func requireHashMatchesGolden(t *testing.T, name string, canonical []byte) {
-	t.Helper()
-	sum := sha256.Sum256(canonical)
-	got := hex.EncodeToString(sum[:])
-	want := readShaGolden(t, name)
-	if got != want {
-		p := dumpActual(t, name+".actual.json", canonical)
-		t.Fatalf("golden hash %s: Rust engine output diverged from the recorded Go host pin\n"+
-			"  got  sha256 = %s\n  want sha256 = %s\n  actual canonical JSON written to %s", name, got, want, p)
-	}
-}
-
-// readShaGolden reads a `.sha256` golden, skipping `#` provenance-comment lines, and returns the hash.
-func readShaGolden(t *testing.T, name string) string {
-	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(goldenDir, name))
-	require.NoError(t, err, "golden %s missing (it pins the deleted Go host's output; see goldens/README.md)", name)
-	for _, line := range strings.Split(string(raw), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		// Tolerate `sha256sum`-style "<hash>  <file>" lines by taking the first field.
-		return strings.Fields(line)[0]
-	}
-	t.Fatalf("golden %s contains no hash line", name)
-	return ""
 }
 
 // dumpActual writes actual output to a temp file so a golden mismatch is inspectable, and returns the

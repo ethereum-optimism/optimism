@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/rustengine"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
@@ -32,38 +31,6 @@ type ForkedL1 struct {
 // out-of-process op-script-engine and installs an RPC-backed fork. deployer is the tx.origin the OPCM
 // scripts run as; bcaster receives the broadcasts via DrainBroadcasts.
 func NewForkedL1(
-	ctx context.Context,
-	engineKind env.ScriptEngineKind,
-	lgr log.Logger,
-	deployer common.Address,
-	artifactsFS foundry.StatDirFs,
-	l1RPCUrl string,
-	bcaster broadcaster.Broadcaster,
-) (*ForkedL1, error) {
-	if _, err := engineKind.Resolve(); err != nil {
-		return nil, err
-	}
-	return newForkedL1Engine(ctx, lgr, deployer, artifactsFS, l1RPCUrl, bcaster)
-}
-
-// ForkedSpawnOpts returns the rustengine.SpawnOpts shared by every forked-engine spawn (apply
-// Live/Calldata/Noop, bootstrap, upgrade, manage, sysgo, op-fetcher): the default script chain/block
-// env, the CREATE2 deployer, and isolated broadcasts (whose gas accounting is load-bearing for the
-// broadcast gas-limit padding). The non-forked genesis engine layers NoMaxCodeSize on top of this
-// base. Defined in one place so every forked spawn shares identical context.
-func ForkedSpawnOpts(artifactsDir string) rustengine.SpawnOpts {
-	return rustengine.SpawnOpts{
-		ArtifactsDir:       artifactsDir,
-		ChainID:            bigs.Uint64Strict(script.DefaultContext.ChainID),
-		Create2Deployer:    true,
-		IsolatedBroadcasts: true,
-		BlockNum:           script.DefaultContext.BlockNum,
-		Timestamp:          script.DefaultContext.Timestamp,
-		PrevRandao:         script.DefaultContext.PrevRandao,
-	}
-}
-
-func newForkedL1Engine(
 	ctx context.Context,
 	lgr log.Logger,
 	deployer common.Address,
@@ -98,6 +65,23 @@ func newForkedL1Engine(
 
 	fa := &foundry.ArtifactsFS{FS: artifactsFS}
 	return &ForkedL1{Backend: FromEngine(eng, deployer, fa), bcaster: bcaster, engine: eng}, nil
+}
+
+// ForkedSpawnOpts returns the rustengine.SpawnOpts shared by every forked-engine spawn (apply
+// Live/Calldata/Noop, bootstrap, upgrade, manage, sysgo, op-fetcher): the default script chain/block
+// env, the CREATE2 deployer, and isolated broadcasts (whose gas accounting is load-bearing for the
+// broadcast gas-limit padding). The non-forked genesis engine layers NoMaxCodeSize on top of this
+// base. Defined in one place so every forked spawn shares identical context.
+func ForkedSpawnOpts(artifactsDir string) rustengine.SpawnOpts {
+	return rustengine.SpawnOpts{
+		ArtifactsDir:       artifactsDir,
+		ChainID:            bigs.Uint64Strict(script.DefaultContext.ChainID),
+		Create2Deployer:    true,
+		IsolatedBroadcasts: true,
+		BlockNum:           script.DefaultContext.BlockNum,
+		Timestamp:          script.DefaultContext.Timestamp,
+		PrevRandao:         script.DefaultContext.PrevRandao,
+	}
 }
 
 func latestBlock(ctx context.Context, l1RPCUrl string) (uint64, error) {
