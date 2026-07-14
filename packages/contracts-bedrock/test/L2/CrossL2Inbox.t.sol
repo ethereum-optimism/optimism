@@ -70,7 +70,42 @@ contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
         _id.logIndex = bound(_id.logIndex, 0, type(uint32).max);
         _id.timestamp = bound(_id.timestamp, 0, type(uint64).max);
 
-        vm.expectRevert(ICrossL2Inbox.NoExecutingDeposits.selector);
+        vm.expectRevert(ICrossL2Inbox.CrossL2Inbox_NoExecutingDeposits.selector);
+        crossL2Inbox.validateMessage(_id, _messageHash);
+    }
+
+    /// @notice Test that `validateMessage` succeeds with a zero gas price when the base fee is
+    ///         also zero. Chains configured with a zero base fee may execute user transactions
+    ///         with `tx.gasprice == 0`, so the deposit check must not reject them.
+    /// forge-config: default.isolate = true
+    function testFuzz_validateMessage_zeroBaseFeeZeroGasPrice_succeeds(
+        Identifier memory _id,
+        bytes32 _messageHash
+    )
+        external
+    {
+        // Bound values types to ensure they are not too large
+        _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
+        _id.logIndex = bound(_id.logIndex, 0, type(uint32).max);
+        _id.timestamp = bound(_id.timestamp, 0, type(uint64).max);
+
+        // Zero base fee chain with a zero gas price transaction
+        vm.fee(0);
+        vm.txGasPrice(0);
+
+        // Prepare the access list to be sent with the next call
+        bytes32 slot = crossL2Inbox.calculateChecksum(_id, _messageHash);
+        bytes32[] memory slots = new bytes32[](1);
+        slots[0] = slot;
+        VmSafe.AccessListItem[] memory accessList = new VmSafe.AccessListItem[](1);
+        accessList[0] = VmSafe.AccessListItem({ target: address(crossL2Inbox), storageKeys: slots });
+
+        // Expect `ExecutingMessage` event to be emitted
+        vm.expectEmit(address(crossL2Inbox));
+        emit ExecutingMessage(_messageHash, _id);
+
+        // Validate the message
+        vm.accessList(accessList);
         crossL2Inbox.validateMessage(_id, _messageHash);
     }
 

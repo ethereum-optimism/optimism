@@ -30,7 +30,7 @@ struct Identifier {
 ///      combines the message's `Identifier` and `msgHash` with type-3 bit masking.
 contract CrossL2Inbox is ISemver {
     /// @notice Thrown when trying to validate a cross chain message in a deposit transaction.
-    error NoExecutingDeposits();
+    error CrossL2Inbox_NoExecutingDeposits();
 
     /// @notice Thrown when trying to validate a cross chain message with a checksum
     ///         that is invalid or was not provided in the transaction's access list to set the slot
@@ -78,7 +78,7 @@ contract CrossL2Inbox is ISemver {
     /// @param _msgHash Hash of the message payload to call target with.
     function validateMessage(Identifier calldata _id, bytes32 _msgHash) external {
         // Deposits have a zero gas price. When the base fee is positive, user transactions cannot.
-        if (block.basefee > 0 && tx.gasprice == 0) revert NoExecutingDeposits();
+        if (block.basefee > 0 && tx.gasprice == 0) revert CrossL2Inbox_NoExecutingDeposits();
 
         bytes32 checksum = calculateChecksum(_id, _msgHash);
         (bool isWarm,) = _isWarm(checksum);
