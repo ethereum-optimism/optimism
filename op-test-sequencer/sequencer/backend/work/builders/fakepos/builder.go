@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type Beacon interface {
@@ -34,7 +35,7 @@ type Builder struct {
 	beacon     Beacon
 	blockchain Blockchain
 	genesis    *types.Header
-	config     types.BlockType
+	config     *params.ChainConfig
 
 	registry work.Jobs
 

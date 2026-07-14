@@ -140,7 +140,11 @@ func (j *Job) Open(ctx context.Context) error {
 		// wait for the block building to finish
 		time.Sleep(100 * time.Millisecond)
 
-		envelope, err = j.b.engine.GetPayloadV4(*res.PayloadID)
+		if j.b.config.IsOsaka(j.head.Number, newBlockTime) {
+			envelope, err = j.b.engine.GetPayloadV5(*res.PayloadID)
+		} else {
+			envelope, err = j.b.engine.GetPayloadV4(*res.PayloadID)
+		}
 		if err != nil {
 			j.logger.Error("failed to finish building L1 block", "err", err)
 			return err
