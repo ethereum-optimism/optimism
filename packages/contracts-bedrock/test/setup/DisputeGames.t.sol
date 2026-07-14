@@ -6,7 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Libraries
-import { GameTypes } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
@@ -50,5 +50,90 @@ contract DisputeGames_PermissionlessGameInitBondForUpgrade_Test is CommonTest {
             disputeGameFactory, GameTypes.CANNON_KONA, DEFAULT_DISPUTE_GAME_INIT_BOND
         );
         assertEq(bond, STALE_INIT_BOND, "live bond must be used when the game is registered");
+    }
+}
+
+contract DisputeGames_GameType_Test is CommonTest {
+    function test_permissionedGameType_legacyEnabled_succeeds() public {
+        _disableGameTypes(GameTypes.PERMISSIONED_CANNON, GameTypes.SUPER_PERMISSIONED);
+        _enableGameType(GameTypes.PERMISSIONED_CANNON);
+
+        assertEq(
+            GameType.unwrap(DisputeGames.permissionedGameType(disputeGameFactory)),
+            GameType.unwrap(GameTypes.PERMISSIONED_CANNON)
+        );
+    }
+
+    function test_permissionedGameType_superEnabled_succeeds() public {
+        _disableGameTypes(GameTypes.PERMISSIONED_CANNON, GameTypes.SUPER_PERMISSIONED);
+        _enableGameType(GameTypes.PERMISSIONED_CANNON);
+        _enableGameType(GameTypes.SUPER_PERMISSIONED);
+
+        assertEq(
+            GameType.unwrap(DisputeGames.permissionedGameType(disputeGameFactory)),
+            GameType.unwrap(GameTypes.SUPER_PERMISSIONED)
+        );
+    }
+
+    function test_permissionedGameType_superDisabledWithStaleArgs_succeeds() public {
+        _disableGameTypes(GameTypes.PERMISSIONED_CANNON, GameTypes.SUPER_PERMISSIONED);
+        _enableGameType(GameTypes.PERMISSIONED_CANNON);
+        _enableGameType(GameTypes.SUPER_PERMISSIONED);
+
+        vm.prank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED, IDisputeGame(address(0)));
+
+        assertEq(
+            GameType.unwrap(DisputeGames.permissionedGameType(disputeGameFactory)),
+            GameType.unwrap(GameTypes.PERMISSIONED_CANNON)
+        );
+    }
+
+    function test_permissionlessGameType_legacyEnabled_succeeds() public {
+        _disableGameTypes(GameTypes.CANNON_KONA, GameTypes.SUPER_CANNON_KONA);
+        _enableGameType(GameTypes.CANNON_KONA);
+
+        assertEq(
+            GameType.unwrap(DisputeGames.permissionlessGameType(disputeGameFactory)),
+            GameType.unwrap(GameTypes.CANNON_KONA)
+        );
+    }
+
+    function test_permissionlessGameType_superEnabled_succeeds() public {
+        _disableGameTypes(GameTypes.CANNON_KONA, GameTypes.SUPER_CANNON_KONA);
+        _enableGameType(GameTypes.CANNON_KONA);
+        _enableGameType(GameTypes.SUPER_CANNON_KONA);
+
+        assertEq(
+            GameType.unwrap(DisputeGames.permissionlessGameType(disputeGameFactory)),
+            GameType.unwrap(GameTypes.SUPER_CANNON_KONA)
+        );
+    }
+
+    function test_permissionlessGameType_superDisabledWithStaleArgs_succeeds() public {
+        _disableGameTypes(GameTypes.CANNON_KONA, GameTypes.SUPER_CANNON_KONA);
+        _enableGameType(GameTypes.CANNON_KONA);
+        _enableGameType(GameTypes.SUPER_CANNON_KONA);
+
+        vm.prank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(0)));
+
+        assertEq(
+            GameType.unwrap(DisputeGames.permissionlessGameType(disputeGameFactory)),
+            GameType.unwrap(GameTypes.CANNON_KONA)
+        );
+    }
+
+    function _disableGameTypes(GameType _legacyGameType, GameType _superGameType) internal {
+        address owner = disputeGameFactory.owner();
+        vm.startPrank(owner);
+        disputeGameFactory.setImplementation(_legacyGameType, IDisputeGame(address(0)), hex"");
+        disputeGameFactory.setImplementation(_superGameType, IDisputeGame(address(0)), hex"");
+        vm.stopPrank();
+    }
+
+    function _enableGameType(GameType _gameType) internal {
+        vm.prank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(_gameType, IDisputeGame(address(1)), hex"01");
     }
 }
