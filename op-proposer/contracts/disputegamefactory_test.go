@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"errors"
 	"math"
 	"math/big"
 	"testing"
@@ -28,6 +29,7 @@ func TestHasProposedSince(t *testing.T) {
 	}{
 		{"FaultDisputeGame", snapshots.LoadFaultDisputeGameABI()},
 		{"SuperFaultDisputeGame", snapshots.LoadSuperFaultDisputeGameABI()},
+		{"SuperPermissionedDisputeGame", snapshots.LoadSuperPermissionedDisputeGameABI()},
 	}
 
 	for _, contractType := range gameContractTypes {
@@ -200,6 +202,45 @@ func TestHasProposedSince(t *testing.T) {
 			require.Equal(t, common.Hash{0xdd}, claim)
 		})
 	}
+
+	t.Run("HistoricalFaultDisputeGameWithoutGameCreator", func(t *testing.T) {
+		stubRpc, factory := setupDisputeGameFactoryTest(t)
+		expectedProposalTime := time.Unix(1100, 0)
+		expectedClaim := common.Hash{0xcc}
+		gameAddress := common.Address{0x44}
+
+		stubRpc.SetResponse(factoryAddr, methodGameCount, rpcblock.Latest, nil, []interface{}{big.NewInt(1)})
+		stubRpc.SetResponse(factoryAddr, methodGameAtIndex, rpcblock.Latest, []interface{}{big.NewInt(0)}, []interface{}{
+			uint32(0),
+			uint64(expectedProposalTime.Unix()),
+			gameAddress,
+		})
+
+		historicalABI := snapshots.LoadFaultDisputeGameABI()
+		// SetError packs the configured ABI outputs before returning the RPC error. The historical
+		// contract rejects this selector, so model its response as output-less.
+		gameCreator := historicalABI.Methods["gameCreator"]
+		gameCreator.Outputs = nil
+		historicalABI.Methods["gameCreator"] = gameCreator
+		stubRpc.AddContract(gameAddress, historicalABI)
+		stubRpc.SetError(gameAddress, "gameCreator", rpcblock.Latest, nil, errors.New("execution reverted: function selector was not recognized"))
+		stubRpc.SetResponse(gameAddress, "rootClaim", rpcblock.Latest, nil, []interface{}{expectedClaim})
+		stubRpc.SetResponse(gameAddress, "claimData", rpcblock.Latest, []interface{}{big.NewInt(0)}, []interface{}{
+			uint32(math.MaxUint32),
+			common.Address{},
+			proposerAddr,
+			big.NewInt(1000),
+			expectedClaim,
+			big.NewInt(1),
+			big.NewInt(100),
+		})
+
+		proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
+		require.NoError(t, err)
+		require.True(t, proposed)
+		require.Equal(t, expectedProposalTime, proposalTime)
+		require.Equal(t, expectedClaim, claim)
+	})
 }
 
 func TestProposalTx(t *testing.T) {
@@ -226,18 +267,8 @@ func withClaims(stubRpc *batchingTest.AbiBasedRpc, gameAbi *abi.ABI, games ...ga
 			game.Address,
 		})
 		stubRpc.AddContract(game.Address, gameAbi)
-		// Note: If this method ABI changes, the proposer will need to be updated to handle both the old and new versions
-		// since existing dispute games are never changed and the proposer may need to load a game using an old version
-		// to find its last proposal.
-		stubRpc.SetResponse(game.Address, methodClaim, rpcblock.Latest, []interface{}{big.NewInt(0)}, []interface{}{
-			uint32(math.MaxUint32), // Parent address (none for root claim)
-			common.Address{},       // Countered by
-			game.Proposer,          // Claimant
-			big.NewInt(1000),       // Bond
-			common.Hash{0xdd},      // Claim
-			big.NewInt(1),          // Position (gindex 1 for root position)
-			big.NewInt(100),        // Clock
-		})
+		stubRpc.SetResponse(game.Address, "gameCreator", rpcblock.Latest, nil, []interface{}{game.Proposer})
+		stubRpc.SetResponse(game.Address, "rootClaim", rpcblock.Latest, nil, []interface{}{common.Hash{0xdd}})
 	}
 }
 
