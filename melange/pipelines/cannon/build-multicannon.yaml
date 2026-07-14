@@ -1,0 +1,94 @@
+name: Stage cannon embeds and build the multicannon multiplexer.
+
+# Shared by melange/multicannon.yaml (multicannon@local) and melange/cannon.yaml
+# (cannon@local). Pulls historical cannon VM binaries from published images,
+# builds cannon-8 from source, then links the multiplexer.
+
+needs:
+  packages:
+    - busybox
+    - crane
+    - git
+    - go-1.26
+
+pipeline:
+  - runs: |
+      set -euo pipefail
+
+      export GOMODCACHE=/var/cache/melange/gomodcache
+      # Untracked embed files would pollute VCS-stamped build metadata.
+      mkdir -p "${HOME}/.config/git"
+      echo '**' > "${HOME}/.config/git/ignore"
+
+      GITCOMMIT=$(git rev-parse HEAD 2>/dev/null || echo unknown)
+      GITDATE=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      LDFLAGS="-s -w -X main.GitCommit=${GITCOMMIT} -X main.GitDate=${GITDATE}"
+
+      # Keep in sync with cannon/mipsevm/versions/version.go and cannon justfile.
+      EMBED_VERSION=8
+
+      cd cannon
+
+      ARCH="${{build.arch}}"
+      case "$ARCH" in
+        x86_64)
+          PLATFORM=linux/amd64
+          MUSL_ARCH=x86_64
+          ;;
+        aarch64)
+          PLATFORM=linux/arm64
+          MUSL_ARCH=aarch64
+          ;;
+        *)
+          echo "unsupported arch: $ARCH" >&2
+          exit 1
+          ;;
+      esac
+
+      PREFETCH="multicannon/embeds-prefetch/${ARCH}"
+      mkdir -p "$PREFETCH"
+
+      REG=us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon
+
+      fetch() { # <tag> <path-in-image> <embed-name>
+        local tag="$1" path="$2" name="$3"
+        path="${path#/}"
+        crane export --platform "$PLATFORM" "${REG}:${tag}" - \
+          | tar -xO "$path" > "${PREFETCH}/${name}"
+        chmod 755 "${PREFETCH}/${name}"
+      }
+
+      fetch v1.0.0 /usr/local/bin/cannon   cannon-0
+      fetch v1.3.0 /usr/local/bin/cannon-1 cannon-1
+      fetch v1.4.0 /usr/local/bin/cannon-2 cannon-2
+      fetch v1.2.0 /usr/local/bin/cannon-3 cannon-3
+      fetch v1.3.0 /usr/local/bin/cannon-4 cannon-4
+      fetch v1.4.0 /usr/local/bin/cannon-5 cannon-5
+      fetch v1.4.0 /usr/local/bin/cannon-6 cannon-6
+      fetch v1.6.0 /usr/local/bin/cannon-7 cannon-7
+
+      # The historical cannon binaries are Alpine/musl linked. Wolfi does not
+      # publish a musl package in the repository used by these apko configs, so
+      # bundle the matching loader/libc from the upstream cannon image.
+      MUSL_ROOT="${PREFETCH}/musl-root"
+      mkdir -p "$MUSL_ROOT" "${{targets.contextdir}}/usr/lib"
+      crane export --platform "$PLATFORM" "${REG}:v1.6.0" - \
+        | tar -C "$MUSL_ROOT" -xf - \
+            "lib/ld-musl-${MUSL_ARCH}.so.1" \
+            "lib/libc.musl-${MUSL_ARCH}.so.1"
+      cp "${MUSL_ROOT}/lib/ld-musl-${MUSL_ARCH}.so.1" \
+        "${{targets.contextdir}}/usr/lib/"
+      cp "${MUSL_ROOT}/lib/libc.musl-${MUSL_ARCH}.so.1" \
+        "${{targets.contextdir}}/usr/lib/"
+      chmod 755 "${{targets.contextdir}}/usr/lib/ld-musl-${MUSL_ARCH}.so.1" \
+        "${{targets.contextdir}}/usr/lib/libc.musl-${MUSL_ARCH}.so.1"
+
+      mkdir -p multicannon/embeds
+      cp "$PREFETCH"/cannon-* multicannon/embeds/
+      chmod 755 multicannon/embeds/cannon-*
+
+      go build -o "multicannon/embeds/cannon-${EMBED_VERSION}" \
+        -ldflags "${LDFLAGS}" -trimpath .
+
+      go build -o "${{targets.contextdir}}/usr/local/bin/cannon" \
+        -ldflags "${LDFLAGS}" -trimpath ./multicannon
