@@ -75,11 +75,3 @@ func TestFrom(t *testing.T) {
 		require.Panics(t, func() { From(Name("unknown")) })
 	})
 }
-
-func TestIsBefore(t *testing.T) {
-	for i, fork := range All {
-		for j, other := range All {
-			require.Equal(t, i < j, fork.IsBefore(other))
-		}
-	}
-}

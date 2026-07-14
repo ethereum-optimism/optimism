@@ -11,7 +11,6 @@ import (
 	opchallenger "github.com/ethereum-optimism/optimism/op-challenger"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	challengermetrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
@@ -222,7 +221,7 @@ func startMinimalBatcher(
 	logger.Info("Batcher key acquired", "addr", crypto.PubkeyToAddress(batcherSecret.PublicKey))
 
 	compressionAlgo := derive.Brotli
-	if l2Net.rollupCfg.CurrentFork().IsBefore(forks.Fjord) {
+	if l2Net.rollupCfg.IsFjord(l2Net.rollupCfg.Genesis.L2Time) {
 		compressionAlgo = derive.Zlib
 	}
 
