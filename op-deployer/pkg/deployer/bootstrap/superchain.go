@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -24,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
 
@@ -35,6 +35,11 @@ type SuperchainConfig struct {
 	ArtifactsLocator *artifacts.Locator
 	CacheDir         string
 	UseForge         bool
+
+	// ScriptEngine selects the forge-script backend for the forked L1 deploy. The empty value
+	// resolves to the default (rust); set it to env.ScriptEngineGo to fall back to the in-process
+	// Go script.Host.
+	ScriptEngine env.ScriptEngineKind
 
 	privateKeyECDSA *ecdsa.PrivateKey
 
@@ -217,24 +222,13 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 			return dso, fmt.Errorf("failed to create broadcaster: %w", err)
 		}
 
-		l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
+		fl1, err := scriptbackend.NewForkedL1(ctx, cfg.ScriptEngine, lgr, chainDeployer, artifactsFS, cfg.L1RPCUrl, bcaster)
 		if err != nil {
-			return dso, fmt.Errorf("failed to connect to L1 RPC: %w", err)
+			return dso, fmt.Errorf("failed to create forked L1 backend: %w", err)
 		}
+		defer fl1.Close()
 
-		l1Host, err := env.DefaultForkedScriptHost(
-			ctx,
-			bcaster,
-			lgr,
-			chainDeployer,
-			artifactsFS,
-			l1RPC,
-		)
-		if err != nil {
-			return dso, fmt.Errorf("failed to create script host: %w", err)
-		}
-
-		opcmScripts, err := opcm.NewScripts(l1Host)
+		opcmScripts, err := scriptbackend.OPCMScripts(fl1.Backend)
 		if err != nil {
 			return dso, fmt.Errorf("failed to load OPCM scripts: %w", err)
 		}
@@ -242,6 +236,10 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 		dso, err = opcmScripts.DeploySuperchain.Run(input)
 		if err != nil {
 			return dso, fmt.Errorf("error deploying superchain: %w", err)
+		}
+
+		if err := fl1.DrainBroadcasts(); err != nil {
+			return dso, fmt.Errorf("failed to drain broadcasts: %w", err)
 		}
 
 		if _, err := bcaster.Broadcast(ctx); err != nil {
