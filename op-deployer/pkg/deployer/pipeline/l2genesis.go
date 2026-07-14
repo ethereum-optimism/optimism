@@ -111,7 +111,10 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		UseInterop:                 intent.UseInterop,
 	}
 
-	engine := pEnv.ScriptEngine.Resolve()
+	engine, err := pEnv.ScriptEngine.Resolve()
+	if err != nil {
+		return err
+	}
 	var dump *foundry.ForgeAllocs
 	switch engine {
 	case env.ScriptEngineRust:

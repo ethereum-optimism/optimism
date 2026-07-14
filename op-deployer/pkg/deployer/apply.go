@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -239,16 +240,41 @@ func ApplyPipeline(
 	var l1RPC *rpc.Client
 	var l1Client *ethclient.Client
 	var l1Host *script.Host
-	// l1Engine, when set, routes the non-forked L1 deploy stages through the out-of-process Rust
-	// op-script-engine (only for DeploymentTargetGenesis on the rust engine); l1Host is then nil.
+	// l1Engine, when set, routes the L1 deploy stages through the out-of-process Rust
+	// op-script-engine instead of l1Host (which is then nil). It backs both the non-forked
+	// DeploymentTargetGenesis L1 deploy and the forked Live/Calldata/Noop targets on the rust
+	// engine; --script-engine=go keeps every target on the in-process Go script.Host.
 	var l1Engine *rustengine.Engine
 	var l1EngineFA *foundry.ArtifactsFS
 	var opcmScripts *opcm.Scripts
 
-	// Forked L1 host (Live/Calldata/Noop targets): always the Go script.Host — the Rust
-	// op-script-engine has no fork mode yet (a follow-up milestone). Deliberate per-host-kind
-	// selection, see env.DefaultForkedScriptHost.
+	// Engine selection is now flag-only (never host-kind): the resolved ScriptEngine governs both
+	// the non-forked genesis host and the forked Live/Calldata/Noop hosts. rust (the default) runs
+	// the L1 deploy on the Rust op-script-engine's fork mode; --script-engine=go keeps the Go host.
+	resolvedEngine, err := opts.ScriptEngine.Resolve()
+	if err != nil {
+		return err
+	}
+	useRustEngine := resolvedEngine == env.ScriptEngineRust
+
+	// initForkHost builds the forked L1 host for the Live/Calldata/Noop targets: the Rust engine's
+	// fork mode (CreateSelectFork against opts.L1RPCUrl) on the rust default, or the in-process Go
+	// fork-backed script.Host on --script-engine=go.
 	initForkHost := func() error {
+		latest, err := l1Client.HeaderByNumber(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get latest block: %w", err)
+		}
+
+		if useRustEngine {
+			eng, scripts, fa, eerr := initForkedL1Engine(ctx, opts, bundle, deployer, bigs.Uint64Strict(latest.Number))
+			if eerr != nil {
+				return fmt.Errorf("failed to initialize forked L1 script engine: %w", eerr)
+			}
+			l1Engine, opcmScripts, l1EngineFA = eng, scripts, fa
+			return nil
+		}
+
 		l1Host, err = env.DefaultScriptHost(
 			bcaster,
 			opts.Logger,
@@ -264,11 +290,6 @@ func ApplyPipeline(
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create L1 script host: %w", err)
-		}
-
-		latest, err := l1Client.HeaderByNumber(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to get latest block: %w", err)
 		}
 
 		if _, err := l1Host.CreateSelectFork(
@@ -325,20 +346,18 @@ func ApplyPipeline(
 			return fmt.Errorf("failed to initialize L1 host: %w", err)
 		}
 	case DeploymentTargetGenesis:
-		// Non-forked genesis L1 deploy host. This is a non-forked host, so per the engine
-		// selection (env.DefaultScriptEngine) it runs on the Rust op-script-engine by default,
-		// with --script-engine=go falling back to the in-process Go script.Host. Forked targets
-		// (Live/Calldata/Noop, above) always stay on the Go host — the Rust engine has no fork mode.
+		// Non-forked genesis L1 deploy host. Engine selection is flag-only: rust (default) runs the
+		// L1 deploy on the Rust op-script-engine, --script-engine=go falls back to the in-process Go
+		// script.Host. The forked Live/Calldata/Noop targets (above) route the same way.
 		bcaster = broadcaster.NoopBroadcaster()
 		// Exhaustive engine selection with a loud default, matching pipeline.GenerateL2Genesis and
 		// inspect.L2Semvers, so an unrecognized kind never silently falls back to the Go host.
-		switch engine := opts.ScriptEngine.Resolve(); engine {
+		switch resolvedEngine {
 		case env.ScriptEngineRust:
 			l1Engine, opcmScripts, l1EngineFA, err = initGenesisL1Engine(ctx, opts, bundle, deployer)
 			if err != nil {
 				return fmt.Errorf("failed to initialize L1 script engine: %w", err)
 			}
-			defer l1Engine.Close()
 		case env.ScriptEngineGo:
 			l1Host, err = env.DefaultScriptHost(
 				bcaster,
@@ -351,11 +370,18 @@ func ApplyPipeline(
 				return fmt.Errorf("failed to create L1 script host: %w", err)
 			}
 		default:
-			return fmt.Errorf("unknown script engine %q", engine)
+			return fmt.Errorf("unknown script engine %q", resolvedEngine)
 		}
 	default:
 		return fmt.Errorf("invalid deployment target: '%s'", opts.DeploymentTarget)
 	}
+
+	// The L1 engine (genesis or forked) owns a subprocess; close it when the pipeline returns.
+	defer func() {
+		if l1Engine != nil {
+			l1Engine.Close()
+		}
+	}()
 
 	// Now that we have the host, we can load the deployment scripts (unless the L1 engine already
 	// built engine-backed scripts above).
@@ -509,10 +535,31 @@ func ApplyPipeline(
 		})
 	}
 
+	// drainForkedBroadcasts moves the broadcasts a forked engine captured during a stage into the
+	// Go broadcaster, mirroring the Go host's synchronous WithBroadcastHook delivery. It runs only
+	// for the forked-target engine path: the Go host feeds the broadcaster directly, and the
+	// non-forked genesis engine uses a Noop broadcaster (no broadcasts to deliver).
+	drainForkedBroadcasts := func() error {
+		if l1Engine == nil || opts.DeploymentTarget == DeploymentTargetGenesis {
+			return nil
+		}
+		bcasts, err := l1Engine.TakeBroadcasts()
+		if err != nil {
+			return fmt.Errorf("failed to take engine broadcasts: %w", err)
+		}
+		for _, b := range bcasts {
+			bcaster.Hook(b)
+		}
+		return nil
+	}
+
 	// Run through the pipeline.
 	for _, stage := range pline {
 		if err := stage.apply(); err != nil {
 			return fmt.Errorf("error in pipeline stage apply: %w", err)
+		}
+		if err := drainForkedBroadcasts(); err != nil {
+			return fmt.Errorf("failed to drain broadcasts for stage %s: %w", stage.name, err)
 		}
 		if _, err := pEnv.Broadcaster.Broadcast(ctx); err != nil {
 			return fmt.Errorf("failed to broadcast stage %s: %w", stage.name, err)
@@ -559,22 +606,62 @@ func initGenesisL1Engine(
 		return nil, nil, nil, fmt.Errorf("failed to provision op-script-engine binary: %w", err)
 	}
 
-	eng, err := rustengine.Spawn(binPath, rustengine.SpawnOpts{
-		ArtifactsDir:    artifactsDir,
-		ChainID:         bigs.Uint64Strict(script.DefaultContext.ChainID),
-		Create2Deployer: true,
-		NoMaxCodeSize:   true,
-		BlockNum:        script.DefaultContext.BlockNum,
-		Timestamp:       script.DefaultContext.Timestamp,
-		PrevRandao:      script.DefaultContext.PrevRandao,
-	}, rustengine.NewLogWriter(opts.Logger))
+	// The non-forked genesis engine uses the shared forked base plus NoMaxCodeSize (the forge lite
+	// profile emits unoptimized contracts), mirroring env.DefaultScriptHost's WithNoMaxCodeSize.
+	spawnOpts := scriptbackend.ForkedSpawnOpts(artifactsDir)
+	spawnOpts.NoMaxCodeSize = true
+	eng, err := rustengine.Spawn(binPath, spawnOpts, rustengine.NewLogWriter(opts.Logger))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to spawn op-script-engine for L1: %w", err)
 	}
 
 	fa := &foundry.ArtifactsFS{FS: bundle.L1}
 	origin := func() common.Address { return deployer }
-	scripts, err := pipeline.NewEngineScripts(eng, fa, origin)
+	scripts, err := scriptbackend.NewEngineScripts(eng, fa, origin)
+	if err != nil {
+		eng.Close()
+		return nil, nil, nil, fmt.Errorf("failed to load engine-backed OPCM scripts: %w", err)
+	}
+	return eng, scripts, fa, nil
+}
+
+// initForkedL1Engine spawns the out-of-process Rust op-script-engine for the forked L1 deploy of a
+// Live/Calldata/Noop deployment and installs an RPC-backed fork of the live L1 pinned to forkBlock,
+// mirroring the Go forked host (env.DefaultScriptHost + WithForkHook + CreateSelectFork(latest)).
+// The engine dials opts.L1RPCUrl directly (Option A, the unidirectional transport). Unlike the
+// genesis engine it does NOT lift the code-size limits: forked deploys use the optimized production
+// artifacts. The returned engine must be Closed by the caller.
+func initForkedL1Engine(
+	ctx context.Context,
+	opts ApplyPipelineOpts,
+	bundle pipeline.ArtifactsBundle,
+	deployer common.Address,
+	forkBlock uint64,
+) (*rustengine.Engine, *opcm.Scripts, *foundry.ArtifactsFS, error) {
+	artifactsDir, err := rustengine.ArtifactsDir(bundle.L1)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to resolve L1 artifacts directory: %w", err)
+	}
+
+	binPath, err := rustengine.EngineBinary(ctx, opts.Logger)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to provision op-script-engine binary: %w", err)
+	}
+
+	eng, err := rustengine.Spawn(binPath, scriptbackend.ForkedSpawnOpts(artifactsDir), rustengine.NewLogWriter(opts.Logger))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to spawn op-script-engine for forked L1: %w", err)
+	}
+
+	fb := forkBlock
+	if _, err := eng.CreateSelectFork(opts.L1RPCUrl, &fb); err != nil {
+		eng.Close()
+		return nil, nil, nil, fmt.Errorf("failed to select fork: %w", err)
+	}
+
+	fa := &foundry.ArtifactsFS{FS: bundle.L1}
+	origin := func() common.Address { return deployer }
+	scripts, err := scriptbackend.NewEngineScripts(eng, fa, origin)
 	if err != nil {
 		eng.Close()
 		return nil, nil, nil, fmt.Errorf("failed to load engine-backed OPCM scripts: %w", err)

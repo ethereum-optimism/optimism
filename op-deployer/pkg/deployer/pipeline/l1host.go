@@ -11,11 +11,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 )
 
-// This file centralizes the non-forked L1-host operations that are not driven through env.Scripts,
-// so the individual pipeline stages call one method and this file owns the single go-vs-engine
-// branch per operation. When L1Engine is set (non-forked DeploymentTargetGenesis on the rust
-// engine) the operation runs on the out-of-process op-script-engine; otherwise it runs on the
-// in-process Go L1ScriptHost, byte-for-byte the prior behavior.
+// This file centralizes the L1-host operations that are not driven through env.Scripts, so the
+// individual pipeline stages call one method and this file owns the single go-vs-engine branch per
+// operation. When L1Engine is set (ScriptEngine resolves to rust — the non-forked
+// DeploymentTargetGenesis L1 deploy or a forked Live/Calldata/Noop target running in fork mode) the
+// operation runs on the out-of-process op-script-engine; otherwise it runs on the in-process Go
+// L1ScriptHost, byte-for-byte the prior behavior.
 
 // usingL1Engine reports whether the non-forked L1 deploy stages should run on the Rust engine.
 func (env *Env) usingL1Engine() bool {

@@ -157,7 +157,11 @@ func (r rustSemverReader) getCode(addr common.Address) ([]byte, error) {
 // newSemverReader builds the reader for the selected engine, importing the chain state.
 // The returned cleanup func must be called when done (it terminates the Rust subprocess).
 func newSemverReader(cfg L2SemversConfig) (semverReader, func(), error) {
-	switch cfg.ScriptEngine.Resolve() {
+	engine, err := cfg.ScriptEngine.Resolve()
+	if err != nil {
+		return nil, nil, err
+	}
+	switch engine {
 	case env.ScriptEngineRust:
 		artifactsDir, err := rustengine.ArtifactsDir(cfg.Artifacts)
 		if err != nil {

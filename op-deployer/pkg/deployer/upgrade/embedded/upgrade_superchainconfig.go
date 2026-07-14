@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -15,15 +15,8 @@ type UpgradeSuperchainConfigInput struct {
 	ExtraInstructions []ExtraInstruction `json:"extraInstructions,omitempty"`
 }
 
-type UpgradeSuperchainConfigScript script.DeployScriptWithoutOutput[UpgradeSuperchainConfigInput]
-
-// NewDeployImplementationsScript loads and validates the DeployImplementations script contract
-func NewUpgradeSuperchainConfigScript(host *script.Host) (UpgradeSuperchainConfigScript, error) {
-	return script.NewDeployScriptWithoutOutputFromFile[UpgradeSuperchainConfigInput](host, "UpgradeSuperchainConfig.s.sol", "UpgradeSuperchainConfig")
-}
-
-func UpgradeSuperchainConfig(host *script.Host, input UpgradeSuperchainConfigInput) error {
-	upgradeScript, err := NewUpgradeSuperchainConfigScript(host)
+func UpgradeSuperchainConfig(backend scriptbackend.Backend, input UpgradeSuperchainConfigInput) error {
+	upgradeScript, err := scriptbackend.DeployScriptWithoutOutput[UpgradeSuperchainConfigInput](backend, "UpgradeSuperchainConfig.s.sol", "UpgradeSuperchainConfig")
 	if err != nil {
 		return fmt.Errorf("failed to load UpgradeSuperchainConfig script: %w", err)
 	}
@@ -34,10 +27,10 @@ func UpgradeSuperchainConfig(host *script.Host, input UpgradeSuperchainConfigInp
 	return nil
 }
 
-func (u *Upgrader) UpgradeSuperchainConfig(host *script.Host, input json.RawMessage) error {
+func (u *Upgrader) UpgradeSuperchainConfig(backend scriptbackend.Backend, input json.RawMessage) error {
 	var upgradeInput UpgradeSuperchainConfigInput
 	if err := json.Unmarshal(input, &upgradeInput); err != nil {
 		return fmt.Errorf("failed to unmarshal input: %w", err)
 	}
-	return UpgradeSuperchainConfig(host, upgradeInput)
+	return UpgradeSuperchainConfig(backend, upgradeInput)
 }

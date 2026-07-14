@@ -184,7 +184,7 @@ func addGameTypesForRuntime(
 		}
 	}
 
-	executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
+	executeOPCMUpgrade(t, l1ELRPC, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
 		Prank: l1PAO,
 		Opcm:  l2Net.opcmImpl,
 		UpgradeInputV2: &embedded.UpgradeInputV2{

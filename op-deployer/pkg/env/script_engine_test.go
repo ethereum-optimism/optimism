@@ -15,15 +15,31 @@ func TestParseScriptEngine(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ScriptEngineRust, got)
 
-	_, err = ParseScriptEngine("")
-	require.Error(t, err)
+	// The empty string is "unset" and resolves to the default engine via Resolve.
+	got, err = ParseScriptEngine("")
+	require.NoError(t, err)
+	require.Equal(t, ScriptEngineKind(""), got)
+	resolved, err := got.Resolve()
+	require.NoError(t, err)
+	require.Equal(t, DefaultScriptEngine, resolved)
 
 	_, err = ParseScriptEngine("forge")
 	require.Error(t, err)
 }
 
 func TestScriptEngineResolve(t *testing.T) {
-	require.Equal(t, DefaultScriptEngine, ScriptEngineKind("").Resolve())
-	require.Equal(t, ScriptEngineGo, ScriptEngineGo.Resolve())
-	require.Equal(t, ScriptEngineRust, ScriptEngineRust.Resolve())
+	for kind, want := range map[ScriptEngineKind]ScriptEngineKind{
+		"":               DefaultScriptEngine,
+		ScriptEngineGo:   ScriptEngineGo,
+		ScriptEngineRust: ScriptEngineRust,
+	} {
+		resolved, err := kind.Resolve()
+		require.NoError(t, err)
+		require.Equal(t, want, resolved)
+	}
+
+	// A kind that never passed through ParseScriptEngine must fail loudly rather than silently
+	// resolving to the Go host.
+	_, err := ScriptEngineKind("forge").Resolve()
+	require.Error(t, err)
 }

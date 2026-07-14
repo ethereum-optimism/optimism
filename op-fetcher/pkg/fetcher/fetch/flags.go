@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/urfave/cli/v2"
 )
@@ -29,6 +30,11 @@ var (
 		Name:  "output-file",
 		Usage: "(optional) file to write output json",
 	}
+	ScriptEngineFlag = &cli.StringFlag{
+		Name:  "script-engine",
+		Usage: "script engine to run FetchChainInfo: \"go\" (in-process script.Host) or \"rust\" (out-of-process op-script-engine)",
+		Value: string(env.DefaultScriptEngine),
+	}
 )
 
 var FetchChainInfoFlags = []cli.Flag{
@@ -36,4 +42,5 @@ var FetchChainInfoFlags = []cli.Flag{
 	OutputFileFlag,
 	SystemConfigProxyFlag,
 	L1StandardBridgeProxyFlag,
+	ScriptEngineFlag,
 }

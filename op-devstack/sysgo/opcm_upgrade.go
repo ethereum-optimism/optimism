@@ -5,11 +5,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -28,11 +28,11 @@ func resolveL1ProxyAdminOwner(t devtest.T, keys devkeys.Keys, l1ChainID eth.Chai
 }
 
 // executeOPCMUpgrade simulates input against a forked UpgradeOPChain.s.sol
-// script host and submits the resulting calldata on L1 as a SetCode
+// script backend and submits the resulting calldata on L1 as a SetCode
 // delegatecall from l1PAOKey.
 func executeOPCMUpgrade(
 	t devtest.T,
-	rpcClient *rpc.Client,
+	l1ELRPC string,
 	client *ethclient.Client,
 	l1PAOKey *ecdsa.PrivateKey,
 	artifactsFS foundry.StatDirFs,
@@ -40,11 +40,16 @@ func executeOPCMUpgrade(
 ) {
 	require := t.Require()
 	bcaster := new(broadcaster.CalldataBroadcaster)
-	host, err := env.DefaultForkedScriptHost(
-		t.Ctx(), bcaster, t.Logger(), common.Address{'D'}, artifactsFS, rpcClient,
+	// devstack has no --script-engine flag, so the forked upgrade runs on the default engine.
+	// Set explicitly (rather than a bare "") so the selection is visible and centrally changeable
+	// via env.DefaultScriptEngine; the CLI callers (apply/bootstrap/upgrade/manage) thread the flag.
+	fl1, err := scriptbackend.NewForkedL1(
+		t.Ctx(), env.DefaultScriptEngine, t.Logger(), common.Address{'D'}, artifactsFS, l1ELRPC, bcaster,
 	)
-	require.NoError(err, "failed to create script host")
-	require.NoError(embedded.Upgrade(host, input), "failed to run UpgradeOPChain.s.sol")
+	require.NoError(err, "failed to create forked script backend")
+	defer fl1.Close()
+	require.NoError(embedded.Upgrade(fl1.Backend, input), "failed to run UpgradeOPChain.s.sol")
+	require.NoError(fl1.DrainBroadcasts(), "failed to drain broadcasts")
 
 	calldata, err := bcaster.Dump()
 	require.NoError(err, "failed to dump calldata")

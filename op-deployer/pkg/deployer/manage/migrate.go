@@ -7,11 +7,10 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -95,7 +94,7 @@ func (output *InteropMigrationOutput) CheckOutput(input common.Address) error {
 	return nil
 }
 
-func Migrate(host *script.Host, input InteropMigrationInput) (InteropMigrationOutput, error) {
+func Migrate(backend scriptbackend.Backend, input InteropMigrationInput) (InteropMigrationOutput, error) {
 	if input.MigrateInputV2 == nil {
 		return InteropMigrationOutput{}, fmt.Errorf("MigrateInputV2 is required")
 	}
@@ -110,7 +109,7 @@ func Migrate(host *script.Host, input InteropMigrationInput) (InteropMigrationOu
 		Opcm:         input.Opcm,
 		MigrateInput: encodedMigrateInput,
 	}
-	return opcm.RunScriptSingle[ScriptInput, InteropMigrationOutput](host, scriptInput, "InteropMigration.s.sol", "InteropMigration")
+	return scriptbackend.RunScriptSingle[ScriptInput, InteropMigrationOutput](backend, scriptInput, "InteropMigration.s.sol", "InteropMigration")
 }
 
 // MigrateCLI is the main function for the migrate command. It validates required flags and runs the migration.
@@ -125,6 +124,11 @@ func MigrateCLI(cliCtx *cli.Context) error {
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlag.Name)
 	if l1RPCUrl == "" {
 		return fmt.Errorf("missing required flag: %s", deployer.L1RPCURLFlag.Name)
+	}
+
+	engineKind, err := env.ParseScriptEngine(cliCtx.String(deployer.ScriptEngineFlag.Name))
+	if err != nil {
+		return err
 	}
 
 	privateKey := cliCtx.String(deployer.PrivateKeyFlag.Name)
@@ -269,21 +273,18 @@ func MigrateCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to create broadcaster: %w", err)
 	}
 
-	l1Host, err := env.DefaultForkedScriptHost(
-		ctx,
-		bcaster,
-		lgr,
-		deployerAddr,
-		artifactsFS,
-		l1RPC,
-	)
+	fl1, err := scriptbackend.NewForkedL1(ctx, engineKind, lgr, deployerAddr, artifactsFS, l1RPCUrl, bcaster)
 	if err != nil {
-		return fmt.Errorf("failed to create script host: %w", err)
+		return fmt.Errorf("failed to create forked L1 backend: %w", err)
 	}
+	defer fl1.Close()
 
-	output, err := Migrate(l1Host, input)
+	output, err := Migrate(fl1.Backend, input)
 	if err != nil {
 		return fmt.Errorf("failed to run interop migration: %w", err)
+	}
+	if err := fl1.DrainBroadcasts(); err != nil {
+		return fmt.Errorf("failed to drain broadcasts: %w", err)
 	}
 
 	enc := json.NewEncoder(cliCtx.App.Writer)

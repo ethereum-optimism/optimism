@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 
 	"github.com/ethereum/go-ethereum"
 
@@ -36,8 +35,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
@@ -803,19 +802,19 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 	// Now test the OPCM upgrade
 	t.Run("opcm upgrade test", func(t *testing.T) {
-		// Create script host for the upgrade
-		rpcClient, err := rpc.Dial(implementationsConfig.L1RPCUrl)
-		require.NoError(t, err)
-
-		host, err := env.DefaultForkedScriptHost(
+		// Create the forked script backend (rust engine by default) for the upgrade
+		fl1, err := scriptbackend.NewForkedL1(
 			ctx,
-			broadcaster.NoopBroadcaster(),
+			"",
 			lgr,
 			implementationsConfig.L1ProxyAdminOwner,
 			afactsFS,
-			rpcClient,
+			implementationsConfig.L1RPCUrl,
+			broadcaster.NoopBroadcaster(),
 		)
 		require.NoError(t, err)
+		defer fl1.Close()
+		backend := fl1.Backend
 
 		opcmAddress := impls.OpcmV2
 
@@ -829,7 +828,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					SuperchainConfig: implementationsConfig.SuperchainConfigProxy,
 				}
 
-				err = embedded.UpgradeSuperchainConfig(host, upgradeConfig)
+				err = embedded.UpgradeSuperchainConfig(backend, upgradeConfig)
 				require.NoError(t, err, "Superchain config upgrade should succeed")
 			})
 		} else {
@@ -839,7 +838,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		// Run past upgrades before running the current upgrade.
 		// This is necessary when forking at a block before those upgrades were executed.
 		t.Run("run past upgrades", func(t *testing.T) {
-			shared.RunPastUpgrades(t, host, 11155111, superchainProxyAdminOwner, deployer.DefaultSystemConfigProxySepolia)
+			shared.RunPastUpgrades(t, backend, 11155111, superchainProxyAdminOwner, deployer.DefaultSystemConfigProxySepolia)
 		})
 
 		// Then run the OPCM V2 upgrade
@@ -875,7 +874,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 					SuperchainConfig:  implementationsConfig.SuperchainConfigProxy,
 					ExtraInstructions: []embedded.ExtraInstruction{},
 				}
-				err := embedded.UpgradeSuperchainConfig(host, superchainUpgradeConfig)
+				err := embedded.UpgradeSuperchainConfig(backend, superchainUpgradeConfig)
 				if err != nil {
 					t.Logf("Superchain upgrade may have failed (could already be upgraded): %v", err)
 				} else {
@@ -957,7 +956,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				require.NoError(t, err, "Should encode UpgradeInputV2")
 				require.NotEmpty(t, encodedData, "Encoded data should not be empty")
 
-				err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
+				err = embedded.DefaultUpgrader.Upgrade(backend, upgradeConfigBytes)
 				require.NoError(t, err, "OPCM V2 chain upgrade should succeed")
 			})
 		})
