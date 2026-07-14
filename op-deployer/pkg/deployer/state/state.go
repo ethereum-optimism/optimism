@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -172,16 +173,11 @@ func (s *State) IsChainDeployed(id common.Hash) bool {
 // the chain entry if it does not exist and otherwise updates it in place,
 // preserving any other fields already set by other stages. deployed indicates whether the addresses
 // have been already broadcast or are just predicted addresses from the prepare stage.
-// A non-nil startBlock pins the chain's L1 anchor block and a nil startBlock leaves any
-// existing StartBlock untouched so stages that don't set it (e.g. deploy) don't overwrite it.
-func (s *State) SetChainContracts(id common.Hash, contracts addresses.OpChainContracts, startBlock *L1BlockRefJSON, deployed bool) {
+func (s *State) SetChainContracts(id common.Hash, contracts addresses.OpChainContracts, deployed bool) {
 	for _, chain := range s.Chains {
 		if chain.ID == id {
 			chain.OpChainContracts = contracts
 			chain.Deployed = &deployed
-			if startBlock != nil {
-				chain.StartBlock = startBlock
-			}
 			return
 		}
 	}
@@ -189,7 +185,26 @@ func (s *State) SetChainContracts(id common.Hash, contracts addresses.OpChainCon
 		ID:               id,
 		OpChainContracts: contracts,
 		Deployed:         &deployed,
-		StartBlock:       startBlock,
+	})
+}
+
+// PinChainAnchor commits a chain's L1 anchor block together with the genesis time
+// derived from it. The pair is one single commitment and every downstream artifact reads both
+// from the state. It creates the chain entry if it does not exist marked as "not deployed"
+// and otherwise updates it in place, preserving fields set by other stages.
+func (s *State) PinChainAnchor(id common.Hash, anchor *L1BlockRefJSON, genesisTime hexutil.Uint64) {
+	for _, chain := range s.Chains {
+		if chain.ID == id {
+			chain.StartBlock = anchor
+			chain.GenesisTime = &genesisTime
+			return
+		}
+	}
+	s.Chains = append(s.Chains, &ChainState{
+		ID:          id,
+		Deployed:    ptr.New(false),
+		StartBlock:  anchor,
+		GenesisTime: &genesisTime,
 	})
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -180,7 +181,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return selectAnchorBlock(ctx, l1RPC, safe, overrideHash)
 	}
 
-	if err := predictChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor); err != nil {
+	if err := predictChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor, standard.DefaultGenesisTimeOffsetSeconds); err != nil {
 		return err
 	}
 
@@ -219,16 +220,19 @@ func resolveSuperchainConfigProxy(ctx context.Context, l1RPC *rpc.Client, intent
 }
 
 // predictChains predicts the L1 addresses for each undeployed chain in the intent
-// and records them, along with the chain's reorg-safe anchor block, as not deployed.
-// Chains that have been deployed are skipped so a re-run doesn't overwrite their
-// recorded addresses. selectAnchor resolves a chain's anchor block from its optional
-// L1StartBlockHash override.
+// and records them, along with the chain's anchor block and the genesis
+// time committed from it, marked as not deployed. Chains that have been deployed are skipped
+// so a re-run doesn't overwrite their recorded addresses. selectAnchor resolves a
+// chain's anchor block from its optional L1StartBlockHash override. genesisTimeOffset
+// is the number of seconds added to the anchor's timestamp to produce the committed
+// L2 genesis time.
 func predictChains(
 	lgr log.Logger,
 	intent *state.Intent,
 	st *state.State,
 	run func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error),
 	selectAnchor func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error),
+	genesisTimeOffset uint64,
 ) error {
 	for _, chain := range intent.Chains {
 		if st.IsChainDeployed(chain.ID) {
@@ -242,7 +246,17 @@ func predictChains(
 		if err != nil {
 			return fmt.Errorf("failed to select anchor block for chain %s: %w", chain.ID.Hex(), err)
 		}
-		lgr.Info("selected anchor block", "chain", chain.ID.Hex(), "number", uint64(anchorBlock.Number), "hash", anchorBlock.Hash)
+
+		// Commit the anchor and the genesis time derived from it as one unit.
+		genesisTime := hexutil.Uint64(uint64(anchorBlock.Time) + genesisTimeOffset)
+		st.PinChainAnchor(chain.ID, anchorBlock, genesisTime)
+		lgr.Info(
+			"pinned anchor block and genesis time",
+			"chain", chain.ID.Hex(),
+			"number", uint64(anchorBlock.Number),
+			"hash", anchorBlock.Hash,
+			"genesisTime", uint64(genesisTime),
+		)
 
 		dci, err := makePredictionInput(intent, st, chain)
 		if err != nil {
@@ -254,8 +268,8 @@ func predictChains(
 			return fmt.Errorf("failed to predict L1 addresses for chain %s: %w", chain.ID.Hex(), err)
 		}
 
-		// Record the predicted addresses and pinned anchor block, marked not deployed yet.
-		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), anchorBlock, false)
+		// Record the predicted addresses, marked not deployed yet.
+		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), false)
 
 		lgr.Info(
 			"predicted L1 addresses",

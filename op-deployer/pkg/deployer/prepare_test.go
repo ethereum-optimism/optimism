@@ -408,7 +408,7 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 	var deployedContracts addresses.OpChainContracts
 	deployedContracts.SystemConfigProxy = common.HexToAddress("0xdead")
 	st := &state.State{Create2Salt: common.HexToHash("0x03")}
-	st.SetChainContracts(deployedID, deployedContracts, nil, true)
+	st.SetChainContracts(deployedID, deployedContracts, true)
 
 	var ran []common.Hash
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -432,12 +432,13 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 		}, nil
 	}
 
-	anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100}
+	anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
 	selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
 		return anchor, nil
 	}
+	const genesisTimeOffset = 600
 
-	require.NoError(t, predictChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, selectAnchor))
+	require.NoError(t, predictChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, selectAnchor, genesisTimeOffset))
 
 	require.Equal(t, []common.Hash{freshID}, ran)
 
@@ -453,7 +454,10 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 	require.False(t, *fresh.Deployed)
 	require.Equal(t, common.HexToAddress("0xbeef"), fresh.SystemConfigProxy)
 	require.Equal(t, anchor, fresh.StartBlock, "fresh chain must have its anchor block pinned")
+	require.NotNil(t, fresh.GenesisTime, "fresh chain must have its genesis time committed")
+	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *fresh.GenesisTime)
 
 	// The already-deployed chain is skipped, so its anchor is never resolved or pinned.
 	require.Nil(t, deployed.StartBlock)
+	require.Nil(t, deployed.GenesisTime)
 }

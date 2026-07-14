@@ -97,8 +97,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		}
 	}
 
-	// StartBlock is pinned later by the set-start-block stage, so pass nil here.
-	st.SetChainContracts(chainID, chainContractsForDeploy(impls, dco), nil, true)
+	st.SetChainContracts(chainID, chainContractsForDeploy(impls, dco), true)
 
 	st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
 	st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal

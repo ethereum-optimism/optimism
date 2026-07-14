@@ -159,7 +159,7 @@ func TestState_SetChainContracts(t *testing.T) {
 	s := &State{}
 
 	// A new chain is appended, we mark a  predicted entry as not-deployed.
-	s.SetChainContracts(chainA, contractsWith("0xa1"), nil, false)
+	s.SetChainContracts(chainA, contractsWith("0xa1"), false)
 	require.Len(t, s.Chains, 1)
 	require.Equal(t, chainA, s.Chains[0].ID)
 	require.Equal(t, common.HexToAddress("0xa1"), s.Chains[0].SystemConfigProxy)
@@ -167,13 +167,13 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.False(t, *s.Chains[0].Deployed)
 
 	// A different chain is also appended.
-	s.SetChainContracts(chainB, contractsWith("0xb1"), nil, false)
+	s.SetChainContracts(chainB, contractsWith("0xb1"), false)
 	require.Len(t, s.Chains, 2)
 
 	// Updating an existing chain in the state replaces it in place, preserves other
 	// fields set by other stages, and can flip the deployed flag.
 	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xdead")}
-	s.SetChainContracts(chainA, contractsWith("0xa2"), nil, true)
+	s.SetChainContracts(chainA, contractsWith("0xa2"), true)
 	require.Len(t, s.Chains, 2)
 
 	got, err := s.Chain(chainA)
@@ -183,6 +183,42 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.True(t, *got.Deployed)
 	require.NotNil(t, got.StartBlock, "other fields must be preserved on update")
 	require.Equal(t, common.HexToHash("0xdead"), got.StartBlock.Hash)
+}
+
+func TestState_PinChainAnchor(t *testing.T) {
+	id := common.HexToHash("0x0a")
+	anchor := &L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+
+	t.Run("creates an entry marked as not deployed for an unknown chain", func(t *testing.T) {
+		s := &State{}
+		s.PinChainAnchor(id, anchor, 5600)
+		require.Len(t, s.Chains, 1)
+		got := s.Chains[0]
+		require.Equal(t, id, got.ID)
+		require.Equal(t, anchor, got.StartBlock)
+		require.NotNil(t, got.GenesisTime)
+		require.EqualValues(t, 5600, *got.GenesisTime)
+		require.NotNil(t, got.Deployed)
+		require.False(t, *got.Deployed, "an entry created at pin time must not read as deployed")
+		require.False(t, s.IsChainDeployed(id))
+	})
+
+	t.Run("updates an existing entry in place, preserving other fields", func(t *testing.T) {
+		// Simulates a different stage pinning the dry-run predicted addresses.
+		var contracts addresses.OpChainContracts
+		contracts.SystemConfigProxy = common.HexToAddress("0xbeef")
+		s := &State{}
+		s.SetChainContracts(id, contracts, false)
+
+		s.PinChainAnchor(id, anchor, 5600)
+		require.Len(t, s.Chains, 1)
+		got := s.Chains[0]
+		require.Equal(t, anchor, got.StartBlock)
+		require.EqualValues(t, 5600, *got.GenesisTime)
+		require.Equal(t, common.HexToAddress("0xbeef"), got.SystemConfigProxy, "contracts must be preserved")
+		require.NotNil(t, got.Deployed)
+		require.False(t, *got.Deployed, "the deployed flag must not be touched on update")
+	})
 }
 
 func TestBlockRef_Deserialize(t *testing.T) {
