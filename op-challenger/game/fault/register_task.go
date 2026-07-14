@@ -121,7 +121,7 @@ func newCannonVMRegisterTaskWithConfig(
 	preStateBaseURL *url.URL,
 	preState string,
 ) *RegisterTask {
-	stateConverter := cannon.NewStateConverter(cfg.Cannon)
+	stateConverter := cannon.NewStateConverter(vmCfg)
 	// Don't validate the absolute prestate or genesis output root for permissioned games
 	// Only trusted actors participate in these games so they aren't expected to reach the step() call and
 	// are often configured without valid prestates but the challenger should still resolve the games.
