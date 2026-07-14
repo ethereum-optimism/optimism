@@ -93,4 +93,22 @@ func TestSequencerBuildsOnRethEngine(gt *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, block.Transactions(), 2, "L1-info deposit + Alice's user tx")
 	require.Equal(t, uint8(types.DepositTxType), block.Transactions()[0].Type(), "block leads with the L1-info deposit")
+
+	// op-node's real receipt fetcher validates the receipts-root by re-encoding the fetched
+	// receipts (the deposit's nonce/version and the user receipt) and comparing to the header — the
+	// consensus-parity gate for the OP-enriched receipt RPC.
+	src := engine.SourceClient(t, 10)
+	info, receipts, err := src.FetchReceipts(t.Ctx(), head.Hash())
+	require.NoError(t, err, "FetchReceipts must validate the receipts-root against the header")
+	require.Equal(t, head.Hash(), info.Hash())
+	require.Len(t, receipts, 2)
+	require.Equal(t, uint8(types.DepositTxType), receipts[0].Type, "first receipt is the L1-info deposit")
+	require.Equal(t, types.ReceiptStatusSuccessful, receipts[1].Status, "Alice's tx succeeded")
+	require.EqualValues(t, params.TxGas, receipts[1].GasUsed, "Alice's transfer used the intrinsic gas")
+
+	// The direct eth_getTransactionReceipt path also returns Alice's receipt.
+	rcpt, err := cl.TransactionReceipt(t.Ctx(), tx.Hash())
+	require.NoError(t, err)
+	require.Equal(t, types.ReceiptStatusSuccessful, rcpt.Status)
+	require.Equal(t, head.Hash(), rcpt.BlockHash)
 }
