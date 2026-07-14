@@ -28,6 +28,7 @@ use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_rpc_types_engine::{
     ForkchoiceState, ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
 };
+use op_alloy_rpc_types::OpTransactionReceipt;
 use op_alloy_rpc_types_engine::{OpExecutionData, OpPayloadAttributes};
 use reth_db_common::init::InitStorageError;
 use reth_optimism_primitives::{OpBlock, OpReceipt, OpTransactionSigned};
@@ -245,6 +246,21 @@ impl TestEngine {
     /// Fetch the receipts of a block by hash, or `None` if unknown.
     pub fn receipts_by_block_hash(&self, hash: B256) -> Result<Option<Vec<OpReceipt>>> {
         self.chain.receipts_by_block_hash(hash)
+    }
+
+    /// Build the OP-enriched RPC receipts of a block by hash (`eth_getBlockReceipts`), or `None` if
+    /// the block is unknown.
+    pub fn rpc_receipts_by_block_hash(
+        &self,
+        hash: B256,
+    ) -> Result<Option<Vec<OpTransactionReceipt>>> {
+        self.chain.rpc_receipts_by_block_hash(hash)
+    }
+
+    /// Build the OP-enriched RPC receipt of a transaction (`eth_getTransactionReceipt`), or `None`
+    /// if the transaction is unknown.
+    pub fn rpc_receipt_by_tx_hash(&self, tx_hash: B256) -> Result<Option<OpTransactionReceipt>> {
+        self.chain.rpc_receipt_by_tx_hash(tx_hash)
     }
 
     /// Park a raw transaction in the pending buffer (`eth_sendRawTransaction`), returning its hash.

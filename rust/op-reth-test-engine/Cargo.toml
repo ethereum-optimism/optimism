@@ -21,6 +21,7 @@ reth-optimism-primitives.workspace = true
 reth-optimism-evm.workspace = true
 reth-optimism-payload-builder.workspace = true
 reth-optimism-forks.workspace = true
+reth-optimism-rpc.workspace = true
 
 # reth payload
 reth-payload-primitives.workspace = true
@@ -38,6 +39,8 @@ reth-execution-types.workspace = true
 reth-trie.workspace = true
 reth-trie-common = { workspace = true, features = ["eip1186"] }
 reth-primitives-traits.workspace = true
+reth-rpc-eth-api.workspace = true
+reth-rpc-eth-types.workspace = true
 
 # ethereum / alloy / op-alloy
 alloy-genesis.workspace = true

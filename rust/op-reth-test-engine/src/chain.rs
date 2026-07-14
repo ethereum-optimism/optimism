@@ -2,10 +2,13 @@
 
 use std::sync::Arc;
 
-use alloy_consensus::{Header, transaction::SignerRecoverable};
-use alloy_eips::BlockHashOrNumber;
+use alloy_consensus::{
+    Header, TxReceipt,
+    transaction::{Recovered, SignerRecoverable},
+};
+use alloy_eips::{BlockHashOrNumber, eip2718::Encodable2718};
 use alloy_genesis::Genesis;
-use alloy_primitives::B256;
+use alloy_primitives::{B256, keccak256};
 use op_revm::constants::L1_BLOCK_CONTRACT;
 use reth_chain_state::{ExecutedBlock, NewCanonicalChain};
 use reth_db::{DatabaseEnv, test_utils::TempDatabase};
@@ -19,15 +22,21 @@ use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::{OpEvmConfig, OpNextBlockEnvAttributes, OpRethReceiptBuilder};
 use reth_optimism_node::OpNode;
 use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
-use reth_primitives_traits::{RecoveredBlock, SealedHeader};
+use reth_optimism_rpc::eth::receipt::OpReceiptConverter;
+use reth_primitives_traits::{RecoveredBlock, SealedBlock, SealedHeader};
 use reth_provider::{
     ProviderError, providers::BlockchainProvider,
     test_utils::create_test_provider_factory_with_node_types,
 };
 use reth_revm::{database::StateProviderDatabase, db::State};
+use reth_rpc_eth_api::transaction::{ConvertReceiptInput, ReceiptConverter};
 use reth_storage_api::{
     BlockReader, HeaderProvider, ReceiptProvider, StateProviderBox, StateProviderFactory,
+    TransactionsProvider,
 };
+
+use alloy_consensus::transaction::TransactionMeta;
+use op_alloy_rpc_types::OpTransactionReceipt;
 
 use crate::Error;
 
@@ -253,6 +262,93 @@ impl EphemeralChain {
     /// Fetch the receipts of a block by hash, or `None` if unknown.
     pub fn receipts_by_block_hash(&self, hash: B256) -> crate::Result<Option<Vec<OpReceipt>>> {
         Ok(self.provider.receipts_by_block(BlockHashOrNumber::Hash(hash))?)
+    }
+
+    /// Build the OP-enriched RPC receipts of a block by hash, or `None` if the block is unknown.
+    ///
+    /// This is reth's production receipt path: the consensus [`OpReceipt`]s are folded with the
+    /// block's L1 fee info (via `OpReceiptConverter`, which reads the `L1Block` predeploy from the
+    /// L1-info deposit) into the `l1Fee`/`l1GasUsed`/…, deposit-nonce, and deposit-receipt-version
+    /// fields op-node's `FetchReceipts` and the action tests read. The running cumulative-gas and
+    /// log-index accounting mirrors reth's `LoadReceipt`.
+    pub fn rpc_receipts_by_block_hash(
+        &self,
+        hash: B256,
+    ) -> crate::Result<Option<Vec<OpTransactionReceipt>>> {
+        let Some(block) = self.block_by_hash(hash)? else {
+            return Ok(None);
+        };
+        let Some(receipts) = self.receipts_by_block_hash(hash)? else {
+            return Ok(None);
+        };
+        let sealed = SealedBlock::<OpBlock>::new_unchecked(block, hash);
+        Ok(Some(self.convert_receipts(&sealed, &receipts)?))
+    }
+
+    /// Build the single OP-enriched RPC receipt for a transaction hash, or `None` if unknown.
+    pub fn rpc_receipt_by_tx_hash(
+        &self,
+        tx_hash: B256,
+    ) -> crate::Result<Option<OpTransactionReceipt>> {
+        let Some((_, meta)) = self.provider.transaction_by_hash_with_meta(tx_hash)? else {
+            return Ok(None);
+        };
+        let Some(mut receipts) = self.rpc_receipts_by_block_hash(meta.block_hash)? else {
+            return Ok(None);
+        };
+        if (meta.index as usize) >= receipts.len() {
+            return Ok(None);
+        }
+        Ok(Some(receipts.swap_remove(meta.index as usize)))
+    }
+
+    /// Convert a sealed block's consensus receipts to OP RPC receipts via reth's
+    /// `OpReceiptConverter`.
+    fn convert_receipts(
+        &self,
+        sealed: &SealedBlock<OpBlock>,
+        receipts: &[OpReceipt],
+    ) -> crate::Result<Vec<OpTransactionReceipt>> {
+        let header = sealed.header();
+        let base_fee = header.base_fee_per_gas;
+        let block_number = header.number;
+        let block_hash = sealed.hash();
+        let timestamp = header.timestamp;
+        let excess_blob_gas = header.excess_blob_gas;
+
+        let txs = &sealed.body().transactions;
+        let mut inputs: Vec<ConvertReceiptInput<'_, OpPrimitives>> =
+            Vec::with_capacity(receipts.len());
+        let mut prev_cumulative_gas = 0u64;
+        let mut next_log_index = 0usize;
+        for (index, (tx, receipt)) in txs.iter().zip(receipts.iter()).enumerate() {
+            let signer = tx
+                .recover_signer()
+                .map_err(|err| Error::Execution(format!("recover receipt signer: {err}")))?;
+            let cumulative_gas = receipt.cumulative_gas_used();
+            let meta = TransactionMeta {
+                tx_hash: keccak256(tx.encoded_2718()),
+                index: index as u64,
+                block_hash,
+                block_number,
+                base_fee,
+                excess_blob_gas,
+                timestamp,
+            };
+            inputs.push(ConvertReceiptInput {
+                receipt: receipt.clone(),
+                tx: Recovered::new_unchecked(tx, signer),
+                gas_used: cumulative_gas - prev_cumulative_gas,
+                next_log_index,
+                meta,
+            });
+            prev_cumulative_gas = cumulative_gas;
+            next_log_index += receipt.logs().len();
+        }
+
+        OpReceiptConverter::new(self.provider.clone())
+            .convert_receipts_with_block(inputs, sealed)
+            .map_err(|err| Error::Execution(format!("convert receipts: {err}")))
     }
 }
 

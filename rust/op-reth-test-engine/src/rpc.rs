@@ -408,6 +408,35 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
     })
     .expect("register method");
 
+    // OP-enriched receipts. op-node's `FetchReceipts` (RPCKindStandard) calls
+    // `eth_getBlockReceipts` with the block hash, falling back to batched
+    // `eth_getTransactionReceipt`; both must return receipts whose consensus re-encoding
+    // reproduces the header receipts-root (op-node's validateReceipts), which is exactly what
+    // reth's OpReceiptConverter path preserves.
+    m.register_method("eth_getBlockReceipts", |params, ctx, _| {
+        let tag: String = params.one().map_err(rpc_err)?;
+        let engine = lock(ctx);
+        let value = match resolve_block_hash(&engine, &tag)? {
+            Some(hash) => match engine.rpc_receipts_by_block_hash(hash).map_err(rpc_err)? {
+                Some(receipts) => serde_json::to_value(receipts).map_err(rpc_err)?,
+                None => Value::Null,
+            },
+            None => Value::Null,
+        };
+        Ok::<Value, ErrorObjectOwned>(value)
+    })
+    .expect("register method");
+
+    m.register_method("eth_getTransactionReceipt", |params, ctx, _| {
+        let tx_hash: B256 = params.one().map_err(rpc_err)?;
+        let value = match lock(ctx).rpc_receipt_by_tx_hash(tx_hash).map_err(rpc_err)? {
+            Some(receipt) => serde_json::to_value(receipt).map_err(rpc_err)?,
+            None => Value::Null,
+        };
+        Ok::<Value, ErrorObjectOwned>(value)
+    })
+    .expect("register method");
+
     m.register_method("eth_getStorageAt", |params, ctx, _| {
         let (address, slot, tag): (Address, B256, Option<String>) =
             params.parse().map_err(rpc_err)?;
