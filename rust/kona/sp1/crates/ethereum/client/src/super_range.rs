@@ -1,6 +1,6 @@
 //! Shared execution logic for the SP1 super-range guest's range mode.
 
-use std::{collections::BTreeMap, fmt::Debug, sync::Arc};
+use std::{collections::BTreeMap, fmt::Debug, ops::Range, sync::Arc};
 
 use alloy_consensus::{Header, Sealed};
 use alloy_primitives::{B256, U256};
@@ -29,6 +29,12 @@ use kona_sp1_client_utils::{
 };
 
 use crate::executor::ETHDAWitnessExecutor;
+
+const OUTPUT_ROOT_WORD_BYTES: usize = 32;
+const OUTPUT_ROOT_V0_BYTES: usize = 4 * OUTPUT_ROOT_WORD_BYTES;
+const OUTPUT_ROOT_V0_VERSION_RANGE: Range<usize> = 0..OUTPUT_ROOT_WORD_BYTES;
+const OUTPUT_ROOT_V0_BLOCK_HASH_RANGE: Range<usize> =
+    3 * OUTPUT_ROOT_WORD_BYTES..OUTPUT_ROOT_V0_BYTES;
 
 /// Builds range-mode public outputs from typed inputs and an oracle-backed witness source.
 pub async fn build_range_outputs<O, B>(
@@ -502,7 +508,10 @@ fn previous_output_root(
         })
 }
 
-/// Fetches an output root preimage and returns the L2 block hash it commits to.
+/// Fetches a V0 output-root preimage and returns the L2 block hash it commits to.
+///
+/// V0 consists of four consecutive 32-byte words:
+/// `version || state_root || message_passer_storage_root || block_hash`.
 pub async fn fetch_output_block_hash<O>(oracle: &O, output_root: B256) -> anyhow::Result<B256>
 where
     O: PreimageOracleClient,
@@ -512,18 +521,18 @@ where
         .await
         .map_err(|err| anyhow!("failed to fetch output-root preimage {output_root}: {err}"))?;
     ensure!(
-        output_preimage.len() == 128,
-        "output-root preimage {output_root} has length {}, expected 128",
+        output_preimage.len() == OUTPUT_ROOT_V0_BYTES,
+        "output-root preimage {output_root} has length {}, expected {OUTPUT_ROOT_V0_BYTES}",
         output_preimage.len(),
     );
-    if output_preimage[..32].iter().any(|byte| *byte != 0) {
+    if output_preimage[OUTPUT_ROOT_V0_VERSION_RANGE].iter().any(|byte| *byte != 0) {
         bail!(
             "output-root preimage {output_root} has unsupported version {}",
-            B256::from_slice(&output_preimage[..32]),
+            B256::from_slice(&output_preimage[OUTPUT_ROOT_V0_VERSION_RANGE]),
         );
     }
 
-    Ok(B256::from_slice(&output_preimage[96..128]))
+    Ok(B256::from_slice(&output_preimage[OUTPUT_ROOT_V0_BLOCK_HASH_RANGE]))
 }
 
 /// Fetches and decodes an L2 header through the interop hint path.
@@ -588,8 +597,8 @@ mod tests {
     }
 
     fn save_output_root(oracle: &mut PreimageStore, block_hash: B256) -> B256 {
-        let mut output_preimage = [0u8; 128];
-        output_preimage[96..128].copy_from_slice(block_hash.as_slice());
+        let mut output_preimage = [0u8; OUTPUT_ROOT_V0_BYTES];
+        output_preimage[OUTPUT_ROOT_V0_BLOCK_HASH_RANGE].copy_from_slice(block_hash.as_slice());
         let output_root = B256::from(keccak256(output_preimage));
         oracle
             .save_preimage(PreimageKey::new_keccak256(*output_root), output_preimage.to_vec())
