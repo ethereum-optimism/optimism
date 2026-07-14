@@ -135,22 +135,22 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 
 	// Genesis block is pre-ecotone
-	verifyPreEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyPreEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Block before fork block
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyPreEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyPreEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Fork block is ecotone
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Blocks post fork have Ecotone properties
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 }
 
 func TestDencunL2ForkAtGenesis(gt *testing.T) {
@@ -167,12 +167,12 @@ func TestDencunL2ForkAtGenesis(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 
 	// Genesis block has ecotone properties
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 
 	// Blocks post fork have Ecotone properties
 	sequencer.ActL2StartBlock(t)
 	sequencer.ActL2EndBlock(t)
-	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
+	verifyEcotoneBlock(gt, engine.LatestHeader(t))
 }
 
 func aliceSimpleBlobTx(t helpers.Testing, dp *e2eutils.DeployParams) *types.Transaction {

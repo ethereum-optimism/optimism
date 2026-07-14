@@ -235,6 +235,19 @@ func (e *L2Engine) headerByLabel(t Testing, label rpc.BlockNumber) *types.Header
 	return h
 }
 
+// BlockByNumber returns the canonical L2 block at height n over the eth RPC, replacing the
+// geth-only e.L2Chain().GetBlockByNumber(n).
+func (e *L2Engine) BlockByNumber(t Testing, n uint64) *types.Block {
+	b, err := e.EthClient().BlockByNumber(t.Ctx(), new(big.Int).SetUint64(n))
+	require.NoError(t, err, "block %d", n)
+	return b
+}
+
+// GenesisBlock returns the L2 genesis block, replacing e.L2Chain().Genesis().
+func (e *L2Engine) GenesisBlock(t Testing) *types.Block {
+	return e.BlockByNumber(t, 0)
+}
+
 func (e *L2Engine) EngineClient(t Testing, cfg *rollup.Config) *sources.EngineClient {
 	l2Cl, err := sources.NewEngineClient(e.RPCClient(), e.log, nil, sources.EngineClientDefaultConfig(cfg))
 	require.NoError(t, err)

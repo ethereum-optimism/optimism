@@ -740,7 +740,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	altSeqEng.ActL2IncludeTx(alice.Address())(t)
 	altSequencer.ActL2EndBlock(t)
 
-	conflictBlock := seqEng.L2Chain().GetBlockByNumber(altSequencer.L2Unsafe().Number)
+	conflictBlock := seqEng.BlockByNumber(t, altSequencer.L2Unsafe().Number)
 	require.NotEqual(t, conflictBlock.Hash(), altSequencer.L2Unsafe().Hash, "alt sequencer has built a conflicting block")
 
 	// give the unsafe block to the verifier, and see if it reorgs because of any unsafe inputs

@@ -1004,7 +1004,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 			data := make([]byte, rand.Intn(100))
 			gas, err := core.FloorDataGas(data)
 			require.NoError(t, err)
-			baseFee := seqEng.L2Chain().CurrentBlock().BaseFee
+			baseFee := seqEng.LatestHeader(t).BaseFee
 			tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
 				ChainID:   sd.L2Cfg.Config.ChainID,
 				Nonce:     aliceNonce,
