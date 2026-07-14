@@ -746,7 +746,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // Upgrades may re-register pre-migration game types.
+            // This restriction applies to initial deployments only. An upgrade re-registers the
+            // game types a chain already runs, and chains that have not migrated to super games
+            // still run legacy types even when SUPER_ROOT_GAMES_MIGRATION is enabled. Restricting
+            // upgrades here would break them.
             // DeployOPChain adds the permissioned fallback. StandardValidator checks it. OPCM does not require it.
             bool validForInitialDeploy = superRootGamesMigrationEnabled
                 ? (isSuperPermissionedGame || isSuperCannonKonaGame)
@@ -763,10 +766,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            if (
-                _cfg.disputeGameConfigs[i].enabled
-                    && (isCannonGame || isCannonKonaGame || isSuperCannonKonaGame)
-            ) {
+            if (_cfg.disputeGameConfigs[i].enabled && (isCannonGame || isCannonKonaGame || isSuperCannonKonaGame)) {
                 // TODO(#20912): Remove once deploy pipelines provide real anchor roots.
                 // A permissionless initial deployment must not use the placeholder anchor root.
                 if (
