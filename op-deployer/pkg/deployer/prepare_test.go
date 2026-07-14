@@ -60,6 +60,15 @@ func TestNewPrepareConfig_FlagsPassed(t *testing.T) {
 	cfg := newPrepareConfig(newPrepareCtx(t, testPrivKey), log.NewLogger(log.DiscardHandler()))
 	require.Equal(t, testPrivKey, cfg.PrivateKey)
 	require.Equal(t, testL1RPCUrl, cfg.L1RPCUrl)
+	require.Equal(t, standard.DefaultGenesisTimeOffsetSeconds, cfg.GenesisTimeOffset,
+		"genesis time offset must default when the flag is not passed")
+}
+
+func TestNewPrepareConfig_GenesisTimeOffsetOverride(t *testing.T) {
+	cliCtx := newPrepareCtx(t, testPrivKey)
+	require.NoError(t, cliCtx.Set(GenesisTimeOffsetFlagName, "900"))
+	cfg := newPrepareConfig(cliCtx, log.NewLogger(log.DiscardHandler()))
+	require.EqualValues(t, 900, cfg.GenesisTimeOffset)
 }
 
 func TestMakePredictionInput(t *testing.T) {

@@ -24,6 +24,7 @@ const (
 	VerifierTypeFlagName     = "verifier"
 	VerifierUrlFlagName      = "verifier-url"
 	UseForgeFlagName         = "use-forge"
+	GenesisTimeOffsetFlagName = "genesis-time-offset"
 )
 
 func DefaultCacheDir() string {

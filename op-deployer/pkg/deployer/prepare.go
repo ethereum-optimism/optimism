@@ -35,6 +35,9 @@ type PrepareConfig struct {
 	L1RPCUrl string
 	// CacheDir is where downloaded artifacts are cached.
 	CacheDir string
+	// GenesisTimeOffset is the number of seconds added to the L1 anchor block's timestamp
+	// to produce the committed L2 genesis timestamp.
+	GenesisTimeOffset uint64
 
 	privateKeyECDSA *ecdsa.PrivateKey
 }
@@ -80,11 +83,12 @@ func PrepareCLI() func(cliCtx *cli.Context) error {
 // parsed and validated later in Check, mirroring apply.
 func newPrepareConfig(cliCtx *cli.Context, l log.Logger) PrepareConfig {
 	return PrepareConfig{
-		Workdir:    cliCtx.String(WorkdirFlagName),
-		Logger:     l,
-		PrivateKey: cliCtx.String(PrivateKeyFlagName),
-		L1RPCUrl:   cliCtx.String(L1RPCURLFlagName),
-		CacheDir:   cliCtx.String(CacheDirFlagName),
+		Workdir:           cliCtx.String(WorkdirFlagName),
+		Logger:            l,
+		PrivateKey:        cliCtx.String(PrivateKeyFlagName),
+		L1RPCUrl:          cliCtx.String(L1RPCURLFlagName),
+		CacheDir:          cliCtx.String(CacheDirFlagName),
+		GenesisTimeOffset: cliCtx.Uint64(GenesisTimeOffsetFlagName),
 	}
 }
 
@@ -181,7 +185,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return selectAnchorBlock(ctx, l1RPC, safe, overrideHash)
 	}
 
-	if err := predictChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor, standard.DefaultGenesisTimeOffsetSeconds); err != nil {
+	if err := predictChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor, cfg.GenesisTimeOffset); err != nil {
 		return err
 	}
 
