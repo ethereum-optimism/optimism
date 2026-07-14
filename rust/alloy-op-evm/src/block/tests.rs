@@ -1723,16 +1723,16 @@ mod sdm {
         );
     }
 
-    /// Regression coverage for the op-revm `catch_error` warm-leak.
+    /// Regression coverage for a warm-set leak in op-revm's `catch_error`.
     ///
-    /// `OpHandler::catch_error` resets the journal only on the deposit error path; for a
-    /// non-deposit tx error it never calls `journal.discard_tx()` (unlike upstream revm). On
-    /// the SDM Produce execution path (`alloy-op-evm` routes to `inspect_tx`, which skips
-    /// `finalize()` on error), a failed candidate tx therefore leaves its sender EIP-2929-warm
-    /// in the shared journal, so a later tx executed on the same EVM is mischarged — diverging
-    /// from a validator that never executed the failed tx. These tests pin the mechanism, the
-    /// fix, and the safety of the current production (SDM-disabled) configuration.
-    mod warmleak {
+    /// `catch_error` must discard the journal on a non-deposit tx error, as upstream revm's
+    /// `EthHandler::catch_error` does. Were it not to, then on the SDM Produce execution path
+    /// (`alloy-op-evm` routes to `inspect_tx`, which skips `finalize()` on error) a failed
+    /// candidate tx would leave its sender EIP-2929-warm in the shared journal, so a later tx
+    /// executed on the same EVM would be mischarged — diverging from a validator that never
+    /// executed the failed tx. These tests pin that the leak does not occur, and that the current
+    /// production (SDM-disabled) configuration is unaffected either way.
+    mod warm_set_leak {
         use super::*;
 
         /// Sender of the failing tx `A` — loaded+warmed during validation before the nonce
@@ -1744,22 +1744,22 @@ mod sdm {
         /// on `A`'s sender, charged 100 (warm) or 2600 (cold).
         const PROBE_CONTRACT: Address = Address::new([0xCC; 20]);
 
-        fn warmleak_db() -> State<InMemoryDB> {
+        fn nonce_too_low_db() -> State<InMemoryDB> {
             // `A`'s sender: nonce 5 so `A` (nonce 0) is rejected `NonceTooLow` *after* the
             // sender is loaded+warmed, leaving no other state mutation (crisp signal).
-            warmleak_db_with_leak_account(AccountInfo {
+            db_with_leak_account(AccountInfo {
                 nonce: 5,
                 balance: U256::from(1_000_000_000u64),
                 ..Default::default()
             })
         }
 
-        /// Like [`warmleak_db`] but `A`'s sender carries code, so `A` is rejected by EIP-3607
+        /// Like [`nonce_too_low_db`] but `A`'s sender carries code, so `A` is rejected by EIP-3607
         /// (sender-has-code) instead of by the nonce check — still only after it is loaded+warmed.
-        fn warmleak_contract_sender_db() -> State<InMemoryDB> {
+        fn contract_sender_db() -> State<InMemoryDB> {
             let code = Bytecode::new_raw(vec![0x00u8].into()); // STOP
             // nonce 0 so the nonce check passes and EIP-3607 is the sole rejection reason.
-            warmleak_db_with_leak_account(AccountInfo {
+            db_with_leak_account(AccountInfo {
                 code_hash: code.hash_slow(),
                 code: Some(code),
                 balance: U256::from(1_000_000_000u64),
@@ -1769,7 +1769,7 @@ mod sdm {
 
         /// Seeds the shared warm-leak accounts; `A`'s sender (`LEAK_ADDR`) is supplied by the
         /// caller so each test can choose the validation error `A` fails with.
-        fn warmleak_db_with_leak_account(leak_account: AccountInfo) -> State<InMemoryDB> {
+        fn db_with_leak_account(leak_account: AccountInfo) -> State<InMemoryDB> {
             let mut db = prepare_jovian_db(DEFAULT_DA_FOOTPRINT_GAS_SCALAR);
             db.insert_account(LEAK_ADDR, leak_account);
             // `B`'s sender: funded.
@@ -1814,7 +1814,7 @@ mod sdm {
             )
         }
 
-        fn warmleak_hardforks() -> OpChainHardforks {
+        fn hardforks() -> OpChainHardforks {
             OpChainHardforks::new(
                 OpHardfork::op_mainnet()
                     .into_iter()
@@ -1826,9 +1826,9 @@ mod sdm {
         /// by a failing tx `A` from `LEAK_ADDR` that is attempted then skipped on the same
         /// executor — mirroring the builder's skip-and-continue loop.
         fn probe_b_canonical_gas(mode: PostExecMode, include_failing_a: bool) -> u64 {
-            let mut db = warmleak_db();
+            let mut db = nonce_too_low_db();
             let receipt_builder = OpAlloyReceiptBuilder::default();
-            let op_chain_hardforks = warmleak_hardforks();
+            let op_chain_hardforks = hardforks();
             // `inspect=false` models real block building/validation (`create_evm` uses false);
             // the leaky `inspect_tx` path is then reached *only* via SDM Produce's
             // `begin_post_exec_tx`, exactly as in production.
@@ -1868,14 +1868,14 @@ mod sdm {
             a_error_context: &str,
         ) {
             let receipt_builder = OpAlloyReceiptBuilder::default();
-            let hardforks = warmleak_hardforks();
+            let op_chain_hardforks = hardforks();
 
             // ---- Builder (SDM Produce): A is attempted, fails, and is skipped; B is included.
             let mut producer_db = make_db();
             let mut producer = build_executor(
                 &mut producer_db,
                 &receipt_builder,
-                &hardforks,
+                &op_chain_hardforks,
                 1_000_000,
                 JOVIAN_TIMESTAMP,
                 None,
@@ -1898,7 +1898,7 @@ mod sdm {
             let mut verifier = build_executor(
                 &mut verifier_db,
                 &receipt_builder,
-                &hardforks,
+                &op_chain_hardforks,
                 1_000_000,
                 JOVIAN_TIMESTAMP,
                 None,
@@ -1943,7 +1943,7 @@ mod sdm {
             // `A`'s sender has nonce 5, so `A` (nonce 0) is rejected `NonceTooLow` after being
             // loaded+warmed during validation.
             assert_no_builder_validator_divergence(
-                warmleak_db,
+                nonce_too_low_db,
                 legacy_with_sender(LEAK_ADDR, 0, PROBE_SENDER, 50_000),
                 "tx A must fail NonceTooLow and be skipped",
             );
@@ -1957,7 +1957,7 @@ mod sdm {
         #[test]
         fn skipped_eip3607_failed_tx_in_sdm_produce_does_not_diverge_builder_vs_validator() {
             assert_no_builder_validator_divergence(
-                warmleak_contract_sender_db,
+                contract_sender_db,
                 legacy_with_sender(LEAK_ADDR, 0, PROBE_SENDER, 50_000),
                 "tx A must fail EIP-3607 (contract sender) and be skipped",
             );
