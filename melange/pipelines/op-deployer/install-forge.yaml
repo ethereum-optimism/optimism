@@ -1,0 +1,48 @@
+name: Install pinned Forge from Optimism's op-deployer version metadata.
+
+needs:
+  packages:
+    - busybox
+    - ca-certificates-bundle
+    - curl
+    - jq
+
+inputs:
+  version-json:
+    description: "Forge version metadata, relative to the source root"
+    default: "op-deployer/pkg/deployer/forge/version.json"
+
+pipeline:
+  - runs: |
+      set -euo pipefail
+
+      case "${{build.arch}}" in
+        x86_64) foundry_platform=alpine_amd64 ;;
+        aarch64) foundry_platform=alpine_arm64 ;;
+        *) echo "unsupported melange arch for Forge: ${{build.arch}}" >&2; exit 1 ;;
+      esac
+
+      version_file="${{inputs.version-json}}"
+      version="$(jq -r '.forge // empty' "$version_file")"
+      checksum="$(jq -r --arg platform "$foundry_platform" '.checksums[$platform] // empty' "$version_file")"
+      if [ -z "$version" ] || [ -z "$checksum" ]; then
+        echo "missing Forge version or checksum for $foundry_platform in $version_file" >&2
+        exit 1
+      fi
+
+      archive="foundry_${version}_${foundry_platform}.tar.gz"
+      url="https://github.com/foundry-rs/foundry/releases/download/${version}/${archive}"
+      work="$(mktemp -d)"
+      trap 'rm -rf "$work"' EXIT
+
+      curl -fsSL --retry 3 -o "$work/$archive" "$url"
+      printf '%s  %s\n' "$checksum" "$work/$archive" | sha256sum -c -
+      tar -xzf "$work/$archive" -C "$work"
+
+      forge_path="$(find "$work" -type f -name forge | head -n1)"
+      if [ -z "$forge_path" ] || [ ! -x "$forge_path" ]; then
+        echo "Forge binary not found in $archive" >&2
+        exit 1
+      fi
+
+      install -Dm755 "$forge_path" "${{targets.contextdir}}/usr/local/bin/forge"

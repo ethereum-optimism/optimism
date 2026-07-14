@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.1.24
+    /// @custom:semver 7.2.0
     function version() public pure returns (string memory) {
-        return "7.1.24";
+        return "7.2.0";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -358,10 +358,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // disabling the currently-respected game type, since the validation requires the starting
         // respected game type to correspond to an enabled game config.
         if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingRespectedGameType")) {
-            GameType gameType = abi.decode(_instruction.data, (GameType));
-            if (gameType.raw() == GameTypes.CANNON_KONA.raw()) {
-                return isDevFeatureEnabled(DevFeatures.CANNON_KONA);
-            }
             return true;
         }
 

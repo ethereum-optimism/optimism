@@ -1,6 +1,6 @@
 # DevFeatures System
 
-Reference for the `DevFeatures` bitmap system. The bitmap is transitional infrastructure that lets in-development features ride alongside production code without a full hardfork. It is expected to disappear once each feature it gates either ships as a real hardfork or is abandoned (see #20084 for the L2CM/CannonKona cleanup).
+Reference for the `DevFeatures` bitmap system. The bitmap is transitional infrastructure that lets in-development features ride alongside production code without a full hardfork. It is expected to disappear once each feature it gates either ships as a real hardfork or is abandoned (see #20084 for the L2CM cleanup).
 
 ## A. What it is
 
@@ -16,13 +16,12 @@ Active flags:
 | Flag | Gates |
 |------|-------|
 | `OptimismPortalInterop` | Interop migration functions on OptimismPortal2 |
-| `CannonKona` | Respected-game-type override for CANNON_KONA during upgrades — **enabled by default** |
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `L2CM` | L2ContractsManager + supporting L2 predeploys — **enabled by default** |
 | `ZKDisputeGame` | ZK dispute game system |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade |
 
-The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `L2CM` and `CannonKona`, which are enabled by default on both the Go and Solidity sides (the bitmap no longer acts as a circuit breaker for them; removal tracked in #20084).
+The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `L2CM`, which is enabled by default on both the Go and Solidity sides (the bitmap no longer acts as a circuit breaker for it; removal tracked in #20084).
 
 **Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` all need updating; there is no compile-time link between them.
 
@@ -63,7 +62,6 @@ A separate, **test-only** assembler exists for Foundry tests and fork scripts. I
 - `DEV_FEATURE__OPTIMISM_PORTAL_INTEROP`
 - `DEV_FEATURE__L2CM`
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
-- `DEV_FEATURE__CANNON_KONA`
 - `DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION`
 
 Each is read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol` (functions `devFeatureInterop()`, `devFeatureL2CM()`, etc.). The only callers are under `test/`:
@@ -127,8 +125,7 @@ So: hardfork is the network-wide "go" signal; bitmap is the per-chain "is this f
 
 ## G. Lifecycle direction
 
-- L2CM and CannonKona are now **default-on** (#20439): `IsDevFeatureEnabled` / `isDevFeatureEnabled` return `true` for them regardless of the bitmap.
-- **#20084** tracks removing the L2CM and CannonKona flags (and eventually the wider DevFeatures scaffolding) once L2CM is proven in production.
+- L2CM remains **default-on** (#20439): `IsDevFeatureEnabled` / `isDevFeatureEnabled` return `true` for it regardless of the bitmap.
 
 ## File index
 

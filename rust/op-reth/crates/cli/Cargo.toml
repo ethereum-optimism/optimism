@@ -32,6 +32,7 @@ reth-fs-util.workspace = true
 
 # so jemalloc metrics can be included
 reth-node-metrics.workspace = true
+metrics.workspace = true
 
 ## optimism
 reth-optimism-primitives.workspace = true
@@ -74,6 +75,7 @@ op-alloy-consensus.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 reth-stages = { workspace = true, features = ["test-utils"] }
+metrics-exporter-prometheus.workspace = true
 
 [build-dependencies]
 reth-optimism-chainspec = { workspace = true, features = ["std", "superchain-configs"] }
@@ -125,4 +127,3 @@ serde = [
     "reth-primitives-traits/serde",
     "reth-optimism-chainspec/serde",
 ]
-

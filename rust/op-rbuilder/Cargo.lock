@@ -11052,6 +11052,7 @@ dependencies = [
  "derive_more",
  "eyre",
  "futures-util",
+ "metrics",
  "op-alloy-consensus",
  "page_size",
  "reth-chainspec",
