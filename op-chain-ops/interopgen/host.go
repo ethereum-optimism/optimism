@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/rustengine"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 )
 
@@ -182,7 +183,7 @@ func insertPreinstalls(h *DeployHost) error {
 // path) on the host.
 func migrate(h *DeployHost, input manage.InteropMigrationInput) (manage.InteropMigrationOutput, error) {
 	if h.goHost != nil {
-		return manage.Migrate(h.goHost, input)
+		return manage.Migrate(scriptbackend.FromHost(h.goHost), input)
 	}
 	if input.MigrateInputV2 == nil {
 		return manage.InteropMigrationOutput{}, fmt.Errorf("MigrateInputV2 is required")
