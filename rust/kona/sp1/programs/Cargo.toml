@@ -127,14 +127,14 @@ kona-sp1-ethereum-client-utils = { path = "../crates/ethereum/client" }
 
 # Feature anchor only: revm's `bn` forwards to revm-precompile/bn so the guest
 # build uses the SP1-patched substrate-bn backend for bn128.
-revm = { version = "40.0.3", default-features = false, features = ["bn"] }
+revm = { version = "41.0.0", default-features = false, features = ["bn"] }
 
 alloy-primitives = { version = "1.6.0", default-features = false, features = [
   "map-foldhash",
 ] }
 alloy-chains = { version = "0.2.33", default-features = false }
 alloy-sol-types = { version = "1.6.0", default-features = false }
-alloy-consensus = { version = "2.0.5", default-features = false }
+alloy-consensus = { version = "2.1.1", default-features = false }
 alloy-rlp = { version = "0.3.13", default-features = false }
 sp1-lib = { version = "6.2.4", features = ["verify"] }
 sp1-zkvm = { version = "6.2.4", features = ["verify"] }
