@@ -8,7 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params/forks"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
@@ -67,6 +69,77 @@ func TestWithLocalContractSourcesAt(t *testing.T) {
 	expected := artifacts.MustNewFileLocator(artifactsDir)
 	require.True(t, expected.Equal(intent.L1ContractsLocator))
 	require.True(t, expected.Equal(intent.L2ContractsLocator))
+}
+
+func TestParseL1Fork(t *testing.T) {
+	tests := map[string]forks.Fork{
+		"dencun":      forks.Cancun,
+		"CANCUN":      forks.Cancun,
+		"pectra":      forks.Prague,
+		"prague":      forks.Prague,
+		"fusaka":      forks.Osaka,
+		"Osaka":       forks.Osaka,
+		"bpo-1":       forks.BPO1,
+		"BPO_5":       forks.BPO5,
+		"glamsterdam": forks.Amsterdam,
+		" amsterdam ": forks.Amsterdam,
+	}
+	for input, expected := range tests {
+		t.Run(input, func(t *testing.T) {
+			actual, err := parseL1Fork(input)
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+		})
+	}
+
+	_, err := parseL1Fork("frontier")
+	require.EqualError(t, err, `unsupported L1 fork "frontier"`)
+}
+
+func TestDeployerOptionsOverrideDevstackL1Fork(t *testing.T) {
+	t.Setenv(DevstackL1ForkEnvVar, "fusaka")
+	builder := newValidIntentBuilder()
+	builder.WithL1ContractsLocator(artifacts.EmbeddedLocator)
+	builder.WithL2ContractsLocator(artifacts.EmbeddedLocator)
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+	dt := devtest.SerialT(t)
+
+	applyConfigCommons(dt, keys, DefaultL1ID, builder)
+	applyConfigDeployerOptions(dt, keys, builder, []DeployerOption{
+		WithForkAtL1Genesis(forks.Prague),
+	})
+
+	intent, err := builder.Build()
+	require.NoError(t, err)
+	require.NotNil(t, intent.L1DevGenesisParams.PragueTimeOffset)
+	require.Zero(t, *intent.L1DevGenesisParams.PragueTimeOffset)
+	require.Nil(t, intent.L1DevGenesisParams.OsakaTimeOffset)
+	require.Nil(t, intent.L1DevGenesisParams.BPO1TimeOffset)
+}
+
+func TestDevstackFutureL1ForkAddsBlobSchedule(t *testing.T) {
+	t.Setenv(DevstackL1ForkEnvVar, "glamsterdam")
+	builder := newValidIntentBuilder()
+	builder.WithL1ContractsLocator(artifacts.EmbeddedLocator)
+	builder.WithL2ContractsLocator(artifacts.EmbeddedLocator)
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+
+	applyConfigCommons(devtest.SerialT(t), keys, DefaultL1ID, builder)
+
+	intent, err := builder.Build()
+	require.NoError(t, err)
+	require.NotNil(t, intent.L1DevGenesisParams.AmsterdamTimeOffset)
+	require.Zero(t, *intent.L1DevGenesisParams.AmsterdamTimeOffset)
+	schedule := intent.L1DevGenesisParams.BlobSchedule
+	require.NotNil(t, schedule)
+	require.NotNil(t, schedule.BPO1)
+	require.NotNil(t, schedule.BPO2)
+	require.NotNil(t, schedule.BPO3)
+	require.NotNil(t, schedule.BPO4)
+	require.NotNil(t, schedule.BPO5)
+	require.NotNil(t, schedule.Amsterdam)
 }
 
 func newValidIntentBuilder() intentbuilder.Builder {

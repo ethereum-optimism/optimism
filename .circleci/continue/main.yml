@@ -1932,6 +1932,10 @@ jobs:
 
   op-acceptance-tests:
     parameters:
+      l1_fork:
+        description: "L1 fork active at genesis (pectra, fusaka, or glamsterdam)"
+        type: string
+        default: "pectra"
       l2_cl_kind:
         description: "L2 consensus layer client (op-node or kona-node)"
         type: string
@@ -1980,8 +1984,9 @@ jobs:
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
       - run:
-          name: Configure L2 stack
+          name: Configure devstack
           command: |
+            echo "export DEVSTACK_L1_FORK=<<parameters.l1_fork>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
       # Restore cached Go modules (downloaded once by prep-go-modules) plus the
@@ -2631,7 +2636,13 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
-          name: memory-all-opn-op-reth
+          name: memory-all-opn-op-reth-<<matrix.l1_fork>>
+          matrix:
+            parameters:
+              l1_fork: &acceptance_l1_forks
+                - pectra
+                - fusaka
+                - glamsterdam
           l2_el_kind: op-reth
           parallelism: 2
           acceptance_test_jobs: "8"
@@ -2650,7 +2661,10 @@ workflows:
             - prep-superchain
       # IN-MEMORY - kona/op-reth
       - op-acceptance-tests:
-          name: memory-all-kona-op-reth
+          name: memory-all-kona-op-reth-<<matrix.l1_fork>>
+          matrix:
+            parameters:
+              l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
           parallelism: 2
@@ -2680,8 +2694,12 @@ workflows:
             - semgrep-scan-local: terminal
             - semgrep-test: terminal
             - go-tests-short: terminal
-            - memory-all-opn-op-reth: terminal
-            - memory-all-kona-op-reth: terminal
+            - memory-all-opn-op-reth-pectra: terminal
+            - memory-all-opn-op-reth-fusaka: terminal
+            - memory-all-opn-op-reth-glamsterdam: terminal
+            - memory-all-kona-op-reth-pectra: terminal
+            - memory-all-kona-op-reth-fusaka: terminal
+            - memory-all-kona-op-reth-glamsterdam: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
             - cannon-go-lint-and-test: terminal
             - check-generated-mocks-op-node: terminal

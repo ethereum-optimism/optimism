@@ -209,7 +209,6 @@ func TestBuilder(t *testing.T) {
 
 	require.JSONEq(t, string(expectedJSON), string(actualJSON))
 }
-
 // TestWithForkAtGenesisBedrock is a regression guard: WithForkAtGenesis(Bedrock)
 // is the genesis baseline used by sysgo.WithHardforkSequentialActivation. Bedrock
 // has no schedulable time offset, so it must not panic, and must deactivate every
@@ -223,5 +222,45 @@ func TestWithForkAtGenesisBedrock(t *testing.T) {
 	require.Contains(t, overrides, "l2GenesisLagoonTimeOffset")
 	for k, v := range overrides {
 		require.Nil(t, v, "fork override %s should be deactivated at Bedrock genesis", k)
+	}
+}
+
+func TestL1ForkAtGenesis(t *testing.T) {
+	tests := []struct {
+		name string
+		fork forks.Fork
+	}{
+		{name: "Dencun", fork: forks.Cancun},
+		{name: "Pectra", fork: forks.Prague},
+		{name: "Fusaka", fork: forks.Osaka},
+		{name: "BPO5", fork: forks.BPO5},
+		{name: "Glamsterdam", fork: forks.Amsterdam},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			builder := New()
+			builder, l1 := builder.WithL1(eth.ChainIDFromUInt64(1))
+			l1.WithL1ForkAtGenesis(test.fork)
+
+			params := builder.(*intentBuilder).intent.L1DevGenesisParams
+			offsets := map[forks.Fork]*uint64{
+				forks.Prague:    params.PragueTimeOffset,
+				forks.Osaka:     params.OsakaTimeOffset,
+				forks.BPO1:      params.BPO1TimeOffset,
+				forks.BPO2:      params.BPO2TimeOffset,
+				forks.BPO3:      params.BPO3TimeOffset,
+				forks.BPO4:      params.BPO4TimeOffset,
+				forks.BPO5:      params.BPO5TimeOffset,
+				forks.Amsterdam: params.AmsterdamTimeOffset,
+			}
+			for fork, offset := range offsets {
+				if fork <= test.fork {
+					require.NotNilf(t, offset, "%s should be active", fork)
+					require.Zero(t, *offset)
+				} else {
+					require.Nilf(t, offset, "%s should be inactive", fork)
+				}
+			}
+		})
 	}
 }

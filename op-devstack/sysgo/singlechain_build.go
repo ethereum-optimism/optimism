@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -112,22 +111,7 @@ func applyConfigLocalContractSources(t devtest.T, _ devkeys.Keys, builder intent
 }
 
 func applyConfigCommons(t devtest.T, keys devkeys.Keys, l1ChainID eth.ChainID, builder intentbuilder.Builder) {
-	_, l1Config := builder.WithL1(l1ChainID)
-
-	l1StartTimestamp := uint64(time.Now().Unix()) + 1
-	l1Config.WithTimestamp(l1StartTimestamp)
-	l1Config.WithL1ForkAtGenesis(forks.Prague)
-
-	faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
-	t.Require().NoError(err, "need funder addr")
-	l1Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
-
-	addrFor := intentbuilder.RoleToAddrProvider(t, keys, l1ChainID)
-	_, superCfg := builder.WithSuperchain()
-	intentbuilder.WithDevkeySuperRoles(t, keys, l1ChainID, superCfg)
-	l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProxyAdminOwner), *millionEth)
-	l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainConfigGuardianKey), *millionEth)
-	l1Config.WithPrefundedAccount(addrFor(devkeys.L1ProxyAdminOwnerRole), *millionEth)
+	WithCommons(l1ChainID)(t, keys, builder)
 }
 
 func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID eth.ChainID, builder intentbuilder.Builder) {

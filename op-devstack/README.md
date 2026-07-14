@@ -102,6 +102,11 @@ and returns a typed output that the test then may use.
 - `DEVSTACK_KEYS_SALT`: Seeds the keys generated with `NewHDWallet`. This is useful for "isolating" test runs, and might be needed to reproduce CI and/or acceptance test runs. It can be any string, including the empty one to use the "usual" devkeys.
 - `DEVNET_EXPECT_PRECONDITIONS_MET`: This can be set of force test failures when their pre-conditions are not met, which would otherwise result in them being skipped. This is helpful in particular for runs that do intend to run specific tests (as opposed to whatever is available). `op-acceptor` does set that variable, for example.
 
+- `DEVSTACK_L1_FORK=fusaka` to select the L1 fork active at genesis. Ethereum upgrade
+  names (`dencun`, `pectra`, `fusaka`, `glamsterdam`) and geth execution-fork names
+  (`cancun`, `prague`, `osaka`, `amsterdam`) are accepted, as are `bpo1` through `bpo5`.
+  BPO5 and Amsterdam inherit BPO4 blob parameters until upstream defaults are available.
+
 ### Rust stack env vars:
 - `DEVSTACK_L2CL_KIND=kona-node` to select kona-node as default L2 CL node
 - `DEVSTACK_L2EL_KIND=op-reth` to select op-reth as default L2 EL node

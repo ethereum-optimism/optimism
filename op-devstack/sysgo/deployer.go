@@ -1,9 +1,12 @@
 package sysgo
 
 import (
+	"fmt"
 	"math/big"
+	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -34,6 +37,7 @@ import (
 // funderMnemonicIndex the funding account is not one of the 30 standard account, but still derived from a user-key.
 const funderMnemonicIndex = 10_000
 const devFeatureBitmapKey = "devFeatureBitmap"
+const DevstackL1ForkEnvVar = "DEVSTACK_L1_FORK"
 
 // proxyImplementationSlot is the EIP-1967 proxy implementation storage slot used
 // by every L2 predeploy proxy (`bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)`).
@@ -54,10 +58,8 @@ func WithForkAtL1Offset(fork forks.Fork, offset uint64) DeployerOption {
 	}
 }
 
-func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
-	// Once we get the latest changes from op-geth we can change this to
-	// params.DefaultBlobSchedule.
-	builder.L1().WithL1BlobSchedule(&params.BlobScheduleConfig{
+func defaultL1BlobSchedule() *params.BlobScheduleConfig {
+	return &params.BlobScheduleConfig{
 		Cancun: params.DefaultCancunBlobConfig,
 		Osaka:  params.DefaultOsakaBlobConfig,
 		Prague: params.DefaultPragueBlobConfig,
@@ -65,7 +67,34 @@ func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuild
 		BPO2:   params.DefaultBPO2BlobConfig,
 		BPO3:   params.DefaultBPO3BlobConfig,
 		BPO4:   params.DefaultBPO4BlobConfig,
-	})
+		// Upstream defaults are not available yet, so keep the latest parameters.
+		BPO5:      params.DefaultBPO4BlobConfig,
+		Amsterdam: params.DefaultBPO4BlobConfig,
+	}
+}
+
+func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+	// Once we get the latest changes from op-geth we can change this to
+	// params.DefaultBlobSchedule.
+	builder.L1().WithL1BlobSchedule(defaultL1BlobSchedule())
+}
+
+// parseL1Fork accepts both Ethereum upgrade names and their geth execution-layer names.
+func parseL1Fork(value string) (forks.Fork, error) {
+	normalized := strings.NewReplacer("-", "", "_", "").Replace(strings.ToLower(strings.TrimSpace(value)))
+	aliases := map[string]forks.Fork{
+		"dencun": forks.Cancun, "pectra": forks.Prague,
+		"fusaka": forks.Osaka, "glamsterdam": forks.Amsterdam,
+	}
+	if fork, ok := aliases[normalized]; ok {
+		return fork, nil
+	}
+	for fork := forks.Cancun; fork <= forks.Amsterdam; fork++ {
+		if normalized == strings.ToLower(strings.ReplaceAll(fork.String(), " ", "")) {
+			return fork, nil
+		}
+	}
+	return 0, fmt.Errorf("unsupported L1 fork %q", value)
 }
 
 func WithKarstAtOffset(offset *uint64) DeployerOption {
@@ -248,7 +277,14 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 		l1StartTimestamp := uint64(time.Now().Unix()) + 1
 		l1Config.WithTimestamp(l1StartTimestamp)
 
-		l1Config.WithL1ForkAtGenesis(forks.Prague) // activate pectra on L1
+		l1Fork := forks.Prague // activate pectra on L1 by default
+		if value := os.Getenv(DevstackL1ForkEnvVar); value != "" {
+			var err error
+			l1Fork, err = parseL1Fork(value)
+			p.Require().NoError(err, "invalid %s", DevstackL1ForkEnvVar)
+		}
+		l1Config.WithL1BlobSchedule(defaultL1BlobSchedule())
+		l1Config.WithL1ForkAtGenesis(l1Fork)
 
 		faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 		p.Require().NoError(err, "need funder addr")

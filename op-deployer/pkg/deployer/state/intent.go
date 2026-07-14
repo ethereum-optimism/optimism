@@ -75,6 +75,22 @@ type L1DevGenesisParams struct {
 	// genesis time.
 	BPO2TimeOffset *uint64 `json:"bpo2TimeOffset" toml:"bpo2TimeOffset"`
 
+	// BPO3TimeOffset configures the BPO3 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO3TimeOffset *uint64 `json:"bpo3TimeOffset" toml:"bpo3TimeOffset"`
+
+	// BPO4TimeOffset configures the BPO4 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO4TimeOffset *uint64 `json:"bpo4TimeOffset" toml:"bpo4TimeOffset"`
+
+	// BPO5TimeOffset configures the BPO5 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO5TimeOffset *uint64 `json:"bpo5TimeOffset" toml:"bpo5TimeOffset"`
+
+	// AmsterdamTimeOffset configures Amsterdam (the EL changes in the Glamsterdam Ethereum
+	// fork) to be activated at the given time after L1 dev genesis time.
+	AmsterdamTimeOffset *uint64 `json:"amsterdamTimeOffset" toml:"amsterdamTimeOffset"`
+
 	BlobSchedule *params.BlobScheduleConfig `json:"blobSchedule"`
 
 	// Prefund is a map of addresses to balances (in wei), to prefund in the L1 dev genesis state.
