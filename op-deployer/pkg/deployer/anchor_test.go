@@ -111,4 +111,13 @@ func TestSelectAnchorBlock(t *testing.T) {
 		_, err := selectAnchorBlock(ctx, f, safe, &overrideHash)
 		require.ErrorContains(t, err, "failed to fetch anchor block")
 	})
+
+	t.Run("canonical check error is propagated", func(t *testing.T) {
+		f := &fakeL1{
+			byArg:       map[string]*state.L1BlockRefJSON{overrideHash.Hex(): anchorRef(overrideHash, 90)},
+			errByMethod: map[string]error{"eth_getBlockByNumber": errors.New("rpc down")},
+		}
+		_, err := selectAnchorBlock(ctx, f, safe, &overrideHash)
+		require.ErrorContains(t, err, "failed to verify anchor block")
+	})
 }
