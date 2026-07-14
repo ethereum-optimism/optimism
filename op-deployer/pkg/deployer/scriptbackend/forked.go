@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/rustengine"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 // ForkedL1 is a forked L1 script backend plus its lifecycle: broadcast draining (the engine captures
@@ -86,7 +87,7 @@ func newForkedL1Engine(
 
 	eng, err := rustengine.Spawn(binPath, rustengine.SpawnOpts{
 		ArtifactsDir:       artifactsDir,
-		ChainID:            script.DefaultContext.ChainID.Uint64(),
+		ChainID:            bigs.Uint64Strict(script.DefaultContext.ChainID),
 		Create2Deployer:    true,
 		IsolatedBroadcasts: true, // mirrors env.DefaultScriptHost's script.WithIsolatedBroadcasts
 		BlockNum:           script.DefaultContext.BlockNum,
@@ -123,7 +124,7 @@ func latestBlock(ctx context.Context, l1RPCUrl string) (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to get latest block: %w", err)
 	}
-	return latest.Number.Uint64(), nil
+	return bigs.Uint64Strict(latest.Number), nil
 }
 
 // DrainBroadcasts hands the broadcasts the engine captured during the last script run to the Go

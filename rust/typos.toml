@@ -117,3 +117,6 @@ BA = "BA"
 
 # op-e2e Go identifiers (kona/tests/proofs action tests)
 dfault = "dfault"
+
+# op-script-engine base64 RFC 4648 test vector: base64_std(b"fo") == "Zm8="
+fo = "fo"

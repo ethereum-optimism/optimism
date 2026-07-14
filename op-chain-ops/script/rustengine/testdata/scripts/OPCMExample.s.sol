@@ -3,10 +3,10 @@ pragma solidity 0.8.15;
 
 // Minimal forge cheatcode interface (self-contained, no forge-std).
 interface Vm {
-    function store(address target, bytes32 slot, bytes32 value) external;
-    function deal(address who, uint256 newBalance) external;
-    function etch(address who, bytes calldata code) external;
-    function label(address who, string calldata newLabel) external;
+    function store(address _target, bytes32 _slot, bytes32 _value) external;
+    function deal(address _who, uint256 _newBalance) external;
+    function etch(address _who, bytes calldata _code) external;
+    function label(address _who, string calldata _newLabel) external;
 }
 
 // Input precompile interface (Family B). The Go host installs a reflection precompile at the
@@ -19,7 +19,7 @@ interface IOPCMExampleInput {
 // Output precompile interface (Family B). set(bytes4,address) is the WithFieldSetter setter; the
 // result() getter reads back the last value that was set.
 interface IOPCMExampleOutput {
-    function set(bytes4 sel, address value) external;
+    function set(bytes4 _sel, address _value) external;
     function result() external view returns (address);
 }
 

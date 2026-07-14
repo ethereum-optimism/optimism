@@ -2,14 +2,16 @@
 //! anvil — runnable anywhere, incl. the required go-tests-short CI job).
 //!
 //! These exercise the load-bearing fork machinery directly on `ScriptHost`: lazy RPC read-through,
-//! block-hash pinning, the copy-on-write overlay + diff write-log, cache memoization, absent-account
-//! semantics, the locally-served (persistent/excluded) set, and the createSelectFork / stateDump
-//! guards. The ~5-method fork RPC surface is served by `MockL1` below.
+//! block-hash pinning, the copy-on-write overlay + diff write-log, cache memoization,
+//! absent-account semantics, the locally-served (persistent/excluded) set, and the createSelectFork
+//! / stateDump guards. The ~5-method fork RPC surface is served by `MockL1` below.
 
-use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpListener;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    io::{BufRead, BufReader, Read, Write},
+    net::TcpListener,
+    sync::{Arc, Mutex},
+};
 
 use alloy_primitives::{Address, B256, Bytes, U256, address, hex};
 use op_script_engine::host::{HostConfig, ScriptHost};
@@ -92,10 +94,7 @@ impl MockL1 {
         let s = self.state.lock().unwrap();
         let h = hex::encode(s.block_hash);
         // Account reads (not the block lookup itself) must carry the pinned block hash.
-        s.bodies
-            .iter()
-            .filter(|b| !b.contains("eth_getBlockBy"))
-            .any(|b| b.contains(&h))
+        s.bodies.iter().filter(|b| !b.contains("eth_getBlockBy")).any(|b| b.contains(&h))
     }
 }
 
@@ -157,7 +156,9 @@ fn dispatch(body: &str, state: &Arc<Mutex<MockState>>) -> String {
     let mut st = state.lock().unwrap();
     *st.counts.entry(method.to_string()).or_insert(0) += 1;
     st.bodies.push(body.to_string());
-    if std::env::var("MOCK_DEBUG").is_ok() { eprintln!("[mock] {} {}", method, params); }
+    if std::env::var("MOCK_DEBUG").is_ok() {
+        eprintln!("[mock] {} {}", method, params);
+    }
 
     let result: serde_json::Value = match method {
         "eth_chainId" => serde_json::json!("0x1"),
@@ -274,7 +275,11 @@ fn fork_read_through_and_hash_pinning() {
 
     let mut host = forked_host(rt.handle().clone(), &mock);
     let out = host.call(DEFAULT_SENDER, c, Bytes::new()).expect("call fork contract");
-    assert_eq!(U256::from_be_slice(&out), U256::from(0x2a), "read-through SLOAD returns fork value");
+    assert_eq!(
+        U256::from_be_slice(&out),
+        U256::from(0x2a),
+        "read-through SLOAD returns fork value"
+    );
 
     // Every account/storage read must be pinned to the fork block HASH, matching Go RPCSource.
     assert!(mock.any_body_pins_block_hash(), "reads must carry the pinned block hash");

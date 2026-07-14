@@ -48,8 +48,8 @@ impl Artifacts {
     /// byte-for-byte matching the Go host's `CheatCodesPrecompile.getArtifact`
     /// (`op-chain-ops/script/cheatcodes_external.go`):
     ///   - a `*.json` path resolves via the `forge-artifacts/`/`out/`-stripped dir + file stem;
-    ///   - otherwise `"Foo"` -> file `Foo.sol` / contract `Foo`, and `"Foo.sol:Bar"` ->
-    ///     file `Foo.sol` / contract `Bar`.
+    ///   - otherwise `"Foo"` -> file `Foo.sol` / contract `Foo`, and `"Foo.sol:Bar"` -> file
+    ///     `Foo.sol` / contract `Bar`.
     pub fn read_spec(&self, input: &str) -> Result<Artifact, ArtifactError> {
         if let Some((name, contract)) = parse_artifact_path_input(input) {
             return self.read(&name, &contract);

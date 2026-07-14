@@ -10,8 +10,7 @@ use std::collections::BTreeMap;
 
 use alloy_eips::BlockId;
 use alloy_primitives::{Address, B256, Bytes, U256, map::HashSet};
-use alloy_provider::network::Ethereum;
-use alloy_provider::{Provider, RootProvider};
+use alloy_provider::{Provider, RootProvider, network::Ethereum};
 use revm::{
     Context, ExecuteCommitEvm, ExecuteEvm, InspectEvm, MainBuilder, MainContext, MainnetEvm,
     context::{
@@ -24,12 +23,14 @@ use revm::{
 };
 use tokio::runtime::Handle;
 
-use crate::addresses::{CONSOLE_ADDR, DEFAULT_SENDER, FORGE_DEPLOYER, SCRIPT_DEPLOYER, VM_ADDR};
-use crate::allocs::{self, AllocAccount, ForgeAllocs};
-use crate::artifacts::{ArtifactError, Artifacts};
-use crate::cheatcodes::{Broadcast, CheatInspector};
-use crate::fork::{ForkDiff, ForkMeta, ForkUnderlay};
-use crate::precompiles::{HostPrecompile, OutputCapture};
+use crate::{
+    addresses::{CONSOLE_ADDR, DEFAULT_SENDER, FORGE_DEPLOYER, SCRIPT_DEPLOYER, VM_ADDR},
+    allocs::{self, AllocAccount, ForgeAllocs},
+    artifacts::{ArtifactError, Artifacts},
+    cheatcodes::{Broadcast, CheatInspector},
+    fork::{ForkDiff, ForkMeta, ForkUnderlay},
+    precompiles::{HostPrecompile, OutputCapture},
+};
 
 /// forge's `DefaultFoundryGasLimit` (int64.max).
 pub const FOUNDRY_GAS_LIMIT: u64 = 9_223_372_036_854_775_807;
@@ -306,9 +307,10 @@ impl ScriptHost {
         let state = self.evm.finalize();
         if self.fork.is_some() {
             let excluded = self.fork_excluded_set();
-            // Snapshot each touched account's PRE-commit info (the fork-loaded original) so the diff
-            // fold can distinguish a real write from a plain read/touch. `finalize` cleared only the
-            // journal; the CacheDB still holds the loaded base until `commit` below.
+            // Snapshot each touched account's PRE-commit info (the fork-loaded original) so the
+            // diff fold can distinguish a real write from a plain read/touch.
+            // `finalize` cleared only the journal; the CacheDB still holds the loaded
+            // base until `commit` below.
             let mut base: std::collections::HashMap<Address, (u64, U256, B256)> =
                 std::collections::HashMap::new();
             for (addr, account) in state.iter() {
@@ -318,11 +320,11 @@ impl ScriptHost {
                     }
                 }
             }
-            self.fork
-                .as_mut()
-                .expect("fork present")
-                .diff
-                .record_evm_state(&state, |a| excluded.contains(a), &base);
+            self.fork.as_mut().expect("fork present").diff.record_evm_state(
+                &state,
+                |a| excluded.contains(a),
+                &base,
+            );
         }
         self.evm.commit(state);
         Ok(output)
@@ -421,9 +423,7 @@ impl ScriptHost {
             return Err(HostError::Evm("a fork is already installed".into()));
         }
         if self.executed_any {
-            return Err(HostError::Evm(
-                "cannot create a fork after a script has executed".into(),
-            ));
+            return Err(HostError::Evm("cannot create a fork after a script has executed".into()));
         }
         let handle = self
             .runtime_handle
@@ -487,6 +487,7 @@ impl ScriptHost {
         self.fork.as_ref().map(|f| f.diff.any()).unwrap_or(false)
     }
 
+    /// Drains the broadcasts captured during the run, transferring ownership to the caller.
     pub fn take_broadcasts(&mut self) -> Vec<Broadcast> {
         std::mem::take(&mut self.evm.inspector.broadcasts)
     }
@@ -687,6 +688,7 @@ impl ScriptHost {
         allocs
     }
 
+    /// The default sender address used when a script does not set one explicitly.
     pub fn default_sender() -> Address {
         DEFAULT_SENDER
     }

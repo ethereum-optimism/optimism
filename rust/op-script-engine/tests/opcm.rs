@@ -3,7 +3,10 @@
 
 use std::path::PathBuf;
 
-use alloy_primitives::{Address, Bytes, U256, address, keccak256, map::HashMap, map::HashSet};
+use alloy_primitives::{
+    Address, Bytes, U256, address, keccak256,
+    map::{HashMap, HashSet},
+};
 use op_script_engine::host::{HostConfig, ScriptHost};
 
 const DEFAULT_SENDER: Address = address!("0x1804c8ab1f12e6bbf3894d4083f33e07309d1f38");

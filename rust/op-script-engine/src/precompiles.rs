@@ -8,11 +8,14 @@
 //! calling `output.set(bytes4,<T>)` on the field-setter precompile.
 //!
 //! The unidirectional design keeps all Go<->EVM traffic one-way: the Go side snapshots the input
-//! getters (`selector -> ABI-return-bytes`) up front and ships them here as an [`InputSnapshot`];
+//! getters (`selector -> ABI-return-bytes`) up front and ships them here as an `InputSnapshot`;
 //! the Rust side captures the raw `set()` calldata into an [`OutputCapture`] for the Go side to
 //! replay through the real `WithFieldSetter` precompile after the run. No Rust->Go callback.
 
-use alloy_primitives::{Bytes, keccak256, map::HashMap, map::HashSet};
+use alloy_primitives::{
+    Bytes, keccak256,
+    map::{HashMap, HashSet},
+};
 
 /// A precompile installed at an arbitrary address, the revm-inspector replacement for op-geth's
 /// per-address `PrecompileOverrides`.

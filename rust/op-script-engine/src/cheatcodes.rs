@@ -16,10 +16,12 @@ use revm::{
 };
 use serde::Serialize;
 
-use crate::ScriptContext;
-use crate::addresses::{CONSOLE_ADDR, CREATE2_DEPLOYER, VM_ADDR};
-use crate::artifacts::Artifacts;
-use crate::precompiles::{HostPrecompile, PrecompileOutcome};
+use crate::{
+    ScriptContext,
+    addresses::{CONSOLE_ADDR, CREATE2_DEPLOYER, VM_ADDR},
+    artifacts::Artifacts,
+    precompiles::{HostPrecompile, PrecompileOutcome},
+};
 
 sol! {
     #[allow(missing_docs, clippy::too_many_arguments)]
@@ -159,11 +161,12 @@ fn read_nonce(ctx: &mut ScriptContext, addr: Address) -> u64 {
 
 /// Reset the access list for an isolated broadcast sub-call, the analog of op-geth's
 /// `WithIsolatedBroadcasts` (`state.Finalise(true)` + `prelude(from, dest)`): re-cool every account
-/// and storage slot loaded so far so the broadcast executes with a fresh, standalone-tx access list,
-/// then re-warm the tx prelude (sender + recipient). revm keys warm/cold on `transaction_id`, so
-/// bumping it re-cools everything except the static warm set (coinbase + precompiles) while leaving
-/// committed state, journal history and snapshots intact. Without this, the broadcast's recorded
-/// `gasUsed` reflects the script's already-warm state and underestimates the standalone tx.
+/// and storage slot loaded so far so the broadcast executes with a fresh, standalone-tx access
+/// list, then re-warm the tx prelude (sender + recipient). revm keys warm/cold on `transaction_id`,
+/// so bumping it re-cools everything except the static warm set (coinbase + precompiles) while
+/// leaving committed state, journal history and snapshots intact. Without this, the broadcast's
+/// recorded `gasUsed` reflects the script's already-warm state and underestimates the standalone
+/// tx.
 fn isolate_broadcast(ctx: &mut ScriptContext, from: Address, dest: Option<Address>) {
     let j = ctx.journal_mut();
     j.transaction_id.increment();
@@ -555,9 +558,9 @@ impl Inspector<ScriptContext> for CheatInspector {
                 if !prank.repeat {
                     parent.prank = None; // one-shot consumed
                 }
-                if prank.broadcast
-                    && inputs.scheme != CallScheme::StaticCall
-                    && inputs.scheme != CallScheme::DelegateCall
+                if prank.broadcast &&
+                    inputs.scheme != CallScheme::StaticCall &&
+                    inputs.scheme != CallScheme::DelegateCall
                 {
                     let from = prank.sender.unwrap_or(parent_addr);
                     inputs.caller = from;
@@ -595,8 +598,8 @@ impl Inspector<ScriptContext> for CheatInspector {
         // Frame push/pop must stay symmetric with `call`: cheat targets AND installed host
         // precompiles (OPCM input/output) short-circuit in `call` without pushing a frame, so
         // popping here would drop the caller's frame — losing an active startBroadcast/startPrank.
-        if Self::is_cheat_target(&inputs.target_address)
-            || self.precompiles.contains_key(&inputs.target_address)
+        if Self::is_cheat_target(&inputs.target_address) ||
+            self.precompiles.contains_key(&inputs.target_address)
         {
             return;
         }

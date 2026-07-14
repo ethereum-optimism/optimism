@@ -19,6 +19,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/rustengine"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
+
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
@@ -168,7 +170,7 @@ func newSemverReader(cfg L2SemversConfig) (semverReader, func(), error) {
 		}
 		eng, err := rustengine.Spawn(binPath, rustengine.SpawnOpts{
 			ArtifactsDir: artifactsDir,
-			ChainID:      script.DefaultContext.ChainID.Uint64(),
+			ChainID:      bigs.Uint64Strict(script.DefaultContext.ChainID),
 			BlockNum:     script.DefaultContext.BlockNum,
 			Timestamp:    script.DefaultContext.Timestamp,
 			PrevRandao:   script.DefaultContext.PrevRandao,

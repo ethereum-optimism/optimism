@@ -3,8 +3,10 @@
 //! configure via flags, not an init RPC).
 
 use clap::Parser;
-use op_script_engine::host::HostConfig;
-use op_script_engine::rpc::{Engine, build_module};
+use op_script_engine::{
+    host::HostConfig,
+    rpc::{Engine, build_module},
+};
 
 #[derive(Parser, Debug)]
 #[command(about = "Rust forge-script engine (op-geth decoupling spike)")]

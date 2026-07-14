@@ -9,8 +9,7 @@
 use std::str::FromStr;
 
 use alloy_primitives::{Address, Bytes, U256};
-use jsonrpsee::RpcModule;
-use jsonrpsee::types::ErrorObjectOwned;
+use jsonrpsee::{RpcModule, types::ErrorObjectOwned};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::host::{HostConfig, ScriptHost};
@@ -78,6 +77,7 @@ fn hexstr(b: &[u8]) -> serde_json::Value {
     serde_json::Value::String(format!("0x{}", alloy_primitives::hex::encode(b)))
 }
 
+/// Builds the `script` JSON-RPC module with the engine's methods registered on it.
 pub fn build_module(engine: Engine) -> RpcModule<Engine> {
     let mut m = RpcModule::new(engine);
 

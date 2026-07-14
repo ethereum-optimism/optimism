@@ -4,7 +4,8 @@
 //! source in a fake geth trie/db/reader/diff stack (~600 LOC) so geth's `state.StateDB` can run
 //! over a live L1. revm gives us the overlay for free: `CacheDB` already memoizes reads and layers
 //! writes, so the entire trie/db/reader machinery collapses to a swappable underlay
-//! ([`ForkUnderlay`]) plus a diff write-log ([`ForkDiff`]) folded from each execution's touched set.
+//! ([`ForkUnderlay`]) plus a diff write-log ([`ForkDiff`]) folded from each execution's touched
+//! set.
 //!
 //! The underlay is a fixed-typed enum so the fork can be installed at runtime WITHOUT dropping the
 //! overlay cache (the direct analog of Go `ForkableState.SubstituteBaseState`): the well-known
@@ -13,12 +14,13 @@
 use std::collections::BTreeMap;
 
 use alloy_primitives::{Address, B256, U256};
-use alloy_provider::RootProvider;
-use alloy_provider::network::Ethereum;
-use revm::database::{AlloyDB, AlloyDBError, EmptyDB, WrapDatabaseAsync};
-use revm::database_interface::DatabaseRef;
-use revm::primitives::{KECCAK_EMPTY, StorageKey};
-use revm::state::{AccountInfo, Bytecode, EvmState};
+use alloy_provider::{RootProvider, network::Ethereum};
+use revm::{
+    database::{AlloyDB, AlloyDBError, EmptyDB, WrapDatabaseAsync},
+    database_interface::DatabaseRef,
+    primitives::{KECCAK_EMPTY, StorageKey},
+    state::{AccountInfo, Bytecode, EvmState},
+};
 
 /// The RPC-backed base state: an `AlloyDB` (nonce/balance/code/storage over an HTTP provider,
 /// pinned to a block) bridged from async to the synchronous revm `Database` trait via
@@ -167,9 +169,9 @@ impl ForkDiff {
             }
             let info_changed = match base.get(addr) {
                 Some((n, b, ch)) => {
-                    account.info.nonce != *n
-                        || account.info.balance != *b
-                        || account.info.code_hash != *ch
+                    account.info.nonce != *n ||
+                        account.info.balance != *b ||
+                        account.info.code_hash != *ch
                 }
                 // No pre-commit base -> the account is new this run.
                 None => true,
@@ -190,8 +192,7 @@ impl ForkDiff {
             if account.is_created() {
                 if let Some(code) = &account.info.code {
                     if !code.is_empty() && account.info.code_hash != KECCAK_EMPTY {
-                        self.code
-                            .insert(account.info.code_hash, code.original_bytes().to_vec());
+                        self.code.insert(account.info.code_hash, code.original_bytes().to_vec());
                     }
                 }
             }
@@ -225,9 +226,7 @@ impl ForkDiff {
     pub fn record_storage_write(&mut self, addr: Address, key: U256, value: U256) {
         let entry = self.accounts.entry(addr).or_insert_with(|| Some(AccountDiff::default()));
         let ad = entry.get_or_insert_with(AccountDiff::default);
-        ad.storage
-            .get_or_insert_with(BTreeMap::new)
-            .insert(B256::from(key), B256::from(value));
+        ad.storage.get_or_insert_with(BTreeMap::new).insert(B256::from(key), B256::from(value));
     }
 
     /// True when the diff has recorded any account or code — the non-vacuity guard for the gate.
@@ -333,13 +332,9 @@ mod tests {
         assert_eq!(acc["nonce"], serde_json::json!(7));
         // decimal string, not hex
         assert_eq!(acc["balance"], serde_json::json!("1000"));
+        assert_eq!(acc["codeHash"], serde_json::json!(format!("0x{:x}", KECCAK_EMPTY)));
         assert_eq!(
-            acc["codeHash"],
-            serde_json::json!(format!("0x{:x}", KECCAK_EMPTY))
-        );
-        assert_eq!(
-            acc["storage"]
-                [format!("0x{:x}", B256::from(U256::from(1)))],
+            acc["storage"][format!("0x{:x}", B256::from(U256::from(1)))],
             serde_json::json!(format!("0x{:x}", B256::from(U256::from(0x2a))))
         );
     }
