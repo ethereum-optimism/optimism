@@ -333,10 +333,30 @@ USER 0
 COPY --from=op-test-sequencer-builder /app/op-test-sequencer/bin/op-test-sequencer /usr/local/bin/
 CMD ["op-test-sequencer"]
 
+# op-script-engine is the out-of-process Rust forge-script executor op-deployer runs by default.
+# It is bundled in the op-deployer image and auto-resolved (it sits next to the op-deployer binary,
+# so no env var or flag is needed). Built on alpine so the musl binary runs in the alpine-based
+# op-deployer-target; built for the target platform (not cross-compiled) so buildx handles multi-arch.
+FROM rust:1.94-alpine3.21 AS op-script-engine-builder
+# ring (rustls crypto) needs a C toolchain + perl on musl; git for the reth-ipc git dependency.
+RUN apk add --no-cache musl-dev gcc g++ make perl pkgconfig openssl-dev git
+WORKDIR /app
+# op-script-engine is a rust/ workspace member: cargo needs every member's manifest to resolve the
+# workspace even though only op-script-engine compiles. Copy the whole rust/ tree (its build.rs does
+# not need the superchain-registry, unlike op-reth).
+COPY rust/ /app/rust/
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/app/rust/target,sharing=locked \
+    cd rust && \
+    cargo build --release --locked -p op-script-engine --bin op-script-engine && \
+    cp target/release/op-script-engine /op-script-engine
+
 FROM dhi.io/alpine-base:3.23 AS op-deployer-target
 USER 0
 COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/
 COPY --from=op-deployer-builder /app/op-deployer/bin/op-deployer /usr/local/bin/
+# Bundled engine, placed next to op-deployer so EngineBinary's adjacency lookup resolves it.
+COPY --from=op-script-engine-builder /op-script-engine /usr/local/bin/op-script-engine
 ENV FORGE_ENV=alpine
 CMD ["op-deployer"]
 

@@ -22,7 +22,7 @@ func SealL1DevGenesis(env *Env, intent *state.Intent, st *state.State) error {
 		l1DevParams = &state.L1DevGenesisParams{}
 	}
 	// Create a state-dump
-	dump, err := env.L1ScriptHost.StateDump()
+	dump, err := env.StateDumpL1()
 	if err != nil {
 		return fmt.Errorf("failed to dump L1 state: %w", err)
 	}

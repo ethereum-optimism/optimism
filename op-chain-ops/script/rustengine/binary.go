@@ -13,8 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/rustbin"
 )
 
 // EngineSpec provisions the op-script-engine binary the same way the rest of the monorepo
@@ -35,8 +35,38 @@ var EngineSpec = rustbin.Spec{
 const EngineBinaryPathEnv = "RUST_BINARY_PATH_OP_SCRIPT_ENGINE"
 
 // EngineBinary locates or builds the op-script-engine binary and returns its absolute path.
+//
+// Lookup order:
+//  1. RUST_BINARY_PATH_OP_SCRIPT_ENGINE, an explicit operator/CI override (still honored).
+//  2. op-script-engine sitting next to the running executable — this is how a released op-deployer
+//     (Docker image or release archive) resolves the bundled engine with zero configuration.
+//  3. rustbin discovery (rust/target for dev/CI, or an on-demand build under RUST_JIT_BUILD).
+//
+// Nothing resolving is a loud error, never a silent fallback to the Go host.
 func EngineBinary(ctx context.Context, logger log.Logger) (string, error) {
+	if p, ok := PrebuiltEngineBinary(); ok {
+		return p, nil
+	}
+	if p, ok := adjacentEngineBinary(); ok {
+		return p, nil
+	}
 	return EngineSpec.EnsureExists(ctx, logger)
+}
+
+// adjacentEngineBinary returns the path to an op-script-engine binary sitting in the same directory
+// as the running executable, if one exists. This is the bundled-release resolution: the op-deployer
+// Docker image and release archives ship op-script-engine next to op-deployer, so no env var, flag,
+// or path is needed by the operator.
+func adjacentEngineBinary() (string, bool) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", false
+	}
+	p := filepath.Join(filepath.Dir(exe), EngineSpec.Binary)
+	if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+		return p, true
+	}
+	return "", false
 }
 
 // PrebuiltEngineBinary returns the path in EngineBinaryPathEnv when it is set and exists on disk,

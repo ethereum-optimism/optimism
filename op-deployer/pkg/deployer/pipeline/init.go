@@ -161,12 +161,7 @@ func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfig
 			return nil, nil, err
 		}
 	} else {
-		readScript, err := opcm.NewReadSuperchainDeploymentScript(env.L1ScriptHost)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error generating read superchain deployment script: %w", err)
-		}
-
-		out, err = readScript.Run(input)
+		out, err = env.ReadSuperchainDeployment(input)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error reading superchain deployment: %w", err)
 		}

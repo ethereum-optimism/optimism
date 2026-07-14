@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 
@@ -67,7 +68,9 @@ var Commands = []*cli.Command{
 		Args:      true,
 		ArgsUsage: "<l2-chain-id>",
 		Action:    L2SemversCLI,
-		Flags:     Flags,
+		// The semver reads run on a (non-forked) script engine, so this command also
+		// honors --script-engine (default rust, --script-engine=go falls back).
+		Flags: append([]cli.Flag{deployer.ScriptEngineFlag}, Flags...),
 	},
 }
 
@@ -76,6 +79,9 @@ type cliConfig struct {
 	Outfile  string
 	ChainID  common.Hash
 	CacheDir string
+	// ScriptEngine is only populated for commands that declare deployer.ScriptEngineFlag
+	// (empty otherwise, which resolves to the default engine).
+	ScriptEngine env.ScriptEngineKind
 }
 
 func readConfig(cliCtx *cli.Context) (cliConfig, error) {
@@ -101,10 +107,19 @@ func readConfig(cliCtx *cli.Context) (cliConfig, error) {
 		return cfg, fmt.Errorf("failed to parse chain ID: %w", err)
 	}
 
+	var scriptEngine env.ScriptEngineKind
+	if cliCtx.IsSet(deployer.ScriptEngineFlagName) {
+		scriptEngine, err = env.ParseScriptEngine(cliCtx.String(deployer.ScriptEngineFlagName))
+		if err != nil {
+			return cfg, err
+		}
+	}
+
 	return cliConfig{
-		Workdir:  cliCtx.String(deployer.WorkdirFlagName),
-		Outfile:  cliCtx.String(OutfileFlagName),
-		ChainID:  chainID,
-		CacheDir: cliCtx.String(deployer.CacheDirFlag.Name),
+		Workdir:      cliCtx.String(deployer.WorkdirFlagName),
+		Outfile:      cliCtx.String(OutfileFlagName),
+		ChainID:      chainID,
+		CacheDir:     cliCtx.String(deployer.CacheDirFlag.Name),
+		ScriptEngine: scriptEngine,
 	}, nil
 }

@@ -41,6 +41,18 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
+    # op-deployer runs the Rust op-script-engine by default (--script-engine=go falls back to the
+    # in-process Go host). EngineBinary resolves an op-script-engine sitting next to the op-deployer
+    # binary, so bundling it in each archive makes a release work with zero configuration — exactly
+    # like the Docker image. goreleaser does not build Rust, so the release pipeline must first
+    # cross-compile op-script-engine for each release platform (linux/darwin/windows x amd64/arm64)
+    # and stage the per-platform binaries, then uncomment a files: entry that copies the matching one
+    # in as "op-script-engine". Example:
+    #   files:
+    #     - src: "dist/op-script-engine-{{ .Os }}-{{ .Arch }}"
+    #       dst: op-script-engine
+    # NOTE: Rust cross-compilation for darwin/windows from a Linux runner needs osxcross/mingw; the
+    # Docker image (linux only) is already handled inline in ops/docker/op-stack-go/Dockerfile.
 
 changelog:
   sort: asc

@@ -1851,6 +1851,15 @@ jobs:
           enable-mise-cache: true
       - attach_workspace:
           at: .
+      - run:
+          name: Configure Rust binary paths
+          command: |
+            ROOT_DIR="$(pwd)"
+            # op-e2e faultproofs tests build L2 genesis via op-deployer, whose default script engine
+            # is now the Rust op-script-engine. rust-workspace-binaries persists it to
+            # rust/target/release/ (workspace glob) and this job attaches that workspace; this cimg
+            # image has no cargo, so point the provisioner at the pre-built binary directly.
+            echo "export RUST_BINARY_PATH_OP_SCRIPT_ENGINE=$ROOT_DIR/rust/target/release/op-script-engine" >> "$BASH_ENV"
       - go-restore-cache:
           namespace: go-tests-with-fault-proof-deps
       # Build the superchain-configs.zip op-e2e/faultproofs //go:embeds (no prep-superchain job here).
@@ -1932,6 +1941,12 @@ jobs:
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
+            # sysgo builds L2 genesis via op-deployer, whose default script engine is now the Rust
+            # op-script-engine. rust-binaries-for-sysgo requires rust-workspace-binaries, which
+            # persists it to rust/target/release/ (workspace glob), and this job attaches that
+            # workspace; this cimg image has no cargo, so point the provisioner at the pre-built
+            # binary directly.
+            echo "export RUST_BINARY_PATH_OP_SCRIPT_ENGINE=$ROOT_DIR/rust/target/release/op-script-engine" >> "$BASH_ENV"
       - run:
           name: Configure L2 stack
           command: |

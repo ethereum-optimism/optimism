@@ -83,11 +83,7 @@ func deployDisputeGame(
 				return err
 			}
 		} else {
-			deployAlphabetVM, err := opcm.NewDeployAlphabetVMScript(env.L1ScriptHost)
-			if err != nil {
-				return fmt.Errorf("failed to load DeployAlphabetVM script: %w", err)
-			}
-			out, err = deployAlphabetVM.Run(input)
+			out, err = env.DeployAlphabetVM(input)
 			if err != nil {
 				return fmt.Errorf("failed to deploy Alphabet VM: %w", err)
 			}
@@ -116,7 +112,7 @@ func deployDisputeGame(
 				MipsVersion:    new(big.Int).SetUint64(game.VMType.MipsVersion()),
 				PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
 			}
-			out, err := opcm.DeployMIPS(env.L1ScriptHost, input)
+			out, err := env.DeployMIPS(input)
 			if err != nil {
 				return fmt.Errorf("failed to deploy MIPS VM: %w", err)
 			}
@@ -156,7 +152,7 @@ func deployDisputeGame(
 		if game.MakeRespected {
 			zkInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
 		}
-		if err := opcm.SetDisputeGameImpl(env.L1ScriptHost, zkInput); err != nil {
+		if err := env.SetDisputeGameImpl(zkInput); err != nil {
 			return fmt.Errorf("failed to set ZK dispute game impl: %w", err)
 		}
 		thisState.AdditionalDisputeGames = append(thisState.AdditionalDisputeGames, state.AdditionalDisputeGameState{
@@ -239,10 +235,7 @@ func deployDisputeGame(
 	if game.MakeRespected {
 		sdgiInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
 	}
-	if err := opcm.SetDisputeGameImpl(
-		env.L1ScriptHost,
-		sdgiInput,
-	); err != nil {
+	if err := env.SetDisputeGameImpl(sdgiInput); err != nil {
 		return fmt.Errorf("failed to set dispute game impl: %w", err)
 	}
 

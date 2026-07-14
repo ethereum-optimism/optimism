@@ -1,6 +1,8 @@
 package pipeline
 
 import (
+	"fmt"
+
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -21,7 +23,9 @@ func PrefundL1DevGenesis(env *Env, intent *state.Intent, st *state.State) error 
 		return nil
 	}
 	for addr, amount := range prefundMap {
-		env.L1ScriptHost.SetBalance(addr, (*uint256.Int)(amount))
+		if err := env.SetBalanceL1(addr, (*uint256.Int)(amount)); err != nil {
+			return fmt.Errorf("failed to prefund %s: %w", addr, err)
+		}
 	}
 	lgr.Info("Prefunded dev accounts on L1", "accounts", len(prefundMap))
 	return nil

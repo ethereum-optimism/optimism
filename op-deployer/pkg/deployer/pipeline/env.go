@@ -7,9 +7,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script/rustengine"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -27,6 +29,13 @@ import (
 type Env struct {
 	StateWriter  StateWriter
 	L1ScriptHost *script.Host
+	// L1Engine, when non-nil, routes the non-forked L1 deploy stages through the out-of-process
+	// Rust op-script-engine instead of L1ScriptHost. It is set only for the non-forked
+	// DeploymentTargetGenesis path when ScriptEngine resolves to rust; forked targets and the go
+	// engine leave it nil and use L1ScriptHost. L1Artifacts provides the ABIs the engine-backed
+	// scripts pack against (the L1 bundle's ArtifactsFS).
+	L1Engine     *rustengine.Engine
+	L1Artifacts  *foundry.ArtifactsFS
 	L1Client     *ethclient.Client
 	Broadcaster  broadcaster.Broadcaster
 	Deployer     common.Address
@@ -34,6 +43,7 @@ type Env struct {
 	Scripts      *opcm.Scripts
 	ForgeClient  *forge.Client
 	UseForge     bool
+	ScriptEngine env.ScriptEngineKind
 	L1RPCUrl     string
 	PrivateKey   string
 	Context      context.Context
