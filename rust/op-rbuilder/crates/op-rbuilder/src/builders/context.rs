@@ -928,7 +928,7 @@ mod tests {
     /// after its sender has been loaded and warmed. Returns the block's pre-refund EVM gas, which
     /// for `B`'s account access is 2600 cold or 100 warm — so a warm-set leak from the skipped `A`
     /// shows up as ~2500 gas less.
-    fn warmleak_loop_evm_gas(
+    fn warm_set_leak_loop_evm_gas(
         chain_spec: Arc<OpChainSpec>,
         gas_limit: u64,
         leak_account: Account,
@@ -1020,7 +1020,7 @@ mod tests {
             balance: U256::MAX,
             ..Default::default()
         };
-        assert_no_warm_leak_divergence(leak_account, None);
+        assert_no_warm_set_leak_divergence(leak_account, None);
     }
 
     #[test]
@@ -1031,7 +1031,7 @@ mod tests {
             balance: U256::MAX,
             ..Default::default()
         };
-        assert_no_warm_leak_divergence(leak_account, Some(Bytes::from_static(&[0x00]))); // STOP
+        assert_no_warm_set_leak_divergence(leak_account, Some(Bytes::from_static(&[0x00]))); // STOP
     }
 
     /// Asserts the selection loop bills probe tx `B` the same pre-refund EVM gas whether or not a
@@ -1039,7 +1039,7 @@ mod tests {
     /// skipped `A` left its sender warm, so the builder would diverge from a validator that never
     /// ran `A` — a block-rejecting gas mismatch. Fails against an op-revm whose `catch_error` does
     /// not discard the journal on non-deposit errors; passes once it does.
-    fn assert_no_warm_leak_divergence(leak_account: Account, leak_code: Option<Bytes>) {
+    fn assert_no_warm_set_leak_divergence(leak_account: Account, leak_code: Option<Bytes>) {
         let gas_limit = 1_000_000;
         let chain_spec = Arc::new(
             OpChainSpecBuilder::optimism_mainnet()
@@ -1047,14 +1047,15 @@ mod tests {
                 .build(),
         );
 
-        let with_failing_a = warmleak_loop_evm_gas(
+        let with_failing_a = warm_set_leak_loop_evm_gas(
             chain_spec.clone(),
             gas_limit,
             leak_account.clone(),
             leak_code.clone(),
             true,
         );
-        let without = warmleak_loop_evm_gas(chain_spec, gas_limit, leak_account, leak_code, false);
+        let without =
+            warm_set_leak_loop_evm_gas(chain_spec, gas_limit, leak_account, leak_code, false);
 
         assert_eq!(
             without,
