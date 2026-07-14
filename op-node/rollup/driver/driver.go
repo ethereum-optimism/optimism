@@ -469,6 +469,8 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 	s.SyncDeriver.OnUnsafeL2Payload(ctx, payload)
 }
 
+const followUpstreamL1Timeout = 2 * time.Second
+
 // followUpstream reconciles the local engine state with upstream sources when
 // derivation is disabled (UnsafeOnly).
 //
@@ -507,70 +509,54 @@ func (s *Driver) followUpstream() {
 		return
 	}
 
-	eLocalSafeL1Origin, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.LocalSafeL2.L1Origin.Number)
+	l1Numbers := []uint64{
+		status.LocalSafeL2.L1Origin.Number,
+		status.SafeL2.L1Origin.Number,
+		status.FinalizedL2.L1Origin.Number,
+	}
+	if status.CurrentL1 != (eth.L1BlockRef{}) {
+		l1Numbers = append(l1Numbers, status.CurrentL1.Number)
+	}
+
+	// Bound the complete validation round rather than allowing the timeout of each
+	// individual RPC call to accumulate.
+	l1Ctx, cancel := context.WithTimeout(s.driverCtx, followUpstreamL1Timeout)
+	l1Refs, err := fetchL1BlockRefs(l1Ctx, s.upstreamFollowSource, l1Numbers...)
+	cancel()
 	if err != nil {
-		s.log.Warn("Follow Upstream: Failed to look up L1 origin of external local safe head", "err", err)
+		s.log.Warn("Follow Upstream: Failed to look up external L1 origins", "err", err)
 		s.metrics.RecordFollowSourceRequest("error_l1_lookup")
 		return
 	}
-	if eLocalSafeL1Origin.Hash != status.LocalSafeL2.L1Origin.Hash {
+
+	validateL1Origin := func(label string, expected eth.BlockID) bool {
+		actual := l1Refs[expected.Number]
+		if actual.Hash == expected.Hash {
+			return true
+		}
 		s.log.Warn(
-			"Follow Upstream: Invalid external local safe: L1 origin of external local safe head mismatch",
-			"actual", eLocalSafeL1Origin,
-			"expected", status.LocalSafeL2.L1Origin,
+			"Follow Upstream: External L1 origin mismatch",
+			"label", label,
+			"actual", actual,
+			"expected", expected,
 		)
 		s.metrics.RecordFollowSourceRequest("error_l1_mismatch")
-		return
+		return false
 	}
 
-	eSafeL1Origin, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.SafeL2.L1Origin.Number)
-	if err != nil {
-		s.log.Warn("Follow Upstream: Failed to look up L1 origin of external safe head", "err", err)
-		s.metrics.RecordFollowSourceRequest("error_l1_lookup")
+	if !validateL1Origin("local-safe", status.LocalSafeL2.L1Origin) {
 		return
 	}
-	if eSafeL1Origin.Hash != status.SafeL2.L1Origin.Hash {
-		s.log.Warn(
-			"Follow Upstream: Invalid external safe: L1 origin of external safe head mismatch",
-			"actual", eSafeL1Origin,
-			"expected", status.SafeL2.L1Origin,
-		)
-		s.metrics.RecordFollowSourceRequest("error_l1_mismatch")
+	if !validateL1Origin("safe", status.SafeL2.L1Origin) {
 		return
 	}
-
-	eFinalizedL1Origin, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.FinalizedL2.L1Origin.Number)
-	if err != nil {
-		s.log.Warn("Follow Upstream: Failed to look up L1 origin of external finalized head", "err", err)
-		s.metrics.RecordFollowSourceRequest("error_l1_lookup")
+	if !validateL1Origin("finalized", status.FinalizedL2.L1Origin) {
 		return
 	}
-	if eFinalizedL1Origin.Hash != status.FinalizedL2.L1Origin.Hash {
-		s.log.Warn(
-			"Follow Upstream: Invalid external finalized: L1 origin of external finalized head mismatch",
-			"actual", eFinalizedL1Origin,
-			"expected", status.FinalizedL2.L1Origin,
-		)
-		s.metrics.RecordFollowSourceRequest("error_l1_mismatch")
-		return
-	}
-
 	if (status.CurrentL1 == eth.L1BlockRef{}) {
 		s.log.Debug("Follow Upstream: CurrentL1 not available")
 	} else {
-		eCurrentL1, err := s.upstreamFollowSource.L1BlockRefByNumber(s.driverCtx, status.CurrentL1.Number)
-		if err != nil {
-			s.log.Warn("Follow Upstream: Failed to look up external currentL1", "err", err)
-			s.metrics.RecordFollowSourceRequest("error_l1_lookup")
-			return
-		}
-		if eCurrentL1.Hash != status.CurrentL1.Hash {
-			s.log.Warn(
-				"Follow Upstream: Invalid external CurrentL1: L1 head mismatch",
-				"actual", eCurrentL1,
-				"expected", status.CurrentL1,
-			)
-			s.metrics.RecordFollowSourceRequest("error_l1_mismatch")
+		if !validateL1Origin("current", status.CurrentL1.ID()) {
 			return
 		}
 
