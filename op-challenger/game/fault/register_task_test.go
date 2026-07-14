@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -177,4 +180,55 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewCannonKonaRegisterTask_UsesCannonKonaVMForPrestateConversion(t *testing.T) {
+	cannonHash := common.Hash{0xca}
+	cannonKonaHash := common.Hash{0xcb}
+	prestatePath := filepath.Join(t.TempDir(), "prestate.bin.gz")
+	cfg := &config.Config{
+		Datadir:                    t.TempDir(),
+		Cannon:                     vm.Config{VmBin: buildFakeCannonVM(t, cannonHash)},
+		CannonKona:                 vm.Config{VmType: gameTypes.CannonKonaGameType, VmBin: buildFakeCannonVM(t, cannonKonaHash)},
+		CannonKonaAbsolutePreState: prestatePath,
+	}
+
+	task := NewCannonKonaRegisterTask(gameTypes.CannonKonaGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+	provider, err := task.getBottomPrestateProvider(context.Background(), cannonKonaHash)
+	require.NoError(t, err)
+
+	actual, err := provider.AbsolutePreStateCommitment(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, cannonKonaHash, actual)
+}
+
+func buildFakeCannonVM(t *testing.T, witnessHash common.Hash) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "main.go")
+	binaryPath := filepath.Join(dir, "fake-cannon")
+	if runtime.GOOS == "windows" {
+		binaryPath += ".exe"
+	}
+	payload := fmt.Sprintf(`{"witnessHash":%q,"witness":"0x0102","step":1,"exited":false}`, witnessHash.Hex())
+	source := fmt.Sprintf(`package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	if len(os.Args) != 4 || os.Args[1] != "witness" || os.Args[2] != "--input" || os.Args[3] == "" {
+		fmt.Fprintln(os.Stderr, "expected witness --input <path>")
+		os.Exit(2)
+	}
+	fmt.Print(%q)
+}
+`, payload)
+	require.NoError(t, os.WriteFile(sourcePath, []byte(source), 0o600))
+	output, err := exec.Command("go", "build", "-o", binaryPath, sourcePath).CombinedOutput()
+	require.NoError(t, err, string(output))
+	return binaryPath
 }
