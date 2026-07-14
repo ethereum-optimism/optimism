@@ -150,6 +150,10 @@ type ChainState struct {
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`
 
 	StartBlock *L1BlockRefJSON `json:"startBlock"`
+
+	// GenesisTime is the committed L2 genesis timestamp, fixed at anchor selection.
+	// If nil the genesis timestamp then defaults to the StartBlock timestamp.
+	GenesisTime *hexutil.Uint64 `json:"genesisTime,omitempty"`
 }
 
 // IsChainDeployed reports whether the chain's addresses have been broadcast.

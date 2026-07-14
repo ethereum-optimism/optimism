@@ -127,6 +127,8 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 		cfg.L1StartingBlockTag = (*genesis.MarshalableRPCBlockNumberOrHash)(&blockNumOrHash)
 	}
 
+	cfg.L2GenesisBlockTimestamp = chainState.GenesisTime
+
 	if chainIntent.DangerousAltDAConfig.UseAltDA {
 		cfg.AltDADeployConfig = chainIntent.DangerousAltDAConfig
 		cfg.L1DependenciesConfig.DAChallengeProxy = chainState.AltDAChallengeProxy

@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -94,6 +95,32 @@ func TestState_PreparedSerialization(t *testing.T) {
 		var got State
 		require.NoError(t, json.Unmarshal([]byte(`{"version":1}`), &got))
 		require.False(t, got.Prepared)
+	})
+}
+
+func TestChainState_GenesisTimeSerialization(t *testing.T) {
+	t.Run("omitted when unset for backward compatibility", func(t *testing.T) {
+		b, err := json.Marshal(&ChainState{})
+		require.NoError(t, err)
+		require.NotContains(t, string(b), "genesisTime")
+	})
+
+	t.Run("round trip when set", func(t *testing.T) {
+		genesisTime := hexutil.Uint64(1_750_000_000)
+		b, err := json.Marshal(&ChainState{GenesisTime: &genesisTime})
+		require.NoError(t, err)
+		require.Contains(t, string(b), `"genesisTime":"0x684ee180"`) // 1_750_000_000 in hex
+
+		var got ChainState
+		require.NoError(t, json.Unmarshal(b, &got))
+		require.NotNil(t, got.GenesisTime)
+		require.Equal(t, genesisTime, *got.GenesisTime)
+	})
+
+	t.Run("absent field defaults to nil", func(t *testing.T) {
+		var got ChainState
+		require.NoError(t, json.Unmarshal([]byte(`{"startBlock":null}`), &got))
+		require.Nil(t, got.GenesisTime)
 	})
 }
 

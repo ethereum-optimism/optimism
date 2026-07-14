@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCombineDeployConfig(t *testing.T) {
+// newCombineFixture returns a minimal intent/state fixture that passes
+// CombineDeployConfig's validation.
+func newCombineFixture() (Intent, ChainIntent, State, ChainState) {
 	intent := Intent{
 		L1ChainID:          1,
 		L1ContractsLocator: artifacts.EmbeddedLocator,
@@ -40,6 +42,11 @@ func TestCombineDeployConfig(t *testing.T) {
 	state := State{
 		SuperchainDeployment: &addresses.SuperchainContracts{},
 	}
+	return intent, chainIntent, state, chainState
+}
+
+func TestCombineDeployConfig(t *testing.T) {
+	intent, chainIntent, state, chainState := newCombineFixture()
 
 	// apply hard fork overrides
 	chainIntent.DeployOverrides = map[string]any{
@@ -61,4 +68,23 @@ func TestCombineDeployConfig(t *testing.T) {
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisJovianTimeOffset, hexutil.Uint64(5))
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisKarstTimeOffset, hexutil.Uint64(6))
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisLagoonTimeOffset, hexutil.Uint64(7))
+}
+
+func TestCombineDeployConfig_GenesisTime(t *testing.T) {
+	t.Run("unset leaves the deploy config timestamp nil", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.NoError(t, err)
+		require.Nil(t, out.L2GenesisBlockTimestamp)
+	})
+
+	t.Run("committed genesis time in chain state propagates to the deploy config", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		genesisTime := hexutil.Uint64(1_750_000_000)
+		chainState.GenesisTime = &genesisTime
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.NoError(t, err)
+		require.NotNil(t, out.L2GenesisBlockTimestamp)
+		require.Equal(t, genesisTime, *out.L2GenesisBlockTimestamp)
+	})
 }
