@@ -73,6 +73,11 @@ pub trait Executor {
     /// * `Ok(BlockBuildingOutcome)` - Successful execution result with the built block
     /// * `Err(Self::Error)` - Execution failure with detailed error information
     ///
+    /// # Contract
+    /// The seal on the returned outcome's header must be the header's true hash: the driver
+    /// takes it as-is (for the safe-head cursor and the derived
+    /// [`L2BlockInfo`](kona_protocol::L2BlockInfo)) without recomputing it.
+    ///
     /// # Errors
     /// This method can fail due to:
     /// - Invalid transactions in the payload

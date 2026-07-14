@@ -7019,7 +7019,6 @@ dependencies = [
  "alloy-consensus 2.0.5",
  "alloy-evm",
  "alloy-primitives",
- "alloy-rlp",
  "async-trait",
  "kona-derive",
  "kona-executor",
