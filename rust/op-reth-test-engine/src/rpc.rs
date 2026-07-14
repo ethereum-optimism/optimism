@@ -30,7 +30,7 @@ use reth_optimism_primitives::OpBlock;
 use reth_storage_api::{StateProofProvider, StateProvider, StateProviderBox};
 use serde_json::{Value, json};
 
-use crate::{IncludeTxOutcome, TestEngine};
+use crate::{IncludeNextOutcome, IncludeTxOutcome, TestEngine};
 
 /// Shared, mutably-accessed engine behind the RPC module.
 pub type SharedEngine = Arc<Mutex<TestEngine>>;
@@ -276,6 +276,21 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
     })
     .expect("register method");
 
+    // Include the next parked transaction from `from` (the reframed `ActL2IncludeTx`): the engine
+    // computes the eligible nonce, executes the matching parked tx, and drains it from the buffer.
+    m.register_method("optest_includeNextTx", |params, ctx, _| {
+        let from: Address = params.one().map_err(rpc_err)?;
+        let value = match lock(ctx).include_next_tx(from).map_err(rpc_err)? {
+            IncludeNextOutcome::Included { tx_hash, gas_used } => {
+                json!({ "txHash": tx_hash, "gasUsed": gas_used })
+            }
+            IncludeNextOutcome::Skipped => json!({ "skipped": true }),
+            IncludeNextOutcome::NoTx => json!({ "noTx": true }),
+        };
+        Ok::<Value, ErrorObjectOwned>(value)
+    })
+    .expect("register method");
+
     m.register_method("optest_remainingBlockGas", |_params, ctx, _| {
         Ok::<_, ErrorObjectOwned>(Value::from(lock(ctx).remaining_block_gas(None)))
     })
@@ -354,13 +369,29 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
     })
     .expect("register method");
 
+    // A raw transaction is parked in the engine's pending buffer (no auto-inclusion); the Go tests'
+    // `ActL2IncludeTx(from)` later drains it via `optest_includeNextTx`.
+    m.register_method("eth_sendRawTransaction", |params, ctx, _| {
+        let raw: Bytes = params.one().map_err(rpc_err)?;
+        let hash = lock(ctx).send_raw_transaction(raw.as_ref()).map_err(rpc_err)?;
+        serde_json::to_value(hash).map_err(rpc_err)
+    })
+    .expect("register method");
+
     m.register_method("eth_getTransactionCount", |params, ctx, _| {
         let (address, tag): (Address, Option<String>) = params.parse().map_err(rpc_err)?;
+        let tag = tag_or_latest(tag);
         let engine = lock(ctx);
-        let nonce = state_at_tag(&engine, &tag_or_latest(tag))?
-            .account_nonce(&address)
-            .map_err(rpc_err)?
-            .unwrap_or_default();
+        // "pending" folds in the parked buffer so the caller's next-nonce read accounts for txs it
+        // has already submitted but not yet had included; every other tag reads committed state.
+        let nonce = if tag == "pending" {
+            engine.pending_nonce(address).map_err(rpc_err)?
+        } else {
+            state_at_tag(&engine, &tag)?
+                .account_nonce(&address)
+                .map_err(rpc_err)?
+                .unwrap_or_default()
+        };
         Ok::<Value, ErrorObjectOwned>(quantity(nonce))
     })
     .expect("register method");

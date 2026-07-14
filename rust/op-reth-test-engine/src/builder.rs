@@ -13,9 +13,9 @@
 //! (deposits applied at block start, `no_tx_pool` → force-empty, the gas-limit checks in
 //! `CheckTxWithinGasLimit`).
 
-use alloy_consensus::Transaction as _;
+use alloy_consensus::{Transaction as _, transaction::SignerRecoverable};
 use alloy_eips::eip2718::Decodable2718;
-use alloy_primitives::{B256, keccak256};
+use alloy_primitives::{Address, B256, keccak256};
 use alloy_rpc_types_engine::PayloadId;
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload, OpPayloadAttributes};
 use reth_optimism_evm::OpNextBlockEnvAttributes;
@@ -43,6 +43,24 @@ pub enum IncludeTxOutcome {
     /// Force-empty is set, so the transaction was silently dropped. Mirrors `L2EngineAPI.IncludeTx`
     /// returning `(nil, nil)` when `l2ForceEmpty` is true.
     Skipped,
+}
+
+/// The outcome of an [`include_next_tx`](crate::TestEngine::include_next_tx) call — including the
+/// next parked transaction from a given sender.
+#[derive(Debug)]
+pub enum IncludeNextOutcome {
+    /// A parked transaction was found and executed into the block.
+    Included {
+        /// The included transaction's hash.
+        tx_hash: B256,
+        /// Gas the transaction consumed.
+        gas_used: u64,
+    },
+    /// Force-empty is set, so nothing was included (mirrors `ActL2IncludeTx`'s force-empty skip).
+    Skipped,
+    /// No parked transaction from the sender was valid for inclusion next (its next expected nonce
+    /// is not present in the buffer). Mirrors `firstValidTx` finding no pending transaction.
+    NoTx,
 }
 
 /// A payload being built on top of a fixed parent.
@@ -117,6 +135,22 @@ impl InFlightPayload {
     /// The payload id assigned when this block was opened.
     pub(crate) const fn id(&self) -> PayloadId {
         self.id
+    }
+
+    /// The parent hash this block is being built on top of.
+    pub(crate) const fn parent_hash(&self) -> B256 {
+        self.parent_hash
+    }
+
+    /// How many pool transactions from `from` have already been included in this block. Combined
+    /// with the sender's nonce in the parent state, this gives the nonce of the next transaction
+    /// from `from` eligible for inclusion — the parking buffer's lookup key. Mirrors
+    /// `L2EngineAPI.PendingIndices`.
+    pub(crate) fn included_count_from(&self, from: Address) -> u64 {
+        self.pool_txs
+            .iter()
+            .filter(|tx| tx.recover_signer().is_ok_and(|signer| signer == from))
+            .count() as u64
     }
 
     /// Whether force-empty is set. Mirrors `L2EngineAPI.ForcedEmpty`.
@@ -362,6 +396,70 @@ mod tests {
         assert!(matches!(err, Error::NotBuildingBlock), "{err:?}");
         let err = engine.get_payload(alloy_rpc_types_engine::PayloadId::new([0; 8])).unwrap_err();
         assert!(matches!(err, Error::UnknownPayloadId(_)), "{err:?}");
+    }
+
+    #[test]
+    fn parking_buffer_drains_in_nonce_order() {
+        use super::IncludeNextOutcome;
+
+        let mut engine = test_engine(user_sender());
+        let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
+        let sender = user_sender();
+
+        // Open a block so include_next_tx has an in-flight payload to target.
+        let updated =
+            engine.forkchoice_updated(fcu(genesis), Some(payload_attrs(2, vec![], false))).unwrap();
+        assert!(updated.is_valid());
+
+        // Park two user txs out of nonce order — the buffer is nonce-keyed, so order is irrelevant.
+        engine.send_raw_transaction(&encode(&user_tx(1))).unwrap();
+        engine.send_raw_transaction(&encode(&user_tx(0))).unwrap();
+
+        // Pending nonce = base (0) + the contiguous parked run (0,1) = 2.
+        assert_eq!(engine.pending_nonce(sender).unwrap(), 2);
+
+        // Draining includes nonce 0 first, then nonce 1, then reports nothing left.
+        assert!(matches!(
+            engine.include_next_tx(sender).unwrap(),
+            IncludeNextOutcome::Included { .. }
+        ));
+        assert!(matches!(
+            engine.include_next_tx(sender).unwrap(),
+            IncludeNextOutcome::Included { .. }
+        ));
+        assert!(matches!(engine.include_next_tx(sender).unwrap(), IncludeNextOutcome::NoTx));
+
+        // Both parked txs were executed into the block: two 21000-gas transfers consumed 42000.
+        assert_eq!(engine.remaining_block_gas(None), GAS_LIMIT - 42_000);
+    }
+
+    #[test]
+    fn include_next_tx_needs_a_block() {
+        let mut engine = test_engine(user_sender());
+        engine.send_raw_transaction(&encode(&user_tx(0))).unwrap();
+        // No in-flight payload: mirrors ErrNotBuildingBlock.
+        assert!(matches!(
+            engine.include_next_tx(user_sender()),
+            Err(crate::Error::NotBuildingBlock)
+        ));
+    }
+
+    #[test]
+    fn parked_tx_skipped_under_force_empty() {
+        use super::IncludeNextOutcome;
+        let mut engine = test_engine(user_sender());
+        let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
+        // no_tx_pool → force-empty at open.
+        let updated =
+            engine.forkchoice_updated(fcu(genesis), Some(payload_attrs(2, vec![], true))).unwrap();
+        assert!(updated.is_valid());
+        engine.send_raw_transaction(&encode(&user_tx(0))).unwrap();
+        // The parked tx stays parked; inclusion is skipped, not consumed.
+        assert!(matches!(
+            engine.include_next_tx(user_sender()).unwrap(),
+            IncludeNextOutcome::Skipped
+        ));
+        assert_eq!(engine.pending_nonce(user_sender()).unwrap(), 1, "still parked");
     }
 
     #[test]

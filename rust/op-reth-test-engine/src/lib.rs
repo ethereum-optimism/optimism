@@ -16,21 +16,23 @@ pub mod rpc;
 #[cfg(test)]
 mod testsupport;
 
-pub use builder::IncludeTxOutcome;
+pub use builder::{IncludeNextOutcome, IncludeTxOutcome};
 pub use chain::EphemeralChain;
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
-use alloy_consensus::Header;
+use alloy_consensus::{Header, Transaction as _, transaction::SignerRecoverable};
+use alloy_eips::eip2718::Decodable2718;
 use alloy_genesis::Genesis;
-use alloy_primitives::B256;
+use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_rpc_types_engine::{
     ForkchoiceState, ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum,
 };
 use op_alloy_rpc_types_engine::{OpExecutionData, OpPayloadAttributes};
 use reth_db_common::init::InitStorageError;
-use reth_optimism_primitives::{OpBlock, OpReceipt};
+use reth_optimism_primitives::{OpBlock, OpReceipt, OpTransactionSigned};
 use reth_provider::ProviderError;
+use reth_storage_api::StateProvider as _;
 
 use crate::builder::InFlightPayload;
 
@@ -106,19 +108,31 @@ pub struct TestEngine {
     /// The most recently opened payload — the implicit target of `optest_*`-style calls that don't
     /// name an id.
     current: Option<PayloadId>,
+    /// Per-sender, nonce-keyed buffer of raw transactions that `eth_sendRawTransaction` parked and
+    /// [`include_next_tx`](Self::include_next_tx) drains. This is deliberately *not* a transaction
+    /// pool: parked transactions are never auto-included, gossiped, replaced, revalidated, or
+    /// reorg-reinjected — the buffer only exists so the Go action tests' `SendTransaction` /
+    /// `PendingNonceAt` / `ActL2IncludeTx(from)` sequence keeps working unchanged over the socket
+    /// (the concrete `*ethclient.Client` they use cannot be intercepted Go-side).
+    pending: HashMap<Address, BTreeMap<u64, Bytes>>,
 }
 
 impl TestEngine {
     /// Construct an engine over a fresh ephemeral chain initialized from `genesis`.
     pub fn new(genesis: Genesis) -> Result<Self> {
-        Ok(Self { chain: EphemeralChain::new(genesis)?, in_flight: HashMap::new(), current: None })
+        Ok(Self {
+            chain: EphemeralChain::new(genesis)?,
+            in_flight: HashMap::new(),
+            current: None,
+            pending: HashMap::new(),
+        })
     }
 
     /// Construct an engine over an already-built ephemeral chain. Tests use this to activate
     /// hardforks via the chain-spec builder rather than round-tripping them through genesis JSON.
     #[cfg(test)]
     pub(crate) fn from_chain(chain: EphemeralChain) -> Self {
-        Self { chain, in_flight: HashMap::new(), current: None }
+        Self { chain, in_flight: HashMap::new(), current: None, pending: HashMap::new() }
     }
 
     /// Import a complete execution payload (`engine_newPayload`).
@@ -231,5 +245,72 @@ impl TestEngine {
     /// Fetch the receipts of a block by hash, or `None` if unknown.
     pub fn receipts_by_block_hash(&self, hash: B256) -> Result<Option<Vec<OpReceipt>>> {
         self.chain.receipts_by_block_hash(hash)
+    }
+
+    /// Park a raw transaction in the pending buffer (`eth_sendRawTransaction`), returning its hash.
+    ///
+    /// The transaction is decoded and indexed by sender and nonce but not executed or validated
+    /// beyond decoding — it waits until [`include_next_tx`](Self::include_next_tx) drains it into a
+    /// block. This backs the Go action tests' `EthClient().SendTransaction`.
+    pub fn send_raw_transaction(&mut self, raw: &[u8]) -> Result<B256> {
+        let tx = OpTransactionSigned::decode_2718_exact(raw)
+            .map_err(|err| Error::TxDecode(err.to_string()))?;
+        let sender = tx.recover_signer().map_err(|err| Error::TxDecode(err.to_string()))?;
+        let nonce = tx.nonce();
+        // The EIP-2718 hash is the keccak of the canonical encoding, i.e. exactly `raw`.
+        let hash = keccak256(raw);
+        self.pending.entry(sender).or_default().insert(nonce, Bytes::copy_from_slice(raw));
+        Ok(hash)
+    }
+
+    /// The pending nonce of `address` (`eth_getTransactionCount(addr, "pending")`): the sender's
+    /// nonce in the latest committed state plus the run of parked transactions that continue from
+    /// it without a gap. This is what the Go tests' `PendingNonceAt` reads to pick the next nonce.
+    pub fn pending_nonce(&self, address: Address) -> Result<u64> {
+        let state = self.chain.state_at(self.chain.latest_header().hash())?.ok_or_else(|| {
+            Error::Execution("no state for latest block to read pending nonce".to_string())
+        })?;
+        let mut nonce = state.account_nonce(&address)?.unwrap_or_default();
+        if let Some(parked) = self.pending.get(&address) {
+            while parked.contains_key(&nonce) {
+                nonce += 1;
+            }
+        }
+        Ok(nonce)
+    }
+
+    /// Include the next parked transaction from `from` in the block being built
+    /// (`optest_includeNextTx`), draining it from the buffer on success.
+    ///
+    /// The eligible transaction is the one whose nonce equals `from`'s nonce in the parent state
+    /// plus the number of `from`'s transactions already included in this block — exactly what
+    /// `firstValidTx` selects against the geth engine. Backs the Go `ActL2IncludeTx(from)`.
+    pub fn include_next_tx(&mut self, from: Address) -> Result<IncludeNextOutcome> {
+        let id = self.current.ok_or(Error::NotBuildingBlock)?;
+        let in_flight = self.in_flight.get(&id).ok_or(Error::NotBuildingBlock)?;
+        let parent_hash = in_flight.parent_hash();
+        let included = in_flight.included_count_from(from);
+
+        let state = self
+            .chain
+            .state_at(parent_hash)?
+            .ok_or_else(|| Error::Execution(format!("no state for parent block {parent_hash}")))?;
+        let base = state.account_nonce(&from)?.unwrap_or_default();
+        let want = base + included;
+
+        let Some(raw) = self.pending.get(&from).and_then(|parked| parked.get(&want)).cloned()
+        else {
+            return Ok(IncludeNextOutcome::NoTx);
+        };
+
+        match self.include_tx(Some(id), raw.as_ref())? {
+            IncludeTxOutcome::Included { tx_hash, gas_used } => {
+                if let Some(parked) = self.pending.get_mut(&from) {
+                    parked.remove(&want);
+                }
+                Ok(IncludeNextOutcome::Included { tx_hash, gas_used })
+            }
+            IncludeTxOutcome::Skipped => Ok(IncludeNextOutcome::Skipped),
+        }
     }
 }
