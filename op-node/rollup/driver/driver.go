@@ -296,12 +296,15 @@ func (s *Driver) eventLoop() {
 	// from an external source. Since the normal derivation pipeline is inactive, reorg
 	// detection must be performed here instead.
 	var upstreamSyncTickerC <-chan time.Time
+	var upstreamSyncResultCh chan followUpstreamResult
 	if followSource {
 		upstreamSyncTickerCheckInterval := time.Duration(s.SyncDeriver.Config.BlockTime) * time.Second * 2
 		upstreamSyncTicker := time.NewTicker(upstreamSyncTickerCheckInterval)
 		upstreamSyncTickerC = upstreamSyncTicker.C
+		upstreamSyncResultCh = make(chan followUpstreamResult, 1)
 		defer upstreamSyncTicker.Stop()
 	}
+	upstreamSyncInFlight := false
 
 	for {
 		if s.driverCtx.Err() != nil { // don't try to schedule/handle more work when we are closing.
@@ -333,7 +336,13 @@ func (s *Driver) eventLoop() {
 				s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
 			}
 		case <-upstreamSyncTickerC:
-			s.followUpstream()
+			if !upstreamSyncInFlight && !s.SyncDeriver.Engine.IsEngineInitialELSyncing() {
+				upstreamSyncInFlight = true
+				s.startFollowUpstreamFetch(upstreamSyncResultCh)
+			}
+		case result := <-upstreamSyncResultCh:
+			upstreamSyncInFlight = false
+			s.followUpstream(result)
 		case <-s.sched.NextDelayedStep():
 			s.sched.AttemptStep(s.driverCtx)
 		case <-s.sched.NextStep():
@@ -469,8 +478,6 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 	s.SyncDeriver.OnUnsafeL2Payload(ctx, payload)
 }
 
-const followUpstreamL1Timeout = 2 * time.Second
-
 // followUpstream reconciles the local engine state with upstream sources when
 // derivation is disabled (UnsafeOnly).
 //
@@ -479,10 +486,9 @@ const followUpstreamL1Timeout = 2 * time.Second
 // validates that the external state is sane (e.g. finalized is not ahead
 // of safe), and then updates the engine via FollowSource.
 //
-// This function is intended to be called periodically by a ticker and is a
-// no-op while derivation is enabled or the EL is still performing its initial
-// sync.
-func (s *Driver) followUpstream() {
+// Network inputs are fetched asynchronously and passed in as an immutable result,
+// while all engine and event updates remain on the driver event loop.
+func (s *Driver) followUpstream(result followUpstreamResult) {
 	if !s.syncConfig.FollowSourceEnabled() {
 		return
 	}
@@ -490,12 +496,12 @@ func (s *Driver) followUpstream() {
 		// Do not interfere with initial EL Sync and wait until it is done
 		return
 	}
-	status, err := s.upstreamFollowSource.GetFollowStatus(s.driverCtx)
-	if err != nil {
-		s.log.Warn("Follow Upstream: Failed to fetch status", "err", err)
+	if result.statusErr != nil || result.status == nil {
+		s.log.Warn("Follow Upstream: Failed to fetch status", "err", result.statusErr)
 		s.metrics.RecordFollowSourceRequest("error_fetch_status")
 		return
 	}
+	status := result.status
 	s.log.Info("Follow Upstream", "eSafe", status.SafeL2, "eLocalSafe", status.LocalSafeL2, "eFinalized", status.FinalizedL2, "eCurrentL1", status.CurrentL1)
 	if status.SafeL2.Number > status.LocalSafeL2.Number {
 		s.log.Warn("Follow Upstream: Invalid external state, safe is ahead of local safe",
@@ -509,28 +515,14 @@ func (s *Driver) followUpstream() {
 		return
 	}
 
-	l1Numbers := []uint64{
-		status.LocalSafeL2.L1Origin.Number,
-		status.SafeL2.L1Origin.Number,
-		status.FinalizedL2.L1Origin.Number,
-	}
-	if status.CurrentL1 != (eth.L1BlockRef{}) {
-		l1Numbers = append(l1Numbers, status.CurrentL1.Number)
-	}
-
-	// Bound the complete validation round rather than allowing the timeout of each
-	// individual RPC call to accumulate.
-	l1Ctx, cancel := context.WithTimeout(s.driverCtx, followUpstreamL1Timeout)
-	l1Refs, err := fetchL1BlockRefs(l1Ctx, s.upstreamFollowSource, l1Numbers...)
-	cancel()
-	if err != nil {
-		s.log.Warn("Follow Upstream: Failed to look up external L1 origins", "err", err)
+	if result.l1Err != nil {
+		s.log.Warn("Follow Upstream: Failed to look up external L1 origins", "err", result.l1Err)
 		s.metrics.RecordFollowSourceRequest("error_l1_lookup")
 		return
 	}
 
 	validateL1Origin := func(label string, expected eth.BlockID) bool {
-		actual := l1Refs[expected.Number]
+		actual := result.l1Refs[expected.Number]
 		if actual.Hash == expected.Hash {
 			return true
 		}

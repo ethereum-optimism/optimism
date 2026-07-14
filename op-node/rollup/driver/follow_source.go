@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -41,6 +42,58 @@ func (fs *L2FollowSource) GetFollowStatus(ctx context.Context) (*sources.FollowS
 
 func (fs *L2FollowSource) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
 	return fs.l1Source.L1BlockRefByNumber(ctx, num)
+}
+
+const followUpstreamTimeout = 2 * time.Second
+
+type followUpstreamResult struct {
+	status    *sources.FollowStatus
+	l1Refs    map[uint64]eth.L1BlockRef
+	statusErr error
+	l1Err     error
+}
+
+// startFollowUpstreamFetch fetches upstream inputs without blocking the driver event loop.
+func (s *Driver) startFollowUpstreamFetch(resultCh chan<- followUpstreamResult) {
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		ctx, cancel := context.WithTimeout(s.driverCtx, followUpstreamTimeout)
+		defer cancel()
+
+		result := s.fetchFollowUpstream(ctx)
+		select {
+		case resultCh <- result:
+		case <-s.driverCtx.Done():
+		}
+	}()
+}
+
+func (s *Driver) fetchFollowUpstream(ctx context.Context) followUpstreamResult {
+	status, err := s.upstreamFollowSource.GetFollowStatus(ctx)
+	result := followUpstreamResult{status: status, statusErr: err}
+	if err != nil {
+		return result
+	}
+	if status == nil {
+		result.statusErr = fmt.Errorf("upstream returned nil follow status")
+		return result
+	}
+	// Avoid L1 lookups when the status will be rejected by the event loop.
+	if status.SafeL2.Number > status.LocalSafeL2.Number || status.FinalizedL2.Number > status.SafeL2.Number {
+		return result
+	}
+
+	l1Numbers := []uint64{
+		status.LocalSafeL2.L1Origin.Number,
+		status.SafeL2.L1Origin.Number,
+		status.FinalizedL2.L1Origin.Number,
+	}
+	if status.CurrentL1 != (eth.L1BlockRef{}) {
+		l1Numbers = append(l1Numbers, status.CurrentL1.Number)
+	}
+	result.l1Refs, result.l1Err = fetchL1BlockRefs(ctx, s.upstreamFollowSource, l1Numbers...)
+	return result
 }
 
 // fetchL1BlockRefs fetches each unique L1 block number concurrently.
