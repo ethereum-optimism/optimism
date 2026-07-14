@@ -13,14 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// defaultIncludedLookupTimeout bounds the receipt lookup used to disambiguate
-// ErrNonceTooLow (our own tx mined vs. a nonce consumed by a gap/other sender).
-// ErrNonceTooLow implies the consuming block is already committed, so only
-// receipt-indexing lag delays our receipt; this timeout just needs to exceed that
-// lag. It is paid only on genuine nonce gaps, which don't happen when the includer
-// is the account's sole sender.
-const defaultIncludedLookupTimeout = 12 * time.Second
-
 // Persistent is an Includer that persists transactions to an execution layer.
 type Persistent struct {
 	cfg    *persistentConfig
@@ -31,9 +23,8 @@ type Persistent struct {
 var _ Includer = (*Persistent)(nil)
 
 type persistentConfig struct {
-	nonces                *nonceManager
-	budget                Budget
-	includedLookupTimeout time.Duration
+	nonces *nonceManager
+	budget Budget
 }
 
 type PersistentOption func(cfg *persistentConfig)
@@ -53,24 +44,14 @@ func WithBudget(budget Budget) PersistentOption {
 	}
 }
 
-// WithIncludedLookupTimeout sets how long the Includer waits for our own tx's
-// receipt when a (re)submit returns ErrNonceTooLow, before concluding the nonce
-// was consumed by a gap and advancing. The default is defaultIncludedLookupTimeout.
-func WithIncludedLookupTimeout(d time.Duration) PersistentOption {
-	return func(cfg *persistentConfig) {
-		cfg.includedLookupTimeout = d
-	}
-}
-
 // NewPersistent creates a Persistent Includer.
 // It assumes el is reliable:
 //   - el.SendTransaction guarantees mempool inclusion without the possibility of eviction.
 //   - el.TransactionReceipt will return a valid receipt if one eventually exists.
 func NewPersistent(signer Signer, el EL, opts ...PersistentOption) *Persistent {
 	cfg := &persistentConfig{
-		nonces:                newNonceManager(0),
-		budget:                UnlimitedBudget{},
-		includedLookupTimeout: defaultIncludedLookupTimeout,
+		nonces: newNonceManager(0),
+		budget: UnlimitedBudget{},
 	}
 	for _, opt := range opts {
 		opt(cfg)
