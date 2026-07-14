@@ -1933,9 +1933,9 @@ jobs:
   op-acceptance-tests:
     parameters:
       l1_fork:
-        description: "L1 fork active at genesis (pectra, fusaka, or glamsterdam)"
+        description: "L1 fork active at genesis"
         type: string
-        default: "pectra"
+        default: "fusaka"
       l2_cl_kind:
         description: "L2 consensus layer client (op-node or kona-node)"
         type: string
@@ -2640,7 +2640,6 @@ workflows:
           matrix:
             parameters:
               l1_fork: &acceptance_l1_forks
-                - pectra
                 - fusaka
                 - glamsterdam
           l2_el_kind: op-reth
@@ -2694,10 +2693,8 @@ workflows:
             - semgrep-scan-local: terminal
             - semgrep-test: terminal
             - go-tests-short: terminal
-            - memory-all-opn-op-reth-pectra: terminal
             - memory-all-opn-op-reth-fusaka: terminal
             - memory-all-opn-op-reth-glamsterdam: terminal
-            - memory-all-kona-op-reth-pectra: terminal
             - memory-all-kona-op-reth-fusaka: terminal
             - memory-all-kona-op-reth-glamsterdam: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
