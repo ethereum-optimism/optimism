@@ -36,6 +36,7 @@ reth-revm.workspace = true
 reth-chain-state.workspace = true
 reth-execution-types.workspace = true
 reth-trie.workspace = true
+reth-trie-common = { workspace = true, features = ["eip1186"] }
 reth-primitives-traits.workspace = true
 
 # ethereum / alloy / op-alloy
@@ -48,6 +49,7 @@ alloy-rpc-types-eth = { workspace = true, features = ["serde"] }
 op-alloy-consensus = { workspace = true, features = ["serde"] }
 op-alloy-rpc-types = { workspace = true, features = ["serde"] }
 op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+alloy-serde = { workspace = true, features = ["std"] }
 op-revm.workspace = true
 
 # rpc / transport / cli (used by the library RPC module and the binary)

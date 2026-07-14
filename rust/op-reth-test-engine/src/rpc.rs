@@ -14,10 +14,11 @@ use std::sync::{Arc, Mutex};
 
 use alloy_consensus::transaction::{Recovered, SignerRecoverable, TransactionInfo};
 use alloy_eips::{eip2718::Encodable2718, eip7685::Requests};
-use alloy_primitives::{B256, Bytes, keccak256};
+use alloy_primitives::{Address, B256, Bytes, U256, keccak256};
 use alloy_rpc_types_engine::{
     CancunPayloadFields, ForkchoiceState, PayloadId, PraguePayloadFields,
 };
+use alloy_serde::JsonStorageKey;
 use jsonrpsee::{RpcModule, types::ErrorObjectOwned};
 use op_alloy_consensus::transaction::{OpDepositInfo, OpTransactionInfo};
 use op_alloy_rpc_types::Transaction as OpRpcTransaction;
@@ -26,6 +27,7 @@ use op_alloy_rpc_types_engine::{
     OpPayloadAttributes,
 };
 use reth_optimism_primitives::OpBlock;
+use reth_storage_api::{StateProofProvider, StateProvider, StateProviderBox};
 use serde_json::{Value, json};
 
 use crate::{IncludeTxOutcome, TestEngine};
@@ -132,25 +134,65 @@ fn full_transactions(block: &OpBlock, block_hash: B256) -> Result<Value, ErrorOb
 }
 
 /// Resolve a block-number-or-tag string (`latest`/`safe`/`finalized`/`earliest`/`pending` or a
-/// `0x`-hex number) to a block, or `None` if unknown.
-fn resolve_block(engine: &TestEngine, tag: &str) -> Result<Option<OpBlock>, ErrorObjectOwned> {
+/// `0x`-hex number) to a block hash, or `None` if the block is unknown.
+fn resolve_block_hash(engine: &TestEngine, tag: &str) -> Result<Option<B256>, ErrorObjectOwned> {
     let hash = match tag {
         "latest" | "pending" => Some(engine.chain.latest_header().hash()),
         "safe" => engine.chain.safe_header().map(|h| h.hash()),
         "finalized" => engine.chain.finalized_header().map(|h| h.hash()),
-        "earliest" => return engine.block_by_number(0).map_err(rpc_err),
+        "earliest" => Some(engine.chain.genesis_hash()),
+        // A 32-byte hex string is a block hash, not a number: op-node passes `blockHash.String()`
+        // as the block tag to `eth_getProof`, and go-ethereum treats any 66-char `0x` string that
+        // way. Resolve it to itself only if the block is known.
+        hash if hash.len() == 66 && hash.starts_with("0x") => {
+            let hash: B256 =
+                hash.parse().map_err(|e| rpc_err(format!("invalid block hash {hash:?}: {e}")))?;
+            engine.chain.sealed_header(hash).map_err(rpc_err)?.map(|_| hash)
+        }
         num => {
             let n = u64::from_str_radix(num.trim_start_matches("0x"), 16)
                 .map_err(|e| rpc_err(format!("invalid block number {num:?}: {e}")))?;
-            return engine.block_by_number(n).map_err(rpc_err);
+            engine.block_by_number(n).map_err(rpc_err)?.map(|block| block.header.hash_slow())
         }
     };
-    hash.map_or_else(|| Ok(None), |hash| engine.block_by_hash(hash).map_err(rpc_err))
+    Ok(hash)
+}
+
+/// Resolve a block-number-or-tag string to a block, or `None` if unknown.
+fn resolve_block(engine: &TestEngine, tag: &str) -> Result<Option<OpBlock>, ErrorObjectOwned> {
+    resolve_block_hash(engine, tag)?
+        .map_or_else(|| Ok(None), |hash| engine.block_by_hash(hash).map_err(rpc_err))
+}
+
+/// The state provider at a block-number-or-tag, or a "block unknown" error. This is a real
+/// historical overlay for blocks below the tip: reth composes the in-memory blocks' trie updates on
+/// top of the persisted genesis state, so account/storage reads and `eth_getProof` are answered at
+/// exactly that block's state — the property op-node's `OutputV0AtBlock` relies on when it verifies
+/// a message-passer proof against a past block's state root.
+fn state_at_tag(engine: &TestEngine, tag: &str) -> Result<StateProviderBox, ErrorObjectOwned> {
+    let hash = resolve_block_hash(engine, tag)?
+        .ok_or_else(|| rpc_err(format!("block {tag:?} is unknown")))?;
+    engine
+        .chain
+        .state_at(hash)
+        .map_err(rpc_err)?
+        .ok_or_else(|| rpc_err(format!("no state for block {tag:?}")))
 }
 
 /// Encode a `u64` as a `0x`-prefixed hex quantity — the JSON form `eth_*` numeric results use.
 fn quantity(n: u64) -> Value {
     Value::String(format!("0x{n:x}"))
+}
+
+/// Encode a [`U256`] as a `0x`-prefixed hex quantity (balances, storage values as quantities).
+fn u256_quantity(v: U256) -> Value {
+    Value::String(format!("0x{v:x}"))
+}
+
+/// Resolve the optional block tag argument shared by the account-read methods, defaulting to
+/// `latest`.
+fn tag_or_latest(tag: Option<String>) -> String {
+    tag.unwrap_or_else(|| "latest".to_string())
 }
 
 /// Build the JSON-RPC module serving `engine_*`, `eth_*`, and `optest_*` over `engine`.
@@ -282,6 +324,69 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
             None => Value::Null,
         };
         Ok::<Value, ErrorObjectOwned>(value)
+    })
+    .expect("register method");
+
+    // Account state reads, all at a historical block tag. `eth_getProof` is the load-bearing one:
+    // op-node runs it against the L2ToL1MessagePasser predeploy and verifies the returned account +
+    // storage proof against the block's state root to derive the withdrawals (output) root.
+    m.register_method("eth_getProof", |params, ctx, _| {
+        let (address, keys, tag): (Address, Vec<JsonStorageKey>, Option<String>) =
+            params.parse().map_err(rpc_err)?;
+        let engine = lock(ctx);
+        let state = state_at_tag(&engine, &tag_or_latest(tag))?;
+        let slots: Vec<B256> = keys.iter().map(JsonStorageKey::as_b256).collect();
+        // A default (empty) `TrieInput` is correct here: the historical overlay provider already
+        // folds the in-memory blocks' trie changes into its own input before computing the proof.
+        let proof = state.proof(Default::default(), address, &slots).map_err(rpc_err)?;
+        serde_json::to_value(proof.into_eip1186_response(keys)).map_err(rpc_err)
+    })
+    .expect("register method");
+
+    m.register_method("eth_getBalance", |params, ctx, _| {
+        let (address, tag): (Address, Option<String>) = params.parse().map_err(rpc_err)?;
+        let engine = lock(ctx);
+        let balance = state_at_tag(&engine, &tag_or_latest(tag))?
+            .account_balance(&address)
+            .map_err(rpc_err)?
+            .unwrap_or_default();
+        Ok::<Value, ErrorObjectOwned>(u256_quantity(balance))
+    })
+    .expect("register method");
+
+    m.register_method("eth_getTransactionCount", |params, ctx, _| {
+        let (address, tag): (Address, Option<String>) = params.parse().map_err(rpc_err)?;
+        let engine = lock(ctx);
+        let nonce = state_at_tag(&engine, &tag_or_latest(tag))?
+            .account_nonce(&address)
+            .map_err(rpc_err)?
+            .unwrap_or_default();
+        Ok::<Value, ErrorObjectOwned>(quantity(nonce))
+    })
+    .expect("register method");
+
+    m.register_method("eth_getCode", |params, ctx, _| {
+        let (address, tag): (Address, Option<String>) = params.parse().map_err(rpc_err)?;
+        let engine = lock(ctx);
+        let code = state_at_tag(&engine, &tag_or_latest(tag))?
+            .account_code(&address)
+            .map_err(rpc_err)?
+            .map(|bytecode| bytecode.original_bytes())
+            .unwrap_or_default();
+        serde_json::to_value(code).map_err(rpc_err)
+    })
+    .expect("register method");
+
+    m.register_method("eth_getStorageAt", |params, ctx, _| {
+        let (address, slot, tag): (Address, B256, Option<String>) =
+            params.parse().map_err(rpc_err)?;
+        let engine = lock(ctx);
+        let value = state_at_tag(&engine, &tag_or_latest(tag))?
+            .storage(address, slot)
+            .map_err(rpc_err)?
+            .unwrap_or_default();
+        // eth_getStorageAt returns a full 32-byte word, not a trimmed quantity.
+        serde_json::to_value(B256::from(value.to_be_bytes::<32>())).map_err(rpc_err)
     })
     .expect("register method");
 
