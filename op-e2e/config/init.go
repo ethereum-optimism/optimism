@@ -314,7 +314,11 @@ func initAllocType(root string, allocType AllocType) {
 				}
 			}
 
-			for k, v := range genesis.ForkOverridesAtGenesis(forks.Name(mode)) {
+			forkOverrides, err := genesis.ForkOverridesAtGenesis(forks.Name(mode))
+			if err != nil {
+				panic(fmt.Errorf("failed to configure fork overrides: %w", err))
+			}
+			for k, v := range forkOverrides {
 				intent.GlobalDeployOverrides[k] = v
 			}
 

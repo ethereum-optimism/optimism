@@ -499,7 +499,9 @@ func (c *l2Configurator) WithOperatorFeeConstant(value uint64) {
 
 func (c *l2Configurator) WithForkAtGenesis(fork opforks.Name) {
 	require.True(c.t, opforks.IsValid(fork))
-	for k, v := range genesis.ForkOverridesAtGenesis(fork) {
+	overrides, err := genesis.ForkOverridesAtGenesis(fork)
+	require.NoError(c.t, err)
+	for k, v := range overrides {
 		c.builder.intent.Chains[c.chainIndex].DeployOverrides[k] = v
 	}
 }
@@ -510,18 +512,22 @@ func (c *l2Configurator) WithKeepKarstUpgradeGas() {
 
 func (c *l2Configurator) WithForkAtOffset(fork opforks.Name, offset *uint64) {
 	require.True(c.t, opforks.IsValid(fork))
+	key, ok := genesis.ForkOffsetKey(fork)
+	require.True(c.t, ok, "fork %q has no deploy-config time offset", fork)
 
 	// The typing is important, or op-deployer merge-JSON tricks will fail.
 	//
 	// A nil offset writes an explicit null override rather than removing the key.
 	// Op-deployer merges user overrides over its defaults, so an omitted key
 	// inherits the default schedule.
-	c.builder.intent.Chains[c.chainIndex].DeployOverrides[genesis.ForkOffsetKey(fork)] = (*hexutil.Uint64)(offset)
+	c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
 
 	// If we are deactivating a fork, then we need to also deactivate all subsequent forks.
 	if offset == nil {
 		for _, opFork := range opforks.From(fork) {
-			c.builder.intent.Chains[c.chainIndex].DeployOverrides[genesis.ForkOffsetKey(opFork)] = (*hexutil.Uint64)(nil)
+			key, ok := genesis.ForkOffsetKey(opFork)
+			require.True(c.t, ok, "fork %q has no deploy-config time offset", opFork)
+			c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(nil)
 		}
 	}
 }

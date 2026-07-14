@@ -73,13 +73,23 @@ func TestForkOverridesAtGenesis(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, ForkOverridesAtGenesis(tt.fork))
+			got, err := ForkOverridesAtGenesis(tt.fork)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func TestForkOffsetKey(t *testing.T) {
-	require.Equal(t, "l2GenesisRegolithTimeOffset", ForkOffsetKey(forks.Regolith))
-	require.Equal(t, "l2GenesisPectraBlobScheduleTimeOffset", ForkOffsetKey(forks.PectraBlobSchedule))
-	require.Panics(t, func() { ForkOffsetKey(forks.Bedrock) })
+	key, ok := ForkOffsetKey(forks.Regolith)
+	require.True(t, ok)
+	require.Equal(t, "l2GenesisRegolithTimeOffset", key)
+
+	key, ok = ForkOffsetKey(forks.PectraBlobSchedule)
+	require.True(t, ok)
+	require.Equal(t, "l2GenesisPectraBlobScheduleTimeOffset", key)
+
+	key, ok = ForkOffsetKey(forks.Bedrock)
+	require.False(t, ok)
+	require.Empty(t, key)
 }

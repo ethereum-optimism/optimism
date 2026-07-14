@@ -29,13 +29,10 @@ var forkOffsetKeys = func() map[forks.Name]string {
 }()
 
 // ForkOffsetKey returns the deploy-config JSON key for a fork's L2 genesis
-// time offset. It panics if the fork has no corresponding deploy-config field.
-func ForkOffsetKey(fork forks.Name) string {
+// time offset and whether the fork has a corresponding deploy-config field.
+func ForkOffsetKey(fork forks.Name) (string, bool) {
 	key, ok := forkOffsetKeys[fork]
-	if !ok {
-		panic(fmt.Sprintf("fork %q has no deploy-config time offset", fork))
-	}
-	return key
+	return key, ok
 }
 
 // ForkOverridesAtGenesis returns deploy-config overrides that activate fork and
@@ -44,7 +41,10 @@ func ForkOffsetKey(fork forks.Name) string {
 //
 // Explicitly disabling subsequent forks is required because of how op-deployer
 // merges user-provided configs with its default configs.
-func ForkOverridesAtGenesis(fork forks.Name) map[string]*hexutil.Uint64 {
+func ForkOverridesAtGenesis(fork forks.Name) (map[string]*hexutil.Uint64, error) {
+	if !forks.IsValid(fork) {
+		return nil, fmt.Errorf("invalid fork: %q", fork)
+	}
 	var sched UpgradeScheduleDeployConfig
 	// Bedrock is the implicit genesis state and has no schedulable time offset
 	// (ActivateForkAtGenesis panics on it).
@@ -54,7 +54,11 @@ func ForkOverridesAtGenesis(fork forks.Name) map[string]*hexutil.Uint64 {
 	forkList := sched.forks()
 	out := make(map[string]*hexutil.Uint64, len(forkList))
 	for _, f := range forkList {
-		out[ForkOffsetKey(forks.Name(f.Name))] = f.L2GenesisTimeOffset
+		key, ok := ForkOffsetKey(forks.Name(f.Name))
+		if !ok {
+			return nil, fmt.Errorf("fork %q has no deploy-config time offset", f.Name)
+		}
+		out[key] = f.L2GenesisTimeOffset
 	}
-	return out
+	return out, nil
 }
