@@ -763,12 +763,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // SUPER_CANNON_KONA joins the permissionless checks only at initial deployment.
-            // Upgrade validation for super games is unchanged.
-            bool isInitialSuperPermissionlessGame = _isInitialDeployment && isSuperCannonKonaGame;
             if (
                 _cfg.disputeGameConfigs[i].enabled
-                    && (isCannonGame || isCannonKonaGame || isInitialSuperPermissionlessGame)
+                    && (isCannonGame || isCannonKonaGame || isSuperCannonKonaGame)
             ) {
                 // TODO(#20912): Remove once deploy pipelines provide real anchor roots.
                 // A permissionless initial deployment must not use the placeholder anchor root.

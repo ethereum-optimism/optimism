@@ -650,6 +650,24 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
+    /// @notice Tests that the V2 upgrade function reverts when SUPER_CANNON_KONA is enabled
+    ///         with a zero absolute prestate.
+    function test_upgrade_superCannonKonaZeroPrestate_reverts() public {
+        v2UpgradeInput.disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(0)) })
+            )
+        });
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
     /// @notice Tests that the V2 upgrade function rejects the ALL sentinel in permitted proxy
     ///         deployments.
     function test_upgrade_allPermittedProxyDeployments_reverts() public {
