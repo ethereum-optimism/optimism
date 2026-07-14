@@ -7,17 +7,22 @@ hide. For each changed file, walk the relevant items and look for the bad patter
 ## How CI is wired here
 
 - **`config.yml` is a setup pipeline** (`setup: true`). `prepare-continuation-config`
-  detects changed paths, runs a decision tree, merges the continuation fragments,
-  and continues the pipeline. Only workflows whose `c-run_*` flag the tree set to
-  `true` execute.
+  detects changed paths, runs the routing policy (`compute-workflow-conditions.sh`),
+  merges the continuation fragments, and continues the pipeline. Only workflows whose
+  `c-run_*` flag the policy set to `true` execute.
+- **Routing is data + logic split**: `routing.yml` holds the declarative data
+  (schedule→workflows, API dispatch flag→workflows, change-detection patterns,
+  passthrough params); `compute-workflow-conditions.sh` holds the conditions that
+  decide which entries fire. Add a schedule/dispatch/pattern by editing `routing.yml`.
 - **The real config is merged from fragments** under `.circleci/continue/`
   (`helpers.yml` → `main.yml` → `rust-ci.yml` → `rust-e2e.yml`) by
   `merge-configs.sh`. **Merge is later-wins**: a key (job, command, anchor)
   redefined in a later fragment silently overrides the earlier one.
-- **Change detection**: `collect-params.sh` turns `c-*` env vars into params;
-  `detect` is true if *any* changed file matches the regex, `detect_all` only if
-  *every* file matches. `workflow-helpers.sh` sets the `c-run_*` flags;
-  `test-decision-tree.sh` asserts the tree.
+- **Change detection**: `collect-params.sh str`/`bool` turn `c-*` env vars into
+  params; `detect`/`detect_all` match the `routing.yml` change patterns against the
+  changed files (`detect` true if *any* file matches, `detect_all` only if *every*
+  file matches). `workflow-helpers.sh` sets the `c-run_*` flags;
+  `test-decision-tree.sh` asserts the routing policy.
 - **The gate**: the GitHub `enforce-ci-checks-develop` ruleset requires exactly
   four checks — `ci-gate`, `required-contracts-ci`, `required-rust-ci`,
   `required-rust-e2e`. These are fan-in jobs (no work, just `requires:`). A merge

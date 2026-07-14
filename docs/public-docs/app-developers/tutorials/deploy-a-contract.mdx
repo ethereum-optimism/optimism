@@ -1,0 +1,257 @@
+---
+title: Deploy a contract to OP Sepolia
+description: Deploy your first smart contract to an OP Stack chain and interact with it using Foundry.
+diataxis: tutorial
+---
+
+This tutorial walks you through deploying your first smart contract to an OP Stack chain from scratch.
+You'll deploy a small `Greeter` contract to the OP Sepolia testnet with [Foundry](https://getfoundry.sh/), then read from and write to it from the command line.
+
+OP Stack chains are [EVM equivalent](/op-stack/protocol/differences), so the workflow here is the same one you'd use on Ethereum: the only OP-specific detail is the RPC endpoint and chain ID you point at.
+By the end you'll have a live contract on OP Sepolia and the commands to interact with any contract you deploy later.
+
+<Info>
+  This tutorial uses the OP Sepolia testnet, so you won't spend real funds.
+  The same steps work on any OP Stack chain — swap in that chain's RPC URL and fund your account on that network.
+</Info>
+
+## Dependencies
+
+*   [Foundry](https://book.getfoundry.sh/getting-started/installation) — installed in the first step below.
+*   A terminal with `curl` available (preinstalled on macOS and most Linux distributions).
+
+## Install Foundry
+
+Foundry is a toolkit for Ethereum development.
+This tutorial uses two of its command-line tools: `forge` (to compile and deploy) and `cast` (to send transactions and read state).
+
+<Steps>
+  <Step title="Install foundryup">
+
+  ```bash
+  curl -L https://foundry.paradigm.xyz | bash
+  ```
+
+  This installs `foundryup`, Foundry's version manager.
+  Follow the on-screen instructions to add it to your `PATH` (you may need to open a new terminal).
+
+  </Step>
+  <Step title="Install the Foundry toolchain">
+
+  ```bash
+  foundryup
+  ```
+
+  </Step>
+</Steps>
+
+### Verify the install
+
+Confirm `forge` and `cast` are available:
+
+```bash
+forge --version
+cast --version
+```
+
+Each command should print a version string.
+If the command isn't found, revisit the `PATH` instructions from `foundryup` and open a new terminal.
+
+## Create a project and contract
+
+<Steps>
+  <Step title="Initialize a Foundry project">
+
+  ```bash
+  mkdir first-contract
+  cd first-contract
+  forge init
+  ```
+
+  `forge init` scaffolds a new project with `src/`, `test/`, and `script/` directories.
+
+  </Step>
+  <Step title="Add the Greeter contract">
+
+  Replace the contents of `src/Greeter.sol` with the following.
+  This is a variation on [Hardhat's Greeter contract](https://github.com/matter-labs/hardhat-zksync/blob/main/examples/upgradable-example/contracts/Greeter.sol): it stores a greeting string, exposes it through `greet()`, and lets anyone update it through `setGreeting()`.
+
+  ```solidity
+  //SPDX-License-Identifier: MIT
+  pragma solidity ^0.8.0;
+
+  contract Greeter {
+      string greeting;
+
+      event SetGreeting(
+          address indexed sender,     // msg.sender
+          string greeting
+      );
+
+      function greet() public view returns (string memory) {
+          return greeting;
+      }
+
+      function setGreeting(string memory _greeting) public {
+          greeting = _greeting;
+          emit SetGreeting(msg.sender, _greeting);
+      }
+  }
+  ```
+
+  </Step>
+  <Step title="Compile the contract">
+
+  ```bash
+  forge build
+  ```
+
+  </Step>
+</Steps>
+
+### Verify the build
+
+`forge build` should report a successful compilation and write artifacts to the `out/` directory.
+If compilation fails, check that `src/Greeter.sol` matches the code above exactly.
+
+## Configure OP Sepolia and your account
+
+You need two things to deploy: an RPC endpoint for OP Sepolia and a private key to sign the deployment transaction.
+
+<Steps>
+  <Step title="Create a deployment account">
+
+  Create a fresh key for this tutorial rather than reusing a key that holds real funds.
+
+  ```bash
+  cast wallet new
+  ```
+
+  This prints an `Address` and a `Private key`.
+  Save both somewhere safe.
+
+  </Step>
+  <Step title="Set your environment variables">
+
+  Export the OP Sepolia RPC URL and the private key you just created.
+  These variables are read by the `forge` and `cast` commands in the rest of the tutorial.
+
+  ```bash
+  export L2_RPC_URL=https://sepolia.optimism.io
+  export PRIVATE_KEY=0x...your-private-key...
+  export ACCOUNT_ADDRESS=$(cast wallet address --private-key $PRIVATE_KEY)
+  ```
+
+  </Step>
+</Steps>
+
+<Info>
+  `https://sepolia.optimism.io` is a public, rate-limited endpoint suited to development and testing.
+  For a full list of endpoints and production providers, see the [OP Stack RPC directory](/app-developers/reference/rpc-providers).
+  For OP Sepolia's chain ID (`11155420`) and other network parameters, see [Connecting to OP Mainnet](/op-mainnet/network-information/connecting-to-op#op-sepolia).
+</Info>
+
+## Fund your account
+
+Deploying a contract costs gas, so your account needs testnet ETH on OP Sepolia.
+
+<Steps>
+  <Step title="Request testnet ETH">
+
+  Use the [Superchain Faucet](https://console.optimism.io/faucet?utm_source=op-docs&utm_medium=docs) to send OP Sepolia ETH to your `ACCOUNT_ADDRESS`.
+
+  </Step>
+</Steps>
+
+### Verify your balance
+
+Check that the faucet funds have arrived before deploying:
+
+```bash
+cast balance --ether $ACCOUNT_ADDRESS --rpc-url $L2_RPC_URL
+```
+
+The command prints your balance in ETH.
+Wait until it's greater than `0` before continuing.
+
+## Deploy the contract
+
+Deploy `Greeter` to OP Sepolia and capture the resulting contract address.
+
+```bash
+CONTRACT_ADDRESS=$(forge create \
+  --rpc-url $L2_RPC_URL \
+  --private-key $PRIVATE_KEY \
+  Greeter \
+  --broadcast \
+  | awk '/Deployed to:/ {print $3}')
+
+echo "Deployed to: $CONTRACT_ADDRESS"
+```
+
+The `forge create` command compiles (if needed), signs, and broadcasts the deployment transaction.
+Its output includes a `Deployed to:` line; the `awk` command extracts that address into the `CONTRACT_ADDRESS` variable so you can reuse it in the next step.
+
+<Info>
+  Run `forge create` on its own (without the `awk` pipe) if you want to see the full output — the deployer address, the new contract address, and the transaction hash.
+</Info>
+
+### Verify the deployment
+
+Confirm the contract exists on-chain by fetching its bytecode:
+
+```bash
+cast code $CONTRACT_ADDRESS --rpc-url $L2_RPC_URL
+```
+
+A deployed contract returns a long hex string.
+If it returns `0x`, the deployment didn't land — re-check your balance and rerun the deploy step.
+
+## Interact with the contract
+
+Now read from and write to your live contract using `cast`.
+
+<Steps>
+  <Step title="Read the initial greeting">
+
+  ```bash
+  cast call --rpc-url $L2_RPC_URL $CONTRACT_ADDRESS "greet()" | cast --to-ascii
+  ```
+
+  The greeting starts empty, so this returns an empty string.
+
+  </Step>
+  <Step title="Set a new greeting">
+
+  This sends a transaction that calls `setGreeting()`:
+
+  ```bash
+  cast send \
+    --private-key $PRIVATE_KEY \
+    --rpc-url $L2_RPC_URL \
+    $CONTRACT_ADDRESS \
+    "setGreeting(string)" "Hello from OP Sepolia"
+  ```
+
+  </Step>
+  <Step title="Read the greeting again">
+
+  ```bash
+  cast call --rpc-url $L2_RPC_URL $CONTRACT_ADDRESS "greet()" | cast --to-ascii
+  ```
+
+  This now returns `Hello from OP Sepolia`, confirming your write landed on-chain.
+
+  </Step>
+</Steps>
+
+## View your contract on the block explorer
+
+Open an [OP Sepolia block explorer](/app-developers/tools/block-explorers) and search for your `CONTRACT_ADDRESS` to see the deployment transaction and the `setGreeting` call you just sent.
+Publishing (verifying) your contract's source code on the explorer is optional but recommended, because it lets anyone read and interact with the contract from the explorer UI.
+
+## Next steps
+
+*   Learn the broader conventions in [Building apps on OP Stack chains](/app-developers/guides/building-apps).
+*   Understand [the differences between Ethereum and OP Stack chains](/op-stack/protocol/differences).
+*   Try a cross-chain tutorial next, such as [bridging ERC-20 tokens](/app-developers/tutorials/bridging/cross-dom-bridge-erc20).

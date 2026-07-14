@@ -1325,8 +1325,7 @@
             "holocene_time": 1736445601,
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
-            "karst_time": 1783526401,
-            "keep_karst_upgrade_gas": true
+            "karst_time": 1783526401
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -2014,8 +2013,7 @@
             "holocene_time": 1736445601,
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
-            "karst_time": 1783526401,
-            "keep_karst_upgrade_gas": true
+            "karst_time": 1783526401
           },
           "optimism": {
             "eip1559Elasticity": 6,
@@ -2622,8 +2620,7 @@
             "holocene_time": 1736445601,
             "isthmus_time": 1746806401,
             "jovian_time": 1764691201,
-            "karst_time": 1783526401,
-            "keep_karst_upgrade_gas": true
+            "karst_time": 1783526401
           },
           "optimism": {
             "eip1559Elasticity": 6,

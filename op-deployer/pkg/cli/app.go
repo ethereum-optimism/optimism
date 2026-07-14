@@ -36,6 +36,12 @@ func NewApp(versionWithMeta string) *cli.App {
 			Action: deployer.InitCLI(),
 		},
 		{
+			Name:   "prepare",
+			Usage:  "prepares a chain deployment by generating the genesis artifacts. MUST be called after init",
+			Flags:  cliapp.ProtectFlags(deployer.PrepareFlags),
+			Action: deployer.PrepareCLI(),
+		},
+		{
 			Name:   "prestate",
 			Usage:  "commits absolute prestate hashes to state",
 			Flags:  cliapp.ProtectFlags(deployer.PrestateFlags),
@@ -43,7 +49,7 @@ func NewApp(versionWithMeta string) *cli.App {
 		},
 		{
 			Name:   "apply",
-			Usage:  "applies a chain intent to the chain",
+			Usage:  "applies a chain intent to the chain. MUST NOT be used on an intent on which `prepare` was already used",
 			Flags:  cliapp.ProtectFlags(deployer.ApplyFlags),
 			Action: deployer.ApplyCLI(),
 		},

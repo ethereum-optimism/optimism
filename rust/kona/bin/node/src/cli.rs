@@ -34,8 +34,8 @@ pub enum Commands {
 #[derive(Parser, Clone, Debug)]
 #[command(
     author,
-    version = version::SHORT_VERSION,
-    long_version = version::LONG_VERSION,
+    version = version::short_version(),
+    long_version = version::long_version(),
     about,
     styles = cli_styles(),
     long_about = None

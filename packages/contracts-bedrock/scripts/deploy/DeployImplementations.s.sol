@@ -19,7 +19,7 @@ import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGam
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IZKDisputeGame } from "interfaces/dispute/zk/IZKDisputeGame.sol";
-import { Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
+import { Duration, GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -804,6 +804,8 @@ contract DeployImplementations is Script {
         });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
         ChainAssertions.checkSystemConfigImpls(impls);
-        ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
+        ChainAssertions.checkAnchorStateRegistryProxy(
+            IAnchorStateRegistry(impls.AnchorStateRegistry), false, GameType.wrap(0), Hash.wrap(bytes32(0))
+        );
     }
 }

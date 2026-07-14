@@ -48,8 +48,8 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
 /// @title ZKDisputeGame
-/// @notice A ZK proof-based dispute game using the MCP (Modular Clone Proxy) pattern
-///         with Clone-With-Immutable-Args (CWIA). Spec-compliant, permissionless
+/// @notice A super-roots compatible ZK proof-based dispute game using the MCP (Modular Clone Proxy) pattern
+///         with Clone-With-Immutable-Args (CWIA). Spec-compliant, interop-ready, permissionless
 ///         design that uses a generic IZKVerifier and DelayedWETH for bond custody.
 /// @dev Derived from https://github.com/succinctlabs/op-succinct (at commit c13844a9bbc330cca69eef2538d8f8ec123e1653)
 contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
@@ -84,8 +84,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     /// @custom:field claim       The root claim being disputed.
     struct ClaimData {
         uint32 parentIndex; // 4 bytes
-        ProposalStatus status; // 1 byte |-- slot 1 (25 bytes)
-        address challenger; // 20 bytes
+        ProposalStatus status; // 1 byte
+        address challenger; // 20 bytes |-- slot 1 (25 bytes)
         address prover; // 20 bytes
         Timestamp deadline; // 8 bytes  |-- slot 2 (28 bytes)
         Claim claim; // 32 bytes |-- slot 3
@@ -111,8 +111,8 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.0.1
+    string public constant version = "2.0.1";
 
     /// @notice The starting timestamp of the game.
     Timestamp public createdAt;
@@ -209,49 +209,49 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Returns the absolute prestate commitment (ZK circuit identity) for the super-root ZK program.
-    /// @dev `clones-with-immutable-args` argument #6
+    /// @dev `clones-with-immutable-args` argument #5
     /// @return absolutePrestate_ The absolute prestate vkey of the multi-chain super-root ZK circuit.
     function absolutePrestate() public pure returns (bytes32 absolutePrestate_) {
         absolutePrestate_ = _getArgBytes32(_preExtraDataByteCount() + _extraDataByteCount());
     }
 
     /// @notice Returns the ZK verifier contract.
-    /// @dev `clones-with-immutable-args` argument #7
+    /// @dev `clones-with-immutable-args` argument #6
     /// @return verifier_ The ZK verifier contract used to validate proofs.
     function verifier() public pure returns (IZKVerifier verifier_) {
         verifier_ = IZKVerifier(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 32));
     }
 
     /// @notice Returns the max challenge duration.
-    /// @dev `clones-with-immutable-args` argument #8
+    /// @dev `clones-with-immutable-args` argument #7
     /// @return maxChallengeDuration_ The maximum time a proposal can remain unchallenged.
     function maxChallengeDuration() public pure returns (Duration maxChallengeDuration_) {
         maxChallengeDuration_ = Duration.wrap(_getArgUint64(_preExtraDataByteCount() + _extraDataByteCount() + 52));
     }
 
     /// @notice Returns the max prove duration.
-    /// @dev `clones-with-immutable-args` argument #9
+    /// @dev `clones-with-immutable-args` argument #8
     /// @return maxProveDuration_ The maximum time a challenged proposal can remain unproven.
     function maxProveDuration() public pure returns (Duration maxProveDuration_) {
         maxProveDuration_ = Duration.wrap(_getArgUint64(_preExtraDataByteCount() + _extraDataByteCount() + 60));
     }
 
     /// @notice Returns the challenger bond amount.
-    /// @dev `clones-with-immutable-args` argument #10
+    /// @dev `clones-with-immutable-args` argument #9
     /// @return challengerBond_ The required bond, in wei, for a challenger to challenge the proposal.
     function challengerBond() public pure returns (uint256 challengerBond_) {
         challengerBond_ = _getArgUint256(_preExtraDataByteCount() + _extraDataByteCount() + 68);
     }
 
     /// @notice Returns the anchor state registry contract.
-    /// @dev `clones-with-immutable-args` argument #11
+    /// @dev `clones-with-immutable-args` argument #10
     /// @return registry_ The anchor state registry contract.
     function anchorStateRegistry() public pure returns (IAnchorStateRegistry registry_) {
         registry_ = IAnchorStateRegistry(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 100));
     }
 
     /// @notice Returns the DelayedWETH contract used for bond custody.
-    /// @dev `clones-with-immutable-args` argument #12
+    /// @dev `clones-with-immutable-args` argument #11
     /// @return weth_ The DelayedWETH contract used for bond custody.
     function weth() public pure returns (IDelayedWETH weth_) {
         weth_ = IDelayedWETH(payable(_getArgAddress(_preExtraDataByteCount() + _extraDataByteCount() + 120)));
@@ -596,7 +596,7 @@ contract ZKDisputeGame is Clone, ISemver, IDisputeGame {
                 status = GameStatus.DEFENDER_WINS;
                 normalModeCredit[gameCreator()] = totalBonds;
             } else if (claimData.status == ProposalStatus.Challenged) {
-                // Claim is challenged, challenger wins, challenger wins everything
+                // Claim is challenged, prove deadline expired, challenger wins, challenger wins everything
                 status = GameStatus.CHALLENGER_WINS;
                 normalModeCredit[claimData.challenger] = totalBonds;
             } else if (claimData.status == ProposalStatus.UnchallengedAndValidProofProvided) {

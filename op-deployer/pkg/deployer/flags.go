@@ -153,6 +153,12 @@ var InitFlags = []cli.Flag{
 	IntentTypeFlag,
 }
 
+var PrepareFlags = []cli.Flag{
+	WorkdirFlag,
+	PrivateKeyFlag,
+	L1RPCURLFlag,
+}
+
 var ApplyFlags = []cli.Flag{
 	L1RPCURLFlag,
 	WorkdirFlag,
