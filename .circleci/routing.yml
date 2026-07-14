@@ -1,0 +1,84 @@
+# Declarative routing data for the CircleCI setup pipeline.
+#
+# This file is the single source of truth for WHAT workflows run; the policy
+# script (.circleci/scripts/compute-workflow-conditions.sh) decides WHEN they
+# run. Keeping the data here means the workflow lists can be read directly by
+# tooling (e.g. test-schedule-triggers.js) instead of parsing the script.
+#
+# Workflow names below map 1:1 to a "c-run_<name>" boolean parameter declared
+# in a continuation config under .circleci/continue/. Enabling c-run_<name>
+# makes that continuation workflow execute.
+
+# Scheduled pipelines: CircleCI schedule name -> workflows it triggers.
+# The schedule names must match the triggers configured in the CircleCI UI
+# (verified live by test-schedule-triggers.js).
+schedules:
+  build_four_hours:
+    - scheduled_todo_issues
+    - scheduled_cannon_full_tests
+  build_daily:
+    - scheduled_preimage_reproducibility
+    - scheduled_stale_check
+    - scheduled_heavy_fuzz_tests
+    - scheduled_daily_tests
+    - circleci_schedule_trigger_check
+
+# API triggers: dispatch flag -> workflows enabled when that flag is set.
+# Most flags fire on a simple "is the flag true?" check. main_dispatch and
+# labeled_pr have more complex conditions (see compute-workflow-conditions.sh),
+# but the workflows they enable still live here as data.
+api_dispatch:
+  main_dispatch:
+    - main
+    - contracts_feature_tests
+  fault_proofs_dispatch:
+    - develop_fault_proofs
+  kontrol_dispatch:
+    - develop_kontrol_tests
+  cannon_full_test_dispatch:
+    - scheduled_cannon_full_tests
+  reproducibility_dispatch:
+    - scheduled_preimage_reproducibility
+  stale_check_dispatch:
+    - scheduled_stale_check
+  heavy_fuzz_dispatch:
+    - scheduled_heavy_fuzz_tests
+  publish_contract_artifacts_dispatch:
+    - publish_contract_artifacts
+  l2_fork_test_dispatch:
+    - l2_fork_test
+  rust_ci_dispatch:
+    - rust_ci
+  rust_e2e_dispatch:
+    - rust_e2e_ci
+  labeled_pr:
+    - close_issue
+
+# Change-detection patterns. Each value is a POSIX Extended Regular Expression
+# (ERE, like grep -E) matched line-by-line against the changed file list
+# (git diff --name-only origin/develop...HEAD). collect-params.sh reads these.
+#
+# Test a pattern locally:
+#   git diff --name-only origin/develop...HEAD | grep -E "^your/pattern/"
+change_patterns:
+  # "any": c-<name> is true iff AT LEAST ONE changed file matches.
+  any:
+    circleci_changed: "^\\.circleci/"
+    contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
+    docs_changes_detected: "^docs/public-docs/"
+    rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
+  # "all": c-<name> is true iff EVERY changed file matches (and there is at
+  # least one). Used for the safe-by-default docs-only fast path: any path not
+  # enumerated still falls through to the full main workflow.
+  all:
+    only_docs_changes: "^docs/public-docs/"
+
+# Pipeline parameters forwarded to continuation configs. Everything else in the
+# parameters JSON is stripped before the continuation step (see finalize).
+passthrough_params:
+  - c-default_docker_image
+  - c-rust_base_image
+  - c-base_image
+  - c-github-event-base64
+  - c-go-cache-version
+  - c-publish_contract_artifacts_ref

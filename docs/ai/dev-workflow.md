@@ -32,7 +32,7 @@ After running language-specific commit checks (lint, test):
    git rebase origin/develop
    ```
 
-3. **Follow PR guidelines** — see `docs/handbook/pr-guidelines.md`.
+3. **Follow PR guidelines** — see `docs/handbook/pr-guidelines.md`. Keep the PR description brief — include only what isn't obvious from the diff.
 
 ## CI
 

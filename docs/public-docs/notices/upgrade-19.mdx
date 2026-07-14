@@ -120,12 +120,17 @@ Update the following components:
 * If your chain does not have the flag, the latest releases mean you are not affected and no action is required.
 * If your chain already activated Karst, it **must** use `keep_karst_upgrade_gas = true`. Some chains that have not yet activated Karst (including mainnet chains) also have the flag set — check the list below to see whether yours is affected.
 
-The chains with `keep_karst_upgrade_gas = true` (the [canonical list](https://github.com/ethereum-optimism/superchain-registry/pull/1259/files)) are:
+The chains with `keep_karst_upgrade_gas = true` are:
 
-* **Mainnet:** `OP`, `Ink`, `Metal`, `Mode`, `Soneium`, `Unichain`, `Zora`
-* **Sepolia:** `OP`, `Ink`, `Lisk`, `Metal`, `Mode`, `Soneium (Minato)`, `Unichain`, `Zora`
 
-Sepolia chains have already activated Karst, so the action is due now.
+* **Mainnet:** `OP`, `Ink`, `Soneium (Minato)`, `Unichain`
+* **Sepolia:** `OP`, `Ink`, `Lisk`, `Metal`, `Mode`, `Soneium`, `Unichain`, `Zora`
+
+Metal, Mode, and Zora Mainnet did not have this value configured on their sequencers during Karst activation.
+So they inherited the default value of `keep_karst_upgrade_gas = false`.
+
+Node operators will not be able to utilize the `--network` flag on `op-node` until a subsequent node release is cut with these changes being [updated](https://github.com/ethereum-optimism/superchain-registry/pull/1281) in the superchain-registry.
+
 
 #### Restoring the gas limit
 

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	clients2 "github.com/ethereum-optimism/optimism/op-chain-ops/clients"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/superchain"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -366,7 +366,7 @@ func checkConsolidation(cliCtx *cli.Context) error {
 	}
 	l2ChainID := new(big.Int).SetUint64(cliCtx.Uint64("l2-chain-id"))
 	l2BlockTime := uint64(2)
-	rollupCfg, err := rollup.LoadOPStackRollupConfig(bigs.Uint64Strict(l2ChainID))
+	rollupCfg, err := superchain.LoadOPStackRollupConfig(bigs.Uint64Strict(l2ChainID))
 	if err == nil {
 		l2BlockTime = rollupCfg.BlockTime
 	} else {

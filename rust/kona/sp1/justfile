@@ -9,7 +9,7 @@ build-range-executor:
 # Build all ELF files.
 # ELF builds use the nested guest workspace with SP1 precompile-patched crypto,
 # including substrate-bn for bn128 through revm-precompile's `bn` feature.
-build-elfs: build-range-elfs build-agg-elf
+build-elfs: build-range-elfs build-agg-elf build-super-range-elf build-super-aggregation-elf
 
 # Build ELF files for range programs.
 build-range-elfs:
@@ -26,3 +26,19 @@ build-agg-elf:
     cd programs/aggregation
     # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
     ~/.sp1/bin/cargo-prove prove build --elf-name aggregation-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
+
+# Build ELF file for the unified super-root range/consolidation program.
+build-super-range-elf:
+    #!/usr/bin/env bash
+
+    cd programs/super-range
+    # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
+    ~/.sp1/bin/cargo-prove prove build --elf-name super-range-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
+
+# Build ELF file for the super-aggregation program.
+build-super-aggregation-elf:
+    #!/usr/bin/env bash
+
+    cd programs/super-aggregation
+    # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
+    ~/.sp1/bin/cargo-prove prove build --elf-name super-aggregation-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf

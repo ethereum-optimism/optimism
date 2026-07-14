@@ -28,6 +28,7 @@ kona-executor.workspace = true
 kona-driver.workspace = true
 kona-protocol.workspace = true
 kona-genesis.workspace = true
+kona-interop = { workspace = true, features = ["serde"] }
 
 # general
 anyhow.workspace = true

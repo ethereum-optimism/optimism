@@ -19,7 +19,6 @@ kona-genesis.workspace = true
 kona-protocol.workspace = true
 
 # Alloy
-alloy-rlp.workspace = true
 alloy-consensus.workspace = true
 alloy-primitives.workspace = true
 alloy-evm = { workspace = true }

@@ -4,9 +4,159 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
+
+func TestState_EnsureCreate2Salt(t *testing.T) {
+	t.Run("generates a salt when unset", func(t *testing.T) {
+		s := &State{}
+		require.NoError(t, s.EnsureCreate2Salt())
+		require.NotEqual(t, common.Hash{}, s.Create2Salt, "salt should be randomised from zero")
+	})
+
+	t.Run("preserves an existing salt", func(t *testing.T) {
+		existing := common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000aa")
+		s := &State{Create2Salt: existing}
+		require.NoError(t, s.EnsureCreate2Salt())
+		require.Equal(t, existing, s.Create2Salt, "existing salt must not be regenerated")
+	})
+
+	t.Run("is idempotent across calls", func(t *testing.T) {
+		s := &State{}
+		require.NoError(t, s.EnsureCreate2Salt())
+		first := s.Create2Salt
+		require.NoError(t, s.EnsureCreate2Salt())
+		require.Equal(t, first, s.Create2Salt, "second call must not change the salt")
+	})
+}
+
+func TestState_CheckL1PredictInputs(t *testing.T) {
+	deployer := common.HexToAddress("0x1111000000000000000000000000000000000001")
+	other := common.HexToAddress("0x2222000000000000000000000000000000000002")
+	opcm := common.HexToAddress("0x3333000000000000000000000000000000000003")
+	otherOPCM := common.HexToAddress("0x4444000000000000000000000000000000000004")
+
+	t.Run("unpinned state accepts any inputs", func(t *testing.T) {
+		require.NoError(t, (&State{}).CheckL1PredictInputs(deployer, opcm))
+	})
+
+	t.Run("matching deployer and opcm succeeds", func(t *testing.T) {
+		pinnedSender := deployer
+		pinnedOPCM := opcm
+		require.NoError(t, (&State{L1PredictSenderAddress: &pinnedSender, L1PredictOPCMAddress: &pinnedOPCM}).CheckL1PredictInputs(deployer, opcm))
+	})
+
+	t.Run("mismatched deployer fails", func(t *testing.T) {
+		pinned := other
+		err := (&State{L1PredictSenderAddress: &pinned}).CheckL1PredictInputs(deployer, opcm)
+		require.ErrorContains(t, err, "deployer address mismatch")
+	})
+
+	t.Run("mismatched opcm fails", func(t *testing.T) {
+		pinned := otherOPCM
+		err := (&State{L1PredictOPCMAddress: &pinned}).CheckL1PredictInputs(deployer, opcm)
+		require.ErrorContains(t, err, "opcm address mismatch")
+	})
+}
+
+func TestState_CheckNotPrepared(t *testing.T) {
+	t.Run("non-prepared state can be applied", func(t *testing.T) {
+		require.NoError(t, (&State{}).CheckNotPrepared())
+	})
+
+	t.Run("prepared state cannot be applied", func(t *testing.T) {
+		err := (&State{Prepared: true}).CheckNotPrepared()
+		require.ErrorContains(t, err, "cannot be applied")
+	})
+}
+
+func TestState_PreparedSerialization(t *testing.T) {
+	t.Run("omitted when false for backward compatibility", func(t *testing.T) {
+		b, err := json.Marshal(&State{})
+		require.NoError(t, err)
+		require.NotContains(t, string(b), "prepared")
+	})
+
+	t.Run("round-trips when set", func(t *testing.T) {
+		b, err := json.Marshal(&State{Prepared: true})
+		require.NoError(t, err)
+		require.Contains(t, string(b), `"prepared":true`)
+
+		var got State
+		require.NoError(t, json.Unmarshal(b, &got))
+		require.True(t, got.Prepared)
+	})
+
+	t.Run("absent field defaults to not prepared", func(t *testing.T) {
+		var got State
+		require.NoError(t, json.Unmarshal([]byte(`{"version":1}`), &got))
+		require.False(t, got.Prepared)
+	})
+}
+
+func TestState_IsChainDeployed(t *testing.T) {
+	id := common.HexToHash("0x0a")
+	other := common.HexToHash("0x0b")
+
+	tests := []struct {
+		name   string
+		chains []*ChainState
+		want   bool
+	}{
+		{"unknown chain", nil, false},
+		{"deployed", []*ChainState{{ID: id, Deployed: ptr.New(true)}}, true},
+		{"not yet deployed", []*ChainState{{ID: id, Deployed: ptr.New(false)}}, false},
+		{"legacy pipeline with nil flag", []*ChainState{{ID: id, Deployed: nil}}, true},
+		{"other id only", []*ChainState{{ID: other, Deployed: ptr.New(true)}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, (&State{Chains: tt.chains}).IsChainDeployed(id))
+		})
+	}
+}
+
+func TestState_SetChainContracts(t *testing.T) {
+	chainA := common.HexToHash("0x0a")
+	chainB := common.HexToHash("0x0b")
+
+	contractsWith := func(systemConfig string) addresses.OpChainContracts {
+		var c addresses.OpChainContracts
+		c.SystemConfigProxy = common.HexToAddress(systemConfig)
+		return c
+	}
+
+	s := &State{}
+
+	// A new chain is appended, we mark a  predicted entry as not-deployed.
+	s.SetChainContracts(chainA, contractsWith("0xa1"), false)
+	require.Len(t, s.Chains, 1)
+	require.Equal(t, chainA, s.Chains[0].ID)
+	require.Equal(t, common.HexToAddress("0xa1"), s.Chains[0].SystemConfigProxy)
+	require.NotNil(t, s.Chains[0].Deployed)
+	require.False(t, *s.Chains[0].Deployed)
+
+	// A different chain is also appended.
+	s.SetChainContracts(chainB, contractsWith("0xb1"), false)
+	require.Len(t, s.Chains, 2)
+
+	// Updating an existing chain in the state replaces it in place, preserves other
+	// fields set by other stages, and can flip the deployed flag.
+	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xdead")}
+	s.SetChainContracts(chainA, contractsWith("0xa2"), true)
+	require.Len(t, s.Chains, 2)
+
+	got, err := s.Chain(chainA)
+	require.NoError(t, err)
+	require.Equal(t, common.HexToAddress("0xa2"), got.SystemConfigProxy)
+	require.NotNil(t, got.Deployed)
+	require.True(t, *got.Deployed)
+	require.NotNil(t, got.StartBlock, "other fields must be preserved on update")
+	require.Equal(t, common.HexToHash("0xdead"), got.StartBlock.Hash)
+}
 
 func TestBlockRef_Deserialize(t *testing.T) {
 	tests := []struct {

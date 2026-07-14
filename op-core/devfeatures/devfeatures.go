@@ -23,9 +23,6 @@ var (
 	// OptimismPortalInteropFlag enables interop features in OptimismPortal2.
 	OptimismPortalInteropFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 
-	// CannonKonaFlag enables Kona as the default cannon prover.
-	CannonKonaFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000010")
-
 	// DeployV2DisputeGamesFlag enables deployment of V2 dispute game contracts.
 	DeployV2DisputeGamesFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100")
 
@@ -46,10 +43,6 @@ var (
 func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
 	// L2CM is enabled by default. TODO(#20084): remove with the broader L2CMFlag cleanup.
 	if hasFlag(flag, L2CMFlag) {
-		return true
-	}
-	// CannonKona is enabled by default. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
-	if hasFlag(flag, CannonKonaFlag) {
 		return true
 	}
 	b := new(big.Int).SetBytes(bitmap[:])
