@@ -76,6 +76,17 @@ func provisionEngine() (string, error) {
 
 const chainID = 901
 
+// codeAddr is a genesis-seeded account carrying bytecode, so eth_getCode has something non-empty to
+// return. seededCode is PUSH1 1, PUSH1 0, SSTORE, STOP — never executed, just present as code.
+var (
+	codeAddr   = common.HexToAddress("0x00000000000000000000000000000000c0de5eed")
+	seededCode = []byte{0x60, 0x01, 0x60, 0x00, 0x55, 0x00}
+
+	// messagePasserAddr is the L2ToL1MessagePasser predeploy — its storage root is the Isthmus
+	// withdrawals root. The literal avoids an op-core import (the switch stays on op-geth types).
+	messagePasserAddr = common.HexToAddress("0x4200000000000000000000000000000000000016")
+)
+
 // TestOpNodeDecodesRethBlocks is the round-1 de-risk gate for the op-e2e/actions EL switch: it
 // proves that op-node's real client stack (op-service/sources.EthClient) can reconstruct an
 // ExecutionPayload and re-derive the block hash from the full-transaction blocks the Rust engine
@@ -303,7 +314,7 @@ func writeGenesis(t *testing.T, funded common.Address) string {
 	// deployed chain always has non-empty message-passer storage, so seed a slot here. Otherwise the
 	// root equals the empty-trie hash and op-node's payload reconstruction misclassifies the block
 	// as pre-Isthmus (dropping the withdrawals-root + requests-hash header fields).
-	messagePasser := common.HexToAddress("0x4200000000000000000000000000000000000016")
+	messagePasser := messagePasserAddr
 
 	genesis := &core.Genesis{
 		Config:        config,
@@ -316,6 +327,7 @@ func writeGenesis(t *testing.T, funded common.Address) string {
 		Alloc: types.GenesisAlloc{
 			l1Block:       {Nonce: 1, Balance: big.NewInt(0), Storage: storage},
 			messagePasser: {Nonce: 1, Balance: big.NewInt(0), Storage: map[common.Hash]common.Hash{common.BigToHash(big.NewInt(0)): common.BigToHash(big.NewInt(1))}},
+			codeAddr:      {Balance: big.NewInt(0), Code: seededCode},
 			funded:        {Balance: new(big.Int).SetUint64(1_000_000_000_000_000_000)},
 		},
 	}
