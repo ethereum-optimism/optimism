@@ -18,21 +18,19 @@ import (
 )
 
 // ForkedL1 is a forked L1 script backend plus its lifecycle: broadcast draining (the engine captures
-// broadcasts that must be handed to the Go broadcaster before Broadcast; the Go host delivers them
-// synchronously via its hook) and teardown. Build one with NewForkedL1, defer Close, run OPCM scripts
-// through Backend, then call DrainBroadcasts before broadcaster.Broadcast.
+// broadcasts that must be handed to the Go broadcaster before Broadcast) and teardown. Build one with
+// NewForkedL1, defer Close, run OPCM scripts through Backend, then call DrainBroadcasts before
+// broadcaster.Broadcast.
 type ForkedL1 struct {
 	Backend Backend
 
 	bcaster broadcaster.Broadcaster
-	engine  *rustengine.Engine // non-nil on the rust path
-	rpc     *rpc.Client        // non-nil on the go path (held open for lazy fork reads)
+	engine  *rustengine.Engine
 }
 
-// NewForkedL1 builds a forked L1 backend bound to the latest block of l1RPCUrl. engineKind selects the
-// implementation: rust (the default) spawns the out-of-process op-script-engine and installs an
-// RPC-backed fork; go builds the in-process fork-backed script.Host. deployer is the tx.origin the
-// OPCM scripts run as; bcaster receives the broadcasts (directly for go, via DrainBroadcasts for rust).
+// NewForkedL1 builds a forked L1 backend bound to the latest block of l1RPCUrl. It spawns the
+// out-of-process op-script-engine and installs an RPC-backed fork. deployer is the tx.origin the OPCM
+// scripts run as; bcaster receives the broadcasts via DrainBroadcasts.
 func NewForkedL1(
 	ctx context.Context,
 	engineKind env.ScriptEngineKind,
@@ -42,47 +40,23 @@ func NewForkedL1(
 	l1RPCUrl string,
 	bcaster broadcaster.Broadcaster,
 ) (*ForkedL1, error) {
-	resolved, err := engineKind.Resolve()
-	if err != nil {
+	if _, err := engineKind.Resolve(); err != nil {
 		return nil, err
 	}
-	if resolved == env.ScriptEngineRust {
-		return newForkedL1Engine(ctx, lgr, deployer, artifactsFS, l1RPCUrl, bcaster)
-	}
-	return newForkedL1Host(ctx, lgr, deployer, artifactsFS, l1RPCUrl, bcaster)
-}
-
-func newForkedL1Host(
-	ctx context.Context,
-	lgr log.Logger,
-	deployer common.Address,
-	artifactsFS foundry.StatDirFs,
-	l1RPCUrl string,
-	bcaster broadcaster.Broadcaster,
-) (*ForkedL1, error) {
-	rpcClient, err := rpc.Dial(l1RPCUrl)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to L1 RPC: %w", err)
-	}
-	host, err := env.DefaultForkedScriptHost(ctx, bcaster, lgr, deployer, artifactsFS, rpcClient)
-	if err != nil {
-		rpcClient.Close()
-		return nil, fmt.Errorf("failed to create forked script host: %w", err)
-	}
-	return &ForkedL1{Backend: FromHost(host), bcaster: bcaster, rpc: rpcClient}, nil
+	return newForkedL1Engine(ctx, lgr, deployer, artifactsFS, l1RPCUrl, bcaster)
 }
 
 // ForkedSpawnOpts returns the rustengine.SpawnOpts shared by every forked-engine spawn (apply
-// Live/Calldata/Noop, bootstrap, upgrade, manage, sysgo, op-fetcher), mirroring env.DefaultScriptHost's
-// context: the default script chain/block env, the CREATE2 deployer, and isolated broadcasts (whose
-// gas accounting must match the Go host for broadcast parity). The non-forked genesis engine layers
-// NoMaxCodeSize on top of this base. Defined in one place so the Go host and the engine cannot drift.
+// Live/Calldata/Noop, bootstrap, upgrade, manage, sysgo, op-fetcher): the default script chain/block
+// env, the CREATE2 deployer, and isolated broadcasts (whose gas accounting is load-bearing for the
+// broadcast gas-limit padding). The non-forked genesis engine layers NoMaxCodeSize on top of this
+// base. Defined in one place so every forked spawn shares identical context.
 func ForkedSpawnOpts(artifactsDir string) rustengine.SpawnOpts {
 	return rustengine.SpawnOpts{
 		ArtifactsDir:       artifactsDir,
 		ChainID:            bigs.Uint64Strict(script.DefaultContext.ChainID),
 		Create2Deployer:    true,
-		IsolatedBroadcasts: true, // mirrors env.DefaultScriptHost's script.WithIsolatedBroadcasts
+		IsolatedBroadcasts: true,
 		BlockNum:           script.DefaultContext.BlockNum,
 		Timestamp:          script.DefaultContext.Timestamp,
 		PrevRandao:         script.DefaultContext.PrevRandao,
@@ -111,8 +85,7 @@ func newForkedL1Engine(
 		return nil, fmt.Errorf("failed to spawn op-script-engine for forked L1: %w", err)
 	}
 
-	// Pin the fork to the latest block, exactly as env.DefaultForkedScriptHost does. The block is
-	// resolved Go-side so both engines fork at the same height; the engine dials l1RPCUrl itself.
+	// Pin the fork to the latest block. The block is resolved Go-side; the engine dials l1RPCUrl itself.
 	forkBlock, err := latestBlock(ctx, l1RPCUrl)
 	if err != nil {
 		eng.Close()
@@ -141,12 +114,8 @@ func latestBlock(ctx context.Context, l1RPCUrl string) (uint64, error) {
 }
 
 // DrainBroadcasts hands the broadcasts the engine captured during the last script run to the Go
-// broadcaster, mirroring the Go host's synchronous WithBroadcastHook delivery. It is a no-op on the
-// Go path (the hook already delivered them). Call it after each script run, before Broadcast.
+// broadcaster. Call it after each script run, before Broadcast.
 func (f *ForkedL1) DrainBroadcasts() error {
-	if f.engine == nil {
-		return nil
-	}
 	bcasts, err := f.engine.TakeBroadcasts()
 	if err != nil {
 		return fmt.Errorf("failed to take engine broadcasts: %w", err)
@@ -157,12 +126,9 @@ func (f *ForkedL1) DrainBroadcasts() error {
 	return nil
 }
 
-// Close tears down the backend: the spawned engine process and/or the fork RPC client.
+// Close tears down the backend: the spawned engine process.
 func (f *ForkedL1) Close() {
 	if f.engine != nil {
 		f.engine.Close()
-	}
-	if f.rpc != nil {
-		f.rpc.Close()
 	}
 }

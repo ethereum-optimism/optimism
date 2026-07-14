@@ -21,13 +21,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/holiman/uint256"
 	"github.com/urfave/cli/v2"
 )
 
@@ -88,8 +86,7 @@ type L2SemversConfig struct {
 	Artifacts  foundry.StatDirFs
 	ChainState *state.ChainState
 	// ScriptEngine selects the script engine that reads the semvers (empty resolves to the
-	// default, env.DefaultScriptEngine). This is a non-forked host, so it defaults to Rust;
-	// --script-engine=go falls back to the in-process Go host.
+	// default, env.DefaultScriptEngine, the Rust op-script-engine).
 	ScriptEngine env.ScriptEngineKind
 }
 
@@ -127,20 +124,6 @@ type semverReader interface {
 	getCode(addr common.Address) ([]byte, error)
 }
 
-// goSemverReader adapts the in-process Go script.Host.
-type goSemverReader struct {
-	host *script.Host
-}
-
-func (r goSemverReader) call(from, to common.Address, input []byte) ([]byte, error) {
-	data, _, err := r.host.Call(from, to, input, 1_000_000_000, uint256.NewInt(0))
-	return data, err
-}
-
-func (r goSemverReader) getCode(addr common.Address) ([]byte, error) {
-	return r.host.GetCode(addr), nil
-}
-
 // rustSemverReader adapts the out-of-process Rust op-script-engine.
 type rustSemverReader struct {
 	eng *rustengine.Engine
@@ -154,53 +137,35 @@ func (r rustSemverReader) getCode(addr common.Address) ([]byte, error) {
 	return r.eng.GetCode(addr)
 }
 
-// newSemverReader builds the reader for the selected engine, importing the chain state.
-// The returned cleanup func must be called when done (it terminates the Rust subprocess).
+// newSemverReader spawns the Rust op-script-engine, importing the chain state. The returned cleanup
+// func must be called when done (it terminates the Rust subprocess).
 func newSemverReader(cfg L2SemversConfig) (semverReader, func(), error) {
-	engine, err := cfg.ScriptEngine.Resolve()
-	if err != nil {
+	if _, err := cfg.ScriptEngine.Resolve(); err != nil {
 		return nil, nil, err
 	}
-	switch engine {
-	case env.ScriptEngineRust:
-		artifactsDir, err := rustengine.ArtifactsDir(cfg.Artifacts)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to resolve artifacts directory: %w", err)
-		}
-		binPath, err := rustengine.EngineBinary(context.Background(), cfg.Lgr)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to provision op-script-engine binary: %w", err)
-		}
-		eng, err := rustengine.Spawn(binPath, rustengine.SpawnOpts{
-			ArtifactsDir: artifactsDir,
-			ChainID:      bigs.Uint64Strict(script.DefaultContext.ChainID),
-			BlockNum:     script.DefaultContext.BlockNum,
-			Timestamp:    script.DefaultContext.Timestamp,
-			PrevRandao:   script.DefaultContext.PrevRandao,
-		}, rustengine.NewLogWriter(cfg.Lgr))
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to spawn op-script-engine: %w", err)
-		}
-		if err := eng.ImportState(cfg.ChainState.Allocs.Data); err != nil {
-			eng.Close()
-			return nil, nil, fmt.Errorf("engine failed to import chain state: %w", err)
-		}
-		return rustSemverReader{eng: eng}, eng.Close, nil
-	case env.ScriptEngineGo:
-		host, err := env.DefaultScriptHost(
-			broadcaster.NoopBroadcaster(),
-			cfg.Lgr,
-			common.Address{19: 0x01},
-			cfg.Artifacts,
-		)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create script host: %w", err)
-		}
-		host.ImportState(cfg.ChainState.Allocs.Data)
-		return goSemverReader{host: host}, func() {}, nil
-	default:
-		return nil, nil, fmt.Errorf("unknown script engine %q", cfg.ScriptEngine)
+	artifactsDir, err := rustengine.ArtifactsDir(cfg.Artifacts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to resolve artifacts directory: %w", err)
 	}
+	binPath, err := rustengine.EngineBinary(context.Background(), cfg.Lgr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to provision op-script-engine binary: %w", err)
+	}
+	eng, err := rustengine.Spawn(binPath, rustengine.SpawnOpts{
+		ArtifactsDir: artifactsDir,
+		ChainID:      bigs.Uint64Strict(script.DefaultContext.ChainID),
+		BlockNum:     script.DefaultContext.BlockNum,
+		Timestamp:    script.DefaultContext.Timestamp,
+		PrevRandao:   script.DefaultContext.PrevRandao,
+	}, rustengine.NewLogWriter(cfg.Lgr))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to spawn op-script-engine: %w", err)
+	}
+	if err := eng.ImportState(cfg.ChainState.Allocs.Data); err != nil {
+		eng.Close()
+		return nil, nil, fmt.Errorf("engine failed to import chain state: %w", err)
+	}
+	return rustSemverReader{eng: eng}, eng.Close, nil
 }
 
 func L2Semvers(cfg L2SemversConfig) (*L2PredeploySemvers, error) {
@@ -267,10 +232,6 @@ func L2Semvers(cfg L2SemversConfig) (*L2PredeploySemvers, error) {
 }
 
 var versionSelector = []byte{0x54, 0xfd, 0x4d, 0x50}
-
-func ReadSemver(host *script.Host, addr common.Address) (string, error) {
-	return readSemver(goSemverReader{host: host}, addr)
-}
 
 func readSemver(reader semverReader, addr common.Address) (string, error) {
 	data, err := reader.call(common.Address{19: 0x01}, addr, bytes.Clone(versionSelector))

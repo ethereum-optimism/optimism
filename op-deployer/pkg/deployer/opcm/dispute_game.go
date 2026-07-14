@@ -33,11 +33,6 @@ type DeployDisputeGameOutput struct {
 
 type DeployDisputeGameScript script.DeployScriptWithOutput[DeployDisputeGameInput, DeployDisputeGameOutput]
 
-// NewDeployDisputeGameScript loads and validates the DeployDisputeGame2 script contract
-func NewDeployDisputeGameScript(host *script.Host) (DeployDisputeGameScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployDisputeGameInput, DeployDisputeGameOutput](host, "DeployDisputeGame.s.sol", "DeployDisputeGame")
-}
-
 func NewDeployDisputeGameForgeCaller(client *forge.Client) forge.ScriptCaller[DeployDisputeGameInput, DeployDisputeGameOutput] {
 	return forge.NewScriptCaller(
 		client,

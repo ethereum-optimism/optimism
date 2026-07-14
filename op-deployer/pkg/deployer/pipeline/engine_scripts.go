@@ -12,9 +12,8 @@ import (
 // These build individual OPCM deploy/read scripts backed by the out-of-process Rust
 // op-script-engine, for the per-stage L1 routing in l1host.go. They wrap the canonical
 // scriptbackend.EngineScriptWithOutput (shared with scriptbackend.NewEngineScripts) so the
-// construction stays in one place; the generic wrappers (ABI packing and I/O type validation) are
-// identical to the Go host path — only the ForgeScript backend differs. origin is the run()
-// tx.origin.
+// construction stays in one place; the generic wrappers handle ABI packing and I/O type validation.
+// origin is the run() tx.origin.
 
 func deployMIPSScriptEngine(eng *rustengine.Engine, fa *foundry.ArtifactsFS, origin func() common.Address) (opcm.DeployMIPSScript, error) {
 	return scriptbackend.EngineScriptWithOutput[opcm.DeployMIPSInput, opcm.DeployMIPSOutput](eng, fa, origin, "DeployMIPS.s.sol", "DeployMIPS")

@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
@@ -43,16 +42,7 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 	l1RPCUrl := anvil.RPCUrl()
 	privateKey := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		lgr,
-		common.Address{'D'},
-		afacts,
-	)
-	require.NoError(t, err)
-
-	opcmScripts, err := opcm.NewScripts(host)
-	require.NoError(t, err)
+	_, _, opcmScripts := newGenesisL1EngineForTest(t, ctx, lgr, common.Address{'D'}, afacts)
 
 	intent := &state.Intent{
 		SuperchainRoles: &addresses.SuperchainRoles{
@@ -112,16 +102,7 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 	l1RPCUrl := anvil.RPCUrl()
 	privateKey := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		lgr,
-		common.Address{'D'},
-		afacts,
-	)
-	require.NoError(t, err)
-
-	opcmScripts, err := opcm.NewScripts(host)
-	require.NoError(t, err)
+	_, _, opcmScripts := newGenesisL1EngineForTest(t, ctx, lgr, common.Address{'D'}, afacts)
 
 	intent := &state.Intent{
 		SuperchainRoles: &addresses.SuperchainRoles{

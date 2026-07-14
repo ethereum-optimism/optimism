@@ -25,11 +25,6 @@ type DeploySuperchainOutput struct {
 
 type DeploySuperchainScript script.DeployScriptWithOutput[DeploySuperchainInput, DeploySuperchainOutput]
 
-// NewDeploySuperchainScript loads and validates the DeploySuperchain script contract
-func NewDeploySuperchainScript(host *script.Host) (DeploySuperchainScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeploySuperchainInput, DeploySuperchainOutput](host, "DeploySuperchain.s.sol", "DeploySuperchain")
-}
-
 func NewDeploySuperchainForgeCaller(client *forge.Client) forge.ScriptCaller[DeploySuperchainInput, DeploySuperchainOutput] {
 	return forge.NewScriptCaller(
 		client,

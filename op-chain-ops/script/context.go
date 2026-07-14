@@ -8,6 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+//go:generate ./testdata/generate.sh
+
 const (
 	// DefaultFoundryGasLimit is set to int64.max in foundry.toml
 	DefaultFoundryGasLimit = 9223372036854775807

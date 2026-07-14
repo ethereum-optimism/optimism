@@ -43,9 +43,10 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 }
 
 // DeployWithEngine builds the interop dev world (L1 genesis with superchain/OPCM/L2 chain
-// deployments, plus every L2 genesis) on the selected script engine: the out-of-process
-// Rust op-script-engine, or the in-process Go script.Host as fallback.
+// deployments, plus every L2 genesis) on the out-of-process Rust op-script-engine. srcFS is
+// accepted for API compatibility and is currently unused.
 func DeployWithEngine(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, cfg *WorldConfig, engine env.ScriptEngineKind) (*WorldDeployment, *WorldOutput, error) {
+	_ = srcFS
 	// Sanity check all L2s have consistent chain ID and attach to the same L1
 	for id, l2Cfg := range cfg.L2s {
 		if fmt.Sprintf("%d", l2Cfg.L2ChainID) != id {
@@ -60,7 +61,7 @@ func DeployWithEngine(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry
 		L2s: make(map[string]*L2Deployment),
 	}
 
-	hf, err := newHostFactory(logger, fa, srcFS, engine)
+	hf, err := newHostFactory(logger, fa, engine)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -209,7 +210,7 @@ func CreateL2(hf *hostFactory, l2Cfg *L2Config, genesisTimestamp uint64) (*Deplo
 }
 
 // OPCMScripts holds the typed OPCM deployment scripts used on the L1 host, ABI-validated
-// at load time (before anything is deployed), like opcm.NewScripts.
+// at load time (before anything is deployed).
 type OPCMScripts struct {
 	DeploySuperchain      opcm.DeploySuperchainScript
 	DeployImplementations opcm.DeployImplementationsScript

@@ -1,6 +1,6 @@
-// Package rustengine is a spike-only Go client for the Rust op-script-engine, used by the
-// parity test to drive the Rust engine over a Unix-socket JSON-RPC connection
-// (go-ethereum rpc.DialIPC, reth-ipc newline framing; the #20415 transport).
+// Package rustengine is the Go client for the out-of-process Rust op-script-engine. op-deployer and
+// the other deployment-script callers use it to drive the engine over a Unix-socket JSON-RPC
+// connection (go-ethereum rpc.DialIPC, reth-ipc newline framing).
 package rustengine
 
 import (
@@ -37,9 +37,9 @@ type SpawnOpts struct {
 	ChainID         uint64
 	Create2Deployer bool
 	NoMaxCodeSize   bool
-	// IsolatedBroadcasts mirrors script.WithIsolatedBroadcasts: reset the access list before each
-	// broadcast so its recorded gasUsed reflects a standalone tx. op-deployer's broadcasting hosts
-	// (env.DefaultScriptHost) enable this so the broadcast gas-limit padding is sound.
+	// IsolatedBroadcasts resets the access list before each broadcast so its recorded gasUsed
+	// reflects a standalone tx. op-deployer's broadcasting engines enable this so the broadcast
+	// gas-limit padding is sound.
 	IsolatedBroadcasts bool
 	BlockNum           uint64
 	Timestamp          uint64
@@ -152,14 +152,14 @@ func (e *Engine) Call(from, to common.Address, input []byte) ([]byte, error) {
 }
 
 // RunScript deploys a forge script from the script-deployer, runs its run(input) entrypoint from
-// deployer, then wipes the script account — mirroring the Go host's DeployScript.Call flow.
+// deployer, then wipes the script account.
 func (e *Engine) RunScript(file, contract string, calldata []byte, deployer common.Address) ([]byte, error) {
 	var out hexutil.Bytes
 	err := e.cl.Call(&out, "script_runScript", file, contract, hexutil.Encode(calldata), deployer.Hex())
 	return out, err
 }
 
-// Wipe clears an account's code/nonce/balance, matching script.Host.Wipe.
+// Wipe clears an account's code, nonce, and balance.
 func (e *Engine) Wipe(addr common.Address) error {
 	var ok bool
 	return e.cl.Call(&ok, "script_wipe", addr.Hex())
@@ -171,7 +171,7 @@ func (e *Engine) GetNonce(addr common.Address) (uint64, error) {
 	return out, err
 }
 
-// SetBalance sets an account's balance, matching script.Host.SetBalance.
+// SetBalance sets an account's balance.
 func (e *Engine) SetBalance(addr common.Address, bal *uint256.Int) error {
 	var ok bool
 	return e.cl.Call(&ok, "script_setBalance", addr.Hex(), bal.Hex())
@@ -222,14 +222,14 @@ func (e *Engine) RemovePrecompile(addr common.Address) error {
 	return e.cl.Call(&ok, "script_removePrecompile", addr.Hex())
 }
 
-// ImportState imports a forge-allocs dump into the engine's committed state, mirroring
-// script.Host.ImportState (balance + nonce + code + every storage slot, per account).
+// ImportState imports a forge-allocs dump into the engine's committed state (balance, nonce, code,
+// and every storage slot, per account).
 func (e *Engine) ImportState(allocs *foundry.ForgeAllocs) error {
 	var ok bool
 	return e.cl.Call(&ok, "script_importState", allocs)
 }
 
-// GetCode returns the code at addr, mirroring script.Host.GetCode (empty when absent).
+// GetCode returns the code at addr (empty when absent).
 func (e *Engine) GetCode(addr common.Address) ([]byte, error) {
 	var out hexutil.Bytes
 	err := e.cl.Call(&out, "script_getCode", addr.Hex())
@@ -262,8 +262,8 @@ type ForkMeta struct {
 }
 
 // CreateSelectFork installs an RPC-backed fork base state in the engine, pinned to blockNumber
-// (nil = latest), mirroring the Go host's CreateSelectFork. The engine dials url directly (Option A,
-// unidirectional transport), so url must be a plain http(s) archive endpoint the engine can reach.
+// (nil = latest). The engine dials url directly, so url must be a plain http(s) archive endpoint
+// the engine can reach.
 func (e *Engine) CreateSelectFork(url string, blockNumber *uint64) (*ForkMeta, error) {
 	var out ForkMeta
 	if err := e.cl.Call(&out, "script_createSelectFork", url, blockNumber); err != nil {

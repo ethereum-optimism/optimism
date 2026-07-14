@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -81,8 +80,6 @@ type Precompile[E any] struct {
 
 	name string
 }
-
-var _ vm.PrecompiledContract = (*Precompile[struct{}])(nil)
 
 type PrecompileOption[E any] func(p *Precompile[E])
 
@@ -610,13 +607,7 @@ func (p *Precompile[E]) setupFieldSetter() {
 	}
 }
 
-// RequiredGas is part of the vm.PrecompiledContract interface, and all system precompiles use 0 gas.
-func (p *Precompile[E]) RequiredGas(input []byte) uint64 {
-	return 0
-}
-
-// Run implements the vm.PrecompiledContract interface.
-// This takes the ABI calldata, finds the applicable method by selector, and then runs that method with the data.
+// Run takes the ABI calldata, finds the applicable method by selector, and then runs that method with the data.
 func (p *Precompile[E]) Run(input []byte) ([]byte, error) {
 	if len(input) < 4 {
 		return encodeRevert(fmt.Errorf("expected at least 4 bytes, but got '%x'", input))
@@ -641,6 +632,10 @@ func (p *Precompile[E]) Name() string {
 // revertSelector is the ABI signature of a default error type in solidity.
 var revertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
 
+// errPrecompileReverted signals that a precompile call reverted; the ABI-encoded revert
+// reason is returned alongside it. Callers only check for a non-nil error.
+var errPrecompileReverted = errors.New("execution reverted")
+
 func encodeRevert(outErr error) ([]byte, error) {
 	outErrStr := []byte(outErr.Error())
 	out := make([]byte, 0, 4+32*2+len(outErrStr)+32)
@@ -648,5 +643,5 @@ func encodeRevert(outErr error) ([]byte, error) {
 	out = append(out, b32(0x20)...)                   // offset to string
 	out = append(out, b32(uint64(len(outErrStr)))...) // length of string
 	out = append(out, rightPad32(outErrStr)...)       // the error message string
-	return out, vm.ErrExecutionReverted               // Geth EVM will pick this up as a revert with return-data
+	return out, errPrecompileReverted
 }

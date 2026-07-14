@@ -19,11 +19,6 @@ type DeployAlphabetVMOutput struct {
 
 type DeployAlphabetVMScript script.DeployScriptWithOutput[DeployAlphabetVMInput, DeployAlphabetVMOutput]
 
-// NewDeployAlphabetVMScript loads and validates the DeployAlphabetVM2 script contract
-func NewDeployAlphabetVMScript(host *script.Host) (DeployAlphabetVMScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployAlphabetVMInput, DeployAlphabetVMOutput](host, "DeployAlphabetVM.s.sol", "DeployAlphabetVM")
-}
-
 func NewDeployAlphabetVMForgeCaller(client *forge.Client) forge.ScriptCaller[DeployAlphabetVMInput, DeployAlphabetVMOutput] {
 	return forge.NewScriptCaller(
 		client,

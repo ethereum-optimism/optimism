@@ -61,11 +61,6 @@ type DeployImplementationsOutput struct {
 
 type DeployImplementationsScript script.DeployScriptWithOutput[DeployImplementationsInput, DeployImplementationsOutput]
 
-// NewDeployImplementationsScript loads and validates the DeployImplementations script contract
-func NewDeployImplementationsScript(host *script.Host) (DeployImplementationsScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployImplementationsInput, DeployImplementationsOutput](host, "DeployImplementations.s.sol", "DeployImplementations")
-}
-
 func NewDeployImplementationsForgeCaller(client *forge.Client) forge.ScriptCaller[DeployImplementationsInput, DeployImplementationsOutput] {
 	return forge.NewScriptCaller(
 		client,

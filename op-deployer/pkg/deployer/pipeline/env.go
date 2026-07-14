@@ -6,7 +6,6 @@ import (
 	"path"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/rustengine"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
@@ -27,14 +26,11 @@ import (
 )
 
 type Env struct {
-	StateWriter  StateWriter
-	L1ScriptHost *script.Host
-	// L1Engine, when non-nil, routes the L1 deploy stages through the out-of-process Rust
-	// op-script-engine instead of L1ScriptHost. It is set when ScriptEngine resolves to rust, for
-	// both the non-forked DeploymentTargetGenesis path and the forked Live/Calldata/Noop targets
-	// (in which case the engine runs in fork mode). --script-engine=go leaves it nil and uses
-	// L1ScriptHost. L1Artifacts provides the ABIs the engine-backed scripts pack against (the L1
-	// bundle's ArtifactsFS).
+	StateWriter StateWriter
+	// L1Engine routes the L1 deploy stages through the out-of-process Rust op-script-engine, for both
+	// the non-forked DeploymentTargetGenesis path and the forked Live/Calldata/Noop targets (in which
+	// case the engine runs in fork mode). L1Artifacts provides the ABIs the engine-backed scripts pack
+	// against (the L1 bundle's ArtifactsFS).
 	L1Engine     *rustengine.Engine
 	L1Artifacts  *foundry.ArtifactsFS
 	L1Client     *ethclient.Client

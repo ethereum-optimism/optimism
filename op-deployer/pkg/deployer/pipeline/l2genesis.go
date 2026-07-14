@@ -11,11 +11,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -111,21 +109,12 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		UseInterop:                 intent.UseInterop,
 	}
 
-	engine, err := pEnv.ScriptEngine.Resolve()
-	if err != nil {
+	if _, err := pEnv.ScriptEngine.Resolve(); err != nil {
 		return err
 	}
-	var dump *foundry.ForgeAllocs
-	switch engine {
-	case env.ScriptEngineRust:
-		dump, err = runL2GenesisRust(pEnv, bundle, input)
-	case env.ScriptEngineGo:
-		dump, err = runL2GenesisGo(pEnv, bundle, input)
-	default:
-		return fmt.Errorf("unknown script engine %q", engine)
-	}
+	dump, err := runL2GenesisRust(pEnv, bundle, input)
 	if err != nil {
-		return fmt.Errorf("failed to run L2Genesis script (%s engine): %w", engine, err)
+		return fmt.Errorf("failed to run L2Genesis script: %w", err)
 	}
 
 	if err := genesis.CheckL2GenesisAllocs(dump, genesis.CheckL2AllocsOpts{
@@ -144,40 +133,10 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 	return nil
 }
 
-// runL2GenesisGo runs the L2Genesis script on the in-process Go script.Host and returns the
-// resulting allocs (deploy from the script deployer, wipe the deployer, dump).
-func runL2GenesisGo(pEnv *Env, bundle ArtifactsBundle, input opcm.L2GenesisInput) (*foundry.ForgeAllocs, error) {
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		pEnv.Logger,
-		pEnv.Deployer,
-		bundle.L2,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create L2 script host: %w", err)
-	}
-
-	scr, err := opcm.NewL2GenesisScript(host)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create L2Genesis script: %w", err)
-	}
-
-	if err := scr.Run(input); err != nil {
-		return nil, fmt.Errorf("failed to call L2Genesis script: %w", err)
-	}
-
-	host.Wipe(pEnv.Deployer)
-
-	dump, err := host.StateDump()
-	if err != nil {
-		return nil, fmt.Errorf("failed to dump state: %w", err)
-	}
-	return dump, nil
-}
-
 // runL2GenesisRust runs the L2Genesis script in the out-of-process Rust op-script-engine over a
-// Unix-socket JSON-RPC connection, mirroring runL2GenesisGo. The engine reads artifacts from the
-// L2 bundle's on-disk directory and is driven with the same ABI-packed run(input) calldata.
+// Unix-socket JSON-RPC connection. The engine reads artifacts from the L2 bundle's on-disk directory
+// and is driven with ABI-packed run(input) calldata (deploy from the script deployer, wipe the
+// deployer, dump).
 func runL2GenesisRust(pEnv *Env, bundle ArtifactsBundle, input opcm.L2GenesisInput) (*foundry.ForgeAllocs, error) {
 	artifactsDir, err := rustengine.ArtifactsDir(bundle.L2)
 	if err != nil {

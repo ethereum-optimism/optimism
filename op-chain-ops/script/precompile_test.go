@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -76,7 +75,7 @@ func TestPrecompile(t *testing.T) {
 	input = append(input, b32(uint64(len("mallory")))...) // length
 	input = append(input, "mallory"...)
 	out, err = p.Run(input)
-	require.Equal(t, err, vm.ErrExecutionReverted)
+	require.Equal(t, err, errPrecompileReverted)
 	msg, err := abi.UnpackRevert(out)
 	require.NoError(t, err, "must unpack revert data")
 	require.True(t, strings.HasSuffix(msg, testErr.Error()), "revert data must end with the inner error")

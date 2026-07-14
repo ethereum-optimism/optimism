@@ -7,11 +7,7 @@ import (
 )
 
 func TestParseScriptEngine(t *testing.T) {
-	got, err := ParseScriptEngine("go")
-	require.NoError(t, err)
-	require.Equal(t, ScriptEngineGo, got)
-
-	got, err = ParseScriptEngine("rust")
+	got, err := ParseScriptEngine("rust")
 	require.NoError(t, err)
 	require.Equal(t, ScriptEngineRust, got)
 
@@ -23,6 +19,10 @@ func TestParseScriptEngine(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, DefaultScriptEngine, resolved)
 
+	// "go" is no longer a valid engine.
+	_, err = ParseScriptEngine("go")
+	require.Error(t, err)
+
 	_, err = ParseScriptEngine("forge")
 	require.Error(t, err)
 }
@@ -30,7 +30,6 @@ func TestParseScriptEngine(t *testing.T) {
 func TestScriptEngineResolve(t *testing.T) {
 	for kind, want := range map[ScriptEngineKind]ScriptEngineKind{
 		"":               DefaultScriptEngine,
-		ScriptEngineGo:   ScriptEngineGo,
 		ScriptEngineRust: ScriptEngineRust,
 	} {
 		resolved, err := kind.Resolve()
@@ -38,8 +37,9 @@ func TestScriptEngineResolve(t *testing.T) {
 		require.Equal(t, want, resolved)
 	}
 
-	// A kind that never passed through ParseScriptEngine must fail loudly rather than silently
-	// resolving to the Go host.
-	_, err := ScriptEngineKind("forge").Resolve()
+	// Any other kind must fail loudly.
+	_, err := ScriptEngineKind("go").Resolve()
+	require.Error(t, err)
+	_, err = ScriptEngineKind("forge").Resolve()
 	require.Error(t, err)
 }

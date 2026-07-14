@@ -20,23 +20,6 @@ type DeployMIPSOutput struct {
 
 type DeployMIPSScript script.DeployScriptWithOutput[DeployMIPSInput, DeployMIPSOutput]
 
-// NewDeployMIPSScript loads and validates the DeployMIPS script contract
-func NewDeployMIPSScript(host *script.Host) (DeployMIPSScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployMIPSInput, DeployMIPSOutput](host, "DeployMIPS.s.sol", "DeployMIPS")
-}
-
-func DeployMIPS(
-	host *script.Host,
-	input DeployMIPSInput,
-) (DeployMIPSOutput, error) {
-	deployScript, err := NewDeployMIPSScript(host)
-	if err != nil {
-		var zero DeployMIPSOutput
-		return zero, err
-	}
-	return deployScript.Run(input)
-}
-
 func NewDeployMIPSForgeCaller(client *forge.Client) forge.ScriptCaller[DeployMIPSInput, DeployMIPSOutput] {
 	return forge.NewScriptCaller(
 		client,

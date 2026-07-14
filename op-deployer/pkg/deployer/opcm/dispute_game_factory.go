@@ -1,7 +1,6 @@
 package opcm
 
 import (
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -11,16 +10,4 @@ type SetDisputeGameImplInput struct {
 	AnchorStateRegistry common.Address
 	GameType            uint32
 	GameArgs            []byte
-}
-
-func SetDisputeGameImpl(
-	h *script.Host,
-	input SetDisputeGameImplInput,
-) error {
-	return RunScriptVoid[SetDisputeGameImplInput](
-		h,
-		input,
-		"SetDisputeGameImpl.s.sol",
-		"SetDisputeGameImpl",
-	)
 }

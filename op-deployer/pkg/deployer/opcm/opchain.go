@@ -72,11 +72,6 @@ type DeployOPChainOutput struct {
 
 type DeployOPChainScript script.DeployScriptWithOutput[DeployOPChainInput, DeployOPChainOutput]
 
-// NewDeployOPChainScript loads and validates the DeployOPChain script contract
-func NewDeployOPChainScript(host *script.Host) (DeployOPChainScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployOPChainInput, DeployOPChainOutput](host, "DeployOPChain.s.sol", "DeployOPChain")
-}
-
 func NewDeployOPChainForgeCaller(client *forge.Client) forge.ScriptCaller[DeployOPChainInput, DeployOPChainOutput] {
 	return forge.NewScriptCaller(
 		client,
@@ -121,11 +116,6 @@ type ReadImplementationAddressesOutput struct {
 }
 
 type ReadImplementationAddressesScript script.DeployScriptWithOutput[ReadImplementationAddressesInput, ReadImplementationAddressesOutput]
-
-// NewReadImplementationAddressesScript loads and validates the ReadImplementationAddresses script contract
-func NewReadImplementationAddressesScript(host *script.Host) (ReadImplementationAddressesScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[ReadImplementationAddressesInput, ReadImplementationAddressesOutput](host, "ReadImplementationAddresses.s.sol", "ReadImplementationAddresses")
-}
 
 func NewReadImplementationAddressesForgeCaller(client *forge.Client) forge.ScriptCaller[ReadImplementationAddressesInput, ReadImplementationAddressesOutput] {
 	return forge.NewScriptCaller(

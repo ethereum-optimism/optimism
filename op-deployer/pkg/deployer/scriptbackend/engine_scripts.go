@@ -11,13 +11,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 )
 
-// This builds the OPCM deploy scripts backed by the Rust engine, the engine-backed counterpart of
-// opcm.NewScripts. It is the canonical construction shared with the pipeline package (which imports
-// it for its per-stage engine routing); it lives here because scriptbackend is a leaf both pipeline
-// and the forked callers depend on, whereas scriptbackend importing pipeline would cycle.
+// This builds the typed OPCM deploy scripts (the opcm.Scripts bundle) backed by the Rust engine. It
+// is the canonical construction shared with the pipeline package (which imports it for its per-stage
+// engine routing); it lives here because scriptbackend is a leaf both pipeline and the forked callers
+// depend on, whereas scriptbackend importing pipeline would cycle.
 
-// EngineScriptWithOutput builds a typed deploy script bound to the Rust engine, mirroring
-// opcm.NewDeployScriptWithOutputFromFile. origin is the run() tx.origin.
+// EngineScriptWithOutput builds a typed deploy script bound to the Rust engine: it loads the artifact
+// and wraps an engine-backed script.ForgeScript in the generic typed deploy wrapper. origin is the
+// run() tx.origin.
 func EngineScriptWithOutput[I any, O any](
 	eng *rustengine.Engine,
 	fa *foundry.ArtifactsFS,
@@ -32,9 +33,8 @@ func EngineScriptWithOutput[I any, O any](
 	return script.NewDeployScriptWithOutput[I, O](fs, "run")
 }
 
-// NewEngineScripts builds the opcm.Scripts bundle backed by the Rust engine, the engine-backed
-// counterpart of opcm.NewScripts. fa provides the ABIs (Go-side packing/validation); origin
-// resolves the tx.origin per script run.
+// NewEngineScripts builds the opcm.Scripts bundle backed by the Rust engine. fa provides the ABIs
+// (Go-side packing/validation); origin resolves the tx.origin per script run.
 func NewEngineScripts(eng *rustengine.Engine, fa *foundry.ArtifactsFS, origin func() common.Address) (*opcm.Scripts, error) {
 	deployImplementations, err := EngineScriptWithOutput[opcm.DeployImplementationsInput, opcm.DeployImplementationsOutput](eng, fa, origin, "DeployImplementations.s.sol", "DeployImplementations")
 	if err != nil {

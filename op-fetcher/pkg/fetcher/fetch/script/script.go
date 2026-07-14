@@ -4,7 +4,6 @@ import (
 	"math"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -59,15 +58,8 @@ func CreateChainConfig(output FetchChainInfoOutput) ChainConfig {
 	return chain
 }
 
-// FetchChainInfo runs the FetchChainInfo script on an in-process Go script.Host. It keeps the
-// pre-engine signature so external callers that pin it (the superchain-registry ops module) still
-// compile; op-fetcher itself uses FetchChainInfoWithBackend to also drive the Rust engine.
-func FetchChainInfo(h *script.Host, input FetchChainInfoInput) (FetchChainInfoOutput, error) {
-	return FetchChainInfoWithBackend(scriptbackend.FromHost(h), input)
-}
-
-// FetchChainInfoWithBackend runs the FetchChainInfo script on either the in-process Go host or the
-// out-of-process Rust engine, selected by the scriptbackend.Backend.
+// FetchChainInfoWithBackend runs the FetchChainInfo script on the given scriptbackend.Backend (the
+// out-of-process Rust engine).
 func FetchChainInfoWithBackend(b scriptbackend.Backend, input FetchChainInfoInput) (FetchChainInfoOutput, error) {
 	return scriptbackend.RunScriptSingle[FetchChainInfoInput, FetchChainInfoOutput](b, input, "FetchChainInfo.s.sol", "FetchChainInfo")
 }

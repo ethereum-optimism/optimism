@@ -40,7 +40,3 @@ type L2GenesisInput struct {
 }
 
 type L2GenesisScript script.DeployScriptWithoutOutput[L2GenesisInput]
-
-func NewL2GenesisScript(host *script.Host) (L2GenesisScript, error) {
-	return script.NewDeployScriptWithoutOutputFromFile[L2GenesisInput](host, "L2Genesis.s.sol", "L2Genesis")
-}

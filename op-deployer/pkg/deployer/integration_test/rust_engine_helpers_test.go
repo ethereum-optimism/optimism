@@ -1,10 +1,8 @@
 package integration_test
 
 import (
-	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"math/big"
 	"os/exec"
 	"path/filepath"
@@ -13,119 +11,27 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/rustengine"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-// TestRustEngineL2GenesisParity is the L2Genesis milestone gate for the Rust script engine
-// (op-geth decoupling spike). For each L2Genesis alloc mode it:
-//  1. runs the real genesis pipeline (the authoritative Go reference dump);
-//  2. reconstructs the exact L2GenesisInput the pipeline fed the L2Genesis script, validated by
-//     running the same input through a fresh Go host and asserting byte-parity with the reference;
-//  3. replays the identical ABI-packed run() calldata through the Rust engine and asserts the Rust
-//     ForgeAllocs dump is byte-identical to the reference.
-//
-// The "default" subtest is the milestone gate; the other modes exercise the extra cheat surface
-// (custom gas token, interop, l2cm dev features) for stronger coverage.
-func TestRustEngineL2GenesisParity(t *testing.T) {
-	bin := buildRustScriptEngine(t)
+// This file holds the shared engine test helpers for the *Golden gates in this package. They were
+// relocated here from the deleted rust_l2genesis_parity_test.go / rust_engine_pipeline_test.go (which
+// also drove the now-removed Go script host); everything here is pure engine/JSON machinery with no
+// dependency on the deleted host.
 
-	for _, mode := range allocModes(t) {
-		mode := mode
-		t.Run(mode.name, func(t *testing.T) {
-			lgr := testlog.Logger(t, slog.LevelWarn)
-			_, pk, dk := shared.DefaultPrivkey(t)
-			deployerAddr := crypto.PubkeyToAddress(pk.PublicKey)
-			l1ChainID := big.NewInt(900)
-			l2ChainID := uint256.NewInt(1)
-			loc, artifactsFS := testutil.LocalArtifacts(t)
-			intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
-
-			mode.configure(t, intent)
-
-			require.NoError(t, deployer.ApplyPipeline(context.Background(), deployer.ApplyPipelineOpts{
-				DeploymentTarget:   deployer.DeploymentTargetGenesis,
-				L1RPCUrl:           "",
-				DeployerPrivateKey: pk,
-				Intent:             intent,
-				State:              st,
-				Logger:             lgr,
-				StateWriter:        pipeline.NoopStateWriter(),
-				CacheDir:           testutils.IsolatedTestDirWithAutoCleanup(t),
-				// Pin the reference dump to the Go engine so this stays a Go-vs-Rust parity check even
-				// though the default engine is now Rust.
-				ScriptEngine: env.ScriptEngineGo,
-			}))
-			require.NotEmpty(t, st.Chains)
-			require.NotNil(t, st.Chains[0].Allocs)
-			referenceDump := st.Chains[0].Allocs.Data
-
-			chainID := intent.Chains[0].ID
-			input := buildL2GenesisInput(t, intent, st, chainID)
-
-			// Leg A: a fresh Go host with the reconstructed input must reproduce the reference
-			// dump. This proves the reconstruction is exact, so the Rust comparison is meaningful.
-			goDump := runGoL2Genesis(t, lgr, deployerAddr, artifactsFS, input)
-			requireAllocsJSONEq(t, "go-manual-vs-reference", referenceDump, goDump)
-
-			// Leg B: the identical run() calldata through the Rust engine.
-			art, err := (&foundry.ArtifactsFS{FS: artifactsFS}).ReadArtifact("L2Genesis.s.sol", "L2Genesis")
-			require.NoError(t, err)
-			packed, err := art.ABI.Pack("run", input)
-			require.NoError(t, err)
-
-			re, err := rustengine.Spawn(bin, rustengine.SpawnOpts{ArtifactsDir: forgeArtifactsDir(t), ChainID: 1337, Create2Deployer: true}, testWriter{t})
-			require.NoError(t, err)
-			defer re.Close()
-
-			_, err = re.RunScript("L2Genesis.s.sol", "L2Genesis", packed, deployerAddr)
-			require.NoError(t, err)
-			require.NoError(t, re.Wipe(deployerAddr))
-			rustDump, err := re.StateDump()
-			require.NoError(t, err)
-
-			// Guard against a trivial (empty) match: L2Genesis produces thousands of accounts.
-			require.Greater(t, len(referenceDump.Accounts), 2000, "reference dump should be non-trivial")
-			require.Equal(t, len(referenceDump.Accounts), len(rustDump.Accounts), "rust dump account count")
-			t.Logf("[%s] L2Genesis parity: %d accounts, byte-identical across Go host and Rust engine",
-				mode.name, len(rustDump.Accounts))
-
-			requireAllocsJSONEq(t, "rust-vs-reference", referenceDump, rustDump)
-		})
-	}
-}
-
-// runGoL2Genesis mirrors pipeline.GenerateL2Genesis lines 65-133 (minus validation): build a
-// non-forked DefaultScriptHost, run the L2Genesis script, wipe the deployer, and dump.
-func runGoL2Genesis(t *testing.T, lgr log.Logger, deployer common.Address, artifactsFS foundry.StatDirFs, input opcm.L2GenesisInput) *foundry.ForgeAllocs {
-	t.Helper()
-	host, err := env.DefaultScriptHost(broadcaster.NoopBroadcaster(), lgr, deployer, artifactsFS)
-	require.NoError(t, err)
-	scr, err := opcm.NewL2GenesisScript(host)
-	require.NoError(t, err)
-	require.NoError(t, scr.Run(input))
-	host.Wipe(deployer)
-	dump, err := host.StateDump()
-	require.NoError(t, err)
-	return dump
+// pipelineDumps is the byte-comparable output of a single genesis ApplyPipeline run: the sealed L1
+// dev-genesis allocs (from the L1 deploy stages) and the chain's L2 genesis allocs.
+type pipelineDumps struct {
+	l1 *foundry.ForgeAllocs
+	l2 *foundry.ForgeAllocs
 }
 
 // buildL2GenesisInput reconstructs the L2GenesisInput that pipeline.GenerateL2Genesis builds for a
@@ -214,7 +120,7 @@ func buildRustScriptEngine(t *testing.T) string {
 		return p
 	}
 	if _, err := exec.LookPath("cargo"); err != nil {
-		t.Skip("no pre-built engine (RUST_BINARY_PATH_OP_SCRIPT_ENGINE) and cargo unavailable; skipping Rust engine parity test")
+		t.Skip("no pre-built engine (RUST_BINARY_PATH_OP_SCRIPT_ENGINE) and cargo unavailable; skipping Rust engine golden test")
 	}
 	rustDir := filepath.Join(monorepoRoot(t), "rust")
 	cmd := exec.Command("cargo", "build", "-p", "op-script-engine", "--bin", "op-script-engine")

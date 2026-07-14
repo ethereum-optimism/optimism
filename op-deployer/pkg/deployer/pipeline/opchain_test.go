@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
@@ -17,12 +15,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -142,33 +137,7 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 	l1RPCUrl := anvil.RPCUrl()
 	privateKey := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
-	l1RPC, err := rpc.Dial(l1RPCUrl)
-	require.NoError(t, err)
-	l1Client := ethclient.NewClient(l1RPC)
-
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		lgr,
-		common.Address{'D'},
-		afacts,
-		script.WithForkHook(func(cfg *script.ForkConfig) (forking.ForkSource, error) {
-			src, err := forking.RPCSourceByNumber(cfg.URLOrAlias, l1RPC, *cfg.BlockNumber)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create RPC fork source: %w", err)
-			}
-			return forking.Cache(src), nil
-		}),
-	)
-	require.NoError(t, err)
-
-	latest, err := l1Client.HeaderByNumber(ctx, nil)
-	require.NoError(t, err)
-
-	_, err = host.CreateSelectFork(
-		script.ForkWithURLOrAlias("main"),
-		script.ForkWithBlockNumberU256(latest.Number),
-	)
-	require.NoError(t, err)
+	l1Engine, l1Artifacts := newForkedL1EngineForTest(t, ctx, lgr, afacts, l1RPCUrl, nil)
 
 	// Load scripts
 	opcmScripts := &opcm.Scripts{}
@@ -206,16 +175,18 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 	}
 
 	pEnv := &Env{
-		Logger:       lgr,
-		Scripts:      opcmScripts,
-		ForgeClient:  forgeClient,
-		UseForge:     true,
-		Context:      ctx,
-		Broadcaster:  broadcaster.NoopBroadcaster(),
-		StateWriter:  NoopStateWriter(),
-		L1ScriptHost: host,
-		L1RPCUrl:     l1RPCUrl,
-		PrivateKey:   privateKey,
+		Logger:      lgr,
+		Scripts:     opcmScripts,
+		ForgeClient: forgeClient,
+		UseForge:    true,
+		Context:     ctx,
+		Broadcaster: broadcaster.NoopBroadcaster(),
+		StateWriter: NoopStateWriter(),
+		L1Engine:    l1Engine,
+		L1Artifacts: l1Artifacts,
+		Deployer:    common.Address{'D'},
+		L1RPCUrl:    l1RPCUrl,
+		PrivateKey:  privateKey,
 	}
 
 	err = DeploySuperchain(pEnv, intent, st)

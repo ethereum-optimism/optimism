@@ -26,11 +26,6 @@ type DeployAltDAOutput struct {
 
 type DeployAltDAScript script.DeployScriptWithOutput[DeployAltDAInput, DeployAltDAOutput]
 
-// NewDeployAltDAScript loads and validates the DeployAltDA script contract
-func NewDeployAltDAScript(host *script.Host) (DeployAltDAScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployAltDAInput, DeployAltDAOutput](host, "DeployAltDA.s.sol", "DeployAltDA")
-}
-
 func NewDeployAltDAForgeCaller(client *forge.Client) forge.ScriptCaller[DeployAltDAInput, DeployAltDAOutput] {
 	return forge.NewScriptCaller(
 		client,

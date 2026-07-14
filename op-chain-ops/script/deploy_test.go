@@ -5,100 +5,10 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
-
-func TestForgeScriptImpl(t *testing.T) {
-	t.Run("should return ABI from the artifact", func(t *testing.T) {
-		abi := abi.ABI{
-			Methods: map[string]abi.Method{
-				"run": abi.NewMethod("Run", "run", abi.Function, "", false, false, abi.Arguments{}, abi.Arguments{}),
-			},
-		}
-		artifact := &foundry.Artifact{
-			ABI: abi,
-		}
-		script := &forgeScriptImpl{
-			artifact: artifact,
-		}
-
-		require.Equal(t, abi, script.ABI())
-	})
-
-	t.Run("should return the specified name", func(t *testing.T) {
-		script := &forgeScriptImpl{
-			name: "MyScript",
-		}
-
-		require.Equal(t, "MyScript", script.Name())
-	})
-
-	t.Run("Call", func(t *testing.T) {
-		artifact := &foundry.Artifact{}
-		label := "MyScript"
-
-		t.Run("should fail if script fails to deploy", func(t *testing.T) {
-			backend := &mockForgeScriptBackend{
-				deployError: fmt.Errorf("oh no"),
-			}
-			script := NewForgeScriptFromArtifact(artifact, label, backend)
-
-			_, err := script.Call([]byte{})
-			require.EqualError(t, err, "failed to deploy script MyScript: oh no")
-		})
-
-		t.Run("should fail if backend call fails", func(t *testing.T) {
-			scriptAddress := common.BigToAddress(big.NewInt(1))
-			callError := fmt.Errorf("oh no")
-			backend := &mockForgeScriptBackend{
-				deployResult: scriptAddress,
-				callError:    callError,
-			}
-			script := NewForgeScriptFromArtifact(artifact, label, backend)
-
-			input := []byte{1}
-			result, err := script.Call(input)
-			require.EqualError(t, err, "failed to call script MyScript using data 0x01: oh no")
-			require.Nil(t, result)
-			require.Equal(t, input, backend.calledWith)
-			require.Equal(t, scriptAddress, backend.calledTo)
-		})
-
-		t.Run("should return the call result if backend call succeeds", func(t *testing.T) {
-			scriptAddress := common.BigToAddress(big.NewInt(1))
-			callResult := []byte{1, 0, 1}
-			backend := &mockForgeScriptBackend{
-				deployResult: scriptAddress,
-				callResult:   callResult,
-			}
-			script := NewForgeScriptFromArtifact(artifact, label, backend)
-
-			input := []byte{1}
-			result, err := script.Call(input)
-			require.NoError(t, err)
-			require.Equal(t, callResult, result)
-			require.Equal(t, input, backend.calledWith)
-			require.Equal(t, scriptAddress, backend.calledTo)
-		})
-
-		t.Run("should destroy the script after the call", func(t *testing.T) {
-			scriptAddress := common.BigToAddress(big.NewInt(1))
-			backend := &mockForgeScriptBackend{
-				deployResult: scriptAddress,
-			}
-			script := NewForgeScriptFromArtifact(artifact, label, backend)
-
-			_, err := script.Call([]byte{})
-			require.NoError(t, err)
-			require.Equal(t, scriptAddress, backend.destroyedAddress)
-		})
-	})
-}
 
 func TestNewDeployScriptWithoutOutput(t *testing.T) {
 	type ExampleInput struct {
@@ -380,83 +290,6 @@ func TestDeployScriptWithOutputImpl(t *testing.T) {
 	})
 }
 
-func TestNewForgeScriptFromFile(t *testing.T) {
-	t.Run("should deploy and execute an example script", func(t *testing.T) {
-		type DeployScriptExampleInput struct {
-			InputFieldA common.Address `abi:"fieldA"`
-			InputFieldB common.Address `abi:"fieldB"`
-		}
-
-		type DeployScriptExampleOutput struct {
-			OutputFieldA common.Address `abi:"fieldA"`
-			OutputFieldB common.Address `abi:"fieldB"`
-		}
-
-		// First we'll setup the required dependencies
-		logger, _ := testlog.CaptureLogger(t, log.LevelInfo)
-		af := foundry.OpenArtifactsDir("./testdata/test-artifacts")
-		host := NewHost(logger, af, nil, DefaultContext)
-
-		// We'll use an example script that returns the input data, just mapped to a different struct
-		deployExampleScript, err := NewDeployScriptWithOutputFromFile[DeployScriptExampleInput, DeployScriptExampleOutput](host, "DeployScriptExample.s.sol", "DeployScriptExample")
-		require.NoError(t, err)
-
-		// Put some input & expected output together
-		input := DeployScriptExampleInput{
-			InputFieldA: common.BigToAddress(big.NewInt(7)),
-			InputFieldB: common.BigToAddress(big.NewInt(6)),
-		}
-		expectedOutput := DeployScriptExampleOutput{
-			OutputFieldA: input.InputFieldA,
-			OutputFieldB: input.InputFieldB,
-		}
-
-		// And make sure that we get what we would expect
-		output, err := deployExampleScript.Run(input)
-		require.NoError(t, err)
-		require.Equal(t, expectedOutput, output)
-
-		// Now we make sure (and this depends on the contract logic) that reverts are handled
-		zeroInput := DeployScriptExampleInput{
-			InputFieldA: common.BigToAddress(big.NewInt(0)),
-			InputFieldB: common.BigToAddress(big.NewInt(0)),
-		}
-		_, err = deployExampleScript.Run(zeroInput)
-		require.ErrorContains(t, err, "failed to call script DeployScriptExample using data 0xfc61915400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000: failed to call backend: execution reverted at")
-	})
-}
-
-type mockForgeScriptBackend struct {
-	callResult []byte
-	callError  error
-
-	calledTo   common.Address
-	calledWith []byte
-
-	deployResult common.Address
-	deployError  error
-
-	destroyedAddress common.Address
-}
-
-// Call implements ForgeScriptBackend.
-func (m *mockForgeScriptBackend) Call(to common.Address, input []byte) (result []byte, err error) {
-	m.calledTo = to
-	m.calledWith = input
-
-	return m.callResult, m.callError
-}
-
-// Deploy implements ForgeScriptBackend.
-func (m *mockForgeScriptBackend) Deploy(artifact *foundry.Artifact, label string) (address common.Address, err error) {
-	return m.deployResult, m.deployError
-}
-
-// Destroy implements ForgeScriptBackend.
-func (m *mockForgeScriptBackend) Destroy(address common.Address) {
-	m.destroyedAddress = address
-}
-
 type mockForgeScript struct {
 	abi        abi.ABI
 	callData   []byte
@@ -481,7 +314,4 @@ func (m *mockForgeScript) Name() string {
 	return "MockScript"
 }
 
-var (
-	_ ForgeScript        = (*mockForgeScript)(nil)
-	_ ForgeScriptBackend = (*mockForgeScriptBackend)(nil)
-)
+var _ ForgeScript = (*mockForgeScript)(nil)

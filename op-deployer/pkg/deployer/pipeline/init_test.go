@@ -3,15 +3,12 @@ package pipeline
 import (
 	"context"
 	"log/slog"
-	"math/big"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	opbindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/log"
@@ -74,15 +71,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	t.Run("embedded L1 locator with standard intent types and standard roles", func(t *testing.T) {
 		runTest := func(configType state.IntentType) {
 			_, afacts := testutil.LocalArtifacts(t)
-			host, err := env.DefaultForkedScriptHost(
-				ctx,
-				broadcaster.NoopBroadcaster(),
-				testlog.Logger(t, log.LevelInfo),
-				common.Address{'D'},
-				afacts,
-				rpcClient,
-			)
-			require.NoError(t, err)
+			l1Engine, l1Artifacts := newForkedL1EngineForTest(t, ctx, testlog.Logger(t, log.LevelInfo), afacts, retryProxy.Endpoint(), nil)
 
 			stdSuperchainRoles, err := state.GetStandardSuperchainRoles(l1ChainID)
 			require.NoError(t, err)
@@ -103,9 +92,9 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			require.NoError(t, InitLiveStrategy(
 				ctx,
 				&Env{
-					L1Client:     client,
-					Logger:       lgr,
-					L1ScriptHost: host,
+					L1Client: client,
+					Logger:   lgr,
+					L1Engine: l1Engine, L1Artifacts: l1Artifacts, Deployer: common.Address{'D'},
 				},
 				intent,
 				st,
@@ -223,26 +212,16 @@ func TestPopulateSuperchainState(t *testing.T) {
 		require.NoError(t, retryProxy.Stop())
 	})
 
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
-	require.NoError(t, err)
-
 	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.ForkedScriptHost(
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-		// corresponds to the latest block on sepolia as of 04/30/2025. used to prevent config drift on sepolia
-		// from failing this test
-		big.NewInt(8227159),
-	)
-	require.NoError(t, err)
+	// Pin the fork to a fixed sepolia block (latest as of 04/30/2025) to prevent config drift on
+	// sepolia from failing this test.
+	forkBlock := uint64(8227159)
+	l1Engine, l1Artifacts := newForkedL1EngineForTest(t, context.Background(), testlog.Logger(t, log.LevelInfo), afacts, retryProxy.Endpoint(), &forkBlock)
 
 	env := &Env{
-		L1ScriptHost: host,
-		UseForge:     false,
-		Context:      context.Background(),
+		L1Engine: l1Engine, L1Artifacts: l1Artifacts, Deployer: common.Address{'D'},
+		UseForge: false,
+		Context:  context.Background(),
 	}
 
 	l1Versions, err := standard.L1VersionsFor(11155111)
@@ -312,26 +291,16 @@ func TestPopulateSuperchainState_OPCMV2(t *testing.T) {
 		require.NoError(t, retryProxy.Stop())
 	})
 
-	rpcClient, err := rpc.Dial(retryProxy.Endpoint())
-	require.NoError(t, err)
-
 	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.ForkedScriptHost(
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-		// corresponds to the latest block on sepolia as of 04/30/2025. used to prevent config drift on sepolia
-		// from failing this test
-		big.NewInt(8227159),
-	)
-	require.NoError(t, err)
+	// Pin the fork to a fixed sepolia block (latest as of 04/30/2025) to prevent config drift on
+	// sepolia from failing this test.
+	forkBlock := uint64(8227159)
+	l1Engine, l1Artifacts := newForkedL1EngineForTest(t, context.Background(), testlog.Logger(t, log.LevelInfo), afacts, retryProxy.Endpoint(), &forkBlock)
 
 	env := &Env{
-		L1ScriptHost: host,
-		UseForge:     false,
-		Context:      context.Background(),
+		L1Engine: l1Engine, L1Artifacts: l1Artifacts, Deployer: common.Address{'D'},
+		UseForge: false,
+		Context:  context.Background(),
 	}
 
 	superchain, err := standard.SuperchainFor(11155111)
@@ -420,15 +389,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-	)
-	require.NoError(t, err)
+	l1Engine, l1Artifacts := newForkedL1EngineForTest(t, ctx, testlog.Logger(t, log.LevelInfo), afacts, retryProxy.Endpoint(), nil)
 
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
@@ -445,9 +406,9 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	err = InitLiveStrategy(
 		ctx,
 		&Env{
-			L1Client:     client,
-			Logger:       lgr,
-			L1ScriptHost: host,
+			L1Client: client,
+			Logger:   lgr,
+			L1Engine: l1Engine, L1Artifacts: l1Artifacts, Deployer: common.Address{'D'},
 		},
 		intent,
 		st,
@@ -547,15 +508,7 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-	)
-	require.NoError(t, err)
+	l1Engine, l1Artifacts := newForkedL1EngineForTest(t, ctx, testlog.Logger(t, log.LevelInfo), afacts, retryProxy.Endpoint(), nil)
 
 	// Provide both OPCM address and SuperchainConfigProxy
 	// The script will check the OPCM version and handle accordingly
@@ -575,9 +528,9 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	err = InitLiveStrategy(
 		ctx,
 		&Env{
-			L1Client:     client,
-			Logger:       lgr,
-			L1ScriptHost: host,
+			L1Client: client,
+			Logger:   lgr,
+			L1Engine: l1Engine, L1Artifacts: l1Artifacts, Deployer: common.Address{'D'},
 		},
 		intent,
 		st,
@@ -670,15 +623,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-	)
-	require.NoError(t, err)
+	l1Engine, l1Artifacts := newForkedL1EngineForTest(t, ctx, testlog.Logger(t, log.LevelInfo), afacts, retryProxy.Endpoint(), nil)
 
 	// Don't set opcmV2Enabled flag (defaults to false)
 	intent := &state.Intent{
@@ -696,9 +641,9 @@ func TestInitLiveStrategy_FlowSelection_OPCMV1(t *testing.T) {
 	err = InitLiveStrategy(
 		ctx,
 		&Env{
-			L1Client:     client,
-			Logger:       lgr,
-			L1ScriptHost: host,
+			L1Client: client,
+			Logger:   lgr,
+			L1Engine: l1Engine, L1Artifacts: l1Artifacts, Deployer: common.Address{'D'},
 		},
 		intent,
 		st,
@@ -739,15 +684,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	require.NoError(t, err)
 
 	_, afacts := testutil.LocalArtifacts(t)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		afacts,
-		rpcClient,
-	)
-	require.NoError(t, err)
+	l1Engine, l1Artifacts := newForkedL1EngineForTest(t, ctx, testlog.Logger(t, log.LevelInfo), afacts, retryProxy.Endpoint(), nil)
 
 	intent := &state.Intent{
 		ConfigType:            state.IntentTypeStandard,
@@ -764,9 +701,9 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	err = InitLiveStrategy(
 		ctx,
 		&Env{
-			L1Client:     client,
-			Logger:       lgr,
-			L1ScriptHost: host,
+			L1Client: client,
+			Logger:   lgr,
+			L1Engine: l1Engine, L1Artifacts: l1Artifacts, Deployer: common.Address{'D'},
 		},
 		intent,
 		st,
