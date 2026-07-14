@@ -2,60 +2,15 @@
 //! through the `PreimageOracle` ABI as local keys.
 
 use crate::errors::OracleProviderError;
-use alloy_primitives::{B256, U256};
+use alloy_primitives::B256;
 use kona_genesis::{L1ChainConfig, RollupConfig};
+pub use kona_preimage::{
+    L1_CONFIG_KEY, L1_HEAD_KEY, L2_CHAIN_ID_KEY, L2_CLAIM_BLOCK_NUMBER_KEY, L2_CLAIM_KEY,
+    L2_OUTPUT_ROOT_KEY, L2_ROLLUP_CONFIG_KEY,
+};
 use kona_preimage::{PreimageKey, PreimageOracleClient};
 use kona_registry::{L1_CONFIGS, ROLLUP_CONFIGS};
 use serde::{Deserialize, Serialize};
-
-/// The local key identifier for the L1 head hash.
-///
-/// This key is used to retrieve the L1 block hash that contains all the data
-/// necessary to derive the disputed L2 blocks. The L1 head serves as the
-/// starting point for L1 data extraction during the derivation process.
-pub const L1_HEAD_KEY: U256 = U256::from_be_slice(&[1]);
-
-/// The local key identifier for the agreed L2 output root.
-///
-/// This key retrieves the baseline L2 output root that both parties agree upon.
-/// It represents the last known good state before the disputed blocks and serves
-/// as the starting point for derivation verification.
-pub const L2_OUTPUT_ROOT_KEY: U256 = U256::from_be_slice(&[2]);
-
-/// The local key identifier for the disputed L2 output root claim.
-///
-/// This key retrieves the user's claimed L2 output root at the target block.
-/// The fault proof will compare the derived output root against this claim
-/// to determine if the claim is valid or invalid.
-pub const L2_CLAIM_KEY: U256 = U256::from_be_slice(&[3]);
-
-/// The local key identifier for the disputed L2 block number.
-///
-/// This key retrieves the L2 block number at which the output root disagreement
-/// occurs. The derivation process will produce blocks up to this number to
-/// verify the claim.
-pub const L2_CLAIM_BLOCK_NUMBER_KEY: U256 = U256::from_be_slice(&[4]);
-
-/// The local key identifier for the L2 chain ID.
-///
-/// This key retrieves the L2 network identifier, which is used to load the
-/// appropriate rollup configuration and ensure network-specific validation
-/// rules are applied correctly.
-pub const L2_CHAIN_ID_KEY: U256 = U256::from_be_slice(&[5]);
-
-/// The local key identifier for the L2 rollup configuration.
-///
-/// This key is used as a fallback to retrieve the rollup configuration from
-/// the preimage oracle when no hardcoded configuration is available for the
-/// given chain ID. Oracle-loaded configs require additional validation.
-pub const L2_ROLLUP_CONFIG_KEY: U256 = U256::from_be_slice(&[6]);
-
-/// The local key identifier for the L1 chain configuration.
-///
-/// This key is used as a fallback to retrieve the chain configuration from
-/// the preimage oracle when no hardcoded configuration is available for the
-/// given chain ID. Oracle-loaded configs require additional validation.
-pub const L1_CONFIG_KEY: U256 = U256::from_be_slice(&[7]);
 
 /// The boot information for the client program.
 ///
