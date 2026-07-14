@@ -77,3 +77,9 @@ func TestForkOverridesAtGenesis(t *testing.T) {
 		})
 	}
 }
+
+func TestForkOffsetKey(t *testing.T) {
+	require.Equal(t, "l2GenesisRegolithTimeOffset", ForkOffsetKey(forks.Regolith))
+	require.Equal(t, "l2GenesisPectraBlobScheduleTimeOffset", ForkOffsetKey(forks.PectraBlobSchedule))
+	require.Panics(t, func() { ForkOffsetKey(forks.Bedrock) })
+}

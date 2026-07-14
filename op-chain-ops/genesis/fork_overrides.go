@@ -1,11 +1,42 @@
 package genesis
 
 import (
+	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
+
+const (
+	forkOffsetKeyPrefix = "l2Genesis"
+	forkOffsetKeySuffix = "TimeOffset"
+)
+
+var forkOffsetKeys = func() map[forks.Name]string {
+	configType := reflect.TypeFor[UpgradeScheduleDeployConfig]()
+	keys := make(map[forks.Name]string)
+	for i := range configType.NumField() {
+		jsonName := strings.Split(configType.Field(i).Tag.Get("json"), ",")[0]
+		if !strings.HasPrefix(jsonName, forkOffsetKeyPrefix) || !strings.HasSuffix(jsonName, forkOffsetKeySuffix) {
+			continue
+		}
+		name := strings.TrimSuffix(strings.TrimPrefix(jsonName, forkOffsetKeyPrefix), forkOffsetKeySuffix)
+		keys[forks.Name(strings.ToLower(name))] = jsonName
+	}
+	return keys
+}()
+
+// ForkOffsetKey returns the deploy-config JSON key for a fork's L2 genesis
+// time offset. It panics if the fork has no corresponding deploy-config field.
+func ForkOffsetKey(fork forks.Name) string {
+	key, ok := forkOffsetKeys[fork]
+	if !ok {
+		panic(fmt.Sprintf("fork %q has no deploy-config time offset", fork))
+	}
+	return key
+}
 
 // ForkOverridesAtGenesis returns deploy-config overrides that activate fork and
 // every prior fork at genesis, and explicitly deactivate every later fork with
@@ -23,9 +54,7 @@ func ForkOverridesAtGenesis(fork forks.Name) map[string]*hexutil.Uint64 {
 	forkList := sched.forks()
 	out := make(map[string]*hexutil.Uint64, len(forkList))
 	for _, f := range forkList {
-		name := string(f.Name)
-		key := "l2Genesis" + strings.ToUpper(name[:1]) + name[1:] + "TimeOffset"
-		out[key] = f.L2GenesisTimeOffset
+		out[ForkOffsetKey(forks.Name(f.Name))] = f.L2GenesisTimeOffset
 	}
 	return out
 }
