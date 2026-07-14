@@ -239,11 +239,10 @@ fn ensure_dependency_set_matches_inputs(
 }
 
 #[derive(Debug)]
-struct RangeTransitionBoot {
-    boot: BootInfo,
-    safe_head_hash: B256,
-    safe_head: Header,
-    should_progress: bool,
+#[allow(clippy::large_enum_variant)]
+enum RangeTransitionBoot {
+    NoOp { boot: BootInfo },
+    Progress { boot: BootInfo, safe_head_hash: B256, safe_head: Header },
 }
 
 async fn run_super_range_transition<O, B>(
@@ -268,13 +267,12 @@ where
     )
     .await?;
 
-    if !transition_boot.should_progress {
-        return Ok(BootInfoStruct::from(transition_boot.boot));
-    }
-
-    let boot = transition_boot.boot;
-    let safe_head_hash = transition_boot.safe_head_hash;
-    let safe_head = transition_boot.safe_head;
+    let (boot, safe_head_hash, safe_head) = match transition_boot {
+        RangeTransitionBoot::NoOp { boot } => return Ok(BootInfoStruct::from(boot)),
+        RangeTransitionBoot::Progress { boot, safe_head_hash, safe_head } => {
+            (boot, safe_head_hash, safe_head)
+        }
+    };
 
     let rollup_config = Arc::new(boot.rollup_config.clone());
     let l1_config = Arc::new(boot.l1_config.clone());
@@ -373,7 +371,7 @@ where
             rollup_config,
             l1_config: l1_config.clone(),
         };
-        return Ok(RangeTransitionBoot { boot, safe_head_hash, safe_head, should_progress: false });
+        return Ok(RangeTransitionBoot::NoOp { boot });
     }
 
     ensure!(
@@ -410,7 +408,7 @@ where
         l1_config: l1_config.clone(),
     };
 
-    Ok(RangeTransitionBoot { boot, safe_head_hash, safe_head, should_progress: true })
+    Ok(RangeTransitionBoot::Progress { boot, safe_head_hash, safe_head })
 }
 
 async fn validate_range_transition_output<O>(
@@ -755,14 +753,21 @@ mod tests {
         ))
         .unwrap();
 
-        assert!(transition_boot.should_progress);
-        assert_eq!(transition_boot.boot.l1_head, inputs.l1_head);
-        assert_eq!(transition_boot.boot.chain_id, 10);
-        assert_eq!(transition_boot.boot.agreed_l2_output_root, agreed_root);
-        assert_eq!(transition_boot.boot.claimed_l2_output_root, claimed_root);
-        assert_eq!(transition_boot.boot.claimed_l2_block_number, 4);
-        assert_eq!(transition_boot.safe_head_hash, safe_head_hash);
-        assert_eq!(transition_boot.safe_head, safe_head);
+        let RangeTransitionBoot::Progress {
+            boot,
+            safe_head_hash: actual_safe_head_hash,
+            safe_head: actual_safe_head,
+        } = transition_boot
+        else {
+            panic!("expected progressing transition boot");
+        };
+        assert_eq!(boot.l1_head, inputs.l1_head);
+        assert_eq!(boot.chain_id, 10);
+        assert_eq!(boot.agreed_l2_output_root, agreed_root);
+        assert_eq!(boot.claimed_l2_output_root, claimed_root);
+        assert_eq!(boot.claimed_l2_block_number, 4);
+        assert_eq!(actual_safe_head_hash, safe_head_hash);
+        assert_eq!(actual_safe_head, safe_head);
     }
 
     #[test]
@@ -793,10 +798,11 @@ mod tests {
         ))
         .unwrap();
 
-        assert!(!transition_boot.should_progress);
-        assert_eq!(transition_boot.boot.claimed_l2_block_number, safe_head.number);
-        assert_eq!(transition_boot.boot.claimed_l2_output_root, agreed_root);
-        assert_eq!(transition_boot.safe_head_hash, safe_head_hash);
+        let RangeTransitionBoot::NoOp { boot } = transition_boot else {
+            panic!("expected no-op transition boot");
+        };
+        assert_eq!(boot.claimed_l2_block_number, safe_head.number);
+        assert_eq!(boot.claimed_l2_output_root, agreed_root);
     }
 
     #[test]
