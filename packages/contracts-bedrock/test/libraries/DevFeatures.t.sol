@@ -93,9 +93,7 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
 
     /// @notice Tests that ALL_FEATURES against empty bitmap returns false.
     function test_isDevFeatureEnabled_allFeaturesAgainstEmpty_succeeds() public pure {
-        // Strip CannonKona because it is hardcoded enabled regardless of bitmap.
-        // TODO(#20084): remove with the broader CannonKonaFlag cleanup.
-        assertFalse(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES & ~DevFeatures.CANNON_KONA));
+        assertFalse(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES));
     }
 
     /// @notice Fuzz test: any non-zero feature should match itself exactly.
@@ -119,17 +117,7 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
     /// @notice Fuzz test: feature not found when bitmap has none of the feature's bits.
     function testFuzz_isDevFeatureEnabled_featureNotInDisjointBitmap_succeeds(bytes32 _feature) public pure {
         vm.assume(_feature != bytes32(0));
-        // CannonKona is hardcoded enabled. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
-        vm.assume((_feature & DevFeatures.CANNON_KONA) != DevFeatures.CANNON_KONA);
         bytes32 disjointBitmap = ~_feature;
         assertFalse(DevFeatures.isDevFeatureEnabled(disjointBitmap, _feature));
-    }
-
-    /// @notice Tests that CannonKona is hardcoded enabled regardless of the bitmap.
-    /// @dev TODO(#20084): remove with the broader CannonKonaFlag cleanup.
-    function test_isDevFeatureEnabled_cannonKonaAlwaysEnabled_succeeds() public pure {
-        assertTrue(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, DevFeatures.CANNON_KONA));
-        assertTrue(DevFeatures.isDevFeatureEnabled(~DevFeatures.CANNON_KONA, DevFeatures.CANNON_KONA));
-        assertTrue(DevFeatures.isDevFeatureEnabled(DevFeatures.CANNON_KONA, DevFeatures.CANNON_KONA));
     }
 }

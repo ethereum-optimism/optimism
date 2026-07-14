@@ -60,6 +60,15 @@ bundle, so current tooling is fine despite the ABI drift above.
 compile time, so `<prev>_state.json` must be on disk before generating
 `<fork>_state.json`.
 
+To verify every committed fork state is up to date, run:
+
+```bash
+just check-nut-prefork-states
+```
+
+This regenerates committed non-seed fork states and fails if the committed JSON
+changes.
+
 ## Determinism
 
 **Composed states** (`karst_state` and later) are byte-reproducible given the

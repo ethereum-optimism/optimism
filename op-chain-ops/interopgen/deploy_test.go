@@ -3,11 +3,45 @@ package interopgen
 import (
 	"testing"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
+
+func TestInitialDisputeAbsolutePrestates(t *testing.T) {
+	cannonPrestate := common.HexToHash("0x01")
+	cannonKonaPrestate := common.HexToHash("0x02")
+	tests := []struct {
+		name             string
+		gameType         gameTypes.GameType
+		selectedPrestate common.Hash
+	}{
+		{
+			name:             "permissioned cannon selects cannon prestate",
+			gameType:         gameTypes.PermissionedGameType,
+			selectedPrestate: cannonPrestate,
+		},
+		{
+			name:             "cannon kona selects kona prestate",
+			gameType:         gameTypes.CannonKonaGameType,
+			selectedPrestate: cannonKonaPrestate,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := &L2Config{
+				DisputeGameType:             uint32(test.gameType),
+				DisputeAbsolutePrestate:     cannonPrestate,
+				DisputeKonaAbsolutePrestate: cannonKonaPrestate,
+			}
+			selectedPrestate, fallbackPrestate := initialDisputeAbsolutePrestates(cfg)
+			require.Equal(t, test.selectedPrestate, selectedPrestate)
+			require.Equal(t, cannonPrestate, fallbackPrestate)
+		})
+	}
+}
 
 func TestInteropAtGenesis(t *testing.T) {
 	zero := hexutil.Uint64(0)

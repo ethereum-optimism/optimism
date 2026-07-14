@@ -33,6 +33,7 @@ This is organized by current state of PR, so it can be easily referenced frequen
 - **Review Your Own Code**: Reviewing the diff yourself *in a different context*, can be very useful for discovering issues, typos, and bugs before opening the PR. For example, write code in your IDE, then review it in the GitHub diff view. The perspective change forces you to slow down and helps reveal issues you may have missed.
 - **Explain Decisions/Tradeoffs**: Explain rationale for any design/architecture decisions and implementation details in the PR description. If it closes an issue, remember to mention the issue it closes, e.g. `Closes <issueUrl>`. Otherwise, just link to the issue. If there is no issue, whatever details would have been in the issue should be in the PR description.
 - **Guide PR reviewers:** Let them know about areas of concern, under-tested areas, or vague requirements that should be ironed out.
+- **Keep Descriptions Brief**: The description should only include information that isn’t obvious from the changes in the PR itself—don’t just describe the implementation. The aim is to make it easy for the reviewer; anything that doesn’t actively help them wastes their time and should be omitted.
 
 ### Triggering CI on PRs from external forks
 If the PR is from an external fork, our CI suite will not automatically run on the PR. A reviewer with sufficient permissions (e.g. the automatically assigened reviewer) needs to comment on the PR with

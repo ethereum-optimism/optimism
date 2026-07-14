@@ -16,14 +16,13 @@ Active flags:
 | Flag | Gates |
 |------|-------|
 | `OptimismPortalInterop` | Interop migration functions on OptimismPortal2 |
-| `CannonKona` | Respected-game-type override for CANNON_KONA during upgrades — **enabled by default** |
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade |
 
 Retired bits are marked with comments in the two constant files; do not reuse a retired bit value.
 
-The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `CannonKona`, which is enabled by default on both the Go and Solidity sides (the bitmap no longer acts as a circuit breaker for it; removal tracked in #20084).
+The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`).
 
 **Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` all need updating; there is no compile-time link between them.
 
@@ -63,7 +62,6 @@ A separate, **test-only** assembler exists for Foundry tests and fork scripts. I
 
 - `DEV_FEATURE__OPTIMISM_PORTAL_INTEROP`
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
-- `DEV_FEATURE__CANNON_KONA`
 - `DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION`
 
 Each is read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol` (functions `devFeatureInterop()`, `devFeatureZkDisputeGame()`, etc.). The only callers are under `test/`:
@@ -122,8 +120,7 @@ The bitmap flags (interop, ZK, super-root migration) have no parallel hardfork t
 
 ## G. Lifecycle direction
 
-- CannonKona is **default-on** (#20470): `IsDevFeatureEnabled` / `isDevFeatureEnabled` return `true` for it regardless of the bitmap.
-- **#20084** tracks removing the CannonKona flag (and eventually the wider DevFeatures scaffolding).
+- The remaining flags (interop, ZK, super-root migration) are expected to ship as hardforks or be removed, at which point the DevFeatures scaffolding itself can go away.
 
 ## File index
 
