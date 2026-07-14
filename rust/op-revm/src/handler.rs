@@ -5,6 +5,7 @@ use crate::{
     constants::{BASE_FEE_RECIPIENT, L1_FEE_RECIPIENT, OPERATOR_FEE_RECIPIENT},
     transaction::{OpTransactionError, OpTxTr, deposit::DEPOSIT_TRANSACTION_TYPE},
 };
+use op_alloy_consensus::OpTxType;
 use revm::{
     context::{
         LocalContextTr,
@@ -12,7 +13,7 @@ use revm::{
         result::InvalidTransaction,
     },
     context_interface::{
-        Block, Cfg, ContextTr, JournalTr, Transaction, TransactionType,
+        Block, Cfg, ContextTr, JournalTr, Transaction,
         context::take_error,
         result::{EVMError, ExecutionResult, FromStringError, ResultGas},
     },
@@ -424,23 +425,21 @@ where
         evm: &mut EVM,
         error: ERROR,
     ) -> Result<ExecutionResult<OpHaltReason>, ERROR> {
-        match TransactionType::from(evm.ctx().tx().tx_type()) {
-            // revm folds OP's custom tx types into `Custom`, so the deposit is identified by its
-            // type byte.
-            TransactionType::Custom if evm.ctx().tx().tx_type() == DEPOSIT_TRANSACTION_TYPE => {
-                self.catch_error_failed_deposit(evm)
-            }
-            // Every non-deposit tx that errors (including other OP custom types such as post-exec)
-            // must have its journal changes discarded and its `transaction_id` advanced, as
-            // `EthHandler::catch_error` does upstream. Otherwise the failed tx's partial state and
-            // EIP-2929 warm/cold stamps persist in the shared journal and leak into the next tx
-            // executed on the same EVM.
-            TransactionType::Legacy |
-            TransactionType::Eip2930 |
-            TransactionType::Eip1559 |
-            TransactionType::Eip4844 |
-            TransactionType::Eip7702 |
-            TransactionType::Custom => {
+        match OpTxType::try_from(evm.ctx().tx().tx_type()) {
+            Ok(OpTxType::Deposit) => self.catch_error_failed_deposit(evm),
+            // Every non-deposit tx that errors (including post-exec, and any unsupported type byte,
+            // which `try_from` rejects) must have its journal changes discarded and its
+            // `transaction_id` advanced, as `EthHandler::catch_error` does upstream. Otherwise the
+            // failed tx's partial state and EIP-2929 warm/cold stamps persist in the shared journal
+            // and leak into the next tx executed on the same EVM.
+            Ok(
+                OpTxType::Legacy |
+                OpTxType::Eip2930 |
+                OpTxType::Eip1559 |
+                OpTxType::Eip7702 |
+                OpTxType::PostExec,
+            ) |
+            Err(_) => {
                 evm.ctx().journal_mut().discard_tx();
                 Err(error)
             }
@@ -456,13 +455,16 @@ where
         evm: &mut EVM,
         error: ERROR,
     ) -> Result<ExecutionResult<OpHaltReason>, ERROR> {
-        match TransactionType::from(evm.ctx().tx().tx_type()) {
-            TransactionType::Legacy |
-            TransactionType::Eip2930 |
-            TransactionType::Eip1559 |
-            TransactionType::Eip4844 |
-            TransactionType::Eip7702 |
-            TransactionType::Custom => {
+        match OpTxType::try_from(evm.ctx().tx().tx_type()) {
+            Ok(
+                OpTxType::Legacy |
+                OpTxType::Eip2930 |
+                OpTxType::Eip1559 |
+                OpTxType::Eip7702 |
+                OpTxType::Deposit |
+                OpTxType::PostExec,
+            ) |
+            Err(_) => {
                 evm.ctx().journal_mut().discard_tx();
                 Err(error)
             }
