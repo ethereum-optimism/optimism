@@ -246,7 +246,7 @@
       "nexus_paths": [
         "apko/op-challenger.yaml"
       ],
-      "smoke_test": "op-challenger --help,cannon --help,kona-host --help"
+      "smoke_test": "op-challenger --help,cannon --help,cannon load-elf --type multithreaded64-5 --help,kona-host --help"
     },
     "kona-node": {
       "type": "rust",
