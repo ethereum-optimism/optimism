@@ -362,7 +362,7 @@ mod tests {
 
     #[test]
     fn fcu_unknown_head_is_syncing() {
-        let engine = simple_engine();
+        let mut engine = simple_engine();
         let genesis_hash = engine.header_by_number(0).unwrap().unwrap().hash_slow();
 
         // An unknown head must report SYNCING — never a silent VALID.
@@ -379,7 +379,7 @@ mod tests {
 
     #[test]
     fn fcu_unknown_safe_is_error() {
-        let engine = simple_engine();
+        let mut engine = simple_engine();
         let genesis_hash = engine.header_by_number(0).unwrap().unwrap().hash_slow();
         // A known head with an unknown (non-zero) safe block is a forkchoice error, not silently
         // ignored.

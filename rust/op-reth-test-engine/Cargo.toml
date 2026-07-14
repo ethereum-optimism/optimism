@@ -18,6 +18,9 @@ reth-optimism-evm.workspace = true
 reth-optimism-payload-builder.workspace = true
 reth-optimism-forks.workspace = true
 
+# reth payload
+reth-payload-primitives.workspace = true
+
 # reth
 reth-provider = { workspace = true, features = ["test-utils"] }
 reth-db = { workspace = true, features = ["test-utils"] }
@@ -48,3 +51,5 @@ thiserror.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 op-alloy-consensus.workspace = true
 reth-chainspec.workspace = true
+alloy-network.workspace = true
+alloy-signer-local.workspace = true
