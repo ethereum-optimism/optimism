@@ -3,10 +3,15 @@ package fault
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"path/filepath"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/registry"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -20,6 +25,40 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCannonRegisterTask_BottomPrestateProvider(t *testing.T) {
+	// A base URL that never resolves a prestate, matching a challenger configured with --prestates-url
+	// where the (placeholder) prestate for a permissioned game is not published.
+	baseURL, err := url.Parse("file:///nonexistent-prestates/")
+	require.NoError(t, err)
+	newCfg := func(t *testing.T) *config.Config {
+		return &config.Config{
+			Datadir:                       t.TempDir(),
+			Cannon:                        vm.Config{VmType: gameTypes.CannonGameType},
+			CannonAbsolutePreStateBaseURL: baseURL,
+		}
+	}
+	requiredPrestate := common.Hash{0xaa}
+
+	t.Run("permissioned game uses placeholder prestate without loading it", func(t *testing.T) {
+		cfg := newCfg(t)
+		task := NewCannonRegisterTask(gameTypes.PermissionedGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+		provider, err := task.getBottomPrestateProvider(context.Background(), requiredPrestate)
+		require.NoError(t, err)
+		vmProvider, ok := provider.(*vm.PrestateProvider)
+		require.True(t, ok)
+		require.Empty(t, vmProvider.PrestatePath())
+		// No load is ever attempted, so the prestates dir the downloader would create must not exist
+		require.NoDirExists(t, filepath.Join(cfg.Datadir, "cannon-prestates"))
+	})
+
+	t.Run("cannon game requires prestate", func(t *testing.T) {
+		cfg := newCfg(t)
+		task := NewCannonRegisterTask(gameTypes.CannonGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+		_, err := task.getBottomPrestateProvider(context.Background(), requiredPrestate)
+		require.ErrorIs(t, err, prestates.ErrPrestateUnavailable)
+	})
+}
 
 func TestRegisterOracle_MissingGameImpl(t *testing.T) {
 	// Test versions with and without game args support

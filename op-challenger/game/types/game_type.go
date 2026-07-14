@@ -28,6 +28,17 @@ const (
 	UnknownGameType           GameType = math.MaxUint32 // Not supported by op-challenger
 )
 
+// IsPermissioned returns true for game types played only by trusted actors.
+// These games resolve at the proposal level without ever reaching step(), so
+// they never run the fault proof VM or load its absolute prestate.
+func (g GameType) IsPermissioned() bool {
+	return g == PermissionedGameType || g == SuperPermissionedGameType
+}
+
+// CannonFamilyGameTypes are the game types that share the cannon VM
+// configuration (the --cannon-* flags).
+var CannonFamilyGameTypes = []GameType{CannonGameType, PermissionedGameType}
+
 // SupportedGameTypes is the list of game types that are supported by op-challenger.
 // Game type codes may be reserved that are not supported by op-challenger.
 var SupportedGameTypes = []GameType{
