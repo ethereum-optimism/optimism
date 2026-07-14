@@ -19,13 +19,12 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer/source"
-	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -41,7 +40,7 @@ type ProposerCfg struct {
 	AllowNonFinalized      bool
 	AllocType              config.AllocType
 	ChainID                eth.ChainID
-	L2ChainID              eth.ChainID
+	Clock                  clock.Clock
 }
 
 type L2Proposer struct {
@@ -53,8 +52,6 @@ type L2Proposer struct {
 	address                common.Address
 	privKey                *ecdsa.PrivateKey
 	lastTx                 common.Hash
-	l2ChainID              eth.ChainID
-	allocType              config.AllocType
 }
 
 type fakeTxMgr struct {
@@ -97,7 +94,7 @@ func (f fakeTxMgr) SuggestGasPriceCaps(context.Context) (*big.Int, *big.Int, *bi
 	panic("unimplemented")
 }
 
-func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
+func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, proposalSource source.ProposalSource) *L2Proposer {
 	proposerConfig := proposer.ProposerConfig{
 		PollInterval:           time.Second,
 		NetworkTimeout:         time.Second,
@@ -106,24 +103,23 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		DisputeGameType:        cfg.DisputeGameType,
 		AllowNonFinalized:      cfg.AllowNonFinalized,
 	}
-	rollupProvider, err := dial.NewStaticL2RollupProviderFromExistingRollup(rollupCl)
-	require.NoError(t, err)
 
+	t.Cleanup(proposalSource.Close)
 	driverSetup := proposer.DriverSetup{
 		Log:            log,
 		Metr:           metrics.NoopMetrics,
 		Cfg:            proposerConfig,
+		Clock:          cfg.Clock,
 		Txmgr:          fakeTxMgr{from: crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey), chainID: cfg.ChainID},
 		L1Client:       l1,
 		Multicaller:    batching.NewMultiCaller(l1.Client(), batching.DefaultBatchSize),
-		ProposalSource: source.NewRollupProposalSource(rollupProvider),
+		ProposalSource: proposalSource,
 	}
 
 	dr, err := proposer.NewL2OutputSubmitter(driverSetup)
 	require.NoError(t, err)
 
 	address := crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)
-
 	disputeGameFactory, err := bindings.NewDisputeGameFactoryCaller(*cfg.DisputeGameFactoryAddr, l1)
 	require.NoError(t, err)
 
@@ -135,8 +131,6 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		disputeGameFactoryAddr: cfg.DisputeGameFactoryAddr,
 		address:                address,
 		privKey:                cfg.ProposerKey,
-		allocType:              cfg.AllocType,
-		l2ChainID:              cfg.L2ChainID,
 	}
 }
 
@@ -196,41 +190,18 @@ func estimateGasPending(ctx context.Context, ec *ethclient.Client, msg ethereum.
 }
 
 func (p *L2Proposer) fetchNextOutput(t Testing) (source.Proposal, bool, error) {
-	isSuperPermissioned := gameTypes.GameType(p.driver.Cfg.DisputeGameType) == gameTypes.SuperPermissionedGameType
-	var output source.Proposal
-	if isSuperPermissioned {
-		sequenceNum, err := p.driver.FetchCurrentBlockNumber(t.Ctx())
-		if err != nil || sequenceNum == 0 {
-			return source.Proposal{}, false, err
-		}
-		output, err = p.driver.FetchOutput(t.Ctx(), sequenceNum)
-		if err != nil {
-			return source.Proposal{}, false, err
-		}
-		super := eth.NewSuperV1(output.Legacy.BlockRef.Time, eth.ChainIDAndOutput{
-			ChainID: p.l2ChainID,
-			Output:  eth.Bytes32(output.Root),
-		})
-		output.Root = common.Hash(eth.SuperRoot(super))
-		output.SequenceNum = output.Legacy.BlockRef.Time
-		output.Super = super
-	} else {
-		var shouldPropose bool
-		var err error
-		output, shouldPropose, err = p.driver.FetchDGFOutput(t.Ctx())
-		if err != nil || !shouldPropose {
-			return source.Proposal{}, false, err
-		}
+	output, shouldPropose, err := p.driver.FetchDGFOutput(t.Ctx())
+	if err != nil || !shouldPropose {
+		return output, shouldPropose, err
 	}
 
-	game, err := p.disputeGameFactory.Games(&bind.CallOpts{}, p.driver.Cfg.DisputeGameType, output.Root, output.ExtraData())
+	game, err := p.disputeGameFactory.Games(&bind.CallOpts{Context: t.Ctx()}, p.driver.Cfg.DisputeGameType, output.Root, output.ExtraData())
 	if err != nil {
 		return source.Proposal{}, false, err
 	}
 	if game.Timestamp != 0 {
 		return source.Proposal{}, false, nil
 	}
-
 	return output, true, nil
 }
 

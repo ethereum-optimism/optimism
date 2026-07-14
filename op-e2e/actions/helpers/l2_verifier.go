@@ -98,6 +98,24 @@ type safeDB interface {
 	node.SafeDBReader
 }
 
+type proposerSuperRootSafeDBReader struct{}
+
+func (proposerSuperRootSafeDBReader) SafeHeadAtL1(context.Context, uint64) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, errors.New("action proposer SafeDB reader does not support SafeHeadAtL1")
+}
+
+func (proposerSuperRootSafeDBReader) L1AtSafeHead(context.Context, uint64) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, nil
+}
+
+func (proposerSuperRootSafeDBReader) FirstEntry(context.Context) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, errors.New("action proposer SafeDB reader does not support FirstEntry")
+}
+
+func (proposerSuperRootSafeDBReader) LastEntry(context.Context) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, errors.New("action proposer SafeDB reader does not support LastEntry")
+}
+
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	blobsSrc derive.L1BlobsFetcher, altDASrc driver.AltDAIface,
 	eng L2API, cfg *rollup.Config, l1ChainConfig *params.ChainConfig,
@@ -216,6 +234,19 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 	require.NoError(t, gnode.RegisterApis(apis, nil, rollupNode.rpc), "failed to set up APIs")
 	return rollupNode
+}
+
+func (s *L2Verifier) EnableProposerSuperRootAPI(t Testing) {
+	apis := []rpc.API{{
+		Namespace: "superroot",
+		Service: node.NewSuperrootAPI(
+			s.RollupCfg,
+			s.Eng,
+			&l2VerifierBackend{verifier: s},
+			proposerSuperRootSafeDBReader{},
+		),
+	}}
+	require.NoError(t, gnode.RegisterApis(apis, nil, s.rpc), "failed to set up proposer super-root API")
 }
 
 type l2VerifierBackend struct {
