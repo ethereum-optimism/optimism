@@ -19,7 +19,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindingspreview"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-proposer/proposer/source"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -46,6 +48,9 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
 
 	rollupSeqCl := sequencer.RollupClient()
+	rollupProvider, err := dial.NewStaticL2RollupProviderFromExistingRollup(rollupSeqCl)
+	require.NoError(t, err)
+	proposalSource := source.NewRollupProposalSource(rollupProvider)
 	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
 		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
@@ -62,7 +67,7 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 		AllowNonFinalized:      true,
 		AllocType:              allocType,
 		ChainID:                eth.ChainIDFromBig(sd.L1Cfg.Config.ChainID),
-	}, miner.EthClient(), rollupSeqCl)
+	}, miner.EthClient(), proposalSource)
 
 	// L1 block
 	miner.ActEmptyBlock(t)
