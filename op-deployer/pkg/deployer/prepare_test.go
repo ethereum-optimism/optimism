@@ -3,6 +3,7 @@ package deployer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -469,4 +470,118 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 	// The already-deployed chain is skipped, so its anchor is never resolved or pinned.
 	require.Nil(t, deployed.StartBlock)
 	require.Nil(t, deployed.GenesisTime)
+}
+
+func TestPredictChains_ReusesPinnedAnchor(t *testing.T) {
+	chainID := common.HexToHash("0x0b")
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+
+	newIntent := func() *state.Intent {
+		return &state.Intent{
+			OPCMAddress:           &opcmAddr,
+			SuperchainConfigProxy: &superchainConfig,
+			GlobalDeployOverrides: make(map[string]any),
+			Chains:                []*state.ChainIntent{{ID: chainID}},
+		}
+	}
+
+	// Simulate a successful dry-run
+	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		var out opcm.DeployOPChainOutput
+		out.SystemConfigProxy = common.HexToAddress("0xbeef")
+		return out, nil
+	}
+	pinnedAnchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+	pinnedGenesisTime := hexutil.Uint64(5600)
+	newPinnedState := func() *state.State {
+		st := &state.State{Create2Salt: common.HexToHash("0x03")}
+		st.PinChainAnchor(chainID, pinnedAnchor, pinnedGenesisTime)
+		return st
+	}
+	lgr := testlog.Logger(t, slog.LevelInfo)
+
+	t.Run("a re-run reuses the pinned commitment after revalidating it", func(t *testing.T) {
+		st := newPinnedState()
+
+		// The re-run sees a newer safe block and a different offset.
+		// Revalidation must query the already pinned hash in the state.
+		var revalidated []*common.Hash
+		freshAnchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xffff"), Number: 200, Time: 9000}
+		selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+			revalidated = append(revalidated, overrideHash)
+			if overrideHash != nil {
+				return pinnedAnchor, nil
+			}
+			return freshAnchor, nil
+		}
+
+		require.NoError(t, predictChains(lgr, newIntent(), st, run, selectAnchor, 9999))
+
+		require.Len(t, revalidated, 1)
+		require.NotNil(t, revalidated[0])
+		require.Equal(t, pinnedAnchor.Hash, *revalidated[0], "revalidation must target the pinned hash")
+
+		got, err := st.Chain(chainID)
+		require.NoError(t, err)
+		require.Equal(t, pinnedAnchor, got.StartBlock, "pinned anchor must be reused")
+		require.Equal(t, pinnedGenesisTime, *got.GenesisTime, "pinned genesis time must not be recomputed")
+		require.Equal(t, common.HexToAddress("0xbeef"), got.SystemConfigProxy, "prediction still runs on a re-run")
+	})
+
+	t.Run("an override matching the pinned anchor is accepted", func(t *testing.T) {
+		st := newPinnedState()
+		intent := newIntent()
+		override := pinnedAnchor.Hash
+		intent.Chains[0].L1StartBlockHash = &override
+
+		selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+			return pinnedAnchor, nil
+		}
+		require.NoError(t, predictChains(lgr, intent, st, run, selectAnchor, 0))
+	})
+
+	t.Run("an override conflicting with the pinned anchor errors", func(t *testing.T) {
+		st := newPinnedState()
+		intent := newIntent()
+		override := common.HexToHash("0xother")
+		intent.Chains[0].L1StartBlockHash = &override
+
+		selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+			t.Fatal("selectAnchor must not be called on an override conflict")
+			return nil, nil
+		}
+		err := predictChains(lgr, intent, st, run, selectAnchor, 0)
+		require.ErrorContains(t, err, "conflicts with the anchor block pinned by a previous run")
+	})
+
+	t.Run("a pinned anchor that fails revalidation errors", func(t *testing.T) {
+		st := newPinnedState()
+		selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+			return nil, errors.New("not canonical")
+		}
+		err := predictChains(lgr, newIntent(), st, run, selectAnchor, 0)
+		require.ErrorContains(t, err, "no longer valid")
+	})
+
+	t.Run("a state with only a start block is re-pinned like a fresh chain", func(t *testing.T) {
+		st := &state.State{Create2Salt: common.HexToHash("0x03")}
+		st.SetChainContracts(chainID, addresses.OpChainContracts{}, false)
+		chainState, err := st.Chain(chainID)
+		require.NoError(t, err)
+		chainState.StartBlock = pinnedAnchor // no genesis time
+
+		freshAnchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xffff"), Number: 200, Time: 9000}
+		selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+			require.Nil(t, overrideHash, "a half-pinned chain must be selected fresh, not revalidated")
+			return freshAnchor, nil
+		}
+
+		require.NoError(t, predictChains(lgr, newIntent(), st, run, selectAnchor, 600))
+
+		got, err := st.Chain(chainID)
+		require.NoError(t, err)
+		require.Equal(t, freshAnchor, got.StartBlock, "half-pinned anchor must be replaced")
+		require.EqualValues(t, 9600, *got.GenesisTime)
+	})
 }

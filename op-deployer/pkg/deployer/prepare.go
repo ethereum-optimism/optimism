@@ -244,23 +244,45 @@ func predictChains(
 			continue
 		}
 
-		// Resolve the reorg-safe anchor block before the dry-run so an unsafe override
-		// fails fast.
-		anchorBlock, err := selectAnchor(chain.L1StartBlockHash)
-		if err != nil {
-			return fmt.Errorf("failed to select anchor block for chain %s: %w", chain.ID.Hex(), err)
-		}
+		if pinned := pinnedAnchorState(st, chain.ID); pinned != nil {
+			// A prior run already committed this chain's anchor and genesis time. Check the intent's override
+			// and the block commitment are the same.
+			if chain.L1StartBlockHash != nil && *chain.L1StartBlockHash != pinned.StartBlock.Hash {
+				return fmt.Errorf(
+					"chain %s: the l1StartBlockHash override (%s) conflicts with the anchor block pinned by a previous run (%s), clear the chain's state to re-pin",
+					chain.ID.Hex(), chain.L1StartBlockHash.Hex(), pinned.StartBlock.Hash.Hex(),
+				)
+			}
 
-		// Commit the anchor and the genesis time derived from it as one unit.
-		genesisTime := hexutil.Uint64(uint64(anchorBlock.Time) + genesisTimeOffset)
-		st.PinChainAnchor(chain.ID, anchorBlock, genesisTime)
-		lgr.Info(
-			"pinned anchor block and genesis time",
-			"chain", chain.ID.Hex(),
-			"number", uint64(anchorBlock.Number),
-			"hash", anchorBlock.Hash,
-			"genesisTime", uint64(genesisTime),
-		)
+			// Validate the pinned anchor block is still valid.
+			if _, err := selectAnchor(&pinned.StartBlock.Hash); err != nil {
+				return fmt.Errorf("pinned anchor block for chain %s is no longer valid: %w", chain.ID.Hex(), err)
+			}
+			lgr.Info(
+				"reusing pinned anchor block and genesis time",
+				"chain", chain.ID.Hex(),
+				"number", uint64(pinned.StartBlock.Number),
+				"hash", pinned.StartBlock.Hash,
+				"genesisTime", uint64(*pinned.GenesisTime),
+			)
+		} else {
+			// Resolve the reorg-safe anchor block before the dry-run.
+			anchorBlock, err := selectAnchor(chain.L1StartBlockHash)
+			if err != nil {
+				return fmt.Errorf("failed to select anchor block for chain %s: %w", chain.ID.Hex(), err)
+			}
+
+			// Commit the anchor and the genesis time.
+			genesisTime := hexutil.Uint64(uint64(anchorBlock.Time) + genesisTimeOffset)
+			st.PinChainAnchor(chain.ID, anchorBlock, genesisTime)
+			lgr.Info(
+				"pinned anchor block and genesis time",
+				"chain", chain.ID.Hex(),
+				"number", uint64(anchorBlock.Number),
+				"hash", anchorBlock.Hash,
+				"genesisTime", uint64(genesisTime),
+			)
+		}
 
 		dci, err := makePredictionInput(intent, st, chain)
 		if err != nil {
@@ -288,6 +310,16 @@ func predictChains(
 	}
 
 	return nil
+}
+
+// pinnedAnchorState returns the chain's state when a prior prepare run committed both
+// its anchor block and genesis time, and nil otherwise.
+func pinnedAnchorState(st *state.State, id common.Hash) *state.ChainState {
+	chainState, err := st.Chain(id)
+	if err != nil || chainState.StartBlock == nil || chainState.GenesisTime == nil {
+		return nil
+	}
+	return chainState
 }
 
 // Sentinel inputs for the prediction dry-run of permissionless deploys.
