@@ -17,7 +17,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
@@ -116,8 +118,63 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 				t.Errorf("makeDCI() Opcm = %v, want %v", got.Opcm, tt.expectedOpcm)
 			}
 			require.Equal(t, standard.DisputeAbsolutePrestate, got.CannonAbsolutePrestate)
+			require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, got.StartingAnchorRoot)
 		})
 	}
+}
+
+func Test_makeDCI_RejectsPermissionlessGameType(t *testing.T) {
+	chainID := common.HexToHash("0x0300")
+	intent := &state.Intent{GlobalDeployOverrides: make(map[string]any)}
+	chainIntent := &state.ChainIntent{
+		ID:              chainID,
+		DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeCannonKona},
+	}
+	st := &state.State{
+		Create2Salt: common.HexToHash("0x01"),
+		SuperchainDeployment: &addresses.SuperchainContracts{
+			SuperchainConfigProxy: common.HexToAddress("0x3333333333333333333333333333333333333333"),
+		},
+		ImplementationsDeployment: &addresses.ImplementationsContracts{
+			OpcmV2Impl: common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		},
+	}
+
+	_, err := makeDCI(intent, chainIntent, chainID, st)
+	require.ErrorContains(t, err, "permissionless")
+}
+
+func TestShouldDeployOPChain(t *testing.T) {
+	chainID := common.HexToHash("0x0a")
+	other := common.HexToHash("0x0b")
+
+	t.Run("absent chain is deployed", func(t *testing.T) {
+		require.True(t, shouldDeployOPChain(&state.State{}, chainID))
+	})
+
+	t.Run("deployed chain is skipped", func(t *testing.T) {
+		st := &state.State{Chains: []*state.ChainState{{ID: chainID, Deployed: ptr.New(true)}}}
+		require.False(t, shouldDeployOPChain(st, chainID))
+	})
+
+	t.Run("predicted-only chain is still deployed", func(t *testing.T) {
+		// prepare writes the chain with Deployed=false; apply/continue must still
+		// broadcast it.
+		st := &state.State{Chains: []*state.ChainState{{ID: chainID, Deployed: ptr.New(false)}}}
+		require.True(t, shouldDeployOPChain(st, chainID))
+	})
+
+	t.Run("legacy chain without deployed flag is skipped", func(t *testing.T) {
+		// States written by older pipelines have no Deployed field, so it decodes
+		// to nil. Those chains were already deployed.
+		st := &state.State{Chains: []*state.ChainState{{ID: chainID, Deployed: nil}}}
+		require.False(t, shouldDeployOPChain(st, chainID))
+	})
+
+	t.Run("only matches the requested chain id", func(t *testing.T) {
+		st := &state.State{Chains: []*state.ChainState{{ID: other, Deployed: ptr.New(true)}}}
+		require.True(t, shouldDeployOPChain(st, chainID))
+	})
 }
 
 func TestDeployOPChain_WithForge(t *testing.T) {
