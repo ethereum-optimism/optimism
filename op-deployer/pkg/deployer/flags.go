@@ -14,23 +14,23 @@ import (
 )
 
 const (
-	EnvVarPrefix             = flags.EnvVarPrefix
-	L1RPCURLFlagName         = flags.L1RPCURLFlagName
-	CacheDirFlagName         = flags.CacheDirFlagName
-	L1ChainIDFlagName        = flags.L1ChainIDFlagName
-	ArtifactsLocatorFlagName = flags.ArtifactsLocatorFlagName
-	L2ChainIDsFlagName       = flags.L2ChainIDsFlagName
-	WorkdirFlagName          = flags.WorkdirFlagName
-	OutdirFlagName           = flags.OutdirFlagName
-	PrivateKeyFlagName       = flags.PrivateKeyFlagName
-	IntentTypeFlagName       = flags.IntentTypeFlagName
-	VerifierAPIKeyFlagName   = flags.VerifierAPIKeyFlagName
-	EtherscanAPIKeyFlagName  = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
-	InputFileFlagName        = flags.InputFileFlagName
-	ContractNameFlagName     = flags.ContractNameFlagName
-	VerifierTypeFlagName     = flags.VerifierTypeFlagName
-	VerifierUrlFlagName      = flags.VerifierUrlFlagName
-	UseForgeFlagName         = flags.UseForgeFlagName
+	EnvVarPrefix              = flags.EnvVarPrefix
+	L1RPCURLFlagName          = flags.L1RPCURLFlagName
+	CacheDirFlagName          = flags.CacheDirFlagName
+	L1ChainIDFlagName         = flags.L1ChainIDFlagName
+	ArtifactsLocatorFlagName  = flags.ArtifactsLocatorFlagName
+	L2ChainIDsFlagName        = flags.L2ChainIDsFlagName
+	WorkdirFlagName           = flags.WorkdirFlagName
+	OutdirFlagName            = flags.OutdirFlagName
+	PrivateKeyFlagName        = flags.PrivateKeyFlagName
+	IntentTypeFlagName        = flags.IntentTypeFlagName
+	VerifierAPIKeyFlagName    = flags.VerifierAPIKeyFlagName
+	EtherscanAPIKeyFlagName   = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
+	InputFileFlagName         = flags.InputFileFlagName
+	ContractNameFlagName      = flags.ContractNameFlagName
+	VerifierTypeFlagName      = flags.VerifierTypeFlagName
+	VerifierUrlFlagName       = flags.VerifierUrlFlagName
+	UseForgeFlagName          = flags.UseForgeFlagName
 	GenesisTimeOffsetFlagName = flags.GenesisTimeOffsetFlagName
 )
 
