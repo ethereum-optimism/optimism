@@ -99,7 +99,7 @@ It does **not** flow to op-node, op-program, or kona at runtime. They learn abou
 
 **On L2 (Solidity)**, readers consult either the in-memory bitmap (during deploy scripts) or the `L2DevFeatureFlags` predeploy (at runtime):
 
-- `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. Gates whether `CONDITIONAL_DEPLOYER` (0x2C), `L2_DEV_FEATURE_FLAGS` (0x2D), and the interop predeploys are considered "real" predeploys.
+- `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. Gates whether the interop predeploys (`CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `SuperchainETHBridge`, `ETHLiquidity`, all under `OptimismPortalInterop`) are considered "real" predeploys.
 - `scripts/L2Genesis.s.sol` — gates which predeploys get installed at genesis.
 - `L2ContractsManager._isDevFeatureEnabled()` in `src/L2/L2ContractsManager.sol` — at runtime, calls `IL2DevFeatureFlags.isDevFeatureEnabled(...)` on the predeploy to decide whether to execute upgrade flows.
 
