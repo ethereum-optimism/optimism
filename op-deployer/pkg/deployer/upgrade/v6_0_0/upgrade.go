@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/lmittmann/w3"
 )
@@ -41,18 +40,18 @@ type UpgradeOPChain struct {
 	Run func(input common.Address)
 }
 
-func Upgrade(host *script.Host, input UpgradeOPChainInput) error {
-	return opcm.RunScriptVoid(host, input, "UpgradeOPChain.s.sol", "UpgradeOPChain")
+func Upgrade(backend scriptbackend.Backend, input UpgradeOPChainInput) error {
+	return scriptbackend.RunScriptVoid(backend, input, "UpgradeOPChain.s.sol", "UpgradeOPChain")
 }
 
 type Upgrader struct{}
 
-func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
+func (u *Upgrader) Upgrade(backend scriptbackend.Backend, input json.RawMessage) error {
 	var upgradeInput UpgradeOPChainInput
 	if err := json.Unmarshal(input, &upgradeInput); err != nil {
 		return fmt.Errorf("failed to unmarshal input: %w", err)
 	}
-	return Upgrade(host, upgradeInput)
+	return Upgrade(backend, upgradeInput)
 }
 
 func (u *Upgrader) ArtifactsURL() string {

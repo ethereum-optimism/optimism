@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
@@ -217,7 +218,9 @@ func runSingleOPCMUpgradeResolved(t *testing.T, host *script.Host, prank, system
 	upgradeConfigBytes, err := json.Marshal(upgradeConfig)
 	require.NoError(t, err)
 
-	err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
+	// TODO(round 3): route this OPCM-registry-walk upgrade path through the Rust engine's fork mode.
+	// Kept on the Go host (FromHost) for now; the interface is backend-based, the routing is not.
+	err = embedded.DefaultUpgrader.Upgrade(scriptbackend.FromHost(host), upgradeConfigBytes)
 	if err != nil {
 		t.Logf("OPCM %s (v%s) upgrade failed: %v", opcm.Address.Hex(), opcm.OPCMVersion.Raw, err)
 		return false

@@ -38,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
@@ -957,7 +958,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				require.NoError(t, err, "Should encode UpgradeInputV2")
 				require.NotEmpty(t, encodedData, "Encoded data should not be empty")
 
-				err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
+				err = embedded.DefaultUpgrader.Upgrade(scriptbackend.FromHost(host), upgradeConfigBytes)
 				require.NoError(t, err, "OPCM V2 chain upgrade should succeed")
 			})
 		})

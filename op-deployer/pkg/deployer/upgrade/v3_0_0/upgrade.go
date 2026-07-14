@@ -6,16 +6,16 @@ package v3_0_0
 import (
 	"encoding/json"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	v200 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
 )
 
 type Upgrader struct {
 }
 
-func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
-	return v200.DefaultUpgrader.Upgrade(host, input)
+func (u *Upgrader) Upgrade(backend scriptbackend.Backend, input json.RawMessage) error {
+	return v200.DefaultUpgrader.Upgrade(backend, input)
 }
 
 func (u *Upgrader) ArtifactsURL() string {

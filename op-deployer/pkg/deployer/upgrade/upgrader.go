@@ -9,19 +9,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
 
 type Upgrader interface {
-	Upgrade(host *script.Host, input json.RawMessage) error
+	Upgrade(backend scriptbackend.Backend, input json.RawMessage) error
 	ArtifactsURL() string
 }
 
@@ -49,11 +47,6 @@ func UpgradeCLI(upgrader Upgrader) func(*cli.Context) error {
 			return fmt.Errorf("failed to parse artifacts URL: %w", err)
 		}
 
-		rpcClient, err := rpc.Dial(l1RPC)
-		if err != nil {
-			return fmt.Errorf("failed to dial RPC %s: %w", l1RPC, err)
-		}
-
 		bcaster := new(broadcaster.CalldataBroadcaster)
 		depAddr := common.Address{'D'}
 		cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
@@ -63,17 +56,11 @@ func UpgradeCLI(upgrader Upgrader) func(*cli.Context) error {
 			return fmt.Errorf("failed to download L1 artifacts: %w, url: %s", err, artifactsLocator)
 		}
 
-		host, err := env.DefaultForkedScriptHost(
-			ctx,
-			bcaster,
-			lgr,
-			depAddr,
-			artifactsFS,
-			rpcClient,
-		)
+		fl1, err := scriptbackend.NewForkedL1(ctx, "", lgr, depAddr, artifactsFS, l1RPC, bcaster)
 		if err != nil {
-			return fmt.Errorf("failed to create script host: %w", err)
+			return fmt.Errorf("failed to create forked L1 backend: %w", err)
 		}
+		defer fl1.Close()
 
 		configFilePath := cliCtx.String(ConfigFlag.Name)
 		if configFilePath == "" {
@@ -83,8 +70,11 @@ func UpgradeCLI(upgrader Upgrader) func(*cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to read config file: %w", err)
 		}
-		if err := upgrader.Upgrade(host, cfgData); err != nil {
+		if err := upgrader.Upgrade(fl1.Backend, cfgData); err != nil {
 			return fmt.Errorf("failed to upgrade: %w", err)
+		}
+		if err := fl1.DrainBroadcasts(); err != nil {
+			return fmt.Errorf("failed to drain broadcasts: %w", err)
 		}
 
 		dump, err := bcaster.Dump()

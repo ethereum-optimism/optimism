@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/lmittmann/w3"
 )
@@ -232,7 +231,7 @@ type UpgradeOPChain struct {
 	Run func(input common.Address)
 }
 
-func Upgrade(host *script.Host, input UpgradeOPChainInput) error {
+func Upgrade(backend scriptbackend.Backend, input UpgradeOPChainInput) error {
 	if input.UpgradeInputV2 == nil {
 		return fmt.Errorf("UpgradeInputV2 is required")
 	}
@@ -247,17 +246,17 @@ func Upgrade(host *script.Host, input UpgradeOPChainInput) error {
 		Opcm:         input.Opcm,
 		UpgradeInput: encodedUpgradeInput,
 	}
-	return opcm.RunScriptVoid[ScriptInput](host, scriptInput, "UpgradeOPChain.s.sol", "UpgradeOPChain")
+	return scriptbackend.RunScriptVoid[ScriptInput](backend, scriptInput, "UpgradeOPChain.s.sol", "UpgradeOPChain")
 }
 
 type Upgrader struct{}
 
-func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
+func (u *Upgrader) Upgrade(backend scriptbackend.Backend, input json.RawMessage) error {
 	var upgradeInput UpgradeOPChainInput
 	if err := json.Unmarshal(input, &upgradeInput); err != nil {
 		return fmt.Errorf("failed to unmarshal input: %w", err)
 	}
-	return Upgrade(host, upgradeInput)
+	return Upgrade(backend, upgradeInput)
 }
 
 func (u *Upgrader) ArtifactsURL() string {
