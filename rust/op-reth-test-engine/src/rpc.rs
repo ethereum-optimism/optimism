@@ -12,12 +12,15 @@
 
 use std::sync::{Arc, Mutex};
 
+use alloy_consensus::transaction::{Recovered, SignerRecoverable, TransactionInfo};
 use alloy_eips::{eip2718::Encodable2718, eip7685::Requests};
 use alloy_primitives::{B256, Bytes, keccak256};
 use alloy_rpc_types_engine::{
     CancunPayloadFields, ForkchoiceState, PayloadId, PraguePayloadFields,
 };
 use jsonrpsee::{RpcModule, types::ErrorObjectOwned};
+use op_alloy_consensus::transaction::{OpDepositInfo, OpTransactionInfo};
+use op_alloy_rpc_types::Transaction as OpRpcTransaction;
 use op_alloy_rpc_types_engine::{
     OpExecutionData, OpExecutionPayload, OpExecutionPayloadEnvelope, OpExecutionPayloadSidecar,
     OpPayloadAttributes,
@@ -69,18 +72,63 @@ fn execution_data(
 }
 
 /// Serialize an OP block as an `eth_getBlock*` result: the RPC header (which carries the block
-/// hash) plus the block's transaction hashes. Faithful enough for the chain-shape assertions the
-/// action tests make; full transaction objects are not needed by any caller yet.
-fn block_json(block: &OpBlock) -> Result<Value, ErrorObjectOwned> {
+/// hash) plus its transactions. With `full` false the `transactions` array is the transaction
+/// hashes; with `full` true it is the full OP RPC transaction objects.
+///
+/// op-node's `sources.EthClient` reconstructs the `ExecutionPayload` and the `L2BlockRef` (from the
+/// L1-info deposit) out of the full-transaction form, so the full path must emit exactly the JSON
+/// go-ethereum's transaction decoder round-trips back to the same RLP the block was sealed with —
+/// including the deposit-transaction fields. That is precisely what
+/// [`OpRpcTransaction::from_transaction`] produces (it is what reth serves in production).
+fn block_json(block: &OpBlock, full: bool) -> Result<Value, ErrorObjectOwned> {
     let header = alloy_rpc_types_eth::Header::new(block.header.clone());
+    let block_hash = header.hash;
     let mut value = serde_json::to_value(&header).map_err(rpc_err)?;
-    let tx_hashes: Vec<B256> =
-        block.body.transactions.iter().map(|tx| keccak256(tx.encoded_2718())).collect();
+    let txs = if full {
+        full_transactions(block, block_hash)?
+    } else {
+        let hashes: Vec<B256> =
+            block.body.transactions.iter().map(|tx| keccak256(tx.encoded_2718())).collect();
+        serde_json::to_value(hashes).map_err(rpc_err)?
+    };
     if let Value::Object(map) = &mut value {
-        map.insert("transactions".into(), serde_json::to_value(tx_hashes).map_err(rpc_err)?);
+        map.insert("transactions".into(), txs);
         map.insert("uncles".into(), json!([]));
+        // Post-Canyon OP blocks carry an (always empty) withdrawals list alongside the
+        // withdrawals-root header field; op-node rejects a block that has the root but no list.
+        if let Some(withdrawals) = &block.body.withdrawals {
+            map.insert("withdrawals".into(), serde_json::to_value(withdrawals).map_err(rpc_err)?);
+        }
     }
     Ok(value)
+}
+
+/// Serialize a block's transactions as full OP RPC transaction objects, in block order.
+///
+/// The signer is recovered per transaction (deposits recover to their `from` field). The
+/// deposit-nonce/receipt-version RPC fields are receipt-derived and not needed to reconstruct the
+/// transaction, so they are left unset — op-node rebuilds the deposit from the consensus fields.
+fn full_transactions(block: &OpBlock, block_hash: B256) -> Result<Value, ErrorObjectOwned> {
+    let base_fee = block.header.base_fee_per_gas;
+    let mut out = Vec::with_capacity(block.body.transactions.len());
+    for (index, tx) in block.body.transactions.iter().enumerate() {
+        let signer = tx.recover_signer().map_err(|e| rpc_err(format!("recover signer: {e}")))?;
+        let recovered = Recovered::new_unchecked(tx.clone(), signer);
+        let tx_info = OpTransactionInfo::new(
+            TransactionInfo {
+                hash: None,
+                index: Some(index as u64),
+                block_hash: Some(block_hash),
+                block_number: Some(block.header.number),
+                base_fee,
+                block_timestamp: Some(block.header.timestamp),
+            },
+            OpDepositInfo::default(),
+        );
+        let rpc_tx = OpRpcTransaction::from_transaction(recovered, tx_info);
+        out.push(serde_json::to_value(rpc_tx).map_err(rpc_err)?);
+    }
+    Ok(Value::Array(out))
 }
 
 /// Resolve a block-number-or-tag string (`latest`/`safe`/`finalized`/`earliest`/`pending` or a
@@ -216,12 +264,10 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
     .expect("register method");
 
     m.register_method("eth_getBlockByNumber", |params, ctx, _| {
-        // Second param (full-transactions) is accepted for compatibility but ignored: results
-        // always carry transaction hashes.
-        let (tag, _full): (String, Option<bool>) = params.parse().map_err(rpc_err)?;
+        let (tag, full): (String, Option<bool>) = params.parse().map_err(rpc_err)?;
         let engine = lock(ctx);
         let value = match resolve_block(&engine, &tag)? {
-            Some(block) => block_json(&block)?,
+            Some(block) => block_json(&block, full.unwrap_or(false))?,
             None => Value::Null,
         };
         Ok::<Value, ErrorObjectOwned>(value)
@@ -229,10 +275,10 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
     .expect("register method");
 
     m.register_method("eth_getBlockByHash", |params, ctx, _| {
-        let (hash, _full): (B256, Option<bool>) = params.parse().map_err(rpc_err)?;
+        let (hash, full): (B256, Option<bool>) = params.parse().map_err(rpc_err)?;
         let engine = lock(ctx);
         let value = match engine.block_by_hash(hash).map_err(rpc_err)? {
-            Some(block) => block_json(&block)?,
+            Some(block) => block_json(&block, full.unwrap_or(false))?,
             None => Value::Null,
         };
         Ok::<Value, ErrorObjectOwned>(value)
