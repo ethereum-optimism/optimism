@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -32,6 +33,14 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	dci, err := makeDCI(intent, thisIntent, chainID, st)
 	if err != nil {
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
+	}
+
+	// We make sure that the deployer and OPCM are the same as the ones used in the dry-run, if any.
+	// Skip when the deployer is the placeholder, which means non-live strategies are being used.
+	if env.Deployer != standard.PlaceholderAddress {
+		if err := st.CheckL1PredictInputs(env.Deployer, dci.Opcm); err != nil {
+			return err
+		}
 	}
 
 	if env.UseForge {
@@ -88,7 +97,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		}
 	}
 
-	st.Chains = append(st.Chains, makeChainState(chainID, impls, dco))
+	st.SetChainContracts(chainID, chainContractsForDeploy(impls, dco), true)
 
 	st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
 	st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
@@ -112,8 +121,10 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	return nil
 }
 
-func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
-	proofParams, err := jsonutil.MergeJSON(
+// ResolveChainProofParams merges the standard dispute-game defaults with the
+// intent's global and per-chain deploy overrides.
+func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (state.ChainProofParams, error) {
+	return jsonutil.MergeJSON(
 		state.ChainProofParams{
 			DisputeGameType:         standard.DisputeGameType,
 			DisputeAbsolutePrestate: standard.DisputeAbsolutePrestate,
@@ -123,10 +134,18 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 			DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
 		},
 		intent.GlobalDeployOverrides,
-		thisIntent.DeployOverrides,
+		chain.DeployOverrides,
 	)
+}
+
+func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
+	proofParams, err := ResolveChainProofParams(intent, thisIntent)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
+	}
+
+	if IsPermissionlessGameType(proofParams.DisputeGameType) {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("apply only supports permissioned deploys: permissionless chains are deployed through the prepare flow")
 	}
 
 	opcmAddr := st.ImplementationsDeployment.OpcmV2Impl
@@ -134,43 +153,77 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		return opcm.DeployOPChainInput{}, fmt.Errorf("OPCM implementation is not deployed")
 	}
 
-	// TODO(#20912): Populate StartingAnchorRoot and DisputeAbsolutePrestate from pipeline state for permissionless
-	// deploys. This also needs a second prestate field in ChainProofParams: CannonAbsolutePrestate below reuses the
-	// single existing field, and DeployOPChain.checkInput rejects equal prestates for CANNON_KONA deploys.
-	return opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner:  thisIntent.Roles.L1ProxyAdminOwner,
-		SystemConfigOwner:       thisIntent.Roles.SystemConfigOwner,
-		Batcher:                 thisIntent.Roles.Batcher,
-		UnsafeBlockSigner:       thisIntent.Roles.UnsafeBlockSigner,
-		Proposer:                thisIntent.Roles.Proposer,
-		Challenger:              thisIntent.Roles.Challenger,
-		BasefeeScalar:           standard.BasefeeScalar,
-		BlobBaseFeeScalar:       standard.BlobBaseFeeScalar,
-		L2ChainId:               chainID.Big(),
-		Opcm:                    opcmAddr,
-		SaltMixer:               st.Create2Salt.String(), // passing through salt generated at state initialization
-		GasLimit:                thisIntent.GasLimit,
-		DisputeGameType:         proofParams.DisputeGameType,
-		DisputeAbsolutePrestate: proofParams.DisputeAbsolutePrestate,
-		StartingAnchorRoot: opcm.Proposal{
+	return BuildDeployOPChainInput(
+		proofParams,
+		thisIntent.Roles,
+		opcmAddr,
+		st.SuperchainDeployment.SuperchainConfigProxy,
+		chainID,
+		st.Create2Salt.String(),
+		thisIntent.GasLimit,
+		opcm.Proposal{
 			Root:             opcm.DefaultStartingAnchorRoot.Root,
 			L2SequenceNumber: common.Big0,
 		},
-		CannonAbsolutePrestate:       proofParams.DisputeAbsolutePrestate,
+		proofParams.DisputeAbsolutePrestate,
+		thisIntent,
+	), nil
+}
+
+// IsPermissionlessGameType reports whether the given dispute game type deploys a
+// permissionless chain.
+func IsPermissionlessGameType(gameType uint32) bool {
+	return gameType == uint32(embedded.GameTypeCannonKona)
+}
+
+func BuildDeployOPChainInput(
+	proofParams state.ChainProofParams,
+	roles state.ChainRoles,
+	opcmAddr common.Address,
+	superchainConfig common.Address,
+	l2ChainID common.Hash,
+	saltMixer string,
+	gasLimit uint64,
+	startingAnchorRoot opcm.Proposal,
+	cannonAbsolutePrestate common.Hash,
+	chain *state.ChainIntent,
+) opcm.DeployOPChainInput {
+	if gasLimit == 0 {
+		gasLimit = standard.GasLimit
+	}
+
+	return opcm.DeployOPChainInput{
+		OpChainProxyAdminOwner:       roles.L1ProxyAdminOwner,
+		SystemConfigOwner:            roles.SystemConfigOwner,
+		Batcher:                      roles.Batcher,
+		UnsafeBlockSigner:            roles.UnsafeBlockSigner,
+		Proposer:                     roles.Proposer,
+		Challenger:                   roles.Challenger,
+		BasefeeScalar:                standard.BasefeeScalar,
+		BlobBaseFeeScalar:            standard.BlobBaseFeeScalar,
+		L2ChainId:                    l2ChainID.Big(),
+		Opcm:                         opcmAddr,
+		SaltMixer:                    saltMixer,
+		GasLimit:                     gasLimit,
+		DisputeGameType:              proofParams.DisputeGameType,
+		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate, // This is for Permissioned games
+		StartingAnchorRoot:           startingAnchorRoot,
+		CannonAbsolutePrestate:       cannonAbsolutePrestate, // This is for Permissionless games
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)
 		DisputeMaxClockDuration:      proofParams.DisputeMaxClockDuration, // 3.5 days (input in seconds)
 		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
-		OperatorFeeScalar:            thisIntent.OperatorFeeScalar,
-		OperatorFeeConstant:          thisIntent.OperatorFeeConstant,
-		SuperchainConfig:             st.SuperchainDeployment.SuperchainConfigProxy,
-		UseCustomGasToken:            thisIntent.IsCustomGasTokenEnabled(),
-	}, nil
+		OperatorFeeScalar:            chain.OperatorFeeScalar,
+		OperatorFeeConstant:          chain.OperatorFeeConstant,
+		SuperchainConfig:             superchainConfig,
+		UseCustomGasToken:            chain.IsCustomGasTokenEnabled(),
+	}
 }
 
-func makeChainState(chainID common.Hash, impls opcm.ReadImplementationAddressesOutput, dco opcm.DeployOPChainOutput) *state.ChainState {
-	opChainContracts := addresses.OpChainContracts{}
+// OpChainContractsFromDeployOutput maps a DeployOPChain output to OpChainContracts
+func OpChainContractsFromDeployOutput(dco opcm.DeployOPChainOutput) addresses.OpChainContracts {
+	var opChainContracts addresses.OpChainContracts
 	opChainContracts.OpChainProxyAdminImpl = dco.OpChainProxyAdmin
 	opChainContracts.AddressManagerImpl = dco.AddressManager
 	opChainContracts.L1Erc721BridgeProxy = dco.L1ERC721BridgeProxy
@@ -186,6 +239,13 @@ func makeChainState(chainID common.Hash, impls opcm.ReadImplementationAddressesO
 	opChainContracts.PermissionedDisputeGameImpl = dco.PermissionedDisputeGame
 	opChainContracts.DelayedWethPermissionedGameProxy = dco.DelayedWETHPermissionedGameProxy
 	opChainContracts.DelayedWethPermissionlessGameProxy = dco.DelayedWETHPermissionlessGameProxy
+	return opChainContracts
+}
+
+// chainContractsForDeploy builds the OpChainContracts for a deployed chain,
+// overriding the dispute game impls with the values read back from the proxies.
+func chainContractsForDeploy(impls opcm.ReadImplementationAddressesOutput, dco opcm.DeployOPChainOutput) addresses.OpChainContracts {
+	opChainContracts := OpChainContractsFromDeployOutput(dco)
 
 	if (impls.PermissionedDisputeGame != common.Address{}) {
 		opChainContracts.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
@@ -194,18 +254,10 @@ func makeChainState(chainID common.Hash, impls opcm.ReadImplementationAddressesO
 		opChainContracts.FaultDisputeGameImpl = impls.FaultDisputeGame
 	}
 
-	return &state.ChainState{
-		ID:               chainID,
-		OpChainContracts: opChainContracts,
-	}
+	return opChainContracts
 }
 
+// shouldDeployOPChain reports whether the given chainID still needs to be deployed.
 func shouldDeployOPChain(st *state.State, chainID common.Hash) bool {
-	for _, chain := range st.Chains {
-		if chain.ID == chainID {
-			return false
-		}
-	}
-
-	return true
+	return !st.IsChainDeployed(chainID)
 }
