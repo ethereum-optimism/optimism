@@ -27,7 +27,6 @@ pub fn main() {
 }
 
 async fn run(inputs: SuperInteropInputs) -> anyhow::Result<SuperInteropOutputs> {
-    inputs.validate()?;
     match inputs {
         SuperInteropInputs::Range(inputs) => {
             let (oracle, beacon) = read_witness().await?;
@@ -42,6 +41,7 @@ async fn run(inputs: SuperInteropInputs) -> anyhow::Result<SuperInteropOutputs> 
 fn build_consolidation_outputs(
     inputs: SuperConsolidationInputs,
 ) -> Result<SuperConsolidationOutputs, SuperRootError> {
+    inputs.validate()?;
     // TODO: replace this with witness-backed interop consolidation over the timestamp span.
     let transitions = inputs
         .transitions

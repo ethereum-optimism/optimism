@@ -40,6 +40,7 @@ where
     O: CommsClient + FlushableCache + Send + Sync + Debug + 'static,
     B: BlobProvider + Send + Sync + Debug + Clone + 'static,
 {
+    inputs.validate()?;
     let previous_super_roots = inputs
         .previous_super_root_proofs
         .iter()
