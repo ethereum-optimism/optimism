@@ -34,6 +34,16 @@ var EngineSpec = rustbin.Spec{
 // cargo-less Go executors resolve the pre-built binary instead of rebuilding.
 const EngineBinaryPathEnv = "RUST_BINARY_PATH_OP_SCRIPT_ENGINE"
 
+// RequireEngineEnv, when set, turns "no engine binary and no cargo" into a hard test failure
+// instead of a silent skip. CI's go-test jobs set it (alongside RUST_BINARY_PATH_OP_SCRIPT_ENGINE)
+// so a provisioning break can't skip-green the byte-parity golden gates — after the Go host's
+// deletion those goldens are the sole proof of its behavior. Local dev without the binary skips.
+const RequireEngineEnv = "REQUIRE_RUST_ENGINE"
+
+// RequireEngine reports whether RequireEngineEnv is set (see its docs). A golden/parity test that
+// finds no resolvable engine binary should fail when this is true and skip otherwise.
+func RequireEngine() bool { return os.Getenv(RequireEngineEnv) != "" }
+
 // EngineBinary locates or builds the op-script-engine binary and returns its absolute path.
 //
 // Lookup order:
