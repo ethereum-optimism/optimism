@@ -56,11 +56,12 @@ func DefaultScriptHost(
 
 // DefaultForkedScriptHost builds a fork-backed Go script.Host bound to the latest block of forkRPC.
 //
-// This is the Go implementation of a forked host. The Rust op-script-engine now supports fork mode,
-// and apply.go's Live/Calldata/Noop targets route to it by default; the remaining callers of this
-// constructor (bootstrap, upgrade, manage, sysgo opcm_upgrade, and the forked test suites) are being
-// migrated to the engine seam and use this Go host in the meantime, plus as the --script-engine=go
-// fallback.
+// This is the Go implementation of a forked host, reached via the --script-engine=go fallback. The
+// Rust op-script-engine supports fork mode, and the forked callers select it by default through the
+// scriptbackend.NewForkedL1 factory (apply.go Live/Calldata/Noop, bootstrap, manage.Migrate, and the
+// upgrade CLI). The callers still building this host directly — sysgo opcm_upgrade, the
+// integration_test OPCM-registry-walk upgrade path, op-fetcher, and some forked test suites — are
+// being migrated to that factory.
 func DefaultForkedScriptHost(
 	ctx context.Context,
 	bcaster broadcaster.Broadcaster,

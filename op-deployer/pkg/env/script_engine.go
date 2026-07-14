@@ -19,10 +19,11 @@ const (
 //
 // The Rust engine supports both non-forked hosts (in-memory genesis: the apply.go
 // DeploymentTargetGenesis L1 deploy, pipeline.GenerateL2Genesis, interopgen) and fork mode
-// (CreateSelectFork against a live L1). The apply.go Live/Calldata/Noop forked hosts route through
-// the engine's fork mode by default. The env.DefaultForkedScriptHost / ForkedScriptHost constructors
-// (used by bootstrap, upgrade, manage, sysgo opcm_upgrade, and the forked test suites) still build
-// the Go script.Host directly and are being migrated to the engine seam.
+// (CreateSelectFork against a live L1). The forked callers select the engine by default through the
+// scriptbackend.NewForkedL1 factory: apply.go Live/Calldata/Noop, bootstrap.Implementations /
+// Superchain, manage.Migrate, and the upgrade CLI. The env.DefaultForkedScriptHost / ForkedScriptHost
+// constructors back the --script-engine=go fallback and the callers not yet routed through the
+// factory (sysgo opcm_upgrade, the integration_test OPCM-registry-walk upgrade, op-fetcher).
 const DefaultScriptEngine = ScriptEngineRust
 
 // Resolve maps the empty (unset) kind to the default engine.
