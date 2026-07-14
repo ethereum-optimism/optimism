@@ -18,8 +18,8 @@ contract L2DevFeatureFlags is ISemver {
     bytes32 private constant BITMAP_SLOT = 0xc8bc8f9195cfb2d040744aac63412d02ffc186ea9bd519039edc4666ee9032bc;
 
     /// @notice The semantic version of the L2DevFeatureFlags contract.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice Sets the development feature bitmap. Only callable by the DEPOSITOR_ACCOUNT.
     /// @param _bitmap The new development feature bitmap.

@@ -17,7 +17,7 @@ parameters:
   c-go-cache-version:
     type: string
     default: "v0.1"
-  # Workflow activation flags (set by the decision tree in config.yml)
+  # Workflow activation flags (set by compute-workflow-conditions.sh)
   c-run_rust_e2e_ci:
     type: boolean
     default: false
@@ -226,7 +226,7 @@ workflows:
           matrix:
             parameters:
               devnet_config:
-                ["simple-kona", "simple-kona-geth", "simple-kona-sequencer"]
+                ["simple-kona", "simple-kona-sequencer"]
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -261,7 +261,6 @@ workflows:
       - required-rust-e2e:
           requires:
             - rust-e2e-simple-kona: terminal
-            - rust-e2e-simple-kona-geth: terminal
             - rust-e2e-simple-kona-sequencer: terminal
             - rust-e2e-restart: terminal
             - op-reth-e2e-sysgo-tests: terminal

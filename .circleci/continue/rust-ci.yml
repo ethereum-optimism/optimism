@@ -17,7 +17,7 @@ parameters:
   c-base_image:
     type: string
     default: default
-  # Workflow activation flags (set by the decision tree in config.yml)
+  # Workflow activation flags (set by compute-workflow-conditions.sh)
   c-run_rust_ci:
     type: boolean
     default: false

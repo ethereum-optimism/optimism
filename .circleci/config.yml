@@ -87,17 +87,19 @@ orbs:
 
 jobs:
   # --------------------------------------------------------------------------
-  # This job prepares the dynamic continuation pipeline in 6 steps:
+  # This job prepares the dynamic continuation pipeline in 7 steps:
   #
   #   1. Install yq (YAML processor for merging configs)
   #   2. Store string pipeline params  → /tmp/pipeline-parameters.json
   #   3. Store boolean pipeline params → /tmp/pipeline-parameters.json
   #   4. Detect file-tree changes     → /tmp/pipeline-parameters.json
-  #   5. Decision tree: read the JSON, enable c-run_* workflow flags, strip
-  #      intermediate params, write final JSON
+  #   5. Routing policy (compute-workflow-conditions.sh): read the JSON, enable
+  #      c-run_* workflow flags, strip intermediate params, write final JSON
   #   6. Merge continuation YAML configs → /tmp/merged-config.yml
   #   7. Call CircleCI continuation API with merged config + JSON params
   #
+  # The routing data (schedules, dispatch flags, change patterns, passthrough
+  # params) is declarative in routing.yml; the scripts only hold the logic.
   # The result: only workflows whose c-run_* flag is true will execute.
   # --------------------------------------------------------------------------
   prepare-continuation-config:
@@ -141,8 +143,8 @@ jobs:
       # Same as above but for booleans. Separate step because CircleCI renders
       # boolean pipeline params as 0/1 in environment blocks — the "bool" mode
       # normalizes them to JSON true/false.
-      # These dispatch flags are consumed only by the decision tree below;
-      # they do NOT reach continuation configs.
+      # These dispatch flags are consumed only by the routing policy
+      # (compute-workflow-conditions.sh); they do NOT reach continuation configs.
       - run:
           name: Store boolean pipeline parameters in JSON file
           command: .circleci/scripts/collect-params.sh bool
@@ -160,37 +162,24 @@ jobs:
             c-rust_ci_dispatch: << pipeline.parameters.rust_ci_dispatch >>
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
             c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
-      # Each env var value is a POSIX Extended Regular Expression (ERE, like grep -E).
-      # Matched line-by-line against `git diff --name-only origin/develop...HEAD`.
-      # Result: the c-* key is set to true/false in the JSON.
+      # Change-detection patterns live in routing.yml (change_patterns.any and
+      # change_patterns.all). Each is a POSIX ERE matched line-by-line against
+      # `git diff --name-only origin/develop...HEAD`; collect-params.sh writes
+      # the resulting c-<name> boolean into the JSON.
       #
       # Test a pattern locally:
       #   git diff --name-only origin/develop...HEAD | grep -E "^your/pattern/"
-      #
-      # When to add: you need path-based workflow gating. Also add a corresponding
-      # is_true/run call in the decision tree below.
       - run:
           name: Detect file tree changes and store in JSON file
           command: .circleci/scripts/collect-params.sh detect
-          environment:
-            c-circleci_changed: "^\\.circleci/"
-            c-contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
-            c-docs_changes_detected: "^docs/public-docs/"
-            c-rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
-      # Safer "docs-only" detection: true iff EVERY changed file is under docs/public-docs/.
-      # Using an inclusion (all-match) check instead of an exclusion of known code categories
-      # makes the fast path safe-by-default — any path not enumerated by the patterns above
-      # still falls through to the full main workflow.
       - run:
           name: Detect docs-only changes (all-match)
           command: .circleci/scripts/collect-params.sh detect_all
-          environment:
-            c-only_docs_changes: "^docs/public-docs/"
-      # Decision tree: determines which workflows to enable based on trigger,
-      # branch, and params. The logic lives in compute-workflow-conditions.sh
-      # (using the run/is_true/param/finalize helpers from workflow-helpers.sh);
-      # each enabled c-run_<name> maps 1:1 to
-      # "when: << pipeline.parameters.c-run_<name> >>" in a continuation config.
+      # Routing policy: enables the c-run_* workflow flags based on trigger,
+      # branch, schedule, and the detected params. The workflow lists are data
+      # in routing.yml; the conditions live in compute-workflow-conditions.sh.
+      # Each c-run_<name> maps 1:1 to "when: << pipeline.parameters.c-run_<name> >>"
+      # in a continuation config under .circleci/continue/.
       - run:
           name: Compute workflow conditions from pipeline parameters and store in JSON file
           environment:

@@ -6,7 +6,8 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::{
-    ProofsHistoryStorageArgs, ProofsHistoryWindowArg, ProofsStorageVersion,
+    ProofsHistoryBackfillArgs, ProofsHistoryStorageArgs, ProofsHistoryWindowArg,
+    ProofsStorageVersion,
 };
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
@@ -34,11 +35,9 @@ pub struct BackfillCommand<C: ChainSpecParser> {
     #[command(flatten)]
     pub proofs_history_window: ProofsHistoryWindowArg,
 
-    /// Use the trie-state snapshot to accelerate per-block reads during
-    /// backfill. If no snapshot exists, one is built at the current
-    /// `earliest` before the backfill loop begins. Requires v2 storage.
-    #[arg(long = "proofs-history.use-snapshot")]
-    pub use_snapshot: bool,
+    /// Shared backfill flags (batch size + snapshot toggle).
+    #[command(flatten)]
+    pub backfill_args: ProofsHistoryBackfillArgs,
 }
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
@@ -70,7 +69,8 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
                     &provider_factory,
                     storage,
                     self.proofs_history_window.window,
-                    self.use_snapshot,
+                    self.backfill_args.use_snapshot,
+                    self.backfill_args.backfill_batch_size,
                 )?;
             }
         }
@@ -83,6 +83,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
         storage: S,
         window_blocks: u64,
         use_snapshot: bool,
+        batch_size: usize,
     ) -> eyre::Result<()>
     where
         F: DatabaseProviderFactory,
@@ -109,6 +110,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
             window_blocks,
             target_earliest_block,
             use_snapshot,
+            batch_size,
             "Starting backfill job"
         );
 
@@ -117,7 +119,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> BackfillCommand<C> {
             .map_err(|e| eyre::eyre!("Failed to open reth DB provider: {e}"))?
             .disable_long_read_transaction_safety();
 
-        let job = BackfillJob::new(provider, storage);
+        let job = BackfillJob::new(provider, storage).with_batch_size(batch_size);
         if use_snapshot {
             job.run_with_snapshot(target_earliest_block)?;
         } else {

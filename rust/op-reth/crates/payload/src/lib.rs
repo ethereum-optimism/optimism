@@ -12,7 +12,7 @@
 extern crate alloc;
 
 pub mod builder;
-pub use builder::OpPayloadBuilder;
+pub use builder::{OpPayloadBuilder, PayloadTransactionsWithCommitHook, RethPayloadTransactions};
 pub mod error;
 pub mod payload;
 use op_alloy_rpc_types_engine::OpExecutionData;

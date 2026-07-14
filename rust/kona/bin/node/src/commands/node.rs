@@ -1,11 +1,11 @@
 //! Node Subcommand.
 
 use crate::{
+    cli_metrics::{CliMetrics, init_rollup_config_metrics},
     flags::{
         DerivationDelegateArgs, GlobalArgs, L1ClientArgs, L2ClientArgs, P2PArgs, RpcArgs,
         SequencerArgs,
     },
-    metrics::{CliMetrics, init_rollup_config_metrics},
 };
 use alloy_provider::RootProvider;
 use alloy_rpc_types_engine::JwtSecret;

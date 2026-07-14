@@ -2,8 +2,8 @@
 //!
 //! Specifies the available flags for prometheus metric configuration inside CLI
 
-use crate::metrics::VersionInfo;
 use kona_cli::MetricsArgs;
+use metrics::gauge;
 
 /// Initializes metrics for a Kona application, including Prometheus and node-specific metrics.
 /// Initialize the tracing stack and Prometheus metrics recorder.
@@ -18,7 +18,18 @@ pub fn init_unified_metrics(args: &MetricsArgs) -> anyhow::Result<()> {
         kona_node_service::Metrics::init();
         kona_derive::Metrics::init();
         kona_providers_alloy::Metrics::init();
-        VersionInfo::from_build().register_version_metrics();
+        gauge!(
+            "kona_node_info",
+            &[
+                ("version", crate::version::version()),
+                ("build_timestamp", crate::version::build_timestamp()),
+                ("cargo_features", crate::version::cargo_features()),
+                ("git_sha", crate::version::git_sha()),
+                ("target_triple", crate::version::target_triple()),
+                ("build_profile", crate::version::build_profile()),
+            ]
+        )
+        .set(1);
     }
     Ok(())
 }
