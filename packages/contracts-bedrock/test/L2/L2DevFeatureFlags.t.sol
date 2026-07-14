@@ -31,7 +31,7 @@ abstract contract L2DevFeatureFlags_TestInit is CommonTest {
 contract L2DevFeatureFlags_Version_Test is L2DevFeatureFlags_TestInit {
     /// @notice Tests that the `version` function returns a the correct string.
     function test_version_succeeds() public view {
-        assertEq(keccak256(bytes(l2DevFeatureFlags.version())), keccak256(bytes("1.1.1")), "Versions should match");
+        assertEq(keccak256(bytes(l2DevFeatureFlags.version())), keccak256(bytes("1.2.0")), "Versions should match");
     }
 }
 
