@@ -67,6 +67,7 @@ func TestL2OutputSubmitterFaultProofs(t *testing.T) {
 			require.True(t, ok)
 			gameBlockNumber, err := sys.RollupConfig.TargetBlockNumber(superV1.Timestamp)
 			require.NoError(t, err)
+			// A new game may still predate the target block, so keep polling until a proposal covers it.
 			if gameBlockNumber >= targetBlockNumber {
 				require.GreaterOrEqual(t, gameBlockNumber, targetBlockNumber)
 				require.Len(t, superV1.Chains, 1)
