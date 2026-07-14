@@ -101,6 +101,10 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	outfile := cliCtx.String(OutfileFlagName)
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 	useForge := cliCtx.Bool(deployer.UseForgeFlagName)
+	engineKind, err := env.ParseScriptEngine(cliCtx.String(deployer.ScriptEngineFlag.Name))
+	if err != nil {
+		return err
+	}
 	cfg := SuperchainConfig{
 		L1RPCUrl:                  l1RPCUrl,
 		PrivateKey:                privateKey,
@@ -108,6 +112,7 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		ArtifactsLocator:          artifactsLocator,
 		CacheDir:                  cacheDir,
 		UseForge:                  useForge,
+		ScriptEngine:              engineKind,
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
 		Guardian:                  guardian,
 		Paused:                    paused,

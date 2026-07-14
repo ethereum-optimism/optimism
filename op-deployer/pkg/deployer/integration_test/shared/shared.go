@@ -23,7 +23,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -122,25 +121,23 @@ var lastUsedOPCMVersionSelector = []byte{0x9f, 0xab, 0xcc, 0x84}
 // keccak256("version()")[:4] = 0x54fd4d50
 var versionSelector = []byte{0x54, 0xfd, 0x4d, 0x50}
 
-// ContractCaller abstracts contract calls for both script.Host and ethclient.Client
+// ContractCaller abstracts contract calls for both scriptbackend.Backend and ethclient.Client
 type ContractCaller interface {
 	Call(to common.Address, data []byte) ([]byte, error)
 }
 
-// HostCaller adapts script.Host to ContractCaller
-type HostCaller struct {
-	Host *script.Host
+// BackendCaller adapts a scriptbackend.Backend to ContractCaller
+type BackendCaller struct {
+	Backend scriptbackend.Backend
 }
 
-func (h *HostCaller) Call(to common.Address, data []byte) ([]byte, error) {
-	result, _, err := h.Host.Call(
+func (b *BackendCaller) Call(to common.Address, data []byte) ([]byte, error) {
+	return scriptbackend.Call(
+		b.Backend,
 		common.Address{19: 0x01}, // dummy caller
 		to,
 		data,
-		1_000_000,
-		uint256.NewInt(0),
 	)
-	return result, err
 }
 
 // RPCCaller adapts ethclient.Client to ContractCaller
@@ -206,8 +203,8 @@ func getLastUsedOPCMVersion(caller ContractCaller, systemConfigProxy common.Addr
 	return version, true, nil
 }
 
-// runSingleOPCMUpgradeResolved executes a single OPCM upgrade on the given host.
-func runSingleOPCMUpgradeResolved(t *testing.T, host *script.Host, prank, systemConfigProxy common.Address, opcm opcmregistry.ResolvedOPCM) bool {
+// runSingleOPCMUpgradeResolved executes a single OPCM upgrade on the given backend.
+func runSingleOPCMUpgradeResolved(t *testing.T, backend scriptbackend.Backend, prank, systemConfigProxy common.Address, opcm opcmregistry.ResolvedOPCM) bool {
 	t.Helper()
 
 	upgradeConfig := buildOPCMUpgradeConfig(t, prank, opcm.Address, systemConfigProxy)
@@ -218,9 +215,7 @@ func runSingleOPCMUpgradeResolved(t *testing.T, host *script.Host, prank, system
 	upgradeConfigBytes, err := json.Marshal(upgradeConfig)
 	require.NoError(t, err)
 
-	// TODO(round 3): route this OPCM-registry-walk upgrade path through the Rust engine's fork mode.
-	// Kept on the Go host (FromHost) for now; the interface is backend-based, the routing is not.
-	err = embedded.DefaultUpgrader.Upgrade(scriptbackend.FromHost(host), upgradeConfigBytes)
+	err = embedded.DefaultUpgrader.Upgrade(backend, upgradeConfigBytes)
 	if err != nil {
 		t.Logf("OPCM %s (v%s) upgrade failed: %v", opcm.Address.Hex(), opcm.OPCMVersion.Raw, err)
 		return false
@@ -321,10 +316,10 @@ func DeployDummyCaller(t *testing.T, rpcClient *rpc.Client, afactsFS foundry.Sta
 // RunPastUpgrades executes all past OPCM upgrades in-memory only (no broadcast).
 // It fetches OPCM addresses from the superchain-registry, queries their actual versions on-chain,
 // and applies upgrades in version order, skipping any that have already been applied.
-func RunPastUpgrades(t *testing.T, host *script.Host, chainID uint64, prank common.Address, systemConfigProxy common.Address) {
+func RunPastUpgrades(t *testing.T, backend scriptbackend.Backend, chainID uint64, prank common.Address, systemConfigProxy common.Address) {
 	t.Helper()
 
-	caller := &HostCaller{Host: host}
+	caller := &BackendCaller{Backend: backend}
 
 	// Create version querier that uses the host to query on-chain
 	queryVersion := func(addr common.Address) (string, error) {
@@ -363,7 +358,7 @@ func RunPastUpgrades(t *testing.T, host *script.Host, chainID uint64, prank comm
 	}
 
 	for _, opcm := range toApply {
-		runSingleOPCMUpgradeResolved(t, host, prank, systemConfigProxy, opcm)
+		runSingleOPCMUpgradeResolved(t, backend, prank, systemConfigProxy, opcm)
 	}
 }
 
@@ -435,15 +430,18 @@ func RunPastUpgradesWithRPC(t *testing.T, l1RPCUrl string, afactsFS foundry.Stat
 		// Deploy DummyCaller with this OPCM's address
 		DeployDummyCaller(t, rpcClient, afactsFS, prank, opcm.Address)
 
-		// Create fresh broadcaster and host for this upgrade
+		// Create fresh broadcaster and forked backend for this upgrade
 		bcaster := NewImpersonationBroadcaster(lgr, ethClient, rpcClient, prank, networkChainID)
-		host, err := env.DefaultForkedScriptHost(ctx, bcaster, lgr, prank, afactsFS, rpcClient)
+		fl1, err := scriptbackend.NewForkedL1(ctx, "", lgr, prank, afactsFS, l1RPCUrl, bcaster)
 		require.NoError(t, err)
 
 		// Run the upgrade
-		if !runSingleOPCMUpgradeResolved(t, host, prank, systemConfigProxy, opcm) {
+		if !runSingleOPCMUpgradeResolved(t, fl1.Backend, prank, systemConfigProxy, opcm) {
+			fl1.Close()
 			continue
 		}
+		require.NoError(t, fl1.DrainBroadcasts())
+		fl1.Close()
 
 		// Broadcast this upgrade's transactions
 		if _, err = bcaster.Broadcast(ctx); err != nil {

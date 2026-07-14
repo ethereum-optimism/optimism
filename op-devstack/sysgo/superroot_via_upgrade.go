@@ -56,7 +56,7 @@ func upgradeToSuperRoots(
 	require.NoError(err, "failed to download artifacts")
 
 	for _, l2Deployment := range migration.l2Deployments {
-		executeOPCMUpgrade(t, rpcClient, client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
+		executeOPCMUpgrade(t, l1EL.UserRPC(), client, l1PAOKey, artifactsFS, embedded.UpgradeOPChainInput{
 			Prank: l1PAO,
 			Opcm:  migration.opcmImpl,
 			UpgradeInputV2: &embedded.UpgradeInputV2{

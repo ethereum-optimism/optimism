@@ -19,11 +19,11 @@ const (
 //
 // The Rust engine supports both non-forked hosts (in-memory genesis: the apply.go
 // DeploymentTargetGenesis L1 deploy, pipeline.GenerateL2Genesis, interopgen) and fork mode
-// (CreateSelectFork against a live L1). The forked callers select the engine by default through the
-// scriptbackend.NewForkedL1 factory: apply.go Live/Calldata/Noop, bootstrap.Implementations /
-// Superchain, manage.Migrate, and the upgrade CLI. The env.DefaultForkedScriptHost / ForkedScriptHost
-// constructors back the --script-engine=go fallback and the callers not yet routed through the
-// factory (sysgo opcm_upgrade, the integration_test OPCM-registry-walk upgrade, op-fetcher).
+// (CreateSelectFork against a live L1). Every production forked caller selects the engine through
+// the scriptbackend.NewForkedL1 factory (or apply.go's equivalent seam): apply.go
+// Live/Calldata/Noop, bootstrap.Implementations / Superchain, manage.Migrate, the upgrade CLI,
+// sysgo opcm_upgrade, and op-fetcher. The env.DefaultForkedScriptHost / ForkedScriptHost
+// constructors back only the --script-engine=go fallback.
 const DefaultScriptEngine = ScriptEngineRust
 
 // Resolve maps the empty (unset) kind to the default engine.
@@ -34,9 +34,12 @@ func (k ScriptEngineKind) Resolve() ScriptEngineKind {
 	return k
 }
 
-// ParseScriptEngine validates a CLI/string value into a ScriptEngineKind.
+// ParseScriptEngine validates a CLI/string value into a ScriptEngineKind. The empty string is
+// valid and means "unset": it resolves to the default engine via Resolve.
 func ParseScriptEngine(s string) (ScriptEngineKind, error) {
 	switch ScriptEngineKind(s) {
+	case "":
+		return "", nil
 	case ScriptEngineGo:
 		return ScriptEngineGo, nil
 	case ScriptEngineRust:

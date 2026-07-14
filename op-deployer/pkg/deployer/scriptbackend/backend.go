@@ -9,7 +9,10 @@
 package scriptbackend
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -84,6 +87,40 @@ func RunScriptVoid[I any](b Backend, input I, scriptFile, contractName string) e
 		return opcm.RunScriptVoid[I](t.host, input, scriptFile, contractName)
 	default:
 		return errUnknownBackend(b)
+	}
+}
+
+// Call executes a plain read CALL on whichever backend b wraps and returns the output data. It
+// mirrors script.Host.Call (host backends run with a fixed 1M gas budget and zero value; the engine
+// runs its script-call entry) and exists for callers that query view functions (e.g. version reads)
+// against the forked state.
+func Call(b Backend, from, to common.Address, data []byte) ([]byte, error) {
+	switch t := b.(type) {
+	case *engineBackend:
+		return t.eng.Call(from, to, data)
+	case *hostBackend:
+		ret, _, err := t.host.Call(from, to, data, 1_000_000, uint256.NewInt(0))
+		return ret, err
+	default:
+		return nil, errUnknownBackend(b)
+	}
+}
+
+// DeployScriptWithoutOutput loads a typed void deploy script bound to whichever backend b wraps,
+// mirroring script.NewDeployScriptWithoutOutputFromFile.
+func DeployScriptWithoutOutput[I any](b Backend, file, contract string) (script.DeployScriptWithoutOutput[I], error) {
+	switch t := b.(type) {
+	case *engineBackend:
+		artifact, err := t.fa.ReadArtifact(file, contract)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load script %s from %s: %w", contract, file, err)
+		}
+		fs := rustengine.NewForgeScript(t.eng, artifact, file, contract, func() common.Address { return t.origin })
+		return script.NewDeployScriptWithoutOutput[I](fs, "run")
+	case *hostBackend:
+		return script.NewDeployScriptWithoutOutputFromFile[I](t.host, file, contract)
+	default:
+		return nil, errUnknownBackend(b)
 	}
 }
 

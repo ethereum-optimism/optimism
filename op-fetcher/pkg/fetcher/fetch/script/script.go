@@ -4,8 +4,7 @@ import (
 	"math"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -59,6 +58,6 @@ func CreateChainConfig(output FetchChainInfoOutput) ChainConfig {
 	return chain
 }
 
-func FetchChainInfo(h *script.Host, input FetchChainInfoInput) (FetchChainInfoOutput, error) {
-	return opcm.RunScriptSingle[FetchChainInfoInput, FetchChainInfoOutput](h, input, "FetchChainInfo.s.sol", "FetchChainInfo")
+func FetchChainInfo(b scriptbackend.Backend, input FetchChainInfoInput) (FetchChainInfoOutput, error) {
+	return scriptbackend.RunScriptSingle[FetchChainInfoInput, FetchChainInfoOutput](b, input, "FetchChainInfo.s.sol", "FetchChainInfo")
 }

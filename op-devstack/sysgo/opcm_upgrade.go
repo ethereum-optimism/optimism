@@ -5,14 +5,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -29,11 +27,11 @@ func resolveL1ProxyAdminOwner(t devtest.T, keys devkeys.Keys, l1ChainID eth.Chai
 }
 
 // executeOPCMUpgrade simulates input against a forked UpgradeOPChain.s.sol
-// script host and submits the resulting calldata on L1 as a SetCode
+// script backend and submits the resulting calldata on L1 as a SetCode
 // delegatecall from l1PAOKey.
 func executeOPCMUpgrade(
 	t devtest.T,
-	rpcClient *rpc.Client,
+	l1ELRPC string,
 	client *ethclient.Client,
 	l1PAOKey *ecdsa.PrivateKey,
 	artifactsFS foundry.StatDirFs,
@@ -41,13 +39,13 @@ func executeOPCMUpgrade(
 ) {
 	require := t.Require()
 	bcaster := new(broadcaster.CalldataBroadcaster)
-	host, err := env.DefaultForkedScriptHost(
-		t.Ctx(), bcaster, t.Logger(), common.Address{'D'}, artifactsFS, rpcClient,
+	fl1, err := scriptbackend.NewForkedL1(
+		t.Ctx(), "", t.Logger(), common.Address{'D'}, artifactsFS, l1ELRPC, bcaster,
 	)
-	require.NoError(err, "failed to create script host")
-	// TODO(round 3): route sysgo's forked OPCM upgrade through the Rust engine's fork mode. Kept on
-	// the Go host (FromHost) for now; the embedded.Upgrade signature is backend-based, routing is not.
-	require.NoError(embedded.Upgrade(scriptbackend.FromHost(host), input), "failed to run UpgradeOPChain.s.sol")
+	require.NoError(err, "failed to create forked script backend")
+	defer fl1.Close()
+	require.NoError(embedded.Upgrade(fl1.Backend, input), "failed to run UpgradeOPChain.s.sol")
+	require.NoError(fl1.DrainBroadcasts(), "failed to drain broadcasts")
 
 	calldata, err := bcaster.Dump()
 	require.NoError(err, "failed to dump calldata")

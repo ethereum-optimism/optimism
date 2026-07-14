@@ -15,8 +15,11 @@ func TestParseScriptEngine(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ScriptEngineRust, got)
 
-	_, err = ParseScriptEngine("")
-	require.Error(t, err)
+	// The empty string is "unset" and resolves to the default engine via Resolve.
+	got, err = ParseScriptEngine("")
+	require.NoError(t, err)
+	require.Equal(t, ScriptEngineKind(""), got)
+	require.Equal(t, DefaultScriptEngine, got.Resolve())
 
 	_, err = ParseScriptEngine("forge")
 	require.Error(t, err)

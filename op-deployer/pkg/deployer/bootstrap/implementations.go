@@ -140,6 +140,12 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 	}
 	cfg.Logger = l
 
+	engineKind, err := env.ParseScriptEngine(cliCtx.String(deployer.ScriptEngineFlag.Name))
+	if err != nil {
+		return err
+	}
+	cfg.ScriptEngine = engineKind
+
 	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
 	artifactsLocator := new(artifacts.Locator)
 	if err := artifactsLocator.UnmarshalText([]byte(artifactsURLStr)); err != nil {
