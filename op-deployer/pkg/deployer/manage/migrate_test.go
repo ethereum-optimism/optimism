@@ -15,9 +15,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/scriptbackend"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -96,15 +96,10 @@ func TestInteropMigration(t *testing.T) {
 	shared.DeployDummyCaller(t, rpcClient, afactsFS, l1ProxyAdminOwner, opcmAddr)
 
 	bcast := new(broadcaster.CalldataBroadcaster)
-	host, err := env.DefaultForkedScriptHost(
-		ctx,
-		bcast,
-		lgr,
-		l1ProxyAdminOwner,
-		afactsFS,
-		rpcClient,
-	)
+	// Route through the default (rust) forked backend so the migration runs on the engine's fork mode.
+	fl1, err := scriptbackend.NewForkedL1(ctx, "", lgr, l1ProxyAdminOwner, afactsFS, l1RPC, bcast)
 	require.NoError(t, err)
+	defer fl1.Close()
 
 	// Prepare game args for V2 - ABI encode the prestate
 	bytes32Type, err := abi.NewType("bytes32", "", nil)
@@ -147,9 +142,11 @@ func TestInteropMigration(t *testing.T) {
 	}
 
 	// Execute Migration
-	output, err := Migrate(host, input)
+	output, err := Migrate(fl1.Backend, input)
 	require.NoError(t, err)
 	require.NotEqual(t, common.Address{}, output.DisputeGameFactory)
+
+	require.NoError(t, fl1.DrainBroadcasts())
 
 	dump, err := bcast.Dump()
 	require.NoError(t, err)
