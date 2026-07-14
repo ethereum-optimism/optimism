@@ -13,25 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
-const (
-	// funderBlockTime is the receipt-poll / resubmit cadence for the funder's
-	// reliable EL. It only affects responsiveness, not correctness, so a small
-	// fixed value works across chains.
-	funderBlockTime = time.Second
-	// funderMaxConcurrentTxs matches the load tests: reth caps in-flight txs per
-	// account at 16.
-	funderMaxConcurrentTxs = 16
-)
-
-// FunderEOA is a prefunded account that hands out ETH to test accounts. It
-// replaces the former op-faucet service and dsl.Funder: it owns a
-// genesis-prefunded key and mints/funds child EOAs from a test wallet.
-//
-// Funding transactions go through a SyncEOA, whose txinclude.Includer manages
-// nonces, so many funding transactions can be issued concurrently — e.g.
-// NewFundedEOAs, or several test goroutines sharing one FunderEOA. Concurrency
-// safety holds only within a single FunderEOA: do not fund the same account
-// concurrently through two FunderEOAs (see AsFunder).
+// FunderEOA is a funded account that hands out ETH to test accounts.
 type FunderEOA struct {
 	commonImpl
 	eoa    *EOA
@@ -41,24 +23,14 @@ type FunderEOA struct {
 
 // NewFunderEOA wraps a prefunded EOA as a funder that mints child EOAs from wallet.
 func NewFunderEOA(eoa *EOA, wallet *HDWallet) *FunderEOA {
-	client := eoa.el.stackEL().EthClient()
-	// Use a Monitor for reliable receipt polling, but a plain sender with NO
-	// resubmitter. The funder must send each funding tx exactly once: with a
-	// resubmitter, once a funding tx is mined the next resubmit returns
-	// "nonce too low", which Persistent treats as "advance the nonce and re-send"
-	// — re-sending the value transfer and over-funding the recipient. Sending
-	// once (and letting the Monitor await the receipt) keeps funding exact.
-	el := struct {
-		*txinclude.Monitor
-		txinclude.Sender
-	}{
-		Monitor: txinclude.NewMonitor(client, funderBlockTime),
-		Sender:  client,
-	}
+	// We are safe to estimate blockTime. Even if it is actually higher or lower it will
+	// merely result in slightly less optimal resubmission strategies in the includer.
+	const blockTime = 2 * time.Second
+	el := txinclude.NewReliableEL(eoa.el.stackEL().EthClient(), blockTime)
 	signer := txinclude.NewPkSigner(eoa.Key().Priv(), eoa.ChainID().ToBig())
 	includer := txinclude.NewLimit(
 		txinclude.NewPersistent(signer, el, txinclude.WithStartNonce(eoa.PendingNonce())),
-		funderMaxConcurrentTxs,
+		16, // reth caps in-flight txs per account at 16.
 	)
 	return &FunderEOA{
 		commonImpl: commonFromT(eoa.t),
