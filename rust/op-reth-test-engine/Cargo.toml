@@ -9,6 +9,10 @@ description = "Library-first, ephemeral, OP-flavored execution layer for op-e2e/
 [lints]
 workspace = true
 
+[[bin]]
+name = "op-reth-test-engine"
+path = "src/bin/op-reth-test-engine.rs"
+
 [dependencies]
 # op-reth
 reth-optimism-chainspec.workspace = true
@@ -36,12 +40,30 @@ reth-primitives-traits.workspace = true
 
 # ethereum / alloy / op-alloy
 alloy-genesis.workspace = true
-alloy-primitives.workspace = true
-alloy-consensus.workspace = true
-alloy-eips.workspace = true
-alloy-rpc-types-engine.workspace = true
-op-alloy-rpc-types-engine.workspace = true
+alloy-primitives = { workspace = true, features = ["serde"] }
+alloy-consensus = { workspace = true, features = ["serde"] }
+alloy-eips = { workspace = true, features = ["serde"] }
+alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+alloy-rpc-types-eth = { workspace = true, features = ["serde"] }
+op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
 op-revm.workspace = true
+
+# rpc / transport / cli (used by the library RPC module and the binary)
+jsonrpsee.workspace = true
+reth-ipc.workspace = true
+tokio = { workspace = true, features = [
+  "rt-multi-thread",
+  "macros",
+  "signal",
+  "sync",
+  "net",
+  "time",
+] }
+serde.workspace = true
+serde_json.workspace = true
+clap = { workspace = true, features = ["derive"] }
+tracing = { workspace = true, features = ["std"] }
+tracing-subscriber = { workspace = true, features = ["std", "fmt", "env-filter"] }
 
 # errors
 thiserror.workspace = true

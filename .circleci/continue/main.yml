@@ -839,13 +839,14 @@ jobs:
       - rust-build:
           directory: rust
           profile: release
-          package: "op-reth op-reth-sdm-fixture"
+          package: "op-reth op-reth-sdm-fixture op-reth-test-engine"
           save_cache: false
       - persist_to_workspace:
           root: "."
           paths:
             - "rust/target/release/op-reth"
             - "rust/target/release/op-reth-sdm-fixture"
+            - "rust/target/release/op-reth-test-engine"
 
   initialize:
     docker:
@@ -1808,10 +1809,15 @@ jobs:
       - attach_workspace:
           at: .
       - run:
-          name: Configure op-reth binary path
+          name: Configure op-reth binary paths
           command: |
             ROOT_DIR="$(pwd)"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
+            # op-service/engineipc's TestMain uses the prebuilt engine from the attached
+            # rust-op-reth-binary workspace. REQUIRE_RUST_ENGINE forbids its local cargo-build
+            # fallback (which needs libclang, absent from this image) so a missing binary fails loudly.
+            echo "export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE=$ROOT_DIR/rust/target/release/op-reth-test-engine" >> "$BASH_ENV"
+            echo "export REQUIRE_RUST_ENGINE=1" >> "$BASH_ENV"
       - go-restore-cache:
           namespace: go-tests
       - run:
