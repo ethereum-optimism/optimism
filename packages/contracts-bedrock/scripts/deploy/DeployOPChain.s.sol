@@ -129,16 +129,12 @@ contract DeployOPChain is Script {
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
 
         // Config 0: legacy CANNON slot, disabled after U19 and kept to satisfy OPCMV2's 6-config shape.
-        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: bytes("")
-        });
+        disputeGameConfigs[0] = _createGameConfig(false, 0, GameTypes.CANNON, bytes(""));
 
         // Config 1: PERMISSIONED_CANNON
         disputeGameConfigs[1] = _createGameConfig(
             enablePermissionedCannon,
+            DEFAULT_INIT_BOND,
             GameTypes.PERMISSIONED_CANNON,
             abi.encode(
                 IOPContractsManagerUtils.PermissionedDisputeGameConfig({
@@ -153,6 +149,7 @@ contract DeployOPChain is Script {
         // Config 2: CANNON_KONA
         disputeGameConfigs[2] = _createGameConfig(
             enableCannonKona,
+            DEFAULT_INIT_BOND,
             GameTypes.CANNON_KONA,
             abi.encode(
                 IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate })
@@ -160,23 +157,17 @@ contract DeployOPChain is Script {
         );
 
         // Config 3: SUPER_PERMISSIONED
-        disputeGameConfigs[3] = enableSuperPermissioned
-            ? IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: true,
-                initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED,
-                gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: _input.proposer }))
-            })
-            : IOPContractsManagerUtils.DisputeGameConfig({
-                enabled: false,
-                initBond: 0,
-                gameType: GameTypes.SUPER_PERMISSIONED,
-                gameArgs: bytes("")
-            });
+        disputeGameConfigs[3] = _createGameConfig(
+            enableSuperPermissioned,
+            0,
+            GameTypes.SUPER_PERMISSIONED,
+            abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: _input.proposer }))
+        );
 
         // Config 4: SUPER_CANNON_KONA
         disputeGameConfigs[4] = _createGameConfig(
             enableSuperCannonKona,
+            DEFAULT_INIT_BOND,
             GameTypes.SUPER_CANNON_KONA,
             abi.encode(
                 IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: _input.disputeAbsolutePrestate })
@@ -184,12 +175,7 @@ contract DeployOPChain is Script {
         );
 
         // Config 5: ZK_DISPUTE_GAME (disabled for initial deployment)
-        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: bytes("")
-        });
+        disputeGameConfigs[5] = _createGameConfig(false, 0, GameTypes.ZK_DISPUTE_GAME, bytes(""));
 
         config_ = IOPContractsManagerV2.FullConfig({
             saltMixer: _input.saltMixer,
@@ -310,14 +296,10 @@ contract DeployOPChain is Script {
         return DevFeatures.isDevFeatureEnabled(_opcm.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
     }
 
-    /// @notice Returns a DisputeGameConfig with the appropriate values based on the parameters passed in.
-    ///         If the game is enabled the configuration is filled with the default init bond and the game
-    ///         arguments passed as parameter otherwise 0 is used for the bond and empty bytes for the arguments.
-    /// @param _enabled Whether the dispute game is enabled or not
-    /// @param _gameType The type of this dispute game
-    /// @param _enabledArgs The arguments for the dispute game config
+    /// @notice Creates a game config, clearing its bond and arguments when disabled.
     function _createGameConfig(
         bool _enabled,
+        uint256 _initBond,
         GameType _gameType,
         bytes memory _enabledArgs
     )
@@ -327,7 +309,7 @@ contract DeployOPChain is Script {
     {
         return IOPContractsManagerUtils.DisputeGameConfig({
             enabled: _enabled,
-            initBond: _enabled ? DEFAULT_INIT_BOND : 0,
+            initBond: _enabled ? _initBond : 0,
             gameType: _gameType,
             gameArgs: _enabled ? _enabledArgs : bytes("")
         });
