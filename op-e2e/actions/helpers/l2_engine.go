@@ -268,6 +268,25 @@ func (e *L2Engine) ForcedEmpty(t Testing) bool {
 	return e.EngineApi.ForcedEmpty()
 }
 
+// IsReth reports whether this engine is backed by the out-of-process op-reth-test-engine rather
+// than the in-process op-geth EL. Tests use it only where the two ELs reject an input with
+// genuinely different, irreducible messages.
+func (e *L2Engine) IsReth() bool {
+	return e.reth != nil
+}
+
+// IncludeTxErr submits tx directly into the block currently being built and returns the resulting
+// error (nil if it was included). Unlike ActL2IncludeTx it consults neither the tx-pool nor the
+// parking buffer and does not map errors to InvalidAction; tests use it to assert that a specific
+// transaction is rejected at inclusion time.
+func (e *L2Engine) IncludeTxErr(t Testing, tx *types.Transaction, from common.Address) error {
+	if e.reth != nil {
+		return e.reth.includeTxErr(t, tx)
+	}
+	_, err := e.EngineApi.IncludeTx(tx, from)
+	return err
+}
+
 func (e *L2Engine) EngineClient(t Testing, cfg *rollup.Config) *sources.EngineClient {
 	l2Cl, err := sources.NewEngineClient(e.RPCClient(), e.log, nil, sources.EngineClientDefaultConfig(cfg))
 	require.NoError(t, err)

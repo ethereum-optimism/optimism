@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -160,6 +161,16 @@ type includeNextTxResult struct {
 	GasUsed uint64       `json:"gasUsed"`
 	Skipped bool         `json:"skipped"`
 	NoTx    bool         `json:"noTx"`
+}
+
+// includeTxErr submits a raw transaction directly to optest_includeTx and returns the engine's
+// error verbatim (nil on success). The reth engine rejects an unsupported transaction (e.g. a blob
+// tx) while decoding it, so the message differs from op-geth's block-build rejection.
+func (b *rethBackend) includeTxErr(t Testing, tx *types.Transaction) error {
+	raw, err := tx.MarshalBinary()
+	require.NoError(t, err, "marshal tx")
+	var res includeNextTxResult
+	return b.client.CallContext(t.Ctx(), &res, "optest_includeTx", hexutil.Bytes(raw))
 }
 
 // includeNextTx drains the next parked transaction from `from` into the block being built, mapping
