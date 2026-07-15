@@ -556,10 +556,8 @@ where
 #[cfg(test)]
 mod tests {
     use alloy_consensus::Header;
-    use alloy_primitives::{B256, U256, keccak256};
-    use alloy_rlp::Encodable;
+    use alloy_primitives::{B256, U256};
     use kona_genesis::RollupConfig;
-    use kona_interop::{ChainDependency, DependencySet};
     use kona_preimage::PreimageKey;
     use kona_proof::block_on;
     use kona_sp1_client_utils::{
@@ -571,47 +569,7 @@ mod tests {
     };
 
     use super::*;
-
-    fn b256(fill: u8) -> B256 {
-        B256::from([fill; 32])
-    }
-
-    fn save_header(oracle: &mut PreimageStore, header: &Header) -> B256 {
-        let hash = header.hash_slow();
-        let mut rlp = Vec::new();
-        header.encode(&mut rlp);
-        oracle.save_preimage(PreimageKey::new_keccak256(*hash), rlp).unwrap();
-        hash
-    }
-
-    fn save_output_root(oracle: &mut PreimageStore, block_hash: B256) -> B256 {
-        let mut output_preimage = [0u8; OUTPUT_ROOT_V0_BYTES];
-        output_preimage[OUTPUT_ROOT_V0_BLOCK_HASH_RANGE].copy_from_slice(block_hash.as_slice());
-        let output_root = B256::from(keccak256(output_preimage));
-        oracle
-            .save_preimage(PreimageKey::new_keccak256(*output_root), output_preimage.to_vec())
-            .unwrap();
-        output_root
-    }
-
-    #[allow(clippy::zero_sized_map_values)]
-    fn dependency_set(
-        chain_ids: &[u64],
-        override_message_expiry_window: Option<u64>,
-    ) -> DependencySet {
-        let dependencies =
-            chain_ids.iter().map(|chain_id| (*chain_id, ChainDependency {})).collect();
-        DependencySet { dependencies, override_message_expiry_window }
-    }
-
-    fn rollup_config(chain_id: u64, l1_chain_id: u64) -> RollupConfig {
-        RollupConfig {
-            block_time: 1,
-            l1_chain_id,
-            l2_chain_id: alloy_chains::Chain::from(chain_id),
-            ..Default::default()
-        }
-    }
+    use crate::test_utils::{b256, dependency_set, rollup_config, save_header, save_output_root};
 
     fn rollup_configs(chain_ids: &[u64]) -> BTreeMap<u64, RollupConfig> {
         chain_ids.iter().map(|chain_id| (*chain_id, rollup_config(*chain_id, 1))).collect()

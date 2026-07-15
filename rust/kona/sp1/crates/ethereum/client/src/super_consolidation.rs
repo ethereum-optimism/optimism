@@ -1,6 +1,6 @@
 //! Shared execution logic for the SP1 super-range guest's consolidation mode.
 
-use std::{collections::BTreeMap, fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc};
 
 use alloy_consensus::{Header, Sealed};
 use alloy_op_evm::post_exec::PostExecEvmFactoryAdapter;
@@ -37,10 +37,16 @@ where
     C: CommsClient + Send + Sync + Debug + 'static,
 {
     inputs.validate()?;
+
+    // Deposit-only replacement re-executes blocks through revm, which may hit the KZG
+    // point-evaluation precompile. Install the SP1-compatible crypto provider first.
+    revm::precompile::install_crypto(CustomCrypto::default());
+
     let chain_ids = consolidation_chain_ids(&inputs)?;
     let dependency_set = load_dependency_set(&chain_ids, oracle.as_ref()).await?;
     let rollup_configs = load_rollup_configs(&chain_ids, oracle.as_ref()).await?;
     let l1_config = load_l1_config(&rollup_configs, oracle.as_ref()).await?;
+    let rollup_configs: RegistryHashMap<_, _> = rollup_configs.into_iter().collect();
 
     let mut previous_super_root =
         fetch_super_root(oracle.as_ref(), inputs.previous_super_root).await?;
@@ -113,7 +119,7 @@ async fn run_transition<C>(
     optimistic_blocks: Vec<SuperOptimisticBlock>,
     claimed_super_root_proof: &SuperRootProof,
     dependency_set: DependencySet,
-    rollup_configs: &BTreeMap<u64, RollupConfig>,
+    rollup_configs: &RegistryHashMap<u64, RollupConfig>,
     l1_config: &L1ChainConfig,
 ) -> anyhow::Result<SuperConsolidationTransition>
 where
@@ -136,7 +142,7 @@ where
         agreed_pre_state,
         claimed_post_state: claimed_super_root,
         claimed_l2_timestamp: claimed_super_root_proof.super_root.timestamp,
-        rollup_configs: interop_rollup_configs(rollup_configs),
+        rollup_configs: rollup_configs.clone(),
         dependency_set,
         l1_config: l1_config.clone(),
     };
@@ -150,9 +156,6 @@ where
     )
     .await?;
 
-    // Deposit-only replacement re-executes blocks through revm, which may hit the KZG
-    // point-evaluation precompile. Install the SP1-compatible crypto provider first.
-    revm::precompile::install_crypto(CustomCrypto::default());
     let interop_provider = OracleInteropProvider::new(oracle, boot.clone(), headers);
     let evm_factory = PostExecEvmFactoryAdapter::new(ZkvmOpEvmFactory);
     SuperchainConsolidator::new(&mut boot, interop_provider, l2_providers, evm_factory)
@@ -181,7 +184,7 @@ async fn build_providers<C>(
     previous_super_root: &SuperRoot,
     optimistic_blocks: &[SuperOptimisticBlock],
     timestamp: u64,
-    rollup_configs: &BTreeMap<u64, RollupConfig>,
+    rollup_configs: &RegistryHashMap<u64, RollupConfig>,
 ) -> anyhow::Result<(
     RegistryHashMap<u64, Sealed<Header>>,
     RegistryHashMap<u64, OracleL2ChainProvider<C>>,
@@ -258,22 +261,12 @@ fn ensure_previous_super_root_matches_optimistic_blocks(
     Ok(())
 }
 
-fn interop_rollup_configs(
-    rollup_configs: &BTreeMap<u64, RollupConfig>,
-) -> RegistryHashMap<u64, RollupConfig> {
-    rollup_configs.iter().map(|(chain_id, config)| (*chain_id, config.clone())).collect()
-}
-
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
-    use alloy_chains::Chain;
     use alloy_consensus::{EMPTY_ROOT_HASH, Header};
-    use alloy_primitives::{B256, U256, keccak256};
-    use alloy_rlp::{EMPTY_STRING_CODE, Encodable};
+    use alloy_primitives::{B256, U256};
+    use alloy_rlp::EMPTY_STRING_CODE;
     use kona_genesis::RollupConfig;
-    use kona_interop::{ChainDependency, DependencySet};
     use kona_preimage::PreimageKey;
     use kona_proof::block_on;
     use kona_sp1_client_utils::{
@@ -282,28 +275,7 @@ mod tests {
     };
 
     use super::*;
-
-    fn b256(fill: u8) -> B256 {
-        B256::from([fill; 32])
-    }
-
-    fn save_header(oracle: &mut PreimageStore, header: &Header) -> B256 {
-        let hash = header.hash_slow();
-        let mut rlp = Vec::new();
-        header.encode(&mut rlp);
-        oracle.save_preimage(PreimageKey::new_keccak256(*hash), rlp).unwrap();
-        hash
-    }
-
-    fn save_output_root(oracle: &mut PreimageStore, block_hash: B256) -> B256 {
-        let mut output_preimage = [0u8; 128];
-        output_preimage[96..128].copy_from_slice(block_hash.as_slice());
-        let output_root = B256::from(keccak256(output_preimage));
-        oracle
-            .save_preimage(PreimageKey::new_keccak256(*output_root), output_preimage.to_vec())
-            .unwrap();
-        output_root
-    }
+    use crate::test_utils::{b256, dependency_set, rollup_config, save_header, save_output_root};
 
     fn save_super_root(oracle: &mut PreimageStore, super_root: &SuperRoot) -> B256 {
         let hash = super_root.hash();
@@ -319,26 +291,7 @@ mod tests {
             .unwrap();
     }
 
-    #[allow(clippy::zero_sized_map_values)]
-    fn dependency_set(
-        chain_ids: &[u64],
-        override_message_expiry_window: Option<u64>,
-    ) -> DependencySet {
-        let dependencies =
-            chain_ids.iter().map(|chain_id| (*chain_id, ChainDependency {})).collect();
-        DependencySet { dependencies, override_message_expiry_window }
-    }
-
-    fn rollup_config(chain_id: u64, l1_chain_id: u64) -> RollupConfig {
-        RollupConfig {
-            block_time: 1,
-            l1_chain_id,
-            l2_chain_id: Chain::from(chain_id),
-            ..Default::default()
-        }
-    }
-
-    fn rollup_configs(chain_ids: &[u64]) -> BTreeMap<u64, RollupConfig> {
+    fn rollup_configs(chain_ids: &[u64]) -> RegistryHashMap<u64, RollupConfig> {
         chain_ids.iter().map(|chain_id| (*chain_id, rollup_config(*chain_id, 1))).collect()
     }
 
