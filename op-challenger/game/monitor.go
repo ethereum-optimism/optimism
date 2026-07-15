@@ -111,7 +111,7 @@ func (m *gameMonitor) allowedGame(game common.Address) bool {
 	return false
 }
 
-func (m *gameMonitor) supportedGameType(gameType uint32) bool {
+func (m *gameMonitor) configuredGameType(gameType uint32) bool {
 	return slices.Contains(m.gameTypes, types.GameType(gameType))
 }
 
@@ -121,14 +121,18 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
+	var gamesToClaimOrClose []types.GameMetadata
 	var gamesToPlay []types.GameMetadata
 	for _, game := range games {
-		if !m.supportedGameType(game.GameType) {
-			if game.GameType == uint32(types.SuperPermissionedGameType) {
-				m.logger.Info("Skipping unsupported super permissioned game type", "game", game.Proxy)
-			} else {
-				m.logger.Warn("Skipping unsupported game type", "game", game.Proxy, "gameType", game.GameType)
-			}
+		gameType := types.GameType(game.GameType)
+		if !slices.Contains(types.SupportedLifecycleGameTypes, gameType) {
+			m.logger.Warn("Skipping unsupported game type", "game", game.Proxy, "gameType", game.GameType)
+			continue
+		}
+
+		gamesToClaimOrClose = append(gamesToClaimOrClose, game)
+
+		if !slices.Contains(types.PlayableGameTypes, gameType) || !m.configuredGameType(game.GameType) {
 			continue
 		}
 		if !m.allowedGame(game.Proxy) {
@@ -137,7 +141,7 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 		}
 		gamesToPlay = append(gamesToPlay, game)
 	}
-	if err := m.claimer.Schedule(blockNumber, gamesToPlay); err != nil {
+	if err := m.claimer.Schedule(blockNumber, gamesToClaimOrClose); err != nil {
 		return fmt.Errorf("failed to schedule bond claims: %w", err)
 	}
 	if err := m.scheduler.Schedule(gamesToPlay, blockNumber); errors.Is(err, scheduler.ErrBusy) {
