@@ -122,29 +122,28 @@ pub(crate) fn snappy_decompressed_len_within_bound(data: &[u8]) -> Option<usize>
 /// This is invoked as gossipsub's `message_id_fn` on every inbound PUBLISH before signature
 /// validation, so the input is unauthenticated.
 fn compute_message_id(msg: &Message) -> MessageId {
-    let id = if snappy_decompressed_len_within_bound(&msg.data).is_some() {
-        let mut decoder = Decoder::new();
-        decoder.decompress_vec(&msg.data).map_or_else(
-            |_| {
-                warn!(target: "cfg", "Failed to decompress message, using invalid snappy");
-                let domain_invalid_snappy: Vec<u8> = vec![0x0, 0x0, 0x0, 0x0];
-                sha256([domain_invalid_snappy.as_slice(), msg.data.as_slice()].concat().as_slice())
-                    [..20]
-                    .to_vec()
-            },
-            |data| {
-                let domain_valid_snappy: Vec<u8> = vec![0x1, 0x0, 0x0, 0x0];
-                sha256([domain_valid_snappy.as_slice(), data.as_slice()].concat().as_slice())[..20]
-                    .to_vec()
-            },
-        )
-    } else {
-        // Oversized/malformed frame: take the invalid-snappy domain without logging. This path is
-        // driven by unauthenticated remote input, so it must not be able to spam warnings.
-        let domain_invalid_snappy: Vec<u8> = vec![0x0, 0x0, 0x0, 0x0];
-        sha256([domain_invalid_snappy.as_slice(), msg.data.as_slice()].concat().as_slice())[..20]
-            .to_vec()
-    };
+    // Only attempt decompression once the header's declared length is within bound, so an oversized
+    // frame never triggers a large allocation (see `snappy_decompressed_len_within_bound`).
+    let decompressed = snappy_decompressed_len_within_bound(&msg.data)
+        .and_then(|_| Decoder::new().decompress_vec(&msg.data).ok());
+
+    let id = decompressed.map_or_else(
+        || {
+            // Oversized or undecompressable frame: take the invalid-snappy domain. Count and
+            // debug-log, never warn — this runs on unauthenticated remote input.
+            kona_macros::inc!(counter, crate::Metrics::MESSAGE_ID_INVALID_SNAPPY);
+            debug!(target: "gossip", len = msg.data.len(), "Snappy frame failed to decompress within bound in message-id");
+            let domain_invalid_snappy = [0u8; 4];
+            sha256([domain_invalid_snappy.as_slice(), msg.data.as_slice()].concat().as_slice())
+                [..20]
+                .to_vec()
+        },
+        |data| {
+            let domain_valid_snappy = [0x1u8, 0x0, 0x0, 0x0];
+            sha256([domain_valid_snappy.as_slice(), data.as_slice()].concat().as_slice())[..20]
+                .to_vec()
+        },
+    );
 
     MessageId(id)
 }
@@ -171,7 +170,7 @@ mod tests {
         };
 
         let id = compute_message_id(&msg);
-        let hashed = sha256(&[&[0x0, 0x0, 0x0, 0x0], [1, 2, 3, 4, 5].as_slice()].concat());
+        let hashed = sha256(&[&[0u8; 4], [1, 2, 3, 4, 5].as_slice()].concat());
         assert_eq!(id.0, hashed[..20].to_vec());
     }
 
@@ -213,7 +212,7 @@ mod tests {
 
         let id = compute_message_id(&msg);
         // Bomb takes the oversized-header rejection branch: hash uses invalid-snappy domain.
-        let expected = sha256(&[&[0x0, 0x0, 0x0, 0x0], bomb.as_slice()].concat());
+        let expected = sha256(&[&[0u8; 4], bomb.as_slice()].concat());
         assert_eq!(id.0, expected[..20].to_vec());
     }
 
@@ -236,7 +235,7 @@ mod tests {
         let id = compute_message_id(&msg);
 
         // Bounded path: invalid-snappy domain over the raw (still-compressed) bytes.
-        let bounded = sha256(&[[0x0u8, 0x0, 0x0, 0x0].as_slice(), over.as_slice()].concat());
+        let bounded = sha256(&[[0u8; 4].as_slice(), over.as_slice()].concat());
         assert_eq!(id.0, bounded[..20].to_vec());
 
         // The id an unbounded implementation would produce (decompress, then valid-snappy
@@ -275,5 +274,86 @@ mod tests {
 
         let small = snap::raw::Encoder::new().compress_vec(&[1, 2, 3, 4, 5]).unwrap();
         assert_eq!(snappy_decompressed_len_within_bound(&small), Some(5));
+    }
+
+    #[cfg(feature = "metrics")]
+    fn message_id_invalid_snappy_count(snapshot: metrics_util::debugging::Snapshot) -> u64 {
+        use metrics_util::debugging::DebugValue;
+        for (ckey, _unit, _desc, value) in snapshot.into_vec() {
+            if ckey.key().name() != crate::Metrics::MESSAGE_ID_INVALID_SNAPPY {
+                continue;
+            }
+            if let DebugValue::Counter(c) = value {
+                return c;
+            }
+        }
+        0
+    }
+
+    #[cfg(feature = "metrics")]
+    #[test]
+    fn compute_message_id_records_invalid_snappy_on_decompress_failure() {
+        use metrics_util::debugging::DebuggingRecorder;
+
+        // Declares a 1-byte payload but the body is corrupt, so `decompress_vec` fails.
+        let msg = Message {
+            source: None,
+            data: vec![1, 2, 3, 4, 5],
+            sequence_number: None,
+            topic: libp2p::gossipsub::TopicHash::from_raw("test"),
+        };
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            let _ = compute_message_id(&msg);
+        });
+
+        assert_eq!(message_id_invalid_snappy_count(snapshotter.snapshot()), 1);
+    }
+
+    #[cfg(feature = "metrics")]
+    #[test]
+    fn compute_message_id_records_invalid_snappy_on_oversize_frame() {
+        use metrics_util::debugging::DebuggingRecorder;
+
+        // A tiny frame that validly declares a decompressed size over the bound.
+        let over = snap::raw::Encoder::new().compress_vec(&vec![0u8; MAX_GOSSIP_SIZE + 1]).unwrap();
+        let msg = Message {
+            source: None,
+            data: over,
+            sequence_number: None,
+            topic: libp2p::gossipsub::TopicHash::from_raw("test"),
+        };
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            let _ = compute_message_id(&msg);
+        });
+
+        assert_eq!(message_id_invalid_snappy_count(snapshotter.snapshot()), 1);
+    }
+
+    #[cfg(feature = "metrics")]
+    #[test]
+    fn compute_message_id_does_not_record_invalid_snappy_on_valid_frame() {
+        use metrics_util::debugging::DebuggingRecorder;
+
+        let valid = snap::raw::Encoder::new().compress_vec(&[1, 2, 3, 4, 5]).unwrap();
+        let msg = Message {
+            source: None,
+            data: valid,
+            sequence_number: None,
+            topic: libp2p::gossipsub::TopicHash::from_raw("test"),
+        };
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        metrics::with_local_recorder(&recorder, || {
+            let _ = compute_message_id(&msg);
+        });
+
+        assert_eq!(message_id_invalid_snappy_count(snapshotter.snapshot()), 0);
     }
 }

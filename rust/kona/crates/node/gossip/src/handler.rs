@@ -51,8 +51,10 @@ impl Handler for BlockHandler {
         // buffer of the declared length (up to ~4 GiB) from a tiny frame. Mirrors op-node's
         // gossip topic validator, which rejects `outLen > maxGossipSize` before decompressing.
         if snappy_decompressed_len_within_bound(&msg.data).is_none() {
-            // Reject without logging: this is unauthenticated remote input and must not be able to
-            // spam warnings just by being invalid.
+            // Count for alerting and debug-log for investigation, but never warn: unauthenticated
+            // remote input must not be able to spam warnings just by being invalid.
+            kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "oversized_snappy");
+            debug!(target: "gossip", len = msg.data.len(), "Rejecting oversized snappy frame before decode");
             return (MessageAcceptance::Reject, None);
         }
 
@@ -65,7 +67,10 @@ impl Handler for BlockHandler {
         } else if msg.topic == self.blocks_v4_topic.hash() {
             OpNetworkPayloadEnvelope::decode_v4(&msg.data)
         } else {
-            warn!(target: "gossip", topic = ?msg.topic, "Received block with unknown topic");
+            // Unreachable in practice (the driver only dispatches known block topics), but count
+            // and debug-log it rather than warn if that ever changes.
+            kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "unknown_topic");
+            debug!(target: "gossip", topic = ?msg.topic, "Received block with unknown topic");
             return (MessageAcceptance::Reject, None);
         };
 
@@ -73,12 +78,16 @@ impl Handler for BlockHandler {
             Ok(envelope) => match self.block_valid(&envelope) {
                 Ok(()) => (MessageAcceptance::Accept, Some(envelope)),
                 Err(err) => {
-                    warn!(target: "gossip", ?err, hash = ?envelope.payload_hash, "Received invalid block");
+                    // Already metered by BLOCK_VALIDATION_FAILED; debug-log for investigation
+                    // without letting invalid remote blocks spam warnings.
+                    debug!(target: "gossip", ?err, hash = ?envelope.payload_hash, "Received invalid block");
                     (err.into(), None)
                 }
             },
             Err(err) => {
-                warn!(target: "gossip", ?err, "Failed to decode block");
+                // Undecodable payload from unauthenticated input: count and debug-log, don't warn.
+                kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error");
+                debug!(target: "gossip", ?err, "Failed to decode block");
                 (MessageAcceptance::Reject, None)
             }
         }
@@ -486,5 +495,109 @@ mod tests {
         };
 
         assert!(matches!(handler.handle(message).0, MessageAcceptance::Accept));
+    }
+
+    #[cfg(feature = "metrics")]
+    fn invalid_message_count(snapshot: metrics_util::debugging::Snapshot, reason: &str) -> u64 {
+        use metrics_util::debugging::DebugValue;
+        for (ckey, _unit, _desc, value) in snapshot.into_vec() {
+            let key = ckey.key();
+            let is_match = key.name() == crate::Metrics::INVALID_MESSAGE &&
+                key.labels().any(|l| l.key() == "reason" && l.value() == reason);
+            if !is_match {
+                continue;
+            }
+            if let DebugValue::Counter(c) = value {
+                return c;
+            }
+        }
+        0
+    }
+
+    #[cfg(feature = "metrics")]
+    fn zero_signer_handler() -> BlockHandler {
+        let (_, unsafe_signer) = tokio::sync::watch::channel(Address::ZERO);
+        BlockHandler::new(
+            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
+            unsafe_signer,
+        )
+    }
+
+    #[cfg(feature = "metrics")]
+    #[test]
+    fn handle_records_invalid_message_metric_for_oversized_snappy() {
+        use metrics_util::debugging::DebuggingRecorder;
+
+        let mut handler = zero_signer_handler();
+        // Tiny frame whose snappy header declares a decompressed size over MAX_GOSSIP_SIZE.
+        let over = snap::raw::Encoder::new()
+            .compress_vec(&vec![0u8; crate::config::MAX_GOSSIP_SIZE + 1])
+            .unwrap();
+        let message = Message {
+            source: None,
+            sequence_number: None,
+            topic: handler.blocks_v1_topic.clone().into(),
+            data: over,
+        };
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        let acc = metrics::with_local_recorder(&recorder, || handler.handle(message).0);
+
+        assert!(matches!(acc, MessageAcceptance::Reject));
+        assert_eq!(invalid_message_count(snapshotter.snapshot(), "oversized_snappy"), 1);
+    }
+
+    #[cfg(feature = "metrics")]
+    #[test]
+    fn handle_records_invalid_message_metric_for_decode_error() {
+        use metrics_util::debugging::DebuggingRecorder;
+
+        // A v2-encoded payload published on the v1 topic fails `decode_v1` before validation.
+        let v2 = ExecutionPayloadV2::from_block_slow(&v2_valid_block());
+        let envelope = OpNetworkPayloadEnvelope {
+            payload: OpExecutionPayload::V2(v2),
+            signature: Signature::test_signature(),
+            payload_hash: PayloadHash(B256::ZERO),
+            parent_beacon_block_root: None,
+        };
+        let mut handler = zero_signer_handler();
+        let encoded = handler.encode(handler.blocks_v2_topic.clone(), envelope).unwrap();
+        let message = Message {
+            source: None,
+            sequence_number: None,
+            topic: handler.blocks_v1_topic.clone().into(),
+            data: encoded,
+        };
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        let acc = metrics::with_local_recorder(&recorder, || handler.handle(message).0);
+
+        assert!(matches!(acc, MessageAcceptance::Reject));
+        assert_eq!(invalid_message_count(snapshotter.snapshot(), "decode_error"), 1);
+    }
+
+    #[cfg(feature = "metrics")]
+    #[test]
+    fn handle_records_invalid_message_metric_for_unknown_topic() {
+        use metrics_util::debugging::DebuggingRecorder;
+
+        let mut handler = zero_signer_handler();
+        // Valid small snappy frame so the pre-decode bound passes; the topic is not a block topic.
+        let data = snap::raw::Encoder::new().compress_vec(&[1, 2, 3, 4, 5]).unwrap();
+        let message = Message {
+            source: None,
+            sequence_number: None,
+            topic: TopicHash::from_raw("unknown"),
+            data,
+        };
+
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        let acc = metrics::with_local_recorder(&recorder, || handler.handle(message).0);
+
+        assert!(matches!(acc, MessageAcceptance::Reject));
+        assert_eq!(invalid_message_count(snapshotter.snapshot(), "unknown_topic"), 1);
     }
 }

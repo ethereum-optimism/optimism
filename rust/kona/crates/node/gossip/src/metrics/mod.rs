@@ -55,6 +55,25 @@ impl Metrics {
     /// Identifier for the counter that tracks block version distribution.
     pub const BLOCK_VERSION: &str = "kona_node_block_version";
 
+    /// Identifier for the counter that tracks messages the block handler rejected before block
+    /// validation, by reason.
+    ///
+    /// The reasons are mutually exclusive per message: the handler's pre-decode snappy bound
+    /// (`oversized_snappy`), envelope decode failures (`decode_error`), and unexpected topics
+    /// (`unknown_topic`). Messages that decode but fail block validation are counted by
+    /// [`Self::BLOCK_VALIDATION_FAILED`] instead; malformed frames caught earlier, in the
+    /// gossipsub `message_id` function, are counted by [`Self::MESSAGE_ID_INVALID_SNAPPY`].
+    pub const INVALID_MESSAGE: &str = "kona_node_gossip_invalid_message";
+
+    /// Identifier for the counter that tracks inbound frames the gossipsub `message_id` function
+    /// could not decompress within the gossip size bound.
+    ///
+    /// Recorded per receipt — before gossipsub de-duplication and before the block handler runs —
+    /// so it counts on a larger denominator than [`Self::INVALID_MESSAGE`] and overlaps that
+    /// counter's `oversized_snappy`/`decode_error` reasons for the same message. It is not a
+    /// rejection on its own: the message-id function only assigns the message id.
+    pub const MESSAGE_ID_INVALID_SNAPPY: &str = "kona_node_gossip_message_id_invalid_snappy";
+
     /// Initializes metrics for the Gossip stack.
     ///
     /// This does two things:
@@ -116,6 +135,14 @@ impl Metrics {
             "Duration of block validation in seconds"
         );
         metrics::describe_counter!(Self::BLOCK_VERSION, "Distribution of block versions");
+        metrics::describe_counter!(
+            Self::INVALID_MESSAGE,
+            "Number of inbound gossip messages the block handler rejected before block validation, by reason"
+        );
+        metrics::describe_counter!(
+            Self::MESSAGE_ID_INVALID_SNAPPY,
+            "Number of inbound gossip frames the message-id function could not decompress within the size bound"
+        );
     }
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
@@ -203,5 +230,13 @@ impl Metrics {
         kona_macros::set!(counter, Self::BLOCK_VERSION, "version", "v2", 0);
         kona_macros::set!(counter, Self::BLOCK_VERSION, "version", "v3", 0);
         kona_macros::set!(counter, Self::BLOCK_VERSION, "version", "v4", 0);
+
+        // Messages rejected by the block handler before validation, by reason
+        kona_macros::set!(counter, Self::INVALID_MESSAGE, "reason", "oversized_snappy", 0);
+        kona_macros::set!(counter, Self::INVALID_MESSAGE, "reason", "decode_error", 0);
+        kona_macros::set!(counter, Self::INVALID_MESSAGE, "reason", "unknown_topic", 0);
+
+        // Malformed frames caught in the message-id function (per receipt, before dedup)
+        kona_macros::set!(counter, Self::MESSAGE_ID_INVALID_SNAPPY, 0);
     }
 }
