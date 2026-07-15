@@ -2115,8 +2115,9 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
 
         if (isL1ForkTest()) {
             // Fork setup migrates the chain to super games before this fixture runs.
+            GameType permissionlessGameType = DisputeGames.permissionlessGameType(dgf);
             LibGameArgs.GameArgs memory permissionlessGameArgs =
-                LibGameArgs.decode(dgf.gameArgs(GameTypes.SUPER_CANNON_KONA));
+                LibGameArgs.decode(dgf.gameArgs(permissionlessGameType));
             cannonKonaPrestate = Claim.wrap(permissionlessGameArgs.absolutePrestate);
             cannonPrestate = cannonKonaPrestate;
             l2ChainId = permissionlessGameArgs.l2ChainId;
