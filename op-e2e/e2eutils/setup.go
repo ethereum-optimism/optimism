@@ -14,12 +14,12 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/stretchr/testify/require"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -286,7 +286,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		LagoonTime:             deployConf.LagoonTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		KeepKarstUpgradeGas:    deployConf.KeepKarstUpgradeGas,
 		AltDAConfig:            pcfg,
-		ChainOpConfig: &params.OptimismConfig{
+		ChainOpConfig: &opparams.OptimismConfig{
 			EIP1559Elasticity:        deployConf.EIP1559Elasticity,
 			EIP1559Denominator:       deployConf.EIP1559Denominator,
 			EIP1559DenominatorCanyon: &deployConf.EIP1559DenominatorCanyon,
