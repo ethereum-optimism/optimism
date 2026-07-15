@@ -21,7 +21,8 @@
 //! `insert_preimages` at rev `f2eecc65482af4085e43eedb27a32024bf177a0d` (post-v2.4.0). It must
 //! stay byte-compatible with that code; revisit on every reth bump until an upstream helper
 //! exists. As of this rev the upstream type is `pub` (paradigmxyz/reth#26398 landed after
-//! v2.4.0); the replica can be dropped in favor of it — tracked in ethereum-optimism/optimism#21523.
+//! v2.4.0); the replica can be dropped in favor of it — tracked in
+//! ethereum-optimism/optimism#21523.
 
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, B256, keccak256};

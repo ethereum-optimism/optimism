@@ -223,6 +223,7 @@ where
                     withdrawals: Default::default(),
                     parent_beacon_block_root: header.parent_beacon_block_root,
                     slot_number: Default::default(),
+                    target_gas_limit: None,
                 },
                 transactions: Some(transactions),
                 no_tx_pool: Some(true),

@@ -46,7 +46,15 @@ unreachable_pub = "deny"
 unused_async = "warn"
 
 [workspace.dependencies]
-reth = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d" }
+reth = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d", default-features = false, features = [
+    "jemalloc",
+    "otlp",
+    "otlp-logs",
+    "js-tracer",
+    "keccak-cache-global",
+    "asm-keccak",
+    "min-trace-logs",
+] }
 reth-chain-state = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d" }
 reth-cli = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d" }
 reth-cli-commands = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d" }
@@ -106,7 +114,7 @@ reth-optimism-rpc = { path = "../op-reth/crates/rpc/", features = [
     "client",
 ] }
 
-revm = { version = "41.0.0", default-features = false }
+revm = { version = "41.0.0", default-features = false, features = ["portable"] }
 revm-inspectors = "0.41.0"
 op-revm = { version = "20.0.0", path = "../op-revm/", default-features = false }
 revm-bytecode = { version = "41.0.0", default-features = false }

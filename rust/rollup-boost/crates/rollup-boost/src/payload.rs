@@ -97,6 +97,7 @@ impl OpExecutionPayloadEnvelope {
                 withdrawals: Some(payload.execution_payload.withdrawals().clone()),
                 parent_beacon_block_root: Some(payload.parent_beacon_block_root),
                 slot_number: None,
+                target_gas_limit: None,
             },
             OpExecutionPayloadEnvelope::V4(payload) => PayloadAttributes {
                 timestamp: payload.execution_payload.payload_inner.timestamp(),
@@ -121,6 +122,7 @@ impl OpExecutionPayloadEnvelope {
                 ),
                 parent_beacon_block_root: Some(payload.parent_beacon_block_root),
                 slot_number: None,
+                target_gas_limit: None,
             },
         }
     }
