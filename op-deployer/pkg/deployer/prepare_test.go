@@ -259,6 +259,52 @@ func TestPrepareConfigCheck(t *testing.T) {
 	require.ErrorContains(t, missingL1RPC.Check(), "l1 RPC URL must be specified")
 }
 
+func TestCheckReservedOverrides(t *testing.T) {
+	chainID := common.HexToHash("0x0a")
+	newIntent := func() *state.Intent {
+		return &state.Intent{Chains: []*state.ChainIntent{{ID: chainID}}}
+	}
+
+	t.Run("an intent without reserved keys passes", func(t *testing.T) {
+		intent := newIntent()
+		intent.GlobalDeployOverrides = map[string]any{"l2GenesisFjordTimeOffset": "0x1"}
+		intent.Chains[0].DeployOverrides = map[string]any{"respectedGameType": 0}
+		require.NoError(t, checkReservedOverrides(intent, &state.State{}))
+	})
+
+	t.Run("a reserved key in the global overrides is rejected", func(t *testing.T) {
+		intent := newIntent()
+		intent.GlobalDeployOverrides = map[string]any{"l1StartingBlockTag": "0x1234"}
+		err := checkReservedOverrides(intent, &state.State{})
+		require.ErrorContains(t, err, `globalDeployOverrides key "l1StartingBlockTag" is reserved`)
+		require.ErrorContains(t, err, "l1StartBlockHash")
+		require.ErrorContains(t, err, GenesisTimeOffsetFlagName)
+	})
+
+	t.Run("a reserved key in a chain's overrides is rejected", func(t *testing.T) {
+		intent := newIntent()
+		intent.Chains[0].DeployOverrides = map[string]any{"l2GenesisBlockTimestamp": hexutil.Uint64(1)}
+		err := checkReservedOverrides(intent, &state.State{})
+		require.ErrorContains(t, err, chainID.Hex())
+		require.ErrorContains(t, err, `deployOverrides key "l2GenesisBlockTimestamp" is reserved`)
+	})
+
+	t.Run("reserved keys matchs are case insensitive", func(t *testing.T) {
+		intent := newIntent()
+		intent.Chains[0].DeployOverrides = map[string]any{"L2GenesisBlockTimestamp": hexutil.Uint64(1)}
+		err := checkReservedOverrides(intent, &state.State{})
+		require.ErrorContains(t, err, `"L2GenesisBlockTimestamp" is reserved`)
+	})
+
+	t.Run("an already deployed chain's overrides are ignored", func(t *testing.T) {
+		intent := newIntent()
+		intent.Chains[0].DeployOverrides = map[string]any{"l2GenesisBlockTimestamp": hexutil.Uint64(1)}
+		st := &state.State{}
+		st.SetChainContracts(chainID, addresses.OpChainContracts{}, true)
+		require.NoError(t, checkReservedOverrides(intent, st))
+	})
+}
+
 // TestPredictionDryRun_Permissionless exercises the prediction dry-run end to end for a
 // permissionless chain: it deploys a superchain + OPCM onto anvil, then runs
 // the DeployOPChain script against a fork with the prediction input.

@@ -113,6 +113,10 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 
+	if err := checkReservedOverrides(intent, st); err != nil {
+		return err
+	}
+
 	if len(intent.Chains) == 0 {
 		return fmt.Errorf("intent has no chains to prepare")
 	}
@@ -307,6 +311,29 @@ func predictChains(
 		)
 	}
 
+	return nil
+}
+
+// checkReservedOverrides rejects deploy overrides for values that prepare commits
+// into state.
+func checkReservedOverrides(intent *state.Intent, st *state.State) error {
+	if key, ok := state.FindPinnedOverrideKey(intent.GlobalDeployOverrides); ok {
+		return fmt.Errorf(
+			"globalDeployOverrides key %q is reserved by the prepare flow: set the anchor block via the chain's l1StartBlockHash and the genesis time via --%s",
+			key, GenesisTimeOffsetFlagName,
+		)
+	}
+	for _, chain := range intent.Chains {
+		if st.IsChainDeployed(chain.ID) {
+			continue
+		}
+		if key, ok := state.FindPinnedOverrideKey(chain.DeployOverrides); ok {
+			return fmt.Errorf(
+				"chain %s: deployOverrides key %q is reserved by the prepare flow: set the anchor block via l1StartBlockHash and the genesis time via --%s",
+				chain.ID.Hex(), key, GenesisTimeOffsetFlagName,
+			)
+		}
+	}
 	return nil
 }
 
