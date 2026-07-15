@@ -4,24 +4,20 @@ description: This document describes an example network configuration for an OP 
 diataxis: how-to
 ---
 
-<Warning>
-  **This page needs to be updated for op-reth.** The node configurations below were written for op-geth, which has reached end-of-support — see the [op-geth deprecation notice](/notices/op-geth-deprecation).
-</Warning>
-
 This document describes an example configuration for an OP Stack network deployment, focusing on the network architecture and node configuration required for production usage.
 
-![OP Stack Network Design](/public/img/chain-operators/network-design-example.png)
+![OP Stack network design example (op-reth)](/public/img/chain-operators/network-design-example-op-reth.png)
 
 ## Sequencers
 
-Sequencers receive transactions from the Tx Ingress Nodes via geth p2p gossip and work with the batcher and proposer to create new blocks.
+Sequencers receive transactions from the Tx Ingress Nodes via execution-layer p2p gossip and work with the batcher and proposer to create new blocks.
 
 ### Node Configuration
 
-*   **Sequencer op-geth** can be either full or archive. Full nodes offer better performance but can't recover from deep L1 reorgs, so run at least one archive sequencer as a backup.
+*   **Sequencer op-reth** can be either full or archive. op-reth runs as an archive node by default; pass `--full` to run a (pruned) full node. Full nodes offer better performance but can't recover from deep L1 reorgs, so run at least one archive sequencer as a backup.
 *   **Sequencer op-node** should have p2p discovery disabled and only be statically peered with other internal nodes (or use [peer-management-service](https://github.com/ethereum-optimism/infra/tree/main/peer-mgmt-service) to define peering network).
-*   The **op-conductor** RPC can act as a leader-aware RPC proxy for op-batcher (proxies the necessary op-geth / op-node RPC methods if the node is the leader).
-*   Sequencers should have transaction journalling disabled.
+*   The **op-conductor** RPC can act as a leader-aware RPC proxy for op-batcher (proxies the necessary op-reth / op-node RPC methods if the node is the leader).
+*   Sequencers should have local transaction backup (journalling) disabled.
 
 ### op-node Configuration
 
@@ -31,20 +27,21 @@ OP_NODE_P2P_PEER_BANNING: "false"
 OP_NODE_P2P_STATIC: "<static peer list>"
 ```
 
-### op-geth Configuration
+### op-reth Configuration
 
-```yaml
-GETH_ROLLUP_DISABLETXPOOLGOSSIP: "false"
-GETH_TXPOOL_JOURNAL: ""
-GETH_TXPOOL_JOURNALREMOTES: "false"
-GETH_TXPOOL_LIFETIME: "1h"
-GETH_TXPOOL_NOLOCALS: "true"
-GETH_NETRESTRICT: "10.0.0.0/8" # ex: restrict p2p to internal ips
+op-reth is configured via CLI flags rather than `GETH_*` environment variables:
+
+```sh
+# Leave --rollup.disable-tx-pool-gossip unset so transactions are gossiped to the internal network
+--txpool.disable-transactions-backup   # disable local transaction backup/journalling
+--txpool.lifetime 3600                  # 1h, in seconds
+--txpool.nolocals
+--netrestrict "10.0.0.0/8"              # ex: restrict p2p to internal ips
 ```
 
 ## Tx Ingress Nodes
 
-These nodes receive `eth_sendRawTransaction` calls from the public and then gossip the transactions to the internal geth network. This allows the Sequencer to focus on block creation while these nodes handle transaction ingress.
+These nodes receive `eth_sendRawTransaction` calls from the public and then gossip the transactions to the internal execution-layer network. This allows the Sequencer to focus on block creation while these nodes handle transaction ingress.
 
 ### Node Configuration
 
@@ -53,17 +50,17 @@ These nodes receive `eth_sendRawTransaction` calls from the public and then goss
 
 ### Configuration
 
-```yaml
-GETH_ROLLUP_DISABLETXPOOLGOSSIP: "false"
-GETH_TXPOOL_JOURNALREMOTES: "false"
-GETH_TXPOOL_LIFETIME: "1h"
-GETH_TXPOOL_NOLOCALS: "true"
-GETH_NETRESTRICT: "10.0.0.0/8" # ex: restrict p2p to internal ips
+```sh
+# Leave --rollup.disable-tx-pool-gossip unset so transactions are gossiped to sequencers
+--txpool.disable-transactions-backup
+--txpool.lifetime 3600                  # 1h, in seconds
+--txpool.nolocals
+--netrestrict "10.0.0.0/8"              # ex: restrict p2p to internal ips
 ```
 
 ## Archive RPC Nodes
 
-We recommend setting up some archive nodes for internal RPC usage, primarily used by the challenger, proposer, and security monitoring tools like [monitorism](/operators/chain-operators/tools/chain-monitoring#monitorism).
+We recommend setting up some archive nodes for internal RPC usage, primarily used by the challenger, proposer, and security monitoring tools like [monitorism](/chain-operators/tools/chain-monitoring#monitorism).
 
 ### Node Configuration
 
@@ -72,35 +69,32 @@ We recommend setting up some archive nodes for internal RPC usage, primarily use
 
 ### Configuration
 
-```yaml
-GETH_GCMODE: "archive"
-GETH_DB_ENGINE: "pebble"
-GETH_STATE_SCHEME: "hash"
+op-reth runs as an archive node by default, so no extra flags are required — simply do **not** pass `--full` or `--minimal` (both enable pruning). op-reth stores state in MDBX plus static files, so the geth-specific `GETH_DB_ENGINE` and `GETH_STATE_SCHEME` options have no equivalent.
+
+```sh
+# op-reth is archive by default; no pruning flags needed.
 ```
 
-## Full Snapsync Nodes
+## Full Nodes
 
-These nodes provide peers for snap sync, using the snapsync bootnodes for peer discovery.
+These nodes run as full (pruned) nodes. op-reth does not implement geth-style snap sync; it syncs using its own staged-sync pipeline, so the geth `GETH_SYNCMODE`, `GETH_DB_ENGINE`, and `GETH_STATE_SCHEME` options do not apply.
 
 ### Configuration
 
-```yaml
-GETH_GCMODE: "full"
-GETH_DB_ENGINE: "pebble"
-GETH_STATE_SCHEME: "path"
-GETH_SYNCMODE: "snap"
+```sh
+--full        # run a pruned full node (or --minimal for maximum pruning)
 ```
 
-## Snapsync Bootnodes
+## P2P Bootnodes (Execution Layer)
 
-These bootnodes facilitate peer discovery for public nodes using snapsync.
+These bootnodes facilitate peer discovery for public op-reth nodes.
 
 ### Node Configuration
 
-*   The bootnode can be either a geth instance or the [geth bootnode tool](https://etclabscore.github.io/core-geth/core/alltools/).
-*   If you want to use geth for snapsync bootnodes, you may want to just make the Full Snapsync Nodes serve as your bootnodes as well.
+*   The bootnode can be an op-reth instance or the [geth bootnode tool](https://etclabscore.github.io/core-geth/core/alltools/).
+*   You may want to make your Full Nodes serve as your bootnodes as well.
 
-## P2P Bootnodes
+## P2P Bootnodes (Consensus Layer)
 
 These are the op-node p2p network bootnodes. We recommend using the [geth bootnode tool](https://etclabscore.github.io/core-geth/core/alltools/) with discovery v5 enabled.
 
@@ -111,8 +105,8 @@ Public RPC design is not listed in the above diagram but can be implemented very
 ### Configuration Differences
 
 *   Public RPC should **not** participate in the internal tx pool p2p network.
-    *   While it is possible to run Public RPC from the same nodes that serve Tx Ingress and participate in tx pool gossip, there have been geth bugs in the past that leaked tx pool details on read RPCs, so it is a possible risk to consider.
-*   Public RPC [proxyd](https://github.com/ethereum-optimism/infra/tree/main/proxyd) should be run in `consensus_aware` routing mode and whitelist any RPCs you want to serve from op-geth.
+    *   While it is possible to run Public RPC from the same nodes that serve Tx Ingress and participate in tx pool gossip, there have been execution-client bugs in the past that leaked tx pool details on read RPCs, so it is a possible risk to consider.
+*   Public RPC [proxyd](https://github.com/ethereum-optimism/infra/tree/main/proxyd) should be run in `consensus_aware` routing mode and whitelist any RPCs you want to serve from op-reth.
 *   Public RPC nodes should likely be archive nodes.
 
 ### About proxyd
