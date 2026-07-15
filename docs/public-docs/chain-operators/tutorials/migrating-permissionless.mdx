@@ -1,14 +1,15 @@
 ---
 title: Migrating to permissionless fault proofs on OP Stack
-description: A high-level guide for transitioning from permissioned to permissionless fault proofs on an OP Stack.
+description: "Migrate your OP Stack chain from permissioned to permissionless fault proofs: configure the dispute components, deploy the contracts with OPCM, test the off-chain agents, and switch the respected game type."
+diataxis: how-to
 audit-source:
   - op-challenger/flags/flags.go
   - op-challenger/game/types/game_type.go
   - op-challenger/cmd/run_trace.go
 ---
 
-This guide provides a high-level overview for chain operators looking to transition their OP Stack from permissioned to permissionless fault proofs.
-It's designed to be accessible for technical decision makers while providing sufficient detail for implementation teams.
+This guide shows you how to transition your OP Stack chain from permissioned to permissionless fault proofs.
+It walks chain operators through the four migration phases: configuring the dispute components, deploying the smart contracts with OPCM, testing the off-chain agents, and switching the respected game type.
 
 ## Overview
 

@@ -10,13 +10,16 @@ import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
 import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
 import { DeployOPChain } from "scripts/deploy/DeployOPChain.s.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
-import { Types } from "scripts/libraries/Types.sol";
+import { Types as DeployTypes } from "scripts/libraries/Types.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
@@ -33,7 +36,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     DeploySuperchain deploySuperchain;
     DeployImplementations deployImplementations;
     DeployOPChain deployOPChain;
-    Types.DeployOPChainInput deployOPChainInput;
+    DeployTypes.DeployOPChainInput deployOPChainInput;
 
     // DeploySuperchain default inputs.
     address superchainProxyAdminOwner = makeAddr("superchainProxyAdminOwner");
@@ -66,13 +69,17 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     // the tests only need them to be non-zero and distinct from each other.
     // cannon32 v1.3.1 (op-program).
     Claim disputeAbsolutePrestate = Claim.wrap(0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c);
-    Hash startingAnchorRoot = Hash.wrap(Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT);
+    Proposal startingAnchorRoot =
+        Proposal({ root: Hash.wrap(Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT), l2SequenceNumber: 0 });
     // cannon64 v1.6.1 (op-program).
     Claim cannonAbsolutePrestate = Claim.wrap(0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8);
     // cannon64-kona-interop v1.2.13 (Kona).
     Claim cannonKonaAbsolutePrestate = Claim.wrap(0x035ef680a6fa34c50d8d8169075b5d133ecd7b38fe2b2a83cc76fc81ae5d7c52);
     // Arbitrary non-placeholder anchor root for the permissionless deploy tests.
-    Hash permissionlessAnchorRoot = Hash.wrap(0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47);
+    Proposal permissionlessAnchorRoot = Proposal({
+        root: Hash.wrap(0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47),
+        l2SequenceNumber: 1234
+    });
     uint256 disputeMaxGameDepth = 73;
     uint256 disputeSplitDepth = 30;
     Duration disputeClockExtension = Duration.wrap(3 hours);
@@ -125,7 +132,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
         superchainConfig = dso.superchainConfigProxy;
 
         // 3) Build DeployOPChainInput struct
-        deployOPChainInput = Types.DeployOPChainInput({
+        deployOPChainInput = DeployTypes.DeployOPChainInput({
             opChainProxyAdminOwner: opChainProxyAdminOwner,
             systemConfigOwner: systemConfigOwner,
             batcher: batcher,
@@ -152,6 +159,12 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
             superchainConfig: superchainConfig,
             useCustomGasToken: useCustomGasToken
         });
+    }
+
+    function _setPermissionlessInput(GameType _gameType) internal {
+        deployOPChainInput.disputeGameType = _gameType;
+        deployOPChainInput.disputeAbsolutePrestate = cannonKonaAbsolutePrestate;
+        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
     }
 }
 
@@ -231,6 +244,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     }
 
     function test_runWithBytes_succeeds() public {
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = 1234;
         bytes memory inputBytes = abi.encode(deployOPChainInput);
         bytes memory outputBytes = deployOPChain.runWithBytes(inputBytes);
         DeployOPChain.Output memory doo = abi.decode(outputBytes, (DeployOPChain.Output));
@@ -251,22 +265,29 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     ///         PERMISSIONED_CANNON for guardian fallback.
     function test_run_cannonKonaGameType_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
-        deployOPChainInput.disputeAbsolutePrestate = cannonKonaAbsolutePrestate;
-        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
+        _setPermissionlessInput(GameTypes.CANNON_KONA);
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = type(uint64).max - 1;
 
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
         _checkCannonKonaPermissionlessDeployment(doo);
-        _validateCannonKonaPermissionlessDeployment(doo);
+        _validatePermissionlessDeployment(doo);
+
+        uint256 bond = doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON_KONA);
+        vm.deal(address(this), bond);
+        IDisputeGame game = doo.disputeGameFactoryProxy.create{ value: bond }(
+            GameTypes.CANNON_KONA,
+            Claim.wrap(keccak256("permissionless proposal")),
+            abi.encode(uint256(type(uint64).max))
+        );
+        assertTrue(doo.anchorStateRegistryProxy.isGameRespected(game), "permissionless game must be respected");
     }
 
     /// @notice Verifies the guardian can switch a CANNON_KONA deploy to PERMISSIONED_CANNON
     ///         and the trusted proposer can create a respected fallback game.
     function test_run_cannonKonaGameTypeFallback_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
-        deployOPChainInput.disputeAbsolutePrestate = cannonKonaAbsolutePrestate;
-        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
+        _setPermissionlessInput(GameTypes.CANNON_KONA);
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = type(uint64).max - 1;
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
         IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
@@ -277,17 +298,16 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         vm.deal(proposer, bond);
         vm.prank(proposer, proposer);
         IDisputeGame game = doo.disputeGameFactoryProxy.create{ value: bond }(
-            GameTypes.PERMISSIONED_CANNON, Claim.wrap(keccak256("fallback proposal")), abi.encode(uint256(1))
+            GameTypes.PERMISSIONED_CANNON,
+            Claim.wrap(keccak256("fallback proposal")),
+            abi.encode(deployOPChainInput.startingAnchorRoot.l2SequenceNumber + 1)
         );
         assertTrue(asr.isGameRespected(game), "fallback game must be respected");
     }
 
-    /// @notice checkOutput rejects a permissionless deployment output missing the permissioned fallback.
     function test_checkOutput_missingPermissionedFallback_reverts() public {
-        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
-        deployOPChainInput.disputeAbsolutePrestate = cannonKonaAbsolutePrestate;
-        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        _setPermissionlessInput(superRoot ? GameTypes.SUPER_CANNON_KONA : GameTypes.CANNON_KONA);
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
         doo.permissionedDisputeGame = IPermissionedDisputeGame(address(0));
@@ -295,13 +315,82 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChain.checkOutput(deployOPChainInput, doo);
     }
 
-    /// @notice Permissionless game types are rejected when super roots are enabled.
-    function test_run_permissionlessGameTypeWithSuperRoot_reverts() public {
+    /// @notice A standalone checkOutput call derives the super-root mode from its input instead of script storage.
+    function test_checkOutput_freshScriptSuperRoot_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
-        deployOPChainInput.disputeAbsolutePrestate = cannonKonaAbsolutePrestate;
-        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
-        vm.expectRevert("DeployOPChain: permissionless game type not supported with super roots");
+        _setPermissionlessInput(GameTypes.SUPER_CANNON_KONA);
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+
+        DeployOPChain freshDeployOPChain = new DeployOPChain();
+        assertFalse(freshDeployOPChain.isSuperRoot(), "fresh script must have default storage");
+        freshDeployOPChain.checkOutput(deployOPChainInput, doo);
+    }
+
+    /// @notice SUPER_CANNON_KONA deploys with a SUPER_PERMISSIONED fallback.
+    function test_run_superCannonKonaGameType_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        _setPermissionlessInput(GameTypes.SUPER_CANNON_KONA);
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = type(uint64).max - 1;
+
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+        _checkSuperCannonKonaPermissionlessDeployment(doo);
+        _validatePermissionlessDeployment(doo);
+
+        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](1);
+        outputRoots[0] =
+            Types.OutputRootWithChainId({ chainId: l2ChainId, root: keccak256("permissionless output root") });
+        Types.SuperRootProof memory proof =
+            Types.SuperRootProof({ version: bytes1(uint8(1)), timestamp: type(uint64).max, outputRoots: outputRoots });
+
+        uint256 bond = doo.disputeGameFactoryProxy.initBonds(GameTypes.SUPER_CANNON_KONA);
+        vm.deal(address(this), bond);
+        IDisputeGame game = doo.disputeGameFactoryProxy.create{ value: bond }(
+            GameTypes.SUPER_CANNON_KONA,
+            Claim.wrap(Hashing.hashSuperRootProof(proof)),
+            Encoding.encodeSuperRootProof(proof)
+        );
+        assertTrue(doo.anchorStateRegistryProxy.isGameRespected(game), "permissionless game must be respected");
+    }
+
+    function test_run_superCannonKonaGameTypeFallback_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        _setPermissionlessInput(GameTypes.SUPER_CANNON_KONA);
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = type(uint64).max - 1;
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+
+        IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
+        vm.prank(doo.systemConfigProxy.guardian());
+        asr.setRespectedGameType(GameTypes.SUPER_PERMISSIONED);
+
+        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](1);
+        outputRoots[0] = Types.OutputRootWithChainId({ chainId: l2ChainId, root: keccak256("fallback output root") });
+        Types.SuperRootProof memory proof =
+            Types.SuperRootProof({ version: bytes1(uint8(1)), timestamp: type(uint64).max, outputRoots: outputRoots });
+
+        vm.prank(proposer, proposer);
+        IDisputeGame game = doo.disputeGameFactoryProxy.create(
+            GameTypes.SUPER_PERMISSIONED,
+            Claim.wrap(Hashing.hashSuperRootProof(proof)),
+            Encoding.encodeSuperRootProof(proof)
+        );
+        assertTrue(asr.isGameRespected(game), "fallback game must be respected");
+    }
+
+    /// @notice CANNON_KONA is rejected when the OPCM uses super roots.
+    function test_run_cannonKonaGameTypeWithSuperRoot_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        _setPermissionlessInput(GameTypes.CANNON_KONA);
+
+        vm.expectRevert("DeployOPChainInput: dispute game type does not match OPCM mode");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    /// @notice SUPER_CANNON_KONA is rejected when the OPCM does not use super roots.
+    function test_run_superCannonKonaGameTypeWithoutSuperRoot_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        _setPermissionlessInput(GameTypes.SUPER_CANNON_KONA);
+
+        vm.expectRevert("DeployOPChainInput: dispute game type does not match OPCM mode");
         deployOPChain.run(deployOPChainInput);
     }
 
@@ -351,13 +440,11 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
         assertEq(asr.respectedGameType().raw(), GameTypes.CANNON_KONA.raw(), "respected game type");
         Proposal memory anchor = asr.getStartingAnchorRoot();
-        assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.raw(), "anchor root");
-        assertEq(anchor.l2SequenceNumber, 0, "anchor seq");
+        assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.root.raw(), "anchor root");
+        assertEq(anchor.l2SequenceNumber, deployOPChainInput.startingAnchorRoot.l2SequenceNumber, "anchor seq");
     }
 
-    /// @notice Validates the full standard shape of a CANNON_KONA deployment with its permissioned fallback.
-    /// @param doo The deployment output.
-    function _validateCannonKonaPermissionlessDeployment(DeployOPChain.Output memory doo) internal view {
+    function _validatePermissionlessDeployment(DeployOPChain.Output memory doo) internal view {
         IOPContractsManagerStandardValidator validator = IOPContractsManagerV2(opcmAddr).opcmStandardValidator();
         validator.validateWithOverrides(
             IOPContractsManagerStandardValidator.ValidationInputDev({
@@ -373,6 +460,44 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
                 challenger: challenger
             })
         );
+    }
+
+    function _checkSuperCannonKonaPermissionlessDeployment(DeployOPChain.Output memory doo) internal view {
+        IOPContractsManagerContainer.Implementations memory impls = IOPContractsManagerV2(opcmAddr).implementations();
+        assertEq(
+            doo.disputeGameFactoryProxy.initBonds(GameTypes.SUPER_CANNON_KONA),
+            deployOPChain.DEFAULT_INIT_BOND(),
+            "selected init bond"
+        );
+        assertEq(
+            address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.SUPER_CANNON_KONA)),
+            impls.superFaultDisputeGameImpl,
+            "selected impl"
+        );
+        assertEq(address(doo.faultDisputeGame), impls.superFaultDisputeGameImpl, "output faultDisputeGame");
+        assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.SUPER_PERMISSIONED), 0, "fallback init bond");
+        assertEq(
+            address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.SUPER_PERMISSIONED)),
+            impls.superPermissionedDisputeGameImpl,
+            "fallback impl"
+        );
+        assertEq(address(doo.permissionedDisputeGame), impls.superPermissionedDisputeGameImpl, "output fallback");
+
+        assertEq(
+            LibGameArgs.decode(doo.disputeGameFactoryProxy.gameArgs(GameTypes.SUPER_CANNON_KONA)).absolutePrestate,
+            deployOPChainInput.disputeAbsolutePrestate.raw(),
+            "selected prestate wiring"
+        );
+        LibGameArgs.SuperPermissionedGameArgs memory fallbackArgs =
+            LibGameArgs.decodeSuperPermissioned(doo.disputeGameFactoryProxy.gameArgs(GameTypes.SUPER_PERMISSIONED));
+        assertEq(address(fallbackArgs.anchorStateRegistry), address(doo.anchorStateRegistryProxy), "fallback ASR");
+        assertEq(fallbackArgs.proposer, proposer, "fallback proposer");
+
+        IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
+        assertEq(asr.respectedGameType().raw(), GameTypes.SUPER_CANNON_KONA.raw(), "respected game type");
+        Proposal memory anchor = asr.getStartingAnchorRoot();
+        assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.root.raw(), "anchor root");
+        assertEq(anchor.l2SequenceNumber, deployOPChainInput.startingAnchorRoot.l2SequenceNumber, "anchor seq");
     }
 
     /// @notice Tests that faultDisputeGame is set to address(0) and permissionedDisputeGame is set to the correct
@@ -427,7 +552,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
 
         bool isSuperRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         GameType permType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
-        GameType konaType = isSuperRoot ? GameTypes.SUPER_CANNON_KONA : GameTypes.CANNON_KONA;
 
         // The legacy permissioned game keeps the default bond. The super permissioned game
         // has no bonded participation path, so its init bond must be zero.
@@ -445,19 +569,23 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             );
         }
 
-        // Kona must be disabled for the default permissioned initial deployment.
-        assertEq(doo.disputeGameFactoryProxy.initBonds(konaType), 0, "CANNON_KONA init bond should be 0");
-        assertEq(
-            address(doo.disputeGameFactoryProxy.gameImpls(konaType)),
-            address(0),
-            "CANNON_KONA impl should be the zero address"
-        );
+        _assertGameNotRegistered(doo, GameTypes.CANNON_KONA);
+        _assertGameNotRegistered(doo, GameTypes.SUPER_CANNON_KONA);
 
         IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
         assertEq(asr.respectedGameType().raw(), permType.raw(), "ASR respected game type");
         Proposal memory anchor = asr.getStartingAnchorRoot();
-        assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.raw(), "ASR anchor root");
-        assertEq(anchor.l2SequenceNumber, 0, "ASR anchor seq");
+        assertEq(anchor.root.raw(), deployOPChainInput.startingAnchorRoot.root.raw(), "ASR anchor root");
+        assertEq(anchor.l2SequenceNumber, deployOPChainInput.startingAnchorRoot.l2SequenceNumber, "ASR anchor seq");
+    }
+
+    function _assertGameNotRegistered(DeployOPChain.Output memory doo, GameType _gameType) internal view {
+        assertEq(doo.disputeGameFactoryProxy.initBonds(_gameType), 0, "game init bond should be 0");
+        assertEq(
+            address(doo.disputeGameFactoryProxy.gameImpls(_gameType)),
+            address(0),
+            "game impl should be the zero address"
+        );
     }
 }
 
@@ -569,9 +697,7 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
 
     function test_run_cannonKonaZeroCannonAbsolutePrestate_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
-        deployOPChainInput.disputeAbsolutePrestate = cannonKonaAbsolutePrestate;
-        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
+        _setPermissionlessInput(GameTypes.CANNON_KONA);
         deployOPChainInput.cannonAbsolutePrestate = Claim.wrap(bytes32(0));
         vm.expectRevert("DeployOPChainInput: cannonAbsolutePrestate not set");
         deployOPChain.run(deployOPChainInput);
@@ -581,23 +707,42 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
     ///         be equal (they commit to different fault-proof programs).
     function test_run_cannonKonaEqualPrestates_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
-        deployOPChainInput.disputeAbsolutePrestate = cannonKonaAbsolutePrestate;
-        deployOPChainInput.startingAnchorRoot = permissionlessAnchorRoot;
+        _setPermissionlessInput(GameTypes.CANNON_KONA);
         deployOPChainInput.cannonAbsolutePrestate = cannonKonaAbsolutePrestate;
         vm.expectRevert("DeployOPChainInput: cannonAbsolutePrestate must differ from disputeAbsolutePrestate");
         deployOPChain.run(deployOPChainInput);
     }
 
     function test_run_zeroStartingAnchorRoot_reverts() public {
-        deployOPChainInput.startingAnchorRoot = Hash.wrap(bytes32(0));
+        deployOPChainInput.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 });
         vm.expectRevert("DeployOPChainInput: startingAnchorRoot not set");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_maxStartingAnchorRootSequenceNumber_reverts() public {
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = type(uint64).max;
+        vm.expectRevert("DeployOPChainInput: startingAnchorRoot.l2SequenceNumber too large");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_aboveMaxStartingAnchorRootSequenceNumber_reverts() public {
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = uint256(type(uint64).max) + 1;
+        vm.expectRevert("DeployOPChainInput: startingAnchorRoot.l2SequenceNumber too large");
         deployOPChain.run(deployOPChainInput);
     }
 
     function test_run_permissionlessPlaceholderStartingAnchorRoot_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         deployOPChainInput.disputeGameType = GameTypes.CANNON_KONA;
+        deployOPChainInput.disputeAbsolutePrestate = cannonKonaAbsolutePrestate;
+        // startingAnchorRoot stays at the 0xdead placeholder default.
+        vm.expectRevert("DeployOPChainInput: permissionless startingAnchorRoot cannot be placeholder");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_superPermissionlessPlaceholderStartingAnchorRoot_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        deployOPChainInput.disputeGameType = GameTypes.SUPER_CANNON_KONA;
         deployOPChainInput.disputeAbsolutePrestate = cannonKonaAbsolutePrestate;
         // startingAnchorRoot stays at the 0xdead placeholder default.
         vm.expectRevert("DeployOPChainInput: permissionless startingAnchorRoot cannot be placeholder");

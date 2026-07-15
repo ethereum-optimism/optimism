@@ -14,7 +14,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
-import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
+import { GameType, Proposal } from "src/dispute/lib/Types.sol";
 // Interfaces
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
@@ -405,7 +405,7 @@ library ChainAssertions {
         IAnchorStateRegistry _anchorStateRegistryProxy,
         bool _isProxy,
         GameType _expectedRespectedGameType,
-        Hash _expectedRoot
+        Proposal memory _expectedAnchor
     )
         internal
     {
@@ -422,11 +422,11 @@ library ChainAssertions {
         });
 
         // The below check cannot be done in the standard validator because the assertion only applies at deploy time.
-        Proposal memory actualRoot = _anchorStateRegistryProxy.getStartingAnchorRoot();
+        Proposal memory actualAnchor = _anchorStateRegistryProxy.getStartingAnchorRoot();
 
         require(_anchorStateRegistryProxy.respectedGameType().raw() == _expectedRespectedGameType.raw(), "ANCHORP-30");
-        require(actualRoot.root.raw() == _expectedRoot.raw(), "ANCHORP-40");
-        require(actualRoot.l2SequenceNumber == 0, "ANCHORP-50");
+        require(actualAnchor.root.raw() == _expectedAnchor.root.raw(), "ANCHORP-40");
+        require(actualAnchor.l2SequenceNumber == _expectedAnchor.l2SequenceNumber, "ANCHORP-50");
     }
 
     /// @notice Asserts that the ZKDisputeGame implementation is setup correctly.

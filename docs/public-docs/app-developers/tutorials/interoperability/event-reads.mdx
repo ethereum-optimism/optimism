@@ -1,10 +1,11 @@
 ---
 title: Making cross-chain event reads (tic-tac-toe)
-description: Learn how to make cross-chain event reads using tic-tac-toe.
+description: Understand how a horizontally scalable TicTacToe implementation uses CrossL2Inbox event reads to coordinate gameplay across interop chains.
+diataxis: explanation
 ---
 
 <Info>OP Stack interop is in active development. Some features may be experimental.</Info>
-This guide reviews a horizontally scalable implementation of TicTacToe. This [implementation](https://github.com/ethereum-optimism/supersim/blob/main/contracts/src/tictactoe/TicTacToe.sol) allows players to play each other from any chain without cross-chain calls, instead relying on cross-chain event reading. Since OP Stack interop can allow for event reading with a 1-block latency, the experience is the **same as a single-chain implementation**.
+This page explains a horizontally scalable implementation of TicTacToe. This [implementation](https://github.com/ethereum-optimism/supersim/blob/main/contracts/src/tictactoe/TicTacToe.sol) allows players to play each other from any chain without cross-chain calls, instead relying on cross-chain event reading. Since OP Stack interop can allow for event reading with a 1-block latency, the experience is the **same as a single-chain implementation**.
 
 <Info>
   Check out the [frontend documentation](https://github.com/ethereum-optimism/supersim/tree/main/examples/tictactoe) to see how the game UI is presented to the player.

@@ -16,6 +16,17 @@ Run `mise install` to install all pinned tools (just, gotestsum, forge, etc.). A
 mise exec -- just <target>
 ```
 
+Then install the git hooks (once per clone — the setting is shared across all of a
+clone's worktrees):
+
+```bash
+mise exec -- just install-git-hooks
+```
+
+This points `core.hooksPath` at `.githooks/`. The `pre-push` hook blocks pushing
+unformatted Rust (mirroring CI's `rust-fmt` gate), so run it before you push any
+Rust change.
+
 ## Build System
 
 The repo uses [Just](https://github.com/casey/just) as its build system. Shared justfile infrastructure lives in `justfiles/`. Each component has its own justfile — run `just --list` in any directory to see available targets.

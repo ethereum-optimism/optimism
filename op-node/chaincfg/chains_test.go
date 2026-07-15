@@ -4,10 +4,10 @@ import (
 	"math/big"
 	"testing"
 
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,7 +57,7 @@ func TestKarstUpgradeGasCompatibilityByNetwork(t *testing.T) {
 	}
 }
 
-var defaultOpConfig = &params.OptimismConfig{
+var defaultOpConfig = &opparams.OptimismConfig{
 	EIP1559Elasticity:        6,
 	EIP1559Denominator:       50,
 	EIP1559DenominatorCanyon: u64Ptr(250),

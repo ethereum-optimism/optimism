@@ -7696,6 +7696,7 @@ version = "0.0.1"
 dependencies = [
  "alloy-chains",
  "alloy-consensus 2.1.1",
+ "alloy-op-evm",
  "alloy-primitives",
  "alloy-rlp",
  "anyhow",
@@ -7710,6 +7711,7 @@ dependencies = [
  "kona-proof-interop",
  "kona-registry",
  "kona-sp1-client-utils",
+ "revm",
  "serde_json",
  "spin 0.10.0",
 ]
@@ -13652,6 +13654,7 @@ dependencies = [
  "reth-tasks",
  "reth-transaction-pool",
  "revm",
+ "rstest",
  "serde",
  "serde_json",
  "strum",
