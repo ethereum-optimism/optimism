@@ -57,14 +57,17 @@ type Backend interface {
 }
 
 type EngineAPI interface {
+	ForkchoiceUpdatedV4(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
 	ForkchoiceUpdatedV3(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
 	ForkchoiceUpdatedV2(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
 
+	GetPayloadV6(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV5(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV4(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV3(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV2(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 
+	NewPayloadV5(context.Context, engine.ExecutableData, []common.Hash, *common.Hash, []hexutil.Bytes) (engine.PayloadStatusV1, error)
 	NewPayloadV4(context.Context, engine.ExecutableData, []common.Hash, *common.Hash, []hexutil.Bytes) (engine.PayloadStatusV1, error)
 	NewPayloadV3(context.Context, engine.ExecutableData, []common.Hash, *common.Hash) (engine.PayloadStatusV1, error)
 	NewPayloadV2(context.Context, engine.ExecutableData) (engine.PayloadStatusV1, error)
@@ -170,8 +173,13 @@ func (f *FakePoS) Start() error {
 				isCancun := f.config.IsCancun(nextHeight, newBlockTime)
 				isPrague := f.config.IsPrague(nextHeight, newBlockTime)
 				isOsaka := f.config.IsOsaka(nextHeight, newBlockTime)
+				isAmsterdam := f.config.IsAmsterdam(nextHeight, newBlockTime)
 				if isCancun {
 					attrs.BeaconRoot = &parentBeaconBlockRoot
+				}
+				if isAmsterdam {
+					slotNumber := (newBlockTime - genesisHeader.Time) / f.blockTime
+					attrs.SlotNumber = &slotNumber
 				}
 				fcState := engine.ForkchoiceStateV1{
 					HeadBlockHash:      head.Hash(),
@@ -179,7 +187,9 @@ func (f *FakePoS) Start() error {
 					FinalizedBlockHash: finalized.Hash(),
 				}
 				var res engine.ForkChoiceResponse
-				if isCancun {
+				if isAmsterdam {
+					res, err = f.engineAPI.ForkchoiceUpdatedV4(ctx, fcState, attrs)
+				} else if isCancun {
 					res, err = f.engineAPI.ForkchoiceUpdatedV3(ctx, fcState, attrs)
 				} else {
 					res, err = f.engineAPI.ForkchoiceUpdatedV2(ctx, fcState, attrs)
@@ -203,7 +213,9 @@ func (f *FakePoS) Start() error {
 					return nil
 				}
 				var envelope *engine.ExecutionPayloadEnvelope
-				if isOsaka {
+				if isAmsterdam {
+					envelope, err = f.engineAPI.GetPayloadV6(*res.PayloadID)
+				} else if isOsaka {
 					envelope, err = f.engineAPI.GetPayloadV5(*res.PayloadID)
 				} else if isPrague {
 					envelope, err = f.engineAPI.GetPayloadV4(*res.PayloadID)
@@ -232,7 +244,9 @@ func (f *FakePoS) Start() error {
 					}
 				}
 
-				if isPrague {
+				if isAmsterdam {
+					_, err = f.engineAPI.NewPayloadV5(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+				} else if isPrague {
 					_, err = f.engineAPI.NewPayloadV4(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
 				} else if isCancun {
 					_, err = f.engineAPI.NewPayloadV3(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot)

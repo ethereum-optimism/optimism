@@ -44,6 +44,10 @@ func (e *engineClient) ForkchoiceUpdatedV3(ctx context.Context, fs engine.Forkch
 	return e.forkchoiceUpdated(ctx, fs, pa, "engine_forkchoiceUpdatedV3")
 }
 
+func (e *engineClient) ForkchoiceUpdatedV4(ctx context.Context, fs engine.ForkchoiceStateV1, pa *engine.PayloadAttributes) (engine.ForkChoiceResponse, error) {
+	return e.forkchoiceUpdated(ctx, fs, pa, "engine_forkchoiceUpdatedV4")
+}
+
 func (e *engineClient) getPayload(id engine.PayloadID, method string) (*engine.ExecutionPayloadEnvelope, error) {
 	var result engine.ExecutionPayloadEnvelope
 	if err := e.inner.CallContext(context.Background(), &result, method, id); err != nil {
@@ -68,6 +72,10 @@ func (e *engineClient) GetPayloadV5(id engine.PayloadID) (*engine.ExecutionPaylo
 	return e.getPayload(id, "engine_getPayloadV5")
 }
 
+func (e *engineClient) GetPayloadV6(id engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error) {
+	return e.getPayload(id, "engine_getPayloadV6")
+}
+
 func (e *engineClient) NewPayloadV2(ctx context.Context, data engine.ExecutableData) (engine.PayloadStatusV1, error) {
 	var result engine.PayloadStatusV1
 	if err := e.inner.CallContext(ctx, &result, "engine_newPayloadV2", data); err != nil {
@@ -87,6 +95,14 @@ func (e *engineClient) NewPayloadV3(ctx context.Context, data engine.ExecutableD
 func (e *engineClient) NewPayloadV4(ctx context.Context, data engine.ExecutableData, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (engine.PayloadStatusV1, error) {
 	var result engine.PayloadStatusV1
 	if err := e.inner.CallContext(ctx, &result, "engine_newPayloadV4", data, versionedHashes, beaconRoot, executionRequests); err != nil {
+		return engine.PayloadStatusV1{}, err
+	}
+	return result, nil
+}
+
+func (e *engineClient) NewPayloadV5(ctx context.Context, data engine.ExecutableData, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (engine.PayloadStatusV1, error) {
+	var result engine.PayloadStatusV1
+	if err := e.inner.CallContext(ctx, &result, "engine_newPayloadV5", data, versionedHashes, beaconRoot, executionRequests); err != nil {
 		return engine.PayloadStatusV1{}, err
 	}
 	return result, nil

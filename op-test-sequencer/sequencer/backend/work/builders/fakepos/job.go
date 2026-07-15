@@ -110,6 +110,8 @@ func (j *Job) Open(ctx context.Context) error {
 	envelope, ok := j.b.envelopes[j.head.Hash()]
 	if !ok { // we haven't build a block with this parent yet, so we need to build one
 		newBlockTime := j.head.Time + j.b.blockTime
+		nextHeight := new(big.Int).Add(j.head.Number, common.Big1)
+		isAmsterdam := j.b.config.IsAmsterdam(nextHeight, newBlockTime)
 
 		attrs := &engine.PayloadAttributes{
 			Timestamp:             newBlockTime,
@@ -118,14 +120,24 @@ func (j *Job) Open(ctx context.Context) error {
 			Withdrawals:           randomWithdrawals(j.b.withdrawalsIndex),
 			BeaconRoot:            &j.parentBeaconBlockRoot,
 		}
+		if isAmsterdam {
+			slotNumber := (newBlockTime - j.b.genesis.Time) / j.b.blockTime
+			attrs.SlotNumber = &slotNumber
+		}
 		fcState := engine.ForkchoiceStateV1{
 			HeadBlockHash:      j.head.Hash(),
 			SafeBlockHash:      j.safe.Hash(),
 			FinalizedBlockHash: j.finalized.Hash(),
 		}
-		j.logger.Info("ForkchoiceUpdatedV3", "fcState", fcState)
-
-		res, err := j.b.engine.ForkchoiceUpdatedV3(ctx, fcState, attrs)
+		var res engine.ForkChoiceResponse
+		var err error
+		if isAmsterdam {
+			j.logger.Info("ForkchoiceUpdatedV4", "fcState", fcState)
+			res, err = j.b.engine.ForkchoiceUpdatedV4(ctx, fcState, attrs)
+		} else {
+			j.logger.Info("ForkchoiceUpdatedV3", "fcState", fcState)
+			res, err = j.b.engine.ForkchoiceUpdatedV3(ctx, fcState, attrs)
+		}
 		if err != nil {
 			j.logger.Error("failed to start building L1 block", "err", err)
 			return err
@@ -140,7 +152,9 @@ func (j *Job) Open(ctx context.Context) error {
 		// wait for the block building to finish
 		time.Sleep(100 * time.Millisecond)
 
-		if j.b.config.IsOsaka(j.head.Number, newBlockTime) {
+		if isAmsterdam {
+			envelope, err = j.b.engine.GetPayloadV6(*res.PayloadID)
+		} else if j.b.config.IsOsaka(nextHeight, newBlockTime) {
 			envelope, err = j.b.engine.GetPayloadV5(*res.PayloadID)
 		} else {
 			envelope, err = j.b.engine.GetPayloadV4(*res.PayloadID)
@@ -200,7 +214,13 @@ func (j *Job) Seal(ctx context.Context) (work.Block, error) {
 
 	j.logger.Info("about to insert payload into the chain", "envelope-hash", envelope.ExecutionPayload.BlockHash, "txs", len(envelope.ExecutionPayload.Transactions))
 
-	_, err := j.b.engine.NewPayloadV4(ctx, *envelope.ExecutionPayload, blobHashes, &j.parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+	var err error
+	payloadNumber := new(big.Int).SetUint64(envelope.ExecutionPayload.Number)
+	if j.b.config.IsAmsterdam(payloadNumber, envelope.ExecutionPayload.Timestamp) {
+		_, err = j.b.engine.NewPayloadV5(ctx, *envelope.ExecutionPayload, blobHashes, &j.parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+	} else {
+		_, err = j.b.engine.NewPayloadV4(ctx, *envelope.ExecutionPayload, blobHashes, &j.parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+	}
 	if err != nil {
 		j.logger.Error("failed to insert built L1 block", "err", err)
 		return nil, err
