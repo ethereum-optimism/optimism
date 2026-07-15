@@ -253,6 +253,54 @@ func TestBondDistributionMode(t *testing.T) {
 	}
 }
 
+func TestHasBondsToClaim(t *testing.T) {
+	for _, version := range versions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			_, game := setupFaultDisputeGameTest(t, version)
+			require.True(t, game.HasBondsToClaim())
+		})
+	}
+}
+
+func TestIsClosed(t *testing.T) {
+	legacyVersions := []string{vers080, vers0180, vers111, vers120, vers131}
+	modes := []struct {
+		name   string
+		mode   faultTypes.BondDistributionMode
+		closed bool
+	}{
+		{name: "Undecided", mode: faultTypes.UndecidedDistributionMode, closed: false},
+		{name: "Normal", mode: faultTypes.NormalDistributionMode, closed: true},
+		{name: "Refund", mode: faultTypes.RefundDistributionMode, closed: true},
+		{name: "Legacy", mode: faultTypes.LegacyDistributionMode, closed: true},
+	}
+	for _, version := range versions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			if slices.Contains(legacyVersions, version.version) {
+				_, game := setupFaultDisputeGameTest(t, version)
+				closed, err := game.IsClosed(context.Background())
+				require.NoError(t, err)
+				require.True(t, closed)
+				return
+			}
+			for _, test := range modes {
+				test := test
+				t.Run(test.name, func(t *testing.T) {
+					stubRpc, game := setupFaultDisputeGameTest(t, version)
+					stubRpc.SetResponse(fdgAddr, methodBondDistributionMode, rpcblock.Latest, nil, []interface{}{uint8(test.mode)})
+
+					closed, err := game.IsClosed(context.Background())
+
+					require.NoError(t, err)
+					require.Equal(t, test.closed, closed)
+				})
+			}
+		})
+	}
+}
+
 func TestGetAnchorStateRegistry(t *testing.T) {
 	expected := common.HexToAddress("0x0123456789abcDEF0123456789abCDef01234567")
 	for _, version := range versions {

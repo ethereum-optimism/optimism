@@ -543,6 +543,40 @@ func (f *FaultDisputeGameContractLatest) GetAllClaims(ctx context.Context, block
 	return claims, nil
 }
 
+func (f *FaultDisputeGameContractLatest) HasBondsToClaim() bool {
+	return true
+}
+
+func (f *FaultDisputeGameContractLatest) IsClosed(ctx context.Context) (bool, error) {
+	return isClosed(ctx, f)
+}
+
+func (f *FaultDisputeGameContract080) IsClosed(ctx context.Context) (bool, error) {
+	return isClosed(ctx, f)
+}
+
+func (f *FaultDisputeGameContract0180) IsClosed(ctx context.Context) (bool, error) {
+	return isClosed(ctx, f)
+}
+
+func (f *FaultDisputeGameContract111) IsClosed(ctx context.Context) (bool, error) {
+	return isClosed(ctx, f)
+}
+
+func (f *FaultDisputeGameContract131) IsClosed(ctx context.Context) (bool, error) {
+	return isClosed(ctx, f)
+}
+
+func isClosed(ctx context.Context, game interface {
+	GetBondDistributionMode(context.Context, rpcblock.Block) (types.BondDistributionMode, error)
+}) (bool, error) {
+	mode, err := game.GetBondDistributionMode(ctx, rpcblock.Latest)
+	if err != nil {
+		return false, err
+	}
+	return mode != types.UndecidedDistributionMode, nil
+}
+
 func (f *FaultDisputeGameContractLatest) GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error) {
 	result, err := f.multiCaller.SingleCall(ctx, block, f.contract.Call(methodBondDistributionMode))
 	if err != nil {
@@ -714,6 +748,8 @@ type FaultDisputeGameContract interface {
 	GetExtendedMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error)
 	GetStartingRootHash(ctx context.Context) (common.Hash, error)
 	GetSplitDepth(ctx context.Context) (types.Depth, error)
+	HasBondsToClaim() bool
+	IsClosed(ctx context.Context) (bool, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)
 	GetRequiredBonds(ctx context.Context, block rpcblock.Block, positions ...*big.Int) ([]*big.Int, error)
 	GetCredits(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*big.Int, error)
