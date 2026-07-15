@@ -30,7 +30,7 @@ type SuperRootProposalSource struct {
 
 func NewSuperRootProposalSource(logger log.Logger, clients ...SuperRootClient) *SuperRootProposalSource {
 	if len(clients) == 0 {
-		panic("no supernode clients provided")
+		panic("no super root clients provided")
 	}
 	return &SuperRootProposalSource{
 		log:     logger,
