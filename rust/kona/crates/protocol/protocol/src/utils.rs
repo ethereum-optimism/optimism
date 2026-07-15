@@ -145,8 +145,10 @@ fn encode_scalar(blob_base_fee_scalar: u32, base_fee_scalar: u32) -> U256 {
     buf.into()
 }
 
-/// Maximum EIP-2718 transaction-type byte. A leading byte above this is the RLP list header of a
-/// legacy transaction rather than a type identifier.
+/// Maximum EIP-2718 transaction-type byte. A larger leading byte is not a type identifier but the
+/// start of a prefixless legacy transaction — a bare RLP list, whose header is `0xc0..=0xfe`. Any
+/// other high byte (an RLP string `0x80..=0xbf`, or reserved `0xff`) is rejected by the list check
+/// in [`read_tx_data`].
 const EIP2718_MAX_TX_TYPE: u8 = 0x7F;
 
 /// Reads transaction data from a reader.
@@ -601,25 +603,44 @@ mod tests {
     }
 
     #[test]
+    fn test_read_tx_data_accepts_prefixless_legacy() {
+        use crate::SpanBatchTransactionData;
+        use alloy_rlp::Decodable;
+
+        // A first byte > 0x7F is not a type id, so it is read as a prefixless legacy tx. `c3 80 80
+        // 80` is a schema-valid legacy element — an RLP list of the three legacy fields (value,
+        // gas_price, data), here all zero/empty: read_tx_data returns it verbatim and it decodes
+        // end-to-end as a legacy tx.
+        let mut data: &[u8] = &[0xc3, 0x80, 0x80, 0x80];
+        let (tx_data, tx_type) = read_tx_data(&mut data).unwrap();
+        assert_eq!(tx_type, OpTxType::Legacy);
+        assert_eq!(tx_data, vec![0xc3, 0x80, 0x80, 0x80]);
+        SpanBatchTransactionData::decode(&mut tx_data.as_slice())
+            .expect("prefixless legacy payload decodes into a legacy tx");
+    }
+
+    #[test]
     fn test_read_tx_data_rejects_leading_zero_type_byte() {
-        // A leading `0x00` is an EIP-2718 type identifier of 0, not the RLP list header of a
-        // legacy transaction. op-node keeps the byte and rejects it (`decodeTyped` has no case
-        // for `0x00`), so kona must reject it too — decoding the following bytes as a legacy tx
-        // would fork the two derivation implementations. `[0x00, 0xc1, 0x05]` is the shared
-        // cross-client conformance vector: `0xc1 0x05` alone is a valid one-element RLP list.
-        let mut data: &[u8] = &[0x00, 0xc1, 0x05];
+        // The shared op-node<->kona conformance vector: the valid legacy element from
+        // `test_read_tx_data_accepts_prefixless_legacy` with a `0x00` EIP-2718 type byte prepended.
+        // `0x00` names no valid typed envelope, so it must be rejected. Swallowing the `0x00` and
+        // decoding the rest as that legacy tx — while op-node keeps the `0x00` and drops the batch
+        // — would fork the two derivation implementations end-to-end.
+        let mut data: &[u8] = &[0x00, 0xc3, 0x80, 0x80, 0x80];
         let err = read_tx_data(&mut data).unwrap_err();
         assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType));
     }
 
     #[test]
-    fn test_read_tx_data_accepts_prefixless_legacy() {
-        // A first byte > 0x7F is the RLP list header of a legacy tx (no type prefix); it must
-        // still decode as `Legacy` with the bytes returned verbatim.
-        let mut data: &[u8] = &[0xc1, 0x05];
-        let (tx_data, tx_type) = read_tx_data(&mut data).unwrap();
-        assert_eq!(tx_type, OpTxType::Legacy);
-        assert_eq!(tx_data, vec![0xc1, 0x05]);
+    fn test_read_tx_data_rejects_non_list_high_first_byte() {
+        // Not every byte > 0x7F is a legacy list header: 0x80..=0xbf are RLP strings and 0xff is
+        // reserved. These are read as prefixless legacy candidates but rejected by the RLP list
+        // check, so only genuine list headers (0xc0..=0xfe) survive.
+        for first in [0x80u8, 0xbf, 0xff] {
+            let mut data: &[u8] = &[first];
+            let err = read_tx_data(&mut data).unwrap_err();
+            assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+        }
     }
 
     #[test]
