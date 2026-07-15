@@ -1,0 +1,47 @@
+---
+title: What is op-acceptor?
+sidebarTitle: What is op-acceptor?
+description: How op-acceptor validates that an OP Stack network is ready for production using gates, suites, and standard Go tests.
+diataxis: explanation
+---
+
+op-acceptor is the OP Stack's network acceptance tester. It runs validation checks against a live network — typically a devnet — to answer one question: **is this network ready for production?** The checks themselves are standard Go tests, so anything you can assert in a Go test can become an acceptance criterion.
+
+op-acceptor is developed in the [ethereum-optimism/infra](https://github.com/ethereum-optimism/infra/tree/main/op-acceptor) repository. For version history, see the [op-acceptor releases page](/releases/op-acceptor). For step-by-step usage, see [Run acceptance tests with op-acceptor](/releases/op-acceptor/run-acceptance-tests).
+
+## Why acceptance testing
+
+Unit and integration tests validate code before it ships. Acceptance tests validate a **deployed network**: that its nodes, batcher, proposer, and bridge actually behave correctly together on real infrastructure. Chain operators and OP Stack developers use op-acceptor to gate promotions — for example, deciding whether a devnet build is healthy enough to advance — and to continuously monitor a long-running network for regressions.
+
+## The test hierarchy
+
+op-acceptor organizes checks into three levels:
+
+*   **Test** — an individual Go test that validates one specific behavior of the network.
+*   **Suite** — a logical grouping of related tests, such as all interop checks.
+*   **Gate** — a high-level collection of suites and/or tests that represents a complete validation scenario. A run targets exactly one gate: the network "passes the gate" only if the gate's tests pass.
+
+Gates can build on each other: a gate may declare `inherits` to include everything from another gate and add its own checks on top. This lets a stricter environment (for example, a production-candidate network) reuse the baseline checks of a simpler one.
+
+## How a run works
+
+The gates, suites, and tests are declared in a `validators.yaml` file, which maps IDs to Go test names and packages. A test entry can name a single test in a package or pull in an entire package. op-acceptor discovers the tests under a test directory you point it at, runs the ones selected by your gate, and reports the results.
+
+By default op-acceptor runs the gate once and exits — the model that fits CI/CD pipelines. Its exit code tells the pipeline what happened:
+
+| Exit code | Meaning |
+| --------- | ------- |
+| `0`       | All selected tests passed |
+| `1`       | At least one test failed |
+| `2`       | A runtime error occurred (for example, bad configuration or a missing file) |
+
+With `--run-interval`, op-acceptor instead runs the gate repeatedly on a schedule, which turns it into a continuous monitor for a long-lived network.
+
+## Results and logs
+
+Each run writes a self-contained log directory (`testrun-<run-id>`) containing an interactive `results.html` summary, per-test logs sorted into `passed/` and `failed/`, a plain-text `summary.log` with counts and timeout warnings, a combined chronological `all.log`, and raw `go test -json` events for tooling such as `gotestsum`. This makes a failed acceptance run inspectable after the fact without rerunning it.
+
+## Next steps
+
+*   Follow [Run acceptance tests with op-acceptor](/releases/op-acceptor/run-acceptance-tests) to run a gate against your own network.
+*   Track new versions on the [op-acceptor releases page](/releases/op-acceptor).
