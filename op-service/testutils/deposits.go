@@ -39,10 +39,12 @@ func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *optypes.DepositTx 
 	return dep
 }
 
-// TxFromDeposit wraps an op-core deposit tx in a go-ethereum *types.Transaction, for
-// tests that still build blocks from *types.Transaction. It round-trips through the
-// canonical encoding, so it depends on go-ethereum still decoding the deposit tx type;
-// it is removed once the test suites move off *types.Transaction for deposits.
+// TxFromDeposit wraps an op-core deposit tx in a go-ethereum *types.Transaction for
+// test paths that feed deposits into block or tx-list builders still typed on
+// *types.Transaction. Callers that only need the deposit's hash use
+// (*optypes.DepositTx).Hash() instead. It round-trips through the canonical encoding,
+// so it depends on go-ethereum still decoding the deposit tx type; it is removed once
+// the test suites move off *types.Transaction for deposits.
 func TxFromDeposit(dep *optypes.DepositTx) *types.Transaction {
 	raw, err := dep.MarshalBinary()
 	if err != nil {

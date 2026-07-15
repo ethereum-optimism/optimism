@@ -27,7 +27,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -418,7 +417,7 @@ func CheckEIP7825DepositBypass(
 		return 0, fmt.Errorf("L2 deposit tx gas: got %d, want %d", l2DepositTx.Gas, depositGasLimit)
 	}
 
-	l2DepositHash := testutils.TxFromDeposit(l2DepositTx).Hash()
+	l2DepositHash := l2DepositTx.Hash()
 	logger.Info("EIP-7825-deposit: waiting for L2 deposit receipt", "tx", l2DepositHash)
 	var l2Receipt *types.Receipt
 	for {

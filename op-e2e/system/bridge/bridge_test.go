@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -105,7 +104,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 
 	depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
 	require.NoError(t, err)
-	_, err = wait.ForReceiptOK(context.Background(), l2Client, testutils.TxFromDeposit(depositTx).Hash())
+	_, err = wait.ForReceiptOK(context.Background(), l2Client, depositTx.Hash())
 	require.NoError(t, err)
 
 	// Ensure that the deposit went through

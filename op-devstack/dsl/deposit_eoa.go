@@ -60,7 +60,7 @@ func (d *DepositEOA) DepositTx(to common.Address, calldata []byte) *ethtypes.Rec
 	t.Require().NotNil(l2DepositTx, "no TransactionDeposited event in L1 receipt")
 
 	d.l2EL.WaitL1OriginReached(eth.Unsafe, bigs.Uint64Strict(l1Receipt.BlockNumber), 120)
-	l2Receipt := d.l2EL.WaitForReceipt(testutils.TxFromDeposit(l2DepositTx).Hash())
+	l2Receipt := d.l2EL.WaitForReceipt(l2DepositTx.Hash())
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l2Receipt.Status, "deposit tx failed on L2")
 	return l2Receipt
 }
