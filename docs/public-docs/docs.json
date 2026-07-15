@@ -2081,7 +2081,8 @@
                 "group": "Management",
                 "pages": [
                   "node-operators/guides/management/archive-node",
-                  "node-operators/guides/management/blobs"
+                  "node-operators/guides/management/blobs",
+                  "node-operators/guides/management/restore-from-snapshot"
                 ]
               },
               {
