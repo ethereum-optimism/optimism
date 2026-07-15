@@ -351,6 +351,10 @@ contract DeployOPChain is Script {
         require(_i.disputeMaxClockDuration.raw() != 0, "DeployOPChainInput: disputeMaxClockDuration not set");
         require(_i.disputeAbsolutePrestate.raw() != bytes32(0), "DeployOPChainInput: disputeAbsolutePrestate not set");
         require(_i.startingAnchorRoot.root.raw() != bytes32(0), "DeployOPChainInput: startingAnchorRoot not set");
+        require(
+            _i.startingAnchorRoot.l2SequenceNumber < type(uint64).max,
+            "DeployOPChainInput: startingAnchorRoot.l2SequenceNumber too large"
+        );
 
         if (_i.disputeGameType.raw() == GameTypes.CANNON_KONA.raw()) {
             require(_i.cannonAbsolutePrestate.raw() != bytes32(0), "DeployOPChainInput: cannonAbsolutePrestate not set");

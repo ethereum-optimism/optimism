@@ -705,8 +705,14 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
-        // The starting anchor root must be set for an initial deployment.
-        if (_isInitialDeployment && _cfg.startingAnchorRoot.root.raw() == bytes32(0)) {
+        // An initial anchor must have a nonzero root and leave room for a uint64 successor.
+        if (
+            _isInitialDeployment
+                && (
+                    _cfg.startingAnchorRoot.root.raw() == bytes32(0)
+                        || _cfg.startingAnchorRoot.l2SequenceNumber >= type(uint64).max
+                )
+        ) {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 

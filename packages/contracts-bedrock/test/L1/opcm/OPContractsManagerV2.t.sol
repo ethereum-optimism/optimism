@@ -2194,6 +2194,16 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice Deploy reverts when an initial anchor cannot have a uint64 successor.
+    function test_deploy_maxStartingAnchorRootSequenceNumber_reverts() public {
+        deployConfig.startingAnchorRoot.l2SequenceNumber = type(uint64).max;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
     /// @notice Deploy reverts when an initial permissionless deploy uses a zero starting anchor root.
     function test_deploy_permissionlessZeroStartingAnchorRoot_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);

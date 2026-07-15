@@ -266,10 +266,20 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     function test_run_cannonKonaGameType_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         _setPermissionlessInput(GameTypes.CANNON_KONA);
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = type(uint64).max - 1;
 
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
         _checkCannonKonaPermissionlessDeployment(doo);
         _validatePermissionlessDeployment(doo);
+
+        uint256 bond = doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON_KONA);
+        vm.deal(address(this), bond);
+        IDisputeGame game = doo.disputeGameFactoryProxy.create{ value: bond }(
+            GameTypes.CANNON_KONA,
+            Claim.wrap(keccak256("permissionless proposal")),
+            abi.encode(uint256(type(uint64).max))
+        );
+        assertTrue(doo.anchorStateRegistryProxy.isGameRespected(game), "permissionless game must be respected");
     }
 
     /// @notice Verifies the guardian can switch a CANNON_KONA deploy to PERMISSIONED_CANNON
@@ -277,6 +287,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     function test_run_cannonKonaGameTypeFallback_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         _setPermissionlessInput(GameTypes.CANNON_KONA);
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = type(uint64).max - 1;
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
         IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
@@ -287,7 +298,9 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         vm.deal(proposer, bond);
         vm.prank(proposer, proposer);
         IDisputeGame game = doo.disputeGameFactoryProxy.create{ value: bond }(
-            GameTypes.PERMISSIONED_CANNON, Claim.wrap(keccak256("fallback proposal")), abi.encode(uint256(1))
+            GameTypes.PERMISSIONED_CANNON,
+            Claim.wrap(keccak256("fallback proposal")),
+            abi.encode(uint256(type(uint64).max))
         );
         assertTrue(asr.isGameRespected(game), "fallback game must be respected");
     }
@@ -318,17 +331,32 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     function test_run_superCannonKonaGameType_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         _setPermissionlessInput(GameTypes.SUPER_CANNON_KONA);
-        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = 1234;
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = type(uint64).max - 1;
 
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
         _checkSuperCannonKonaPermissionlessDeployment(doo);
         _validatePermissionlessDeployment(doo);
+
+        Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](1);
+        outputRoots[0] =
+            Types.OutputRootWithChainId({ chainId: l2ChainId, root: keccak256("permissionless output root") });
+        Types.SuperRootProof memory proof =
+            Types.SuperRootProof({ version: bytes1(uint8(1)), timestamp: type(uint64).max, outputRoots: outputRoots });
+
+        uint256 bond = doo.disputeGameFactoryProxy.initBonds(GameTypes.SUPER_CANNON_KONA);
+        vm.deal(address(this), bond);
+        IDisputeGame game = doo.disputeGameFactoryProxy.create{ value: bond }(
+            GameTypes.SUPER_CANNON_KONA,
+            Claim.wrap(Hashing.hashSuperRootProof(proof)),
+            Encoding.encodeSuperRootProof(proof)
+        );
+        assertTrue(doo.anchorStateRegistryProxy.isGameRespected(game), "permissionless game must be respected");
     }
 
     function test_run_superCannonKonaGameTypeFallback_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         _setPermissionlessInput(GameTypes.SUPER_CANNON_KONA);
-        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = 1234;
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = type(uint64).max - 1;
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
         IAnchorStateRegistry asr = doo.anchorStateRegistryProxy;
@@ -337,11 +365,8 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
 
         Types.OutputRootWithChainId[] memory outputRoots = new Types.OutputRootWithChainId[](1);
         outputRoots[0] = Types.OutputRootWithChainId({ chainId: l2ChainId, root: keccak256("fallback output root") });
-        Types.SuperRootProof memory proof = Types.SuperRootProof({
-            version: bytes1(uint8(1)),
-            timestamp: uint64(deployOPChainInput.startingAnchorRoot.l2SequenceNumber + 1),
-            outputRoots: outputRoots
-        });
+        Types.SuperRootProof memory proof =
+            Types.SuperRootProof({ version: bytes1(uint8(1)), timestamp: type(uint64).max, outputRoots: outputRoots });
 
         vm.prank(proposer, proposer);
         IDisputeGame game = doo.disputeGameFactoryProxy.create(
@@ -692,6 +717,18 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
     function test_run_zeroStartingAnchorRoot_reverts() public {
         deployOPChainInput.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 });
         vm.expectRevert("DeployOPChainInput: startingAnchorRoot not set");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_maxStartingAnchorRootSequenceNumber_reverts() public {
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = type(uint64).max;
+        vm.expectRevert("DeployOPChainInput: startingAnchorRoot.l2SequenceNumber too large");
+        deployOPChain.run(deployOPChainInput);
+    }
+
+    function test_run_aboveMaxStartingAnchorRootSequenceNumber_reverts() public {
+        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = uint256(type(uint64).max) + 1;
+        vm.expectRevert("DeployOPChainInput: startingAnchorRoot.l2SequenceNumber too large");
         deployOPChain.run(deployOPChainInput);
     }
 
