@@ -762,14 +762,13 @@ jobs:
           directory: rust
           profile: release
 
-  # fmt-check + clippy for the nested SP1 guest-program workspace. programs/range
-  # and programs/aggregation live in their own Cargo workspace with a private
-  # [patch.crates-io] table for the SP1 crypto forks, so they are NOT members of
-  # the root rust/ workspace and are not covered by rust-fmt / rust-clippy. This
-  # runs `just lint-sp1-guest` (same recipe `just lint` runs locally) on the host
-  # toolchain (no SP1 cargo-prove / RISC-V target required) so guest-side fmt and
-  # clippy regressions are caught on PRs. Clippy compiles the crates, so it also
-  # serves as the guest compile check.
+  # Dependency-patch verification, fmt-check, and clippy for the nested SP1
+  # guest-program workspace. The guest programs live in their own Cargo workspace
+  # with a private [patch.crates-io] table for the SP1 crypto forks, so they are NOT
+  # members of the root rust/ workspace and are not covered by rust-fmt / rust-clippy.
+  # This runs `just lint-sp1-guest` (same recipe `just lint` runs locally) on the
+  # host toolchain (no SP1 cargo-prove / RISC-V target required). Clippy compiles
+  # the crates, so it also serves as the guest compile check.
   rust-ci-sp1-guest-checks:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
@@ -781,7 +780,7 @@ jobs:
           directory: rust/kona/sp1/programs
           prefix: rust/kona/sp1/programs-checks
       - run:
-          name: fmt-check + clippy SP1 guest programs
+          name: Verify patches + fmt-check + clippy SP1 guest programs
           working_directory: rust
           environment:
             RUSTFLAGS: -Dwarnings

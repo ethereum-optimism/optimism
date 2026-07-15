@@ -74,16 +74,17 @@ workflow behavior is not yet reproduced:
 
 ### Guest Precompile Patches
 
-The guest programs (`programs/range` and `programs/aggregation`) are isolated in
-`programs/Cargo.toml`, a nested Cargo workspace with its own `Cargo.lock` and
-`[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
-`crypto-bigint`, `k256`, `p256`, and `substrate-bn` to the SP1 forks, so the
-generated ELFs get zkVM precompile-accelerated crypto without changing the host
-`rust/` workspace dependency graph.
+The guest programs under `programs/` are isolated in `programs/Cargo.toml`, a
+nested Cargo workspace with its own `Cargo.lock` and `[patch.crates-io]` table.
+That workspace patches `sha2`, `sha3`, `crypto-bigint`, `k256`, `p256`, and
+`substrate-bn` to the SP1 forks, so the generated ELFs get zkVM
+precompile-accelerated crypto without changing the host `rust/` workspace
+dependency graph.
 
-The range guest also enables `revm`'s `bn` feature in the nested workspace. That
-forwards to `revm-precompile`'s `substrate-bn` backend for EIP-196/197 bn128
-precompiles. EIP-2537 BLS pairing still uses arkworks and is not SP1 accelerated.
+The EVM-executing range and super-range guests also enable `revm`'s `bn` feature
+in the nested workspace. That forwards to `revm-precompile`'s `substrate-bn`
+backend for EIP-196/197 bn128 precompiles. EIP-2537 BLS pairing still uses
+arkworks and is not SP1 accelerated.
 
 ## Usage
 
