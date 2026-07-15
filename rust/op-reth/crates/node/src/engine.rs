@@ -302,13 +302,19 @@ pub fn validate_withdrawals_presence(
 mod test {
     use super::*;
 
-    use crate::engine;
+    use crate::{OpNode, engine};
+    use alloy_consensus::{BlockBody, Header};
     use alloy_op_hardforks::OP_SEPOLIA_JOVIAN_TIMESTAMP;
     use alloy_primitives::{Address, B64, B256, b64};
     use alloy_rpc_types_engine::PayloadAttributes;
     use op_alloy_rpc_types_engine::OpPayloadAttributes;
+    use reth_db_common::init::init_genesis;
     use reth_optimism_chainspec::OP_SEPOLIA;
-    use reth_provider::noop::NoopProvider;
+    use reth_optimism_primitives::OpTransactionSigned;
+    use reth_provider::{
+        noop::NoopProvider, providers::BlockchainProvider,
+        test_utils::create_test_provider_factory_with_node_types,
+    };
     use reth_trie_common::KeccakKeyHasher;
 
     macro_rules! assert_invalid_params_error {
@@ -489,5 +495,52 @@ mod test {
             &validator, EngineApiMessageVersion::V3, &attributes,
         );
         assert_invalid_params_error!(result, "MissingMinBaseFeeInPayloadAttributes");
+    }
+
+    fn isthmus_block(
+        parent_hash: B256,
+        withdrawals_root: B256,
+    ) -> RecoveredBlock<alloy_consensus::Block<OpTransactionSigned>> {
+        let header = Header {
+            parent_hash,
+            timestamp: OP_SEPOLIA_JOVIAN_TIMESTAMP,
+            withdrawals_root: Some(withdrawals_root),
+            ..Default::default()
+        };
+        let body = BlockBody::<OpTransactionSigned> { transactions: vec![], ..Default::default() };
+        RecoveredBlock::new_sealed(
+            SealedBlock::seal_slow(alloy_consensus::Block { header, body }),
+            vec![],
+        )
+    }
+
+    #[test]
+    fn isthmus_uses_engine_parent_state_for_withdrawals_root() {
+        let provider_factory =
+            create_test_provider_factory_with_node_types::<OpNode>(OP_SEPOLIA.clone());
+        init_genesis(&provider_factory).unwrap();
+        let provider = BlockchainProvider::new(provider_factory).unwrap();
+        let unavailable_parent = B256::repeat_byte(0x11);
+        assert!(
+            provider.state_by_block_hash(unavailable_parent).is_err(),
+            "fixture parent must be unavailable from canonical state"
+        );
+
+        let validator = OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), provider);
+        let block = isthmus_block(unavailable_parent, B256::repeat_byte(0xab));
+        let hashed_state = HashedPostState::default();
+        let result = <OpEngineValidator<_, OpTransactionSigned, _> as PayloadValidator<
+            OpPayloadTypes,
+        >>::validate_block_post_execution_with_hashed_state(
+            &validator,
+            || &hashed_state,
+            &block,
+            || NoopProvider::default().latest(),
+        );
+
+        assert!(
+            matches!(result, Err(InsertBlockErrorKind::Consensus(_))),
+            "mismatched withdrawals root must be a consensus error, got {result:?}"
+        );
     }
 }
