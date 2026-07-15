@@ -145,10 +145,6 @@ impl PostExecState {
         matches!(self, Self::Producing { .. })
     }
 
-    const fn is_verifying(&self) -> bool {
-        matches!(self, Self::Verifying { .. })
-    }
-
     const fn invalid_reason(&self) -> Option<&str> {
         match self {
             Self::Verifying { invalid_reason: Some(reason), .. } => Some(reason.as_str()),
@@ -175,10 +171,9 @@ impl PostExecState {
         }
     }
 
-    const fn produced_entries_mut(&mut self) -> Option<&mut Vec<SDMGasEntry>> {
-        match self {
-            Self::Producing { entries } => Some(entries),
-            _ => None,
+    fn record_produced_entry(&mut self, entry: SDMGasEntry) {
+        if let Self::Producing { entries } = self {
+            entries.push(entry);
         }
     }
 
@@ -830,28 +825,26 @@ where
         tx: impl ExecutableTx<Self>,
         f: impl FnOnce(&Self::Result) -> CommitChanges,
     ) -> Result<Option<GasOutput>, BlockExecutionError> {
-        // SDM block-warming refunds are recorded during EVM execution (before the commit
-        // decision) and aren't journaled, so discarding a tx's changes doesn't roll them back. A
-        // caller that executes a candidate then declines it (`CommitChanges::No`: over a builder
-        // gas/DA/address limit, or reverted-and-excluded) would leave behind "phantom" warming: a
-        // later committed tx claims a refund attributed to a tx that never entered the block.
-        // Commit-only paths (block import, `debug_replaySDMBlock` derivation) never see that
-        // warmth, so the producer's payload would diverge from derivation.
-        //
-        // Snapshot warming before execution and restore it when the tx isn't committed. Only
-        // `Producing` mode tracks warming, so we clone the maps solely on that path.
+        // SDM warming is not journaled, so restore it when a candidate is declined or rejected.
+        // Otherwise, a later transaction could claim a refund attributed to a transaction that
+        // never entered the block. Only producing mode tracks warming.
         let warming_snapshot = self.post_exec.is_producing().then(|| self.warming_state());
 
-        let output = self.execute_transaction_without_commit(tx)?;
-
-        if !f(&output).should_commit() {
-            if let Some(snapshot) = warming_snapshot {
-                self.seed_warming_state(snapshot);
+        let outcome = match self.execute_transaction_without_commit(tx) {
+            Ok(output) => {
+                if f(&output).should_commit() {
+                    return Ok(Some(self.commit_transaction(output)));
+                }
+                Ok(None)
             }
-            return Ok(None);
-        }
+            Err(err) => Err(err),
+        };
 
-        Ok(Some(self.commit_transaction(output)))
+        // Reaching here means the tx did not enter the block (declined or rejected).
+        if let Some(snapshot) = warming_snapshot {
+            self.seed_warming_state(snapshot);
+        }
+        outcome
     }
 
     fn execute_transaction_without_commit(
@@ -1042,11 +1035,12 @@ where
         };
 
         if !is_deposit && !is_post_exec && post_exec_refund > 0 {
-            if let Some(entries) = self.post_exec.produced_entries_mut() {
-                entries.push(SDMGasEntry { index: tx_index, gas_refund: post_exec_refund });
-            }
+            self.post_exec.record_produced_entry(SDMGasEntry {
+                index: tx_index,
+                gas_refund: post_exec_refund,
+            });
         }
-        if self.post_exec.is_verifying() && post_exec_refund > 0 {
+        if post_exec_refund > 0 {
             self.post_exec.consume_verifier_entry(tx_index);
         }
         if !is_post_exec {

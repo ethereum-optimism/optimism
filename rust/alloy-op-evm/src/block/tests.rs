@@ -153,6 +153,32 @@ fn build_executor<'a>(
     base_fee: u64,
     beneficiary: Address,
 ) -> SDMTestExecutor<'a> {
+    build_executor_with_inspection(
+        db,
+        receipt_builder,
+        op_chain_hardforks,
+        gas_limit,
+        block_timestamp,
+        parent_timestamp,
+        base_fee,
+        beneficiary,
+        true,
+    )
+}
+
+/// Builds an executor that can use either revm transaction execution path.
+#[allow(clippy::too_many_arguments)]
+fn build_executor_with_inspection<'a>(
+    db: &'a mut State<InMemoryDB>,
+    receipt_builder: &'a OpAlloyReceiptBuilder,
+    op_chain_hardforks: &'a OpChainHardforks,
+    gas_limit: u64,
+    block_timestamp: u64,
+    parent_timestamp: Option<u64>,
+    base_fee: u64,
+    beneficiary: Address,
+    inspect_transactions: bool,
+) -> SDMTestExecutor<'a> {
     let ctx = Context::mainnet()
         .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
         .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
@@ -172,7 +198,7 @@ fn build_executor<'a>(
         })
         .modify_cfg_chained(|cfg| cfg.spec = OpSpecId::JOVIAN);
 
-    let evm = OpEvm::new(ctx.build_op_with_inspector(NoOpInspector {}), true);
+    let evm = OpEvm::new(ctx.build_op_with_inspector(NoOpInspector {}), inspect_transactions);
 
     // Like production call sites, the activation-block flag is computed where the parent
     // timestamp is available and left `false` where it isn't.
@@ -242,6 +268,21 @@ impl SDMExecutorFixture {
         let mut executor = self.executor();
         executor.set_post_exec_mode(post_exec_mode);
         executor
+    }
+
+    /// Builds an executor using the non-inspected revm transaction path.
+    fn plain_executor(&mut self) -> SDMTestExecutor<'_> {
+        build_executor_with_inspection(
+            &mut self.db,
+            &self.receipt_builder,
+            &self.op_chain_hardforks,
+            self.gas_limit,
+            self.jovian_timestamp,
+            self.parent_timestamp,
+            self.base_fee,
+            self.beneficiary,
+            false,
+        )
     }
 
     /// Shorthand for an executor in `Verify` mode against `post_exec_payload(block, entries)`.
@@ -597,6 +638,10 @@ fn test_none_parent_timestamp_skips_check() {
 }
 
 mod sdm {
+    // These tests build `SDMExecutorFixture` via `default()` then set individual fields
+    // (`base_fee`, `beneficiary`, ...) — an intentional, pervasive pattern in this module.
+    #![allow(clippy::field_reassign_with_default)]
+
     use super::*;
     use alloy_consensus::{Sealable, TxEip7702};
     use alloy_eips::eip7702::{Authorization, SignedAuthorization};
@@ -652,6 +697,36 @@ mod sdm {
                 to: alloy_primitives::TxKind::Call(to),
                 ..Default::default()
             },
+        )
+    }
+
+    /// Builds an EIP-1559 access-list transaction that an unfunded sender cannot afford.
+    fn unfunded_access_list_tx(
+        sender: Address,
+        contract: Address,
+        slot: B256,
+    ) -> Recovered<OpTxEnvelope> {
+        use alloy_eips::eip2930::{AccessList, AccessListItem};
+        let tx = alloy_consensus::TxEip1559 {
+            chain_id: 1,
+            nonce: 0,
+            gas_limit: 50_000,
+            max_fee_per_gas: 100,
+            max_priority_fee_per_gas: 100,
+            to: alloy_primitives::TxKind::Call(contract),
+            access_list: AccessList(vec![AccessListItem {
+                address: contract,
+                storage_keys: vec![slot],
+            }]),
+            ..Default::default()
+        };
+        Recovered::new_unchecked(
+            OpTxEnvelope::Eip1559(tx.into_signed(Signature::new(
+                Default::default(),
+                Default::default(),
+                false,
+            ))),
+            sender,
         )
     }
 
@@ -1006,6 +1081,200 @@ mod sdm {
         assert!(
             claimed.is_empty(),
             "fee recipients were rebated for a settlement-only touch (no cold access paid): {claimed:?}",
+        );
+    }
+
+    // A rejected producer candidate must not affect replay of the final transaction list.
+    #[test]
+    fn test_produce_mode_drops_nonce_too_low_tx_and_verifier_agrees() {
+        // The surviving transactions share an SLOAD slot, so tx1 produces a real refund.
+        let target = WARMING_CONTRACT;
+        let tx0 = legacy_tx(0, target);
+        let tx1 = legacy_tx(1, target);
+        // This duplicate is rejected after tx0 increments the sender's nonce.
+        let dropped = legacy_tx(0, target);
+
+        let universe = eth_holding_universe(Address::ZERO, target);
+
+        // The producer builds [tx0, tx1, 0x7D], rejecting the duplicate between tx0 and tx1.
+        let (produced, produced_entries, produced_total) = {
+            let mut fixture = SDMExecutorFixture::default();
+            fixture.db.insert_account(target, warming_contract_account());
+            let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+            producer.execute_transaction(&tx0).expect("tx0 executes");
+
+            let err = producer
+                .execute_transaction(&dropped)
+                .expect_err("duplicate-nonce tx must be rejected as nonce-too-low");
+            assert!(
+                format!("{err:?}").to_lowercase().contains("nonce"),
+                "expected a nonce-too-low rejection, got: {err:?}",
+            );
+
+            producer.execute_transaction(&tx1).expect("tx1 executes and earns a refund");
+
+            let entries = producer.take_post_exec_entries();
+            assert_eq!(entries.len(), 1, "only tx1 re-warms the block-warmed slot");
+            assert_eq!(entries[0].index, 1, "refund is attributed to tx1's final block index");
+
+            let post_exec = recovered_post_exec(0, entries.clone());
+            producer.execute_transaction(&post_exec).expect("post-exec settles the refund");
+
+            let (_, produced) = producer.finish().expect("producer finishes block");
+            let total = sum_balances(&mut fixture.db, &universe);
+            (produced, entries, total)
+        };
+
+        // The verifier sees only the final transaction list.
+        let (verified, verified_total) = {
+            let mut fixture = SDMExecutorFixture::default();
+            fixture.db.insert_account(target, warming_contract_account());
+            let mut verifier = fixture.verifier(0, produced_entries.clone());
+
+            verifier.execute_transaction(&tx0).expect("verifier executes tx0");
+            verifier.execute_transaction(&tx1).expect("verifier executes tx1");
+            let post_exec = recovered_post_exec(0, produced_entries);
+            verifier.execute_transaction(&post_exec).expect("verifier consumes the payload");
+
+            let (_, verified) = verifier.finish().expect("verifier finishes block");
+            let total = sum_balances(&mut fixture.db, &universe);
+            (verified, total)
+        };
+
+        assert_eq!(verified.gas_used, produced.gas_used, "gas_used diverges seq vs verifier");
+        assert_eq!(verified.blob_gas_used, produced.blob_gas_used, "blob_gas_used diverges");
+        assert_eq!(verified.receipts, produced.receipts, "receipts diverge seq vs verifier");
+        assert_eq!(verified.receipts.len(), 3, "block is [tx0, tx1, 0x7D]");
+        assert_eq!(verified_total, produced_total, "post-block ETH state diverges seq vs verifier");
+    }
+
+    // Rejected transactions may touch fee vaults before validation fails. Their warming state must
+    // be rolled back so it cannot change the refunds produced by later transactions.
+    #[test]
+    fn test_dropped_state_invalid_tx_must_not_change_produced_block() {
+        // Probe contract that cold BALANCE-touches BASE_FEE_RECIPIENT (a fee vault).
+        let probe = Address::from([0x88; 20]);
+        let unfunded = Address::from([0xab; 20]);
+
+        // An insufficient-funds tx from an unfunded sender: with a non-zero base fee and gas price,
+        // gas*price exceeds the sender's zero balance, so revm rejects it pre-execution.
+        let dropped = recovered_legacy_from(
+            unfunded,
+            TxLegacy {
+                nonce: 0,
+                gas_limit: 50_000,
+                gas_price: 100,
+                to: alloy_primitives::TxKind::Call(probe),
+                ..Default::default()
+            },
+        );
+
+        let produced_entries = |with_dropped: bool| -> Vec<SDMGasEntry> {
+            let mut fixture = SDMExecutorFixture::default();
+            fixture.base_fee = 7;
+            fixture.db.insert_account(probe, balance_probe_account(&[BASE_FEE_RECIPIENT]));
+            let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+            if with_dropped {
+                let err = producer
+                    .execute_transaction(&dropped)
+                    .expect_err("unfunded tx must be rejected (insufficient funds)");
+                let msg = format!("{err:?}").to_lowercase();
+                assert!(
+                    msg.contains("fund") || msg.contains("balance"),
+                    "expected an insufficient-funds rejection, got: {err:?}",
+                );
+            }
+            // A committed tx cold-touches BASE_FEE_RECIPIENT via the probe.
+            producer
+                .execute_transaction(&legacy_tx_with_price(0, probe, 50_000, 100))
+                .expect("probe tx executes");
+            producer.take_post_exec_entries()
+        };
+
+        let entries_with = produced_entries(true);
+        let entries_without = produced_entries(false);
+
+        // A dropped tx must NOT change the block's produced SDM entries.
+        assert_eq!(
+            entries_with, entries_without,
+            "a dropped insufficient-funds tx changed the produced SDM entries: \
+             with={entries_with:?} without={entries_without:?}",
+        );
+    }
+
+    // Inspected and plain execution must leave the same database footprint after rejection.
+    #[test]
+    fn test_failed_tx_footprint_matches_inspected_vs_plain() {
+        let unfunded = Address::from([0xab; 20]);
+        let contract = Address::from([0x88; 20]);
+        let rejected_tx = unfunded_access_list_tx(unfunded, contract, B256::ZERO);
+        let footprint = |inspect_transactions: bool| -> (Vec<Address>, bool) {
+            let mut fixture = SDMExecutorFixture::default();
+            fixture.base_fee = 7;
+            fixture.db.insert_account(contract, warming_contract_account());
+            {
+                let mut executor = if inspect_transactions {
+                    fixture.executor_with_post_exec_mode(PostExecMode::Produce)
+                } else {
+                    fixture.plain_executor()
+                };
+                let _ = executor.execute_transaction(&rejected_tx);
+            }
+            let mut addresses: Vec<Address> = fixture.db.cache.accounts.keys().copied().collect();
+            addresses.sort();
+            let slot_loaded = fixture
+                .db
+                .cache
+                .accounts
+                .get(&contract)
+                .and_then(|a| a.account.as_ref())
+                .is_some_and(|a| a.storage.contains_key(&U256::ZERO));
+            (addresses, slot_loaded)
+        };
+
+        let (inspected_addrs, inspected_slot) = footprint(true);
+        let (plain_addrs, plain_slot) = footprint(false);
+        assert_eq!(inspected_addrs, plain_addrs, "failed-tx account footprint diverges");
+        assert_eq!(
+            inspected_slot, plain_slot,
+            "failed-tx slot warmth diverges: inspected vs plain"
+        );
+    }
+
+    // A rejected access-list transaction must not warm a slot for a later committed transaction.
+    #[test]
+    fn test_insufficient_funds_slot_access_must_not_warm_slot_for_later_tx() {
+        let contract = WARMING_CONTRACT;
+        let slot0 = B256::ZERO;
+        let unfunded = Address::from([0xab; 20]);
+        let funded = Address::from([0x51; 20]);
+
+        let dropped = unfunded_access_list_tx(unfunded, contract, slot0);
+        let committed = legacy_tx_from(funded, 0, contract);
+
+        let refund_for_committed = |with_dropped: bool| -> Vec<SDMGasEntry> {
+            let mut fixture = SDMExecutorFixture::default();
+            fixture.db.insert_account(contract, warming_contract_account());
+            fixture.db.insert_account(
+                funded,
+                AccountInfo { balance: U256::from(1_000_000_000u64), ..Default::default() },
+            );
+            let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+            if with_dropped {
+                producer
+                    .execute_transaction(&dropped)
+                    .expect_err("insufficient-funds tx is dropped");
+            }
+            producer.execute_transaction(&committed).expect("committed tx executes");
+            producer.take_post_exec_entries()
+        };
+
+        let with_dropped = refund_for_committed(true);
+        let without_dropped = refund_for_committed(false);
+        assert_eq!(
+            with_dropped, without_dropped,
+            "a dropped insufficient-funds tx warmed a slot for a later committed tx",
         );
     }
 
