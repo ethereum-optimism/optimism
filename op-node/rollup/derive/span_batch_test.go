@@ -532,6 +532,31 @@ func TestSpanBatchReadTxDataInvalid(t *testing.T) {
 	require.ErrorContains(t, err, "tx RLP prefix type must be list")
 }
 
+// TestSpanBatchReadTxDataLeadingZero locks the op-node side of the op-node<->kona span-batch
+// decode invariant on the shared conformance vector [00 c1 05]. A leading 0x00 is an EIP-2718
+// type identifier of 0, so op-node keeps the byte rather than reading it as a prefixless legacy
+// tx, then rejects it as an unsupported typed-tx envelope (dropping the batch). kona must reach
+// the same verdict; if one side accepts the element as a legacy tx while the other drops the
+// batch, a byzantine batcher can fork the two derivation implementations on identical L1 bytes.
+func TestSpanBatchReadTxDataLeadingZero(t *testing.T) {
+	// 0x00 type byte followed by a valid one-element RLP list (0xc1 0x05).
+	vec := []byte{0x00, 0xc1, 0x05}
+
+	// ReadTxData keeps the leading 0x00 and reports it as legacy type (byte value 0) — unlike
+	// kona, which swallows the 0x00 and decodes the following bytes as a legacy tx.
+	r := bytes.NewReader(vec)
+	txData, txType, err := ReadTxData(r)
+	require.NoError(t, err)
+	require.Equal(t, int(types.LegacyTxType), txType)
+	require.Equal(t, vec, txData)
+
+	// The kept 0x00 is not a supported typed-tx envelope, so the element (and thus the batch) is
+	// rejected here.
+	var sbtx spanBatchTx
+	err = sbtx.UnmarshalBinary(txData)
+	require.ErrorIs(t, err, types.ErrTxTypeNotSupported)
+}
+
 func TestSpanBatchMaxTxData(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x177288))
 

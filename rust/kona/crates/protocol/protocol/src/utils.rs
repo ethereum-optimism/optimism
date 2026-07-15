@@ -153,7 +153,8 @@ const EIP2718_MAX_TX_TYPE: u8 = 0x7F;
 pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, OpTxType), SpanBatchError> {
     let first_byte =
         *r.first().ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
-    let tx_type_id = if first_byte <= EIP2718_MAX_TX_TYPE {
+    let has_type_prefix = first_byte <= EIP2718_MAX_TX_TYPE;
+    let tx_type_id = if has_type_prefix {
         r.advance(1);
         first_byte
     } else {
@@ -179,6 +180,14 @@ pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, OpTxType), SpanBatchError
     let tx_type = match OpTxType::try_from(tx_type_id) {
         // Deposits are not valid span-batch transactions, and an unknown byte is invalid too.
         Ok(OpTxType::Deposit) | Err(_) => {
+            return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType));
+        }
+        // A consumed type prefix that resolves to `Legacy` is a leading `0x00`: not a valid
+        // typed envelope, since legacy transactions carry no prefix. op-node keeps the byte and
+        // rejects it in `decodeTyped`, so we must reject it here — otherwise a byzantine batcher
+        // could post one span-batch element that kona decodes as a legacy tx and op-node drops,
+        // diverging the two derivation implementations.
+        Ok(OpTxType::Legacy) if has_type_prefix => {
             return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType));
         }
         Ok(ty) => ty,
@@ -589,6 +598,37 @@ mod tests {
         let mut data: &[u8] = &[0xf8, 0x64, 0x00, 0x00, 0x00];
         let err = read_tx_data(&mut data).unwrap_err();
         assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+    }
+
+    #[test]
+    fn test_read_tx_data_rejects_leading_zero_type_byte() {
+        // A leading `0x00` is an EIP-2718 type identifier of 0, not the RLP list header of a
+        // legacy transaction. op-node keeps the byte and rejects it (`decodeTyped` has no case
+        // for `0x00`), so kona must reject it too — decoding the following bytes as a legacy tx
+        // would fork the two derivation implementations. `[0x00, 0xc1, 0x05]` is the shared
+        // cross-client conformance vector: `0xc1 0x05` alone is a valid one-element RLP list.
+        let mut data: &[u8] = &[0x00, 0xc1, 0x05];
+        let err = read_tx_data(&mut data).unwrap_err();
+        assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType));
+    }
+
+    #[test]
+    fn test_read_tx_data_accepts_prefixless_legacy() {
+        // A first byte > 0x7F is the RLP list header of a legacy tx (no type prefix); it must
+        // still decode as `Legacy` with the bytes returned verbatim.
+        let mut data: &[u8] = &[0xc1, 0x05];
+        let (tx_data, tx_type) = read_tx_data(&mut data).unwrap();
+        assert_eq!(tx_type, OpTxType::Legacy);
+        assert_eq!(tx_data, vec![0xc1, 0x05]);
+    }
+
+    #[test]
+    fn test_read_tx_data_accepts_typed() {
+        // A valid EIP-2718 type byte (0x02 = EIP-1559) is kept and re-prepended to the payload.
+        let mut data: &[u8] = &[0x02, 0xc1, 0x05];
+        let (tx_data, tx_type) = read_tx_data(&mut data).unwrap();
+        assert_eq!(tx_type, OpTxType::Eip1559);
+        assert_eq!(tx_data, vec![0x02, 0xc1, 0x05]);
     }
 
     #[test]
