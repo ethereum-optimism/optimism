@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 type L1Bindings struct {
@@ -430,8 +429,7 @@ func (s *CrossLayerUser) CheckDepositTx(t Testing, l1TxHash common.Hash, index i
 		require.Less(t, index, len(depositReceipt.Logs), "must have enough logs in receipt")
 		reconstructedDep, err := derive.UnmarshalDepositLogEvent(depositReceipt.Logs[index])
 		require.NoError(t, err, "Could not reconstruct L2 Deposit")
-		l2Tx := testutils.TxFromDeposit(reconstructedDep)
-		s.L2.CheckReceipt(t, l2Success, l2Tx.Hash())
+		s.L2.CheckReceipt(t, l2Success, reconstructedDep.Hash())
 	}
 }
 
@@ -443,8 +441,7 @@ func (s *CrossLayerUser) GetLastDepositL2Receipt(t Testing) (*types.Receipt, err
 	depositL1Receipt := s.L1.CheckReceipt(t, true, s.lastL1DepositTxHash)
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(depositL1Receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
-	l2Tx := testutils.TxFromDeposit(reconstructedDep)
-	return s.L2.CheckReceipt(t, true, l2Tx.Hash()), nil
+	return s.L2.CheckReceipt(t, true, reconstructedDep.Hash()), nil
 }
 
 func (s *CrossLayerUser) getLastWithdrawalParams(t Testing) (*withdrawals.ProvenWithdrawalParameters, error) {
