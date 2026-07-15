@@ -401,7 +401,10 @@ where
         let output = if error.is_tx_error() {
             self.catch_error_tx_error(evm, error)
         } else {
-            self.catch_error_tx_ok(evm, error)
+            // A non-tx error is not attributable to the transaction's validity: discard the tx's
+            // journal changes and surface the error, regardless of tx type.
+            evm.ctx().journal_mut().discard_tx();
+            Err(error)
         };
 
         // do the cleanup
@@ -437,31 +440,6 @@ where
                 OpTxType::Eip2930 |
                 OpTxType::Eip1559 |
                 OpTxType::Eip7702 |
-                OpTxType::PostExec,
-            ) |
-            Err(_) => {
-                evm.ctx().journal_mut().discard_tx();
-                Err(error)
-            }
-        }
-    }
-
-    /// Handles a non-transaction error (`is_tx_error()` false), branching on the tx type.
-    ///
-    /// A non-tx error is not attributable to the transaction's validity, so every tx type is
-    /// handled the same way: discard the tx's journal changes and surface the error.
-    fn catch_error_tx_ok(
-        &self,
-        evm: &mut EVM,
-        error: ERROR,
-    ) -> Result<ExecutionResult<OpHaltReason>, ERROR> {
-        match OpTxType::try_from(evm.ctx().tx().tx_type()) {
-            Ok(
-                OpTxType::Legacy |
-                OpTxType::Eip2930 |
-                OpTxType::Eip1559 |
-                OpTxType::Eip7702 |
-                OpTxType::Deposit |
                 OpTxType::PostExec,
             ) |
             Err(_) => {
