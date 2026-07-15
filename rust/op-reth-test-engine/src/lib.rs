@@ -52,6 +52,13 @@ pub enum Error {
     /// itself (an internal/EVM-wiring error, distinct from an `INVALID` payload).
     #[error("block execution failed: {0}")]
     Execution(String),
+    /// A forkchoice-update-with-attributes could not open a block from the given attributes — the
+    /// attributes are malformed or a forced transaction they carry cannot be applied. Mirrors
+    /// op-geth returning `eth.InvalidPayloadAttributes` from `startBlock`; op-node maps this to a
+    /// payload error and (under Holocene, for a derived block) requests a deposits-only replacement
+    /// rather than retrying or resetting forever.
+    #[error("invalid payload attributes: {0}")]
+    InvalidPayloadAttributes(String),
     /// A non-zero `safe`/`finalized` forkchoice block is unknown to the chain.
     #[error("forkchoice {which} block {hash} is unknown")]
     UnknownForkchoiceBlock {
@@ -201,6 +208,24 @@ impl TestEngine {
         attributes: Option<OpPayloadAttributes>,
     ) -> Result<ForkchoiceUpdated> {
         let head = state.head_block_hash;
+
+        // Open the requested block build *before* moving the head. Building may fail because a
+        // forced transaction is invalid (e.g. a derived block whose batch carries a
+        // badly-signed tx); surfacing that as an invalid-payload-attributes engine error
+        // lets op-node request a deposits-only replacement instead of retrying forever.
+        // Opening first means such a failure leaves the canonical chain untouched — the
+        // blocks the head move would have orphaned stay queryable, which op-node relies on
+        // when it consolidates the next safe attributes against the existing unsafe chain.
+        // The parent state an open reads is available whether the head is the current tip
+        // or a still-canonical ancestor.
+        let opened = match attributes {
+            Some(attributes) => Some(
+                InFlightPayload::open(&self.chain, head, attributes)
+                    .map_err(|err| Error::InvalidPayloadAttributes(err.to_string()))?,
+            ),
+            None => None,
+        };
+
         // Canonicalize the chain onto head (reorging if it is on an alternate fork), then move the
         // safe/finalized pointers. An unknown or unreachable head reports SYNCING — never a silent
         // VALID — and an unknown non-zero safe/finalized pointer errors.
@@ -220,11 +245,9 @@ impl TestEngine {
 
         let valid =
             ForkchoiceUpdated::from_status(PayloadStatusEnum::Valid).with_latest_valid_hash(head);
-        let Some(attributes) = attributes else {
+        let Some(in_flight) = opened else {
             return Ok(valid);
         };
-
-        let in_flight = InFlightPayload::open(&self.chain, head, attributes)?;
         let id = in_flight.id();
         self.in_flight.insert(id, in_flight);
         self.current = Some(id);

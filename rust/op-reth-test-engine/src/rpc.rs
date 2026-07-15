@@ -51,6 +51,26 @@ const REVERT_ERR_CODE: i32 = 3;
 /// contract.
 const UNKNOWN_PAYLOAD_ERR_CODE: i32 = -38001;
 
+/// go-ethereum's engine-API error code for invalid payload attributes
+/// (`eth.InvalidPayloadAttributes`). op-node's `startPayload` keys on exactly this code to classify
+/// a forkchoice-update-with-attributes failure as a payload error (`BlockInsertPayloadErr`) and,
+/// under Holocene for a derived block, request a deposits-only replacement. A generic engine error
+/// here is instead read as a prestate problem and drives op-node into an endless reset loop.
+const INVALID_PAYLOAD_ATTRIBUTES_ERR_CODE: i32 = -38003;
+
+/// Map a `forkchoice_updated` error: invalid payload attributes become go-ethereum's `-38003`;
+/// anything else is a generic engine error.
+fn fcu_err(err: crate::Error) -> ErrorObjectOwned {
+    match &err {
+        crate::Error::InvalidPayloadAttributes(_) => ErrorObjectOwned::owned(
+            INVALID_PAYLOAD_ATTRIBUTES_ERR_CODE,
+            err.to_string(),
+            None::<()>,
+        ),
+        _ => rpc_err(err),
+    }
+}
+
 /// Map a `get_payload` error: an unknown payload id becomes go-ethereum's `-38001`; anything else
 /// is a generic engine error.
 fn get_payload_err(err: crate::Error) -> ErrorObjectOwned {
@@ -253,7 +273,7 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
         m.register_method(name, |params, ctx, _| {
             let (state, attrs): (ForkchoiceState, Option<OpPayloadAttributes>) =
                 params.parse().map_err(rpc_err)?;
-            let updated = lock(ctx).forkchoice_updated(state, attrs).map_err(rpc_err)?;
+            let updated = lock(ctx).forkchoice_updated(state, attrs).map_err(fcu_err)?;
             serde_json::to_value(updated).map_err(rpc_err)
         })
         .expect("register method");
