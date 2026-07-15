@@ -1196,7 +1196,11 @@
     },
     {
       "source": "/operators/node-operators/management/regenesis-history",
-      "destination": "/node-operators/guides/management/regenesis-history"
+      "destination": "/op-mainnet/pre-bedrock-history/regenesis-history"
+    },
+    {
+      "source": "/node-operators/guides/management/regenesis-history",
+      "destination": "/op-mainnet/pre-bedrock-history/regenesis-history"
     },
     {
       "source": "/operators/node-operators/management/snap-sync",
@@ -2072,8 +2076,7 @@
                 "group": "Management",
                 "pages": [
                   "node-operators/guides/management/archive-node",
-                  "node-operators/guides/management/blobs",
-                  "node-operators/guides/management/regenesis-history"
+                  "node-operators/guides/management/blobs"
                 ]
               },
               {
@@ -2104,6 +2107,7 @@
               },
               "node-operators/reference/op-node-config",
               "node-operators/reference/op-node-json-rpc",
+              "node-operators/reference/op-supernode-config",
               "node-operators/reference/op-reth-config",
               "node-operators/reference/op-reth-json-rpc",
               "node-operators/reference/op-reth-historical-proof-config",
@@ -2386,7 +2390,10 @@
           {
             "group": "Pre-Bedrock History",
             "pages": [
-              "node-operators/guides/configuration/legacy-geth"
+              "node-operators/guides/configuration/legacy-geth",
+              "node-operators/reference/legacy-geth-config",
+              "op-mainnet/pre-bedrock-history/regenesis-history",
+              "op-mainnet/pre-bedrock-history/lost-pre-regenesis-data"
             ]
           }
         ]
