@@ -403,14 +403,14 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
     })
     .expect("register method");
 
-    // Import a full execution payload obtained from a peer engine during sync backfill. This is the
-    // ordinary `new_payload` validate-execute-commit path (the block extends the head, so it
-    // commits linearly); it exists as a distinct method only so the harness can transfer the whole
+    // Import a full execution payload obtained from a peer engine during sync backfill: the
+    // ordinary `new_payload` validate-execute path plus a head advance, as a real EL's block-sync
+    // insertion does. It exists as a distinct method so the harness can transfer the whole
     // `OpExecutionData` in one value rather than reconstructing the versioned `engine_newPayload`
     // arguments.
     m.register_method("optest_importBlock", |params, ctx, _| {
         let data: OpExecutionData = params.one().map_err(rpc_err)?;
-        let status = lock(ctx).new_payload(data).map_err(rpc_err)?;
+        let status = lock(ctx).import_block(data).map_err(rpc_err)?;
         serde_json::to_value(status).map_err(rpc_err)
     })
     .expect("register method");

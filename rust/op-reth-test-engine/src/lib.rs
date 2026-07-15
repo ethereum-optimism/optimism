@@ -130,11 +130,10 @@ pub struct TestEngine {
     /// (the concrete `*ethclient.Client` they use cannot be intercepted Go-side).
     pending: HashMap<Address, BTreeMap<u64, Bytes>>,
     /// Every block that has passed [`new_payload`](Self::new_payload) validation, keyed by hash
-    /// and never evicted. A block that is not a linear extension of the head is only recorded
-    /// here (not committed) until a forkchoice update canonicalizes it; retaining committed
-    /// and reorged-out blocks alike lets a later forkchoice update reorg onto an alternate
-    /// fork or flip back to a previously abandoned one — the reorg support op-node's
-    /// derivation relies on.
+    /// and never evicted. A processed payload is only recorded here (not committed) until a
+    /// forkchoice update canonicalizes it; retaining committed and reorged-out blocks alike lets
+    /// a later forkchoice update reorg onto an alternate fork or flip back to a previously
+    /// abandoned one — the reorg support op-node's derivation relies on.
     known_blocks: HashMap<B256, ExecutedBlock<OpPrimitives>>,
     /// The head a forkchoice update asked for but could not reach, because it (or an ancestor)
     /// is not yet known: the block the engine would be snap-syncing towards. Set whenever
@@ -175,32 +174,41 @@ impl TestEngine {
     /// Import a complete execution payload (`engine_newPayload`).
     ///
     /// Validates the payload's layout, executes it against its parent state with OP semantics, and
-    /// verifies the post-state root. A block that extends the current head is committed
-    /// immediately; a valid block on an alternate fork is only recorded (in `known_blocks`), to
-    /// be canonicalized by a later forkchoice update rather than moving the head here. Returns
-    /// `VALID` (with the block hash as `latestValidHash`), `INVALID` (with the parent hash), or
-    /// `SYNCING` when the parent block is unknown.
+    /// verifies the post-state root. A valid block is only recorded (in `known_blocks`): as on a
+    /// real EL, a processed payload is not canonical until a forkchoice update names it (or a
+    /// descendant) as head, so `latest` keeps reading the current head. Returns `VALID` (with the
+    /// block hash as `latestValidHash`), `INVALID` (with the parent hash), or `SYNCING` when the
+    /// parent block is unknown.
     pub fn new_payload(&mut self, payload: OpExecutionData) -> Result<PayloadStatus> {
         match exec::import_payload(&self.chain, payload)? {
             ImportOutcome::Syncing => Ok(PayloadStatus::from_status(PayloadStatusEnum::Syncing)),
             ImportOutcome::Invalid(status) => Ok(status),
             ImportOutcome::Valid(executed) => {
                 let block_hash = executed.recovered_block().hash();
-                let parent_hash = executed.recovered_block().parent_hash();
                 // Retain every validated block so a later forkchoice update can canonicalize it —
-                // even onto an alternate fork, or when flipping back to a reorged-out one.
-                self.known_blocks.insert(block_hash, executed.clone());
-                // Only a linear extension of the current head is committed here; an alternate-fork
-                // block waits for a forkchoice update to reorg onto it.
-                if parent_hash == self.chain.latest_header().hash() {
-                    self.chain.commit_block(executed);
-                    // A committed payload advances the head, stranding any in-flight payload still
-                    // open on the now-superseded parent.
-                    self.evict_stale_in_flight();
-                }
+                // as a linear extension, onto an alternate fork, or when flipping back to a
+                // reorged-out one.
+                self.known_blocks.insert(block_hash, executed);
                 Ok(PayloadStatus::new(PayloadStatusEnum::Valid, Some(block_hash)))
             }
         }
+    }
+
+    /// Import a block obtained from a peer engine during sync backfill (`optest_importBlock`).
+    ///
+    /// Runs the ordinary `new_payload` validate-and-record path and then advances the canonical
+    /// head onto the block, as a real EL's block-sync insertion does — without touching the
+    /// safe/finalized pointers, which stay wherever the consensus client last put them.
+    pub fn import_block(&mut self, payload: OpExecutionData) -> Result<PayloadStatus> {
+        let status = self.new_payload(payload)?;
+        if status.status == PayloadStatusEnum::Valid {
+            let head = status.latest_valid_hash.expect("valid status carries the block hash");
+            let advanced =
+                self.chain.advance_forkchoice(head, B256::ZERO, B256::ZERO, &self.known_blocks)?;
+            debug_assert!(advanced, "a just-recorded block is always reachable");
+            self.evict_stale_in_flight();
+        }
+        Ok(status)
     }
 
     /// Update the forkchoice (`engine_forkchoiceUpdated`).

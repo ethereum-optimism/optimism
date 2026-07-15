@@ -401,12 +401,13 @@ mod tests {
         assert_eq!(ver.sync_target(), Some(b3));
 
         // Backfill each missing block from the peer in order — what the block-transfer optest
-        // methods do over the socket: `from_block_slow` on the source, `new_payload` on the target.
+        // methods do over the socket: `from_block_slow` on the source, `import_block` on the
+        // target (validate-execute plus a head advance, like a real EL's block-sync insertion).
         for number in 1..=3 {
             let block = seq.block_by_number(number).unwrap().expect("peer has block");
             let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
             let data = OpExecutionData::new(payload, sidecar);
-            let status = ver.new_payload(data).expect("import backfilled block");
+            let status = ver.import_block(data).expect("import backfilled block");
             assert!(status.is_valid(), "backfilled block {number} valid: {status:?}");
         }
         assert_eq!(ver.block_by_number(3).unwrap().unwrap().header.hash_slow(), b3);
@@ -420,9 +421,9 @@ mod tests {
 
     #[test]
     fn committed_payload_id_is_evicted() {
-        // Mirrors TestL2SequencerAPI: once a payload is committed and the head advances past its
-        // parent, re-sealing it (get_payload) must report UnknownPayloadId — op-node maps that code
-        // to BuildErrCodeUnknownPayload.
+        // Mirrors TestL2SequencerAPI: once a sealed payload is canonicalized and the head advances
+        // past its parent, re-sealing it (get_payload) must report UnknownPayloadId — op-node maps
+        // that code to BuildErrCodeUnknownPayload.
         let mut engine = test_engine(user_sender());
         let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
 
@@ -431,12 +432,19 @@ mod tests {
             .expect("fcu with attrs");
         let id = updated.payload_id.expect("payload id returned");
 
-        // Sealing before the commit succeeds.
+        // Sealing succeeds while the payload's parent is still the head: the processed payload
+        // stays non-canonical (and the build job alive) until the forkchoice update below.
         let data = engine.get_payload(id).expect("get payload before commit");
-        let status = engine.new_payload(data).expect("new payload");
+        let status = engine.new_payload(data.clone()).expect("new payload");
         assert!(status.is_valid(), "newPayload valid: {status:?}");
+        let block_hash = data.payload.block_hash();
+        let resealed = engine.get_payload(id).expect("still sealable before the head moves");
+        assert_eq!(resealed.payload.block_hash(), block_hash, "re-seal yields the same block");
 
         // The build job is gone once its parent is no longer the head.
+        let updated =
+            engine.forkchoice_updated(fcu(block_hash), None).expect("fcu to sealed block");
+        assert!(updated.is_valid());
         let err = engine.get_payload(id).unwrap_err();
         assert!(
             matches!(err, Error::UnknownPayloadId(evicted) if evicted == id),
