@@ -752,10 +752,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // This restriction applies to initial deployments only. An upgrade re-registers the
-            // game types a chain already runs, and chains that have not migrated to super games
-            // still run legacy types even when SUPER_ROOT_GAMES_MIGRATION is enabled. Restricting
-            // upgrades here would break them.
+            // Initial deployments must select game types compatible with the active mode.
+            // Upgrade inputs define their game types. Super root migration removes output root support.
             // DeployOPChain adds the permissioned fallback. StandardValidator checks it. OPCM does not require it.
             bool validForInitialDeploy = superRootGamesMigrationEnabled
                 ? (isSuperPermissionedGame || isSuperCannonKonaGame)
