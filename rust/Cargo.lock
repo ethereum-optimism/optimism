@@ -13246,7 +13246,6 @@ dependencies = [
  "metrics",
  "metrics-exporter-prometheus",
  "op-alloy-consensus",
- "page_size",
  "proptest",
  "reth-chainspec",
  "reth-cli",

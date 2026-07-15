@@ -11476,7 +11476,6 @@ dependencies = [
  "futures-util",
  "metrics",
  "op-alloy-consensus",
- "page_size",
  "reth-chainspec",
  "reth-cli",
  "reth-cli-commands",
