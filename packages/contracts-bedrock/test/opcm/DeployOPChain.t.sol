@@ -78,7 +78,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     // Arbitrary non-placeholder anchor root for the permissionless deploy tests.
     Proposal permissionlessAnchorRoot = Proposal({
         root: Hash.wrap(0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47),
-        l2SequenceNumber: 0
+        l2SequenceNumber: 1234
     });
     uint256 disputeMaxGameDepth = 73;
     uint256 disputeSplitDepth = 30;
@@ -300,7 +300,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         IDisputeGame game = doo.disputeGameFactoryProxy.create{ value: bond }(
             GameTypes.PERMISSIONED_CANNON,
             Claim.wrap(keccak256("fallback proposal")),
-            abi.encode(uint256(type(uint64).max))
+            abi.encode(deployOPChainInput.startingAnchorRoot.l2SequenceNumber + 1)
         );
         assertTrue(asr.isGameRespected(game), "fallback game must be respected");
     }
@@ -319,7 +319,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     function test_checkOutput_freshScriptSuperRoot_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         _setPermissionlessInput(GameTypes.SUPER_CANNON_KONA);
-        deployOPChainInput.startingAnchorRoot.l2SequenceNumber = 1234;
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
 
         DeployOPChain freshDeployOPChain = new DeployOPChain();

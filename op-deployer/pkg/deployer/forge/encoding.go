@@ -35,7 +35,7 @@ func goStructToABIComponents(structType reflect.Type) ([]abi.ArgumentMarshaling,
 			fieldName = abiTag
 		}
 
-		component, err := GoTypeToABIComponent(field.Type, fieldName)
+		component, err := goTypeToABIComponent(field.Type, fieldName)
 		if err != nil {
 			return nil, fmt.Errorf("unsupported field type %s: %w", field.Type, err)
 		}
@@ -45,7 +45,7 @@ func goStructToABIComponents(structType reflect.Type) ([]abi.ArgumentMarshaling,
 	return components, nil
 }
 
-func GoTypeToABIComponent(goType reflect.Type, name string) (abi.ArgumentMarshaling, error) {
+func goTypeToABIComponent(goType reflect.Type, name string) (abi.ArgumentMarshaling, error) {
 	for goType.Kind() == reflect.Pointer {
 		goType = goType.Elem()
 	}
