@@ -239,8 +239,9 @@ var (
 		Value:   config.DefaultGameWindow,
 	}
 	SelectiveClaimResolutionFlag = &cli.BoolFlag{
-		Name:    "selective-claim-resolution",
-		Usage:   "Only resolve claims for the configured claimants",
+		Name: "selective-claim-resolution",
+		Usage: "Only resolve claims for the configured claimants and claim their non-zero credit; " +
+			"disables lifecycle-only game close and anchor update transactions",
 		EnvVars: prefixEnvVars("SELECTIVE_CLAIM_RESOLUTION"),
 	}
 	UnsafeAllowInvalidPrestate = &cli.BoolFlag{
