@@ -73,8 +73,8 @@ contract SetInteropDisputeGames is Script {
         address opcm = _udi.opcm();
         require(opcm.code.length > 0, "SetInteropDisputeGames: OPCM address has no code");
         require(
-            SemverComp.gte(ISemver(opcm).version(), "7.0.0"),
-            "SetInteropDisputeGames: OPCM must be v7.0.0 or later (OPCMv2)."
+            SemverComp.gte(ISemver(opcm).version(), "7.2.1"),
+            "SetInteropDisputeGames: OPCM must be v7.2.1 or later (OPCMv2)."
         );
 
         // Etch DummyCaller contract to mimic the governance multisig that delegatecalls the OPCM.
