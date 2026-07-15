@@ -1,0 +1,32 @@
+contents:
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  repositories:
+    - https://packages.wolfi.dev/os
+  packages:
+    - ca-certificates-bundle
+    - wolfi-baselayout
+    - op-dispute-mon@local
+
+environment:
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin
+  SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+
+accounts:
+  groups:
+    - groupname: nonroot
+      gid: 65532
+  users:
+    - username: nonroot
+      uid: 65532
+      gid: 65532
+  # Root, matching the upstream image.
+  run-as: 0
+
+# No entrypoint, bare-name cmd: matches the upstream image contract
+# (CMD ["op-dispute-mon"], resolved via PATH).
+cmd: op-dispute-mon
+
+annotations:
+  org.opencontainers.image.source: https://github.com/ethereum-optimism/optimism
+  org.opencontainers.image.title: op-dispute-mon

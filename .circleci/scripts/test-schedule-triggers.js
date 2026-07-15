@@ -4,7 +4,7 @@ import { readdirSync } from "node:fs";
 import path from "node:path";
 
 const repoRoot = path.resolve(import.meta.dir, "../..");
-const routingScriptPath = path.join(repoRoot, ".circleci/scripts/compute-workflow-conditions.sh");
+const routingPath = path.join(repoRoot, ".circleci/routing.yml");
 const continuationDir = path.join(repoRoot, ".circleci/continue");
 const apiBase = process.env.CIRCLECI_API_BASE ?? "https://circleci.com/api/v2";
 const projectSlug =
@@ -40,28 +40,16 @@ async function yqText(expression, file) {
   return await $`yq -r ${expression} ${file}`.text();
 }
 
-async function extractDecisionTree() {
-  const decisionTree = await Bun.file(routingScriptPath).text();
-  if (decisionTree.trim() === "") {
-    console.error(`ERROR: Could not read routing script ${routingScriptPath}`);
-    process.exit(1);
-  }
-  return decisionTree;
-}
-
-function extractScheduleMappings(decisionTree) {
-  const scheduledCase = decisionTree.match(/scheduled_pipeline\)\s*\n([\s\S]*?)\n\s*;;/);
-  if (!scheduledCase) {
-    return [];
-  }
-
+// routing.yml is the source of truth for schedule -> workflow lists.
+async function readScheduleMappings() {
+  const output = await yqText('.schedules | to_entries[] | .key + " " + (.value | join(" "))', routingPath);
   const mappings = [];
-  const armPattern = /^\s*([A-Za-z0-9_-]+)\)\s+run\s+([^;]+?)\s*;;/gm;
-  for (const match of scheduledCase[1].matchAll(armPattern)) {
-    mappings.push({
-      scheduleName: match[1],
-      workflows: match[2].trim().split(/\s+/),
-    });
+  for (const line of output.split("\n")) {
+    const [scheduleName, ...workflows] = line.trim().split(/\s+/).filter(Boolean);
+    if (scheduleName === undefined) {
+      continue;
+    }
+    mappings.push({ scheduleName, workflows });
   }
   return mappings;
 }
@@ -146,9 +134,9 @@ async function fetchScheduleNames(token) {
   console.error(`ERROR: CircleCI schedule API returned more than ${maxPages} pages`);
   process.exit(1);
 }
-const mappings = extractScheduleMappings(await extractDecisionTree());
+const mappings = await readScheduleMappings();
 if (mappings.length === 0) {
-  console.error(`ERROR: no scheduled_pipeline schedule mappings found in ${routingScriptPath}`);
+  console.error(`ERROR: no schedules defined in ${routingPath}`);
   process.exit(1);
 }
 

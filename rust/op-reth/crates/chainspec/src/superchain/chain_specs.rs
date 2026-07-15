@@ -33,8 +33,6 @@ create_superchain_specs!(
     ("worldchain", "mainnet"),
     ("xterio-eth", "mainnet"),
     ("zora", "mainnet"),
-    ("rehearsal-0-bn-0", "rehearsal-0-bn"),
-    ("rehearsal-0-bn-1", "rehearsal-0-bn"),
     ("boba", "sepolia"),
     ("camp", "sepolia"),
     ("celo-sep", "sepolia"),
@@ -57,4 +55,5 @@ create_superchain_specs!(
     ("worldchain", "sepolia"),
     ("zora", "sepolia"),
     ("oplabs-devnet-0", "sepolia-dev-0"),
+    ("sepolia-devnet-2", "sepolia-devnet-2"),
 );

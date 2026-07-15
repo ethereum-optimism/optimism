@@ -28,7 +28,7 @@ pub mod initialize;
 pub use initialize::{InitializationJob, RethTrieStorageLayout};
 
 pub mod backfill;
-pub use backfill::{BackfillError, BackfillJob};
+pub use backfill::{BackfillError, BackfillJob, DEFAULT_BACKFILL_BATCH_SIZE};
 
 pub mod snapshot;
 pub use snapshot::{SnapshotError, SnapshotInitJob, SnapshotInitOutcome};

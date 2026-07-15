@@ -178,15 +178,7 @@ impl HintHandler for SingleChainHintHandler {
                 let input = hint.data[28..].to_vec();
                 let input_hash = keccak256(hint.data.as_ref());
 
-                let result = crate::eth::execute(address, input, gas).map_or_else(
-                    |_| vec![0u8; 1],
-                    |raw_res| {
-                        let mut res = Vec::with_capacity(1 + raw_res.len());
-                        res.push(0x01);
-                        res.extend_from_slice(&raw_res);
-                        res
-                    },
-                );
+                let result = crate::eth::execute(address, input, gas)?.into_preimage_value();
 
                 let mut kv_lock = kv.write().await;
                 kv_lock.set(PreimageKey::new_keccak256(*input_hash).into(), hint.data.into())?;

@@ -7,7 +7,8 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::{
-    ProofsHistoryStorageArgs, ProofsHistoryWindowArg, ProofsStorageVersion,
+    ProofsHistoryBackfillArgs, ProofsHistoryStorageArgs, ProofsHistoryWindowArg,
+    ProofsStorageVersion,
 };
 use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
@@ -45,6 +46,12 @@ pub struct InitCommand<C: ChainSpecParser> {
     /// until `earliest <= latest - window`.
     #[command(flatten)]
     pub proofs_history_window: ProofsHistoryWindowArg,
+
+    /// Shared backfill flags (batch size + snapshot toggle). Only used when
+    /// the post-init backfill runs (i.e. `--proofs-history.skip-backfill` is
+    /// not set).
+    #[command(flatten)]
+    pub backfill_args: ProofsHistoryBackfillArgs,
 }
 
 impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
@@ -111,7 +118,13 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitCommand<C> {
                         .database_provider_ro()
                         .map_err(|e| eyre::eyre!("Failed to open reth DB provider: {e}"))?
                         .disable_long_read_transaction_safety();
-                    BackfillJob::new(provider, storage).run_with_snapshot(target_earliest_block)?;
+                    let job = BackfillJob::new(provider, storage)
+                        .with_batch_size(self.backfill_args.backfill_batch_size);
+                    if self.backfill_args.use_snapshot {
+                        job.run_with_snapshot(target_earliest_block)?;
+                    } else {
+                        job.run(target_earliest_block)?;
+                    }
                     info!(target: "reth::cli", "Backfill complete");
                 }
             }

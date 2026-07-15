@@ -325,7 +325,12 @@ func checkOutputProviderFlags(ctx *cli.Context) error {
 	return nil
 }
 
-func CheckCannonBaseFlags(ctx *cli.Context, requireServer bool) error {
+func CheckCannonBaseFlags(ctx *cli.Context, enabledTypes []gameTypes.GameType) error {
+	// Permissioned games never reach step() so do not run op-program or load the
+	// absolute prestate; both are only required when an enabled game type can reach step().
+	canReachStep := slices.ContainsFunc(enabledTypes, func(t gameTypes.GameType) bool {
+		return slices.Contains(gameTypes.CannonFamilyGameTypes, t) && !t.IsPermissioned()
+	})
 	if ctx.IsSet(flags.NetworkFlagName) &&
 		(RollupConfigFlag.IsSet(ctx, gameTypes.CannonGameType) || L2GenesisFlag.IsSet(ctx, gameTypes.CannonGameType) || L1GenesisFlag.IsSet(ctx, gameTypes.CannonGameType) || ctx.Bool(CannonL2CustomFlag.Name)) {
 		return fmt.Errorf("flag %v can not be used with %v, %v, %v or %v",
@@ -338,10 +343,10 @@ func CheckCannonBaseFlags(ctx *cli.Context, requireServer bool) error {
 	if !ctx.IsSet(CannonBinFlag.Name) {
 		return fmt.Errorf("flag %s is required", CannonBinFlag.Name)
 	}
-	if requireServer && !ctx.IsSet(CannonServerFlag.Name) {
+	if canReachStep && !ctx.IsSet(CannonServerFlag.Name) {
 		return fmt.Errorf("flag %s is required", CannonServerFlag.Name)
 	}
-	if !PreStatesURLFlag.IsSet(ctx, gameTypes.CannonGameType) && !ctx.IsSet(CannonPreStateFlag.Name) {
+	if canReachStep && !PreStatesURLFlag.IsSet(ctx, gameTypes.CannonGameType) && !ctx.IsSet(CannonPreStateFlag.Name) {
 		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(gameTypes.CannonGameType), CannonPreStateFlag.Name)
 	}
 	return nil
@@ -371,7 +376,7 @@ func CheckSuperCannonKonaFlags(ctx *cli.Context) error {
 	return nil
 }
 
-func CheckCannonFlags(ctx *cli.Context, requireServer bool) error {
+func CheckCannonFlags(ctx *cli.Context, enabledTypes []gameTypes.GameType) error {
 	if err := checkOutputProviderFlags(ctx); err != nil {
 		return err
 	}
@@ -380,7 +385,7 @@ func CheckCannonFlags(ctx *cli.Context, requireServer bool) error {
 		return fmt.Errorf("flag %v or %v and %v is required",
 			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(gameTypes.CannonGameType), L2GenesisFlag.EitherFlagName(gameTypes.CannonGameType))
 	}
-	if err := CheckCannonBaseFlags(ctx, requireServer); err != nil {
+	if err := CheckCannonBaseFlags(ctx, enabledTypes); err != nil {
 		return err
 	}
 	return nil
@@ -431,10 +436,7 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 	for _, gameType := range types {
 		switch gameType {
 		case gameTypes.CannonGameType, gameTypes.PermissionedGameType:
-			// The permissioned game never reaches step() so does not run op-program; only the
-			// legacy Cannon game type requires the op-program server binary.
-			requireServer := slices.Contains(types, gameTypes.CannonGameType)
-			if err := CheckCannonFlags(ctx, requireServer); err != nil {
+			if err := CheckCannonFlags(ctx, types); err != nil {
 				return err
 			}
 		case gameTypes.CannonKonaGameType:

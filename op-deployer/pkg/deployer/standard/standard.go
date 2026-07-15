@@ -50,6 +50,10 @@ var VaultMinWithdrawalAmount = mustHexBigFromHex("0x8ac7230489e80000")
 
 var GovernanceTokenOwner = common.HexToAddress("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAdDEad")
 
+// PlaceholderAddress is a non-zero sentinel address. It's used  as the default deployer when no private key is provided.
+// The same-sender check keys off this value to skip when no real deployer is set.
+var PlaceholderAddress = common.Address{0x01}
+
 func L1VersionsFor(chainID uint64) (validation.Versions, error) {
 	switch chainID {
 	case 1:

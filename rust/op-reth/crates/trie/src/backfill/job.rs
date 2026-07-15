@@ -9,7 +9,6 @@ use crate::{
 };
 use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
 use alloy_primitives::BlockNumber;
-use derive_more::Constructor;
 use reth_primitives_traits::AlloyBlockHeader;
 use reth_provider::{
     BlockHashReader, BlockNumReader, ChangeSetReader, DBProvider, HeaderProvider, ProviderError,
@@ -67,11 +66,38 @@ impl PhaseTimings {
     }
 }
 
+/// Default number of blocks written per MDBX transaction.
+///
+/// `25` measured ~2.6× throughput on a 1.296M-block op-mainnet backfill and sits at the sweet
+/// spot on the K sweep: bitmap + commit amortization has done most of its work, but the open
+/// tx's dirty-page pressure hasn't yet started slowing cursor reads. Tune via
+/// [`BackfillJob::with_batch_size`] / `--proofs-history.backfill-batch-size` — see that flag
+/// for the throughput / memory / restart-loss trade-offs.
+pub const DEFAULT_BACKFILL_BATCH_SIZE: usize = 25;
+
 /// Backfill job for proofs storage.
-#[derive(Debug, Constructor)]
+#[derive(Debug)]
 pub struct BackfillJob<P, S: OpProofsBackfillStore + Send> {
     provider: P,
     storage: S,
+    /// Number of blocks written per MDBX transaction. Amortizes commit cost across blocks at the
+    /// price of restart granularity. See [`DEFAULT_BACKFILL_BATCH_SIZE`].
+    batch_size: usize,
+}
+
+impl<P, S: OpProofsBackfillStore + Send> BackfillJob<P, S> {
+    /// Create a new backfill job using [`DEFAULT_BACKFILL_BATCH_SIZE`].
+    pub const fn new(provider: P, storage: S) -> Self {
+        Self { provider, storage, batch_size: DEFAULT_BACKFILL_BATCH_SIZE }
+    }
+
+    /// Override the batch size (number of blocks per MDBX transaction).
+    ///
+    /// `batch_size` is clamped to `1` if zero — backfill needs to make per-block progress.
+    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size.max(1);
+        self
+    }
 }
 
 impl<P, S> BackfillJob<P, S>
@@ -90,8 +116,11 @@ where
     /// Backfill proofs data down to `target_earliest_block`.
     ///
     /// Extends the stored proof window from `[earliest, latest]` backward to
-    /// `[target_earliest_block, latest]`. Each block is committed atomically so
-    /// the job is restart-safe: on crash, resume from the current `earliest`.
+    /// `[target_earliest_block, latest]`. Blocks are written in batches of
+    /// [`Self::with_batch_size`] (default [`DEFAULT_BACKFILL_BATCH_SIZE`]) — each batch holds
+    /// one MDBX transaction open across K blocks and commits once, amortizing fsync cost.
+    /// A crash mid-batch loses at most K blocks of progress; on restart, resume from the
+    /// current `earliest`.
     ///
     /// Returns immediately if `target_earliest_block >= current earliest`.
     pub fn run(&self, target_earliest_block: u64) -> Result<(), BackfillError> {
@@ -100,21 +129,27 @@ where
         if target_earliest_block >= current_earliest.number {
             return Ok(());
         }
-        self.drive_loop(current_earliest, target_earliest_block, |block_number| {
-            self.backfill_block(block_number)
+        self.drive_batched_loop(current_earliest, target_earliest_block, "standard", |bp, n| {
+            self.backfill_block(bp, n)
         })
     }
 
-    /// Per-block loop with progress logging, shared by [`Self::run`] and
-    /// [`Self::run_with_snapshot`].
-    fn drive_loop<F>(
+    /// Shared batched per-block driver, used by [`Self::run`] and [`Self::run_with_snapshot`].
+    ///
+    /// Holds one RW backfill provider open across `batch_size` blocks, dispatches per-block work
+    /// to the supplied closure (which uses the same `bp` for reads + writes, so MDBX same-tx
+    /// visibility makes in-flight writes from earlier blocks of the batch visible), and commits
+    /// once per batch. Mirrors the previous per-block `drive_loop` shape but with the bp opened
+    /// at the batch boundary instead of per call.
+    fn drive_batched_loop<F>(
         &self,
         current_earliest: NumHash,
         target_earliest_block: u64,
-        mut backfill_block: F,
+        kind: &'static str,
+        mut process_block: F,
     ) -> Result<(), BackfillError>
     where
-        F: FnMut(BlockNumber) -> Result<PhaseTimings, BackfillError>,
+        F: FnMut(&S::BackfillProvider<'_>, BlockNumber) -> Result<PhaseTimings, BackfillError>,
     {
         let total = current_earliest.number - target_earliest_block;
         let start = Instant::now();
@@ -124,35 +159,39 @@ where
             from = current_earliest.number,
             to = target_earliest_block,
             total,
+            batch_size = self.batch_size,
+            kind,
             "Starting proofs backfill"
         );
 
-        for block_number in (target_earliest_block + 1..=current_earliest.number).rev() {
-            phase_totals.add(backfill_block(block_number)?);
+        let mut next_block = current_earliest.number;
+        while next_block > target_earliest_block {
+            let batch_end =
+                next_block.saturating_sub(self.batch_size as u64).max(target_earliest_block);
+            let batch_low = batch_end + 1;
+            let batch_high = next_block;
 
-            let done = current_earliest.number - block_number + 1;
-            let is_final = block_number == target_earliest_block + 1;
-            if done.is_multiple_of(LOG_EVERY) || is_final {
-                let elapsed_secs = start.elapsed().as_secs_f64();
-                let blocks_per_sec =
-                    if elapsed_secs.is_normal() { done as f64 / elapsed_secs } else { 0.0 };
-                let eta_secs = if blocks_per_sec.is_normal() && blocks_per_sec > 0.0 {
-                    (total - done) as f64 / blocks_per_sec
-                } else {
-                    0.0
-                };
-                let progress_pct = (done as f64 / total as f64) * 100.0;
-                let avg = phase_totals.averages(done);
-                info!(
-                    target: "trie::backfill::job",
-                    done,
-                    total,
-                    avg_compute = ?avg.compute,
-                    avg_prepend = ?avg.prepend,
-                    avg_validate = ?avg.validate,
-                    "progress: {progress_pct:.2}% ({blocks_per_sec:.1} blk/s, ETA {eta_secs:.0}s)"
-                );
+            let bp = self.storage.backfill_provider()?;
+
+            for block_number in (batch_low..=batch_high).rev() {
+                let timings = process_block(&bp, block_number)?;
+                phase_totals.add(timings);
+
+                let done = current_earliest.number - block_number + 1;
+                let is_final = block_number == target_earliest_block + 1;
+                if done.is_multiple_of(LOG_EVERY) || is_final {
+                    self.log_progress(start, done, total, &phase_totals);
+                }
             }
+
+            let (_, commit_duration) = timed(|| bp.commit())?;
+            // Amortize the batch's commit time across the blocks in it so per-block averages
+            // remain comparable across batch sizes. Note: intermediate `log_progress` lines
+            // fire before this add (inside the inner loop), so per-batch progress lines
+            // under-report `avg_commit` by one batch. The final summary logged after the
+            // outer loop exits is exact.
+            phase_totals.commit += commit_duration;
+            next_block = batch_end;
         }
 
         let final_avg = phase_totals.averages(total);
@@ -163,26 +202,50 @@ where
             avg_compute = ?final_avg.compute,
             avg_prepend = ?final_avg.prepend,
             avg_validate = ?final_avg.validate,
+            avg_commit = ?final_avg.commit,
+            kind,
             "Proofs backfill complete"
         );
 
         Ok(())
     }
 
-    /// Backfill a single block `E`: write its historical records and advance `earliest` to `E-1`.
-    ///
-    /// Returns the wall-clock time spent in each phase, accumulated by
-    /// [`Self::run`] into the running averages it reports.
-    fn backfill_block(&self, block_number: BlockNumber) -> Result<PhaseTimings, BackfillError> {
+    /// Per-block work for the standard backfill path. Called inside [`Self::drive_batched_loop`]
+    /// with the batch's shared open RW provider; reads in [`Self::compute_diff_via`] go through
+    /// it so same-tx writes from earlier iterations are visible.
+    fn backfill_block(
+        &self,
+        bp: &S::BackfillProvider<'_>,
+        block_number: BlockNumber,
+    ) -> Result<PhaseTimings, BackfillError> {
         let block_ref = self.resolve_block_ref(block_number)?;
-        let (diff, compute) = self.compute_diff(block_number)?;
-
-        let bp = self.storage.backfill_provider()?;
+        let (diff, compute) = self.compute_diff_via(bp, block_number)?;
         let (_, prepend) = timed(|| bp.prepend_block(block_ref, diff))?;
-        let validate = self.validate_state_root(&bp, block_number)?;
-        let (_, commit) = timed(|| bp.commit())?;
+        let validate = self.validate_state_root(bp, block_number)?;
+        Ok(PhaseTimings { compute, prepend, validate, commit: Duration::ZERO })
+    }
 
-        Ok(PhaseTimings { compute, prepend, validate, commit })
+    fn log_progress(&self, start: Instant, done: u64, total: u64, phase_totals: &PhaseTimings) {
+        let elapsed_secs = start.elapsed().as_secs_f64();
+        let blocks_per_sec =
+            if elapsed_secs.is_normal() { done as f64 / elapsed_secs } else { 0.0 };
+        let eta_secs = if blocks_per_sec.is_normal() && blocks_per_sec > 0.0 {
+            (total - done) as f64 / blocks_per_sec
+        } else {
+            0.0
+        };
+        let progress_pct = (done as f64 / total as f64) * 100.0;
+        let avg = phase_totals.averages(done);
+        info!(
+            target: "trie::backfill::job",
+            done,
+            total,
+            avg_compute = ?avg.compute,
+            avg_prepend = ?avg.prepend,
+            avg_validate = ?avg.validate,
+            avg_commit = ?avg.commit,
+            "progress: {progress_pct:.2}% ({blocks_per_sec:.1} blk/s, ETA {eta_secs:.0}s)"
+        );
     }
 
     /// Resolve the `(block, parent)` hashes for `block_number` from reth.
@@ -201,22 +264,23 @@ where
         Ok(BlockWithParent { block: NumHash::new(block_number, block_hash), parent: parent_hash })
     }
 
-    /// Compute the per-block backfill diff (trie node + leaf before-values)
-    /// and time the call.
+    /// Compute the per-block backfill diff (trie node + leaf before-values) and time the call.
     ///
-    /// Opens a fresh RO proofs provider for this iteration: it sees writes
-    /// committed by the previous `prepend_block`, so its cursor at max=N
-    /// already reflects state@N. The RO tx is dropped before the caller
-    /// opens the rw `backfill_provider` to avoid holding two transactions
-    /// against the same env.
-    fn compute_diff(
+    /// The batched [`Self::run`] passes the open RW backfill provider so cursors see writes
+    /// made earlier in the same MDBX transaction (the prepended blocks of this batch).
+    /// MDBX same-tx visibility means each `compute_diff_via(&bp, N)` sees the in-flight
+    /// `prepend_block` writes for blocks > N.
+    fn compute_diff_via<RO>(
         &self,
+        proofs_ro: &RO,
         block_number: BlockNumber,
-    ) -> Result<(BlockStateDiff, Duration), BackfillError> {
+    ) -> Result<(BlockStateDiff, Duration), BackfillError>
+    where
+        RO: OpProofsProviderRO,
+    {
         timed(|| {
-            let proofs_ro = self.storage.provider_ro()?;
             // History-aware cursors at `max_block_number = block_number`.
-            let trie_factory = OpProofsTrieCursorFactory::new(proofs_ro.clone(), block_number);
+            let trie_factory = OpProofsTrieCursorFactory::new(proofs_ro, block_number);
             let hashed_factory = OpProofsHashedAccountCursorFactory::new(proofs_ro, block_number);
             let (trie_updates, post_state) = compute_block_backfill_diff(
                 &self.provider,
@@ -293,9 +357,12 @@ where
             return Ok(());
         }
         self.ensure_snapshot_ready(current_earliest)?;
-        self.drive_loop(current_earliest, target_earliest_block, |block_number| {
-            self.backfill_block_with_snapshot(block_number)
-        })
+        self.drive_batched_loop(
+            current_earliest,
+            target_earliest_block,
+            "snapshot-accelerated",
+            |bp, n| self.backfill_block_with_snapshot(bp, n),
+        )
     }
 
     /// Ensure a `Ready` snapshot exists at `current_earliest`.
@@ -332,61 +399,53 @@ where
         Ok(())
     }
 
-    /// Snapshot-accelerated per-block backfill.
-    ///
-    /// One rw-tx per block does all four writes atomically (the order between
-    /// steps 1 and 2 is immaterial — they hit disjoint tables and both must
-    /// land for the tx to commit):
-    /// 1. `update_snapshot` — project the diff onto the snapshot tables; advance snapshot anchor to
-    ///    `E-1`.
-    /// 2. `prepend_block` — write changesets / history; advance proofs `earliest` to `E-1`.
-    /// 3. State-root validation against reth's header at `E-1` (read via snapshot cursors).
-    /// 4. Commit.
+    /// Per-block work for the snapshot-accelerated path. Reads via the open RW provider's
+    /// snapshot cursors (which see in-flight `update_snapshot` writes via MDBX same-tx
+    /// visibility), then advances snapshot anchor + proofs window in the same tx, then
+    /// validates against reth's header at `E-1`.
     fn backfill_block_with_snapshot(
         &self,
+        bp: &S::BackfillProvider<'_>,
         block_number: BlockNumber,
     ) -> Result<PhaseTimings, BackfillError> {
         let block_ref = self.resolve_block_ref(block_number)?;
-        let (diff, compute) = self.compute_diff_with_snapshot(block_number)?;
+        let (diff, compute) = self.compute_diff_with_snapshot_via(bp, block_number)?;
 
-        // After this iteration the proofs window's earliest moves from E to
-        // E-1, so the snapshot anchor advances to the parent block.
+        // After this iteration the proofs window's earliest moves from E to E-1, so the
+        // snapshot anchor advances to the parent block.
         let new_anchor = BlockNumHash::new(block_number - 1, block_ref.parent);
-        let bp = self.storage.backfill_provider()?;
 
-        // Steps 1+2: advance both the snapshot anchor and the proofs window in one tx.
+        // Advance snapshot anchor + proofs window in the same tx.
         let (_, prepend) = timed(|| -> Result<(), BackfillError> {
             bp.update_snapshot(new_anchor, &diff)?;
             bp.prepend_block(block_ref, diff)?;
             Ok(())
         })?;
 
-        // Step 3: validate against the just-updated snapshot at E-1 — same
-        // borrowed-`bp` pattern as [`Self::backfill_block`]; the cursor
-        // factories accept `&BP` via the blanket impl on
-        // [`OpProofsSnapshotProviderRO`].
-        let validate = self.validate_state_root_with_snapshot(&bp, block_number)?;
-
-        // Step 4: commit.
-        let (_, commit) = timed(|| bp.commit())?;
-
-        Ok(PhaseTimings { compute, prepend, validate, commit })
+        let validate = self.validate_state_root_with_snapshot(bp, block_number)?;
+        Ok(PhaseTimings { compute, prepend, validate, commit: Duration::ZERO })
     }
 
     /// Compute the per-block backfill diff using snapshot trie + leaf cursors.
-    fn compute_diff_with_snapshot(
+    ///
+    /// The batched [`Self::run_with_snapshot`] passes the open RW backfill provider
+    /// (which implements [`OpProofsSnapshotProviderRO`] via the trait hierarchy), so cursors
+    /// see the in-flight `update_snapshot` writes from earlier blocks in the same MDBX
+    /// transaction.
+    fn compute_diff_with_snapshot_via<SP>(
         &self,
+        sp: &SP,
         block_number: BlockNumber,
-    ) -> Result<(BlockStateDiff, Duration), BackfillError> {
-        // `block_number` is unused on the snapshot path: the snapshot reflects
-        // state at its anchor, which the caller guaranteed equals
-        // `block_number` via `ensure_snapshot_ready`.
+    ) -> Result<(BlockStateDiff, Duration), BackfillError>
+    where
+        SP: OpProofsSnapshotProviderRO,
+    {
+        // `block_number` is unused on the snapshot path: the snapshot reflects state at its
+        // anchor, which the caller guaranteed equals `block_number` via `ensure_snapshot_ready`
+        // (or via the prior iteration's `update_snapshot` advancing the anchor).
         let _ = block_number;
         timed(|| {
-            // Read-only snapshot provider — both cursor factories can share it
-            // via cheap `Clone`.
-            let sp = self.storage.snapshot_provider_ro()?;
-            let trie_factory = SnapshotTrieCursorFactory::new(sp.clone());
+            let trie_factory = SnapshotTrieCursorFactory::new(sp);
             let hashed_factory = SnapshotHashedCursorFactory::new(sp);
             let (sorted_trie_updates, sorted_post_state) = compute_block_backfill_diff(
                 &self.provider,

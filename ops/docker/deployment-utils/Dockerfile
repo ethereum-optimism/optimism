@@ -1,6 +1,7 @@
 FROM golang:1.26.4-bookworm AS go-base
 
-RUN go install github.com/tomwright/dasel/v2/cmd/dasel@master
+# go install fetches modules with no built-in retry; loop so a transient module proxy drop doesn't flake CI.
+RUN n=0; until go install github.com/tomwright/dasel/v2/cmd/dasel@master; do n=$((n+1)); [ "$n" -ge 5 ] && exit 1; echo "go install retry $n/5 in 10s" >&2; sleep 10; done
 
 FROM debian:12.7-slim AS base
 

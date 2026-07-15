@@ -233,7 +233,11 @@ func activateFork(t actionsHelpers.Testing, testCfg *helpers.TestCfg[forks.Name]
 
 	alloc, err := nutsstate.PreForkState(fork)
 	require.NoErrorf(t, err, "no committed pre-fork state for %s — generate the predecessor fork's state (see op-core/nuts/state)", fork)
-	testCfg.Allocs = &e2eutils.AllocParams{PrefundTestUsers: true, L2Alloc: alloc}
+	testCfg.Allocs = &e2eutils.AllocParams{
+		PrefundTestUsers:            true,
+		L2Alloc:                     alloc,
+		L2AllocIsFrozenPreForkState: true,
+	}
 
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), testSetup)
 

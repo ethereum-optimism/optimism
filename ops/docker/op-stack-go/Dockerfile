@@ -71,7 +71,9 @@ RUN echo "go mod cache: $(go env GOMODCACHE)"
 RUN echo "go build cache: $(go env GOCACHE)"
 
 # warm-up the cache
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go mod download
+# go mod download has no built-in retry; loop so a transient module proxy drop doesn't flake CI.
+# Already-downloaded modules are cached, so a retry only re-fetches what's missing.
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build n=0; until go mod download; do n=$((n+1)); [ "$n" -ge 5 ] && exit 1; echo "go mod download retry $n/5 in 10s" >&2; sleep 10; done
 
 # NOTE: the Dockerfile.dockerignore file effectively describes all dependencies
 COPY . /app
@@ -187,7 +189,8 @@ RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 instal
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
 WORKDIR /app
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+# go mod download has no built-in retry; loop so a transient module proxy drop doesn't flake CI.
+RUN --mount=type=cache,target=/go/pkg/mod n=0; until go mod download; do n=$((n+1)); [ "$n" -ge 5 ] && exit 1; echo "go mod download retry $n/5 in 10s" >&2; sleep 10; done
 COPY . /app
 # Install forge for the build platform (linux/glibc variant)
 RUN <<-EOF
@@ -202,6 +205,23 @@ RUN <<-EOF
     [ "${ACTUAL_SHA}" = "${EXPECTED_SHA}" ] || (echo "Forge checksum mismatch: Expected $EXPECTED_SHA, got $ACTUAL_SHA" && exit 1)
     tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge
     rm "${DOWNLOAD_PATH}"
+EOF
+# Pre-install solc versions serially (matching .circleci install-solc-compilers) so
+# forge's parallel jobs never race installing them (foundry-rs/foundry#4736).
+# `forge build --use <version>` in an empty dir installs one version, compiles nothing.
+RUN <<-EOF
+    set -e
+    cd "$(mktemp -d)"
+    # Retry: forge doesn't retry the solc download itself.
+    for version in 0.8.15 0.8.19 0.8.25 0.8.28; do
+      n=0
+      until forge build --use "${version}"; do
+        n=$((n+1))
+        [ "${n}" -ge 5 ] && exit 1
+        echo "solc ${version} install retry ${n}/5 in 2s" >&2
+        sleep 2
+      done
+    done
 EOF
 # Compile contracts and create artifacts tarball
 RUN cd packages/contracts-bedrock && forge build --skip "/**/test/**"

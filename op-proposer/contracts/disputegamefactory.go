@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -22,7 +23,9 @@ const (
 	methodCreateGame  = "create"
 	methodVersion     = "version"
 
-	methodClaim = "claimData"
+	methodGameCreator = "gameCreator"
+	methodRootClaim   = "rootClaim"
+	methodClaim       = "claimData"
 )
 
 type gameMetadata struct {
@@ -136,13 +139,28 @@ func (f *DisputeGameFactory) gameAtIndex(ctx context.Context, idx uint64) (gameM
 	gameContract := batching.NewBoundContract(f.gameABI, address)
 	cCtx, cancel = context.WithTimeout(ctx, f.networkTimeout)
 	defer cancel()
-	result, err = f.caller.SingleCall(cCtx, rpcblock.Latest, gameContract.Call(methodClaim, big.NewInt(0)))
-	if err != nil {
-		return gameMetadata{}, fmt.Errorf("failed to load root claim of game %v: %w", idx, err)
+	results, metadataErr := f.caller.Call(cCtx, rpcblock.Latest,
+		gameContract.Call(methodGameCreator),
+		gameContract.Call(methodRootClaim),
+	)
+	var claimant common.Address
+	var claim common.Hash
+	if metadataErr == nil {
+		claimant = results[0].GetAddress(0)
+		claim = results[1].GetHash(0)
+	} else {
+		cCtx, cancel = context.WithTimeout(ctx, f.networkTimeout)
+		defer cancel()
+		result, legacyErr := f.caller.SingleCall(cCtx, rpcblock.Latest, gameContract.Call(methodClaim, big.NewInt(0)))
+		if legacyErr != nil {
+			return gameMetadata{}, fmt.Errorf("failed to load game metadata for game %v: %w", idx, errors.Join(
+				fmt.Errorf("common getters failed: %w", metadataErr),
+				fmt.Errorf("legacy claimData(0) failed: %w", legacyErr),
+			))
+		}
+		claimant = result.GetAddress(2)
+		claim = result.GetHash(4)
 	}
-	// We don't need most of the claim data, only the claim and the claimant which is the game proposer
-	claimant := result.GetAddress(2)
-	claim := result.GetHash(4)
 
 	return gameMetadata{
 		GameType:  gameType,
