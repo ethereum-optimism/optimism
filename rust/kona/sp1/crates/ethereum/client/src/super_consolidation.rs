@@ -147,7 +147,7 @@ where
         l1_config: l1_config.clone(),
     };
 
-    let (headers, l2_providers) = build_providers(
+    let ConsolidationProviders { headers, l2_providers } = build_providers(
         oracle.clone(),
         &previous_super_root,
         &optimistic_blocks,
@@ -179,16 +179,19 @@ where
     })
 }
 
+#[derive(Debug)]
+struct ConsolidationProviders<C: CommsClient> {
+    headers: RegistryHashMap<u64, Sealed<Header>>,
+    l2_providers: RegistryHashMap<u64, OracleL2ChainProvider<C>>,
+}
+
 async fn build_providers<C>(
     oracle: Arc<C>,
     previous_super_root: &SuperRoot,
     optimistic_blocks: &[SuperOptimisticBlock],
     timestamp: u64,
     rollup_configs: &RegistryHashMap<u64, RollupConfig>,
-) -> anyhow::Result<(
-    RegistryHashMap<u64, Sealed<Header>>,
-    RegistryHashMap<u64, OracleL2ChainProvider<C>>,
-)>
+) -> anyhow::Result<ConsolidationProviders<C>>
 where
     C: CommsClient + Send + Sync + Debug + 'static,
 {
@@ -233,7 +236,7 @@ where
         l2_providers.insert(chain_id, l2_provider);
     }
 
-    Ok((headers, l2_providers))
+    Ok(ConsolidationProviders { headers, l2_providers })
 }
 
 fn ensure_previous_super_root_matches_optimistic_blocks(
