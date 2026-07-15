@@ -1216,7 +1216,11 @@
     },
     {
       "source": "/operators/node-operators/rollup-node",
-      "destination": "/node-operators/reference/architecture/rollup-node"
+      "destination": "/node-operators/guides/running-a-node"
+    },
+    {
+      "source": "/node-operators/reference/architecture/rollup-node",
+      "destination": "/node-operators/guides/running-a-node"
     },
     {
       "source": "/operators/node-operators/tutorials",
@@ -2037,6 +2041,7 @@
           {
             "group": "Guides",
             "pages": [
+              "node-operators/guides/running-a-node",
               {
                 "group": "Configuration",
                 "pages": [
@@ -2076,8 +2081,7 @@
               {
                 "group": "Architecture",
                 "pages": [
-                  "node-operators/reference/architecture/architecture",
-                  "node-operators/reference/architecture/rollup-node"
+                  "node-operators/reference/architecture/architecture"
                 ]
               },
               "node-operators/reference/op-node-config",
