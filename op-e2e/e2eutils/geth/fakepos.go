@@ -269,11 +269,17 @@ func (f *FakePoS) Start() error {
 						continue
 					}
 				}
-				if _, err := f.engineAPI.ForkchoiceUpdatedV3(ctx, engine.ForkchoiceStateV1{
+				fcState = engine.ForkchoiceStateV1{
 					HeadBlockHash:      envelope.ExecutionPayload.BlockHash,
 					SafeBlockHash:      safe.Hash(),
 					FinalizedBlockHash: finalized.Hash(),
-				}, nil); err != nil {
+				}
+				if isAmsterdam {
+					_, err = f.engineAPI.ForkchoiceUpdatedV4(ctx, fcState, nil)
+				} else {
+					_, err = f.engineAPI.ForkchoiceUpdatedV3(ctx, fcState, nil)
+				}
+				if err != nil {
 					f.log.Error("failed to make built L1 block canonical", "err", err)
 					continue
 				}
