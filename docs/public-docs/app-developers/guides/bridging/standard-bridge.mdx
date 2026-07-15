@@ -1,6 +1,7 @@
 ---
 title: Using the Standard Bridge
-description: Learn the basics of using the Standard Bridge to move tokens between Layer 1 and Layer 2.
+description: Learn how the Standard Bridge moves ETH and ERC-20 tokens between Layer 1 and Layer 2.
+diataxis: explanation
 ---
 
 The Standard Bridge is a basic token bridging system available on OP Mainnet and all other standard OP Stack chains.
@@ -224,40 +225,8 @@ Users simply need to trigger and send ETH to the [`bridgeETH`](https://github.co
 ## Superchain Token List
 
 The [Superchain Token List](/app-developers/reference/tokens/tokenlist) exists to help users discover the right bridged token addresses for any given native token.
-Consider checking this list to make sure that you're not using the wrong bridged representation of a token when bridging a native token.
+Because a native token may have more than one bridged representation, and different bridged representations are entirely independent tokens, using the wrong one can lock up your native tokens permanently.
+Follow the guide on [verifying bridged token addresses](/app-developers/guides/bridging/verify-bridged-tokens) to confirm that you're using the correct bridged representation of a token before bridging.
 
 Developers who are creating their own bridged tokens should consider [adding their token](https://github.com/ethereum-optimism/ethereum-optimism.github.io#adding-a-token-to-the-list) to the Superchain Token List.
 Tokens on the Superchain Token List will automatically appear on certain tools like the [Superchain Bridges UI](https://app.optimism.io/bridge?utm_source=op-docs&utm_medium=docs).
-
-### Searching the Token List
-
-You should strongly consider using the Superchain Token List to verify that you're using the correct bridged representation of a token when bridging a native token.
-Doing so can help you avoid accidentally bridging to the wrong token and locking up your native token permanently.
-
-You can easily find the bridged representation of a token for OP Mainnet on the [Bridged Token Addresses](/app-developers/reference/tokens/tokenlist) page.
-If you want to find the bridged representation of a token for another chain, use the following steps.
-
-<Steps>
-  <Step title="Find the token you want to bridge">
-The Superchain Token List is organized by the token's address and native blockchain.
-    [Search the token list](https://github.com/ethereum-optimism/ethereum-optimism.github.io/blob/master/optimism.tokenlist.json) for the token you want to bridge to confirm that it's included in the list.
-    Make sure that the chain ID in the entry matches the chain ID of the blockchain you're bridging from.
-    Retrieve the token's name and symbol from the list.
-
-  </Step>
-  
-    <Step title="Find the bridged representation of the token">
-Once you've found the token you want to bridge, look for the token's name and symbol in the list.
-    Find the entry that matches the name and symbol of the token you want to bridge and where the chain ID matches the chain ID of the blockchain you're bridging to.
-    The address of this entry is the address of the bridged representation of the token you want to bridge.
-
-  
-    </Step>
-        <Step title="Find the bridge contract address used by the token pair">
-Identify the cross-chain bridge contract address used by the token pair. 
-You can observe that some token pairs in the list utilize **custom bridge contracts** instead of the default Standard Bridge. 
-Verify the bridge contract specified in the token list entry to ensure you are interacting with the correct bridge implementation for that token.
-
-  
-    </Step>
-    </Steps>
