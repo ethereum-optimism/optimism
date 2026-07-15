@@ -148,13 +148,45 @@ func GoTypeToABIType(goType reflect.Type) (string, error) {
 	return "", fmt.Errorf("unable to convert go type to abi type: %s", goType)
 }
 
-// ConvertAnonStructToTyped returns conversion failures as errors.
+func validateStructFieldCounts(sourceType, targetType reflect.Type) error {
+	for sourceType != nil && sourceType.Kind() == reflect.Pointer {
+		sourceType = sourceType.Elem()
+	}
+	for targetType != nil && targetType.Kind() == reflect.Pointer {
+		targetType = targetType.Elem()
+	}
+
+	if sourceType == nil || targetType == nil || sourceType.Kind() != reflect.Struct || targetType.Kind() != reflect.Struct {
+		return nil
+	}
+	if sourceType.NumField() != targetType.NumField() {
+		return fmt.Errorf("struct field count mismatch: source has %d fields, target has %d fields", sourceType.NumField(), targetType.NumField())
+	}
+
+	for i := 0; i < sourceType.NumField(); i++ {
+		if err := validateStructFieldCounts(sourceType.Field(i).Type, targetType.Field(i).Type); err != nil {
+			return fmt.Errorf("field %s: %w", targetType.Field(i).Name, err)
+		}
+	}
+	return nil
+}
+
+// ConvertAnonStructToTyped converts anonStruct to T and returns conversion failures as errors.
+// The source and target must be structs with equal field counts at every corresponding struct.
 func ConvertAnonStructToTyped[T any](anonStruct any) (result T, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("cannot convert anonymous struct to %T: %v", result, r)
 		}
 	}()
+	sourceType := reflect.TypeOf(anonStruct)
+	targetType := reflect.TypeFor[T]()
+	if sourceType == nil || sourceType.Kind() != reflect.Struct || targetType.Kind() != reflect.Struct {
+		return result, fmt.Errorf("both source and target must be structs")
+	}
+	if err := validateStructFieldCounts(sourceType, targetType); err != nil {
+		return result, fmt.Errorf("cannot convert anonymous struct to %T: %w", result, err)
+	}
 	result = *abi.ConvertType(anonStruct, new(T)).(*T)
 	return result, nil
 }

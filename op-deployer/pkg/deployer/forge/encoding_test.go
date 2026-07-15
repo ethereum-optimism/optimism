@@ -19,6 +19,15 @@ type nestedTupleInput struct {
 	StartingAnchorRoot nestedTupleProposal
 }
 
+type conversionTarget struct {
+	First  uint64
+	Second uint64
+}
+
+type nestedConversionTarget struct {
+	Nested conversionTarget
+}
+
 func TestBytesScriptEncoderNestedTupleGolden(t *testing.T) {
 	input := nestedTupleInput{StartingAnchorRoot: nestedTupleProposal{
 		Root:             common.HexToHash("0x02f4397b2de6fce03b3f9982378c2b4c4deff9c92c662dcc6f9643267aeb5e47"),
@@ -45,6 +54,34 @@ func TestBytesScriptDecoderNestedTuple(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, input.StartingAnchorRoot.Root, decoded.StartingAnchorRoot.Root)
 	require.Zero(t, input.StartingAnchorRoot.L2SequenceNumber.Cmp(decoded.StartingAnchorRoot.L2SequenceNumber))
+}
+
+func TestConvertAnonStructToTypedRejectsMissingTopLevelField(t *testing.T) {
+	anonStruct := struct {
+		First uint64
+	}{First: 1}
+
+	_, err := ConvertAnonStructToTyped[conversionTarget](anonStruct)
+	require.ErrorContains(t, err, "struct field count mismatch: source has 1 fields, target has 2 fields")
+}
+
+func TestConvertAnonStructToTypedRejectsMissingNestedField(t *testing.T) {
+	anonStruct := struct {
+		Nested struct {
+			First uint64
+		}
+	}{Nested: struct{ First uint64 }{First: 1}}
+
+	_, err := ConvertAnonStructToTyped[nestedConversionTarget](anonStruct)
+	require.ErrorContains(t, err, "field Nested: struct field count mismatch: source has 1 fields, target has 2 fields")
+}
+
+func TestConvertAnonStructToTypedRejectsNonStructs(t *testing.T) {
+	_, err := ConvertAnonStructToTyped[conversionTarget](uint64(1))
+	require.EqualError(t, err, "both source and target must be structs")
+
+	_, err = ConvertAnonStructToTyped[uint64](struct{ First uint64 }{First: 1})
+	require.EqualError(t, err, "both source and target must be structs")
 }
 
 func TestGoStructToABITupleNestedTuple(t *testing.T) {
