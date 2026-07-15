@@ -139,10 +139,8 @@ fn compute_message_id(msg: &Message) -> MessageId {
             },
         )
     } else {
-        warn!(
-            target: "cfg",
-            "Rejecting oversized snappy header before decompression (MAX_GOSSIP_SIZE)"
-        );
+        // Oversized/malformed frame: take the invalid-snappy domain without logging. This path is
+        // driven by unauthenticated remote input, so it must not be able to spam warnings.
         let domain_invalid_snappy: Vec<u8> = vec![0x0, 0x0, 0x0, 0x0];
         sha256([domain_invalid_snappy.as_slice(), msg.data.as_slice()].concat().as_slice())[..20]
             .to_vec()

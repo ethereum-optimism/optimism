@@ -51,7 +51,8 @@ impl Handler for BlockHandler {
         // buffer of the declared length (up to ~4 GiB) from a tiny frame. Mirrors op-node's
         // gossip topic validator, which rejects `outLen > maxGossipSize` before decompressing.
         if snappy_decompressed_len_within_bound(&msg.data).is_none() {
-            warn!(target: "gossip", "Rejecting oversized snappy frame before decoding (MAX_GOSSIP_SIZE)");
+            // Reject without logging: this is unauthenticated remote input and must not be able to
+            // spam warnings just by being invalid.
             return (MessageAcceptance::Reject, None);
         }
 
