@@ -4,11 +4,11 @@ title: "Transform Frames into a Batch"
 
 This example walks through transforming [`Frame`][frame]s into the [`Batch`][batch] types.
 
-:::danger
+<Warning>
 Steps and handling of types with respect to chain tip, ordering of frames, re-orgs, and
 more are not covered by this example. This example solely demonstrates the most trivial
 way to transform individual [`Frame`][frame]s into a [`Batch`][batch] type.
-:::
+</Warning>
 
 ## Walkthrough
 
@@ -24,10 +24,10 @@ the first step is to decode the frame data into [`Frame`][frame]s using
 the [`Channel`][channel] can be constructed using the [`ChannelId`][channel-id]
 of the first frame.
 
-:::info
+<Info>
 [`Frame`][frame]s may also be added to a [`Channel`][channel]
 once decoded with the [`Channel::add_frame`][add-frame] method.
-:::
+</Info>
 
 When the [`Channel`][channel] is [`Channel::is_ready()`][is-ready],
 the frame data can taken from the [`Channel`][channel] using

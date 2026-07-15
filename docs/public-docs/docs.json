@@ -2524,7 +2524,9 @@
                   "rust/kona/node/run/overview",
                   "rust/kona/node/run/binary",
                   "rust/kona/node/run/docker",
-                  "rust/kona/node/run/mechanics"
+                  "rust/kona/node/run/mechanics",
+                  "rust/kona/node/run/rpc-trust",
+                  "rust/kona/node/run/sequencer"
                 ]
               },
               {
@@ -2567,6 +2569,7 @@
                 "group": "Proof SDK",
                 "pages": [
                   "rust/kona/sdk/proof/intro",
+                  "rust/kona/sdk/proof/stf",
                   "rust/kona/sdk/proof/fpvm-backend",
                   "rust/kona/sdk/proof/custom-backend",
                   "rust/kona/sdk/proof/exec-ext"
