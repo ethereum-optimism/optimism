@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -52,7 +52,7 @@ func main() {
 			if err != nil {
 				log.Crit("Failed to parse deposit event", "err", err)
 			}
-			tx := types.NewTx(reconstructedDep)
+			tx := testutils.TxFromDeposit(reconstructedDep)
 			fmt.Println("L2 Tx Hash", tx.Hash().String())
 		}
 	}

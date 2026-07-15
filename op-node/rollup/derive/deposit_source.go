@@ -5,8 +5,9 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
 var OptimisticBlockDepositSenderAddress = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0002")
@@ -86,10 +87,10 @@ func (dep *InvalidatedBlockSource) SourceHash() common.Hash {
 
 // InvalidatedBlockSourceDepositTx builds the system deposit transaction that marks an
 // optimistic block as invalidated. The output-root preimage is embedded as the tx data.
-func InvalidatedBlockSourceDepositTx(outputRootPreimage []byte) *types.Transaction {
+func InvalidatedBlockSourceDepositTx(outputRootPreimage []byte) *optypes.DepositTx {
 	outputRoot := crypto.Keccak256Hash(outputRootPreimage)
 	src := InvalidatedBlockSource{OutputRoot: outputRoot}
-	return types.NewTx(&types.DepositTx{
+	return &optypes.DepositTx{
 		SourceHash:          src.SourceHash(),
 		From:                OptimisticBlockDepositSenderAddress,
 		To:                  &common.Address{}, // to the zero address, no EVM execution.
@@ -98,5 +99,5 @@ func InvalidatedBlockSourceDepositTx(outputRootPreimage []byte) *types.Transacti
 		Gas:                 36_000,
 		IsSystemTransaction: false,
 		Data:                outputRootPreimage,
-	})
+	}
 }

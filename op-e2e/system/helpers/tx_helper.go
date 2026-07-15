@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -58,7 +59,7 @@ func SendDepositTx(t *testing.T, cfg e2esys.SystemConfig, l1Client *ethclient.Cl
 	idx := len(l1Receipt.Logs) - 1
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(l1Receipt.Logs[idx])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
-	tx = types.NewTx(reconstructedDep)
+	tx = testutils.TxFromDeposit(reconstructedDep)
 	l2Receipt, err := wait.ForReceipt(ctx, l2Client, tx.Hash(), l2Opts.ExpectedStatus)
 	require.NoError(t, err, "Waiting for deposit tx on L2")
 	t.Logf("SendDepositTx: arrived on L2")

@@ -6,10 +6,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
 // Returns a DepositEvent customized on the basis of the id parameter.
-func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *types.DepositTx {
+func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *optypes.DepositTx {
 	dataLen := rng.Int63n(10_000)
 	data := make([]byte, dataLen)
 	rng.Read(data)
@@ -24,7 +26,7 @@ func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *types.DepositTx {
 		mint = RandomETH(rng, 200)
 	}
 
-	dep := &types.DepositTx{
+	dep := &optypes.DepositTx{
 		SourceHash:          sourceHash,
 		From:                RandomAddress(rng),
 		To:                  to,
@@ -35,6 +37,22 @@ func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *types.DepositTx {
 		IsSystemTransaction: false,
 	}
 	return dep
+}
+
+// TxFromDeposit wraps an op-core deposit tx in a go-ethereum *types.Transaction, for
+// tests that still build blocks from *types.Transaction. It round-trips through the
+// canonical encoding, so it depends on go-ethereum still decoding the deposit tx type;
+// it is removed once the test suites move off *types.Transaction for deposits.
+func TxFromDeposit(dep *optypes.DepositTx) *types.Transaction {
+	raw, err := dep.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	var tx types.Transaction
+	if err := tx.UnmarshalBinary(raw); err != nil {
+		panic(err)
+	}
+	return &tx
 }
 
 // Generates an EVM log entry with the given topics and data.

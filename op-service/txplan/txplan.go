@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 )
@@ -594,7 +595,7 @@ func (tx *PlannedTx) Defaults() {
 				R:          nil,
 				S:          nil,
 			}, nil
-		case types.DepositTxType:
+		case optypes.DepositTxType:
 			return nil, errors.New("deposit tx not supported")
 		default:
 			return nil, fmt.Errorf("unrecognized tx type: %d", tx.Type.Value())
