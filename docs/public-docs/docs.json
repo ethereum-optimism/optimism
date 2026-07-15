@@ -2144,7 +2144,8 @@
             "pages": [
               "app-developers/guides/building-apps",
               "app-developers/guides/testing-apps",
-              "app-developers/guides/configuring-actions"
+              "app-developers/guides/configuring-actions",
+              "app-developers/guides/connect-wallet-to-actions"
             ]
           },
           {
@@ -2196,7 +2197,8 @@
               "app-developers/guides/bridging/basics",
               "app-developers/guides/bridging/custom-bridge",
               "app-developers/guides/bridging/messaging",
-              "app-developers/guides/bridging/standard-bridge"
+              "app-developers/guides/bridging/standard-bridge",
+              "app-developers/guides/bridging/verify-bridged-tokens"
             ]
           },
           {
