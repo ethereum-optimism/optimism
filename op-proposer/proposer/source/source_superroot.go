@@ -20,25 +20,25 @@ type SuperNodeClient interface {
 	Close()
 }
 
-// SuperNodeProposalSource fetches super root proposals from op-supernode instances.
+// SuperRootProposalSource fetches super root proposals from op-supernode instances.
 // It supports multiple clients for fault tolerance, querying them in parallel for sync status
 // and falling back to subsequent clients for proposals if earlier ones fail.
-type SuperNodeProposalSource struct {
+type SuperRootProposalSource struct {
 	log     log.Logger
 	clients []SuperNodeClient
 }
 
-func NewSuperNodeProposalSource(logger log.Logger, clients ...SuperNodeClient) *SuperNodeProposalSource {
+func NewSuperRootProposalSource(logger log.Logger, clients ...SuperNodeClient) *SuperRootProposalSource {
 	if len(clients) == 0 {
 		panic("no supernode clients provided")
 	}
-	return &SuperNodeProposalSource{
+	return &SuperRootProposalSource{
 		log:     logger,
 		clients: clients,
 	}
 }
 
-type supernodeStatusResult struct {
+type superRootStatusResult struct {
 	idx  int
 	resp eth.SuperRootAtTimestampResponse
 	err  error
@@ -46,17 +46,17 @@ type supernodeStatusResult struct {
 
 // SyncStatus returns the current L1 view and the safe/finalized L2 timestamps as reported by the supernode.
 // The timestamps are precomputed by the supernode as the conservative minimum across the dependency set.
-func (s *SuperNodeProposalSource) SyncStatus(ctx context.Context) (SyncStatus, error) {
+func (s *SuperRootProposalSource) SyncStatus(ctx context.Context) (SyncStatus, error) {
 	now := uint64(time.Now().Unix())
 
 	var wg sync.WaitGroup
-	results := make(chan supernodeStatusResult, len(s.clients))
+	results := make(chan superRootStatusResult, len(s.clients))
 	wg.Add(len(s.clients))
 	for i, client := range s.clients {
 		go func() {
 			defer wg.Done()
 			resp, err := client.SuperRootAtTimestamp(ctx, now)
-			results <- supernodeStatusResult{
+			results <- superRootStatusResult{
 				idx:  i,
 				resp: resp,
 				err:  err,
@@ -96,7 +96,7 @@ func (s *SuperNodeProposalSource) SyncStatus(ctx context.Context) (SyncStatus, e
 
 // ProposalAtSequenceNum fetches the super-root proposal at the given timestamp.
 // It fails over across supernode clients until it finds a response with valid super-root data.
-func (s *SuperNodeProposalSource) ProposalAtSequenceNum(ctx context.Context, timestamp uint64) (Proposal, error) {
+func (s *SuperRootProposalSource) ProposalAtSequenceNum(ctx context.Context, timestamp uint64) (Proposal, error) {
 	var errs []error
 	for i, client := range s.clients {
 		resp, err := client.SuperRootAtTimestamp(ctx, timestamp)
@@ -139,7 +139,7 @@ func (s *SuperNodeProposalSource) ProposalAtSequenceNum(ctx context.Context, tim
 	return Proposal{}, fmt.Errorf("no available proposal sources: %w", errors.Join(errs...))
 }
 
-func (s *SuperNodeProposalSource) Close() {
+func (s *SuperRootProposalSource) Close() {
 	for _, client := range s.clients {
 		client.Close()
 	}
