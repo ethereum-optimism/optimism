@@ -11,13 +11,17 @@ For **what** snapshots are available and their download links, see the [Snapshot
 
 ## When to use a snapshot
 
-You don't always need one. [Snap sync](/node-operators/guides/management/snap-sync) bootstraps a full `op-geth` node without a snapshot, and [Nethermind](https://docs.nethermind.io/get-started/running-node/l2-networks#op-stack) downloads what it needs automatically.
+<Warning>
+  `op-geth` has [reached end of support](/notices/op-geth-deprecation) and does not support the Karst hardfork. This guide assumes an `op-reth` node.
+</Warning>
+
+You don't always need one. With [execution-layer sync](/node-operators/guides/management/snap-sync) — `--syncmode=execution-layer` and `--l2.enginekind=reth` on `op-node` — `op-reth` retrieves blocks over the P2P network instead of deriving each one, which makes the initial sync much faster and, on most OP Stack chains, needs no snapshot at all. [Nethermind](https://docs.nethermind.io/get-started/running-node/l2-networks#op-stack) downloads what it needs automatically.
 
 Use a snapshot when:
 
-*   You are running an **archive node**, or otherwise need to trace the entire chain with `op-reth` or `op-geth`.
-*   You are syncing **OP Mainnet with `op-reth`** on a fresh data directory — a snapshot satisfies the pre-Bedrock state import requirement in one step.
-*   You simply want to skip days of initial sync: OP Mainnet is roughly 700 GB for a full node, and syncing it from scratch takes days.
+*   You are syncing **OP Mainnet with `op-reth`** on a fresh data directory — a snapshot satisfies the [pre-Bedrock state import requirement](/rust/op-reth/run/faq/sync-op-mainnet) in one step, even when execution-layer sync is enabled.
+*   You are running an **archive node**, or otherwise need to trace the entire chain.
+*   You simply want to skip the initial sync entirely: OP Mainnet is roughly 700 GB for a full node, and even execution-layer sync takes days from scratch.
 
 ## Before you begin
 
@@ -29,7 +33,7 @@ Use a snapshot when:
 
 <Steps>
   <Step title="Pick a snapshot">
-    Browse the OP Labs managed [Data Directories website](https://datadirs.optimism.io/) and pick a recent snapshot matching your network and client. The geth snapshots are configured for pebbleDB and the hash state scheme, so make sure your client configuration matches. The [Snapshots reference page](/op-mainnet/network-information/snapshots) lists the available sources, including third-party providers.
+    Browse the OP Labs managed [Data Directories website](https://datadirs.optimism.io/) and pick a recent snapshot matching your network and client — for a current node that means an `op-reth` snapshot, since [`op-geth` is no longer supported](/notices/op-geth-deprecation). The [Snapshots reference page](/op-mainnet/network-information/snapshots) lists the available sources, including third-party providers.
   </Step>
 
   <Step title="Download and verify it">
@@ -59,7 +63,7 @@ Use a snapshot when:
     tar -I zstd -xvf <snapshot-file>.tar.zst -C <datadir> --strip-components=1
     ```
 
-    `--strip-components=1` removes the top-level wrapping directory inside the tarball. If the inspection shows files already at the archive root, omit it. Use the same path your client is configured with (for example the `--datadir` flag for `op-reth` and `op-geth`).
+    `--strip-components=1` removes the top-level wrapping directory inside the tarball. If the inspection shows files already at the archive root, omit it. Use the same path your client is configured with (the `--datadir` flag for `op-reth`).
   </Step>
 
   <Step title="Start the node and confirm it picked up the snapshot">
