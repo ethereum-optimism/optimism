@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/triedb/hashdb"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -195,12 +196,12 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 		require.Equal(t, payload.BlockHash, engine.LatestHeader(t).Hash(), "now payload is canonical")
 	}
 	buildBlock(false)
-	require.Zero(t, len(engine.BlockByNumber(t, engine.LatestHeader(t).Number.Uint64()).Transactions()), "no tx included")
+	require.Zero(t, len(engine.BlockByNumber(t, bigs.Uint64Strict(engine.LatestHeader(t).Number)).Transactions()), "no tx included")
 	buildBlock(true)
-	require.Equal(gt, 1, len(engine.BlockByNumber(t, engine.LatestHeader(t).Number.Uint64()).Transactions()), "tx from alice is included")
+	require.Equal(gt, 1, len(engine.BlockByNumber(t, bigs.Uint64Strict(engine.LatestHeader(t).Number)).Transactions()), "tx from alice is included")
 	buildBlock(false)
-	require.Zero(t, len(engine.BlockByNumber(t, engine.LatestHeader(t).Number.Uint64()).Transactions()), "no tx included")
-	require.Equal(t, uint64(3), engine.LatestHeader(t).Number.Uint64(), "built 3 blocks")
+	require.Zero(t, len(engine.BlockByNumber(t, bigs.Uint64Strict(engine.LatestHeader(t).Number)).Transactions()), "no tx included")
+	require.Equal(t, uint64(3), bigs.Uint64Strict(engine.LatestHeader(t).Number), "built 3 blocks")
 }
 
 func TestL2EngineAPIFail(gt *testing.T) {

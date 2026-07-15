@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -44,13 +45,13 @@ func TestSequencerBuildsOnRethEngine(gt *testing.T) {
 	sequencer.ActL2PipelineFull(t)
 
 	// Genesis is the starting head, read back over the socket via the L2Chain() replacement.
-	require.EqualValues(t, 0, engine.LatestHeader(t).Number.Uint64())
+	require.EqualValues(t, 0, bigs.Uint64Strict(engine.LatestHeader(t).Number))
 
 	// Two deposit-only (empty) blocks: the sequencer opens a payload (FCU-with-attrs), the engine
 	// seals it (getPayload), op-node imports it (newPayload) and advances the head (FCU).
 	sequencer.ActL2EmptyBlock(t)
 	sequencer.ActL2EmptyBlock(t)
-	require.EqualValues(t, 2, engine.LatestHeader(t).Number.Uint64())
+	require.EqualValues(t, 2, bigs.Uint64Strict(engine.LatestHeader(t).Number))
 
 	// A third block that includes a user transaction, exercising the parking buffer:
 	// EthClient().SendTransaction parks it; ActL2IncludeTx drains it via optest_includeNextTx.
@@ -77,7 +78,7 @@ func TestSequencerBuildsOnRethEngine(gt *testing.T) {
 	sequencer.ActL2EndBlock(t)
 
 	head := engine.LatestHeader(t)
-	require.EqualValues(t, 3, head.Number.Uint64())
+	require.EqualValues(t, 3, bigs.Uint64Strict(head.Number))
 
 	// The user tx was executed: Alice's nonce advanced and Bob received the ether.
 	aliceNonce, err := cl.NonceAt(t.Ctx(), dp.Addresses.Alice, nil)

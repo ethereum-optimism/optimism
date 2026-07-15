@@ -184,11 +184,6 @@ func aliceSimpleBlobTx(t helpers.Testing, dp *e2eutils.DeployParams) *types.Tran
 	return tx
 }
 
-func newEngine(t helpers.Testing, sd *e2eutils.SetupData, log log.Logger) *helpers.L2Engine {
-	jwtPath := e2eutils.WriteDefaultJWT(t)
-	return helpers.NewL2Engine(t, log, sd.L2Cfg, jwtPath)
-}
-
 // TestDencunBlobTxInclusion tries to include a Blob tx in an L2 block; the EL must reject it.
 //
 // The op-geth-specific rejection layers a blob tx used to hit — the RPC filter (former

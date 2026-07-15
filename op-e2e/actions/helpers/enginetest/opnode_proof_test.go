@@ -14,6 +14,7 @@ import (
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/engineipc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -92,7 +93,7 @@ func TestOpNodeVerifiesRethProofs(t *testing.T) {
 	require.Equal(t, common.Hash(*info1.WithdrawalsRoot()), mp.StorageHash,
 		"Isthmus withdrawals root equals the message-passer storage root")
 	require.Len(t, mp.StorageProof, 1)
-	require.EqualValues(t, 1, mp.StorageProof[0].Value.ToInt().Uint64(), "seeded message-passer slot 0 == 1")
+	require.EqualValues(t, 1, bigs.Uint64Strict(mp.StorageProof[0].Value.ToInt()), "seeded message-passer slot 0 == 1")
 
 	// Account reads through the go-ethereum ethclient (the switch's L2Engine.EthClient()): nonce,
 	// code, storage, and balance, each served at a historical block.
@@ -108,7 +109,7 @@ func TestOpNodeVerifiesRethProofs(t *testing.T) {
 
 	storageVal, err := gethEth.StorageAt(ctx, messagePasserAddr, slot0, big.NewInt(1))
 	require.NoError(t, err)
-	require.EqualValues(t, 1, new(big.Int).SetBytes(storageVal).Uint64(), "eth_getStorageAt returns seeded slot 0")
+	require.EqualValues(t, 1, bigs.Uint64Strict(new(big.Int).SetBytes(storageVal)), "eth_getStorageAt returns seeded slot 0")
 
 	// Balance is served and strictly decreases as the funded account pays for each block's user tx.
 	bal1, err := gethEth.BalanceAt(ctx, funded, big.NewInt(1))

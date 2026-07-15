@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/engineipc"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -166,7 +167,7 @@ func TestOpNodeDecodesRethBlocks(t *testing.T) {
 	// eth_chainId is served for op-node's ChainID().
 	cid, err := ethCl.ChainID(ctx)
 	require.NoError(t, err)
-	require.EqualValues(t, chainID, cid.Uint64())
+	require.EqualValues(t, chainID, bigs.Uint64Strict(cid))
 }
 
 // --- socket drive helpers (mirror the engineipc smoke test) ---
