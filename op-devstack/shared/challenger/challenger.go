@@ -167,6 +167,13 @@ func WithFactoryAddress(addr common.Address) Option {
 	}
 }
 
+func WithSuperRPC(endpoint string) Option {
+	return func(_ context.Context, c *config.Config) error {
+		c.SuperRPC = endpoint
+		return nil
+	}
+}
+
 // WithPermissionedCannonConfig wires the Cannon VM config used by the PermissionedCannon game
 // type. The legacy fault-proof program is no longer referenced — the prestate is a dummy and the
 // server is unused.
