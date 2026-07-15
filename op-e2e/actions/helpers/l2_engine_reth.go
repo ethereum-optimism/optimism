@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
@@ -61,6 +62,23 @@ func RethBackendSelected() bool {
 type rethBackend struct {
 	proc   *engineipc.Proc
 	client *rpc.Client
+	log    log.Logger
+
+	// id identifies this engine to the in-process peer registry that stands in for devp2p. The
+	// ephemeral reth engines have no networking, so peering — and the EL sync it enables — is
+	// emulated here rather than run over a real p2p stack.
+	id enode.ID
+
+	mu           sync.Mutex
+	peers        map[enode.ID]*rethBackend // engines this one is peered with (both directions)
+	pumpCancels  []context.CancelFunc      // one per peer sync pump
+	pumpWG       sync.WaitGroup
+	shutdownOnce sync.Once
+	// syncSeen maps the hash of every payload op-node has submitted via engine_newPayload to its
+	// block number, so a subsequent forkchoice update that reports SYNCING can be logged with the
+	// head's number — reproducing the in-process op-geth engine API's "Forkchoice requested sync to
+	// new head" line the EL-sync tests assert on.
+	syncSeen map[common.Hash]uint64
 }
 
 var (
@@ -130,11 +148,20 @@ func newRethL2Engine(t Testing, logger log.Logger, genesis *core.Genesis) *L2Eng
 
 	proc, err := engineipc.Spawn(binPath, []string{"--genesis", genesisPath}, &engineLogWriter{log: logger}, nil)
 	require.NoError(t, err, "spawn op-reth-test-engine")
-	t.Cleanup(proc.Close)
+
+	reth := &rethBackend{
+		proc:   proc,
+		client: proc.Client(),
+		log:    logger,
+		id:     randomEnodeID(),
+		peers:  make(map[enode.ID]*rethBackend),
+	}
+	registerRethPeer(reth)
+	t.Cleanup(reth.shutdown)
 
 	return &L2Engine{
 		log:      logger,
-		reth:     &rethBackend{proc: proc, client: proc.Client()},
+		reth:     reth,
 		l2Signer: types.LatestSigner(genesis.Config),
 	}
 }

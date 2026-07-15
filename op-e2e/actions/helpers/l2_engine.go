@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"os"
 
@@ -149,16 +150,29 @@ func (s *L2Engine) L2Chain() *core.BlockChain {
 	return s.l2Chain
 }
 
+// Enode returns a handle that identifies this engine to a peer's AddPeers. On the reth backend the
+// engines have no devp2p, so this is a synthetic record carrying only an id the peer registry
+// resolves back to this engine; on geth it is the real local node record.
 func (s *L2Engine) Enode() *enode.Node {
 	if s.reth != nil {
-		panic("reth backend: EL-sync p2p is emulated by the Go sync pump, not yet wired")
+		return s.reth.node()
 	}
 	return s.node.Server().LocalNode().Node()
 }
 
+// AddPeers peers this engine with the given nodes. On the reth backend it resolves each node to the
+// reth engine it identifies and starts an in-process sync pump that stands in for devp2p EL sync
+// (see l2_engine_reth_sync.go); on geth it dials the real peers.
 func (s *L2Engine) AddPeers(peers ...*enode.Node) {
 	if s.reth != nil {
-		panic("reth backend: EL-sync p2p is emulated by the Go sync pump, not yet wired")
+		for _, en := range peers {
+			peer := lookupRethPeer(en.ID())
+			if peer == nil {
+				panic(fmt.Sprintf("reth backend: peer enode %s is not a reth engine in this process", en.ID()))
+			}
+			s.reth.addPeer(peer)
+		}
+		return
 	}
 	for _, en := range peers {
 		s.node.Server().AddPeer(en)
@@ -167,7 +181,7 @@ func (s *L2Engine) AddPeers(peers ...*enode.Node) {
 
 func (s *L2Engine) PeerCount() int {
 	if s.reth != nil {
-		return 0
+		return s.reth.peerCount()
 	}
 	return s.node.Server().PeerCount()
 }
@@ -198,7 +212,9 @@ func (s *L2Engine) GethClient() *gethclient.Client {
 func (e *L2Engine) RPCClient() client.RPC {
 	var base client.RPC
 	if e.reth != nil {
-		base = client.NewBaseRPCClient(e.reth.client)
+		// Wrap the engine RPC so a forkchoice update that reports SYNCING reproduces the geth
+		// engine API's "Forkchoice requested sync to new head" log the EL-sync tests assert on.
+		base = elSyncLogRPC{RPC: client.NewBaseRPCClient(e.reth.client), b: e.reth}
 	} else {
 		base = client.NewBaseRPCClient(e.node.Attach())
 	}
@@ -374,7 +390,7 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 
 func (e *L2Engine) Close() error {
 	if e.reth != nil {
-		e.reth.proc.Close()
+		e.reth.shutdown()
 		return nil
 	}
 	return e.node.Close()
