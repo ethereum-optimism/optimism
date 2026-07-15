@@ -3,6 +3,7 @@ package helpers
 import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/gethengine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
@@ -24,7 +25,7 @@ import (
 // and the consolidation step is covered against a real dependency set by the ConsolidateStep cases
 // in op-acceptance-tests' superfaultproofs suite; re-proving it for every transition here would
 // double the suite's kona-host invocations for a single-chain no-op.
-func WithSuperDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2Verifier, l2Eng *helpers.L2Engine) FixtureInputParam {
+func WithSuperDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpers.L2Verifier, l2Eng *gethengine.L2Engine) FixtureInputParam {
 	return func(f *FixtureInputs) {
 		cfg := l2.RollupCfg
 		require.Greater(t, l2ClaimBlockNum, cfg.Genesis.L2.Number,

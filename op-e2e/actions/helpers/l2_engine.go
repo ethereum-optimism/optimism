@@ -1,52 +1,32 @@
 package helpers
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
-	"os"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers/engineapi"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	geth "github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
-	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-// L2Engine is an implementation of the Engine API backed by either an in-process op-geth node or an
-// out-of-process op-reth-test-engine subprocess (selected by OP_E2E_ACTIONS_EL), without support
-// for snap-sync, and no concurrency or background processes.
+// L2Engine is an implementation of the Engine API backed by an out-of-process
+// op-reth-test-engine subprocess, driven over a Unix socket, without support for snap-sync, and
+// no concurrency or background processes.
 type L2Engine struct {
 	log log.Logger
 
-	// geth backend — the in-process op-geth EL. Nil when the reth backend is active.
-	node *node.Node
-	Eth  *geth.Ethereum
-	// L2 evm / chain
-	l2Chain   *core.BlockChain
-	EngineApi *engineapi.L2EngineAPI
-
-	// reth backend — the out-of-process op-reth-test-engine subprocess. Nil when the geth backend
-	// is active.
 	reth *rethBackend
 
 	l2Signer types.Signer
@@ -54,170 +34,52 @@ type L2Engine struct {
 	FailL2RPC func(call []rpc.BatchElem) error // mock error
 }
 
-type EngineOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
-
-func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, jwtPath string, options ...EngineOption) *L2Engine {
-	if rethBackendSelected() {
-		// The reth backend serves the engine over its own socket; the geth-only EngineOptions
-		// (P2P, ethconfig tweaks) and the JWT do not apply to it.
-		return newRethL2Engine(t, log, genesis)
-	}
-	n, ethBackend, apiBackend := newBackend(t, genesis, jwtPath, options)
-	engineApi := engineapi.NewL2EngineAPI(log, apiBackend, ethBackend.Downloader())
-	chain := ethBackend.BlockChain()
-	eng := &L2Engine{
-		log:       log,
-		node:      n,
-		Eth:       ethBackend,
-		l2Chain:   chain,
-		l2Signer:  types.LatestSigner(genesis.Config),
-		EngineApi: engineApi,
-	}
-	// register the custom engine API, so we can serve engine requests while having more control
-	// over sequencing of individual txs.
-	n.RegisterAPIs([]rpc.API{
-		{
-			Namespace:     "engine",
-			Service:       eng.EngineApi,
-			Authenticated: true,
-		},
-	})
-	require.NoError(t, n.Start(), "failed to start L2 op-geth node")
-
-	return eng
+// NewL2Engine spawns a fresh op-reth-test-engine subprocess over the given genesis and returns the
+// L2Engine handle driving it. The engine is ephemeral: it keeps no state across processes.
+func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis) *L2Engine {
+	return newRethL2Engine(t, log, genesis)
 }
 
-func newBackend(t e2eutils.TestingBase, genesis *core.Genesis, jwtPath string, options []EngineOption) (*node.Node, *geth.Ethereum, *engineApiBackend) {
-	ethCfg := &ethconfig.Config{
-		NetworkId:   bigs.Uint64Strict(genesis.Config.ChainID),
-		Genesis:     genesis,
-		StateScheme: rawdb.HashScheme,
-		NoPruning:   true,
-		// Record trie-key preimages when generating pre-fork state artifacts, so
-		// the post-activation state can be enumerated and dumped. Off otherwise to
-		// avoid the recording overhead in normal test runs.
-		Preimages: os.Getenv("OP_E2E_GEN_PREFORK_STATE") != "",
-	}
-	nodeCfg := &node.Config{
-		Name:        "l2-geth",
-		WSHost:      "127.0.0.1",
-		WSPort:      0,
-		HTTPHost:    "127.0.0.1",
-		HTTPPort:    0,
-		AuthAddr:    "127.0.0.1",
-		AuthPort:    0,
-		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal"},
-		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal"},
-		JWTSecret:   jwtPath,
-	}
-	for i, opt := range options {
-		require.NoError(t, opt(ethCfg, nodeCfg), "engine option %d failed", i)
-	}
-	n, err := node.New(nodeCfg)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = n.Close()
-	})
-	backend, err := geth.New(n, ethCfg)
-	require.NoError(t, err)
-	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
-
-	chain := backend.BlockChain()
-	db := backend.ChainDb()
-	apiBackend := &engineApiBackend{
-		BlockChain: chain,
-		db:         db,
-		genesis:    genesis,
-	}
-	return n, backend, apiBackend
-}
-
-type engineApiBackend struct {
-	*core.BlockChain
-	db      ethdb.Database
-	genesis *core.Genesis
-}
-
-func (e *engineApiBackend) Database() ethdb.Database {
-	return e.db
-}
-
-func (e *engineApiBackend) Genesis() *core.Genesis {
-	return e.genesis
-}
-
-func (s *L2Engine) L2Chain() *core.BlockChain {
-	return s.l2Chain
-}
-
-// Enode returns a handle that identifies this engine to a peer's AddPeers. On the reth backend the
-// engines have no devp2p, so this is a synthetic record carrying only an id the peer registry
-// resolves back to this engine; on geth it is the real local node record.
+// Enode returns a handle that identifies this engine to a peer's AddPeers. The engines have no
+// devp2p, so this is a synthetic record carrying only an id the peer registry resolves back to
+// this engine.
 func (s *L2Engine) Enode() *enode.Node {
-	if s.reth != nil {
-		return s.reth.node()
-	}
-	return s.node.Server().LocalNode().Node()
+	return s.reth.node()
 }
 
-// AddPeers peers this engine with the given nodes. On the reth backend it resolves each node to the
-// reth engine it identifies and starts an in-process sync pump that stands in for devp2p EL sync
-// (see l2_engine_reth_sync.go); on geth it dials the real peers.
+// AddPeers peers this engine with the given nodes. It resolves each node to the engine it
+// identifies and starts an in-process sync pump that stands in for devp2p EL sync (see
+// l2_engine_reth_sync.go).
 func (s *L2Engine) AddPeers(peers ...*enode.Node) {
-	if s.reth != nil {
-		for _, en := range peers {
-			peer := lookupRethPeer(en.ID())
-			if peer == nil {
-				panic(fmt.Sprintf("reth backend: peer enode %s is not a reth engine in this process", en.ID()))
-			}
-			s.reth.addPeer(peer)
-		}
-		return
-	}
 	for _, en := range peers {
-		s.node.Server().AddPeer(en)
+		peer := lookupRethPeer(en.ID())
+		if peer == nil {
+			panic(fmt.Sprintf("peer enode %s is not a reth engine in this process", en.ID()))
+		}
+		s.reth.addPeer(peer)
 	}
 }
 
 func (s *L2Engine) PeerCount() int {
-	if s.reth != nil {
-		return s.reth.peerCount()
-	}
-	return s.node.Server().PeerCount()
+	return s.reth.peerCount()
 }
 
 func (s *L2Engine) HTTPEndpoint() string {
-	if s.reth != nil {
-		panic("reth backend: HTTP endpoint (kona-host) not yet served")
-	}
-	return s.node.HTTPEndpoint()
+	panic("reth backend: HTTP endpoint (kona-host) not yet served")
 }
 
 func (s *L2Engine) EthClient() *ethclient.Client {
-	if s.reth != nil {
-		return ethclient.NewClient(s.reth.client)
-	}
-	cl := s.node.Attach()
-	return ethclient.NewClient(cl)
+	return ethclient.NewClient(s.reth.client)
 }
 
 func (s *L2Engine) GethClient() *gethclient.Client {
-	if s.reth != nil {
-		return gethclient.New(s.reth.client)
-	}
-	cl := s.node.Attach()
-	return gethclient.New(cl)
+	return gethclient.New(s.reth.client)
 }
 
 func (e *L2Engine) RPCClient() client.RPC {
-	var base client.RPC
-	if e.reth != nil {
-		// Wrap the engine RPC so a forkchoice update that reports SYNCING reproduces the geth
-		// engine API's "Forkchoice requested sync to new head" log the EL-sync tests assert on.
-		base = elSyncLogRPC{RPC: client.NewBaseRPCClient(e.reth.client), b: e.reth}
-	} else {
-		base = client.NewBaseRPCClient(e.node.Attach())
-	}
+	// Wrap the engine RPC so a forkchoice update that reports SYNCING reproduces the
+	// "Forkchoice requested sync to new head" log the EL-sync tests assert on.
+	var base client.RPC = elSyncLogRPC{RPC: client.NewBaseRPCClient(e.reth.client), b: e.reth}
 	return testutils.RPCErrFaker{
 		RPC: base,
 		ErrFn: func(call []rpc.BatchElem) error {
@@ -229,18 +91,17 @@ func (e *L2Engine) RPCClient() client.RPC {
 	}
 }
 
-// LatestHeader returns the current unsafe (canonical head) L2 header. It is backend-agnostic (it
-// reads over the eth RPC), so it replaces the geth-only e.L2Chain().CurrentBlock()/CurrentHeader().
+// LatestHeader returns the current unsafe (canonical head) L2 header, read over the eth RPC.
 func (e *L2Engine) LatestHeader(t Testing) *types.Header {
 	return e.headerByLabel(t, rpc.LatestBlockNumber)
 }
 
-// SafeHeader returns the current safe L2 header, replacing e.L2Chain().CurrentSafeBlock().
+// SafeHeader returns the current safe L2 header.
 func (e *L2Engine) SafeHeader(t Testing) *types.Header {
 	return e.headerByLabel(t, rpc.SafeBlockNumber)
 }
 
-// FinalizedHeader returns the current finalized L2 header, replacing e.L2Chain().CurrentFinalBlock().
+// FinalizedHeader returns the current finalized L2 header.
 func (e *L2Engine) FinalizedHeader(t Testing) *types.Header {
 	return e.headerByLabel(t, rpc.FinalizedBlockNumber)
 }
@@ -251,56 +112,36 @@ func (e *L2Engine) headerByLabel(t Testing, label rpc.BlockNumber) *types.Header
 	return h
 }
 
-// BlockByNumber returns the canonical L2 block at height n over the eth RPC, replacing the
-// geth-only e.L2Chain().GetBlockByNumber(n).
+// BlockByNumber returns the canonical L2 block at height n over the eth RPC.
 func (e *L2Engine) BlockByNumber(t Testing, n uint64) *types.Block {
 	b, err := e.EthClient().BlockByNumber(t.Ctx(), new(big.Int).SetUint64(n))
 	require.NoError(t, err, "block %d", n)
 	return b
 }
 
-// GenesisBlock returns the L2 genesis block, replacing e.L2Chain().Genesis().
+// GenesisBlock returns the L2 genesis block.
 func (e *L2Engine) GenesisBlock(t Testing) *types.Block {
 	return e.BlockByNumber(t, 0)
 }
 
-// RemainingBlockGas returns the gas still available in the block currently being built. It is
-// backend-agnostic: on the reth backend it queries optest_remainingBlockGas, replacing the
-// geth-only e.EngineApi.RemainingBlockGas().
+// RemainingBlockGas returns the gas still available in the block currently being built
+// (optest_remainingBlockGas).
 func (e *L2Engine) RemainingBlockGas(t Testing) uint64 {
-	if e.reth != nil {
-		return e.reth.remainingBlockGas(t)
-	}
-	return e.EngineApi.RemainingBlockGas()
+	return e.reth.remainingBlockGas(t)
 }
 
-// ForcedEmpty reports whether the block currently being built is forced to stay empty. It is
-// backend-agnostic: on the reth backend it queries optest_forcedEmpty, replacing the geth-only
-// e.EngineApi.ForcedEmpty().
+// ForcedEmpty reports whether the block currently being built is forced to stay empty
+// (optest_forcedEmpty).
 func (e *L2Engine) ForcedEmpty(t Testing) bool {
-	if e.reth != nil {
-		return e.reth.forcedEmpty(t)
-	}
-	return e.EngineApi.ForcedEmpty()
-}
-
-// IsReth reports whether this engine is backed by the out-of-process op-reth-test-engine rather
-// than the in-process op-geth EL. Tests use it only where the two ELs reject an input with
-// genuinely different, irreducible messages.
-func (e *L2Engine) IsReth() bool {
-	return e.reth != nil
+	return e.reth.forcedEmpty(t)
 }
 
 // IncludeTxErr submits tx directly into the block currently being built and returns the resulting
-// error (nil if it was included). Unlike ActL2IncludeTx it consults neither the tx-pool nor the
-// parking buffer and does not map errors to InvalidAction; tests use it to assert that a specific
-// transaction is rejected at inclusion time.
+// error (nil if it was included). Unlike ActL2IncludeTx it consults neither the parking buffer nor
+// the force-empty flag and does not map errors to InvalidAction; tests use it to assert that a
+// specific transaction is rejected at inclusion time.
 func (e *L2Engine) IncludeTxErr(t Testing, tx *types.Transaction, from common.Address) error {
-	if e.reth != nil {
-		return e.reth.includeTxErr(t, tx)
-	}
-	_, err := e.EngineApi.IncludeTx(tx, from)
-	return err
+	return e.reth.includeTxErr(t, tx)
 }
 
 func (e *L2Engine) EngineClient(t Testing, cfg *rollup.Config) *sources.EngineClient {
@@ -327,71 +168,29 @@ func (e *L2Engine) ActL2RPCFail(t Testing, err error) {
 	}
 }
 
-// ActL2IncludeTxIgnoreForcedEmpty includes the next transaction from the given address in the block that is being built,
-// skipping the usual check for e.EngineApi.ForcedEmpty()
+// ActL2IncludeTxIgnoreForcedEmpty includes the next transaction from the given address in the
+// block that is being built, skipping the usual force-empty check.
 func (e *L2Engine) ActL2IncludeTxIgnoreForcedEmpty(from common.Address) Action {
 	return func(t Testing) {
-		if e.reth != nil {
-			prev := e.reth.forcedEmpty(t)
-			e.reth.setForceEmpty(t, false) // ensure the engine can include it
-			e.reth.includeNextTx(t, from)
-			e.reth.setForceEmpty(t, prev)
-			return
-		}
-		if e.EngineApi.ForcedEmpty() {
-			e.log.Info("Ignoring e.L2ForceEmpty=true")
-		}
-
-		require.NoError(t, e.Eth.TxPool().Sync(), "must sync tx-pool to get accurate pending txs")
-		tx := firstValidTx(t, from, e.EngineApi.PendingIndices, e.Eth.TxPool().ContentFrom, e.EthClient().NonceAt)
-		prevState := e.EngineApi.ForcedEmpty()
-		e.EngineApi.SetForceEmpty(false) // ensure the engine API can include it
-		_, err := e.EngineApi.IncludeTx(tx, from)
-		e.EngineApi.SetForceEmpty(prevState)
-		if errors.Is(err, engineapi.ErrNotBuildingBlock) {
-			t.InvalidAction(err.Error())
-		} else if errors.Is(err, engineapi.ErrUsesTooMuchGas) {
-			t.InvalidAction("included tx uses too much gas: %v", err)
-		} else if err != nil {
-			require.NoError(t, err, "include tx")
-		}
+		prev := e.reth.forcedEmpty(t)
+		e.reth.setForceEmpty(t, false) // ensure the engine can include it
+		e.reth.includeNextTx(t, from)
+		e.reth.setForceEmpty(t, prev)
 	}
 }
 
 // ActL2IncludeTx includes the next transaction from the given address in the block that is being built
 func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 	return func(t Testing) {
-		if e.reth != nil {
-			if e.reth.forcedEmpty(t) {
-				e.log.Info("Skipping including a transaction because forced-empty is set")
-				return
-			}
-			e.reth.includeNextTx(t, from)
+		if e.reth.forcedEmpty(t) {
+			e.log.Info("Skipping including a transaction because forced-empty is set")
 			return
 		}
-
-		if e.EngineApi.ForcedEmpty() {
-			e.log.Info("Skipping including a transaction because e.L2ForceEmpty is true")
-			return
-		}
-
-		require.NoError(t, e.Eth.TxPool().Sync(), "must sync tx-pool to get accurate pending txs")
-		tx := firstValidTx(t, from, e.EngineApi.PendingIndices, e.Eth.TxPool().ContentFrom, e.EthClient().NonceAt)
-		_, err := e.EngineApi.IncludeTx(tx, from)
-		if errors.Is(err, engineapi.ErrNotBuildingBlock) {
-			t.InvalidAction(err.Error())
-		} else if errors.Is(err, engineapi.ErrUsesTooMuchGas) {
-			t.InvalidAction("included tx uses too much gas: %v", err)
-		} else if err != nil {
-			require.NoError(t, err, "include tx")
-		}
+		e.reth.includeNextTx(t, from)
 	}
 }
 
 func (e *L2Engine) Close() error {
-	if e.reth != nil {
-		e.reth.shutdown()
-		return nil
-	}
-	return e.node.Close()
+	e.reth.shutdown()
+	return nil
 }
