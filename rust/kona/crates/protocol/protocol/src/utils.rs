@@ -145,15 +145,18 @@ fn encode_scalar(blob_base_fee_scalar: u32, base_fee_scalar: u32) -> U256 {
     buf.into()
 }
 
-/// Maximum EIP-2718 transaction-type byte. A leading byte above this is the RLP list header of a
-/// legacy transaction rather than a type identifier.
+/// Maximum EIP-2718 transaction-type byte. A larger leading byte is not a type identifier but the
+/// start of a prefixless legacy transaction — a bare RLP list, whose header is `0xc0..=0xfe`. Any
+/// other high byte (an RLP string `0x80..=0xbf`, or reserved `0xff`) is rejected by the list check
+/// in [`read_tx_data`].
 const EIP2718_MAX_TX_TYPE: u8 = 0x7F;
 
 /// Reads transaction data from a reader.
 pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, OpTxType), SpanBatchError> {
     let first_byte =
         *r.first().ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
-    let tx_type_id = if first_byte <= EIP2718_MAX_TX_TYPE {
+    let has_type_prefix = first_byte <= EIP2718_MAX_TX_TYPE;
+    let tx_type_id = if has_type_prefix {
         r.advance(1);
         first_byte
     } else {
@@ -184,11 +187,15 @@ pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, OpTxType), SpanBatchError
         Ok(ty) => ty,
     };
 
-    let is_typed_tx = tx_type != OpTxType::Legacy;
-    let tx_data_capacity = payload_length_with_header + usize::from(is_typed_tx);
+    // Preserve whether a type prefix was physically present instead of inferring it from the
+    // logical transaction type. `OpTxType::Legacy` is represented as zero for transaction-type
+    // metadata, but a leading `0x00` is still a typed-envelope prefix and must not be discarded.
+    // Keeping it lets the typed span-batch decoder reject the unsupported envelope, as op-node
+    // does, rather than silently reinterpreting its payload as a prefixless legacy transaction.
+    let tx_data_capacity = payload_length_with_header + usize::from(has_type_prefix);
     let mut tx_data = Vec::with_capacity(tx_data_capacity);
-    if is_typed_tx {
-        tx_data.push(u8::from(tx_type));
+    if has_type_prefix {
+        tx_data.push(first_byte);
     }
     tx_data.extend_from_slice(&r[..payload_length_with_header]);
     r.advance(payload_length_with_header);
@@ -589,6 +596,61 @@ mod tests {
         let mut data: &[u8] = &[0xf8, 0x64, 0x00, 0x00, 0x00];
         let err = read_tx_data(&mut data).unwrap_err();
         assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+    }
+
+    #[test]
+    fn test_read_tx_data_accepts_prefixless_legacy() {
+        use crate::SpanBatchTransactionData;
+        use alloy_rlp::Decodable;
+
+        // A first byte > 0x7F is not a type id, so it is read as a prefixless legacy tx. `c3 80 80
+        // 80` is a schema-valid legacy element — an RLP list of the three legacy fields (value,
+        // gas_price, data), here all zero/empty: read_tx_data returns it verbatim and it decodes
+        // end-to-end as a legacy tx.
+        let mut data: &[u8] = &[0xc3, 0x80, 0x80, 0x80];
+        let (tx_data, tx_type) = read_tx_data(&mut data).unwrap();
+        assert_eq!(tx_type, OpTxType::Legacy);
+        assert_eq!(tx_data, vec![0xc3, 0x80, 0x80, 0x80]);
+        SpanBatchTransactionData::decode(&mut tx_data.as_slice())
+            .expect("prefixless legacy payload decodes into a legacy tx");
+    }
+
+    #[test]
+    fn test_read_tx_data_preserves_leading_zero_type_byte() {
+        use crate::SpanBatchTransactionData;
+        use alloy_rlp::Decodable;
+
+        // The shared op-node<->kona conformance vector: the valid legacy element from
+        // `test_read_tx_data_accepts_prefixless_legacy` with a `0x00` EIP-2718 type byte prepended.
+        // The reader must preserve the prefix so the typed decoder rejects it, instead of
+        // reinterpreting the remaining bytes as a prefixless legacy transaction.
+        let mut data: &[u8] = &[0x00, 0xc3, 0x80, 0x80, 0x80];
+        let (tx_data, tx_type) = read_tx_data(&mut data).unwrap();
+        assert_eq!(tx_type, OpTxType::Legacy);
+        assert_eq!(tx_data, vec![0x00, 0xc3, 0x80, 0x80, 0x80]);
+        SpanBatchTransactionData::decode(&mut tx_data.as_slice())
+            .expect_err("0x00 is not a supported typed span-batch transaction envelope");
+    }
+
+    #[test]
+    fn test_read_tx_data_rejects_non_list_high_first_byte() {
+        // Not every byte > 0x7F is a legacy list header: 0x80..=0xbf are RLP strings and 0xff is
+        // reserved. These are read as prefixless legacy candidates but rejected by the RLP list
+        // check, so only genuine list headers (0xc0..=0xfe) survive.
+        for first in [0x80u8, 0xbf, 0xff] {
+            let mut data: &[u8] = &[first];
+            let err = read_tx_data(&mut data).unwrap_err();
+            assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
+        }
+    }
+
+    #[test]
+    fn test_read_tx_data_accepts_typed() {
+        // A valid EIP-2718 type byte (0x02 = EIP-1559) is preserved before the payload.
+        let mut data: &[u8] = &[0x02, 0xc1, 0x05];
+        let (tx_data, tx_type) = read_tx_data(&mut data).unwrap();
+        assert_eq!(tx_type, OpTxType::Eip1559);
+        assert_eq!(tx_data, vec![0x02, 0xc1, 0x05]);
     }
 
     #[test]
