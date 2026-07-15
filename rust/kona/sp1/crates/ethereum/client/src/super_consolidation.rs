@@ -56,8 +56,8 @@ where
 
         let transition = run_transition(
             oracle.clone(),
-            previous_super_root.clone(),
-            input.optimistic_blocks.clone(),
+            previous_super_root,
+            input.optimistic_blocks,
             &input.claimed_super_root_proof,
             dependency_set.clone(),
             &rollup_configs,
@@ -209,7 +209,7 @@ where
             expected = optimistic_block.block_hash,
         );
         let local_safe_header =
-            fetch_l2_header(oracle.as_ref(), chain_id, optimistic_block.block_hash).await?;
+            fetch_l2_header(oracle.as_ref(), optimistic_block.block_hash).await?;
         ensure!(
             local_safe_header.timestamp <= timestamp,
             "consolidation optimistic block timestamp {actual} is after super-root timestamp {expected}",

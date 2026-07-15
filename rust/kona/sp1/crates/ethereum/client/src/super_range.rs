@@ -17,7 +17,6 @@ use kona_proof::{
     BootInfo, FlushableCache, l1::OracleL1ChainProvider, l2::OracleL2ChainProvider,
     sync::new_oracle_pipeline_cursor,
 };
-use kona_proof_interop::HintType;
 use kona_registry::{DEPENDENCY_SETS, L1_CONFIGS, ROLLUP_CONFIGS};
 use kona_sp1_client_utils::{
     boot::BootInfoStruct,
@@ -334,7 +333,7 @@ where
     let claimed_block_hash = transition.optimistic_block.block_hash;
 
     let safe_head_hash = fetch_output_block_hash(oracle, expected_pre_root).await?;
-    let safe_head = fetch_l2_header(oracle, chain_id, safe_head_hash).await?;
+    let safe_head = fetch_l2_header(oracle, safe_head_hash).await?;
     let output_claimed_block_hash = fetch_output_block_hash(oracle, claimed_output_root).await?;
     ensure!(
         output_claimed_block_hash == claimed_block_hash,
@@ -342,7 +341,7 @@ where
         actual = output_claimed_block_hash,
         expected = claimed_block_hash,
     );
-    let claimed_header = fetch_l2_header(oracle, chain_id, claimed_block_hash).await?;
+    let claimed_header = fetch_l2_header(oracle, claimed_block_hash).await?;
 
     let next_l2_timestamp = safe_head
         .timestamp
@@ -432,7 +431,6 @@ where
         expected = transition.optimistic_block.output_root,
     );
 
-    let chain_id = transition_chain_id_as_u64(transition)?;
     let block_hash = fetch_output_block_hash(oracle, committed_boot_info.l2PostRoot).await?;
     ensure!(
         block_hash == transition.optimistic_block.block_hash,
@@ -441,7 +439,7 @@ where
         expected = transition.optimistic_block.block_hash,
     );
 
-    let header = fetch_l2_header(oracle, chain_id, block_hash).await?;
+    let header = fetch_l2_header(oracle, block_hash).await?;
     ensure!(
         header.number == committed_boot_info.l2BlockNumber,
         "range witness committed block #{actual}, but output root header is block #{expected}",
@@ -536,20 +534,10 @@ where
 }
 
 /// Fetches and decodes an L2 header through the interop hint path.
-pub async fn fetch_l2_header<O>(
-    oracle: &O,
-    chain_id: u64,
-    block_hash: B256,
-) -> anyhow::Result<Header>
+pub async fn fetch_l2_header<O>(oracle: &O, block_hash: B256) -> anyhow::Result<Header>
 where
     O: CommsClient,
 {
-    HintType::L2BlockHeader
-        .with_data(&[block_hash.as_slice(), chain_id.to_be_bytes().as_ref()])
-        .send(oracle)
-        .await
-        .map_err(|err| anyhow!("failed to hint L2 header {block_hash}: {err}"))?;
-
     let header_rlp = oracle
         .get(PreimageKey::new_keccak256(*block_hash))
         .await
