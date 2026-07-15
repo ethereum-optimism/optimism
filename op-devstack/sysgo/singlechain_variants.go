@@ -277,7 +277,7 @@ func NewSingleChainOpConSequencerP2PWrongSignerRuntime(t devtest.T, cfg PresetCo
 			t.Require().NoError(err, "derive SequencerP2PRole secret")
 			t.Require().NoError(os.Setenv("DEVSTACK_OPCON_UNSAFE_SIGNER",
 				crypto.PubkeyToAddress(secret.PublicKey).Hex()), "seed expected signer env")
-			return startOpConSequencerPrimaryWithSignerKey(t, world, l1EL, l1CL, jwtPath, jwtSecret, wrongSignerKeyHex)
+			return startOpConSequencerPrimaryWithSignerKey(t, world, l1EL, l1CL, jwtPath, jwtSecret, wrongSignerKeyHex, 0)
 		},
 		StartBatcher: false,
 	})
@@ -370,8 +370,18 @@ func startOpConSequencerPrimary(
 	signerAddr := crypto.PubkeyToAddress(secret.PublicKey)
 	t.Require().NoError(os.Setenv("DEVSTACK_OPCON_UNSAFE_SIGNER", signerAddr.Hex()),
 		"seed op-con-node unsafe-block signer env")
+	// Resolve op-con knobs from the preset's global L2CL options (the same
+	// resolution startL2CLForKey performs for verifier slots) so tests can tune
+	// the sequencer — e.g. L2CLOpConPayloadRingBlocks for the bootstrap tests.
+	opconCfg := DefaultL2CLConfig()
+	target := NewComponentTarget("sequencer", world.L2Network.ChainID())
+	for _, opt := range cfg.GlobalL2CLOptions {
+		if opt != nil {
+			opt.Apply(t, target, opconCfg)
+		}
+	}
 	return startOpConSequencerPrimaryWithSignerKey(t, world, l1EL, l1CL, jwtPath, jwtSecret,
-		hex.EncodeToString(crypto.FromECDSA(secret)))
+		hex.EncodeToString(crypto.FromECDSA(secret)), opconCfg.OpConPayloadRingBlocks)
 }
 
 // startOpConSequencerPrimaryWithSignerKey is startOpConSequencerPrimary with an
@@ -387,11 +397,13 @@ func startOpConSequencerPrimaryWithSignerKey(
 	jwtPath string,
 	jwtSecret [32]byte,
 	signerKeyHex string,
+	ringBlocks int,
 ) singleChainPrimaryRuntime {
 	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0))
 	seqSigning := &opConSequencerSigning{
 		signerKeyHex: signerKeyHex,
 		startStopped: true,
+		ringBlocks:   ringBlocks,
 	}
 	l2CL := startMixedOpConNode(t, world.L1Network, world.L2Network, l1EL, l1CL, l2EL,
 		"sequencer", "sequencer", true, "", "", "", seqSigning, nil)

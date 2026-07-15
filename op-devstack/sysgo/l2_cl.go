@@ -52,6 +52,12 @@ type L2CLConfig struct {
 	// L2CLOpConSequencer(). Ignored for verifier slots and non-op-con CL kinds.
 	OpConSequencer bool
 
+	// OpConPayloadRingBlocks overrides the op-con-node sequencer's signed
+	// replay-ring depth (--sequencer-payload-ring-blocks) when > 0. Bootstrap
+	// tests shrink it so a late joiner falls below the signed horizon on a
+	// short devnet chain. Ignored for non-op-con CL kinds and verifier slots.
+	OpConPayloadRingBlocks int
+
 	// OpConUnsafePayloadWS makes an op-con-node verifier follow a sequencing
 	// op-con-node's signed-payload websocket multicast at this ws:// URL
 	// (--follow, the push analog of --follow-el): subscribe,
@@ -100,6 +106,15 @@ func L2CLOpConSequencer() L2CLOption {
 func L2CLOpConUnsafePayloadWS(wsURL string) L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.OpConUnsafePayloadWS = wsURL
+	})
+}
+
+// L2CLOpConPayloadRingBlocks shrinks/overrides the op-con-node sequencer's
+// signed replay-ring depth (--sequencer-payload-ring-blocks). No-op for other
+// CL kinds.
+func L2CLOpConPayloadRingBlocks(blocks int) L2CLOption {
+	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		cfg.OpConPayloadRingBlocks = blocks
 	})
 }
 

@@ -105,3 +105,35 @@ func (sp *SubProcess) Stop(interrupt bool) error {
 	sp.cmd = nil
 	return nil
 }
+
+// Kill force-terminates the sub-process (SIGKILL) with NO graceful interrupt —
+// the crash-restart shape: the process gets no chance to write a shutdown
+// checkpoint or flush state. Stop(true) is the graceful sibling.
+func (sp *SubProcess) Kill() error {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if sp.cmd == nil {
+		return nil // already stopped
+	}
+	if sp.cmd.ProcessState == nil {
+		sp.p.Logger().Info("Killing sub-process")
+		if err := sp.cmd.Process.Kill(); err != nil {
+			return err
+		}
+	}
+	// cmd.Wait flushes stdout/stderr before returning; a kill always yields an
+	// ExitError, which is the expected outcome here, not a failure.
+	if waitErr := sp.cmd.Wait(); waitErr != nil {
+		sp.p.Logger().Info("Sub-process killed", "wait", waitErr)
+	}
+	if sp.stdOutProc != nil {
+		_ = sp.stdOutProc.Close()
+		sp.stdOutProc = nil
+	}
+	if sp.stdErrProc != nil {
+		_ = sp.stdErrProc.Close()
+		sp.stdErrProc = nil
+	}
+	sp.cmd = nil
+	return nil
+}

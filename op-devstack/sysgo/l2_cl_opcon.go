@@ -46,6 +46,9 @@ type OpConNode struct {
 	execPath string
 	args     []string
 	env      []string
+	// datadir is op-con-node's --datadir (Feldera checkpoints live under it);
+	// wiped by WipeDatadir for fresh-circuit restart tests.
+	datadir string
 
 	metricsHost string
 	metricsPort string
@@ -123,6 +126,35 @@ func (n *OpConNode) Stop() {
 	n.sub = nil
 }
 
+// Kill force-terminates op-con-node (SIGKILL): no graceful shutdown, so no
+// shutdown Feldera checkpoint is written — the crash-restart shape. Start()
+// afterwards resumes from the last periodic checkpoint (older than the EL
+// head), exercising the restore paths a graceful Stop() cannot.
+func (n *OpConNode) Kill() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sub == nil {
+		n.p.Logger().Warn("op-con-node already stopped")
+		return
+	}
+	err := n.sub.Kill()
+	n.p.Require().NoError(err, "must kill op-con-node")
+	n.sub = nil
+}
+
+// WipeDatadir removes op-con-node's datadir (Feldera checkpoints included)
+// while the node is stopped. A subsequent Start() boots a FRESH circuit against
+// the untouched, mid-chain EL — the devstack analog of a snapshot-restored EL,
+// the self-anchor boot shape.
+func (n *OpConNode) WipeDatadir() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().Nil(n.sub, "WipeDatadir requires the node to be stopped")
+	n.p.Require().NotEmpty(n.datadir, "op-con-node datadir unknown")
+	n.p.Require().NoError(os.RemoveAll(n.datadir), "wipe op-con-node datadir")
+	n.p.Logger().Info("op-con-node datadir wiped", "datadir", n.datadir)
+}
+
 func (n *OpConNode) UserRPC() string {
 	return n.userRPC
 }
@@ -153,6 +185,11 @@ type opConSequencerSigning struct {
 	// production is enabled later via admin_startSequencer, letting the preset
 	// finish gossip wiring first so no early block misses the publish feed.
 	startStopped bool
+	// ringBlocks overrides the signed replay-ring depth
+	// (--sequencer-payload-ring-blocks) when > 0. Bootstrap tests shrink it so
+	// a late joiner's cursor falls below the signed horizon and the cold tier
+	// + below-horizon handshake are exercised on a short devnet chain.
+	ringBlocks int
 }
 
 // startMixedOpConNode bootstraps op-con-node's flat rollup config + genesis
@@ -291,6 +328,9 @@ func startMixedOpConNode(
 		if seqSigning.startStopped {
 			args = append(args, "--sequencer-stopped")
 		}
+		if seqSigning.ringBlocks > 0 {
+			args = append(args, "--sequencer-payload-ring-blocks", strconv.Itoa(seqSigning.ringBlocks))
+		}
 	}
 
 	var metricsHost, metricsPort string
@@ -303,6 +343,7 @@ func startMixedOpConNode(
 
 	n := &OpConNode{
 		name:               clKey,
+		datadir:            filepath.Join(dir, "datadir"),
 		chainID:            l2Net.ChainID(),
 		userRPC:            fmt.Sprintf("http://127.0.0.1:%s", rpcPort),
 		signedPayloadWS:    signedPayloadWS,
