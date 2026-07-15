@@ -547,8 +547,8 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProviderV2<TX> {
         for ((addr, subkey), old_node) in &restorations {
             if state
                 .seek_by_key_subkey(*addr, subkey.clone())?
-                .filter(|e| e.nibbles == *subkey)
-                .is_some()
+                .as_ref()
+                .is_some_and(|e| e.nibbles == *subkey)
             {
                 state.delete_current()?;
             }
@@ -594,7 +594,7 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProviderV2<TX> {
         let restorations = self.scan_and_delete_hashed_storage_cs(range)?;
         let mut state = self.tx.cursor_dup_write::<V2HashedStorages>()?;
         for ((addr, slot), old_value) in &restorations {
-            if state.seek_by_key_subkey(*addr, *slot)?.filter(|e| e.key == *slot).is_some() {
+            if state.seek_by_key_subkey(*addr, *slot)?.as_ref().is_some_and(|e| e.key == *slot) {
                 state.delete_current()?;
             }
             if *old_value != U256::ZERO {

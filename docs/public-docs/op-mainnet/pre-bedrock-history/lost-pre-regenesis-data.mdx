@@ -1,31 +1,14 @@
 ---
-title: Accessing pre-regenesis history
-description: Learn how to access pre-regenesis history using the Etherscan CSV exporting tool.
+title: Lost pre-regenesis data
+description: Understand why some OP Mainnet transaction data from January to July 2021 cannot be fully recovered.
+diataxis: explanation
 ---
 
-This tutorial explains how to access transaction history between 23 June 2021 and the final regenesis.
-Because of our final regenesis on 11 November 2021, older transactions are not part of the current blockchain and do not appear on [Etherscan](https://explorer.optimism.io/?utm_source=op-docs&utm_medium=docs).
+This page explains why part of OP Mainnet's earliest transaction history is permanently incomplete.
+For how to look up the pre-regenesis history that *is* available, see [accessing pre-regenesis history](/op-mainnet/pre-bedrock-history/regenesis-history).
 
-## Dune access
-
-You can use a query on [Dune Analytics](https://dune.com), similar to [this query](https://dune.com/queries/354886?addr=%5Cx25E1c58040f27ECF20BBd4ca83a09290326896B3).
-You have to log on with a Dune account, but their free tier is sufficient.
-
-<Steps>
-  <Step title="Browse to the [OVM1.0 User Address Transactions](https://dune.com/optimismfnd/OVM1.0-User-Address-Transactions) Dashboard on Dune.">
-  
-  </Step>
-
-  <Step title="Enter the address you wish to search in the `Address` text box in the top left.">
-  
-  </Step>
-
-  <Step title="Run the query (This requires log in. A free Dune account is sufficient).">
-  
-  </Step>
-</Steps>
-
-Alternatively, to run custom queries in Dune, you can use the `optimism_legacy_ovm1` schema defined in [Dune Docs here](https://dune.com/docs/data-tables/?h=ovm#optimism).
+Because of the final regenesis on 11 November 2021, transactions from before that date are not part of the current blockchain and do not appear on [Etherscan](https://explorer.optimism.io/?utm_source=op-docs&utm_medium=docs).
+Most of that history remains queryable through external tools, but one early slice of it was lost.
 
 ## Lost data directories
 
@@ -49,7 +32,7 @@ re-executing this chain of transactions from Ethereum, this is a labor intensive
 and costly task that may not fully recover the data. The OP Labs team did
 attempt data recovery efforts, including reaching out to several partners.
 
-### Impact
+## Impact
 
 No state, balances, or user assets were lost. Most of the impact is felt by data
 providers who want complete data sets for analysis purposes and by individuals
@@ -61,7 +44,7 @@ requests for this data came from individuals who needed access to this informati
 for the 2021 tax season though this is mostly no longer relevant today (many
 people who needed this data already retrieved it).
 
-### Going forward
+## Going forward
 
 We recognize the inconvenience this has caused some of our community and their
 users and we're sorry for the frustrations. In an effort to prevent similar

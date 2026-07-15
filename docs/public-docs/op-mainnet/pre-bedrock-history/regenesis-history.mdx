@@ -1,0 +1,34 @@
+---
+title: Accessing pre-regenesis history
+description: Learn how to access pre-regenesis history using the Etherscan CSV exporting tool.
+diataxis: how-to
+---
+
+This guide explains how to access transaction history between 23 June 2021 and the final regenesis.
+Because of our final regenesis on 11 November 2021, older transactions are not part of the current blockchain and do not appear on [Etherscan](https://explorer.optimism.io/?utm_source=op-docs&utm_medium=docs).
+
+<Info>
+  Event and transaction-status data from January to July 2021 was partially lost and cannot be fully recovered.
+  See [lost pre-regenesis data](/op-mainnet/pre-bedrock-history/lost-pre-regenesis-data) for what is missing, why, and the impact.
+</Info>
+
+## Dune access
+
+You can use a query on [Dune Analytics](https://dune.com), similar to [this query](https://dune.com/queries/354886?addr=%5Cx25E1c58040f27ECF20BBd4ca83a09290326896B3).
+You have to log on with a Dune account, but their free tier is sufficient.
+
+<Steps>
+  <Step title="Browse to the [OVM1.0 User Address Transactions](https://dune.com/optimismfnd/OVM1.0-User-Address-Transactions) Dashboard on Dune.">
+  
+  </Step>
+
+  <Step title="Enter the address you wish to search in the `Address` text box in the top left.">
+  
+  </Step>
+
+  <Step title="Run the query (This requires log in. A free Dune account is sufficient).">
+  
+  </Step>
+</Steps>
+
+Alternatively, to run custom queries in Dune, you can use the `optimism_legacy_ovm1` schema defined in [Dune Docs here](https://dune.com/docs/data-tables/?h=ovm#optimism).

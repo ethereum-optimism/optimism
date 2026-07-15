@@ -277,6 +277,7 @@ mod tests {
                     withdrawals: None,
                     parent_beacon_block_root: None,
                     slot_number: None,
+                    target_gas_limit: None,
                 },
                 transactions: None,
                 no_tx_pool: None,

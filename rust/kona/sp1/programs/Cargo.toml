@@ -10,7 +10,7 @@ resolver = "2"
 [workspace.package]
 edition = "2024"
 license = "MIT OR Apache-2.0"
-rust-version = "1.94"
+rust-version = "1.95"
 authors = ["Op Stack Contributors"]
 homepage = "https://github.com/ethereum-optimism/optimism"
 repository = "https://github.com/ethereum-optimism/optimism"
@@ -128,14 +128,14 @@ kona-sp1-ethereum-client-utils = { path = "../crates/ethereum/client" }
 
 # Feature anchor only: revm's `bn` forwards to revm-precompile/bn so the guest
 # build uses the SP1-patched substrate-bn backend for bn128.
-revm = { version = "40.0.3", default-features = false, features = ["bn"] }
+revm = { version = "41.0.0", default-features = false, features = ["bn"] }
 
 alloy-primitives = { version = "1.6.0", default-features = false, features = [
   "map-foldhash",
 ] }
 alloy-chains = { version = "0.2.33", default-features = false }
 alloy-sol-types = { version = "1.6.0", default-features = false }
-alloy-consensus = { version = "2.0.5", default-features = false }
+alloy-consensus = { version = "2.1.1", default-features = false }
 alloy-rlp = { version = "0.3.13", default-features = false }
 alloy-op-evm = { version = "0.32.0", path = "../../../alloy-op-evm", default-features = false }
 sp1-lib = { version = "6.2.4", features = ["verify"] }

@@ -386,8 +386,8 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> MdbxProofsProviderV2<TX
                 let subkey = StoredNibblesSubKey(*nibbles);
                 let existing = cur
                     .seek_by_key_subkey(*hashed_address, subkey.clone())?
-                    .filter(|e| e.nibbles == subkey)
-                    .is_some();
+                    .as_ref()
+                    .is_some_and(|e| e.nibbles == subkey);
                 if existing {
                     cur.delete_current()?;
                 }
@@ -441,8 +441,8 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> MdbxProofsProviderV2<TX
             for (slot, value) in &storage.storage_slots {
                 let existing = cur
                     .seek_by_key_subkey(*hashed_addr, *slot)?
-                    .filter(|e| e.key == *slot)
-                    .is_some();
+                    .as_ref()
+                    .is_some_and(|e| e.key == *slot);
                 if existing {
                     cur.delete_current()?;
                 }

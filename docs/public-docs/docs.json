@@ -59,6 +59,10 @@
   },
   "redirects": [
     {
+      "source": "/chain-operators/reference/architecture",
+      "destination": "/chain-operators/guides/management/network-architecture"
+    },
+    {
       "source": "/stack/interop/op-supervisor",
       "destination": "/op-stack/interop/explainer"
     },
@@ -73,6 +77,10 @@
     {
       "source": "/chain-operators/tools/op-deployer/usage/upgrade",
       "destination": "/notices/op-deployer-upgrade-deprecation"
+    },
+    {
+      "source": "/chain-operators/tools/op-deployer/reference/custom-deployments",
+      "destination": "/chain-operators/tools/op-deployer/usage/custom-deployments"
     },
     {
       "source": "/pages/app-developers/get-started",
@@ -972,7 +980,7 @@
     },
     {
       "source": "/operators/chain-operators/architecture",
-      "destination": "/chain-operators/reference/architecture"
+      "destination": "/chain-operators/guides/management/network-architecture"
     },
     {
       "source": "/operators/chain-operators/configuration",
@@ -1188,7 +1196,11 @@
     },
     {
       "source": "/operators/node-operators/management/regenesis-history",
-      "destination": "/node-operators/guides/management/regenesis-history"
+      "destination": "/op-mainnet/pre-bedrock-history/regenesis-history"
+    },
+    {
+      "source": "/node-operators/guides/management/regenesis-history",
+      "destination": "/op-mainnet/pre-bedrock-history/regenesis-history"
     },
     {
       "source": "/operators/node-operators/management/snap-sync",
@@ -1927,6 +1939,7 @@
                 "group": "Management",
                 "pages": [
                   "chain-operators/guides/management/best-practices",
+                  "chain-operators/guides/management/network-architecture",
                   "chain-operators/guides/management/gas-target-limit",
                   "chain-operators/guides/management/key-management",
                   "chain-operators/guides/management/operations",
@@ -1996,7 +2009,8 @@
                       "chain-operators/tools/op-deployer/usage/bootstrap",
                       "chain-operators/tools/op-deployer/usage/init",
                       "chain-operators/tools/op-deployer/usage/apply",
-                      "chain-operators/tools/op-deployer/usage/verify"
+                      "chain-operators/tools/op-deployer/usage/verify",
+                      "chain-operators/tools/op-deployer/usage/custom-deployments"
                     ]
                   },
                   "chain-operators/tools/op-deployer/known-limitations",
@@ -2012,8 +2026,7 @@
                         ]
                       },
                       "chain-operators/tools/op-deployer/reference/artifacts-locators",
-                      "chain-operators/tools/op-deployer/reference/releases",
-                      "chain-operators/tools/op-deployer/reference/custom-deployments"
+                      "chain-operators/tools/op-deployer/reference/releases"
                     ]
                   }
                 ]
@@ -2026,7 +2039,6 @@
           {
             "group": "Reference",
             "pages": [
-              "chain-operators/reference/architecture",
               "chain-operators/reference/opcm",
               "chain-operators/reference/standard-configuration"
             ]
@@ -2064,8 +2076,7 @@
                 "group": "Management",
                 "pages": [
                   "node-operators/guides/management/archive-node",
-                  "node-operators/guides/management/blobs",
-                  "node-operators/guides/management/regenesis-history"
+                  "node-operators/guides/management/blobs"
                 ]
               },
               {
@@ -2096,6 +2107,7 @@
               },
               "node-operators/reference/op-node-config",
               "node-operators/reference/op-node-json-rpc",
+              "node-operators/reference/op-supernode-config",
               "node-operators/reference/op-reth-config",
               "node-operators/reference/op-reth-json-rpc",
               "node-operators/reference/op-reth-historical-proof-config",
@@ -2378,7 +2390,10 @@
           {
             "group": "Pre-Bedrock History",
             "pages": [
-              "node-operators/guides/configuration/legacy-geth"
+              "node-operators/guides/configuration/legacy-geth",
+              "node-operators/reference/legacy-geth-config",
+              "op-mainnet/pre-bedrock-history/regenesis-history",
+              "op-mainnet/pre-bedrock-history/lost-pre-regenesis-data"
             ]
           }
         ]
