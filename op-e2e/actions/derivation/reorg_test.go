@@ -577,6 +577,16 @@ type rpcWrapper struct {
 // RestartOpGeth tests that the sequencer can restart its execution engine without rollup-node restart,
 // including recovering the finalized/safe state of L2 chain without reorging.
 func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
+	if actionsHelpers.RethBackendSelected() {
+		// RestartOpGeth exercises op-geth's persistent-DataDir restart-and-recover: it closes the
+		// sequencer's execution engine and starts a fresh one on the same on-disk DB, asserting the
+		// finalized/safe L2 state is recovered from disk without a reorg. The out-of-process
+		// op-reth-test-engine is ephemeral — fresh state per process, no DataDir — so this
+		// op-geth-internal behavior cannot be reproduced. It stays geth-gated through the
+		// op-geth-decoupling EL switch and is resolved (reframed onto restart+resync coverage, or
+		// removed with a coverage note) in the decoupling deletion round.
+		gt.Skip("op-geth persistent-DB restart-recovery; not applicable to the ephemeral reth engine")
+	}
 	t := actionsHelpers.NewDefaultTesting(gt)
 	dbPath := path.Join(t.TempDir(), "testdb")
 	dbOption := func(_ *ethconfig.Config, nodeCfg *node.Config) error {

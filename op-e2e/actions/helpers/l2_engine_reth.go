@@ -49,6 +49,13 @@ func rethBackendSelected() bool {
 	}
 }
 
+// RethBackendSelected reports whether the out-of-process reth engine backs the L2 engine. Tests use
+// it to gate behavior that is specific to the in-process op-geth engine (e.g. persistent-DataDir
+// restart-and-recover) and cannot be reproduced against the ephemeral reth subprocess.
+func RethBackendSelected() bool {
+	return rethBackendSelected()
+}
+
 // rethBackend is the out-of-process op-reth-test-engine backing an L2Engine: the spawned subprocess
 // and its dialed IPC client. All engine/eth/optest RPC goes over the socket.
 type rethBackend struct {
