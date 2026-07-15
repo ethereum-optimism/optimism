@@ -248,6 +248,26 @@ func (e *L2Engine) GenesisBlock(t Testing) *types.Block {
 	return e.BlockByNumber(t, 0)
 }
 
+// RemainingBlockGas returns the gas still available in the block currently being built. It is
+// backend-agnostic: on the reth backend it queries optest_remainingBlockGas, replacing the
+// geth-only e.EngineApi.RemainingBlockGas().
+func (e *L2Engine) RemainingBlockGas(t Testing) uint64 {
+	if e.reth != nil {
+		return e.reth.remainingBlockGas(t)
+	}
+	return e.EngineApi.RemainingBlockGas()
+}
+
+// ForcedEmpty reports whether the block currently being built is forced to stay empty. It is
+// backend-agnostic: on the reth backend it queries optest_forcedEmpty, replacing the geth-only
+// e.EngineApi.ForcedEmpty().
+func (e *L2Engine) ForcedEmpty(t Testing) bool {
+	if e.reth != nil {
+		return e.reth.forcedEmpty(t)
+	}
+	return e.EngineApi.ForcedEmpty()
+}
+
 func (e *L2Engine) EngineClient(t Testing, cfg *rollup.Config) *sources.EngineClient {
 	l2Cl, err := sources.NewEngineClient(e.RPCClient(), e.log, nil, sources.EngineClientDefaultConfig(cfg))
 	require.NoError(t, err)

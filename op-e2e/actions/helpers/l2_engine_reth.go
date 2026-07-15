@@ -134,6 +134,13 @@ func (w *engineLogWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// remainingBlockGas returns the gas still available in the in-flight block (optest_remainingBlockGas).
+func (b *rethBackend) remainingBlockGas(t Testing) uint64 {
+	var gas uint64
+	require.NoError(t, b.client.CallContext(t.Ctx(), &gas, "optest_remainingBlockGas"))
+	return gas
+}
+
 // forcedEmpty reports whether the in-flight block is force-empty (optest_forcedEmpty).
 func (b *rethBackend) forcedEmpty(t Testing) bool {
 	var forced bool

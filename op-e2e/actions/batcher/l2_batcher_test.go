@@ -474,7 +474,7 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 			require.NoError(t, err)
 			gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
 			require.NoError(t, err)
-			if gas > engine.EngineApi.RemainingBlockGas() {
+			if gas > engine.RemainingBlockGas(t) {
 				break
 			}
 			tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
