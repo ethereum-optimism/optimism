@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var ErrNoSuperRootData = errors.New("superroot RPC response has no super root data")
+var ErrNoSuperRootData = errors.New("super root RPC response has no super root data")
 
 // SuperRootClient is the interface required from a super root RPC client.
 type SuperRootClient interface {
@@ -20,7 +20,7 @@ type SuperRootClient interface {
 	Close()
 }
 
-// SuperRootProposalSource fetches super root proposals from op-supernode instances.
+// SuperRootProposalSource fetches super root proposals from super root RPC instances.
 // It supports multiple clients for fault tolerance, querying them in parallel for sync status
 // and falling back to subsequent clients for proposals if earlier ones fail.
 type SuperRootProposalSource struct {
