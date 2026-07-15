@@ -2081,7 +2081,8 @@
                 "group": "Management",
                 "pages": [
                   "node-operators/guides/management/archive-node",
-                  "node-operators/guides/management/blobs"
+                  "node-operators/guides/management/blobs",
+                  "node-operators/guides/management/restore-from-snapshot"
                 ]
               },
               {
@@ -2296,7 +2297,6 @@
               "/op-stack/features/flashblocks",
               "/op-stack/features/custom-gas-token",
               "/op-stack/features/bridged-usdc-standard",
-              "/op-stack/features/deploy-bridged-usdc-standard",
               "/op-stack/features/span-batches",
               "/op-stack/features/send-raw-transaction-conditional",
               "/op-stack/features/l2-contract-manager",
@@ -2392,7 +2392,6 @@
               "op-mainnet/network-information/connecting-to-op",
               "op-mainnet/network-information/op-addresses",
               "op-mainnet/network-information/snapshots",
-              "op-mainnet/network-information/restore-from-snapshot",
               "op-mainnet/network-information/transaction-finality"
             ]
           },
@@ -2484,14 +2483,7 @@
                   "releases/op-deployer",
                   "releases/op-conductor",
                   "releases/proxyd",
-                  {
-                    "group": "op-acceptor",
-                    "pages": [
-                      "releases/op-acceptor",
-                      "releases/op-acceptor/explainer",
-                      "releases/op-acceptor/run-acceptance-tests"
-                    ]
-                  }
+                  "releases/op-acceptor"
                 ]
               }
             ]

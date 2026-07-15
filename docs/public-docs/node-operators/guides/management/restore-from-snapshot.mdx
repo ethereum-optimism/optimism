@@ -1,13 +1,13 @@
 ---
 title: Restore a Node From a Snapshot
 sidebarTitle: Restore From a Snapshot
-description: Download, verify, and extract an OP Mainnet snapshot into your node's data directory to skip the initial sync.
+description: Download, verify, and extract a snapshot into your node's data directory to skip the initial sync.
 diataxis: how-to
 ---
 
-This guide walks you through bootstrapping an OP Mainnet execution client from a pre-synced snapshot: download it, verify the checksum, extract it into your data directory, and start the node from the snapshot's tip instead of replaying the chain from genesis.
+This guide walks you through bootstrapping an OP Stack execution client from a pre-synced snapshot: download it, verify the checksum, extract it into your data directory, and start the node from the snapshot's tip instead of replaying the chain from genesis.
 
-For **what** snapshots are available and their download links, see the [Snapshots reference page](/op-mainnet/network-information/snapshots).
+For **what** snapshots are available for OP Mainnet and their download links, see the [Snapshots reference page](/op-mainnet/network-information/snapshots).
 
 ## When to use a snapshot
 
@@ -19,9 +19,12 @@ You don't always need one. With [execution-layer sync](/node-operators/guides/ma
 
 Use a snapshot when:
 
-*   You are syncing **OP Mainnet with `op-reth`** on a fresh data directory — a snapshot satisfies the [pre-Bedrock state import requirement](/rust/op-reth/run/faq/sync-op-mainnet) in one step, even when execution-layer sync is enabled.
 *   You are running an **archive node**, or otherwise need to trace the entire chain.
-*   You simply want to skip the initial sync entirely: OP Mainnet is roughly 700 GB for a full node, and even execution-layer sync takes days from scratch.
+*   You simply want to skip the initial sync entirely: a mature chain's data directory can run to hundreds of gigabytes (OP Mainnet is roughly 700 GB for a full node), and even execution-layer sync takes days from scratch.
+
+<Note>
+  On **OP Mainnet**, syncing `op-reth` on a fresh data directory is another reason to use a snapshot: it satisfies the [pre-Bedrock state import requirement](/rust/op-reth/run/faq/sync-op-mainnet) in one step, even when execution-layer sync is enabled.
+</Note>
 
 ## Before you begin
 
@@ -33,14 +36,14 @@ Use a snapshot when:
 
 <Steps>
   <Step title="Pick a snapshot">
-    Browse the OP Labs managed [Data Directories website](https://datadirs.optimism.io/) and pick a recent snapshot matching your network and client — for a current node that means an `op-reth` snapshot, since [`op-geth` is no longer supported](/notices/op-geth-deprecation). The [Snapshots reference page](/op-mainnet/network-information/snapshots) lists the available sources, including third-party providers.
+    Pick a recent snapshot matching your network and client from your chain's snapshot provider. For OP Mainnet, browse the OP Labs managed [Data Directories website](https://datadirs.optimism.io/); the [Snapshots reference page](/op-mainnet/network-information/snapshots) lists the available sources, including third-party providers.
   </Step>
 
   <Step title="Download and verify it">
     Download the archive and check its SHA256 against the value published on the index page:
 
     ```bash
-    curl -fLO https://datadirs.optimism.io/<snapshot-file>.tar.zst
+    curl -fLO <snapshot-url>/<snapshot-file>.tar.zst
 
     sha256sum <snapshot-file>.tar.zst       # Linux
     shasum -a 256 <snapshot-file>.tar.zst   # macOS
@@ -82,5 +85,5 @@ Use a snapshot when:
 ## Next steps
 
 *   Running with Docker? The [node-from-docker tutorial](/node-operators/tutorials/node-from-docker#bootstrap-from-a-snapshot) shows this flow with a bind-mounted `op-reth` data directory.
-*   See the [Snapshots reference page](/op-mainnet/network-information/snapshots) for all download links, including the legacy (pre-Bedrock) data directory for archive nodes.
+*   See the [Snapshots reference page](/op-mainnet/network-information/snapshots) for all OP Mainnet download links, including the legacy (pre-Bedrock) data directory for archive nodes.
 *   If you run into problems, check the [node troubleshooting guide](/node-operators/guides/troubleshooting) or reach out to [developer support](https://github.com/ethereum-optimism/developers/discussions).
