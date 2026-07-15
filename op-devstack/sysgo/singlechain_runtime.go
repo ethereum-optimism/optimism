@@ -220,6 +220,11 @@ func startMinimalBatcher(
 	logger.SetContext(t.Ctx())
 	logger.Info("Batcher key acquired", "addr", crypto.PubkeyToAddress(batcherSecret.PublicKey))
 
+	compressionAlgo := derive.Zlib
+	if l2Net.rollupCfg.IsFjord(l2Net.rollupCfg.Genesis.L2Time) {
+		compressionAlgo = derive.Brotli
+	}
+
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 l1EL.UserRPC(),
 		L2EthRpc:                 []string{l2EL.UserRPC()},
@@ -241,7 +246,7 @@ func startMinimalBatcher(
 		BatchType:             derive.SpanBatchType,
 		MaxBlocksPerSpanBatch: 10,
 		DataAvailabilityType:  batcherFlags.CalldataType,
-		CompressionAlgo:       derive.Brotli,
+		CompressionAlgo:       compressionAlgo,
 		RPC: oprpc.CLIConfig{
 			EnableAdmin: true,
 		},

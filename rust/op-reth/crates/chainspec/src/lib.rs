@@ -194,7 +194,7 @@ impl OpChainSpecBuilder {
     }
 
     /// Enable Lagoon at genesis
-    pub fn interop_activated(self) -> Self {
+    pub fn lagoon_activated(self) -> Self {
         self.karst_activated().op_fork_activated(OpHardfork::Lagoon)
     }
 
@@ -762,7 +762,7 @@ mod tests {
     #[test]
     fn builder_activated_specs_match_genesis_l1_forks() {
         // Builder spec with every OP fork (through Lagoon) active at genesis.
-        let builder_spec = OpChainSpecBuilder::optimism_mainnet().interop_activated().build();
+        let builder_spec = OpChainSpecBuilder::optimism_mainnet().lagoon_activated().build();
 
         // Equivalent genesis: every OP fork active at timestamp 0. `From<Genesis>` derives the
         // implied L1 forks (Shanghai/Cancun/Prague/Osaka) from these OP timestamps.

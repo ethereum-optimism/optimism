@@ -5,10 +5,9 @@ use super::InteropHost;
 use crate::{KeyValueStore, Result};
 use alloy_primitives::{B256, keccak256};
 use kona_interop::DependencySet;
-use kona_preimage::PreimageKey;
-use kona_proof_interop::boot::{
-    DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L1_HEAD_KEY, L2_AGREED_PRE_STATE_KEY,
-    L2_CLAIMED_POST_STATE_KEY, L2_CLAIMED_TIMESTAMP_KEY, L2_ROLLUP_CONFIG_KEY,
+use kona_preimage::{
+    DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L1_HEAD_KEY, L2_CLAIM_BLOCK_NUMBER_KEY, L2_CLAIM_KEY,
+    L2_OUTPUT_ROOT_KEY, L2_ROLLUP_CONFIG_KEY, PreimageKey,
 };
 
 /// A simple, synchronous key-value store that returns data from a [`InteropHost`] config.
@@ -29,11 +28,9 @@ impl KeyValueStore for InteropLocalInputs {
         let preimage_key = PreimageKey::try_from(*key).ok()?;
         match preimage_key.key_value() {
             L1_HEAD_KEY => Some(self.cfg.l1_head.to_vec()),
-            L2_AGREED_PRE_STATE_KEY => {
-                Some(keccak256(self.cfg.agreed_l2_pre_state.as_ref()).to_vec())
-            }
-            L2_CLAIMED_POST_STATE_KEY => Some(self.cfg.claimed_l2_post_state.to_vec()),
-            L2_CLAIMED_TIMESTAMP_KEY => Some(self.cfg.claimed_l2_timestamp.to_be_bytes().to_vec()),
+            L2_OUTPUT_ROOT_KEY => Some(keccak256(self.cfg.agreed_l2_pre_state.as_ref()).to_vec()),
+            L2_CLAIM_KEY => Some(self.cfg.claimed_l2_post_state.to_vec()),
+            L2_CLAIM_BLOCK_NUMBER_KEY => Some(self.cfg.claimed_l2_timestamp.to_be_bytes().to_vec()),
             L2_ROLLUP_CONFIG_KEY => {
                 let rollup_configs = self.cfg.read_rollup_configs()?.ok()?;
                 serde_json::to_vec(&rollup_configs).ok()

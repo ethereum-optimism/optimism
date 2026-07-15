@@ -130,8 +130,8 @@ pub struct BuilderConfig<Specific: Clone> {
 
     /// Local operator opt-in for SDM PostExec production. Combined with the chain-spec
     /// Interop gate in [`OpPayloadBuilderCtx::post_exec_mode`]; both must be true to
-    /// produce a PostExec tx. Mutated via the `admin_setSdmPostExecOptIn` RPC.
-    pub sdm_post_exec_opt_in: crate::sdm_admin::SdmPostExecOptInFlag,
+    /// produce a PostExec tx. Mutated via the `admin_setOperatorSdmOptIn` RPC.
+    pub operator_sdm_opt_in: crate::sdm_admin::OperatorSdmOptIn,
 
     /// Interop failsafe gate shared between the txpool interop filter and payload builder.
     pub interop_failsafe: InteropFailsafe,
@@ -176,7 +176,7 @@ impl<S: Default + Clone> Default for BuilderConfig<S> {
             sampling_ratio: 100,
             max_gas_per_txn: None,
             gas_limiter_config: GasLimiterArgs::default(),
-            sdm_post_exec_opt_in: Default::default(),
+            operator_sdm_opt_in: Default::default(),
             interop_failsafe: Default::default(),
         }
     }
@@ -200,7 +200,9 @@ where
             sampling_ratio: args.telemetry.sampling_ratio,
             max_gas_per_txn: args.max_gas_per_txn,
             gas_limiter_config: args.gas_limiter.clone(),
-            sdm_post_exec_opt_in: Default::default(),
+            operator_sdm_opt_in: crate::sdm_admin::OperatorSdmOptIn::new(
+                args.rollup_args.operator_sdm_opt_in,
+            ),
             interop_failsafe: Default::default(),
             specific: S::try_from(args)?,
         })
@@ -213,5 +215,39 @@ impl TryFrom<OpRbuilderArgs> for () {
 
     fn try_from(_: OpRbuilderArgs) -> Result<Self, Self::Error> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::args::Cli;
+    use clap::Parser;
+    use reth_optimism_cli::commands::Commands;
+
+    fn builder_config_from(cli_args: &[&str]) -> BuilderConfig<()> {
+        let cli = Cli::parse_from(cli_args);
+        let Commands::Node(node_command) = cli.command else {
+            unreachable!("parsed a `node` subcommand")
+        };
+        BuilderConfig::try_from(node_command.ext).expect("builder config from args")
+    }
+
+    /// `--rollup.operator-sdm-opt-in` seeds the shared opt-in at boot, so op-rbuilder can start
+    /// opted in without an admin RPC call after every restart. Defaults disabled when absent.
+    #[test]
+    fn operator_sdm_opt_in_flag_seeds_builder_config() {
+        assert!(
+            !builder_config_from(&["dummy", "node"])
+                .operator_sdm_opt_in
+                .enabled(),
+            "defaults disabled when the flag is absent"
+        );
+        assert!(
+            builder_config_from(&["dummy", "node", "--rollup.operator-sdm-opt-in", "true"])
+                .operator_sdm_opt_in
+                .enabled(),
+            "flag opts in at boot"
+        );
     }
 }

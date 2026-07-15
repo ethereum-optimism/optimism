@@ -19,6 +19,7 @@ import (
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	opcoreparams "github.com/ethereum-optimism/optimism/op-core/params"
 	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -1118,7 +1119,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		return nil, errors.New("SystemConfigProxy cannot be address(0)")
 	}
 
-	chainOpConfig := &params.OptimismConfig{
+	chainOpConfig := &opcoreparams.OptimismConfig{
 		EIP1559Elasticity:        d.EIP1559Elasticity,
 		EIP1559Denominator:       d.EIP1559Denominator,
 		EIP1559DenominatorCanyon: &d.EIP1559DenominatorCanyon,

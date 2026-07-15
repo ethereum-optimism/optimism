@@ -99,6 +99,7 @@ strum.workspace = true
 alloy-op-hardforks.workspace = true
 alloy-genesis.workspace = true
 reth-optimism-chainspec.workspace = true
+rstest.workspace = true
 
 [features]
 client = [

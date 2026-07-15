@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -393,11 +394,20 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 		Challenger:        standard.PlaceholderAddress,
 	}
 
-	startingAnchorRoot := opcm.DefaultStartingAnchorRoot.Root
+	// Permissioned deploys use the placeholder anchor broadcast by apply. Permissionless
+	// deploys use a sentinel because their real anchor depends on the addresses predicted
+	// here, and the placeholder is rejected for them.
+	startingAnchorRoot := opcm.Proposal{
+		Root:             opcm.DefaultStartingAnchorRoot.Root,
+		L2SequenceNumber: common.Big0,
+	}
 	cannonAbsolutePrestate := proofParams.DisputeAbsolutePrestate
 
 	if pipeline.IsPermissionlessGameType(proofParams.DisputeGameType) {
-		startingAnchorRoot = predictionStartingAnchorRoot
+		startingAnchorRoot.Root = predictionStartingAnchorRoot
+	}
+
+	if proofParams.DisputeGameType == uint32(embedded.GameTypeCannonKona) {
 		cannonAbsolutePrestate = predictionCannonAbsolutePrestate
 	}
 

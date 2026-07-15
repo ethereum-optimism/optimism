@@ -1,0 +1,61 @@
+---
+title: Legacy Geth configuration options
+description: Reference for Legacy Geth (l2geth) environment variables and the RPC methods routed to it.
+diataxis: reference
+---
+
+This page catalogues the environment variables Legacy Geth (`l2geth`) accepts and the RPC methods your execution client routes to it.
+For what Legacy Geth is and how to set it up, see the [Legacy Geth guide](/node-operators/guides/configuration/legacy-geth).
+
+Legacy Geth is required only for upgraded networks like OP Mainnet to serve historical execution traces from before the Bedrock upgrade.
+
+## Environment variables
+
+Legacy Geth accepts the following environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `USING_OVM` | **Required**. Enables OVM mode | N/A (must be set to `true`) |
+| `ETH1_SYNC_SERVICE_ENABLE` | Enables L1 sync service | `true` (set to `false` for read-only) |
+| `RPC_API` | Enabled RPC APIs | `eth,net,web3` |
+| `RPC_ADDR` | RPC listening address | `localhost` |
+| `RPC_CORS_DOMAIN` | CORS domains | `localhost` |
+| `RPC_ENABLE` | Enable RPC server | `false` |
+| `RPC_PORT` | RPC port | `8545` |
+| `RPC_VHOSTS` | Virtual hosts | `localhost` |
+
+<Warning>
+  It is imperative that you specify the `USING_OVM=true` environment variable.
+  Failing to specify this will cause `l2geth` to return invalid execution traces or panic at startup.
+</Warning>
+
+## Execution-client routing flag
+
+Both op-reth and op-geth use the same `--rollup.historicalrpc` flag to route pre-Bedrock execution requests to Legacy Geth.
+The flag takes the URL of the Legacy Geth RPC endpoint, for example `--rollup.historicalrpc=http://localhost:8545`.
+
+## Historical execution vs. historical data
+
+Only requests for **historical execution** will be routed to Legacy Geth.
+Everything else will be served by your execution client directly.
+
+### Historical execution RPC methods
+
+These methods require transaction execution and are routed to Legacy Geth for pre-Bedrock blocks:
+
+- `eth_call`
+- `eth_estimateGas`
+- `debug_traceBlockByNumber`
+- `debug_traceBlockByHash`
+- `debug_traceCall`
+- `debug_traceTransaction`
+
+### Historical data RPC methods
+
+These methods only read data from the database and are served by your execution client:
+
+- `eth_getBlockByNumber`
+- `eth_getBlockByHash`
+- `eth_getTransactionByHash`
+- `eth_getTransactionReceipt`
+- `eth_getLogs`

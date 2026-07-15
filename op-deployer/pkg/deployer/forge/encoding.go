@@ -9,16 +9,25 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+var (
+	commonAddressType = reflect.TypeFor[common.Address]()
+	commonHashType    = reflect.TypeFor[common.Hash]()
+	bigIntType        = reflect.TypeFor[big.Int]()
+)
+
 func GoStructToABITuple(structType reflect.Type, tupleName string) (abi.Type, error) {
-	var components []abi.ArgumentMarshaling
+	components, err := goStructToABIComponents(structType)
+	if err != nil {
+		return abi.Type{}, err
+	}
+	return abi.NewType("tuple", tupleName, components)
+}
+
+func goStructToABIComponents(structType reflect.Type) ([]abi.ArgumentMarshaling, error) {
+	components := make([]abi.ArgumentMarshaling, 0, structType.NumField())
 
 	for i := 0; i < structType.NumField(); i++ {
 		field := structType.Field(i)
-
-		abiType, err := GoTypeToABIType(field.Type)
-		if err != nil {
-			return abi.Type{}, fmt.Errorf("unsupported field type %s: %w", field.Type, err)
-		}
 
 		// Use ABI tag if present, otherwise use field name
 		fieldName := field.Name
@@ -26,28 +35,63 @@ func GoStructToABITuple(structType reflect.Type, tupleName string) (abi.Type, er
 			fieldName = abiTag
 		}
 
-		components = append(components, abi.ArgumentMarshaling{
-			Name: fieldName,
-			Type: abiType,
-		})
+		component, err := goTypeToABIComponent(field.Type, fieldName)
+		if err != nil {
+			return nil, fmt.Errorf("unsupported field type %s: %w", field.Type, err)
+		}
+		components = append(components, component)
 	}
 
-	return abi.NewType("tuple", tupleName, components)
+	return components, nil
+}
+
+func goTypeToABIComponent(goType reflect.Type, name string) (abi.ArgumentMarshaling, error) {
+	for goType.Kind() == reflect.Pointer {
+		goType = goType.Elem()
+	}
+
+	// Handle named primitive ABI types before the generic struct case below.
+	switch goType {
+	case commonAddressType, commonHashType, bigIntType:
+		abiType, err := GoTypeToABIType(goType)
+		if err != nil {
+			return abi.ArgumentMarshaling{}, err
+		}
+		return abi.ArgumentMarshaling{Name: name, Type: abiType}, nil
+	}
+
+	if goType.Kind() == reflect.Struct {
+		components, err := goStructToABIComponents(goType)
+		if err != nil {
+			return abi.ArgumentMarshaling{}, err
+		}
+		return abi.ArgumentMarshaling{
+			Name:       name,
+			Type:       "tuple",
+			Components: components,
+		}, nil
+	}
+
+	abiType, err := GoTypeToABIType(goType)
+	if err != nil {
+		return abi.ArgumentMarshaling{}, err
+	}
+	return abi.ArgumentMarshaling{Name: name, Type: abiType}, nil
 }
 
 func GoTypeToABIType(goType reflect.Type) (string, error) {
 	// handle pointers by dereferencing
-	if goType.Kind() == reflect.Ptr {
+	if goType.Kind() == reflect.Pointer {
 		goType = goType.Elem()
 	}
 
 	// non-standard go types (need to catch these first)
 	switch goType {
-	case reflect.TypeOf(common.Address{}):
+	case commonAddressType:
 		return "address", nil
-	case reflect.TypeOf(common.Hash{}):
+	case commonHashType:
 		return "bytes32", nil
-	case reflect.TypeOf(big.NewInt(0)).Elem():
+	case bigIntType:
 		return "uint256", nil
 	}
 
@@ -104,33 +148,46 @@ func GoTypeToABIType(goType reflect.Type) (string, error) {
 	return "", fmt.Errorf("unable to convert go type to abi type: %s", goType)
 }
 
-func ConvertAnonStructToTyped[T any](anonStruct interface{}) (T, error) {
-	var result T
-
-	srcVal := reflect.ValueOf(anonStruct)
-	destVal := reflect.ValueOf(&result).Elem()
-
-	// Ensure both are structs
-	if srcVal.Kind() != reflect.Struct || destVal.Kind() != reflect.Struct {
-		return result, fmt.Errorf("both source and destination must be structs")
+func validateStructFieldCounts(sourceType, targetType reflect.Type) error {
+	for sourceType != nil && sourceType.Kind() == reflect.Pointer {
+		sourceType = sourceType.Elem()
+	}
+	for targetType != nil && targetType.Kind() == reflect.Pointer {
+		targetType = targetType.Elem()
 	}
 
-	// Check field count matches
-	if srcVal.NumField() != destVal.NumField() {
-		return result, fmt.Errorf("field count mismatch: source has %d, destination has %d",
-			srcVal.NumField(), destVal.NumField())
+	if sourceType == nil || targetType == nil || sourceType.Kind() != reflect.Struct || targetType.Kind() != reflect.Struct {
+		return nil
+	}
+	if sourceType.NumField() != targetType.NumField() {
+		return fmt.Errorf("struct field count mismatch: source has %d fields, target has %d fields", sourceType.NumField(), targetType.NumField())
 	}
 
-	// Copy fields by index (assumes same field order)
-	for i := 0; i < srcVal.NumField(); i++ {
-		srcField := srcVal.Field(i)
-		destField := destVal.Field(i)
-
-		if destField.CanSet() {
-			destField.Set(srcField)
+	for i := 0; i < sourceType.NumField(); i++ {
+		if err := validateStructFieldCounts(sourceType.Field(i).Type, targetType.Field(i).Type); err != nil {
+			return fmt.Errorf("field %s: %w", targetType.Field(i).Name, err)
 		}
 	}
+	return nil
+}
 
+// ConvertAnonStructToTyped converts anonStruct to T and returns conversion failures as errors.
+// The source and target must be structs with equal field counts at every corresponding struct.
+func ConvertAnonStructToTyped[T any](anonStruct any) (result T, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("cannot convert anonymous struct to %T: %v", result, r)
+		}
+	}()
+	sourceType := reflect.TypeOf(anonStruct)
+	targetType := reflect.TypeFor[T]()
+	if sourceType == nil || sourceType.Kind() != reflect.Struct || targetType.Kind() != reflect.Struct {
+		return result, fmt.Errorf("both source and target must be structs")
+	}
+	if err := validateStructFieldCounts(sourceType, targetType); err != nil {
+		return result, fmt.Errorf("cannot convert anonymous struct to %T: %w", result, err)
+	}
+	result = *abi.ConvertType(anonStruct, new(T)).(*T)
 	return result, nil
 }
 
@@ -139,7 +196,7 @@ type BytesScriptEncoder[T any] struct {
 }
 
 func (e *BytesScriptEncoder[T]) Encode(input T) ([]byte, error) {
-	inputType, err := GoStructToABITuple(reflect.TypeOf(input), e.TypeName)
+	inputType, err := GoStructToABITuple(reflect.TypeFor[T](), e.TypeName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create input type: %w", err)
 	}
@@ -154,7 +211,7 @@ type BytesScriptDecoder[T any] struct {
 
 func (d *BytesScriptDecoder[T]) Decode(rawOutput []byte) (T, error) {
 	var zero T
-	outputType, err := GoStructToABITuple(reflect.TypeOf(zero), d.TypeName)
+	outputType, err := GoStructToABITuple(reflect.TypeFor[T](), d.TypeName)
 	if err != nil {
 		return zero, fmt.Errorf("failed to create output type: %w", err)
 	}

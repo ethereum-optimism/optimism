@@ -276,6 +276,22 @@ Blockchain sync mode. Options are "consensus-layer" or "execution-layer". The de
   <Tab title="Environment variable">`OP_NODE_SYNCMODE=consensus-layer`</Tab>
 </Tabs>
 
+### syncmode.offset-el-safe
+
+Only effective with `--syncmode=execution-layer`. After execution-layer sync completes, the safe and finalized heads are set to this duration behind the synced tip (converted to L2 blocks using the rollup block time). The default `12h` matches the OP Mainnet sequencing window.
+
+Setting this to `0` leaves safe and finalized at the synced tip. This is **not recommended and is dangerous**: the offset ensures the node does not label the EL-sync tip as safe/finalized until L1 has had time to confirm it. With `0`, an EL-sync tip that later turns out to be on a reorged (non-canonical) branch can be marked safe/finalized, and safe/finalized are not supposed to reorg. Fix a body-pruning mismatch by enlarging the EL's retained body window instead — see the warning below.
+
+<Warning>
+  op-node reads the L1-info deposit transaction from the block body at the head placed this far behind the tip, so the execution client must retain block bodies at least this far back. Body pruning (op-reth's `--minimal` mode or `--prune.bodies.distance`) is unsupported; if you enable it anyway, keep the retained body window comfortably larger than this offset (in blocks), or EL sync fails with `l2 block is missing L1 info deposit tx`. See [Pruning op-reth](/node-operators/guides/management/archive-node#pruning-op-reth).
+</Warning>
+
+<Tabs>
+  <Tab title="Syntax">`--syncmode.offset-el-safe=<duration>`</Tab>
+  <Tab title="Example">`--syncmode.offset-el-safe=12h`</Tab>
+  <Tab title="Environment variable">`OP_NODE_SYNCMODE_OFFSET_EL_SAFE=12h`</Tab>
+</Tabs>
+
 ## Fork overrides
 
 Manually override fork activation timestamps for testing or custom deployments.
@@ -350,16 +366,6 @@ Manually specify the isthmus fork timestamp, overriding the bundled setting. The
   <Tab title="Environment variable">`OP_NODE_OVERRIDE_ISTHMUS=0`</Tab>
 </Tabs>
 
-### override.lagoon
-
-Manually specify the Lagoon fork timestamp, overriding the bundled setting. The default value is `0`.
-
-<Tabs>
-  <Tab title="Syntax">`--override.lagoon=<value>`</Tab>
-  <Tab title="Example">`--override.lagoon=0`</Tab>
-  <Tab title="Environment variable">`OP_NODE_OVERRIDE_LAGOON=0`</Tab>
-</Tabs>
-
 ### override.jovian
 
 Manually specify the Jovian fork timestamp, overriding the bundled setting. The default value is `0`.
@@ -370,6 +376,26 @@ Manually specify the Jovian fork timestamp, overriding the bundled setting. The 
   <Tab title="Environment variable">`OP_NODE_OVERRIDE_JOVIAN=0`</Tab>
 </Tabs>
 
+### override.karst
+
+Manually specify the Karst fork timestamp, overriding the bundled setting. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.karst=<value>`</Tab>
+  <Tab title="Example">`--override.karst=0`</Tab>
+  <Tab title="Environment variable">`OP_NODE_OVERRIDE_KARST=0`</Tab>
+</Tabs>
+
+### override.lagoon
+
+Manually specify the Lagoon fork timestamp, overriding the bundled setting. The default value is `0`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.lagoon=<value>`</Tab>
+  <Tab title="Example">`--override.lagoon=0`</Tab>
+  <Tab title="Environment variable">`OP_NODE_OVERRIDE_LAGOON=0`</Tab>
+</Tabs>
+
 ### override.pectrablobschedule
 
 Manually specify the PectraBlobSchedule fork timestamp, overriding the bundled setting. The default value is `0`.
@@ -378,6 +404,16 @@ Manually specify the PectraBlobSchedule fork timestamp, overriding the bundled s
   <Tab title="Syntax">`--override.pectrablobschedule=<value>`</Tab>
   <Tab title="Example">`--override.pectrablobschedule=0`</Tab>
   <Tab title="Environment variable">`OP_NODE_OVERRIDE_PECTRABLOBSCHEDULE=0`</Tab>
+</Tabs>
+
+### override.keep-karst-upgrade-gas
+
+Manually set `keep_karst_upgrade_gas`, overriding the bundled setting. When `true`, the Karst activation block's one-time upgrade gas is kept on every later block. Set this only on chains that already activated Karst with the upgrade-gas leak baked into their history. The default value is `false`.
+
+<Tabs>
+  <Tab title="Syntax">`--override.keep-karst-upgrade-gas=<boolean>`</Tab>
+  <Tab title="Example">`--override.keep-karst-upgrade-gas=false`</Tab>
+  <Tab title="Environment variable">`OP_NODE_OVERRIDE_KEEP_KARST_UPGRADE_GAS=false`</Tab>
 </Tabs>
 
 ## Logging configuration
