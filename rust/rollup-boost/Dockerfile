@@ -85,10 +85,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 #
 # Runtime container
 #
-FROM debian:trixie-slim
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+FROM chainguard/wolfi-base:latest@sha256:02dab76bd852a70556b5b2002195c8a5fdab77d323c433bf6642aab080489795
+RUN n=0; until apk add --no-cache ca-certificates-bundle ca-certificates busybox glibc libgcc libstdc++ openssl; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
 WORKDIR /app
 
 ARG SERVICE_NAME
