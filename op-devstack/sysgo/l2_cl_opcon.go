@@ -242,7 +242,7 @@ func startMixedOpConNode(
 	// signature (--unsafe-block-signer seeds the expected signer), ingest accepted
 	// blocks. The safe chain still derives from L1.
 	if unsafePayloadWS != "" {
-		args = append(args, "--follow-direct", unsafePayloadWS)
+		args = append(args, "--follow", unsafePayloadWS)
 	}
 
 	// Sequencer mode: op-con-node produces the unsafe chain itself by driving

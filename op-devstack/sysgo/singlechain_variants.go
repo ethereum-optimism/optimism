@@ -305,7 +305,7 @@ func NewSingleChainOpConSequencerP2PWrongSignerRuntime(t devtest.T, cfg PresetCo
 // NewSingleChainOpConSequencerWSFollowRuntime wires the sidecar-less opql
 // distribution path: the op-con-node sequencer signs each unsafe block and
 // serves the signed envelopes on its payload websocket; an op-con-node verifier
-// consumes that feed DIRECTLY via --follow-direct (the push analog of
+// consumes that feed DIRECTLY via --follow (the push analog of
 // --follow-el) — no gossip, no sidecar — verifying each block's signature
 // against the expected unsafe-block signer before ingesting it. The batcher
 // runs, so the verifier's safe chain derives from L1 and consolidates against

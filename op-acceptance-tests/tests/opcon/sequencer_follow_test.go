@@ -97,7 +97,7 @@ func TestOpConSequencerFollowedByVerifierFinalized(gt *testing.T) {
 // TestOpConSequencerVerifiedViaSignedPayloadWS exercises the sidecar-less opql
 // distribution path: the op-con-node sequencer signs each unsafe block and
 // serves the signed envelopes on its payload websocket; an op-con-node verifier
-// consumes that feed directly via --follow-direct (the push analog of
+// consumes that feed directly via --follow (the push analog of
 // follow mode), verifies each block's signature against the deployed
 // SystemConfig unsafe-block signer, and ingests it — no gossip, no sidecar. The
 // batcher runs, so the verifier also derives its safe chain from L1 and must
