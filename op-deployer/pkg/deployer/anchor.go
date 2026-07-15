@@ -13,11 +13,8 @@ type l1BlockFetcher interface {
 	CallContext(ctx context.Context, result any, method string, args ...any) error
 }
 
-// selectAnchorBlock returns the reorg-safe L1 anchor block for a chain.
-//
-// safe is the current L1 safe block. When overrideHash is nil, safe is returned as-is. When set, the pinned block
-// is accepted only if it sits at the L1 safe head or deeper and
-// it's the canonical block at its height.
+// selectAnchorBlock returns safe when no override is set. An override must be
+// no newer than safe and canonical at its height.
 func selectAnchorBlock(ctx context.Context, l1 l1BlockFetcher, safe *state.L1BlockRefJSON, overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
 	if overrideHash == nil {
 		return safe, nil
@@ -35,7 +32,7 @@ func selectAnchorBlock(ctx context.Context, l1 l1BlockFetcher, safe *state.L1Blo
 		)
 	}
 
-	// Confirm the pinned hash is the block the canonical chain carries at that height.
+	// Hash lookups may return reorged-out blocks, so verify canonicality by number.
 	canonical, err := fetchL1BlockRefByNumber(ctx, l1, hexutil.EncodeUint64(uint64(anchor.Number)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify anchor block %s is canonical: %w", overrideHash.Hex(), err)

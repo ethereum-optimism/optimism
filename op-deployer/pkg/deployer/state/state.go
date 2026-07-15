@@ -188,10 +188,10 @@ func (s *State) SetChainContracts(id common.Hash, contracts addresses.OpChainCon
 	})
 }
 
-// PinChainAnchor commits a chain's L1 anchor block together with the genesis time
-// derived from it. The pair is one single commitment and every downstream artifact reads both
-// from the state. It creates the chain entry if it does not exist marked as "not deployed"
-// and otherwise updates it in place, preserving fields set by other stages.
+// PinChainAnchor records a chain's L1 anchor block and derived L2 genesis time.
+// Downstream stages must reuse this pair so generated artifacts agree and
+// reruns remain idempotent. New entries are marked undeployed, while updates
+// preserve fields written by other stages.
 func (s *State) PinChainAnchor(id common.Hash, anchor *L1BlockRefJSON, genesisTime hexutil.Uint64) {
 	for _, chain := range s.Chains {
 		if chain.ID == id {

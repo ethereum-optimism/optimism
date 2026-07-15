@@ -175,7 +175,8 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("failed to load DeployOPChain script: %w", err)
 	}
 
-	// Fetch the L1 safe block to share it across all chains.
+	// Fetch safe block once, so all unpinned chains without an override share one anchor.
+	// This is also the reference block for the overrides.
 	safe, err := fetchL1BlockRefByNumber(ctx, l1RPC, "safe")
 	if err != nil {
 		return fmt.Errorf("failed to fetch L1 safe block: %w", err)
@@ -223,13 +224,9 @@ func resolveSuperchainConfigProxy(ctx context.Context, l1RPC *rpc.Client, intent
 	return nil
 }
 
-// predictChains predicts the L1 addresses for each undeployed chain in the intent
-// and records them, along with the chain's anchor block and the genesis
-// time committed from it, marked as not deployed. Chains that have been deployed are skipped
-// so a re-run doesn't overwrite their recorded addresses. selectAnchor resolves a
-// chain's anchor block from its optional L1StartBlockHash override. genesisTimeOffset
-// is the number of seconds added to the anchor's timestamp to produce the committed
-// L2 genesis time.
+// predictChains predicts and records contract L1 addresses for undeployed chains.
+// It pins each chain's anchor and derived genesis time before prediction.
+// Reruns revalidate and reuse that pair instead of recomputing it.
 func predictChains(
 	lgr log.Logger,
 	intent *state.Intent,
@@ -272,6 +269,7 @@ func predictChains(
 				return fmt.Errorf("failed to select anchor block for chain %s: %w", chain.ID.Hex(), err)
 			}
 
+			// TODO(#20916): A reasonable minimum will be enforced in the future, once the L2 deployment is benchmarked.
 			// Commit the anchor and the genesis time.
 			genesisTime := hexutil.Uint64(uint64(anchorBlock.Time) + genesisTimeOffset)
 			st.PinChainAnchor(chain.ID, anchorBlock, genesisTime)
