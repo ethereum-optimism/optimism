@@ -50,11 +50,26 @@ Different node types serve different purposes:
 
 * **Full node**: keeps a complete copy of the blockchain, validates all transactions and blocks, and participates on the P2P network.
 * **Archive node**: additionally retains all historical state for every block.
+  On OP Mainnet, archive nodes need to restore from a [database snapshot](/op-mainnet/network-information/snapshots) before syncing.
 * **Sequencer node**: can be a full or archive node, but it can create new L2 blocks.
+
+## Network upgrades
+
+Network upgrades on OP Stack networks are generally [activated by timestamps](/op-stack/protocol/network-upgrades#activations).
+Failing to upgrade your node before the activation timestamp causes a chain divergence that requires a resync, so follow the [node upgrade process](/op-stack/protocol/network-upgrades#upgrade-process) to stay on the canonical chain.
+
+## Stay up to date
+
+Upgrade announcements, deprecations, and other changes that affect node operators are published on the [Network Notices](/notices) page.
 
 ## Next steps
 
 *   [**Run a node with Docker**](/node-operators/tutorials/node-from-docker) — recommended path; uses the official op-reth + op-node images.
 *   [**Build and run a node from source**](/node-operators/tutorials/run-node-from-source) — covers op-reth and Nethermind.
+*   [**Run op-reth with historical proofs**](/node-operators/tutorials/reth-historical-proofs) — configure op-reth's proofs-history store for permissionless withdrawal proving.
+*   [**Consensus client configuration**](/node-operators/guides/configuration/consensus-clients) — working base configuration and recommended flags for the rollup node.
+*   [**Execution client configuration**](/node-operators/guides/configuration/execution-clients) — working base configuration and recommended flags for the execution client.
 *   [**Supernode configuration**](/node-operators/guides/configuration/supernode) — flag reference for running op-supernode in an interop dependency set.
+*   [**Node metrics and monitoring**](/node-operators/guides/monitoring/metrics) — keep tabs on your node once it's running.
+*   [**Node troubleshooting**](/node-operators/guides/troubleshooting) — help with common problems.
 *   [**Architecture reference**](/node-operators/reference/architecture/architecture) — deeper detail on the two-client architecture.
