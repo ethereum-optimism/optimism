@@ -190,7 +190,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return selectAnchorBlock(ctx, l1RPC, safe, overrideHash)
 	}
 
-	if err := predictChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor, cfg.GenesisTimeOffset); err != nil {
+	if err := predictChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor, safe, cfg.GenesisTimeOffset); err != nil {
 		return err
 	}
 
@@ -237,6 +237,7 @@ func predictChains(
 	st *state.State,
 	run func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error),
 	selectAnchor func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error),
+	safe *state.L1BlockRefJSON,
 	genesisTimeOffset uint64,
 ) error {
 	for _, chain := range intent.Chains {
@@ -245,6 +246,7 @@ func predictChains(
 			continue
 		}
 
+		var genesisTime hexutil.Uint64
 		if pinned := pinnedAnchorState(st, chain.ID); pinned != nil {
 			// A prior run already committed this chain's anchor and genesis time. Check the intent's override
 			// and the block commitment are the same.
@@ -259,12 +261,13 @@ func predictChains(
 			if _, err := selectAnchor(&pinned.StartBlock.Hash); err != nil {
 				return fmt.Errorf("pinned anchor block for chain %s is no longer valid: %w", chain.ID.Hex(), err)
 			}
+			genesisTime = *pinned.GenesisTime
 			lgr.Info(
 				"reusing pinned anchor block and genesis time",
 				"chain", chain.ID.Hex(),
 				"number", uint64(pinned.StartBlock.Number),
 				"hash", pinned.StartBlock.Hash,
-				"genesisTime", uint64(*pinned.GenesisTime),
+				"genesisTime", uint64(genesisTime),
 			)
 		} else {
 			// Resolve the reorg-safe anchor block before the dry-run.
@@ -275,7 +278,7 @@ func predictChains(
 
 			// TODO(#20916): A reasonable minimum will be enforced in the future, once the L2 deployment is benchmarked.
 			// Commit the anchor and the genesis time.
-			genesisTime := hexutil.Uint64(uint64(anchorBlock.Time) + genesisTimeOffset)
+			genesisTime = hexutil.Uint64(uint64(anchorBlock.Time) + genesisTimeOffset)
 			st.PinChainAnchor(chain.ID, anchorBlock, genesisTime)
 			lgr.Info(
 				"pinned anchor block and genesis time",
@@ -283,6 +286,16 @@ func predictChains(
 				"number", uint64(anchorBlock.Number),
 				"hash", anchorBlock.Hash,
 				"genesisTime", uint64(genesisTime),
+			)
+		}
+
+		// The deployment must land after the current safe head, so a genesis time at or
+		// below its timestamp can no longer be met.
+		if uint64(genesisTime) <= uint64(safe.Time) {
+			return fmt.Errorf(
+				"chain %s: the committed genesis time (%d) is not after the current L1 safe head timestamp (%d), the deployment window has elapsed; "+
+					"use a newer anchor block or a larger --%s (for a pin from a previous run, clear the chain's state to re-pin)",
+				chain.ID.Hex(), uint64(genesisTime), uint64(safe.Time), GenesisTimeOffsetFlagName,
 			)
 		}
 
