@@ -14,8 +14,8 @@ import (
 
 var ErrNoSuperRootData = errors.New("supernode response has no super root data")
 
-// SuperNodeClient is the interface for interacting with an op-supernode.
-type SuperNodeClient interface {
+// SuperRootClient is the interface required from a super root RPC client.
+type SuperRootClient interface {
 	SuperRootAtTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error)
 	Close()
 }
@@ -25,10 +25,10 @@ type SuperNodeClient interface {
 // and falling back to subsequent clients for proposals if earlier ones fail.
 type SuperRootProposalSource struct {
 	log     log.Logger
-	clients []SuperNodeClient
+	clients []SuperRootClient
 }
 
-func NewSuperRootProposalSource(logger log.Logger, clients ...SuperNodeClient) *SuperRootProposalSource {
+func NewSuperRootProposalSource(logger log.Logger, clients ...SuperRootClient) *SuperRootProposalSource {
 	if len(clients) == 0 {
 		panic("no supernode clients provided")
 	}

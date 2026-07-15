@@ -237,6 +237,8 @@ func TestSuperRootSource_ProposalAtSequenceNum(t *testing.T) {
 	})
 }
 
+var _ SuperRootClient = (*mockSuperNodeClient)(nil)
+
 type mockSuperNodeClient struct {
 	responses    map[uint64]eth.SuperRootAtTimestampResponse
 	fn           func(context.Context, uint64) (eth.SuperRootAtTimestampResponse, error)

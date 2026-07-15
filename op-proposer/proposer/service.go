@@ -143,7 +143,7 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 		ps.ProposalSource = source.NewRollupProposalSource(rollupProvider)
 	}
 	if len(cfg.SuperRootRpcs) != 0 {
-		var clients []source.SuperNodeClient
+		var clients []source.SuperRootClient
 		for _, url := range cfg.SuperRootRpcs {
 			cl, err := dial.DialSuperNodeClientWithTimeout(ctx, ps.Log, url,
 				client.WithRPCRecorder(ps.Metrics.NewRecorder("supernode")))
