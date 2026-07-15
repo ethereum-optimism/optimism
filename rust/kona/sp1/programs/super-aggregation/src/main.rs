@@ -127,6 +127,7 @@ mod tests {
         .into();
         assert_ne!(RANGE_DIGESTS[0], unwrapped_range_digest);
         assert_ne!(CONSOLIDATION_DIGESTS[0], unwrapped_consolidation_digest);
+        assert_ne!(RANGE_DIGESTS[0], CONSOLIDATION_DIGESTS[0]);
     }
 
     #[test]
