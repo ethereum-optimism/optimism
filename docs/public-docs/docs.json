@@ -75,6 +75,10 @@
       "destination": "/notices/op-deployer-upgrade-deprecation"
     },
     {
+      "source": "/chain-operators/tools/op-deployer/reference/custom-deployments",
+      "destination": "/chain-operators/tools/op-deployer/usage/custom-deployments"
+    },
+    {
       "source": "/pages/app-developers/get-started",
       "destination": "/app-developers/guides/interoperability/get-started"
     },
@@ -1989,7 +1993,8 @@
                       "chain-operators/tools/op-deployer/usage/bootstrap",
                       "chain-operators/tools/op-deployer/usage/init",
                       "chain-operators/tools/op-deployer/usage/apply",
-                      "chain-operators/tools/op-deployer/usage/verify"
+                      "chain-operators/tools/op-deployer/usage/verify",
+                      "chain-operators/tools/op-deployer/usage/custom-deployments"
                     ]
                   },
                   "chain-operators/tools/op-deployer/known-limitations",
@@ -2005,8 +2010,7 @@
                         ]
                       },
                       "chain-operators/tools/op-deployer/reference/artifacts-locators",
-                      "chain-operators/tools/op-deployer/reference/releases",
-                      "chain-operators/tools/op-deployer/reference/custom-deployments"
+                      "chain-operators/tools/op-deployer/reference/releases"
                     ]
                   }
                 ]
