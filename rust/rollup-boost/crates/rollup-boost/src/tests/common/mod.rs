@@ -113,6 +113,9 @@ impl EngineApi {
             PayloadVersion::V4 => Ok(OpExecutionPayloadEnvelope::V4(
                 EngineApiClient::get_payload_v4(&self.engine_api_client, payload_id).await?,
             )),
+            PayloadVersion::V5 => Ok(OpExecutionPayloadEnvelope::V4(
+                EngineApiClient::get_payload_v5(&self.engine_api_client, payload_id).await?,
+            )),
         }
     }
 
@@ -520,6 +523,7 @@ impl SimpleBlockGenerator {
                         prev_randao: B256::ZERO,
                         suggested_fee_recipient: Default::default(),
                         slot_number: None,
+                        target_gas_limit: None,
                     },
                     transactions: txns,
                     no_tx_pool: Some(empty_blocks),

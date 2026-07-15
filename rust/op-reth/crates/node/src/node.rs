@@ -104,6 +104,7 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
                 .is_cancun_active_at_timestamp(timestamp)
                 .then(alloy_primitives::B256::random),
             slot_number: None,
+            target_gas_limit: None,
         };
 
         /// Dummy system transaction for dev mode.
