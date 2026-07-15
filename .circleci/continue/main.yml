@@ -2986,7 +2986,7 @@ workflows:
                 - main
                 - CUSTOM_GAS_TOKEN
                 - OPTIMISM_PORTAL_INTEROP
-                - ZK_DISPUTE_GAME
+                - ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION
                 - SUPER_ROOT_GAMES_MIGRATION
                 # TODO(#20084): Remove these commented out jobs when removing the L2CM feature toggle.
                 #   L2CM is enabled by default, so we do not need to explicitly enable it and run these additional jobs.
@@ -3148,22 +3148,22 @@ workflows:
             - contracts-bedrock-tests main: terminal
             - contracts-bedrock-tests CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-tests ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-tests ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-coverage CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-coverage ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-coverage ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-coverage SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-upgrade op-mainnet SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-upgrade op-mainnet: terminal
             - contracts-bedrock-tests-upgrade ink-mainnet: terminal
