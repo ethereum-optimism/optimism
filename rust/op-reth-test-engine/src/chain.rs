@@ -192,6 +192,12 @@ impl EphemeralChain {
     /// Both calls are required: `update_chain` inserts the block into the in-memory map (making it
     /// queryable), while `set_canonical_head` advances the head pointer that `latest()` and
     /// `best_block_number` read.
+    ///
+    /// Production code canonicalizes exclusively through
+    /// [`advance_forkchoice`](Self::advance_forkchoice) (linear extension is just a reorg with
+    /// an empty removed set), so this direct-commit helper is only used by the low-level exec
+    /// round-trip tests.
+    #[cfg(test)]
     pub(crate) fn commit_block(&self, executed: ExecutedBlock<OpPrimitives>) {
         let head = executed.recovered_block.clone_sealed_header();
         let state = self.provider.canonical_in_memory_state();

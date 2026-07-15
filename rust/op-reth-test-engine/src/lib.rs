@@ -22,7 +22,7 @@ pub use chain::EphemeralChain;
 
 use std::collections::{BTreeMap, HashMap};
 
-use alloy_consensus::{BlockHeader as _, Header, Transaction as _, transaction::SignerRecoverable};
+use alloy_consensus::{Header, Transaction as _, transaction::SignerRecoverable};
 use alloy_eips::eip2718::Decodable2718;
 use alloy_genesis::Genesis;
 use alloy_primitives::{Address, B256, Bytes, keccak256};
