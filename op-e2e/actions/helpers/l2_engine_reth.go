@@ -76,6 +76,13 @@ func resolveEngineBinary() (string, error) {
 			engineBinPath = override
 			return
 		}
+		// REQUIRE_RUST_ENGINE arms CI: with it set, a missing prebuilt-binary path is a hard error
+		// rather than a slow cargo fallback, so a misconfigured job (binary not built/persisted, path
+		// unexported) fails loudly instead of masking the config bug behind a 20-minute rebuild.
+		if os.Getenv("REQUIRE_RUST_ENGINE") != "" {
+			engineBinErr = fmt.Errorf("REQUIRE_RUST_ENGINE is set but RUST_BINARY_PATH_OP_RETH_TEST_ENGINE is empty: refusing to fall back to a cargo build")
+			return
+		}
 		cwd, err := os.Getwd()
 		if err != nil {
 			engineBinErr = err
