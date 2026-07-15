@@ -1432,11 +1432,15 @@
     },
     {
       "source": "/concepts/transactions/flashblocks",
-      "destination": "/op-stack/transactions/flashblocks"
+      "destination": "/op-stack/features/flashblocks"
     },
     {
       "source": "/stack/transactions/flashblocks",
-      "destination": "/op-stack/transactions/flashblocks"
+      "destination": "/op-stack/features/flashblocks"
+    },
+    {
+      "source": "/op-stack/transactions/flashblocks",
+      "destination": "/op-stack/features/flashblocks"
     },
     {
       "source": "/concepts/transactions/forced-transaction",
@@ -2210,6 +2214,7 @@
             "pages": [
               "app-developers/guides/transactions/estimates",
               "app-developers/guides/transactions/flashblocks-and-gas-usage",
+              "app-developers/guides/transactions/integrating-flashblocks",
               "app-developers/guides/transactions/parameters",
               "app-developers/guides/transactions/statuses",
               "app-developers/guides/transactions/troubleshooting"
@@ -2325,7 +2330,6 @@
             "pages": [
               "/op-stack/transactions/fees",
               "/op-stack/transactions/fee-vaults",
-              "/op-stack/transactions/flashblocks",
               "/op-stack/transactions/forced-transaction",
               "/op-stack/transactions/transaction-finality",
               "/op-stack/transactions/transaction-flow"
