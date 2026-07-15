@@ -2104,10 +2104,12 @@
               },
               "node-operators/reference/op-node-config",
               "node-operators/reference/op-node-json-rpc",
+              "node-operators/reference/op-supernode-config",
               "node-operators/reference/op-reth-config",
               "node-operators/reference/op-reth-json-rpc",
               "node-operators/reference/op-reth-historical-proof-config",
-              "node-operators/reference/consensus-layer-sync"
+              "node-operators/reference/consensus-layer-sync",
+              "node-operators/reference/lost-pre-regenesis-data"
             ]
           },
           {
@@ -2386,7 +2388,8 @@
           {
             "group": "Pre-Bedrock History",
             "pages": [
-              "node-operators/guides/configuration/legacy-geth"
+              "node-operators/guides/configuration/legacy-geth",
+              "node-operators/reference/legacy-geth-config"
             ]
           }
         ]

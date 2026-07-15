@@ -1,9 +1,11 @@
 ---
 title: Legacy Geth configuration
 description: Learn how to configure Legacy Geth for serving historical execution traces on upgraded OP Stack networks.
+diataxis: how-to
 ---
 
-Legacy Geth (`l2geth`) is required only for upgraded networks like OP Mainnet to serve historical execution traces from before the Bedrock upgrade.
+Legacy Geth (`l2geth`) is the old pre-Bedrock OVM client running against a preconfigured data directory.
+It is required only for upgraded networks like OP Mainnet to serve historical execution traces from before the Bedrock upgrade.
 If you're running a node that had a chain genesis after the Bedrock upgrade, you do not need Legacy Geth.
 
 <Info>
@@ -14,25 +16,13 @@ Legacy Geth (`l2geth`) is the pre-Bedrock OVM client and is unrelated to op-geth
 If you need state proofs for post-Bedrock blocks (for example, for withdrawal proving), see the [historical proofs config](/node-operators/reference/op-reth-historical-proof-config) — that's a different feature.
 </Info>
 
-## Historical execution vs. historical data routing
+## Do you need Legacy Geth?
 
-Only requests for historical execution will be routed to Legacy Geth.
+Only requests for *historical execution* — RPC methods that need to execute pre-Bedrock transactions rather than just read data from the database, such as `eth_call` and the `debug_trace*` methods — are routed to Legacy Geth.
 Everything else will be served by your execution client directly.
-The term *historical execution* refers to RPC methods that need to execute transactions prior to bedrock (not just read data from the database):
+If you do not need these RPC methods for pre-Bedrock blocks, then you do not need to run Legacy Geth at all.
 
-*   `eth_call`
-*   `eth_estimateGas`
-*   `debug_traceBlockByNumber`
-*   `debug_traceBlockByHash`
-*   `debug_traceCall`
-*   `debug_traceTransaction`
-
-If you do not need these RPC methods for historical data, then you do not need to run Legacy Geth at all.
-
-## What is Legacy Geth?
-
-Legacy Geth is the old `l2geth` binary running against a preconfigured data directory.
-It serves historical execution data from before the Bedrock upgrade.
+For the exact lists of which RPC methods are routed to Legacy Geth and which are served by your execution client, see the [Legacy Geth configuration reference](/node-operators/reference/legacy-geth-config#historical-execution-vs-historical-data).
 
 ## Setup
 
@@ -69,6 +59,8 @@ It is imperative that you specify the `USING_OVM=true` environment variable.
 Failing to specify this will cause `l2geth` to return invalid execution traces or panic at startup.
 </Warning>
 
+The full set of environment variables Legacy Geth accepts, with defaults, is catalogued in the [Legacy Geth configuration reference](/node-operators/reference/legacy-geth-config#environment-variables).
+
 ### 3. Configure your execution client to route to Legacy Geth
 
 Both op-reth and op-geth use the same `--rollup.historicalrpc` flag to route pre-Bedrock execution requests to Legacy Geth.
@@ -98,47 +90,6 @@ Both op-reth and op-geth use the same `--rollup.historicalrpc` flag to route pre
 </Tabs>
 
 The `--rollup.historicalrpc` flag tells your execution client where to route requests for historical execution.
-
-## Environment variables
-
-Legacy Geth accepts the following environment variables:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `USING_OVM` | **Required**. Enables OVM mode | N/A (must be set to `true`) |
-| `ETH1_SYNC_SERVICE_ENABLE` | Enables L1 sync service | `true` (set to `false` for read-only) |
-| `RPC_API` | Enabled RPC APIs | `eth,net,web3` |
-| `RPC_ADDR` | RPC listening address | `localhost` |
-| `RPC_CORS_DOMAIN` | CORS domains | `localhost` |
-| `RPC_ENABLE` | Enable RPC server | `false` |
-| `RPC_PORT` | RPC port | `8545` |
-| `RPC_VHOSTS` | Virtual hosts | `localhost` |
-
-## Historical execution vs. historical data
-
-Only requests for **historical execution** will be routed to Legacy Geth.
-Everything else will be served by your execution client directly.
-
-### Historical execution RPC methods
-
-These methods require transaction execution and are routed to Legacy Geth for pre-Bedrock blocks:
-
-- `eth_call`
-- `eth_estimateGas`
-- `debug_traceBlockByNumber`
-- `debug_traceBlockByHash`
-- `debug_traceCall`
-- `debug_traceTransaction`
-
-### Historical data RPC methods
-
-These methods only read data from the database and are served by your execution client:
-
-- `eth_getBlockByNumber`
-- `eth_getBlockByHash`
-- `eth_getTransactionByHash`
-- `eth_getTransactionReceipt`
-- `eth_getLogs`
 
 ## Troubleshooting
 
