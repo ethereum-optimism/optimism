@@ -381,6 +381,44 @@ mod tests {
     }
 
     #[test]
+    fn syncs_missing_blocks_from_a_peer_engine() {
+        use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
+
+        // A "sequencer" engine builds a three-block chain.
+        let mut seq = test_engine(user_sender());
+        let genesis = seq.header_by_number(0).unwrap().unwrap().hash_slow();
+        let b1 = build_block(&mut seq, genesis, 2, vec![], &[user_tx(0)]);
+        let b2 = build_block(&mut seq, b1, 4, vec![], &[user_tx(1)]);
+        let b3 = build_block(&mut seq, b2, 6, vec![], &[user_tx(2)]);
+
+        // A fresh "verifier" engine only learns of the tip (b3). Its parent is unknown, so a
+        // forkchoice update towards it reports SYNCING and records the sync target — exactly the
+        // signal the Go harness polls (`optest_syncTarget`) to know it must backfill.
+        let mut ver = test_engine(user_sender());
+        assert!(ver.sync_target().is_none());
+        let updated = ver.forkchoice_updated(fcu(b3), None).expect("fcu towards unknown tip");
+        assert!(updated.is_syncing());
+        assert_eq!(ver.sync_target(), Some(b3));
+
+        // Backfill each missing block from the peer in order — what the block-transfer optest
+        // methods do over the socket: `from_block_slow` on the source, `new_payload` on the target.
+        for number in 1..=3 {
+            let block = seq.block_by_number(number).unwrap().expect("peer has block");
+            let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+            let data = OpExecutionData::new(payload, sidecar);
+            let status = ver.new_payload(data).expect("import backfilled block");
+            assert!(status.is_valid(), "backfilled block {number} valid: {status:?}");
+        }
+        assert_eq!(ver.block_by_number(3).unwrap().unwrap().header.hash_slow(), b3);
+
+        // With the chain filled in, the forkchoice update that was SYNCING now resolves and clears
+        // the target: the engine has caught up.
+        let updated = ver.forkchoice_updated(fcu(b3), None).expect("fcu after backfill");
+        assert!(updated.is_valid());
+        assert!(ver.sync_target().is_none());
+    }
+
+    #[test]
     fn committed_payload_id_is_evicted() {
         // Mirrors TestL2SequencerAPI: once a payload is committed and the head advances past its
         // parent, re-sealing it (get_payload) must report UnknownPayloadId — op-node maps that code

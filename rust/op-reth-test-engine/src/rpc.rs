@@ -376,6 +376,45 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
     })
     .expect("register method");
 
+    // The head a forkchoice update reported SYNCING for and has not since resolved, or the zero
+    // hash. A real EL would snap-sync towards it over devp2p; the Go harness reads this and
+    // backfills the missing blocks from the peer engine (`optest_blockPayloadByNumber` ->
+    // `optest_importBlock`), standing in for the p2p sync this ephemeral engine cannot do.
+    m.register_method("optest_syncTarget", |_params, ctx, _| {
+        let target = lock(ctx).sync_target().unwrap_or(B256::ZERO);
+        serde_json::to_value(target).map_err(rpc_err)
+    })
+    .expect("register method");
+
+    // The canonical block at `number`, re-expressed as the full execution data an
+    // `engine_newPayload` would carry (payload plus fork-specific sidecar), or null if unknown.
+    // The sync backfill reads this from the peer engine and feeds it to `optest_importBlock`.
+    m.register_method("optest_blockPayloadByNumber", |params, ctx, _| {
+        let number: u64 = params.one().map_err(rpc_err)?;
+        let engine = lock(ctx);
+        let value = match engine.block_by_number(number).map_err(rpc_err)? {
+            Some(block) => {
+                let (payload, sidecar) = OpExecutionPayload::from_block_slow(&block);
+                serde_json::to_value(OpExecutionData::new(payload, sidecar)).map_err(rpc_err)?
+            }
+            None => Value::Null,
+        };
+        Ok::<Value, ErrorObjectOwned>(value)
+    })
+    .expect("register method");
+
+    // Import a full execution payload obtained from a peer engine during sync backfill. This is the
+    // ordinary `new_payload` validate-execute-commit path (the block extends the head, so it
+    // commits linearly); it exists as a distinct method only so the harness can transfer the whole
+    // `OpExecutionData` in one value rather than reconstructing the versioned `engine_newPayload`
+    // arguments.
+    m.register_method("optest_importBlock", |params, ctx, _| {
+        let data: OpExecutionData = params.one().map_err(rpc_err)?;
+        let status = lock(ctx).new_payload(data).map_err(rpc_err)?;
+        serde_json::to_value(status).map_err(rpc_err)
+    })
+    .expect("register method");
+
     // --- eth_ ---
 
     m.register_method("eth_chainId", |_params, ctx, _| {

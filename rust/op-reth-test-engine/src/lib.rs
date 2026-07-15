@@ -136,6 +136,13 @@ pub struct TestEngine {
     /// fork or flip back to a previously abandoned one — the reorg support op-node's
     /// derivation relies on.
     known_blocks: HashMap<B256, ExecutedBlock<OpPrimitives>>,
+    /// The head a forkchoice update asked for but could not reach, because it (or an ancestor)
+    /// is not yet known: the block the engine would be snap-syncing towards. Set whenever
+    /// [`forkchoice_updated`](Self::forkchoice_updated) reports `SYNCING`, cleared once an update
+    /// canonicalizes a head. A real op-geth EL fills this gap from its peers over devp2p; this
+    /// ephemeral engine has no p2p, so the Go action harness reads it (`optest_syncTarget`) and
+    /// copies the missing blocks in from the peer engine.
+    sync_target: Option<B256>,
 }
 
 impl TestEngine {
@@ -147,6 +154,7 @@ impl TestEngine {
             current: None,
             pending: HashMap::new(),
             known_blocks: HashMap::new(),
+            sync_target: None,
         })
     }
 
@@ -160,6 +168,7 @@ impl TestEngine {
             current: None,
             pending: HashMap::new(),
             known_blocks: HashMap::new(),
+            sync_target: None,
         }
     }
 
@@ -236,8 +245,13 @@ impl TestEngine {
             &self.known_blocks,
         )?;
         if !advanced {
+            // Record the head we could not reach so the Go harness (which stands in for the
+            // devp2p snap sync a real EL would run) knows to backfill towards it.
+            self.sync_target = Some(head);
             return Ok(ForkchoiceUpdated::from_status(PayloadStatusEnum::Syncing));
         }
+        // The head is canonical now, so there is nothing left to sync towards.
+        self.sync_target = None;
         // The head may have moved past (or away from) an earlier in-flight payload's parent; drop
         // it so a later get_payload for it reports UnknownPayloadId rather than re-sealing
         // a stale block.
@@ -291,6 +305,13 @@ impl TestEngine {
     /// it.
     pub fn get_payload(&self, id: PayloadId) -> Result<OpExecutionData> {
         self.in_flight.get(&id).ok_or(Error::UnknownPayloadId(id))?.get_payload(&self.chain)
+    }
+
+    /// The head a forkchoice update last reported `SYNCING` for and has not since resolved
+    /// (`optest_syncTarget`), or `None` when the engine is not behind. The Go harness reads this to
+    /// drive the block backfill that stands in for a real EL's devp2p snap sync.
+    pub const fn sync_target(&self) -> Option<B256> {
+        self.sync_target
     }
 
     /// Resolve an explicit id, falling back to the current payload; errors if neither is building.
