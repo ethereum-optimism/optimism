@@ -45,6 +45,23 @@ fn rpc_err(msg: impl std::fmt::Display) -> ErrorObjectOwned {
 /// go-ethereum's JSON-RPC error code for reverted `eth_call`/`eth_estimateGas` executions.
 const REVERT_ERR_CODE: i32 = 3;
 
+/// go-ethereum's engine-API error code for an unknown payload id (`engine.UnknownPayload`).
+/// op-node's build/seal path keys on exactly this code and remaps it to
+/// `apis.BuildErrCodeUnknownPayload`, so a generic engine error here would break the sequencer-API
+/// contract.
+const UNKNOWN_PAYLOAD_ERR_CODE: i32 = -38001;
+
+/// Map a `get_payload` error: an unknown payload id becomes go-ethereum's `-38001`; anything else
+/// is a generic engine error.
+fn get_payload_err(err: crate::Error) -> ErrorObjectOwned {
+    match &err {
+        crate::Error::UnknownPayloadId(_) => {
+            ErrorObjectOwned::owned(UNKNOWN_PAYLOAD_ERR_CODE, err.to_string(), None::<()>)
+        }
+        _ => rpc_err(err),
+    }
+}
+
 /// Map an engine error to a JSON-RPC error; a revert becomes geth's shape — code 3, a message
 /// carrying the ABI-decoded reason when there is one, and the raw output as error data (which
 /// go-ethereum clients read via `rpc.DataError`).
@@ -248,7 +265,7 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
     let register_get_payload = |m: &mut RpcModule<SharedEngine>, name: &'static str| {
         m.register_method(name, |params, ctx, _| {
             let id: PayloadId = params.one().map_err(rpc_err)?;
-            let data = lock(ctx).get_payload(id).map_err(rpc_err)?;
+            let data = lock(ctx).get_payload(id).map_err(get_payload_err)?;
             let envelope = OpExecutionPayloadEnvelope::try_from(data).map_err(rpc_err)?;
             serde_json::to_value(envelope).map_err(rpc_err)
         })

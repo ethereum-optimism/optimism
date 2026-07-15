@@ -317,6 +317,32 @@ mod tests {
     }
 
     #[test]
+    fn committed_payload_id_is_evicted() {
+        // Mirrors TestL2SequencerAPI: once a payload is committed and the head advances past its
+        // parent, re-sealing it (get_payload) must report UnknownPayloadId — op-node maps that code
+        // to BuildErrCodeUnknownPayload.
+        let mut engine = test_engine(user_sender());
+        let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
+
+        let updated = engine
+            .forkchoice_updated(fcu(genesis), Some(payload_attrs(2, vec![], false)))
+            .expect("fcu with attrs");
+        let id = updated.payload_id.expect("payload id returned");
+
+        // Sealing before the commit succeeds.
+        let data = engine.get_payload(id).expect("get payload before commit");
+        let status = engine.new_payload(data).expect("new payload");
+        assert!(status.is_valid(), "newPayload valid: {status:?}");
+
+        // The build job is gone once its parent is no longer the head.
+        let err = engine.get_payload(id).unwrap_err();
+        assert!(
+            matches!(err, Error::UnknownPayloadId(evicted) if evicted == id),
+            "expected UnknownPayloadId({id}), got {err:?}"
+        );
+    }
+
+    #[test]
     fn include_tx_reports_gas_and_updates_remaining() {
         let mut engine = test_engine(user_sender());
         let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();

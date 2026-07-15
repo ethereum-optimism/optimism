@@ -147,8 +147,12 @@ impl TestEngine {
     /// verifies the post-state root, and—on success—commits it as the new canonical head.
     /// Returns `VALID` (with the block hash as `latestValidHash`), `INVALID` (with the parent
     /// hash), or `SYNCING` when the parent block is unknown.
-    pub fn new_payload(&self, payload: OpExecutionData) -> Result<PayloadStatus> {
-        exec::import_payload(&self.chain, payload)
+    pub fn new_payload(&mut self, payload: OpExecutionData) -> Result<PayloadStatus> {
+        let status = exec::import_payload(&self.chain, payload)?;
+        // A committed payload advances the head, stranding any in-flight payload still open on the
+        // now-superseded parent.
+        self.evict_stale_in_flight();
+        Ok(status)
     }
 
     /// Update the forkchoice (`engine_forkchoiceUpdated`).
@@ -170,6 +174,9 @@ impl TestEngine {
         }
         // head is known, so this only fails on an unknown non-zero safe/finalized pointer.
         self.chain.advance_forkchoice(head, state.safe_block_hash, state.finalized_block_hash)?;
+        // The head may have moved past an earlier in-flight payload's parent; drop it so a later
+        // get_payload for it reports UnknownPayloadId rather than re-sealing a stale block.
+        self.evict_stale_in_flight();
 
         let valid =
             ForkchoiceUpdated::from_status(PayloadStatusEnum::Valid).with_latest_valid_hash(head);
@@ -231,6 +238,19 @@ impl TestEngine {
     /// Borrow the in-flight payload named by `id`, or the current one, if any.
     fn in_flight_ref(&self, id: Option<PayloadId>) -> Option<&InFlightPayload> {
         id.or(self.current).and_then(|id| self.in_flight.get(&id))
+    }
+
+    /// Drop in-flight payloads whose parent is no longer the canonical head.
+    ///
+    /// op-geth discards a build job once its parent stops being the head; a subsequent `getPayload`
+    /// for it then reports an unknown payload. Called on every head-advancing path (a committed
+    /// `new_payload`, a forkchoice update) so the same `getPayload` returns `UnknownPayloadId`.
+    fn evict_stale_in_flight(&mut self) {
+        let head = self.chain.latest_header().hash();
+        self.in_flight.retain(|_, payload| payload.parent_hash() == head);
+        if self.current.is_some_and(|id| !self.in_flight.contains_key(&id)) {
+            self.current = None;
+        }
     }
 
     /// Fetch a block by number, or `None` if unknown.
