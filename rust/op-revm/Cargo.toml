@@ -46,7 +46,7 @@ std = [
 	"serde_json/std",
 	"alloy-primitives/std",
 ]
-serde = ["dep:serde", "revm/serde", "alloy-primitives/serde"]
+serde = ["dep:serde", "revm/serde", "alloy-primitives/serde", "op-alloy-consensus/serde"]
 portable = ["revm/portable"]
 
 dev = [
