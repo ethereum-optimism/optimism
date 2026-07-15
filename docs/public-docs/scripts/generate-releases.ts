@@ -324,6 +324,7 @@ function generateComponentMdx(
     `sidebarTitle: "${component.label}"`,
     `description: "Release history for ${component.label}. ${component.description}."`,
     `rss: true`,
+    `diataxis: reference`,
     `---`,
     ``,
     AUTO_GENERATED_HEADER.trimEnd(),
