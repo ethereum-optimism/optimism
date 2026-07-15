@@ -403,8 +403,7 @@ where
         } else {
             // A non-tx error is not attributable to the transaction's validity: discard the tx's
             // journal changes and surface the error, regardless of tx type.
-            evm.ctx().journal_mut().discard_tx();
-            Err(error)
+            self.discard_and_surface_error(evm, error)
         };
 
         // do the cleanup
@@ -428,25 +427,35 @@ where
         evm: &mut EVM,
         error: ERROR,
     ) -> Result<ExecutionResult<OpHaltReason>, ERROR> {
-        match OpTxType::try_from(evm.ctx().tx().tx_type()) {
-            Ok(OpTxType::Deposit) => self.catch_error_failed_deposit(evm),
-            // Every non-deposit tx that errors (including post-exec, and any unsupported type byte,
-            // which `try_from` rejects) must have its journal changes discarded and its
-            // `transaction_id` advanced, as `EthHandler::catch_error` does upstream. Otherwise the
-            // failed tx's partial state and EIP-2929 warm/cold stamps persist in the shared journal
-            // and leak into the next tx executed on the same EVM.
-            Ok(
-                OpTxType::Legacy |
-                OpTxType::Eip2930 |
-                OpTxType::Eip1559 |
-                OpTxType::Eip7702 |
-                OpTxType::PostExec,
-            ) |
-            Err(_) => {
-                evm.ctx().journal_mut().discard_tx();
-                Err(error)
-            }
+        // An unsupported type byte can't be a deposit, so a `try_from` failure is handled as a
+        // non-deposit failure, the same as the non-deposit arm below.
+        let Ok(tx_type) = OpTxType::try_from(evm.ctx().tx().tx_type()) else {
+            return self.discard_and_surface_error(evm, error);
+        };
+
+        match tx_type {
+            OpTxType::Deposit => self.catch_error_failed_deposit(evm),
+            OpTxType::Legacy |
+            OpTxType::Eip2930 |
+            OpTxType::Eip1559 |
+            OpTxType::Eip7702 |
+            OpTxType::PostExec => self.discard_and_surface_error(evm, error),
         }
+    }
+
+    /// Discards a failed transaction's journal changes and surfaces `error`.
+    ///
+    /// The failed tx's changes must be discarded and its `transaction_id` advanced, as
+    /// `EthHandler::catch_error` does upstream. Otherwise the failed tx's partial state and
+    /// EIP-2929 warm/cold stamps persist in the shared journal and leak into the next tx executed
+    /// on the same EVM.
+    fn discard_and_surface_error(
+        &self,
+        evm: &mut EVM,
+        error: ERROR,
+    ) -> Result<ExecutionResult<OpHaltReason>, ERROR> {
+        evm.ctx().journal_mut().discard_tx();
+        Err(error)
     }
 
     /// Handles a failed deposit transaction. A deposit is never rejected: it still bumps the
