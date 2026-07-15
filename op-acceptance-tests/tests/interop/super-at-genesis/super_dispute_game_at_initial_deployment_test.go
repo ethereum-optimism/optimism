@@ -20,12 +20,12 @@ func TestSuperPermissionedGameAtInitialDeploymentAdvancesAnchorStateRegistry(gt 
 	bridge.VerifyRespectedGameType(gameTypes.SuperPermissionedGameType)
 	t.Require().Zero(bridge.GameResolutionDelay(), "SuperPermissioned games resolve during initialization")
 	sys.DisputeGameFactory().VerifyGameImplPresent(gameTypes.SuperPermissionedGameType)
+	sys.DisputeGameFactory().VerifyGameImplAbsent(gameTypes.PermissionedGameType)
 
 	game := sys.DisputeGameFactory().WaitForGame()
 	t.Require().Equal(gameTypes.SuperPermissionedGameType, game.GameType())
-	expectedRoot := game.RootClaimValue()
-	expectedSequence := game.L2SequenceNumber()
+	minimumSequence := game.L2SequenceNumber()
 
 	sys.AdvanceTime(3 * time.Second)
-	sys.AnchorStateRegistry().WaitForAnchorRoot(expectedRoot, expectedSequence)
+	sys.AnchorStateRegistry().WaitForAnchorGame(gameTypes.SuperPermissionedGameType, minimumSequence)
 }

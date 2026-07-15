@@ -7,6 +7,7 @@ import (
 )
 
 type AnchorStateRegistry struct {
+	AnchorGame    func() TypedCall[common.Address] `sol:"anchorGame"`
 	GetAnchorRoot func() TypedCall[struct {
 		Root             common.Hash
 		L2SequenceNumber *big.Int
