@@ -451,7 +451,8 @@ where
 
     /// Handles a failed deposit transaction. A deposit is never rejected: it still bumps the
     /// caller nonce, persists the mint, and is reported as a dedicated `FailedDeposit` halt so
-    /// consumers can distinguish it from a failed normal transaction.
+    /// consumers can distinguish it from a failed normal transaction. See the deposits spec:
+    /// <https://specs.optimism.io/protocol/deposits.html#execution>.
     fn catch_error_failed_deposit(
         &self,
         evm: &mut EVM,
